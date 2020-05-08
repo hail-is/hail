@@ -343,24 +343,6 @@ object PruneDeadFields {
             // don't memoize right if we are going to elide it during rebuild
             memoizeTableIR(left, requestedType, memo)
         }
-      case TableZipUnchecked(left, right) =>
-        val leftFieldSet = left.typ.rowType.fieldNames.toSet
-        val rightFieldSet = right.typ.rowType.fieldNames.toSet
-        if (requestedType.rowType.fieldNames.forall(f => !rightFieldSet.contains(f)))
-        // no dependence on right
-          memoizeTableIR(left, requestedType, memo)
-        else if (requestedType.rowType.fieldNames.forall(f => !leftFieldSet.contains(f)) && requestedType.globalType.size == 0)
-        // no dependence on left
-          memoizeTableIR(right, requestedType, memo)
-        else {
-          val leftRType = requestedType.copy(rowType = requestedType.rowType.filter(f => leftFieldSet.contains(f.name))._1)
-          val rightRType = TableType(
-            requestedType.rowType.filter(f => rightFieldSet.contains(f.name))._1,
-            FastIndexedSeq(),
-            TStruct.empty)
-          memoizeTableIR(left, leftRType, memo)
-          memoizeTableIR(right, rightRType, memo)
-        }
       case TableMultiWayZipJoin(children, fieldName, globalName) =>
         val gType = requestedType.globalType.fieldOption(globalName)
           .map(_.typ.asInstanceOf[TArray].elementType)
@@ -1434,13 +1416,6 @@ object PruneDeadFields {
         val rebuilt = children.map { c => rebuild(c, memo) }
         val upcasted = rebuilt.map { t => upcastTable(t, memo.requestedType.lookup(children(0)).asInstanceOf[TableType]) }
         TableMultiWayZipJoin(upcasted, fieldName, globalName)
-      case TableZipUnchecked(left, right) =>
-        if (!memo.requestedType.contains(right))
-          rebuild(left, memo)
-        else if (!memo.requestedType.contains(left))
-          rebuild(right, memo)
-        else
-          TableZipUnchecked(rebuild(left, memo), rebuild(right, memo))
       case TableAggregateByKey(child, expr) =>
         val child2 = rebuild(child, memo)
         TableAggregateByKey(child2, rebuildIR(expr, BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.rowEnv)), memo))
