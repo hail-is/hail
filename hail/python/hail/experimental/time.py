@@ -1,7 +1,7 @@
 import hail as hl
-from hail.expr.expressions.expression_typecheck import *
+from hail.expr.expressions import expr_str, expr_int64
 from hail.expr.functions import _func
-from hail.typecheck import *
+from hail.typecheck import typecheck
 
 
 @typecheck(format=expr_str,

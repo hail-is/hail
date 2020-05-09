@@ -20,7 +20,8 @@ from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinar
 from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter, BlockMatrixPersistWriter
 from hail.ir import ExportType
 from hail.table import Table
-from hail.typecheck import *
+from hail.typecheck import typecheck, typecheck_method, nullable, oneof, \
+    sliceof, sequenceof, lazy, enumeration, numeric, tupleof, func_spec
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env
 

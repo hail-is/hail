@@ -1,9 +1,8 @@
-
 import hail as hl
 from hail import Table
-from hail.typecheck import *
-from hail.expr.expressions import *
+from hail.typecheck import typecheck, nullable, oneof, sequenceof
 from hail.utils import wrap_to_list, new_temp_file
+
 
 @typecheck(ht=Table,
            key=str,
@@ -106,7 +105,6 @@ def spread(ht, field, value, key=None) -> Table:
     return ht
 
 
-
 @typecheck(ht=Table,
            field=str,
            into=sequenceof(str),
@@ -143,7 +141,7 @@ def separate(ht, field, into, delim) -> Table:
     Returns
     -------
     :class:`.Table`
-        Table with original ``field`` split into fields whose names are defined 
+        Table with original ``field`` split into fields whose names are defined
         by `into`."""
 
     if isinstance(delim, int):
@@ -158,4 +156,3 @@ def separate(ht, field, into, delim) -> Table:
     ht.write(ht_tmp)
 
     return ht
-

@@ -720,7 +720,7 @@ def agg_fields(tb, coef_dict=None, str_expr=None, axis='rows'):
            ref_coef_dict=nullable(dict),
            axis=str)
 def get_coef_dict(tb, str_expr=None, ref_coef_dict=None, axis='rows'):
-    r"""Gets either col or row fields matching `str_expr` and take intersection 
+    r"""Gets either col or row fields matching `str_expr` and take intersection
     with keys in coefficient reference dict.
 
     Parameters
@@ -833,6 +833,7 @@ def ascertainment_bias(mt, y, P):
         con = _clean_fields(con, uid)
         mt = con.union_cols(cas)
     return mt
+
 
 @typecheck(mt=MatrixTable,
            y=oneof(expr_int32,

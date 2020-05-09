@@ -1,7 +1,6 @@
-
 import hail as hl
-from hail.expr.expressions import *
-from hail.typecheck import *
+from hail.expr.expressions import expr_float64, expr_numeric, analyze
+from hail.typecheck import typecheck, oneof, sequenceof, nullable
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 from hail.utils import wrap_to_list, new_temp_file
@@ -327,9 +326,6 @@ def ld_score_regression(weight_expr,
     else:
         M = n_reference_panel_variants
 
-    # block variants for each phenotype
-    n_phenotypes = mt.count_cols()
-
     mt = mt.annotate_entries(__in_step1=(hl.is_defined(mt.__y) &
                                          (mt.__y < two_step_threshold)),
                              __in_step2=hl.is_defined(mt.__y))
@@ -374,7 +370,7 @@ def ld_score_regression(weight_expr,
     mt_tmp_file2 = new_temp_file()
     mt.write(mt_tmp_file2)
     mt = hl.read_matrix_table(mt_tmp_file2)
-    
+
     # initial coefficient estimates
     mt = mt.annotate_cols(__initial_betas=[
         1.0, (hl.agg.mean(mt.__y) - 1.0) / hl.agg.mean(mt.__x)])
@@ -526,5 +522,5 @@ def ld_score_regression(weight_expr,
     ht_tmp_file = new_temp_file()
     ht.write(ht_tmp_file)
     ht = hl.read_table(ht_tmp_file)
-    
+
     return ht
