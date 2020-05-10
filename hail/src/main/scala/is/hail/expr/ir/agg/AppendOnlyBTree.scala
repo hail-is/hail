@@ -30,7 +30,7 @@ trait BTreeKey {
     }
 }
 
-class AppendOnlyBTree(cb: EmitClassBuilder[_], key: BTreeKey, region: Value[Region], root: Settable[Long], maxElements: Int = 2) {
+class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Region], root: Settable[Long], maxElements: Int = 2) {
   private val splitIdx = maxElements / 2
   private val eltType: PTuple = PCanonicalTuple(false, key.storageType, PInt64(true))
   private val elementsType: PTuple = PCanonicalTuple(required = true, Array.fill[PType](maxElements)(eltType): _*)
@@ -74,7 +74,7 @@ class AppendOnlyBTree(cb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     }
 
   private val insert: EmitMethodBuilder[_] = {
-    val insertAt = cb.genEmitMethod("btree_insert", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Int], typeInfo[Boolean], key.compType.ti, typeInfo[Long]), typeInfo[Long])
+    val insertAt = kb.genEmitMethod("btree_insert", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Int], typeInfo[Boolean], key.compType.ti, typeInfo[Long]), typeInfo[Long])
     val node: Value[Long] = insertAt.getCodeParam[Long](1)
     val insertIdx: Value[Int] = insertAt.getCodeParam[Int](2)
     val km: Value[Boolean] = insertAt.getCodeParam[Boolean](3)
@@ -167,7 +167,7 @@ class AppendOnlyBTree(cb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
   }
 
   private val getF: EmitMethodBuilder[_] = {
-    val get = cb.genEmitMethod("btree_get", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Boolean], key.compType.ti), typeInfo[Long])
+    val get = kb.genEmitMethod("btree_get", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Boolean], key.compType.ti), typeInfo[Long])
     val node = get.getCodeParam[Long](1)
     val km = get.getCodeParam[Boolean](2)
     val kv = get.getCodeParam(3)(key.compType.ti)
@@ -200,27 +200,35 @@ class AppendOnlyBTree(cb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
   def getOrElseInitialize(km: Code[Boolean], kv: Code[_]): Code[Long] =
     getF.invokeCode(root, km, kv)
 
-  def foreach(visitor: Code[Long] => Code[Unit]): Code[Unit] = {
-    val f = cb.genEmitMethod("btree_foreach", FastIndexedSeq[ParamType](typeInfo[Long]), typeInfo[Unit])
+  def foreach(cb: EmitCodeBuilder)(visitor: (EmitCodeBuilder, Code[Long]) => Unit): Unit = {
+    val f = kb.genEmitMethod("btree_foreach", FastIndexedSeq[ParamType](typeInfo[Long]), typeInfo[Unit])
     val node = f.getCodeParam[Long](1)
     val i = f.newLocal[Int]("aobt_foreach_i")
 
-    f.emit(Code(
-      (!isLeaf(node)).orEmpty(f.invokeCode(loadChild(node, -1))),
-      i := 0,
-      Array.range(0, maxElements)
-        .foldRight(Code._empty) { (i, cont) =>
-          hasKey(node, i).orEmpty(
-            Code(
-              visitor(loadKey(node, i)),
-              (!isLeaf(node)).orEmpty(f.invokeCode(loadChild(node, i))),
-              cont))
-        }))
-    f.invokeCode(root)
+    f.emitWithBuilder { cb =>
+      cb.ifx(!isLeaf(node), {
+        cb += f.invokeCode(loadChild(node, -1))
+      })
+      cb.assign(i, 0)
+      val Lexit = CodeLabel()
+      (0 until maxElements).foreach { i =>
+        cb.ifx(hasKey(node, i), {
+          visitor(cb, loadKey(node, i))
+          cb.ifx(!isLeaf(node), {
+            cb += f.invokeCode(loadChild(node, i))
+          })
+        }, {
+          cb.goto(Lexit)
+        })
+      }
+      cb.define(Lexit)
+      Code._empty
+    }
+    cb += f.invokeCode(root)
   }
 
   val deepCopy: Code[Long] => Code[Unit] = {
-    val f = cb.genEmitMethod("btree_deepCopy", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Long]), typeInfo[Unit])
+    val f = kb.genEmitMethod("btree_deepCopy", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Long]), typeInfo[Unit])
     val destNode = f.getCodeParam[Long](1)
     val srcNode = f.getCodeParam[Long](2)
 
@@ -250,49 +258,70 @@ class AppendOnlyBTree(cb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     { srcRoot: Code[Long] => f.invokeCode(root, srcRoot) }
   }
 
-  def bulkStore(obCode: Code[OutputBuffer])(keyStore: (Value[OutputBuffer], Code[Long]) => Code[Unit]): Code[Unit] = {
-    val f = cb.genEmitMethod("btree_bulkStore", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[OutputBuffer]), typeInfo[Unit])
+  def bulkStore(cb: EmitCodeBuilder, obCode: Code[OutputBuffer]
+  )(keyStore: (EmitCodeBuilder, Value[OutputBuffer], Code[Long]) => Unit): Unit = {
+    val f = kb.genEmitMethod("btree_bulkStore", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[OutputBuffer]),
+      typeInfo[Unit])
     val node = f.getCodeParam[Long](1)
     val ob = f.getCodeParam[OutputBuffer](2)
 
-    f.emit(Code(
-      ob.writeBoolean(!isLeaf(node)),
-      (!isLeaf(node)).orEmpty(f.invokeCode(loadChild(node, -1), ob)),
-      Array.range(0, maxElements).foldRight(Code._empty) { (i, cont) =>
-        hasKey(node, i).mux(Code(
-          ob.writeBoolean(true),
-          keyStore(ob, loadKey(node, i)),
-          (!isLeaf(node)).orEmpty(f.invokeCode(loadChild(node, i), ob)),
-          cont),
-          ob.writeBoolean(false)) }))
-    f.invokeCode(root, obCode)
+    f.emitWithBuilder { cb =>
+      cb += ob.writeBoolean(!isLeaf(node))
+      cb.ifx(!isLeaf(node), {
+        cb += f.invokeCode(loadChild(node, -1), ob)
+      })
+      val Lexit = CodeLabel()
+      (0 until maxElements).foreach { i =>
+        cb.ifx(hasKey(node, i), {
+          cb += ob.writeBoolean(true)
+          keyStore(cb, ob, loadKey(node, i))
+          cb.ifx(!isLeaf(node), {
+            cb += f.invokeCode(loadChild(node, i), ob)
+          })
+        }, {
+          cb += ob.writeBoolean(false)
+          cb.goto(Lexit)
+        })
+      }
+      cb.define(Lexit)
+      Code._empty
+    }
+    cb += f.invokeCode(root, obCode)
   }
 
-  def bulkLoad(ibCode: Code[InputBuffer])(keyLoad: (Value[InputBuffer], Code[Long]) => Code[Unit]): Code[Unit] = {
-    val f = cb.genEmitMethod("btree_bulkLoad", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[InputBuffer]), typeInfo[Unit])
+  def bulkLoad(cb: EmitCodeBuilder, ibCode: Code[InputBuffer]
+  )(keyLoad: (EmitCodeBuilder, Value[InputBuffer], Code[Long]) => Unit): Unit = {
+    val f = kb.genEmitMethod("btree_bulkLoad", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[InputBuffer]),
+      typeInfo[Unit])
     val node = f.getCodeParam[Long](1)
     val ib = f.getCodeParam[InputBuffer](2)
     val newNode = f.newLocal[Long]()
     val isInternalNode = f.newLocal[Boolean]()
 
-    f.emit(Code(
-      isInternalNode := ib.readBoolean(),
-      isInternalNode.orEmpty(
-        Code(
-          createNode(newNode),
-          setChild(node, -1, newNode),
-          f.invokeCode(newNode, ib)
-      )),
-      Array.range(0, maxElements).foldRight(Code._empty) { (i, cont) =>
-        ib.readBoolean().orEmpty(Code(
-          setKeyPresent(node, i),
-          keyLoad(ib, keyOffset(node, i)),
-          isInternalNode.orEmpty(
-            Code(createNode(newNode),
-            setChild(node, i, newNode),
-            f.invokeCode(newNode, ib))),
-          cont))
-      }))
-    f.invokeCode(root, ibCode)
+    f.emitWithBuilder { cb =>
+      cb.assign(isInternalNode, ib.readBoolean())
+      cb.ifx(isInternalNode, {
+        cb += createNode(newNode)
+        cb += setChild(node, -1, newNode)
+        cb += f.invokeCode(newNode, ib)
+      })
+      val Lexit = CodeLabel()
+      (0 until maxElements).foreach { i =>
+        cb.ifx(ib.readBoolean(), {
+          cb += setKeyPresent(node, i)
+          keyLoad(cb, ib, keyOffset(node, i))
+          cb.ifx(isInternalNode, {
+            cb += createNode(newNode)
+            cb += setChild(node, i, newNode)
+            cb += f.invokeCode(newNode, ib)
+          })
+        }, {
+          cb.goto(Lexit)
+        })
+      }
+      cb.define(Lexit)
+      Code._empty
+    }
+    cb += f.invokeCode(root, ibCode)
   }
 }
