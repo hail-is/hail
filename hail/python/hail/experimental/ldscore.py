@@ -130,9 +130,9 @@ def ld_score(entry_expr,
                          mt == mt_coord_expr])
     else:
         check_mts = all([mt == mt_locus_expr,
-                         mt == mt_coord_expr] +
-                        [mt == x._indices.source
-                         for x in wrap_to_list(annotation_exprs)])
+                         mt == mt_coord_expr]
+                        + [mt == x._indices.source
+                           for x in wrap_to_list(annotation_exprs)])
 
     if not check_mts:
         raise ValueError("""ld_score: entry_expr, locus_expr, coord_expr

@@ -711,11 +711,11 @@ class BlockMatrix(object):
                 mt = mt.select_cols(**compute)
             compute = {
                 '__mean': mt['__sum'] / mt['__count'],
-                '__centered_length': hl.sqrt(mt['__sum_sq'] -
-                                             (mt['__sum'] ** 2) / mt['__count']),
-                '__length': hl.sqrt(mt['__sum_sq'] +
-                                    (n_elements - mt['__count']) *
-                                    ((mt['__sum'] / mt['__count']) ** 2))
+                '__centered_length': hl.sqrt(mt['__sum_sq']
+                                             - (mt['__sum'] ** 2) / mt['__count']),
+                '__length': hl.sqrt(mt['__sum_sq']
+                                    + (n_elements - mt['__count'])
+                                    * ((mt['__sum'] / mt['__count']) ** 2))
             }
             if axis == 'rows':
                 mt = mt.select_rows(**compute)

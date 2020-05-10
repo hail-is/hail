@@ -1197,8 +1197,8 @@ class Table(ExprContainer):
                       overwrite=bool,
                       stage_locally=bool,
                       _codec_spec=nullable(str))
-    def write(self, output: str, overwrite=False, stage_locally: bool=False,
-              _codec_spec: Optional[str]=None):
+    def write(self, output: str, overwrite=False, stage_locally: bool = False,
+              _codec_spec: Optional[str] = None):
         """Write to disk.
 
         Examples
@@ -1564,18 +1564,18 @@ class Table(ExprContainer):
             # FIXME: this should be OK: table[m.global_index_into_table]
             raise ExpressionException('Cannot index with a scalar expression')
 
-        is_interval = (len(exprs) == 1 and
-                       len(self.key) > 0 and
-                       isinstance(self.key[0].dtype, hl.tinterval) and
-                       exprs[0].dtype == self.key[0].dtype.point_type)
+        is_interval = (len(exprs) == 1
+                       and len(self.key) > 0
+                       and isinstance(self.key[0].dtype, hl.tinterval)
+                       and exprs[0].dtype == self.key[0].dtype.point_type)
 
         if not types_match(list(self.key.values()), list(exprs)):
-            if (len(exprs) == 1 and
-                    isinstance(exprs[0], TupleExpression)):
+            if (len(exprs) == 1
+                    and isinstance(exprs[0], TupleExpression)):
                 return self._index(*exprs[0], all_matches=all_matches)
 
-            if (len(exprs) == 1 and
-                    isinstance(exprs[0], StructExpression)):
+            if (len(exprs) == 1
+                    and isinstance(exprs[0], StructExpression)):
                 return self._index(*exprs[0].values(), all_matches=all_matches)
 
             if not is_interval:
@@ -2395,8 +2395,8 @@ class Table(ExprContainer):
 
         if renames:
             right = right.rename(renames)
-            info(f'Table.join: renamed the following fields on the right to avoid name conflicts:' +
-                 ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items()))
+            info(f'Table.join: renamed the following fields on the right to avoid name conflicts:'
+                 + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items()))
 
         return Table(ir.TableJoin(self._tir, right._tir, how, len(self.key)))
 
@@ -3253,7 +3253,7 @@ class Table(ExprContainer):
 
         return True
 
-    def collect_by_key(self, name: str='values') -> 'Table':
+    def collect_by_key(self, name: str = 'values') -> 'Table':
         """Collect values for each unique key into an array.
 
         .. include:: _templates/req_keyed_table.rst

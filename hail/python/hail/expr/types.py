@@ -1126,9 +1126,9 @@ class tstruct(HailType, Mapping):
         return {f: t._convert_to_json_na(x[f]) for f, t in self.items()}
 
     def _is_prefix_of(self, other):
-        return (isinstance(other, tstruct) and
-                len(self._fields) <= len(other._fields) and
-                all(x == y for x, y in zip(self._field_types.values(), other._field_types.values())))
+        return (isinstance(other, tstruct)
+                and len(self._fields) <= len(other._fields)
+                and all(x == y for x, y in zip(self._field_types.values(), other._field_types.values())))
 
     def _concat(self, other):
         new_field_types = {}

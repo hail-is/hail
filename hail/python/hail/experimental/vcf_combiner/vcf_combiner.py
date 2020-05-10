@@ -64,7 +64,7 @@ _as_function_map = {
 
 def parse_as_fields(info, has_non_ref):
     return hl.struct(**{f: info[f] if f not in _as_function_map
-    else _as_function_map[f](info[f], has_non_ref) for f in info})
+                        else _as_function_map[f](info[f], has_non_ref) for f in info})
 
 
 def localize(mt):
@@ -191,11 +191,11 @@ def combine(ts):
                                     _num_allele_type(r, a),
                                     lambda at:
                                     hl.cond(
-                                        (_allele_ints['SNP'] == at) |
-                                        (_allele_ints['Insertion'] == at) |
-                                        (_allele_ints['Deletion'] == at) |
-                                        (_allele_ints['MNP'] == at) |
-                                        (_allele_ints['Complex'] == at),
+                                        (_allele_ints['SNP'] == at)
+                                        | (_allele_ints['Insertion'] == at)
+                                        | (_allele_ints['Deletion'] == at)
+                                        | (_allele_ints['MNP'] == at)
+                                        | (_allele_ints['Complex'] == at),
                                         a + ref[hl.len(r):],
                                         a)))))),
                 lambda lal:
