@@ -600,9 +600,51 @@ def histogram2d(x: NumericExpression,
     -------
     :class:`bokeh.plotting.figure.Figure`
     """
+    data = _generate_hist2d_data(x, y, bins, range).to_pandas()
+
+    # Use python prettier float -> str function
+    data['x'] = data['x'].apply(lambda e: str(float(e)))
+    data['y'] = data['y'].apply(lambda e: str(float(e)))
+
+    if log:
+        mapper = LogColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
+    else:
+        mapper = LinearColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
+
+    x_axis = sorted(set(data.x), key=lambda z: float(z))
+    y_axis = sorted(set(data.y), key=lambda z: float(z))
+    p = figure(title=title,
+               x_range=x_axis, y_range=y_axis,
+               x_axis_location="above", plot_width=width, plot_height=height,
+               tools="hover,save,pan,box_zoom,reset,wheel_zoom", toolbar_location='below')
+
+    p.grid.grid_line_color = None
+    p.axis.axis_line_color = None
+    p.axis.major_tick_line_color = None
+    p.axis.major_label_standoff = 0
+    import math
+    p.xaxis.major_label_orientation = math.pi / 3
+
+    p.rect(x='x', y='y', width=1, height=1,
+           source=data,
+           fill_color={'field': 'c', 'transform': mapper},
+           line_color=None)
+
+    color_bar = ColorBar(color_mapper=mapper,
+                         ticker=LogTicker(desired_num_ticks=len(colors)) if log else BasicTicker(desired_num_ticks=len(colors)),
+                         label_standoff= 12 if log else 6, border_line_color=None, location=(0, 0))
+    p.add_layout(color_bar, 'right')
+
+    p.select_one(HoverTool).tooltips = [('x', '@x'), ('y', '@y',), ('count', '@c')]
+    return p
+
+
+@typecheck(x=expr_numeric, y=expr_numeric, bins=oneof(int, sequenceof(int)),
+           range=nullable(sized_tupleof(nullable(sized_tupleof(numeric, numeric)),
+                                        nullable(sized_tupleof(numeric, numeric)))))
+def _generate_hist2d_data(x, y, bins, range):
     source = x._indices.source
     y_source = y._indices.source
-
     if source is None or y_source is None:
         raise ValueError("histogram_2d expects two expressions of 'Table', found scalar expression")
     if isinstance(source, hail.MatrixTable):
@@ -641,49 +683,13 @@ def histogram2d(x: NumericExpression,
 
     x_levels = hail.literal(list(frange(x_range[0], x_range[1], x_spacing))[::-1])
     y_levels = hail.literal(list(frange(y_range[0], y_range[1], y_spacing))[::-1])
-
     grouped_ht = source.group_by(
         x=hail.str(x_levels.find(lambda w: x >= w)),
         y=hail.str(y_levels.find(lambda w: y >= w))
     ).aggregate(c=hail.agg.count())
     data = grouped_ht.filter(hail.is_defined(grouped_ht.x) & (grouped_ht.x != str(x_range[1])) &
-                             hail.is_defined(grouped_ht.y) & (grouped_ht.y != str(y_range[1]))).to_pandas()
-
-    # Use python prettier float -> str function
-    data['x'] = data['x'].apply(lambda e: str(float(e)))
-    data['y'] = data['y'].apply(lambda e: str(float(e)))
-
-    if log:
-        mapper = LogColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
-    else:
-        mapper = LinearColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
-
-    x_axis = sorted(set(data.x), key=lambda z: float(z))
-    y_axis = sorted(set(data.y), key=lambda z: float(z))
-    p = figure(title=title,
-               x_range=x_axis, y_range=y_axis,
-               x_axis_location="above", plot_width=width, plot_height=height,
-               tools="hover,save,pan,box_zoom,reset,wheel_zoom", toolbar_location='below')
-
-    p.grid.grid_line_color = None
-    p.axis.axis_line_color = None
-    p.axis.major_tick_line_color = None
-    p.axis.major_label_standoff = 0
-    import math
-    p.xaxis.major_label_orientation = math.pi / 3
-
-    p.rect(x='x', y='y', width=1, height=1,
-           source=data,
-           fill_color={'field': 'c', 'transform': mapper},
-           line_color=None)
-
-    color_bar = ColorBar(color_mapper=mapper,
-                         ticker=LogTicker(desired_num_ticks=len(colors)) if log else BasicTicker(desired_num_ticks=len(colors)),
-                         label_standoff= 12 if log else 6, border_line_color=None, location=(0, 0))
-    p.add_layout(color_bar, 'right')
-
-    p.select_one(HoverTool).tooltips = [('x', '@x'), ('y', '@y',), ('count', '@c')]
-    return p
+                             hail.is_defined(grouped_ht.y) & (grouped_ht.y != str(y_range[1])))
+    return data
 
 
 def _collect_scatter_plot_data(
