@@ -146,9 +146,9 @@ def autodoc_skip_member(app, what, name, obj, skip, options):
 
     cls = get_class_that_defined_method(obj)
 
-    exclude = (name in exclusions or
-               (name.startswith('_') and not has_docstring(obj)) or
-               (cls and cls.__name__ in excluded_classes))
+    exclude = (name in exclusions
+               or (name.startswith('_') and not has_docstring(obj))
+               or (cls and cls.__name__ in excluded_classes))
 
     return exclude
 

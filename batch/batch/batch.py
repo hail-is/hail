@@ -261,8 +261,8 @@ async def unschedule_job(app, record):
                 await instance.mark_healthy()
                 break
         except Exception as e:
-            if (isinstance(e, aiohttp.ClientResponseError) and
-                    e.status == 404):  # pylint: disable=no-member
+            if (isinstance(e, aiohttp.ClientResponseError)
+                    and e.status == 404):  # pylint: disable=no-member
                 await instance.mark_healthy()
                 break
             else:

@@ -247,11 +247,11 @@ def is_transient_error(e):
         # 408 request timeout, 500 internal server error, 502 bad gateway
         # 503 service unavailable, 504 gateway timeout
         return True
-    if isinstance(e, aiohttp.ClientOSError) and (
-            e.errno == errno.ETIMEDOUT or
-            e.errno == errno.ECONNREFUSED or
-            e.errno == errno.EHOSTUNREACH or
-            e.errno == errno.ECONNRESET):
+    if (isinstance(e, aiohttp.ClientOSError)
+            and (e.errno == errno.ETIMEDOUT
+                 or e.errno == errno.ECONNREFUSED
+                 or e.errno == errno.EHOSTUNREACH
+                 or e.errno == errno.ECONNRESET)):
         return True
     if isinstance(e, aiohttp.ServerTimeoutError):
         return True
@@ -261,11 +261,11 @@ def is_transient_error(e):
         return True
     if isinstance(e, aiohttp.client_exceptions.ClientConnectorError):
         return is_transient_error(e.os_error)
-    if isinstance(e, OSError) and (
-            e.errno == errno.ETIMEDOUT or
-            e.errno == errno.ECONNREFUSED or
-            e.errno == errno.EHOSTUNREACH or
-            e.errno == errno.ECONNRESET):
+    if (isinstance(e, OSError)
+            and (e.errno == errno.ETIMEDOUT
+                 or e.errno == errno.ECONNREFUSED
+                 or e.errno == errno.EHOSTUNREACH
+                 or e.errno == errno.ECONNRESET)):
         return True
     if isinstance(e, urllib3.exceptions.ReadTimeoutError):
         return True

@@ -35,9 +35,9 @@ def cost_from_msec_mcpu(app, msec_mcpu):
     service_cost_per_core_hour = 0.01
 
     total_cost_per_core_hour = (
-        cpu_cost_per_core_hour +
-        instance_cost_per_instance_hour / worker_cores +
-        service_cost_per_core_hour)
+        cpu_cost_per_core_hour
+        + instance_cost_per_instance_hour / worker_cores
+        + service_cost_per_core_hour)
 
     return (msec_mcpu * 0.001 * 0.001) * (total_cost_per_core_hour / 3600)
 

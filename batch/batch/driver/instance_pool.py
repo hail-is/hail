@@ -134,8 +134,8 @@ SET max_instances = %s, pool_size = %s;
         self.instances_by_last_updated.add(instance)
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
-        if (instance.state == 'active' and
-                instance.failed_request_count <= 1):
+        if (instance.state == 'active'
+                and instance.failed_request_count <= 1):
             self.healthy_instances_by_free_cores.add(instance)
 
     def add_instance(self, instance):
@@ -429,8 +429,8 @@ FROM ready_cores;
                 if ready_cores_mcpu > 0 and free_cores < 500:
                     n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
                     instances_needed = (
-                        (ready_cores_mcpu - self.live_free_cores_mcpu + (self.worker_cores * 1000) - 1) //
-                        (self.worker_cores * 1000))
+                        (ready_cores_mcpu - self.live_free_cores_mcpu + (self.worker_cores * 1000) - 1)
+                        // (self.worker_cores * 1000))
                     instances_needed = min(instances_needed,
                                            self.pool_size - n_live_instances,
                                            self.max_instances - self.n_instances,
@@ -469,9 +469,9 @@ FROM ready_cores;
             log.info(f'{instance} live but stopping or terminated, deactivating')
             await instance.deactivate('terminated')
 
-        if (gce_state in ('STAGING', 'RUNNING') and
-                instance.state == 'pending' and
-                time_msecs() - instance.time_created > 5 * 60 * 1000):
+        if (gce_state in ('STAGING', 'RUNNING')
+                and instance.state == 'pending'
+                and time_msecs() - instance.time_created > 5 * 60 * 1000):
             # FIXME shouldn't count time in PROVISIONING
             log.info(f'{instance} did not activate within 5m, deleting')
             await self.call_delete_instance(instance, 'activation_timeout')
