@@ -2640,6 +2640,12 @@ class Tests(unittest.TestCase):
         li_parsed = hl.parse_locus_interval('(1:20-20)', invalid_missing=True)
         self.assertTrue(hl.eval(li_parsed) is None)
 
+    def test_locus_window_type(self):
+        locus = hl.parse_locus('chr16:1231231', reference_genome='GRCh38')
+        assert locus.dtype.reference_genome.name == 'GRCh38'
+        i = locus.window(10, 10)
+        assert i.dtype.point_type.reference_genome.name == 'GRCh38'
+
     def test_reference_genome_fns(self):
         self.assertTrue(hl.eval(hl.is_valid_contig('1', 'GRCh37')))
         self.assertFalse(hl.eval(hl.is_valid_contig('chr1', 'GRCh37')))

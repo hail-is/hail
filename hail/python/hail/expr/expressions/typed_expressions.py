@@ -3325,9 +3325,10 @@ class LocusExpression(Expression):
         :class:`.IntervalExpression`
         """
         start_pos = hl.max(1, self.position - before)
-        end_pos = hl.min(hl.contig_length(self.contig, self.dtype.reference_genome), self.position + after)
-        return hl.interval(start=hl.locus(self.contig, start_pos),
-                           end=hl.locus(self.contig, end_pos),
+        rg = self.dtype.reference_genome
+        end_pos = hl.min(hl.contig_length(self.contig, rg), self.position + after)
+        return hl.interval(start=hl.locus(self.contig, start_pos, reference_genome=rg),
+                           end=hl.locus(self.contig, end_pos, reference_genome=rg),
                            includes_start=True,
                            includes_end=True)
 
