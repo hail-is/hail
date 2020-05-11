@@ -108,7 +108,7 @@ object IRFunctionRegistry {
     returnType: Type,
     typeParameters: Seq[Type],
     valueParameterTypes: Seq[Type]
-  ): IRFunction = {
+  ): JVMFunction = {
     jvmRegistry.lift(name) match {
       case None =>
         fatal(s"no functions found with the name ${name}")
