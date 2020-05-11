@@ -271,7 +271,7 @@ class NDArrayCoercer(ExprCoercer):
         return isinstance(t, tndarray) and self.ec.can_coerce(t.element_type)
 
     def _coerce(self, x: Expression):
-        assert isinstance(x, hl.expr.NDArrayExpression)
+        assert isinstance(x, hl.expr.expressions.NDArrayExpression)
         return hl.map(lambda x_: self.ec.coerce(x_), x)
 
 
