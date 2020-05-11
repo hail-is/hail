@@ -47,12 +47,12 @@ class Trio(object):
             str(self.mat_id), str(self.is_female))
 
     def __eq__(self, other):
-        return (isinstance(other, Trio) and 
-            self._s == other._s and
-            self._mat_id == other._mat_id and
-            self._pat_id == other._pat_id and 
-            self._fam_id == other._fam_id and
-            self._is_female == other._is_female)
+        return (isinstance(other, Trio)
+                and self._s == other._s
+                and self._mat_id == other._mat_id
+                and self._pat_id == other._pat_id
+                and self._fam_id == other._fam_id
+                and self._is_female == other._is_female)
 
     def __hash__(self):
         return hash((self._s, self._pat_id, self._mat_id, self._fam_id, self._is_female))

@@ -358,6 +358,11 @@ case class TextTableReader(params: TextTableReaderParameters, metadata: TextTabl
 
   lazy val fullType: TableType = metadata.fullType
 
+  def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
+    PType.canonical(requestedType.rowType, required = true).asInstanceOf[PStruct] ->
+      PCanonicalStruct.empty(required = true)
+  }
+
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     HailContext.maybeGZipAsBGZip(ctx.fs, params.forceBGZ) {
       apply1(tr, ctx)
@@ -368,7 +373,7 @@ case class TextTableReader(params: TextTableReaderParameters, metadata: TextTabl
     val rowTyp = tr.typ.rowType
     val nFieldOrig = fullType.rowType.size
     val rowFields = rowTyp.fields
-    val rowPType = PType.canonical(rowTyp).setRequired(true).asInstanceOf[PStruct]
+    val rowPTyp = rowAndGlobalPTypes(ctx, tr.typ)._1
 
     val useColIndices = rowTyp.fields.map(f => fullType.rowType.fieldIdx(f.name))
 
@@ -388,7 +393,7 @@ case class TextTableReader(params: TextTableReaderParameters, metadata: TextTabl
           if (sp.length != nFieldOrig)
             fatal(s"expected $nFieldOrig fields, but found ${ sp.length } fields")
 
-          rvb.start(rowPType)
+          rvb.start(rowPTyp)
           rvb.startStruct()
 
           var i = 0
@@ -416,7 +421,7 @@ case class TextTableReader(params: TextTableReaderParameters, metadata: TextTabl
       }
     }
 
-    TableValue(ctx, tr.typ, BroadcastRow.empty(ctx), RVD.unkeyed(rowPType, crdd))
+    TableValue(ctx, tr.typ, BroadcastRow.empty(ctx), RVD.unkeyed(rowPTyp, crdd))
   }
 
   override def toJValue: JValue = {

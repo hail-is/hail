@@ -4,6 +4,7 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.rvd.RVDPartitioner
 import is.hail.utils._
@@ -428,6 +429,35 @@ class TableIRSuite extends HailSuite {
     }
   }
 
+  @Test def testTableTail(): Unit = {
+    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
+    val numRowsToTakeArray = Array(0, 2, 7, 10, 12)
+    val numInitialPartitionsArray = Array(1, 3, 6, 10, 13)
+    val initialDataLength = 10
+    def makeData(length: Int): Row = {
+      Row(FastIndexedSeq((initialDataLength - length) until initialDataLength: _*).map(i => Row(i, "row" + i)), Row("global"))
+    }
+    val initialData = makeData(initialDataLength)
+
+
+    numRowsToTakeArray.foreach { howManyRowsToTake =>
+      val headData = makeData(Math.min(howManyRowsToTake, initialDataLength))
+      numInitialPartitionsArray.foreach { howManyInitialPartitions =>
+        assertEvalsTo(
+          collectNoKey(
+            TableTail(
+              TableParallelize(
+                Literal(t, initialData),
+                Some(howManyInitialPartitions)
+              ),
+              howManyRowsToTake
+            )
+          ),
+          headData)
+      }
+    }
+  }
+
 
   @Test def testShuffleAndJoinDoesntMemoryLeak() {
     implicit val execStrats = ExecStrategy.interpretOnly
@@ -515,6 +545,8 @@ class TableIRSuite extends HailSuite {
       override def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???
 
       override def partitionCounts: Option[IndexedSeq[Long]] = Some(FastIndexedSeq(1, 2, 3, 4))
+
+      def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = ???
 
       override def fullType: TableType = TableType(TStruct.empty, FastIndexedSeq(), TStruct.empty)
     }

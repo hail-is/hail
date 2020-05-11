@@ -2651,10 +2651,10 @@ def is_transversion(ref, alt) -> BooleanExpression:
 @udf(tstr, tstr)
 def _is_snp_transition(ref, alt) -> BooleanExpression:
     indices = hl.range(0, ref.length())
-    return hl.any(lambda i: ((ref[i] != alt[i]) & (((ref[i] == 'A') & (alt[i] == 'G')) |
-                                                   ((ref[i] == 'G') & (alt[i] == 'A')) |
-                                                   ((ref[i] == 'C') & (alt[i] == 'T')) |
-                                                   ((ref[i] == 'T') & (alt[i] == 'C')))), indices)
+    return hl.any(lambda i: ((ref[i] != alt[i]) & (((ref[i] == 'A') & (alt[i] == 'G'))
+                                                   | ((ref[i] == 'G') & (alt[i] == 'A'))
+                                                   | ((ref[i] == 'C') & (alt[i] == 'T'))
+                                                   | ((ref[i] == 'T') & (alt[i] == 'C')))), indices)
 
 @typecheck(ref=expr_str, alt=expr_str)
 def is_insertion(ref, alt) -> BooleanExpression:
@@ -2725,8 +2725,8 @@ def is_indel(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return hl.bind(lambda t: (t == _allele_ints["Insertion"]) |
-                             (t == _allele_ints["Deletion"]),
+    return hl.bind(lambda t: (t == _allele_ints["Insertion"])
+                   | (t == _allele_ints["Deletion"]),
                    _num_allele_type(ref, alt))
 
 
@@ -5254,8 +5254,8 @@ def uniroot(f: Callable, min, max, *, max_iter=1000, epsilon=2.2204460492503131e
         pq = cond(
             a == c,
             (cb * t1) / (t1 - 1.0),  # linear
-            -t2 * (cb * q1 * (q1 - t1) - (b-a)*(t1 - 1.0)) /
-            ((q1 - 1.0) * (t1 - 1.0) * (t2 - 1.0)))  # quadratic
+            -t2 * (cb * q1 * (q1 - t1) - (b-a)*(t1 - 1.0))
+            / ((q1 - 1.0) * (t1 - 1.0) * (t2 - 1.0)))  # quadratic
 
         interpolated = cond((sign(pq) == sign(cb))
                             & (.75 * abs(cb) > abs(pq) + tol / 2)  # b + pq within [b, c]

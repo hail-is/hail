@@ -1,5 +1,5 @@
 import hail as hl
-from hail.typecheck import *
+from hail.typecheck import typecheck
 
 
 @typecheck(mt=hl.MatrixTable, path=str, batch_size=int, bgzip=bool, header_json_in_file=bool, use_string_key_as_file_name=bool)

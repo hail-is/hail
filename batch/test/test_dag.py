@@ -137,9 +137,13 @@ def test_callback(client):
                 break
         callback_body = callback_body[0]
 
-        # verify msec_mcpu, cost present
+        # verify required fields present
         callback_body.pop('cost')
         callback_body.pop('msec_mcpu')
+        callback_body.pop('time_created')
+        callback_body.pop('time_closed')
+        callback_body.pop('time_completed')
+        callback_body.pop('duration')
         assert (callback_body == {
             'id': b.id,
             'billing_project': 'test',

@@ -124,6 +124,14 @@ package object ir {
     Let(ref.name, v, body(ref))
   }
 
+  def maxIR(a: IR, b: IR): IR = {
+    If(a > b, a, b)
+  }
+
+  def minIR(a: IR, b: IR): IR = {
+    If(a < b, a, b)
+  }
+
   def mapIR(stream: IR)(f: Ref => IR): IR = {
     val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
     StreamMap(stream, ref.name, f(ref))

@@ -282,8 +282,8 @@ class PR(Code):
     def github_status_from_build_state(self):
         if self.build_state == 'failure' or self.build_state == 'error':
             return 'failure'
-        if (self.build_state == 'success' and
-                self.batch.attributes['target_sha'] == self.target_branch.sha):
+        if (self.build_state == 'success'
+                and self.batch.attributes['target_sha'] == self.target_branch.sha):
             return 'success'
         return 'pending'
 
@@ -487,8 +487,8 @@ mkdir -p {shq(repo_dir)}
         if not await self.authorized(dbpool):
             return
 
-        if (not self.batch or
-                (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha)):
+        if (not self.batch
+                or (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha)):
 
             if on_deck or self.target_branch.n_running_batches < 8:
                 self.target_branch.n_running_batches += 1
@@ -499,10 +499,10 @@ mkdir -p {shq(repo_dir)}
         return self.batch is not None and self.target_branch.sha == self.batch.attributes['target_sha']
 
     def is_mergeable(self):
-        return (self.review_state == 'approved' and
-                self.build_state == 'success' and
-                self.is_up_to_date() and
-                all(label not in DO_NOT_MERGE for label in self.labels))
+        return (self.review_state == 'approved'
+                and self.build_state == 'success'
+                and self.is_up_to_date()
+                and all(label not in DO_NOT_MERGE for label in self.labels))
 
     async def merge(self, gh):
         try:
@@ -712,8 +712,8 @@ url: {url}
         if not self.sha:
             return
 
-        if (self.deploy_batch is None or
-                (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha)):
+        if (self.deploy_batch is None
+                or (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha)):
             async with repos_lock:
                 await self._start_deploy(batch_client)
 
@@ -737,8 +737,8 @@ url: {url}
         for pr in self.prs.values():
             # merge candidate if up-to-date build passing, or
             # pending but haven't failed
-            if (pr.review_state == 'approved' and
-                    (pr.build_state == 'success' or not pr.source_sha_failed)):
+            if (pr.review_state == 'approved'
+                    and (pr.build_state == 'success' or not pr.source_sha_failed)):
                 pri = pr.merge_priority()
                 is_authorized = await pr.authorized(dbpool)
                 if is_authorized and (not merge_candidate or pri > merge_candidate_pri):

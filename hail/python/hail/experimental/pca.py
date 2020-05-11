@@ -1,6 +1,7 @@
 import hail as hl
-from hail.typecheck import *
-from hail.expr.expressions import *
+from hail.typecheck import typecheck
+from hail.expr.expressions import expr_call, expr_numeric, expr_array, \
+    check_entry_indexed, check_row_indexed
 
 
 @typecheck(call_expr=expr_call,

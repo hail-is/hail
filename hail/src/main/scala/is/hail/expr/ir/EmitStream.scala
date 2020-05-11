@@ -1235,7 +1235,7 @@ object EmitStream {
 
         case x@RunAggScan(array, name, init, seqs, result, _) =>
           val aggs = x.physicalSignatures
-          val (newContainer, aggSetup, aggCleanup) = AggContainer.fromClassBuilder(aggs, mb.ecb, "array_agg_scan")
+          val (newContainer, aggSetup, aggCleanup) = AggContainer.fromMethodBuilder(aggs, mb, "array_agg_scan")
 
           val eltType = coerce[PStream](array.pType).elementType
 

@@ -1,7 +1,6 @@
-from hail.expr.expressions import *
-from hail.expr.expressions.expression_typecheck import *
-from hail.expr.types import *
-from hail.typecheck import *
+from hail.expr.expressions import expr_int32, expr_array, ArrayExpression
+from hail.expr.types import tfloat64, tarray
+from hail.typecheck import typecheck
 from hail.expr.functions import _func
 
 

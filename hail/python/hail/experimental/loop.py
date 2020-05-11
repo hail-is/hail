@@ -1,11 +1,11 @@
 from typing import Callable
 
-import hail as hl
 import hail.ir as ir
 from hail.expr.expressions import construct_variable, construct_expr, expr_any, to_expr, unify_all
 from hail.expr.types import hail_type
 from hail.typecheck import anytype, typecheck
 from hail.utils.java import Env
+
 
 @typecheck(f=anytype, typ=hail_type, args=expr_any)
 def loop(f: Callable, typ, *args):

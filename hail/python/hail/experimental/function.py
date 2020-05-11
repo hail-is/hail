@@ -5,6 +5,7 @@ from hail.expr.types import hail_type
 from hail.expr.expressions import construct_expr, anytype, expr_any, unify_all
 from hail.typecheck import typecheck, nullable, tupleof
 
+
 class Function(object):
     def __init__(self, f, param_types, ret_type, name, type_args=()):
         self._f = f

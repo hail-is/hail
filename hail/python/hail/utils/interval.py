@@ -1,5 +1,4 @@
-from hail.typecheck import *
-from hail.utils.java import *
+from hail.typecheck import typecheck_method, lazy, nullable, anytype
 from hail.expr.types import hail_type
 import hail as hl
 
@@ -202,5 +201,6 @@ class Interval(object):
         """
 
         return hl.eval(hl.literal(self, hl.tinterval(self._point_type)).overlaps(interval))
+
 
 interval_type.set(Interval)

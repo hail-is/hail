@@ -126,7 +126,11 @@ class FunctionSuite extends HailSuite {
       i := i + 6
     )
 
-    fb.emit(Code(i := 0, fb.wrapVoids(codes, "foo", 2), i))
+    fb.emitWithBuilder { cb =>
+      cb.assign(i, 0)
+      fb.wrapVoids(cb, codes.map(x => (cb: EmitCodeBuilder) => cb += x), "foo", 2)
+      i
+    }
     Region.smallScoped { r =>
       assert(fb.resultWithIndex().apply(0, r).apply() == 21)
 
@@ -138,16 +142,21 @@ class FunctionSuite extends HailSuite {
     val i = fb.newLocal[Int]()
     val j = fb.genFieldThisRef[Int]()
 
-    val codes = Array[Seq[Code[_]] => Code[Unit]](
-      { case Seq(ii: Code[Int@unchecked]) => j := j + const(1) * ii },
-      { case Seq(ii: Code[Int@unchecked]) => j := j + const(2) * ii },
-      { case Seq(ii: Code[Int@unchecked]) => j := j + const(3) * ii },
-      { case Seq(ii: Code[Int@unchecked]) => j := j + const(4) * ii },
-      { case Seq(ii: Code[Int@unchecked]) => j := j + const(5) * ii },
-      { case Seq(ii: Code[Int@unchecked]) => j := j + const(6) * ii }
+    val codes = Array[(EmitCodeBuilder, Seq[Code[_]]) => Unit](
+      { case (cb, Seq(ii: Code[Int@unchecked])) => cb += (j := j + const(1) * ii) },
+      { case (cb, Seq(ii: Code[Int@unchecked])) => cb += (j := j + const(2) * ii) },
+      { case (cb, Seq(ii: Code[Int@unchecked])) => cb += (j := j + const(3) * ii) },
+      { case (cb, Seq(ii: Code[Int@unchecked])) => cb += (j := j + const(4) * ii) },
+      { case (cb, Seq(ii: Code[Int@unchecked])) => cb += (j := j + const(5) * ii) },
+      { case (cb, Seq(ii: Code[Int@unchecked])) => cb += (j := j + const(6) * ii) }
     )
 
-    fb.emit(Code(j := 0, i := 1, fb.wrapVoidsWithArgs(codes, "foo", Array(IntInfo), Array(i.load()), 2), j))
+    fb.emitWithBuilder { cb =>
+      cb.assign(j, 0)
+      cb.assign(i, 1)
+      fb.wrapVoidsWithArgs(cb, codes, "foo", Array(IntInfo), Array(i.load()), 2)
+      j
+    }
     Region.smallScoped { r =>
       assert(fb.resultWithIndex().apply(0, r).apply() == 21)
     }

@@ -148,7 +148,7 @@ async def close_batch(request):
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
 
-    record = db.select_and_fetchone(
+    record = await db.select_and_fetchone(
         '''
 SELECT state FROM batches WHERE user = %s AND id = %s;
 ''',

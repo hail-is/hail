@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.expr.Nat
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.RVD
@@ -95,6 +96,8 @@ class PruneSuite extends HailSuite {
     def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???
 
     def partitionCounts: Option[IndexedSeq[Long]] = ???
+
+    def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = ???
 
     def fullType: TableType = tab.typ
   })

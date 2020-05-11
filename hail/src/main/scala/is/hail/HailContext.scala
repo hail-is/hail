@@ -519,35 +519,21 @@ object HailContext {
     })
   }
 
+
   def readRowsSplit(
     ctx: ExecuteContext,
     pathRows: String,
     pathEntries: String,
     indexSpecRows: Option[AbstractIndexSpec],
     indexSpecEntries: Option[AbstractIndexSpec],
-    rowsEnc: AbstractTypedCodecSpec,
-    entriesEnc: AbstractTypedCodecSpec,
     partFiles: Array[String],
     bounds: Array[Interval],
-    requestedTypeRows: TStruct,
-    requestedTypeEntries: TStruct
-  ): (PStruct, ContextRDD[Long]) = {
+    makeRowsDec: InputStream => Decoder,
+    makeEntriesDec: InputStream => Decoder,
+    makeInserter: (Int, Region) => AsmFunction3RegionLongLongLong
+  ): ContextRDD[Long] = {
     require(!(indexSpecRows.isEmpty ^ indexSpecEntries.isEmpty))
     val fsBc = ctx.fs.broadcast
-    val (rowsType: PStruct, makeRowsDec) = rowsEnc.buildDecoder(ctx, requestedTypeRows)
-    val (entriesType: PStruct, makeEntriesDec) = entriesEnc.buildDecoder(ctx, requestedTypeEntries)
-
-    val inserterIR = ir.InsertFields(
-      ir.Ref("left", requestedTypeRows),
-      requestedTypeEntries.fieldNames.map(f =>
-        f -> ir.GetField(ir.Ref("right", requestedTypeEntries), f)))
-
-    val (t: PStruct, makeInserter) = ir.Compile[AsmFunction3RegionLongLongLong](ctx,
-      FastIndexedSeq(
-        ("left", rowsType),
-        ("right", entriesType)),
-      FastIndexedSeq(typeInfo[Region], LongInfo, LongInfo), LongInfo,
-      inserterIR)
 
     val mkIndexReader = indexSpecRows.map { indexSpec =>
       val (keyType, annotationType) = indexSpec.types
@@ -575,13 +561,14 @@ object HailContext {
 
     val rowsOffsetField = indexSpecRows.flatMap(_.offsetField)
     val entriesOffsetField = indexSpecEntries.flatMap(_.offsetField)
-    (t, ContextRDD.weaken(rdd).cmapPartitionsWithIndex { (i, ctx, it) =>
+    ContextRDD.weaken(rdd).cmapPartitionsWithIndex { (i, ctx, it) =>
       assert(it.hasNext)
       val (isRows, isEntries, idxr, bounds, m) = it.next
       assert(!it.hasNext)
       HailContext.readSplitRowsPartition(makeRowsDec, makeEntriesDec, makeInserter)(
         ctx, isRows, isEntries, idxr, rowsOffsetField, entriesOffsetField, bounds, i, m)
-    })
+    }
+
   }
 }
 

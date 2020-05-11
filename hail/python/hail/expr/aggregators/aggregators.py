@@ -1271,10 +1271,10 @@ def hist(expr, start, end, bins) -> StructExpression:
                 .when(nbins > 0, hl.bind(lambda bs: hl.case()
                                          .when((bs > 0) & hl.is_finite(bs),
                                                result(s, nbins, bs, freq_dict))
-                                         .or_error("'hist': start=" + hl.str(s) +
-                                                   " end=" + hl.str(e) +
-                                                   " bins=" + hl.str(nbins) +
-                                                   " requires positive bin size."),
+                                         .or_error("'hist': start=" + hl.str(s)
+                                                   + " end=" + hl.str(e)
+                                                   + " bins=" + hl.str(nbins)
+                                                   + " requires positive bin size."),
                                          hl.float64(e - s) / nbins))
                 .or_error(hl.literal("'hist' requires positive 'bins', but bins=") + hl.str(nbins)))
 
@@ -1649,9 +1649,9 @@ def corr(x, y) -> Float64Expression:
     return hl.bind(
         lambda x, y: hl.bind(
             lambda a:
-            (a.n * a.xy - a.x * a.y) /
-            hl.sqrt((a.n * a.xsq - a.x ** 2) *
-                    (a.n * a.ysq - a.y ** 2)),
+            (a.n * a.xy - a.x * a.y)
+            / hl.sqrt((a.n * a.xsq - a.x ** 2)
+                      * (a.n * a.ysq - a.y ** 2)),
             hl.agg.filter(hl.is_defined(x) & hl.is_defined(y),
                           hl.struct(x=hl.agg.sum(x),
                                     y=hl.agg.sum(y),

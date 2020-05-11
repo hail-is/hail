@@ -120,6 +120,8 @@ abstract class TableReader {
 
   def fullType: TableType
 
+  def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct)
+
   def toJValue: JValue = {
     Extraction.decompose(this)(TableReader.formats)
   }
@@ -212,6 +214,13 @@ class TableNativeReader(
 
   def fullType: TableType = spec.table_type
 
+  def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
+    coerce[PStruct](spec.rowsComponent.rvdSpec(ctx.fs, params.path)
+      .typedCodecSpec.encodedType.decodedPType(requestedType.rowType)) ->
+      coerce[PStruct](spec.globalsComponent.rvdSpec(ctx.fs, params.path)
+        .typedCodecSpec.encodedType.decodedPType(requestedType.globalType))
+  }
+
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val (globalType, globalsOffset) = spec.globalsComponent.readLocalSingleRow(ctx, params.path, tr.typ.globalType)
     val rvd = if (tr.dropRows) {
@@ -293,6 +302,39 @@ case class TableNativeZippedReader(
   def partitionCounts: Option[IndexedSeq[Long]] = if (intervals.isEmpty) Some(specLeft.partitionCounts) else None
 
   override lazy val fullType: TableType = specLeft.table_type.copy(rowType = specLeft.table_type.rowType ++ specRight.table_type.rowType)
+  private val leftFieldSet = specLeft.table_type.rowType.fieldNames.toSet
+  private val rightFieldSet = specRight.table_type.rowType.fieldNames.toSet
+
+  def leftRType(requestedType: TStruct): TStruct =
+    requestedType.filter(f => leftFieldSet.contains(f.name))._1
+
+  def rightRType(requestedType: TStruct): TStruct =
+    requestedType.filter(f => rightFieldSet.contains(f.name))._1
+
+  def leftPType(ctx: ExecuteContext, leftRType: TStruct): PStruct =
+    coerce[PStruct](specLeft.rowsComponent.rvdSpec(ctx.fs, pathLeft)
+      .typedCodecSpec.encodedType.decodedPType(leftRType))
+
+  def rightPType(ctx: ExecuteContext, rightRType: TStruct): PStruct =
+    coerce[PStruct](specRight.rowsComponent.rvdSpec(ctx.fs, pathRight)
+      .typedCodecSpec.encodedType.decodedPType(rightRType))
+
+  def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
+    fieldInserter(ctx, leftPType(ctx, leftRType(requestedType.rowType)),
+      rightPType(ctx, rightRType(requestedType.rowType)))._1 ->
+      coerce[PStruct](specLeft.globalsComponent.rvdSpec(ctx.fs, pathLeft)
+        .typedCodecSpec.encodedType.decodedPType(requestedType.globalType))
+  }
+
+  def fieldInserter(ctx: ExecuteContext, pLeft: PStruct, pRight: PStruct): (PStruct, (Int, Region) => AsmFunction3RegionLongLongLong) = {
+    val (t: PStruct, mk) = ir.Compile[AsmFunction3RegionLongLongLong](ctx,
+      FastIndexedSeq("left" -> pLeft, "right" -> pRight),
+      FastIndexedSeq(typeInfo[Region], LongInfo, LongInfo), LongInfo,
+      InsertFields(Ref("left", pLeft.virtualType),
+        pRight.fieldNames.map(f =>
+          f -> GetField(Ref("right", pRight.virtualType), f))))
+    (t, mk)
+  }
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val fs = ctx.fs
@@ -304,8 +346,6 @@ case class TableNativeZippedReader(
         intervals.map(i => RVDPartitioner.union(tr.typ.keyType, i, tr.typ.key.length - 1))
       else
         intervals.map(i => new RVDPartitioner(tr.typ.keyType, i))
-      val leftFieldSet = specLeft.table_type.rowType.fieldNames.toSet
-      val rightFieldSet = specRight.table_type.rowType.fieldNames.toSet
       if (tr.typ.rowType.fieldNames.forall(f => !rightFieldSet.contains(f))) {
         specLeft.rowsComponent.read(ctx, pathLeft, tr.typ.rowType, partitioner, filterIntervals)
       } else if (tr.typ.rowType.fieldNames.forall(f => !leftFieldSet.contains(f))) {
@@ -318,12 +358,15 @@ case class TableNativeZippedReader(
 
         val leftRType = tr.typ.rowType.filter(f => leftFieldSet.contains(f.name))._1
         val rightRType = tr.typ.rowType.filter(f => rightFieldSet.contains(f.name))._1
+
         AbstractRVDSpec.readZipped(ctx,
           rvdSpecLeft, rvdSpecRight,
           rvdPathLeft, rvdPathRight,
+          partitioner, filterIntervals,
           tr.typ.rowType,
           leftRType, rightRType,
-          partitioner, filterIntervals)
+          tr.typ.key,
+          fieldInserter)
       }
     }
 
@@ -370,13 +413,19 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
     TableType(rowType, Array("row_idx"), TStruct.empty)
   }
 
+  def rowAndGlobalPTypes(context: ExecuteContext, tableType: TableType): (PStruct, PStruct) = {
+    PType.canonical(tableType.rowType, required = true).asInstanceOf[PStruct] ->
+      PCanonicalStruct.empty(required = true)
+  }
+
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val rowsRDD = new BlockMatrixReadRowBlockedRDD(ctx.fsBc, params.path, partitionRanges, metadata)
 
     val partitionBounds = partitionRanges.map { r => Interval(Row(r.start), Row(r.end), true, false) }
     val partitioner = new RVDPartitioner(fullType.keyType, partitionBounds)
 
-    val rvd = RVD(fullType.canonicalRVDType, partitioner, ContextRDD(rowsRDD))
+    val rowTyp = rowAndGlobalPTypes(ctx, tr.typ)._1
+    val rvd = RVD(RVDType(rowTyp, fullType.key.filter(rowTyp.hasField)), partitioner, ContextRDD(rowsRDD))
     TableValue(ctx, fullType, BroadcastRow.empty(ctx), rvd)
   }
 
@@ -965,74 +1014,6 @@ case class TableIntervalJoin(
       }
 
     TableValue(ctx, typ, leftValue.globals, newRVD)
-  }
-}
-
-case class TableZipUnchecked(left: TableIR, right: TableIR) extends TableIR {
-  require((left.typ.rowType.fieldNames ++ right.typ.rowType.fieldNames).areDistinct())
-  require(right.typ.key.isEmpty)
-
-  lazy val rowCountUpperBound: Option[Long] = (left.rowCountUpperBound, right.rowCountUpperBound) match {
-    case (Some(l), Some(r)) => Some(l.min(r))
-    case (Some(l), None) => Some(l)
-    case (None, Some(r)) => Some(r)
-    case (None, None) => None
-  }
-
-  val typ: TableType = left.typ.copy(rowType = left.typ.rowType ++ right.typ.rowType)
-
-  override def partitionCounts: Option[IndexedSeq[Long]] = left.partitionCounts
-
-  lazy val children: IndexedSeq[BaseIR] = Array(left, right)
-
-  def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
-    val IndexedSeq(newLeft: TableIR, newRight: TableIR) = newChildren
-    TableZipUnchecked(newLeft, newRight)
-  }
-
-  override def execute(ctx: ExecuteContext): TableValue = {
-    val tv1 = left.execute(ctx)
-    val tv2 = right.execute(ctx)
-
-    val inserter = InsertFields(
-      Ref("left", left.typ.rowType),
-      right.typ.rowType.fieldNames.map(f => f -> GetField(Ref("right", right.typ.rowType), f)))
-
-    val rvdType: RVDType = RVDType(inserter.pType, tv1.rvd.typ.key)
-
-    val (t2, makeF) = ir.Compile[AsmFunction3RegionLongLongLong](
-      ctx,
-      FastIndexedSeq(("left", tv1.rvd.typ.rowType),
-        ("right", tv2.rvd.typ.rowType)),
-      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
-      inserter)
-
-    assert(t2.virtualType == typ.rowType)
-    assert(t2 == rvdType.rowType)
-
-    val rvd = tv1.rvd.zipPartitionsWithIndex(rvdType, tv2.rvd) { (i, ctx, it1, it2) =>
-      val partRegion = ctx.partitionRegion
-      val f = makeF(i, partRegion)
-      val region = ctx.region
-      val rv3 = RegionValue(region)
-      new Iterator[RegionValue] {
-        def hasNext: Boolean = {
-          val hn1 = it1.hasNext
-          val hn2 = it2.hasNext
-          assert(hn1 == hn2)
-          hn1
-        }
-
-        def next(): RegionValue = {
-          val rv1 = it1.next()
-          val rv2 = it2.next()
-          val off = f(region, rv1.offset, rv2.offset)
-          rv3.set(region, off)
-          rv3
-        }
-      }
-    }
-    TableValue(ctx, typ, tv1.globals, rvd)
   }
 }
 
@@ -2115,7 +2096,7 @@ case class TableGroupWithinPartitions(child: TableIR, name: String, n: Int) exte
 
           val offsetArray = new Array[Long](blockSize) // May be longer than the amount of data
           var childIterationCount = 0
-          while (it.hasNext && childIterationCount != blockSize) {
+          while (childIterationCount != blockSize && it.hasNext) {
             val nextPtr = it.next()
             offsetArray(childIterationCount) = nextPtr
             childIterationCount += 1

@@ -305,6 +305,11 @@ class TextMatrixReader(
 
   def partitionCounts = Some(_partitionCounts)
 
+  def rowAndGlobalPTypes(context: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
+    PType.canonical(requestedType.rowType, required = true).asInstanceOf[PStruct] ->
+      PType.canonical(requestedType.globalType, required = true).asInstanceOf[PStruct]
+  }
+
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val requestedType = tr.typ
     val compiledLineParser = new CompiledLineParser(ctx,
@@ -323,7 +328,7 @@ class TextMatrixReader(
     val rvd = if (tr.dropRows)
       RVD.empty(requestedType.canonicalRVDType)
     else
-      RVD.unkeyed(PCanonicalStruct.canonical(requestedType.rowType).setRequired(true).asInstanceOf[PStruct], rdd)
+      RVD.unkeyed(rowAndGlobalPTypes(ctx, requestedType)._1, rdd)
     val globalValue = makeGlobalValue(ctx, requestedType.globalType, headerInfo.columnIdentifiers.map(Row(_)))
     TableValue(ctx, tr.typ, globalValue, rvd)
   }

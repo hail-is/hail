@@ -100,9 +100,9 @@ def docker_call_retry(timeout, name):
                 # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
                 # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
                 # DockerError(500, 'Get https://gcr.io/v2/: dial tcp: lookup gcr.io: Temporary failure in name resolution')
-                elif e.status == 500 and ("request canceled while waiting for connection" in e.message or
-                                          re.match("error creating overlay mount.*device or resource busy", e.message) or
-                                          "Temporary failure in name resolution" in e.message):
+                elif e.status == 500 and ("request canceled while waiting for connection" in e.message
+                                          or re.match("error creating overlay mount.*device or resource busy", e.message)
+                                          or "Temporary failure in name resolution" in e.message):
                     log.exception(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True)
                 else:
                     raise
@@ -929,9 +929,9 @@ class Worker:
             # unlist job after 3m or half the run duration
             now = time_msecs()
             elapsed = now - start_time
-            if (job.id in self.jobs and
-                    elapsed > 180 * 1000 and
-                    elapsed > run_duration / 2):
+            if (job.id in self.jobs
+                    and elapsed > 180 * 1000
+                    and elapsed > run_duration / 2):
                 log.info(f'too much time elapsed marking {job} complete, removing from jobs, will keep retrying')
                 del self.jobs[job.id]
                 self.last_updated = time_msecs()

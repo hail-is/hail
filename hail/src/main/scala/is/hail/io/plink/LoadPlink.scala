@@ -295,6 +295,10 @@ class MatrixPLINKReader(
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
+  def rowAndGlobalPTypes(context: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
+    requestedType.canonicalRowPType -> PType.canonical(requestedType.globalType).asInstanceOf[PStruct]
+  }
+
   def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
     val fsBc = ctx.fsBc
 

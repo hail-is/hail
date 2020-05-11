@@ -35,7 +35,6 @@ class Env:
     @staticmethod
     def hc():
         if not Env._hc:
-            import sys
             sys.stderr.write("Initializing Hail with default parameters...\n")
 
             backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
@@ -113,7 +112,6 @@ def jiterable_to_list(it):
         return list(Env.jutils().iterableToArrayList(it))
     else:
         return None
-
 
 
 _parsable_str = re.compile(r'[\w_]+')

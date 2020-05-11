@@ -491,8 +491,8 @@ def get_cov_matrix(h2, rg, psd_rg=False):
         maxlines = 50
         msg = ['Adjusting rg values to make covariance matrix positive semidefinite']
         msg += ([(f'{cor0[idx[0][i],idx[1][i]]} -> {cor[idx[0][i],idx[1][i]]}') for i in range(n_rg)] if n_rg <= maxlines
-                else [(f'{cor0[idx[0][i],idx[1][i]]} -> {cor[idx[0][i],idx[1][i]]}') for i in range(maxlines)] +
-                [f'[ printed first {maxlines} rg changes -- omitted {n_rg-maxlines} ]'])
+                else [(f'{cor0[idx[0][i],idx[1][i]]} -> {cor[idx[0][i],idx[1][i]]}') for i in range(maxlines)]
+                + [f'[ printed first {maxlines} rg changes -- omitted {n_rg-maxlines} ]'])
         print('\n'.join(msg))
         rg = np.ravel(cor[idx])
     S = np.diag(h2)**(1/2)
@@ -605,8 +605,8 @@ def calculate_phenotypes(mt, genotype, beta, h2, popstrat=None, popstrat_var=Non
         var_factor = 1 if popstrat_var is None else (
             popstrat_var**(1/2))/mt.aggregate_cols(hl.agg.stats(mt['popstrat_'+uid])).stdev
         mt = mt.rename({'y': 'y_no_popstrat'})
-        mt = mt.annotate_cols(y=mt.y_no_popstrat +
-                              mt['popstrat_'+uid]*var_factor)
+        mt = mt.annotate_cols(y=mt.y_no_popstrat
+                              + mt['popstrat_'+uid]*var_factor)
     mt = _clean_fields(mt, uid)
     return mt
 
@@ -698,8 +698,7 @@ def agg_fields(tb, coef_dict=None, str_expr=None, axis='rows'):
     :class:`.MatrixTable` or :class:`.Table`
         :class:`.MatrixTable` or :class:`.Table` containing aggregation field.
     """
-    assert (str_expr != None or coef_dict !=
-            None), "str_expr and coef_dict cannot both be None"
+    assert (str_expr != None or coef_dict != None), "str_expr and coef_dict cannot both be None"
     assert axis=='rows' or axis=='cols', "axis must be 'rows' or 'cols'"
     coef_dict = get_coef_dict(tb=tb, str_expr=str_expr,
                               ref_coef_dict=coef_dict, axis=axis)
@@ -720,7 +719,7 @@ def agg_fields(tb, coef_dict=None, str_expr=None, axis='rows'):
            ref_coef_dict=nullable(dict),
            axis=str)
 def get_coef_dict(tb, str_expr=None, ref_coef_dict=None, axis='rows'):
-    r"""Gets either col or row fields matching `str_expr` and take intersection 
+    r"""Gets either col or row fields matching `str_expr` and take intersection
     with keys in coefficient reference dict.
 
     Parameters
@@ -743,8 +742,7 @@ def get_coef_dict(tb, str_expr=None, ref_coef_dict=None, axis='rows'):
         Coefficients to multiply each field. The coefficients are specified by 
         `coef_dict` value, the row (or col) field name is specified by `coef_dict` key. 
     """
-    assert (str_expr != None or ref_coef_dict !=
-            None), "str_expr and ref_coef_dict cannot both be None"
+    assert (str_expr != None or ref_coef_dict != None), "str_expr and ref_coef_dict cannot both be None"
     assert axis=='rows' or axis=='cols', "axis must be 'rows' or 'cols'"
     fields_to_search = (tb.row if axis == 'rows' or type(tb)
                         is Table else tb.col)
@@ -833,6 +831,7 @@ def ascertainment_bias(mt, y, P):
         con = _clean_fields(con, uid)
         mt = con.union_cols(cas)
     return mt
+
 
 @typecheck(mt=MatrixTable,
            y=oneof(expr_int32,

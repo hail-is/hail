@@ -171,9 +171,9 @@ def require_col_key_str(dataset: MatrixTable, method: str):
                          f"{list(str(x.dtype) for x in dataset.col_key.values())}")
 
 def require_table_key_variant(ht, method):
-    if (list(ht.key) != ['locus', 'alleles'] or
-            not isinstance(ht['locus'].dtype, tlocus) or
-            not ht['alleles'].dtype == tarray(tstr)):
+    if (list(ht.key) != ['locus', 'alleles']
+            or not isinstance(ht['locus'].dtype, tlocus)
+            or not ht['alleles'].dtype == tarray(tstr)):
         raise ValueError("Method '{}' requires key to be two fields 'locus' (type 'locus<any>') and "
                          "'alleles' (type 'array<str>')\n"
                          "  Found:{}".format(method, ''.join(
@@ -185,9 +185,9 @@ def require_row_key_variant(dataset, method):
     else:
         assert isinstance(dataset, MatrixTable)
         key = dataset.row_key
-    if (list(key) != ['locus', 'alleles'] or
-            not isinstance(dataset['locus'].dtype, tlocus) or
-            not dataset['alleles'].dtype == tarray(tstr)):
+    if (list(key) != ['locus', 'alleles']
+            or not isinstance(dataset['locus'].dtype, tlocus)
+            or not dataset['alleles'].dtype == tarray(tstr)):
         raise ValueError("Method '{}' requires row key to be two fields 'locus' (type 'locus<any>') and "
                          "'alleles' (type 'array<str>')\n"
                          "  Found:{}".format(method, ''.join(
@@ -195,10 +195,10 @@ def require_row_key_variant(dataset, method):
 
 
 def require_row_key_variant_w_struct_locus(dataset, method):
-    if (list(dataset.row_key) != ['locus', 'alleles'] or
-            not dataset['alleles'].dtype == tarray(tstr) or
-            (not isinstance(dataset['locus'].dtype, tlocus) and
-                     dataset['locus'].dtype != hl.dtype('struct{contig: str, position: int32}'))):
+    if (list(dataset.row_key) != ['locus', 'alleles']
+            or not dataset['alleles'].dtype == tarray(tstr)
+            or (not isinstance(dataset['locus'].dtype, tlocus)
+                     and dataset['locus'].dtype != hl.dtype('struct{contig: str, position: int32}'))):
         raise ValueError("Method '{}' requires row key to be two fields 'locus'"
                          " (type 'locus<any>' or 'struct{{contig: str, position: int32}}') and "
                          "'alleles' (type 'array<str>')\n"
@@ -211,8 +211,8 @@ def require_first_key_field_locus(dataset, method):
     else:
         assert isinstance(dataset, MatrixTable)
         key = dataset.row_key
-    if (len(key) == 0 or
-            not isinstance(key[0].dtype, tlocus)):
+    if (len(key) == 0
+            or not isinstance(key[0].dtype, tlocus)):
         raise ValueError("Method '{}' requires first key field of type 'locus<any>'.\n"
                          "  Found:{}".format(method, ''.join(
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)))
@@ -230,8 +230,8 @@ def require_biallelic(dataset, method) -> MatrixTable:
     return dataset._select_rows(method,
                                 hl.case()
                                 .when(dataset.alleles.length() == 2, dataset._rvrow)
-                                .or_error(f"'{method}' expects biallelic variants ('alleles' field of length 2), found " +
-                                        hl.str(dataset.locus) + ", " + hl.str(dataset.alleles)))
+                                .or_error(f"'{method}' expects biallelic variants ('alleles' field of length 2), found "
+                                          + hl.str(dataset.locus) + ", " + hl.str(dataset.alleles)))
 
 
 @typecheck(dataset=MatrixTable, name=str)
@@ -289,8 +289,8 @@ def rename_duplicates(dataset, name='unique_id') -> MatrixTable:
         new_ids.append(s_)
 
     if mapping:
-        info(f'Renamed {len(mapping)} duplicate {plural("sample ID", len(mapping))}. Mangled IDs as follows:' +
-             ''.join(f'\n  "{pre}" => "{post}"' for pre, post in mapping))
+        info(f'Renamed {len(mapping)} duplicate {plural("sample ID", len(mapping))}. Mangled IDs as follows:'
+             + ''.join(f'\n  "{pre}" => "{post}"' for pre, post in mapping))
     else:
         info('No duplicate sample IDs found.')
     uid = Env.get_uid()

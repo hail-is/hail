@@ -74,7 +74,7 @@ object Emit {
     val mb = fb.apply_method
     val container = aggs.map { a =>
       val c = fb.addAggStates(a)
-      AggContainer(a, c)
+      AggContainer(a, c, () => ())
     }
     val emitter = new Emit[C](ctx, fb.ecb)
     if (ir.typ == TVoid) {
@@ -94,28 +94,46 @@ object Emit {
 }
 
 object AggContainer {
-  def fromVars(aggs: Array[AggStatePhysicalSignature], cb: EmitClassBuilder[_], region: Settable[Region], off: Settable[Long]): (AggContainer, Code[Unit], Code[Unit]) = {
-    val states = agg.StateTuple(aggs.map(a => agg.Extract.getAgg(a, a.default).createState(cb)).toArray)
-    val aggState = new agg.TupleAggregatorState(cb, states, region, off)
+  // FIXME remove this when EmitStream also has a codebuilder
+  def fromVars(aggs: Array[AggStatePhysicalSignature], mb: EmitMethodBuilder[_], region: Settable[Region], off: Settable[Long]): (AggContainer, Code[Unit], Code[Unit]) = {
 
-    val setup = Code(
-      region := Region.stagedCreate(Region.REGULAR),
-      region.load().setNumParents(aggs.length),
-      off := region.load().allocate(aggState.storageType.alignment, aggState.storageType.byteSize),
-      states.createStates(cb))
+    val (setup, aggState) = EmitCodeBuilder.scoped(mb) { cb =>
+      val states = agg.StateTuple(aggs.map(a => agg.Extract.getAgg(a, a.default).createState(cb)).toArray)
+      val aggState = new agg.TupleAggregatorState(mb.ecb, states, region, off)
+      cb += (region := Region.stagedCreate(Region.REGULAR))
+      cb += region.load().setNumParents(aggs.length)
+      cb += (off := region.load().allocate(aggState.storageType.alignment, aggState.storageType.byteSize))
+      states.createStates(cb)
+      aggState
+    }
 
     val cleanup = Code(
       region.load().invalidate(),
       region := Code._null)
 
-    (AggContainer(aggs, aggState), setup, cleanup)
+    (AggContainer(aggs, aggState, () => ()), setup, cleanup)
   }
 
-  def fromClassBuilder[C](aggs: Array[AggStatePhysicalSignature], cb: EmitClassBuilder[C], varPrefix: String): (AggContainer, Code[Unit], Code[Unit]) =
-    fromVars(aggs, cb, cb.genFieldThisRef[Region](s"${varPrefix}_top_region"), cb.genFieldThisRef[Long](s"${varPrefix}_off"))
+  def fromMethodBuilder[C](aggs: Array[AggStatePhysicalSignature], mb: EmitMethodBuilder[C], varPrefix: String): (AggContainer, Code[Unit], Code[Unit]) =
+    fromVars(aggs, mb, mb.genFieldThisRef[Region](s"${varPrefix}_top_region"), mb.genFieldThisRef[Long](s"${varPrefix}_off"))
+
+  def fromBuilder[C](cb: EmitCodeBuilder, aggs: Array[AggStatePhysicalSignature], varPrefix: String): AggContainer = {
+    val off = cb.newField[Long](s"${varPrefix}_off")
+    val region = cb.newField[Region](s"${varPrefix}_top_region", Region.stagedCreate(Region.REGULAR))
+    val states = agg.StateTuple(aggs.map(a => agg.Extract.getAgg(a, a.default).createState(cb)).toArray)
+    val aggState = new agg.TupleAggregatorState(cb.emb.ecb, states, region, off)
+    cb += region.load().setNumParents(aggs.length)
+    cb.assign(off, region.load().allocate(aggState.storageType.alignment, aggState.storageType.byteSize))
+    states.createStates(cb)
+
+    AggContainer(aggs, aggState, { () =>
+      cb += region.load().invalidate()
+      cb.assign(region, Code._null)
+    })
+  }
 }
 
-case class AggContainer(aggs: Array[AggStatePhysicalSignature], container: agg.TupleAggregatorState) {
+case class AggContainer(aggs: Array[AggStatePhysicalSignature], container: agg.TupleAggregatorState, cleanup: () => Unit) {
 
   def nested(i: Int, init: Boolean): Option[AggContainer] = {
     aggs(i).nested.map { n =>
@@ -123,15 +141,15 @@ case class AggContainer(aggs: Array[AggStatePhysicalSignature], container: agg.T
         case AggElementsLengthCheck() =>
           val state = container.states(i).asInstanceOf[agg.ArrayElementState]
           if (init)
-            AggContainer(n.toArray, state.initContainer)
+            AggContainer(n.toArray, state.initContainer, () => ())
           else
-            AggContainer(n.toArray, state.container)
+            AggContainer(n.toArray, state.container, () => ())
         case Group() =>
           val state = container.states(i).asInstanceOf[agg.DictState]
           if (init)
-            AggContainer(n.toArray, state.initContainer)
+            AggContainer(n.toArray, state.initContainer, () => ())
           else
-            AggContainer(n.toArray, state.keyed.container)
+            AggContainer(n.toArray, state.keyed.container, () => ())
       }
     }
   }
@@ -392,8 +410,8 @@ object EmitUtils {
       val c = items.slice(start, end)
       newMB.emit(Code(c.map(_.emit(newMB))))
       new EstimableEmitter[C] {
-        def emit(mb: EmitMethodBuilder[C]): Code[Unit] = {
-          newMB.invokeCode[Unit](mb.getParamsList():_*)
+        def emit(mb: EmitMethodBuilder[C]): Code[Unit] = EmitCodeBuilder.scopedVoid(mb) { cb =>
+          cb.invokeVoid(newMB, mb.getParamsList():_*)
         }
 
         def estimatedSize: Int = 5
@@ -517,7 +535,7 @@ class Emit[C](
           _.getStream.forEach(mb, forBody))
 
       case x@InitOp(i, args, _, op) =>
-        val AggContainer(aggs, sc) = container.get
+        val AggContainer(aggs, sc, _) = container.get
         val statePTypes = aggs(i).lookup(op).physicalInitOpArgs
         val rvAgg = agg.Extract.getAgg(aggs(i), op)
 
@@ -527,10 +545,10 @@ class Emit[C](
         }.toArray
 
         cb += sc.newState(i)
-        cb += rvAgg.initOp(sc.states(i), argVars)
+        rvAgg.initOp(cb, sc.states(i), argVars)
 
       case x@SeqOp(i, args, _, op) =>
-        val AggContainer(aggs, sc) = container.get
+        val AggContainer(aggs, sc, _) = container.get
         val aggSig = aggs(i)
         val statePTypes = aggSig.lookup(op).physicalSeqOpArgs
         val rvAgg = agg.Extract.getAgg(aggSig, op)
@@ -540,35 +558,34 @@ class Emit[C](
             .map(t.copyFromPValue(mb, region, _))
         }.toArray
 
-        cb += rvAgg.seqOp(sc.states(i), argVars)
+        rvAgg.seqOp(cb, sc.states(i), argVars)
 
       case x@CombOp(i1, i2, _) =>
-        val AggContainer(aggs, sc) = container.get
+        val AggContainer(aggs, sc, _) = container.get
         val aggSig = aggs(i1)
         assert(agg.Extract.compatible(aggs(i2), aggSig), s"${aggs(i2)} vs $aggSig")
         val rvAgg = agg.Extract.getAgg(aggSig, aggSig.default)
 
-        cb += rvAgg.combOp(sc.states(i1), sc.states(i2))
+        rvAgg.combOp(cb, sc.states(i1), sc.states(i2))
 
       case x@SerializeAggs(start, sIdx, spec, sigs) =>
-        val AggContainer(_, sc) = container.get
+        val AggContainer(_, sc, _) = container.get
         val ob = mb.genFieldThisRef[OutputBuffer]()
         val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
 
         val serialize = Array.range(start, start + sigs.length)
-          .map { idx => sc.states(idx).serialize(spec)(ob) }
+          .map { idx => { (cb: EmitCodeBuilder) => sc.states(idx).serialize(spec)(cb, ob) } }
 
-        cb += Code(
-          baos := Code.newInstance[ByteArrayOutputStream](),
-          ob := spec.buildCodeOutputBuffer(baos),
-          mb.wrapVoids(serialize, "serialize_aggs"),
-          ob.invoke[Unit]("flush"),
-          ob.invoke[Unit]("close"),
-          mb.setSerializedAgg(sIdx, baos.invoke[Array[Byte]]("toByteArray")),
-          sc.store)
+        cb.assign(baos, Code.newInstance[ByteArrayOutputStream]())
+        cb.assign(ob, spec.buildCodeOutputBuffer(baos))
+        mb.wrapVoids(cb, serialize, "serialize_aggs")
+        cb += ob.invoke[Unit]("flush")
+        cb += ob.invoke[Unit]("close")
+        cb += mb.setSerializedAgg(sIdx, baos.invoke[Array[Byte]]("toByteArray"))
+        sc.store(cb)
 
       case DeserializeAggs(start, sIdx, spec, sigs) =>
-        val AggContainer(_, sc) = container.get
+        val AggContainer(_, sc, _) = container.get
         val ib = mb.genFieldThisRef[InputBuffer]()
 
         val ns = sigs.length
@@ -579,15 +596,15 @@ class Emit[C](
         val init = Code(Array.range(start, start + ns)
           .map(i => sc.newState(i)))
 
-        val unserialize = Array.tabulate(ns) { j =>
-          deserializers(j)(ib)
-        }
+        val unserialize = Array.tabulate(ns) { j => { (cb: EmitCodeBuilder) =>
+          deserializers(j)(cb, ib)
+        }}
 
         cb += init
         cb.assign(ib, spec.buildCodeInputBuffer(
             Code.newInstance[ByteArrayInputStream, Array[Byte]](
               mb.getSerializedAgg(sIdx))))
-        cb += mb.wrapVoids(unserialize, "deserialize_aggs")
+        mb.wrapVoids(cb, unserialize, "deserialize_aggs")
 
       case Die(m, typ) =>
         val cm = emitI(m)
@@ -766,6 +783,35 @@ class Emit[C](
             PCode(ndPType.elementType, ndValue.apply(idxValues, mb))
           }
         }
+
+      case x@RunAgg(body, result, _) =>
+        val aggs = x.physicalSignatures
+        val newContainer = AggContainer.fromBuilder(cb, aggs, "run_agg")
+        val codeBody = emitVoid(body, container = Some(newContainer))
+        val codeRes = emitI(result, container = Some(newContainer))
+
+        codeRes.map(cb) { pc =>
+          val res = cb.memoizeField(pc, "agg_res")
+          newContainer.cleanup()
+          res
+        }
+
+      case x@ResultOp(start, _) =>
+        val newRegion = cb.newField("resultop_region", region)
+        val AggContainer(aggs, sc, _) = container.get
+        val srvb = new StagedRegionValueBuilder(cb.emb, x.pType, newRegion)
+        cb += srvb.start()
+
+        mb.wrapVoids(cb, Array.tabulate(aggs.length) { j => (cb: EmitCodeBuilder) =>
+          val idx = start + j
+          val rvAgg = agg.Extract.getAgg(aggs(j), aggs(j).default)
+          rvAgg.result(cb, sc.states(idx), srvb)
+          cb += srvb.advance()
+        }, "aggs_result")
+
+        sc.store(cb)
+
+        presentC(srvb.offset)
 
       case _ =>
         emitFallback(ir)
@@ -990,9 +1036,11 @@ class Emit[C](
             val compare = ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0
             InferPType(compare, Env.empty)
             (a, compare, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
-              discardNext.invokeCode[Boolean](r,
-                new EmitCode(Code._empty, m1, PCode(atyp.elementType, v1)),
-                new EmitCode(Code._empty, m2, PCode(atyp.elementType, v2)))
+              EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
+                cb.invokeCode[Boolean](discardNext, r,
+                  new EmitCode(Code._empty, m1, PCode(atyp.elementType, v1)),
+                  new EmitCode(Code._empty, m2, PCode(atyp.elementType, v2)))
+              }
             }, Array.empty[String])
           case ToDict(a) =>
             val elementType = a.pType.asInstanceOf[PStream].elementType
@@ -1009,9 +1057,11 @@ class Emit[C](
             val compare = (ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0).deepCopy()
             InferPType(compare, Env.empty)
             (a, compare, Code(sorter.pruneMissing, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
-              discardNext.invokeCode[Boolean](r,
-                new EmitCode(Code._empty, m1, PCode(atyp.elementType, v1)),
-                new EmitCode(Code._empty, m2, PCode(atyp.elementType, v2)))
+              EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
+                cb.invokeCode[Boolean](discardNext, r,
+                  new EmitCode(Code._empty, m1, PCode(atyp.elementType, v1)),
+                  new EmitCode(Code._empty, m2, PCode(atyp.elementType, v2)))
+              }
             }), Array.empty[String])
         }
 
@@ -1243,40 +1293,6 @@ class Emit[C](
         }
 
         COption.toEmitCode(resOpt, mb)
-
-      case x@RunAgg(body, result, _) =>
-        val aggs = x.physicalSignatures
-        val (newContainer, aggSetup, aggCleanup) = AggContainer.fromClassBuilder(aggs, mb.ecb, "run_agg")
-        val codeBody = emitVoid(body, container = Some(newContainer))
-        val codeRes = emit(result, container = Some(newContainer))
-        val res = mb.newEmitField(result.pType)
-
-        val aggregation = Code(
-          aggSetup,
-          codeBody,
-          res := codeRes,
-          aggCleanup)
-
-        EmitCode(aggregation, res)
-
-      case x@ResultOp(start, _) =>
-        val newRegion = mb.genFieldThisRef[Region]()
-        val AggContainer(aggs, sc) = container.get
-        val srvb = new StagedRegionValueBuilder(mb, x.pType, newRegion)
-        val addFields = mb.wrapVoids(Array.tabulate(aggs.length) { j =>
-          val idx = start + j
-          val rvAgg = agg.Extract.getAgg(aggs(j), aggs(j).default)
-          Code(
-            rvAgg.result(sc.states(idx), srvb),
-            srvb.advance())
-        }, "aggs_result")
-
-        present(pt, Code(
-          newRegion := region,
-          srvb.start(),
-          addFields,
-          sc.store,
-          srvb.offset))
 
       case x@CombOpValue(i, value, sig) =>
         throw new NotImplementedError("CombOpValue emitter cannot be implemented until physical type passed across serialization boundary. See PR #8142")
@@ -1917,34 +1933,30 @@ class Emit[C](
           val t = new Emit(ctx, bodyFB.ecb).emit(m, bodyMB, env, None)
           bodyMB.emit(Code(t.setup, t.m.mux(Code._fatal[Long]("return cannot be missing"), t.v)))
 
-          val ctxIS = Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getCodeParam[Array[Byte]](2))
-          val gIS = Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getCodeParam[Array[Byte]](3))
+          bodyFB.emitWithBuilder { cb =>
+            val ctxIB = cb.newLocal[InputBuffer]("cda_ctx_ib", x.contextSpec.buildCodeInputBuffer(
+              Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getCodeParam[Array[Byte]](2))))
+            val gIB = cb.newLocal[InputBuffer]("cda_g_ib", x.globalSpec.buildCodeInputBuffer(
+              Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getCodeParam[Array[Byte]](3))))
 
-          val ctxOff = bodyFB.newLocal[Long]()
-          val gOff = bodyFB.newLocal[Long]()
-          val bOff = bodyFB.newLocal[Long]()
-          val bOS = bodyFB.newLocal[ByteArrayOutputStream]()
+            val ctxOff = cb.newLocal[Long]("cda_ctx_off", cDec(bodyFB.getCodeParam[Region](1), ctxIB))
+            val gOff = cb.newLocal[Long]("cda_g_off", gDec(bodyFB.getCodeParam[Region](1), gIB))
 
-          bodyFB.emit(Code(
-            ctxOff := Code.memoize(x.contextSpec.buildCodeInputBuffer(ctxIS), "cda_ctx_ib") { ib =>
-              cDec(bodyFB.getCodeParam[Region](1), ib)
-            },
-            gOff := Code.memoize(x.globalSpec.buildCodeInputBuffer(gIS), "cda_g_ib") { ib =>
-              gDec(bodyFB.getCodeParam[Region](1), ib)
-            },
-            bOff := bodyMB.invokeCode[Long](bodyFB.getCodeParam[Region](1),
+            val bOffCode = cb.invokeCode[Long](bodyMB, bodyFB.getCodeParam[Region](1),
               new EmitCode(Code._empty,
                 x.decodedContextPTuple.isFieldMissing(ctxOff, 0),
                 PCode(ctxType, Region.loadIRIntermediate(ctxType)(x.decodedContextPTuple.fieldOffset(ctxOff, 0)))),
               new EmitCode(Code._empty,
                 x.decodedGlobalPTuple.isFieldMissing(gOff, 0),
-                PCode(gType, Region.loadIRIntermediate(gType)(x.decodedGlobalPTuple.fieldOffset(gOff, 0))))),
-            bOS := Code.newInstance[ByteArrayOutputStream](),
-            bOB := x.bodySpec.buildCodeOutputBuffer(bOS),
-            bEnc(bodyFB.getCodeParam[Region](1), bOff, bOB),
-            bOB.invoke[Unit]("flush"),
-            bOB.invoke[Unit]("close"),
-            bOS.invoke[Array[Byte]]("toByteArray")))
+                PCode(gType, Region.loadIRIntermediate(gType)(x.decodedGlobalPTuple.fieldOffset(gOff, 0)))))
+            val bOff = cb.newLocal[Long]("cda_boff", bOffCode)
+            val bOS = cb.newLocal[ByteArrayOutputStream]("cda_baos", Code.newInstance[ByteArrayOutputStream]())
+            val bOB = cb.newLocal[OutputBuffer]("cda_ob", x.bodySpec.buildCodeOutputBuffer(bOS))
+            cb += bEnc(bodyFB.getCodeParam[Region](1), bOff, bOB)
+            cb += bOB.invoke[Unit]("flush")
+            cb += bOB.invoke[Unit]("close")
+            bOS.invoke[Array[Byte]]("toByteArray")
+          }
 
           val fID = genUID()
           parentCB.addModule(fID, bodyFB.resultWithIndex())
@@ -2160,7 +2172,7 @@ class Emit[C](
     val EmitCode(setup, m, v) = new Emit(ctx, f.ecb).emit(newIR, sort, newEnv, None)
 
     sort.emit(Code(setup, m.mux(Code._fatal[Boolean]("Result of sorting function cannot be missing."), v.code)))
-    f.apply_method.emit(sort.invokeCode[Boolean](fregion,
+    f.apply_method.emitWithBuilder(cb => cb.invokeCode[Boolean](sort, fregion,
       new EmitCode(Code._empty, false, PCode(elemPType, f.getCodeParam[T](1))),
       new EmitCode(Code._empty, false, PCode(elemPType, f.getCodeParam[T](2)))))
     f
@@ -2722,6 +2734,8 @@ abstract class NDArrayEmitter[C](
       )
     }
     innerMethod.emit(columnMajorLoops)
-    innerMethod.invokeCode[Unit](mb.getParamsList(): _*)
+    EmitCodeBuilder.scopedVoid(mb) { cb => // ugh.
+      cb.invokeVoid(innerMethod, mb.getParamsList(): _*)
+    }
   }
 }

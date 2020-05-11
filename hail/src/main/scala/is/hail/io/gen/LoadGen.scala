@@ -5,7 +5,8 @@ import is.hail.annotations._
 import is.hail.backend.BroadcastValue
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, TableRead, TableValue}
-import is.hail.expr.types.MatrixType
+import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.LoadBgen
 import is.hail.io.vcf.LoadVCF
@@ -189,6 +190,10 @@ class MatrixGENReader(
   def columnCount: Option[Int] = Some(nSamples)
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
+
+  def rowAndGlobalPTypes(context: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
+    requestedType.canonicalRowPType -> PType.canonical(requestedType.globalType).asInstanceOf[PStruct]
+  }
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val sc = SparkBackend.sparkContext("MatrixGENReader.apply")

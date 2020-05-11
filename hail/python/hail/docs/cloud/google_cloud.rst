@@ -58,6 +58,20 @@ Importantly, to shut down a cluster when done with it, use:
 
     hailctl dataproc stop CLUSTER_NAME
 
+Reading from Google Cloud Storage
+---------------------------------
+
+A dataproc cluster created through ``hailctl dataproc`` will automatically be configured to allow hail to read files from 
+Google Cloud Storage (GCS). To allow hail to read from GCS when running locally, you need to install the 
+`Cloud Storage Connector <https://cloud.google.com/dataproc/docs/concepts/connectors/cloud-storage>`_. The easiest way to do that is to
+run the following script from your command line:
+
+.. code-block:: text
+
+    curl -sSL https://broad.io/install-gcs-connector | python3
+
+After this is installed, you'll be able to read from paths beginning with ``gs`` directly from you laptop.
+
 Requester Pays
 --------------
 
@@ -66,7 +80,7 @@ that accessing them will incur charges on the requester. Google breaks down the 
 but the most important class of charges to be aware of are `Network Charges <https://cloud.google.com/storage/pricing#network-pricing>`_.
 Specifically, the egress charges. You should always be careful reading data from a bucket in a different region
 then your own project, as it is easy to rack up a large bill. For this reason, you must specifically enable 
-requester pays on your `hailctl dataproc` cluster if you'd like to use it.
+requester pays on your ``hailctl dataproc`` cluster if you'd like to use it.
 
 To allow your cluster to read from any requester pays bucket, use:
 
