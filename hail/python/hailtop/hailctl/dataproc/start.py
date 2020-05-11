@@ -134,6 +134,8 @@ REGION_TO_REPLICATE_MAPPING = {
     'australia-southeast1': 'aus-sydney'
 }
 
+ANNOTATION_DB_BUCKETS = ["hail-datasets-us"]
+
 IMAGE_VERSION = '1.4-debian9'
 
 
@@ -240,6 +242,8 @@ def main(args, pass_through_args):
             requester_pays_bucket_sources = []
             if args.requester_pays_allow_buckets:
                 requester_pays_bucket_sources.append(args.requester_pays_allow_buckets)
+            if args.requester_pays_allow_annotation_db:
+                requester_pays_bucket_sources.extend(ANNOTATION_DB_BUCKETS)
 
             conf.extend_flag("properties", {"spark:spark.hadoop.fs.gs.requester.pays.buckets": ",".join(requester_pays_bucket_sources)})
 
