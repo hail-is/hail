@@ -72,6 +72,8 @@ run the following script from your command line:
 
 After this is installed, you'll be able to read from paths beginning with ``gs`` directly from you laptop.
 
+.. _GCP Requester Pays:
+
 Requester Pays
 --------------
 
@@ -95,6 +97,11 @@ To make it easier to avoid accidentally reading from a requester pays bucket, we
 .. code-block:: text
 
     hailctl dataproc start  my-cluster --requester-pays-allow-buckets hail-bucket,big-data
+
+Users of the :ref:`Annotation Database` will find that many of the files are stored in requester pays buckets.
+In order to allow the dataproc cluster to read from them, you can either use ``--requester-pays-allow-all`` from above
+or use the special ``--requester-pays-allow-annotation-db`` to enable the specific list of buckets that the annotation database
+relies on.
 
 Variant Effect Predictor (VEP)
 ------------------------------
