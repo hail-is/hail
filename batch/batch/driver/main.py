@@ -14,6 +14,7 @@ from gear import Database, setup_aiohttp_session, web_authenticated_developers_o
 from hailtop.config import get_deploy_config
 from hailtop.utils import time_msecs
 from hailtop.tls import get_server_ssl_context
+import hailtop.aiogoogle as aiogoogle
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 import googlecloudprofiler
@@ -507,6 +508,10 @@ async def on_startup(app):
         '/gsa-key/key.json')
     gservices = GServices(machine_name_prefix, credentials)
     app['gservices'] = gservices
+
+    compute_client = aiogoogle.ComputeClient(
+        aiogoogle.Credentials.from_file('/gsa-key/key.json'))
+    app['compute_client'] = compute_client
 
     scheduler_state_changed = asyncio.Event()
     app['scheduler_state_changed'] = scheduler_state_changed
