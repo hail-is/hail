@@ -50,3 +50,6 @@ principals:
 - name: ci-tests
   domain: ci-tests
   kind: json
+- name: query
+  domain: query
+  kind: json
