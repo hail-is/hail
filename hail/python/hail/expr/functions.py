@@ -12,7 +12,7 @@ from hail.expr.expressions import Expression, ArrayExpression, SetExpression, \
     BooleanExpression, CallExpression, TupleExpression, \
     ExpressionException, NumericExpression, \
     unify_all, construct_expr, to_expr, unify_exprs, impute_type, \
-    construct_variable, apply_expr, coercer_from_dtype, \
+    construct_variable, apply_expr, coercer_from_dtype, unify_types_limited, \
     expr_array, expr_any, expr_struct, expr_int32, expr_int64, expr_float32, \
     expr_float64, expr_oneof, expr_bool, expr_tuple, expr_dict, expr_str, \
     expr_set, expr_call, expr_locus, expr_interval, expr_ndarray, \
@@ -20,7 +20,7 @@ from hail.expr.expressions import Expression, ArrayExpression, SetExpression, \
 from hail.expr.types import HailType, hail_type, tint32, tint64, tfloat32, \
     tfloat64, tstr, tbool, tarray, tset, tdict, tstruct, tlocus, tinterval, \
     tcall, ttuple, tndarray, \
-    is_primitive, is_numeric, unify_types_limited
+    is_primitive, is_numeric
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 import hail.ir as ir
 from hail.typecheck import typecheck, nullable, anytype, enumeration, tupleof, \
