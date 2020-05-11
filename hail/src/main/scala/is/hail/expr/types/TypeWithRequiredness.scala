@@ -18,7 +18,7 @@ object BaseTypeWithRequiredness {
 
 object TypeWithRequiredness {
   def apply(typ: Type): TypeWithRequiredness = typ match {
-    case TBoolean | TInt32 | TInt64 | TFloat32 | TFloat64 | TBinary | TString | TCall | TVoid | _: TLocus => RPrimitive()
+    case t if RPrimitive.typeSupported(t) => RPrimitive()
     case t: TArray => RIterable(apply(t.elementType))
     case t: TSet => RIterable(apply(t.elementType))
     case t: TStream => RIterable(apply(t.elementType))
@@ -51,7 +51,10 @@ sealed abstract class BaseTypeWithRequiredness {
 
   protected[this] def _maximizeChildren(): Unit = children.foreach(_.maximize())
   protected[this] def _unionChildren(newChildren: Seq[BaseTypeWithRequiredness]): Unit = {
-    assert(children.length == newChildren.length)
+    if (children.length != newChildren.length) {
+      throw new AssertionError(
+        s"children lengths differed ${children.length} ${newChildren.length}. ${children} ${newChildren} ${this}")
+    }
     children.zip(newChildren).foreach { case (r1, r2) =>
       r1.unionFrom(r2)
     }
@@ -98,21 +101,22 @@ sealed abstract class TypeWithRequiredness extends BaseTypeWithRequiredness {
 
 object RPrimitive {
   val supportedTypes: Set[Type] = Set(TBoolean, TInt32, TInt64, TFloat32, TFloat64, TBinary, TString, TCall, TVoid)
+  def typeSupported(t: Type): Boolean = RPrimitive.supportedTypes.contains(t) ||
+    t.isInstanceOf[TLocus]
 }
 
 final case class RPrimitive() extends TypeWithRequiredness {
   val children: Seq[TypeWithRequiredness] = FastSeq.empty
 
-  def typeSupported(t: Type): Boolean = RPrimitive.supportedTypes.contains(t) || t.isInstanceOf[TLocus]
   def _unionLiteral(a: Annotation): Unit = ()
-  def _matchesPType(pt: PType): Boolean = typeSupported(pt.virtualType)
+  def _matchesPType(pt: PType): Boolean = RPrimitive.typeSupported(pt.virtualType)
   def _unionPType(pType: PType): Unit = assert(matchesPType(pType))
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RPrimitive = {
     assert(newChildren.isEmpty)
     RPrimitive()
   }
   def canonicalPType(t: Type): PType = {
-    assert(typeSupported(t))
+    assert(RPrimitive.typeSupported(t))
     PType.canonical(t, required)
   }
   def _toString: String = "RPrimitive"
