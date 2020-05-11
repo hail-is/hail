@@ -615,7 +615,7 @@ BEGIN
   END IF;
 END $$
 
-DROP PROCEDURE IF EXISTS close_batch;
+DROP PROCEDURE IF EXISTS close_batch $$
 CREATE PROCEDURE close_batch(
   IN in_batch_id BIGINT,
   IN in_timestamp BIGINT
@@ -907,6 +907,7 @@ BEGIN
   SELECT 0 as rc, delta_cores_mcpu;
 END $$
 
+DROP PROCEDURE IF EXISTS mark_job_complete $$
 CREATE PROCEDURE mark_job_complete(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
@@ -958,7 +959,7 @@ BEGIN
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   FOR UPDATE;
 
-  IF expected_attempt_id != in_attempt_id THEN
+  IF expected_attempt_id IS NOT NULL AND expected_attempt_id != in_attempt_id THEN
     COMMIT;
     SELECT 2 as rc,
       expected_attempt_id,
@@ -966,7 +967,7 @@ BEGIN
       'input attempt id does not match expected attempt id' as message;
   ELSEIF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN
     UPDATE jobs
-    SET state = new_state, status = new_status
+    SET state = new_state, status = new_status, attempt_id = in_attempt_id
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
     UPDATE batches SET n_completed = n_completed + 1 WHERE id = in_batch_id;

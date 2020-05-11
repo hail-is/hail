@@ -1292,6 +1292,8 @@ steps:
       script: /io/sql/insert_standing_worker_globals.py
     - name: insert-local-ssd-resource
       script: /io/sql/insert_local_ssd_resource.py
+    - name: fix-mark-job-complete-on-error
+      script: /io/sql/fix-mark-job-complete-on-error.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
