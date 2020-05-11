@@ -85,6 +85,9 @@ class Job:
     def log(self):
         return async_to_blocking(self._async_job.log())
 
+    def attempts(self):
+        return async_to_blocking(self._async_job.attempts())
+
 
 class Batch:
     @classmethod

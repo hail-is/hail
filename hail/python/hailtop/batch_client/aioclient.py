@@ -209,6 +209,9 @@ class Job:
     async def log(self):
         return await self._job.log()
 
+    async def attempts(self):
+        return await self._job.attempts()
+
 
 class UnsubmittedJob:
     def _submit(self, batch):
@@ -248,6 +251,9 @@ class UnsubmittedJob:
 
     async def log(self):
         raise ValueError("cannot get the log of an unsubmitted job")
+
+    async def attempts(self):
+        raise ValueError("cannot get the attempts of an unsubmitted job")
 
 
 class SubmittedJob:
@@ -290,6 +296,10 @@ class SubmittedJob:
 
     async def log(self):
         resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log')
+        return await resp.json()
+
+    async def attempts(self):
+        resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/attempts')
         return await resp.json()
 
 
