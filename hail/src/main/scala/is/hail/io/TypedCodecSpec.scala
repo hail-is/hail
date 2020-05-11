@@ -33,6 +33,10 @@ final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: Buffer
     encodedType.decodedPType(requestedType)
   }
 
+  def decodedPType(): PType = {
+    encodedType.decodedPType(_vType)
+  }
+
   def buildDecoder(ctx: ExecuteContext, requestedType: Type): (PType, (InputStream) => Decoder) = {
     val (rt, bufferToDecoder) = encodedType.buildDecoder(ctx, requestedType)
     (rt, (in: InputStream) => bufferToDecoder(_bufferSpec.buildInputBuffer(in)))
