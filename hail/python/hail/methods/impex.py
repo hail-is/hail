@@ -1125,8 +1125,8 @@ def import_bgen(path,
 
             if len(variants.dtype) == 0 or not variants.dtype._is_prefix_of(expected_vtype):
                 raise TypeError("'import_bgen' requires the expression type for 'variants' is a non-empty prefix of the BGEN key type: \n" +
-                                 f"\tFound: {repr(variants.dtype)}\n" +
-                                  f"\tExpected: {repr(expected_vtype)}\n")
+                                f"\tFound: {repr(variants.dtype)}\n"
+                                + f"\tExpected: {repr(expected_vtype)}\n")
 
             uid = Env.get_uid()
             fnames = list(variants.dtype)

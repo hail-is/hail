@@ -1,15 +1,16 @@
 import json
+import warnings
 import numpy as np
 import pandas as pd
 
 import hail as hl
 from bokeh.layouts import gridplot
-from bokeh.models import *
+from bokeh.models import Title, ColumnDataSource, HoverTool, Div, Tabs, Panel
 from bokeh.palettes import Spectral8
 from bokeh.plotting import figure
 from bokeh.transform import factor_cmap
-from hail.typecheck import *
-from hail.utils.hadoop_utils import *
+from hail.typecheck import typecheck
+from hail.utils.hadoop_utils import hadoop_open, hadoop_ls
 
 
 def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title='ROC Curve', hover_mode='mouse'):

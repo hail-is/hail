@@ -490,8 +490,8 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
     # this filter removes mendel error of het father in x_nonpar. It also avoids
     #   building and looking up config in common case that neither parent is het
     father_is_het = tri.father_entry.GT.is_het()
-    parent_is_valid_het = ((father_is_het & tri.auto_or_x_par) |
-                           (tri.mother_entry.GT.is_het() & ~father_is_het))
+    parent_is_valid_het = ((father_is_het & tri.auto_or_x_par)
+                           | (tri.mother_entry.GT.is_het() & ~father_is_het))
 
     copy_state = hl.cond(tri.auto_or_x_par | tri.is_female, 2, 1)
 
@@ -793,8 +793,8 @@ def de_novo(mt: MatrixTable,
             return (
                 hl.case()
                     .when(kid.GQ < min_gq, failure)
-                    .when((kid.DP / (dad.DP + mom.DP) < min_dp_ratio) |
-                          ~(kid_ad_ratio >= min_child_ab), failure)
+                    .when((kid.DP / (dad.DP + mom.DP) < min_dp_ratio)
+                          | ~(kid_ad_ratio >= min_child_ab), failure)
                     .when((hl.sum(mom.AD) == 0) | (hl.sum(dad.AD) == 0), failure)
                     .when((mom.AD[1] / hl.sum(mom.AD) > max_parent_ab) |
                           (dad.AD[1] / hl.sum(dad.AD) > max_parent_ab), failure)
@@ -808,9 +808,9 @@ def de_novo(mt: MatrixTable,
                                 hl.struct(p_de_novo=p_de_novo, confidence='LOW'))
                           .or_missing())
                     .default(hl.case()
-                             .when(((p_de_novo > 0.99) & (kid_ad_ratio > 0.3) & (dp_ratio > 0.2)) |
-                                   ((p_de_novo > 0.99) & (kid_ad_ratio > 0.3) & (n_alt_alleles == 1)) |
-                                   ((p_de_novo > 0.5) & (kid_ad_ratio > 0.3) & (n_alt_alleles < 10) & (kid.DP > 10)),
+                             .when(((p_de_novo > 0.99) & (kid_ad_ratio > 0.3) & (dp_ratio > 0.2))
+                                   | ((p_de_novo > 0.99) & (kid_ad_ratio > 0.3) & (n_alt_alleles == 1))
+                                   | ((p_de_novo > 0.5) & (kid_ad_ratio > 0.3) & (n_alt_alleles < 10) & (kid.DP > 10)),
                                    hl.struct(p_de_novo=p_de_novo, confidence='HIGH'))
                              .when((p_de_novo > 0.5) & ((kid_ad_ratio > 0.3) | (n_alt_alleles == 1)),
                                    hl.struct(p_de_novo=p_de_novo, confidence='MEDIUM'))
@@ -832,8 +832,8 @@ def de_novo(mt: MatrixTable,
             return (
                 hl.case()
                     .when(kid.GQ < min_gq, failure)
-                    .when((kid.DP / (parent.DP) < min_dp_ratio) |
-                          (kid_ad_ratio < min_child_ab), failure)
+                    .when((kid.DP / (parent.DP) < min_dp_ratio)
+                          | (kid_ad_ratio < min_child_ab), failure)
                     .when((hl.sum(parent.AD) == 0), failure)
                     .when(parent.AD[1] / hl.sum(parent.AD) > max_parent_ab, failure)
                     .when(p_de_novo < min_p, failure)
@@ -846,9 +846,9 @@ def de_novo(mt: MatrixTable,
                                 hl.struct(p_de_novo=p_de_novo, confidence='LOW'))
                           .or_missing())
                     .default(hl.case()
-                             .when(((p_de_novo > 0.99) & (kid_ad_ratio > 0.3) & (dp_ratio > 0.2)) |
-                                   ((p_de_novo > 0.99) & (kid_ad_ratio > 0.3) & (n_alt_alleles == 1)) |
-                                   ((p_de_novo > 0.5) & (kid_ad_ratio > 0.3) & (n_alt_alleles < 10) & (kid.DP > 10)),
+                             .when(((p_de_novo > 0.99) & (kid_ad_ratio > 0.3) & (dp_ratio > 0.2))
+                                   | ((p_de_novo > 0.99) & (kid_ad_ratio > 0.3) & (n_alt_alleles == 1))
+                                   | ((p_de_novo > 0.5) & (kid_ad_ratio > 0.3) & (n_alt_alleles < 10) & (kid.DP > 10)),
                                    hl.struct(p_de_novo=p_de_novo, confidence='HIGH'))
                              .when((p_de_novo > 0.5) & ((kid_ad_ratio > 0.3) | (n_alt_alleles == 1)),
                                    hl.struct(p_de_novo=p_de_novo, confidence='MEDIUM'))

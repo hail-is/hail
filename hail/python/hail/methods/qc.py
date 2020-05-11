@@ -271,8 +271,8 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
                       lambda e1: hl.rbind(
                           hl.case().when(hl.len(mt.alleles) == 2,
                                          hl.hardy_weinberg_test(e1.call_stats.homozygote_count[0],
-                                                                e1.call_stats.AC[1] - 2 *
-                                                                e1.call_stats.homozygote_count[1],
+                                                                e1.call_stats.AC[1] - 2
+                                                                * e1.call_stats.homozygote_count[1],
                                                                 e1.call_stats.homozygote_count[1])
                                          ).or_missing(),
                           lambda hwe: hl.struct(**{

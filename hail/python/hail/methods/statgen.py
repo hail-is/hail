@@ -924,8 +924,8 @@ def linear_mixed_model(y,
     """
     source = matrix_table_source('linear_mixed_model/y', y)
 
-    if ((z_t is None and k is None) or
-            (z_t is not None and k is not None)):
+    if ((z_t is None and k is None)
+            or (z_t is not None and k is not None)):
         raise ValueError("linear_mixed_model: set exactly one of 'z_t' and 'k'")
 
     if len(x) == 0:
@@ -2841,9 +2841,9 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
 
     # verify af_dist
     if not af_dist._is_scalar:
-        raise ExpressionException('balding_nichols_model expects af_dist to ' +
-                                  'have scalar arguments: found expression ' +
-                                  'from source {}'
+        raise ExpressionException('balding_nichols_model expects af_dist to '
+                                  + 'have scalar arguments: found expression '
+                                  + 'from source {}'
                                   .format(af_dist._indices.source))
 
     if af_dist.dtype != tfloat64:
@@ -3410,8 +3410,8 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     entries = entries.annotate_globals(info = info)
 
     entries = entries.filter(
-        (entries.info[entries.i].locus.contig == entries.info[entries.j].locus.contig) &
-        (entries.info[entries.j].locus.position - entries.info[entries.i].locus.position <= bp_window_size))
+        (entries.info[entries.i].locus.contig == entries.info[entries.j].locus.contig)
+        & (entries.info[entries.j].locus.position - entries.info[entries.i].locus.position <= bp_window_size))
 
     if keep_higher_maf:
         entries = entries.annotate(

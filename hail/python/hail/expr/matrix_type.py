@@ -1,7 +1,10 @@
-from hail.typecheck import *
+import pprint
+
+from hail.typecheck import typecheck_method, sequenceof
 from hail.utils.java import escape_parsable
 from hail.expr.types import dtype, tstruct
 from hail.utils.java import jiterable_to_list
+
 
 class tmatrix(object):
     @staticmethod
@@ -156,8 +159,6 @@ class tmatrix(object):
                     'sa': default_value,
                     'g': default_value}
 
-
-import pprint
 
 _old_printer = pprint.PrettyPrinter
 

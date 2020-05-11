@@ -1,7 +1,6 @@
 import hail as hl
-from hail.expr.expressions.expression_typecheck import *
-from hail.expr.expressions.expression_utils import *
-from hail.typecheck import *
+from hail.expr.expressions import expr_any, analyze
+from hail.typecheck import typecheck
 
 
 @typecheck(expr=expr_any, path=str, overwrite=bool)

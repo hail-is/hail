@@ -3,8 +3,8 @@ import numpy as np
 import hail as hl
 from hail.table import Table
 from hail.linalg import BlockMatrix
-from hail.typecheck import *
-from hail.expr.expressions import *
+from hail.typecheck import typecheck, nullable, sequenceof, oneof
+from hail.expr.expressions import expr_float64, expr_numeric, expr_locus
 from hail.utils import new_temp_file, wrap_to_list
 
 
@@ -130,9 +130,9 @@ def ld_score(entry_expr,
                          mt == mt_coord_expr])
     else:
         check_mts = all([mt == mt_locus_expr,
-                         mt == mt_coord_expr] +
-                        [mt == x._indices.source
-                         for x in wrap_to_list(annotation_exprs)])
+                         mt == mt_coord_expr]
+                        + [mt == x._indices.source
+                           for x in wrap_to_list(annotation_exprs)])
 
     if not check_mts:
         raise ValueError("""ld_score: entry_expr, locus_expr, coord_expr
@@ -141,7 +141,7 @@ def ld_score(entry_expr,
 
     n = mt.count_cols()
     r2 = hl.row_correlation(entry_expr, block_size) ** 2
-    r2_adj = ((n-1.0) / (n-2.0)) * r2 - (1.0 / (n-2.0))
+    r2_adj = ((n - 1.0) / (n - 2.0)) * r2 - (1.0 / (n - 2.0))
 
     starts, stops = hl.linalg.utils.locus_windows(locus_expr,
                                                   radius,
@@ -164,7 +164,7 @@ def ld_score(entry_expr,
         ht_union = hl.Table.union(
             *[(ht.annotate(name=hl.str(x),
                            value=hl.float(ht[x]))
-                 .select('name', 'value')) for x in names])
+               .select('name', 'value')) for x in names])
         mt_annotations = ht_union.to_matrix_table(
             row_key=list(ht_union.key),
             col_key=['name'])

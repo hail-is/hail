@@ -1,6 +1,6 @@
 import hail as hl
-from hail.typecheck import *
-from hail.expr.expressions import *
+from hail.typecheck import typecheck, sequenceof
+from hail.expr.expressions import expr_str, expr_call, expr_locus, expr_array
 from hail.matrixtable import MatrixTable
 from typing import List
 
@@ -193,10 +193,10 @@ def phase_by_transmission(
 
     return (
         hl.case()
-            .when(locus.in_x_nonpar() & proband_call.is_haploid(), phase_haploid_proband_x_nonpar(proband_call, father_call, mother_call))
-            .when(locus.in_y_nonpar(), phase_y_nonpar(proband_call, father_call))
-            .when(proband_call.is_diploid(), phase_diploid_proband(locus, alleles, proband_call, father_call, mother_call))
-            .or_missing()
+        .when(locus.in_x_nonpar() & proband_call.is_haploid(), phase_haploid_proband_x_nonpar(proband_call, father_call, mother_call))
+        .when(locus.in_y_nonpar(), phase_y_nonpar(proband_call, father_call))
+        .when(proband_call.is_diploid(), phase_diploid_proband(locus, alleles, proband_call, father_call, mother_call))
+        .or_missing()
     )
 
 
