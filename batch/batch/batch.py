@@ -73,7 +73,7 @@ def batch_record_to_dict(app, record):
     msec_mcpu = record['msec_mcpu']
     d['msec_mcpu'] = msec_mcpu
 
-    cost = format_version.cost(app, record['msec_mcpu'], json_to_value(record.get('resources')))
+    cost = format_version.cost(record['msec_mcpu'], json_to_value(record.get('resources')))
     d['cost'] = f'${cost:.4f}'
 
     return d
@@ -236,7 +236,7 @@ def job_record_to_dict(app, record, name):
     msec_mcpu = record['msec_mcpu']
     result['msec_mcpu'] = msec_mcpu
 
-    cost = format_version.cost(app, record['msec_mcpu'], json_to_value(record.get('resources')))
+    cost = format_version.cost(record['msec_mcpu'], json_to_value(record.get('resources')))
     result['cost'] = f'${cost:.4f}'
 
     return result

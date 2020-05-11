@@ -100,8 +100,8 @@ class BatchFormatVersion:
         assert len(status) == 2
         return status
 
-    def cost(self, app, msec_mcpu, resources):
+    def cost(self, msec_mcpu, resources):
         if self.format_version < 3:
             assert msec_mcpu is not None
-            return cost_from_msec_mcpu(app, msec_mcpu)
+            return cost_from_msec_mcpu(msec_mcpu)
         return cost_from_resources(resources)

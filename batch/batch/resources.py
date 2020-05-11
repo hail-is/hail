@@ -18,7 +18,7 @@ RATES = {
 
 def cost_from_resources(resources):
     if resources is None:
-        return 0
+        return None
 
     total_cost = 0
     for resource_name, usage in resources.items():

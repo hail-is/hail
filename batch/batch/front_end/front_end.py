@@ -29,7 +29,8 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 # import uvloop
 
 from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_memory_request, \
-    worker_memory_per_core_gb, cost_from_msec_mcpu, adjust_cores_for_packability, json_to_value
+    worker_memory_per_core_gb, cost_from_msec_mcpu, adjust_cores_for_packability, json_to_value, \
+    coalesce
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
@@ -1166,15 +1167,15 @@ ON t1.billing_project = t3.billing_project AND t1.`user` = t3.`user`;
 
     sql_args = (start, end, start, end, start, end)
 
-    def billing_record_to_dict(app, record):
-        cost_msec_mcpu = cost_from_msec_mcpu(app, record['msec_mcpu'])
+    def billing_record_to_dict(record):
+        cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
         cost_resources = cost_from_resources(json_to_value(record['resources']))
-        record['cost'] = cost_msec_mcpu + cost_resources
+        record['cost'] = coalesce(cost_msec_mcpu, 0) + coalesce(cost_resources, 0)
         del record['msec_mcpu']
         del record['resources']
         return record
 
-    billing = [billing_record_to_dict(request.app, record)
+    billing = [billing_record_to_dict(record)
                async for record
                in db.select_and_fetchall(sql, sql_args)]
 

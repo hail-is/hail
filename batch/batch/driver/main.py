@@ -571,7 +571,7 @@ LOCK IN SHARE MODE;
         await asyncio.sleep(10)
 
 
-async def check_cost(app, db):
+async def check_cost(db):
     @transaction(db, read_only=True)
     async def check(tx):
         agg_job_resources = tx.execute_and_fetchall('''
@@ -599,13 +599,14 @@ LOCK IN SHARE MODE;
 ''')
 
         def assert_cost_same(id, msec_mcpu, resources):
-            cost_msec_mcpu = cost_from_msec_mcpu(app, msec_mcpu)
+            cost_msec_mcpu = cost_from_msec_mcpu(msec_mcpu)
             cost_resources = cost_from_resources(resources)
-            if cost_msec_mcpu != 0:
-                assert abs(cost_resources - cost_msec_mcpu) / cost_msec_mcpu <= 0.01, \
-                    (id, msec_mcpu, resources, cost_msec_mcpu, cost_resources)
-            else:
-                assert cost_resources == 0, (id, msec_mcpu, resources, cost_msec_mcpu, cost_resources)
+            if cost_msec_mcpu is not None and cost_resources is not None:
+                if cost_msec_mcpu != 0:
+                    assert abs(cost_resources - cost_msec_mcpu) / cost_msec_mcpu <= 0.01, \
+                        (id, msec_mcpu, resources, cost_msec_mcpu, cost_resources)
+                else:
+                    assert cost_resources == 0, (id, msec_mcpu, resources, cost_msec_mcpu, cost_resources)
 
         async for record in agg_job_resources:
             assert_cost_same((record['batch_id'], record['job_id']), record['msec_mcpu'], json_to_value(record['resources']))
@@ -679,8 +680,8 @@ async def on_startup(app):
     app['scheduler'] = scheduler
 
     # asyncio.ensure_future(check_incremental_loop(db))
-    asyncio.ensure_future(check_resource_aggregation(db))
-    asyncio.ensure_future(check_cost(app, db))
+    # asyncio.ensure_future(check_resource_aggregation(db))
+    # asyncio.ensure_future(check_cost(db))
 
 
 async def on_cleanup(app):

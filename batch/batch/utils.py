@@ -14,13 +14,19 @@ def json_to_value(x):
     return json.loads(x)
 
 
-def cost_from_msec_mcpu(app, msec_mcpu):
-    if msec_mcpu is None:
-        return 0
+def coalesce(x, default):
+    if x is not None:
+        return x
+    return default
 
-    worker_type = app['worker_type']  # 'standard'
-    worker_cores = app['worker_cores']  # 16
-    worker_disk_size_gb = app['worker_disk_size_gb']  # 100
+
+def cost_from_msec_mcpu(msec_mcpu):
+    if msec_mcpu is None:
+        return None
+
+    worker_type = 'standard'
+    worker_cores = 16
+    worker_disk_size_gb = 100
 
     # https://cloud.google.com/compute/all-pricing
 
