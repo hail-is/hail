@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, TypeInfo, Value}
-import is.hail.expr.ir.{Ascending, Descending, EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.{Ascending, Descending, EmitCodeBuilder, EmitCodeOrdering, EmitModuleBuilder, EmitMethodBuilder, SortOrder}
 
 trait PUnrealizable extends PType {
   private def unsupported: Nothing =
@@ -13,6 +13,9 @@ trait PUnrealizable extends PType {
   override def alignment: Long = unsupported
 
   override def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: SortOrder): CodeOrdering =
+    unsupported
+
+  override def codeOrdering2(modb: EmitModuleBuilder, other: PType): EmitCodeOrdering =
     unsupported
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering =
