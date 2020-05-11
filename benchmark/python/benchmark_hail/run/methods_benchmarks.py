@@ -171,7 +171,7 @@ def linear_regression_rows_nd(mt_path):
     cov_dict = {f"cov_{i}": hl.rand_unif(0, 1) for i in range(num_covs)}
     mt = mt.annotate_cols(**pheno_dict)
     mt = mt.annotate_cols(**cov_dict)
-    res = hl.linear_regression_rows_nd(y=[mt[key] for key in pheno_dict.keys()],
+    res = hl._linear_regression_rows_nd(y=[mt[key] for key in pheno_dict.keys()],
                                        x=mt.x,
                                        covariates=[mt[key] for key in cov_dict.keys()])
     res._force_count()

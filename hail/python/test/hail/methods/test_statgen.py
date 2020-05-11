@@ -108,7 +108,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(hl.impute_sex(ds.GT)._same(hl.impute_sex(ds.GT, aaf='aaf')))
 
-    linreg_functions = [hl.linear_regression_rows, hl.linear_regression_rows_nd]
+    linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd]
 
     def test_linreg_basic(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),

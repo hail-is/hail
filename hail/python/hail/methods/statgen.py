@@ -452,26 +452,31 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
            covariates=sequenceof(expr_float64),
            block_size=int,
            pass_through=sequenceof(oneof(str, Expression)))
-def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) -> hail.Table:
-    mt = matrix_table_source('linear_regression_rows/x', x)
-    check_entry_indexed('linear_regression_rows/x', x)
+def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) -> hail.Table:
+    mt = matrix_table_source('linear_regression_rows_nd/x', x)
+    check_entry_indexed('linear_regression_rows_nd/x', x)
 
     y_is_list = isinstance(y, list)
     if y_is_list and len(y) == 0:
-        raise ValueError(f"'linear_regression_rows': found no values for 'y'")
+        raise ValueError(f"'linear_regression_rows_nd': found no values for 'y'")
     is_chained = y_is_list and isinstance(y[0], list)
+
+    if is_chained:
+        raise ValueError("linear_regression_rows_nd does not currently support chained linear regression.")
+
+
     if is_chained and any(len(l) == 0 for l in y):
         raise ValueError(f"'linear_regression_rows': found empty inner list for 'y'")
 
     y = wrap_to_list(y)
 
     for e in (itertools.chain.from_iterable(y) if is_chained else y):
-        analyze('linear_regression_rows/y', e, mt._col_indices)
+        analyze('linear_regression_rows_nd/y', e, mt._col_indices)
 
     for e in covariates:
-        analyze('linear_regression_rows/covariates', e, mt._col_indices)
+        analyze('linear_regression_rows_nd/covariates', e, mt._col_indices)
 
-    _warn_if_no_intercept('linear_regression_rows', covariates)
+    _warn_if_no_intercept('linear_regression_rows_nd', covariates)
 
     x_field_name = Env.get_uid()
     if is_chained:
@@ -484,7 +489,7 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
-    row_fields = _get_regression_row_fields(mt, pass_through, 'linear_regression_rows')
+    row_fields = _get_regression_row_fields(mt, pass_through, 'linear_regression_rows_nd')
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
     mt = mt._select_all(col_exprs=dict(**y_dict,
@@ -497,7 +502,6 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
     entries_field_name = 'ent'
     sample_field_name = "by_sample"
     X_field_name = entries_field_name + "_nd"
-
 
     # TODO List:
     # Either before or after localizing, need to find the missing samples and delete them
@@ -528,9 +532,7 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
 
     ht_local = mt._localize_entries(entries_field_name, sample_field_name)
 
-    # Now here, I want to transmute away the entries field name struct to get arrays
     ht = ht_local.transmute(**{entries_field_name: ht_local[entries_field_name][x_field_name]})
-    # Now need to group everything
     ht = ht._group_within_partitions("grouped_fields", block_size)  # breaking point for show with filtering, idk why
 
     ys_and_covs_to_keep_with_indices = hl.zip_with_index(ht[sample_field_name]).filter(lambda struct_with_index: all_defined(struct_with_index[1], y_field_names + cov_field_names))
@@ -540,7 +542,6 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
     cov_nd = hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[cov_name] for cov_name in cov_field_names]))) if cov_field_names else hl.nd.zeros((hl.len(indices_to_keep), 0)) #TODO Double check shape
     ht = ht.annotate_globals(kept_samples=indices_to_keep,
                              __y_nd=hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[y_name] for y_name in y_field_names]))),
-                             # TODO: When there are no covariates, can't call array.
                              __cov_nd=cov_nd)
     k = builtins.len(covariates)
     #if d < 1:
@@ -588,7 +589,6 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
         fields = ['y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
         res = res.annotate(**{f: res[f][0] for f in fields})
 
-    #res._tir.is_sorted = True #FIXME It'd be nice to get sorting right
     res = res.select_globals()
 
     return res
