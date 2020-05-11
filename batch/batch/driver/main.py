@@ -24,7 +24,7 @@ from ..batch import mark_job_complete, mark_job_started
 from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
     DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE, \
-    WORKER_LOGS_BUCKET_NAME
+    WORKER_LOGS_BUCKET_NAME, PROJECT
 from ..google_compute import GServices
 from ..globals import HTTP_CLIENT_MAX_SIZE
 
@@ -510,7 +510,7 @@ async def on_startup(app):
     app['gservices'] = gservices
 
     compute_client = aiogoogle.ComputeClient(
-        aiogoogle.Credentials.from_file('/gsa-key/key.json'))
+        PROJECT, credentials=aiogoogle.Credentials.from_file('/gsa-key/key.json'))
     app['compute_client'] = compute_client
 
     scheduler_state_changed = asyncio.Event()
