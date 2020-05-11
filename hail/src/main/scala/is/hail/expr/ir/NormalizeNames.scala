@@ -62,9 +62,9 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
       }.toFastIndexedSeq)
   }
 
-  private def normalizeIR(ir: IR, env: BindingEnv[String]): IR = {
+  private def normalizeIR(ir: IR, env: BindingEnv[String], context: Array[String] = Array()): IR = {
 
-    def normalize(ir: IR, env: BindingEnv[String] = env): IR = normalizeIR(ir, env)
+    def normalize(next: IR, env: BindingEnv[String] = env): IR = normalizeIR(next, env, context :+ ir.getClass().getName())
 
     ir match {
       case Let(name, value, body) =>
@@ -75,7 +75,7 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           case Some(n) => n
           case None =>
             if (!allowFreeVariables)
-              throw new RuntimeException(s"found free variable in normalize: $name")
+              throw new RuntimeException(s"found free variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x)}")
             else
               name
         }
@@ -85,7 +85,7 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           case Some(n) => n
           case None =>
             if (!allowFreeVariables)
-              throw new RuntimeException(s"found free loop variable in normalize: $name")
+              throw new RuntimeException(s"found free loop variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x)}")
             else
               name
         }
