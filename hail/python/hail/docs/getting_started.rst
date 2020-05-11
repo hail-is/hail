@@ -33,7 +33,7 @@ For all methods *other than using pip*, you will additionally need
 
 For the latter three, Debian users might try::
 
-    sudo apt-get install g++ liblz4-dev apt-get libopenblas liblapack3
+    sudo apt-get install g++ liblz4-dev libopenblas liblapack3
 
 and Mac OS X users, might try::
 
