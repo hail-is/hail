@@ -503,11 +503,6 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     sample_field_name = "by_sample"
     X_field_name = entries_field_name + "_nd"
 
-    # TODO List:
-    # Either before or after localizing, need to find the missing samples and delete them
-    #   In the chained case, have to do this a bunch of times? Can't filter mutliple mts without recomputing?
-    #   No. In the chained case, what I want is for all of the different y based things to be arrays.
-
     def all_defined(struct_root, field_names):
         defined_array = hl.array([hl.is_defined(struct_root[field_name]) for field_name in field_names])
         return defined_array.fold(lambda a, b: a & b, True)
@@ -519,7 +514,8 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
             return hl.range(hl.int32(mat.shape[0])).map(lambda i:
                                                         hl.range(hl.int32(mat.shape[1])).map(lambda j: (mat[i, j])))
 
-    # Given a hail array, get the mean of the nonmissing entries and return new array where the missing entries are the mean.
+    # Given a hail array, get the mean of the nonmissing entries and
+    # return new array where the missing entries are the mean.
     def mean_impute(hl_array):
         non_missing_mean = hl.mean(hl_array, filter_missing=True)
         return hl.map(lambda arr_entry: hl.if_else(hl.is_defined(arr_entry), arr_entry, non_missing_mean), hl_array)
@@ -533,19 +529,17 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     ht_local = mt._localize_entries(entries_field_name, sample_field_name)
 
     ht = ht_local.transmute(**{entries_field_name: ht_local[entries_field_name][x_field_name]})
-    ht = ht._group_within_partitions("grouped_fields", block_size)  # breaking point for show with filtering, idk why
+    ht = ht._group_within_partitions("grouped_fields", block_size)
 
     ys_and_covs_to_keep_with_indices = hl.zip_with_index(ht[sample_field_name]).filter(lambda struct_with_index: all_defined(struct_with_index[1], y_field_names + cov_field_names))
     indices_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[0])
     ys_and_covs_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[1])
 
-    cov_nd = hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[cov_name] for cov_name in cov_field_names]))) if cov_field_names else hl.nd.zeros((hl.len(indices_to_keep), 0)) #TODO Double check shape
+    cov_nd = hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[cov_name] for cov_name in cov_field_names]))) if cov_field_names else hl.nd.zeros((hl.len(indices_to_keep), 0))
     ht = ht.annotate_globals(kept_samples=indices_to_keep,
                              __y_nd=hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[y_name] for y_name in y_field_names]))),
                              __cov_nd=cov_nd)
     k = builtins.len(covariates)
-    #if d < 1:
-    #    raise FatalError(f"{n} samples and {k + 1} covariates (including x) implies ${d} degrees of freedom.")
 
     ht = ht.annotate(**{X_field_name: hl.nd.array(hl.map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples)), ht["grouped_fields"][entries_field_name])).T})
     n = hl.len(ht.kept_samples)
@@ -570,7 +564,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         sources = [pair[1] for pair in mapping]
         dests = [pair[0] for pair in mapping]
         ht = ht.annotate(**{struct_root_name: hl.zip(*sources)})
-        ht = ht.transmute(**{struct_root_name : ht[struct_root_name].map(lambda tup: hl.struct(**{dests[i]:tup[i] for i in range(len(dests))}))})
+        ht = ht.transmute(**{struct_root_name: ht[struct_root_name].map(lambda tup: hl.struct(**{dests[i]:tup[i] for i in range(len(dests))}))})
         return ht
 
     res = ht.key_by()
