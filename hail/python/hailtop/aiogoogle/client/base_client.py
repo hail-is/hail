@@ -1,16 +1,19 @@
 from types import TracebackType
 from typing import Any, Optional, Type, TypeVar
+from hailtop.utils import RateLimit
+from hailtop.aiogoogle.auth import Session, RateLimitedSession
 
-from hailtop.aiogoogle.auth import Session
-
-Self = TypeVar('Self', bound='BaseClient')
+ClientType = TypeVar('ClientType', bound='BaseClient')
 
 
 class BaseClient:
-    def __init__(self, base_url: str, *, session: Session = None, **kwargs):
+    def __init__(self, base_url: str, *, session: Session = None,
+                 rate_limit: RateLimit = None, **kwargs):
         self._base_url = base_url
         if session is None:
             session = Session(**kwargs)
+        if rate_limit is not None:
+            session = RateLimitedSession(session=session, rate_limit=rate_limit)
         self._session = session
 
     async def get(self, path: str, **kwargs) -> Any:
@@ -33,7 +36,7 @@ class BaseClient:
             await self._session.close()
             self._session = None
 
-    async def __aenter__(self: Self) -> Self:
+    async def __aenter__(self: ClientType) -> ClientType:
         return self
 
     async def __aexit__(self,
