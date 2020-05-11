@@ -10,9 +10,8 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
   type State = TypedRegionBackedAggState
   assert(PType.canonical(typ) == typ)
   val resultType: PType = typ
-
-  def createState(cb: EmitCodeBuilder): State =
-    new TypedRegionBackedAggState(typ.setRequired(false), cb.emb.ecb)
+  val initOpTypes: Seq[PType] = Array[PType]()
+  val seqOpTypes: Seq[PType] = Array[PType](typ)
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)

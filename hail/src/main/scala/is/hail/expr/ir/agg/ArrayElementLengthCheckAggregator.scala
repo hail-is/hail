@@ -1,7 +1,7 @@
 package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
-import is.hail.asm4s.{coerce => _, _} // use ir coerce
+import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir._
 import is.hail.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
@@ -169,7 +169,8 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   val resultEltType: PTuple = PCanonicalTuple(true, nestedAggs.map(_.resultType): _*)
   val resultType: PArray = PCanonicalArray(resultEltType, required = knownLength)
 
-  def createState(cb: EmitCodeBuilder): State = new ArrayElementState(cb.emb.ecb, StateTuple(nestedAggs.map(_.createState(cb))))
+  val initOpTypes: Seq[PType] = if (knownLength) FastSeq(PInt32(true), PVoid) else FastSeq(PVoid)
+  val seqOpTypes: Seq[PType] = FastSeq(PInt32())
 
   // inits all things
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
@@ -252,14 +253,10 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
 class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends StagedAggregator {
   type State = ArrayElementState
 
-  def initOpTypes: Array[PType] = Array()
-
-  def seqOpTypes: Array[PType] = Array(PInt32(), PVoid)
+  val initOpTypes: Seq[PType] = Array[PType]()
+  val seqOpTypes: Seq[PType] = Array[PType](PInt32(), PVoid)
 
   def resultType: PType = PCanonicalArray(PCanonicalTuple(false, nestedAggs.map(_.resultType): _*))
-
-  def createState(cb: EmitCodeBuilder): State =
-    throw new UnsupportedOperationException(s"State must be created by ArrayElementLengthCheckAggregator")
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit =
     throw new UnsupportedOperationException("State must be initialized by ArrayElementLengthCheckAggregator.")

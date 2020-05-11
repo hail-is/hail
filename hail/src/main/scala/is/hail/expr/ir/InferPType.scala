@@ -4,7 +4,7 @@ import is.hail.types.physical._
 import is.hail.types.virtual.{TNDArray, TVoid}
 import is.hail.utils._
 import is.hail.HailContext
-import is.hail.types.{BaseTypeWithRequiredness, RDict, RIterable, TypeWithRequiredness}
+import is.hail.types.{RDict, RIterable, TypeWithRequiredness}
 
 object InferPType {
 
@@ -15,63 +15,6 @@ object InferPType {
       case _ =>
     }
     x.children.foreach(clearPTypes)
-  }
-
-  def computePhysicalAgg(virt: AggStateSignature, initsAB: ArrayBuilder[RecursiveArrayBuilderElement[(AggOp, Seq[PType])]],
-    seqAB: ArrayBuilder[RecursiveArrayBuilderElement[(AggOp, Seq[PType])]]): AggStatePhysicalSignature = {
-    val inits = initsAB.result()
-    val seqs = seqAB.result()
-    assert(inits.nonEmpty)
-    assert(seqs.nonEmpty)
-    virt.default match {
-      case AggElementsLengthCheck() =>
-        assert(inits.length == 1)
-        assert(seqs.length == 2)
-
-        val iHead = inits.find(_.value._1 == AggElementsLengthCheck()).get
-        val iNested = iHead.nested.get
-        val iHeadArgTypes = iHead.value._2
-
-        val sLCHead = seqs.find(_.value._1 == AggElementsLengthCheck()).get
-        val sLCArgTypes = sLCHead.value._2
-        val sAEHead = seqs.find(_.value._1 == AggElements()).get
-        val sNested = sAEHead.nested.get
-        val sHeadArgTypes = sAEHead.value._2
-
-        val vNested = virt.nested.get.toArray
-
-        val nested = vNested.indices.map { i => computePhysicalAgg(vNested(i), iNested(i), sNested(i)) }
-        AggStatePhysicalSignature(Map(
-          AggElementsLengthCheck() -> PhysicalAggSignature(AggElementsLengthCheck(), iHeadArgTypes, sLCArgTypes),
-          AggElements() -> PhysicalAggSignature(AggElements(), FastIndexedSeq(), sHeadArgTypes)
-        ), AggElementsLengthCheck(), Some(nested))
-
-      case Group() =>
-        assert(inits.length == 1)
-        assert(seqs.length == 1)
-        val iHead = inits.head
-        val iNested = iHead.nested.get
-        val iHeadArgTypes = iHead.value._2
-
-        val sHead = seqs.head
-        val sNested = sHead.nested.get
-        val sHeadArgTypes = sHead.value._2
-
-        val vNested = virt.nested.get.toArray
-
-        val nested = vNested.indices.map { i => computePhysicalAgg(vNested(i), iNested(i), sNested(i)) }
-        val psig = PhysicalAggSignature(Group(), iHeadArgTypes, sHeadArgTypes)
-        AggStatePhysicalSignature(Map(Group() -> psig), Group(), Some(nested))
-
-      case _ =>
-        assert(inits.forall(_.nested.isEmpty))
-        assert(seqs.forall(_.nested.isEmpty))
-        val initArgTypes = inits.map(i => i.value._2.toArray).transpose
-          .map(ts => getCompatiblePType(ts))
-        val seqArgTypes = seqs.map(i => i.value._2.toArray).transpose
-          .map(ts => getCompatiblePType(ts))
-        virt.defaultSignature.toPhysical(initArgTypes, seqArgTypes).singletonContainer
-    }
   }
 
   def getCompatiblePType(pTypes: Seq[PType]): PType = {
@@ -87,7 +30,7 @@ object InferPType {
     else result.canonicalPType(pTypes.head.virtualType)
   }
 
-  def apply(ir: IR): Unit = apply(ir, Env.empty, null, null, null)
+  def apply(ir: IR): Unit = apply(ir, Env.empty)
 
   private type AAB[T] = Array[ArrayBuilder[RecursiveArrayBuilderElement[T]]]
 
@@ -95,10 +38,10 @@ object InferPType {
 
   def newBuilder[T](n: Int): AAB[T] = Array.fill(n)(new ArrayBuilder[RecursiveArrayBuilderElement[T]])
 
-  def apply(ir: IR, env: Env[PType], aggs: Array[AggStatePhysicalSignature], inits: AAB[(AggOp, Seq[PType])], seqs: AAB[(AggOp, Seq[PType])]): Unit = {
+  def apply(ir: IR, env: Env[PType]): Unit = {
     try {
       val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-      val requiredness = Requiredness.apply(ir, usesAndDefs, null, env, Some(aggs)) // Value IR inference doesn't need context
+      val requiredness = Requiredness.apply(ir, usesAndDefs, null, env) // Value IR inference doesn't need context
       requiredness.states.m.foreach { case (ir, types) =>
         ir.t match {
           case x: StreamFold => x.accPTypes = types.map(r => r.canonicalPType(x.zero.typ))
@@ -109,9 +52,7 @@ object InferPType {
             x.accPTypes = x.params.zip(types).map { case ((_, arg), r) => r.canonicalPType(arg.typ) }.toArray
         }
       }
-      _inferWithRequiredness(ir, env, requiredness, usesAndDefs, aggs)
-      if (inits != null || seqs != null)
-        _extractAggOps(ir, inits, seqs)
+      _inferWithRequiredness(ir, env, requiredness, usesAndDefs)
     } catch {
       case e: Exception =>
         throw new RuntimeException(s"error while inferring IR:\n${Pretty(ir)}", e)
@@ -152,89 +93,12 @@ object InferPType {
     case _ => throw new RuntimeException(s"$name not found in definition \n${ Pretty(defNode) }")
   }
 
-  def _extractAggOps(node: IR, inits: AAB[(AggOp, Seq[PType])] = null, seqs: AAB[(AggOp, Seq[PType])] = null, r: Option[Memo[BaseTypeWithRequiredness]] = None): Unit =
-    node match {
-      case _: RunAgg | _: RunAggScan =>
-      case x@InitOp(i, args, sig, op) =>
-        val nested = op match {
-          case Group() =>
-            val newInits = newBuilder[(AggOp, Seq[PType])](sig.nested.get.length)
-            val IndexedSeq(initArg) = args
-            _extractAggOps(initArg, inits = newInits, seqs = null, r)
-            Some(newInits)
-          case AggElementsLengthCheck() =>
-            val newInits = newBuilder[(AggOp, Seq[PType])](sig.nested.get.length)
-            val initArg = args.last
-            _extractAggOps(initArg, inits = newInits, seqs = null, r)
-            Some(newInits)
-          case _ =>
-            assert(sig.nested.isEmpty)
-            None
-        }
-        if (inits != null) {
-          val argTypes = x.args.map { a =>
-            if (a.typ != TVoid)
-              r.map(m => coerce[TypeWithRequiredness](m.lookup(a)).canonicalPType(a.typ)).getOrElse(a.pType)
-            else PVoid
-          }
-          inits(i) += RecursiveArrayBuilderElement(x.op -> argTypes, nested)
-        }
-      case x@SeqOp(i, args, sig, op) =>
-        val nested = op match {
-          case Group() =>
-            val newSeqs = newBuilder[(AggOp, Seq[PType])](sig.nested.get.length)
-            val IndexedSeq(_, seqArg) = args
-            _extractAggOps(seqArg, inits = null, seqs = newSeqs, r)
-            Some(newSeqs)
-          case AggElements() =>
-            val newSeqs = newBuilder[(AggOp, Seq[PType])](sig.nested.get.length)
-            val IndexedSeq(_, seqArg) = args
-            _extractAggOps(seqArg, inits = null, seqs = newSeqs, r)
-            Some(newSeqs)
-          case AggElementsLengthCheck() => None
-          case _ =>
-            assert(sig.nested.isEmpty)
-            None
-        }
-        if (seqs != null) {
-          val argTypes = x.args.map { a =>
-            if (a.typ != TVoid)
-              r.map(m => coerce[TypeWithRequiredness](m.lookup(a)).canonicalPType(a.typ)).getOrElse(a.pType)
-            else PVoid
-          }
-          seqs(i) += RecursiveArrayBuilderElement(x.op -> argTypes, nested)
-        }
-      case _ => node.children.foreach(c => _extractAggOps(c.asInstanceOf[IR], inits, seqs, r))
-    }
-
-  private def _inferWithRequiredness(node: IR, env: Env[PType], requiredness: RequirednessAnalysis, usesAndDefs: UsesAndDefs, aggs: Array[AggStatePhysicalSignature] = null): Unit = {
+  private def _inferWithRequiredness(node: IR, env: Env[PType], requiredness: RequirednessAnalysis, usesAndDefs: UsesAndDefs): Unit = {
     if (node._pType != null)
       throw new RuntimeException(node.toString)
-    node match {
-      case x@RunAgg(body, result, signature) =>
-        _inferWithRequiredness(body, env, requiredness, usesAndDefs)
-        val inits = newBuilder[(AggOp, Seq[PType])](signature.length)
-        val seqs = newBuilder[(AggOp, Seq[PType])](signature.length)
-        _extractAggOps(body, inits = inits, seqs = seqs)
-        val sigs = signature.indices.map { i => computePhysicalAgg(signature(i), inits(i), seqs(i)) }.toArray
-        x.physicalSignatures = sigs
-        _inferWithRequiredness(result, env, requiredness, usesAndDefs, x.physicalSignatures)
-      case x@RunAggScan(array, name, init, seq, result, signature) =>
-        _inferWithRequiredness(array, env, requiredness, usesAndDefs)
-        _inferWithRequiredness(init, env, requiredness, usesAndDefs)
-        _inferWithRequiredness(seq, env, requiredness, usesAndDefs)
-        val inits = newBuilder[(AggOp, Seq[PType])](signature.length)
-        val seqs = newBuilder[(AggOp, Seq[PType])](signature.length)
-        _extractAggOps(init, inits = inits, seqs = null)
-        _extractAggOps(seq, inits = null, seqs = seqs)
-        val sigs = signature.indices.map { i => computePhysicalAgg(signature(i), inits(i), seqs(i)) }.toArray
-        x.physicalSignatures = sigs
-        _inferWithRequiredness(result, env, requiredness, usesAndDefs, x.physicalSignatures)
-      case _ =>
-        node.children.foreach {
-          case x: IR => _inferWithRequiredness(x, env, requiredness, usesAndDefs, aggs)
-          case c => throw new RuntimeException(s"unsupported node:\n${Pretty(c)}")
-        }
+    node.children.foreach {
+      case x: IR => _inferWithRequiredness(x, env, requiredness, usesAndDefs)
+      case c => throw new RuntimeException(s"unsupported node:\n${Pretty(c)}")
     }
     node._pType = node match {
       case x if x.typ == TVoid => PVoid
@@ -242,7 +106,7 @@ object InferPType {
            | _: Cast | _: NA | _: Die | _: IsNA | _: ArrayZeros | _: ArrayLen | _: StreamLen
            | _: LowerBoundOnOrderedCollection | _: ApplyBinaryPrimOp
            | _: ApplyUnaryPrimOp | _: ApplyComparisonOp | _: WriteValue
-           | _: NDArrayAgg | _: ShuffleWrite | _: ShuffleStart | _: AggStateValue =>
+           | _: NDArrayAgg | _: ShuffleWrite | _: ShuffleStart | _: AggStateValue | _: CombOpValue =>
         requiredness(node).canonicalPType(node.typ)
       case CastRename(v, typ) => v.pType.deepRename(typ)
       case x: BaseRef if usesAndDefs.free.contains(RefEquality(x)) =>
@@ -396,7 +260,7 @@ object InferPType {
         if (irs.isEmpty) r.canonicalPType(t) else
           PCanonicalStream(getCompatiblePType(irs.map(_.pType), r.elementType), r.required)
       case x@ResultOp(resultIdx, sigs) =>
-        PCanonicalTuple(true, (resultIdx until resultIdx + sigs.length).map(i => aggs(i).resultType): _*)
+        PCanonicalTuple(true, sigs.map(_.pResultType): _*)
       case x@RunAgg(body, result, signature) => result.pType
       case x@RunAggScan(array, name, init, seq, result, signature) =>
         PCanonicalStream(result.pType, array.pType.required)

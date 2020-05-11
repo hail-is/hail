@@ -12,6 +12,7 @@ import is.hail.types.TableType
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.expr.Nat
+import is.hail.expr.ir.agg.{CallStatsStateSig, CollectStateSig, GroupedAggSig, PhysicalAggSig, TypedStateSig}
 import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
@@ -2774,20 +2775,20 @@ class IRSuite extends HailSuite {
     val call = Ref("call", TCall)
 
     val collectSig = AggSignature(Collect(), Seq(), Seq(TInt32))
+    val pCollectSig = PhysicalAggSig(Collect(), CollectStateSig(PInt32()))
 
     val sumSig = AggSignature(Sum(), Seq(), Seq(TInt64))
+    val pSumSig = PhysicalAggSig(Sum(), TypedStateSig(PInt64(true)))
 
     val callStatsSig = AggSignature(CallStats(), Seq(TInt32), Seq(TCall))
+    val pCallStatsSig = PhysicalAggSig(CallStats(), CallStatsStateSig())
 
     val takeBySig = AggSignature(TakeBy(), Seq(TInt32), Seq(TFloat64, TInt32))
 
     val countSig = AggSignature(Count(), Seq(), Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, countSig)
 
-    val groupSignature = AggStateSignature(
-      Map(Group() -> AggSignature(Group(), FastIndexedSeq(TVoid), FastIndexedSeq(TInt32, TVoid))),
-      Group(),
-      Some(FastIndexedSeq(sumSig.singletonContainer)))
+    val groupSignature = GroupedAggSig(PInt32(true), FastSeq(FastSeq(pSumSig)))
 
     val table = TableRange(100, 10)
 
@@ -2863,28 +2864,27 @@ class IRSuite extends HailSuite {
       StreamAgg(st, "x", ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)),
       StreamAggScan(st, "x", ApplyScanOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)),
       RunAgg(Begin(FastSeq(
-        InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), sumSig)))), groupSignature, Group()),
-        SeqOp(0, FastSeq(I32(1), SeqOp(0, FastSeq(), sumSig)), groupSignature, Group()))),
-        AggStateValue(0, groupSignature), FastIndexedSeq(groupSignature)),
+        InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), pSumSig)))), groupSignature),
+        SeqOp(0, FastSeq(I32(1), SeqOp(0, FastSeq(), pSumSig)), groupSignature))),
+        AggStateValue(0, groupSignature.state), FastIndexedSeq(groupSignature.state)),
       RunAggScan(StreamRange(I32(0), I32(1), I32(1)),
         "foo",
-        InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), sumSig)))), groupSignature, Group()),
-        SeqOp(0, FastSeq(Ref("foo", TInt32), SeqOp(0, FastSeq(), sumSig)), groupSignature, Group()),
-        AggStateValue(0, groupSignature),
-        FastIndexedSeq(groupSignature)
-        ),
+        InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), pSumSig)))), groupSignature),
+        SeqOp(0, FastSeq(Ref("foo", TInt32), SeqOp(0, FastSeq(), pSumSig)), groupSignature),
+        AggStateValue(0, groupSignature.state),
+        FastIndexedSeq(groupSignature.state)),
       AggFilter(True(), I32(0), false),
       AggExplode(NA(TStream(TInt32)), "x", I32(0), false),
       AggGroupBy(True(), I32(0), false),
       ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(I32(0)), collectSig),
       ApplyAggOp(FastIndexedSeq(I32(2)), FastIndexedSeq(call), callStatsSig),
       ApplyAggOp(FastIndexedSeq(I32(10)), FastIndexedSeq(F64(-2.11), I32(4)), takeBySig),
-      InitOp(0, FastIndexedSeq(I32(2)), AggStateSignature(callStatsSig), callStatsSig.op),
-      SeqOp(0, FastIndexedSeq(i), AggStateSignature(collectSig), collectSig.op),
-      CombOp(0, 1, collectSig.singletonContainer),
-      ResultOp(0, FastSeq(collectSig.singletonContainer)),
-      SerializeAggs(0, 0, BufferSpec.default, FastSeq(collectSig.singletonContainer)),
-      DeserializeAggs(0, 0, BufferSpec.default, FastSeq(collectSig.singletonContainer)),
+      InitOp(0, FastIndexedSeq(I32(2)), pCallStatsSig),
+      SeqOp(0, FastIndexedSeq(i), pCollectSig),
+      CombOp(0, 1, pCollectSig),
+      ResultOp(0, FastIndexedSeq(pCollectSig)),
+      SerializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
+      DeserializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
       Begin(FastIndexedSeq(Void())),
       MakeStruct(FastIndexedSeq("x" -> i)),
       SelectFields(s, FastIndexedSeq("x", "z")),
