@@ -5,7 +5,7 @@ import hail as hl
 from hail.linalg import BlockMatrix
 from hail.linalg.utils import _check_dims
 from hail.table import Table
-from hail.typecheck import *
+from hail.typecheck import typecheck_method, nullable, tupleof, oneof, numeric
 from hail.utils.java import Env, info
 from hail.utils.misc import plural
 
@@ -1152,4 +1152,3 @@ class LinearMixedModel(object):
             print(f'different p_path:\n{self.p_path}\n{other.p_path}')
             same = False
         return same
-

@@ -1,15 +1,30 @@
 import builtins
 import functools
 from math import sqrt
-from typing import *
+from typing import Union, Optional, Any, Callable, Iterable
 
+import hail
 import hail as hl
-from hail.expr.expressions import *
-from hail.expr.expressions.expression_typecheck import *
-from hail.expr.types import from_numpy
+from hail.expr.expressions import Expression, ArrayExpression, SetExpression, \
+    TypeVar, Int32Expression, Int64Expression, Float32Expression, \
+    Float64Expression, DictExpression, StructExpression, LocusExpression, \
+    StringExpression, IntervalExpression, ArrayNumericExpression, \
+    BooleanExpression, CallExpression, TupleExpression, \
+    ExpressionException, NumericExpression, \
+    unify_all, construct_expr, to_expr, unify_exprs, impute_type, \
+    construct_variable, apply_expr, \
+    expr_array, expr_any, expr_struct, expr_int32, expr_int64, expr_float32, \
+    expr_float64, expr_oneof, expr_bool, expr_tuple, expr_dict, expr_str, \
+    expr_set, expr_call, expr_locus, expr_interval, expr_ndarray, \
+    expr_numeric
+from hail.expr.types import HailType, hail_type, tint32, tint64, tfloat32, \
+    tfloat64, tstr, tbool, tarray, tset, tdict, tstruct, tlocus, tinterval, \
+    tcall, ttuple, tndarray, \
+    is_primitive, is_numeric, coercer_from_dtype, unify_types_limited
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
-from hail.ir import *
-from hail.typecheck import *
+import hail.ir as ir
+from hail.typecheck import typecheck, nullable, anytype, enumeration, tupleof, \
+    func_spec, oneof
 from hail.utils.java import Env, warn
 from hail.utils.misc import plural
 
@@ -21,12 +36,12 @@ Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression
 
 def _func(name, ret_type, *args, type_args=()):
     indices, aggregations = unify_all(*args)
-    return construct_expr(Apply(name, ret_type, *(a._ir for a in args), type_args=type_args), ret_type, indices, aggregations)
+    return construct_expr(ir.Apply(name, ret_type, *(a._ir for a in args), type_args=type_args), ret_type, indices, aggregations)
 
 def _seeded_func(name, ret_type, seed, *args):
     seed = seed if seed is not None else Env.next_seed()
     indices, aggregations = unify_all(*args)
-    return construct_expr(ApplySeeded(name, seed, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
+    return construct_expr(ir.ApplySeeded(name, seed, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
 @typecheck(a=expr_array(), x=expr_any)
@@ -34,7 +49,7 @@ def _lower_bound(a, x):
     if a.dtype.element_type != x.dtype:
         raise TypeError(f"_lower_bound: incompatible types: {a.dtype}, {x.dtype}")
     indices, aggregations = unify_all(a, x)
-    return construct_expr(LowerBoundOnOrderedCollection(a._ir, x._ir, on_key=False), tint32, indices, aggregations)
+    return construct_expr(ir.LowerBoundOnOrderedCollection(a._ir, x._ir, on_key=False), tint32, indices, aggregations)
 
 
 @typecheck(cdf=expr_struct(), q=expr_oneof(expr_float32, expr_float64))
@@ -122,7 +137,7 @@ def null(t: Union[HailType, str]):
     :class:`.Expression`
         A missing expression of type `t`.
     """
-    return construct_expr(NA(t), t)
+    return construct_expr(ir.NA(t), t)
 
 
 @typecheck(x=anytype, dtype=nullable(hail_type))
@@ -202,26 +217,26 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
         if dtype == tint32:
             assert isinstance(x, builtins.int)
             assert tint32.min_value <= x <= tint32.max_value
-            return construct_expr(I32(x), tint32)
+            return construct_expr(ir.I32(x), tint32)
         elif dtype == tint64:
             assert isinstance(x, builtins.int)
             assert tint64.min_value <= x <= tint64.max_value
-            return construct_expr(I64(x), tint64)
+            return construct_expr(ir.I64(x), tint64)
         elif dtype == tfloat32:
             assert isinstance(x, (builtins.float, builtins.int))
-            return construct_expr(F32(x), tfloat32)
+            return construct_expr(ir.F32(x), tfloat32)
         elif dtype == tfloat64:
             assert isinstance(x, (builtins.float, builtins.int))
-            return construct_expr(F64(x), tfloat64)
+            return construct_expr(ir.F64(x), tfloat64)
         elif dtype == tbool:
             assert isinstance(x, builtins.bool)
-            return construct_expr(TrueIR() if x else FalseIR(), tbool)
+            return construct_expr(ir.TrueIR() if x else ir.FalseIR(), tbool)
         else:
             assert dtype == tstr
             assert isinstance(x, builtins.str)
-            return construct_expr(Str(x), tstr)
+            return construct_expr(ir.Str(x), tstr)
     else:
-        return construct_expr(Literal(dtype, x), dtype)
+        return construct_expr(ir.Literal(dtype, x), dtype)
 
 @typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any, missing_false=bool)
 def cond(condition,
@@ -338,7 +353,7 @@ def if_else(condition,
                         f"    alternate:  type '{alternate.dtype}'")
     assert consequent.dtype == alternate.dtype
 
-    return construct_expr(If(condition._ir, consequent._ir, alternate._ir),
+    return construct_expr(ir.If(condition._ir, consequent._ir, alternate._ir),
                           consequent.dtype, indices, aggregations)
 
 
@@ -454,13 +469,13 @@ def bind(f: Callable, *exprs, _ctx=None):
         indices, aggregations = unify_all(*exprs, lambda_result)
 
     res_ir = lambda_result._ir
-    for (uid, ir) in builtins.zip(uids, irs):
+    for (uid, value_ir) in builtins.zip(uids, irs):
         if _ctx == 'agg':
-            res_ir = AggLet(uid, ir, res_ir, is_scan=False)
+            res_ir = ir.AggLet(uid, value_ir, res_ir, is_scan=False)
         elif _ctx == 'scan':
-            res_ir = AggLet(uid, ir, res_ir, is_scan=True)
+            res_ir = ir.AggLet(uid, value_ir, res_ir, is_scan=True)
         else:
-            res_ir = Let(uid, ir, res_ir)
+            res_ir = ir.Let(uid, value_ir, res_ir)
 
     return construct_expr(res_ir, lambda_result.dtype, indices, aggregations)
 
@@ -1395,7 +1410,7 @@ def is_defined(expression) -> BooleanExpression:
     :class:`.BooleanExpression`
         ``True`` if `expression` is not missing, ``False`` otherwise.
     """
-    return ~apply_expr(lambda x: IsNA(x), tbool, expression)
+    return ~apply_expr(lambda x: ir.IsNA(x), tbool, expression)
 
 
 @typecheck(expression=expr_any)
@@ -1424,7 +1439,7 @@ def is_missing(expression) -> BooleanExpression:
     :class:`.BooleanExpression`
         ``True`` if `expression` is missing, ``False`` otherwise.
     """
-    return apply_expr(lambda x: IsNA(x), tbool, expression)
+    return apply_expr(lambda x: ir.IsNA(x), tbool, expression)
 
 
 @typecheck(x=expr_oneof(expr_float32, expr_float64))
@@ -1673,7 +1688,7 @@ def coalesce(*args):
         raise TypeError(f"'coalesce' requires all arguments to have the same type or compatible types"
                         f"{arg_types}")
     indices, aggregations = unify_all(*exprs)
-    return construct_expr(Coalesce(*(e._ir for e in exprs)), exprs[0].dtype, indices, aggregations)
+    return construct_expr(ir.Coalesce(*(e._ir for e in exprs)), exprs[0].dtype, indices, aggregations)
 
 @typecheck(a=expr_any, b=expr_any)
 def or_else(a, b):
@@ -2105,7 +2120,7 @@ def range(start, stop=None, step=1) -> ArrayNumericExpression:
     if stop is None:
         stop = start
         start = hl.literal(0)
-    return apply_expr(lambda sta, sto, ste: ToArray(StreamRange(sta, sto, ste)), tarray(tint32), start, stop, step)
+    return apply_expr(lambda sta, sto, ste: ir.ToArray(ir.StreamRange(sta, sto, ste)), tarray(tint32), start, stop, step)
 
 
 @typecheck(length=expr_int32)
@@ -2128,7 +2143,7 @@ def zeros(length) -> ArrayNumericExpression:
     :class:`.ArrayInt32Expression`
     """
 
-    return apply_expr(lambda z: ArrayZeros(z), tarray(tint32), length)
+    return apply_expr(lambda z: ir.ArrayZeros(z), tarray(tint32), length)
 
 
 @typecheck(p=expr_float64, seed=nullable(int))
@@ -2521,7 +2536,7 @@ _allele_ints = {v: k for k, v in _allele_enum.items()}
 
 
 @typecheck(ref=expr_str, alt=expr_str)
-@udf(tstr, tstr)
+@ir.udf(tstr, tstr)
 def _num_allele_type(ref, alt) -> Int32Expression:
     return hl.bind(lambda r, a:
                    hl.cond(r.matches(_base_regex),
@@ -2648,7 +2663,7 @@ def is_transversion(ref, alt) -> BooleanExpression:
 
 
 @typecheck(ref=expr_str, alt=expr_str)
-@udf(tstr, tstr)
+@ir.udf(tstr, tstr)
 def _is_snp_transition(ref, alt) -> BooleanExpression:
     indices = hl.range(0, ref.length())
     return hl.any(lambda i: ((ref[i] != alt[i]) & (((ref[i] == 'A') & (alt[i] == 'G'))
@@ -3331,10 +3346,10 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
     """
     n_arrays = builtins.len(arrays)
     uids = [Env.get_uid() for _ in builtins.range(n_arrays)]
-    body_ir = MakeTuple([Ref(uid) for uid in uids])
+    body_ir = ir.MakeTuple([ir.Ref(uid) for uid in uids])
     indices, aggregations = unify_all(*arrays)
     behavior = 'ExtendNA' if fill_missing else 'TakeMinLength'
-    return construct_expr(ToArray(StreamZip([ToStream(a._ir) for a in arrays], uids, body_ir, behavior)),
+    return construct_expr(ir.ToArray(ir.StreamZip([ir.ToStream(a._ir) for a in arrays], uids, body_ir, behavior)),
                           tarray(ttuple(*(a.dtype.element_type for a in arrays))),
                           indices,
                           aggregations)
@@ -3428,9 +3443,9 @@ def len(x) -> Int32Expression:
     if isinstance(x.dtype, ttuple) or isinstance(x.dtype, tstruct):
         return hl.int32(builtins.len(x))
     elif x.dtype == tstr:
-        return apply_expr(lambda x: Apply("length", tint32, x), tint32, x)
+        return apply_expr(lambda x: ir.Apply("length", tint32, x), tint32, x)
     else:
-        return apply_expr(lambda x: ArrayLen(CastToArray(x)), tint32, array(x))
+        return apply_expr(lambda x: ir.ArrayLen(ir.CastToArray(x)), tint32, array(x))
 
 
 @typecheck(x=expr_oneof(expr_array(), expr_str))
@@ -3488,7 +3503,7 @@ def _comparison_func(name, exprs, filter_missing, filter_nan):
             func_name += '_ignore_missing'
         if filter_nan and unified_typ in (tfloat32, tfloat64):
             func_name = 'nan' + func_name
-        return construct_expr(functools.reduce(lambda l, r: Apply(func_name, unified_typ, l, r), [ec.coerce(e)._ir for e in exprs]),
+        return construct_expr(functools.reduce(lambda l, r: ir.Apply(func_name, unified_typ, l, r), [ec.coerce(e)._ir for e in exprs]),
                               unified_typ,
                               indices,
                               aggs)
@@ -3978,7 +3993,7 @@ def set(collection) -> SetExpression:
     """
     if isinstance(collection.dtype, tset):
         return collection
-    return apply_expr(lambda c: ToSet(ToStream(c)), tset(collection.dtype.element_type), collection)
+    return apply_expr(lambda c: ir.ToSet(ir.ToStream(c)), tset(collection.dtype.element_type), collection)
 
 
 @typecheck(t=hail_type)
@@ -4026,7 +4041,7 @@ def array(collection) -> ArrayExpression:
     if isinstance(collection.dtype, tarray):
         return collection
     elif isinstance(collection.dtype, tset):
-        return apply_expr(lambda c: CastToArray(c), tarray(collection.dtype.element_type), collection)
+        return apply_expr(lambda c: ir.CastToArray(c), tarray(collection.dtype.element_type), collection)
     else:
         assert isinstance(collection.dtype, tdict)
         return _func('dictToArray', tarray(ttuple(collection.dtype.key_type, collection.dtype.value_type)), collection)
@@ -4052,8 +4067,8 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
     :class:`.ArrayExpression`
     """
     array_t = hl.tarray(t)
-    ir = MakeArray([], array_t)
-    return construct_expr(ir, array_t)
+    a = ir.MakeArray([], array_t)
+    return construct_expr(a, array_t)
 
 
 def _ndarray(collection, row_major=None):
@@ -4241,7 +4256,7 @@ def _compare(left, right):
     if left.dtype != right.dtype:
         raise TypeError(f"'compare' expected 'left' and 'right' to have the same type: found {left.dtype} vs {right.dtype}")
     indices, aggregations = unify_all(left, right)
-    return construct_expr(ApplyComparisonOp("Compare", left._ir, right._ir), tint32, indices, aggregations)
+    return construct_expr(ir.ApplyComparisonOp("Compare", left._ir, right._ir), tint32, indices, aggregations)
 
 
 @typecheck(collection=expr_array(),
@@ -4249,10 +4264,10 @@ def _compare(left, right):
 def _sort_by(collection, less_than):
     l = Env.get_uid()
     r = Env.get_uid()
-    left = construct_expr(Ref(l), collection.dtype.element_type, collection._indices, collection._aggregations)
-    right = construct_expr(Ref(r), collection.dtype.element_type, collection._indices, collection._aggregations)
+    left = construct_expr(ir.Ref(l), collection.dtype.element_type, collection._indices, collection._aggregations)
+    right = construct_expr(ir.Ref(r), collection.dtype.element_type, collection._indices, collection._aggregations)
     return construct_expr(
-        ArraySort(ToStream(collection._ir), l, r, less_than(left, right)._ir),
+        ir.ArraySort(ir.ToStream(collection._ir), l, r, less_than(left, right)._ir),
         collection.dtype,
         collection._indices,
         collection._aggregations)
@@ -5183,7 +5198,7 @@ def liftover(x, dest_reference_genome, min_match=0.95, include_strand=False):
         raise TypeError("""Reference genome '{}' does not have liftover to '{}'.
         Use 'add_liftover' to load a liftover chain file.""".format(rg.name, dest_reference_genome.name))
 
-    expr = _func(method_name, rtype, x, to_expr(min_match, tfloat))
+    expr = _func(method_name, rtype, x, to_expr(min_match, tfloat64))
     if not include_strand:
         expr = expr.result
     return expr
@@ -5381,7 +5396,7 @@ def _shift_op(x, y, op):
     return hl.bind(lambda x, y: (
         hl.case()
             .when(y >= word_size, hl.sign(x) if op == '>>' else zero)
-            .when(y > 0, construct_expr(ApplyBinaryPrimOp(op, x._ir, y._ir), t, indices, aggregations))
+            .when(y > 0, construct_expr(ir.ApplyBinaryPrimOp(op, x._ir, y._ir), t, indices, aggregations))
             .or_error('cannot shift by a negative value: ' + hl.str(x) + f" {op} " + hl.str(y))), x, y)
 
 def _bit_op(x, y, op):
@@ -5394,7 +5409,7 @@ def _bit_op(x, y, op):
     y = coercer.coerce(y)
 
     indices, aggregations = unify_all(x, y)
-    return construct_expr(ApplyBinaryPrimOp(op, x._ir, y._ir), t, indices, aggregations)
+    return construct_expr(ir.ApplyBinaryPrimOp(op, x._ir, y._ir), t, indices, aggregations)
 
 
 @typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
@@ -5589,7 +5604,7 @@ def bit_not(x):
     -------
     :class:`.Int32Expression` or :class:`.Int64Expression`
     """
-    return construct_expr(ApplyUnaryPrimOp('~', x._ir), x.dtype, x._indices, x._aggregations)
+    return construct_expr(ir.ApplyUnaryPrimOp('~', x._ir), x.dtype, x._indices, x._aggregations)
 
 
 @typecheck(array=expr_array(expr_numeric), elem=expr_numeric)

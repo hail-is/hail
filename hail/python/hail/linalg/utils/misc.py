@@ -1,7 +1,7 @@
 import numpy as np
 
 import hail as hl
-from hail.typecheck import *
+from hail.typecheck import typecheck, oneof, nullable
 from hail.expr.expressions import expr_locus, expr_float64, check_row_indexed
 from hail.utils.java import Env
 
@@ -62,7 +62,7 @@ def array_windows(a, radius):
     if a[-1] + radius < a[-1]:
         raise ValueError('array_windows: overflow for a[-1] + radius')
 
-    starts, stops = np.zeros(size, dtype=np.int64),  np.zeros(size, dtype=np.int64)
+    starts, stops = np.zeros(size, dtype=np.int64), np.zeros(size, dtype=np.int64)
     j, k = 0, 0
     for i in range(size):
         min_val = a[i] - radius
@@ -231,13 +231,13 @@ def _check_dims(a, name, ndim, min_size=1):
                              f'{min_size}, found {a.shape[i]}')
 
 
-def _ndarray_matmul_ndim(l, r):
-    if l == 1 and r == 1:
+def _ndarray_matmul_ndim(left, right):
+    if left == 1 and right == 1:
         return 0
-    elif l == 1:
-        return r - 1
-    elif r == 1:
-        return l - 1
+    elif left == 1:
+        return right - 1
+    elif right == 1:
+        return left - 1
     else:
-        assert l == r
-        return l
+        assert left == right
+        return left
