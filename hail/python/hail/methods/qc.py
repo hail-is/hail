@@ -263,7 +263,7 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
     bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
     n_cols_ref = hl.expr.construct_expr(hl.ir.Ref('n_cols'), hl.tint32,
-                                        mt._row_indices, hl.utils.LinkedList(hl.expr.expression.Aggregation))
+                                        mt._row_indices, hl.utils.LinkedList(hl.expr.expressions.Aggregation))
     bound_exprs['n_filtered'] = hl.int64(n_cols_ref) - hl.agg.count()
     bound_exprs['call_stats'] = hl.agg.call_stats(mt.GT, mt.alleles)
 
