@@ -239,7 +239,7 @@ server {
     server_name query.*;
 
     location / {
-        proxy_pass http://query/;
+        proxy_pass https://query/;
         include /etc/nginx/proxy.conf;
     }
 
