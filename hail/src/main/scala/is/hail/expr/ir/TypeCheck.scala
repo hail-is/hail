@@ -257,6 +257,8 @@ object TypeCheck {
         val td = coerce[TDict](x.typ)
         assert(td.keyType == telt.types(0))
         assert(td.valueType == TArray(telt.types(1)))
+      case StreamLen(a) =>
+        assert(a.typ.isInstanceOf[TStream])
       case x@StreamTake(a, num) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(x.typ == a.typ)

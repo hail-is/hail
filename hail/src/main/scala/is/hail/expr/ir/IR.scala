@@ -213,6 +213,8 @@ final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, 
 
 final case class GroupByKey(collection: IR) extends IR
 
+final case class StreamLen(a: IR) extends IR
+
 final case class StreamGrouped(a: IR, groupSize: IR) extends IR
 final case class StreamGroupByKey(a: IR, key: IndexedSeq[String]) extends IR
 
