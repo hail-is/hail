@@ -23,7 +23,7 @@ class Client:
     # returns:
     # {
     #   'child': [],
-    #   'manifest': {<diget>: {
+    #   'manifest': {<digest>: {
     #       'imageSizeBytes': <size>,
     #       'layerId': '',
     #       'mediaType': 'application/vnd.docker.distribution.manifest.v2+json',
