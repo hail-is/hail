@@ -3637,7 +3637,7 @@ class NDArrayExpression(Expression):
         return ndarray_map
 
     def _broadcast_to_same_ndim(self, other):
-        if isinstance(other, ir.NDArrayExpression):
+        if isinstance(other, NDArrayExpression):
             if self.ndim < other.ndim:
                 return self._broadcast(other.ndim), other
             elif self.ndim > other.ndim:
