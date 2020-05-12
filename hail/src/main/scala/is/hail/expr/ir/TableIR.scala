@@ -435,7 +435,7 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
 }
 
 object TableRead {
-  def native(fs: FS, path: String): TableIR = {
+  def native(fs: FS, path: String): TableRead = {
     val tr = TableNativeReader(fs, TableNativeReaderParameters(path, None))
     TableRead(tr.fullType, false, tr)
   }
