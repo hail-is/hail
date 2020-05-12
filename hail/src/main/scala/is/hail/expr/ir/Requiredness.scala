@@ -409,7 +409,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case x: ApplyIR => requiredness.unionFrom(lookup(x.body))
       case x: AbstractApplyNode[_] => //FIXME: round-tripping via PTypes.
         val argP = x.args.map(a => lookup(a).canonicalPType(a.typ))
-        requiredness.fromPType(x.implementation.returnPType(argP, x.returnType))
+        requiredness.fromPType(x.implementation.returnPType(x.returnType, argP))
       case CollectDistributedArray(ctxs, globs, _, _, body) =>
         requiredness.union(lookup(ctxs).required)
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(body))

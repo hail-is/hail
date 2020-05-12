@@ -274,7 +274,7 @@ object StringFunctions extends RegistryFunctions {
     })(thisClass, "strptime")
 
     registerPCode("parse_json", Array(TString), TTuple(tv("T")),
-      (rType: Type, _: Seq[PType]) => PType.canonical(rType, true), typeParams = Array(tv("T"))) { case (er, resultType, Array(s: PStringCode)) =>
+      (rType: Type, _: Seq[PType]) => PType.canonical(rType, true), typeParameters = Array(tv("T"))) { case (er, resultType, Array(s: PStringCode)) =>
 
       PCode(resultType, StringFunctions.unwrapReturn(er, resultType)(
         Code.invokeScalaObject2[String, Type, Row](JSONAnnotationImpex.getClass, "irImportAnnotation",
