@@ -15,7 +15,7 @@ To access these buckets on a cluster started with ``hailctl dataproc``, you can 
 
 .. code-block:: text
 
-    hailctl dataproc start  my-cluster --requester-pays-allow-annotation-db
+    hailctl dataproc start my-cluster --requester-pays-allow-annotation-db
 
 --------------
 
