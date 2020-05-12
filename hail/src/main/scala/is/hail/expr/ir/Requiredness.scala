@@ -8,22 +8,21 @@ import is.hail.utils._
 import scala.collection.mutable
 
 object Requiredness {
-  def apply(node: BaseIR, usesAndDefs: UsesAndDefs, ctx: ExecuteContext): RequirednessAnalysis = {
+  def apply(node: BaseIR, usesAndDefs: UsesAndDefs, ctx: ExecuteContext, env: Env[PType]): RequirednessAnalysis = {
     val pass = new Requiredness(usesAndDefs, ctx)
-    pass.initialize(node)
+    pass.initialize(node, env)
     pass.run()
     pass.result()
   }
 
   def apply(node: BaseIR, ctx: ExecuteContext): RequirednessAnalysis =
-    apply(node, ComputeUsesAndDefs(node), ctx)
+    apply(node, ComputeUsesAndDefs(node), ctx, Env.empty)
 }
 
 case class RequirednessAnalysis(r: Memo[BaseTypeWithRequiredness], states: Memo[Array[TypeWithRequiredness]]) {
   def lookup(node: BaseIR): BaseTypeWithRequiredness = r.lookup(node)
   def apply(node: IR): TypeWithRequiredness = coerce[TypeWithRequiredness](lookup(node))
   def getState(node: IR): Array[TypeWithRequiredness] = states(node)
-
 }
 
 class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
@@ -60,13 +59,18 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
     }
     if (node.typ != TVoid) {
       cache.bind(node, BaseTypeWithRequiredness(node.typ))
-      q += re
+      if (usesAndDefs.free == null || !re.t.isInstanceOf[BaseRef] || !usesAndDefs.free.contains(re.asInstanceOf[RefEquality[BaseRef]]))
+        q += re
     }
   }
 
-  def initialize(node: BaseIR): Unit = {
+  def initialize(node: BaseIR, env: Env[PType]): Unit = {
     initializeState(node)
     usesAndDefs.uses.m.keys.foreach(n => addBindingRelations(n.t))
+    if (usesAndDefs.free != null)
+      usesAndDefs.free.foreach { re =>
+        lookup(re.t).fromPType(env.lookup(re.t.name))
+      }
   }
 
   def run(): Unit = {
