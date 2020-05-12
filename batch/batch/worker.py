@@ -49,7 +49,7 @@ NAME = os.environ['NAME']
 NAMESPACE = os.environ['NAMESPACE']
 # ACTIVATION_TOKEN
 IP_ADDRESS = os.environ['IP_ADDRESS']
-BUCKET_NAME = os.environ['BUCKET_NAME']
+BATCH_LOGS_BUCKET_NAME = os.environ['BATCH_LOGS_BUCKET_NAME']
 WORKER_LOGS_BUCKET_NAME = os.environ['WORKER_LOGS_BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
 PROJECT = os.environ['PROJECT']
@@ -61,7 +61,7 @@ log.info(f'NAMESPACE {NAMESPACE}')
 # ACTIVATION_TOKEN
 log.info(f'IP_ADDRESS {IP_ADDRESS}')
 log.info(f'WORKER_TYPE {WORKER_TYPE}')
-log.info(f'BUCKET_NAME {BUCKET_NAME}')
+log.info(f'BATCH_LOGS_BUCKET_NAME {BATCH_LOGS_BUCKET_NAME}')
 log.info(f'WORKER_LOGS_BUCKET_NAME {WORKER_LOGS_BUCKET_NAME}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'PROJECT {PROJECT}')
@@ -1004,7 +1004,7 @@ class Worker:
 
             credentials = google.oauth2.service_account.Credentials.from_service_account_file(
                 'key.json')
-            self.log_store = LogStore(BUCKET_NAME, WORKER_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool,
+            self.log_store = LogStore(BATCH_LOGS_BUCKET_NAME, WORKER_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool,
                                       project=PROJECT, credentials=credentials)
 
 

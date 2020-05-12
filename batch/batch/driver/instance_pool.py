@@ -241,7 +241,7 @@ ACTIVATION_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.
 IP_ADDRESS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip")
 PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
 
-BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/bucket_name")
+BATCH_LOGS_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_logs_bucket_name")
 WORKER_LOGS_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_logs_bucket_name")
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 WORKER_TYPE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_type")
@@ -261,7 +261,7 @@ docker run \
     -e NAMESPACE=$NAMESPACE \
     -e ACTIVATION_TOKEN=$ACTIVATION_TOKEN \
     -e IP_ADDRESS=$IP_ADDRESS \
-    -e BUCKET_NAME=$BUCKET_NAME \
+    -e BATCH_LOGS_BUCKET_NAME=$BATCH_LOGS_BUCKET_NAME \
     -e WORKER_LOGS_BUCKET_NAME=$WORKER_LOGS_BUCKET_NAME \
     -e INSTANCE_ID=$INSTANCE_ID \
     -e PROJECT=$PROJECT \
@@ -301,8 +301,8 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/ba
                     'key': 'namespace',
                     'value': DEFAULT_NAMESPACE
                 }, {
-                    'key': 'bucket_name',
-                    'value': self.log_store.bucket_name
+                    'key': 'batch_logs_bucket_name',
+                    'value': self.log_store.batch_logs_bucket_name
                 }, {
                     'key': 'worker_logs_bucket_name',
                     'value': self.log_store.worker_logs_bucket_name
