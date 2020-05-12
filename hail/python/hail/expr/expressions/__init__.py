@@ -2,7 +2,7 @@ from .base_expression import *
 from .typed_expressions import expr_any, expr_int32, expr_int64, expr_float32, \
     expr_float64, expr_call, expr_bool, expr_str, expr_locus, expr_interval, \
     expr_array, expr_ndarray, expr_set, expr_dict, expr_tuple, expr_struct, \
-    expr_oneof, expr_numeric, coercer_from_dtype
+    expr_oneof, expr_numeric
 from .expression_typecheck import *
 from .expression_utils import *
 
