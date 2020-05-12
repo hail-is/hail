@@ -665,7 +665,9 @@ async def on_startup(app):
     app['compute_client'] = compute_client
 
     logging_client = aiogoogle.LoggingClient(
-        credentials=aiogoogle_credentials)
+        credentials=aiogoogle_credentials,
+        # quota is 60/m, event loop runs 4/m
+        rate_limit=RateLimit(10, 60))
     app['logging_client'] = logging_client
 
     scheduler_state_changed = asyncio.Event()

@@ -442,15 +442,14 @@ AND timestamp >= "{mark}"
                             'pageSize': 100,
                             'filter': filter
                         }):
-                    if new_mark is None:
-                        new_mark = event['timestamp']
+                    # take the last, largest timestamp
+                    new_mark = event['timestamp']
                     await self.handle_event(event)
 
                 if new_mark is not None:
                     await self.db.execute_update(
                         'UPDATE `gevents_mark` SET mark = %s;',
-                        (mark,))
-                    mark = new_mark
+                        (new_mark,))
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:

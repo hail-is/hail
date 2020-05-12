@@ -49,7 +49,7 @@ class RateLimitedSession(BaseSession):
 
     async def request(self, method: str, url: str, **kwargs):
         async with self._rate_limiter:
-            return self._session.request(method, url, **kwargs)
+            return await self._session.request(method, url, **kwargs)
 
     async def close(self) -> None:
         if self._session is not None:
