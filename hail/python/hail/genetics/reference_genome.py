@@ -369,12 +369,7 @@ class ReferenceGenome(object):
         return self._sequence_files is not None
 
     def remove_sequence(self):
-        """Remove the reference sequence.
-
-        Returns
-        -------
-        :obj:`bool`
-        """
+        """Remove the reference sequence."""
         self._sequence_files = None
         Env.backend().remove_sequence(self.name)
 
