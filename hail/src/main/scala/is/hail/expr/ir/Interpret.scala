@@ -252,6 +252,12 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].length
+      case StreamLen(a) =>
+        val aValue = interpret(a, env, args)
+        if (aValue == null)
+          null
+        else
+          aValue.asInstanceOf[IndexedSeq[Any]].length
       case StreamRange(start, stop, step) =>
         val startValue = interpret(start, env, args)
         val stopValue = interpret(stop, env, args)

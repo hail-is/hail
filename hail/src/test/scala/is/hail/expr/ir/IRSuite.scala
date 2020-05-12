@@ -1752,6 +1752,11 @@ class IRSuite extends HailSuite {
     assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, NA(TInt32), onKey = true), 2)
   }
 
+  @Test def testStreamLength(): Unit = {
+    val a = StreamLen(MakeStream(Seq(I32(3), NA(TInt32), I32(7)), TStream(TInt32)))
+    assertEvalsTo(a, 3)
+  }
+
   @Test def testStreamTake() {
     val naa = NA(TStream(TInt32))
     val a = MakeStream(Seq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))

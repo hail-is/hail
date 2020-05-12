@@ -1226,6 +1226,20 @@ class Emit[C](
         )
         EmitCode(lengthTriplet.setup, lengthTriplet.m, PCode(pt, result))
 
+      case x@StreamLen(a) =>
+        val streamOpt = emitStream(a)
+        val lenOpt = streamOpt.map { ss =>
+          val lenCode = ss.length.getOrElse {
+            val count = mb.newLocal[Int]("stream_length")
+            Code(
+              ss.getStream.forEach(mb, _ => count := count + 1),
+              count.get
+            )
+          }
+          PCode(x.pType, lenCode)
+        }
+        COption.toEmitCode(lenOpt, mb)
+
       case x@StreamFold(a, zero, accumName, valueName, body) =>
         val eltType = coerce[PStream](a.pType).elementType
         val accType = x.accPType
