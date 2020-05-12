@@ -158,7 +158,7 @@ class ReferenceGenome(object):
 
         Returns
         -------
-        :obj:`list` of :obj:`str`
+        :obj:`dict` of :obj:`str` to :obj:`int`
         """
         return self._lengths
 
