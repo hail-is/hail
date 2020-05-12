@@ -122,8 +122,8 @@ final case class Ref(name: String, var _typ: Type) extends BaseRef
 
 // Recur can't exist outside of loop
 // Loops can be nested, but we can't call outer loops in terms of inner loops so there can only be one loop "active" in a given context
-final case class TailLoop(name: String, params: IndexedSeq[(String, IR)], body: IR) extends IR {
-  var argPTypes: IndexedSeq[PType] = null
+final case class TailLoop(name: String, params: IndexedSeq[(String, IR)], body: IR) extends IR with InferredState {
+  lazy val paramIdx: Map[String, Int] = params.map(_._1).zipWithIndex.toMap
 }
 final case class Recur(name: String, args: IndexedSeq[IR], _typ: Type) extends BaseRef
 
@@ -235,6 +235,7 @@ object ArrayZipBehavior extends Enumeration {
 }
 
 final case class StreamZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior) extends IR {
+  lazy val nameIdx: Map[String, Int] = names.zipWithIndex.toMap
   override def typ: TStream = coerce[TStream](super.typ)
 }
 final case class StreamFilter(a: IR, name: String, cond: IR) extends IR {
@@ -243,8 +244,11 @@ final case class StreamFilter(a: IR, name: String, cond: IR) extends IR {
 final case class StreamFlatMap(a: IR, name: String, body: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
 }
-final case class StreamFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR {
-  var accPType: PType = null
+
+trait InferredState extends IR { var accPTypes: Array[PType] = null }
+
+final case class StreamFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR with InferredState {
+  def accPType: PType = accPTypes.head
 }
 
 object StreamFold2 {
@@ -253,13 +257,14 @@ object StreamFold2 {
   }
 }
 
-final case class StreamFold2(a: IR, accum: IndexedSeq[(String, IR)], valueName: String, seq: IndexedSeq[IR], result: IR) extends IR {
+final case class StreamFold2(a: IR, accum: IndexedSeq[(String, IR)], valueName: String, seq: IndexedSeq[IR], result: IR) extends IR with InferredState {
   assert(accum.length == seq.length)
   val nameIdx: Map[String, Int] = accum.map(_._1).zipWithIndex.toMap
-  var accPTypes: IndexedSeq[PType] = null
 }
 
-final case class StreamScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
+final case class StreamScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR with InferredState {
+  def accPType: PType = accPTypes.head
+}
 
 final case class StreamFor(a: IR, valueName: String, body: IR) extends IR
 
@@ -308,6 +313,14 @@ final case class NDArrayAgg(nd: IR, axes: IndexedSeq[Int]) extends IR
 final case class NDArrayWrite(nd: IR, path: IR) extends IR
 
 final case class NDArrayMatMul(l: IR, r: IR) extends NDArrayIR
+
+object NDArrayQR {
+  val pTypes: Map[String, PType] = Map(
+    "r" -> PCanonicalNDArray(PFloat64Required, 2),
+    "raw" -> PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 1)),
+    "reduced" -> PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 2)),
+    "complete" -> PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 2)))
+}
 
 final case class NDArrayQR(nd: IR, mode: String) extends IR
 

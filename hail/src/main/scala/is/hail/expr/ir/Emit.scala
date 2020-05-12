@@ -1030,11 +1030,11 @@ class Emit[C](
             val discardNext = mb.genEmitMethod("discardNext",
               FastIndexedSeq[ParamType](typeInfo[Region], eltType, eltType), typeInfo[Boolean])
             val cmp2 = ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType))
-            InferPType(cmp2, Env.empty)
+            InferPType(cmp2)
             val EmitCode(s, m, pv) = emitInMethod(cmp2, discardNext)
             discardNext.emit(Code(s, m || pv.tcode[Boolean]))
             val lessThan = ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0
-            InferPType(lessThan, Env.empty)
+            InferPType(lessThan)
             (a, lessThan, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
               EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
                 cb.invokeCode[Boolean](discardNext, r,
@@ -1051,11 +1051,11 @@ class Emit[C](
               FastIndexedSeq[ParamType](typeInfo[Region], eltType, eltType), typeInfo[Boolean])
 
             val cmp2 = ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1).deepCopy()
-            InferPType(cmp2, Env.empty)
+            InferPType(cmp2)
             val EmitCode(s, m, pv) = emitInMethod(cmp2, discardNext)
             discardNext.emit(Code(s, m || pv.tcode[Boolean]))
             val lessThan = (ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0).deepCopy()
-            InferPType(lessThan, Env.empty)
+            InferPType(lessThan)
             (a, lessThan, Code(sorter.pruneMissing, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
               EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
                 cb.invokeCode[Boolean](discardNext, r,
@@ -1128,7 +1128,7 @@ class Emit[C](
         }
 
         val compare = ApplyComparisonOp(Compare(etyp.types(0).virtualType), k1, k2) < 0
-        InferPType(compare, Env.empty)
+        InferPType(compare)
         val leftRightComparatorNames = Array.empty[String]
         val sortF = eab.ti match {
           case BooleanInfo => makeDependentSortingFunction[Boolean](region, etyp, compare, env, leftRightComparatorNames)
@@ -1153,18 +1153,20 @@ class Emit[C](
 
         val (lastKey, currKey) = (etyp.virtualType: @unchecked) match {
           case ts: TStruct =>
-            GetField(Ref("i-1", ts), ts.fieldNames(0)) -> GetField(Ref("i", ts), ts.fieldNames(0))
+            GetField(In(0, etyp), ts.fieldNames(0)) -> GetField(In(1, etyp), ts.fieldNames(0))
           case tt: TTuple =>
-            GetTupleElement(Ref("i-1", tt), tt.fields(0).index) -> GetTupleElement(Ref("i", tt), tt.fields(0).index)
+            GetTupleElement(In(0, etyp), tt.fields(0).index) -> GetTupleElement(In(1, etyp), tt.fields(0).index)
         }
-
         val compare2 = ApplyComparisonOp(EQWithNA(ktyp.virtualType), lastKey, currKey)
-        InferPType(compare2, Env("i-1" -> etyp, "i" -> etyp))
-        val isSame = emit(
-          compare2,
-          env = Env(
-            ("i-1", eab.applyEV(mb, i-1)),
-            ("i", eab.applyEV(mb, i))))
+        InferPType(compare2)
+        val isSame = mb.genEmitMethod("isSame",
+          FastIndexedSeq(typeInfo[Region], etyp, etyp),
+          BooleanInfo)
+        isSame.emitWithBuilder { cb =>
+          val isSameCode = emitInMethod(compare2, isSame)
+          cb += isSameCode.setup
+          isSameCode.m || isSameCode.value[Boolean]
+        }
 
         val optStream = emitStream(collection)
         val result = optStream.map { stream =>
@@ -1179,8 +1181,7 @@ class Emit[C](
                 i := 1,
                 nab.add(1),
                 Code.whileLoop(i < eab.size,
-                  isSame.setup,
-                  (isSame.m || isSame.value[Boolean]).mux(
+                  isSame.invokeCode[Boolean](region, eab.applyEV(mb, i-1), eab.applyEV(mb, i)).mux(
                     nab.update(nab.size - 1, coerce[Int](nab(nab.size - 1)) + 1),
                     nab.add(1)),
                   i += 1),
@@ -2066,7 +2067,7 @@ class Emit[C](
 
       case x@TailLoop(name, args, body) =>
         val label = CodeLabel()
-        val inits = args.zip(x.argPTypes)
+        val inits = args.zip(x.accPTypes)
         val loopRef = LoopRef(mb, label, inits.map { case ((name, _), pt) => (name, pt) })
 
         val m = mb.genFieldThisRef[Boolean]()

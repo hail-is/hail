@@ -8,16 +8,23 @@ import is.hail.utils._
 import scala.collection.mutable
 
 object Requiredness {
-  def apply(node: BaseIR, ctx: ExecuteContext): RequirednessAnalysis = {
-    val usesAndDefs = ComputeUsesAndDefs(node)
+  def apply(node: BaseIR, usesAndDefs: UsesAndDefs, ctx: ExecuteContext): RequirednessAnalysis = {
     val pass = new Requiredness(usesAndDefs, ctx)
     pass.initialize(node)
     pass.run()
     pass.result()
   }
+
+  def apply(node: BaseIR, ctx: ExecuteContext): RequirednessAnalysis =
+    apply(node, ComputeUsesAndDefs(node), ctx)
 }
 
-case class RequirednessAnalysis(r: Memo[BaseTypeWithRequiredness], states: Memo[Array[TypeWithRequiredness]])
+case class RequirednessAnalysis(r: Memo[BaseTypeWithRequiredness], states: Memo[Array[TypeWithRequiredness]]) {
+  def lookup(node: BaseIR): BaseTypeWithRequiredness = r.lookup(node)
+  def apply(node: IR): TypeWithRequiredness = coerce[TypeWithRequiredness](lookup(node))
+  def getState(node: IR): Array[TypeWithRequiredness] = states(node)
+
+}
 
 class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   type State = Memo[BaseTypeWithRequiredness]
@@ -372,7 +379,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case NDArrayMatMul(l, r) =>
         requiredness.unionFrom(lookup(l))
         requiredness.union(lookup(r).required)
-      case NDArrayQR(nd, mode) => requiredness.maximize()
+      case NDArrayQR(nd, mode) => requiredness.fromPType(NDArrayQR.pTypes(mode))
       case MakeStruct(fields) =>
         fields.foreach { case (n, f) =>
           coerce[RStruct](requiredness).field(n).unionFrom(lookup(f))
