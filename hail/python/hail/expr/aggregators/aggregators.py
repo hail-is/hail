@@ -2,9 +2,10 @@ import difflib
 from functools import wraps, update_wrapper
 
 import hail as hl
-from hail.expr import ExpressionException, Expression, ArrayExpression, \
-    SetExpression, BooleanExpression, Int64Expression, NumericExpression, \
-    DictExpression, StructExpression, Float64Expression, StringExpression, \
+from hail.expr.expressions import ExpressionException, Expression, \
+    ArrayExpression, SetExpression, BooleanExpression, Int64Expression, \
+    NumericExpression, DictExpression, StructExpression, Float64Expression, \
+    StringExpression, \
     expr_any, expr_oneof, expr_array, expr_set, expr_bool, expr_numeric, \
     expr_int32, expr_int64, expr_float64, expr_call, expr_str, \
     unify_all, construct_expr, Indices, Aggregation, to_expr

@@ -1,7 +1,9 @@
 from typing import Mapping, Dict, Sequence
 import hail as hl
-from hail.expr.expressions import Expression, to_expr, ExpressionException, \
-    unify_all, Indices, Aggregation, unify_types, coercer_from_dtype, \
+from .indices import Indices, Aggregation
+from .base_expression import Expression, ExpressionException, to_expr, \
+    unify_all, unify_types
+from .expression_typecheck import coercer_from_dtype, \
     expr_any, expr_array, expr_set, expr_bool, expr_numeric, expr_int32, \
     expr_int64, expr_str, expr_dict, expr_interval, expr_tuple
 from hail.expr.types import HailType, tint32, tint64, tfloat32, \
@@ -10,9 +12,9 @@ from hail.expr.types import HailType, tint32, tint64, tfloat32, \
 import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, func_spec, oneof, \
     identity, nullable, tupleof, sliceof
-from hail.utils.java import Env, wrap_to_list, warn
+from hail.utils.java import Env, warn
 from hail.utils.linkedlist import LinkedList
-from hail.utils.misc import get_nice_field_error, get_nice_attr_error
+from hail.utils.misc import wrap_to_list, get_nice_field_error, get_nice_attr_error
 
 import numpy as np
 

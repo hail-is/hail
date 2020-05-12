@@ -1,7 +1,7 @@
 import json
 import re
 from hail.typecheck import *
-from hail.utils import wrap_to_list
+from hail.utils.misc import wrap_to_list
 from hail.utils.java import Env
 from hail.typecheck import oneof, transformed
 import hail as hl
