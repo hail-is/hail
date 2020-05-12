@@ -164,7 +164,7 @@ class StagedIndexWriterUtils(ib: Settable[IndexWriterUtils]) {
   def os: Code[OutputStream] = ib.invoke[OutputStream]("os")
 
   def writeMetadata(cb: EmitCodeBuilder, height: Code[Int], rootOffset: Code[Long], nKeys: Code[Long]): Unit =
-    ib.invoke[Int, Long, Long, Unit]("writeMetadata", height, rootOffset, nKeys)
+    cb += ib.invoke[Int, Long, Long, Unit]("writeMetadata", height, rootOffset, nKeys)
 }
 
 case class StagedIndexMetadata(
