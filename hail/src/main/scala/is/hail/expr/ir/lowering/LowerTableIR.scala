@@ -290,8 +290,8 @@ object LowerTableIR {
 
           loweredChild.repartitionNoShuffle(loweredChild.partitioner.coarsen(child.typ.key.length).strictify)
             .mapPartition { partition =>
-              mapIR(StreamGroupByKey(partition, child.typ.key)) { groupRef =>
-                ArrayRef(ToArray(StreamTake(groupRef, 1)), 0)
+              flatMapIR(StreamGroupByKey(partition, child.typ.key)) { groupRef =>
+                StreamTake(groupRef, 1)
               }
             }
 
