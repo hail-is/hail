@@ -46,15 +46,14 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   private val node = new PCanonicalBaseStructSettable(pType, sb.newSettable[Long]("internal_node_node"))
 
   def loadFrom(cb: EmitCodeBuilder, ib: StagedIndexWriterUtils, idx: Value[Int]): Unit = {
-    cb += (region := ib.getRegion(idx))
-    cb += (node.a := ib.getArrayOffset(idx))
+    cb.assign(region, ib.getRegion(idx))
+    cb.assign(node.a, ib.getArrayOffset(idx))
     val aoff = node.loadField(cb, 0).handle(cb, ()).tcode[Long]
     ab.loadFrom(cb, aoff, ib.getLength(idx))
   }
 
-  def store(cb: EmitCodeBuilder, ib: StagedIndexWriterUtils, idx: Value[Int]): Unit = {
-    cb += ib.update(idx, region.get, node.a.get, ab.length)
-  }
+  def store(cb: EmitCodeBuilder, ib: StagedIndexWriterUtils, idx: Value[Int]): Unit =
+    ib.update(cb, idx, region.get, node.a.get, ab.length)
 
   def reset(cb: EmitCodeBuilder): Unit = {
     cb += region.invoke[Unit]("clear")
@@ -67,7 +66,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   }
 
   def create(cb: EmitCodeBuilder): Unit = {
-    cb += (region := Region.stagedCreate(Region.REGULAR))
+    cb.assign(region, Region.stagedCreate(Region.REGULAR))
     allocate(cb)
   }
 

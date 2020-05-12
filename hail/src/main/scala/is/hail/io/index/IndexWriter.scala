@@ -112,15 +112,15 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
   def length: Code[Int] = len
 
   def loadFrom(cb: EmitCodeBuilder, a: Code[Long], l: Code[Int]): Unit = {
-    cb += (aoff := a)
-    cb += (len := l)
+    cb.assign(aoff, a)
+    cb.assign(len, l)
   }
 
   def create(cb: EmitCodeBuilder, dest: Code[Long]): Unit = {
-    cb += (aoff := arrayType.allocate(region, maxSize))
+    cb.assign(aoff, arrayType.allocate(region, maxSize))
     cb += arrayType.stagedInitialize(aoff, maxSize)
     cb += PCode(arrayType, aoff).store(cb.emb, region, dest)
-    cb += (len := 0)
+    cb.assign(len, 0)
   }
 
   def storeLength(cb: EmitCodeBuilder): Unit = cb += arrayType.storeLength(aoff, length)
@@ -137,7 +137,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
 
   def addChild(cb: EmitCodeBuilder): Unit = {
     loadChild(cb, len)
-    cb += (len := len + 1)
+    cb.assign(len, len + 1)
   }
   def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = cb += elt.store(PCode(eltType, arrayType.elementOffset(aoff, idx)))
   def getLoadedChild: PBaseStructValue = elt
@@ -146,28 +146,25 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
 }
 
 class StagedIndexWriterUtils(ib: Settable[IndexWriterUtils]) {
-  def create(path: Code[String], fs: Code[FS], meta: Code[StagedIndexMetadata]): Code[Unit] =
-    ib := Code.newInstance[IndexWriterUtils, String, FS, StagedIndexMetadata](path, fs, meta)
+  def create(cb: EmitCodeBuilder, path: Code[String], fs: Code[FS], meta: Code[StagedIndexMetadata]): Unit =
+    cb.assign(ib, Code.newInstance[IndexWriterUtils, String, FS, StagedIndexMetadata](path, fs, meta))
   def size: Code[Int] = ib.invoke[Int]("size")
-  def add(r: Code[Region], aoff: Code[Long], len: Code[Int]): Code[Unit] =
-    ib.invoke[Region, Long, Int, Unit]("add", r, aoff, len)
+  def add(cb: EmitCodeBuilder, r: Code[Region], aoff: Code[Long], len: Code[Int]): Unit =
+    cb += ib.invoke[Region, Long, Int, Unit]("add", r, aoff, len)
 
-  def update(idx: Code[Int], r: Code[Region], aoff: Code[Long], len: Code[Int]): Code[Unit] =
-    ib.invoke[Int, Region, Long, Int, Unit]("update", idx, r, aoff, len)
+  def update(cb: EmitCodeBuilder, idx: Code[Int], r: Code[Region], aoff: Code[Long], len: Code[Int]): Unit =
+    cb += ib.invoke[Int, Region, Long, Int, Unit]("update", idx, r, aoff, len)
 
   def getRegion(idx: Code[Int]): Code[Region] = ib.invoke[Int, Region]("getRegion", idx)
   def getArrayOffset(idx: Code[Int]): Code[Long] = ib.invoke[Int, Long]("getArrayOffset", idx)
   def getLength(idx: Code[Int]): Code[Int] = ib.invoke[Int, Int]("getLength", idx)
-  def close(): Code[Unit] = ib.invoke[Unit]("close")
+  def close(cb: EmitCodeBuilder): Unit = cb += ib.invoke[Unit]("close")
 
   def bytesWritten: Code[Long] = ib.invoke[Long]("bytesWritten")
   def os: Code[OutputStream] = ib.invoke[OutputStream]("os")
 
-  def writeMetadata(height: Code[Int], rootOffset: Code[Long], nKeys: Code[Long]): Code[Unit] =
+  def writeMetadata(cb: EmitCodeBuilder, height: Code[Int], rootOffset: Code[Long], nKeys: Code[Long]): Unit =
     ib.invoke[Int, Long, Long, Unit]("writeMetadata", height, rootOffset, nKeys)
-}
-
-class InternalNodeArrayBuilder(initSize: Int) {
 }
 
 case class StagedIndexMetadata(
@@ -285,14 +282,14 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
       val level = m.getCodeParam[Int](1)
       val isRoot = m.getCodeParam[Boolean](2)
       val idxOff = cb.newLocal[Long]("indexOff")
-      cb += (idxOff := utils.bytesWritten)
+      cb.assign(idxOff, utils.bytesWritten)
       internalBuilder.loadFrom(cb, utils, level)
       cb += ob.writeByte(1.toByte)
       internalBuilder.encode(cb, ob)
       cb += ob.flush()
 
       val next = m.newLocal[Int]("next")
-      cb += (next := level + 1)
+      cb.assign(next, level + 1)
       cb.ifx(!isRoot, {
         cb.ifx(utils.size.ceq(next),
           parentBuilder.create(cb), {
@@ -318,7 +315,7 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
     val parentBuilder = new StagedInternalNodeBuilder(branchingFactor, keyType, annotationType, m.localBuilder)
     m.emitWithBuilder { cb =>
       val idxOff = cb.newLocal[Long]("indexOff")
-      cb += (idxOff := utils.bytesWritten)
+      cb.assign(idxOff, utils.bytesWritten)
       cb += ob.writeByte(0.toByte)
       leafBuilder.encode(cb, ob)
       cb += ob.flush()
@@ -342,13 +339,13 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
       val idxOff = cb.newLocal[Long]("indexOff")
       val level = m.newLocal[Int]("level")
       cb.ifx(leafBuilder.ab.length > 0, cb += writeLeafNode.invokeCode[Unit]())
-      cb += (level := 0)
+      cb.assign(level, 0)
       cb.whileLoop(level < utils.size - 1, {
         cb.ifx(utils.getLength(level) > 0,
           cb += writeInternalNode.invokeCode[Unit](CodeParam(level), CodeParam(false)))
-        cb += (level := level + 1)
+        cb.assign(level, level + 1)
       })
-      cb += (idxOff := utils.bytesWritten)
+      cb.assign(idxOff, utils.bytesWritten)
       cb += writeInternalNode.invokeCode[Unit](CodeParam(level), CodeParam(true))
       idxOff.load()
     }
@@ -359,14 +356,14 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
     cb.ifx(leafBuilder.ab.length.ceq(branchingFactor),
       cb += writeLeafNode.invokeCode[Unit]())
     leafBuilder.add(cb, key, offset, annotation)
-    cb += (elementIdx := elementIdx + 1L)
+    cb.assign(elementIdx, elementIdx + 1L)
   }
   def close(cb: EmitCodeBuilder): Unit = {
     val off = cb.newLocal[Long]("lastOffset")
-    cb += (off := flush.invokeCode[Long]())
+    cb.assign(off, flush.invokeCode[Long]())
     leafBuilder.close(cb)
-    cb += utils.close()
-    cb += utils.writeMetadata(utils.size + 1, off, elementIdx)
+    utils.close(cb)
+    utils.writeMetadata(cb, utils.size + 1, off, elementIdx)
   }
 
   def init(cb: EmitCodeBuilder, path: Value[String]): Unit = {
@@ -376,9 +373,9 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
       annotationType.virtualType,
       attributes))
     val internalBuilder = new StagedInternalNodeBuilder(branchingFactor, keyType, annotationType, cb.localBuilder)
-    cb += (elementIdx := 0L)
-    cb += utils.create(path, cb.emb.getFS, metadata)
-    cb += (ob := IndexWriter.spec.buildCodeOutputBuffer(utils.os))
+    cb.assign(elementIdx, 0L)
+    utils.create(cb, path, cb.emb.getFS, metadata)
+    cb.assign(ob, IndexWriter.spec.buildCodeOutputBuffer(utils.os))
     leafBuilder.create(cb, 0L)
     internalBuilder.create(cb)
     internalBuilder.store(cb, utils, 0)
