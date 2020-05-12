@@ -1074,7 +1074,7 @@ WHERE batch_id = %s AND job_id = %s
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts')
 @prom_async_time(REQUEST_TIME_GET_ATTEMPTS)
 @rest_authenticated_users_only
-async def get_job(request, userdata):
+async def get_attempts(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
