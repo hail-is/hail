@@ -2,9 +2,16 @@ from .types import *
 from .table_type import *
 from .matrix_type import *
 from .blockmatrix_type import *
-from .expressions import eval, eval_typed
+from .expressions import eval, eval_typed, eval_timed, \
+    Expression, ExpressionException, ArrayExpression, ArrayNumericExpression, \
+    BooleanExpression, CallExpression, CollectionExpression, DictExpression, \
+    IntervalExpression, LocusExpression, NumericExpression, Int32Expression, \
+    Int64Expression, Float32Expression, Float64Expression, SetExpression, \
+    StringExpression,  StructExpression, TupleExpression, NDArrayExpression, \
+    NDArrayNumericExpression
 from .functions import *
 from .functions import _showstr, _sort_by, _compare, _values_similar, _locus_windows_per_contig
+
 __all__ = ['HailType',
            'dtype',
            'tint',
@@ -190,4 +197,26 @@ __all__ = ['HailType',
            '_showstr',
            '_sort_by',
            '_compare',
-           '_locus_windows_per_contig']
+           '_locus_windows_per_contig',
+           'Expression',
+           'ExpressionException',
+           'ArrayExpression',
+           'ArrayNumericExpression',
+           'BooleanExpression',
+           'CallExpression',
+           'CollectionExpression',
+           'DictExpression',
+           'IntervalExpression',
+           'LocusExpression',
+           'NumericExpression',
+           'Int32Expression',
+           'Int64Expression',
+           'Float32Expression',
+           'Float64Expression',
+           'SetExpression',
+           'StringExpression',
+           'StructExpression',
+           'TupleExpression',
+           'NDArrayExpression',
+           'NDArrayNumericExpression'
+]
