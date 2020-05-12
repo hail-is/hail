@@ -26,7 +26,6 @@ from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
     DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE, \
     WORKER_LOGS_BUCKET_NAME, PROJECT
-from ..google_compute import GServices
 from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..utils import cost_from_msec_mcpu
 
@@ -660,14 +659,14 @@ async def on_startup(app):
 
     machine_name_prefix = f'batch-worker-{DEFAULT_NAMESPACE}-'
 
-    credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-        '/gsa-key/key.json')
-    gservices = GServices(machine_name_prefix, credentials)
-    app['gservices'] = gservices
-
+    aiogoogle_credentials = aiogoogle.Credentials.from_file('/gsa-key/key.json')
     compute_client = aiogoogle.ComputeClient(
-        PROJECT, credentials=aiogoogle.Credentials.from_file('/gsa-key/key.json'))
+        PROJECT, credentials=aiogoogle_credentials)
     app['compute_client'] = compute_client
+
+    logging_client = aiogoogle.LoggingClient(
+        credentials=aiogoogle_credentials)
+    app['logging_client'] = logging_client
 
     scheduler_state_changed = asyncio.Event()
     app['scheduler_state_changed'] = scheduler_state_changed
@@ -678,7 +677,13 @@ async def on_startup(app):
     cancel_running_state_changed = asyncio.Event()
     app['cancel_running_state_changed'] = cancel_running_state_changed
 
+<<<<<<< HEAD
     log_store = LogStore(BATCH_BUCKET_NAME, WORKER_LOGS_BUCKET_NAME, instance_id, pool, credentials=credentials)
+=======
+    credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+        '/gsa-key/key.json')
+    log_store = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
+>>>>>>> wip
     app['log_store'] = log_store
 
     inst_pool = InstancePool(app, machine_name_prefix)
