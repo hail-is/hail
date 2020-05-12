@@ -1755,6 +1755,9 @@ class IRSuite extends HailSuite {
   @Test def testStreamLength(): Unit = {
     val a = StreamLength(MakeStream(Seq(I32(3), NA(TInt32), I32(7)), TStream(TInt32)))
     assertEvalsTo(a, 3)
+
+    val range1 = StreamLength(StreamRange(0, 12, 1))
+    assertEvalsTo(range1, 12)
   }
 
   @Test def testStreamTake() {
