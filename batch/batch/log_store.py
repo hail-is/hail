@@ -11,6 +11,7 @@ class LogStore:
     def __init__(self, batch_logs_bucket_name, worker_logs_bucket_name, instance_id, blocking_pool, *, project=None, credentials=None):
         self.batch_logs_bucket_name = batch_logs_bucket_name
         self.worker_logs_bucket_name = worker_logs_bucket_name
+        self.instance_id = instance_id
         self.worker_logs_root = f'gs://{worker_logs_bucket_name}/batch/logs/{instance_id}/worker'
         self.batch_logs_root = f'gs://{batch_logs_bucket_name}/batch/logs/{instance_id}/batch'
         self.gcs = GCS(blocking_pool, project=project, credentials=credentials)
