@@ -107,6 +107,6 @@ variant in a dataset containing GRCh37 variants:
     hailctl dataproc start NAME --vep GRCh37
 
 Hail also supports VEP for GRCh38 variants, but you must start a cluster with
-the argument `--vep GRCh38`. A cluster started without the `--vep` argument is
+the argument ``--vep GRCh38``. A cluster started without the ``--vep`` argument is
 unable to run VEP and cannot be modified to run VEP. You must start a new
-cluster using `--vep`.
+cluster using ``--vep``.
