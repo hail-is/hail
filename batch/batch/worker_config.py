@@ -3,20 +3,18 @@ import math
 
 from .globals import WORKER_CONFIG_VERSION
 
-MACHINE_TYPE_REGEX = re.compile('projects/([^/]+)/zones/([^/]+)/machineTypes/([^-]+)-([^-]+)-(\\d+)')
-DISK_TYPE_REGEX = re.compile('projects/([^/]+)/zones/([^/]+)/diskTypes/(.+)')
+MACHINE_TYPE_REGEX = re.compile('projects/(?P<project>[^/]+)/zones/(?P<zone>[^/]+)/machineTypes/(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)')
+DISK_TYPE_REGEX = re.compile('(projects/(?P<project>[^/]+)/)?zones/(?P<zone>[^/]+)/diskTypes/(?P<disk_type>.+)')
 
 
 def parse_machine_type_str(name):
     match = MACHINE_TYPE_REGEX.fullmatch(name)
-    assert match and len(match.groups()) == 5
-    return match.groups()
+    return match.groupdict()
 
 
 def parse_disk_type(name):
     match = DISK_TYPE_REGEX.fullmatch(name)
-    assert match and len(match.groups()) == 3
-    return match.groups()
+    return match.groupdict()
 
 
 def is_power_two(n):
@@ -33,46 +31,51 @@ def is_power_two(n):
 #   type_: str (standard, highmem, highcpu)
 #   cores: int
 #   preemptible: bool
-# boot_disk: dict
+# disks: list of dict
+#   boot: bool
 #   project: str
 #   zone: str
 #   type_: str (pd-ssd, pd-standard, local-ssd)
 #   size: int (in GB)
-#   image: str
 
 
 class WorkerConfig:
     @staticmethod
     def from_instance_config(instance_config):
-        instance_project, instance_zone, instance_family, instance_type, instance_cores = \
-            parse_machine_type_str(instance_config['machineType'])
+        instance_info = parse_machine_type_str(instance_config['machineType'])
 
         preemptible = instance_config['scheduling']['preemptible']
 
-        boot_disk = [disk_config for disk_config in instance_config['disks']
-                     if disk_config['boot']][0]
+        disks = []
+        for disk_config in instance_config['disks']:
+            params = disk_config['initializeParams']
+            disk_info = parse_disk_type(params['diskType'])
+            disk_type = disk_info['disk_type']
 
-        boot_disk_project, boot_disk_zone, boot_disk_type = parse_disk_type(boot_disk['initializeParams']['diskType'])
-        boot_disk_image = boot_disk['initializeParams']['sourceImage']
-        boot_disk_size = int(boot_disk['initializeParams']['diskSizeGb'])
+            if disk_type == 'local-ssd':
+                disk_size = 375
+            else:
+                disk_size = int(params['diskSizeGb'])
+
+            disks.append({
+                'boot': disk_config.get('boot', False),
+                'project': disk_info.get('project'),
+                'zone': disk_info['zone'],
+                'type': disk_type,
+                'size': disk_size
+            })
 
         config = {
             'version': WORKER_CONFIG_VERSION,
             'instance': {
-                'project': instance_project,
-                'zone': instance_zone,
-                'family': instance_family,
-                'type': instance_type,
-                'cores': int(instance_cores),
+                'project': instance_info['project'],
+                'zone': instance_info['zone'],
+                'family': instance_info['machine_family'],
+                'type': instance_info['machine_type'],
+                'cores': int(instance_info['cores']),
                 'preemptible': preemptible
             },
-            'boot_disk': {
-                'project': boot_disk_project,
-                'zone': boot_disk_zone,
-                'type': boot_disk_type,
-                'size': boot_disk_size,
-                'image': boot_disk_image
-            }
+            'disks': disks
         }
 
         return WorkerConfig(config)
@@ -81,10 +84,10 @@ class WorkerConfig:
         self.config = config
 
         self.version = self.config['version']
-        assert self.version == 1
+        assert self.version == 2
 
         instance = self.config['instance']
-        boot_disk = self.config['boot_disk']
+        self.disks = self.config['disks']
 
         self.instance_project = instance['project']
         self.instance_zone = instance['zone']
@@ -93,8 +96,6 @@ class WorkerConfig:
 
         self.cores = instance['cores']
         self.preemptible = instance['preemptible']
-        self.boot_disk_size_gb = boot_disk['size']
-        self.boot_disk_type = boot_disk['type']
 
     def is_valid_configuration(self, valid_resources):
         is_valid = True
@@ -115,9 +116,20 @@ class WorkerConfig:
         resources.append({'name': f'memory/{self.instance_family}-{preemptible}/1',
                           'quantity': math.ceil(memory_in_bytes / 1024 / 1024)})
 
-        # the factors of 1024 cancel between GiB -> MiB and fraction_1024 -> fraction
-        resources.append({'name': f'boot-disk/{self.boot_disk_type}/1',
-                          'quantity': self.boot_disk_size_gb * worker_fraction_in_1024ths})
+        quantities = {}
+        for disk in self.disks:
+            name = f'disk/{disk["type"]}/1'
+            # the factors of 1024 cancel between GiB -> MiB and fraction_1024 -> fraction
+            size = disk['size'] * worker_fraction_in_1024ths
+
+            if name not in quantities:
+                quantities[name] = size
+            else:
+                quantities[name] += size
+
+        for name, quantity in quantities.items():
+            resources.append({'name': name,
+                              'quantity': quantity})
 
         resources.append({'name': 'service-fee/1',
                           'quantity': cpu_in_mcpu})

@@ -1236,6 +1236,8 @@ steps:
       script: /io/sql/insert_resources.py
     - name: insert-standing-worker-globals
       script: /io/sql/insert_standing_worker_globals.py
+    - name: insert-local-ssd-resource
+      script: /io/sql/insert_local_ssd_resource.py
    inputs:
     - from: /repo/batch/sql
       to: /io/
