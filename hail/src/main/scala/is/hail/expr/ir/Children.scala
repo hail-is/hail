@@ -81,7 +81,7 @@ object Children {
       Array(orderedCollection, elem)
     case GroupByKey(collection) =>
       Array(collection)
-    case StreamLen(a) =>
+    case StreamLength(a) =>
       Array(a)
     case StreamTake(a, len) =>
       Array(a, len)

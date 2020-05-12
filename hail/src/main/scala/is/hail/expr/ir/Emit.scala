@@ -1226,7 +1226,7 @@ class Emit[C](
         )
         EmitCode(lengthTriplet.setup, lengthTriplet.m, PCode(pt, result))
 
-      case x@StreamLen(a) =>
+      case x@StreamLength(a) =>
         val streamOpt = emitStream(a)
         val lenOpt = streamOpt.map { ss =>
           val lenCode = ss.length.getOrElse {
