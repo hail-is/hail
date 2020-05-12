@@ -13,7 +13,7 @@ from prometheus_async.aio.web import server_stats
 from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
     check_csrf_token, transaction, AccessLogger
 from hailtop.config import get_deploy_config
-from hailtop.utils import time_msecs
+from hailtop.utils import time_msecs, RateLimit
 from hailtop.tls import get_server_ssl_context
 from hailtop import aiogoogle
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
@@ -679,13 +679,9 @@ async def on_startup(app):
     cancel_running_state_changed = asyncio.Event()
     app['cancel_running_state_changed'] = cancel_running_state_changed
 
-<<<<<<< HEAD
-    log_store = LogStore(BATCH_BUCKET_NAME, WORKER_LOGS_BUCKET_NAME, instance_id, pool, credentials=credentials)
-=======
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
         '/gsa-key/key.json')
-    log_store = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
->>>>>>> wip
+    log_store = LogStore(BATCH_BUCKET_NAME, WORKER_LOGS_BUCKET_NAME, instance_id, pool, credentials=credentials)
     app['log_store'] = log_store
 
     inst_pool = InstancePool(app, machine_name_prefix)
