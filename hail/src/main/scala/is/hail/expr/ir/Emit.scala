@@ -1054,23 +1054,14 @@ class Emit[C](
             InferPType(cmp2, Env.empty)
             val EmitCode(s, m, pv) = emitInMethod(cmp2, discardNext)
             discardNext.emit(Code(s, m || pv.tcode[Boolean]))
-<<<<<<< HEAD
-            val compare = (ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0).deepCopy()
-            InferPType(compare, Env.empty)
-            (a, compare, Code(sorter.pruneMissing, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
+            val lessThan = (ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0).deepCopy()
+            InferPType(lessThan, Env.empty)
+            (a, lessThan, Code(sorter.pruneMissing, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
               EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
                 cb.invokeCode[Boolean](discardNext, r,
                   new EmitCode(Code._empty, m1, PCode(atyp.elementType, v1)),
                   new EmitCode(Code._empty, m2, PCode(atyp.elementType, v2)))
               }
-=======
-            val lessThan = (ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0).deepCopy()
-            InferPType(lessThan, Env.empty)
-            (a, lessThan, Code(sorter.pruneMissing, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
-              discardNext.invokeCode[Boolean](r,
-                new EmitCode(Code._empty, m1, PCode(atyp.elementType, v1)),
-                new EmitCode(Code._empty, m2, PCode(atyp.elementType, v2)))
->>>>>>> lower import_vcf
             }), Array.empty[String])
         }
 
