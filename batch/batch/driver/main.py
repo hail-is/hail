@@ -22,7 +22,8 @@ import uvloop
 from ..batch import mark_job_complete, mark_job_started
 from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
-    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE
+    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE, \
+    WORKER_LOGS_BUCKET_NAME
 from ..google_compute import GServices
 from ..globals import HTTP_CLIENT_MAX_SIZE
 
@@ -516,7 +517,7 @@ async def on_startup(app):
     cancel_running_state_changed = asyncio.Event()
     app['cancel_running_state_changed'] = cancel_running_state_changed
 
-    log_store = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
+    log_store = LogStore(BATCH_BUCKET_NAME, WORKER_LOGS_BUCKET_NAME, instance_id, pool, credentials=credentials)
     app['log_store'] = log_store
 
     inst_pool = InstancePool(app, machine_name_prefix)
