@@ -114,6 +114,17 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     references.clearAndResize()
   }
 
+  private def clearReferences(): Unit = {
+    var j = 0
+    while (j < references.size) {
+      val rj = references(j)
+      if (rj != null) {
+        rj.clear()
+      }
+      j += 1
+    }
+  }
+
   private def freeObjects(): Unit = {
     pool.removeJavaObjects(jObjects.size)
     jObjects.clearAndSetMem(null)
@@ -170,6 +181,18 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     freeChunks()
     freeObjects()
     releaseReferences()
+
+    offsetWithinBlock = 0L
+  }
+
+  def clearPreservingReferences(): Unit = {
+    assert(referenceCount == 1)
+    assert(currentBlock != 0)
+
+    freeFullBlocks()
+    freeChunks()
+    freeObjects()
+    clearReferences()
 
     offsetWithinBlock = 0L
   }

@@ -604,7 +604,9 @@ class Emit[C](
         cb.assign(ib, spec.buildCodeInputBuffer(
             Code.newInstance[ByteArrayInputStream, Array[Byte]](
               mb.getSerializedAgg(sIdx))))
+        cb += mb.freeSerializedAgg(sIdx)
         mb.wrapVoids(cb, unserialize, "deserialize_aggs")
+        cb.assign(ib, Code._null)
 
       case Die(m, typ) =>
         val cm = emitI(m)

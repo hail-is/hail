@@ -644,46 +644,41 @@ class RVD(
     RVD(typ, newPartitioner, crdd.subsetPartitions(keep))
   }
 
-  def combine[U : ClassTag](
+  def combine[U: ClassTag, T: ClassTag](
     zeroValue: U,
     itF: (Int, RVDContext, Iterator[Long]) => U,
-    combOp: (U, U) => U,
-    commutative: Boolean,
-    tree: Boolean): U = {
-
-    val makeComb: () => Combiner[U] = () => Combiner(zeroValue, combOp, commutative = commutative, associative = true)
-
+    deserialize: U => T,
+    serialize: T => U,
+    seqOp: (T, U) => T,
+    tree: Boolean
+  ): T = {
     var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
 
     if (tree) {
-      val depth = treeAggDepth(reduced.getNumPartitions)
-      val scale = math.max(
-        math.ceil(math.pow(reduced.partitions.length, 1.0 / depth)).toInt,
-        2)
-      var i = 0
-      while (i < depth - 1 && reduced.getNumPartitions > scale) {
-        val nParts = reduced.getNumPartitions
-        val newNParts = nParts / scale
-        reduced = reduced.mapPartitionsWithIndex { (i, it) =>
-          it.map(x => (itemPartition(i, nParts, newNParts), (i, x)))
-        }
-          .partitionBy(new Partitioner {
-            override def getPartition(key: Any): Int = key.asInstanceOf[Int]
-
-            override def numPartitions: Int = newNParts
-          })
-          .mapPartitions { it =>
-            val ac = makeComb()
-            it.foreach { case (newPart, (oldPart, v)) =>
-              ac.combine(oldPart, v)
-            }
-            Iterator.single(ac.result())
-          }
-        i += 1
-      }
+      reduced = reduced.treeCombine(() => deserialize(zeroValue), serialize, seqOp)
     }
 
-    val ac = makeComb()
+    val ac = new CommutativeAndAssociativeCombiner[U, T](deserialize(zeroValue), seqOp)
+    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), ac.combine _)
+    ac.result()
+  }
+
+  def combineNonCommutative[U: ClassTag, T: ClassTag](
+    zeroValue: U,
+    itF: (Int, RVDContext, Iterator[Long]) => U,
+    deserialize: U => T,
+    serialize: T => U,
+    seqOp: (T, U) => T,
+    combOp: (U, U) => U,
+    tree: Boolean
+  ): U = {
+    var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
+
+    if (tree) {
+      reduced = reduced.treeCombine(() => deserialize(zeroValue), serialize, seqOp)
+    }
+
+    val ac = new AssociativeCombiner[U](zeroValue, combOp)
     sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), ac.combine _)
     ac.result()
   }

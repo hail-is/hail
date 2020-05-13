@@ -385,6 +385,11 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     }
   }
 
+  def clearPreservingReferences(): Unit = {
+    assert(memory.getReferenceCount == 1)
+    memory.clearPreservingReferences()
+  }
+
   def close(): Unit = {
     invalidate()
   }

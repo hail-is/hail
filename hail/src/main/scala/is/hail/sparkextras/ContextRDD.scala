@@ -12,30 +12,33 @@ import org.apache.spark.ExposedUtils
 import scala.reflect.ClassTag
 
 object Combiner {
-  def apply[U](zero: U, combine: (U, U) => U, commutative: Boolean, associative: Boolean): Combiner[U] = {
+  def apply[U](zero: U, combine: (U, U) => U, commutative: Boolean, associative: Boolean): Combiner[U, U] = {
     assert(associative)
     if (commutative)
       new CommutativeAndAssociativeCombiner(zero, combine)
     else
       new AssociativeCombiner(zero, combine)
   }
+
+  def apply[U, T](zero: T, combine: (T, U) => T): Combiner[U, T] =
+    new CommutativeAndAssociativeCombiner(zero, combine)
 }
 
-abstract class Combiner[U] {
+abstract class Combiner[U, R] {
   def combine(i: Int, value0: U)
 
-  def result(): U
+  def result(): R
 }
 
-class CommutativeAndAssociativeCombiner[U](zero: U, combine: (U, U) => U) extends Combiner[U] {
-  var state: U = zero
+class CommutativeAndAssociativeCombiner[U, T](zero: T, combine: (T, U) => T) extends Combiner[U, T] {
+  var state: T = zero
 
   def combine(i: Int, value0: U): Unit = state = combine(state, value0)
 
-  def result(): U = state
+  def result(): T = state
 }
 
-class AssociativeCombiner[U](zero: U, combine: (U, U) => U) extends Combiner[U] {
+class AssociativeCombiner[U](zero: U, combine: (U, U) => U) extends Combiner[U, U] {
 
   case class TreeValue(var value: U, var end: Int)
 
@@ -352,6 +355,41 @@ class ContextRDD[T: ClassTag](
         f(it.flatMap(_(c)))
       },
       partitions)
+
+  def treeCombine[U: ClassTag](
+    mkZeroValue: () => U,
+    serialize: U => T,
+    seqOp: (U, T) => U
+  ): ContextRDD[T] = {
+    val depth = treeAggDepth(getNumPartitions)
+    val scale = math.max(
+      math.ceil(math.pow(getNumPartitions, 1.0 / depth)).toInt,
+      2)
+
+    var reduced = this
+    var i = 0
+    while (i < depth - 1 && reduced.getNumPartitions > scale) {
+      val nParts = reduced.getNumPartitions
+      val newNParts = nParts / scale
+      reduced = reduced
+        .mapPartitionsWithIndex { (i, it) =>
+          it.map(x => (itemPartition(i, nParts, newNParts), (i, x)))
+        }
+        .partitionBy(new Partitioner {
+          override def getPartition(key: Any): Int = key.asInstanceOf[Int]
+          override def numPartitions: Int = newNParts
+        })
+        .mapPartitions { it =>
+          var acc = mkZeroValue()
+          it.foreach { case (newPart, (oldPart, v)) =>
+            acc = seqOp(acc, v)
+          }
+          Iterator.single(serialize(acc))
+        }
+      i += 1
+    }
+    reduced
+  }
 
   def blocked(partFirst: Array[Int], partLast: Array[Int]): ContextRDD[T] = {
     new ContextRDD(new BlockedRDD(rdd, partFirst, partLast))

@@ -45,7 +45,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
 
   def eltOp(ctx: ExecuteContext): IR = seqPerElt
 
-  def deserialize(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): ((Region, Array[Byte]) => Long) = {
+  def deserialize(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (Region, Array[Byte]) => Long = {
     val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
       physicalAggs,
       FastIndexedSeq(),
@@ -53,11 +53,29 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
       ir.DeserializeAggs(0, 0, spec, aggs))
 
     { (aggRegion: Region, bytes: Array[Byte]) =>
-      val f2 = f(0, aggRegion);
+      val f2 = f(0, aggRegion)
       f2.newAggState(aggRegion)
       f2.setSerializedAgg(0, bytes)
       f2(aggRegion)
       f2.getAggOffset()
+    }
+  }
+
+  def deserialize2(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): Array[Byte] => RegionValue = {
+    val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](
+      ctx,
+      physicalAggs,
+      FastIndexedSeq(),
+      FastIndexedSeq(classInfo[Region]), UnitInfo,
+      ir.DeserializeAggs(0, 0, spec, aggs))
+
+    { bytes: Array[Byte] =>
+      val aggRegion = Region(Region.REGULAR)
+      val f2 = f(0, aggRegion)
+      f2.newAggState(aggRegion)
+      f2.setSerializedAgg(0, bytes)
+      f2(aggRegion)
+      RegionValue(aggRegion, f2.getAggOffset())
     }
   }
 
@@ -72,6 +90,25 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
       val f2 = f(0, aggRegion);
       f2.setAggState(aggRegion, off)
       f2(aggRegion)
+      f2.getSerializedAgg(0)
+    }
+  }
+
+  def serialize2(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): RegionValue => Array[Byte] = {
+    val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](
+      ctx,
+      physicalAggs,
+      FastIndexedSeq(),
+      FastIndexedSeq(classInfo[Region]), UnitInfo,
+      ir.SerializeAggs(0, 0, spec, aggs))
+
+    { rv: RegionValue =>
+      val aggRegion = rv.region
+      val off = rv.offset
+      val f2 = f(0, aggRegion)
+      f2.setAggState(aggRegion, off)
+      f2(aggRegion)
+      aggRegion.clear()
       f2.getSerializedAgg(0)
     }
   }
@@ -96,6 +133,85 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
         comb(aggRegion)
         comb.getSerializedAgg(0)
       }
+    }
+  }
+
+  def combOpF2(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (RegionValue, Array[Byte]) => RegionValue = {
+    val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](
+      ctx,
+      physicalAggs ++ physicalAggs,
+      FastIndexedSeq(),
+      FastIndexedSeq(classInfo[Region]), UnitInfo,
+      Begin(
+        deserializeSet(1, 1, spec) +:
+        Array.tabulate(nAggs)(i => CombOp(i, nAggs + i, aggs(i)))))
+
+    { (rv: RegionValue, c2: Array[Byte]) =>
+      val aggRegion = rv.region
+      val comb = f(0, aggRegion)
+      comb.setAggState(aggRegion, rv.offset)
+      comb.setSerializedAgg(1, c2)
+      comb(aggRegion)
+      rv.setOffset(comb.getAggOffset())
+      rv
+    }
+  }
+
+  def combOpF3(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (RegionValue, RegionValue) => RegionValue = {
+    val fb = ir.EmitFunctionBuilder[AsmFunction0Unit](
+      ctx,
+      "CompiledWithAggs",
+      FastIndexedSeq(),
+      PVoid)
+    val (leftAggState, rightAggState) = fb.addCombinerAggStates(physicalAggs)
+    fb.emit(Code(Array.tabulate(nAggs) { i =>
+      val aggSig = physicalAggs(i)
+      val rvAgg = agg.Extract.getAgg(aggSig, aggSig.default)
+      EmitCodeBuilder.scopedVoid(fb.emb) { cb =>
+        rvAgg.combOp(cb, leftAggState.states(i), rightAggState.states(nAggs + i))
+      }
+    }))
+
+    val f = fb.resultWithIndex()
+
+    { (l: RegionValue, r: RegionValue) =>
+      val comb = f(0, l.region).asInstanceOf[AsmFunction0Unit with FunctionWithTwoAggRegions]
+      comb.setLeftAggState(l.region, l.offset)
+      comb.setRightAggState(r.region, r.offset)
+      comb()
+      l.setOffset(comb.getLeftAggOffset())
+      l
+    }
+  }
+
+  class Combiner(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]) {
+    val (_, combF) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](
+      ctx,
+      physicalAggs ++ physicalAggs,
+      FastIndexedSeq(),
+      FastIndexedSeq(classInfo[Region]), UnitInfo,
+      Begin(
+        deserializeSet(1, 1, spec) +:
+          Array.tabulate(nAggs)(i => CombOp(i, nAggs + i, aggs(i)))))
+
+    val aggRegion: Region = Region(Region.SMALL)
+    val comb = combF(0, aggRegion)
+    comb.newAggState(aggRegion)
+
+    def setZero(zero: Array[Byte]): Unit = {
+      val z = deserialize(ctx, spec, physicalAggs)(aggRegion, zero)
+      comb.setAggState(aggRegion, z)
+    }
+
+    def update(a: Array[Byte]): Unit = {
+      comb.newAggState(aggRegion)
+      comb.setSerializedAgg(1, a)
+      comb(aggRegion)
+    }
+
+    def result(): Array[Byte] = {
+      val ptr = comb.getAggOffset()
+      serialize(ctx, spec, physicalAggs)(aggRegion, ptr)
     }
   }
 

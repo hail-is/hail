@@ -98,7 +98,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testMemoryUsage() {
-    val nParts = 5
+    val nParts = 1
     val mrr = MatrixRangeReader(nParts * 1000, 7000, Some(nParts))
     var mt: MatrixIR = MatrixRead(mrr.fullMatrixType, false, false, mrr)
     mt = MatrixMapEntries(
@@ -116,7 +116,6 @@ class IRSuite extends HailSuite {
           ApplyAggOp(
             IndexedSeq(I32(100)),
             IndexedSeq(Cast(GetField(Ref("g", TStruct("x" -> TInt32)), "x"), TFloat64)),
-//            IndexedSeq(ApplyIR("toFloat64", Seq(TInt32), Seq(GetField(Ref("g", TStruct("x" -> TInt32)), "x")))),
             AggSignature(ApproxCDF(), Seq(TInt32), Seq(TFloat64))))),
       None)
     val ir = TableCollect(TableKeyBy(MatrixColsTable(mt), IndexedSeq()))

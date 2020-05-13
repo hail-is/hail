@@ -702,8 +702,9 @@ object Interpret {
             FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
             extracted.seqPerElt)
 
-          val read = extracted.deserialize(ctx, spec, physicalAggs)
-          val write = extracted.serialize(ctx, spec, physicalAggs)
+          val read = extracted.deserialize2(ctx, spec, physicalAggs)
+          val write = extracted.serialize2(ctx, spec, physicalAggs)
+          val seqOpF = extracted.combOpF2(ctx, spec, physicalAggs)
           val combOpF = extracted.combOpF(ctx, spec, physicalAggs)
 
           val (rTyp: PTuple, f) = CompileWithAggregators2[AsmFunction2RegionLongLong](ctx,
@@ -718,39 +719,53 @@ object Interpret {
           log.info(s"Aggregate: useTreeAggregate=${ useTreeAggregate }")
           log.info(s"Aggregate: commutative=${ isCommutative }")
 
-          val aggResults = value.rvd.combine[Array[Byte]](
-            Region.scoped { region =>
-              val initF = initOp(0, region)
-              Region.scoped { aggRegion =>
-                initF.newAggState(aggRegion)
-                initF(region, globalsOffset)
-                write(aggRegion, initF.getAggOffset())
-              }
-            },
-            { (i: Int, ctx: RVDContext, it: Iterator[Long]) =>
-              val partRegion = ctx.partitionRegion
-              val globalsOffset = globalsBc.value.readRegionValue(partRegion)
-              val init = initOp(i, partRegion)
-              val seqOps = partitionOpSeq(i, partRegion)
+          def itF(i: Int, ctx: RVDContext, it: Iterator[Long]): Array[Byte] = {
+            val partRegion = ctx.partitionRegion
+            val globalsOffset = globalsBc.value.readRegionValue(partRegion)
+            val init = initOp(i, partRegion)
+            val seqOps = partitionOpSeq(i, partRegion)
 
-              Region.smallScoped { aggRegion =>
-                init.newAggState(aggRegion)
-                init(partRegion, globalsOffset)
-                seqOps.setAggState(aggRegion, init.getAggOffset())
-                it.foreach { ptr =>
-                  seqOps(ctx.region, globalsOffset, ptr)
-                  ctx.region.clear()
-                }
-                write(aggRegion, seqOps.getAggOffset())
+            Region.smallScoped { aggRegion =>
+              init.newAggState(aggRegion)
+              init(partRegion, globalsOffset)
+              seqOps.setAggState(aggRegion, init.getAggOffset())
+              it.foreach { ptr =>
+                seqOps(ctx.region, globalsOffset, ptr)
+                ctx.region.clear()
               }
-            }, combOpF, commutative = isCommutative, tree = useTreeAggregate)
+              write(RegionValue(aggRegion, seqOps.getAggOffset()))
+            }
+          }
+
+          val zero = Region.scoped { region =>
+            val initF = initOp(0, region)
+            Region.scoped { aggRegion =>
+              initF.newAggState(aggRegion)
+              initF(region, globalsOffset)
+              write(RegionValue(aggRegion, initF.getAggOffset()))
+            }
+          }
+
+          val aggResults = if (isCommutative) {
+            val rv = value.rvd.combine[Array[Byte], RegionValue](
+              zero, itF, read, write, seqOpF, tree = useTreeAggregate)
+            write(rv)
+          } else {
+            value.rvd.combineNonCommutative[Array[Byte], RegionValue](
+              zero, itF, read, write, seqOpF, combOpF, tree = useTreeAggregate)
+          }
 
           Region.scoped { r =>
             val resF = f(0, r)
-            Region.smallScoped { aggRegion =>
-              resF.setAggState(aggRegion, read(aggRegion, aggResults))
-              SafeRow(rTyp, resF(r, globalsOffset))
-            }
+            val rv = read(aggResults)
+            resF.setAggState(rv.region, rv.offset)
+            val res = SafeRow(rTyp, resF(r, globalsOffset))
+            rv.region.clear()
+            res
+//            Region.smallScoped { aggRegion =>
+//              resF.setAggState(aggRegion, read(aggRegion, aggResults))
+//              SafeRow(rTyp, resF(r, globalsOffset))
+//            }
           }
         }
 
