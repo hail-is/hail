@@ -791,8 +791,8 @@ object IRParser {
         val r = identifier(it)
         val a = ir_value_expr(env)(it)
         val elt = coerce[TStream](a.typ).elementType
-        val body = ir_value_expr(env + (l -> elt) + (r -> elt))(it)
-        ArraySort(a, l, r, body)
+        val lessThan = ir_value_expr(env + (l -> elt) + (r -> elt))(it)
+        ArraySort(a, l, r, lessThan)
       case "MakeNDArray" =>
         val data = ir_value_expr(env)(it)
         val shape = ir_value_expr(env)(it)

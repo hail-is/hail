@@ -68,19 +68,23 @@ class ServiceBackend() extends Backend {
 
   def stop(): Unit = ()
 
+  def formatException(e: Exception): String = {
+    using(new StringWriter()) { sw =>
+      using(new PrintWriter(sw)) { pw =>
+        e.printStackTrace(pw)
+        sw.toString
+      }
+    }
+  }
+
   def statusForException(f: => String): Response = {
     try {
       new Response(200, f)
     } catch {
       case e: HailException =>
-        new Response(400, e.getMessage)
-      case e: LowererUnsupportedOperation =>
-        new Response(400, e.getMessage)
+        new Response(400, formatException(e))
       case e: Exception =>
-        using(new PrintWriter(new StringWriter())) { pw =>
-          e.printStackTrace(pw)
-          new Response(500, pw.toString)
-        }
+        new Response(500, formatException(e))
     }
   }
 

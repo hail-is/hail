@@ -2,6 +2,7 @@ package is.hail.io.plink
 
 import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.expr.ir._
+import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PBoolean, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PFloat64, PStruct, PType}
 import is.hail.expr.types.virtual._
@@ -433,7 +434,7 @@ class MatrixPLINKReader(
 
     new GenericTableValue(
       tt,
-      partitioner,
+      Some(partitioner),
       { (requestedGlobalsType: Type) =>
         val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
         subset(globals).asInstanceOf[Row]
@@ -447,8 +448,14 @@ class MatrixPLINKReader(
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue =
     executeGeneric(ctx).toTableValue(ctx, tr.typ)
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): LoweredTableReader =
-    executeGeneric(ctx).toLoweredTableValue(requestedType)
+  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
+    val subset = fullMatrixType.globalType.valueSubsetter(requestedGlobalsType)
+    val globals = Row(sampleInfo)
+    Literal(requestedGlobalsType, subset(globals).asInstanceOf[Row])
+  }
+
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
+    executeGeneric(ctx).toTableStage(ctx, requestedType)
 
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats

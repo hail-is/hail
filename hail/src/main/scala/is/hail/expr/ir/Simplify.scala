@@ -220,9 +220,9 @@ object Simplify {
     case StreamMap(StreamMap(a, n1, b1), n2, b2) =>
       StreamMap(a, n1, Let(n2, b1, b2))
 
-    case StreamFilter(ArraySort(a, left, right, compare), name, cond) => ArraySort(StreamFilter(a, name, cond), left, right, compare)
+    case StreamFilter(ArraySort(a, left, right, lessThan), name, cond) => ArraySort(StreamFilter(a, name, cond), left, right, lessThan)
 
-    case StreamFilter(ToStream(ArraySort(a, left, right, compare)), name, cond) => ToStream(ArraySort(StreamFilter(a, name, cond), left, right, compare))
+    case StreamFilter(ToStream(ArraySort(a, left, right, lessThan)), name, cond) => ToStream(ArraySort(StreamFilter(a, name, cond), left, right, lessThan))
 
     case ToArray(ToStream(a)) if a.typ.isInstanceOf[TArray] => a
     case ToArray(ToStream(a)) if a.typ.isInstanceOf[TSet] || a.typ.isInstanceOf[TDict] =>

@@ -75,10 +75,11 @@ class BGzipCodecSuite extends HailSuite {
   @Test def testGenericLinesSimpleUncompressed() {
     val lines = Source.fromFile(uncompPath).getLines().toFastIndexedSeq
 
+    val uncompStatus = fs.fileStatus(uncompPath)
     var i = 0
     while (i < 16) {
       val lines2 = GenericLines.collect(
-        GenericLines.read(fs, Array(uncompPath), None, Some(i), false))
+        GenericLines.read(fs, Array(uncompStatus), Some(i), None, None, false, false))
       compareLines(lines2, lines)
       i += 1
     }
@@ -87,10 +88,11 @@ class BGzipCodecSuite extends HailSuite {
   @Test def testGenericLinesSimpleBGZ() {
     val lines = Source.fromFile(uncompPath).getLines().toFastIndexedSeq
 
+    val compStatus = fs.fileStatus(compPath)
     var i = 0
     while (i < 16) {
       val lines2 = GenericLines.collect(
-        GenericLines.read(fs, Array(compPath), None, Some(i), false))
+        GenericLines.read(fs, Array(compStatus), Some(i), None, None, false, false))
       compareLines(lines2, lines)
       i += 1
     }
@@ -100,14 +102,16 @@ class BGzipCodecSuite extends HailSuite {
     val lines = Source.fromFile(uncompPath).getLines().toFastIndexedSeq
 
     // won't split, just run once
+    val gzStatus = fs.fileStatus(gzPath)
     val lines2 = GenericLines.collect(
-      GenericLines.read(fs, Array(gzPath), None, Some(7), true))
+      GenericLines.read(fs, Array(gzStatus), Some(7), None, None, false, true))
     compareLines(lines2, lines)
   }
 
   @Test def testGenericLinesRefuseGZ() {
     interceptFatal("Cowardly refusing") {
-      GenericLines.read(fs, Array(gzPath), None, Some(7), false)
+      val gzStatus = fs.fileStatus(gzPath)
+      GenericLines.read(fs, Array(gzStatus), Some(7), None, None, false, false)
     }
   }
 
@@ -135,7 +139,7 @@ class BGzipCodecSuite extends HailSuite {
           val end = makeVirtualOffset(splits(i + 1), 0)
           Row(i, compPath, splits(i), end, true)
         }
-      val lines2 = GenericLines.collect(GenericLines.read(fs, contexts))
+      val lines2 = GenericLines.collect(GenericLines.read(fs, contexts, false))
       compareLines(lines2, lines)
       true
     }

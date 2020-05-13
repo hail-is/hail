@@ -275,12 +275,12 @@ object InferPType {
         val aType = coerce[PArray](a.pType)
         val elemType = aType.elementType
         elemType.orMissing(a.pType.required && i.pType.required)
-      case ArraySort(a, leftName, rightName, compare) =>
+      case ArraySort(a, leftName, rightName, lessThan) =>
         infer(a)
         val et = coerce[PStream](a.pType).elementType
 
-        infer(compare, env.bind(leftName -> et, rightName -> et))
-        assert(compare.pType.isOfType(PBoolean()))
+        infer(lessThan, env.bind(leftName -> et, rightName -> et))
+        assert(lessThan.pType.isOfType(PBoolean()))
 
         PCanonicalArray(et, a.pType.required)
       case ToSet(a) =>
