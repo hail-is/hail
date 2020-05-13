@@ -1,7 +1,11 @@
-from .types import *
-from .table_type import *
-from .matrix_type import *
-from .blockmatrix_type import *
+from .types import dtype, HailType, hail_type, is_container, is_compound, \
+    is_numeric, is_primitive, types_match, tint, tint32, tint64, tfloat, \
+    tfloat32, tfloat64, tstr, tbool, tarray, tstream, tndarray, tset, tdict, \
+    tstruct, tunion, ttuple, tinterval, tlocus, tcall, tvoid, tvariable, \
+    hts_entry_schema
+from .table_type import ttable
+from .matrix_type import tmatrix
+from .blockmatrix_type import tblockmatrix
 from .expressions import eval, eval_typed, eval_timed, \
     Expression, ExpressionException, ArrayExpression, ArrayNumericExpression, \
     BooleanExpression, CallExpression, CollectionExpression, DictExpression, \

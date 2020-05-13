@@ -1,5 +1,4 @@
-from hail.typecheck import *
-from hail.utils.java import *
+from hail.typecheck import typecheck_method, sequenceof
 
 
 class Call(object):

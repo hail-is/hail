@@ -1,18 +1,21 @@
-from typing import *
-
+from typing import Mapping, Dict, Sequence
 import hail as hl
-from hail.expr.expressions import Expression, to_expr, ExpressionException, \
-    unify_all, Indices, Aggregation, unify_types
-from hail.expr.expressions.expression_typecheck import *
-from hail.expr.types import *
-from hail.ir import *
-from hail.typecheck import *
-from hail.utils.java import *
+from .indices import Indices, Aggregation
+from .base_expression import Expression, ExpressionException, to_expr, \
+    unify_all, unify_types
+from .expression_typecheck import coercer_from_dtype, \
+    expr_any, expr_array, expr_set, expr_bool, expr_numeric, expr_int32, \
+    expr_int64, expr_str, expr_dict, expr_interval, expr_tuple
+from hail.expr.types import HailType, tint32, tint64, tfloat32, \
+    tfloat64, tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr, \
+    tndarray, tlocus, tinterval, is_numeric
+import hail.ir as ir
+from hail.typecheck import typecheck, typecheck_method, func_spec, oneof, \
+    identity, nullable, tupleof, sliceof
+from hail.utils.java import Env, warn
 from hail.utils.linkedlist import LinkedList
-from hail.utils.misc import get_nice_field_error, get_nice_attr_error
-from hail.genetics.reference_genome import reference_genome_type
+from hail.utils.misc import wrap_to_list, get_nice_field_error, get_nice_attr_error
 
-import tempfile
 import numpy as np
 
 
@@ -23,7 +26,6 @@ class CollectionExpression(Expression):
 
     >>> s3 = hl.literal({'Alice', 'Bob', 'Charlie'})
     """
-
 
     def _filter_missing_method(self, filter_missing: bool, name: str, ret_type: HailType, *args):
         collection = self
@@ -59,8 +61,7 @@ class CollectionExpression(Expression):
         :class:`.BooleanExpression`.
             ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
         """
-        f2 = lambda accum, elt: accum | f(elt)
-        return hl.array(self).fold(f2, False)
+        return hl.array(self).fold(lambda accum, elt: accum | f(elt), False)
 
     @typecheck_method(f=func_spec(1, expr_bool))
     def filter(self, f):
@@ -100,7 +101,7 @@ class CollectionExpression(Expression):
             return hl.tarray(self._type.element_type)
 
         def transform_ir(array, name, body):
-            return ToArray(StreamFilter(ToStream(array), name, body))
+            return ir.ToArray(ir.StreamFilter(ir.ToStream(array), name, body))
 
         array_filter = hl.array(self)._ir_lambda_method(transform_ir, f, self.dtype.element_type, unify_ret)
 
@@ -178,7 +179,7 @@ class CollectionExpression(Expression):
             return hl.array(f(x)) if isinstance(value_type, tset) else f(x)
 
         def transform_ir(array, name, body):
-            return ToArray(StreamFlatMap(ToStream(array), name, ToStream(body)))
+            return ir.ToArray(ir.StreamFlatMap(ir.ToStream(array), name, ir.ToStream(body)))
 
         array_flatmap = hl.array(self)._ir_lambda_method(transform_ir, f2, self.dtype.element_type, identity)
 
@@ -240,14 +241,13 @@ class CollectionExpression(Expression):
                                       "same expression type as zero value: \n"
                                       "    zero.dtype: {}\n"
                                       "    f.dtype: {}".format(
-                zero.dtype,
-                body.dtype))
+                                          zero.dtype,
+                                          body.dtype))
 
-        ir = StreamFold(ToStream(collection._ir), zero._ir, accum_name, elt_name, body._ir)
+        x = ir.StreamFold(ir.ToStream(collection._ir), zero._ir, accum_name, elt_name, body._ir)
 
         indices, aggregations = unify_all(self, zero, body)
-        return construct_expr(ir, body.dtype, indices, aggregations)
-
+        return construct_expr(x, body.dtype, indices, aggregations)
 
     @typecheck_method(f=func_spec(1, expr_bool))
     def all(self, f):
@@ -274,8 +274,7 @@ class CollectionExpression(Expression):
         :class:`.BooleanExpression`.
             ``True`` if `f` returns ``True`` for every element, ``False`` otherwise.
         """
-        f2 = lambda accum, elt: accum & f(elt)
-        return hl.array(self).fold(f2, True)
+        return hl.array(self).fold(lambda accum, elt: accum & f(elt), True)
 
     @typecheck_method(f=func_spec(1, expr_any))
     def group_by(self, f):
@@ -304,7 +303,7 @@ class CollectionExpression(Expression):
 
         keyed = hl.array(self).map(lambda x: hl.tuple([f(x), x]))
         types = keyed.dtype.element_type.types
-        return construct_expr(GroupByKey(ToStream(keyed._ir)), tdict(types[0], tarray(types[1])), keyed._indices, keyed._aggregations)
+        return construct_expr(ir.GroupByKey(ir.ToStream(keyed._ir)), tdict(types[0], tarray(types[1])), keyed._indices, keyed._aggregations)
 
     @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):
@@ -331,9 +330,9 @@ class CollectionExpression(Expression):
         """
 
         def transform_ir(array, name, body):
-            a = ToArray(StreamMap(ToStream(array), name, body))
+            a = ir.ToArray(ir.StreamMap(ir.ToStream(array), name, body))
             if isinstance(self.dtype, tset):
-                a = ToSet(ToStream(a))
+                a = ir.ToSet(ir.ToStream(a))
             return a
 
         array_map = hl.array(self)._ir_lambda_method(transform_ir, f, self._type.element_type, lambda t: self._type.__class__(t))
@@ -367,7 +366,7 @@ class CollectionExpression(Expression):
 
         Examples
         --------
-        
+
         >>> hl.eval(a.size())
         5
 
@@ -379,7 +378,7 @@ class CollectionExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             The number of elements in the collection.
         """
-        return apply_expr(lambda x: ArrayLen(CastToArray(x)), tint32, hl.array(self))
+        return apply_expr(lambda x: ir.ArrayLen(ir.CastToArray(x)), tint32, hl.array(self))
 
     def _extra_summary_fields(self, agg_result):
         return {
@@ -553,9 +552,11 @@ class ArrayExpression(CollectionExpression):
         None
         """
         if callable(x):
-            f = lambda elt, x: x(elt)
+            def f(elt, x):
+                return x(elt)
         else:
-            f = lambda elt, x: elt == x
+            def f(elt, x):
+                return elt == x
         return hl.bind(lambda a: hl.range(0, a.length()).filter(lambda i: f(a[i], x)).head(), self)
 
     @typecheck_method(item=expr_any)
@@ -663,13 +664,13 @@ class ArrayExpression(CollectionExpression):
                                       "same expression type as zero value: \n"
                                       "    zero.dtype: {}\n"
                                       "    f.dtype: {}".format(
-                zero.dtype,
-                body.dtype))
+                                          zero.dtype,
+                                          body.dtype))
 
-        ir = ToArray(StreamScan(ToStream(self._ir), zero._ir, accum_name, elt_name, body._ir))
+        x = ir.ToArray(ir.StreamScan(ir.ToStream(self._ir), zero._ir, accum_name, elt_name, body._ir))
 
         indices, aggregations = unify_all(self, zero, body)
-        return construct_expr(ir, tarray(body.dtype), indices, aggregations)
+        return construct_expr(x, tarray(body.dtype), indices, aggregations)
 
 
 class ArrayStructExpression(ArrayExpression):
@@ -966,7 +967,7 @@ class SetExpression(CollectionExpression):
     :class:`.CollectionExpression`
     """
 
-    @typecheck_method(ir=IR, type=HailType, indices=Indices, aggregations=LinkedList)
+    @typecheck_method(ir=ir.IR, type=HailType, indices=Indices, aggregations=LinkedList)
     def __init__(self, ir, type, indices=Indices(), aggregations=LinkedList(Aggregation)):
         super(SetExpression, self).__init__(ir, type, indices, aggregations)
         assert isinstance(type, tset)
@@ -1088,7 +1089,7 @@ class SetExpression(CollectionExpression):
 
         Examples
         --------
-        
+
         >>> hl.eval(s1.intersection(s2))
         {1, 3}
 
@@ -1232,7 +1233,7 @@ class DictExpression(Expression):
     >>> d = hl.literal({'Alice': 43, 'Bob': 33, 'Charles': 44})
     """
 
-    @typecheck_method(ir=IR, type=HailType, indices=Indices, aggregations=LinkedList)
+    @typecheck_method(ir=ir.IR, type=HailType, indices=Indices, aggregations=LinkedList)
     def __init__(self, ir, type, indices=Indices(), aggregations=LinkedList(Aggregation)):
         super(DictExpression, self).__init__(ir, type, indices, aggregations)
         assert isinstance(type, tdict)
@@ -1410,7 +1411,7 @@ class DictExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             Size of the dictionary.
         """
-        return apply_expr(lambda x: ArrayLen(CastToArray(x)), tint32, self)
+        return apply_expr(lambda x: ir.ArrayLen(ir.CastToArray(x)), tint32, self)
 
     def values(self):
         """Returns an array with all values in the dictionary.
@@ -1480,30 +1481,30 @@ class StructExpression(Mapping[str, Expression], Expression):
     @classmethod
     def _from_fields(cls, fields: 'Dict[str, Expression]'):
         t = tstruct(**{k: v.dtype for k, v in fields.items()})
-        ir = MakeStruct([(n, expr._ir) for (n, expr) in fields.items()])
+        x = ir.MakeStruct([(n, expr._ir) for (n, expr) in fields.items()])
         indices, aggregations = unify_all(*fields.values())
         s = StructExpression.__new__(cls)
         s._fields = {}
         for k, v in fields.items():
             s._set_field(k, v)
-        super(StructExpression, s).__init__(ir, t, indices, aggregations)
+        super(StructExpression, s).__init__(x, t, indices, aggregations)
         return s
 
-    @typecheck_method(ir=IR, type=HailType, indices=Indices, aggregations=LinkedList)
-    def __init__(self, ir, type, indices=Indices(), aggregations=LinkedList(Aggregation)):
-        super(StructExpression, self).__init__(ir, type, indices, aggregations)
+    @typecheck_method(x=ir.IR, type=HailType, indices=Indices, aggregations=LinkedList)
+    def __init__(self, x, type, indices=Indices(), aggregations=LinkedList(Aggregation)):
+        super(StructExpression, self).__init__(x, type, indices, aggregations)
         self._fields: Dict[str, Expression] = {}
 
         for i, (f, t) in enumerate(self.dtype.items()):
-            if isinstance(self._ir, MakeStruct):
+            if isinstance(self._ir, ir.MakeStruct):
                 expr = construct_expr(self._ir.fields[i][1], t, self._indices,
-                                          self._aggregations)
-            elif isinstance(self._ir, SelectFields):
-                expr = construct_expr(GetField(self._ir.old, f), t, self._indices,
+                                      self._aggregations)
+            elif isinstance(self._ir, ir.SelectFields):
+                expr = construct_expr(ir.GetField(self._ir.old, f), t, self._indices,
                                       self._aggregations)
             else:
-                expr = construct_expr(GetField(self._ir, f), t, self._indices,
-                                          self._aggregations)
+                expr = construct_expr(ir.GetField(self._ir, f), t, self._indices,
+                                      self._aggregations)
             self._set_field(f, expr)
 
     def _set_field(self, key, value):
@@ -1584,7 +1585,7 @@ class StructExpression(Mapping[str, Expression], Expression):
 
         new_type = hl.tstruct(**{f: get_type(f) for f in field_order})
         indices, aggregations = unify_all(self, *insertions_dict.values())
-        return construct_expr(InsertFields.construct_with_deduplication(
+        return construct_expr(ir.InsertFields.construct_with_deduplication(
             self._ir, [(field, expr._ir) for field, expr in insertions_dict.items()], field_order),
             new_type,
             indices,
@@ -1624,7 +1625,7 @@ class StructExpression(Mapping[str, Expression], Expression):
         result_type = tstruct(**new_types)
         indices, aggregations = unify_all(self, *[x for (f, x) in named_exprs.items()])
 
-        return construct_expr(InsertFields.construct_with_deduplication(
+        return construct_expr(ir.InsertFields.construct_with_deduplication(
             self._ir, list(map(lambda x: (x[0], x[1]._ir), named_exprs.items())), None),
             result_type, indices, aggregations)
 
@@ -1661,7 +1662,7 @@ class StructExpression(Mapping[str, Expression], Expression):
 
         name_set = set()
         for a in fields:
-            if not a in self._fields:
+            if a not in self._fields:
                 raise KeyError("Struct has no field '{}'\n"
                                "    Fields: [ {} ]".format(a, ', '.join("'{}'".format(x) for x in self._fields)))
             if a in name_set:
@@ -1672,8 +1673,8 @@ class StructExpression(Mapping[str, Expression], Expression):
             if n in name_set:
                 raise ExpressionException("Cannot select and assign '{}' in the same 'select' call".format(n))
 
-        selected_type = tstruct(**{f:self.dtype[f] for f in fields})
-        selected_expr = construct_expr(SelectFields(self._ir, fields), selected_type, self._indices, self._aggregations)
+        selected_type = tstruct(**{f: self.dtype[f] for f in fields})
+        selected_expr = construct_expr(ir.SelectFields(self._ir, fields), selected_type, self._indices, self._aggregations)
 
         if len(named_exprs) == 0:
             return selected_expr
@@ -1702,7 +1703,7 @@ class StructExpression(Mapping[str, Expression], Expression):
         """
         to_drop = set()
         for a in fields:
-            if not a in self._fields:
+            if a not in self._fields:
                 raise KeyError("Struct has no field '{}'\n"
                                "    Fields: [ {} ]".format(a, ', '.join("'{}'".format(x) for x in self._fields)))
             if a in to_drop:
@@ -2386,7 +2387,7 @@ class StringExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             Length of the string.
         """
-        return apply_expr(lambda x: Apply("length", tint32, x), tint32, self)
+        return apply_expr(lambda x: ir.Apply("length", tint32, x), tint32, self)
 
     @typecheck_method(pattern1=expr_str, pattern2=expr_str)
     def replace(self, pattern1, pattern2):
@@ -2590,7 +2591,6 @@ class StringExpression(Expression):
         :class:`.StringExpression`
         """
         return self._method('startswith', tbool, substr)
-
 
     @typecheck_method(substr=expr_str)
     def endswith(self, substr):
@@ -3552,7 +3552,7 @@ class NDArrayExpression(Expression):
         :class:`.TupleExpression`
         """
         shape_type = ttuple(*[tint64 for _ in range(self.ndim)])
-        return construct_expr(NDArrayShape(self._ir), shape_type, self._indices, self._aggregations)
+        return construct_expr(ir.NDArrayShape(self._ir), shape_type, self._indices, self._aggregations)
 
     _opt_long_slice = sliceof(nullable(expr_int64), nullable(expr_int64), nullable(expr_int64))
 
@@ -3610,7 +3610,7 @@ class NDArrayExpression(Expression):
             ndim = len(wrapped_shape)
             shape_ir = hl.tuple(wrapped_shape)._ir
 
-        return construct_expr(NDArrayReshape(self._ir, shape_ir),
+        return construct_expr(ir.NDArrayReshape(self._ir, shape_ir),
                               tndarray(self._type.element_type, ndim),
                               self._indices,
                               self._aggregations)
@@ -3631,7 +3631,7 @@ class NDArrayExpression(Expression):
         """
 
         element_type = self._type.element_type
-        ndarray_map = self._ir_lambda_method(NDArrayMap, f, element_type, lambda t: tndarray(t, self.ndim))
+        ndarray_map = self._ir_lambda_method(ir.NDArrayMap, f, element_type, lambda t: tndarray(t, self.ndim))
 
         assert isinstance(self._type, tndarray)
         return ndarray_map
@@ -3657,7 +3657,7 @@ class NDArrayExpression(Expression):
         new_dims = range(self.ndim, n_output_dims)
         idx_mapping = list(reversed(new_dims)) + list(old_dims)
 
-        return construct_expr(NDArrayReindex(self._ir, idx_mapping),
+        return construct_expr(ir.NDArrayReindex(self._ir, idx_mapping),
                               tndarray(self._type.element_type, n_output_dims),
                               self._indices, self._aggregations)
 
@@ -3833,7 +3833,7 @@ class NDArrayNumericExpression(NDArrayExpression):
         left = left._promote_numeric(ret_type)
         right = right._promote_numeric(ret_type)
 
-        res = construct_expr(NDArrayMatMul(left._ir, right._ir), ret_type, self._indices, self._aggregations)
+        res = construct_expr(ir.NDArrayMatMul(left._ir, right._ir), ret_type, self._indices, self._aggregations)
 
         return res if result_ndim > 0 else res[()]
 
@@ -3858,44 +3858,46 @@ typ_to_expr = {
     tndarray: NDArrayExpression
 }
 
+
 def apply_expr(f, result_type, *args):
     indices, aggregations = unify_all(*args)
     ir = f(*[arg._ir for arg in args])
     return construct_expr(ir, result_type, indices, aggregations)
 
-@typecheck(ir=IR, type=nullable(HailType), indices=Indices, aggregations=LinkedList)
-def construct_expr(ir: IR,
+
+@typecheck(x=ir.IR, type=nullable(HailType), indices=Indices, aggregations=LinkedList)
+def construct_expr(x: ir.IR,
                    type: HailType,
                    indices: Indices = Indices(),
                    aggregations: LinkedList = LinkedList(Aggregation)):
     if type is None:
-        return Expression(ir, None, indices, aggregations)
+        return Expression(x, None, indices, aggregations)
     elif isinstance(type, tarray) and is_numeric(type.element_type):
-        return ArrayNumericExpression(ir, type, indices, aggregations)
+        return ArrayNumericExpression(x, type, indices, aggregations)
     elif isinstance(type, tarray):
         etype = type.element_type
         if isinstance(etype, (hl.tarray, hl.tset)):
             while isinstance(etype, (hl.tarray, hl.tset)):
                 etype = etype.element_type
         if isinstance(etype, hl.tstruct):
-            return ArrayStructExpression(ir, type, indices, aggregations)
+            return ArrayStructExpression(x, type, indices, aggregations)
         else:
-            return typ_to_expr[type.__class__](ir, type, indices, aggregations)
+            return typ_to_expr[type.__class__](x, type, indices, aggregations)
     elif isinstance(type, tset):
         etype = type.element_type
         if isinstance(etype, (hl.tarray, hl.tset)):
             while isinstance(etype, (hl.tarray, hl.tset)):
                 etype = etype.element_type
         if isinstance(etype, hl.tstruct):
-            return SetStructExpression(ir, type, indices, aggregations)
+            return SetStructExpression(x, type, indices, aggregations)
         else:
-            return typ_to_expr[type.__class__](ir, type, indices, aggregations)
+            return typ_to_expr[type.__class__](x, type, indices, aggregations)
     elif isinstance(type, tndarray) and is_numeric(type.element_type):
-        return NDArrayNumericExpression(ir, type, indices, aggregations)
+        return NDArrayNumericExpression(x, type, indices, aggregations)
     elif type in scalars:
-        return scalars[type](ir, type, indices, aggregations)
+        return scalars[type](x, type, indices, aggregations)
     elif type.__class__ in typ_to_expr:
-        return typ_to_expr[type.__class__](ir, type, indices, aggregations)
+        return typ_to_expr[type.__class__](x, type, indices, aggregations)
     else:
         raise NotImplementedError(type)
 
@@ -3903,11 +3905,12 @@ def construct_expr(ir: IR,
 @typecheck(name=str, type=HailType, indices=Indices)
 def construct_reference(name, type, indices):
     assert isinstance(type, hl.tstruct)
-    ir = SelectFields(TopLevelReference(name), list(type))
-    return construct_expr(ir, type, indices)
+    x = ir.SelectFields(ir.TopLevelReference(name), list(type))
+    return construct_expr(x, type, indices)
+
 
 @typecheck(name=str, type=HailType, indices=Indices, aggregations=LinkedList)
 def construct_variable(name, type,
                        indices: Indices = Indices(),
                        aggregations: LinkedList = LinkedList(Aggregation)):
-    return construct_expr(Ref(name), type, indices, aggregations)
+    return construct_expr(ir.Ref(name), type, indices, aggregations)

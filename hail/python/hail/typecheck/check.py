@@ -38,6 +38,31 @@ class TypeChecker(object):
         return f"{extract(type(arg))}: {arg}"
 
 
+class DeferredChecker(TypeChecker):
+    def __init__(self, f):
+        super().__init__()
+        self.f = f
+        self._tc = None
+
+    @property
+    def tc(self):
+        if self._tc is None:
+            t = self.f()
+            if isinstance(t, type):
+                self._tc = LiteralChecker(t)
+            elif isinstance(t, TypeChecker):
+                self._tc = t
+            else:
+                raise RuntimeError("deferred typechecker must return 'type' or 'TypeChecker', found '%s'" % type(t))
+        return self._tc
+
+    def check(self, x, caller, param):
+        return self.tc.check(x, caller, param)
+
+    def expects(self):
+        return self.tc.expects()
+
+
 class MultipleTypeChecker(TypeChecker):
     def __init__(self, checkers):
         flat_checkers = []
@@ -236,8 +261,7 @@ class LiteralChecker(TypeChecker):
     def check(self, x, caller, param):
         if isinstance(x, self.t):
             return x
-        else:
-            raise TypecheckFailure
+        raise TypecheckFailure
 
     def expects(self):
         return extract(self.t)
@@ -362,10 +386,12 @@ class FunctionChecker(TypeChecker):
 def only(t):
     if isinstance(t, type):
         return LiteralChecker(t)
+    elif callable(t):
+        return DeferredChecker(t)
     elif isinstance(t, TypeChecker):
         return t
     else:
-        raise RuntimeError("invalid typecheck signature: expected 'type' or 'TypeChecker', found '%s'" % type(t))
+        raise RuntimeError("invalid typecheck signature: expected 'type', 'lambda', or 'TypeChecker', found '%s'" % type(t))
 
 
 def exactly(v, reference_equality=False):
