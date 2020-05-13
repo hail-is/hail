@@ -22,6 +22,7 @@ object ExecStrategy extends Enumeration {
   type ExecStrategy = Value
   val Interpret, InterpretUnoptimized, JvmCompile, LoweredJVMCompile, JvmCompileUnoptimized = Value
 
+  val unoptimizedCompileOnly: Set[ExecStrategy] = Set(JvmCompileUnoptimized)
   val compileOnly: Set[ExecStrategy] = Set(JvmCompile, JvmCompileUnoptimized)
   val javaOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile, JvmCompileUnoptimized)
   val interpretOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized)

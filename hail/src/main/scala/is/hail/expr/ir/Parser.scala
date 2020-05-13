@@ -779,6 +779,7 @@ object IRParser {
         val s = ir_value_expr(env)(it)
         ArrayRef(a, i, s)
       case "ArrayLen" => ArrayLen(ir_value_expr(env)(it))
+      case "StreamLen" => StreamLen(ir_value_expr(env)(it))
       case "StreamRange" =>
         val start = ir_value_expr(env)(it)
         val stop = ir_value_expr(env)(it)

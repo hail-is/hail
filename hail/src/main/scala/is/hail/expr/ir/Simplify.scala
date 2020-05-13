@@ -193,14 +193,17 @@ object Simplify {
 
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
-    case ArrayLen(ToArray(StreamMap(s, _, _))) => ArrayLen(ToArray(s))
+    case StreamLen(StreamMap(s, _, _)) => StreamLen(s)
+    case StreamLen(StreamFlatMap(a, name, body)) => streamSumIR(StreamMap(a, name, StreamLen(body)))
 
+    case ArrayLen(ToArray(s)) if s.typ.isInstanceOf[TStream] => StreamLen(s)
     case ArrayLen(StreamFlatMap(a, _, MakeArray(args, _))) => ApplyBinaryPrimOp(Multiply(), I32(args.length), ArrayLen(a))
 
     case ArrayLen(ArraySort(a, _, _, _)) => ArrayLen(ToArray(a))
 
     case ArrayLen(ToArray(MakeStream(args, _))) => I32(args.length)
-      
+    case StreamLen(MakeStream(args, _)) => I32(args.length)
+
     case ArrayRef(MakeArray(args, _), I32(i), _) if i >= 0 && i < args.length => args(i)
 
     case StreamFilter(a, _, True()) => a
@@ -228,8 +231,6 @@ object Simplify {
     case ToStream(ToArray(s)) if s.typ.isInstanceOf[TStream] => s
 
     case ToStream(Let(name, value, ToArray(x))) if x.typ.isInstanceOf[TStream] => Let(name, value, x)
-
-    case ArrayLen(ToArray(s)) if s.typ.isInstanceOf[TStream] => foldIR(s, 0){ case (acc, _) => acc + 1}
 
     case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
 
