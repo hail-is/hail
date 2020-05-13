@@ -1,3 +1,4 @@
+
 def rate_cpu_hour_to_mcpu_msec(rate_cpu_hour):
     rate_cpu_sec = rate_cpu_hour / 3600
     return rate_cpu_sec * 0.001 * 0.001

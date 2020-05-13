@@ -1,17 +1,10 @@
 import re
 import logging
 import math
-import json
 
 from .front_end.validate import CPU_REGEX, MEMORY_REGEX
 
 log = logging.getLogger('utils')
-
-
-def json_to_value(x):
-    if x is None:
-        return x
-    return json.loads(x)
 
 
 def coalesce(x, default):
@@ -20,13 +13,19 @@ def coalesce(x, default):
     return default
 
 
+def cost_str(cost):
+    if cost is None:
+        return None
+    return f'${cost:.4f}'
+
+
 def cost_from_msec_mcpu(msec_mcpu):
     if msec_mcpu is None:
         return None
 
     worker_type = 'standard'
-    worker_cores = 16
-    worker_disk_size_gb = 100
+    worker_cores = 1  # 16
+    worker_disk_size_gb = 20  # 100
 
     # https://cloud.google.com/compute/all-pricing
 
@@ -101,7 +100,7 @@ def worker_memory_per_core_gb(worker_type):
 
 def worker_memory_per_core_bytes(worker_type):
     m = worker_memory_per_core_gb(worker_type)
-    return int(m * 1000**3)  # GCE memory/core are in GB not GiB
+    return int(m * 1024**3)
 
 
 def memory_bytes_to_cores_mcpu(memory_in_bytes, worker_type):

@@ -1,9 +1,6 @@
-import json
-
 from hailtop.batch_client.aioclient import Job
 
 from .utils import cost_from_msec_mcpu
-from .resources import cost_from_resources
 
 
 class BatchFormatVersion:
@@ -100,8 +97,8 @@ class BatchFormatVersion:
         assert len(status) == 2
         return status
 
-    def cost(self, msec_mcpu, resources):
+    def cost(self, msec_mcpu, resource_cost):
         if self.format_version < 3:
             assert msec_mcpu is not None
             return cost_from_msec_mcpu(msec_mcpu)
-        return cost_from_resources(resources)
+        return resource_cost

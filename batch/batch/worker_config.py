@@ -1,7 +1,6 @@
 import re
 
 from .globals import WORKER_CONFIG_VERSION
-from .resources import RATES
 
 MACHINE_TYPE_REGEX = re.compile('projects/([^/]+)/zones/([^/]+)/machineTypes/([^-]+)-([^-]+)-(\d+)')
 DISK_TYPE_REGEX = re.compile('projects/([^/]+)/zones/([^/]+)/diskTypes/(.+)')
@@ -30,13 +29,13 @@ def is_power_two(n):
 #   project: str
 #   zone: str
 #   family: str (n1, n2, c2, e2, n2d, m1, m2)
-#   type: str ('standard', 'highmem', 'highcpu')
+#   type_: str (standard, highmem, highcpu)
 #   cores: int
 #   preemptible: bool
 # boot_disk: dict
 #   project: str
 #   zone: str
-#   type: str (pd-ssd, pd-standard)
+#   type_: str (pd-ssd, pd-standard, local-ssd)
 #   size: int (in GB)
 #   image: str
 
@@ -96,25 +95,26 @@ class WorkerConfig:
         self.boot_disk_size_gb = boot_disk['size']
         self.boot_disk_type = boot_disk['type']
 
-    def is_valid_configuration(self):
+    def is_valid_configuration(self, valid_resources):
         is_valid = True
         dummy_resources = self.resources(0, 0)
         for resource in dummy_resources:
-            is_valid &= resource['name'] in RATES
+            is_valid &= resource['name'] in valid_resources
         return is_valid
 
     def resources(self, cpu_in_mcpu, memory_in_bytes):
         resources = []
 
         preemptible = 'preemptible' if self.preemptible else 'nonpreemptible'
-        worker_fraction_in_1024ths = 1024 // ((self.cores * 1000) // cpu_in_mcpu)
+        worker_fraction_in_1024ths = 1024 * cpu_in_mcpu // (self.cores * 1000)
 
         resources.append({'name': f'compute/{self.instance_family}-{self.instance_type}-{preemptible}/1',
                           'quantity': cpu_in_mcpu})
 
         resources.append({'name': f'memory/{self.instance_family}-{self.instance_type}-{preemptible}/1',
-                          'quantity': memory_in_bytes / 1000 / 1000})
+                          'quantity': memory_in_bytes / 1024 / 1024})
 
+        # the factors of 1024 cancel between GiB -> MiB and fraction_1024 -> fraction
         resources.append({'name': f'boot-disk/{self.boot_disk_type}/1',
                           'quantity': self.boot_disk_size_gb * worker_fraction_in_1024ths})
 

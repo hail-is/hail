@@ -323,7 +323,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/ba
         }
 
         worker_config = WorkerConfig.from_instance_config(config)
-        assert worker_config.is_valid_configuration()
+        assert worker_config.is_valid_configuration(self.app['resources'])
         config['metadata']['items'].append({
             'key': 'worker_config',
             'value': base64.b64encode(json.dumps(worker_config.config).encode()).decode()

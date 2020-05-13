@@ -1231,6 +1231,8 @@ steps:
       script: /io/sql/change_test_worker_disk_size.py
     - name: add-resources
       script: /io/sql/add-resources.sql
+    - name: insert-resources
+      script: /io/sql/insert_resources.py
    inputs:
     - from: /repo/batch/sql
       to: /io/
@@ -1264,14 +1266,14 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
-    - deploy_router
+#    - deploy_router
     - deploy_batch_sa
     - deploy_batch_sa_batch_pods
-    - create_accounts
+#    - create_accounts
     - batch_image
     - batch_worker_image
     - batch_database
-    - deploy_auth
+#    - deploy_auth
     - create_certs
  - kind: runImage
    name: test_hail_services_java
