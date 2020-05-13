@@ -309,12 +309,9 @@ class RequirednessSuite extends HailSuite {
       rowType,
       globalType.insertFields(FastSeq("x2" -> globalType.fieldType("x"))))
 
-    // FIXME: if exploding t.a.b and a, b are optional but elt is required, a becomes required and b becomes required
-    nodes += Array(TableExplode(table, FastSeq("b", "y")),
-      rowType.insertFields(FastSeq("b" -> {
-        val btyp = coerce[PStruct](rowType.fieldType("b"))
-        btyp.insertFields(FastSeq("y" -> coerce[PIterable](btyp.fieldType("y")).elementType))
-      })),
+    nodes += Array(TableExplode(
+      TableMapRows(table, insertIR(row, "e1" -> struct(r = optional, i = required, a = optional, elt = required))), FastSeq("e1", "y")),
+      rowType.insertFields(FastSeq("e1" -> PCanonicalStruct(required, "x" -> pint(required), "y" -> pint(required)))),
       globalType)
 
     nodes += Array(
@@ -397,8 +394,8 @@ class RequirednessSuite extends HailSuite {
       TableJoin(left, right, "zip", 1),
       PCanonicalStruct(required,
         "a" -> pnestedarray(required, optional, optional),
-        "b" -> rowType.fieldType("b"),
-        "c" -> rowType.fieldType("c")),
+        "b" -> rowType.fieldType("b").setRequired(optional),
+        "c" -> rowType.fieldType("c").setRequired(optional)),
       globalType)
 
     val intervalTable = TableKeyBy(
@@ -432,8 +429,8 @@ class RequirednessSuite extends HailSuite {
         "a" -> nestedarray(required, required, optional))), FastIndexedSeq("a"))),
       "value", "global"),
       PCanonicalStruct(required,
-        "a" -> pnestedarray(required, required, required),
-        "value" -> PCanonicalArray(PCanonicalStruct(required,
+        "a" -> pnestedarray(required, optional, optional),
+        "value" -> PCanonicalArray(PCanonicalStruct(optional,
           "b" -> rowType.fieldType("b"),
           "c" -> rowType.fieldType("c")), required)),
       PCanonicalStruct(required, "global" -> PCanonicalArray(globalType, required)))

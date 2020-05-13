@@ -334,14 +334,14 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val childReq = lookup(child)
         requiredness.unionGlobals(childReq)
         var i = 0
-        var newFields: RStruct = requiredness.rowType
-        var childFields: RStruct = childReq.rowType
+        var newFields: TypeWithRequiredness = requiredness.rowType
+        var childFields: TypeWithRequiredness = childReq.rowType
         while (i < path.length) {
           val explode = path(i)
-          newFields.fields.filter(f => f.name != explode)
-            .foreach(f => f.typ.unionFrom(childFields.field(f.name)))
-          newFields = coerce[RStruct](newFields.field(explode))
-          childFields = coerce[RStruct](newFields.field(explode))
+          coerce[RStruct](newFields).fields.filter(f => f.name != explode)
+            .foreach(f => f.typ.unionFrom(coerce[RStruct](childFields).field(f.name)))
+          newFields = coerce[RStruct](newFields).field(explode)
+          childFields = coerce[RStruct](childFields).field(explode)
           i += 1
         }
         newFields.unionFrom(coerce[RIterable](childFields).elementType)
@@ -360,19 +360,23 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val leftReq = lookup(left)
         val rightReq = lookup(right)
 
-        if (joinType != "right")
-          requiredness.unionKeys(leftReq)
-        if (joinType != "left")
-          requiredness.unionKeys(rightReq)
-
         requiredness.unionValues(leftReq)
         requiredness.unionValues(rightReq)
 
-        if (joinType == "outer" || joinType == "zip" || joinType == "right")
-          leftReq.valueFields.foreach(n => requiredness.field(n).union(r = false))
-
-        if (joinType == "outer" || joinType == "zip" || joinType == "left")
+        if (joinType == "outer" || joinType == "zip" || joinType == "left") {
+          requiredness.unionKeys(leftReq)
           rightReq.valueFields.foreach(n => requiredness.field(n).union(r = false))
+        }
+
+        if (joinType == "outer" || joinType == "zip" || joinType == "right") {
+          requiredness.unionKeys(rightReq)
+          leftReq.valueFields.foreach(n => requiredness.field(n).union(r = false))
+        }
+
+        if (joinType == "inner")
+          requiredness.keyFields.foreach { k =>
+            requiredness.field(k).unionWithIntersection(FastSeq(leftReq.field(k), rightReq.field(k)))
+          }
 
         requiredness.unionGlobals(leftReq.globalType)
         requiredness.unionGlobals(rightReq.globalType)
@@ -388,7 +392,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
             .elementType.asInstanceOf[RStruct]
         else requiredness.field(root).asInstanceOf[RStruct]
         rReq.valueFields.foreach { n => joinField.field(n).unionFrom(rReq.field(n)) }
-        joinField.union(false)
+        requiredness.field(root).union(false)
         requiredness.unionGlobals(lReq)
       case TableMultiWayZipJoin(children, valueName, globalName) =>
         val valueStruct = coerce[RStruct](coerce[RIterable](requiredness.field(valueName)).elementType)
@@ -399,6 +403,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           cReq.valueFields.foreach(n => valueStruct.field(n).unionFrom(cReq.field(n)))
           globalStruct.unionFrom(cReq.globalType)
         }
+        valueStruct.union(false)
       case TableLeftJoinRightDistinct(left, right, root) =>
         val lReq = lookup(left)
         val rReq = lookup(right)

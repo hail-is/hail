@@ -60,6 +60,20 @@ sealed abstract class BaseTypeWithRequiredness {
     }
   }
 
+  protected[this] def _unionWithIntersection(ts: Seq[BaseTypeWithRequiredness]): Unit = {
+    var i = 0
+    while(i < children.length) {
+      children(i).unionWithIntersection(ts.map(_.children(i)))
+      i += 1
+    }
+  }
+  def unionWithIntersection(ts: Seq[BaseTypeWithRequiredness]): Unit = {
+    println(s"$this: ${ ts.mkString(",") }")
+    union(ts.exists(_.required))
+    _unionWithIntersection(ts)
+    println(s"after: $this")
+  }
+
   final def union(r: Boolean): Unit = { change |= !r && required }
   final def maximize(): Unit = {
     change |= required
@@ -144,6 +158,18 @@ sealed class RIterable(val elementType: TypeWithRequiredness, eltRequired: Boole
   override def _unionChildren(newChildren: Seq[BaseTypeWithRequiredness]): Unit = {
     val Seq(newEltReq) = newChildren
     unionElement(newEltReq)
+  }
+
+  override def _unionWithIntersection(ts: Seq[BaseTypeWithRequiredness]): Unit = {
+    if (eltRequired) {
+      var i = 0
+      while(i < elementType.children.length) {
+        elementType.children(i).unionWithIntersection(ts.map(t => coerce[RIterable](t).elementType.children(i)))
+        i += 1
+      }
+    }
+    else
+      elementType.unionWithIntersection(ts.map(t => coerce[RIterable](t).elementType))
   }
 
   def unionElement(newElement: BaseTypeWithRequiredness): Unit = {
