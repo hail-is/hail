@@ -21,6 +21,12 @@ object DeployConfig {
         file = fromHome
     }
 
+    if (file == null) {
+      val f = "/deploy-config/deploy-config.json"
+      if (new File(f).exists())
+        file = f
+    }
+
     if (file != null) {
       using(new FileInputStream(file)) { in =>
         fromConfig(JsonMethods.parse(in))
