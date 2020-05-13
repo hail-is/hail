@@ -46,5 +46,5 @@ class LoggingClient(BaseClient):
     # https://cloud.google.com/logging/docs/reference/v2/rest
 
     # https://cloud.google.com/logging/docs/reference/v2/rest/v2/entries/list
-    def list_entries(self, *, body: Mapping[str, Any], **kwargs):
+    async def list_entries(self, *, body: Mapping[str, Any], **kwargs):
         return PagedEntryIterator(self, body, kwargs)
