@@ -17,7 +17,7 @@ def main(args):
     if not args.namespace:
         deploy_config = get_deploy_config()
         print(f'  location: {deploy_config.location()}')
-        print(f'  default: {deploy_config._default_ns}')
+        print(f'  default: {deploy_config._default_namespace}')
         if deploy_config._service_namespace:
             print('  overrides:')
             for service, ns in deploy_config._service_namespace.items():
