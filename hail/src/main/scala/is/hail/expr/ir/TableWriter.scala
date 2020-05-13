@@ -1,7 +1,9 @@
 package is.hail.expr.ir
 
+import java.io.OutputStream
+
 import is.hail.GenericIndexedSeqSerializer
-import is.hail.utils.ExportType
+import is.hail.utils._
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 
 object TableWriter {
