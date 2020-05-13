@@ -386,7 +386,7 @@ object InferPType {
         PCanonicalTuple(true, (resultIdx until resultIdx + sigs.length).map(i => aggs(i).resultType): _*)
       case x@RunAgg(body, result, signature) => result.pType
       case x@RunAggScan(array, name, init, seq, result, signature) =>
-        PCanonicalStream(result.pType, requiredness(node).required)
+        PCanonicalStream(result.pType, array.pType.required)
       case ShuffleGetPartitionBounds(_, _, keyFields, rowType, keyEType) =>
         val keyPType = keyEType.decodedPType(rowType.typeAfterSelectNames(keyFields.map(_.field)))
         PCanonicalArray(keyPType, requiredness(node).required)

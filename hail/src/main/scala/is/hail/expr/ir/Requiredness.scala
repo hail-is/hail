@@ -438,7 +438,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.fromPType(spec.encodedType.decodedPType(rt))
       case In(_, t) => requiredness.fromPType(t)
       case LiftMeOut(f) => requiredness.unionFrom(lookup(f))
-      case _: ResultOp | _: RunAgg | _: RunAggScan => ???
+      case _: ResultOp | _: RunAgg | _: RunAggScan => //FIXME: this needs an implementation; for now unused in InferPType
     }
     requiredness.probeChangedAndReset()
   }
