@@ -155,7 +155,7 @@ class BatchClient extends AutoCloseable {
       Thread.sleep(d)
     }
     
-    assert(false)
+    throw new AssertionError("unreachable")
   }
 
   def close() {
