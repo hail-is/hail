@@ -39,6 +39,7 @@ object Bindings {
     case CollectDistributedArray(contexts, globals, cname, gname, _) => if (i == 2) Array(cname -> coerce[TStream](contexts.typ).elementType, gname -> globals.typ) else empty
     case TableAggregate(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case MatrixAggregate(child, _) => if (i == 1) child.typ.globalEnv.m else empty
+    case RelationalLetTable(name, value, _) => if (i == 1) Array(name -> value.typ) else empty
     case TableFilter(child, _) => if (i == 1) child.typ.rowEnv.m else empty
     case TableMapGlobals(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case TableMapRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty

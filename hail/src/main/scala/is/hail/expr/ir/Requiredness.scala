@@ -135,7 +135,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
 
   def initialize(node: BaseIR, env: Env[PType], outerAggStates: Option[Array[AggStatePhysicalSignature]]): Unit = {
     initializeState(node)
-    usesAndDefs.uses.m.keys.foreach(n => addBindingRelations(n.t))
+    usesAndDefs.uses.m.keys.foreach { n =>
+      println(Pretty(n.t))
+      addBindingRelations(n.t)
+    }
     if (usesAndDefs.free != null)
       usesAndDefs.free.foreach { re =>
         lookup(re.t).fromPType(env.lookup(re.t.name))
@@ -285,6 +288,11 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addTableBinding(child)
       case TableAggregateByKey(child, expr) =>
         addTableBinding(child)
+      case _ =>
+        usesAndDefs.uses(node).foreach { u =>
+          println(u.t)
+        }
+        fatal(Pretty(node))
     }
   }
 

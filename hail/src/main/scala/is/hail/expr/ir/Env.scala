@@ -31,6 +31,11 @@ case class BindingEnv[V](
     BindingEnv(scan.get, agg = agg)
   }
 
+  def bindDefinedScopes(bindings: (String, V)*): BindingEnv[V] =
+    copy(eval = eval.bindIterable(bindings),
+      agg = agg.map(_.bindIterable(bindings)),
+      scan = scan.map(_.bindIterable(bindings)))
+
   def bindEval(name: String, v: V): BindingEnv[V] =
     copy(eval = eval.bind(name, v))
 
