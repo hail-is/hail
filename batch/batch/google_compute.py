@@ -2,9 +2,7 @@ import asyncio
 import datetime
 import concurrent
 import logging
-import threading
 
-import googleapiclient.discovery
 import google.cloud.logging
 
 from .batch_configuration import PROJECT
@@ -80,18 +78,10 @@ class PagedIterator:
                 self.page = None
 
 
-class GClients:
-    def __init__(self, credentials):
-        self.compute_client = googleapiclient.discovery.build('compute', 'v1',
-                                                              credentials=credentials,
-                                                              cache_discovery=False)
-
-
 class GServices:
     def __init__(self, machine_name_prefix, credentials):
         self.machine_name_prefix = machine_name_prefix
         self.logging_client = google.cloud.logging.Client(credentials=credentials)
-        self.local_clients = threading.local()
         self.loop = asyncio.get_event_loop()
         self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=40)
         self.credentials = credentials
@@ -103,13 +93,6 @@ jsonPayload.resource.name:"{self.machine_name_prefix}" AND
 jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.delete")
 '''
         log.info(f'filter {self.filter}')
-
-    def get_clients(self):
-        clients = getattr(self.local_clients, 'clients', None)
-        if clients is None:
-            clients = GClients(self.credentials)
-            self.local_clients.clients = clients
-        return clients
 
     async def run_in_pool(self, f, *args, **kwargs):
         return await self.loop.run_in_executor(self.thread_pool, lambda: f(*args, **kwargs))
@@ -124,23 +107,3 @@ jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.d
         eit = EntryIterator(self, db)
         await eit.async_init()
         return eit
-
-    # compute
-    async def get_instance(self, instance, zone):
-        def get():
-            clients = self.get_clients()
-            return clients.compute_client.instances().get(project=PROJECT, zone=zone, instance=instance).execute()  # pylint: disable=no-member
-
-        return await self.run_in_pool(get)
-
-    async def create_instance(self, body, zone):
-        def create():
-            clients = self.get_clients()
-            return clients.compute_client.instances().insert(project=PROJECT, zone=zone, body=body).execute()  # pylint: disable=no-member
-        return await self.run_in_pool(create)
-
-    async def delete_instance(self, instance, zone):
-        def delete():
-            clients = self.get_clients()
-            return clients.compute_client.instances().delete(project=PROJECT, zone=zone, instance=instance).execute()  # pylint: disable=no-member
-        return await self.run_in_pool(delete)

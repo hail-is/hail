@@ -22,6 +22,7 @@ class InstancePool:
         self.scheduler_state_changed = app['scheduler_state_changed']
         self.db = app['db']
         self.gservices = app['gservices']
+        self.compute_client = app['compute_client']
         self.machine_name_prefix = machine_name_prefix
 
         # set in async_init
@@ -321,7 +322,8 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/ba
             },
         }
 
-        await self.gservices.create_instance(config, zone)
+        await self.compute_client.post(
+            f'/zones/{zone}/instances', json=config)
 
         log.info(f'created machine {machine_name} for {instance} '
                  f' with logs at {self.log_store.worker_log_path(machine_name, "worker.log")}')
@@ -333,7 +335,8 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/ba
             await instance.deactivate(reason, timestamp)
 
         try:
-            await self.gservices.delete_instance(instance.name, instance.zone)
+            await self.compute_client.delete(
+                f'/zones/{instance.zone}/instances/{instance.name}')
         except googleapiclient.errors.HttpError as e:
             if e.resp['status'] == '404':
                 log.info(f'{instance} already delete done')
@@ -459,7 +462,8 @@ FROM ready_cores;
             return
 
         try:
-            spec = await self.gservices.get_instance(instance.name, instance.zone)
+            spec = await self.compute_client.get(
+                f'/zones/{instance.zone}/instances/{instance.name}')
         except googleapiclient.errors.HttpError as e:
             if e.resp['status'] == '404':
                 await self.remove_instance(instance, 'does_not_exist')

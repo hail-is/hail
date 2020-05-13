@@ -3,7 +3,7 @@ import time
 import logging
 import asyncio
 import aiohttp
-import hailtop.aiogoogle.container as google_container
+import hailtop.aiogoogle as aiogoogle
 
 log = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ async def main():
         raise ValueError('usage: cleanup_gcr <project>')
     project = sys.argv[1]
 
-    async with google_container.Client(
+    async with aiogoogle.ContainerClient(
             project=project,
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60)) as client:
