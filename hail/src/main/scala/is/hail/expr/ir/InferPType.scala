@@ -144,10 +144,11 @@ object InferPType {
     case StreamLeftJoinDistinct(_, right, _, `name`, _, _) => coerce[PStream](right.pType).elementType.setRequired(false)
     case RunAggScan(a, `name`, _, _, _, _) => coerce[PStream](a.pType).elementType
     case NDArrayMap(nd, `name`, _) => coerce[PNDArray](nd.pType).elementType
-    case NDArrayMap2(left, _, `name`, _, _) => coerce[PNDArray](left.pType).elementType
+    case NDArrayMap2(left, _, `name`, _, _) => coerce[PNDArray](left.pType  ).elementType
     case NDArrayMap2(_, right, _, `name`, _) => coerce[PNDArray](right.pType).elementType
     case x@CollectDistributedArray(_, _, `name`, _, _) => x.decodedContextPType
     case x@CollectDistributedArray(_, _, _, `name`, _) => x.decodedGlobalPType
+    case _ => throw new RuntimeException(s"$name not found in definition \n${ Pretty(defNode) }")
   }
 
   private def _inferAggs(node: IR, inits: AAB[InitOp] = null, seqs: AAB[SeqOp] = null): Unit =
