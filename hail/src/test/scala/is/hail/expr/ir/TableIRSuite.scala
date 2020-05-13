@@ -668,4 +668,15 @@ class TableIRSuite extends HailSuite {
 
     assertEvalsTo(x, (0 until 10).reverse.map(i => Row(i)))(ExecStrategy.allRelational)
   }
+
+  @Test def testTableLeftJoinRightDistinct(): Unit = {
+    val execStrats = ExecStrategy.interpretOnly
+    val rangeTable1 = TableRange(10, 1)
+    var rangeTable2 = TableRange(5, 1)
+
+  }
 }
+
+//val t = TableRange(10, 2)
+//val row = Ref("row", t.typ.rowType)
+//val node = collect(TableMapRows(t, InsertFields(row, FastIndexedSeq("x" -> GetField(row, "idx")))))

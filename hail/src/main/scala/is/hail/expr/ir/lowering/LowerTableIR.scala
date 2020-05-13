@@ -506,6 +506,36 @@ object LowerTableIR {
             sorted
           }
 
+        case TableLeftJoinRightDistinct(left, right, root) =>
+          val loweredLeft = lower(left)
+          val loweredRight = lower(right).changePartitionerNoRepartition(loweredLeft.partitioner)
+          val leftCtxTyp = loweredLeft.contexts.typ.asInstanceOf[TStream].elementType
+          val rightCtxTyp = loweredRight.contexts.typ.asInstanceOf[TStream].elementType
+          val leftCtxRef = Ref("left_ctx", leftCtxTyp)
+          val rightCtxRef = Ref("right_ctx", rightCtxTyp)
+
+          new TableStage(
+            loweredLeft.letBindings ++ loweredRight.letBindings,
+            loweredLeft.broadcastVals ++ loweredRight.broadcastVals,
+            loweredLeft.globals,
+            loweredLeft.partitioner,
+            StreamZip(
+              FastIndexedSeq(loweredLeft.contexts, loweredRight.contexts), FastIndexedSeq(leftCtxRef.name, rightCtxRef.name),
+              MakeStruct(FastIndexedSeq("left_ctx_field" -> leftCtxRef, "right_ctx_field" -> rightCtxRef)), ArrayZipBehavior.AssertSameLength
+            )
+          ) {
+            override def partition(ctxRef: Ref): IR = {
+              bindIR(GetField(ctxRef, "left_ctx_field")) { leftCtxFieldRef =>
+                bindIR(GetField(ctxRef, "right_ctx_field")) { rightCtxFieldRef =>
+                  val leftPart = loweredLeft.partition(leftCtxFieldRef)
+                  val rightPart = loweredRight.partition(rightCtxFieldRef)
+
+                  leftPart
+                }
+
+              }
+            }
+          }
         case TableOrderBy(child, sortFields) =>
           val loweredChild = lower(child)
           if (TableOrderBy.isAlreadyOrdered(sortFields, loweredChild.partitioner.kType.fieldNames))
