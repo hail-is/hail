@@ -1,4 +1,5 @@
 from hail.typecheck import typecheck_method, sequenceof
+from hail.utils import FatalError
 
 
 class Call(object):

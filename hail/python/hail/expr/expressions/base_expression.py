@@ -1,17 +1,21 @@
-from typing import *
-
+from typing import Tuple
 import numpy as np
 
+import hail
+import hail as hl
 from hail.expr import expressions
-from hail.expr.types import *
-from hail.expr.types import from_numpy
-from hail.ir import *
-from hail.typecheck import linked_list
-from hail.utils.java import *
+from hail.expr.types import HailType, is_numeric, is_compound, tint32, \
+    tint64, tfloat32, tfloat64, tstr, tbool, tarray, \
+    tndarray, tset, tdict, tstruct, ttuple, tinterval, \
+    tlocus, tcall, from_numpy
+from hail import ir
+from hail.typecheck import typecheck_method, nullable, anyfunc, linked_list
+from hail.utils.java import Env
 from hail.utils.linkedlist import LinkedList
-from .indices import *
+from .indices import Indices, Aggregation
 
 from hail.expr.types import summary_type
+
 
 class Summary(object):
     def __init__(self, type, count, summ_fields, nested, header=None):
@@ -123,7 +127,7 @@ class ExpressionWarning(Warning):
 def impute_type(x):
     from hail.genetics import Locus, Call
     from hail.utils import Interval, Struct
-    
+
     if isinstance(x, Expression):
         return x.dtype
     elif isinstance(x, bool):
@@ -202,6 +206,7 @@ def to_expr(e, dtype=None) -> 'Expression':
         return e
     return cast_expr(e, dtype)
 
+
 def cast_expr(e, dtype=None) -> 'Expression':
     if not dtype:
         dtype = impute_type(e)
@@ -264,8 +269,8 @@ def _to_expr(e, dtype):
                      else hl.literal(element, dtype.element_type)
                      for element in elements]
             indices, aggregations = unify_all(*exprs)
-        ir = MakeArray([e._ir for e in exprs], None)
-        return expressions.construct_expr(ir, dtype, indices, aggregations)
+        x = ir.MakeArray([e._ir for e in exprs], None)
+        return expressions.construct_expr(x, dtype, indices, aggregations)
     elif isinstance(dtype, tset):
         elements = []
         found_expr = False
@@ -281,8 +286,8 @@ def _to_expr(e, dtype):
                      else hl.literal(element, dtype.element_type)
                      for element in elements]
             indices, aggregations = unify_all(*exprs)
-            ir = ToSet(ToStream(MakeArray([e._ir for e in exprs], None)))
-            return expressions.construct_expr(ir, dtype, indices, aggregations)
+            x = ir.ToSet(ir.ToStream(ir.MakeArray([e._ir for e in exprs], None)))
+            return expressions.construct_expr(x, dtype, indices, aggregations)
     elif isinstance(dtype, ttuple):
         elements = []
         found_expr = False
@@ -298,8 +303,8 @@ def _to_expr(e, dtype):
                      else hl.literal(elements[i], dtype.types[i])
                      for i in range(len(elements))]
             indices, aggregations = unify_all(*exprs)
-            ir = MakeTuple([expr._ir for expr in exprs])
-            return expressions.construct_expr(ir, dtype, indices, aggregations)
+            x = ir.MakeTuple([expr._ir for expr in exprs])
+            return expressions.construct_expr(x, dtype, indices, aggregations)
     elif isinstance(dtype, tdict):
         keys = []
         values = []
@@ -340,11 +345,12 @@ def unify_all(*exprs) -> Tuple[Indices, LinkedList]:
             from .expression_utils import get_refs
             for name, inds in get_refs(e, *[e for a in e._aggregations for e in a.exprs]).items():
                 sources[inds.source].append(str(name))
-        raise ExpressionException("Cannot combine expressions from different source objects."
-                                  "\n    Found fields from {n} objects:{fields}".format(
-            n=len(sources),
-            fields=''.join("\n        {}: {}".format(src, fds) for src, fds in sources.items())
-        )) from None
+                raise ExpressionException(
+                    "Cannot combine expressions from different source objects."
+                    "\n    Found fields from {n} objects:{fields}".format(
+                        n=len(sources),
+                        fields=''.join("\n        {}: {}".format(src, fds) for src, fds in sources.items())
+                    )) from None
     first, rest = exprs[0], exprs[1:]
     aggregations = first._aggregations
     for e in rest:
@@ -386,6 +392,7 @@ def unify_types(*ts):
     else:
         return None
 
+
 def unify_exprs(*exprs: 'Expression') -> Tuple:
     assert len(exprs) > 0
     types = {e.dtype for e in exprs}
@@ -402,19 +409,20 @@ def unify_exprs(*exprs: 'Expression') -> Tuple:
     # cannot coerce all types to the same type
     return exprs + (False,)
 
+
 class Expression(object):
     """Base class for Hail expressions."""
 
     __array_ufunc__ = None  # disable NumPy coercions, so Hail coercions take priority
 
-    @typecheck_method(ir=IR, type=nullable(HailType), indices=Indices, aggregations=linked_list(Aggregation))
+    @typecheck_method(x=ir.IR, type=nullable(HailType), indices=Indices, aggregations=linked_list(Aggregation))
     def __init__(self,
-                 ir: IR,
+                 x: ir.IR,
                  type: HailType,
                  indices: Indices = Indices(),
                  aggregations: LinkedList = LinkedList(Aggregation)):
 
-        self._ir: IR = ir
+        self._ir: ir.IR = x
         self._type = type
         self._indices = indices
         self._aggregations = aggregations
@@ -562,21 +570,21 @@ class Expression(object):
         return to_expr(other)._bin_op_numeric(name, self, ret_type_f)
 
     def _unary_op(self, name):
-        return expressions.construct_expr(ApplyUnaryPrimOp(name, self._ir), self._type, self._indices, self._aggregations)
+        return expressions.construct_expr(ir.ApplyUnaryPrimOp(name, self._ir), self._type, self._indices, self._aggregations)
 
     def _bin_op(self, name, other, ret_type):
         other = to_expr(other)
         indices, aggregations = unify_all(self, other)
         if (name in {'+', '-', '*', '/', '//'}) and (ret_type in {tint32, tint64, tfloat32, tfloat64}):
-            op = ApplyBinaryPrimOp(name, self._ir, other._ir)
+            op = ir.ApplyBinaryPrimOp(name, self._ir, other._ir)
         elif name in {"==", "!=", "<", "<=", ">", ">="}:
-            op = ApplyComparisonOp(name, self._ir, other._ir)
+            op = ir.ApplyComparisonOp(name, self._ir, other._ir)
         else:
             d = {
                 '+': 'add', '-': 'sub', '*': 'mul', '/': 'div', '//': 'floordiv',
                 '%': 'mod', '**': 'pow'
             }
-            op = Apply(d.get(name, name), ret_type, self._ir, other._ir)
+            op = ir.Apply(d.get(name, name), ret_type, self._ir, other._ir)
         return expressions.construct_expr(op, ret_type, indices, aggregations)
 
     def _bin_op_reverse(self, name, other, ret_type):
@@ -585,8 +593,8 @@ class Expression(object):
     def _method(self, name, ret_type, *args):
         args = tuple(to_expr(arg) for arg in args)
         indices, aggregations = unify_all(self, *args)
-        ir = Apply(name, ret_type, self._ir, *(a._ir for a in args))
-        return expressions.construct_expr(ir, ret_type, indices, aggregations)
+        x = ir.Apply(name, ret_type, self._ir, *(a._ir for a in args))
+        return expressions.construct_expr(x, ret_type, indices, aggregations)
 
     def _index(self, ret_type, key):
         key = to_expr(key)
@@ -617,8 +625,8 @@ class Expression(object):
             f(expressions.construct_variable(new_id, input_type, self._indices, self._aggregations)))
 
         indices, aggregations = unify_all(self, lambda_result)
-        ir = irf(self._ir, new_id, lambda_result._ir, *args)
-        return expressions.construct_expr(ir, ret_type_f(lambda_result._type), indices, aggregations)
+        x = irf(self._ir, new_id, lambda_result._ir, *args)
+        return expressions.construct_expr(x, ret_type_f(lambda_result._type), indices, aggregations)
 
     @property
     def dtype(self) -> HailType:
@@ -958,7 +966,6 @@ class Expression(object):
                     **{output_col_name: hl.delimit(column_names, delimiter)})
                 file_contents = header_table.union(file_contents)
             file_contents.export(path, delimiter=delimiter, header=False)
-
 
     @typecheck_method(n=int, _localize=bool)
     def take(self, n, _localize=True):

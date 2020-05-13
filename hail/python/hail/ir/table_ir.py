@@ -2,7 +2,7 @@ import json
 
 import hail as hl
 from hail.expr.types import dtype
-from hail.ir.base_ir import *
+from hail.ir.base_ir import BaseIR, TableIR
 from hail.utils.java import Env
 from hail.utils.misc import escape_str, parsable_strings, dump_json, escape_id
 
@@ -31,7 +31,7 @@ class TableJoin(TableIR):
 
     def _eq(self, other):
         return self.join_key == other.join_key and \
-               self.join_type == other.join_type
+            self.join_type == other.join_type
 
     def _compute_type(self):
         left_typ = self.left.typ

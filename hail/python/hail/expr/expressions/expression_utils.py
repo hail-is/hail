@@ -1,7 +1,8 @@
-from .indices import *
-from ..expressions import Expression, ExpressionException, expr_any
-from typing import *
+from typing import Set, Dict
+from hail.typecheck import typecheck, setof
 
+from .indices import Indices, Aggregation
+from ..expressions import Expression, ExpressionException, expr_any
 
 @typecheck(caller=str,
            expr=Expression,

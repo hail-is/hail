@@ -36,6 +36,7 @@ def _get_log(log):
                                         suffix=f'-{py_version}.log')
     return log
 
+
 class HailContext(object):
     @typecheck_method(log=str,
                       quiet=bool,
@@ -91,7 +92,6 @@ class HailContext(object):
         if global_seed is None:
             global_seed = 6348563392232659379
         Env.set_seed(global_seed)
-
 
     @property
     def default_reference(self):
@@ -316,6 +316,7 @@ def stop():
     if Env._hc:
         Env.hc().stop()
 
+
 def spark_context():
     """Returns the active Spark context.
 
@@ -325,8 +326,10 @@ def spark_context():
     """
     return Env.spark_backend('spark_context').sc
 
+
 def current_backend():
     return Env.hc()._backend
+
 
 def default_reference():
     """Returns the default reference genome ``'GRCh37'``.
@@ -336,6 +339,7 @@ def default_reference():
     :class:`.ReferenceGenome`
     """
     return Env.hc().default_reference
+
 
 def get_reference(name) -> 'hail.ReferenceGenome':
     """Returns the reference genome corresponding to `name`.
@@ -383,7 +387,6 @@ def set_global_seed(seed):
     """
 
     Env.set_seed(seed)
-
 
 
 def _set_flags(**flags):

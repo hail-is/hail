@@ -1126,9 +1126,11 @@ def inbreeding(expr, prior) -> StructExpression:
                         hl.agg.filter(hl.is_defined(af) & hl.is_defined(call),
                                       hl.struct(n_called=hl.agg.count(),
                                                 expected_homs=hl.agg.sum(1 - (2 * af * (1 - af))),
-                                                observed_homs=hl.agg.count_where(hl.case().when(
-                                                    (call.ploidy == 2) & (call.unphased_diploid_gt_index() <= 2),
-                                                    ~call.is_het())
+                                                observed_homs=hl.agg.count_where(
+                                                    hl.case()
+                                                    .when(
+                                                        (call.ploidy == 2) & (call.unphased_diploid_gt_index() <= 2),
+                                                        ~call.is_het())
                                                     .or_error(
                                                         "'inbreeding' does not support non-diploid or multiallelic genotypes")))),
                         lambda r: hl.struct(
@@ -1673,6 +1675,7 @@ def corr(x, y) -> Float64Expression:
                                     xy=hl.agg.sum(x * y),
                                     n=hl.agg.count()))),
         x, y, _ctx=_agg_func.context)
+
 
 @typecheck(group=expr_any,
            agg_expr=agg_expr(expr_any))
