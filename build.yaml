@@ -1286,6 +1286,15 @@ steps:
       to: /io/hail-test.jar
     - from: /testng-services.xml
       to: /io/testng-services.xml
+   secrets:
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
    dependsOn:
     - hail_run_image
     - build_hail
