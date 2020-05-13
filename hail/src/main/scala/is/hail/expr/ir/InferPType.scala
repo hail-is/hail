@@ -68,20 +68,20 @@ object InferPType {
         assert(inits.forall(_.nested.isEmpty))
         assert(seqs.forall(_.nested.isEmpty))
         val initArgTypes = inits.map(i => i.value.args.map(_.pType).toArray).transpose
-          .map(ts => unifyPTypes(ts))
+          .map(ts => getCompatiblePType(ts))
         val seqArgTypes = seqs.map(i => i.value.args.map(_.pType).toArray).transpose
-          .map(ts => unifyPTypes(ts))
+          .map(ts => getCompatiblePType(ts))
         virt.defaultSignature.toPhysical(initArgTypes, seqArgTypes).singletonContainer
     }
   }
 
-  def unifyPTypes(pTypes: Seq[PType]): PType = {
+  def getCompatiblePType(pTypes: Seq[PType]): PType = {
     val r = TypeWithRequiredness.apply(pTypes.head.virtualType)
     pTypes.foreach(r.fromPType)
-    unifyPTypes(pTypes, r)
+    getCompatiblePType(pTypes, r)
   }
 
-  def unifyPTypes(pTypes: Seq[PType], result: TypeWithRequiredness): PType = {
+  def getCompatiblePType(pTypes: Seq[PType], result: TypeWithRequiredness): PType = {
     assert(pTypes.tail.forall(pt => pt.virtualType == pTypes.head.virtualType))
     if (pTypes.tail.forall(pt => pt == pTypes.head))
       pTypes.head
@@ -360,17 +360,17 @@ object InferPType {
       case MakeArray(irs, t) =>
         val r = coerce[RIterable](requiredness(node))
         if (irs.isEmpty) r.canonicalPType(t) else
-        PCanonicalArray(unifyPTypes(irs.map(_.pType), r.elementType), r.required)
+        PCanonicalArray(getCompatiblePType(irs.map(_.pType), r.elementType), r.required)
       case GetTupleElement(o, idx) =>
         val t = coerce[PTuple](o.pType)
         t.fields(t.fieldIndex(idx)).typ.setRequired(requiredness(node).required)
       case If(cond, cnsq, altr) =>
         assert(cond.pType isOfType PBoolean())
         val r = requiredness(node)
-        unifyPTypes(FastIndexedSeq(cnsq.pType, altr.pType), r).setRequired(r.required)
+        getCompatiblePType(FastIndexedSeq(cnsq.pType, altr.pType), r).setRequired(r.required)
       case Coalesce(values) =>
         val r = requiredness(node)
-        unifyPTypes(values.map(_.pType), r).setRequired(r.required)
+        getCompatiblePType(values.map(_.pType), r).setRequired(r.required)
       case In(_, pType: PType) => pType
       case x: CollectDistributedArray =>
         PCanonicalArray(x.decodedBodyPType, requiredness(node).required)
@@ -382,7 +382,7 @@ object InferPType {
       case MakeStream(irs, t) =>
         val r = coerce[RIterable](requiredness(node))
         if (irs.isEmpty) r.canonicalPType(t) else
-          PCanonicalStream(unifyPTypes(irs.map(_.pType), r.elementType), r.required)
+          PCanonicalStream(getCompatiblePType(irs.map(_.pType), r.elementType), r.required)
       case x@ResultOp(resultIdx, sigs) =>
         PCanonicalTuple(true, (resultIdx until resultIdx + sigs.length).map(i => aggs(i).resultType): _*)
       case x@RunAgg(body, result, signature) => result.pType

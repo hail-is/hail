@@ -1427,7 +1427,7 @@ object RVD {
     if (rvds.length == 1 || rvds.forall(_.rowPType == rvds.head.rowPType))
       return rvds
 
-    val unifiedRowPType = InferPType.unifyPTypes(rvds.map(_.rowPType)).asInstanceOf[PStruct]
+    val unifiedRowPType = InferPType.getCompatiblePType(rvds.map(_.rowPType)).asInstanceOf[PStruct]
     val unifiedKey = rvds.map(_.typ.key).reduce((l, r) => commonPrefix(l, r))
     rvds.map { rvd =>
       val srcRowPType = rvd.rowPType

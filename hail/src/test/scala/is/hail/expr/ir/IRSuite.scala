@@ -882,571 +882,571 @@ class IRSuite extends HailSuite {
 
   @Test def testGetNestedElementPTypesI32() {
     var types = Seq(PInt32(true))
-    var res  = InferPType.unifyPTypes(types)
+    var res  = InferPType.getCompatiblePType(types)
     assert(res == PInt32(true))
 
     types = Seq(PInt32(false))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PInt32(false))
 
     types = Seq(PInt32(false), PInt32(true))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PInt32(false))
 
     types = Seq(PInt32(true), PInt32(true))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PInt32(true))
   }
 
   @Test def testGetNestedElementPTypesI64() {
     var types = Seq(PInt64(true))
-    var res  = InferPType.unifyPTypes(types)
+    var res  = InferPType.getCompatiblePType(types)
     assert(res == PInt64(true))
 
     types = Seq(PInt64(false))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PInt64(false))
 
     types = Seq(PInt64(false), PInt64(true))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PInt64(false))
 
     types = Seq(PInt64(true), PInt64(true))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PInt64(true))
   }
 
   @Test def testGetNestedElementPFloat32() {
     var types = Seq(PFloat32(true))
-    var res  = InferPType.unifyPTypes(types)
+    var res  = InferPType.getCompatiblePType(types)
     assert(res == PFloat32(true))
 
     types = Seq(PFloat32(false))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PFloat32(false))
 
     types = Seq(PFloat32(false), PFloat32(true))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PFloat32(false))
 
     types = Seq(PFloat32(true), PFloat32(true))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PFloat32(true))
   }
 
   @Test def testGetNestedElementPFloat64() {
     var types = Seq(PFloat64(true))
-    var res  = InferPType.unifyPTypes(types)
+    var res  = InferPType.getCompatiblePType(types)
     assert(res == PFloat64(true))
 
     types = Seq(PFloat64(false))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PFloat64(false))
 
     types = Seq(PFloat64(false), PFloat64(true))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PFloat64(false))
 
     types = Seq(PFloat64(true), PFloat64(true))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PFloat64(true))
   }
 
   @Test def testGetNestedElementPCanonicalString() {
     var types = Seq(PCanonicalString(true))
-    var res  = InferPType.unifyPTypes(types)
+    var res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalString(true))
 
     types = Seq(PCanonicalString(false))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalString(false))
 
     types = Seq(PCanonicalString(false), PCanonicalString(true))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalString(false))
 
     types = Seq(PCanonicalString(true), PCanonicalString(true))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalString(true))
   }
 
   @Test def testGetNestedPCanonicalArray() {
     var types = Seq(PCanonicalArray(PInt32(true), true))
-    var res  = InferPType.unifyPTypes(types)
+    var res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalArray(PInt32(true), true))
 
     types = Seq(PCanonicalArray(PInt32(true), false))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalArray(PInt32(true), false))
 
     types = Seq(PCanonicalArray(PInt32(false), true))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalArray(PInt32(false), true))
 
     types = Seq(PCanonicalArray(PInt32(false), false))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalArray(PInt32(false), false))
 
     types = Seq(
       PCanonicalArray(PInt32(true), true),
       PCanonicalArray(PInt32(true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalArray(PInt32(true), true))
 
     types = Seq(
       PCanonicalArray(PInt32(false), true),
       PCanonicalArray(PInt32(true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalArray(PInt32(false), true))
 
     types = Seq(
       PCanonicalArray(PInt32(false), true),
       PCanonicalArray(PInt32(true), false)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalArray(PInt32(false), false))
 
     types = Seq(
       PCanonicalArray(PCanonicalArray(PInt32(true), true), true),
       PCanonicalArray(PCanonicalArray(PInt32(true), true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalArray(PCanonicalArray(PInt32(true), true), true))
 
     types = Seq(
       PCanonicalArray(PCanonicalArray(PInt32(true), true), true),
       PCanonicalArray(PCanonicalArray(PInt32(false), true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalArray(PCanonicalArray(PInt32(false), true), true))
 
     types = Seq(
       PCanonicalArray(PCanonicalArray(PInt32(true), false), true),
       PCanonicalArray(PCanonicalArray(PInt32(false), true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalArray(PCanonicalArray(PInt32(false), false), true))
 
     types = Seq(
       PCanonicalArray(PCanonicalArray(PInt32(true), false), false),
       PCanonicalArray(PCanonicalArray(PInt32(false), true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalArray(PCanonicalArray(PInt32(false), false), false))
   }
 
   @Test def testGetNestedPStream() {
     var types = Seq(PCanonicalStream(PInt32(true), true))
-    var res  = InferPType.unifyPTypes(types)
+    var res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStream(PInt32(true), true))
 
     types = Seq(PCanonicalStream(PInt32(true), false))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStream(PInt32(true), false))
 
     types = Seq(PCanonicalStream(PInt32(false), true))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStream(PInt32(false), true))
 
     types = Seq(PCanonicalStream(PInt32(false), false))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStream(PInt32(false), false))
 
     types = Seq(
       PCanonicalStream(PInt32(true), true),
       PCanonicalStream(PInt32(true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStream(PInt32(true), true))
 
     types = Seq(
       PCanonicalStream(PInt32(false), true),
       PCanonicalStream(PInt32(true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStream(PInt32(false), true))
 
     types = Seq(
       PCanonicalStream(PInt32(false), true),
       PCanonicalStream(PInt32(true), false)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStream(PInt32(false), false))
 
     types = Seq(
       PCanonicalStream(PCanonicalStream(PInt32(true), true), true),
       PCanonicalStream(PCanonicalStream(PInt32(true), true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStream(PCanonicalStream(PInt32(true), true), true))
 
     types = Seq(
       PCanonicalStream(PCanonicalStream(PInt32(true), true), true),
       PCanonicalStream(PCanonicalStream(PInt32(false), true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), true), true))
 
     types = Seq(
       PCanonicalStream(PCanonicalStream(PInt32(true), false), true),
       PCanonicalStream(PCanonicalStream(PInt32(false), true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), false), true))
 
     types = Seq(
       PCanonicalStream(PCanonicalStream(PInt32(true), false), false),
       PCanonicalStream(PCanonicalStream(PInt32(false), true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), false), false))
   }
 
   @Test def testGetNestedElementPCanonicalDict() {
     var types = Seq(PCanonicalDict(PInt32(true), PCanonicalString(true), true))
-    var res  = InferPType.unifyPTypes(types)
+    var res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(true), PCanonicalString(true), true))
 
     types = Seq(PCanonicalDict(PInt32(false), PCanonicalString(true), true))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(false), PCanonicalString(true), true))
 
     types = Seq(PCanonicalDict(PInt32(true), PCanonicalString(false), true))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(true), PCanonicalString(false), true))
 
     types = Seq(PCanonicalDict(PInt32(true), PCanonicalString(true), false))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(true), PCanonicalString(true), false))
 
     types = Seq(PCanonicalDict(PInt32(false), PCanonicalString(false), false))
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(false), PCanonicalString(false), false))
 
     types = Seq(
       PCanonicalDict(PInt32(true), PCanonicalString(true), true),
       PCanonicalDict(PInt32(true), PCanonicalString(true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(true), PCanonicalString(true), true))
 
     types = Seq(
       PCanonicalDict(PInt32(true), PCanonicalString(true), false),
       PCanonicalDict(PInt32(true), PCanonicalString(true), false)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(true), PCanonicalString(true), false))
 
     types = Seq(
       PCanonicalDict(PInt32(false), PCanonicalString(true), true),
       PCanonicalDict(PInt32(true), PCanonicalString(true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(false), PCanonicalString(true), true))
 
     types = Seq(
       PCanonicalDict(PInt32(false), PCanonicalString(true), true),
       PCanonicalDict(PInt32(true), PCanonicalString(false), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(false), PCanonicalString(false), true))
 
     types = Seq(
       PCanonicalDict(PInt32(false), PCanonicalString(true), false),
       PCanonicalDict(PInt32(true), PCanonicalString(false), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(false), PCanonicalString(false), false))
 
     types = Seq(
       PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(true), PCanonicalString(true), true), true),
       PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(true), PCanonicalString(true), true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(true), PCanonicalString(true), true), true))
 
     types = Seq(
       PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(false), PCanonicalString(true), true), true),
       PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(true), PCanonicalString(true), true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(false), PCanonicalString(true), true), true))
 
     types = Seq(
       PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(false), PCanonicalString(true), true), true),
       PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(true), PCanonicalString(false), true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(false), PCanonicalString(false), true), true))
 
     types = Seq(
       PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(false), PCanonicalString(true), true), true),
       PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(true), PCanonicalString(false), true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(false), PCanonicalString(false), true), true))
 
     types = Seq(
       PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(false), PCanonicalString(true), false), true),
       PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(true), PCanonicalString(false), true), true)
     )
-    res  = InferPType.unifyPTypes(types)
+    res  = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(false), PCanonicalString(false), false), true))
   }
 
   @Test def testGetNestedElementPCanonicalStruct() {
     var types = Seq(PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)))
-    var res = InferPType.unifyPTypes(types)
+    var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)))
 
     types = Seq(PCanonicalStruct(false, "a" -> PInt32(true), "b" -> PInt32(true)))
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStruct(false, "a" -> PInt32(true), "b" -> PInt32(true)))
 
     types = Seq(PCanonicalStruct(true, "a" -> PInt32(false), "b" -> PInt32(true)))
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStruct(true, "a" -> PInt32(false), "b" -> PInt32(true)))
 
     types = Seq(PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(false)))
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(false)))
 
     types = Seq(PCanonicalStruct(false, "a" -> PInt32(false), "b" -> PInt32(false)))
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStruct(false, "a" -> PInt32(false), "b" -> PInt32(false)))
 
     types = Seq(
       PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)),
       PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true))
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)))
 
     types = Seq(
       PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)),
       PCanonicalStruct(true, "a" -> PInt32(false), "b" -> PInt32(false))
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStruct(true, "a" -> PInt32(false), "b" -> PInt32(false)))
 
     types = Seq(
       PCanonicalStruct(false, "a" -> PInt32(true), "b" -> PInt32(true)),
       PCanonicalStruct(true, "a" -> PInt32(false), "b" -> PInt32(false))
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStruct(false, "a" -> PInt32(false), "b" -> PInt32(false)))
 
     types = Seq(
       PCanonicalStruct(true, "a" -> PCanonicalStruct(true, "c" -> PInt32(true), "d" -> PInt32(true)),"b" -> PInt32(true))
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStruct(true, "a" -> PCanonicalStruct(true, "c" -> PInt32(true), "d" -> PInt32(true)), "b" -> PInt32(true)))
 
     types = Seq(
       PCanonicalStruct(true, "a" -> PCanonicalStruct(true, "c" -> PInt32(false), "d" -> PInt32(true)),"b" -> PInt32(true))
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStruct(true, "a" -> PCanonicalStruct(true, "c" -> PInt32(false), "d" -> PInt32(true)), "b" -> PInt32(true)))
 
     types = Seq(
       PCanonicalStruct(true, "a" -> PCanonicalStruct(true, "c" -> PInt32(false), "d" -> PInt32(false)), "b" -> PInt32(true)),
       PCanonicalStruct(true, "a" -> PCanonicalStruct(true, "c" -> PInt32(true), "d" -> PInt32(true)), "b" -> PInt32(true)))
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStruct(true, "a" -> PCanonicalStruct(true, "c" -> PInt32(false), "d" -> PInt32(false)), "b" -> PInt32(true)))
 
     types = Seq(
       PCanonicalStruct(true, "a" -> PCanonicalStruct(false, "c" -> PInt32(false), "d" -> PInt32(false)), "b" -> PInt32(true)),
       PCanonicalStruct(true, "a" -> PCanonicalStruct(true, "c" -> PInt32(true), "d" -> PInt32(true)), "b" -> PInt32(true)))
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStruct(true, "a" -> PCanonicalStruct(false, "c" -> PInt32(false), "d" -> PInt32(false)), "b" -> PInt32(true)))
   }
 
   @Test def testGetNestedElementPCanonicalTuple() {
     var types = Seq(PCanonicalTuple(true, PInt32(true)))
-    var res = InferPType.unifyPTypes(types)
+    var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalTuple(true, PInt32(true)))
 
     types = Seq(PCanonicalTuple(false, PInt32(true)))
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalTuple(false, PInt32(true)))
 
     types = Seq(PCanonicalTuple(true, PInt32(false)))
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalTuple(true, PInt32(false)))
 
     types = Seq(PCanonicalTuple(false, PInt32(false)))
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalTuple(false, PInt32(false)))
 
     types = Seq(
       PCanonicalTuple(true, PInt32(true)),
       PCanonicalTuple(true, PInt32(true))
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalTuple(true, PInt32(true)))
 
     types = Seq(
       PCanonicalTuple(true, PInt32(true)),
       PCanonicalTuple(false, PInt32(true))
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalTuple(false, PInt32(true)))
 
     types = Seq(
       PCanonicalTuple(true, PInt32(false)),
       PCanonicalTuple(false, PInt32(true))
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalTuple(false, PInt32(false)))
 
     types = Seq(
       PCanonicalTuple(true, PCanonicalTuple(true, PInt32(true))),
       PCanonicalTuple(true, PCanonicalTuple(true, PInt32(false)))
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalTuple(true, PCanonicalTuple(true, PInt32(false))))
 
     types = Seq(
       PCanonicalTuple(true, PCanonicalTuple(false, PInt32(true))),
       PCanonicalTuple(true, PCanonicalTuple(true, PInt32(false)))
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalTuple(true, PCanonicalTuple(false, PInt32(false))))
   }
 
   @Test def testGetNestedElementPCanonicalSet() {
     var types = Seq(PCanonicalSet(PInt32(true), true))
-    var res = InferPType.unifyPTypes(types)
+    var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalSet(PInt32(true), true))
 
     types = Seq(PCanonicalSet(PInt32(true), false))
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalSet(PInt32(true), false))
 
     types = Seq(PCanonicalSet(PInt32(false), true))
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalSet(PInt32(false), true))
 
     types = Seq(PCanonicalSet(PInt32(false), false))
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalSet(PInt32(false), false))
 
     types = Seq(
       PCanonicalSet(PInt32(true), true),
       PCanonicalSet(PInt32(true), true)
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalSet(PInt32(true), true))
 
     types = Seq(
       PCanonicalSet(PInt32(false), true),
       PCanonicalSet(PInt32(true), true)
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalSet(PInt32(false), true))
 
     types = Seq(
       PCanonicalSet(PInt32(false), true),
       PCanonicalSet(PInt32(true), false)
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalSet(PInt32(false), false))
 
     types = Seq(
       PCanonicalSet(PCanonicalSet(PInt32(true), true), true),
       PCanonicalSet(PCanonicalSet(PInt32(true), true), true)
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalSet(PCanonicalSet(PInt32(true), true), true))
 
     types = Seq(
       PCanonicalSet(PCanonicalSet(PInt32(true), true), true),
       PCanonicalSet(PCanonicalSet(PInt32(false), true), true)
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalSet(PCanonicalSet(PInt32(false), true), true))
 
     types = Seq(
       PCanonicalSet(PCanonicalSet(PInt32(true), false), true),
       PCanonicalSet(PCanonicalSet(PInt32(false), true), true)
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalSet(PCanonicalSet(PInt32(false), false), true))
   }
 
   @Test def testGetNestedElementPCanonicalInterval() {
     var types = Seq(PCanonicalInterval(PInt32(true), true))
-    var res = InferPType.unifyPTypes(types)
+    var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalInterval(PInt32(true), true))
 
     types = Seq(PCanonicalInterval(PInt32(true), false))
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalInterval(PInt32(true), false))
 
     types = Seq(PCanonicalInterval(PInt32(false), true))
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalInterval(PInt32(false), true))
 
     types = Seq(PCanonicalInterval(PInt32(false), false))
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalInterval(PInt32(false), false))
 
     types = Seq(
       PCanonicalInterval(PInt32(true), true),
       PCanonicalInterval(PInt32(true), true)
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalInterval(PInt32(true), true))
 
     types = Seq(
       PCanonicalInterval(PInt32(false), true),
       PCanonicalInterval(PInt32(true), true)
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalInterval(PInt32(false), true))
 
     types = Seq(
       PCanonicalInterval(PInt32(true), true),
       PCanonicalInterval(PInt32(true), false)
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalInterval(PInt32(true), false))
 
     types = Seq(
       PCanonicalInterval(PInt32(false), true),
       PCanonicalInterval(PInt32(true), false)
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalInterval(PInt32(false), false))
 
     types = Seq(
       PCanonicalInterval(PCanonicalInterval(PInt32(true), true), true),
       PCanonicalInterval(PCanonicalInterval(PInt32(true), true), true)
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalInterval(PCanonicalInterval(PInt32(true), true), true))
 
     types = Seq(
       PCanonicalInterval(PCanonicalInterval(PInt32(true), false), true),
       PCanonicalInterval(PCanonicalInterval(PInt32(true), true), true)
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalInterval(PCanonicalInterval(PInt32(true), false), true))
 
     types = Seq(
       PCanonicalInterval(PCanonicalInterval(PInt32(false), true), true),
       PCanonicalInterval(PCanonicalInterval(PInt32(true), true), true)
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalInterval(PCanonicalInterval(PInt32(false), true), true))
 
     types = Seq(
       PCanonicalInterval(PCanonicalInterval(PInt32(true), false), true),
       PCanonicalInterval(PCanonicalInterval(PInt32(false), true), true)
     )
-    res = InferPType.unifyPTypes(types)
+    res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalInterval(PCanonicalInterval(PInt32(false), false), true))
   }
 
