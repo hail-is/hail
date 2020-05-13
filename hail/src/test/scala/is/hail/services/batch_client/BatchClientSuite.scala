@@ -47,6 +47,6 @@ class BatchClientSuite extends TestNGSuite {
 
     val batch = client.waitForBatch(batchID)
 
-    assert((batch \ "state").extract[String] == "Success")
+    assert((batch \ "state").extract[String] == "success")
   }
 }
