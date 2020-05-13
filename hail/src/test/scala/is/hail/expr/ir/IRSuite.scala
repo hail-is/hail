@@ -1765,6 +1765,8 @@ class IRSuite extends HailSuite {
     assertEvalsTo(range2, 10)
     val range3 = StreamLen(StreamRange(-10, 5, 1))
     assertEvalsTo(range3, 15)
+    val mappedRange = StreamLen(mapIR(StreamRange(2, 7, 1)) { ref => maxIR(ref, 3)})
+    assertEvalsTo(mappedRange, 5)
 
     val streamOfStreams = mapIR(rangeIR(5)) { elementRef => rangeIR(elementRef) }
     assertEvalsTo(StreamLen(flatMapIR(streamOfStreams){ x => x}), 4 + 3 + 2 + 1)
