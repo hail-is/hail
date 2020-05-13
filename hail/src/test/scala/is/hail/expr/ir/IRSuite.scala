@@ -1756,8 +1756,15 @@ class IRSuite extends HailSuite {
     val a = StreamLen(MakeStream(Seq(I32(3), NA(TInt32), I32(7)), TStream(TInt32)))
     assertEvalsTo(a, 3)
 
-    val range1 = StreamLen(StreamRange(1, 12, 1))
-    assertEvalsTo(range1, 11)
+    val missing = StreamLen(NA(TStream(TInt64)))
+    assertEvalsTo(missing, null)
+
+    val range1 = StreamLen(StreamRange(1, 11, 1))
+    assertEvalsTo(range1, 10)
+    val range2 = StreamLen(StreamRange(20, 40, 2))
+    assertEvalsTo(range2, 10)
+    val range3 = StreamLen(StreamRange(-10, 5, 1))
+    assertEvalsTo(range3, 15)
   }
 
   @Test def testStreamTake() {
@@ -2699,6 +2706,7 @@ class IRSuite extends HailSuite {
       NDArrayFilter(nd, FastIndexedSeq(NA(TArray(TInt64)), NA(TArray(TInt64)))),
       ArrayRef(a, i),
       ArrayLen(a),
+      StreamLen(st),
       StreamRange(I32(0), I32(5), I32(1)),
       StreamRange(I32(0), I32(5), I32(1)),
       ArraySort(st, b),
