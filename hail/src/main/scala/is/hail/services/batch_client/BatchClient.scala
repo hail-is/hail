@@ -120,7 +120,6 @@ class BatchClient extends AutoCloseable {
       }
       b += ']'
       val data = b.result()
-      println(s"data ${ new String(data) }")
       post(
         s"/api/v1alpha/batches/$batchID/jobs/create",
         new ByteArrayEntity(
@@ -152,7 +151,6 @@ class BatchClient extends AutoCloseable {
           (0.1 * (0.8 + random.nextFloat() * 0.4) * (elapsed / 1000.0 / 1000)).toInt,
           5000),
         50)
-      println(s"waiting $d")
       Thread.sleep(d)
     }
 
