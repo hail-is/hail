@@ -8,7 +8,7 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.stats.fetStruct
-import is.hail.utils.{ArrayBuilder, FastIndexedSeq}
+import is.hail.utils.{ArrayBuilder, FastIndexedSeq, FastSeq}
 import is.hail.variant.Locus
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
@@ -252,5 +252,16 @@ class RequirednessSuite extends HailSuite {
     val res = Requiredness.apply(node, ctx)
     val actual = res.r.lookup(node).asInstanceOf[TypeWithRequiredness]
     assert(actual.canonicalPType(node.typ) == expected, s"\n\n${Pretty(node)}: \n$actual\n\n${ dump(res.r) }")
+  }
+
+  @Test def testSubsettedTuple(): Unit = {
+    val node = MakeTuple(FastSeq(0 -> I32(0), 4 -> NA(TInt32), 2 -> NA(TArray(TInt32))))
+    val expected = PCanonicalTuple(FastIndexedSeq(
+      PTupleField(0, PInt32(required = true)),
+      PTupleField(4, PInt32(required = false)),
+      PTupleField(2, PCanonicalArray(PInt32(required = true), required = false))), required = true)
+    val res = Requiredness.apply(node, ctx)
+    val actual = coerce[TypeWithRequiredness](res.r.lookup(node)).canonicalPType(node.typ)
+    assert(actual == expected)
   }
 }
