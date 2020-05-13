@@ -1,5 +1,6 @@
 package is.hail.services.batch_client
 
+import java.nio.charset.{Charset, StandardCharsets}
 import java.util.Random
 
 import is.hail.utils._
@@ -42,7 +43,7 @@ class BatchClient extends AutoCloseable {
         val message =
           if (entity != null)
             EntityUtils.toString(entity)
-        else
+          else
             null
         throw new ClientResponseException(statusCode, message)
       }
@@ -89,7 +90,7 @@ class BatchClient extends AutoCloseable {
     var i = 0
     var size = 0
     while (i < jobs.length) {
-      val jobBytes = JsonMethods.compact(jobs(i)).getBytes
+      val jobBytes = JsonMethods.compact(jobs(i)).getBytes(StandardCharsets.UTF_8)
       if (size + jobBytes.length > 1024 * 1024) {
         bunches += bunchb.result()
         bunchb.clear()
@@ -153,8 +154,8 @@ class BatchClient extends AutoCloseable {
         50)
       Thread.sleep(d)
     }
-
-    JNull // placate the type checker, cannot be reached
+    
+    assert(false)
   }
 
   def close() {

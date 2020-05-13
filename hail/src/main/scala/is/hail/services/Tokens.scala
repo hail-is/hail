@@ -1,17 +1,26 @@
 package is.hail.services
 
 import is.hail.utils._
-import java.io.FileInputStream
+import java.io.{File, FileInputStream}
 
 import org.apache.http.client.methods.HttpUriRequest
+import org.apache.log4j.{LogManager, Logger}
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.JsonMethods
 
 object Tokens {
+  lazy val log: Logger = LogManager.getLogger("Tokens")
+
   def get: Tokens = {
-    using(new FileInputStream(getTokensFile())) { is =>
-      implicit val formats: Formats = DefaultFormats
-      new Tokens(JsonMethods.parse(is).extract[Map[String, String]])
+    val file = getTokensFile()
+    if (new File(file).isFile()) {
+      using(new FileInputStream(file)) { is =>
+        implicit val formats: Formats = DefaultFormats
+        new Tokens(JsonMethods.parse(is).extract[Map[String, String]])
+      }
+    } else {
+      log.info(s"tokens file not found: $file")
+      new Tokens(Map())
     }
   }
 
