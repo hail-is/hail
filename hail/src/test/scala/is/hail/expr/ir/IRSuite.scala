@@ -1828,6 +1828,8 @@ class IRSuite extends HailSuite {
 
     val r = StreamRange(I32(0), I32(10), I32(1))
 
+    assertEvalsTo(StreamLen(StreamGrouped(r, 2)), 5)
+
     def takeFromEach(stream: IR, take: IR, fromEach: IR): IR = {
       val innerType = coerce[TStream](stream.typ)
       StreamMap(StreamGrouped(stream, fromEach), "inner", StreamTake(Ref("inner", innerType), take))
@@ -2405,12 +2407,12 @@ class IRSuite extends HailSuite {
       (0 until 10).map(i => FastIndexedSeq(1, i, i, i)) ++ FastIndexedSeq(FastIndexedSeq(1)))
   }
 
-  @Test def testArrayAggScan() {
+  @Test def testStreamAggScan() {
     implicit val execStrats = ExecStrategy.compileOnly
 
     val eltType = TStruct("x" -> TCall, "y" -> TInt32)
 
-    val ir = ToArray(StreamAggScan(ToStream(In(0, TArray(eltType))),
+    val ir = (StreamAggScan(ToStream(In(0, TArray(eltType))),
       "foo",
       GetField(Ref("foo", eltType), "y") +
         GetField(ApplyScanOp(
@@ -2419,16 +2421,19 @@ class IRSuite extends HailSuite {
           AggSignature(CallStats(), FastIndexedSeq(TInt32), FastIndexedSeq(TCall))
         ), "AN")))
 
-    assertEvalsTo(ir,
-      args = FastIndexedSeq(
-        FastIndexedSeq(
-          Row(null, 1),
-          Row(Call2(0, 0), 2),
-          Row(Call2(0, 1), 3),
-          Row(Call2(1, 1), 4),
-          null,
-          Row(null, 5)) -> TArray(eltType)),
+    val input = FastIndexedSeq(
+      Row(null, 1),
+      Row(Call2(0, 0), 2),
+      Row(Call2(0, 1), 3),
+      Row(Call2(1, 1), 4),
+      null,
+      Row(null, 5)) -> TArray(eltType)
+
+    assertEvalsTo(ToArray(ir),
+      args = FastIndexedSeq(input),
       expected = FastIndexedSeq(1 + 0, 2 + 0, 3 + 2, 4 + 4, null, 5 + 6))
+
+    assertEvalsTo(StreamLen(ir), args=FastIndexedSeq(input), 6)
   }
 
   @Test def testInsertFields() {
