@@ -5,7 +5,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import is.hail.annotations._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.asm4s._
-import is.hail.backend.HailTaskContext
+import is.hail.backend.{BackendContext, HailTaskContext}
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.types.physical._
@@ -2082,8 +2082,10 @@ class Emit[C](
           addContexts(ctxStream),
           baos.invoke[Unit]("reset"),
           addGlobals,
-          encRes := spark.invoke[String, Array[Array[Byte]], Array[Byte], Array[Array[Byte]]](
-            "collectDArray", functionID,
+          encRes := spark.invoke[BackendContext, String, Array[Array[Byte]], Array[Byte], Array[Array[Byte]]](
+            "collectDArray",
+            mb.getObject(ctx.backendContext),
+            functionID,
             ctxab.invoke[Array[Array[Byte]]]("result"),
             baos.invoke[Array[Byte]]("toByteArray")),
           decodeResult))

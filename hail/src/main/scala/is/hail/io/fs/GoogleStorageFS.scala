@@ -99,6 +99,7 @@ class GoogleStorageFileStatus(path: String, modificationTime: java.lang.Long, si
 
 class GoogleStorageFS(serviceAccountKey: String) extends FS {
   import GoogleStorageFS._
+
   @transient private lazy val storage: Storage = {
     StorageOptions.newBuilder()
       .setCredentials(

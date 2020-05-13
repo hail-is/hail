@@ -1,25 +1,88 @@
 package is.hail.backend.service
 
-import java.io.{PrintWriter, StringWriter}
+import java.io.{DataOutputStream, FileInputStream, FileOutputStream, ObjectInputStream, ObjectOutputStream, PrintWriter, RandomAccessFile, StringWriter}
 
 import is.hail.annotations.{Region, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.backend.{Backend, BroadcastValue}
+import is.hail.backend.{Backend, BackendContext, BroadcastValue}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerDistributedSort, LowererUnsupportedOperation, LoweringPipeline, TableStage}
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple, SortField}
 import is.hail.types.physical.{PBaseStruct, PType}
-import is.hail.io.fs.GoogleStorageFS
+import is.hail.io.fs.{FS, GoogleStorageFS}
+import is.hail.services.batch_client.BatchClient
 import is.hail.utils._
+import org.apache.commons.io.IOUtils
+import org.apache.log4j.LogManager
 import org.json4s.JsonAST.{JArray, JBool, JInt, JObject, JString}
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
+object ServiceBackendUtils {
+  def getQueryFS(): FS = {
+    var keyFile = System.getenv("HAIL_QUERY_GSAKEY_FILE")
+    if (keyFile == null)
+      keyFile = "/gsa-key/key.json"
+
+    using(new FileInputStream(keyFile)) { is =>
+      new GoogleStorageFS(IOUtils.toString(is))
+    }
+  }
+}
+
+object Worker {
+  def main(args: Array[String]): Unit = {
+    if (args.length != 2)
+      throw new IllegalArgumentException(s"expected one argument, not: ${ args.length }")
+
+    val root = args(0)
+    val i = args(1).toInt
+
+    val fs = ServiceBackendUtils.getQueryFS()
+
+    val f = using(new ObjectInputStream(fs.openNoCompression(s"$root/f"))) { is =>
+      is.readObject().asInstanceOf[(Array[Byte], Int) => Array[Byte]]
+    }
+
+    var offset = 0L
+    var length = 0
+
+    using(fs.openNoCompression(s"$root/context.offsets")) { is =>
+      is.seek(i * 12)
+      offset = is.readLong()
+      length = is.readInt()
+    }
+
+    println(s"offset $offset length $length")
+
+    val context = using(fs.openNoCompression(s"$root/contexts")) { is =>
+      is.seek(offset)
+      val context = new Array[Byte](length)
+      is.readFully(context)
+      context
+    }
+
+    val result = f(context, i)
+
+    using(fs.createNoCompression(s"$root/result.$i")) { os =>
+      os.write(result)
+    }
+  }
+}
+
+class ServiceBackendContext(
+  val username: String,
+  val sessionID: String,
+  val billingProject: String
+) extends BackendContext with Serializable
+
 object ServiceBackend {
+  lazy val log = LogManager.getLogger("ServiceBackend")
+
   def apply(): ServiceBackend = {
-    new ServiceBackend()
+    new ServiceBackend(ServiceBackendUtils.getQueryFS())
   }
 }
 
@@ -30,12 +93,23 @@ class User(
 
 final class Response(val status: Int, val value: String)
 
-class ServiceBackend() extends Backend {
+class ServiceBackend(queryFS: FS) extends Backend {
+  import ServiceBackend.log
+
+  private[this] val queryBucket: String = {
+    val bucket = System.getenv("HAIL_QUERY_BUCKET")
+    if (bucket != null)
+      bucket
+    else
+      "hail-query"
+  }
+
+  private[this] val workerImage = System.getenv("HAIL_QUERY_WORKER_IMAGE")
+
   private[this] val users = mutable.Map[String, User]()
 
   def addUser(username: String, key: String): Unit = {
     assert(!users.contains(username))
-    // FIXME
     users += username -> new User(username, "/tmp", new GoogleStorageFS(key))
   }
 
@@ -51,16 +125,84 @@ class ServiceBackend() extends Backend {
 
   def defaultParallelism: Int = 10
 
-  def broadcast[T: ClassTag](_value: T): BroadcastValue[T] = new BroadcastValue[T] {
+  def broadcast[T: ClassTag](_value: T): BroadcastValue[T] = new BroadcastValue[T] with Serializable {
     def value: T = _value
   }
 
-  def parallelizeAndComputeWithIndex[T: ClassTag, U : ClassTag](collection: Array[T])(f: (T, Int) => U): Array[U] = {
+  def parallelizeAndComputeWithIndex(_backendContext: BackendContext, collection: Array[Array[Byte]])(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]] = {
+    val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
+
     val n = collection.length
-    val r = new Array[U](n)
+
+    val token = tokenUrlSafe(32)
+
+    log.info(s"parallelizeAndComputeWithIndex: nPartitions $n token $token")
+
+    val root = s"gs://$queryBucket/stages/$token"
+
+    log.info(s"parallelizeAndComputeWithIndex: token $token: writing f")
+
+    using(new ObjectOutputStream(queryFS.create(s"$root/f"))) { os =>
+      os.writeObject(f)
+    }
+
+    log.info(s"parallelizeAndComputeWithIndex: token $token: writing context offsets")
+
+    using(queryFS.createNoCompression(s"$root/context.offsets")) { os =>
+      var o = 0L
+      var i = 0
+      while (i < n) {
+        val len = collection(i).length
+        os.writeLong(o)
+        os.writeInt(len)
+        i += 1
+        o += len
+      }
+    }
+
+    log.info(s"parallelizeAndComputeWithIndex: token $token: writing contexts")
+
+    using(queryFS.createNoCompression(s"$root/contexts")) { os =>
+      collection.foreach { context =>
+        os.write(context)
+      }
+    }
+
+    val jobs = new Array[JObject](n)
     var i = 0
     while (i < n) {
-      r(i) = f(collection(i), i)
+      jobs(i) = JObject(
+          "always_run" -> JBool(false),
+          "image" -> JString(workerImage),
+          "mount_docker_socket" -> JBool(false),
+          "command" -> JArray(List(
+            JString("/bin/bash"),
+            JString("-c"),
+            JString(s"java -cp $$SPARK_HOME/jars/*:/hail.jar is.hail.backend.service.Worker $root $i"))),
+          "job_id" -> JInt(i),
+          "parent_ids" -> JArray(List()))
+      i += 1
+    }
+
+    log.info(s"parallelizeAndComputeWithIndex: token $token: running job")
+
+    val batchClient = BatchClient.fromSessionID(backendContext.sessionID)
+    // FIXME check return
+    val batch = batchClient.run(
+      JObject(
+        "billing_project" -> JString(backendContext.billingProject),
+        "n_jobs" -> JInt(n),
+        "token" -> JString(token)),
+      jobs)
+
+    log.info(s"parallelizeAndComputeWithIndex: token $token: reading results")
+
+    val r = new Array[Array[Byte]](n)
+    i = 0  // reusing
+    while (i < n) {
+      r(i) = using(queryFS.openNoCompression(s"$root/result.$i")) { is =>
+        IOUtils.toByteArray(is)
+      }
       i += 1
     }
     r
@@ -140,10 +282,12 @@ class ServiceBackend() extends Backend {
     }
   }
 
-  def execute(username: String, s: String): Response = {
+  def execute(username: String, sessionID: String, billingProject: String, code: String): Response = {
     statusForException {
       userContext(username) { ctx =>
-        var x = IRParser.parse_value_ir(ctx, s)
+        ctx.backendContext = new ServiceBackendContext(username, sessionID, billingProject)
+
+        var x = IRParser.parse_value_ir(ctx, code)
         x = LoweringPipeline.darrayLowerer(DArrayLowering.All).apply(ctx, x, optimize = true)
           .asInstanceOf[IR]
         val (pt, f) = Compile[AsmFunction1RegionLong](ctx,

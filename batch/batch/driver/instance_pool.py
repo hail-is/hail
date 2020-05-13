@@ -1,3 +1,4 @@
+import os
 import secrets
 import random
 import json
@@ -9,14 +10,18 @@ import sortedcontainers
 import aiohttp
 from hailtop.utils import time_msecs, secret_alnum_string
 
-from ..batch_configuration import DEFAULT_NAMESPACE, BATCH_WORKER_IMAGE, \
-    PROJECT, WORKER_MAX_IDLE_TIME_MSECS, STANDING_WORKER_MAX_IDLE_TIME_MSECS, \
+from ..batch_configuration import DEFAULT_NAMESPACE, PROJECT, \
+    WORKER_MAX_IDLE_TIME_MSECS, STANDING_WORKER_MAX_IDLE_TIME_MSECS, \
     ENABLE_STANDING_WORKER
 
 from .instance import Instance
 from ..worker_config import WorkerConfig
 
 log = logging.getLogger('instance_pool')
+
+BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
+
+log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 
 class InstancePool:

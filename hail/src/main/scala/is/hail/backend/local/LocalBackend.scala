@@ -11,12 +11,11 @@ import is.hail.expr.ir.lowering._
 import is.hail.expr.ir._
 import is.hail.types.physical.{PTuple, PType}
 import is.hail.types.virtual.TVoid
-import is.hail.backend.{Backend, BroadcastValue}
+import is.hail.backend.{Backend, BackendContext, BroadcastValue}
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.utils._
 import is.hail.io.bgen.IndexBgen
 import is.hail.variant.ReferenceGenome
-
 import org.apache.hadoop
 import org.json4s.DefaultFormats
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -64,7 +63,7 @@ class LocalBackend(
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)
 
-  def parallelizeAndComputeWithIndex[T : ClassTag, U : ClassTag](collection: Array[T])(f: (T, Int) => U): Array[U] = {
+  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]])(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]] = {
     collection.zipWithIndex.map { case (c, i) =>
       f(c, i)
     }

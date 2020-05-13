@@ -44,7 +44,7 @@ spec:
            value: "{{ global.domain }}"
          - name: HAIL_DEPLOY_CONFIG_FILE
            value: /deploy-config/deploy-config.json
-         - name: BATCH_WORKER_IMAGE
+         - name: HAIL_BATCH_WORKER_IMAGE
            value: "{{ batch_worker_image.image }}"
          - name: HAIL_DEFAULT_NAMESPACE
            value: "{{ default_ns.name }}"

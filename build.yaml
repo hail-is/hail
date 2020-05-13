@@ -353,6 +353,7 @@ steps:
      # batch, auth gsa keys
      kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "auth-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "query-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
      # create ci
      N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers ci-tokens | wc -l | tr -d '[:space:]')
      if [[ $N = 0 ]]; then
@@ -615,22 +616,6 @@ steps:
     - default_ns
     - batch_pods_ns
     - deploy_query_sa
- - kind: deploy
-   name: deploy_query
-   namespace:
-     valueFrom: default_ns.name
-   config: query/deployment.yaml
-   wait:
-    - kind: Service
-      name: query
-      for: alive
-   dependsOn:
-    - default_ns
-    - batch_pods_ns
-    - query_image
-    - deploy_query_sa
-    - deploy_query_sa_batch_pods
-    - create_certs
  - kind: buildImage
    name: hail_repl_image
    dockerFile: hail/Dockerfile.hail-repl
@@ -1306,6 +1291,68 @@ steps:
     - batch_database
     - deploy_auth
     - create_certs
+ - kind: deploy
+   name: deploy_query
+   namespace:
+     valueFrom: default_ns.name
+   config: query/deployment.yaml
+   wait:
+    - kind: Service
+      name: query
+      for: alive
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - deploy_batch
+    - query_image
+    - deploy_query_sa
+    - deploy_query_sa_batch_pods
+    - create_certs
+ - kind: runImage
+   name: test_query
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     memory: "3.75G"
+     cpu: "1"
+   script: |
+     set -ex
+     cd /io
+     tar xvf wheel-container.tar
+     python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+     cat > test.py <<EOF
+     import hail as hl
+     t = hl.utils.range_table(50, 3)
+     t = t.filter((t.idx % 3 == 0) | ((t.idx / 7) % 3 == 0))
+     n = t.count()
+     print(f'n {n}')
+     assert n == 17
+     EOF
+     HAIL_BILLING_PROJECT=test HAIL_DONT_RETRY_500=1 HAIL_QUERY_BACKEND=service python3 test.py
+   timeout: 300
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: ssl-config-query-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
+   inputs:
+     - from: /wheel-container.tar
+       to: /io/wheel-container.tar
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - create_certs
+    - build_hail
+    - hail_run_image
+    - deploy_query
  - kind: runImage
    name: test_hail_services_java
    image:
@@ -1331,9 +1378,14 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /deploy-config
+    - name: ssl-config-services-java-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
    dependsOn:
     - default_ns
     - batch_pods_ns
+    - create_certs
     - hail_run_image
     - build_hail
     - deploy_batch
@@ -1487,6 +1539,7 @@ steps:
     - create_accounts
     - default_ns
     - batch_pods_ns
+    - create_certs
     - deploy_ci
     - test_ci_image
     - create_ci_test_repo

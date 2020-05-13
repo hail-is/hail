@@ -11,6 +11,7 @@ import org.apache.http.client.methods.{HttpDelete, HttpGet, HttpPatch, HttpPost,
 import org.apache.http.entity.{ByteArrayEntity, ContentType, StringEntity}
 import org.apache.http.impl.client.{CloseableHttpClient, HttpClients}
 import org.apache.http.util.EntityUtils
+import org.apache.log4j.{LogManager, Logger}
 import org.json4s.{DefaultFormats, Formats, JObject, JValue}
 import org.json4s.jackson.JsonMethods
 
@@ -32,19 +33,50 @@ class ClientResponseException(
   def this(statusCode: Int, message: String) = this(statusCode, message, null)
 }
 
-class BatchClient extends AutoCloseable {
-  private[this] val baseUrl = DeployConfig.get.baseUrl("batch")
+object BatchClient {
+  lazy val log: Logger = LogManager.getLogger("BatchClient")
 
-  private[this] val httpClient: CloseableHttpClient = HttpClients.createDefault();
+  val httpClient: CloseableHttpClient = {
+    log.info("creating HttpClient")
+    HttpClients.custom()
+      .setSSLContext(tls.getSSLContext)
+      .build()
+  }
+
+  def fromSessionID(sessionID: String): BatchClient = {
+    val deployConfig = DeployConfig.get
+    new BatchClient(deployConfig,
+      new Tokens(Map(
+        deployConfig.getServiceNamespace("batch") -> sessionID)))
+  }
+}
+
+class BatchClient(
+  deployConfig: DeployConfig,
+  tokens: Tokens
+) {
+  def this() = this(DeployConfig.get, Tokens.get)
+
+  def this(deployConfig: DeployConfig) = this(deployConfig, Tokens.get)
+
+  def this(tokens: Tokens) = this(DeployConfig.get, tokens)
+
+  import BatchClient._
+
+  private[this] val baseUrl = deployConfig.baseUrl("batch")
 
   private[this] def request(req: HttpUriRequest, body: HttpEntity = null): JValue = {
+    log.info(s"request ${ req.getMethod } ${ req.getURI }")
+
     if (body != null)
       req.asInstanceOf[HttpEntityEnclosingRequest].setEntity(body)
-    Tokens.get.addServiceAuthHeaders("batch", req)
+
+    tokens.addServiceAuthHeaders("batch", req)
 
     retryTransientErrors {
       using(httpClient.execute(req)) { resp =>
         val statusCode = resp.getStatusLine.getStatusCode
+        log.info(s"request: response $statusCode")
         if (statusCode < 200 || statusCode >= 300) {
           val entity = resp.getEntity
           val message =
@@ -62,6 +94,7 @@ class BatchClient extends AutoCloseable {
               null
             else
               JsonMethods.parse(new String(s))
+
           }
         } else
           null
@@ -87,7 +120,7 @@ class BatchClient extends AutoCloseable {
   def patch(path: String): JValue =
     request(new HttpPatch(s"$baseUrl$path"))
 
-  def delete(path: String): JValue =
+  def delete(path: String, token: String): JValue =
     request(new HttpDelete(s"$baseUrl$path"))
 
   def createJobs(batchID: Long, jobs: IndexedSeq[JObject]): Unit = {
@@ -165,7 +198,18 @@ class BatchClient extends AutoCloseable {
     throw new AssertionError("unreachable")
   }
 
-  def close() {
-    httpClient.close()
+  def run(batchJson: JObject, jobs: IndexedSeq[JObject]): JValue = {
+    val resp = post("/api/v1alpha/batches/create", json = batchJson)
+
+    implicit val formats: Formats = DefaultFormats
+    val batchID = (resp \ "id").extract[Long]
+
+    log.info(s"run: created batch $batchID")
+
+    createJobs(batchID, jobs)
+
+    patch(s"/api/v1alpha/batches/$batchID/close")
+
+    waitForBatch(batchID)
   }
 }

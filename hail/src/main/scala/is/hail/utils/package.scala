@@ -3,8 +3,9 @@ package is.hail
 import java.io._
 import java.lang.reflect.Method
 import java.net.{URI, URLClassLoader}
+import java.security.SecureRandom
 import java.text.SimpleDateFormat
-import java.util.Date
+import java.util.{Base64, Date}
 import java.util.zip.{Deflater, Inflater}
 
 import is.hail.annotations.ExtendedOrdering
@@ -854,6 +855,13 @@ package object utils extends Logging
 
   def virtualOffsetCompressedOffset(offset: Long): Long = {
     offset >> 16
+  }
+
+  def tokenUrlSafe(n: Int): String = {
+    val bytes = new Array[Byte](32)
+    val random = new SecureRandom()
+    random.nextBytes(bytes)
+    Base64.getUrlEncoder.encodeToString(bytes)
   }
 }
 
