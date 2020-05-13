@@ -515,7 +515,8 @@ class RequirednessSuite extends HailSuite {
     )) {
       val (row, global) = reader.rowAndGlobalPTypes(ctx, rType)
       val node = TableRead(rType, dropRows = false, reader)
-      val actual = Requiredness.apply(node, ctx).r.lookup(node).asInstanceOf[RTable]
+      val res = Requiredness.apply(node, ctx)
+      val actual = res.r.lookup(node).asInstanceOf[RTable]
       assert(actual.rowType.canonicalPType(node.typ.rowType) == row, s"\n\n${ Pretty(node) }: \n$actual\n\n${ dump(res.r) }")
       assert(actual.globalType.canonicalPType(node.typ.globalType) == global, s"\n\n${ Pretty(node) }: \n$actual\n\n${ dump(res.r) }")
     }
