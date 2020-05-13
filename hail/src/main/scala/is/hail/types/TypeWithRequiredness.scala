@@ -110,7 +110,7 @@ final case class RPrimitive() extends TypeWithRequiredness {
 
   def _unionLiteral(a: Annotation): Unit = ()
   def _matchesPType(pt: PType): Boolean = RPrimitive.typeSupported(pt.virtualType)
-  def _unionPType(pType: PType): Unit = assert(matchesPType(pType))
+  def _unionPType(pType: PType): Unit = assert(RPrimitive.typeSupported(pType.virtualType))
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RPrimitive = {
     assert(newChildren.isEmpty)
     RPrimitive()
