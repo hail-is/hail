@@ -3787,7 +3787,7 @@ class NDArrayNumericExpression(NDArrayExpression):
         return self._bin_op_numeric_reverse('//', other)
 
     def __rmatmul__(self, other):
-        if not isinstance(other, ir.NDArrayNumericExpression):
+        if not isinstance(other, NDArrayNumericExpression):
             other = hl._nd.array(other)
         return other.__matmul__(self)
 
@@ -3815,7 +3815,7 @@ class NDArrayNumericExpression(NDArrayExpression):
         -------
         :class:`.NDArrayNumericExpression` or :class:`.NumericExpression`
         """
-        if not isinstance(other, ir.NDArrayNumericExpression):
+        if not isinstance(other, NDArrayNumericExpression):
             other = hl._nd.array(other)
 
         if self.ndim == 0 or other.ndim == 0:
