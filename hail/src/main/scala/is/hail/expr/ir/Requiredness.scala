@@ -226,6 +226,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
 
       // always required
       case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die =>
+      case _: CombOpValue | _: AggStateValue =>
       case x if x.typ == TVoid =>
       case ApplyComparisonOp(EQWithNA(_, _), _, _) | ApplyComparisonOp(NEQWithNA(_, _), _, _) | ApplyComparisonOp(Compare(_, _), _, _) =>
       case ApplyComparisonOp(op, l, r) =>
@@ -433,8 +434,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.fromPType(spec.encodedType.decodedPType(rt))
       case In(_, t) => requiredness.fromPType(t)
       case LiftMeOut(f) => requiredness.unionFrom(lookup(f))
-      case _: ResultOp | _: RunAgg | _: RunAggScan | _: CombOpValue | _: AggStateValue => ???
-
+      case _: ResultOp | _: RunAgg | _: RunAggScan => ???
     }
     requiredness.probeChangedAndReset()
   }

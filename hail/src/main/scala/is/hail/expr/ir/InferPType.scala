@@ -82,8 +82,8 @@ object InferPType {
   }
 
   def unifyPTypes(pTypes: Seq[PType], result: TypeWithRequiredness): PType = {
-    assert(pTypes.isEmpty || pTypes.tail.forall(pt => pt.virtualType == pTypes.head.virtualType))
-    if (pTypes.nonEmpty && pTypes.tail.forall(pt => pt == pTypes.head))
+    assert(pTypes.tail.forall(pt => pt.virtualType == pTypes.head.virtualType))
+    if (pTypes.tail.forall(pt => pt == pTypes.head))
       pTypes.head
     else result.canonicalPType(pTypes.head.virtualType)
   }
@@ -193,6 +193,7 @@ object InferPType {
             if (seqs != null)
               seqs(i) += RecursiveArrayBuilderElement(x, None)
         }
+      case _ => _inferAggs(node, inits, seqs)
     }
 
   private def _inferWithRequiredness(node: IR, env: Env[PType], requiredness: RequirednessAnalysis, usesAndDefs: UsesAndDefs, aggs: Array[AggStatePhysicalSignature] = null): Unit = {
@@ -357,6 +358,7 @@ object InferPType {
         }.toFastIndexedSeq, requiredness(node).required)
       case MakeArray(irs, t) =>
         val r = coerce[RIterable](requiredness(node))
+        if (irs.isEmpty) r.canonicalPType(t) else
         PCanonicalArray(unifyPTypes(irs.map(_.pType), r.elementType), r.required)
       case GetTupleElement(o, idx) =>
         val t = coerce[PTuple](o.pType)
@@ -378,7 +380,8 @@ object InferPType {
         spec.decodedPType(requestedType).setRequired(requiredness(node).required)
       case MakeStream(irs, t) =>
         val r = coerce[RIterable](requiredness(node))
-        PCanonicalStream(unifyPTypes(irs.map(_.pType), r.elementType), r.required)
+        if (irs.isEmpty) r.canonicalPType(t) else
+          PCanonicalStream(unifyPTypes(irs.map(_.pType), r.elementType), r.required)
       case x@ResultOp(resultIdx, sigs) =>
         PCanonicalTuple(true, (resultIdx until resultIdx + sigs.length).map(i => aggs(i).resultType): _*)
       case x@RunAgg(body, result, signature) => result.pType

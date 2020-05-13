@@ -1096,9 +1096,9 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       pfs.map(pf => (pf.name, pf.typ))
 
     def unionFieldPTypes(ps: PStruct, ps2: PStruct): IndexedSeq[(String, PType)] =
-      ps.fields.zip(ps2.fields).map({
-        case(pf1, pf2) => (pf1.name, InferPType.unifyPTypes(Seq(pf1.typ, pf2.typ)))
-      })
+      ps.fields.zip(ps2.fields).map { case(pf1, pf2) =>
+        (pf1.name, InferPType.unifyPTypes(Seq(pf1.typ, pf2.typ)))
+      }
 
     def castFieldRequiredeness(ps: PStruct, required: Boolean): IndexedSeq[(String, PType)] =
       ps.fields.map(pf => (pf.name, pf.typ.setRequired(required)))
