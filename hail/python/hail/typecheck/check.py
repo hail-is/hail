@@ -38,23 +38,29 @@ class TypeChecker(object):
         return f"{extract(type(arg))}: {arg}"
 
 
-class DeferredLiteralChecker(TypeChecker):
+class DeferredChecker(TypeChecker):
     def __init__(self, f):
         super().__init__()
         self.f = f
-        self.t = None
+        self._tc = None
+
+    @property
+    def tc(self):
+        if self._tc is None:
+            t = self.f()
+            if isinstance(t, type):
+                self._tc = LiteralChecker(t)
+            elif isinstance(t, TypeChecker):
+                self._tc = t
+            else:
+                raise RuntimeError("deferred typechecker must return 'type' or 'TypeChecker', found '%s'" % type(t))
+        return self._tc
 
     def check(self, x, caller, param):
-        if self.t is None:
-            self.t = self.f()
-        if isinstance(x, self.t):
-            return x
-        raise TypecheckFailure
+        return self.tc.check(x, caller, param)
 
     def expects(self):
-        if self.t is None:
-            self.t = self.f()
-        return extract(self.t)
+        return self.tc.expects()
 
 
 class MultipleTypeChecker(TypeChecker):
@@ -381,7 +387,7 @@ def only(t):
     if isinstance(t, type):
         return LiteralChecker(t)
     elif callable(t):
-        return DeferredLiteralChecker(t)
+        return DeferredChecker(t)
     elif isinstance(t, TypeChecker):
         return t
     else:
