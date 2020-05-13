@@ -1,7 +1,7 @@
 import abc
 import json
 
-from ..typecheck import *
+from ..typecheck import typecheck_method, sequenceof
 from ..utils.misc import escape_str
 
 
@@ -30,7 +30,7 @@ class BlockMatrixNativeReader(BlockMatrixReader):
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixNativeReader) and \
-               self.path == other.path
+            self.path == other.path
 
 
 class BlockMatrixBinaryReader(BlockMatrixReader):
@@ -49,9 +49,9 @@ class BlockMatrixBinaryReader(BlockMatrixReader):
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixBinaryReader) and \
-               self.path == other.path and \
-               self.shape == other.shape and \
-               self.block_size == other.block_size
+            self.path == other.path and \
+            self.shape == other.shape and \
+            self.block_size == other.block_size
 
 
 class BlockMatrixPersistReader(BlockMatrixReader):
@@ -66,7 +66,7 @@ class BlockMatrixPersistReader(BlockMatrixReader):
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixPersistReader) and \
-               self.id == other.id
+            self.id == other.id
 
     def unpersisted(self, ir):
         return self.original

@@ -3,7 +3,6 @@ import json
 from typing import Dict, List
 
 from .fs import FS
-from hail.utils.java import Env
 
 
 class HadoopFS(FS):
@@ -44,6 +43,7 @@ class HadoopFS(FS):
 
     def mkdir(self, path: str) -> None:
         return self._jfs.mkDir(path)
+
 
 class HadoopReader(io.RawIOBase):
     def __init__(self, hfs, path, buffer_size):

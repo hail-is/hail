@@ -1,7 +1,7 @@
 import abc
 import json
 from hail.expr.types import hail_type
-from ..typecheck import *
+from ..typecheck import typecheck_method, nullable, dictof
 from ..utils.misc import escape_str
 from .export_type import ExportType
 
@@ -43,13 +43,12 @@ class MatrixNativeWriter(MatrixWriter):
 
     def __eq__(self, other):
         return isinstance(other, MatrixNativeWriter) and \
-               other.path == self.path and \
-               other.overwrite == self.overwrite and \
-               other.stage_locally == self.stage_locally and \
-               other.codec_spec == self.codec_spec and \
-               other.partitions == self.partitions and \
-               other.partitions_type == self.partitions_type
-               
+            other.path == self.path and \
+            other.overwrite == self.overwrite and \
+            other.stage_locally == self.stage_locally and \
+            other.codec_spec == self.codec_spec and \
+            other.partitions == self.partitions and \
+            other.partitions_type == self.partitions_type
 
 
 class MatrixVCFWriter(MatrixWriter):
@@ -73,10 +72,10 @@ class MatrixVCFWriter(MatrixWriter):
 
     def __eq__(self, other):
         return isinstance(other, MatrixVCFWriter) and \
-               other.path == self.path and \
-               other.append == self.append and \
-               other.export_type == self.export_type and \
-               other.metadata == self.metadata
+            other.path == self.path and \
+            other.append == self.append and \
+            other.export_type == self.export_type and \
+            other.metadata == self.metadata
 
 
 class MatrixGENWriter(MatrixWriter):
@@ -94,8 +93,8 @@ class MatrixGENWriter(MatrixWriter):
 
     def __eq__(self, other):
         return isinstance(other, MatrixGENWriter) and \
-               other.path == self.path and \
-               other.precision == self.precision
+            other.path == self.path and \
+            other.precision == self.precision
 
 
 class MatrixBGENWriter(MatrixWriter):
@@ -112,8 +111,8 @@ class MatrixBGENWriter(MatrixWriter):
 
     def __eq__(self, other):
         return isinstance(other, MatrixBGENWriter) and \
-               other.path == self.path and \
-               other.export_type == self.export_type
+            other.path == self.path and \
+            other.export_type == self.export_type
 
 
 class MatrixPLINKWriter(MatrixWriter):
@@ -128,7 +127,7 @@ class MatrixPLINKWriter(MatrixWriter):
 
     def __eq__(self, other):
         return isinstance(other, MatrixPLINKWriter) and \
-               other.path == self.path
+            other.path == self.path
 
 
 class MatrixNativeMultiWriter(object):
@@ -149,6 +148,6 @@ class MatrixNativeMultiWriter(object):
 
     def __eq__(self, other):
         return isinstance(other, MatrixNativeMultiWriter) and \
-               other.prefix == self.prefix and \
-               other.overwrite == self.overwrite and \
-               other.stage_locally == self.stage_locally
+            other.prefix == self.prefix and \
+            other.overwrite == self.overwrite and \
+            other.stage_locally == self.stage_locally
