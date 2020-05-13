@@ -773,7 +773,6 @@ object EmitStream {
                 (startt.m || stopt.m || stept.m).mux[Unit](
                   none,
                   Code(
-                    Code._println("Making a StreamRange"),
                     start := startt.value,
                     stop := stopt.value,
                     step := stept.value,
@@ -784,12 +783,7 @@ object EmitStream {
                     (llen > const(Int.MaxValue.toLong)).mux[Unit](
                       Code._fatal[Unit]("Array range cannot have more than MAXINT elements."),
                       some(SizedStream(
-                        Code(
-                          Code._println("Going to set len"),
-                          len := llen.toI,
-                          Code._println("len just set"),
-                          Code._println(len.get.toS)
-                        ),
+                        len := llen.toI,
                         range(mb, start, step, len)
                           .map(i => EmitCode(Code._empty, const(false), PCode(eltType, i))),
                         Some(len)))))))

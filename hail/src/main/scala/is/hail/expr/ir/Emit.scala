@@ -1230,14 +1230,15 @@ class Emit[C](
         val streamOpt = emitStream(a)
         val lenOpt = streamOpt.map { ss =>
           val count = mb.newLocal[Int]("stream_length")
-          val lenCode = Code(
-            count := 0,
-            ss.getStream.forEach(mb, _ => count := count + 1),
-            Code._println("Computed length ="),
-            Code._println(count.get.toS),
-            count.get
-          )
-
+          val lenCode =
+            ss.length match {
+              case Some(len) => Code(ss.setup, len)
+              case None =>
+                Code(
+                  ss.getStream.forEach(mb, _ => count := count + 1),
+                  count.get
+                )
+            }
           PCode(x.pType, lenCode)
         }
         COption.toEmitCode(lenOpt, mb)
