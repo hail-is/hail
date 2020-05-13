@@ -254,7 +254,8 @@ class RequirednessSuite extends HailSuite {
     val nodes = new ArrayBuilder[Array[Any]](50)
 
     nodes += Array[Any](TableRange(1, 1), PCanonicalStruct(required, "idx" -> PInt32(required)), PCanonicalStruct.empty(required))
-//    nodes += Array[Any](TableRead(1, 1), PCanonicalStruct(required, "idx" -> PInt64(required)), PCanonicalStruct.empty(required))
+    TableRead(TableType, dropRows, reader)
+    nodes += Array[Any](, PCanonicalStruct(required, "idx" -> PInt64(required)), PCanonicalStruct.empty(required))
 
     val table = TableParallelize(makestruct(
       "rows" -> MakeArray(makestruct(
