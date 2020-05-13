@@ -195,6 +195,7 @@ object Simplify {
 
     case ArrayLen(ToArray(StreamMap(s, _, _))) => StreamLen(s)
     case StreamLen(StreamMap(s, _, _)) => StreamLen(s)
+    case StreamLen(StreamFlatMap(a, name, body)) => streamSumIR(StreamMap(a, name, StreamLen(body)))
 
     case ArrayLen(StreamFlatMap(a, _, MakeArray(args, _))) => ApplyBinaryPrimOp(Multiply(), I32(args.length), ArrayLen(a))
 
