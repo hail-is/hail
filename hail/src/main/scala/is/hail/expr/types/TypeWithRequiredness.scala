@@ -26,7 +26,7 @@ object TypeWithRequiredness {
     case t: TNDArray => RNDArray(apply(t.elementType))
     case t: TInterval => RInterval(apply(t.pointType), apply(t.pointType))
     case t: TStruct => RStruct(t.fields.map(f => f.name -> apply(f.typ)))
-    case t: TTuple => RTuple(t.fields.map(f => apply(f.typ)))
+    case t: TTuple => RTuple(t.fields.map(f => RField(f.name, apply(f.typ), f.index)))
     case t: TUnion => RUnion(t.cases.map(c => c.name -> apply(c.typ)))
   }
 }
@@ -242,8 +242,10 @@ sealed abstract class RBaseStruct extends TypeWithRequiredness {
       PCanonicalStruct(required = required,
         fields.map(f => f.name -> f.typ.canonicalPType(ts.fieldType(f.name))): _*)
     case ts: TTuple =>
-      PCanonicalTuple(required = required,
-        fields.map(f => f.typ.canonicalPType(ts.types(f.index))): _*)
+      PCanonicalTuple(fields.zip(ts.fields).map { case(fr, ft) =>
+        assert(fr.index == ft.index)
+        PTupleField(fr.index, fr.typ.canonicalPType(ft.typ))
+      }, required = required)
   }
 }
 
@@ -262,19 +264,14 @@ case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
   def _toString: String = s"RStruct[${ fields.map(f => s"${ f.name }: ${ f.typ.toString }").mkString(",") }]"
 }
 
-object RTuple {
-  def apply(fields: Seq[TypeWithRequiredness]): RTuple =
-    RTuple(Array.tabulate(fields.length)(i => RField(s"$i", fields(i), i)))
-}
-
 case class RTuple(fields: IndexedSeq[RField]) extends RBaseStruct {
-  assert(fields.zipWithIndex.forall { case (actual, expected) => actual.index == expected })
-  val types: Seq[TypeWithRequiredness] = fields.map(_.typ)
+  val fieldType: Map[Int, TypeWithRequiredness] = fields.map(f => f.index -> f.typ).toMap
+  def field(idx: Int): TypeWithRequiredness = fieldType(idx)
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RTuple = {
     assert(newChildren.length == fields.length)
-    RTuple(newChildren.map(coerce[TypeWithRequiredness]))
+    RTuple(fields.zip(newChildren).map { case (f, c) => RField(f.name, coerce[TypeWithRequiredness](c), f.index) })
   }
-  def _toString: String = s"RTuple[${ fields.map(f => f.typ.toString).mkString(",") }]"
+  def _toString: String = s"RTuple[${ fields.map(f => s"${ f.index }: ${ f.typ.toString }").mkString(",") }]"
 }
 
 case class RUnion(cases: Seq[(String, TypeWithRequiredness)]) extends TypeWithRequiredness {
