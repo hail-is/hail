@@ -1563,11 +1563,13 @@ class IRSuite extends HailSuite {
     val lit6 = ToStream(Literal(TArray(TFloat64), FastIndexedSeq(0d, -1d, 2.5d, -3d, 4d, null)))
     val range6dup = StreamRange(0, 6, 1)
 
-    def zipToTuple(behavior: ArrayZipBehavior, irs: IR*): IR = ToArray(StreamZip(
+    def zip(behavior: ArrayZipBehavior, irs: IR*): IR = StreamZip(
       irs.toFastIndexedSeq,
       irs.indices.map(_.toString),
       MakeTuple.ordered(irs.zipWithIndex.map { case (ir, i) => Ref(i.toString, ir.typ.asInstanceOf[TStream].elementType) }),
-      behavior))
+      behavior
+    )
+    def zipToTuple(behavior: ArrayZipBehavior, irs: IR*): IR = ToArray(zip(behavior, irs: _*))
 
     for (b <- Array(ArrayZipBehavior.TakeMinLength, ArrayZipBehavior.ExtendNA)) {
       assertEvalSame(zipToTuple(b, range12), FastIndexedSeq())
@@ -1586,6 +1588,11 @@ class IRSuite extends HailSuite {
       assertEvalSame(zipToTuple(b, range12), FastIndexedSeq())
       assertEvalSame(zipToTuple(b, empty), FastIndexedSeq())
     }
+
+    assertEvalsTo(StreamLen(zip(ArrayZipBehavior.TakeMinLength, range6, range8)), 6)
+    assertEvalsTo(StreamLen(zip(ArrayZipBehavior.ExtendNA, range6, range8)), 8)
+    assertEvalsTo(StreamLen(zip(ArrayZipBehavior.AssertSameLength, range8, range8)), 8)
+    assertEvalsTo(StreamLen(zip(ArrayZipBehavior.AssumeSameLength, range8, range8)), 8)
 
     // https://github.com/hail-is/hail/issues/8359
     is.hail.TestUtils.assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range6, range8): IR, "zip: length mismatch": String)
@@ -1785,6 +1792,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(StreamTake(a, I32(2))), FastIndexedSeq(3, null))
     assertEvalsTo(ToArray(StreamTake(a, I32(5))), FastIndexedSeq(3, null, 7))
     assertFatal(ToArray(StreamTake(a, I32(-1))), "StreamTake: negative length")
+    assertEvalsTo(StreamLen(StreamTake(a, 2)), 2)
   }
 
   @Test def testStreamDrop() {
@@ -1797,6 +1805,8 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(StreamDrop(a, I32(2))), FastIndexedSeq(7))
     assertEvalsTo(ToArray(StreamDrop(a, I32(5))), FastIndexedSeq())
     assertFatal(ToArray(StreamDrop(a, I32(-1))), "StreamDrop: negative num")
+
+    assertEvalsTo(StreamLen(StreamDrop(a, 1)), 2)
   }
 
   def toNestedArray(stream: IR): IR = {
