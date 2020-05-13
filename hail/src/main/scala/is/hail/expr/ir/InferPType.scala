@@ -82,7 +82,7 @@ object InferPType {
   }
 
   def unifyPTypes(pTypes: Seq[PType], result: TypeWithRequiredness): PType = {
-    assert(pTypes.tail.forall(pt => pt.virtualType == pTypes.head.virtualType))
+    assert(pTypes.isEmpty || pTypes.tail.forall(pt => pt.virtualType == pTypes.head.virtualType))
     if (pTypes.nonEmpty && pTypes.tail.forall(pt => pt == pTypes.head))
       pTypes.head
     else result.canonicalPType(pTypes.head.virtualType)
