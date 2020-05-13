@@ -239,7 +239,7 @@ object InferPType {
         lookup(x.name, requiredness(node), usesAndDefs.defs.lookup(node).asInstanceOf[IR])
       case MakeNDArray(data, shape, rowMajor) =>
         val nElem = shape.pType.asInstanceOf[PTuple].size
-        PCanonicalNDArray(coerce[PArray](data.pType).elementType.setRequired(true), nElem, data.pType.required && shape.pType.required)
+        PCanonicalNDArray(coerce[PArray](data.pType).elementType.setRequired(true), nElem, requiredness(node).required)
       case StreamRange(start: IR, stop: IR, step: IR) =>
         assert(start.pType isOfType stop.pType)
         assert(start.pType isOfType step.pType)
