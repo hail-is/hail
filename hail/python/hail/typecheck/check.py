@@ -38,18 +38,23 @@ class TypeChecker(object):
         return f"{extract(type(arg))}: {arg}"
 
 
-class LiteralStrChecker(TypeChecker):
-    def __init__(self, tstr):
+class DeferredLiteralChecker(TypeChecker):
+    def __init__(self, f):
         super().__init__()
-        self.tstr = tstr
+        self.f = f
+        self.t = None
 
     def check(self, x, caller, param):
-        if extract(type(x)) == self.tstr:
+        if self.t is None:
+            self.t = self.f()
+        if isinstance(x, self.t):
             return x
         raise TypecheckFailure
 
     def expects(self):
-        return self.tstr
+        if self.t is None:
+            self.t = self.f()
+        return extract(self.t)
 
 
 class MultipleTypeChecker(TypeChecker):
@@ -250,8 +255,7 @@ class LiteralChecker(TypeChecker):
     def check(self, x, caller, param):
         if isinstance(x, self.t):
             return x
-        else:
-            raise TypecheckFailure
+        raise TypecheckFailure
 
     def expects(self):
         return extract(self.t)
@@ -376,12 +380,12 @@ class FunctionChecker(TypeChecker):
 def only(t):
     if isinstance(t, type):
         return LiteralChecker(t)
-    elif isinstance(t, str):
-        return LiteralStrChecker(t)
+    elif callable(t):
+        return DeferredLiteralChecker(t)
     elif isinstance(t, TypeChecker):
         return t
     else:
-        raise RuntimeError("invalid typecheck signature: expected 'type', 'str', or 'TypeChecker', found '%s'" % type(t))
+        raise RuntimeError("invalid typecheck signature: expected 'type', 'lambda', or 'TypeChecker', found '%s'" % type(t))
 
 
 def exactly(v, reference_equality=False):

@@ -37,7 +37,7 @@ class Interval(object):
                       end=anytype,
                       includes_start=bool,
                       includes_end=bool,
-                      point_type=nullable('hail.expr.types.hail_type'))
+                      point_type=nullable(lambda: hl.expr.types.hail_type))
     def __init__(self, start, end, includes_start=True, includes_end=False, point_type=None):
         if point_type is None:
             from hail.expr.expressions import impute_type, unify_types_limited
