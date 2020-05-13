@@ -435,7 +435,7 @@ AND timestamp >= "{mark}"
 '''
 
                 new_mark = None
-                async for event in self.logging_client.list_entries(
+                async for event in await self.logging_client.list_entries(
                         body={
                             'resourceNames': [f'projects/{PROJECT}'],
                             'orderBy': 'timestamp asc',
