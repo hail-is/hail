@@ -1231,10 +1231,10 @@ class Emit[C](
         val lenOpt = streamOpt.map { ss =>
           val count = mb.newLocal[Int]("stream_length")
           val lenCode = Code(
-            const(ss.length.isDefined).mux(
-              count := ss.length.get,
-              ss.getStream.forEach(mb, _ => count := count + 1)
-            ),
+            count := 0,
+            ss.getStream.forEach(mb, _ => count := count + 1),
+            Code._println("Computed length ="),
+            Code._println(count.get.toS),
             count.get
           )
 
