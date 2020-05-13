@@ -544,6 +544,7 @@ steps:
      cd repo
      {{ code.checkout_script }}
      cd hail
+     time retry ./gradlew --version
      time make jars python-version-info wheel
      time (cd python && zip -r hail.zip hail hailtop)
      time tar czf test.tar.gz -C python test
@@ -1715,6 +1716,7 @@ steps:
      fi
 
      cd hail
+     time retry ./gradlew --version
      make test-dataproc DEV_CLARIFIER=ci_test_dataproc/
    dependsOn:
      - ci_utils_image
@@ -1759,6 +1761,7 @@ steps:
          exit 0
      fi
 
+     time retry ./gradlew --version
      make wheel upload-artifacts DEPLOY_REMOTE=origin
 
      bash scripts/deploy.sh $(cat /io/hail_pip_version) \
