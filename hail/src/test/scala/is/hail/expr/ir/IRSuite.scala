@@ -1770,6 +1770,9 @@ class IRSuite extends HailSuite {
 
     val streamOfStreams = mapIR(rangeIR(5)) { elementRef => rangeIR(elementRef) }
     assertEvalsTo(StreamLen(flatMapIR(streamOfStreams){ x => x}), 4 + 3 + 2 + 1)
+
+    val filteredRange = StreamLen(StreamFilter(rangeIR(12), "x", irToPrimitiveIR(Ref("x", TInt32)) < 5))
+    assertEvalsTo(filteredRange, 5)
   }
 
   @Test def testStreamTake() {
