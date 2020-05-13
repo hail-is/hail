@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.expr.Nat
 import is.hail.expr.ir.agg.CallStatsState
-import is.hail.types.{BaseTypeWithRequiredness, RTable, TypeWithRequiredness}
+import is.hail.types.{BaseTypeWithRequiredness, RTable, TableType, TypeWithRequiredness}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
@@ -254,8 +254,6 @@ class RequirednessSuite extends HailSuite {
     val nodes = new ArrayBuilder[Array[Any]](50)
 
     nodes += Array[Any](TableRange(1, 1), PCanonicalStruct(required, "idx" -> PInt32(required)), PCanonicalStruct.empty(required))
-    TableRead(TableType, dropRows, reader)
-    nodes += Array[Any](, PCanonicalStruct(required, "idx" -> PInt64(required)), PCanonicalStruct.empty(required))
 
     val table = TableParallelize(makestruct(
       "rows" -> MakeArray(makestruct(
@@ -494,6 +492,33 @@ class RequirednessSuite extends HailSuite {
     val actual = res.r.lookup(node).asInstanceOf[RTable]
     assert(actual.rowType.canonicalPType(node.typ.rowType) == row, s"\n\n${Pretty(node)}: \n$actual\n\n${ dump(res.r) }")
     assert(actual.globalType.canonicalPType(node.typ.globalType) == global, s"\n\n${Pretty(node)}: \n$actual\n\n${ dump(res.r) }")
+  }
+
+  @Test def testTableReader() {
+    val table = TableParallelize(makestruct(
+      "rows" -> MakeArray(makestruct(
+        "a" -> nestedarray(optional, required, optional),
+        "b" -> struct(required, required, required, optional),
+        "c" -> array(optional, required))),
+      "global" -> makestruct(
+        "x" -> array(required, optional),
+        "y" -> int(optional),
+        "z" -> struct(required, required, required, optional))
+    ), None)
+
+    val path = ctx.createTmpPath("test-table-requiredness", "ht")
+    CompileAndEvaluate[Unit](ctx, TableWrite(table, TableNativeWriter(path, overwrite = true)), false)
+
+    val reader = TableNativeReader(fs, TableNativeReaderParameters(path, None))
+    for (rType <- Array(table.typ,
+      TableType(TStruct("a" -> tnestedarray), FastIndexedSeq(), TStruct("z" -> tstruct))
+    )) {
+      val (row, global) = reader.rowAndGlobalPTypes(ctx, rType)
+      val node = TableRead(rType, dropRows = false, reader)
+      val actual = Requiredness.apply(node, ctx).r.lookup(node).asInstanceOf[RTable]
+      assert(actual.rowType.canonicalPType(node.typ.rowType) == row, s"\n\n${ Pretty(node) }: \n$actual\n\n${ dump(res.r) }")
+      assert(actual.globalType.canonicalPType(node.typ.globalType) == global, s"\n\n${ Pretty(node) }: \n$actual\n\n${ dump(res.r) }")
+    }
   }
 
   @Test def testSubsettedTuple(): Unit = {
