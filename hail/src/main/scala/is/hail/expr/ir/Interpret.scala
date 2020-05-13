@@ -704,8 +704,7 @@ object Interpret {
 
           val read = extracted.deserialize2(ctx, spec, physicalAggs)
           val write = extracted.serialize2(ctx, spec, physicalAggs)
-          val seqOpF = extracted.combOpF2(ctx, spec, physicalAggs)
-          val combOpF = extracted.combOpF(ctx, spec, physicalAggs)
+          val combOpF = extracted.combOpF3(ctx, spec, physicalAggs)
 
           val (rTyp: PTuple, f) = CompileWithAggregators2[AsmFunction2RegionLongLong](ctx,
             physicalAggs,
@@ -748,11 +747,12 @@ object Interpret {
 
           val aggResults = if (isCommutative) {
             val rv = value.rvd.combine[Array[Byte], RegionValue](
-              zero, itF, read, write, seqOpF, tree = useTreeAggregate)
+              zero, itF, read, write, (rv, a) => combOpF(rv, read(a)), tree = useTreeAggregate)
             write(rv)
           } else {
-            value.rvd.combineNonCommutative[Array[Byte], RegionValue](
-              zero, itF, read, write, seqOpF, combOpF, tree = useTreeAggregate)
+            val rv = value.rvd.combineNonCommutative[Array[Byte], RegionValue](
+              zero, itF, read, write, (rv, a) => combOpF(rv, read(a)), combOpF, tree = useTreeAggregate)
+            write(rv)
           }
 
           Region.scoped { r =>

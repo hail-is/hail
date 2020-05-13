@@ -392,7 +392,7 @@ class EmitClassBuilder[C](
     val rightAggOff = genFieldThisRef[Long]("agg_combine_right_off")
 
     val setLeftF = newEmitMethod("setLeftAggState", FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
-    val setRightF = newEmitMethod("setLeftAggState", FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
+    val setRightF = newEmitMethod("setRightAggState", FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
     val getLeftOffF = newEmitMethod("getLeftAggOffset", FastIndexedSeq[ParamType](), typeInfo[Long])
 
     val (_, leftStates) = EmitCodeBuilder.scoped(setLeftF) { cb =>

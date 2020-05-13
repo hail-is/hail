@@ -669,17 +669,17 @@ class RVD(
     deserialize: U => T,
     serialize: T => U,
     seqOp: (T, U) => T,
-    combOp: (U, U) => U,
+    combOp: (T, T) => T,
     tree: Boolean
-  ): U = {
+  ): T = {
     var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
 
     if (tree) {
       reduced = reduced.treeCombine(() => deserialize(zeroValue), serialize, seqOp)
     }
 
-    val ac = new AssociativeCombiner[U](zeroValue, combOp)
-    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), ac.combine _)
+    val ac = new AssociativeCombiner[T](deserialize(zeroValue), combOp)
+    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), (i, x: U) => ac.combine(i, deserialize(x)))
     ac.result()
   }
 

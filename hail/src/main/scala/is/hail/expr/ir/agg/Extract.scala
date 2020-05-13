@@ -136,31 +136,10 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
     }
   }
 
-  def combOpF2(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (RegionValue, Array[Byte]) => RegionValue = {
-    val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](
-      ctx,
-      physicalAggs ++ physicalAggs,
-      FastIndexedSeq(),
-      FastIndexedSeq(classInfo[Region]), UnitInfo,
-      Begin(
-        deserializeSet(1, 1, spec) +:
-        Array.tabulate(nAggs)(i => CombOp(i, nAggs + i, aggs(i)))))
-
-    { (rv: RegionValue, c2: Array[Byte]) =>
-      val aggRegion = rv.region
-      val comb = f(0, aggRegion)
-      comb.setAggState(aggRegion, rv.offset)
-      comb.setSerializedAgg(1, c2)
-      comb(aggRegion)
-      rv.setOffset(comb.getAggOffset())
-      rv
-    }
-  }
-
   def combOpF3(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (RegionValue, RegionValue) => RegionValue = {
     val fb = ir.EmitFunctionBuilder[AsmFunction0Unit](
       ctx,
-      "CompiledWithAggs",
+      "combOpF3",
       FastIndexedSeq(),
       PVoid)
     val (leftAggState, rightAggState) = fb.addCombinerAggStates(physicalAggs)
@@ -168,7 +147,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
       val aggSig = physicalAggs(i)
       val rvAgg = agg.Extract.getAgg(aggSig, aggSig.default)
       EmitCodeBuilder.scopedVoid(fb.emb) { cb =>
-        rvAgg.combOp(cb, leftAggState.states(i), rightAggState.states(nAggs + i))
+        rvAgg.combOp(cb, leftAggState.states(i), rightAggState.states(i))
       }
     }))
 
@@ -181,37 +160,6 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
       comb()
       l.setOffset(comb.getLeftAggOffset())
       l
-    }
-  }
-
-  class Combiner(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]) {
-    val (_, combF) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](
-      ctx,
-      physicalAggs ++ physicalAggs,
-      FastIndexedSeq(),
-      FastIndexedSeq(classInfo[Region]), UnitInfo,
-      Begin(
-        deserializeSet(1, 1, spec) +:
-          Array.tabulate(nAggs)(i => CombOp(i, nAggs + i, aggs(i)))))
-
-    val aggRegion: Region = Region(Region.SMALL)
-    val comb = combF(0, aggRegion)
-    comb.newAggState(aggRegion)
-
-    def setZero(zero: Array[Byte]): Unit = {
-      val z = deserialize(ctx, spec, physicalAggs)(aggRegion, zero)
-      comb.setAggState(aggRegion, z)
-    }
-
-    def update(a: Array[Byte]): Unit = {
-      comb.newAggState(aggRegion)
-      comb.setSerializedAgg(1, a)
-      comb(aggRegion)
-    }
-
-    def result(): Array[Byte] = {
-      val ptr = comb.getAggOffset()
-      serialize(ctx, spec, physicalAggs)(aggRegion, ptr)
     }
   }
 
