@@ -114,6 +114,7 @@ pytest: python/README.md $(PYTHON_JAR)
      -r A \
      --self-contained-html \
      --html=../build/reports/pytest.html \
+     test/hail \
      $(PYTEST_ARGS)"
 
 .PHONY: doctest
