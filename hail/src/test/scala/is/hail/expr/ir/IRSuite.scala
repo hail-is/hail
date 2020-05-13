@@ -1752,11 +1752,11 @@ class IRSuite extends HailSuite {
     assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, NA(TInt32), onKey = true), 2)
   }
 
-  @Test def testStreamLength(): Unit = {
-    val a = StreamLength(MakeStream(Seq(I32(3), NA(TInt32), I32(7)), TStream(TInt32)))
+  @Test def testStreamLen(): Unit = {
+    val a = StreamLen(MakeStream(Seq(I32(3), NA(TInt32), I32(7)), TStream(TInt32)))
     assertEvalsTo(a, 3)
 
-    val range1 = StreamLength(StreamRange(1, 12, 1))
+    val range1 = StreamLen(StreamRange(1, 12, 1))
     assertEvalsTo(range1, 11)
   }
 

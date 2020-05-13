@@ -205,7 +205,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case _: ApplyBinaryPrimOp |
            _: ApplyUnaryPrimOp |
            _: ArrayLen |
-           _: StreamLength |
+           _: StreamLen |
            _: ArrayZeros |
            _: StreamRange |
            _: WriteValue =>

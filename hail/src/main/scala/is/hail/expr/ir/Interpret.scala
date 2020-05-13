@@ -252,7 +252,7 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].length
-      case StreamLength(a) =>
+      case StreamLen(a) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
           null

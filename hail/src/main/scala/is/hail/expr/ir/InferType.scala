@@ -95,7 +95,7 @@ object InferType {
       case ToStream(a) =>
         val elt = coerce[TIterable](a.typ).elementType
         TStream(elt)
-      case StreamLength(a) => TInt32
+      case StreamLen(a) => TInt32
       case GroupByKey(collection) =>
         val elt = coerce[TBaseStruct](coerce[TStream](collection.typ).elementType)
         TDict(elt.types(0), TArray(elt.types(1)))

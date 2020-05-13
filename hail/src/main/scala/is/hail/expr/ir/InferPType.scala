@@ -311,7 +311,7 @@ object InferPType {
         infer(collection)
         val elt = coerce[PBaseStruct](coerce[PStream](collection.pType).elementType)
         PCanonicalDict(elt.types(0), PCanonicalArray(elt.types(1)), collection.pType.required)
-      case StreamLength(a) =>
+      case StreamLen(a) =>
         infer(a)
         PInt32(a.pType.required)
       case StreamTake(a, len) =>
