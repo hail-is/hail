@@ -10,6 +10,10 @@ from .utils import (
     flatten)
 from .process import CalledProcessError, check_shell, check_shell_output
 from .tqdm import tqdm, TQDM_DEFAULT_DISABLE
+from .rates import (
+    rate_cpu_hour_to_mcpu_msec, rate_gb_hour_to_mb_msec, rate_gb_month_to_mb_msec,
+    rate_instance_hour_to_fraction_msec
+)
 
 __all__ = [
     'time_msecs',
@@ -42,5 +46,9 @@ __all__ = [
     'sync_retry_transient_errors',
     'retry_response_returning_functions',
     'first_extant_file',
-    'secret_alnum_string'
+    'secret_alnum_string',
+    'rate_gb_hour_to_mb_msec',
+    'rate_gb_month_to_mb_msec',
+    'rate_cpu_hour_to_mcpu_msec',
+    'rate_instance_hour_to_fraction_msec'
 ]
