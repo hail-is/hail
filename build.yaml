@@ -686,25 +686,6 @@ steps:
     - batch_pods_ns
     - hail_run_image
     - build_hail
- - kind: runImage
-   name: test_hail_services_java
-   image:
-     valueFrom: hail_run_image.image
-   resources:
-     memory: "3.75G"
-     cpu: "1"
-   script: |
-     set -ex
-     cd /io
-     java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-services.xml
-   inputs:
-    - from: /hail-test.jar
-      to: /io/hail-test.jar
-    - from: /testng-services.xml
-      to: /io/testng-services.xml
-   dependsOn:
-    - hail_run_image
-    - build_hail
  - kind: buildImage
    name: hail_base_image
    dockerFile: hail/Dockerfile.hail-base
@@ -1289,6 +1270,26 @@ steps:
     - batch_database
     - deploy_auth
     - create_certs
+ - kind: runImage
+   name: test_hail_services_java
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     memory: "3.75G"
+     cpu: "1"
+   script: |
+     set -ex
+     cd /io
+     java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-services.xml
+   inputs:
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
+    - from: /testng-services.xml
+      to: /io/testng-services.xml
+   dependsOn:
+    - hail_run_image
+    - build_hail
+    - deploy_batch
  - kind: runImage
    name: test_batch
    image:
