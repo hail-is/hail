@@ -1,5 +1,4 @@
 import re
-import math
 
 from .globals import WORKER_CONFIG_VERSION
 from .resources import RATES
@@ -108,23 +107,23 @@ class WorkerConfig:
         resources = []
 
         preemptible = 'preemptible' if self.preemptible else 'nonpreemptible'
-        worker_fraction = cpu_in_mcpu / (self.cores * 1000)
+        worker_fraction_in_1024ths = 1024 // ((self.cores * 1000) // cpu_in_mcpu)
 
         resources.append({'name': f'compute/{self.instance_family}-{self.instance_type}-{preemptible}/1',
                           'quantity': cpu_in_mcpu})
 
         resources.append({'name': f'memory/{self.instance_family}-{self.instance_type}-{preemptible}/1',
-                          'quantity': math.ceil(memory_in_bytes / 1024 / 1024)})
+                          'quantity': memory_in_bytes / 1000 / 1000})
 
         resources.append({'name': f'boot-disk/{self.boot_disk_type}/1',
-                          'quantity': math.ceil(self.boot_disk_size_gb * worker_fraction * 1024)})
+                          'quantity': self.boot_disk_size_gb * worker_fraction_in_1024ths})
 
         resources.append({'name': 'service-fee/1',
                           'quantity': cpu_in_mcpu})
 
         if is_power_two(self.cores) and self.cores <= 256:
             resources.append({'name': 'ip-fee/1024/1',
-                              'quantity': int(1024 * worker_fraction)})
+                              'quantity': worker_fraction_in_1024ths})
         else:
             raise NotImplementedError(self.cores)
 

@@ -1154,10 +1154,10 @@ ON t1.billing_project = t2.billing_project AND t1.`user` = t2.`user`
 LEFT JOIN (SELECT billing_project, `user`, JSON_OBJECTAGG(`resource`, `usage`) as resources
            FROM (SELECT billing_project, `user`, `resource`, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
                  FROM aggregated_batch_resources
-                 JOIN (SELECT id, billing_project, `user`
-                       FROM batches
-                       WHERE batches.`time_completed` >= %s AND batches.`time_completed` <= %s AND batches.format_version >= 3
-                       LOCK IN SHARE MODE) AS tmp1
+                 INNER JOIN (SELECT id, billing_project, `user`
+                             FROM batches
+                             WHERE batches.`time_completed` >= %s AND batches.`time_completed` <= %s AND batches.format_version >= 3
+                             LOCK IN SHARE MODE) AS tmp1
                  ON aggregated_batch_resources.batch_id = tmp1.id
                  GROUP BY billing_project, `user`, `resource`
                  LOCK IN SHARE MODE) AS tmp2

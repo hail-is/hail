@@ -10,7 +10,7 @@ SERVICE_FEE_RESOURCE_REGEX = re.compile('service-fee/(\\d+)')
 RATES = {
     'compute/n1-standard-preemptible/1': 0.006655,  # cpu-hour
     'memory/n1-standard-preemptible/1': 0.000892,  # gb-hour
-    'boot-disk/pd-ssd/1': 0.17,  # gb-month
+    'boot-disk/pd-ssd/1': 0.17,  # gi-month
     'ip-fee/1024/1': 0.004,  # instance-hour
     'service-fee/1': 0.01  # cpu-hour
 }
@@ -33,11 +33,11 @@ def cost_from_resources(resources):
             # usage is in units of msec-mb
             cost = rate / 3600 * (usage * 0.001 * 0.001)
         elif BOOT_DISK_RESOURCE_REGEX.fullmatch(resource_name):
-            # rate is in units of gb-month
+            # rate is in units of gi-month
             # usage is in units of msec-mb
             # average number of days per month = 365.25 / 12 = 30.4375
             avg_n_days_per_month = 30.4375
-            cost = rate / avg_n_days_per_month / 24 / 3600 * (usage * 0.001 * 0.001)
+            cost = rate / avg_n_days_per_month / 24 / 3600 * (usage * 0.001 * (1 / 1024))
         elif IP_FEE_RESOURCE_REGEX.fullmatch(resource_name):
             # rate is in units of instance-hour
             # usage is an integer representing a fraction of an instance - msec

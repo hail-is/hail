@@ -524,7 +524,7 @@ async def check_resource_aggregation(db):
 SELECT attempt_resources.batch_id, attempt_resources.job_id, attempt_resources.attempt_id,
   JSON_OBJECTAGG(resource, quantity * COALESCE(end_time - start_time, 0)) as resources
 FROM attempt_resources
-JOIN attempts
+INNER JOIN attempts
 ON attempts.batch_id = attempt_resources.batch_id AND
   attempts.job_id = attempt_resources.job_id AND
   attempts.attempt_id = attempt_resources.attempt_id
