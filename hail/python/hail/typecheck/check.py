@@ -377,7 +377,7 @@ def only(t):
     if isinstance(t, type):
         return LiteralChecker(t)
     elif isinstance(t, str):
-        LiteralStrChecker(t)
+        return LiteralStrChecker(t)
     elif isinstance(t, TypeChecker):
         return t
     else:
