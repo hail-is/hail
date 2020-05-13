@@ -136,20 +136,6 @@ class IRSuite extends HailSuite {
     assertPType(False(), PBoolean(true))
   }
 
-  @Test def testRefInferPtype() {
-    val env = Env[PType](
-      "1" -> PCanonicalStruct(true, "a" -> PCanonicalArray(PCanonicalArray(PInt32(false), true), false), "b" -> PInt32(true), "c" -> PCanonicalDict(PInt32(false), PCanonicalString(false), false)),
-      "2" -> PCanonicalStruct(true, "a" -> PCanonicalArray(PCanonicalArray(PInt32(true), true), true), "b" -> PInt32(true), "c" -> PCanonicalDict(PInt32(true), PCanonicalString(true), true))
-    )
-
-    var ir = Ref("1", TStruct("a" -> TArray(TArray(TInt32)), "b" -> TInt32, "c" -> TDict(TInt32, TString)))
-
-    assertPType(ir, PCanonicalStruct(true, "a" -> PCanonicalArray(PCanonicalArray(PInt32(false), true), false), "b" -> PInt32(true), "c" -> PCanonicalDict(PInt32(false), PCanonicalString(false), false)), env)
-
-    ir = Ref("2", TStruct("a" -> TArray(TArray(TInt32)), "b" -> TInt32, "c" -> TDict(TInt32, TString)))
-    assertPType(ir, PCanonicalStruct(true, "a" -> PCanonicalArray(PCanonicalArray(PInt32(true), true), true), "b" -> PInt32(true), "c" -> PCanonicalDict(PInt32(true), PCanonicalString(true), true)), env)
-  }
-
   // FIXME Void() doesn't work because we can't handle a void type in a tuple
 
   @Test def testCast() {
