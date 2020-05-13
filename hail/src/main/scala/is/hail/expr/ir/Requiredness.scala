@@ -388,16 +388,11 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
             .elementType.asInstanceOf[RStruct]
         else requiredness.field(root).asInstanceOf[RStruct]
         rReq.valueFields.foreach { n => joinField.field(n).unionFrom(rReq.field(n)) }
+        joinField.union(false)
         requiredness.unionGlobals(lReq)
-
-      case TableZipUnchecked(left, right) =>
-        requiredness.unionRows(lookup(left))
-        requiredness.unionRows(lookup(right))
-        requiredness.unionGlobals(lookup(left))
-
       case TableMultiWayZipJoin(children, valueName, globalName) =>
         val valueStruct = coerce[RStruct](coerce[RIterable](requiredness.field(valueName)).elementType)
-        val globalStruct = coerce[RIterable](coerce[RIterable](requiredness.field(globalName)).elementType)
+        val globalStruct = coerce[RStruct](coerce[RIterable](requiredness.field(globalName)).elementType)
         children.foreach { c =>
           val cReq = lookup(c)
           requiredness.unionKeys(cReq)
@@ -410,11 +405,14 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.unionRows(lReq)
         val joined = coerce[RStruct](requiredness.field(root))
         rReq.valueFields.foreach(n => joined.field(n).unionFrom(rReq.field(n)))
+        joined.union(false)
+        requiredness.unionGlobals(lReq.globalType)
       case TableGroupWithinPartitions(child, name, n) =>
         val cReq = lookup(child)
         requiredness.unionKeys(cReq)
         val valueStruct = coerce[RStruct](coerce[RIterable](requiredness.field(name)).elementType)
         cReq.valueFields.foreach(n => valueStruct.field(n).unionFrom(cReq.field(n)))
+        requiredness.unionGlobals(cReq.globalType)
       case TableToTableApply(child, function) => requiredness.maximize() //FIXME: needs implementation
     }
     requiredness.probeChangedAndReset()

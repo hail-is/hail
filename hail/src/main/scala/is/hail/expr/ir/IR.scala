@@ -135,6 +135,11 @@ final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR
 final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR
 
 object MakeArray {
+  def apply(args: IR*): MakeArray = {
+    assert(args.nonEmpty)
+    MakeArray(args, TArray(args.head.typ))
+  }
+
   def unify(args: Seq[IR], requestedType: TArray = null): MakeArray = {
     assert(requestedType != null || args.nonEmpty)
 
@@ -380,6 +385,11 @@ final case class AggGroupBy(key: IR, aggIR: IR, isScan: Boolean) extends IR
 
 final case class AggArrayPerElement(a: IR, elementName: String, indexName: String, aggBody: IR, knownLength: Option[IR], isScan: Boolean) extends IR
 
+object ApplyAggOp {
+  def apply(op: AggOp, initOpArgs: IR*)(seqOpArgs: IR*): ApplyAggOp =
+    ApplyAggOp(initOpArgs.toIndexedSeq, seqOpArgs.toIndexedSeq, AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ)))
+}
+
 final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
 
   def nSeqOpArgs = seqOpArgs.length
@@ -387,6 +397,11 @@ final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR
   def nInitArgs = initOpArgs.length
 
   def op: AggOp = aggSig.op
+}
+
+object ApplyScanOp {
+  def apply(op: AggOp, initOpArgs: IR*)(seqOpArgs: IR*): ApplyScanOp =
+    ApplyScanOp(initOpArgs.toIndexedSeq, seqOpArgs.toIndexedSeq, AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ)))
 }
 
 final case class ApplyScanOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {

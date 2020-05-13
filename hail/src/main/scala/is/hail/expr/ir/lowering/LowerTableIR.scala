@@ -264,7 +264,7 @@ object LowerTableIR {
                 Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
               }),
             MakeStream(ranges.map { case (start, end) =>
-              MakeStruct(FastIndexedSeq("start" -> start, "end" -> end)) },
+              MakeStruct(FastIndexedSeq[(String, IR)]("start" -> start, "end" -> end)) },
               TStream(contextType))) {
             override def partition(ctxRef: Ref): IR = {
               StreamMap(StreamRange(
