@@ -309,6 +309,7 @@ class RequirednessSuite extends HailSuite {
       rowType,
       globalType.insertFields(FastSeq("x2" -> globalType.fieldType("x"))))
 
+    // FIXME: if exploding t.a.b and a, b are optional but elt is required, a becomes required and b becomes required
     nodes += Array(TableExplode(table, FastSeq("b", "y")),
       rowType.insertFields(FastSeq("b" -> {
         val btyp = coerce[PStruct](rowType.fieldType("b"))
@@ -377,14 +378,6 @@ class RequirednessSuite extends HailSuite {
       globalType)
 
     nodes += Array(
-      TableJoin(left, right, "outer", 1),
-      PCanonicalStruct(required,
-        "a" -> pnestedarray(required, optional, optional),
-        "b" -> rowType.fieldType("b").setRequired(optional),
-        "c" -> rowType.fieldType("c").setRequired(optional)),
-      globalType)
-
-    nodes += Array(
       TableJoin(left, right, "inner", 1),
       PCanonicalStruct(required,
         "a" -> pnestedarray(required, required, required),
@@ -393,9 +386,17 @@ class RequirednessSuite extends HailSuite {
       globalType)
 
     nodes += Array(
+      TableJoin(left, right, "outer", 1),
+      PCanonicalStruct(required,
+        "a" -> pnestedarray(required, optional, optional),
+        "b" -> rowType.fieldType("b").setRequired(optional),
+        "c" -> rowType.fieldType("c").setRequired(optional)),
+      globalType)
+
+    nodes += Array(
       TableJoin(left, right, "zip", 1),
       PCanonicalStruct(required,
-        "a" -> pnestedarray(required, required, required),
+        "a" -> pnestedarray(required, optional, optional),
         "b" -> rowType.fieldType("b"),
         "c" -> rowType.fieldType("c")),
       globalType)

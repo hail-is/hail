@@ -368,10 +368,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.unionValues(leftReq)
         requiredness.unionValues(rightReq)
 
-        if (joinType == "outer" || joinType == "right")
+        if (joinType == "outer" || joinType == "zip" || joinType == "right")
           leftReq.valueFields.foreach(n => requiredness.field(n).union(r = false))
 
-        if (joinType == "outer" || joinType == "left")
+        if (joinType == "outer" || joinType == "zip" || joinType == "left")
           rightReq.valueFields.foreach(n => requiredness.field(n).union(r = false))
 
         requiredness.unionGlobals(leftReq.globalType)
