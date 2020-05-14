@@ -19,6 +19,86 @@ import scala.language.implicitConversions
 class LSMSuite extends HailSuite {
   val log = Logger.getLogger(this.getClass.getName());
 
+  def testPartitionKeysFiveElementsThreePartitions() {
+    val nElements = 5
+    val nPartitions = 3
+    ExecuteContext.scoped() { (ctx: ExecuteContext) =>
+      val rowPType = structIntStringPType
+      val rowType = rowPType.virtualType
+      val key = Array("x")
+      val codecs = new KeyedCodecSpec(
+        ctx,
+        rowType,
+        TypedCodecSpec(rowPType, BufferSpec.unblockedUncompressed),
+        key)
+      using(new LSM(ctx.createTmpPath("lsm"), codecs)) { lsm =>
+        val shuffled = Array(4, 3, 1, 2, 0)
+
+        lsm.put(struct(4), struct(4, "4"))
+        lsm.put(struct(3), struct(3, "3"))
+        lsm.put(struct(1), struct(1, "1"))
+        lsm.put(struct(2), struct(2, "2"))
+        lsm.put(struct(0), struct(0, "0"))
+
+        assert(lsm.size == nElements)
+
+        val partitionKeys = arrayOfUnsafeRow(
+          codecs.decodedKeyPType,
+          lsm.partitionKeys(nPartitions))
+        val keyOrd = codecs.decodedKeyPType.unsafeOrdering
+
+        assert(partitionKeys.length == nPartitions + 1)
+
+        assert(partitionKeys(0).getInt(0) == 0)
+        assert(partitionKeys(0).getInt(0) == 2)
+        assert(partitionKeys(0).getInt(0) == 4)
+        assert(partitionKeys(0).getInt(0) == 5)
+      }
+    }
+  }
+
+  def testPartitionKeysFiveElementsSevenPartitions() {
+    val nElements = 5
+    val nPartitions = 7
+    ExecuteContext.scoped() { (ctx: ExecuteContext) =>
+      val rowPType = structIntStringPType
+      val rowType = rowPType.virtualType
+      val key = Array("x")
+      val codecs = new KeyedCodecSpec(
+        ctx,
+        rowType,
+        TypedCodecSpec(rowPType, BufferSpec.unblockedUncompressed),
+        key)
+      using(new LSM(ctx.createTmpPath("lsm"), codecs)) { lsm =>
+        val shuffled = Array(4, 3, 1, 2, 0)
+
+        lsm.put(struct(4), struct(4, "4"))
+        lsm.put(struct(3), struct(3, "3"))
+        lsm.put(struct(1), struct(1, "1"))
+        lsm.put(struct(2), struct(2, "2"))
+        lsm.put(struct(0), struct(0, "0"))
+
+        assert(lsm.size == nElements)
+
+        val partitionKeys = arrayOfUnsafeRow(
+          codecs.decodedKeyPType,
+          lsm.partitionKeys(nPartitions))
+        val keyOrd = codecs.decodedKeyPType.unsafeOrdering
+
+        assert(partitionKeys.length == nElements + 1)
+
+        assert(partitionKeys(0).getInt(0) == 0)
+        assert(partitionKeys(0).getInt(0) == 1)
+        assert(partitionKeys(0).getInt(0) == 2)
+        assert(partitionKeys(0).getInt(0) == 3)
+        assert(partitionKeys(0).getInt(0) == 4)
+        assert(partitionKeys(0).getInt(0) == 4)
+        assert(partitionKeys(0).getInt(0) == 4)
+        assert(partitionKeys(0).getInt(0) == 4)
+      }
+    }
+  }
+
   private[this] def assertStrictlyIncreasingPrefix(
     ord: UnsafeOrdering,
     values: Array[UnsafeRow],
@@ -82,13 +162,11 @@ class LSMSuite extends HailSuite {
       using(new LSM(ctx.createTmpPath("lsm"), codecs)) { lsm =>
         val shuffled = Random.shuffle((0 until nElements).toIndexedSeq).toArray
 
-        val values = new Array[Long](nElements)
         var i = 0
         while (i < nElements) {
           val key = struct(shuffled(i))
           val value = struct(shuffled(i), s"${shuffled(i)}")
           lsm.put(key, value)
-          values(i) = value
           i += 1
         }
 
