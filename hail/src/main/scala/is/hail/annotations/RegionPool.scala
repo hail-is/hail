@@ -28,13 +28,6 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
   def addJavaObject(): Unit = {
     numJavaObjects += 1
-    if (numJavaObjects > maxNumJavaObjects) {
-      maxNumJavaObjects = numJavaObjects
-      if ((numJavaObjects >= 168000 && numJavaObjects <= 168020) ||
-        (numJavaObjects >= 336000 && numJavaObjects <= 336020) ||
-        (numJavaObjects >= 504000 && numJavaObjects <= 504020))
-        report("JObj threshold")
-    }
   }
 
   def removeJavaObjects(n: Int): Unit = {

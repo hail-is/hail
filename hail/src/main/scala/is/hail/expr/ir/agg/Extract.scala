@@ -138,29 +138,49 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
   }
 
   def combOpF3(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (RegionValue, RegionValue) => RegionValue = {
-    val fb = ir.EmitFunctionBuilder[AsmFunction0Unit](
+    val fb = ir.EmitFunctionBuilder[AsmFunction4RegionLongRegionLongLong](
       ctx,
       "combOpF3",
-      FastIndexedSeq(),
-      PVoid)
-    val (leftAggState, rightAggState) = fb.addCombinerAggStates(physicalAggs)
-    fb.emit(Code(Array.tabulate(nAggs) { i =>
-      val aggSig = physicalAggs(i)
-      val rvAgg = agg.Extract.getAgg(aggSig, aggSig.default)
-      EmitCodeBuilder.scopedVoid(fb.emb) { cb =>
+      FastIndexedSeq[ParamType](classInfo[Region], LongInfo, classInfo[Region], LongInfo),
+      LongInfo)
+
+    val leftAggRegion = fb.genFieldThisRef[Region]("agg_combine_left_top_region")
+    val leftAggOff = fb.genFieldThisRef[Long]("agg_combine_left_off")
+    val rightAggRegion = fb.genFieldThisRef[Region]("agg_combine_right_top_region")
+    val rightAggOff = fb.genFieldThisRef[Long]("agg_combine_right_off")
+
+    fb.emit(EmitCodeBuilder.scopedCode(fb.emb) { cb =>
+      cb.assign(leftAggRegion, fb.getCodeParam[Region](1))
+      cb.assign(leftAggOff, fb.getCodeParam[Long](2))
+      cb.assign(rightAggRegion, fb.getCodeParam[Region](3))
+      cb.assign(rightAggOff, fb.getCodeParam[Long](4))
+
+      val leftStates = agg.StateTuple(physicalAggs.map(a => agg.Extract.getAgg(a, a.default).createState(cb)).toArray)
+      val leftAggState = new agg.TupleAggregatorState(fb.ecb, leftStates, leftAggRegion, leftAggOff)
+      val rightStates = agg.StateTuple(physicalAggs.map(a => agg.Extract.getAgg(a, a.default).createState(cb)).toArray)
+      val rightAggState = new agg.TupleAggregatorState(fb.ecb, rightStates, rightAggRegion, rightAggOff)
+
+      leftStates.createStates(cb)
+      leftAggState.load(cb)
+
+      rightStates.createStates(cb)
+      rightAggState.load(cb)
+
+      for (i <- 0 until nAggs) {
+        val aggSig = physicalAggs(i)
+        val rvAgg = agg.Extract.getAgg(aggSig, aggSig.default)
         rvAgg.combOp(cb, leftAggState.states(i), rightAggState.states(i))
       }
-    }))
+
+      leftAggOff
+    })
 
     val f = fb.resultWithIndex()
 
     { (l: RegionValue, r: RegionValue) =>
-      val comb = f(0, l.region).asInstanceOf[AsmFunction0Unit with FunctionWithTwoAggRegions]
-      comb.setLeftAggState(l.region, l.offset)
-      comb.setRightAggState(r.region, r.offset)
-      comb()
+      val comb = f(0, l.region)
+      l.setOffset(comb(l.region, l.offset, r.region, r.offset))
       r.region.clear()
-      l.setOffset(comb.getLeftAggOffset())
       l
     }
   }

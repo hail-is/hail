@@ -96,9 +96,9 @@ class IRSuite extends HailSuite {
     InferPType(node, env)
     assert(node.pType == expected)
   }
-
+//
 //  @Test def testMemoryUsage() {
-//    val nParts = 1
+//    val nParts = 2
 //    val mrr = MatrixRangeReader(nParts * 500, 7000, Some(nParts))
 //    var mt: MatrixIR = MatrixRead(mrr.fullMatrixType, false, false, mrr)
 //    mt = MatrixMapEntries(
@@ -121,7 +121,7 @@ class IRSuite extends HailSuite {
 //    val ir = TableCollect(TableKeyBy(MatrixColsTable(mt), IndexedSeq()))
 //    assertEvalsTo(ir, null)(Set(ExecStrategy.Interpret))
 //  }
-//
+
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
   }

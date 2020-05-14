@@ -134,8 +134,6 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def addAggStates(aggSigs: Array[AggStatePhysicalSignature]): agg.TupleAggregatorState = ecb.addAggStates(aggSigs)
 
-  def addCombinerAggStates(aggSigs: Array[AggStatePhysicalSignature]): (agg.TupleAggregatorState, agg.TupleAggregatorState) = ecb.addCombinerAggStates(aggSigs)
-
   def genDependentFunction[F](baseName: String,
     maybeGenericParameterTypeInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
     maybeGenericReturnTypeInfo: MaybeGenericTypeInfo[_])(implicit fti: TypeInfo[F]): DependentEmitFunctionBuilder[F] =
@@ -319,8 +317,8 @@ class EmitClassBuilder[C](
   private[this] var _backendField: Settable[BackendUtils] = _
 
   private[this] var _aggSigs: Array[AggStatePhysicalSignature] = _
-//  private[this] var _aggRegion: Settable[Region] = _
-//  private[this] var _aggOff: Settable[Long] = _
+  private[this] var _aggRegion: Settable[Region] = _
+  private[this] var _aggOff: Settable[Long] = _
   private[this] var _aggState: agg.TupleAggregatorState = _
   private[this] var _nSerialized: Int = 0
   private[this] var _aggSerialized: Settable[Array[Array[Byte]]] = _
@@ -332,8 +330,8 @@ class EmitClassBuilder[C](
     }
     cb.addInterface(typeInfo[FunctionWithAggRegion].iname)
     _aggSigs = aggSigs
-    val _aggRegion = genFieldThisRef[Region]("agg_top_region")
-    val _aggOff = genFieldThisRef[Long]("agg_off")
+    _aggRegion = genFieldThisRef[Region]("agg_top_region")
+    _aggOff = genFieldThisRef[Long]("agg_off")
     _aggSerialized = genFieldThisRef[Array[Array[Byte]]]("agg_serialized")
 
     val newF = newEmitMethod("newAggState", FastIndexedSeq[ParamType](typeInfo[Region]), typeInfo[Unit])
@@ -378,54 +376,6 @@ class EmitClassBuilder[C](
     getSer.emit(_aggSerialized.load()(getSer.getCodeParam[Int](1)))
 
     _aggState
-  }
-
-  private[this] var _hasCombinerAggStates: Boolean = false
-
-  def addCombinerAggStates(aggSigs: Array[AggStatePhysicalSignature]): (agg.TupleAggregatorState, agg.TupleAggregatorState) = {
-    assert(_aggSigs == null && !_hasCombinerAggStates)
-    _hasCombinerAggStates = true
-    cb.addInterface(typeInfo[FunctionWithTwoAggRegions].iname)
-    val leftAggRegion = genFieldThisRef[Region]("agg_combine_left_top_region")
-    val leftAggOff = genFieldThisRef[Long]("agg_combine_left_off")
-    val rightAggRegion = genFieldThisRef[Region]("agg_combine_right_top_region")
-    val rightAggOff = genFieldThisRef[Long]("agg_combine_right_off")
-
-    val setLeftF = newEmitMethod("setLeftAggState", FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
-    val setRightF = newEmitMethod("setRightAggState", FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
-    val getLeftOffF = newEmitMethod("getLeftAggOffset", FastIndexedSeq[ParamType](), typeInfo[Long])
-
-    val (_, leftStates) = EmitCodeBuilder.scoped(setLeftF) { cb =>
-      agg.StateTuple(aggSigs.map(a => agg.Extract.getAgg(a, a.default).createState(cb)).toArray)
-    }
-    val leftAggState = new agg.TupleAggregatorState(this, leftStates, leftAggRegion, leftAggOff)
-    val (_, rightStates) = EmitCodeBuilder.scoped(setLeftF) { cb =>
-      agg.StateTuple(aggSigs.map(a => agg.Extract.getAgg(a, a.default).createState(cb)).toArray)
-    }
-    val rightAggState = new agg.TupleAggregatorState(this, rightStates, rightAggRegion, rightAggOff)
-
-    setLeftF.emit(EmitCodeBuilder.scopedVoid(setLeftF) { cb =>
-      cb.assign(leftAggRegion, setLeftF.getCodeParam[Region](1))
-      cb += leftAggState.topRegion.setNumParents(aggSigs.length)
-      leftStates.createStates(cb)
-      cb.assign(leftAggOff, setLeftF.getCodeParam[Long](2))
-      leftAggState.load(cb)
-    })
-
-    setRightF.emit(EmitCodeBuilder.scopedVoid(setRightF) { cb =>
-      cb.assign(rightAggRegion, setRightF.getCodeParam[Region](1))
-      cb += rightAggState.topRegion.setNumParents(aggSigs.length)
-      rightStates.createStates(cb)
-      cb.assign(rightAggOff, setRightF.getCodeParam[Long](2))
-      rightAggState.load(cb)
-    })
-
-    getLeftOffF.emit(EmitCodeBuilder.scopedCode(getLeftOffF) { cb =>
-      leftAggState.store(cb)
-      leftAggOff
-    })
-
-    (leftAggState, rightAggState)
   }
 
   def getSerializedAgg(i: Int): Code[Array[Byte]] = {
@@ -905,12 +855,6 @@ trait FunctionWithAggRegion {
   def setSerializedAgg(i: Int, b: Array[Byte]): Unit
 
   def getSerializedAgg(i: Int): Array[Byte]
-}
-
-trait FunctionWithTwoAggRegions {
-  def setLeftAggState(region: Region, offset: Long): Unit
-  def setRightAggState(region: Region, offset: Long): Unit
-  def getLeftAggOffset(): Long
 }
 
 trait FunctionWithPartitionRegion {
