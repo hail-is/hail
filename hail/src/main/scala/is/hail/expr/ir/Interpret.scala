@@ -736,22 +736,21 @@ object Interpret {
             }
           }
 
-          val zero = Region.scoped { region =>
+          val mkZero = () => {
+            val region = Region(Region.REGULAR)
             val initF = initOp(0, region)
-            Region.scoped { aggRegion =>
-              initF.newAggState(aggRegion)
-              initF(region, globalsOffset)
-              write(RegionValue(aggRegion, initF.getAggOffset()))
-            }
+            initF.newAggState(region)
+            initF(region, globalsOffset)
+            RegionValue(region, initF.getAggOffset())
           }
 
           val aggResults = if (isCommutative) {
             val rv = value.rvd.combine[Array[Byte], RegionValue](
-              zero, itF, read, write, (rv, a) => combOpF(rv, read(a)), tree = useTreeAggregate)
+              mkZero, itF, read, write, (rv, a) => combOpF(rv, read(a)), tree = useTreeAggregate)
             write(rv)
           } else {
             val rv = value.rvd.combineNonCommutative[Array[Byte], RegionValue](
-              zero, itF, read, write, (rv, a) => combOpF(rv, read(a)), combOpF, tree = useTreeAggregate)
+              mkZero, itF, read, write, (rv, a) => combOpF(rv, read(a)), combOpF, tree = useTreeAggregate)
             write(rv)
           }
 

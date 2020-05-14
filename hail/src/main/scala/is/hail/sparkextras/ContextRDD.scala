@@ -12,7 +12,7 @@ import org.apache.spark.ExposedUtils
 import scala.reflect.ClassTag
 
 object Combiner {
-  def apply[U](zero: U, combine: (U, U) => U, commutative: Boolean, associative: Boolean): Combiner[U, U] = {
+  def apply[U](zero: => U, combine: (U, U) => U, commutative: Boolean, associative: Boolean): Combiner[U, U] = {
     assert(associative)
     if (commutative)
       new CommutativeAndAssociativeCombiner(zero, combine)
@@ -30,7 +30,7 @@ abstract class Combiner[U, R] {
   def result(): R
 }
 
-class CommutativeAndAssociativeCombiner[U, T](zero: T, combine: (T, U) => T) extends Combiner[U, T] {
+class CommutativeAndAssociativeCombiner[U, T](zero: => T, combine: (T, U) => T) extends Combiner[U, T] {
   var state: T = zero
 
   def combine(i: Int, value0: U): Unit = state = combine(state, value0)
@@ -38,7 +38,7 @@ class CommutativeAndAssociativeCombiner[U, T](zero: T, combine: (T, U) => T) ext
   def result(): T = state
 }
 
-class AssociativeCombiner[U](zero: U, combine: (U, U) => U) extends Combiner[U, U] {
+class AssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[U, U] {
 
   case class TreeValue(var value: U, var end: Int)
 

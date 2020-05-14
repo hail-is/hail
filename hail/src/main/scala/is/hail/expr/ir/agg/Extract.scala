@@ -108,6 +108,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
       val f2 = f(0, aggRegion)
       f2.setAggState(aggRegion, off)
       f2(aggRegion)
+      assert(aggRegion.memory.getReferenceCount == 1)
       aggRegion.clear()
       f2.getSerializedAgg(0)
     }
@@ -158,6 +159,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
       comb.setLeftAggState(l.region, l.offset)
       comb.setRightAggState(r.region, r.offset)
       comb()
+      r.region.clear()
       l.setOffset(comb.getLeftAggOffset())
       l
     }

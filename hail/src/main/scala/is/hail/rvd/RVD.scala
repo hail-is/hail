@@ -645,7 +645,7 @@ class RVD(
   }
 
   def combine[U: ClassTag, T: ClassTag](
-    zeroValue: U,
+    mkZero: () => T,
     itF: (Int, RVDContext, Iterator[Long]) => U,
     deserialize: U => T,
     serialize: T => U,
@@ -655,16 +655,16 @@ class RVD(
     var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
 
     if (tree) {
-      reduced = reduced.treeCombine(() => deserialize(zeroValue), serialize, seqOp)
+      reduced = reduced.treeCombine(mkZero, serialize, seqOp)
     }
 
-    val ac = new CommutativeAndAssociativeCombiner[U, T](deserialize(zeroValue), seqOp)
+    val ac = new CommutativeAndAssociativeCombiner[U, T](mkZero(), seqOp)
     sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), ac.combine _)
     ac.result()
   }
 
   def combineNonCommutative[U: ClassTag, T: ClassTag](
-    zeroValue: U,
+    mkZero: () => T,
     itF: (Int, RVDContext, Iterator[Long]) => U,
     deserialize: U => T,
     serialize: T => U,
@@ -675,10 +675,10 @@ class RVD(
     var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
 
     if (tree) {
-      reduced = reduced.treeCombine(() => deserialize(zeroValue), serialize, seqOp)
+      reduced = reduced.treeCombine(mkZero, serialize, seqOp)
     }
 
-    val ac = new AssociativeCombiner[T](deserialize(zeroValue), combOp)
+    val ac = new AssociativeCombiner[T](mkZero(), combOp)
     sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), (i, x: U) => ac.combine(i, deserialize(x)))
     ac.result()
   }
