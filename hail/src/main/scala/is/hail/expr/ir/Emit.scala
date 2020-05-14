@@ -727,7 +727,7 @@ class Emit[C](
       case GetTupleElement(o, i) =>
         emitI(o).flatMap(cb) { oc =>
           val ov = oc.asBaseStruct.memoize(cb, "get_tup_elem_o")
-          ov.loadField(cb, i)
+          ov.loadField(cb, oc.pt.asInstanceOf[PTuple].fieldIndex(i))
         }
 
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>

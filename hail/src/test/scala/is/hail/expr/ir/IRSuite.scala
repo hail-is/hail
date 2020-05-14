@@ -1537,6 +1537,17 @@ class IRSuite extends HailSuite {
     assertEvalsTo(GetTupleElement(na, 0), null)
   }
 
+    @Test def testLetBoundPrunedTuple(): Unit = {
+    implicit val execStrats = ExecStrategy.unoptimizedCompileOnly
+    val t2 = MakeTuple(FastSeq((2, I32(5))))
+
+    val letBoundTuple = bindIR(t2) { tupleRef =>
+      GetTupleElement(tupleRef, 2)
+    }
+
+    assertEvalsTo(letBoundTuple, 5)
+  }
+
   @Test def testArrayRef() {
     assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32)), TArray(TInt32)), I32(0)), 5)
     assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32)), TArray(TInt32)), I32(1)), null)
