@@ -95,9 +95,9 @@ object LSM {
 
 class LSM (
   path: String,
-  codecs: KeyedCodecSpec,
-  private[this] val rootRegion: Region
+  codecs: KeyedCodecSpec
 ) extends AutoCloseable {
+  private[this] val rootRegion: Region = Region()
   private[this] val log = Logger.getLogger(getClass.getName)
   val keyOrd: UnsafeOrdering = codecs.decodedKeyPType.unsafeOrdering
   private[this] val region = ThreadLocal.withInitial(new Supplier[Region]() {
