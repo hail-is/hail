@@ -9,10 +9,11 @@ package object services {
   lazy val log: Logger = LogManager.getLogger("is.hail.services")
 
   val RETRYABLE_HTTP_STATUS_CODES: Set[Int] = {
-    var s = Set(408, 500, 502, 503, 504)
+    val s = Set(408, 500, 502, 503, 504)
     if (System.getenv("HAIL_DONT_RETRY_500") == "1")
-      s = s - 500
-    s
+      s - 500
+    else
+      s
   }
 
   def sleepAndBackoff(delay: Double): Double = {
@@ -42,7 +43,7 @@ package object services {
             throw e
           errors += 1
           if (errors % 10 == 0)
-            log.warn(s"encountered $errors errors, most recent one was $e")
+            log.warn(s"encountered $errors transient errors, most recent one was $e")
       }
       delay = sleepAndBackoff(delay)
     }

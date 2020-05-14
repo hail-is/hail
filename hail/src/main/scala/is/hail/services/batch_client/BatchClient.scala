@@ -41,7 +41,7 @@ class BatchClient extends AutoCloseable {
     if (body != null)
       req.asInstanceOf[HttpEntityEnclosingRequest].setEntity(body)
     Tokens.get.addServiceAuthHeaders("batch", req)
-    
+
     retryTransientErrors {
       using(httpClient.execute(req)) { resp =>
         val statusCode = resp.getStatusLine.getStatusCode
