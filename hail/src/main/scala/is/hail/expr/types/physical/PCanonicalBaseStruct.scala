@@ -242,23 +242,30 @@ class PCanonicalBaseStructSettable(
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
+  def loadField(cb: EmitCodeBuilder, i: Int): IEmitCode = {
+    val ptTuple = pt.asInstanceOf[PTuple]
+    val trueIndex = ptTuple.fieldIndex(i)
     IEmitCode(cb,
-      pt.isFieldMissing(a, fieldIdx),
-      pt.fields(fieldIdx).typ.load(pt.fieldOffset(a, fieldIdx)))
+      ptTuple.isFieldMissing(a, trueIndex),
+      ptTuple.fields(trueIndex).typ.load(pt.fieldOffset(a, trueIndex)))
   }
 
   def store(pv: PCode): Code[Unit] = {
     a := pv.asInstanceOf[PCanonicalBaseStructCode].a
   }
 
-  def apply[T](i: Int): Value[T] =
+  def apply[T](i: Int): Value[T] = {
+    val ptTuple = pt.asInstanceOf[PTuple]
+    val trueIndex = ptTuple.fieldIndex(i)
     new Value[T] {
-      def get: Code[T] = coerce[T](Region.loadIRIntermediate(pt.types(i))(pt.loadField(a, i)))
+      def get: Code[T] = coerce[T](Region.loadIRIntermediate(pt.types(trueIndex))(pt.loadField(a, trueIndex)))
     }
+  }
 
-  def isFieldMissing(fieldIdx: Int): Code[Boolean] = {
-    this.pt.isFieldMissing(a, fieldIdx)
+  def isFieldMissing(i: Int): Code[Boolean] = {
+    val ptTuple = pt.asInstanceOf[PTuple]
+    val trueIndex = ptTuple.fieldIndex(i)
+    this.pt.isFieldMissing(a, trueIndex)
   }
 }
 
