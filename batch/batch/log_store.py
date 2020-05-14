@@ -8,18 +8,20 @@ log = logging.getLogger('logstore')
 
 
 class LogStore:
-    def __init__(self, bucket_name, instance_id, blocking_pool, *, project=None, credentials=None):
-        self.bucket_name = bucket_name
+    def __init__(self, batch_logs_bucket_name, worker_logs_bucket_name, instance_id, blocking_pool, *, project=None, credentials=None):
+        self.batch_logs_bucket_name = batch_logs_bucket_name
+        self.worker_logs_bucket_name = worker_logs_bucket_name
         self.instance_id = instance_id
-        self.log_root = f'gs://{bucket_name}/batch/logs/{instance_id}'
+        self.worker_logs_root = f'gs://{worker_logs_bucket_name}/batch/logs/{instance_id}/worker'
+        self.batch_logs_root = f'gs://{batch_logs_bucket_name}/batch/logs/{instance_id}/batch'
         self.gcs = GCS(blocking_pool, project=project, credentials=credentials)
 
     def worker_log_path(self, machine_name, log_file):
         # this has to match worker startup-script
-        return f'{self.log_root}/worker/{machine_name}/{log_file}'
+        return f'gs://{self.worker_logs_root}/{machine_name}/{log_file}'
 
     def batch_log_dir(self, batch_id):
-        return f'{self.log_root}/batch/{batch_id}'
+        return f'{self.batch_logs_root}/{batch_id}'
 
     def log_path(self, format_version, batch_id, job_id, attempt_id, task):
         if not format_version.has_attempt_in_log_path():
@@ -55,7 +57,7 @@ class LogStore:
         return await self.gcs.delete_gs_file(path)
 
     def specs_dir(self, batch_id, token):
-        return f'{self.log_root}/batch/{batch_id}/bunch/{token}'
+        return f'{self.batch_logs_root}/{batch_id}/bunch/{token}'
 
     def specs_path(self, batch_id, token):
         return f'{self.specs_dir(batch_id, token)}/specs'

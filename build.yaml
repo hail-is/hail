@@ -544,6 +544,7 @@ steps:
      cd repo
      {{ code.checkout_script }}
      cd hail
+     time retry ./gradlew --version
      time make jars python-version-info wheel
      time (cd python && zip -r hail.zip hail hailtop)
      time tar czf test.tar.gz -C python test
@@ -559,8 +560,8 @@ steps:
        to: /hail-test.jar
      - from: /io/repo/hail/testng-build.xml
        to: /testng-build.xml
-     - from: /io/repo/hail/testng-cpp-codegen.xml
-       to: /testng-cpp-codegen.xml
+     - from: /io/repo/hail/testng-services.xml
+       to: /testng-services.xml
      - from: /io/repo/hail/python/hail.zip
        to: /hail.zip
      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
@@ -1271,6 +1272,37 @@ steps:
     - deploy_auth
     - create_certs
  - kind: runImage
+   name: test_hail_services_java
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     memory: "3.75G"
+     cpu: "1"
+   script: |
+     set -ex
+     cd /io
+     java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-services.xml
+   inputs:
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
+    - from: /testng-services.xml
+      to: /io/testng-services.xml
+   secrets:
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - hail_run_image
+    - build_hail
+    - deploy_batch
+ - kind: runImage
    name: test_batch
    image:
      valueFrom: batch_image.image
@@ -1684,6 +1716,7 @@ steps:
      fi
 
      cd hail
+     time retry ./gradlew --version
      make test-dataproc DEV_CLARIFIER=ci_test_dataproc/
    dependsOn:
      - ci_utils_image
@@ -1728,6 +1761,7 @@ steps:
          exit 0
      fi
 
+     time retry ./gradlew --version
      make wheel upload-artifacts DEPLOY_REMOTE=origin
 
      bash scripts/deploy.sh $(cat /io/hail_pip_version) \

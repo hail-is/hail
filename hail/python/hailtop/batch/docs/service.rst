@@ -37,7 +37,14 @@ A service account is automatically created for a new Batch user that is used by 
 on your behalf. This service account needs to be added to Google Storage buckets with your data and Docker
 images under Permissions. See this `page <https://cloud.google.com/container-registry/docs/access-control>`__
 for more information. To get the name of the service account, click on your name on the header bar or go to
-`<https://notebook.hail.is/user>`__.
+`<https://notebook.hail.is/user>`__. If you want to run gcloud or gsutil commands within your code, the service
+account file is available at `/gsa-key/key.json` in the main container. You can authenticate using the service
+account by adding the following line to your user code and using a Docker image that has gcloud and gsutil
+installed.
+
+.. code-block:: sh
+
+    gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
 
 
 Billing

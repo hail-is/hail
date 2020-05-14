@@ -14,12 +14,16 @@ from bokeh.transform import transform
 from bokeh.layouts import gridplot
 
 from hail.expr import aggregators
-from hail.expr.expressions import *
-from hail.expr.expressions import Expression
-from hail.typecheck import *
+from hail.expr.expressions import Expression, NumericExpression, \
+    StringExpression, Int32Expression, Int64Expression, \
+    Float32Expression, Float64Expression, \
+    expr_numeric, expr_float64, expr_any, expr_locus, expr_str, \
+    check_row_indexed
+from hail.typecheck import typecheck, oneof, nullable, sized_tupleof, numeric, \
+    sequenceof, dictof
 from hail import Table
 from hail.utils.struct import Struct
-from typing import *
+from typing import List, Tuple, Dict, Union
 import hail
 
 palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']

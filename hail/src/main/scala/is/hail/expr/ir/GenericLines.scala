@@ -1,9 +1,10 @@
 package is.hail.expr.ir
 
+import is.hail.HailContext
 import is.hail.utils._
 import is.hail.expr.types.virtual.{TBoolean, TInt32, TInt64, TString, TStruct, Type}
 import is.hail.io.compress.{BGzipCodec, BGzipInputStream}
-import is.hail.io.fs.{FS, Positioned, PositionedInputStream, SeekableInputStream}
+import is.hail.io.fs.{FS, FileStatus, Positioned, PositionedInputStream, SeekableInputStream}
 import org.apache.commons.io.input.{CountingInputStream, ProxyInputStream}
 import org.apache.hadoop.io.compress.SplittableCompressionCodec
 import org.apache.spark.sql.Row
@@ -11,7 +12,7 @@ import org.apache.spark.sql.Row
 abstract class CloseableIterator[T] extends Iterator[T] with AutoCloseable
 
 object GenericLines {
-  def read(fs: FS, contexts: IndexedSeq[Any]): GenericLines = {
+  def read(fs: FS, contexts: IndexedSeq[Any], gzAsBGZ: Boolean): GenericLines = {
 
     val fsBc = fs.broadcast
     val body: (Any) => CloseableIterator[GenericLine] = { (context: Any) =>
@@ -27,7 +28,9 @@ object GenericLines {
         private val is: PositionedInputStream = {
           val fs = fsBc.value
           val rawIS = fs.openNoCompression(file)
-          val codec = fs.getCodec(file)
+          val codec = HailContext.maybeGZipAsBGZip(fs, gzAsBGZ) {
+            fs.getCodec(file)
+          }
           if (codec == null) {
             rawIS.seek(start)
             rawIS
@@ -64,9 +67,9 @@ object GenericLines {
             // load new block
             bufOffset = is.getPosition
             val nRead = is.read(buf)
-            if (nRead == -1)
+            if (nRead == -1) {
               eof = true
-            else {
+            } else {
               bufPos = 0
               bufMark = nRead
               assert(!splitCompressed || virtualOffsetBlockOffset(bufOffset) == 0)
@@ -193,6 +196,7 @@ object GenericLines {
           assert(line != null)
           assert(line.lineLength > 0)
           consumed = true
+
           line
         }
 
@@ -217,28 +221,38 @@ object GenericLines {
 
   def read(
     fs: FS,
-    files: IndexedSeq[String],
-    blockSizeInMB: Option[Int],
+    fileStatuses0: IndexedSeq[FileStatus],
     nPartitions: Option[Int],
+    blockSizeInMB: Option[Int],
+    minPartitions: Option[Int],
+    gzAsBGZ: Boolean,
     allowSerialRead: Boolean
   ): GenericLines = {
-    val statuses = fs.globAllStatuses(files)
-      .filter(_.getLen > 0)
-    val totalSize = statuses.map(_.getLen).sum
+    val fileStatuses = fileStatuses0.filter(_.getLen > 0)
+    val totalSize = fileStatuses.map(_.getLen).sum
 
-    val contexts = statuses.flatMap { status =>
+    var totalPartitions = nPartitions match {
+      case Some(nPartitions) => nPartitions
+      case None =>
+        val blockSizeInB = blockSizeInMB.getOrElse(128) * 1024 * 1024
+        (totalSize.toDouble / blockSizeInB + 0.5).toInt
+    }
+    minPartitions match {
+      case Some(minPartitions) =>
+        if (totalPartitions < minPartitions)
+          totalPartitions = minPartitions
+      case None =>
+    }
+
+    val contexts = fileStatuses.flatMap { status =>
       val size = status.getLen
-      val codec = fs.getCodec(status.getPath)
+      val codec = HailContext.maybeGZipAsBGZip(fs, gzAsBGZ) {
+        fs.getCodec(status.getPath)
+      }
 
       val splittable = codec == null || codec.isInstanceOf[BGzipCodec]
       if (splittable) {
-        var fileNParts = nPartitions match {
-          case Some(nPartitions) =>
-            ((nPartitions.toDouble * size) / totalSize + 0.5).toInt
-          case None =>
-            val blockSizeInB = blockSizeInMB.getOrElse(128) * 1024 * 1024
-            (size.toDouble / blockSizeInB + 0.5).toInt
-        }
+        var fileNParts = ((totalPartitions.toDouble * size) / totalSize + 0.5).toInt
         if (fileNParts == 0)
           fileNParts = 1
 
@@ -262,25 +276,13 @@ object GenericLines {
       }
     }
 
-    GenericLines.read(fs, contexts)
+    GenericLines.read(fs, contexts, gzAsBGZ)
   }
 
   def collect(lines: GenericLines): IndexedSeq[String] = {
     lines.contexts.flatMap { context =>
       using(lines.body(context)) { it =>
-        it.map { line =>
-          var n = line.lineLength
-          assert(n > 0)
-          val lineData = line.data
-          // strip line delimiter to match behavior of Spark textFile
-          if (lineData(n - 1) == '\n') {
-            n -= 1
-            if (n > 0 && lineData(n - 1) == '\r')
-              n -= 1
-          } else if (lineData(n - 1) == '\r')
-            n -= 1
-          new String(lineData, 0, n)
-        }.toArray
+        it.map(_.toString).toArray
       }
     }
   }
@@ -293,9 +295,25 @@ class GenericLine(
   var data: Array[Byte],
   var lineLength: Int) {
   def this(file: String) = this(file, 0, null, 0)
+
+  override def toString: String = {
+    var n = lineLength
+    assert(n > 0)
+    // strip line delimiter to match behavior of Spark textFile
+    if (data(n - 1) == '\n') {
+      n -= 1
+      if (n > 0 && data(n - 1) == '\r')
+        n -= 1
+    } else if (data(n - 1) == '\r')
+      n -= 1
+    new String(data, 0, n)
+  }
 }
 
 class GenericLines(
   val contextType: Type,
   val contexts: IndexedSeq[Any],
-  val body: (Any) => CloseableIterator[GenericLine])
+  val body: (Any) => CloseableIterator[GenericLine]) {
+
+  def nPartitions: Int = contexts.length
+}

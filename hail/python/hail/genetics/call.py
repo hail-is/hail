@@ -1,5 +1,5 @@
-from hail.typecheck import *
-from hail.utils.java import *
+from hail.typecheck import typecheck_method, sequenceof
+from hail.utils import FatalError
 
 
 class Call(object):

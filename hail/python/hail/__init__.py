@@ -25,10 +25,6 @@ For help, visit either:
 To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 """
 
-from .context import init, stop, spark_context, default_reference, \
-    get_reference, set_global_seed, _set_flags, _get_flags, \
-    current_backend, debug_info, citation, cite_hail, cite_hail_bibtex, \
-    version
 from .table import Table, GroupedTable, asc, desc
 from .matrixtable import MatrixTable, GroupedMatrixTable
 from .expr import *
@@ -47,6 +43,11 @@ from . import nd as _nd
 from hail.expr import aggregators as agg
 from hail.utils import Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls, \
     hadoop_stat, hadoop_exists, hadoop_is_file, hadoop_is_dir, copy_log
+
+from .context import init, stop, spark_context, default_reference, \
+    get_reference, set_global_seed, _set_flags, _get_flags, \
+    current_backend, debug_info, citation, cite_hail, cite_hail_bibtex, \
+    version
 
 scan = agg.aggregators.ScanFunctions({name: getattr(agg, name) for name in agg.__all__})
 

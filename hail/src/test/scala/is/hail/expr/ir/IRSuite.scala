@@ -1571,11 +1571,13 @@ class IRSuite extends HailSuite {
     val lit6 = ToStream(Literal(TArray(TFloat64), FastIndexedSeq(0d, -1d, 2.5d, -3d, 4d, null)))
     val range6dup = StreamRange(0, 6, 1)
 
-    def zipToTuple(behavior: ArrayZipBehavior, irs: IR*): IR = ToArray(StreamZip(
+    def zip(behavior: ArrayZipBehavior, irs: IR*): IR = StreamZip(
       irs.toFastIndexedSeq,
       irs.indices.map(_.toString),
       MakeTuple.ordered(irs.zipWithIndex.map { case (ir, i) => Ref(i.toString, ir.typ.asInstanceOf[TStream].elementType) }),
-      behavior))
+      behavior
+    )
+    def zipToTuple(behavior: ArrayZipBehavior, irs: IR*): IR = ToArray(zip(behavior, irs: _*))
 
     for (b <- Array(ArrayZipBehavior.TakeMinLength, ArrayZipBehavior.ExtendNA)) {
       assertEvalSame(zipToTuple(b, range12), FastIndexedSeq())
@@ -1594,6 +1596,11 @@ class IRSuite extends HailSuite {
       assertEvalSame(zipToTuple(b, range12), FastIndexedSeq())
       assertEvalSame(zipToTuple(b, empty), FastIndexedSeq())
     }
+
+    assertEvalsTo(StreamLen(zip(ArrayZipBehavior.TakeMinLength, range6, range8)), 6)
+    assertEvalsTo(StreamLen(zip(ArrayZipBehavior.ExtendNA, range6, range8)), 8)
+    assertEvalsTo(StreamLen(zip(ArrayZipBehavior.AssertSameLength, range8, range8)), 8)
+    assertEvalsTo(StreamLen(zip(ArrayZipBehavior.AssumeSameLength, range8, range8)), 8)
 
     // https://github.com/hail-is/hail/issues/8359
     is.hail.TestUtils.assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range6, range8): IR, "zip: length mismatch": String)
@@ -1760,6 +1767,29 @@ class IRSuite extends HailSuite {
     assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, NA(TInt32), onKey = true), 2)
   }
 
+  @Test def testStreamLen(): Unit = {
+    val a = StreamLen(MakeStream(Seq(I32(3), NA(TInt32), I32(7)), TStream(TInt32)))
+    assertEvalsTo(a, 3)
+
+    val missing = StreamLen(NA(TStream(TInt64)))
+    assertEvalsTo(missing, null)
+
+    val range1 = StreamLen(StreamRange(1, 11, 1))
+    assertEvalsTo(range1, 10)
+    val range2 = StreamLen(StreamRange(20, 40, 2))
+    assertEvalsTo(range2, 10)
+    val range3 = StreamLen(StreamRange(-10, 5, 1))
+    assertEvalsTo(range3, 15)
+    val mappedRange = StreamLen(mapIR(StreamRange(2, 7, 1)) { ref => maxIR(ref, 3)})
+    assertEvalsTo(mappedRange, 5)
+
+    val streamOfStreams = mapIR(rangeIR(5)) { elementRef => rangeIR(elementRef) }
+    assertEvalsTo(StreamLen(flatMapIR(streamOfStreams){ x => x}), 4 + 3 + 2 + 1)
+
+    val filteredRange = StreamLen(StreamFilter(rangeIR(12), "x", irToPrimitiveIR(Ref("x", TInt32)) < 5))
+    assertEvalsTo(filteredRange, 5)
+  }
+
   @Test def testStreamTake() {
     val naa = NA(TStream(TInt32))
     val a = MakeStream(Seq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
@@ -1770,6 +1800,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(StreamTake(a, I32(2))), FastIndexedSeq(3, null))
     assertEvalsTo(ToArray(StreamTake(a, I32(5))), FastIndexedSeq(3, null, 7))
     assertFatal(ToArray(StreamTake(a, I32(-1))), "StreamTake: negative length")
+    assertEvalsTo(StreamLen(StreamTake(a, 2)), 2)
   }
 
   @Test def testStreamDrop() {
@@ -1782,6 +1813,8 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(StreamDrop(a, I32(2))), FastIndexedSeq(7))
     assertEvalsTo(ToArray(StreamDrop(a, I32(5))), FastIndexedSeq())
     assertFatal(ToArray(StreamDrop(a, I32(-1))), "StreamDrop: negative num")
+
+    assertEvalsTo(StreamLen(StreamDrop(a, 1)), 2)
   }
 
   def toNestedArray(stream: IR): IR = {
@@ -1802,6 +1835,8 @@ class IRSuite extends HailSuite {
     assertFatal(toNestedArray(StreamGrouped(a, I32(0))), "StreamGrouped: nonpositive size")
 
     val r = StreamRange(I32(0), I32(10), I32(1))
+
+    assertEvalsTo(StreamLen(StreamGrouped(r, 2)), 5)
 
     def takeFromEach(stream: IR, take: IR, fromEach: IR): IR = {
       val innerType = coerce[TStream](stream.typ)
@@ -2380,12 +2415,12 @@ class IRSuite extends HailSuite {
       (0 until 10).map(i => FastIndexedSeq(1, i, i, i)) ++ FastIndexedSeq(FastIndexedSeq(1)))
   }
 
-  @Test def testArrayAggScan() {
+  @Test def testStreamAggScan() {
     implicit val execStrats = ExecStrategy.compileOnly
 
     val eltType = TStruct("x" -> TCall, "y" -> TInt32)
 
-    val ir = ToArray(StreamAggScan(ToStream(In(0, TArray(eltType))),
+    val ir = (StreamAggScan(ToStream(In(0, TArray(eltType))),
       "foo",
       GetField(Ref("foo", eltType), "y") +
         GetField(ApplyScanOp(
@@ -2394,16 +2429,19 @@ class IRSuite extends HailSuite {
           AggSignature(CallStats(), FastIndexedSeq(TInt32), FastIndexedSeq(TCall))
         ), "AN")))
 
-    assertEvalsTo(ir,
-      args = FastIndexedSeq(
-        FastIndexedSeq(
-          Row(null, 1),
-          Row(Call2(0, 0), 2),
-          Row(Call2(0, 1), 3),
-          Row(Call2(1, 1), 4),
-          null,
-          Row(null, 5)) -> TArray(eltType)),
+    val input = FastIndexedSeq(
+      Row(null, 1),
+      Row(Call2(0, 0), 2),
+      Row(Call2(0, 1), 3),
+      Row(Call2(1, 1), 4),
+      null,
+      Row(null, 5)) -> TArray(eltType)
+
+    assertEvalsTo(ToArray(ir),
+      args = FastIndexedSeq(input),
       expected = FastIndexedSeq(1 + 0, 2 + 0, 3 + 2, 4 + 4, null, 5 + 6))
+
+    assertEvalsTo(StreamLen(ir), args=FastIndexedSeq(input), 6)
   }
 
   @Test def testInsertFields() {
@@ -2699,6 +2737,7 @@ class IRSuite extends HailSuite {
       NDArrayFilter(nd, FastIndexedSeq(NA(TArray(TInt64)), NA(TArray(TInt64)))),
       ArrayRef(a, i),
       ArrayLen(a),
+      StreamLen(st),
       StreamRange(I32(0), I32(5), I32(1)),
       StreamRange(I32(0), I32(5), I32(1)),
       ArraySort(st, b),

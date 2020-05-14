@@ -22,6 +22,7 @@ object ExecStrategy extends Enumeration {
   type ExecStrategy = Value
   val Interpret, InterpretUnoptimized, JvmCompile, LoweredJVMCompile, JvmCompileUnoptimized = Value
 
+  val unoptimizedCompileOnly: Set[ExecStrategy] = Set(JvmCompileUnoptimized)
   val compileOnly: Set[ExecStrategy] = Set(JvmCompile, JvmCompileUnoptimized)
   val javaOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile, JvmCompileUnoptimized)
   val interpretOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized)
@@ -501,6 +502,8 @@ object TestUtils {
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
+    blockSizeInMB: Option[Int] = None,
+    minPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     callFields: Set[String] = Set.empty[String],
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.GRCh37),
@@ -519,6 +522,8 @@ object TestUtils {
       entryFloatType,
       headerFile,
       nPartitions,
+      blockSizeInMB,
+      minPartitions,
       rg.map(_.name),
       contigRecoding.getOrElse(Map.empty[String, String]),
       arrayElementsRequired,

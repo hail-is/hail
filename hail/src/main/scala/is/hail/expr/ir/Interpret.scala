@@ -252,6 +252,12 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].length
+      case StreamLen(a) =>
+        val aValue = interpret(a, env, args)
+        if (aValue == null)
+          null
+        else
+          aValue.asInstanceOf[IndexedSeq[Any]].length
       case StreamRange(start, stop, step) =>
         val startValue = interpret(start, env, args)
         val stopValue = interpret(stop, env, args)
@@ -262,14 +268,14 @@ object Interpret {
           null
         else
           startValue.asInstanceOf[Int] until stopValue.asInstanceOf[Int] by stepValue.asInstanceOf[Int]
-      case ArraySort(a, l, r, compare) =>
+      case ArraySort(a, l, r, lessThan) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
           null
         else {
           aValue.asInstanceOf[IndexedSeq[Any]].sortWith { (left, right) =>
             if (left != null && right != null) {
-              val res = interpret(compare, env.bind(l, left).bind(r, right), args)
+              val res = interpret(lessThan, env.bind(l, left).bind(r, right), args)
               if (res == null)
                 fatal("Result of sorting function cannot be missing.")
               res.asInstanceOf[Boolean]

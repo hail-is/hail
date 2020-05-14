@@ -76,8 +76,8 @@ object InferType {
       case ArrayRef(a, i, s) =>
         assert(i.typ == TInt32)
         coerce[TArray](a.typ).elementType
-      case ArraySort(a, _, _, compare) =>
-        assert(compare.typ == TBoolean)
+      case ArraySort(a, _, _, lessThan) =>
+        assert(lessThan.typ == TBoolean)
         val et = coerce[TStream](a.typ).elementType
         TArray(et)
       case ToSet(a) =>
@@ -95,6 +95,7 @@ object InferType {
       case ToStream(a) =>
         val elt = coerce[TIterable](a.typ).elementType
         TStream(elt)
+      case StreamLen(a) => TInt32
       case GroupByKey(collection) =>
         val elt = coerce[TBaseStruct](coerce[TStream](collection.typ).elementType)
         TDict(elt.types(0), TArray(elt.types(1)))

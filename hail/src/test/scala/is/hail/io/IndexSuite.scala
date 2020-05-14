@@ -196,7 +196,6 @@ class IndexSuite extends HailSuite {
       val file = ctx.createTmpPath("interval", "idx")
       writeIndex(file, stringsWithDups, stringsWithDups.indices.map(i => Row()).toArray, TStruct.empty, branchingFactor)
       val index = indexReader(fs, file, TStruct.empty)
-
       // intervals with endpoint in list
       assert(index.queryByInterval("bear", "bear", includesStart = true, includesEnd = true).toFastIndexedSeq == index.iterator(0, 2).toFastIndexedSeq)
 

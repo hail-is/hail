@@ -1056,8 +1056,8 @@ object PruneDeadFields {
           combEnv.deleteEval(l).deleteEval(r),
           memoizeValueIR(left, TStream(lRequested), memo),
           memoizeValueIR(right, TStream(rRequested), memo))
-      case ArraySort(a, left, right, compare) =>
-        val compEnv = memoizeValueIR(compare, compare.typ, memo)
+      case ArraySort(a, left, right, lessThan) =>
+        val compEnv = memoizeValueIR(lessThan, lessThan.typ, memo)
 
         val aType = a.typ.asInstanceOf[TStream]
         val requestedElementType = unifySeq(
@@ -1716,11 +1716,11 @@ object PruneDeadFields {
         val a2 = rebuildIR(a, env, memo)
         val body2 = rebuildIR(body, env.bindEval(valueName -> a2.typ.asInstanceOf[TStream].elementType), memo)
         StreamFor(a2, valueName, body2)
-      case ArraySort(a, left, right, compare) =>
+      case ArraySort(a, left, right, lessThan) =>
         val a2 = rebuildIR(a, env, memo)
         val et = a2.typ.asInstanceOf[TStream].elementType
-        val compare2 = rebuildIR(compare, env.bindEval(left -> et, right -> et), memo)
-        ArraySort(a2, left, right, compare2)
+        val lessThan2 = rebuildIR(lessThan, env.bindEval(left -> et, right -> et), memo)
+        ArraySort(a2, left, right, lessThan2)
       case MakeNDArray(data, shape, rowMajor) =>
         val data2 = rebuildIR(data, env, memo)
         MakeNDArray(data2, shape, rowMajor)

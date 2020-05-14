@@ -202,7 +202,7 @@ object ArraySort {
   }
 }
 
-final case class ArraySort(a: IR, left: String, right: String, compare: IR) extends IR
+final case class ArraySort(a: IR, left: String, right: String, lessThan: IR) extends IR
 final case class ToSet(a: IR) extends IR
 final case class ToDict(a: IR) extends IR
 final case class ToArray(a: IR) extends IR
@@ -212,6 +212,8 @@ final case class ToStream(a: IR) extends IR
 final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, onKey: Boolean) extends IR
 
 final case class GroupByKey(collection: IR) extends IR
+
+final case class StreamLen(a: IR) extends IR
 
 final case class StreamGrouped(a: IR, groupSize: IR) extends IR
 final case class StreamGroupByKey(a: IR, key: IndexedSeq[String]) extends IR

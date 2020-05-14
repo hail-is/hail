@@ -2,8 +2,8 @@ from hail.utils.java import Env
 from hail.ir import Apply, Ref
 from hail.ir.renderer import CSERenderer
 from hail.expr.types import hail_type
-from hail.expr.expressions import construct_expr, anytype, expr_any, unify_all
-from hail.typecheck import typecheck, nullable, tupleof
+from hail.expr.expressions import construct_expr, expr_any, unify_all
+from hail.typecheck import typecheck, nullable, tupleof, anytype
 
 
 class Function(object):
