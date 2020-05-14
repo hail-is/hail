@@ -134,6 +134,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
         rvAgg.combOp(cb, leftAggState.states(i), rightAggState.states(i))
       }
 
+      leftAggState.store(cb)
       leftAggOff
     })
 
