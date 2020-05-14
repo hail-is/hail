@@ -174,13 +174,13 @@ object Extract {
 
   def getAgg(aggSig: AggStatePhysicalSignature, op: AggOp): StagedAggregator = aggSig.lookup(op) match {
     case PhysicalAggSignature(Sum(), _, Seq(t)) =>
-      new SumAggregator(t)
+      new SumAggregator(t.setRequired(true))
     case PhysicalAggSignature(Product(), _, Seq(t)) =>
-      new ProductAggregator(t)
+      new ProductAggregator(t.setRequired(true))
     case PhysicalAggSignature(Min(), _, Seq(t)) =>
-      new MinAggregator(t)
+      new MinAggregator(t.setRequired(false))
     case PhysicalAggSignature(Max(), _, Seq(t)) =>
-      new MaxAggregator(t)
+      new MaxAggregator(t.setRequired(false))
     case PhysicalAggSignature(Count(), _, _) =>
       CountAggregator
     case PhysicalAggSignature(Take(), _, Seq(t)) => new TakeAggregator(t)

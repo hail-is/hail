@@ -194,7 +194,7 @@ object InferPType {
             if (seqs != null)
               seqs(i) += RecursiveArrayBuilderElement(x, None)
         }
-      case _ => _inferAggs(node, inits, seqs)
+      case _ => node.children.foreach(c => _inferAggs(c.asInstanceOf[IR], inits, seqs))
     }
 
   private def _inferWithRequiredness(node: IR, env: Env[PType], requiredness: RequirednessAnalysis, usesAndDefs: UsesAndDefs, aggs: Array[AggStatePhysicalSignature] = null): Unit = {
