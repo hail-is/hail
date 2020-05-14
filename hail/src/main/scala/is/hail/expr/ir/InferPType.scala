@@ -227,12 +227,14 @@ object InferPType {
         }
     }
     node._pType = node match {
+      case x if x.typ == TVoid => PVoid
       case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | _: Literal | _: True | _: False
            | _: Cast | _: NA | _: Die | _: IsNA | _: ArrayZeros | _: ArrayLen | _: StreamLen
            | _: LowerBoundOnOrderedCollection | _: ApplyBinaryPrimOp
            | _: ApplyUnaryPrimOp | _: ApplyComparisonOp | _: WriteValue
            | _: NDArrayAgg | _: ShuffleWrite | _: ShuffleStart | _: AggStateValue =>
         requiredness(node).canonicalPType(node.typ)
+      case CastRename(v, typ) => v.pType.deepRename(typ)
       case x: BaseRef if usesAndDefs.free.contains(RefEquality(x)) =>
         env.lookup(x.name)
       case x: BaseRef =>
@@ -394,7 +396,6 @@ object InferPType {
       case ShuffleRead(_, _, rowType, rowEType) =>
         val rowPType = rowEType.decodedPType(rowType)
         PCanonicalStream(rowPType, requiredness(node).required)
-      case x if x.typ == TVoid => PVoid
       case _ => throw new RuntimeException(s"unsupported node:\n${Pretty(node)}")
     }
     if (node.pType.virtualType != node.typ)
