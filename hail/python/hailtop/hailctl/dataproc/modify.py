@@ -1,6 +1,6 @@
 import os.path
 import sys
-from subprocess import check_call
+import subprocess as sp
 import yaml
 import pkg_resources
 
@@ -16,8 +16,7 @@ def init_parser(parser):
                         help='If set, cluster size downgrade will use graceful decommissioning with the given timeout (e.g. "60m").')
     parser.add_argument('--max-idle', type=str, help='New maximum idle time before shutdown (e.g. "60m").')
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
-    parser.add_argument('--zone', '-z', default='us-central1-b', type=str,
-                        help='Compute zone for Dataproc cluster (default: %(default)s).')
+    parser.add_argument('--zone', '-z', type=str, help='Compute zone for Dataproc cluster.')
     parser.add_argument('--update-hail-version', action='store_true', help="Update the version of hail running on cluster to match "
                         "the currently installed version.")
 
@@ -59,7 +58,15 @@ def main(args, pass_through_args):
         # Update cluster
         if not args.dry_run:
             print("Updating cluster '{}'...".format(args.name))
-            check_call(cmd)
+            sp.check_call(cmd)
+
+    if args.zone:
+        zone = args.zone
+    else:
+        zone = sp.check_output(["gcloud", "config", "get-value", "compute/zone"], stderr=sp.DEVNULL).decode().strip()
+
+    if not zone:
+        raise RuntimeError("Could not determine compute zone. Use --zone argument to hailctl, or use `gcloud config set compute/zone <my-zone>` to set a default.")
 
     wheel = None
     if args.update_hail_version:
@@ -79,7 +86,7 @@ def main(args, pass_through_args):
                 'compute',
                 'ssh',
                 '{}-m'.format(args.name),
-                '--zone={}'.format(args.zone),
+                '--zone={}'.format(zone),
                 '--',
                 f'sudo gsutil cp {wheel} /tmp/ && '
                 'sudo /opt/conda/default/bin/pip uninstall -y hail && '
@@ -91,7 +98,7 @@ def main(args, pass_through_args):
                     'gcloud',
                     'compute',
                     'scp',
-                    '--zone={}'.format(args.zone),
+                    '--zone={}'.format(zone),
                     wheel,
                     '{}-m:/tmp/'.format(args.name)
                 ],
@@ -100,7 +107,7 @@ def main(args, pass_through_args):
                     'compute',
                     'ssh',
                     f'{args.name}-m',
-                    f'--zone={args.zone}',
+                    f'--zone={zone}',
                     '--',
                     'sudo /opt/conda/default/bin/pip uninstall -y hail && '
                     f'sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/{wheelfile}'
@@ -109,7 +116,7 @@ def main(args, pass_through_args):
 
         for cmd in cmds:
             print(cmd)
-            check_call(cmd)
+            sp.check_call(cmd)
 
     if not wheel and not modify_args and pass_through_args:
         sys.stderr.write('ERROR: found pass-through arguments but not known modification args.')
