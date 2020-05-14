@@ -175,14 +175,17 @@ class LSM (
       }
     } else if (samplesEnd < samples.length) {
       if (keyOrd.compare(k, least) < 0) {
+        sorted = false
         samples(samplesEnd) = least
         least = k
         samplesEnd += 1
       } else if (keyOrd.compare(greatest, k) < 0) {
+        sorted = false
         samples(samplesEnd) = greatest
         greatest = k
         samplesEnd += 1
       } else {
+        sorted = false
         samples(samplesEnd) = k
         samplesEnd += 1
       }
@@ -198,6 +201,7 @@ class LSM (
 
       if (rnd.nextDouble() < (samples.length * 1.0) / (processed + 1)) {
         assert(samplesEnd == samples.length)
+        sorted = false
         samples(rnd.nextInt(samplesEnd)) = insertMe
       }
     }
