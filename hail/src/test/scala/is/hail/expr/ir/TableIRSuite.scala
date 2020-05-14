@@ -458,7 +458,6 @@ class TableIRSuite extends HailSuite {
     }
   }
 
-
   @Test def testShuffleAndJoinDoesntMemoryLeak() {
     implicit val execStrats = ExecStrategy.interpretOnly
     val row = Ref("row", TStruct("idx" -> TInt32))
@@ -645,5 +644,20 @@ class TableIRSuite extends HailSuite {
     )))
     val ir = GetField(TableCollect(TableKeyBy(tir, FastIndexedSeq())), "rows")
     assertEvalsTo(ir, (0 until 10).flatMap(i => (0 until i).map(j => Row(i, j, (0 until j).sum.toLong, j.toLong))).filter(_.getAs[Long](3) > 0))
+  }
+
+  @Test def testTableDistinct(): Unit = {
+    val tir: TableIR = TableRead.native(fs, "src/test/resources/three_key.ht")
+    val keyedByX = TableKeyBy(tir, FastIndexedSeq("x"), true)
+    val distinctByX = TableDistinct(keyedByX)
+    assertEvalsTo(TableCount(distinctByX), 8L)
+    assertEvalsTo(collect(distinctByX), Row(FastIndexedSeq(2 to 9: _*).map(i => Row(i, 1, 0)), Row()))
+
+    val keyedByXAndY = TableKeyBy(tir, FastIndexedSeq("x", "y"), true)
+    val distinctByXAndY = TableDistinct(keyedByXAndY)
+    assertEvalsTo(TableCount(distinctByXAndY), 36L)
+
+    val distinctByAll = TableDistinct(tir)
+    assertEvalsTo(TableCount(distinctByAll), 120L)
   }
 }

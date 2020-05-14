@@ -1235,6 +1235,7 @@ class Emit[C](
               case Some(len) => Code(ss.setup, len)
               case None =>
                 Code(
+                  count := 0,
                   ss.getStream.forEach(mb, _ => count := count + 1),
                   count.get
                 )
@@ -1261,7 +1262,8 @@ class Emit[C](
             val codeB = emit(body, env = bodyenv)
             Code(xElt := elt,
               tmpAcc := codeB.map(v => accType.copyFromPValue(mb, region, PCode(body.pType, codeB.v))),
-              xAcc := tmpAcc)
+              xAcc := tmpAcc
+            )
           }
 
           val codeZ = emit(zero).map(accType.copyFromPValue(mb, region, _))

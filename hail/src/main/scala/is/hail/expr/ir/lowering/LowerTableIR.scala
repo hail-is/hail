@@ -293,6 +293,16 @@ object LowerTableIR {
               )
             }
 
+        case TableDistinct(child) =>
+          val loweredChild = lower(child)
+
+          loweredChild.repartitionNoShuffle(loweredChild.partitioner.coarsen(child.typ.key.length).strictify)
+            .mapPartition { partition =>
+              flatMapIR(StreamGroupByKey(partition, child.typ.key)) { groupRef =>
+                StreamTake(groupRef, 1)
+              }
+            }
+
         case TableFilter(child, cond) =>
           val row = Ref(genUID(), child.typ.rowType)
           val loweredChild = lower(child)

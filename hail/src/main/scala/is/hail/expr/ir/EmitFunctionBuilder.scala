@@ -970,6 +970,10 @@ class EmitMethodBuilder[C](
   def newPField(name: String, pt: PType): PSettable = newPSettable(fieldBuilder, pt, name)
 
   def newEmitSettable(_pt: PType, ms: Settable[Boolean], vs: PSettable): EmitSettable = new EmitSettable {
+    if (!_pt.isRealizable) {
+      throw new UnsupportedOperationException(s"newEmitSettable can only be called on realizable PTypes. Called on ${_pt}")
+    }
+
     def pt: PType = _pt
 
     def get: EmitCode = EmitCode(Code._empty,

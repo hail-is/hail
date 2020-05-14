@@ -119,6 +119,8 @@ object PCode {
       new PCanonicalCallCode(pt, coerce[Int](code))
     case pt: PCanonicalNDArray =>
       new PCanonicalNDArrayCode(pt, coerce[Long](code))
+    case pt: PCanonicalStream =>
+      throw new UnsupportedOperationException(s"Can't PCode.apply unrealizable PType: $pt")
     case _ =>
       new PPrimitiveCode(pt, code)
   }
