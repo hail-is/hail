@@ -717,7 +717,7 @@ object Interpret {
               a
             }
           }
-          val combOpF = extracted.combOpF3(ctx, spec, physicalAggs)
+          val combOpF = extracted.combOpF(ctx, spec, physicalAggs)
 
           val (rTyp: PTuple, f) = CompileWithAggregators2[AsmFunction2RegionLongLong](ctx,
             physicalAggs,

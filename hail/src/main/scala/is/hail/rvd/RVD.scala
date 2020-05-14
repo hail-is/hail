@@ -656,7 +656,32 @@ class RVD(
     var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(serialize(itF(i, ctx, it))) }
 
     if (tree) {
-      reduced = reduced.treeCombine(mkZero, serialize, deserialize, seqOp)
+      val depth = treeAggDepth(getNumPartitions)
+      val scale = math.max(
+        math.ceil(math.pow(getNumPartitions, 1.0 / depth)).toInt,
+        2)
+
+      var i = 0
+      while (i < depth - 1 && reduced.getNumPartitions > scale) {
+        val nParts = reduced.getNumPartitions
+        val newNParts = nParts / scale
+        reduced = reduced
+          .mapPartitionsWithIndex { (i, it) =>
+            it.map(x => (itemPartition(i, nParts, newNParts), (i, x)))
+          }
+          .partitionBy(new Partitioner {
+            override def getPartition(key: Any): Int = key.asInstanceOf[Int]
+            override def numPartitions: Int = newNParts
+          })
+          .mapPartitions { it =>
+            var acc = mkZero()
+            it.foreach { case (newPart, (oldPart, v)) =>
+              acc = seqOp(acc, deserialize(v))
+            }
+            Iterator.single(serialize(acc))
+          }
+        i += 1
+      }
     }
 
     val ac = Combiner(mkZero(), seqOp, commutative, true)

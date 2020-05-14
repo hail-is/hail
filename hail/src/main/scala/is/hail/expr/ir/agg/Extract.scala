@@ -37,12 +37,6 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
     aggs.exists(containsBigAggregator)
   }
 
-  def deserializeSet(i: Int, i2: Int, spec: BufferSpec): IR =
-    DeserializeAggs(i * nAggs, i2, spec, aggs)
-
-  def serializeSet(i: Int, i2: Int, spec: BufferSpec): IR =
-    SerializeAggs(i * nAggs, i2, spec, aggs)
-
   def eltOp(ctx: ExecuteContext): IR = seqPerElt
 
   def deserialize(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (Region, Array[Byte]) => Long = {
@@ -69,37 +63,27 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
       ir.SerializeAggs(0, 0, spec, aggs))
 
     { (aggRegion: Region, off: Long) =>
-      val f2 = f(0, aggRegion);
+      val f2 = f(0, aggRegion)
       f2.setAggState(aggRegion, off)
       f2(aggRegion)
       f2.getSerializedAgg(0)
     }
   }
 
-  def combOpF(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (Array[Byte], Array[Byte]) => Array[Byte] = {
-    val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
-      physicalAggs ++ physicalAggs,
-      FastIndexedSeq(),
-      FastIndexedSeq(classInfo[Region]), UnitInfo,
-      Begin(
-        deserializeSet(0, 0, spec) +:
-          deserializeSet(1, 1, spec) +:
-          Array.tabulate(nAggs)(i => CombOp(i, nAggs + i, aggs(i))) :+
-          serializeSet(0, 0, spec)))
-
+  def combOpFSerialized(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (Array[Byte], Array[Byte]) => Array[Byte] = {
     { (c1: Array[Byte], c2: Array[Byte]) =>
-      Region.smallScoped { aggRegion =>
-        val comb = f(0, aggRegion)
-        comb.newAggState(aggRegion)
-        comb.setSerializedAgg(0, c1)
-        comb.setSerializedAgg(1, c2)
-        comb(aggRegion)
-        comb.getSerializedAgg(0)
-      }
+      val r1 = Region(Region.SMALL)
+      val r2 = Region(Region.SMALL)
+      val rv1 = RegionValue(r1, deserialize(ctx, spec, physicalAggs)(r1, c1))
+      val rv2 = RegionValue(r2, deserialize(ctx, spec, physicalAggs)(r2, c2))
+      val resRV = combOpF(ctx, spec, physicalAggs)(rv1, rv2)
+      val res = serialize(ctx, spec, physicalAggs)(resRV.region, resRV.offset)
+      resRV.region.clear()
+      res
     }
   }
 
-  def combOpF3(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (RegionValue, RegionValue) => RegionValue = {
+  def combOpF(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (RegionValue, RegionValue) => RegionValue = {
     val fb = ir.EmitFunctionBuilder[AsmFunction4RegionLongRegionLongLong](
       ctx,
       "combOpF3",

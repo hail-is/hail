@@ -115,10 +115,8 @@ object ApproxCDFCombiner {
     numLevels: Int, capacity: Int, keepRatio: Option[Double], rand: java.util.Random
   ): ApproxCDFCombiner = new ApproxCDFCombiner(
     { val a = Array.ofDim[Int](numLevels + 1); java.util.Arrays.fill(a, capacity); a },
-//    Array.fill[Int](numLevels + 1)(capacity),
     Array.ofDim[Double](capacity),
     Array.ofDim[Int](numLevels),
-//    Array.fill[Int](numLevels)(0),
     1,
     keepRatio.getOrElse(Double.NaN),
     rand)
@@ -177,14 +175,12 @@ class ApproxCDFCombiner(
   def serializeTo(ob: OutputBuffer): Unit = {
     var i = 0
     ob.writeInt(levels.length)
-    //    levels.foreach(ob.writeInt)
     while (i < levels.length) {
       ob.writeInt(levels(i))
       i += 1
     }
 
     ob.writeInt(items.length)
-//    items.foreach(ob.writeDouble)
     i = 0
     while (i < items.length) {
       ob.writeDouble(items(i))
@@ -192,7 +188,6 @@ class ApproxCDFCombiner(
     }
 
     ob.writeInt(compactionCounts.length)
-//    compactionCounts.foreach(ob.writeInt)
     i = 0
     while (i < compactionCounts.length) {
       ob.writeInt(compactionCounts(i))
@@ -620,6 +615,7 @@ class ApproxCDFStateManager(val k: Int) {
     val (values, ranks) = makeCdf()
     val counts = combiner.compactionCounts
     rvb.startBaseStruct()
+
     rvb.startArray(values.length)
     var i = 0
     while (i < values.length) {
@@ -627,6 +623,7 @@ class ApproxCDFStateManager(val k: Int) {
       i += 1
     }
     rvb.endArray()
+
     rvb.startArray(ranks.length)
     i = 0
     while (i < ranks.length) {
@@ -634,6 +631,7 @@ class ApproxCDFStateManager(val k: Int) {
       i += 1
     }
     rvb.endArray()
+
     rvb.startArray(counts.length)
     i = 0
     while (i < counts.length) {
@@ -641,6 +639,7 @@ class ApproxCDFStateManager(val k: Int) {
       i += 1
     }
     rvb.endArray()
+
     rvb.endBaseStruct()
   }
 

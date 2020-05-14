@@ -1493,7 +1493,9 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       physicalAggs,
       FastIndexedSeq(("global", tv.globals.t)),
       FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
-      Begin(FastIndexedSeq(extracted.init, extracted.serializeSet(0, 0, spec))))
+      Begin(FastIndexedSeq(extracted.init)))
+
+    val serializeF = extracted.serialize(ctx, spec, physicalAggs)
 
     val (_, eltSeqF) = ir.CompileWithAggregators2[AsmFunction3RegionLongLongUnit](ctx,
       physicalAggs,
@@ -1504,7 +1506,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     val read = extracted.deserialize(ctx, spec, physicalAggs)
     val write = extracted.serialize(ctx, spec, physicalAggs)
-    val combOpF = extracted.combOpF(ctx, spec, physicalAggs)
+    val combOpF = extracted.combOpFSerialized(ctx, spec, physicalAggs)
 
     val (rTyp, f) = ir.CompileWithAggregators2[AsmFunction3RegionLongLongLong](ctx,
       physicalAggs,
@@ -1523,7 +1525,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val init = initF(0, fRegion)
         init.newAggState(aggRegion)
         init(fRegion, tv.globals.value.offset)
-        init.getSerializedAgg(0)
+        serializeF(aggRegion, init.getAggOffset())
       }
     }
 
@@ -1985,7 +1987,7 @@ case class TableKeyByAndAggregate(
 
     val serialize = extracted.serialize(ctx, spec, physicalAggs)
     val deserialize = extracted.deserialize(ctx, spec, physicalAggs)
-    val combOp = extracted.combOpF(ctx, spec, physicalAggs)
+    val combOp = extracted.combOpFSerialized(ctx, spec, physicalAggs)
 
     val initF = makeInit(0, ctx.r)
     val globalsOffset = prev.globals.value.offset

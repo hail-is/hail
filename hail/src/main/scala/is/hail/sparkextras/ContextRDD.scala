@@ -353,42 +353,6 @@ class ContextRDD[T: ClassTag](
       },
       partitions)
 
-  def treeCombine[U: ClassTag](
-    mkZeroValue: () => U,
-    serialize: U => T,
-    deserialize: T => U,
-    seqOp: (U, U) => U
-  ): ContextRDD[T] = {
-    val depth = treeAggDepth(getNumPartitions)
-    val scale = math.max(
-      math.ceil(math.pow(getNumPartitions, 1.0 / depth)).toInt,
-      2)
-
-    var reduced = this
-    var i = 0
-    while (i < depth - 1 && reduced.getNumPartitions > scale) {
-      val nParts = reduced.getNumPartitions
-      val newNParts = nParts / scale
-      reduced = reduced
-        .mapPartitionsWithIndex { (i, it) =>
-          it.map(x => (itemPartition(i, nParts, newNParts), (i, x)))
-        }
-        .partitionBy(new Partitioner {
-          override def getPartition(key: Any): Int = key.asInstanceOf[Int]
-          override def numPartitions: Int = newNParts
-        })
-        .mapPartitions { it =>
-          var acc = mkZeroValue()
-          it.foreach { case (newPart, (oldPart, v)) =>
-            acc = seqOp(acc, deserialize(v))
-          }
-          Iterator.single(serialize(acc))
-        }
-      i += 1
-    }
-    reduced
-  }
-
   def blocked(partFirst: Array[Int], partLast: Array[Int]): ContextRDD[T] = {
     new ContextRDD(new BlockedRDD(rdd, partFirst, partLast))
   }
