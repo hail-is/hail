@@ -223,14 +223,11 @@ class LSM (
     if (nPartitions == 0) {
       return new Array[Long](0)
     }
-    assert(least != -1 && greatest != -1)
-    assert(samplesEnd > 0)
-    assert(processed > 0)
-    if (nPartitions == 1) {
-      return Array[Long](least, greatest)
+    if (processed == 0) {
+      throw new RuntimeException("cannot partition nothing")
     }
-    // NB: if we sampled a key twice and nPartitions = samplesEnd, then you will
-    // get an empty partition because the same key will appear twice :shrug:
+    val currentlyGreatest = if (processed == 1) least else greatest
+    assert(currentlyGreatest != -1)
     if (!sorted) {
       val boxed = samples.map(x => x: java.lang.Long).toArray[java.lang.Long]
       Arrays.sort(boxed, 0, samplesEnd, new java.util.Comparator[java.lang.Long]() {
@@ -239,22 +236,21 @@ class LSM (
       samples = boxed.map(x => x: Long).toArray[Long]
       sorted = true
     }
-     // we have samplesEnd + 2 keys, but we need one key to represent the "end",
-     // so we partition one fewer elements
+    // we have samplesEnd + 2 keys, but we need one key to represent the "end",
+    // so we partition one fewer elements
     val partitionSizes = partition(samplesEnd + 2 - 1, nPartitions)
+
     val partitionBounds = new Array[Long](nPartitions + 1)
     partitionBounds(0) = least
     var i = 1
     var nextBoundaryIndex = -1
     while (i <= nPartitions) {
       nextBoundaryIndex += partitionSizes(i - 1)
-      log.info(s"SERV $nextBoundaryIndex $samplesEnd")
       if (nextBoundaryIndex < samplesEnd) {
         partitionBounds(i) = samples(nextBoundaryIndex)
       } else {
-        partitionBounds(i) = greatest
+        partitionBounds(i) = currentlyGreatest
       }
-      log.info(s"SERV partitionBounds($i) = ${Region.pretty(codecs.decodedKeyPType, partitionBounds(i))}")
       i += 1
     }
     partitionBounds
