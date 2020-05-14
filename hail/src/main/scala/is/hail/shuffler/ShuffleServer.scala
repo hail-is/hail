@@ -107,11 +107,11 @@ class Shuffle (
   key: Array[String]
 ) extends AutoCloseable {
   private[this] val log = Logger.getLogger(getClass.getName)
-  private[this] val ctx = new ExecuteContext("/tmp", "file:///tmp", null, null, Region(), new ExecutionTimer())
+  private[this] val rootRegion = Region()
+  private[this] val ctx = new ExecuteContext("/tmp", "file:///tmp", null, null, rootRegion, new ExecutionTimer())
   private[this] val b64uuid = Base64.getEncoder.encode(uuid)
   private[this] val codecs = new KeyedCodecSpec(ctx, t, codecSpec, key)
-  private[this] val rootRegion = ctx.r
-  private[this] val store = new LSM(s"/tmp/${b64uuid}", codecs, rootRegion)
+  private[this] val store = new LSM(s"/tmp/${b64uuid}", codecs)
 
   private[this] def makeRegion(): Region = {
     val region = Region()
@@ -132,7 +132,7 @@ class Shuffle (
     while (hasNext == 1) {
       val off = decoder.readRegionValue(region)
       val koff = codecs.keyPType.copyFromAddress(region, codecs.pType, off, false)
-      store.store.put(koff, off)
+      store.put(koff, off)
       hasNext = in.read()
     }
     out.write(0)
@@ -147,13 +147,13 @@ class Shuffle (
     val r = keyDecoder.readRegionValue(region)
 
     log.info(s"SERV get l ${rvstr(codecs.keyPType, l)} r ${rvstr(codecs.keyPType, r)}")
-    val it = store.store.iterator(l, true)
+    val it = store.iterator(l, true)
     var continue = it.hasNext
     while (continue) {
       val kv = it.next
       val k = kv.getKey
       val v = kv.getValue
-      if (store.ord.lt(k, r)) {
+      if (store.keyOrd.lt(k, r)) {
         encoder.writeByte(1)
         encoder.writeRegionValue(v)
         encoder.flush()

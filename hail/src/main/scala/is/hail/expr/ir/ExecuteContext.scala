@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import java.io._
 import java.security.SecureRandom
 
 import is.hail.HailContext
@@ -47,7 +48,8 @@ class ExecuteContext(
   val backend: Backend,
   val fs: FS,
   var r: Region,
-  val timer: ExecutionTimer) {
+  val timer: ExecutionTimer
+) extends Closeable {
   def fsBc: BroadcastValue[FS] = fs.broadcast
 
   private val tmpPaths = mutable.ArrayBuffer[String]()
