@@ -7,9 +7,9 @@ Models for SNP effects:
     - Infinitesimal (can simulate n correlated traits)
     - Spike & slab (can simulate up to 2 correlated traits)
     - Annotation-informed
-    
+
 Features:
-   - Field aggregation tools for annotation-informed model and 
+   - Field aggregation tools for annotation-informed model and
      population stratification with many covariates.
    - Automatic adjustment of genetic correlation parameters
      to allow for the joint simulation of up to 100 randomly
@@ -29,10 +29,9 @@ from hail.table import Table
 from hail.utils.java import Env
 import numpy as np
 import pandas as pd
-import random
-import string
 import scipy.stats as stats
-    
+
+
 @typecheck(mt=MatrixTable,
            genotype=oneof(expr_int32,
                           expr_float64,
@@ -56,18 +55,18 @@ import scipy.stats as stats
            popstrat_var=nullable(oneof(float,
                                        int)),
            exact_h2=bool)
-def simulate_phenotypes(mt, genotype, h2, pi=None, rg=None, annot=None, popstrat=None, 
+def simulate_phenotypes(mt, genotype, h2, pi=None, rg=None, annot=None, popstrat=None,
                         popstrat_var=None, exact_h2=False):
     r"""Simulate phenotypes for testing LD score regression.
 
-    Simulates betas (SNP effects) under the infinitesimal, spike & slab, or 
+    Simulates betas (SNP effects) under the infinitesimal, spike & slab, or
     annotation-informed models, depending on parameters passed. Optionally adds
     population stratification.
 
     Parameters
     ----------
     mt : :class:`.MatrixTable`
-        :class:`.MatrixTable` containing genotypes to be used. Also should contain 
+        :class:`.MatrixTable` containing genotypes to be used. Also should contain
         variant annotations as row fields if running the annotation-informed
         model or covariates as column fields if adding population stratification.
     genotype : :class:`.Expression` or :class:`.CallExpression`
@@ -76,7 +75,7 @@ def simulate_phenotypes(mt, genotype, h2, pi=None, rg=None, annot=None, popstrat
     h2 : :obj:`float` or :obj:`int` or :obj:`list` or :class:`numpy.ndarray`
         SNP-based heritability of simulated trait.
     pi : :obj:`float` or :obj:`int` or :obj:`list` or :class:`numpy.ndarray`, optional
-        Probability of SNP being causal when simulating under the spike & slab 
+        Probability of SNP being causal when simulating under the spike & slab
         model.
     rg : :obj:`float` or :obj:`int` or :obj:`list` or :class:`numpy.ndarray`, optional
         Genetic correlation between traits.
@@ -86,9 +85,9 @@ def simulate_phenotypes(mt, genotype, h2, pi=None, rg=None, annot=None, popstrat
         Column field to use as our aggregated covariates for adding population
         stratification.
     exact_h2: :obj:`bool`, optional
-        Whether to exactly simulate ratio of variance of genetic component of 
+        Whether to exactly simulate ratio of variance of genetic component of
         phenotype to variance of phenotype to be h2. If `False`, ratio will be
-        h2 in expectation. Observed h2 in the simulation will be close to 
+        h2 in expectation. Observed h2 in the simulation will be close to
         expected h2 for large-scale simulations.
 
     Returns
@@ -144,21 +143,21 @@ def simulate_phenotypes(mt, genotype, h2, pi=None, rg=None, annot=None, popstrat
                              list,
                              np.ndarray)))
 def make_betas(mt, h2, pi=None, annot=None, rg=None):
-    r"""Generates betas under different models. 
+    r"""Generates betas under different models.
 
-    Simulates betas (SNP effects) under the infinitesimal, spike & slab, or 
+    Simulates betas (SNP effects) under the infinitesimal, spike & slab, or
     annotation-informed models, depending on parameters passed.
 
     Parameters
     ----------
     mt : :class:`.MatrixTable`
-        MatrixTable containing genotypes to be used. Also should contain 
+        MatrixTable containing genotypes to be used. Also should contain
         variant annotations as row fields if running the annotation-informed
         model or covariates as column fields if adding population stratification.
     h2 : :obj:`float` or :obj:`int` or :obj:`list` or :class:`numpy.ndarray`
-        SNP-based heritability of simulated trait(s). 
+        SNP-based heritability of simulated trait(s).
     pi : :obj:`float` or :obj:`int` or :obj:`list` or :class:`numpy.ndarray`, optional
-        Probability of SNP being causal when simulating under the spike & slab 
+        Probability of SNP being causal when simulating under the spike & slab
         model. If doing two-trait spike & slab `pi` is a list of probabilities for
         overlapping causal SNPs (see docstring of :func:`.multitrait_ss`)
     annot : :class:`.Expression`, optional
@@ -170,9 +169,9 @@ def make_betas(mt, h2, pi=None, annot=None, rg=None):
     -------
     mt : :class:`.MatrixTable`
         :class:`.MatrixTable` with betas as a row field, simulated according to specified model.
-    pi : :obj:`list` 
-        Probability of a SNP being causal for different traits, possibly altered 
-        from input `pi` if covariance matrix for multitrait simulation was not 
+    pi : :obj:`list`
+        Probability of a SNP being causal for different traits, possibly altered
+        from input `pi` if covariance matrix for multitrait simulation was not
         positive semi-definite.
     rg : :obj:`list`
         Genetic correlation between traits, possibly altered from input `rg` if
@@ -199,14 +198,14 @@ def make_betas(mt, h2, pi=None, annot=None, rg=None):
         mt = mt.annotate_rows(beta=hl.literal(h2).map(
             lambda x: hl.rand_norm(0, hl.sqrt(annot*x/(annot_sum*M)))))
     elif len(h2) > 1 and (pi == [None] or pi == [1]): # multi-trait correlated infinitesimal
-        mt, rg = multitrait_inf(mt=mt, 
-                                h2=h2, 
+        mt, rg = multitrait_inf(mt=mt,
+                                h2=h2,
                                 rg=rg)
     elif len(h2) == 2 and len(pi) > 1 and len(rg)==1:  # two trait correlated spike & slab
         print('multitrait ss')
-        mt, pi, rg = multitrait_ss(mt=mt, 
-                                   h2=h2, 
-                                   rg=0 if rg is [None] else rg[0], 
+        mt, pi, rg = multitrait_ss(mt=mt,
+                                   h2=h2,
+                                   rg=0 if rg is [None] else rg[0],
                                    pi=pi)
     elif len(h2) == 1 and len(pi) == 1:  # single trait infinitesimal/spike & slab
         M = mt.count_rows()
@@ -228,7 +227,7 @@ def make_betas(mt, h2, pi=None, annot=None, rg=None):
            cov_matrix=nullable(np.ndarray),
            seed=nullable(int))
 def multitrait_inf(mt, h2=None, rg=None, cov_matrix=None, seed=None):
-    r"""Generates correlated betas for multi-trait infinitesimal simulations for 
+    r"""Generates correlated betas for multi-trait infinitesimal simulations for
     any number of phenotypes.
 
     Parameters
@@ -236,17 +235,17 @@ def multitrait_inf(mt, h2=None, rg=None, cov_matrix=None, seed=None):
     mt : :class:`.MatrixTable`
         MatrixTable for simulated phenotype.
     h2 : :obj:`float` or :obj:`int` or :obj:`list` or :class:`numpy.ndarray`, optional
-        Desired SNP-based heritability (:math:`h^2`) of simulated traits. 
+        Desired SNP-based heritability (:math:`h^2`) of simulated traits.
         If `h2` is ``None``, :math:`h^2` is based on diagonal of `cov_matrix`.
     rg : :obj:`float` or :obj:`int` or :obj:`list` or :class:`numpy.ndarray`, optional
-        Desired genetic correlation (:math:`r_g`) between simulated traits. 
-        If simulating more than two correlated traits, `rg` should be a list 
-        of :math:`rg` values corresponding to the upper right triangle of the 
-        covariance matrix. If `rg` is ``None`` and `cov_matrix` is ``None``, :math:`r_g` 
+        Desired genetic correlation (:math:`r_g`) between simulated traits.
+        If simulating more than two correlated traits, `rg` should be a list
+        of :math:`rg` values corresponding to the upper right triangle of the
+        covariance matrix. If `rg` is ``None`` and `cov_matrix` is ``None``, :math:`r_g`
         is assumed to be 0 between traits. If `rg` and `cov_matrix` are both
         not None, :math:`r_g` values from `cov_matrix` take precedence.
     cov_matrix : :class:`numpy.ndarray`, optional
-        Covariance matrix for traits, **unscaled by :math:`M`**, the number of SNPs. 
+        Covariance matrix for traits, **unscaled by :math:`M`**, the number of SNPs.
         Overrides `h2` and `rg` even when `h2` or `rg` are not ``None``.
     seed : :obj:`int`, optional
         Seed for random number generator. If `seed` is ``None``, `seed` is set randomly.
@@ -309,7 +308,7 @@ def multitrait_ss(mt, h2, pi, rg=0, seed=None):
         Desired SNP-based heritability of simulated traits.
     pi : :obj:`list` or :class:`numpy.ndarray`
         List of proportion of SNPs: :math:`p_{TT}`, :math:`p_{TF}`, :math:`p_{FT}`
-        :math:`p_{TT}` is the proportion of SNPs that are causal for both traits, 
+        :math:`p_{TT}` is the proportion of SNPs that are causal for both traits,
         :math:`p_{TF}` is the proportion of SNPs that are causal for trait 1 but not trait 2,
         :math:`p_{FT}` is the proportion of SNPs that are causal for trait 2 but not trait 1.
     rg : :obj:`float` or :obj:`int`
@@ -319,7 +318,7 @@ def multitrait_ss(mt, h2, pi, rg=0, seed=None):
 
     Warning
     -------
-    May give inaccurate results if chosen parameters make the covariance matrix 
+    May give inaccurate results if chosen parameters make the covariance matrix
     not positive semi-definite. Covariance matrix is likely to not be positive
     semi-definite when :math:`p_{TT}` is small and rg is large.
 
@@ -352,15 +351,15 @@ def multitrait_ss(mt, h2, pi, rg=0, seed=None):
         pff0, pff = pff, 1-sum([ptt, ptf, pft])
         print(f'rg: {rg0} -> {rg}\nptt: {ptt0} -> {ptt}\npff: {pff0} -> {pff}')
         pi = [ptt, ptf, pft, pff]
-    beta = randstate.multivariate_normal(mean=np.zeros(2), 
-                                         cov=cov_matrix, 
+    beta = randstate.multivariate_normal(mean=np.zeros(2),
+                                         cov=cov_matrix,
                                          size=[int(M), ])
     zeros = np.zeros(shape=int(M)).T
     beta_matrix = np.stack((beta, np.asarray([beta[:, 0], zeros]).T,
-                            np.asarray([zeros, zeros]).T, 
+                            np.asarray([zeros, zeros]).T,
                             np.asarray([zeros, beta[:, 1]]).T), axis=1)
-    idx = np.random.choice(a=[0, 1, 2, 3], 
-                           size=int(M), 
+    idx = np.random.choice(a=[0, 1, 2, 3],
+                           size=int(M),
                            p=[ptt, ptf, pft, pff])
     betas = beta_matrix[range(int(M)), idx, :]
     betas[:, 0] *= (h2[0]/M)**(1/2)
@@ -413,10 +412,10 @@ def get_cov_matrix(h2, rg, psd_rg=False):
     trait 2 & trait 4 :math:`r_g` = 0.15
     trait 3 & trait 4 :math:`r_g` = 0.6
     To obtain the covariance matrix corresponding to this scenario :math:`h^2` values are
-    ordered according to user specification and :math:`r_g` values are ordered by the 
-    order in which the corresponding genetic covariance terms will appear in the 
+    ordered according to user specification and :math:`r_g` values are ordered by the
+    order in which the corresponding genetic covariance terms will appear in the
     covariance matrix, reading lines in the upper triangular matrix from left to
-    right, top to bottom (read first row left to right, read second row left to 
+    right, top to bottom (read first row left to right, read second row left to
     right, etc.), exluding the diagonal.
 
     >>> cov_matrix, rg = get_cov_matrix(h2=[0.1, 0.3, 0.2, 0.6], rg=[0.4, 0.3, 0.1, 0.2, 0.15, 0.6])
@@ -427,11 +426,11 @@ def get_cov_matrix(h2, rg, psd_rg=False):
            [0.0244949 , 0.06363961, 0.2078461 , 0.6       ]])
 
     The diagonal corresponds directly to `h2`, the list of h2 values for all traits.
-    In the upper triangular matrix, excluding the diagonal, the entry :math:`(a, b)`, 
-    where :math:`a` and :math:`b` are in :math:`{1,2,3,4}`, is the genetic covariance 
-    (:math:`\rho_g`) between traits :math:`a` and :math:`b`. 
+    In the upper triangular matrix, excluding the diagonal, the entry :math:`(a, b)`,
+    where :math:`a` and :math:`b` are in :math:`{1,2,3,4}`, is the genetic covariance
+    (:math:`\rho_g`) between traits :math:`a` and :math:`b`.
     Genetic covariance is calculated as :math:`\rho_g= r_g*\sqrt{h^2_a*h^2_b}`
-    where :math:`r_g` is the genetic correlation between traits :math:`a` and 
+    where :math:`r_g` is the genetic correlation between traits :math:`a` and
     :math:`b` and :math:`h^2_a` and :math:`h^2_b` are heritabilities corresponding
     to traits :math:`a` and :math:`b`.
 
@@ -442,22 +441,22 @@ def get_cov_matrix(h2, rg, psd_rg=False):
     If the h2 and rg parameters passed cause the resulting covariance matrix to
     not be positive semidefinite, this may cause the distribution of SNP effects
     generated by this covariance matrix to not have the properties specified by
-    the h2 and rg parameters. To automatically adjust rg values so that the 
+    the h2 and rg parameters. To automatically adjust rg values so that the
     covariance matrix is positive semidefinite, set `psd_rg` = True.
 
     Parameters
     ----------
     h2 : :obj:`list` or :class:`numpy.ndarray`
-        :math:`h^2` values for traits. :math:`h^2` values in list should be 
+        :math:`h^2` values for traits. :math:`h^2` values in list should be
         ordered by their order in the diagonal of the covariance array, reading
         from top left to bottom right.
     rg : :obj:`list` or :class:`numpy.ndarray`
-        :math:`r_g` values for traits. :math:`r_g` values should be ordered in 
-        the order they appear in the upper triangle of the covariance matrix, 
+        :math:`r_g` values for traits. :math:`r_g` values should be ordered in
+        the order they appear in the upper triangle of the covariance matrix,
         from left to right, top to bottom.
     psd_rg :  :obj:`bool`
         Whether to automatically adjust rg values to get a positive semi-definite
-        covariance matrix, which ensures that SNP effects simulated with that 
+        covariance matrix, which ensures that SNP effects simulated with that
         covariance matrix have the desired variance and correlation properties
         specified by the h2 and rg parameters.
 
@@ -547,20 +546,20 @@ def calculate_phenotypes(mt, genotype, beta, h2, popstrat=None, popstrat_var=Non
     mt : :class:`.MatrixTable`
         :class:`.MatrixTable` with all relevant fields passed as parameters.
     genotype : :class:`.Expression` or :class:`.CallExpression`
-        Entry field of genotypes. 
+        Entry field of genotypes.
     beta : :class:`.Expression`
         Row field of SNP effects.
     h2 : :obj:`float` or :obj:`int` or :obj:`list` or :class:`numpy.ndarray`
-        SNP-based heritability (:math:`h^2`) of simulated trait. Can only be 
+        SNP-based heritability (:math:`h^2`) of simulated trait. Can only be
         ``None`` if running annotation-informed model.
     popstrat : :class:`.Expression`, optional
         Column field containing population stratification term.
     popstrat_var : :obj:`float` or :obj:`int`
         Variance of population stratification term.
     exact_h2: :obj:`bool`
-        Whether to exactly simulate ratio of variance of genetic component of 
+        Whether to exactly simulate ratio of variance of genetic component of
         phenotype to variance of phenotype to be h2. If `False`, ratio will be
-        h2 in expectation. Observed h2 in the simulation will be close to 
+        h2 in expectation. Observed h2 in the simulation will be close to
         expected h2 for large-scale simulations.
 
     Returns
@@ -589,7 +588,7 @@ def calculate_phenotypes(mt, genotype, beta, h2, popstrat=None, popstrat_var=Non
             mt = mt.annotate_cols(
                 y=mt.y_no_noise + hl.literal(h2).map(lambda x: hl.rand_norm(0, hl.sqrt(1-x))))
     else:
-        if exact_h2 and min([h2[0], 1-h2[0]])!=0: 
+        if exact_h2 and min([h2[0], 1-h2[0]])!=0:
             print('exact h2')
             mt = mt.annotate_cols(**{'y_no_noise_'+uid: hl.agg.sum(mt['beta_'+uid] * mt['norm_gt'])})
             y_no_noise_stdev = mt.aggregate_cols(hl.agg.stats(mt['y_no_noise_'+uid]).stdev)
@@ -676,7 +675,7 @@ def annotate_all(mt, row_exprs={}, col_exprs={}, entry_exprs={}, global_exprs={}
            axis=str)
 def agg_fields(tb, coef_dict=None, str_expr=None, axis='rows'):
     r"""Aggregates by linear combination fields matching either keys in `coef_dict`
-    or `str_expr`. Outputs the aggregation in a :class:`.MatrixTable` or :class:`.Table` 
+    or `str_expr`. Outputs the aggregation in a :class:`.MatrixTable` or :class:`.Table`
     as a new row field "agg_annot" or a new column field "agg_cov".
 
     Parameters
@@ -684,13 +683,13 @@ def agg_fields(tb, coef_dict=None, str_expr=None, axis='rows'):
     tb : :class:`.MatrixTable` or :class:`.Table`
         :class:`.MatrixTable` or :class:`.Table` containing fields to be aggregated.
     coef_dict : :obj:`dict`, optional
-        Coefficients to multiply each field. The coefficients are specified by 
+        Coefficients to multiply each field. The coefficients are specified by
         `coef_dict` value, the row (or col) field name is specified by `coef_dict` key.
         If not included, coefficients are assumed to be 1.
     str_expr : :obj:`str`, optional
         String expression to match against row (or col) field names.
     axis : :obj:`str`
-        Either 'rows' or 'cols'. If 'rows', this aggregates across row fields. 
+        Either 'rows' or 'cols'. If 'rows', this aggregates across row fields.
         If 'cols', this aggregates across col fields. If tb is a Table, axis = 'rows'.
 
     Returns
@@ -728,10 +727,10 @@ def get_coef_dict(tb, str_expr=None, ref_coef_dict=None, axis='rows'):
         :class:`.MatrixTable` or :class:`.Table` containing row (or col) for `coef_dict`.
     str_expr : :obj:`str`, optional
         String expression pattern to match against row (or col) fields. If left
-        unspecified, the intersection of field names is only between existing 
+        unspecified, the intersection of field names is only between existing
         row (or col) fields in `mt` and keys of `ref_coef_dict`.
     ref_coef_dict : :obj:`dict`, optional
-        Reference coefficient dictionary with keys that are row (or col) field 
+        Reference coefficient dictionary with keys that are row (or col) field
         names from which to subset. If not included, coefficients are assumed to be 1.
     axis : :obj:`str`
         Field type in which to search for field names. Options: 'rows', 'cols'
@@ -739,8 +738,8 @@ def get_coef_dict(tb, str_expr=None, ref_coef_dict=None, axis='rows'):
     Returns
     -------
     coef_dict : :obj:`dict`
-        Coefficients to multiply each field. The coefficients are specified by 
-        `coef_dict` value, the row (or col) field name is specified by `coef_dict` key. 
+        Coefficients to multiply each field. The coefficients are specified by
+        `coef_dict` value, the row (or col) field name is specified by `coef_dict` key.
     """
     assert (str_expr != None or ref_coef_dict != None), "str_expr and ref_coef_dict cannot both be None"
     assert axis=='rows' or axis=='cols', "axis must be 'rows' or 'cols'"
@@ -783,7 +782,7 @@ def get_coef_dict(tb, str_expr=None, ref_coef_dict=None, axis='rows'):
            P=oneof(int,
                    float))
 def ascertainment_bias(mt, y, P):
-    r"""Adds ascertainment bias to a binary phenotype to give it a sample 
+    r"""Adds ascertainment bias to a binary phenotype to give it a sample
     prevalence of `P` = cases/(cases+controls).
 
     Parameters
@@ -841,7 +840,7 @@ def ascertainment_bias(mt, y, P):
            exact=bool)
 def binarize(mt, y, K, exact=False):
     r"""Binarize phenotype `y` such that it has prevalence `K` = cases/(cases+controls)
-    Uses inverse CDF of Gaussian to set binarization threshold when `exact` = False, 
+    Uses inverse CDF of Gaussian to set binarization threshold when `exact` = False,
     otherwise uses ranking to determine threshold.
 
     Parameters

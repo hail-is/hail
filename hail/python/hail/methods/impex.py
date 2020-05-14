@@ -1,14 +1,18 @@
 import json
 
-from hail.typecheck import *
+from hail.typecheck import typecheck, nullable, oneof, dictof, anytype, \
+    sequenceof, enumeration, sized_tupleof, numeric, table_key_type, char
 from hail.utils.java import Env, FatalError, jindexed_seq_args
 from hail.utils import wrap_to_list
-from hail.utils.misc import plural
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from hail.expr.types import *
-from hail.expr.expressions import *
-from hail.ir import *
+from hail.expr.types import hail_type, tarray, tfloat64, tstr, tint32, tstruct, \
+    tcall, tbool, tint64, tfloat32
+from hail.expr import StructExpression, LocusExpression, \
+    expr_array, expr_float64, expr_str, expr_numeric, expr_call, expr_bool, \
+    expr_any, \
+    to_expr, analyze
+from hail import ir
 from hail.genetics.reference_genome import reference_genome_type
 from hail.methods.misc import require_biallelic, require_row_key_variant, require_row_key_variant_w_struct_locus, require_col_key_str
 import hail as hl
@@ -138,10 +142,10 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
 
     sample_exprs = {'id1': id1, 'id2': id2, 'missing': missing}
 
-    l = dataset.locus
+    locus = dataset.locus
     a = dataset.alleles
 
-    gen_exprs = {'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
+    gen_exprs = {'varid': expr_or_else(varid, hl.delimit([locus.contig, hl.str(locus.position), a[0], a[1]], ':')),
                  'rsid': expr_or_else(rsid, ".")}
 
     for exprs, axis in [(sample_exprs, dataset._col_indices),
@@ -155,8 +159,8 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
                                   row_exprs=gen_exprs,
                                   entry_exprs=entry_exprs)
 
-    writer = MatrixGENWriter(output, precision)
-    Env.backend().execute(MatrixWrite(dataset._mir, writer))
+    writer = ir.MatrixGENWriter(output, precision)
+    Env.backend().execute(ir.MatrixWrite(dataset._mir, writer))
 
 
 @typecheck(mt=MatrixTable,
@@ -164,7 +168,7 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
            gp=nullable(expr_array(expr_float64)),
            varid=nullable(expr_str),
            rsid=nullable(expr_str),
-           parallel=nullable(ExportType.checker))
+           parallel=nullable(ir.ExportType.checker))
 def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
     """Export MatrixTable as :class:`.MatrixTable` as BGEN 1.2 file with 8
     bits of per probability.  Also writes SAMPLE file.
@@ -214,11 +218,11 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
         if 'rsid' in mt.row and mt.rsid.dtype == tstr:
             rsid = mt.rsid
 
-    parallel = ExportType.default(parallel)
+    parallel = ir.ExportType.default(parallel)
 
-    l = mt.locus
+    locus = mt.locus
     a = mt.alleles
-    gen_exprs = {'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
+    gen_exprs = {'varid': expr_or_else(varid, hl.delimit([locus.contig, hl.str(locus.position), a[0], a[1]], ':')),
                  'rsid': expr_or_else(rsid, ".")}
 
     for exprs, axis in [(gen_exprs, mt._row_indices),
@@ -230,7 +234,7 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
                         row_exprs=gen_exprs,
                         entry_exprs=entry_exprs)
 
-    Env.backend().execute(MatrixWrite(mt._mir, MatrixBGENWriter(
+    Env.backend().execute(ir.MatrixWrite(mt._mir, ir.MatrixBGENWriter(
         output,
         parallel)))
 
@@ -342,10 +346,10 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
                  'pheno': expr_or_else(pheno, 'NA',
                                        lambda x: hl.cond(x, '2', '1') if x.dtype == tbool else hl.str(x))}
 
-    l = dataset.locus
+    locus = dataset.locus
     a = dataset.alleles
 
-    bim_exprs = {'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
+    bim_exprs = {'varid': expr_or_else(varid, hl.delimit([locus.contig, hl.str(locus.position), a[0], a[1]], ':')),
                  'cm_position': expr_or_else(cm_position, 0.0)}
 
     for exprs, axis in [(fam_exprs, dataset._col_indices),
@@ -373,14 +377,14 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     if errors:
         raise TypeError("\n".join(errors))
 
-    writer = MatrixPLINKWriter(output)
-    Env.backend().execute(MatrixWrite(dataset._mir, writer))
+    writer = ir.MatrixPLINKWriter(output)
+    Env.backend().execute(ir.MatrixWrite(dataset._mir, writer))
 
 
 @typecheck(dataset=MatrixTable,
            output=str,
            append_to_header=nullable(str),
-           parallel=nullable(ExportType.checker),
+           parallel=nullable(ir.ExportType.checker),
            metadata=nullable(dictof(str, dictof(str, dictof(str, str)))))
 def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=None):
     """Export a :class:`.MatrixTable` as a VCF file.
@@ -499,7 +503,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     for f in dataset.col_value:
         fields_dropped.append((f, 'column'))
     for f in dataset.row_value:
-        if not f in row_fields_used:
+        if f not in row_fields_used:
             fields_dropped.append((f, 'row'))
 
     if fields_dropped:
@@ -507,13 +511,13 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         hl.utils.java.warn('export_vcf: ignored the following fields:' + ignored_str)
         dataset = dataset.drop(*(f for f, _ in fields_dropped))
 
-    parallel = ExportType.default(parallel)
+    parallel = ir.ExportType.default(parallel)
 
-    writer = MatrixVCFWriter(output,
-                             append_to_header,
-                             parallel,
-                             metadata)
-    Env.backend().execute(MatrixWrite(dataset._mir, writer))
+    writer = ir.MatrixVCFWriter(output,
+                                append_to_header,
+                                parallel,
+                                metadata)
+    Env.backend().execute(ir.MatrixWrite(dataset._mir, writer))
 
 
 @typecheck(path=str,
@@ -1114,7 +1118,7 @@ def import_bgen(path,
 
     if variants is not None:
         mt_type = Env.backend().matrix_type(
-            MatrixRead(MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, None)))
+            ir.MatrixRead(ir.MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, None)))
         lt = mt_type.row_type['locus']
 
         expected_vtype = tstruct(locus=lt, alleles=tarray(tstr))
@@ -1124,20 +1128,20 @@ def import_bgen(path,
                 variants = hl.struct(locus=variants)
 
             if len(variants.dtype) == 0 or not variants.dtype._is_prefix_of(expected_vtype):
-                raise TypeError("'import_bgen' requires the expression type for 'variants' is a non-empty prefix of the BGEN key type: \n" +
-                                f"\tFound: {repr(variants.dtype)}\n"
+                raise TypeError("'import_bgen' requires the expression type for 'variants' is a non-empty prefix of the BGEN key type: \n"
+                                + f"\tFound: {repr(variants.dtype)}\n"
                                 + f"\tExpected: {repr(expected_vtype)}\n")
 
             uid = Env.get_uid()
             fnames = list(variants.dtype)
-            name, variants = variants._to_table(uid) # This will add back the other key fields of the source, which we don't want
+            name, variants = variants._to_table(uid)  # This will add back the other key fields of the source, which we don't want
             variants = variants.key_by(**{fname: variants[name][fname] for fname in fnames})
             variants = variants.select()
         elif isinstance(variants, Table):
             if len(variants.key) == 0 or not variants.key.dtype._is_prefix_of(expected_vtype):
-                raise TypeError("'import_bgen' requires the row key type for 'variants' is a non-empty prefix of the BGEN key type: \n" +
-                                 f"\tFound: {repr(variants.key.dtype)}\n" +
-                                  f"\tExpected: {repr(expected_vtype)}\n")
+                raise TypeError("'import_bgen' requires the row key type for 'variants' is a non-empty prefix of the BGEN key type: \n"
+                                + f"\tFound: {repr(variants.key.dtype)}\n"
+                                + f"\tExpected: {repr(expected_vtype)}\n")
             variants = variants.select()
         else:
             assert isinstance(variants, list)
@@ -1162,12 +1166,12 @@ def import_bgen(path,
                             variants = hl.Table.parallelize(variants,
                                                             schema=expected_vtype,
                                                             key=['locus', 'alleles'])
-            except:
+            except Exception:
                 raise TypeError(f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {repr(expected_vtype)}")
 
-    reader = MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, variants)
+    reader = ir.MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, variants)
 
-    mt = (MatrixTable(MatrixRead(reader))
+    mt = (MatrixTable(ir.MatrixRead(reader))
           .drop(*[fd for fd in ['GT', 'GP', 'dosage'] if fd not in entry_set],
                 *[fd for fd in ['rsid', 'varid', 'offset', 'file_idx'] if fd not in row_set]))
 
@@ -1277,7 +1281,7 @@ def import_gen(path,
     rg = reference_genome.name if reference_genome else None
     if contig_recoding is None:
         contig_recoding = {}
-    return MatrixTable(MatrixRead(MatrixGENReader(
+    return MatrixTable(ir.MatrixRead(ir.MatrixGENReader(
         path, sample_file, chromosome, min_partitions, tolerance, rg, contig_recoding, skip_invalid_loci)))
 
 
@@ -1507,11 +1511,11 @@ def import_table(paths,
     comment = wrap_to_list(comment)
     missing = wrap_to_list(missing)
 
-    tr = TextTableReader(paths, min_partitions, types, comment,
-                         delimiter, missing, no_header, impute, quote,
-                         skip_blank_lines, force_bgz, filter, find_replace,
-                         force)
-    t = Table(TableRead(tr))
+    tr = ir.TextTableReader(paths, min_partitions, types, comment,
+                            delimiter, missing, no_header, impute, quote,
+                            skip_blank_lines, force_bgz, filter, find_replace,
+                            force)
+    t = Table(ir.TableRead(tr))
     if key:
         key = wrap_to_list(key)
         t = t.key_by(*key)
@@ -1727,18 +1731,18 @@ def import_matrix_table(paths,
         raise FatalError("""import_matrix_table expects entry types to be one of:
         'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
 
-    reader = TextMatrixReader(paths,
-                              min_partitions,
-                              row_fields,
-                              entry_type,
-                              missing,
-                              not no_header,
-                              delimiter,
-                              force_bgz,
-                              add_row_id,
-                              wrap_to_list(comment))
+    reader = ir.TextMatrixReader(paths,
+                                 min_partitions,
+                                 row_fields,
+                                 entry_type,
+                                 missing,
+                                 not no_header,
+                                 delimiter,
+                                 force_bgz,
+                                 add_row_id,
+                                 wrap_to_list(comment))
 
-    mt = MatrixTable(MatrixRead(reader)).key_rows_by(*wrap_to_list(row_key))
+    mt = MatrixTable(ir.MatrixRead(reader)).key_rows_by(*wrap_to_list(row_key))
     return mt
 
 
@@ -1894,16 +1898,16 @@ def import_plink(bed, bim, fam,
         elif reference_genome.name == "GRCh37":
             contig_recoding = {'23': 'X', '24': 'Y', '25': 'X', '26': 'MT'}
         elif reference_genome.name == "GRCh38":
-            contig_recoding = {**{str(i):f'chr{i}' for i in range(1, 23)},
+            contig_recoding = {**{str(i): f'chr{i}' for i in range(1, 23)},
                                **{'23': 'chrX', '24': 'chrY', '25': 'chrX', '26': 'chrM'}}
         else:
             contig_recoding = {}
 
-    reader = MatrixPLINKReader(bed, bim, fam,
-                               n_partitions, block_size, min_partitions,
-                               missing, delimiter, quant_pheno, a2_reference, reference_genome,
-                               contig_recoding, skip_invalid_loci)
-    return MatrixTable(MatrixRead(reader, drop_cols=False, drop_rows=False))
+    reader = ir.MatrixPLINKReader(bed, bim, fam,
+                                  n_partitions, block_size, min_partitions,
+                                  missing, delimiter, quant_pheno, a2_reference, reference_genome,
+                                  contig_recoding, skip_invalid_loci)
+    return MatrixTable(ir.MatrixRead(reader, drop_cols=False, drop_rows=False))
 
 
 @typecheck(path=str,
@@ -1927,7 +1931,7 @@ def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_c
     for rg_config in Env.backend().load_references_from_dataset(path):
         hl.ReferenceGenome._from_config(rg_config)
 
-    return MatrixTable(MatrixRead(MatrixNativeReader(path, _intervals, _filter_intervals),
+    return MatrixTable(ir.MatrixRead(ir.MatrixNativeReader(path, _intervals, _filter_intervals),
                        _drop_cols, _drop_rows))
 
 
@@ -2005,7 +2009,7 @@ def get_vcf_metadata(path):
            find_replace=nullable(sized_tupleof(str, str)),
            n_partitions=nullable(int),
            block_size=nullable(int),
-            # json
+           # json
            _partitions=nullable(str))
 def import_vcf(path,
                force=False,
@@ -2161,12 +2165,12 @@ def import_vcf(path,
     :class:`.MatrixTable`
     """
 
-    reader = MatrixVCFReader(path, call_fields, entry_float_type, header_file,
-                             n_partitions, block_size, min_partitions,
-                             reference_genome, contig_recoding, array_elements_required,
-                             skip_invalid_loci, force_bgz, force, filter, find_replace,
-                             _partitions)
-    return MatrixTable(MatrixRead(reader, drop_cols=drop_samples))
+    reader = ir.MatrixVCFReader(path, call_fields, entry_float_type, header_file,
+                                n_partitions, block_size, min_partitions,
+                                reference_genome, contig_recoding, array_elements_required,
+                                skip_invalid_loci, force_bgz, force, filter, find_replace,
+                                _partitions)
+    return MatrixTable(ir.MatrixRead(reader, drop_cols=drop_samples))
 
 
 @typecheck(path=sequenceof(str),
@@ -2245,11 +2249,11 @@ def import_gvcfs(path,
         _external_sample_ids,
         _external_header)
     vector_ref = json.loads(vector_ref_s)
-    jir_vref = JIRVectorReference(vector_ref['vector_ir_id'],
-                                  vector_ref['length'],
-                                  hl.tmatrix._from_json(vector_ref['type']))
+    jir_vref = ir.JIRVectorReference(vector_ref['vector_ir_id'],
+                                     vector_ref['length'],
+                                     hl.tmatrix._from_json(vector_ref['type']))
 
-    return [MatrixTable(JavaMatrixVectorRef(jir_vref, idx)) for idx in range(len(jir_vref))]
+    return [MatrixTable(ir.JavaMatrixVectorRef(jir_vref, idx)) for idx in range(len(jir_vref))]
 
 
 def import_vcfs(path,
@@ -2359,8 +2363,8 @@ def read_table(path, *, _intervals=None, _filter_intervals=False) -> Table:
     for rg_config in Env.backend().load_references_from_dataset(path):
         hl.ReferenceGenome._from_config(rg_config)
 
-    tr = TableNativeReader(path, _intervals, _filter_intervals)
-    return Table(TableRead(tr, False))
+    tr = ir.TableNativeReader(path, _intervals, _filter_intervals)
+    return Table(ir.TableRead(tr, False))
 
 
 @typecheck(t=Table,

@@ -1,5 +1,6 @@
 from collections.abc import Iterable, Iterator
 
+
 class ListIterator(Iterator):
     def __init__(self, node):
         self.node = node
@@ -18,20 +19,21 @@ class ListNode(object):
         self.value = value
         self.prev = prev
 
+
 class LinkedList(Iterable):
     def __init__(self, type):
         self.type = type
         self.node = None
 
     def push(self, *xs):
-        l = LinkedList.__new__(LinkedList)
-        l.type = self.type
-        l.node = self.node
+        ll = LinkedList.__new__(LinkedList)
+        ll.type = self.type
+        ll.node = self.node
         for x in xs:
             if not isinstance(x, self.type):
                 raise TypeError("Expected type '{}', found type '{}': {}".format(self.type, type(x).__class__, x))
-            l.node = ListNode(x, l.node)
-        return l
+            ll.node = ListNode(x, ll.node)
+        return ll
 
     def empty(self):
         return self.node is None
@@ -55,7 +57,7 @@ class LinkedList(Iterable):
         return not self.empty()
 
     def __len__(self):
-        l = 0
+        n = 0
         for _ in self:
-            l += 1
-        return l
+            n += 1
+        return n
