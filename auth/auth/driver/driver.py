@@ -180,7 +180,7 @@ class GSAResource:
 
         service_account = await self.iam_client.post(
             '/serviceAccounts',
-            body={
+            json={
                 "accountId": username,
                 "serviceAccount": {
                     "displayName": username
