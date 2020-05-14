@@ -2,12 +2,13 @@ from .indices import Indices, Aggregation
 from .base_expression import ExpressionException, Expression, impute_type, \
     to_expr, cast_expr, unify_all, unify_types_limited, unify_types, \
     unify_exprs
-from .typed_expressions import ArrayExpression, ArrayNumericExpression, \
-    BooleanExpression, CallExpression, CollectionExpression, DictExpression, \
-    IntervalExpression, LocusExpression, NumericExpression, Int32Expression, \
-    Int64Expression, Float32Expression, Float64Expression, SetExpression, \
-    StringExpression, StructExpression, TupleExpression, NDArrayExpression, \
-    NDArrayNumericExpression, \
+from .typed_expressions import ArrayExpression, ArrayStructExpression, \
+    ArrayNumericExpression, BooleanExpression, CallExpression, \
+    CollectionExpression, DictExpression, IntervalExpression, LocusExpression, \
+    NumericExpression, Int32Expression, Int64Expression, Float32Expression, \
+    Float64Expression, SetExpression, StringExpression, StructExpression, \
+    TupleExpression, NDArrayExpression, NDArrayNumericExpression, \
+    SetStructExpression, \
     apply_expr, construct_expr, construct_variable, construct_reference
 from .expression_typecheck import expr_any, expr_int32, expr_int64, \
     expr_float32, expr_float64, expr_call, expr_bool, expr_str, expr_locus, \
