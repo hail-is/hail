@@ -1,7 +1,7 @@
 import abc
 import json
 
-from ..typecheck import *
+from ..typecheck import typecheck_method, sequenceof, nullable, enumeration
 from ..utils.misc import escape_str
 
 
@@ -33,10 +33,10 @@ class BlockMatrixNativeWriter(BlockMatrixWriter):
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixNativeWriter) and \
-               self.path == other.path and \
-               self.overwrite == other.overwrite and \
-               self.force_row_major == other.force_row_major and \
-               self.stage_locally == other.stage_locally
+            self.path == other.path and \
+            self.overwrite == other.overwrite and \
+            self.force_row_major == other.force_row_major and \
+            self.stage_locally == other.stage_locally
 
 
 class BlockMatrixBinaryWriter(BlockMatrixWriter):
@@ -51,7 +51,7 @@ class BlockMatrixBinaryWriter(BlockMatrixWriter):
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixBinaryWriter) and \
-               self.path == other.path
+            self.path == other.path
 
 
 class BlockMatrixRectanglesWriter(BlockMatrixWriter):
@@ -75,10 +75,10 @@ class BlockMatrixRectanglesWriter(BlockMatrixWriter):
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixRectanglesWriter) and \
-               self.path == other.path and \
-               self.rectangles == other.rectangles and \
-               self.delimiter == other.delimiter and \
-               self.binary == other.binary
+            self.path == other.path and \
+            self.rectangles == other.rectangles and \
+            self.delimiter == other.delimiter and \
+            self.binary == other.binary
 
 
 class BlockMatrixMultiWriter(object):
@@ -105,8 +105,8 @@ class BlockMatrixBinaryMultiWriter(BlockMatrixMultiWriter):
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixBinaryMultiWriter) and \
-               self.prefix == other.prefix and \
-               self.overwrite == other.overwrite
+            self.prefix == other.prefix and \
+            self.overwrite == other.overwrite
 
 
 class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
@@ -134,13 +134,13 @@ class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixTextMultiWriter) and \
-               self.prefix == other.prefix and \
-               self.overwrite == other.overwrite and \
-               self.delimiter == other.overwrite and \
-               self.header == other.header and \
-               self.add_index == other.add_index and \
-               self.compression == other.compression and \
-               self.custom_filenames == other.custom_filenames
+            self.prefix == other.prefix and \
+            self.overwrite == other.overwrite and \
+            self.delimiter == other.overwrite and \
+            self.header == other.header and \
+            self.add_index == other.add_index and \
+            self.compression == other.compression and \
+            self.custom_filenames == other.custom_filenames
 
 
 class BlockMatrixPersistWriter(BlockMatrixWriter):
@@ -157,6 +157,5 @@ class BlockMatrixPersistWriter(BlockMatrixWriter):
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixPersistWriter) and \
-               self.id == other.id and \
-               self.storage_level == other.storage_level
-
+            self.id == other.id and \
+            self.storage_level == other.storage_level

@@ -1,13 +1,10 @@
+import hail as hl
 from hail.expr.blockmatrix_type import tblockmatrix
-from hail.ir import hl
 from hail.expr.types import tarray
-from hail.ir import BlockMatrixIR, IR
-from hail.ir.blockmatrix_reader import BlockMatrixReader
-from hail.ir import BlockMatrixIR, IR, tarray, Renderer
-from hail.typecheck import typecheck_method, sequenceof, sized_tupleof, oneof
+from .blockmatrix_reader import BlockMatrixReader
+from .base_ir import BlockMatrixIR, IR
+from hail.typecheck import typecheck_method, sequenceof
 from hail.utils.misc import escape_id
-
-from typing import List
 
 from hail.utils.java import Env
 
@@ -72,7 +69,6 @@ class BlockMatrixMap2(BlockMatrixIR):
         self.right.typ  # Force
         self._type = self.left.typ
 
-
     def head_str(self):
         return escape_id(self.left_name) + " " + escape_id(self.right_name) + " " + self.sparsity_strategy
 
@@ -129,8 +125,8 @@ class BlockMatrixBroadcast(BlockMatrixIR):
 
     def _eq(self, other):
         return self.in_index_expr == other.in_index_expr and \
-               self.shape == other.shape and \
-               self.block_size == other.block_size
+            self.shape == other.shape and \
+            self.block_size == other.block_size
 
     def _compute_type(self):
         assert len(self.shape) == 2
@@ -192,7 +188,7 @@ class BlockMatrixFilter(BlockMatrixIR):
             child_matrix_shape = child_tensor_shape
 
         matrix_shape = [len(idxs) if len(idxs) != 0 else child_matrix_shape[i] for i, idxs in
-                 enumerate(self.indices_to_keep)]
+                        enumerate(self.indices_to_keep)]
 
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(matrix_shape[0], matrix_shape[1])
         self._type = tblockmatrix(self.child.typ.element_type,
@@ -320,7 +316,7 @@ class ValueToBlockMatrix(BlockMatrixIR):
 
     def _eq(self, other):
         return self.shape == other.shape and \
-               self.block_size == other.block_size
+            self.block_size == other.block_size
 
     def _compute_type(self):
         child_type = self.child.typ
@@ -354,9 +350,9 @@ class BlockMatrixRandom(BlockMatrixIR):
 
     def _eq(self, other):
         return self.seed == other.seed and \
-               self.gaussian == other.gaussian and \
-               self.shape == other.shape and \
-               self.block_size == other.block_size
+            self.gaussian == other.gaussian and \
+            self.shape == other.shape and \
+            self.block_size == other.block_size
 
     def _compute_type(self):
         assert len(self.shape) == 2

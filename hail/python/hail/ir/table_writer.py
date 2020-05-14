@@ -1,6 +1,6 @@
 import abc
 import json
-from ..typecheck import *
+from ..typecheck import typecheck_method, nullable
 from ..utils.misc import escape_str
 from .export_type import ExportType
 
@@ -37,10 +37,10 @@ class TableNativeWriter(TableWriter):
 
     def __eq__(self, other):
         return isinstance(other, TableNativeWriter) and \
-               other.path == self.path and \
-               other.overwrite == self.overwrite and \
-               other.stage_locally == self.stage_locally and \
-               other.codec_spec == self.codec_spec
+            other.path == self.path and \
+            other.overwrite == self.overwrite and \
+            other.stage_locally == self.stage_locally and \
+            other.codec_spec == self.codec_spec
 
 
 class TableTextWriter(TableWriter):
@@ -68,8 +68,8 @@ class TableTextWriter(TableWriter):
 
     def __eq__(self, other):
         return isinstance(other, TableTextWriter) and \
-               other.path == self.path and \
-               other.types_file == self.types_file and \
-               other.header == self.header and \
-               other.export_type == self.export_type and \
-               other.delimiter == self.delimiter
+            other.path == self.path and \
+            other.types_file == self.types_file and \
+            other.header == self.header and \
+            other.export_type == self.export_type and \
+            other.delimiter == self.delimiter

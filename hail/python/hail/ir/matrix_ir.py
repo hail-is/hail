@@ -1,6 +1,7 @@
 import hail as hl
-from hail.ir.base_ir import *
+from hail.ir.base_ir import BaseIR, MatrixIR
 from hail.utils.misc import escape_str, parsable_strings, dump_json, escape_id
+from hail.utils.java import Env
 
 
 class MatrixAggregateRowsByKey(MatrixIR):
@@ -501,8 +502,8 @@ class CastTableToMatrix(MatrixIR):
 
     def _eq(self, other):
         return self.entries_field_name == other.entries_field_name and \
-               self.cols_field_name == other.cols_field_name and \
-               self.col_key == other.col_key
+            self.cols_field_name == other.cols_field_name and \
+            self.col_key == other.col_key
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -608,9 +609,9 @@ class MatrixRename(MatrixIR):
 
     def _eq(self, other):
         return self.global_map == other.global_map and \
-               self.col_map == other.col_map and \
-               self.row_map == other.row_map and \
-               self.entry_map == other.entry_map
+            self.col_map == other.col_map and \
+            self.row_map == other.row_map and \
+            self.entry_map == other.entry_map
 
     def _compute_type(self):
         self._type = self.child.typ._rename(self.global_map, self.col_map, self.row_map, self.entry_map)
@@ -644,6 +645,7 @@ class JavaMatrix(MatrixIR):
 
     def _compute_type(self):
         self._type = hl.tmatrix._from_java(self._jir.typ())
+
 
 class JavaMatrixVectorRef(MatrixIR):
     def __init__(self, vec_ref, idx):

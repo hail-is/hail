@@ -55,7 +55,7 @@ class GoogleCloudStorageFS(FS):
 
             copy2(src, dst_w_file)
             stats = os.stat(src)
-            
+
             os.chown(dst_w_file, stats.st_uid, stats.st_gid)
 
     def exists(self, path: str) -> bool:
