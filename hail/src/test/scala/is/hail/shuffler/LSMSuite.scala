@@ -47,7 +47,7 @@ class LSMSuite extends HailSuite {
   case class PartitionKeyParameters(
     nElements: Int,
     nPartitions: Int,
-    description: String = null
+    description: String = ""
   )
 
   @DataProvider(name = "partitionKeyParameters")
@@ -70,7 +70,7 @@ class LSMSuite extends HailSuite {
   def testPartitionKeys(params: PartitionKeyParameters) {
     val nElements = params.nElements
     val nPartitions = params.nPartitions
-    try { ExecuteContext.scoped() { (ctx: ExecuteContext) =>
+    ExecuteContext.scoped() { (ctx: ExecuteContext) =>
       val rowPType = structIntStringPType
       val rowType = rowPType.virtualType
       val key = Array("x")
@@ -124,10 +124,6 @@ class LSMSuite extends HailSuite {
           }
         }
       }
-    } } catch {
-      case e: Exception =>
-        throw new RuntimeException(
-          s"Test with params $params failed", e)
     }
   }
 }
