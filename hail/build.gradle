@@ -187,7 +187,7 @@ dependencies {
         transitive = false
     }
 
-    hailTest 'org.testng:testng:7.1.0'
+    hailTest 'org.testng:testng:6.14.3
     hailTest 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
 
     unbundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
