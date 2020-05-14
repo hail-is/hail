@@ -9,7 +9,7 @@ import hail
 from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, dictof
 from hail.utils import get_env_or_default
-from hail.utils.java import Env, FatalError, warn
+from hail.utils.java import Env, FatalError, warning
 from hail.backend import Backend
 
 
@@ -214,8 +214,8 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         if idempotent:
             return
         else:
-            warn('Hail has already been initialized. If this call was intended to change configuration,'
-                 ' close the session with hl.stop() first.')
+            warning('Hail has already been initialized. If this call was intended to change configuration,'
+                    ' close the session with hl.stop() first.')
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmp_dir)

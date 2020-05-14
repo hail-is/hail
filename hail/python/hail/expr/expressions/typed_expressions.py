@@ -12,7 +12,7 @@ from hail.expr.types import HailType, tint32, tint64, tfloat32, \
 import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, func_spec, oneof, \
     identity, nullable, tupleof, sliceof
-from hail.utils.java import Env, warn
+from hail.utils.java import Env, warning
 from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import wrap_to_list, get_nice_field_error, get_nice_attr_error
 
@@ -1707,7 +1707,7 @@ class StructExpression(Mapping[str, Expression], Expression):
                 raise KeyError("Struct has no field '{}'\n"
                                "    Fields: [ {} ]".format(a, ', '.join("'{}'".format(x) for x in self._fields)))
             if a in to_drop:
-                warn("Found duplicate field name in 'StructExpression.drop': '{}'".format(a))
+                warning("Found duplicate field name in 'StructExpression.drop': '{}'".format(a))
             to_drop.add(a)
 
         to_keep = [f for f in self.dtype.keys() if f not in to_drop]

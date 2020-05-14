@@ -19,6 +19,7 @@ from hail.table import Table
 from hail.matrixtable import MatrixTable
 
 from .backend import Backend
+from ..hail_logging import Log4jLogger
 
 
 def handle_java_exception(f):
@@ -201,6 +202,7 @@ class SparkBackend(Backend):
                                f"  Python: {py_version}")
 
         self._fs = None
+        self._logger = None
 
         if not quiet:
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
@@ -241,6 +243,12 @@ class SparkBackend(Backend):
 
     def _parse_blockmatrix_ir(self, code, ref_map={}, ir_map={}):
         return self._jbackend.parse_blockmatrix_ir(code, ref_map, ir_map)
+
+    @property
+    def logger(self):
+        if self._logger is None:
+            self._logger = Log4jLogger()
+        return self._logger
 
     @property
     def fs(self):

@@ -14,7 +14,7 @@ from hail.table import Table, ExprContainer, TableIndexKeyError
 from hail.typecheck import typecheck, typecheck_method, dictof, anytype, \
     anyfunc, nullable, sequenceof, oneof, numeric, lazy, enumeration
 from hail.utils import storage_level, default_handler
-from hail.utils.java import warn, Env
+from hail.utils.java import warning, Env
 from hail.utils.misc import wrap_to_tuple, \
     get_key_by_exprs, \
     get_select_exprs, check_annotate_exprs, process_joins
@@ -419,7 +419,7 @@ class GroupedMatrixTable(ExprContainer):
             return hl.struct() if e is None else e
         entry_exprs = promote_none(self._entry_fields)
         if len(entry_exprs) == 0:
-            warn("'GroupedMatrixTable.result': No entry fields were defined.")
+            warning("'GroupedMatrixTable.result': No entry fields were defined.")
 
         base, cleanup = self._parent._process_joins(*defined_exprs)
 
@@ -2681,9 +2681,9 @@ class MatrixTable(ExprContainer):
         """
 
         if len(self.col_key) != 0 and Env.hc()._warn_cols_order:
-            warn("cols(): Resulting column table is sorted by 'col_key'."
-                 "\n    To preserve matrix table column order, "
-                 "first unkey columns with 'key_cols_by()'")
+            warning("cols(): Resulting column table is sorted by 'col_key'."
+                    "\n    To preserve matrix table column order, "
+                    "first unkey columns with 'key_cols_by()'")
             Env.hc()._warn_cols_order = False
 
         return Table(ir.MatrixColsTable(self._mir))
@@ -2726,9 +2726,9 @@ class MatrixTable(ExprContainer):
             Table with all non-global fields from the matrix, with **one row per entry of the matrix**.
         """
         if Env.hc()._warn_entries_order and len(self.col_key) > 0:
-            warn("entries(): Resulting entries table is sorted by '(row_key, col_key)'."
-                 "\n    To preserve row-major matrix table order, "
-                 "first unkey columns with 'key_cols_by()'")
+            warning("entries(): Resulting entries table is sorted by '(row_key, col_key)'."
+                    "\n    To preserve row-major matrix table order, "
+                    "first unkey columns with 'key_cols_by()'")
             Env.hc()._warn_entries_order = False
 
         return Table(ir.MatrixEntriesTable(self._mir))

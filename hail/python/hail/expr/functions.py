@@ -25,7 +25,7 @@ from hail.genetics.reference_genome import reference_genome_type, ReferenceGenom
 import hail.ir as ir
 from hail.typecheck import typecheck, nullable, anytype, enumeration, tupleof, \
     func_spec, oneof
-from hail.utils.java import Env, warn
+from hail.utils.java import Env, warning
 from hail.utils.misc import plural
 
 import numpy as np
@@ -1816,9 +1816,9 @@ def binom_test(x, n, p, alternative: str) -> Float64Expression:
     """
 
     if alternative == 'two.sided':
-        warn('"two.sided" is a deprecated and will be removed in a future '
-             'release, please use "two-sided" for the `alternative` parameter '
-             'to hl.binom_test')
+        warning('"two.sided" is a deprecated and will be removed in a future '
+                'release, please use "two-sided" for the `alternative` parameter '
+                'to hl.binom_test')
         alternative = 'two-sided'
 
     alt_enum = {"two-sided": 0, "less": 1, "greater": 2}[alternative]
