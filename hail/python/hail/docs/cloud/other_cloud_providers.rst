@@ -21,9 +21,8 @@ Azure, utilizing an HDInsight Spark Cluster can be found
 Others
 ------
 
-There are no known open-source resources for working with Hail on cloud
-providers other than Google and AWS. If you know of one, please submit a pull
-request to add it here!
+There are no known open-source resources for working with Hail on other cloud
+providers. If you know of one, please submit a pull request to add it here!
 
 If you have scripts for working with Hail on other cloud providers, we may be
 interested in including those scripts in ``hailctl`` (see above) as new
