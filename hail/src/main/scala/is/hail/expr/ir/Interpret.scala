@@ -702,11 +702,15 @@ object Interpret {
             FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
             extracted.seqPerElt)
 
+          case class WrappedByteArray(var bytes: Array[Byte])
+
           val read = {
             val deserialize = extracted.deserialize(ctx, spec, physicalAggs)
-            (a: Array[Byte]) => {
+            (a: WrappedByteArray) => {
               val r = Region(Region.SMALL)
-              RegionValue(r, deserialize(r, a))
+              val res = deserialize(r, a.bytes)
+              a.bytes = null
+              RegionValue(r, res)
             }
           }
           val write = {
@@ -714,7 +718,7 @@ object Interpret {
             (rv: RegionValue) => {
               val a = serialize(rv.region, rv.offset)
               rv.region.clear()
-              a
+              WrappedByteArray(a)
             }
           }
           val combOpF = extracted.combOpF(ctx, spec, physicalAggs)
@@ -757,7 +761,7 @@ object Interpret {
             RegionValue(region, initF.getAggOffset())
           }
 
-          val rv = value.rvd.combine[Array[Byte], RegionValue](
+          val rv = value.rvd.combine[WrappedByteArray, RegionValue](
             mkZero, itF, read, write, combOpF, isCommutative, useTreeAggregate)
 
           Region.scoped { r =>
