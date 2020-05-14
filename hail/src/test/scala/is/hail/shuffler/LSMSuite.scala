@@ -19,20 +19,8 @@ import scala.language.implicitConversions
 class LSMSuite extends HailSuite {
   val log = Logger.getLogger(this.getClass.getName());
 
-  def assertStrictlyIncreasingPrefix(
+  private[this] def assertStrictlyIncreasingPrefix(
     ord: UnsafeOrdering,
-    values: Array[UnsafeRow],
-    prefixLength: Int
-  ): Unit = assertIncreasingPrefix(ord.lt, values, prefixLength)
-
-  def assertMonotonicallyIncreasingPrefix(
-    ord: UnsafeOrdering,
-    values: Array[UnsafeRow],
-    prefixLength: Int
-  ): Unit = assertIncreasingPrefix(ord.lteq, values, prefixLength)
-
-  private[this] def assertIncreasingPrefix(
-    orderingSatisfied: (Long, Long) => Boolean,
     values: Array[UnsafeRow],
     prefixLength: Int
   ): Unit = {
@@ -47,7 +35,7 @@ class LSMSuite extends HailSuite {
     var prev = values(0)
     var i = 1
     while (i < prefixLength) {
-      assert(orderingSatisfied(prev.offset, values(i).offset),
+      assert(ord.lt(prev.offset, values(i).offset),
         s"""values are not strictly increasing on [0, $prefixLength). We saw
            |${prev} and ${values(i)} at $i. Context: ${values.slice(i-3, i+3).toIndexedSeq}
            |""".stripMargin)
@@ -77,7 +65,6 @@ class LSMSuite extends HailSuite {
       PartitionKeyParameters(1000000, 100, "big test")
     )
   }
-
 
   @Test(dataProvider = "partitionKeyParameters")
   def testPartitionKeys(params: PartitionKeyParameters) {
