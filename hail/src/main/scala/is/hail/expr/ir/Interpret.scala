@@ -702,8 +702,21 @@ object Interpret {
             FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
             extracted.seqPerElt)
 
-          val read = extracted.deserialize2(ctx, spec, physicalAggs)
-          val write = extracted.serialize2(ctx, spec, physicalAggs)
+          val read = {
+            val deserialize = extracted.deserialize(ctx, spec, physicalAggs)
+            (a: Array[Byte]) => {
+              val r = Region(Region.SMALL)
+              RegionValue(r, deserialize(r, a))
+            }
+          }
+          val write = {
+            val serialize = extracted.serialize(ctx, spec, physicalAggs)
+            (rv: RegionValue) => {
+              val a = serialize(rv.region, rv.offset)
+              rv.region.clear()
+              a
+            }
+          }
           val combOpF = extracted.combOpF3(ctx, spec, physicalAggs)
 
           val (rTyp: PTuple, f) = CompileWithAggregators2[AsmFunction2RegionLongLong](ctx,
@@ -718,53 +731,41 @@ object Interpret {
           log.info(s"Aggregate: useTreeAggregate=${ useTreeAggregate }")
           log.info(s"Aggregate: commutative=${ isCommutative }")
 
-          def itF(i: Int, ctx: RVDContext, it: Iterator[Long]): Array[Byte] = {
+          def itF(i: Int, ctx: RVDContext, it: Iterator[Long]): RegionValue = {
             val partRegion = ctx.partitionRegion
             val globalsOffset = globalsBc.value.readRegionValue(partRegion)
             val init = initOp(i, partRegion)
             val seqOps = partitionOpSeq(i, partRegion)
+            val aggRegion = Region(Region.SMALL)
 
-            Region.smallScoped { aggRegion =>
-              init.newAggState(aggRegion)
-              init(partRegion, globalsOffset)
-              seqOps.setAggState(aggRegion, init.getAggOffset())
-              it.foreach { ptr =>
-                seqOps(ctx.region, globalsOffset, ptr)
-                ctx.region.clear()
-              }
-              write(RegionValue(aggRegion, seqOps.getAggOffset()))
+            init.newAggState(aggRegion)
+            init(partRegion, globalsOffset)
+            seqOps.setAggState(aggRegion, init.getAggOffset())
+            it.foreach { ptr =>
+              seqOps(ctx.region, globalsOffset, ptr)
+              ctx.region.clear()
             }
+
+            RegionValue(aggRegion, seqOps.getAggOffset())
           }
 
           val mkZero = () => {
-            val region = Region(Region.REGULAR)
+            val region = Region(Region.SMALL)
             val initF = initOp(0, region)
             initF.newAggState(region)
             initF(region, globalsOffset)
             RegionValue(region, initF.getAggOffset())
           }
 
-          val aggResults = if (isCommutative) {
-            val rv = value.rvd.combine[Array[Byte], RegionValue](
-              mkZero, itF, read, write, (rv, a) => combOpF(rv, read(a)), tree = useTreeAggregate)
-            write(rv)
-          } else {
-            val rv = value.rvd.combineNonCommutative[Array[Byte], RegionValue](
-              mkZero, itF, read, write, (rv, a) => combOpF(rv, read(a)), combOpF, tree = useTreeAggregate)
-            write(rv)
-          }
+          val rv = value.rvd.combine[Array[Byte], RegionValue](
+            mkZero, itF, read, write, combOpF, isCommutative, useTreeAggregate)
 
           Region.scoped { r =>
             val resF = f(0, r)
-            val rv = read(aggResults)
             resF.setAggState(rv.region, rv.offset)
             val res = SafeRow(rTyp, resF(r, globalsOffset))
             rv.region.clear()
             res
-//            Region.smallScoped { aggRegion =>
-//              resF.setAggState(aggRegion, read(aggRegion, aggResults))
-//              SafeRow(rTyp, resF(r, globalsOffset))
-//            }
           }
         }
 

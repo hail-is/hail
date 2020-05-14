@@ -12,33 +12,30 @@ import org.apache.spark.ExposedUtils
 import scala.reflect.ClassTag
 
 object Combiner {
-  def apply[U](zero: => U, combine: (U, U) => U, commutative: Boolean, associative: Boolean): Combiner[U, U] = {
+  def apply[U](zero: => U, combine: (U, U) => U, commutative: Boolean, associative: Boolean): Combiner[U] = {
     assert(associative)
     if (commutative)
       new CommutativeAndAssociativeCombiner(zero, combine)
     else
       new AssociativeCombiner(zero, combine)
   }
-
-  def apply[U, T](zero: T, combine: (T, U) => T): Combiner[U, T] =
-    new CommutativeAndAssociativeCombiner(zero, combine)
 }
 
-abstract class Combiner[U, R] {
+abstract class Combiner[U] {
   def combine(i: Int, value0: U)
 
-  def result(): R
+  def result(): U
 }
 
-class CommutativeAndAssociativeCombiner[U, T](zero: => T, combine: (T, U) => T) extends Combiner[U, T] {
-  var state: T = zero
+class CommutativeAndAssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[U] {
+  var state: U = zero
 
   def combine(i: Int, value0: U): Unit = state = combine(state, value0)
 
-  def result(): T = state
+  def result(): U = state
 }
 
-class AssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[U, U] {
+class AssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[U] {
 
   case class TreeValue(var value: U, var end: Int)
 
@@ -359,7 +356,8 @@ class ContextRDD[T: ClassTag](
   def treeCombine[U: ClassTag](
     mkZeroValue: () => U,
     serialize: U => T,
-    seqOp: (U, T) => U
+    deserialize: T => U,
+    seqOp: (U, U) => U
   ): ContextRDD[T] = {
     val depth = treeAggDepth(getNumPartitions)
     val scale = math.max(
@@ -382,7 +380,7 @@ class ContextRDD[T: ClassTag](
         .mapPartitions { it =>
           var acc = mkZeroValue()
           it.foreach { case (newPart, (oldPart, v)) =>
-            acc = seqOp(acc, v)
+            acc = seqOp(acc, deserialize(v))
           }
           Iterator.single(serialize(acc))
         }

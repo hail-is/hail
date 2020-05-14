@@ -61,24 +61,6 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
     }
   }
 
-  def deserialize2(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): Array[Byte] => RegionValue = {
-    val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](
-      ctx,
-      physicalAggs,
-      FastIndexedSeq(),
-      FastIndexedSeq(classInfo[Region]), UnitInfo,
-      ir.DeserializeAggs(0, 0, spec, aggs))
-
-    { bytes: Array[Byte] =>
-      val aggRegion = Region(Region.REGULAR)
-      val f2 = f(0, aggRegion)
-      f2.newAggState(aggRegion)
-      f2.setSerializedAgg(0, bytes)
-      f2(aggRegion)
-      RegionValue(aggRegion, f2.getAggOffset())
-    }
-  }
-
   def serialize(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (Region, Long) => Array[Byte] = {
     val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
       physicalAggs,
@@ -90,26 +72,6 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
       val f2 = f(0, aggRegion);
       f2.setAggState(aggRegion, off)
       f2(aggRegion)
-      f2.getSerializedAgg(0)
-    }
-  }
-
-  def serialize2(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): RegionValue => Array[Byte] = {
-    val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](
-      ctx,
-      physicalAggs,
-      FastIndexedSeq(),
-      FastIndexedSeq(classInfo[Region]), UnitInfo,
-      ir.SerializeAggs(0, 0, spec, aggs))
-
-    { rv: RegionValue =>
-      val aggRegion = rv.region
-      val off = rv.offset
-      val f2 = f(0, aggRegion)
-      f2.setAggState(aggRegion, off)
-      f2(aggRegion)
-      assert(aggRegion.memory.getReferenceCount == 1)
-      aggRegion.clear()
       f2.getSerializedAgg(0)
     }
   }
