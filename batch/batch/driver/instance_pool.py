@@ -7,7 +7,7 @@ import asyncio
 import logging
 import base64
 import sortedcontainers
-import googleapiclient.errors
+import aiohttp
 from hailtop.utils import time_msecs, secret_alnum_string
 
 from ..batch_configuration import DEFAULT_NAMESPACE, BATCH_WORKER_IMAGE, \
@@ -346,8 +346,8 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/ba
         try:
             await self.compute_client.delete(
                 f'/zones/{instance.zone}/instances/{instance.name}')
-        except googleapiclient.errors.HttpError as e:
-            if e.resp['status'] == '404':
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
                 log.info(f'{instance} already delete done')
                 await self.remove_instance(instance, reason, timestamp)
                 return
@@ -507,8 +507,8 @@ FROM ready_cores;
         try:
             spec = await self.compute_client.get(
                 f'/zones/{instance.zone}/instances/{instance.name}')
-        except googleapiclient.errors.HttpError as e:
-            if e.resp['status'] == '404':
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
                 await self.remove_instance(instance, 'does_not_exist')
                 return
             raise
