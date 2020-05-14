@@ -7,13 +7,13 @@ import secrets
 import string
 import concurrent
 import asyncio
+import aiohttp
 import kubernetes_asyncio as kube
 import google.auth.transport.requests
 import google.oauth2.id_token
 import google.cloud.storage
-import googleapiclient.http
-import googleapiclient.discovery
 from hailtop.utils import blocking_to_async, time_msecs
+from hailtop import aiogoogle
 from gear import create_session, Database
 
 log = logging.getLogger('auth.driver')
@@ -32,43 +32,10 @@ class DatabaseConflictError(Exception):
 
 class GoogleClient:
     def __init__(self, credentials):
-        # Google API Python clients are not thread safe, create Http object per request
-        # https://github.com/googleapis/google-api-python-client/blob/master/docs/thread_safety.md
-        def build_request(http, *args, **kwargs):  # pylint: disable=unused-argument
-            import google_auth_httplib2
-            new_http = google_auth_httplib2.AuthorizedHttp(credentials=credentials)
-            return googleapiclient.http.HttpRequest(new_http, *args, **kwargs)
-
         self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=40)
 
         # https://googleapis.dev/python/storage/latest/index.html
         self.storage_client = google.cloud.storage.Client(credentials=credentials)
-
-        self.iam_client = googleapiclient.discovery.build('iam', 'v1', cache_discovery=False, credentials=credentials, requestBuilder=build_request)
-
-    def _create_service_account(self, name, body):
-        return self.iam_client.projects().serviceAccounts().create(  # pylint: disable=no-member
-            name=name, body=body).execute()
-
-    async def create_service_account(self, name, body):
-        return await blocking_to_async(self.thread_pool, self._create_service_account, name, body)
-
-    def _delete_service_account(self, gsa_email):
-        self.iam_client.projects().serviceAccounts().delete(  # pylint: disable=no-member
-            name=f'projects/{PROJECT}/serviceAccounts/{gsa_email}'
-        ).execute()
-
-    async def delete_service_account(self, gsa_email):
-        return await blocking_to_async(self.thread_pool, self._delete_service_account, gsa_email)
-
-    def _create_service_account_key(self, gsa_email):
-        return self.iam_client.projects().serviceAccounts().keys().create(  # pylint: disable=no-member
-            name=f'projects/{PROJECT}/serviceAccounts/{gsa_email}',
-            body={}
-        ).execute()
-
-    async def create_service_account_key(self, gsa_email):
-        return await blocking_to_async(self.thread_pool, self._create_service_account_key, gsa_email)
 
     def _create_bucket(self, name):
         bucket = self.storage_client.bucket(name)
@@ -200,8 +167,8 @@ class K8sSecretResource:
 
 
 class GSAResource:
-    def __init__(self, google_client, gsa_email=None):
-        self.google_client = google_client
+    def __init__(self, iam_client, gsa_email=None):
+        self.iam_client = iam_client
         self.gsa_email = gsa_email
 
     async def create(self, username):
@@ -211,8 +178,8 @@ class GSAResource:
 
         await self._delete(gsa_email)
 
-        service_account = await self.google_client.create_service_account(
-            name=f'projects/{PROJECT}',
+        service_account = await self.iam_client.post(
+            '/serviceAccounts',
             body={
                 "accountId": username,
                 "serviceAccount": {
@@ -222,15 +189,16 @@ class GSAResource:
         assert service_account['email'] == gsa_email
         self.gsa_email = gsa_email
 
-        key = await self.google_client.create_service_account_key(self.gsa_email)
+        key = await self.iam_client.post(
+            f'/serviceAccounts/{self.gsa_email}/keys')
 
         return (self.gsa_email, key)
 
     async def _delete(self, gsa_email):
         try:
-            await self.google_client.delete_service_account(gsa_email)
-        except googleapiclient.errors.HttpError as e:
-            if e.resp.status == 404:
+            await self.iam_client.delete(f'/serviceAccounts/{gsa_email}/keys')
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
                 pass
             else:
                 raise
@@ -391,6 +359,7 @@ async def _create_user(app, user, cleanup):
     db = app['db']
     k8s_client = app['k8s_client']
     google_client = app['google_client']
+    iam_client = app['iam_client']
 
     alnum = string.ascii_lowercase + string.digits
     token = ''.join([secrets.choice(alnum) for _ in range(5)])
@@ -422,7 +391,7 @@ async def _create_user(app, user, cleanup):
 
     gsa_email = user['gsa_email']
     if gsa_email is None:
-        gsa = GSAResource(google_client)
+        gsa = GSAResource(iam_client)
         cleanup.append(gsa.delete)
 
         # length of gsa account_id must be >= 6
@@ -496,6 +465,7 @@ async def delete_user(app, user):
     db = app['db']
     k8s_client = app['k8s_client']
     google_client = app['google_client']
+    iam_client = app['iam_client']
 
     tokens_secret_name = user['tokens_secret_name']
     if tokens_secret_name is not None:
@@ -506,7 +476,7 @@ async def delete_user(app, user):
 
     gsa_email = user['gsa_email']
     if gsa_email is not None:
-        gsa = GSAResource(google_client, gsa_email)
+        gsa = GSAResource(iam_client, gsa_email)
         await gsa.delete()
 
     gsa_key_secret_name = user['gsa_key_secret_name']
@@ -583,6 +553,9 @@ async def async_main():
                 'https://www.googleapis.com/auth/devstorage.full_control'
             ])
         app['google_client'] = GoogleClient(credentials)
+
+        app['iam_client'] = aiogoogle.IAmClient(
+            PROJECT, credentials=aiogoogle.Credentials.from_file('/gsa-key/key.json'))
 
         users_changed_event = asyncio.Event()
         app['users_changed_event'] = users_changed_event
