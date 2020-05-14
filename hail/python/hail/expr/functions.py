@@ -1,12 +1,12 @@
 import builtins
 import functools
 from math import sqrt
-from typing import Union, Optional, Any, Callable, Iterable
+from typing import Union, Optional, Any, Callable, Iterable, TypeVar
 
 import hail
 import hail as hl
 from hail.expr.expressions import Expression, ArrayExpression, SetExpression, \
-    TypeVar, Int32Expression, Int64Expression, Float32Expression, \
+    Int32Expression, Int64Expression, Float32Expression, \
     Float64Expression, DictExpression, StructExpression, LocusExpression, \
     StringExpression, IntervalExpression, ArrayNumericExpression, \
     BooleanExpression, CallExpression, TupleExpression, \

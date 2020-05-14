@@ -967,9 +967,9 @@ class SetExpression(CollectionExpression):
     :class:`.CollectionExpression`
     """
 
-    @typecheck_method(ir=ir.IR, type=HailType, indices=Indices, aggregations=LinkedList)
-    def __init__(self, ir, type, indices=Indices(), aggregations=LinkedList(Aggregation)):
-        super(SetExpression, self).__init__(ir, type, indices, aggregations)
+    @typecheck_method(x=ir.IR, type=HailType, indices=Indices, aggregations=LinkedList)
+    def __init__(self, x, type, indices=Indices(), aggregations=LinkedList(Aggregation)):
+        super(SetExpression, self).__init__(x, type, indices, aggregations)
         assert isinstance(type, tset)
         self._ec = coercer_from_dtype(type.element_type)
 
@@ -1233,9 +1233,9 @@ class DictExpression(Expression):
     >>> d = hl.literal({'Alice': 43, 'Bob': 33, 'Charles': 44})
     """
 
-    @typecheck_method(ir=ir.IR, type=HailType, indices=Indices, aggregations=LinkedList)
-    def __init__(self, ir, type, indices=Indices(), aggregations=LinkedList(Aggregation)):
-        super(DictExpression, self).__init__(ir, type, indices, aggregations)
+    @typecheck_method(x=ir.IR, type=HailType, indices=Indices, aggregations=LinkedList)
+    def __init__(self, x, type, indices=Indices(), aggregations=LinkedList(Aggregation)):
+        super(DictExpression, self).__init__(x, type, indices, aggregations)
         assert isinstance(type, tdict)
         self._kc = coercer_from_dtype(type.key_type)
         self._vc = coercer_from_dtype(type.value_type)

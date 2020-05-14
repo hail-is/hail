@@ -1,4 +1,4 @@
-from hail.typecheck import *
+from hail.typecheck import typecheck_method, anytype, setof
 import hail as hl
 
 from typing import List
