@@ -727,23 +727,6 @@ class Emit[C](
       case gte@GetTupleElement(o, i) =>
         emitI(o).flatMap(cb) { oc =>
           val ov = oc.asBaseStruct.memoize(cb, "get_tup_elem_o")
-          if (oc.pt.isInstanceOf[PStruct]) {
-            val pstruct = oc.pt.asInstanceOf[PStruct]
-            println(s"gte.o.pType = ${gte.o.pType}, oc.pt = ${oc.pt}")
-
-            println("Bad pcode stack trace")
-            oc.stackTrace.foreach(x => println(x))
-
-//            println("Bad GetTupleElement stack trace")
-//            gte.stackTrace.foreach{x =>
-//              println(x)
-//            }
-//
-//            println("Stack trace")
-//            pstruct.stackTrace.foreach {x =>
-//              println(x)
-//            }
-          }
           ov.loadField(cb, oc.pt.asInstanceOf[PTuple].fieldIndex(i))
         }
 
