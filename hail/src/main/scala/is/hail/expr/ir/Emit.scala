@@ -724,9 +724,26 @@ class Emit[C](
           ov.loadField(cb, name)
         }
 
-      case GetTupleElement(o, i) =>
+      case gte@GetTupleElement(o, i) =>
         emitI(o).flatMap(cb) { oc =>
           val ov = oc.asBaseStruct.memoize(cb, "get_tup_elem_o")
+          if (oc.pt.isInstanceOf[PStruct]) {
+            val pstruct = oc.pt.asInstanceOf[PStruct]
+            println(s"gte.o.pType = ${gte.o.pType}, oc.pt = ${oc.pt}")
+
+            println("Bad pcode stack trace")
+            oc.stackTrace.foreach(x => println(x))
+
+//            println("Bad GetTupleElement stack trace")
+//            gte.stackTrace.foreach{x =>
+//              println(x)
+//            }
+//
+//            println("Stack trace")
+//            pstruct.stackTrace.foreach {x =>
+//              println(x)
+//            }
+          }
           ov.loadField(cb, oc.pt.asInstanceOf[PTuple].fieldIndex(i))
         }
 
@@ -1018,8 +1035,11 @@ class Emit[C](
 
       case x@(_: ArraySort | _: ToSet | _: ToDict) =>
         val atyp = coerce[PIterable](x.pType)
-        val eltType = atyp.elementType
+        println(s"atyp = $atyp")
+        println(s"atyp.elementType = ${atyp.elementType}")
+        val eltType = x.children(0).asInstanceOf[IR].pType.asInstanceOf[PIterable].elementType //element of the inner array
         val eltVType = eltType.virtualType
+        println(s"eltType = ${eltType}")
 
         val vab = new StagedArrayBuilder(atyp.elementType, mb, 0)
         val sorter = new ArraySorter(EmitRegion(mb, region), vab)
@@ -1043,13 +1063,22 @@ class Emit[C](
               }
             }, Array.empty[String])
           case ToDict(a) =>
-            val elementType = a.pType.asInstanceOf[PStream].elementType
-            val (k0, k1, keyType) = elementType match {
-              case t: PStruct => (GetField(In(0, elementType), "key"), GetField(In(1, elementType), "key"), t.fieldType("key"))
-              case t: PTuple => (GetTupleElement(In(0, elementType), 0), GetTupleElement(In(1, elementType), 0), t.types(0))
+            println(s"Executing ToDict of a. a = $a. a.pType = ${a.pType}")
+            val aElementType = a.pType.asInstanceOf[PStream].elementType
+            println(s"aElementType = ${aElementType}")
+
+            val (k0, k1, keyType) = aElementType match {
+              case t: PStruct => (GetField(In(0, aElementType), "key"), GetField(In(1, aElementType), "key"), t.fieldType("key"))
+              case t: PTuple => {
+                println("Matched PTuple")
+                (GetTupleElement(In(0, aElementType), 0), GetTupleElement(In(1, aElementType), 0), t.types(0))
+              }
             }
             val discardNext = mb.genEmitMethod("discardNext",
-              FastIndexedSeq[ParamType](typeInfo[Region], atyp.elementType, atyp.elementType), typeInfo[Boolean])
+              FastIndexedSeq[ParamType](typeInfo[Region], eltType, eltType), typeInfo[Boolean])
+            val cmp2PreCopy = ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1)
+            InferPType(cmp2PreCopy, Env.empty)
+
             val cmp2 = ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1).deepCopy()
             InferPType(cmp2, Env.empty)
             val EmitCode(s, m, pv) = emitInMethod(cmp2, discardNext)
@@ -1059,8 +1088,8 @@ class Emit[C](
             (a, lessThan, Code(sorter.pruneMissing, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
               EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
                 cb.invokeCode[Boolean](discardNext, r,
-                  new EmitCode(Code._empty, m1, PCode(atyp.elementType, v1)),
-                  new EmitCode(Code._empty, m2, PCode(atyp.elementType, v2)))
+                  new EmitCode(Code._empty, m1, PCode(eltType, v1)),
+                  new EmitCode(Code._empty, m2, PCode(eltType, v2)))
               }
             }), Array.empty[String])
         }
@@ -1435,9 +1464,11 @@ class Emit[C](
         }
         present(pt, Code(srvb.start(init = true), wrapToMethod(fields.map(_._2))(addFields), srvb.offset))
 
-      case In(i, typ) =>
+      case In(i, expectedPType) =>
         // this, Code[Region], ...
-        mb.getEmitParam(2 + i)
+        val ev = mb.getEmitParam(2 + i)
+        assert(ev.pt == expectedPType, s"${ev.pt} not equal to specified $expectedPType")
+        ev
       case Die(m, typ) =>
         val cm = emit(m)
         EmitCode(
