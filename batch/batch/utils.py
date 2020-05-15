@@ -24,8 +24,8 @@ def cost_from_msec_mcpu(msec_mcpu):
         return None
 
     worker_type = 'standard'
-    worker_cores = 1  # 16
-    worker_disk_size_gb = 20  # 100
+    worker_cores = 16
+    worker_disk_size_gb = 100
 
     # https://cloud.google.com/compute/all-pricing
 

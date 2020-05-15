@@ -690,8 +690,8 @@ async def on_startup(app):
     app['scheduler'] = scheduler
 
     # asyncio.ensure_future(check_incremental_loop(db))
-    asyncio.ensure_future(check_resource_aggregation(db))
-    asyncio.ensure_future(check_cost(db))
+    # asyncio.ensure_future(check_resource_aggregation(db))
+    # asyncio.ensure_future(check_cost(db))
 
 
 async def on_cleanup(app):

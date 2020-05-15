@@ -1266,14 +1266,14 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
-#    - deploy_router
+    - deploy_router
     - deploy_batch_sa
     - deploy_batch_sa_batch_pods
-#    - create_accounts
+    - create_accounts
     - batch_image
     - batch_worker_image
     - batch_database
-#    - deploy_auth
+    - deploy_auth
     - create_certs
  - kind: runImage
    name: test_hail_services_java
