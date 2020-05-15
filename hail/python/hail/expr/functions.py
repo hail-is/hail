@@ -2930,9 +2930,12 @@ def entropy(s) -> Float64Expression:
     return _func("entropy", tfloat64, s)
 
 
-@typecheck(x=expr_any, trunc=expr_int32)
-def _showstr(x, trunc):
+@typecheck(x=expr_any, trunc=nullable(expr_int32))
+def _showstr(x, trunc=None):
+    if trunc is None:
+        return _func("showStr", tstr, x)
     return _func("showStr", tstr, x, trunc)
+
 
 @typecheck(x=expr_any)
 def str(x) -> StringExpression:
