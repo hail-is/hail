@@ -116,7 +116,8 @@ def main(args, pass_through_args):
 
         for cmd in cmds:
             print(cmd)
-            sp.check_call(cmd)
+            if not args.dry_run:
+                sp.check_call(cmd)
 
     if not wheel and not modify_args and pass_through_args:
         sys.stderr.write('ERROR: found pass-through arguments but not known modification args.')
