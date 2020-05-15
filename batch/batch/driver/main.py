@@ -28,7 +28,7 @@ from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
     WORKER_LOGS_BUCKET_NAME, PROJECT
 from ..google_compute import GServices
 from ..globals import HTTP_CLIENT_MAX_SIZE
-from ..utils import cost_from_msec_mcpu, coalesce
+from ..utils import cost_from_msec_mcpu
 
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
@@ -551,13 +551,13 @@ LOCK IN SHARE MODE;
 ''')
 
         attempt_resources = {(record['batch_id'], record['job_id'], record['attempt_id']): json_to_value(record['resources'])
-                             async for record in attempt_resources}
+                             async for record in attempt_resources}  # pylint: disable=bad-continuation
 
         agg_job_resources = {(record['batch_id'], record['job_id']): json_to_value(record['resources'])
-                             async for record in agg_job_resources}
+                             async for record in agg_job_resources}  # pylint: disable=bad-continuation
 
         agg_batch_resources = {record['batch_id']: json_to_value(record['resources'])
-                               async for record in agg_batch_resources}
+                               async for record in agg_batch_resources}  # pylint: disable=bad-continuation
 
         attempt_by_batch_resources = fold(attempt_resources, lambda k: k[0])
         attempt_by_job_resources = fold(attempt_resources, lambda k: (k[0], k[1]))

@@ -2,7 +2,7 @@ import re
 
 from .globals import WORKER_CONFIG_VERSION
 
-MACHINE_TYPE_REGEX = re.compile('projects/([^/]+)/zones/([^/]+)/machineTypes/([^-]+)-([^-]+)-(\d+)')
+MACHINE_TYPE_REGEX = re.compile('projects/([^/]+)/zones/([^/]+)/machineTypes/([^-]+)-([^-]+)-(\\d+)')
 DISK_TYPE_REGEX = re.compile('projects/([^/]+)/zones/([^/]+)/diskTypes/(.+)')
 
 

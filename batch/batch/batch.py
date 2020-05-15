@@ -20,7 +20,7 @@ from .utils import cost_str
 log = logging.getLogger('batch')
 
 
-def batch_record_to_dict(app, record):
+def batch_record_to_dict(record):
     format_version = BatchFormatVersion(record['format_version'])
 
     if record['state'] == 'open':
@@ -79,7 +79,7 @@ def batch_record_to_dict(app, record):
     return d
 
 
-async def notify_batch_job_complete(app, db, batch_id):
+async def notify_batch_job_complete(db, batch_id):
     record = await db.select_and_fetchone(
         '''
 SELECT *
@@ -108,7 +108,7 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
     try:
         async with make_client_session(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            await session.post(callback, json=batch_record_to_dict(app, record))
+            await session.post(callback, json=batch_record_to_dict(record))
             log.info(f'callback for batch {batch_id} successful')
     except Exception:
         log.exception(f'callback for batch {batch_id} failed, will not retry.')
@@ -176,7 +176,7 @@ ON DUPLICATE KEY UPDATE quantity = quantity;
 
     log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
 
-    await notify_batch_job_complete(app, db, batch_id)
+    await notify_batch_job_complete(db, batch_id)
 
 
 async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_time, resources):
@@ -214,7 +214,7 @@ ON DUPLICATE KEY UPDATE quantity = quantity;
         raise
 
 
-def job_record_to_dict(app, record, name):
+def job_record_to_dict(record, name):
     format_version = BatchFormatVersion(record['format_version'])
 
     db_status = record['status']

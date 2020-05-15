@@ -172,7 +172,7 @@ LIMIT 50;
 '''
     sql_args = where_args
 
-    jobs = [job_record_to_dict(request.app, record, record['name'])
+    jobs = [job_record_to_dict(record, record['name'])
             async for record
             in db.select_and_fetchall(sql, sql_args)]
 
@@ -455,7 +455,7 @@ LIMIT 50;
 '''
     sql_args = where_args
 
-    batches = [batch_record_to_dict(request.app, batch)
+    batches = [batch_record_to_dict(batch)
                async for batch
                in db.select_and_fetchall(sql, sql_args)]
 
@@ -822,7 +822,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    return batch_record_to_dict(app, record)
+    return batch_record_to_dict(record)
 
 
 async def _cancel_batch(app, batch_id, user):
@@ -1033,7 +1033,7 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
         _get_attributes(app, record)
     )
 
-    job = job_record_to_dict(app, record, attributes.get('name'))
+    job = job_record_to_dict(record, attributes.get('name'))
     job['status'] = full_status
     job['spec'] = full_spec
     if attributes:
