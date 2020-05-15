@@ -8,6 +8,16 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" type="text/css" href="{{ base_path }}/common_static/css/main.css" />
     {% block head %}{% endblock %}
+    <script src="//cdnjs.cloudflare.com/ajax/libs/mousetrap/1.4.6/mousetrap.min.js"></script>
+    <script type="text/javascript">
+      function search() {
+        var search = $('[name=q]')
+        search.val('')
+        search.focus()
+        return false;
+      }
+      Mousetrap.bind('/', search);
+    </script>
   </head>
   <body>
     <div id="main">
