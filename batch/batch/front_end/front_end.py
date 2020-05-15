@@ -1138,28 +1138,17 @@ async def _query_billing(request):
         return await parse_error(f'Invalid search; start must be earlier than end.')
 
     sql = f'''
-SELECT *
-FROM (SELECT billing_project, `user`
-      FROM batches
-      WHERE batches.`time_completed` >= %s AND
-            batches.`time_completed` <= %s
-      GROUP BY billing_project, `user`) AS t1
-
-LEFT JOIN (SELECT billing_project, `user`, CAST(COALESCE(SUM(msec_mcpu), 0) AS SIGNED) AS msec_mcpu
-           FROM batches
-           WHERE batches.format_version < 3
-           GROUP BY billing_project, `user`) AS t2
-ON t1.billing_project = t2.billing_project AND t1.`user` = t2.`user`
-
-LEFT JOIN (SELECT billing_project, `user`, COALESCE(SUM(`usage` * rate), 0) AS cost
-           FROM aggregated_batch_resources
-           INNER JOIN (SELECT id, billing_project, `user`
-                       FROM batches
-                       WHERE batches.format_version >= 3) AS tmp1
-           ON aggregated_batch_resources.batch_id = tmp1.id
-           INNER JOIN resources ON resources.resource = aggregated_batch_resources.resource
-           GROUP BY billing_project, `user`) AS t3
-ON t1.billing_project = t3.billing_project AND t1.`user` = t3.`user`;
+SELECT
+  billing_project,
+  `user`,
+  CAST(COALESCE(SUM(IF(format_version < 3, msec_mcpu, 0)), 0) AS SIGNED) as msec_mcpu,
+  SUM(IF(format_version >= 3, `usage` * rate, NULL)) as cost
+FROM batches
+LEFT JOIN aggregated_batch_resources
+       ON aggregated_batch_resources.batch_id = batches.id
+LEFT JOIN resources
+        ON resources.resource = aggregated_batch_resources.resource
+GROUP BY billing_project, `user`;
 '''
 
     sql_args = (start, end)
