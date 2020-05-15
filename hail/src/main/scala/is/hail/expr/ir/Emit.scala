@@ -1049,8 +1049,6 @@ class Emit[C](
             }
             val discardNext = mb.genEmitMethod("discardNext",
               FastIndexedSeq[ParamType](typeInfo[Region], eltType, eltType), typeInfo[Boolean])
-            val cmp2PreCopy = ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1)
-            InferPType(cmp2PreCopy, Env.empty)
 
             val cmp2 = ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1).deepCopy()
             InferPType(cmp2, Env.empty)
