@@ -114,6 +114,23 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
         log.exception(f'callback for batch {batch_id} failed, will not retry.')
 
 
+async def add_attempt_resources(db, batch_id, job_id, attempt_id, resources):
+    if attempt_id:
+        try:
+            resource_args = [(batch_id, job_id, attempt_id, resource['name'], resource['quantity'])
+                             for resource in resources]
+
+            await db.execute_many('''
+INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource, quantity)
+VALUES (%s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE quantity = quantity;
+''',
+                                  resource_args)
+        except Exception:
+            log.exception(f'error while inserting resources for job {id}, attempt {attempt_id}')
+            raise
+
+
 async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, new_state,
                             status, start_time, end_time, reason, resources):
     scheduler_state_changed = app['scheduler_state_changed']
@@ -149,20 +166,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
 
-    if attempt_id:
-        try:
-            resource_args = [(batch_id, job_id, attempt_id, resource['name'], resource['quantity'])
-                             for resource in resources]
-
-            await db.execute_many('''
-INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource, quantity)
-VALUES (%s, %s, %s, %s, %s)
-ON DUPLICATE KEY UPDATE quantity = quantity;
-''',
-                                  resource_args)
-        except Exception:
-            log.exception(f'error while inserting resources for job {id}')
-            raise
+    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
 
     if rv['rc'] != 0:
         log.info(f'mark_job_complete returned {rv} for job {id}')
@@ -199,19 +203,7 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
-    try:
-        resource_args = [(batch_id, job_id, attempt_id, resource['name'], resource['quantity'])
-                         for resource in resources]
-
-        await db.execute_many('''
-INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource, quantity)
-VALUES (%s, %s, %s, %s, %s)
-ON DUPLICATE KEY UPDATE quantity = quantity;
-''',
-                              resource_args)
-    except Exception:
-        log.exception(f'error while inserting resources for job {id}')
-        raise
+    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
 
 
 def job_record_to_dict(record, name):
