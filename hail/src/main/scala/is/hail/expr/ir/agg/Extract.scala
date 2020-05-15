@@ -73,13 +73,14 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
   def combOpFSerialized(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (Array[Byte], Array[Byte]) => Array[Byte] = {
     val deserialize = this.deserialize(ctx, spec, physicalAggs)
     val serialize = this.serialize(ctx, spec, physicalAggs)
+    val combOp = this.combOpF(ctx, spec, physicalAggs)
 
     { (c1: Array[Byte], c2: Array[Byte]) =>
       val r1 = Region(Region.SMALL)
       val r2 = Region(Region.SMALL)
       val rv1 = RegionValue(r1, deserialize(r1, c1))
       val rv2 = RegionValue(r2, deserialize(r2, c2))
-      val resRV = combOpF(ctx, spec, physicalAggs)(rv1, rv2)
+      val resRV = combOp(rv1, rv2)
       val res = serialize(resRV.region, resRV.offset)
       resRV.region.clear()
       res
