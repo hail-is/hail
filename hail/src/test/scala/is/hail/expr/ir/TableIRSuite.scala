@@ -660,4 +660,12 @@ class TableIRSuite extends HailSuite {
     val distinctByAll = TableDistinct(tir)
     assertEvalsTo(TableCount(distinctByAll), 120L)
   }
+
+  @Test def testRangeOrderByDescending() {
+    var tir: TableIR = TableRange(10, 3)
+    tir = TableOrderBy(tir, FastIndexedSeq(SortField("idx", Descending)))
+    val x = GetField(TableCollect(tir), "rows")
+
+    assertEvalsTo(x, (0 until 10).reverse.map(i => Row(i)))(ExecStrategy.allRelational)
+  }
 }

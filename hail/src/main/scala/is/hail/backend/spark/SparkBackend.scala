@@ -526,4 +526,9 @@ class SparkBackend(
       IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
     }
   }
+
+  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField]): TableStage = {
+    // Use a local sort for the moment to enable larger pipelines to run
+    LowerDistributedSort.localSort(ctx, stage, sortFields)
+  }
 }
