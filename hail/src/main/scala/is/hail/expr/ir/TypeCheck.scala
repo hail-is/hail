@@ -293,6 +293,7 @@ object TypeCheck {
         assert(body.typ.isInstanceOf[TStream])
       case x@StreamFold(a, zero, accumName, valueName, body) =>
         assert(a.typ.isInstanceOf[TStream])
+        assert(a.typ.asInstanceOf[TStream].elementType.isRealizable, Pretty(x))
         assert(body.typ == zero.typ)
         assert(x.typ == zero.typ)
       case x@StreamFold2(a, accum, valueName, seq, res) =>

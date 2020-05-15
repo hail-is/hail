@@ -4,14 +4,17 @@ from collections import defaultdict
 import decorator
 
 import hail
-from hail.expr.types import *
+from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \
+    tfloat32, tfloat64, tstr, tbool, tarray, tstream, tndarray, tset, tdict, \
+    tstruct, ttuple, tinterval, tvoid
 from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
-from hail.typecheck import *
+from hail.typecheck import typecheck, typecheck_method, sequenceof, numeric, \
+    sized_tupleof, nullable, tupleof, anytype, func_spec
+from hail.utils.java import Env
 from hail.utils.misc import escape_str, dump_json, parsable_strings, escape_id
-from .base_ir import *
-from .base_ir import _env_bind
+from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, _env_bind
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
-from .renderer import Renderer, Renderable, RenderableStr, ParensRenderer
+from .renderer import Renderer, Renderable, ParensRenderer
 from .table_writer import TableWriter
 
 
@@ -389,7 +392,6 @@ class TopLevelReference(Ref):
 
 
 class TailLoop(IR):
-
     @typecheck_method(name=str, body=IR, params=sequenceof(sized_tupleof(str, IR)))
     def __init__(self, name, body, params):
         super().__init__(*([v for n, v in params] + [body]))
@@ -408,9 +410,6 @@ class TailLoop(IR):
 
     def _eq(self, other):
         return self.name == other.name
-
-    def _compute_type(self, env, agg_env):
-        self._type = self.body._compute_type(env, agg_env)
 
     @property
     def bound_variables(self):
@@ -455,16 +454,16 @@ class Recur(IR):
 
 
 class ApplyBinaryPrimOp(IR):
-    @typecheck_method(op=str, l=IR, r=IR)
-    def __init__(self, op, l, r):
-        super().__init__(l, r)
+    @typecheck_method(op=str, left=IR, right=IR)
+    def __init__(self, op, left, right):
+        super().__init__(left, right)
         self.op = op
-        self.l = l
-        self.r = r
+        self.left = left
+        self.right = right
 
-    @typecheck_method(l=IR, r=IR)
-    def copy(self, l, r):
-        return ApplyBinaryPrimOp(self.op, l, r)
+    @typecheck_method(left=IR, right=IR)
+    def copy(self, left, right):
+        return ApplyBinaryPrimOp(self.op, left, right)
 
     def head_str(self):
         return escape_id(self.op)
@@ -473,15 +472,15 @@ class ApplyBinaryPrimOp(IR):
         return other.op == self.op
 
     def _compute_type(self, env, agg_env):
-        self.l._compute_type(env, agg_env)
-        self.r._compute_type(env, agg_env)
+        self.left._compute_type(env, agg_env)
+        self.right._compute_type(env, agg_env)
         if self.op == '/':
-            if self.l.typ == tfloat64:
+            if self.left.typ == tfloat64:
                 self._type = tfloat64
             else:
                 self._type = tfloat32
         else:
-            self._type = self.l.typ
+            self._type = self.left.typ
 
 
 class ApplyUnaryPrimOp(IR):
@@ -507,16 +506,16 @@ class ApplyUnaryPrimOp(IR):
 
 
 class ApplyComparisonOp(IR):
-    @typecheck_method(op=str, l=IR, r=IR)
-    def __init__(self, op, l, r):
-        super().__init__(l, r)
+    @typecheck_method(op=str, left=IR, right=IR)
+    def __init__(self, op, left, right):
+        super().__init__(left, right)
         self.op = op
-        self.l = l
-        self.r = r
+        self.left = left
+        self.right = right
 
-    @typecheck_method(l=IR, r=IR)
-    def copy(self, l, r):
-        return ApplyComparisonOp(self.op, l, r)
+    @typecheck_method(left=IR, right=IR)
+    def copy(self, left, right):
+        return ApplyComparisonOp(self.op, left, right)
 
     def head_str(self):
         return escape_id(self.op)
@@ -525,8 +524,8 @@ class ApplyComparisonOp(IR):
         return other.op == self.op
 
     def _compute_type(self, env, agg_env):
-        self.l._compute_type(env, agg_env)
-        self.r._compute_type(env, agg_env)
+        self.left._compute_type(env, agg_env)
+        self.right._compute_type(env, agg_env)
         self._type = tbool
 
 
@@ -791,23 +790,24 @@ class NDArrayAgg(IR):
 
 
 class NDArrayMatMul(IR):
-    @typecheck_method(l=IR, r=IR)
-    def __init__(self, l, r):
-        super().__init__(l, r)
-        self.l = l
-        self.r = r
+    @typecheck_method(left=IR, right=IR)
+    def __init__(self, left, right):
+        super().__init__(left, right)
+        self.left = left
+        self.right = right
 
-    @typecheck_method(l=IR, r=IR)
-    def copy(self, l, r):
-        return NDArrayMatMul(l, r)
+    @typecheck_method(left=IR, right=IR)
+    def copy(self, left, right):
+        return NDArrayMatMul(left, right)
 
     def _compute_type(self, env, agg_env):
-        self.l._compute_type(env, agg_env)
-        self.r._compute_type(env, agg_env)
+        self.left._compute_type(env, agg_env)
+        self.right._compute_type(env, agg_env)
 
-        ndim = hail.linalg.utils.misc._ndarray_matmul_ndim(self.l.typ.ndim, self.r.typ.ndim)
+        ndim = hail.linalg.utils.misc._ndarray_matmul_ndim(self.left.typ.ndim, self.right.typ.ndim)
         from hail.expr.expressions import unify_types
-        self._type = tndarray(unify_types(self.l.typ.element_type, self.r.typ.element_type), ndim)
+        self._type = tndarray(unify_types(self.left.typ.element_type, self.right.typ.element_type), ndim)
+
 
 class NDArrayQR(IR):
     @typecheck_method(nd=IR, mode=str)
@@ -1175,7 +1175,7 @@ class StreamFold(IR):
 
     def _eq(self, other):
         return other.accum_name == self.accum_name and \
-               other.value_name == self.value_name
+            other.value_name == self.value_name
 
     @property
     def bound_variables(self):
@@ -1216,7 +1216,7 @@ class StreamScan(IR):
 
     def _eq(self, other):
         return other.accum_name == self.accum_name and \
-               other.value_name == self.value_name
+            other.value_name == self.value_name
 
     @property
     def bound_variables(self):
@@ -1258,7 +1258,7 @@ class StreamLeftJoinDistinct(IR):
 
     def _eq(self, other):
         return other.l_name == self.l_name and \
-               other.r_name == self.r_name
+            other.r_name == self.r_name
 
     @property
     def bound_variables(self):
@@ -1470,7 +1470,7 @@ class AggArrayPerElement(IR):
         return f'{escape_id(self.element_name)} {escape_id(self.index_name)} {self.is_scan} False'
 
     def _eq(self, other):
-        return self.element_name == other.element_name and self.index_name == other.index_name and  self.is_scan == other.is_scan
+        return self.element_name == other.element_name and self.index_name == other.index_name and self.is_scan == other.is_scan
 
     def _compute_type(self, env, agg_env):
         self.array._compute_type(agg_env, None)
@@ -1515,6 +1515,7 @@ class AggArrayPerElement(IR):
 
 def _register(registry, name, f):
     registry[name].append(f)
+
 
 _aggregator_registry = defaultdict(list)
 
@@ -1575,9 +1576,9 @@ class BaseApplyAggOp(IR):
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and \
-               other.agg_op == self.agg_op and \
-               other.init_op_args == self.init_op_args and \
-               other.seq_op_args == self.seq_op_args
+            other.agg_op == self.agg_op and \
+            other.init_op_args == self.init_op_args and \
+            other.seq_op_args == self.seq_op_args
 
     def __hash__(self):
         return hash(tuple([self.agg_op,
@@ -1660,7 +1661,7 @@ class MakeStruct(IR):
 
     def __eq__(self, other):
         return isinstance(other, MakeStruct) \
-               and other.fields == self.fields
+            and other.fields == self.fields
 
     def __hash__(self):
         return hash(tuple(self.fields))
@@ -1757,9 +1758,9 @@ class InsertFields(IR):
 
     def __eq__(self, other):
         return isinstance(other, InsertFields) and \
-               other.old == self.old and \
-               other.fields == self.fields and \
-               other.field_order == self.field_order
+            other.old == self.old and \
+            other.fields == self.fields and \
+            other.field_order == self.field_order
 
     def __hash__(self):
         return hash((self.old, tuple(self.fields), tuple(self.field_order) if self.field_order else None))
@@ -1889,8 +1890,10 @@ def remove_function(name, param_types, ret_type, type_args=()):
     else:
         _function_registry[name] = bindings
 
+
 def register_function(name, param_types, ret_type, type_args=()):
     _register(_function_registry, name, (param_types, ret_type, type_args))
+
 
 def register_seeded_function(name, param_types, ret_type):
     _register(_seeded_function_registry, name, (param_types, ret_type))
@@ -1931,8 +1934,8 @@ class Apply(IR):
 
     def _eq(self, other):
         return other.function == self.function and \
-               other.type_args == self.type_args and \
-               other.return_type == self.return_type
+            other.type_args == self.type_args and \
+            other.return_type == self.return_type
 
     def _compute_type(self, env, agg_env):
         for arg in self.args:
@@ -1958,8 +1961,8 @@ class ApplySeeded(IR):
 
     def _eq(self, other):
         return other.function == self.function and \
-               other.seed == self.seed and \
-               other.return_type == self.return_type
+            other.seed == self.seed and \
+            other.return_type == self.return_type
 
     def _compute_type(self, env, agg_env):
         for arg in self.args:
@@ -2047,6 +2050,7 @@ class TableAggregate(IR):
     def renderable_agg_bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
 
+
 class MatrixCount(IR):
     @typecheck_method(child=MatrixIR)
     def __init__(self, child):
@@ -2116,6 +2120,7 @@ class TableWrite(IR):
     @staticmethod
     def is_effectful() -> bool:
         return True
+
 
 class MatrixWrite(IR):
     @typecheck_method(child=MatrixIR, matrix_writer=MatrixWriter)
@@ -2320,7 +2325,7 @@ class Literal(IR):
                       value=anytype)
     def __init__(self, typ, value):
         super(Literal, self).__init__()
-        self._typ: 'hail.HailType' = typ
+        self._typ: HailType = typ
         self.value = value
 
     def copy(self):
@@ -2331,7 +2336,7 @@ class Literal(IR):
 
     def _eq(self, other):
         return other._typ == self._typ and \
-               other.value == self.value
+            other.value == self.value
 
     def _compute_type(self, env, agg_env):
         self._type = self._typ
@@ -2440,32 +2445,32 @@ def subst(ir, env, agg_env):
                       ir.is_scan)
     elif isinstance(ir, StreamMap):
         return StreamMap(_subst(ir.a),
-                        ir.name,
-                        _subst(ir.body, delete(env, ir.name)))
+                         ir.name,
+                         _subst(ir.body, delete(env, ir.name)))
     elif isinstance(ir, StreamFilter):
         return StreamFilter(_subst(ir.a),
-                           ir.name,
-                           _subst(ir.body, delete(env, ir.name)))
-    elif isinstance(ir, StreamFlatMap):
-        return StreamFlatMap(_subst(ir.a),
                             ir.name,
                             _subst(ir.body, delete(env, ir.name)))
+    elif isinstance(ir, StreamFlatMap):
+        return StreamFlatMap(_subst(ir.a),
+                             ir.name,
+                             _subst(ir.body, delete(env, ir.name)))
     elif isinstance(ir, StreamFold):
         return StreamFold(_subst(ir.a),
-                         _subst(ir.zero),
-                         ir.accum_name,
-                         ir.value_name,
-                         _subst(ir.body, delete(delete(env, ir.accum_name), ir.value_name)))
+                          _subst(ir.zero),
+                          ir.accum_name,
+                          ir.value_name,
+                          _subst(ir.body, delete(delete(env, ir.accum_name), ir.value_name)))
     elif isinstance(ir, StreamScan):
         return StreamScan(_subst(ir.a),
-                         _subst(ir.zero),
-                         ir.accum_name,
-                         ir.value_name,
-                         _subst(ir.body, delete(delete(env, ir.accum_name), ir.value_name)))
+                          _subst(ir.zero),
+                          ir.accum_name,
+                          ir.value_name,
+                          _subst(ir.body, delete(delete(env, ir.accum_name), ir.value_name)))
     elif isinstance(ir, StreamFor):
         return StreamFor(_subst(ir.a),
-                        ir.value_name,
-                        _subst(ir.body, delete(env, ir.value_name)))
+                         ir.value_name,
+                         _subst(ir.body, delete(env, ir.value_name)))
     elif isinstance(ir, AggFilter):
         return AggFilter(_subst(ir.cond, agg_env),
                          _subst(ir.agg_ir, agg_env),
