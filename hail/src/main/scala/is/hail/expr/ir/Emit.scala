@@ -1017,21 +1017,18 @@ class Emit[C](
         present(pt, Code(srvb.start(args.size, init = true), wrapToMethod(args)(addElts), srvb.offset))
 
       case x@(_: ArraySort | _: ToSet | _: ToDict) =>
-        val atyp = coerce[PIterable](x.pType)
-        println(s"atyp = $atyp")
-        println(s"atyp.elementType = ${atyp.elementType}")
-        val eltType = x.children(0).asInstanceOf[IR].pType.asInstanceOf[PIterable].elementType //element of the inner array
+        val resultTypeAsIterable = coerce[PIterable](x.pType)
+        val eltType = x.children(0).asInstanceOf[IR].pType.asInstanceOf[PIterable].elementType
         val eltVType = eltType.virtualType
-        println(s"eltType = ${eltType}")
 
-        val vab = new StagedArrayBuilder(atyp.elementType, mb, 0)
+        val vab = new StagedArrayBuilder(resultTypeAsIterable.elementType, mb, 0)
         val sorter = new ArraySorter(EmitRegion(mb, region), vab)
 
         val (array, lessThan, distinct, leftRightComparatorNames: Array[String]) = (x: @unchecked) match {
           case ArraySort(a, l, r, lessThan) => (a, lessThan, Code._empty, Array(l, r))
           case ToSet(a) =>
             val discardNext = mb.genEmitMethod("discardNext",
-              FastIndexedSeq[ParamType](typeInfo[Region], atyp.elementType, atyp.elementType), typeInfo[Boolean])
+              FastIndexedSeq[ParamType](typeInfo[Region], eltType, eltType), typeInfo[Boolean])
             val cmp2 = ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType))
             InferPType(cmp2, Env.empty)
             val EmitCode(s, m, pv) = emitInMethod(cmp2, discardNext)
@@ -1041,21 +1038,14 @@ class Emit[C](
             (a, lessThan, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
               EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
                 cb.invokeCode[Boolean](discardNext, r,
-                  new EmitCode(Code._empty, m1, PCode(atyp.elementType, v1)),
-                  new EmitCode(Code._empty, m2, PCode(atyp.elementType, v2)))
+                  new EmitCode(Code._empty, m1, PCode(eltType, v1)),
+                  new EmitCode(Code._empty, m2, PCode(eltType, v2)))
               }
             }, Array.empty[String])
           case ToDict(a) =>
-            println(s"Executing ToDict of a. a = $a. a.pType = ${a.pType}")
-            val aElementType = a.pType.asInstanceOf[PStream].elementType
-            println(s"aElementType = ${aElementType}")
-
-            val (k0, k1, keyType) = aElementType match {
-              case t: PStruct => (GetField(In(0, aElementType), "key"), GetField(In(1, aElementType), "key"), t.fieldType("key"))
-              case t: PTuple => {
-                println("Matched PTuple")
-                (GetTupleElement(In(0, aElementType), 0), GetTupleElement(In(1, aElementType), 0), t.types(0))
-              }
+            val (k0, k1, keyType) = eltType match {
+              case t: PStruct => (GetField(In(0, eltType), "key"), GetField(In(1, eltType), "key"), t.fieldType("key"))
+              case t: PTuple => (GetTupleElement(In(0, eltType), 0), GetTupleElement(In(1, eltType), 0), t.types(0))
             }
             val discardNext = mb.genEmitMethod("discardNext",
               FastIndexedSeq[ParamType](typeInfo[Region], eltType, eltType), typeInfo[Boolean])
