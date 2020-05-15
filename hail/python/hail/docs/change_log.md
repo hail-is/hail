@@ -22,6 +22,16 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.41
+
+Release 2020-05-15
+
+### Bug fixes
+
+- (hail#8799, hail#8786) Fixes ArrayOutOfBoundsException seen in pipelines that reuse a tuple value.
+
+---
+
 ## Version 0.2.40
 
 Release 2020-05-12
