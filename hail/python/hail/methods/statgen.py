@@ -505,7 +505,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     def all_defined(struct_root, field_names):
         defined_array = hl.array([hl.is_defined(struct_root[field_name]) for field_name in field_names])
-        return defined_array.fold(lambda a, b: a & b, True)
+        return defined_array.all(lambda a: a)
 
     def nd_to_array(mat):
         if mat.ndim == 1:
@@ -518,7 +518,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     # return new array where the missing entries are the mean.
     def mean_impute(hl_array):
         non_missing_mean = hl.mean(hl_array, filter_missing=True)
-        return hl.map(lambda arr_entry: hl.if_else(hl.is_defined(arr_entry), arr_entry, non_missing_mean), hl_array)
+        return hl_array.map(lambda entry: hl.if_else(hl.is_defined(entry), entry, non_missing_mean))
 
     def select_array_indices(hl_array, indices):
         return indices.map(lambda i: hl_array[i])
@@ -550,14 +550,15 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     sum_x_nd = ht[X_field_name].T @ hl.nd.ones((n,))
     ht = ht.annotate(sum_x=nd_to_array(sum_x_nd))
-    ht = ht.annotate(__Qtx=cov_Qt @ ht[X_field_name])
-    ht = ht.annotate(__ytx=ht.__y_nd.T @ ht[X_field_name])
-    ht = ht.annotate(__xyp=ht.__ytx - (ht.__Qty.T @ ht.__Qtx))
-    ht = ht.annotate(__xxpRec=(dot_rows_with_themselves(ht[X_field_name].T) - dot_rows_with_themselves(ht.__Qtx.T)).map(lambda entry: 1 / entry))
-    ht = ht.annotate(__b=ht.__xyp * ht.__xxpRec)
-    ht = ht.annotate(__se=((1.0/ht.d) * (ht.__yyp.reshape((-1, 1)) @ ht.__xxpRec.reshape((1, -1)) - (ht.__b * ht.__b))).map(lambda entry: hl.sqrt(entry)))
-    ht = ht.annotate(__t=ht.__b / ht.__se)
-    ht = ht.annotate(__p=ht.__t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.d, True, False)))
+    Qtx = cov_Qt @ ht[X_field_name]
+    ytx = ht.__y_nd.T @ ht[X_field_name]
+    xyp = ytx - (ht.__Qty.T @ Qtx)
+    xxpRec = (dot_rows_with_themselves(ht[X_field_name].T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
+    b = xyp * xxpRec
+    se = ((1.0/ht.d) * (ht.__yyp.reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
+    t = b/se
+    p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.d, True, False))
+    ht = ht.annotate(__b=b, __ytx=ytx, __se=se, __t=t, __p=p)
 
     def zip_to_struct(ht, struct_root_name, **kwargs):
         mapping = list(kwargs.items())
