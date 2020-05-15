@@ -724,7 +724,7 @@ class Emit[C](
           ov.loadField(cb, name)
         }
 
-      case gte@GetTupleElement(o, i) =>
+      case GetTupleElement(o, i) =>
         emitI(o).flatMap(cb) { oc =>
           val ov = oc.asBaseStruct.memoize(cb, "get_tup_elem_o")
           ov.loadField(cb, oc.pt.asInstanceOf[PTuple].fieldIndex(i))
@@ -1440,7 +1440,7 @@ class Emit[C](
       case In(i, expectedPType) =>
         // this, Code[Region], ...
         val ev = mb.getEmitParam(2 + i)
-        assert(ev.pt == expectedPType, s"${ev.pt} not equal to specified $expectedPType")
+        assert(ev.pt == expectedPType)
         ev
       case Die(m, typ) =>
         val cm = emit(m)
