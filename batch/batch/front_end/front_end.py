@@ -1026,28 +1026,20 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 async def _get_attempts(app, batch_id, job_id, user):
     db = app['db']
 
-    record = await db.select_and_fetchone('''
-SELECT batch_id, job_id
+    attempts = db.select_and_fetchall('''
+SELECT attempts.*
 FROM jobs
-INNER JOIN batches
-  ON jobs.batch_id = batches.id
+INNER JOIN batches ON jobs.batch_id = batches.id
+LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id and jobs.job_id = attempts.job_id
 WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
-                                          (user, batch_id, job_id))
+                                      (user, batch_id, job_id))
 
-    if not record:
+    attempts = [attempt async for attempt in attempts]
+    if len(attempts) == 0:
         raise web.HTTPNotFound()
-
-    attempts = [
-        attempt
-        async for attempt
-        in db.select_and_fetchall(
-            '''
-SELECT * FROM attempts
-WHERE batch_id = %s AND job_id = %s
-''',
-            (batch_id, job_id))]
-
+    if len(attempts) == 1 and attempts[0]['attempt_id'] is None:
+        return None
     for attempt in attempts:
         start_time = attempt['start_time']
         if start_time is not None:
