@@ -10,9 +10,6 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
 
   def clear(): Code[Unit] = { region.invoke[Unit]("clear") }
 
-  def clearPreservingReferences(): Code[Unit] =
-    region.invoke[Unit]("clearPreservingReferences")
-
   def reference(other: Code[Region]): Code[Unit] =
     region.invoke[Region, Unit]("reference", other)
 
