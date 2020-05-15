@@ -1,4 +1,5 @@
 import pkg_resources
+import sys
 import os
 import json
 import socket
@@ -7,12 +8,13 @@ from threading import Thread
 import py4j
 import pyspark
 
-from hail.utils.java import *
+import hail
+from hail.utils.java import FatalError, Env, scala_package_object, scala_object
 from hail.expr.types import dtype
-from hail.expr.table_type import *
-from hail.expr.matrix_type import *
-from hail.expr.blockmatrix_type import *
-from hail.ir.renderer import CSERenderer, Renderer
+from hail.expr.table_type import ttable
+from hail.expr.matrix_type import tmatrix
+from hail.expr.blockmatrix_type import tblockmatrix
+from hail.ir.renderer import CSERenderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 
@@ -268,6 +270,7 @@ class SparkBackend(Backend):
 
     def execute(self, ir, timed=False):
         jir = self._to_java_value_ir(ir)
+        # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
         result = json.loads(self._jhc.backend().executeJSON(jir))
         value = ir.typ._from_json(result['value'])
         timings = result['timings']

@@ -7,7 +7,7 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, ParamType, PunctuationToken, TokenIterator, typeToTypeInfo}
 import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.Type
+import is.hail.expr.types.virtual._
 import is.hail.expr.types.{BaseType, Requiredness}
 import is.hail.io._
 import is.hail.utils._
@@ -35,6 +35,11 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   final def buildDecoder(ctx: ExecuteContext, requestedType: Type): (PType, (InputBuffer) => Decoder) = {
     val (rt, f) = EType.buildDecoder(ctx, this, requestedType)
     (rt, (in: InputBuffer) => new CompiledDecoder(in, f))
+  }
+
+  final def buildStructDecoder(ctx: ExecuteContext, requestedType: TStruct): (PStruct, (InputBuffer) => Decoder) = {
+    val (pType: PStruct, makeDec) = buildDecoder(ctx, requestedType)
+    pType -> makeDec
   }
 
   final def buildEncoder(pt: PType, cb: EmitClassBuilder[_]): StagedEncoder = {

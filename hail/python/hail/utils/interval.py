@@ -1,6 +1,4 @@
-from hail.typecheck import *
-from hail.utils.java import *
-from hail.expr.types import hail_type
+from hail.typecheck import typecheck_method, lazy, nullable, anytype
 import hail as hl
 
 interval_type = lazy()
@@ -39,7 +37,7 @@ class Interval(object):
                       end=anytype,
                       includes_start=bool,
                       includes_end=bool,
-                      point_type=nullable(hail_type))
+                      point_type=nullable(lambda: hl.expr.types.hail_type))
     def __init__(self, start, end, includes_start=True, includes_end=False, point_type=None):
         if point_type is None:
             from hail.expr.expressions import impute_type, unify_types_limited
@@ -202,5 +200,6 @@ class Interval(object):
         """
 
         return hl.eval(hl.literal(self, hl.tinterval(self._point_type)).overlaps(interval))
+
 
 interval_type.set(Interval)

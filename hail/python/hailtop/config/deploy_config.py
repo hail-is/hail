@@ -31,20 +31,20 @@ class DeployConfig:
             }
         return DeployConfig.from_config(config)
 
-    def __init__(self, location, default_ns, service_namespace):
+    def __init__(self, location, default_namespace, service_namespace):
         assert location in ('external', 'k8s', 'gce')
         self._location = location
-        self._default_ns = default_ns
+        self._default_namespace = default_namespace
         self._service_namespace = service_namespace
 
     def with_service(self, service, ns):
-        return DeployConfig(self._location, self._default_ns, {**self._service_namespace, service: ns})
+        return DeployConfig(self._location, self._default_namespace, {**self._service_namespace, service: ns})
 
     def location(self):
         return self._location
 
     def service_ns(self, service):
-        return self._service_namespace.get(service, self._default_ns)
+        return self._service_namespace.get(service, self._default_namespace)
 
     def scheme(self, base_scheme='http'):
         # FIXME: should depend on ssl context

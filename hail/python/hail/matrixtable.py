@@ -2497,8 +2497,8 @@ class MatrixTable(ExprContainer):
                       stage_locally=bool,
                       _codec_spec=nullable(str),
                       _partitions=nullable(expr_any))
-    def write(self, output: str, overwrite: bool=False, stage_locally: bool=False,
-              _codec_spec: Optional[str]=None, _partitions=None):
+    def write(self, output: str, overwrite: bool = False, stage_locally: bool = False,
+              _codec_spec: Optional[str] = None, _partitions=None):
         """Write to disk.
 
         Examples
@@ -2877,13 +2877,13 @@ class MatrixTable(ExprContainer):
             raise TypeError(f"'MatrixTable.index_entries': col_exprs expects expressions, found {col_non_exprs}")
 
         if not types_match(self.row_key.values(), row_exprs):
-            if (len(row_exprs) == 1 and
-                    isinstance(row_exprs[0], TupleExpression) and
-                    types_match(self.row_key.values(), row_exprs[0])):
+            if (len(row_exprs) == 1
+                    and isinstance(row_exprs[0], TupleExpression)
+                    and types_match(self.row_key.values(), row_exprs[0])):
                 return self.index_entries(tuple(row_exprs[0]), col_exprs)
-            elif (len(row_exprs) == 1 and
-                  isinstance(row_exprs[0], StructExpression) and
-                  types_match(self.row_key.values(), row_exprs[0].values())):
+            elif (len(row_exprs) == 1
+                  and isinstance(row_exprs[0], StructExpression)
+                  and types_match(self.row_key.values(), row_exprs[0].values())):
                 return self.index_entries(tuple(row_exprs[0].values()), col_exprs)
             elif len(row_exprs) != len(self.row_key):
                 raise ExpressionException(f'Key mismatch: matrix table has {len(self.row_key)} row key fields, '
@@ -2895,13 +2895,13 @@ class MatrixTable(ExprContainer):
                     f"  Row index expressions: {', '.join(str(e.dtype) for e in row_exprs)}")
 
         if not types_match(self.col_key.values(), col_exprs):
-            if (len(col_exprs) == 1 and
-                    isinstance(col_exprs[0], TupleExpression) and
-                    types_match(self.col_key.values(), col_exprs[0])):
+            if (len(col_exprs) == 1
+                    and isinstance(col_exprs[0], TupleExpression)
+                    and types_match(self.col_key.values(), col_exprs[0])):
                 return self.index_entries(row_exprs, tuple(col_exprs[0]))
-            elif (len(col_exprs) == 1 and
-                  isinstance(col_exprs[0], StructExpression) and
-                  types_match(self.col_key.values(), col_exprs[0].values())):
+            elif (len(col_exprs) == 1
+                  and isinstance(col_exprs[0], StructExpression)
+                  and types_match(self.col_key.values(), col_exprs[0].values())):
                 return self.index_entries(row_exprs, tuple(col_exprs[0].values()))
             elif len(col_exprs) != len(self.col_key):
                 raise ExpressionException(f'Key mismatch: matrix table has {len(self.col_key)} col key fields, '
@@ -3586,8 +3586,8 @@ class MatrixTable(ExprContainer):
                     hl.zip_with_index([mt.col_key.collect(_localize=False) for mt in datasets[1:]])
                     .find(lambda x: ~(x[1] == first_keys))[0])))
                 if wrong_keys is not None:
-                    raise ValueError(f"'MatrixTable.union_rows' expects all datasets to have the same columns. " +
-                                     f"Datasets 0 and {wrong_keys + 1} have different columns (or possibly different order).")
+                    raise ValueError(f"'MatrixTable.union_rows' expects all datasets to have the same columns. "
+                                     + f"Datasets 0 and {wrong_keys + 1} have different columns (or possibly different order).")
             return MatrixTable(ir.MatrixUnionRows(*[d._mir for d in datasets]))
 
     @typecheck_method(other=matrix_table_type,

@@ -29,8 +29,6 @@ Otherwise, we welcome you to add additional examples by [editing this page direc
 
 * Polimanti, Renato et al. "Leveraging genome-wide data to investigate differences between opioid use vs. opioid dependence in 41,176 individuals from the Psychiatric Genomics Consortium" *bioRxiv* (2019): 765065 <https://www.biorxiv.org/content/10.1101/765065v1>
 
-* Wang, Qingbo et al. "Landscape of multi-nucleotide variants in 125,748 human exomes and 15,708 genomes" *bioRxiv* (2019): 573378; https://www.biorxiv.org/content/10.1101/573378v2.full
-
 * Lescai, Francesco et al. "Meta-analysis of Scandinavian Schizophrenia Exomes" *bioRxiv* (2019): 836957; <https://www.biorxiv.org/content/10.1101/836957v2>
 
 * Bolze, Alexandre, et al. "Selective constraints and pathogenicity of mitochondrial DNA variants inferred from a novel database of 196,554 unrelated individuals" *bioRxiv* (2019): 798264;<https://www.biorxiv.org/content/10.1101/798264v1>

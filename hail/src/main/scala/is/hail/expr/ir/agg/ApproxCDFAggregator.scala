@@ -2,27 +2,27 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.expr.types.physical.{PBooleanRequired, PCanonicalStruct, PInt32Required, PStruct}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 
-class ApproxCDFState(val cb: EmitClassBuilder[_]) extends AggregatorState {
+class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
   override val regionSize: Region.Size = Region.TINIER
 
-  private val r: Settable[Region] = cb.genFieldThisRef[Region]()
+  private val r: Settable[Region] = kb.genFieldThisRef[Region]()
   val region: Value[Region] = r
 
   val storageType: PStruct = PCanonicalStruct(true, ("id", PInt32Required), ("initialized", PBooleanRequired), ("k", PInt32Required))
-  private val aggr = cb.genFieldThisRef[ApproxCDFStateManager]("aggr")
+  private val aggr = kb.genFieldThisRef[ApproxCDFStateManager]("aggr")
 
-  private val initialized = cb.genFieldThisRef[Boolean]("initialized")
+  private val initialized = kb.genFieldThisRef[Boolean]("initialized")
   private val initializedOffset: Code[Long] => Code[Long] = storageType.loadField(_, "initialized")
 
-  private val id = cb.genFieldThisRef[Int]("id")
+  private val id = kb.genFieldThisRef[Int]("id")
   private val idOffset: Code[Long] => Code[Long] = storageType.loadField(_, "id")
 
-  private val k = cb.genFieldThisRef[Int]("k")
+  private val k = kb.genFieldThisRef[Int]("k")
   private val kOffset: Code[Long] => Code[Long] = storageType.loadField(_, "k")
 
   def init(k: Code[Int]): Code[Unit] = {
@@ -48,7 +48,8 @@ class ApproxCDFState(val cb: EmitClassBuilder[_]) extends AggregatorState {
 
   def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(regionSize)
 
-  def createState: Code[Unit] = region.isNull.mux(r := Region.stagedCreate(regionSize), Code._empty)
+  def createState(cb: EmitCodeBuilder): Unit =
+    cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize)))
 
   override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     Code.memoize(src, "acdfa_load_src") { src =>
@@ -72,9 +73,9 @@ class ApproxCDFState(val cb: EmitClassBuilder[_]) extends AggregatorState {
           Region.storeBoolean(initializedOffset(dest), initialized)))
     }
 
-  override def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
-    (ob: Value[OutputBuffer]) =>
-      Code(
+  override def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
+    (cb, ob: Value[OutputBuffer]) =>
+      cb += Code(
         ob.writeBoolean(initialized),
         ob.writeInt(k),
         initialized.orEmpty(
@@ -82,9 +83,9 @@ class ApproxCDFState(val cb: EmitClassBuilder[_]) extends AggregatorState {
         ))
   }
 
-  override def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
-    (ib: Value[InputBuffer]) =>
-      Code(
+  override def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
+    (cb, ib: Value[InputBuffer]) =>
+      cb += Code(
         initialized := ib.readBoolean(),
         k := ib.readInt(),
         initialized.orEmpty(
@@ -96,8 +97,8 @@ class ApproxCDFState(val cb: EmitClassBuilder[_]) extends AggregatorState {
         ))
   }
 
-  override def copyFrom(src: Code[Long]): Code[Unit] = {
-    Code(
+  override def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+    cb += Code(
       k := Region.loadInt(kOffset(src)),
       aggr := Code.newInstance[ApproxCDFStateManager, Int](k),
       id := region.storeJavaObject(aggr),
@@ -111,11 +112,11 @@ class ApproxCDFAggregator extends StagedAggregator {
 
   def resultType: PStruct = QuantilesAggregator.resultType
 
-  def createState(cb: EmitClassBuilder[_]): State = new ApproxCDFState(cb)
+  def createState(cb: EmitCodeBuilder): State = new ApproxCDFState(cb.emb.ecb)
 
-  protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(k) = init
-    Code(
+    cb += Code(
       k.setup,
       k.m.mux(
         Code._fatal[Unit]("approx_cdf: 'k' may not be missing"),
@@ -123,9 +124,9 @@ class ApproxCDFAggregator extends StagedAggregator {
       ))
   }
 
-  protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(x) = seq
-    Code(
+    cb += Code(
       x.setup,
       x.m.mux(
         Code._empty,
@@ -133,12 +134,11 @@ class ApproxCDFAggregator extends StagedAggregator {
       ))
   }
 
-  protected def _combOp(state: State, other: State): Code[Unit] = {
-    state.comb(other)
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+    cb += state.comb(other)
   }
 
-
-  protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] = {
-    state.result(srvb)
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+    cb += state.result(srvb)
   }
 }

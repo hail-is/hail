@@ -49,7 +49,8 @@ NAME = os.environ['NAME']
 NAMESPACE = os.environ['NAMESPACE']
 # ACTIVATION_TOKEN
 IP_ADDRESS = os.environ['IP_ADDRESS']
-BUCKET_NAME = os.environ['BUCKET_NAME']
+BATCH_LOGS_BUCKET_NAME = os.environ['BATCH_LOGS_BUCKET_NAME']
+WORKER_LOGS_BUCKET_NAME = os.environ['WORKER_LOGS_BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
 PROJECT = os.environ['PROJECT']
 WORKER_TYPE = os.environ['WORKER_TYPE']
@@ -60,7 +61,8 @@ log.info(f'NAMESPACE {NAMESPACE}')
 # ACTIVATION_TOKEN
 log.info(f'IP_ADDRESS {IP_ADDRESS}')
 log.info(f'WORKER_TYPE {WORKER_TYPE}')
-log.info(f'BUCKET_NAME {BUCKET_NAME}')
+log.info(f'BATCH_LOGS_BUCKET_NAME {BATCH_LOGS_BUCKET_NAME}')
+log.info(f'WORKER_LOGS_BUCKET_NAME {WORKER_LOGS_BUCKET_NAME}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'PROJECT {PROJECT}')
 
@@ -100,9 +102,9 @@ def docker_call_retry(timeout, name):
                 # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
                 # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
                 # DockerError(500, 'Get https://gcr.io/v2/: dial tcp: lookup gcr.io: Temporary failure in name resolution')
-                elif e.status == 500 and ("request canceled while waiting for connection" in e.message or
-                                          re.match("error creating overlay mount.*device or resource busy", e.message) or
-                                          "Temporary failure in name resolution" in e.message):
+                elif e.status == 500 and ("request canceled while waiting for connection" in e.message
+                                          or re.match("error creating overlay mount.*device or resource busy", e.message)
+                                          or "Temporary failure in name resolution" in e.message):
                     log.exception(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True)
                 else:
                     raise
@@ -929,9 +931,9 @@ class Worker:
             # unlist job after 3m or half the run duration
             now = time_msecs()
             elapsed = now - start_time
-            if (job.id in self.jobs and
-                    elapsed > 180 * 1000 and
-                    elapsed > run_duration / 2):
+            if (job.id in self.jobs
+                    and elapsed > 180 * 1000
+                    and elapsed > run_duration / 2):
                 log.info(f'too much time elapsed marking {job} complete, removing from jobs, will keep retrying')
                 del self.jobs[job.id]
                 self.last_updated = time_msecs()
@@ -1002,7 +1004,7 @@ class Worker:
 
             credentials = google.oauth2.service_account.Credentials.from_service_account_file(
                 'key.json')
-            self.log_store = LogStore(BUCKET_NAME, INSTANCE_ID, self.pool,
+            self.log_store = LogStore(BATCH_LOGS_BUCKET_NAME, WORKER_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool,
                                       project=PROJECT, credentials=credentials)
 
 

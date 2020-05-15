@@ -10,9 +10,9 @@ import hail.expr.aggregators as agg
 from hail.expr import construct_expr, construct_variable
 from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed, \
     expr_tuple, expr_array, expr_int64
-from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, Ref, F64, \
+from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, F64, \
     BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
-    ApplyUnaryPrimOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
+    ApplyUnaryPrimOp, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
     BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter, TableFromBlockMatrixNativeReader, TableRead, \
     BlockMatrixSlice, BlockMatrixSparsify, BlockMatrixDensify, RectangleSparsifier, \
     RowIntervalSparsifier, BandSparsifier, UnpersistBlockMatrix
@@ -20,7 +20,8 @@ from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinar
 from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter, BlockMatrixPersistWriter
 from hail.ir import ExportType
 from hail.table import Table
-from hail.typecheck import *
+from hail.typecheck import typecheck, typecheck_method, nullable, oneof, \
+    sliceof, sequenceof, lazy, enumeration, numeric, tupleof, func_spec
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env
 
@@ -710,11 +711,11 @@ class BlockMatrix(object):
                 mt = mt.select_cols(**compute)
             compute = {
                 '__mean': mt['__sum'] / mt['__count'],
-                '__centered_length': hl.sqrt(mt['__sum_sq'] -
-                                             (mt['__sum'] ** 2) / mt['__count']),
-                '__length': hl.sqrt(mt['__sum_sq'] +
-                                    (n_elements - mt['__count']) *
-                                    ((mt['__sum'] / mt['__count']) ** 2))
+                '__centered_length': hl.sqrt(mt['__sum_sq']
+                                             - (mt['__sum'] ** 2) / mt['__count']),
+                '__length': hl.sqrt(mt['__sum_sq']
+                                    + (n_elements - mt['__count'])
+                                    * ((mt['__sum'] / mt['__count']) ** 2))
             }
             if axis == 'rows':
                 mt = mt.select_rows(**compute)
@@ -2146,7 +2147,7 @@ class BlockMatrix(object):
         for rect, file_path in zip(rects, rect_files):
             hl.utils.hadoop_copy(file_path, uri)
             if binary:
-                rect_data = np.reshape(np.fromfile(f), (rect[2]-rect[1], rect[4]-rect[3]))
+                rect_data = np.reshape(np.fromfile(f), (rect[2] - rect[1], rect[4] - rect[3]))
             else:
                 rect_data = np.loadtxt(f, ndmin=2)
             nd[rect[1]:rect[2], rect[3]:rect[4]] = rect_data

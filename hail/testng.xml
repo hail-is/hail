@@ -3,6 +3,7 @@
         <packages>
           <package name="is.hail.*">
             <exclude name="is.hail.fs.gs"></exclude>
+            <exclude name="is.hail.services.*"></exclude>
 	  </package>
         </packages>
     </test>

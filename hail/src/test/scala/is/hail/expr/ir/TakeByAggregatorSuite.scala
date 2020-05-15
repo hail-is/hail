@@ -21,18 +21,19 @@ class TakeByAggregatorSuite extends HailSuite {
         val off = fb.genFieldThisRef[Long]()
         val rt = tba.resultType
 
-        fb.emit(Code(
-          tba.createState,
-          tba.newState(0L),
-          tba.initialize(size),
-          i := 0L,
-          Code.whileLoop(i < n.toLong,
-            argR.invoke[Unit]("clear"),
-            off := stringPT.allocateAndStoreString(fb.apply_method, argR, const("str").concat(i.toS)),
-            tba.seqOp(false, off, false, -i),
-            i := i + 1L),
+        fb.emitWithBuilder { cb =>
+          tba.createState(cb)
+          cb += tba.newState(0L)
+          cb += tba.initialize(size)
+          cb += (i := 0L)
+          cb.whileLoop(i < n.toLong, {
+            cb += argR.invoke[Unit]("clear")
+            cb += (off := stringPT.allocateAndStoreString(fb.apply_method, argR, const("str").concat(i.toS)))
+            tba.seqOp(cb, false, off, false, -i)
+            cb += (i := i + 1L)
+          })
           tba.result(argR, rt)
-        ))
+        }
 
         val o = fb.resultWithIndex()(0, r)(r)
         val result = SafeRow.read(rt, o)
@@ -53,20 +54,20 @@ class TakeByAggregatorSuite extends HailSuite {
       val argR = fb.getCodeParam[Region](1)
       val rt = tba.resultType
 
-      fb.emit(Code(Code(FastIndexedSeq(
-        tba.createState,
-        tba.newState(0L),
-        tba.initialize(7),
-        tba.seqOp(true, 0, true, 0),
-        tba.seqOp(true, 0, true, 0),
-        tba.seqOp(false, 0, false, 0),
-        tba.seqOp(false, 1, false, 1),
-        tba.seqOp(false, 2, false, 2),
-        tba.seqOp(false, 3, false, 3),
-        tba.seqOp(true, 0, true, 0),
-        tba.seqOp(true, 0, true, 0))),
+      fb.emitWithBuilder { cb =>
+        tba.createState(cb)
+        cb += tba.newState(0L)
+        cb += tba.initialize(7)
+        tba.seqOp(cb, true, 0, true, 0)
+        tba.seqOp(cb, true, 0, true, 0)
+        tba.seqOp(cb, false, 0, false, 0)
+        tba.seqOp(cb, false, 1, false, 1)
+        tba.seqOp(cb, false, 2, false, 2)
+        tba.seqOp(cb, false, 3, false, 3)
+        tba.seqOp(cb, true, 0, true, 0)
+        tba.seqOp(cb, true, 0, true, 0)
         tba.result(argR, rt)
-      ))
+      }
 
       val o = fb.resultWithIndex()(0, r)(r)
       val result = SafeRow.read(rt, o)
@@ -78,7 +79,7 @@ class TakeByAggregatorSuite extends HailSuite {
     for (n <- Array(1, 2, 10, 100, 1000, 10000, 100000, 1000000)) {
       val nToTake = 1025
       val fb = EmitFunctionBuilder[Region, Long](ctx, "take_by_test_random")
-      val cb = fb.ecb
+      val kb = fb.ecb
 
       Region.scoped { r =>
         val argR = fb.getCodeParam[Region](1)
@@ -86,30 +87,30 @@ class TakeByAggregatorSuite extends HailSuite {
         val random = fb.genFieldThisRef[Int]()
         val resultOff = fb.genFieldThisRef[Long]()
 
-        val tba = new TakeByRVAS(PInt32Required, PInt32Required, PCanonicalArray(PInt32Required, required = true), cb)
-        val ab = new agg.StagedArrayBuilder(PInt32Required, cb, argR)
+        val tba = new TakeByRVAS(PInt32Required, PInt32Required, PCanonicalArray(PInt32Required, required = true), kb)
+        val ab = new agg.StagedArrayBuilder(PInt32Required, kb, argR)
         val rt = tba.resultType
         val er = new EmitRegion(fb.apply_method, argR)
         val rng = er.mb.newRNG(0)
 
-        fb.emit(Code(Code(FastIndexedSeq(
-          tba.createState,
-          tba.newState(0L),
-          tba.initialize(nToTake),
-          ab.initialize(),
-          i := 0,
-          Code.whileLoop(i < n,
-            random := rng.invoke[Double, Double, Double]("runif", -10000d, 10000d).toI,
-            tba.seqOp(false, random, false, random),
-            ab.append(random),
-            i := i + 1
-          ),
-          ab.size.cne(n).orEmpty(Code._fatal[Unit]("bad size!")),
-          resultOff := argR.allocate(8L, 16L),
-          Region.storeAddress(resultOff, tba.result(argR, rt)),
-          Region.storeAddress(resultOff + 8L, ab.data))),
+        fb.emitWithBuilder { cb =>
+          tba.createState(cb)
+          cb += tba.newState(0L)
+          cb += tba.initialize(nToTake)
+          cb += ab.initialize()
+          cb += (i := 0)
+          cb.whileLoop(i < n, {
+            cb += (random := rng.invoke[Double, Double, Double]("runif", -10000d, 10000d).toI)
+            tba.seqOp(cb, false, random, false, random)
+            cb += ab.append(random)
+            cb += (i := i + 1)
+          })
+          cb += ab.size.cne(n).orEmpty(Code._fatal[Unit]("bad size!"))
+          cb += (resultOff := argR.allocate(8L, 16L))
+          cb += Region.storeAddress(resultOff, tba.result(argR, rt))
+          cb += Region.storeAddress(resultOff + 8L, ab.data)
           resultOff
-        ))
+        }
 
         val o = fb.resultWithIndex()(0, r)(r)
         val pqOffset = Region.loadAddress(o)

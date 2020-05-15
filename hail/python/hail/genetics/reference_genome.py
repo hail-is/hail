@@ -1,9 +1,9 @@
 import json
 import re
-from hail.typecheck import *
-from hail.utils import wrap_to_list
+from hail.typecheck import typecheck_method, sequenceof, dictof, oneof, \
+    sized_tupleof, nullable, transformed, lazy
+from hail.utils.misc import wrap_to_list
 from hail.utils.java import Env
-from hail.typecheck import oneof, transformed
 import hail as hl
 
 rg_type = lazy()
@@ -158,7 +158,7 @@ class ReferenceGenome(object):
 
         Returns
         -------
-        :obj:`list` of :obj:`str`
+        :obj:`dict` of :obj:`str` to :obj:`int`
         """
         return self._lengths
 
@@ -369,12 +369,7 @@ class ReferenceGenome(object):
         return self._sequence_files is not None
 
     def remove_sequence(self):
-        """Remove the reference sequence.
-
-        Returns
-        -------
-        :obj:`bool`
-        """
+        """Remove the reference sequence."""
         self._sequence_files = None
         Env.backend().remove_sequence(self.name)
 
@@ -389,7 +384,7 @@ class ReferenceGenome(object):
     def from_fasta_file(cls, name, fasta_file, index_file,
                         x_contigs=[], y_contigs=[], mt_contigs=[], par=[]):
         """Create reference genome from a FASTA file.
-        
+
         Parameters
         ----------
         name: :obj:`str`

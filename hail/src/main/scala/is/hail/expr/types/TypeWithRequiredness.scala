@@ -18,7 +18,7 @@ object BaseTypeWithRequiredness {
 
 object TypeWithRequiredness {
   def apply(typ: Type): TypeWithRequiredness = typ match {
-    case TBoolean | TInt32 | TInt64 | TFloat32 | TFloat64 | TBinary | TString | TCall | TVoid | _: TLocus => RPrimitive()
+    case t if RPrimitive.typeSupported(t) => RPrimitive()
     case t: TArray => RIterable(apply(t.elementType))
     case t: TSet => RIterable(apply(t.elementType))
     case t: TStream => RIterable(apply(t.elementType))
@@ -26,7 +26,7 @@ object TypeWithRequiredness {
     case t: TNDArray => RNDArray(apply(t.elementType))
     case t: TInterval => RInterval(apply(t.pointType), apply(t.pointType))
     case t: TStruct => RStruct(t.fields.map(f => f.name -> apply(f.typ)))
-    case t: TTuple => RTuple(t.fields.map(f => apply(f.typ)))
+    case t: TTuple => RTuple(t.fields.map(f => RField(f.name, apply(f.typ), f.index)))
     case t: TUnion => RUnion(t.cases.map(c => c.name -> apply(c.typ)))
   }
 }
@@ -51,7 +51,10 @@ sealed abstract class BaseTypeWithRequiredness {
 
   protected[this] def _maximizeChildren(): Unit = children.foreach(_.maximize())
   protected[this] def _unionChildren(newChildren: Seq[BaseTypeWithRequiredness]): Unit = {
-    assert(children.length == newChildren.length)
+    if (children.length != newChildren.length) {
+      throw new AssertionError(
+        s"children lengths differed ${children.length} ${newChildren.length}. ${children} ${newChildren} ${this}")
+    }
     children.zip(newChildren).foreach { case (r1, r2) =>
       r1.unionFrom(r2)
     }
@@ -98,21 +101,22 @@ sealed abstract class TypeWithRequiredness extends BaseTypeWithRequiredness {
 
 object RPrimitive {
   val supportedTypes: Set[Type] = Set(TBoolean, TInt32, TInt64, TFloat32, TFloat64, TBinary, TString, TCall, TVoid)
+  def typeSupported(t: Type): Boolean = RPrimitive.supportedTypes.contains(t) ||
+    t.isInstanceOf[TLocus]
 }
 
 final case class RPrimitive() extends TypeWithRequiredness {
   val children: Seq[TypeWithRequiredness] = FastSeq.empty
 
-  def typeSupported(t: Type): Boolean = RPrimitive.supportedTypes.contains(t) || t.isInstanceOf[TLocus]
   def _unionLiteral(a: Annotation): Unit = ()
-  def _matchesPType(pt: PType): Boolean = typeSupported(pt.virtualType)
+  def _matchesPType(pt: PType): Boolean = RPrimitive.typeSupported(pt.virtualType)
   def _unionPType(pType: PType): Unit = assert(matchesPType(pType))
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RPrimitive = {
     assert(newChildren.isEmpty)
     RPrimitive()
   }
   def canonicalPType(t: Type): PType = {
-    assert(typeSupported(t))
+    assert(RPrimitive.typeSupported(t))
     PType.canonical(t, required)
   }
   def _toString: String = "RPrimitive"
@@ -238,8 +242,10 @@ sealed abstract class RBaseStruct extends TypeWithRequiredness {
       PCanonicalStruct(required = required,
         fields.map(f => f.name -> f.typ.canonicalPType(ts.fieldType(f.name))): _*)
     case ts: TTuple =>
-      PCanonicalTuple(required = required,
-        fields.map(f => f.typ.canonicalPType(ts.types(f.index))): _*)
+      PCanonicalTuple(fields.zip(ts.fields).map { case(fr, ft) =>
+        assert(fr.index == ft.index)
+        PTupleField(fr.index, fr.typ.canonicalPType(ft.typ))
+      }, required = required)
   }
 }
 
@@ -258,19 +264,14 @@ case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
   def _toString: String = s"RStruct[${ fields.map(f => s"${ f.name }: ${ f.typ.toString }").mkString(",") }]"
 }
 
-object RTuple {
-  def apply(fields: Seq[TypeWithRequiredness]): RTuple =
-    RTuple(Array.tabulate(fields.length)(i => RField(s"$i", fields(i), i)))
-}
-
 case class RTuple(fields: IndexedSeq[RField]) extends RBaseStruct {
-  assert(fields.zipWithIndex.forall { case (actual, expected) => actual.index == expected })
-  val types: Seq[TypeWithRequiredness] = fields.map(_.typ)
+  val fieldType: Map[Int, TypeWithRequiredness] = fields.map(f => f.index -> f.typ).toMap
+  def field(idx: Int): TypeWithRequiredness = fieldType(idx)
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RTuple = {
     assert(newChildren.length == fields.length)
-    RTuple(newChildren.map(coerce[TypeWithRequiredness]))
+    RTuple(fields.zip(newChildren).map { case (f, c) => RField(f.name, coerce[TypeWithRequiredness](c), f.index) })
   }
-  def _toString: String = s"RTuple[${ fields.map(f => f.typ.toString).mkString(",") }]"
+  def _toString: String = s"RTuple[${ fields.map(f => s"${ f.index }: ${ f.typ.toString }").mkString(",") }]"
 }
 
 case class RUnion(cases: Seq[(String, TypeWithRequiredness)]) extends TypeWithRequiredness {

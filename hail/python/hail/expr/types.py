@@ -10,7 +10,7 @@ from hail import genetics
 from hail.expr.nat import NatBase, NatLiteral
 from hail.expr.type_parsing import type_grammar, type_node_visitor
 from hail.genetics.reference_genome import reference_genome_type
-from hail.typecheck import *
+from hail.typecheck import typecheck, typecheck_method, oneof, transformed
 from hail.utils.java import escape_parsable
 
 __all__ = [
@@ -1126,9 +1126,9 @@ class tstruct(HailType, Mapping):
         return {f: t._convert_to_json_na(x[f]) for f, t in self.items()}
 
     def _is_prefix_of(self, other):
-        return (isinstance(other, tstruct) and
-                len(self._fields) <= len(other._fields) and
-                all(x == y for x, y in zip(self._field_types.values(), other._field_types.values())))
+        return (isinstance(other, tstruct)
+                and len(self._fields) <= len(other._fields)
+                and all(x == y for x, y in zip(self._field_types.values(), other._field_types.values())))
 
     def _concat(self, other):
         new_field_types = {}
@@ -1275,7 +1275,7 @@ class tunion(HailType, Mapping):
             ','.join('{}:{}'.format(escape_parsable(f), t._parsable_string()) for f, t in self.items()))
 
     def unify(self, t):
-        if not (isinstance(t, union) and len(self) == len(t)):
+        if not (isinstance(t, tunion) and len(self) == len(t)):
             return False
         for (f1, t1), (f2, t2) in zip(self.items(), t.items()):
             if not (f1 == f2 and t1.unify(t2)):

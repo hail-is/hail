@@ -1,9 +1,12 @@
 import abc
-from typing import *
+from typing import Optional, Dict, Any, TypeVar, List
 
 import hail as hl
 from hail.expr.expressions import Expression, ExpressionException, to_expr
-from hail.expr.types import *
+from hail.expr.types import HailType, tint32, tint64, tfloat32, tfloat64, \
+    tstr, tbool, tarray, tndarray, tset, tdict, tstruct, tunion, \
+    ttuple, tinterval, tlocus, tcall
+
 from hail.typecheck import TypeChecker, TypecheckFailure
 from hail.utils.java import escape_parsable
 
@@ -271,7 +274,7 @@ class NDArrayCoercer(ExprCoercer):
         return isinstance(t, tndarray) and self.ec.can_coerce(t.element_type)
 
     def _coerce(self, x: Expression):
-        assert isinstance(x, hl.expr.NDArrayExpression)
+        assert isinstance(x, hl.expr.expressions.NDArrayExpression)
         return hl.map(lambda x_: self.ec.coerce(x_), x)
 
 

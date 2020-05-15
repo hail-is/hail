@@ -135,6 +135,8 @@ object Copy {
       case GroupByKey(_) =>
         assert(newChildren.length == 1)
         GroupByKey(newChildren(0).asInstanceOf[IR])
+      case StreamLen(_) =>
+        StreamLen(newChildren(0).asInstanceOf[IR])
       case StreamTake(_, _) =>
         assert(newChildren.length == 2)
         StreamTake(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])

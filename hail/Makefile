@@ -12,7 +12,7 @@ URL := $(shell git config --get remote.origin.url)
 SCALA_VERSION = 2.11.12
 SPARK_VERSION := 2.4.5
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 39
+HAIL_PATCH_VERSION := 40
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 
@@ -114,6 +114,7 @@ pytest: python/README.md $(PYTHON_JAR)
      -r A \
      --self-contained-html \
      --html=../build/reports/pytest.html \
+     test/hail \
      $(PYTEST_ARGS)"
 
 .PHONY: doctest

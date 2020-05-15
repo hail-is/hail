@@ -1,9 +1,10 @@
 import requests
 
+from hail.utils import FatalError
 from hail.expr.types import dtype
-from hail.expr.table_type import *
-from hail.expr.matrix_type import *
-from hail.expr.blockmatrix_type import *
+from hail.expr.table_type import ttable
+from hail.expr.matrix_type import tmatrix
+from hail.expr.blockmatrix_type import tblockmatrix
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
@@ -41,7 +42,7 @@ class ServiceBackend(Backend):
         resp = retry_response_returning_functions(
             requests.post,
             f'{self.url}/execute', json=code, headers=self.headers)
-        if resp.status_code == 400:
+        if resp.status_code == 400 or resp.status_code == 500:
             raise FatalError(resp.text)
         resp.raise_for_status()
         resp_json = resp.json()
@@ -56,7 +57,7 @@ class ServiceBackend(Backend):
         resp = retry_response_returning_functions(
             requests.post,
             f'{self.url}/type/{kind}', json=code, headers=self.headers)
-        if resp.status_code == 400:
+        if resp.status_code == 400 or resp.status_code == 500:
             raise FatalError(resp.text)
         resp.raise_for_status()
 
@@ -82,7 +83,7 @@ class ServiceBackend(Backend):
         resp = retry_response_returning_functions(
             requests.post,
             f'{self.url}/references/create', json=config, headers=self.headers)
-        if resp.status_code == 400:
+        if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
@@ -100,7 +101,7 @@ class ServiceBackend(Backend):
                 'mt_contigs': mt_contigs,
                 'par': par
             }, headers=self.headers)
-        if resp.status_code == 400:
+        if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
@@ -111,7 +112,7 @@ class ServiceBackend(Backend):
             f'{self.url}/references/delete',
             json={'name': name},
             headers=self.headers)
-        if resp.status_code == 400:
+        if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
@@ -122,7 +123,7 @@ class ServiceBackend(Backend):
             f'{self.url}/references/get',
             json={'name': name},
             headers=self.headers)
-        if resp.status_code == 400:
+        if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
@@ -138,7 +139,7 @@ class ServiceBackend(Backend):
             f'{self.url}/references/sequence/set',
             json={'name': name, 'fasta_file': fasta_file, 'index_file': index_file},
             headers=self.headers)
-        if resp.status_code == 400:
+        if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
@@ -149,7 +150,7 @@ class ServiceBackend(Backend):
             f'{self.url}/references/sequence/delete',
             json={'name': name},
             headers=self.headers)
-        if resp.status_code == 400:
+        if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
@@ -161,7 +162,7 @@ class ServiceBackend(Backend):
             json={'name': name, 'chain_file': chain_file,
                   'dest_reference_genome': dest_reference_genome},
             headers=self.headers)
-        if resp.status_code == 400:
+        if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
@@ -172,7 +173,7 @@ class ServiceBackend(Backend):
             f'{self.url}/references/liftover/remove',
             json={'name': name, 'dest_reference_genome': dest_reference_genome},
             headers=self.headers)
-        if resp.status_code == 400:
+        if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
@@ -183,7 +184,7 @@ class ServiceBackend(Backend):
             f'{self.url}/parse-vcf-metadata',
             json={'path': path},
             headers=self.headers)
-        if resp.status_code == 400:
+        if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
@@ -201,7 +202,7 @@ class ServiceBackend(Backend):
                 'skip_invalid_loci': skip_invalid_loci
             },
             headers=self.headers)
-        if resp.status_code == 400:
+        if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()

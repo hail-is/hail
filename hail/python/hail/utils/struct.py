@@ -1,8 +1,9 @@
 from collections import OrderedDict
 from collections.abc import Mapping
+import pprint
 
 from hail.utils.misc import get_nice_attr_error, get_nice_field_error
-from hail.typecheck import *
+from hail.typecheck import typecheck, typecheck_method, anytype
 
 
 class Struct(Mapping):
@@ -45,7 +46,7 @@ class Struct(Mapping):
     def __init__(self, **kwargs):
         self._fields = kwargs
         for k, v in kwargs.items():
-            if not k in self.__dict__:
+            if k not in self.__dict__:
                 self.__dict__[k] = v
 
     def __contains__(self, item):
@@ -156,7 +157,7 @@ class Struct(Mapping):
         :class:`.Struct`
             Struct without certain fields.
         """
-        d = OrderedDict((k, v) for k, v in self.items() if not k in args)
+        d = OrderedDict((k, v) for k, v in self.items() if k not in args)
         return Struct(**d)
 
 
@@ -164,8 +165,6 @@ class Struct(Mapping):
 def to_dict(struct):
     return dict(struct.items())
 
-
-import pprint
 
 _old_printer = pprint.PrettyPrinter
 

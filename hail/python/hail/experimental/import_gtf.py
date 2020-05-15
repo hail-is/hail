@@ -2,7 +2,7 @@ import operator
 import functools
 import hail as hl
 from hail.genetics.reference_genome import reference_genome_type
-from hail.typecheck import *
+from hail.typecheck import typecheck, nullable, sequenceof
 from hail.utils.java import info
 
 
@@ -38,7 +38,7 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_part
        This function will return an ``interval`` field of type :class:`.tinterval`
        constructed from the ``seqname``, ``start``, and ``end`` fields in the
        GTF file. This interval is inclusive of both the start and end positions
-       in the GTF file. 
+       in the GTF file.
 
        If the ``reference_genome`` parameter is specified, the start and end
        points of the ``interval`` field will be of type :class:`.tlocus`.
@@ -54,7 +54,7 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_part
        Example
        -------
 
-       >>> ht = hl.experimental.import_gtf('data/test.gtf', 
+       >>> ht = hl.experimental.import_gtf('data/test.gtf',
        ...                                 reference_genome='GRCh37',
        ...                                 skip_invalid_contigs=True)
 
@@ -232,8 +232,8 @@ def get_gene_intervals(gene_symbols=None, gene_ids=None, transcript_ids=None,
     ht = ht.filter(functools.reduce(operator.ior, criteria))
     gene_info = ht.aggregate(hl.agg.collect((ht.feature, ht.gene_name, ht.gene_id, ht.transcript_id, ht.interval)))
     if verbose:
-        info(f'get_gene_intervals found {len(gene_info)} entries:\n' +
-             "\n".join(map(lambda x: f'{x[0]}: {x[1]} ({x[2] if x[0] == "gene" else x[3]})', gene_info)))
+        info(f'get_gene_intervals found {len(gene_info)} entries:\n'
+             + "\n".join(map(lambda x: f'{x[0]}: {x[1]} ({x[2] if x[0] == "gene" else x[3]})', gene_info)))
     intervals = list(map(lambda x: x[-1], gene_info))
     return intervals
 

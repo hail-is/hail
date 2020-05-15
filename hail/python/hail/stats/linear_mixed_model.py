@@ -5,7 +5,7 @@ import hail as hl
 from hail.linalg import BlockMatrix
 from hail.linalg.utils import _check_dims
 from hail.table import Table
-from hail.typecheck import *
+from hail.typecheck import typecheck_method, nullable, tupleof, oneof, numeric
 from hail.utils.java import Env, info
 from hail.utils.misc import plural
 
@@ -585,8 +585,8 @@ class LinearMixedModel(object):
 
         # Asymptotically near MLE, nLL = a * h2^2 + b * h2 + c with a = 1 / (2 * se^2)
         # By Lagrange interpolation:
-        a = ((h2[2] * (nll[1] - nll[0]) + h2[1] * (nll[0] - nll[2]) + h2[0] * (nll[2] - nll[1])) /
-             ((h2[1] - h2[0]) * (h2[0] - h2[2]) * (h2[2] - h2[1])))
+        a = ((h2[2] * (nll[1] - nll[0]) + h2[1] * (nll[0] - nll[2]) + h2[0] * (nll[2] - nll[1]))
+             / ((h2[1] - h2[0]) * (h2[0] - h2[2]) * (h2[2] - h2[1])))
 
         return 1 / np.sqrt(2 * a)
 
@@ -1122,8 +1122,8 @@ class LinearMixedModel(object):
     def _same(self, other, tol=1e-6, up_to_sign=True):
         def same_rows_up_to_sign(a, b, atol):
             assert a.shape[0] == b.shape[0]
-            return all(np.allclose(a[i], b[i], atol=atol) or
-                       np.allclose(-a[i], b[i], atol=atol)
+            return all(np.allclose(a[i], b[i], atol=atol)
+                       or np.allclose(-a[i], b[i], atol=atol)
                        for i in range(a.shape[0]))
 
         close = same_rows_up_to_sign if up_to_sign else np.allclose
@@ -1152,4 +1152,3 @@ class LinearMixedModel(object):
             print(f'different p_path:\n{self.p_path}\n{other.p_path}')
             same = False
         return same
-

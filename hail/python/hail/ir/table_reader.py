@@ -4,7 +4,7 @@ import json
 import hail as hl
 
 from hail.ir.utils import make_filter_and_replace
-from hail.typecheck import *
+from hail.typecheck import typecheck_method, sequenceof, nullable, anytype
 from hail.utils.misc import escape_str
 
 
@@ -58,9 +58,10 @@ class TableNativeReader(TableReader):
 
     def __eq__(self, other):
         return isinstance(other, TableNativeReader) and \
-               other.path == self.path and \
-               other.intervals == self.intervals and \
-               other.filter_intervals == self.filter_intervals
+            other.path == self.path and \
+            other.intervals == self.intervals and \
+            other.filter_intervals == self.filter_intervals
+
 
 class TextTableReader(TableReader):
     def __init__(self, paths, min_partitions, types, comment,
@@ -90,7 +91,7 @@ class TextTableReader(TableReader):
 
     def __eq__(self, other):
         return isinstance(other, TextTableReader) and \
-               other.config == self.config
+            other.config == self.config
 
 
 class TableFromBlockMatrixNativeReader(TableReader):
@@ -107,5 +108,5 @@ class TableFromBlockMatrixNativeReader(TableReader):
 
     def __eq__(self, other):
         return isinstance(other, TableFromBlockMatrixNativeReader) and \
-               other.path == self.path and \
-               other.n_partitions == self.n_partitions
+            other.path == self.path and \
+            other.n_partitions == self.n_partitions

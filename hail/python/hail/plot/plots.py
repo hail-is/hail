@@ -14,12 +14,16 @@ from bokeh.transform import transform
 from bokeh.layouts import gridplot
 
 from hail.expr import aggregators
-from hail.expr.expressions import *
-from hail.expr.expressions import Expression
-from hail.typecheck import *
+from hail.expr.expressions import Expression, NumericExpression, \
+    StringExpression, Int32Expression, Int64Expression, \
+    Float32Expression, Float64Expression, \
+    expr_numeric, expr_float64, expr_any, expr_locus, expr_str, \
+    check_row_indexed
+from hail.typecheck import typecheck, oneof, nullable, sized_tupleof, numeric, \
+    sequenceof, dictof
 from hail import Table
 from hail.utils.struct import Struct
-from typing import *
+from typing import List, Tuple, Dict, Union
 import hail
 
 palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
@@ -755,9 +759,8 @@ def _get_scatter_plot_elements(
         print("WARN: No data to plot.")
         return sp, None, None, None, None, None
 
-    sp.tools.append(HoverTool(tooltips=[(x_col, f'@{x_col}'), (y_col, f'@{y_col}')] +
-                                       [(c, f'@{c}') for c in source_pd.columns if c not in [x_col, y_col]]
-                              ))
+    sp.tools.append(HoverTool(tooltips=[(x_col, f'@{x_col}'), (y_col, f'@{y_col}')]
+                              + [(c, f'@{c}') for c in source_pd.columns if c not in [x_col, y_col]]))
 
     cds = ColumnDataSource(source_pd)
 
@@ -766,8 +769,8 @@ def _get_scatter_plot_elements(
         return sp, None, None, None, None, None
 
     continuous_cols = [col for col in label_cols if
-                       (str(source_pd.dtypes[col]).startswith('float') or
-                        str(source_pd.dtypes[col]).startswith('int'))]
+                       (str(source_pd.dtypes[col]).startswith('float')
+                        or str(source_pd.dtypes[col]).startswith('int'))]
     factor_cols = [col for col in label_cols if col not in continuous_cols]
 
     #  Assign color mappers to columns
@@ -1079,8 +1082,8 @@ def joint_plot(
     sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(sp, source_pd, x[0], y[0], label_cols, colors, size)
 
     continuous_cols = [col for col in label_cols if
-                       (str(source_pd.dtypes[col]).startswith('float') or
-                        str(source_pd.dtypes[col]).startswith('int'))]
+                       (str(source_pd.dtypes[col]).startswith('float')
+                        or str(source_pd.dtypes[col]).startswith('int'))]
     factor_cols = [col for col in label_cols if col not in continuous_cols]
 
     # Density plots
@@ -1469,8 +1472,8 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
     # check_row_indexed('visualize_missingness', row_source)
     if window:
         if locus:
-            grouping = hail.locus_from_global_position(hail.int64(window) *
-                                                       hail.int64(row_field.global_position() / window))
+            grouping = hail.locus_from_global_position(hail.int64(window)
+                                                       * hail.int64(row_field.global_position() / window))
         else:
             grouping = hail.int64(window) * hail.int64(row_field / window)
         mt = mt.group_rows_by(

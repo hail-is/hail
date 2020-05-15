@@ -247,7 +247,7 @@ class IR(BaseIR):
         if self._free_vars is None:
             self._free_vars = {
                 var for i in range(len(self.children))
-                    for var in vars_from_child(i)}
+                for var in vars_from_child(i)}
             if self.uses_agg_capability():
                 self._free_vars.add(BaseIR.agg_capability)
         return self._free_vars
@@ -262,7 +262,7 @@ class IR(BaseIR):
         if self._free_agg_vars is None:
             self._free_agg_vars = {
                 var for i in range(len(self.children))
-                    for var in vars_from_child(i)}
+                for var in vars_from_child(i)}
         return self._free_agg_vars
 
     @property
@@ -275,7 +275,7 @@ class IR(BaseIR):
         if self._free_scan_vars is None:
             self._free_scan_vars = {
                 var for i in range(len(self.children))
-                    for var in vars_from_child(i)}
+                for var in vars_from_child(i)}
         return self._free_scan_vars
 
 

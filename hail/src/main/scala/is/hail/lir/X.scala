@@ -89,7 +89,7 @@ class Classx[C](val name: String, val superName: String) {
     for (m <- methods) {
       m.simplifyBlocks()
     }
-    
+
     for (m <- methods) {
       InitializeLocals(m)
     }

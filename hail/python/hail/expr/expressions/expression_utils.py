@@ -1,6 +1,8 @@
-from .indices import *
+from typing import Set, Dict
+from hail.typecheck import typecheck, setof
+
+from .indices import Indices, Aggregation
 from ..expressions import Expression, ExpressionException, expr_any
-from typing import *
 
 
 @typecheck(caller=str,
@@ -41,11 +43,10 @@ def analyze(caller: str,
                                 "  Correct usage:\n"
                                 "    >>> ht = ht.distinct()\n"
                                 "    >>> ht = ht.select(ht.x)".format(
-                caller=caller,
-                expected=expected_source,
-                actual=source,
-                bad_refs=list(bad_refs)
-            )))
+                                    caller=caller,
+                                    expected=expected_source,
+                                    actual=source,
+                                    bad_refs=list(bad_refs))))
 
     # check for stray indices by subtracting expected axes from observed
     if broadcast:
@@ -225,9 +226,9 @@ def _get_refs(expr: Expression, builder: Dict[str, Indices]) -> None:
     from hail.ir import GetField, TopLevelReference
 
     for ir in expr._ir.search(
-            lambda a: isinstance(a, GetField)
-                      and not a.name.startswith('__uid')
-                      and isinstance(a.o, TopLevelReference)):
+            lambda a: (isinstance(a, GetField)
+                       and not a.name.startswith('__uid')
+                       and isinstance(a.o, TopLevelReference))):
         src = expr._indices.source
         builder[ir.name] = src._indices_from_ref[ir.o.name]
 
@@ -250,6 +251,7 @@ def extract_refs_by_indices(exprs, indices):
             if inds == indices:
                 s.add(name)
     return s
+
 
 def get_refs(*exprs: Expression) -> Dict[str, Indices]:
     builder = {}

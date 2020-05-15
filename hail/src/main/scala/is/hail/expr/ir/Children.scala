@@ -65,8 +65,8 @@ object Children {
       Array(nd, shape)
     case NDArrayConcat(nds, _) =>
       Array(nds)
-    case ArraySort(a, _, _, compare) =>
-      Array(a, compare)
+    case ArraySort(a, _, _, lessThan) =>
+      Array(a, lessThan)
     case ToSet(a) =>
       Array(a)
     case ToDict(a) =>
@@ -81,6 +81,8 @@ object Children {
       Array(orderedCollection, elem)
     case GroupByKey(collection) =>
       Array(collection)
+    case StreamLen(a) =>
+      Array(a)
     case StreamTake(a, len) =>
       Array(a, len)
     case StreamDrop(a, len) =>

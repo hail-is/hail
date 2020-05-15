@@ -122,7 +122,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
 
     n_rows_ref = hl.expr.construct_expr(hl.ir.Ref('n_rows'), hl.tint64, mt._col_indices,
-                                        hl.utils.LinkedList(hl.expr.Aggregation))
+                                        hl.utils.LinkedList(hl.expr.expressions.Aggregation))
     bound_exprs['n_filtered'] = n_rows_ref - hl.agg.count()
     bound_exprs['n_hom_ref'] = hl.agg.count_where(mt['GT'].is_hom_ref())
     bound_exprs['n_het'] = hl.agg.count_where(mt['GT'].is_het())
@@ -263,7 +263,7 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
     bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
     n_cols_ref = hl.expr.construct_expr(hl.ir.Ref('n_cols'), hl.tint32,
-                                        mt._row_indices, hl.utils.LinkedList(hl.expr.Aggregation))
+                                        mt._row_indices, hl.utils.LinkedList(hl.expr.expressions.Aggregation))
     bound_exprs['n_filtered'] = hl.int64(n_cols_ref) - hl.agg.count()
     bound_exprs['call_stats'] = hl.agg.call_stats(mt.GT, mt.alleles)
 
@@ -271,8 +271,8 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
                       lambda e1: hl.rbind(
                           hl.case().when(hl.len(mt.alleles) == 2,
                                          hl.hardy_weinberg_test(e1.call_stats.homozygote_count[0],
-                                                                e1.call_stats.AC[1] - 2 *
-                                                                e1.call_stats.homozygote_count[1],
+                                                                e1.call_stats.AC[1] - 2
+                                                                * e1.call_stats.homozygote_count[1],
                                                                 e1.call_stats.homozygote_count[1])
                                          ).or_missing(),
                           lambda hwe: hl.struct(**{

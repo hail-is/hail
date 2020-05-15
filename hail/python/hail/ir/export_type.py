@@ -1,4 +1,5 @@
-from hail.typecheck import *
+from hail.typecheck import enumeration
+
 
 class ExportType:
     CONCATENATED = "concatenated"

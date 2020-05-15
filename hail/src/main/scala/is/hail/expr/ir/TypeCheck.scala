@@ -232,9 +232,9 @@ object TypeCheck {
         val ndType = nd.typ.asInstanceOf[TNDArray]
         assert(ndType.elementType == TFloat64)
         assert(ndType.nDims == 2)
-      case x@ArraySort(a, l, r, compare) =>
+      case x@ArraySort(a, l, r, lessThan) =>
         assert(a.typ.isInstanceOf[TStream])
-        assert(compare.typ == TBoolean)
+        assert(lessThan.typ == TBoolean)
       case x@ToSet(a) =>
         assert(a.typ.isInstanceOf[TStream])
       case x@ToDict(a) =>
@@ -257,6 +257,8 @@ object TypeCheck {
         val td = coerce[TDict](x.typ)
         assert(td.keyType == telt.types(0))
         assert(td.valueType == TArray(telt.types(1)))
+      case StreamLen(a) =>
+        assert(a.typ.isInstanceOf[TStream])
       case x@StreamTake(a, num) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(x.typ == a.typ)
@@ -291,6 +293,7 @@ object TypeCheck {
         assert(body.typ.isInstanceOf[TStream])
       case x@StreamFold(a, zero, accumName, valueName, body) =>
         assert(a.typ.isInstanceOf[TStream])
+        assert(a.typ.asInstanceOf[TStream].elementType.isRealizable, Pretty(x))
         assert(body.typ == zero.typ)
         assert(x.typ == zero.typ)
       case x@StreamFold2(a, accum, valueName, seq, res) =>

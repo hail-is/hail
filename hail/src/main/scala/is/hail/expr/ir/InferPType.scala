@@ -150,7 +150,7 @@ object InferPType {
       case x: IR if x.typ == TVoid => PVoid
       case x: IR if requiredness.r.contains(x) => x match {
         case a: AbstractApplyNode[_] =>
-          val pt = a.implementation.returnPType(a.args.map(_.pType), a.returnType)
+          val pt = a.implementation.returnPType(a.returnType, a.args.map(_.pType))
           assert(coerce[TypeWithRequiredness](requiredness.r.lookup(node)).matchesPType(pt))
           pt
         case x@StreamFold(a, zero, accumName, valueName, body) =>
@@ -265,7 +265,7 @@ object InferPType {
           infer(i)
           i.pType
         })
-        a.implementation.returnPType(pTypes, a.returnType)
+        a.implementation.returnPType(a.returnType, pTypes)
       case ArrayRef(a, i, s) =>
         infer(a)
         infer(i)
@@ -275,12 +275,12 @@ object InferPType {
         val aType = coerce[PArray](a.pType)
         val elemType = aType.elementType
         elemType.orMissing(a.pType.required && i.pType.required)
-      case ArraySort(a, leftName, rightName, compare) =>
+      case ArraySort(a, leftName, rightName, lessThan) =>
         infer(a)
         val et = coerce[PStream](a.pType).elementType
 
-        infer(compare, env.bind(leftName -> et, rightName -> et))
-        assert(compare.pType.isOfType(PBoolean()))
+        infer(lessThan, env.bind(leftName -> et, rightName -> et))
+        assert(lessThan.pType.isOfType(PBoolean()))
 
         PCanonicalArray(et, a.pType.required)
       case ToSet(a) =>
@@ -311,6 +311,9 @@ object InferPType {
         infer(collection)
         val elt = coerce[PBaseStruct](coerce[PStream](collection.pType).elementType)
         PCanonicalDict(elt.types(0), PCanonicalArray(elt.types(1)), collection.pType.required)
+      case StreamLen(a) =>
+        infer(a)
+        PInt32(a.pType.required)
       case StreamTake(a, len) =>
         infer(a)
         infer(len)

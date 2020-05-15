@@ -205,6 +205,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case _: ApplyBinaryPrimOp |
            _: ApplyUnaryPrimOp |
            _: ArrayLen |
+           _: StreamLen |
            _: ArrayZeros |
            _: StreamRange |
            _: WriteValue =>
@@ -354,8 +355,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(ndReq.required && idxs.forall(lookup(_).required))
       case NDArraySlice(nd, slices) =>
         val slicesReq = lookupAs[RTuple](slices)
-        val allSlicesRequired = slicesReq.types.forall {
-          case r: RTuple => r.required && r.types.forall(_.required)
+        val allSlicesRequired = slicesReq.fields.map(_.typ).forall {
+          case r: RTuple => r.required && r.fields.forall(_.typ.required)
           case r => r.required
         }
         requiredness.unionFrom(lookup(nd))
@@ -378,7 +379,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         }
       case MakeTuple(fields) =>
         fields.foreach { case (i, f) =>
-          coerce[RTuple](requiredness).types(i).unionFrom(lookup(f))
+          coerce[RTuple](requiredness).field(i).unionFrom(lookup(f))
         }
       case SelectFields(old, fields) =>
         val oldReq = lookupAs[RStruct](old)
@@ -405,11 +406,11 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case GetTupleElement(o, idx) =>
         val oldReq = lookupAs[RTuple](o)
         requiredness.union(oldReq.required)
-        requiredness.unionFrom(oldReq.fields(idx).typ)
+        requiredness.unionFrom(oldReq.field(idx))
       case x: ApplyIR => requiredness.unionFrom(lookup(x.body))
       case x: AbstractApplyNode[_] => //FIXME: round-tripping via PTypes.
         val argP = x.args.map(a => lookup(a).canonicalPType(a.typ))
-        requiredness.fromPType(x.implementation.returnPType(argP, x.returnType))
+        requiredness.fromPType(x.implementation.returnPType(x.returnType, argP))
       case CollectDistributedArray(ctxs, globs, _, _, body) =>
         requiredness.union(lookup(ctxs).required)
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(body))

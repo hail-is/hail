@@ -58,17 +58,17 @@ object BTreeBackedSet {
 
     val key = new TestBTreeKey(fb.apply_method)
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
-    fb.emit(Code(
-      r := fb.getCodeParam[Region](1),
-      btree.init,
-      btree.bulkLoad(ib) { (ib, off) =>
-        Code(
+    fb.emitWithBuilder { cb =>
+      cb += (r := fb.getCodeParam[Region](1))
+      cb += btree.init
+      btree.bulkLoad(cb, ib) { (cb, ib, off) =>
+        cb += Code(
           km := ib.readBoolean(),
           kv := km.mux(0L, ib.readLong()),
           key.storeKey(off, km, kv))
-      },
+      }
       root
-    ))
+    }
 
     val inputBuffer = new StreamBufferSpec().buildInputBuffer(new ByteArrayInputStream(serialized))
     val set = new BTreeBackedSet(ctx, region, n)
@@ -130,26 +130,27 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
     val idx = fb.newLocal[Int]()
     val returnArray = fb.newLocal[Array[java.lang.Long]]()
 
-    fb.emit(Code(
-      r := fb.getCodeParam[Region](1),
-      root := fb.getCodeParam[Long](2),
-      sab.clear,
-      btree.foreach { koff =>
-        Code.memoize(koff, "koff") { koff =>
+    fb.emitWithBuilder { cb =>
+      cb += (r := fb.getCodeParam[Region](1))
+      cb += (root := fb.getCodeParam[Long](2))
+      cb += sab.clear
+      btree.foreach(cb) { (cb, koff) =>
+        cb += Code.memoize(koff, "koff") { koff =>
           val (m, v) = key.loadCompKey(koff)
           m.mux(sab.addMissing(),
             sab.add(v))
         }
-      },
-      returnArray := Code.newArray[java.lang.Long](sab.size),
-      idx := 0,
-      Code.whileLoop(idx < sab.size,
+      }
+      cb += (returnArray := Code.newArray[java.lang.Long](sab.size))
+      cb += (idx := 0)
+      cb += Code.whileLoop(idx < sab.size,
         returnArray.update(idx, sab.isMissing(idx).mux(
           Code._null[java.lang.Long],
           Code.boxLong(coerce[Long](sab(idx))))),
         idx := idx + 1
-      ),
-      returnArray))
+      )
+      returnArray
+    }
     fb.resultWithIndex()(0, region)
   }
 
@@ -164,11 +165,11 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
     val key = new TestBTreeKey(fb.apply_method)
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
 
-    fb.emit(Code(
-      root := fb.getCodeParam[Long](1),
-      ob2 := ob,
-      btree.bulkStore(ob2) { (ob, off) =>
-        Code.memoize(ob, "ob", off, "off") { (ob, off) =>
+    fb.emitWithBuilder { cb =>
+      cb += (root := fb.getCodeParam[Long](1))
+      cb += (ob2 := ob)
+      btree.bulkStore(cb, ob2) { (cb, ob, off) =>
+        cb += Code.memoize(ob, "ob", off, "off") { (ob, off) =>
           val (km, kv) = key.loadCompKey(off)
           Code.memoize(km, "km") { km =>
             Code(
@@ -176,8 +177,9 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
               (!km).orEmpty(ob.writeLong(coerce[Long](kv))))
           }
         }
-      },
-      ob2.load().flush()))
+      }
+      ob2.load().flush()
+    }
 
     fb.resultWithIndex()(0, region)
   }

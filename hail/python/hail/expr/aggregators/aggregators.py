@@ -2,11 +2,19 @@ import difflib
 from functools import wraps, update_wrapper
 
 import hail as hl
-from hail.expr.expressions import *
-from hail.expr.types import *
-from hail.expr.functions import rbind, float32, _quantile_from_cdf, pT, pF
-from hail.ir import *
-from hail.typecheck import *
+from hail.expr.expressions import ExpressionException, Expression, \
+    ArrayExpression, SetExpression, BooleanExpression, Int64Expression, \
+    NumericExpression, DictExpression, StructExpression, Float64Expression, \
+    StringExpression, \
+    expr_any, expr_oneof, expr_array, expr_set, expr_bool, expr_numeric, \
+    expr_int32, expr_int64, expr_float64, expr_call, expr_str, \
+    unify_all, construct_expr, Indices, Aggregation, to_expr
+from hail.expr.types import hail_type, tint32, tint64, tfloat32, tfloat64, \
+    tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr
+from hail.expr.functions import rbind, float32, _quantile_from_cdf
+import hail.ir as ir
+from hail.typecheck import TypeChecker, typecheck_method, typecheck, \
+    sequenceof, func_spec, identity, nullable, oneof
 from hail.utils import wrap_to_list
 from hail.utils.java import Env
 
@@ -24,7 +32,7 @@ class AggregableChecker(TypeChecker):
 
     def check(self, x, caller, param):
         x = self.coercer.check(x, caller, param)
-        if len(x._ir.search(lambda node: isinstance(node, BaseApplyAggOp))) == 0:
+        if len(x._ir.search(lambda node: isinstance(node, ir.BaseApplyAggOp))) == 0:
             raise ExpressionException(f"{caller} must be placed outside of an aggregation. See "
                                       "https://discuss.hail.is/t/breaking-change-redesign-of-aggregator-interface/701")
         return x
@@ -51,12 +59,12 @@ class AggFunc(object):
         return "aggregations" if self._as_scan else "scans"
 
     def check_scan_agg_compatibility(self, caller, node):
-        if self._as_scan != isinstance(node, ApplyScanOp):
+        if self._as_scan != isinstance(node, ir.ApplyScanOp):
             raise ExpressionException(
                 "'{correct}.{caller}' cannot contain {incorrect}"
-                    .format(correct=self.correct_prefix(),
-                            caller=caller,
-                            incorrect=self.incorrect_plural()))
+                .format(correct=self.correct_prefix(),
+                        caller=caller,
+                        incorrect=self.incorrect_plural()))
 
     @typecheck_method(agg_op=str,
                       seq_op_args=sequenceof(expr_any),
@@ -70,16 +78,16 @@ class AggFunc(object):
             _check_agg_bindings(a, self._agg_bindings)
 
         if self._as_scan:
-            ir = ApplyScanOp(agg_op,
-                             [expr._ir for expr in init_op_args],
-                             [expr._ir for expr in seq_op_args])
+            x = ir.ApplyScanOp(agg_op,
+                               [expr._ir for expr in init_op_args],
+                               [expr._ir for expr in seq_op_args])
             aggs = aggregations
         else:
-            ir = ApplyAggOp(agg_op,
-                            [expr._ir for expr in init_op_args],
-                            [expr._ir for expr in seq_op_args])
+            x = ir.ApplyAggOp(agg_op,
+                              [expr._ir for expr in init_op_args],
+                              [expr._ir for expr in seq_op_args])
             aggs = aggregations.push(Aggregation(*seq_op_args, *init_op_args))
-        return construct_expr(ir, ret_type, Indices(indices.source, set()), aggs)
+        return construct_expr(x, ret_type, Indices(indices.source, set()), aggs)
 
     @typecheck_method(f=func_spec(1, expr_any),
                       array_agg_expr=expr_oneof(expr_array(), expr_set()))
@@ -92,7 +100,7 @@ class AggFunc(object):
             array_agg_expr = hl.array(array_agg_expr)
         elt = array_agg_expr.dtype.element_type
         var = Env.get_uid()
-        ref = construct_expr(Ref(var), elt, array_agg_expr._indices)
+        ref = construct_expr(ir.Ref(var), elt, array_agg_expr._indices)
         self._agg_bindings.add(var)
         aggregated = f(ref)
         _check_agg_bindings(aggregated, self._agg_bindings)
@@ -105,7 +113,7 @@ class AggFunc(object):
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(array_agg_expr, aggregated))
-        return construct_expr(AggExplode(ToStream(array_agg_expr._ir), var, aggregated._ir, self._as_scan),
+        return construct_expr(ir.AggExplode(ir.ToStream(array_agg_expr._ir), var, aggregated._ir, self._as_scan),
                               aggregated.dtype,
                               Indices(indices.source, aggregated._indices.axes),
                               aggregations)
@@ -127,7 +135,7 @@ class AggFunc(object):
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(condition, aggregation))
-        return construct_expr(AggFilter(condition._ir, aggregation._ir, self._as_scan),
+        return construct_expr(ir.AggFilter(condition._ir, aggregation._ir, self._as_scan),
                               aggregation.dtype,
                               Indices(indices.source, aggregation._indices.axes),
                               aggregations)
@@ -148,7 +156,7 @@ class AggFunc(object):
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(aggregation))
 
-        return construct_expr(AggGroupBy(group._ir, aggregation._ir, self._as_scan),
+        return construct_expr(ir.AggGroupBy(group._ir, aggregation._ir, self._as_scan),
                               tdict(group.dtype, aggregation.dtype),
                               Indices(indices.source, aggregation._indices.axes),
                               aggregations)
@@ -161,7 +169,7 @@ class AggFunc(object):
 
         elt = array.dtype.element_type
         var = Env.get_uid()
-        ref = construct_expr(Ref(var), elt, array._indices)
+        ref = construct_expr(ir.Ref(var), elt, array._indices)
         self._agg_bindings.add(var)
         aggregated = f(ref)
         _check_agg_bindings(aggregated, self._agg_bindings)
@@ -175,7 +183,7 @@ class AggFunc(object):
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(array, aggregated))
-        return construct_expr(AggArrayPerElement(array._ir, var, 'unused', aggregated._ir, self._as_scan),
+        return construct_expr(ir.AggArrayPerElement(array._ir, var, 'unused', aggregated._ir, self._as_scan),
                               tarray(aggregated.dtype),
                               Indices(indices.source, aggregated._indices.axes),
                               aggregations)
@@ -187,15 +195,16 @@ class AggFunc(object):
         else:
             return 'agg'
 
+
 _agg_func = AggFunc()
 
 
 def _check_agg_bindings(expr, bindings):
     bound_references = {ref.name for ref in expr._ir.search(
-        lambda ir: isinstance(ir, Ref)
-                   and not isinstance(ir, TopLevelReference)
-                   and not ir.name.startswith('__uid_scan')
-                   and not ir.name.startswith('__uid_agg'))}
+        lambda x: isinstance(x, ir.Ref)
+        and not isinstance(x, ir.TopLevelReference)
+        and not x.name.startswith('__uid_scan')
+        and not x.name.startswith('__uid_agg'))}
     free_variables = bound_references - expr._ir.bound_variables - bindings
     if free_variables:
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
@@ -296,6 +305,7 @@ def approx_quantiles(expr, qs, k=100) -> Expression:
     else:
         return _quantile_from_cdf(approx_cdf(expr, k), qs)
 
+
 @typecheck(expr=expr_numeric, k=int)
 def approx_median(expr, k=100) -> Expression:
     """Compute the approximate median. This function is a shorthand for `approx_quantiles(expr, .5, k)`
@@ -329,6 +339,7 @@ def approx_median(expr, k=100) -> Expression:
     """
 
     return approx_quantiles(expr, .5, k)
+
 
 @typecheck(expr=expr_any)
 def collect(expr) -> ArrayExpression:
@@ -1019,7 +1030,7 @@ def explode(f, array_agg_expr) -> Expression:
 
 
 @typecheck(condition=expr_bool, aggregation=agg_expr(expr_any))
-def filter(condition,  aggregation) -> Expression:
+def filter(condition, aggregation) -> Expression:
     """Filter records according to a predicate.
 
     Examples
@@ -1115,11 +1126,13 @@ def inbreeding(expr, prior) -> StructExpression:
                         hl.agg.filter(hl.is_defined(af) & hl.is_defined(call),
                                       hl.struct(n_called=hl.agg.count(),
                                                 expected_homs=hl.agg.sum(1 - (2 * af * (1 - af))),
-                                                observed_homs=hl.agg.count_where(hl.case().when(
-                                                    (call.ploidy == 2) & (call.unphased_diploid_gt_index() <= 2),
-                                                    ~call.is_het())
+                                                observed_homs=hl.agg.count_where(
+                                                    hl.case()
+                                                    .when(
+                                                        (call.ploidy == 2) & (call.unphased_diploid_gt_index() <= 2),
+                                                        ~call.is_het())
                                                     .or_error(
-                                                     "'inbreeding' does not support non-diploid or multiallelic genotypes")))),
+                                                        "'inbreeding' does not support non-diploid or multiallelic genotypes")))),
                         lambda r: hl.struct(
                             f_stat=(r['observed_homs'] - r['expected_homs']) / (r['n_called'] - r['expected_homs']),
                             **r)
@@ -1194,8 +1207,10 @@ def call_stats(call, alleles) -> StructExpression:
 
     return _agg_func('CallStats', [call], t, init_op_args=[n_alleles])
 
+
 _bin_idx_f = None
 _result_from_hist_agg_f = None
+
 
 @typecheck(expr=expr_float64, start=expr_float64, end=expr_float64, bins=expr_int32)
 def hist(expr, start, end, bins) -> StructExpression:
@@ -1271,10 +1286,10 @@ def hist(expr, start, end, bins) -> StructExpression:
                 .when(nbins > 0, hl.bind(lambda bs: hl.case()
                                          .when((bs > 0) & hl.is_finite(bs),
                                                result(s, nbins, bs, freq_dict))
-                                         .or_error("'hist': start=" + hl.str(s) +
-                                                   " end=" + hl.str(e) +
-                                                   " bins=" + hl.str(nbins) +
-                                                   " requires positive bin size."),
+                                         .or_error("'hist': start=" + hl.str(s)
+                                                   + " end=" + hl.str(e)
+                                                   + " bins=" + hl.str(nbins)
+                                                   + " requires positive bin size."),
                                          hl.float64(e - s) / nbins))
                 .or_error(hl.literal("'hist' requires positive 'bins', but bins=") + hl.str(nbins)))
 
@@ -1405,10 +1420,10 @@ def info_score(gp) -> StructExpression:
         gp,
         lambda unchecked_gp: hl.agg.filter(hl.is_defined(unchecked_gp), hl.rbind(
             hl.case()
-                .when(hl.len(unchecked_gp) == 3,
-                      unchecked_gp)
-                .or_error(f"'info_score': expected 'gp' to have length 3, "
-                          f"found length " + hl.str(hl.len(unchecked_gp))),
+            .when(hl.len(unchecked_gp) == 3,
+                  unchecked_gp)
+            .or_error(f"'info_score': expected 'gp' to have length 3, "
+                      f"found length " + hl.str(hl.len(unchecked_gp))),
             lambda gp: hl.rbind(
                 gp[1], gp[2],
                 lambda gp1, gp2: hl.rbind(
@@ -1461,7 +1476,7 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
     Regress blood pressure against an intercept (1), genotype, age, and
     the interaction of genotype and age:
 
-    >>> ds_ann = ds.annotate_rows(linreg = 
+    >>> ds_ann = ds.annotate_rows(linreg =
     ...     hl.agg.linreg(ds.pheno.blood_pressure,
     ...                   [1,
     ...                    ds.GT.n_alt_alleles(),
@@ -1649,9 +1664,9 @@ def corr(x, y) -> Float64Expression:
     return hl.bind(
         lambda x, y: hl.bind(
             lambda a:
-            (a.n * a.xy - a.x * a.y) /
-            hl.sqrt((a.n * a.xsq - a.x ** 2) *
-                    (a.n * a.ysq - a.y ** 2)),
+            (a.n * a.xy - a.x * a.y)
+            / hl.sqrt((a.n * a.xsq - a.x ** 2)
+                      * (a.n * a.ysq - a.y ** 2)),
             hl.agg.filter(hl.is_defined(x) & hl.is_defined(y),
                           hl.struct(x=hl.agg.sum(x),
                                     y=hl.agg.sum(y),
@@ -1660,6 +1675,7 @@ def corr(x, y) -> Float64Expression:
                                     xy=hl.agg.sum(x * y),
                                     n=hl.agg.count()))),
         x, y, _ctx=_agg_func.context)
+
 
 @typecheck(group=expr_any,
            agg_expr=agg_expr(expr_any))
@@ -1715,6 +1731,7 @@ def group_by(group, agg_expr) -> DictExpression:
     """
 
     return _agg_func.group_by(group, agg_expr)
+
 
 @typecheck(expr=expr_any)
 def _prev_nonnull(expr) -> ArrayExpression:

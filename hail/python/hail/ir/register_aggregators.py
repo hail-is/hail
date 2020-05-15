@@ -1,5 +1,6 @@
 from .ir import register_aggregator
 
+
 def register_aggregators():
     from hail.expr.types import dtype
 

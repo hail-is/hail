@@ -1,9 +1,13 @@
 package is.hail.io.index
 
-import is.hail.annotations.{Annotation, RegionValueBuilder}
+import is.hail.annotations.Region
+import is.hail.asm4s.{Code, SettableBuilder, Value}
+import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
+import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.{TArray, TInt64, TStruct, Type}
-import is.hail.utils.ArrayBuilder
+import is.hail.expr.types.virtual.{TStruct, Type}
+import is.hail.io.OutputBuffer
+import is.hail.utils._
 
 object LeafNodeBuilder {
   def virtualType(keyType: Type, annotationType: Type): TStruct = typ(PType.canonical(keyType), PType.canonical(annotationType)).virtualType
@@ -16,63 +20,59 @@ object LeafNodeBuilder {
       "annotation" -> annotationType
     ), required = true))
 
-  def typ(keyType: PType, annotationType: PType) = PCanonicalStruct(
-    "first_idx" -> +PInt64(),
-    "keys" -> +PCanonicalArray(+PCanonicalStruct(
+  def arrayType(keyType: PType, annotationType: PType) =
+    PCanonicalArray(PCanonicalStruct(required = true,
       "key" -> keyType,
       "offset" -> +PInt64(),
-      "annotation" -> annotationType
-    ), required = true)
-  )
+      "annotation" -> annotationType), required = true)
+
+  def typ(keyType: PType, annotationType: PType) = PCanonicalStruct(
+    "first_idx" -> +PInt64(),
+    "keys" -> arrayType(keyType, annotationType))
 }
 
-class LeafNodeBuilder(keyType: PType, annotationType: PType, var firstIdx: Long) {
-  val keys = new ArrayBuilder[Any]()
-  val recordOffsets = new ArrayBuilder[Long]()
-  val annotations = new ArrayBuilder[Any]()
-  var size = 0
-  val pType: PStruct = LeafNodeBuilder.typ(keyType, annotationType)
 
-  def write(rvb: RegionValueBuilder): Long = {
-    rvb.start(pType)
-    rvb.startStruct()
+class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType, sb: SettableBuilder) {
+  private val region = sb.newSettable[Region]("leaf_node_region")
+  val ab = new IndexWriterArrayBuilder("leaf_node", maxSize,
+    sb, region,
+    LeafNodeBuilder.arrayType(keyType, annotationType))
 
-    rvb.addLong(firstIdx)
+  val pType: PCanonicalStruct = LeafNodeBuilder.typ(keyType, annotationType)
+  private val node = new PCanonicalBaseStructSettable(pType, sb.newSettable[Long]("lef_node_addr"))
 
-    rvb.startArray(size)
-    var i = 0
-    while (i < size) {
-      rvb.startStruct()
-      rvb.addAnnotation(keyType.virtualType, keys(i))
-      rvb.addLong(recordOffsets(i))
-      rvb.addAnnotation(annotationType.virtualType, annotations(i))
-      rvb.endStruct()
-      i += 1
-    }
-    rvb.endArray()
-    rvb.endStruct()
-    rvb.end()
+  def close(cb: EmitCodeBuilder): Unit = cb.ifx(!region.isNull, cb += region.invalidate())
+
+  def reset(cb: EmitCodeBuilder, firstIdx: Code[Long]): Unit = {
+    cb += region.invoke[Unit]("clear")
+    cb += node.store(PCode(pType, pType.allocate(region)))
+    cb += PInt64().storePrimitiveAtAddress(pType.fieldOffset(node.a, "first_idx"), PInt64(), firstIdx)
+    ab.create(cb, pType.fieldOffset(node.a, "keys"))
   }
 
-  def +=(key: Annotation, offset: Long, annotation: Annotation) {
-    keys += key
-    recordOffsets += offset
-    annotations += annotation
-    size += 1
+  def create(cb: EmitCodeBuilder, firstIdx: Code[Long]): Unit = {
+    cb.assign(region, Region.stagedCreate(Region.REGULAR))
+    cb += node.store(PCode(pType, pType.allocate(region)))
+    cb += PInt64().storePrimitiveAtAddress(pType.fieldOffset(node.a, "first_idx"), PInt64(), firstIdx)
+    ab.create(cb, pType.fieldOffset(node.a, "keys"))
   }
 
-  def getChild(idx: Int): LeafChild = {
-    assert(idx >= 0 && idx < size)
-    LeafChild(keys(idx), recordOffsets(idx), annotations(idx))
+  def encode(cb: EmitCodeBuilder, ob: Value[OutputBuffer]): Unit = {
+    val enc = EType.defaultFromPType(pType).buildEncoder(pType, cb.emb.ecb)
+    ab.storeLength(cb)
+    cb += enc(node.a, ob)
   }
 
-  def clear(newIdx: Long) {
-    keys.clear()
-    recordOffsets.clear()
-    annotations.clear()
-    size = 0
-    firstIdx = newIdx
+  def nodeAddress: PBaseStructValue = node
+
+  def add(cb: EmitCodeBuilder, key: => IEmitCode, offset: Code[Long], annotation: => IEmitCode): Unit = {
+    ab.addChild(cb)
+    ab.setField(cb, "key", key)
+    ab.setFieldValue(cb, "offset", PCode(PInt64(), offset))
+    ab.setField(cb, "annotation", annotation)
   }
 
-  override def toString: String = s"LeafNodeBuilder $firstIdx $size [${ (0 until size).map(i => (keys(i), recordOffsets(i), annotations(i))).mkString(",") }]"
+  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = ab.loadChild(cb, idx)
+  def getLoadedChild: PBaseStructValue = ab.getLoadedChild
+  def firstIdx: PCode = PInt64().load(pType.fieldOffset(node.a, "first_idx"))
 }

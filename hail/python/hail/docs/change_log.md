@@ -22,6 +22,22 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.40
+
+Release 2020-05-12
+
+### VCF Combiner
+
+ - (hail#8706) Add option to key by both locus and alleles for final output.
+ 
+### Bug fixes
+
+ - (hail#8729) Fix assertion error in `Table.group_by(...).aggregate(...)`
+ - (hail#8708) Fix assertion error in reading tables and matrix tables with `_intervals` option.
+ - (hail#8756) Fix return type of `LocusExpression.window` to use locus's reference genome instead of default RG.
+
+---
+ 
 ## Version 0.2.39
 
 Released 2020-04-29

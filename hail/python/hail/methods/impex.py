@@ -1125,8 +1125,8 @@ def import_bgen(path,
 
             if len(variants.dtype) == 0 or not variants.dtype._is_prefix_of(expected_vtype):
                 raise TypeError("'import_bgen' requires the expression type for 'variants' is a non-empty prefix of the BGEN key type: \n" +
-                                 f"\tFound: {repr(variants.dtype)}\n" +
-                                  f"\tExpected: {repr(expected_vtype)}\n")
+                                f"\tFound: {repr(variants.dtype)}\n"
+                                + f"\tExpected: {repr(expected_vtype)}\n")
 
             uid = Env.get_uid()
             fnames = list(variants.dtype)
@@ -2003,6 +2003,8 @@ def get_vcf_metadata(path):
            entry_float_type=enumeration(tfloat32, tfloat64),
            filter=nullable(str),
            find_replace=nullable(sized_tupleof(str, str)),
+           n_partitions=nullable(int),
+           block_size=nullable(int),
             # json
            _partitions=nullable(str))
 def import_vcf(path,
@@ -2019,6 +2021,8 @@ def import_vcf(path,
                entry_float_type=tfloat64,
                filter=None,
                find_replace=None,
+               n_partitions=None,
+               block_size=None,
                _partitions=None) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
@@ -2146,15 +2150,22 @@ def import_vcf(path,
         Line substitution regex. Functions like ``re.sub``, but obeys the exact
         semantics of Java's
         `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
+    n_partitions : :obj:`int`, optional
+        Number of partitions.  If both `n_partitions` and `block_size`
+        are specified, `n_partitions` will be used.
+    block_size : :obj:`int`, optional
+        Block size, in MB.  Default: 128MB blocks.
 
     Returns
     -------
     :class:`.MatrixTable`
     """
 
-    reader = MatrixVCFReader(path, call_fields, entry_float_type, header_file, min_partitions,
+    reader = MatrixVCFReader(path, call_fields, entry_float_type, header_file,
+                             n_partitions, block_size, min_partitions,
                              reference_genome, contig_recoding, array_elements_required,
-                             skip_invalid_loci, force_bgz, force, filter, find_replace, _partitions)
+                             skip_invalid_loci, force_bgz, force, filter, find_replace,
+                             _partitions)
     return MatrixTable(MatrixRead(reader, drop_cols=drop_samples))
 
 

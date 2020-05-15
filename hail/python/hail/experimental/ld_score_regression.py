@@ -1,7 +1,6 @@
-
 import hail as hl
-from hail.expr.expressions import *
-from hail.typecheck import *
+from hail.expr.expressions import expr_float64, expr_numeric, analyze
+from hail.typecheck import typecheck, oneof, sequenceof, nullable
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 from hail.utils import wrap_to_list, new_temp_file
@@ -209,8 +208,8 @@ def ld_score_regression(weight_expr,
     chi_sq_exprs = wrap_to_list(chi_sq_exprs)
     n_samples_exprs = wrap_to_list(n_samples_exprs)
 
-    assert ((len(chi_sq_exprs) == len(n_samples_exprs)) or
-            (len(n_samples_exprs) == 1))
+    assert ((len(chi_sq_exprs) == len(n_samples_exprs))
+            or (len(n_samples_exprs) == 1))
     __k = 2  # number of covariates, including intercept
 
     ds = chi_sq_exprs[0]._indices.source
@@ -258,10 +257,10 @@ def ld_score_regression(weight_expr,
                                          '__n': n_samples_exprs[0]})
         ds = ds.annotate_entries(**{'__w': ds.__w_initial})
 
-        ds = ds.filter_rows(hl.is_defined(ds.__locus) &
-                            hl.is_defined(ds.__alleles) &
-                            hl.is_defined(ds.__w_initial) &
-                            hl.is_defined(ds.__x))
+        ds = ds.filter_rows(hl.is_defined(ds.__locus)
+                            & hl.is_defined(ds.__alleles)
+                            & hl.is_defined(ds.__w_initial)
+                            & hl.is_defined(ds.__x))
 
     else:
         assert isinstance(ds, Table)
@@ -313,10 +312,10 @@ def ld_score_regression(weight_expr,
         for i in range(1, len(ys)):
             ds = ds.union_cols(mts[i])
 
-        ds = ds.filter_rows(hl.is_defined(ds.__locus) &
-                            hl.is_defined(ds.__alleles) &
-                            hl.is_defined(ds.__w_initial) &
-                            hl.is_defined(ds.__x))
+        ds = ds.filter_rows(hl.is_defined(ds.__locus)
+                            & hl.is_defined(ds.__alleles)
+                            & hl.is_defined(ds.__w_initial)
+                            & hl.is_defined(ds.__x))
 
     mt_tmp_file1 = new_temp_file()
     ds.write(mt_tmp_file1)
@@ -327,11 +326,8 @@ def ld_score_regression(weight_expr,
     else:
         M = n_reference_panel_variants
 
-    # block variants for each phenotype
-    n_phenotypes = mt.count_cols()
-
-    mt = mt.annotate_entries(__in_step1=(hl.is_defined(mt.__y) &
-                                         (mt.__y < two_step_threshold)),
+    mt = mt.annotate_entries(__in_step1=(hl.is_defined(mt.__y)
+                                         & (mt.__y < two_step_threshold)),
                              __in_step2=hl.is_defined(mt.__y))
 
     mt = mt.annotate_cols(__col_idx=hl.int(hl.scan.count()),
@@ -374,7 +370,7 @@ def ld_score_regression(weight_expr,
     mt_tmp_file2 = new_temp_file()
     mt.write(mt_tmp_file2)
     mt = hl.read_matrix_table(mt_tmp_file2)
-    
+
     # initial coefficient estimates
     mt = mt.annotate_cols(__initial_betas=[
         1.0, (hl.agg.mean(mt.__y) - 1.0) / hl.agg.mean(mt.__x)])
@@ -385,9 +381,9 @@ def ld_score_regression(weight_expr,
     for i in range(3):
         mt = mt.annotate_entries(__w=hl.cond(
             mt.__in_step1,
-            1.0/(mt.__w_initial_floor * 2.0 * (mt.__step1_betas[0] +
-                                               mt.__step1_betas[1] *
-                                               mt.__x_floor)**2),
+            1.0 / (mt.__w_initial_floor * 2.0 * (mt.__step1_betas[0]
+                                                 + mt.__step1_betas[1]
+                                                 * mt.__x_floor) ** 2),
             0.0))
         mt = mt.annotate_cols(__step1_betas=hl.agg.filter(
             mt.__in_step1,
@@ -421,22 +417,22 @@ def ld_score_regression(weight_expr,
         __step1_jackknife_variance=hl.map(
             lambda i: (hl.sum(
                 hl.map(lambda x: x[i]**2,
-                       mt.__step1_block_betas_bias_corrected)) -
-                       hl.sum(
+                       mt.__step1_block_betas_bias_corrected))
+                       - hl.sum(
                 hl.map(lambda x: x[i],
-                       mt.__step1_block_betas_bias_corrected))**2 /
-                       n_blocks) /
-            (n_blocks - 1) / n_blocks,
+                       mt.__step1_block_betas_bias_corrected)) ** 2
+                       / n_blocks)
+            / (n_blocks - 1) / n_blocks,
             hl.range(0, __k)))
 
     # step 2 iteratively reweighted least squares
     for i in range(3):
         mt = mt.annotate_entries(__w=hl.cond(
             mt.__in_step2,
-            1.0/(mt.__w_initial_floor *
-                 2.0 * (mt.__step2_betas[0] +
-                        mt.__step2_betas[1] *
-                        mt.__x_floor)**2),
+            1.0 / (mt.__w_initial_floor
+                   * 2.0 * (mt.__step2_betas[0] +
+                            + mt.__step2_betas[1]
+                            * mt.__x_floor) ** 2),
             0.0))
         mt = mt.annotate_cols(__step2_betas=[
             mt.__step1_betas[0],
@@ -445,10 +441,10 @@ def ld_score_regression(weight_expr,
                                         x=[mt.__x],
                                         weight=mt.__w).beta[0])])
         mt = mt.annotate_cols(__step2_h2=hl.max(hl.min(
-            mt.__step2_betas[1] * M/hl.agg.mean(mt.__n), 1.0), 0.0))
+            mt.__step2_betas[1] * M / hl.agg.mean(mt.__n), 1.0), 0.0))
         mt = mt.annotate_cols(__step2_betas=[
             mt.__step1_betas[0],
-            mt.__step2_h2 * hl.agg.mean(mt.__n)/M])
+            mt.__step2_h2 * hl.agg.mean(mt.__n) / M])
 
     # step 2 block jackknife
     mt = mt.annotate_cols(__step2_block_betas=hl.agg.array_agg(
@@ -466,33 +462,33 @@ def ld_score_regression(weight_expr,
         __step2_jackknife_mean=hl.mean(
             mt.__step2_block_betas_bias_corrected),
         __step2_jackknife_variance=(
-            hl.sum(mt.__step2_block_betas_bias_corrected**2) -
-            hl.sum(mt.__step2_block_betas_bias_corrected)**2 /
-            n_blocks) / (n_blocks - 1) / n_blocks)
+            hl.sum(mt.__step2_block_betas_bias_corrected ** 2)
+            - hl.sum(mt.__step2_block_betas_bias_corrected) ** 2
+            / n_blocks) / (n_blocks - 1) / n_blocks)
 
     # combine step 1 and step 2 block jackknifes
     mt = mt.annotate_entries(
-        __step2_initial_w=1.0/(mt.__w_initial_floor *
-                               2.0 * (mt.__initial_betas[0] +
-                                      mt.__initial_betas[1] *
-                                      mt.__x_floor)**2))
+        __step2_initial_w=1.0 / (mt.__w_initial_floor
+                                 * 2.0 * (mt.__initial_betas[0] +
+                                          + mt.__initial_betas[1]
+                                          * mt.__x_floor) ** 2))
 
     mt = mt.annotate_cols(
         __final_betas=[
             mt.__step1_betas[0],
             mt.__step2_betas[1]],
-        __c=(hl.agg.sum(mt.__step2_initial_w * mt.__x) /
-             hl.agg.sum(mt.__step2_initial_w * mt.__x**2)))
+        __c=(hl.agg.sum(mt.__step2_initial_w * mt.__x)
+             / hl.agg.sum(mt.__step2_initial_w * mt.__x**2)))
 
     mt = mt.annotate_cols(__final_block_betas=hl.map(
-        lambda i: (mt.__step2_block_betas[i] - mt.__c *
-                   (mt.__step1_block_betas[i][0] - mt.__final_betas[0])),
+        lambda i: (mt.__step2_block_betas[i] - mt.__c
+                   * (mt.__step1_block_betas[i][0] - mt.__final_betas[0])),
         hl.range(0, n_blocks)))
 
     mt = mt.annotate_cols(
-        __final_block_betas_bias_corrected=(n_blocks * mt.__final_betas[1] -
-                                            (n_blocks - 1) *
-                                            mt.__final_block_betas))
+        __final_block_betas_bias_corrected=(n_blocks * mt.__final_betas[1]
+                                            - (n_blocks - 1)
+                                            * mt.__final_block_betas))
 
     mt = mt.annotate_cols(
         __final_jackknife_mean=[
@@ -500,9 +496,9 @@ def ld_score_regression(weight_expr,
             hl.mean(mt.__final_block_betas_bias_corrected)],
         __final_jackknife_variance=[
             mt.__step1_jackknife_variance[0],
-            (hl.sum(mt.__final_block_betas_bias_corrected**2) -
-             hl.sum(mt.__final_block_betas_bias_corrected)**2 /
-             n_blocks) / (n_blocks - 1) / n_blocks])
+            (hl.sum(mt.__final_block_betas_bias_corrected ** 2)
+             - hl.sum(mt.__final_block_betas_bias_corrected) ** 2
+             / n_blocks) / (n_blocks - 1) / n_blocks])
 
     # convert coefficient to heritability estimate
     mt = mt.annotate_cols(
@@ -512,9 +508,9 @@ def ld_score_regression(weight_expr,
             estimate=mt.__final_betas[0],
             standard_error=hl.sqrt(mt.__final_jackknife_variance[0])),
         snp_heritability=hl.struct(
-            estimate=(M/hl.agg.mean(mt.__n)) * mt.__final_betas[1],
-            standard_error=hl.sqrt((M/hl.agg.mean(mt.__n))**2 *
-                                   mt.__final_jackknife_variance[1])))
+            estimate=(M / hl.agg.mean(mt.__n)) * mt.__final_betas[1],
+            standard_error=hl.sqrt((M / hl.agg.mean(mt.__n)) ** 2
+                                   * mt.__final_jackknife_variance[1])))
 
     # format and return results
     ht = mt.cols()
@@ -526,5 +522,5 @@ def ld_score_regression(weight_expr,
     ht_tmp_file = new_temp_file()
     ht.write(ht_tmp_file)
     ht = hl.read_table(ht_tmp_file)
-    
+
     return ht

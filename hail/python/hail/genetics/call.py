@@ -1,5 +1,5 @@
-from hail.typecheck import *
-from hail.utils.java import *
+from hail.typecheck import typecheck_method, sequenceof
+from hail.utils import FatalError
 
 
 class Call(object):
@@ -66,9 +66,9 @@ class Call(object):
         return 'Call(alleles=%s, phased=%s)' % (self._alleles, self._phased)
 
     def __eq__(self, other):
-        return (isinstance(other, Call) and
-                self._phased == other._phased and
-                self._alleles == other._alleles)
+        return (isinstance(other, Call)
+                and self._phased == other._phased
+                and self._alleles == other._alleles)
 
     def __hash__(self):
         return hash(self._phased) ^ hash(tuple(self._alleles))

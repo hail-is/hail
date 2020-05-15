@@ -216,6 +216,7 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
 
       def seek(newPos: Long): Unit = {
         bb.clear()
+        bb.limit(0)
         reader.seek(newPos)
         pos = newPos
       }

@@ -148,9 +148,9 @@ class LocalLDPruneSuite extends HailSuite {
 
   def toC2(i: Int): BoxedCall = if (i == -1) null else Call2.fromUnphasedDiploidGtIndex(i)
 
-  def getLocallyPrunedRDDWithGT(unprunedMatrixTable: MatrixValue, locallyPrunedTable: TableValue):
-  RDD[(Locus, Any, Iterable[Annotation])] = {
-
+  def getLocallyPrunedRDDWithGT(
+    unprunedMatrixTable: MatrixValue, locallyPrunedTable: TableValue
+  ): RDD[(Locus, Any, Iterable[Annotation])] = {
     val mtLocusIndex = unprunedMatrixTable.rvRowPType.index("locus").get
     val mtAllelesIndex = unprunedMatrixTable.rvRowPType.index("alleles").get
     val mtEntriesIndex = unprunedMatrixTable.entriesIdx
