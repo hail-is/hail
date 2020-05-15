@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.ExecStrategy
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual._
@@ -9,7 +9,7 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
 
-class DictFunctionsSuite extends TestNGSuite {
+class DictFunctionsSuite extends HailSuite {
   def tuplesToMap(a: Seq[(Integer, Integer)]): Map[Integer, Integer] =
     Option(a).map(_.filter(_ != null).toMap).orNull
 
