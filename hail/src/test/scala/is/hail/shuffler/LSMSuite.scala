@@ -2,9 +2,10 @@ package is.hail.shuffler
 
 import org.apache.log4j.Logger;
 import is.hail.annotations._
-import is.hail.expr.ir.ExecuteContext
+import is.hail.expr.ir._
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.physical._
+import is.hail.expr.types.encoded._
 import is.hail.io.{ BufferSpec, TypedCodecSpec }
 import is.hail.testUtils._
 import is.hail.shuffler.ShuffleTestUtils._
@@ -26,11 +27,17 @@ class LSMSuite extends HailSuite {
       val rowPType = structIntStringPType
       val rowType = rowPType.virtualType
       val key = Array("x")
-      val codecs = new KeyedCodecSpec(
+      val keyFields = key.map(x => SortField(x, Ascending))
+      val keyType = rowType.typeAfterSelectNames(key)
+      val keyPType = rowPType.selectFields(key)
+      val rowEType = EType.defaultFromPType(rowPType).asInstanceOf[EBaseStruct]
+      val keyEType = EType.defaultFromPType(keyPType).asInstanceOf[EBaseStruct]
+      val codecs = new ShuffleCodecSpec(
         ctx,
+        keyFields,
         rowType,
-        TypedCodecSpec(rowPType, BufferSpec.unblockedUncompressed),
-        key)
+        rowEType,
+        keyEType)
       using(new LSM(ctx.createTmpPath("lsm"), codecs)) { lsm =>
         val shuffled = Array(4, 3, 1, 2, 0)
 
@@ -43,9 +50,9 @@ class LSMSuite extends HailSuite {
         assert(lsm.size == nElements)
 
         val partitionKeys = arrayOfUnsafeRow(
-          codecs.decodedKeyPType,
+          codecs.keyDecodedPType,
           lsm.partitionKeys(nPartitions))
-        val keyOrd = codecs.decodedKeyPType.unsafeOrdering
+        val keyOrd = codecs.keyDecodedPType.unsafeOrdering
 
         assert(partitionKeys.length == nPartitions + 1)
 
@@ -64,11 +71,17 @@ class LSMSuite extends HailSuite {
       val rowPType = structIntStringPType
       val rowType = rowPType.virtualType
       val key = Array("x")
-      val codecs = new KeyedCodecSpec(
+      val keyFields = key.map(x => SortField(x, Ascending))
+      val keyType = rowType.typeAfterSelectNames(key)
+      val keyPType = rowPType.selectFields(key)
+      val rowEType = EType.defaultFromPType(rowPType).asInstanceOf[EBaseStruct]
+      val keyEType = EType.defaultFromPType(keyPType).asInstanceOf[EBaseStruct]
+      val codecs = new ShuffleCodecSpec(
         ctx,
+        keyFields,
         rowType,
-        TypedCodecSpec(rowPType, BufferSpec.unblockedUncompressed),
-        key)
+        rowEType,
+        keyEType)
       using(new LSM(ctx.createTmpPath("lsm"), codecs)) { lsm =>
         val shuffled = Array(4, 3, 1, 2, 0)
 
@@ -81,9 +94,9 @@ class LSMSuite extends HailSuite {
         assert(lsm.size == nElements)
 
         val partitionKeys = arrayOfUnsafeRow(
-          codecs.decodedKeyPType,
+          codecs.keyDecodedPType,
           lsm.partitionKeys(nPartitions))
-        val keyOrd = codecs.decodedKeyPType.unsafeOrdering
+        val keyOrd = codecs.keyDecodedPType.unsafeOrdering
 
         assert(partitionKeys.length == nElements + 1)
 
@@ -164,11 +177,17 @@ class LSMSuite extends HailSuite {
       val rowPType = structIntStringPType
       val rowType = rowPType.virtualType
       val key = Array("x")
-      val codecs = new KeyedCodecSpec(
+      val keyFields = key.map(x => SortField(x, Ascending))
+      val keyType = rowType.typeAfterSelectNames(key)
+      val keyPType = rowPType.selectFields(key)
+      val rowEType = EType.defaultFromPType(rowPType).asInstanceOf[EBaseStruct]
+      val keyEType = EType.defaultFromPType(keyPType).asInstanceOf[EBaseStruct]
+      val codecs = new ShuffleCodecSpec(
         ctx,
+        keyFields,
         rowType,
-        TypedCodecSpec(rowPType, BufferSpec.unblockedUncompressed),
-        key)
+        rowEType,
+        keyEType)
       using(new LSM(ctx.createTmpPath("lsm"), codecs)) { lsm =>
         val shuffled = Random.shuffle((0 until nElements).toIndexedSeq).toArray
 
@@ -183,9 +202,9 @@ class LSMSuite extends HailSuite {
         assert(lsm.size == nElements)
 
         val partitionKeys = arrayOfUnsafeRow(
-          codecs.decodedKeyPType,
+          codecs.keyDecodedPType,
           lsm.partitionKeys(nPartitions))
-        val keyOrd = codecs.decodedKeyPType.unsafeOrdering
+        val keyOrd = codecs.keyDecodedPType.unsafeOrdering
 
         if (nPartitions == 0) {
           assert(partitionKeys.length == 0)
