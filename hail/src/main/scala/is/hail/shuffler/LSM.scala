@@ -3,9 +3,11 @@ package is.hail.shuffler
 import java.util._
 import java.util.function._
 import java.io._
+import java.util._
+import java.util.function._
 
-import com.indeed.lsmtree.core._
 import com.indeed.util.serialization._
+import com.indeed.lsmtree.core._
 import is.hail.annotations._
 import is.hail.utils._
 import org.apache.log4j.Logger
@@ -95,11 +97,11 @@ object LSM {
 
 class LSM (
   path: String,
-  codecs: KeyedCodecSpec
+  codecs: ShuffleCodecSpec
 ) extends AutoCloseable {
   private[this] val rootRegion: Region = Region()
   private[this] val log = Logger.getLogger(getClass.getName)
-  val keyOrd: UnsafeOrdering = codecs.decodedKeyPType.unsafeOrdering
+  val keyOrd: UnsafeOrdering = codecs.keyDecodedPType.unsafeOrdering
   private[this] val region = ThreadLocal.withInitial(new Supplier[Region]() {
     def get(): Region = {
       val region = Region()
@@ -111,12 +113,14 @@ class LSM (
   })
 
   def keyDec(in: InputStream) = {
-    val dec = codecs.makeKeyDec(in)
+    val dec = codecs.makeKeyDecoder(
+      shuffleBufferSpec.buildInputBuffer(in))
 
     () => dec.readRegionValue(region.get)
   }
   def keyEnc(out: OutputStream) = {
-    val enc = codecs.makeKeyEnc(out)
+    val enc = codecs.makeKeyEncoder(
+      shuffleBufferSpec.buildOutputBuffer(out))
 
     { (x: Long) =>
       // FIXME: leaky regions here, maybe?
@@ -125,12 +129,14 @@ class LSM (
     }
   }
   def dec(in: InputStream) = {
-    val dec = codecs.makeDec(in)
+    val dec = codecs.makeRowDecoder(
+      shuffleBufferSpec.buildInputBuffer(in))
 
     () => dec.readRegionValue(region.get)
   }
   def enc(out: OutputStream) = {
-    val enc = codecs.makeEnc(out)
+    val enc = codecs.makeRowEncoder(
+      shuffleBufferSpec.buildOutputBuffer(out))
 
     { (x: Long) =>
       // FIXME: leaky regions here, maybe?
