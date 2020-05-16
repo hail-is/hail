@@ -1,6 +1,5 @@
 
 /* Global */
-
 html {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
   font-size: 100%;
@@ -53,7 +52,7 @@ p {
 h1,h2,h3,h4,h5,h6 {
   color: #111;
   line-height: 125%;
-  font-weight: bold;
+  font-weight: 500;
 }
 
 h1 {
@@ -71,25 +70,28 @@ h3 {
 
 h4 {
   font-size: 1.2em;
+  font-weight: 700;
 }
 
 h5 {
   font-size: 1em;
+  font-weight: 700;
 }
 
 h6 {
   font-size: 0.9em;
+  font-weight: 700;
 }
 
 b {
-  font-weight: bold;
+  font-weight: 700;
 }
 
 mark {
   background: #ff0;
   color: #000;
   font-style: italic;
-  font-weight: bold;
+  font-weight: 700;
 }
 
 ul {
@@ -210,11 +212,11 @@ img {
 }
 
 nav a {
-  font-weight: normal;
+  font-weight: 400;
 }
 
 a {
-  font-weight: bold;
+  font-weight: 700;
 }
 
 .about.dark {
