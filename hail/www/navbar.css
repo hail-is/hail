@@ -75,8 +75,8 @@
 
 #hail-menu a:hover,
 #hail-menu a.active {
-  color: #2a388f;
-  border-bottom: 1px solid #2a388f;
+  color: #283870;
+  border-bottom: 1px solid #283870;
 }
 
 #hail-navbar #hail-menu .nav-item {
@@ -273,12 +273,12 @@
   background-color: #444;
 }
 
-@media (min-width: 1800px) {
-  #non-home #hail-navbar {
-    width: 1800px;
-    margin: auto;
+/* @media (min-width: 1400px) {
+  #non-home #hail-navbar #hail-container-fluid {
+      width: 1400px;
+      padding-left: 50px;
   }
-}
+} */
 
 @media (min-width: 768px) {
   #hail-navbar #hail-container-fluid .navbar-toggler {

@@ -70,7 +70,7 @@ class Viz {
 
     window.requestAnimationFrame(() => {
       let canvas = document.createElement('canvas');
-      let context = canvas.getContext('webgl', { alpha: true });
+      let context = canvas.getContext('webgl', { alpha: true, antialias: true });
       this.renderer = new THREE.WebGLRenderer({ canvas: canvas, context: context });
 
       this.el.appendChild(this.renderer.domElement);
@@ -125,17 +125,17 @@ class Viz {
 
     window.addEventListener('resize', (e) => this.resize(e));
     window.addEventListener('scroll', () => {
-      if (this.isScrolling) {
+      if (this.isScrolling != null) {
         window.clearTimeout(this.isScrolling);
       }
 
       this.isScrolling = setTimeout(() => this.isScrolling = null, 100);
     });
 
-    let timeout;
+    let timeout = null;
     this.mouse.dontshow = false;
     window.addEventListener('mousemove', (e) => {
-      if (timeout) {
+      if (timeout != null) {
         clearTimeout(timeout);
       }
 
@@ -150,7 +150,7 @@ class Viz {
     const n = document.getElementById('hail-navbar');
 
     d.onmouseover = () => {
-      if (timeout) {
+      if (timeout != null) {
         clearTimeout(timeout);
       }
       this.mouse.updated = false;
@@ -159,7 +159,7 @@ class Viz {
     }
 
     d.onmouseout = () => {
-      if (timeout) {
+      if (timeout != null) {
         clearTimeout(timeout);
       }
       this.mouse.updated = true;
@@ -168,7 +168,7 @@ class Viz {
     }
 
     n.onmouseover = () => {
-      if (timeout) {
+      if (timeout != null) {
         clearTimeout(timeout);
       }
       this.mouse.updated = false;
@@ -177,7 +177,7 @@ class Viz {
     }
 
     n.onmouseout = () => {
-      if (timeout) {
+      if (timeout != null) {
         clearTimeout(timeout);
       }
       this.mouse.updated = true;
@@ -187,10 +187,11 @@ class Viz {
   }
 
   resize(e) {
-    if (this.resizeTimeout) {
+    if (this.resizeTimeout != null) {
       clearTimeout(this.resizeTimeout);
     }
     this.resizeTimeout = setTimeout(() => {
+      this.hidden = true;
       if (this.camera) {
         this.camera.aspect = this.el.offsetWidth / this.el.offsetHeight;
         if (typeof this.camera.updateProjectionMatrix === "function") {
@@ -201,21 +202,29 @@ class Viz {
         this.renderer.setSize(this.el.offsetWidth, this.el.offsetHeight)
         this.renderer.setPixelRatio(window.devicePixelRatio)
       }
-
+      this.animationLoop();
       this.resizeTimeout = null;
     }, 128);
   }
 
   animationLoop(tInterval = 33) {
     if (!this.hidden && !this.mouse.updated) {
+      if (this.animationTimeout != null) {
+        clearTimeout(this.animationTimeout)
+        this.animationTimeout = null;
+      }
       return;
     }
 
     if (this.startedAnimation || !this.elOnscreen) {
+      if (this.animationTimeout != null) {
+        clearTimeout(this.animationTimeout)
+        this.animationTimeout = null;
+      }
       return;
     }
 
-    if (this.animationTimeout) {
+    if (this.animationTimeout != null) {
       clearTimeout(this.animationTimeout);
     }
 
@@ -235,25 +244,26 @@ class Viz {
     if (this.hidden) {
       this.startedAnimation = true;
       const started = Date.now();
-      console.info('updating')
+      console.debug('updating')
       window.requestAnimationFrame(() => {
         this.el.style.opacity = .5;
         this.hidden = false;
         this.startedAnimation = false;
-        console.info("done", Date.now() - started);
+        console.debug("done", Date.now() - started);
+
+        this.then = now - 1000 - (delta % this.interval);
+
+        this.animationTimeout = window.setTimeout(() => {
+          this.animationLoop(tInterval);
+          this.animationTimeout = null;
+        }, tInterval);
       });
 
-      this.then = now - 1000 - (delta % this.interval);
-    } else {
-      this.then = now - (delta % this.interval);
+      return;
     }
 
-    this.animationTimeout = window.setTimeout(() => {
-      this.animationLoop(tInterval);
-      this.animationTimeout = null;
-    }, tInterval);
+    this.then = now - (delta % this.interval);
   }
-
 
   onMouseMove2(e) {
     if (!this.elOnscreen || this.mouse.dontshow) {
@@ -413,8 +423,6 @@ class Viz {
         this.linePositions[vertexpos++] = p2.position.x;
         this.linePositions[vertexpos++] = p2.position.y;
         this.linePositions[vertexpos++] = p2.position.z;
-
-
 
         this.lineColors[colorpos++] = lineColor.r;
         this.lineColors[colorpos++] = lineColor.g;

@@ -49,9 +49,6 @@
                                     <a href="https://discuss.hail.is">Forum</a>
                                 </li>
                                 <li class="nav-item">
-                                    <a href="https://hail.zulipchat.com">Chat</a>
-                                </li>
-                                <li class="nav-item">
                                     <a href="/references.html">Powered-Science</a>
                                 </li>
                                 <li class="nav-item">
