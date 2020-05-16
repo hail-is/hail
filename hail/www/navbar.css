@@ -67,7 +67,6 @@
 #hail-navbar a {
   color: #444;
   text-decoration: none;
-  outline: none;
   /*defeat bootstrap focus background*/
   text-transform: uppercase;
   font-size: 0.75rem;
@@ -130,10 +129,6 @@
     background: white;
     height: 100vh;
   }
-}
-
-#hail-navbar .dropdown-toggler:focus {
-  outline: 0;
 }
 
 #hail-navbar .dropdown-menu > li > a {
@@ -259,8 +254,7 @@
   border: 1px solid #444;
 }
 
-#hail-navbar #hail-container-fluid .navbar-toggler:hover,
-#hail-navbar #hail-container-fluid .navbar-toggler:focus {
+#hail-navbar #hail-container-fluid .navbar-toggler:hover {
   outline: none;
 }
 
@@ -272,13 +266,6 @@
 #hail-navbar #hail-container-fluid .navbar-toggler .icon-bar {
   background-color: #444;
 }
-
-/* @media (min-width: 1400px) {
-  #non-home #hail-navbar #hail-container-fluid {
-      width: 1400px;
-      padding-left: 50px;
-  }
-} */
 
 @media (min-width: 768px) {
   #hail-navbar #hail-container-fluid .navbar-toggler {
