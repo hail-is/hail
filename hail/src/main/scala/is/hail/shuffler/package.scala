@@ -2,12 +2,18 @@ package is.hail
 
 import java.io._
 import java.security.KeyStore
+import java.util.Base64
 
 import is.hail.annotations._
+import is.hail.asm4s._
 import is.hail.expr.types.physical._
+import is.hail.io._
+import is.hail.utils._
 import javax.net.ssl._;
 
 package object shuffler {
+  val shuffleBufferSpec = BufferSpec.unblockedUncompressed
+
   /**
     * The following creates a server key and cert, client key and cert, a server
     * key and trust store, and a client key and trust store. The server trusts
@@ -53,4 +59,42 @@ package object shuffler {
 
   def rvstr(pt: PType, off: Long): String =
     UnsafeRow.read(pt, null, off).toString
+
+  def writeRegionValueArray(
+    encoder: Encoder,
+    values: Array[Long]
+  ): Unit = {
+    var i = 0
+    while (i < values.length) {
+      encoder.writeByte(1)
+      encoder.writeRegionValue(values(i))
+      i += 1
+    }
+    encoder.writeByte(0)
+  }
+
+  def readRegionValueArray(
+    region: Region,
+    decoder: Decoder,
+    sizeHint: Int = ArrayBuilder.defaultInitialCapacity
+  ): Array[Long] = {
+    val ab = new ArrayBuilder[Long](sizeHint)
+
+    var hasNext = decoder.readByte()
+    while (hasNext == 1) {
+      ab += decoder.readRegionValue(region)
+      hasNext = decoder.readByte()
+    }
+    assert(hasNext == 0, hasNext)
+
+    ab.result()
+  }
+
+  private[this] val b64encoder = Base64.getEncoder()
+
+  def uuidToString(uuid: Array[Byte]): String =
+    b64encoder.encodeToString(uuid)
+
+  def uuidToString(uuid: Code[Array[Byte]]): Code[String] =
+    Code.invokeScalaObject1[Array[Byte], String](getClass, "uuidToString", uuid)
 }

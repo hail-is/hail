@@ -2,9 +2,11 @@ package is.hail.shuffler
 
 import org.apache.log4j.Logger;
 import is.hail.annotations._
-import is.hail.expr.ir.ExecuteContext
+import is.hail.expr.ir._
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.physical._
+import is.hail.expr.types.encoded._
+import is.hail.shuffler.server._
 import is.hail.io.{ BufferSpec, TypedCodecSpec }
 import is.hail.testUtils._
 import is.hail.utils._
@@ -15,7 +17,7 @@ import org.testng.annotations.Test
 import scala.util.Random
 import scala.language.implicitConversions
 
-class ShuffleSuite extends TestNGSuite {
+class ShuffleSuite extends HailSuite {
   val log = Logger.getLogger(this.getClass.getName());
 
   @Test def testShuffle() {
@@ -29,13 +31,16 @@ class ShuffleSuite extends TestNGSuite {
       port)
     server.serveInBackground()
     try {
-      val pt = PCanonicalStruct("x" -> PInt32())
-      val t = pt.virtualType
+      val rowPType = PCanonicalStruct("x" -> PInt32())
+      val rowType = rowPType.virtualType.asInstanceOf[TStruct]
       val key = Array("x")
+      val keyFields = key.map(x => SortField(x, Ascending)).toArray
+      val keyType = rowType.typeAfterSelectNames(key)
+      val keyPType = rowPType.selectFields(key)
+      val rowEType = EType.defaultFromPType(rowPType).asInstanceOf[EBaseStruct]
+      val keyEType = EType.defaultFromPType(keyPType).asInstanceOf[EBaseStruct]
       val c = new ShuffleClient(
-        t,
-        TypedCodecSpec(pt, BufferSpec.unblockedUncompressed),
-        key,
+        keyFields, rowType, rowEType, keyEType,
         sslContext(
           "src/test/resources/non-secret-key-and-trust-stores/client-keystore.p12",
           "hailhail",
@@ -43,7 +48,6 @@ class ShuffleSuite extends TestNGSuite {
           "hailhail"),
         "localhost",
         port)
-      val keyPType = pt.selectFields(key)
 
       val values = new ArrayBuilder[Long]()
       Region.scoped { region =>
@@ -52,7 +56,7 @@ class ShuffleSuite extends TestNGSuite {
         val shuffled = Random.shuffle((0 until max).toIndexedSeq).toArray
         var i = 0
         while (i < max) {
-          rvb.start(pt)
+          rvb.start(rowPType)
           rvb.startStruct()
           rvb.addInt(shuffled(i))
           rvb.endStruct()
@@ -61,7 +65,7 @@ class ShuffleSuite extends TestNGSuite {
         }
 
         c.start()
-        c.put(values.result().iterator)
+        c.put(values.result())
 
         rvb.start(keyPType)
         rvb.startStruct()
@@ -74,13 +78,13 @@ class ShuffleSuite extends TestNGSuite {
         rvb.endStruct()
         val right = rvb.end()
 
-        val result = c.get(region, left, right)
-        val readableArray = result.map(new UnsafeRow(c.keyedCodecSpec.pType, null, _)).toIndexedSeq
+        val result = c.get(region, left, true, right, false)
+        val readableArray = result.map(new UnsafeRow(c.codecs.rowDecodedPType, null, _)).toIndexedSeq
         i = 0
         while (i < max) {
-          assert(c.keyedCodecSpec.pType.isFieldDefined(result(i), 0),
+          assert(c.codecs.rowDecodedPType.isFieldDefined(result(i), 0),
             s"first field is undefined ${readableArray(i)}")
-          assert(Region.loadInt(c.keyedCodecSpec.pType.loadField(result(i), 0)) == i,
+          assert(Region.loadInt(c.codecs.rowDecodedPType.loadField(result(i), 0)) == i,
             s"first field should be ${i}: ${readableArray(i)}. Context: ${readableArray.slice(i-3, i+3)}. Length: ${result.length}")
           i += 1
         }
