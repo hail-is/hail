@@ -209,8 +209,12 @@ img {
   color: #fff;
 }
 
-.about a {
-  font-weight: 700;
+nav a {
+  font-weight: normal;
+}
+
+a {
+  font-weight: bold;
 }
 
 .about.dark {
@@ -229,7 +233,7 @@ img {
   text-decoration: underline;
 }
 
-.about.dark a.button:hover {
+.about.dark a.button:hover, {
   text-decoration: none;
 }
 
