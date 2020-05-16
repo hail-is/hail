@@ -1,8 +1,6 @@
 import abc
 import logging
 
-from .utils.java import Env
-
 
 class Logger(abc.ABC):
     @abc.abstractmethod
@@ -10,7 +8,7 @@ class Logger(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def warn(self, msg):
+    def warning(self, msg):
         pass
 
     @abc.abstractmethod
@@ -18,9 +16,9 @@ class Logger(abc.ABC):
         pass
 
 
-class PythonOnlyLogger:
+class PythonOnlyLogger(Logger):
     def __init__(self):
-        self.logger = logging.getLogger().getChild("hail")
+        self.logger = logging.getLogger("hail")
         self.logger.setLevel(logging.INFO)
 
     def error(self, msg):
@@ -31,22 +29,3 @@ class PythonOnlyLogger:
 
     def info(self, msg):
         self.logger.info(msg)
-
-
-class Log4jLogger:
-    log_pkg = None
-
-    @staticmethod
-    def get():
-        if Log4jLogger.log_pkg is None:
-            Log4jLogger.log_pkg = Env.jutils()
-        return Log4jLogger.log_pkg
-
-    def error(self, msg):  # pylint: disable=no-self-use
-        Log4jLogger.get().error(msg)
-
-    def warning(self, msg):  # pylint: disable=no-self-use
-        Log4jLogger.get().warn(msg)
-
-    def info(self, msg):  # pylint: disable=no-self-use
-        Log4jLogger.get().info(msg)
