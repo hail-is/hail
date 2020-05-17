@@ -128,13 +128,13 @@ class Log4jLogger(Logger):
         self._log_pkg = log_pkg
 
     def error(self, msg):
-        self._log_pkg().error(msg)
+        self._log_pkg.error(msg)
 
     def warning(self, msg):
-        self._log_pkg().warn(msg)
+        self._log_pkg.warn(msg)
 
     def info(self, msg):
-        self._log_pkg().info(msg)
+        self._log_pkg.info(msg)
 
 
 class SparkBackend(Backend):
