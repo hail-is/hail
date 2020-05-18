@@ -1,3 +1,4 @@
+import aiohttp
 import secrets
 import random
 import asyncio
@@ -343,6 +344,12 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/ba
                 await self.remove_instance(instance, reason, timestamp)
                 return
             raise
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                log.info(f'{instance} already delete done')
+                await self.remove_instance(instance, reason, timestamp)
+                return
+            raise
 
     async def handle_preempt_event(self, instance, timestamp):
         await self.call_delete_instance(instance, 'preempted', timestamp=timestamp)
@@ -466,6 +473,11 @@ FROM ready_cores;
                 f'/zones/{instance.zone}/instances/{instance.name}')
         except googleapiclient.errors.HttpError as e:
             if e.resp['status'] == '404':
+                await self.remove_instance(instance, 'does_not_exist')
+                return
+            raise
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
                 await self.remove_instance(instance, 'does_not_exist')
                 return
             raise
