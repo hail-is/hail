@@ -981,6 +981,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
+     ls -al /user-tokens/
      cat /user-tokens/tokens.json
      python3 -c 'from hailtop.auth.tokens import Tokens; Tokens.get_tokens_file()'
      python3 -c 'from hailtop.auth.tokens import get_tokens; get_tokens()._tokens'
