@@ -37,6 +37,7 @@ def output_notebook():
     """
     bokeh.io.output_notebook()
 
+
 def show(obj, interact=None):
     """Immediately display a Bokeh object or application.  Calls
     :func:`bokeh.io.show`.
@@ -53,6 +54,7 @@ def show(obj, interact=None):
     else:
         handle = bokeh.io.show(obj, notebook_handle=True)
         interact(handle)
+
 
 def cdf(data, k=350, legend=None, title=None, normalize=True, log=False):
     """Create a cumulative density plot.
@@ -125,7 +127,7 @@ def cdf(data, k=350, legend=None, title=None, normalize=True, log=False):
 def _cdf_single_error(cdf, failure_prob):
     s = 0
     for i in range(len(cdf._compaction_counts)):
-        s += cdf._compaction_counts[i] << (2*i)
+        s += cdf._compaction_counts[i] << (2 * i)
     s = s / (cdf.ranks[-1] ** 2)
     return math.sqrt(math.log(2 / failure_prob) * s / 2)
 
@@ -133,7 +135,7 @@ def _cdf_single_error(cdf, failure_prob):
 def _cdf_error(cdf, failure_prob):
     s = 0
     for i in range(len(cdf._compaction_counts)):
-        s += cdf._compaction_counts[i] << (2*i)
+        s += cdf._compaction_counts[i] << (2 * i)
     s = s / (cdf.ranks[-1] ** 2)
 
     def update_grid_size(p):
@@ -199,18 +201,18 @@ def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interact
 
 def _max_entropy_cdf(min_x, max_x, x, y, e):
     def compare(x1, y1, x2, y2):
-        return x1*y2 - x2*y1
+        return x1 * y2 - x2 * y1
 
     new_y = np.full_like(x, 0)
     keep = np.full_like(x, False, dtype=np.bool_)
 
-    fx = min_x # fixed x
-    fy = 0 # fixed y
-    li = 0 # index of lower slope
-    ui = 0 # index of upper slope
+    fx = min_x  # fixed x
+    fy = 0  # fixed y
+    li = 0  # index of lower slope
+    ui = 0  # index of upper slope
     ldx = x[li] - fx
     udx = x[ui] - fx
-    ldy = y[li+1] - e - fy
+    ldy = y[li + 1] - e - fy
     udy = y[ui] + e - fy
     j = 1
     while ui < len(x) and li < len(x):
@@ -220,7 +222,7 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
             xj = max_x
         else:
             ub = y[j] + e
-            lb = y[j+1] - e
+            lb = y[j + 1] - e
             xj = x[j]
         dx = xj - fx
         judy = ub - fy
@@ -228,7 +230,7 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
         if compare(ldx, ldy, dx, judy) < 0:
             # line must bend down at j
             fx = x[li]
-            fy = y[li+1] - e
+            fy = y[li + 1] - e
             new_y[li] = fy
             keep[li] = True
             j = li + 1
@@ -236,7 +238,7 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
                 break
             li = j
             ldx = x[li] - fx
-            ldy = y[li+1] - e - fy
+            ldy = y[li + 1] - e - fy
             ui = j
             udx = x[ui] - fx
             udy = y[ui] + e - fy
@@ -253,7 +255,7 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
                 break
             li = j
             ldx = x[li] - fx
-            ldy = y[li+1] - e - fy
+            ldy = y[li + 1] - e - fy
             ui = j
             udx = x[ui] - fx
             udy = y[ui] + e - fy
@@ -268,7 +270,7 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
         if compare(ldx, ldy, dx, jldy) > 0:
             li = j
             ldx = x[li] - fx
-            ldy = y[li+1] - e - fy
+            ldy = y[li + 1] - e - fy
         j += 1
     return new_y, keep
 
@@ -336,13 +338,13 @@ def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, 
     x_d = np.linspace(min, max, 1000)
     final = f(x_d, round1)
 
-    l = p.line(x_d, final, line_width=2, line_color='black', legend=legend)
+    line = p.line(x_d, final, line_width=2, line_color='black', legend=legend)
 
     if interactive:
         def mk_interact(handle):
             def update(smoothing=smoothing):
                 final = f(x_d, round1, smoothing)
-                l.data_source.data = {'x': x_d, 'y': final}
+                line.data_source.data = {'x': x_d, 'y': final}
                 bokeh.io.push_notebook(handle)
 
             from ipywidgets import interact
@@ -395,7 +397,7 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
                 start, end = agg_f((aggregators.min(finite_data),
                                     aggregators.max(finite_data)))
                 if start is None and end is None:
-                    raise ValueError(f"'data' contains no values that are defined and finite")
+                    raise ValueError("'data' contains no values that are defined and finite")
             data = agg_f(aggregators.hist(data, start, end, bins))
         else:
             return ValueError('Invalid input')
@@ -403,7 +405,6 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
         cdf = data
         hist, edges = np.histogram(cdf.values, bins=bins, weights=np.diff(cdf.ranks), density=True)
         data = Struct(bin_freq=hist, bin_edges=edges, n_larger=0, n_smaller=0)
-
 
     if log:
         data.bin_freq = [math.log10(x) for x in data.bin_freq]
@@ -451,7 +452,7 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
                 bokeh.io.push_notebook(handle)
 
             from ipywidgets import interact
-            interact(update, bins=(0, 5*bins), phase=(0, 1, .01))
+            interact(update, bins=(0, 5 * bins), phase=(0, 1, .01))
 
         return p, mk_interact
     else:
@@ -636,7 +637,7 @@ def histogram2d(x: NumericExpression,
 
     color_bar = ColorBar(color_mapper=mapper,
                          ticker=LogTicker(desired_num_ticks=len(colors)) if log else BasicTicker(desired_num_ticks=len(colors)),
-                         label_standoff= 12 if log else 6, border_line_color=None, location=(0, 0))
+                         label_standoff=12 if log else 6, border_line_color=None, location=(0, 0))
     p.add_layout(color_bar, 'right')
 
     p.select_one(HoverTool).tooltips = [('x', '@x'), ('y', '@y',), ('count', '@c')]
@@ -691,8 +692,8 @@ def _generate_hist2d_data(x, y, bins, range):
         x=hail.str(x_levels.find(lambda w: x >= w)),
         y=hail.str(y_levels.find(lambda w: y >= w))
     ).aggregate(c=hail.agg.count())
-    data = grouped_ht.filter(hail.is_defined(grouped_ht.x) & (grouped_ht.x != str(x_range[1])) &
-                             hail.is_defined(grouped_ht.y) & (grouped_ht.y != str(y_range[1])))
+    data = grouped_ht.filter(hail.is_defined(grouped_ht.x) & (grouped_ht.x != str(x_range[1]))
+                             & hail.is_defined(grouped_ht.y) & (grouped_ht.y != str(y_range[1])))
     return data
 
 
@@ -701,7 +702,7 @@ def _collect_scatter_plot_data(
         y: Tuple[str, NumericExpression],
         fields: Dict[str, Expression] = None,
         n_divisions: int = None,
-        missing_label: str =  'NA'
+        missing_label: str = 'NA'
 ) -> pd.DataFrame:
 
     expressions = dict()
@@ -709,19 +710,19 @@ def _collect_scatter_plot_data(
         expressions.update({k: hail.or_else(v, missing_label) if isinstance(v, StringExpression) else v for k, v in fields.items()})
 
     if n_divisions is None:
-        collect_expr = hail.struct(**dict((k,v) for k,v in (x,y)), **expressions)
+        collect_expr = hail.struct(**dict((k, v) for k, v in (x, y)), **expressions)
         plot_data = [point for point in collect_expr.collect() if point[x[0]] is not None and point[y[0]] is not None]
         source_pd = pd.DataFrame(plot_data)
     else:
         # FIXME: remove the type conversion logic if/when downsample supports continuous values for labels
         # Save all numeric types to cast in DataFrame
-        numeric_expr = {k: 'int32' for k,v in expressions.items() if isinstance(v, Int32Expression)}
-        numeric_expr.update({k: 'int64' for k,v in expressions.items() if isinstance(v, Int64Expression)})
+        numeric_expr = {k: 'int32' for k, v in expressions.items() if isinstance(v, Int32Expression)}
+        numeric_expr.update({k: 'int64' for k, v in expressions.items() if isinstance(v, Int64Expression)})
         numeric_expr.update({k: 'float32' for k, v in expressions.items() if isinstance(v, Float32Expression)})
         numeric_expr.update({k: 'float64' for k, v in expressions.items() if isinstance(v, Float64Expression)})
 
         # Cast non-string types to string
-        expressions = {k: hail.str(v) if not isinstance(v, StringExpression) else v for k,v in expressions.items()}
+        expressions = {k: hail.str(v) if not isinstance(v, StringExpression) else v for k, v in expressions.items()}
 
         agg_f = x[1]._aggregation_method()
         res = agg_f(hail.agg.downsample(x[1], y[1], label=list(expressions.values()) if expressions else None, n_divisions=n_divisions))
@@ -753,7 +754,7 @@ def _get_categorical_palette(factors: List[str]) -> Dict[str, str]:
 def _get_scatter_plot_elements(
         sp: Plot, source_pd: pd.DataFrame, x_col: str, y_col: str, label_cols: List[str],
         colors: Dict[str, ColorMapper] = None, size: int = 4,
-) -> Tuple[bokeh.plotting.Figure, Dict[str, List[LegendItem]], Legend, ColorBar, Dict[str, ColorMapper], List[Renderer]] :
+) -> Tuple[bokeh.plotting.Figure, Dict[str, List[LegendItem]], Legend, ColorBar, Dict[str, ColorMapper], List[Renderer]]:
 
     if not source_pd.shape[0]:
         print("WARN: No data to plot.")
@@ -840,7 +841,7 @@ def scatter(
         title: str = None,
         xlabel: str = None,
         ylabel: str = None,
-        size: int =4,
+        size: int = 4,
         legend: bool = True,
         hover_fields: Dict[str, Expression] = None,
         colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
@@ -936,7 +937,7 @@ def scatter(
 
     # If multiple labels, create JS call back selector
     if len(label_cols) > 1:
-        callback_args=dict(
+        callback_args = dict(
             color_mappers=sp_color_mappers,
             scatter_renderers=sp_scatter_renderers
         )
@@ -946,7 +947,7 @@ def scatter(
             scatter_renderers[i].glyph.line_color = {field: cb_obj.value, transform: color_mappers[cb_obj.value]}
             scatter_renderers[i].visible = true
         }
-        
+
         """
 
         if legend:
@@ -955,7 +956,7 @@ def scatter(
                 legend=sp_legend,
                 color_bar=sp_color_bar
             ))
-            callback_code += """ 
+            callback_code += """
         if (cb_obj.value in legend_items){
             legend.items=legend_items[cb_obj.value]
             legend.visible=true
@@ -989,7 +990,7 @@ def joint_plot(
         title: str = None,
         xlabel: str = None,
         ylabel: str = None,
-        size: int =4,
+        size: int = 4,
         legend: bool = True,
         hover_fields: Dict[str, StringExpression] = None,
         colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
@@ -1153,23 +1154,23 @@ def joint_plot(
             scatter_renderers=sp_scatter_renderers,
             color_mappers=sp_color_mappers,
             density_renderers=x_renderers + y_renderers,
-            x_range = xp.y_range,
+            x_range=xp.y_range,
             x_max_densities=x_max_densities,
             y_range=yp.x_range,
             y_max_densities=y_max_densities
         )
 
-        callback_code="""
+        callback_code = """
                 for (var i = 0; i < scatter_renderers.length; i++){
                     scatter_renderers[i].glyph.fill_color = {field: cb_obj.value, transform: color_mappers[cb_obj.value]}
                     scatter_renderers[i].glyph.line_color = {field: cb_obj.value, transform: color_mappers[cb_obj.value]}
                     scatter_renderers[i].visible = true
                 }
-                
+
                 for (var i = 0; i < density_renderers.length; i++){
                     density_renderers[i][2].visible = density_renderers[i][0] == cb_obj.value
                 }
-                
+
                 x_range.start = 0
                 y_range.start = 0
                 x_range.end = x_max_densities[cb_obj.value]
@@ -1194,7 +1195,6 @@ def joint_plot(
                 }
 
                 """
-
 
         callback = CustomJS(args=callback_args, code=callback_code)
         select = Select(title="Color by", value=label_cols[0], options=label_cols)
@@ -1395,7 +1395,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
     observed_contigs = [contig for contig in ref.contigs.copy() if contig in observed_contigs]
 
     contig_ticks = [ref._contig_global_position(contig) + ref.contig_length(contig) // 2 for contig in observed_contigs]
-    color_mapper = CategoricalColorMapper(factors=ref.contigs, palette= palette[:2] * int((len(ref.contigs)+1)/2))
+    color_mapper = CategoricalColorMapper(factors=ref.contigs, palette=palette[:2] * int((len(ref.contigs) + 1) / 2))
 
     p = figure(title=title, x_axis_label='Chromosome', y_axis_label='P-value (-log10 scale)', width=1000)
     p, _, legend, _, _, _ = _get_scatter_plot_elements(
@@ -1504,7 +1504,7 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
     p = figure(x_range=columns, y_range=list(reversed(rows)),
                x_axis_location="above", plot_width=plot_width, plot_height=plot_height,
                toolbar_location='below',
-               tooltips=[('defined', '@defined'), ('row', f'@row'), ('column', f'@column')]
+               tooltips=[('defined', '@defined'), ('row', '@row'), ('column', '@column')]
                )
 
     p.grid.grid_line_color = None
@@ -1528,4 +1528,3 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
                          label_standoff=6, border_line_color=None, location=(0, 0))
     p.add_layout(color_bar, 'right')
     return p
-

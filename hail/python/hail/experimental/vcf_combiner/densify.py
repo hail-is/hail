@@ -1,5 +1,6 @@
 import hail as hl
 
+
 def densify(sparse_mt):
     """Convert sparse matrix table to a dense VCF-like representation by expanding reference blocks.
 
@@ -27,13 +28,13 @@ def densify(sparse_mt):
     col_key_fields = list(sparse_mt.col_key)
 
     contigs = sparse_mt.locus.dtype.reference_genome.contigs
-    contig_idx_map = hl.literal({contigs[i]:i for i in range(len(contigs))}, 'dict<str, int32>')
+    contig_idx_map = hl.literal({contigs[i]: i for i in range(len(contigs))}, 'dict<str, int32>')
     mt = sparse_mt.annotate_rows(__contig_idx=contig_idx_map[sparse_mt.locus.contig])
     mt = mt.annotate_entries(__contig=mt.__contig_idx)
 
     t = mt._localize_entries('__entries', '__cols')
     t = t.annotate(
-        __entries = hl.rbind(
+        __entries=hl.rbind(
             hl.scan.array_agg(
                 lambda entry: hl.scan._prev_nonnull(hl.or_missing(hl.is_defined(entry.END), entry)),
                 t.__entries),

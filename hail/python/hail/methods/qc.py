@@ -115,7 +115,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
         gq_dp_exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
 
     if not has_field_of_type('GT', hl.tcall):
-        raise ValueError(f"'sample_qc': expect an entry field 'GT' of type 'call'")
+        raise ValueError("'sample_qc': expect an entry field 'GT' of type 'call'")
 
     bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
     bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
@@ -258,7 +258,7 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
         gq_dp_exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
 
     if not has_field_of_type('GT', hl.tcall):
-        raise ValueError(f"'variant_qc': expect an entry field 'GT' of type 'call'")
+        raise ValueError("'variant_qc': expect an entry field 'GT' of type 'call'")
 
     bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
     bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
@@ -1005,33 +1005,33 @@ class _VariantSummary(object):
 
         import html
         builder = []
-        builder.append(f'<p><b>Variant summary:</b></p>')
+        builder.append('<p><b>Variant summary:</b></p>')
         builder.append('<ul>')
         builder.append(f'<li><p>Total variants: {self.n_variants}</p></li>')
 
-        builder.append(f'<li><p>Alleles per variant:</p>')
+        builder.append('<li><p>Alleles per variant:</p>')
         builder.append('<table><thead style="font-weight: bold;">')
         builder.append('<tr><th>Number of alleles</th><th>Count</th></tr></thead><tbody>')
         for n_alleles, count in sorted(self.alleles_per_variant.items(), key=lambda x: x[0]):
-            builder.append(f'<tr>')
+            builder.append('<tr>')
             builder.append(f'<td>{n_alleles}</td>')
             builder.append(f'<td>{count}</td>')
-            builder.append(f'</tr>')
+            builder.append('</tr>')
         builder.append('</tbody></table>')
         builder.append('</li>')
 
-        builder.append(f'<li><p>Counts by allele type:</p>')
+        builder.append('<li><p>Counts by allele type:</p>')
         builder.append('<table><thead style="font-weight: bold;">')
         builder.append('<tr><th>Allele type</th><th>Count</th></tr></thead><tbody>')
         for allele_type, count in Counter(self.allele_types).most_common():
-            builder.append(f'<tr>')
+            builder.append('<tr>')
             builder.append(f'<td>{html.escape(allele_type)}</td>')
             builder.append(f'<td>{count}</td>')
-            builder.append(f'</tr>')
+            builder.append('</tr>')
         builder.append('</tbody></table>')
         builder.append('</li>')
 
-        builder.append(f'<li><p>Transitions/Transversions:</p>')
+        builder.append('<li><p>Transitions/Transversions:</p>')
         builder.append('<table><thead style="font-weight: bold;">')
         builder.append('<tr><th>Metric</th><th>Value</th></tr></thead><tbody>')
         builder.append(f'<tr><td>Transitions</td><td>{self.nti}</td></tr>')
@@ -1040,14 +1040,14 @@ class _VariantSummary(object):
         builder.append('</tbody></table>')
         builder.append('</li>')
 
-        builder.append(f'<li><p>Variants per contig:</p>')
+        builder.append('<li><p>Variants per contig:</p>')
         builder.append('<table><thead style="font-weight: bold;">')
         builder.append('<tr><th>Contig</th><th>Count</th></tr></thead><tbody>')
         for contig, count in sorted(self.variants_per_contig.items(), key=lambda x: contig_idx[x[0]]):
-            builder.append(f'<tr>')
+            builder.append('<tr>')
             builder.append(f'<td>{html.escape(contig)}</td>')
             builder.append(f'<td>{count}</td>')
-            builder.append(f'</tr>')
+            builder.append('</tr>')
         builder.append('</tbody></table>')
         builder.append('</li>')
 

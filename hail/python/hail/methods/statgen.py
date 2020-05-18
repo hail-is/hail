@@ -401,10 +401,10 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
 
     y_is_list = isinstance(y, list)
     if y_is_list and len(y) == 0:
-        raise ValueError(f"'linear_regression_rows': found no values for 'y'")
+        raise ValueError("'linear_regression_rows': found no values for 'y'")
     is_chained = y_is_list and isinstance(y[0], list)
-    if is_chained and any(len(l) == 0 for l in y):
-        raise ValueError(f"'linear_regression_rows': found empty inner list for 'y'")
+    if is_chained and any(len(lst) == 0 for lst in y):
+        raise ValueError("'linear_regression_rows': found empty inner list for 'y'")
 
     y = wrap_to_list(y)
 
@@ -825,7 +825,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
 
     y_is_list = isinstance(y, list)
     if y_is_list and len(y) == 0:
-        raise ValueError(f"'logistic_regression_rows': found no values for 'y'")
+        raise ValueError("'logistic_regression_rows': found no values for 'y'")
     y = wrap_to_list(y)
 
     for e in covariates:
@@ -3569,8 +3569,8 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
             j=hl.struct(idx=entries.j,
                         twice_maf=hl.min(entries.info[entries.j].mean, 2.0 - entries.info[entries.j].mean)))
 
-        def tie_breaker(l, r):
-            return hl.sign(r.twice_maf - l.twice_maf)
+        def tie_breaker(left, right):
+            return hl.sign(right.twice_maf - left.twice_maf)
     else:
         tie_breaker = None
 
