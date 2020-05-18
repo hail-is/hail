@@ -1173,6 +1173,7 @@ LEFT JOIN aggregated_batch_resources
        ON aggregated_batch_resources.batch_id = batches.id
 LEFT JOIN resources
         ON resources.resource = aggregated_batch_resources.resource
+WHERE `time_completed` >= %s AND `time_completed` <= %s
 GROUP BY billing_project, `user`;
 '''
 
