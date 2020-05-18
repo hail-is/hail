@@ -197,11 +197,8 @@ class Shuffle (
   }
 
   def partitionBounds(in: InputBuffer, out: OutputBuffer) {
-    val nPartitionsLong = in.readLong()
-    assert(nPartitionsLong < Int.MaxValue)
-    val nPartitions = nPartitionsLong.toInt
+    val nPartitions = in.readInt()
 
-    val region = makeRegion()
     val keyEncoder = codecs.makeKeyEncoder(out)
 
     log.info(s"SERV partitionBounds ${nPartitions}")
