@@ -67,6 +67,10 @@ class Job:
 
     @staticmethod
     def _get_container_status_exit_code(container_status):
+        error = container_status.get('error')
+        if error is not None:
+            return None
+
         docker_container_status = container_status.get('container_status')
         if not docker_container_status:
             return None
