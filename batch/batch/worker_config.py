@@ -108,10 +108,10 @@ class WorkerConfig:
         preemptible = 'preemptible' if self.preemptible else 'nonpreemptible'
         worker_fraction_in_1024ths = 1024 * cpu_in_mcpu // (self.cores * 1000)
 
-        resources.append({'name': f'compute/{self.instance_family}-{self.instance_type}-{preemptible}/1',
+        resources.append({'name': f'compute/{self.instance_family}-{preemptible}/1',
                           'quantity': cpu_in_mcpu})
 
-        resources.append({'name': f'memory/{self.instance_family}-{self.instance_type}-{preemptible}/1',
+        resources.append({'name': f'memory/{self.instance_family}-{preemptible}/1',
                           'quantity': memory_in_bytes / 1024 / 1024})
 
         # the factors of 1024 cancel between GiB -> MiB and fraction_1024 -> fraction
