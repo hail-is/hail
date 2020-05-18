@@ -1,4 +1,3 @@
-import aiohttp
 import secrets
 import random
 import json
@@ -352,12 +351,6 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/ba
                 await self.remove_instance(instance, reason, timestamp)
                 return
             raise
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                log.info(f'{instance} already delete done')
-                await self.remove_instance(instance, reason, timestamp)
-                return
-            raise
 
     async def handle_preempt_event(self, instance, timestamp):
         await self.call_delete_instance(instance, 'preempted', timestamp=timestamp)
@@ -507,11 +500,6 @@ FROM ready_cores;
         try:
             spec = await self.compute_client.get(
                 f'/zones/{instance.zone}/instances/{instance.name}')
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                await self.remove_instance(instance, 'does_not_exist')
-                return
-            raise
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 await self.remove_instance(instance, 'does_not_exist')
