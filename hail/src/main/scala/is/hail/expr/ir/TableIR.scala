@@ -2340,7 +2340,7 @@ case class TableGroupWithinPartitions(child: TableIR, name: String, n: Int) exte
 
     val rowType = PCanonicalStruct(required = true,
       prev.rvd.typ.kType.fields.map(f => (f.name, f.typ)) ++
-        Array(("grouped_fields", PCanonicalArray(prevRowType, required = true))): _*)
+        Array((name, PCanonicalArray(prevRowType, required = true))): _*)
     val newRVDType = prevRVD.typ.copy(rowType = rowType)
     val keyIndices = child.typ.keyFieldIdx
 
