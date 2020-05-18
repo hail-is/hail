@@ -1455,6 +1455,9 @@ def test_group_within_partitions():
     filter_then_group = ht.filter(ht.idx % 2 == 0)._group_within_partitions("grouped_fields", 5).collect()
     assert filter_then_group[0] == hl.Struct(idx=0, grouped_fields=[hl.Struct(idx=0), hl.Struct(idx=2), hl.Struct(idx=4), hl.Struct(idx=6), hl.Struct(idx=8)])
 
+    # Test that names other than "grouped_fields" work
+    assert "foo" in t._group_within_partitions("foo", 1).collect()[0]
+
 
 def test_group_within_partitions_after_explode():
     t = hl.utils.range_table(10).repartition(2)
