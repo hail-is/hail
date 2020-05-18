@@ -49,6 +49,7 @@ REQUEST_TIME = pc.Summary('batch_request_latency_seconds', 'Batch request latenc
 REQUEST_TIME_GET_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs', verb="GET")
 REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
 REQUEST_TIME_GET_JOB_LOG = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/log', verb="GET")
+REQUEST_TIME_GET_ATTEMPTS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/attempts', verb="GET")
 REQUEST_TIME_GET_BATCHES = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches', verb="GET")
 REQUEST_TIME_POST_CREATE_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/create', verb="POST")
 REQUEST_TIME_POST_CREATE_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/create', verb='POST')
@@ -1022,42 +1023,26 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     return job
 
 
-@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
-@prom_async_time(REQUEST_TIME_GET_JOB)
-@rest_authenticated_users_only
-async def get_job(request, userdata):
-    batch_id = int(request.match_info['batch_id'])
-    job_id = int(request.match_info['job_id'])
-    user = userdata['username']
-
-    status = await _get_job(request.app, batch_id, job_id, user)
-    return web.json_response(status)
-
-
-@routes.get('/batches/{batch_id}/jobs/{job_id}')
-@prom_async_time(REQUEST_TIME_GET_JOB_UI)
-@web_authenticated_users_only()
-async def ui_get_job(request, userdata):
-    app = request.app
+async def _get_attempts(app, batch_id, job_id, user):
     db = app['db']
-    batch_id = int(request.match_info['batch_id'])
-    job_id = int(request.match_info['job_id'])
-    user = userdata['username']
 
-    job_status = await _get_job(app, batch_id, job_id, user)
-
-    attempts = [
-        attempt
-        async for attempt
-        in db.select_and_fetchall(
-            '''
-SELECT * FROM attempts
-WHERE batch_id = %s AND job_id = %s
+    attempts = db.select_and_fetchall('''
+SELECT attempts.*
+FROM jobs
+INNER JOIN batches ON jobs.batch_id = batches.id
+LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id and jobs.job_id = attempts.job_id
+WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
-            (batch_id, job_id))]
+                                      (user, batch_id, job_id))
+
+    attempts = [attempt async for attempt in attempts]
+    if len(attempts) == 0:
+        raise web.HTTPNotFound()
+    if len(attempts) == 1 and attempts[0]['attempt_id'] is None:
+        return None
     for attempt in attempts:
         start_time = attempt['start_time']
-        if start_time:
+        if start_time is not None:
             attempt['start_time'] = time_msecs_str(start_time)
         else:
             del attempt['start_time']
@@ -1075,10 +1060,50 @@ WHERE batch_id = %s AND job_id = %s
             duration_msecs = max(end_time - start_time, 0)
             attempt['duration'] = humanize_timedelta_msecs(duration_msecs)
 
+    return attempts
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts')
+@prom_async_time(REQUEST_TIME_GET_ATTEMPTS)
+@rest_authenticated_users_only
+async def get_attempts(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    job_id = int(request.match_info['job_id'])
+    user = userdata['username']
+
+    attempts = await _get_attempts(request.app, batch_id, job_id, user)
+    return web.json_response(attempts)
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
+@prom_async_time(REQUEST_TIME_GET_JOB)
+@rest_authenticated_users_only
+async def get_job(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    job_id = int(request.match_info['job_id'])
+    user = userdata['username']
+
+    status = await _get_job(request.app, batch_id, job_id, user)
+    return web.json_response(status)
+
+
+@routes.get('/batches/{batch_id}/jobs/{job_id}')
+@prom_async_time(REQUEST_TIME_GET_JOB_UI)
+@web_authenticated_users_only()
+async def ui_get_job(request, userdata):
+    app = request.app
+    batch_id = int(request.match_info['batch_id'])
+    job_id = int(request.match_info['job_id'])
+    user = userdata['username']
+
+    job_status, attempts, job_log = await asyncio.gather(_get_job(app, batch_id, job_id, user),
+                                                         _get_attempts(app, batch_id, job_id, user),
+                                                         _get_job_log(app, batch_id, job_id, user))
+
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
-        'job_log': await _get_job_log(app, batch_id, job_id, user),
+        'job_log': job_log,
         'attempts': attempts,
         'job_status': json.dumps(job_status, indent=2)
     }
