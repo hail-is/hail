@@ -13,14 +13,16 @@ from hailtop.tls import ssl_client_session
 from .globals import complete_states, tasks, STATUS_FORMAT_VERSION
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
-from .utils import cost_from_msec_mcpu
 from .batch_format_version import BatchFormatVersion
 from .spec_writer import SpecWriter
+from .utils import cost_str
 
 log = logging.getLogger('batch')
 
 
-def batch_record_to_dict(app, record):
+def batch_record_to_dict(record):
+    format_version = BatchFormatVersion(record['format_version'])
+
     if record['state'] == 'open':
         state = 'open'
     elif record['n_failed'] > 0:
@@ -71,17 +73,22 @@ def batch_record_to_dict(app, record):
     msec_mcpu = record['msec_mcpu']
     d['msec_mcpu'] = msec_mcpu
 
-    cost = cost_from_msec_mcpu(app, msec_mcpu)
-    d['cost'] = f'${cost:.4f}'
+    cost = format_version.cost(record['msec_mcpu'], record['cost'])
+    d['cost'] = cost_str(cost)
 
     return d
 
 
-async def notify_batch_job_complete(app, db, batch_id):
+async def notify_batch_job_complete(db, batch_id):
     record = await db.select_and_fetchone(
         '''
 SELECT *
 FROM batches
+LEFT JOIN (SELECT batch_id, SUM(`usage` * rate) AS cost
+           FROM aggregated_batch_resources
+           INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
+           GROUP BY batch_id) AS t
+ON batches.id = t.batch_id
 WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
    batches.`state` = 'complete'
 ''',
@@ -101,14 +108,31 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
     try:
         async with make_client_session(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            await session.post(callback, json=batch_record_to_dict(app, record))
+            await session.post(callback, json=batch_record_to_dict(record))
             log.info(f'callback for batch {batch_id} successful')
     except Exception:
         log.exception(f'callback for batch {batch_id} failed, will not retry.')
 
 
+async def add_attempt_resources(db, batch_id, job_id, attempt_id, resources):
+    if attempt_id:
+        try:
+            resource_args = [(batch_id, job_id, attempt_id, resource['name'], resource['quantity'])
+                             for resource in resources]
+
+            await db.execute_many('''
+INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource, quantity)
+VALUES (%s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE quantity = quantity;
+''',
+                                  resource_args)
+        except Exception:
+            log.exception(f'error while inserting resources for job {id}, attempt {attempt_id}')
+            raise
+
+
 async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, new_state,
-                            status, start_time, end_time, reason):
+                            status, start_time, end_time, reason, resources):
     scheduler_state_changed = app['scheduler_state_changed']
     cancel_ready_state_changed = app['cancel_ready_state_changed']
     db = app['db']
@@ -142,6 +166,8 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
 
+    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
+
     if rv['rc'] != 0:
         log.info(f'mark_job_complete returned {rv} for job {id}')
         return
@@ -154,10 +180,10 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
 
     log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
 
-    await notify_batch_job_complete(app, db, batch_id)
+    await notify_batch_job_complete(db, batch_id)
 
 
-async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_time):
+async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_time, resources):
     db = app['db']
 
     id = (batch_id, job_id)
@@ -177,8 +203,10 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
+    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
 
-def job_record_to_dict(app, record, name):
+
+def job_record_to_dict(record, name):
     format_version = BatchFormatVersion(record['format_version'])
 
     db_status = record['status']
@@ -201,8 +229,8 @@ def job_record_to_dict(app, record, name):
     msec_mcpu = record['msec_mcpu']
     result['msec_mcpu'] = msec_mcpu
 
-    cost = cost_from_msec_mcpu(app, msec_mcpu)
-    result['cost'] = f'${cost:.4f}'
+    cost = format_version.cost(record['msec_mcpu'], record['cost'])
+    result['cost'] = cost_str(cost)
 
     return result
 
@@ -419,9 +447,10 @@ async def schedule_job(app, record, instance):
                 await log_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
 
             db_status = format_version.db_status(status)
+            resources = []
 
             await mark_job_complete(app, batch_id, job_id, attempt_id, instance.name,
-                                    'Error', db_status, None, None, 'error')
+                                    'Error', db_status, None, None, 'error', resources)
             raise
 
         log.info(f'schedule job {id} on {instance}: made job config')

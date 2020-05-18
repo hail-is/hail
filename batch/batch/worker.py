@@ -33,6 +33,7 @@ from .semaphore import FIFOWeightedSemaphore
 from .log_store import LogStore
 from .globals import HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION
 from .batch_format_version import BatchFormatVersion
+from .worker_config import WorkerConfig
 
 # uvloop.install()
 
@@ -53,18 +54,21 @@ BATCH_LOGS_BUCKET_NAME = os.environ['BATCH_LOGS_BUCKET_NAME']
 WORKER_LOGS_BUCKET_NAME = os.environ['WORKER_LOGS_BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
 PROJECT = os.environ['PROJECT']
-WORKER_TYPE = os.environ['WORKER_TYPE']
+WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
 
 log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
 log.info(f'NAMESPACE {NAMESPACE}')
 # ACTIVATION_TOKEN
 log.info(f'IP_ADDRESS {IP_ADDRESS}')
-log.info(f'WORKER_TYPE {WORKER_TYPE}')
+log.info(f'WORKER_CONFIG {WORKER_CONFIG}')
 log.info(f'BATCH_LOGS_BUCKET_NAME {BATCH_LOGS_BUCKET_NAME}')
 log.info(f'WORKER_LOGS_BUCKET_NAME {WORKER_LOGS_BUCKET_NAME}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'PROJECT {PROJECT}')
+
+worker_config = WorkerConfig(WORKER_CONFIG)
+assert worker_config.cores == CORES
 
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
@@ -560,11 +564,13 @@ class Job:
         req_cpu_in_mcpu = parse_cpu_in_mcpu(job_spec['resources']['cpu'])
         req_memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
 
-        cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, WORKER_TYPE)
+        cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type)
         cpu_in_mcpu = adjust_cores_for_packability(cpu_in_mcpu)
 
         self.cpu_in_mcpu = cpu_in_mcpu
-        self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu, WORKER_TYPE)
+        self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu, worker_config.instance_type)
+
+        self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes)
 
         # create containers
         containers = {}
@@ -697,7 +703,8 @@ class Job:
     #   error: str, (optional)
     #   container_statuses: [Container.status],
     #   start_time: int,
-    #   end_time: int
+    #   end_time: int,
+    #   resources: list of dict, {name: str, quantity: int}
     # }
     async def status(self):
         status = {
@@ -708,7 +715,8 @@ class Job:
             'attempt_id': self.job_spec['attempt_id'],
             'user': self.user,
             'state': self.state,
-            'format_version': self.format_version.format_version
+            'format_version': self.format_version.format_version,
+            'resources': self.resources
         }
         if self.error:
             status['error'] = self.error
@@ -904,6 +912,7 @@ class Worker:
             'state': full_status['state'],
             'start_time': full_status['start_time'],
             'end_time': full_status['end_time'],
+            'resources': full_status['resources'],
             'status': db_status
         }
 
@@ -963,6 +972,7 @@ class Worker:
             'job_id': full_status['job_id'],
             'attempt_id': full_status['attempt_id'],
             'start_time': full_status['start_time'],
+            'resources': full_status['resources']
         }
 
         body = {

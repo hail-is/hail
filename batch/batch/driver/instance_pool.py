@@ -1,8 +1,10 @@
 import aiohttp
 import secrets
 import random
+import json
 import asyncio
 import logging
+import base64
 import sortedcontainers
 import googleapiclient.errors
 from hailtop.utils import time_msecs, secret_alnum_string
@@ -11,6 +13,7 @@ from ..batch_configuration import DEFAULT_NAMESPACE, BATCH_WORKER_IMAGE, \
     PROJECT
 
 from .instance import Instance
+from ..worker_config import WorkerConfig
 
 log = logging.getLogger('instance_pool')
 
@@ -246,7 +249,7 @@ PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/
 BATCH_LOGS_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_logs_bucket_name")
 WORKER_LOGS_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_logs_bucket_name")
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
-WORKER_TYPE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_type")
+WORKER_CONFIG=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_config")
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
 
@@ -267,7 +270,7 @@ docker run \
     -e WORKER_LOGS_BUCKET_NAME=$WORKER_LOGS_BUCKET_NAME \
     -e INSTANCE_ID=$INSTANCE_ID \
     -e PROJECT=$PROJECT \
-    -e WORKER_TYPE=$WORKER_TYPE \
+    -e WORKER_CONFIG=$WORKER_CONFIG \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /usr/bin/docker:/usr/bin/docker \
     -v /batch:/batch \
@@ -311,9 +314,6 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/ba
                 }, {
                     'key': 'instance_id',
                     'value': self.log_store.instance_id
-                }, {
-                    'key': 'worker_type',
-                    'value': self.worker_type
                 }]
             },
             'tags': {
@@ -322,6 +322,13 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/ba
                 ]
             },
         }
+
+        worker_config = WorkerConfig.from_instance_config(config)
+        assert worker_config.is_valid_configuration(self.app['resources'])
+        config['metadata']['items'].append({
+            'key': 'worker_config',
+            'value': base64.b64encode(json.dumps(worker_config.config).encode()).decode()
+        })
 
         await self.compute_client.post(
             f'/zones/{zone}/instances', json=config)
