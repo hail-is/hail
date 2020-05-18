@@ -137,32 +137,42 @@ class LSMSuite extends HailSuite {
     }
   }
 
-  case class PartitionKeyParameters(
-    nElements: Int,
-    nPartitions: Int,
-    description: String = ""
-  )
-
-  @DataProvider(name = "partitionKeyParameters")
-  def partitionKeyParameters(): Array[PartitionKeyParameters] = {
-    val small = 500
-    assert(small < LSM.nKeySamples)
-    Array(
-      PartitionKeyParameters(10000, 0),
-      PartitionKeyParameters(10000, 1),
-      PartitionKeyParameters(10000, 100),
-      PartitionKeyParameters(small, small + 50, "nPartitions > nElements"),
-      PartitionKeyParameters(small, 5, "fewer keys than LSM nKeySamples"),
-      PartitionKeyParameters(small, small, "1:1 nPartitions:nElements, small"),
-      PartitionKeyParameters(10000, 10000, "1:1 nPartitions:nElements"),
-      PartitionKeyParameters(1000000, 100, "big test")
-    )
+  def testNoPartitions() {
+    testPartitionKeys(nElements = 100000, nPartitions = 0)
   }
 
-  @Test(dataProvider = "partitionKeyParameters")
-  def testPartitionKeys(params: PartitionKeyParameters) {
-    val nElements = params.nElements
-    val nPartitions = params.nPartitions
+  def testOnePartitions() {
+    testPartitionKeys(nElements = 100000, nPartitions = 1)
+  }
+
+  def testOneHundredPartitions() {
+    testPartitionKeys(nElements = 100000, nPartitions = 100)
+  }
+
+  private[this] val fewerKeysThanSamples = 500
+  assert(fewerKeysThanSamples < LSM.nKeySamples)
+
+  def testFewerKeysThanSamplesMorePartitionsThanElements() {
+    testPartitionKeys(fewerKeysThanSamples, fewerKeysThanSamples + 50)
+  }
+
+  def testFewerKeysThanSamplesFivePartitions() {
+    testPartitionKeys(fewerKeysThanSamples, 5)
+  }
+
+  def testFewerKeysThanSamplesOneToOnePartitions() {
+    testPartitionKeys(fewerKeysThanSamples, fewerKeysThanSamples)
+  }
+
+  def testLargerFewerKeysThanSamplesOneToOnePartitions() {
+    testPartitionKeys(10000, 10000)
+  }
+
+  def testHuge() {
+    testPartitionKeys(1000000, 100)
+  }
+
+  def testPartitionKeys(nElements: Int, nPartitions: Int) {
     ExecuteContext.scoped() { (ctx: ExecuteContext) =>
       val rowPType = structIntStringPType
       val rowType = rowPType.virtualType
