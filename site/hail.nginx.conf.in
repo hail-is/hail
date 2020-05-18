@@ -10,27 +10,27 @@ server {
     }
 
     location = @prefix@/docs/ {
-        return 301 $scheme://$updated_host@prefix@/docs/0.2;
+        return 301 $updated_scheme://$updated_host@prefix@/docs/0.2;
     }
 
     location ~ ^@prefix@/hail(|/.*)$ {
-        return 301 $scheme://$updated_host@prefix@/docs/0.1$1;
+        return 301 $updated_scheme://$updated_host@prefix@/docs/0.1$1;
     }
 
     location ~ ^@prefix@/docs/([^\/]+)/hailpedia/([^\/]*)$ {
-        return 301 $scheme://$updated_host@prefix@/docs/0.2/overview/$2;
+        return 301 $updated_scheme://$updated_host@prefix@/docs/0.2/overview/$2;
     }
 
     location ~ ^@prefix@/docs/devel(|/.*)$ {
-        return 301 $scheme://$updated_host@prefix@/docs/0.2$1;
+        return 301 $updated_scheme://$updated_host@prefix@/docs/0.2$1;
     }
 
     location ~ ^@prefix@/docs/stable(|/.*)$ {
-        return 301 $scheme://$updated_host@prefix@/docs/0.2$1;
+        return 301 $updated_scheme://$updated_host@prefix@/docs/0.2$1;
     }
 
     location ~ ^@prefix@/docs/pipeline(|/.*)$ {
-        return 301 $scheme://$updated_host@prefix@/docs/batch$1;
+        return 301 $updated_scheme://$updated_host@prefix@/docs/batch$1;
     }
 
     location ~ ^@prefix@/docs/batch(|/.*)$ {
@@ -42,7 +42,7 @@ server {
     error_page 404 /404.html;
 
     location = @prefix@/ {
-        return 301 $scheme://$updated_host@prefix@/index.html;
+        return 301 $updated_scheme://$updated_host@prefix@/index.html;
     }
     location @prefix@/ {
         rewrite  ^@prefix@(/.*) $1 break;

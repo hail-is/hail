@@ -981,12 +981,6 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
-     ls -al /user-tokens/
-     cat /user-tokens/tokens.json
-     python3 -c 'from hailtop.auth.tokens import Tokens; Tokens.get_tokens_file()'
-     python3 -c 'from hailtop.auth.tokens import get_tokens; get_tokens()._tokens'
-     python3 -m hailtop.hailctl dev config
-     curl -fsSL -vvv http://internal.hail/pr-8763-default-rffcm9xinpa1/site/ || true
      hailctl curl {{ default_ns.name }} site / \
              -vvv \
              -fsSL \
