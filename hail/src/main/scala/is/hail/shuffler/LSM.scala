@@ -161,12 +161,8 @@ class LSM (
     assert(samplesEnd <= samples.length)
 
     if (processed == 0) {
-      assert(least == -1)
-      assert(greatest == -1)
       least = k
     } else if (processed == 1) {
-      assert(least != -1)
-      assert(greatest == -1)
       if (keyOrd.compare(k, least) < 0) {
         greatest = least
         least = k
