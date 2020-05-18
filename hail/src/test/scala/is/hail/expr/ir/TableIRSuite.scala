@@ -670,13 +670,15 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableLeftJoinRightDistinct(): Unit = {
-    val execStrats = ExecStrategy.interpretOnly
-    val rangeTable1 = TableRange(10, 1)
-    var rangeTable2 = TableRange(5, 1)
+    implicit val execStrats = ExecStrategy.lowering
+    val rangeTable1 = TableRange(5, 1)
+    var rangeTable2: TableIR = TableRange(5, 1)
+    val row = Ref("row", rangeTable2.typ.rowType)
+    rangeTable2 = TableMapRows(rangeTable2, InsertFields(row, FastIndexedSeq("x" -> GetField(row, "idx"))))
+    val joined = TableLeftJoinRightDistinct(rangeTable1, rangeTable2, "foo")
+//    assertEvalsTo(TableCount(joined), 10L)
 
+    val expectedJoinCollectResult = Row((0 until 5).map(i => Row(FastIndexedSeq(i, Row(i)): _*)), Row())
+    assertEvalsTo(collect(joined), expectedJoinCollectResult)
   }
 }
-
-//val t = TableRange(10, 2)
-//val row = Ref("row", t.typ.rowType)
-//val node = collect(TableMapRows(t, InsertFields(row, FastIndexedSeq("x" -> GetField(row, "idx")))))
