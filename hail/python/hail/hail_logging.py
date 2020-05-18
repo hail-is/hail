@@ -22,7 +22,7 @@ class Logger(abc.ABC):
 
 class PythonOnlyLogger(Logger):
     def __init__(self):
-        self.logger = logging.getLogger().getChild("hail")
+        self.logger = logging.getLogger("hail")
         self.logger.setLevel(logging.INFO)
 
     def configure(self):  # pylint: disable=no-self-use
