@@ -132,7 +132,7 @@ class ShuffleClient (
     log.info(s"CLNT partitionBounds")
     val keyDecoder = codecs.makeKeyDecoder(in)
     startOperation(Wire.PARTITION_BOUNDS)
-    out.writeLong(nPartitions)
+    out.writeInt(nPartitions)
     out.flush()
     log.info(s"CLNT partitionBounds receiving values")
     val keys = readRegionValueArray(region, keyDecoder, nPartitions + 1)
