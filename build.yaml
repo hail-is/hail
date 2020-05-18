@@ -982,7 +982,7 @@ steps:
    script: |
      set -ex
      cat /user-tokens/tokens.json
-     python3 -c 'from hailtop.auth.tokens import Tokens; Token.get_tokens_file()'
+     python3 -c 'from hailtop.auth.tokens import Tokens; Tokens.get_tokens_file()'
      python3 -c 'from hailtop.auth.tokens import get_tokens; get_tokens()._tokens'
      python3 -m hailtop.hailctl dev config
      hailctl curl {{ default_ns.name }} site / \
