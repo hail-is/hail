@@ -203,7 +203,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     spark_conf : :obj:`dict[str, str]`, optional
         Spark configuration parameters.
     skip_logging_configuration : :obj:`bool`
-        Skip logging configuration.
+        Skip logging configuration in java and python.
     local_tmpdir : obj:`str`, optional
         Local temporary directory.  Used on driver and executor nodes.
         Must use the file scheme.  Defaults to TMPDIR, or /tmp.
@@ -221,6 +221,9 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     tmpdir = _get_tmpdir(tmp_dir)
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
+
+    if not skip_logging_configuration:
+        Env.backend().logger.configure()
 
     backend = SparkBackend(
         idempotent, sc, spark_conf, app_name, master, local, log,

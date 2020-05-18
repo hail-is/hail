@@ -4,6 +4,10 @@ import logging
 
 class Logger(abc.ABC):
     @abc.abstractmethod
+    def configure(self):
+        pass
+
+    @abc.abstractmethod
     def error(self, msg):
         pass
 
@@ -20,6 +24,9 @@ class PythonOnlyLogger(Logger):
     def __init__(self):
         self.logger = logging.getLogger().getChild("hail")
         self.logger.setLevel(logging.INFO)
+
+    def configure(self):  # pylint: disable=no-self-use
+        logging.basicConfig()
 
     def error(self, msg):
         self.logger.error(msg)
