@@ -3,20 +3,20 @@ package is.hail.expr.ir
 import java.util.regex.Pattern
 
 import is.hail.HailContext
-import is.hail.annotations.BroadcastRow
+import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.TableAnnotationImpex
+import is.hail.expr.ir.lowering.TableStage
+import is.hail.io.fs.{FS, FileStatus}
+import is.hail.rvd.RVDPartitioner
 import is.hail.types._
 import is.hail.types.physical.{PCanonicalStruct, PStruct, PType}
 import is.hail.types.virtual._
-import is.hail.io.fs.FS
-import is.hail.rvd.RVD
-import is.hail.sparkextras.ContextRDD
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
-import org.json4s.Formats
-import org.json4s.JValue
+import org.apache.spark.sql.Row
+import org.json4s.{DefaultFormats, Formats, JValue}
 
 import scala.collection.mutable
 import scala.util.matching.Regex
@@ -341,7 +341,7 @@ object TextTableReader {
 
   def apply(fs: FS, params: TextTableReaderParameters): TextTableReader = {
     val metadata = TextTableReader.readMetadata(fs, params)
-    TextTableReader(params, metadata)
+    new TextTableReader(params, metadata.header, metadata.globbedFiles.map(fs.fileStatus), metadata.rowPType)
   }
 
   def fromJValue(fs: FS, jv: JValue): TextTableReader = {
@@ -351,49 +351,56 @@ object TextTableReader {
   }
 }
 
-case class TextTableReader(params: TextTableReaderParameters, metadata: TextTableReaderMetadata) extends TableReader {
+class TextTableReader(
+  val params: TextTableReaderParameters,
+  header: String,
+  fileStatuses: IndexedSeq[FileStatus],
+  fullRowPType: PStruct
+) extends TableReader {
+  val fullType: TableType = TableType(fullRowPType.virtualType, FastIndexedSeq.empty, TStruct())
   def pathsUsed: Seq[String] = params.files
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
-  lazy val fullType: TableType = metadata.fullType
 
   def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
     PType.canonical(requestedType.rowType, required = true).asInstanceOf[PStruct] ->
       PCanonicalStruct.empty(required = true)
   }
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    HailContext.maybeGZipAsBGZip(ctx.fs, params.forceBGZ) {
-      apply1(tr, ctx)
-    }
-  }
+  def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
 
-  def apply1(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    val rowTyp = tr.typ.rowType
+    val lines = GenericLines.read(ctx.fs, fileStatuses, nPartitions = params.nPartitionsOpt,
+      blockSizeInMB = None, minPartitions = None, gzAsBGZ = params.forceBGZ, allowSerialRead = params.forceGZ)
+    val partitioner: Option[RVDPartitioner] = None
+    val globals: TStruct => Row = _ => Row.empty
+
     val nFieldOrig = fullType.rowType.size
-    val rowFields = rowTyp.fields
-    val rowPTyp = rowAndGlobalPTypes(ctx, tr.typ)._1
 
-    val useColIndices = rowTyp.fields.map(f => fullType.rowType.fieldIdx(f.name))
+    val bodyPType: TStruct => PStruct = (requestedRowType: TStruct) => fullRowPType.subsetTo(requestedRowType).asInstanceOf[PStruct]
+    val linesBody = lines.body
+    val body = { (requestedType: TStruct) =>
+      val requestedPType = bodyPType(requestedType)
+      val useColIndices = requestedType.fieldNames.map(fullType.rowType.fieldIdx).toArray
+      val rowFields = requestedType.fields.toArray
 
-    val crdd = ContextRDD.textFilesLines(metadata.globbedFiles, params.nPartitions, params.filterAndReplace)
-      .filter { line =>
-        !params.isComment(line.value) &&
-          (!params.hasHeader || metadata.header != line.value) &&
-          !(params.skipBlankLines && line.value.isEmpty)
-      }.cmapPartitions { (ctx, it) =>
-      val rvb = ctx.rvb
+      { (region: Region, context: Any) =>
 
-      val ab = new ArrayBuilder[String]
-      val sb = new StringBuilder
-      it.map {
-        _.map { line =>
+        val rvb = new RegionValueBuilder(region)
+        val ab = new ArrayBuilder[String]
+        val sb = new StringBuilder
+        linesBody(context)
+          .map { line => line.toString }
+          .filter { line =>
+            !params.isComment(line) &&
+              (!params.hasHeader || header != line) &&
+              !(params.skipBlankLines && line.isEmpty)
+          }.map { line =>
           val sp = TextTableReader.splitLine(line, params.separator, params.quote, ab, sb)
           if (sp.length != nFieldOrig)
             fatal(s"expected $nFieldOrig fields, but found ${ sp.length } fields")
 
-          rvb.start(rowPTyp)
+          rvb.start(requestedPType)
           rvb.startStruct()
 
           var i = 0
@@ -417,14 +424,33 @@ case class TextTableReader(params: TextTableReaderParameters, metadata: TextTabl
           rvb.endStruct()
 
           rvb.end()
-        }.value
+        }
       }
     }
-
-    TableValue(ctx, tr.typ, BroadcastRow.empty(ctx), RVD.unkeyed(rowPTyp, crdd))
+    new GenericTableValue(partitioner = partitioner,
+      fullTableType = fullType,
+      globals = globals,
+      contextType = lines.contextType,
+      contexts = lines.contexts,
+      bodyPType = bodyPType,
+      body = body)
   }
 
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
+    executeGeneric(ctx).toTableStage(ctx, requestedType)
+
+  def apply(tr: TableRead, ctx: ExecuteContext): TableValue =
+    executeGeneric(ctx).toTableValue(ctx, tr.typ)
+
   override def toJValue: JValue = {
-    decomposeWithName(params, "TextTableReader")(TableReader.formats)
+    implicit val formats: Formats = DefaultFormats
+    decomposeWithName(params, "TextTableReader")
+  }
+
+  override def hashCode(): Int = params.hashCode()
+
+  override def equals(that: Any): Boolean = that match {
+    case that: TextTableReader => params == that.params
+    case _ => false
   }
 }
