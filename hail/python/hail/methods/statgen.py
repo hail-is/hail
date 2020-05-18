@@ -2,6 +2,7 @@ import itertools
 import math
 import numpy as np
 from typing import *
+import builtins
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -445,6 +446,147 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
         ht_result = ht_result.annotate(**{f: ht_result[f][0] for f in fields})
 
     return ht_result.persist()
+
+@typecheck(y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
+           x=expr_float64,
+           covariates=sequenceof(expr_float64),
+           block_size=int,
+           pass_through=sequenceof(oneof(str, Expression)))
+def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) -> hail.Table:
+    mt = matrix_table_source('linear_regression_rows_nd/x', x)
+    check_entry_indexed('linear_regression_rows_nd/x', x)
+
+    y_is_list = isinstance(y, list)
+    if y_is_list and len(y) == 0:
+        raise ValueError(f"'linear_regression_rows_nd': found no values for 'y'")
+    is_chained = y_is_list and isinstance(y[0], list)
+
+    if is_chained:
+        raise ValueError("linear_regression_rows_nd does not currently support chained linear regression.")
+
+
+    if is_chained and any(len(l) == 0 for l in y):
+        raise ValueError(f"'linear_regression_rows': found empty inner list for 'y'")
+
+    y = wrap_to_list(y)
+
+    for e in (itertools.chain.from_iterable(y) if is_chained else y):
+        analyze('linear_regression_rows_nd/y', e, mt._col_indices)
+
+    for e in covariates:
+        analyze('linear_regression_rows_nd/covariates', e, mt._col_indices)
+
+    _warn_if_no_intercept('linear_regression_rows_nd', covariates)
+
+    x_field_name = Env.get_uid()
+    if is_chained:
+        y_field_names = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
+        y_dict = dict(zip(itertools.chain.from_iterable(y_field_names), itertools.chain.from_iterable(y)))
+
+    else:
+        y_field_names = list(f'__y_{i}' for i in range(len(y)))
+        y_dict = dict(zip(y_field_names, y))
+
+    cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+
+    row_fields = _get_regression_row_fields(mt, pass_through, 'linear_regression_rows_nd')
+
+    # FIXME: selecting an existing entry field should be emitted as a SelectFields
+    mt = mt._select_all(col_exprs=dict(**y_dict,
+                                       **dict(zip(cov_field_names, covariates))),
+                        row_exprs=row_fields,
+                        col_key=[],
+                        entry_exprs={x_field_name: x})
+
+    # NEW STUFF
+    entries_field_name = 'ent'
+    sample_field_name = "by_sample"
+    X_field_name = entries_field_name + "_nd"
+
+    def all_defined(struct_root, field_names):
+        defined_array = hl.array([hl.is_defined(struct_root[field_name]) for field_name in field_names])
+        return defined_array.all(lambda a: a)
+
+    def nd_to_array(mat):
+        if mat.ndim == 1:
+            return hl.range(hl.int32(mat.shape[0])).map(lambda i: mat[i])
+        elif mat.ndim == 2:
+            return hl.range(hl.int32(mat.shape[0])).map(lambda i:
+                                                        hl.range(hl.int32(mat.shape[1])).map(lambda j: (mat[i, j])))
+
+    # Given a hail array, get the mean of the nonmissing entries and
+    # return new array where the missing entries are the mean.
+    def mean_impute(hl_array):
+        non_missing_mean = hl.mean(hl_array, filter_missing=True)
+        return hl_array.map(lambda entry: hl.if_else(hl.is_defined(entry), entry, non_missing_mean))
+
+    def select_array_indices(hl_array, indices):
+        return indices.map(lambda i: hl_array[i])
+
+    def dot_rows_with_themselves(matrix):
+        return (matrix * matrix) @ hl.nd.ones(matrix.shape[1])
+
+    ht_local = mt._localize_entries(entries_field_name, sample_field_name)
+
+    ht = ht_local.transmute(**{entries_field_name: ht_local[entries_field_name][x_field_name]})
+    ht = ht._group_within_partitions("grouped_fields", block_size)
+
+    ys_and_covs_to_keep_with_indices = hl.zip_with_index(ht[sample_field_name]).filter(lambda struct_with_index: all_defined(struct_with_index[1], y_field_names + cov_field_names))
+    indices_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[0])
+    ys_and_covs_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[1])
+
+    cov_nd = hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[cov_name] for cov_name in cov_field_names]))) if cov_field_names else hl.nd.zeros((hl.len(indices_to_keep), 0))
+    ht = ht.annotate_globals(kept_samples=indices_to_keep,
+                             __y_nd=hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[y_name] for y_name in y_field_names]))),
+                             __cov_nd=cov_nd)
+    k = builtins.len(covariates)
+
+    ht = ht.annotate(**{X_field_name: hl.nd.array(hl.map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples)), ht["grouped_fields"][entries_field_name])).T})
+    n = hl.len(ht.kept_samples)
+    ht = ht.annotate_globals(d=n-k-1)
+    cov_Qt = hl.if_else(k > 0, hl.nd.qr(ht.__cov_nd)[0].T, hl.nd.zeros((0, n)))
+    ht = ht.annotate_globals(__Qty=cov_Qt @ ht.__y_nd)
+    ht = ht.annotate_globals(__yyp=dot_rows_with_themselves(ht.__y_nd.T) - dot_rows_with_themselves(ht.__Qty.T))
+
+    sum_x_nd = ht[X_field_name].T @ hl.nd.ones((n,))
+    ht = ht.annotate(sum_x=nd_to_array(sum_x_nd))
+    Qtx = cov_Qt @ ht[X_field_name]
+    ytx = ht.__y_nd.T @ ht[X_field_name]
+    xyp = ytx - (ht.__Qty.T @ Qtx)
+    xxpRec = (dot_rows_with_themselves(ht[X_field_name].T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
+    b = xyp * xxpRec
+    se = ((1.0/ht.d) * (ht.__yyp.reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
+    t = b/se
+    p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.d, True, False))
+    ht = ht.annotate(__b=b, __ytx=ytx, __se=se, __t=t, __p=p)
+
+    def zip_to_struct(ht, struct_root_name, **kwargs):
+        mapping = list(kwargs.items())
+        sources = [pair[1] for pair in mapping]
+        dests = [pair[0] for pair in mapping]
+        ht = ht.annotate(**{struct_root_name: hl.zip(*sources)})
+        ht = ht.transmute(**{struct_root_name: ht[struct_root_name].map(lambda tup: hl.struct(**{dests[i]:tup[i] for i in range(len(dests))}))})
+        return ht
+
+    res = ht.key_by()
+    key_fields = [key_field for key_field in ht.key]
+    key_dict = {key_field: res.grouped_fields[key_field] for key_field in key_fields}
+    linreg_fields_dict = {"sum_x": res.sum_x, "y_transpose_x": nd_to_array(res.__ytx.T), "beta": nd_to_array(res.__b.T),
+                          "standard_error": nd_to_array(res.__se.T), "t_stat": nd_to_array(res.__t.T), "p_value": nd_to_array(res.__p.T)}
+    combined_dict = {**key_dict, **linreg_fields_dict}
+    res = zip_to_struct(res, "all_zipped", **combined_dict)
+
+    res = res.explode(res.all_zipped)
+    res = res.select(**{field: res.row.all_zipped[field] for field in res.row.all_zipped})
+    res = res.key_by(*[res[key_field] for key_field in ht.key])
+
+    if not y_is_list:
+        fields = ['y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
+        res = res.annotate(**{f: res[f][0] for f in fields})
+
+    res = res.select_globals()
+
+    return res
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
