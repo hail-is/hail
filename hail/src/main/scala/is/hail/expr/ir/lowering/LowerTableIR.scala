@@ -529,10 +529,9 @@ object LowerTableIR {
                 bindIR(GetField(ctxRef, "right_ctx_field")) { rightCtxFieldRef =>
                   val leftPart = loweredLeft.partition(leftCtxFieldRef)
                   val rightPart = loweredRight.partition(rightCtxFieldRef)
-                  // FIXME: Temporarily hardcoding an index based comparison ala TableRange
                   val leftElementRef = Ref("l_ele", left.typ.rowType)
                   val rightElementRef = Ref("r_ele", right.typ.rowType)
-                  val comparator = ApplyComparisonOp(Compare(TInt32), GetField(leftElementRef, "idx"), GetField(rightElementRef, "idx"))
+                  val comparator = ApplyComparisonOp(Compare(left.typ.keyType), SelectFields(leftElementRef, left.typ.key), SelectFields(rightElementRef, right.typ.key))
                   val typeOfRootStruct = right.typ.rowType.filterSet(right.typ.key.toSet, false)._1
                   val rootStruct = SelectFields(rightElementRef, typeOfRootStruct.fieldNames.toIndexedSeq)
                   val joiningOp = InsertFields(leftElementRef, Seq(root -> rootStruct))
