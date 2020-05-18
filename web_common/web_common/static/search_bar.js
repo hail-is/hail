@@ -4,9 +4,7 @@ function searchTable(table_name, search_bar_name) {
   var table = document.getElementById(table_name);
   var tableRecords = table.getElementsByTagName("tr");
 
-  console.log(tableRecords)
   for (var i = 1; i < tableRecords.length; ++i) {
-    console.log(i)
     var record = tableRecords[i];
     var tds = record.getElementsByTagName("td");
     var anyMatch = false;
