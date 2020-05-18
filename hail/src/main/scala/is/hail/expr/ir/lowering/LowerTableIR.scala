@@ -508,7 +508,7 @@ object LowerTableIR {
 
         case TableLeftJoinRightDistinct(left, right, root) =>
           val loweredLeft = lower(left)
-          val loweredRight = lower(right).changePartitionerNoRepartition(loweredLeft.partitioner)
+          val loweredRight = lower(right).repartitionNoShuffle(loweredLeft.partitioner)
           val leftCtxTyp = loweredLeft.contexts.typ.asInstanceOf[TStream].elementType
           val rightCtxTyp = loweredRight.contexts.typ.asInstanceOf[TStream].elementType
           val leftCtxRef = Ref("left_ctx", leftCtxTyp)
