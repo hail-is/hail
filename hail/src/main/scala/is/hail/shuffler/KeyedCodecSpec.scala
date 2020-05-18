@@ -14,7 +14,8 @@ class KeyedCodecSpec(
   val keyPType = pType.selectFields(key)
   val makeEnc = codecSpec.buildEncoder(ctx, pType)
 
+  val keyCodecSpec = TypedCodecSpec(keyPType, codecSpec._bufferSpec)
   val keyType = t.select(key)._1
-  val (decodedKeyPType, makeKeyDec) = codecSpec.buildStructDecoder(ctx, keyType)
-  val makeKeyEnc = codecSpec.buildEncoder(ctx, decodedKeyPType)
+  val (decodedKeyPType, makeKeyDec) = keyCodecSpec.buildStructDecoder(ctx, keyType)
+  val makeKeyEnc = keyCodecSpec.buildEncoder(ctx, decodedKeyPType)
 }
