@@ -852,26 +852,28 @@ class Worker:
             site = web.TCPSite(app_runner, '0.0.0.0', 5000)
             await site.start()
 
-            await self.activate()
-
-            idle_duration = time_msecs() - self.last_updated
-            while self.jobs or idle_duration < MAX_IDLE_TIME_MSECS:
-                log.info(f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration}')
-                await asyncio.sleep(15)
+            try:
+                await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS * 1000)
+            except asyncio.TimeoutError:
+                log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
+            else:
                 idle_duration = time_msecs() - self.last_updated
+                while self.jobs or idle_duration < MAX_IDLE_TIME_MSECS:
+                    log.info(f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration}')
+                    await asyncio.sleep(15)
+                    idle_duration = time_msecs() - self.last_updated
+                log.info(f'idle {idle_duration} ms, exiting')
 
-            log.info(f'idle {idle_duration} seconds, exiting')
-
-            async with ssl_client_session(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                # Don't retry.  If it doesn't go through, the driver
-                # monitoring loops will recover.  If the driver is
-                # gone (e.g. testing a PR), this would go into an
-                # infinite loop and the instance won't be deleted.
-                await session.post(
-                    deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'),
-                    headers=self.headers)
-            log.info('deactivated')
+                async with ssl_client_session(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                    # Don't retry.  If it doesn't go through, the driver
+                    # monitoring loops will recover.  If the driver is
+                    # gone (e.g. testing a PR), this would go into an
+                    # infinite loop and the instance won't be deleted.
+                    await session.post(
+                        deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'),
+                        headers=self.headers)
+                log.info('deactivated')
         finally:
             log.info('shutting down')
             if site:
