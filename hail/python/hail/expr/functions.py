@@ -15,7 +15,8 @@ from hail.expr.expressions import Expression, ArrayExpression, SetExpression, \
     expr_array, expr_any, expr_struct, expr_int32, expr_int64, expr_float32, \
     expr_float64, expr_oneof, expr_bool, expr_tuple, expr_dict, expr_str, \
     expr_set, expr_call, expr_locus, expr_interval, expr_ndarray, \
-    expr_numeric
+    expr_numeric, \
+    eval_timed, eval, eval_typed
 from hail.expr.types import HailType, hail_type, tint32, tint64, tfloat32, \
     tfloat64, tstr, tbool, tarray, tset, tdict, tstruct, tlocus, tinterval, \
     tcall, ttuple, tndarray, \
