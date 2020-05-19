@@ -1181,7 +1181,10 @@ class Emit[C](
                 i := 1,
                 nab.add(1),
                 Code.whileLoop(i < eab.size,
-                  isSame.invokeCode[Boolean](region, eab.applyEV(mb, i-1), eab.applyEV(mb, i)).mux(
+                  EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
+                    cb.invokeCode[Boolean](isSame, region,
+                      eab.applyEV(mb, i-1), eab.applyEV(mb, i))
+                  }.mux(
                     nab.update(nab.size - 1, coerce[Int](nab(nab.size - 1)) + 1),
                     nab.add(1)),
                   i += 1),
