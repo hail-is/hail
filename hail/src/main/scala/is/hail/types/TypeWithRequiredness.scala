@@ -68,10 +68,8 @@ sealed abstract class BaseTypeWithRequiredness {
     }
   }
   def unionWithIntersection(ts: Seq[BaseTypeWithRequiredness]): Unit = {
-    println(s"$this: ${ ts.mkString(",") }")
     union(ts.exists(_.required))
     _unionWithIntersection(ts)
-    println(s"after: $this")
   }
 
   final def union(r: Boolean): Unit = { change |= !r && required }

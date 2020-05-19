@@ -135,10 +135,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
 
   def initialize(node: BaseIR, env: Env[PType], outerAggStates: Option[Array[AggStatePhysicalSignature]]): Unit = {
     initializeState(node)
-    usesAndDefs.uses.m.keys.foreach { n =>
-      println(Pretty(n.t))
-      addBindingRelations(n.t)
-    }
+    usesAndDefs.uses.m.keys.foreach { n => addBindingRelations(n.t) }
     if (usesAndDefs.free != null)
       usesAndDefs.free.foreach { re =>
         lookup(re.t).fromPType(env.lookup(re.t.name))
