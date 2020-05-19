@@ -233,7 +233,7 @@ a {
     }
 
     tr {
-        &:nth-type-of(even) {
+        &:nth-of-type(even) {
             background-color: #f2f2f2;
         }
     }
