@@ -60,8 +60,11 @@ database={config["db"]}
     from_files = ' '.join(f'--from-file={f}' for f in files)
     await check_shell(
         f'''
-kubectl -n {shq(namespace)} delete --ignore-not-found=true secret {shq(secret_name)}
-kubectl -n {shq(namespace)} create secret generic {shq(secret_name)} {from_files}
+kubectl -n {shq(namespace)} create secret generic \
+        {shq(secret_name)} \
+        {from_files} \
+        --dry-run=true -o yaml \
+        | kubectl -n {shq(namespace)} apply -f -
 ''')
 
 
@@ -82,8 +85,8 @@ async def create_database():
 
     scope = create_database_config['scope']
     _name = create_database_config['_name']
-    admin_username = create_database_config['admin_username']
-    user_username = create_database_config['user_username']
+    admin_username = create_database_config['admin_username'] + '_' + secrets.token_urlsafe(4)
+    user_username = create_database_config['user_username'] + '_' + secrets.token_urlsafe(4)
 
     db = Database()
     await db.async_init()
@@ -103,7 +106,7 @@ async def create_database():
     user_password = secrets.token_urlsafe(16)
 
     await db.just_execute(f'''
-CREATE DATABASE `{_name}`;
+CREATE DATABASE `{_name}` IF NOT EXISTS;
 
 CREATE USER '{admin_username}'@'%' IDENTIFIED BY '{admin_password}';
 GRANT ALL ON `{_name}`.* TO '{admin_username}'@'%';
