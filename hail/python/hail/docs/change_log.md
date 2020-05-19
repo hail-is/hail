@@ -28,7 +28,7 @@ Released 2020-05-15
 
 ### Bug fixes
 
-- (hail#8799, hail#8786) Fix ArrayIndexOutOfBoundsException seen in pipelines that reuse a tuple value.
+- (hail#8799)(hail#8786) Fix ArrayIndexOutOfBoundsException seen in pipelines that reuse a tuple value.
 
 ### hailctl dataproc
 
