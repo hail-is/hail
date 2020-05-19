@@ -336,7 +336,7 @@ object TextTableReader {
       log.info(sb.result())
     }
 
-    TextTableReaderMetadata(globbedFiles, header, PCanonicalStruct(namesAndTypes: _*))
+    TextTableReaderMetadata(globbedFiles, header, PCanonicalStruct(true, namesAndTypes: _*))
   }
 
   def apply(fs: FS, params: TextTableReaderParameters): TextTableReader = {
