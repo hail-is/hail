@@ -153,6 +153,7 @@ object InferPType {
 
   private def _inferAggs(node: IR, inits: AAB[InitOp] = null, seqs: AAB[SeqOp] = null): Unit =
     node match {
+      case _: RunAgg | _: RunAggScan =>
       case x@InitOp(i, args, sig, op) =>
         op match {
           case Group() =>
