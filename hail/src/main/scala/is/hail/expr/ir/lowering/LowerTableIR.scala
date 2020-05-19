@@ -507,10 +507,15 @@ object LowerTableIR {
           }
 
         case TableLeftJoinRightDistinct(left, right, root) =>
+          require(right.typ.keyType isPrefixOf left.typ.keyType)
           val loweredLeft = lower(left)
           // TODO: coarsen?
           // FIXME: Not cool to use the left partitioner here, it expects key a1.
-          val loweredRight = lower(right).repartitionNoShuffle(loweredLeft.partitioner.strictify)
+          val leftKeyToRightKeyMap = left.typ.keyType.fieldNames.zip(right.typ.keyType.fieldNames).toMap
+          val newRightPartioner = loweredLeft.partitioner.strictify.coarsen(right.typ.keyType.size)
+            .rename(leftKeyToRightKeyMap)
+          val loweredRight = lower(right).repartitionNoShuffle(newRightPartioner)
+
           val leftCtxTyp = loweredLeft.contexts.typ.asInstanceOf[TStream].elementType
           val rightCtxTyp = loweredRight.contexts.typ.asInstanceOf[TStream].elementType
           val leftCtxRef = Ref("left_ctx", leftCtxTyp)
@@ -529,22 +534,19 @@ object LowerTableIR {
             override def partition(ctxRef: Ref): IR = {
               bindIR(GetField(ctxRef, "left_ctx_field")) { leftCtxFieldRef =>
                 bindIR(GetField(ctxRef, "right_ctx_field")) { rightCtxFieldRef =>
-                  println("Two bindings")
                   val leftPart = loweredLeft.partition(leftCtxFieldRef)
-                  println("Got left part")
                   val rightPart = loweredRight.partition(rightCtxFieldRef)
-                  println("Got right part")
                   val leftElementRef = Ref("l_ele", left.typ.rowType)
                   val rightElementRef = Ref("r_ele", right.typ.rowType)
-                  println("Made Refs")
-                  val comparator = ApplyComparisonOp(Compare(left.typ.keyType), SelectFields(leftElementRef, left.typ.key), SelectFields(rightElementRef, right.typ.key))
+
+                  val comparator = ApplyComparisonOp(Compare(right.typ.keyType),
+                    CastRename(SelectFields(leftElementRef, left.typ.key), left.typ.keyType.rename(leftKeyToRightKeyMap)),
+                    SelectFields(rightElementRef, right.typ.key))
                   val typeOfRootStruct = right.typ.rowType.filterSet(right.typ.key.toSet, false)._1
-                  println("Figured out type of root")
+
                   val rootStruct = SelectFields(rightElementRef, typeOfRootStruct.fieldNames.toIndexedSeq)
                   val joiningOp = InsertFields(leftElementRef, Seq(root -> rootStruct))
                   val joined = StreamLeftJoinDistinct(leftPart, rightPart, "l_ele", "r_ele", comparator, joiningOp)
-                  println("Joined IR = ")
-                  println(Pretty(joined))
                   joined
                 }
 
