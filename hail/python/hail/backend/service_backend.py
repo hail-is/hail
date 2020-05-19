@@ -16,18 +16,16 @@ from ..hail_logging import PythonOnlyLogger
 
 
 class ServiceBackend(Backend):
-    def __init__(self, deploy_config=None):
+    def __init__(self, deploy_config=None, skip_logging_configuration=False):
         if not deploy_config:
             deploy_config = get_deploy_config()
         self.url = deploy_config.base_url('query')
         self.headers = service_auth_headers(deploy_config, 'query')
         self._fs = None
-        self._logger = None
+        self._logger = PythonOnlyLogger(skip_logging_configuration)
 
     @property
     def logger(self):
-        if self._logger is None:
-            self._logger = PythonOnlyLogger()
         return self._logger
 
     @property

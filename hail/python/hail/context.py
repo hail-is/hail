@@ -222,9 +222,6 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
-    if not skip_logging_configuration:
-        Env.backend().logger.configure()
-
     backend = SparkBackend(
         idempotent, sc, spark_conf, app_name, master, local, log,
         quiet, append, min_block_size, branching_factor, tmpdir, local_tmpdir,
@@ -242,7 +239,8 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     tmpdir=nullable(str),
     local_tmpdir=nullable(str),
     default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'),
-    global_seed=nullable(int))
+    global_seed=nullable(int),
+    skip_logging_configuration=bool)
 def init_service(
         log=None,
         quiet=False,
@@ -250,9 +248,10 @@ def init_service(
         tmpdir=None,
         local_tmpdir=None,
         default_reference='GRCh37',
-        global_seed=6348563392232659379):
+        global_seed=6348563392232659379,
+        skip_logging_configuration=False):
     from hail.backend.service_backend import ServiceBackend
-    backend = ServiceBackend()
+    backend = ServiceBackend(skip_logging_configuration)
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmpdir)

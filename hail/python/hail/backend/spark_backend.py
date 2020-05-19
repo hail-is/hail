@@ -127,9 +127,6 @@ class Log4jLogger(Logger):
     def __init__(self, log_pkg):
         self._log_pkg = log_pkg
 
-    def configure(self):  # pylint: disable=no-self-use
-        pass
-
     def error(self, msg):
         self._log_pkg.error(msg)
 
