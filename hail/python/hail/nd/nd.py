@@ -2,7 +2,7 @@ from functools import reduce
 
 import hail as hl
 from hail.expr.functions import _ndarray
-from hail.expr.types import HailType
+from hail.expr.types import HailType, tfloat64, ttuple, tndarray
 from hail.typecheck import typecheck, nullable, oneof, tupleof
 from hail.expr.expressions import expr_int32, expr_int64, expr_tuple, expr_any, expr_ndarray, Int64Expression, cast_expr, construct_expr
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
@@ -119,7 +119,7 @@ def full(shape, value, dtype=None):
 
 
 @typecheck(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()), dtype=HailType)
-def zeros(shape, dtype=None):
+def zeros(shape, dtype=tfloat64):
     """Creates a hail :class:`.NDArrayNumericExpression` full of zeros.
 
        Examples
@@ -150,13 +150,11 @@ def zeros(shape, dtype=None):
        :class:`.NDArrayNumericExpression`
            ndarray of the specified size full of zeros.
        """
-    if dtype is None:
-        dtype = hl.tfloat64
     return full(shape, 0, dtype)
 
 
 @typecheck(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()), dtype=HailType)
-def ones(shape, dtype=None):
+def ones(shape, dtype=tfloat64):
     """Creates a hail :class:`.NDArrayNumericExpression` full of ones.
 
        Examples
@@ -188,8 +186,6 @@ def ones(shape, dtype=None):
        :class:`.NDArrayNumericExpression`
            ndarray of the specified size full of ones.
        """
-    if dtype is None:
-        dtype = hl.tfloat64
     return full(shape, 1, dtype)
 
 
@@ -243,8 +239,8 @@ def qr(nd, mode="reduced"):
     float_nd = nd.map(lambda x: hl.float64(x))
     ir = NDArrayQR(float_nd._ir, mode)
     if mode == "raw":
-        return construct_expr(ir, hl.ttuple(hl.tndarray(hl.tfloat64, 2), hl.tndarray(hl.tfloat64, 1)))
+        return construct_expr(ir, ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1)))
     elif mode == "r":
-        return construct_expr(ir, hl.tndarray(hl.tfloat64, 2))
+        return construct_expr(ir, tndarray(tfloat64, 2))
     elif mode in ["complete", "reduced"]:
-        return construct_expr(ir, hl.ttuple(hl.tndarray(hl.tfloat64, 2), hl.tndarray(hl.tfloat64, 2)))
+        return construct_expr(ir, ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 2)))

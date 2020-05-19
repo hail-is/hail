@@ -4149,7 +4149,7 @@ def _ndarray(collection, row_major=None):
     if isinstance(collection, Expression):
         if isinstance(collection, ArrayNumericExpression):
             data_expr = collection
-            shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ir.ttuple(tint64))
+            shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ttuple(tint64))
             ndim = 1
         elif isinstance(collection, NumericExpression):
             data_expr = array([collection])
@@ -4188,7 +4188,7 @@ def _ndarray(collection, row_major=None):
             shape = []
             data = [collection]
 
-        shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
+        shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ttuple(*[tint64 for _ in shape]))
         data_expr = hl.array(data) if data else hl.empty_array("float64")
         ndim = builtins.len(shape)
 
