@@ -1,7 +1,9 @@
 from .export_type import ExportType
 from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, \
     JIRVectorReference
-from .ir import TableToValueApply, MatrixToValueApply, BlockMatrixToValueApply, \
+from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
+    BlockMatrixMultiWrite, UnpersistBlockMatrix, TableToValueApply, \
+    MatrixToValueApply, BlockMatrixToValueApply, \
     Literal, LiftMeOut, Join, JavaIR, I32, I64, F32, F64, Str, FalseIR, TrueIR, \
     Void, Cast, NA, IsNA, If, Coalesce, Let, AggLet, Ref, TopLevelReference, \
     TailLoop, Recur, ApplyBinaryPrimOp, ApplyUnaryPrimOp, ApplyComparisonOp, \
@@ -15,7 +17,8 @@ from .ir import TableToValueApply, MatrixToValueApply, BlockMatrixToValueApply, 
     AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, Begin, \
     MakeStruct, SelectFields, InsertFields, GetField, MakeTuple, \
     GetTupleElement, Die, Apply, ApplySeeded, TableCount, TableGetGlobals, \
-    TableCollect, TableAggregate, MatrixCount, MatrixAggregate, TableWrite
+    TableCollect, TableAggregate, MatrixCount, MatrixAggregate, TableWrite, \
+    udf
 from .register_functions import register_functions
 from .register_aggregators import register_aggregators
 from .table_ir import MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, \
@@ -39,8 +42,9 @@ from .matrix_ir import MatrixAggregateRowsByKey, MatrixRead, MatrixFilterRows, \
 from .blockmatrix_ir import BlockMatrixRead, BlockMatrixMap, BlockMatrixMap2, \
     BlockMatrixDot, BlockMatrixBroadcast, BlockMatrixAgg, BlockMatrixFilter, \
     BlockMatrixDensify, BlockMatrixSparsifier, BandSparsifier, \
-    RowIntervalSparsifier, _RectangleSparsifier, BlockMatrixSparsify, \
-    BlockMatrixSlice, ValueToBlockMatrix, BlockMatrixRandom, JavaBlockMatrix
+    RowIntervalSparsifier, RectangleSparsifier, BlockMatrixSparsify, \
+    BlockMatrixSlice, ValueToBlockMatrix, BlockMatrixRandom, JavaBlockMatrix, \
+    tensor_shape_to_matrix_shape
 from .utils import filter_predicate_with_keep, make_filter_and_replace
 from .matrix_reader import MatrixReader, MatrixNativeReader, MatrixRangeReader, \
     MatrixVCFReader, MatrixBGENReader, TextMatrixReader, MatrixPLINKReader, \
@@ -49,8 +53,8 @@ from .table_reader import TableReader, TableNativeReader, TextTableReader, \
     TableFromBlockMatrixNativeReader
 from .blockmatrix_reader import BlockMatrixReader, BlockMatrixNativeReader, \
     BlockMatrixBinaryReader, BlockMatrixPersistReader
-from .matrix_writer import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
-    BlockMatrixMultiWrite, UnpersistBlockMatrix
+from .matrix_writer import MatrixWriter, MatrixNativeWriter, MatrixVCFWriter, \
+    MatrixGENWriter, MatrixBGENWriter, MatrixPLINKWriter, MatrixNativeMultiWriter
 from .table_writer import TableWriter, TableNativeWriter, TableTextWriter
 from .blockmatrix_writer import BlockMatrixWriter, BlockMatrixNativeWriter, \
     BlockMatrixBinaryWriter, BlockMatrixRectanglesWriter, \
@@ -93,12 +97,13 @@ __all__ = [
     'BlockMatrixSparsifier',
     'BandSparsifier',
     'RowIntervalSparsifier',
-    '_RectangleSparsifier',
+    'RectangleSparsifier',
     'BlockMatrixSparsify',
     'BlockMatrixSlice',
     'ValueToBlockMatrix',
     'BlockMatrixRandom',
     'JavaBlockMatrix',
+    'tensor_shape_to_matrix_shape',
     'BlockMatrixReader',
     'BlockMatrixNativeReader',
     'BlockMatrixBinaryReader',
@@ -189,6 +194,7 @@ __all__ = [
     'MatrixCount',
     'MatrixAggregate',
     'TableWrite',
+    'udf',
     'MatrixWrite',
     'MatrixMultiWrite',
     'BlockMatrixWrite',

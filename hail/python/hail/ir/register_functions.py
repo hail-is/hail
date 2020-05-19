@@ -1,11 +1,11 @@
-import hail as hl
 from hail.expr.nat import NatVariable
+from hail.expr.types import dtype, tvariable, tarray, \
+    tint32, tint64, tfloat32, tfloat64, tndarray
+
 from .ir import register_function, register_seeded_function
 
 
 def register_functions():
-    from hail.expr.types import dtype, tvariable
-
     locusVar = tvariable("R", "locus")
 
     register_function("isValidContig", (dtype("str"),), dtype("bool"), (locusVar,))
@@ -27,23 +27,23 @@ def register_functions():
     register_function("toSet", (dtype("array<?T>"),), dtype("set<?T>"))
 
     def array_floating_point_divide(arg_type, ret_type):
-        register_function("div", (arg_type, hl.tarray(arg_type),), hl.tarray(ret_type))
-        register_function("div", (hl.tarray(arg_type), arg_type), hl.tarray(ret_type))
-        register_function("div", (hl.tarray(arg_type), hl.tarray(arg_type)), hl.tarray(ret_type))
-    array_floating_point_divide(hl.tint32, hl.tfloat32)
-    array_floating_point_divide(hl.tint64, hl.tfloat32)
-    array_floating_point_divide(hl.tfloat32, hl.tfloat32)
-    array_floating_point_divide(hl.tfloat64, hl.tfloat64)
+        register_function("div", (arg_type, tarray(arg_type),), tarray(ret_type))
+        register_function("div", (tarray(arg_type), arg_type), tarray(ret_type))
+        register_function("div", (tarray(arg_type), tarray(arg_type)), tarray(ret_type))
+    array_floating_point_divide(tint32, tfloat32)
+    array_floating_point_divide(tint64, tfloat32)
+    array_floating_point_divide(tfloat32, tfloat32)
+    array_floating_point_divide(tfloat64, tfloat64)
 
     def ndarray_floating_point_divide(arg_type, ret_type):
-        register_function("div", (arg_type, hl.tndarray(arg_type, NatVariable()),), hl.tndarray(ret_type, NatVariable()))
-        register_function("div", (hl.tndarray(arg_type, NatVariable()), arg_type), hl.tndarray(ret_type, NatVariable()))
-        register_function("div", (hl.tndarray(arg_type, NatVariable()),
-                                  hl.tndarray(arg_type, NatVariable())), hl.tndarray(ret_type, NatVariable()))
-    ndarray_floating_point_divide(hl.tint32, hl.tfloat32)
-    ndarray_floating_point_divide(hl.tint64, hl.tfloat32)
-    ndarray_floating_point_divide(hl.tfloat32, hl.tfloat32)
-    ndarray_floating_point_divide(hl.tfloat64, hl.tfloat64)
+        register_function("div", (arg_type, tndarray(arg_type, NatVariable()),), tndarray(ret_type, NatVariable()))
+        register_function("div", (tndarray(arg_type, NatVariable()), arg_type), tndarray(ret_type, NatVariable()))
+        register_function("div", (tndarray(arg_type, NatVariable()),
+                                  tndarray(arg_type, NatVariable())), tndarray(ret_type, NatVariable()))
+    ndarray_floating_point_divide(tint32, tfloat32)
+    ndarray_floating_point_divide(tint64, tfloat32)
+    ndarray_floating_point_divide(tfloat32, tfloat32)
+    ndarray_floating_point_divide(tfloat64, tfloat64)
 
     register_function("values", (dtype("dict<?key, ?value>"),), dtype("array<?value>"))
     register_function("sliceRight", (dtype("array<?T>"), dtype("int32"),), dtype("array<?T>"))

@@ -1,4 +1,4 @@
-from hail import call
+import hail as hl
 from hail.expr.expressions import expr_array, expr_call, expr_int32
 from hail.typecheck import typecheck
 
@@ -22,4 +22,4 @@ def lgt_to_gt(lgt, la):
     -----
     This function assumes diploid genotypes.
     """
-    return call(la[lgt[0]], la[lgt[1]])
+    return hl.call(la[lgt[0]], la[lgt[1]])

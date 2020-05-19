@@ -119,7 +119,7 @@ def full(shape, value, dtype=None):
 
 
 @typecheck(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()), dtype=HailType)
-def zeros(shape, dtype=hl.tfloat64):
+def zeros(shape, dtype=None):
     """Creates a hail :class:`.NDArrayNumericExpression` full of zeros.
 
        Examples
@@ -139,7 +139,7 @@ def zeros(shape, dtype=hl.tfloat64):
        shape : `tuple` or :class:`.TupleExpression`
             Desired shape.
        dtype : :class:`.HailType`
-            Desired hail type.
+            Desired hail type.  Default: `float64`.
 
        See Also
        --------
@@ -150,11 +150,13 @@ def zeros(shape, dtype=hl.tfloat64):
        :class:`.NDArrayNumericExpression`
            ndarray of the specified size full of zeros.
        """
+    if dtype is None:
+        dtype = hl.tfloat64
     return full(shape, 0, dtype)
 
 
 @typecheck(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()), dtype=HailType)
-def ones(shape, dtype=hl.tfloat64):
+def ones(shape, dtype=None):
     """Creates a hail :class:`.NDArrayNumericExpression` full of ones.
 
        Examples
@@ -174,7 +176,7 @@ def ones(shape, dtype=hl.tfloat64):
        shape : `tuple` or :class:`.TupleExpression`
             Desired shape.
        dtype : :class:`.HailType`
-            Desired hail type.
+            Desired hail type.  Default: `float64`.
 
 
        See Also
@@ -186,6 +188,8 @@ def ones(shape, dtype=hl.tfloat64):
        :class:`.NDArrayNumericExpression`
            ndarray of the specified size full of ones.
        """
+    if dtype is None:
+        dtype = hl.tfloat64
     return full(shape, 1, dtype)
 
 

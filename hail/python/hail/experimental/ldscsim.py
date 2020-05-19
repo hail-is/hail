@@ -21,7 +21,6 @@ Features:
 """
 
 import hail as hl
-from hail import dtype
 from hail.typecheck import typecheck, oneof, nullable
 from hail.expr.expressions import expr_float64, expr_int32, expr_array, expr_call
 from hail.matrixtable import MatrixTable
@@ -102,7 +101,7 @@ def simulate_phenotypes(mt, genotype, h2, pi=None, rg=None, annot=None, popstrat
     mt = annotate_all(mt=mt,
                       row_exprs={} if annot is None else {'annot_' + uid: annot},
                       col_exprs={} if popstrat is None else {'popstrat_' + uid: popstrat},
-                      entry_exprs={'gt_' + uid: genotype.n_alt_alleles() if genotype.dtype is dtype('call') else genotype})
+                      entry_exprs={'gt_' + uid: genotype.n_alt_alleles() if genotype.dtype is hl.dtype('call') else genotype})
     mt, pi, rg = make_betas(mt=mt,
                             h2=h2,
                             pi=pi,
@@ -581,10 +580,10 @@ def calculate_phenotypes(mt, genotype, beta, h2, popstrat=None, popstrat_var=Non
     mt = annotate_all(mt=mt,
                       row_exprs={'beta_' + uid: beta},
                       col_exprs={} if popstrat is None else {'popstrat_' + uid: popstrat},
-                      entry_exprs={'gt_' + uid: genotype.n_alt_alleles() if genotype.dtype is dtype('call') else genotype})
+                      entry_exprs={'gt_' + uid: genotype.n_alt_alleles() if genotype.dtype is hl.dtype('call') else genotype})
     mt = mt.filter_rows(hl.agg.stats(mt['gt_' + uid]).stdev > 0)
     mt = normalize_genotypes(mt['gt_' + uid])
-    if mt['beta_' + uid].dtype == dtype('array<float64>'):  # if >1 traits
+    if mt['beta_' + uid].dtype == hl.dtype('array<float64>'):  # if >1 traits
         if exact_h2:
             raise ValueError('exact_h2=True not supported for multitrait simulations')
         else:
@@ -634,7 +633,7 @@ def normalize_genotypes(genotype):
     uid = Env.get_uid(base=100)
     mt = genotype._indices.source
     mt = mt.annotate_entries(
-        **{'gt_' + uid: genotype.n_alt_alleles() if genotype.dtype is dtype('call') else genotype})
+        **{'gt_' + uid: genotype.n_alt_alleles() if genotype.dtype is hl.dtype('call') else genotype})
     mt = mt.annotate_rows(**{'gt_stats_' + uid: hl.agg.stats(mt['gt_' + uid])})
     # TODO: Add MAF filter to remove invariant SNPs?
     mt = mt.annotate_entries(norm_gt=(mt['gt_' + uid] - mt['gt_stats_' + uid].mean) / mt['gt_stats_' + uid].stdev)
