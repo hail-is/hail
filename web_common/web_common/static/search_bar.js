@@ -15,9 +15,25 @@ function searchTable(table_name, search_bar_name) {
         break;
       }
     }
-    if (anyMatch)
-      record.style.display = "";
-    else
-      record.style.display = "none";
+    if (anyMatch) {
+      if (record.parentNode.style.display == "none") {
+        wrapper = record.parentNode
+
+        row_container = wrapper.parentNode
+        row_container.insertBefore(record, wrapper)
+        row_container.removeChild(wrapper)
+      }
+    } else {
+      if (record.parentNode.style.display != "none") {
+        wrapper = document.createElement('div')
+        wrapper.style.display = "none"
+
+        row_container = record.parentNode
+        row_container.insertBefore(wrapper, record)
+        row_container.removeChild(record)
+
+        wrapper.appendChild(record)
+      }
+    }
   }
 }
