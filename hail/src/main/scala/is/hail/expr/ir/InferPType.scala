@@ -188,7 +188,7 @@ object InferPType {
             None
         }
         if (seqs != null)
-          seqs(i) += RecursiveArrayBuilderElement(x, nested)
+          seqs(i) += RecursiveArrayBuilderElement(x.op -> x.args.map(_.pType), nested)
       case _ => node.children.foreach(c => _extractAggOps(c.asInstanceOf[IR], inits, seqs))
     }
 

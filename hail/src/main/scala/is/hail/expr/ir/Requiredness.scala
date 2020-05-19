@@ -52,16 +52,16 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
     def sig: Array[AggStatePhysicalSignature] = _sig
   }
 
-  private val aggStateMemo = Memo.empty[WrappedAggState]
+  private[this] val aggStateMemo = Memo.empty[WrappedAggState]
 
-  def computeAggState(sigs: IndexedSeq[AggStateSignature], irs: Seq[IR]): Array[AggStatePhysicalSignature] = {
+  private[this] def computeAggState(sigs: IndexedSeq[AggStateSignature], irs: Seq[IR]): Array[AggStatePhysicalSignature] = {
     val initsAB = InferPType.newBuilder[(AggOp, Seq[PType])](sigs.length)
     val seqsAB = InferPType.newBuilder[(AggOp, Seq[PType])](sigs.length)
     irs.foreach { ir => InferPType._extractAggOps(ir, inits = initsAB, seqs = seqsAB) }
     Array.tabulate(sigs.length) { i => InferPType.computePhysicalAgg(sigs(i), initsAB(i), seqsAB(i)) }
   }
 
-  def initializeAggStates(node: BaseIR, wrapped: WrappedAggState): Unit = {
+  private[this] def initializeAggStates(node: BaseIR, wrapped: WrappedAggState): Unit = {
     node match {
       case x@RunAgg(body, result, signature) =>
         val next = new WrappedAggState(RefEquality[IR](x), null)
@@ -87,7 +87,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
     }
   }
 
-  def lookupAggState(ir: IR): WrappedAggState = aggStateMemo(ir)
+  private[this] def lookupAggState(ir: IR): WrappedAggState = aggStateMemo(ir)
 
   def result(): RequirednessAnalysis = RequirednessAnalysis(cache, states)
 
