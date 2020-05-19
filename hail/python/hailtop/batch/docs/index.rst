@@ -21,7 +21,6 @@ Contents
    Docker Resources <docker_resources>
    Batch Service <service>
    Reference (Python API) <api>
-   Change Log <change_log>
 
 
 Indices and tables
