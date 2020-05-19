@@ -836,7 +836,9 @@ class CreateDatabaseStep(Step):
         self.shutdowns = shutdowns
 
         self.inputs = inputs
-        self.job = None
+        self.create_passwords_job = None
+        self.create_database_job = None
+        self.cleanup_job = None
 
         if params.scope == 'dev':
             self.database_server_config_namespace = params.code.namespace
@@ -860,12 +862,18 @@ class CreateDatabaseStep(Step):
             self.admin_username = generate_token()
             self.user_username = generate_token()
 
+        self.admin_password_file = f'/io/{self.admin_username}.pwd'
+        self.user_password_file = f'/io/{self.user_username}.pwd'
+
         self.admin_secret_name = f'sql-{self.database_name}-admin-config'
         self.user_secret_name = f'sql-{self.database_name}-user-config'
 
     def wrapped_job(self):
-        if self.job:
-            return [self.job]
+        if self.cleanup_job:
+            return [self.cleanup_job]
+        if self.create_passwords_job:
+            assert self.create_database_job is not None
+            return [self.create_passwords_job, self.create_database_job]
         return []
 
     @staticmethod
@@ -893,38 +901,57 @@ class CreateDatabaseStep(Step):
             '_name': self._name,
             'admin_username': self.admin_username,
             'user_username': self.user_username,
+            'admin_password_file': self.admin_password_file,
+            'user_password_file': self.user_password_file,
             'cant_create_database': self.cant_create_database,
             'migrations': self.migrations,
             'shutdowns': self.shutdowns
         }
 
-        create_script = f'''
+        create_passwords_script = f'''
+set -ex
+
+LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 16 > {self.admin_password_file}
+LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 16 > {self.user_password_file}
+'''
+
+        create_database_script = f'''
 set -ex
 
 python3 create_database.py {shq(json.dumps(create_database_config))}
 '''
 
+        input_files = []
         if self.inputs:
-            input_files = []
             for i in self.inputs:
                 input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
-        else:
-            input_files = None
+        password_files_input = [
+            (f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.admin_password_file}', self.admin_password_file),
+            (f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.user_password_file}', self.user_password_file)]
+        input_files.extend(password_files_input)
 
-        self.job = batch.create_job(CI_UTILS_IMAGE,
-                                    command=['bash', '-c', create_script],
-                                    attributes={'name': self.name},
-                                    secrets=[{
-                                        'namespace': self.database_server_config_namespace,
-                                        'name': 'database-server-config',
-                                        'mount_path': '/sql-config'
-                                    }],
-                                    service_account={
-                                        'namespace': BATCH_PODS_NAMESPACE,
-                                        'name': 'ci-agent'
-                                    },
-                                    input_files=input_files,
-                                    parents=self.deps_parents())
+        self.create_passwords_job = batch.create_job(
+            CI_UTILS_IMAGE,
+            command=['bash', '-c', create_passwords_script],
+            attributes={'name': self.name + "_create_passwords"},
+            output_files=[(x[1], x[0]) for x in password_files_input],
+            parents=self.deps_parents())
+
+        self.create_database_job = batch.create_job(
+            CI_UTILS_IMAGE,
+            command=['bash', '-c', create_database_script],
+            attributes={'name': self.name},
+            secrets=[{
+                'namespace': self.database_server_config_namespace,
+                'name': 'database-server-config',
+                'mount_path': '/sql-config'
+            }],
+            service_account={
+                'namespace': BATCH_PODS_NAMESPACE,
+                'name': 'ci-agent'
+            },
+            input_files=input_files,
+            parents=[self.create_passwords_job])
 
     def cleanup(self, batch, scope, parents):
         if scope in ['deploy', 'dev'] or self.cant_create_database:
@@ -949,17 +976,18 @@ done
 
 '''
 
-        self.job = batch.create_job(CI_UTILS_IMAGE,
-                                    command=['bash', '-c', cleanup_script],
-                                    attributes={'name': f'cleanup_{self.name}'},
-                                    secrets=[{
-                                        'namespace': self.database_server_config_namespace,
-                                        'name': 'database-server-config',
-                                        'mount_path': '/sql-config'
-                                    }],
-                                    service_account={
-                                        'namespace': BATCH_PODS_NAMESPACE,
-                                        'name': 'ci-agent'
-                                    },
-                                    parents=parents,
-                                    always_run=True)
+        self.cleanup_job = batch.create_job(
+            CI_UTILS_IMAGE,
+            command=['bash', '-c', cleanup_script],
+            attributes={'name': f'cleanup_{self.name}'},
+            secrets=[{
+                'namespace': self.database_server_config_namespace,
+                'name': 'database-server-config',
+                'mount_path': '/sql-config'
+            }],
+            service_account={
+                'namespace': BATCH_PODS_NAMESPACE,
+                'name': 'ci-agent'
+            },
+            parents=parents,
+            always_run=True)

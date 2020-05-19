@@ -61,7 +61,12 @@ database={config["db"]}
     await check_shell(
         f'''
 kubectl -n {shq(namespace)} delete --ignore-not-found=true secret {shq(secret_name)}
-kubectl -n {shq(namespace)} create secret generic {shq(secret_name)} {from_files}
+kubectl -n {shq(namespace)} create secret generic \
+        {shq(secret_name)} \
+        {from_files} \
+        --dry-run=true \
+        -o yaml \
+        | kubectl -n {shq(namespace)} apply -f -
 ''')
 
 
@@ -99,16 +104,19 @@ async def create_database():
             assert len(rows) == 1
             return
 
-    admin_password = secrets.token_urlsafe(16)
-    user_password = secrets.token_urlsafe(16)
+    with open(create_database_config['admin_password_file']) as f:
+        admin_password = f.read()
+
+    with open(create_database_config['user_password_file']) as f:
+        user_password = f.read()
 
     await db.just_execute(f'''
-CREATE DATABASE `{_name}`;
+CREATE DATABASE IF NOT EXISTS `{_name}`;
 
-CREATE USER '{admin_username}'@'%' IDENTIFIED BY '{admin_password}';
+CREATE USER IF NOT EXISTS '{admin_username}'@'%' IDENTIFIED BY '{admin_password}';
 GRANT ALL ON `{_name}`.* TO '{admin_username}'@'%';
 
-CREATE USER '{user_username}'@'%' IDENTIFIED BY '{user_password}';
+CREATE USER IF NOT EXISTS '{user_username}'@'%' IDENTIFIED BY '{user_password}';
 GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}'@'%';
 ''')
 
