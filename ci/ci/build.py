@@ -2,7 +2,7 @@ import abc
 import os.path
 import json
 import logging
-from collections import defaultdict
+from collections import defaultdict, Counter
 from shlex import quote as shq
 import yaml
 import jinja2
@@ -76,6 +76,10 @@ class StepParameters:
         self.name_step = name_step
 
 
+class BuildConfigurationError(Exception):
+    pass
+
+
 class BuildConfiguration:
     def __init__(self, code, config_str, scope, requested_step_names=()):
         config = yaml.safe_load(config_str)
@@ -141,6 +145,12 @@ class Step(abc.ABC):
             self.deps = [params.name_step[d] for d in json['dependsOn'] if params.name_step[d]]
         else:
             self.deps = []
+        duplicates = [
+            name
+            for name, count in Counter(self.deps).items()
+            if count > 1]
+        if duplicates:
+            raise BuildConfigurationError(f'found duplicate dependencies of {self.name}: {duplicates}')
         self.scopes = json.get('scopes')
         self.run_if_requested = json.get('runIfRequested', False)
 
@@ -194,7 +204,7 @@ class Step(abc.ABC):
             return DeployStep.from_json(params)
         if kind in ('createDatabase', 'createDatabase2'):
             return CreateDatabaseStep.from_json(params)
-        raise ValueError(f'unknown build step kind: {kind}')
+        raise BuildConfigurationError(f'unknown build step kind: {kind}')
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.name == other.name
@@ -499,7 +509,7 @@ class CreateNamespaceStep(Step):
         elif params.scope == 'dev':
             self._name = params.code.namespace
         else:
-            raise ValueError(f"{params.scope} is not a valid scope for creating namespace")
+            raise BuildConfigurationError(f"{params.scope} is not a valid scope for creating namespace")
 
     def wrapped_job(self):
         if self.job:
