@@ -536,3 +536,13 @@ echo $HAIL_BATCH_WORKER_IP
                 allow_redirects=True,
                 headers=headers)
             assert r.status_code == 400, (config, r)
+
+    def test_duplicate_parents(self):
+        batch = self.client.create_batch()
+        head = batch.create_job('ubuntu:18.04', command=['echo', 'head'])
+        batch.create_job('ubuntu:18.04', command=['echo', 'tail'], parents=[head, head])
+        try:
+            batch = batch.submit()
+        except aiohttp.ClientResponseError as e:
+            assert e.status == 400, 'bunch contains job with duplicated parents' in e.message
+        assert False, 'should receive a 400 Bad Request'

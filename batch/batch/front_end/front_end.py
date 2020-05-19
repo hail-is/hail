@@ -684,11 +684,18 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
                         log.info(f'bunch containing job {(batch_id, jobs_args[0][1])} already inserted ({err})')
                         return
                     raise
-                await tx.execute_many('''
+                try:
+                    await tx.execute_many('''
 INSERT INTO `job_parents` (batch_id, job_id, parent_id)
 VALUES (%s, %s, %s);
 ''',
-                                      job_parents_args)
+                                          job_parents_args)
+                except pymysql.err.IntegrityError as err:
+                    # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
+                    if err.args[0] == 1062:
+                        raise web.HTTPBadRequest(
+                            text=f'bunch contains job with duplicated parents ({err})')
+                    raise
                 await tx.execute_many('''
 INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
