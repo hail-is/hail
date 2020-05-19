@@ -134,6 +134,7 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("qpois", Array(TFloat64, TFloat64, TBoolean, TBoolean), TInt32, (_: Type, _: Seq[PType]) => PInt32())(statsPackageClass, "qpois")
 
     registerScalaFunction("pchisqtail", Array(TFloat64, TFloat64), TFloat64, (_: Type, _: Seq[PType]) => PFloat64())(statsPackageClass, "chiSquaredTail")
+    registerScalaFunction("pnchisqtail", Array(TFloat64, TFloat64, TFloat64), TFloat64, (_: Type, _: Seq[PType]) => PFloat64())(statsPackageClass, "nonCentralChiSquaredTail")
     registerScalaFunction("qchisqtail", Array(TFloat64, TFloat64), TFloat64, (_: Type, _: Seq[PType]) => PFloat64())(statsPackageClass, "inverseChiSquaredTail")
 
     registerScalaFunction("floor", Array(TFloat32), TFloat32, (_: Type, _: Seq[PType]) => PFloat32())(thisClass, "floor")
