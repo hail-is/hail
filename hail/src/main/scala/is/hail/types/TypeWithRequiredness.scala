@@ -185,7 +185,13 @@ case class RDict(keyType: TypeWithRequiredness, valueType: TypeWithRequiredness)
   override def _toString: String = s"RDict[${ keyType.toString }, ${ valueType.toString }]"
 }
 case class RNDArray(override val elementType: TypeWithRequiredness) extends RIterable(elementType, true) {
-  override def _unionLiteral(a: Annotation): Unit = ???
+  override def _unionLiteral(a: Annotation): Unit = {
+    val data = a.asInstanceOf[Row].getAs[Iterable[Any]](2)
+    data.asInstanceOf[Iterable[_]].foreach { elt =>
+      if (elt != null)
+        elementType.unionLiteral(elt)
+    }
+  }
   override def _matchesPType(pt: PType): Boolean = elementType.matchesPType(coerce[PNDArray](pt).elementType)
   override def _unionPType(pType: PType): Unit = elementType.fromPType(pType.asInstanceOf[PNDArray].elementType)
   override def copy(newChildren: Seq[BaseTypeWithRequiredness]): RNDArray = {
