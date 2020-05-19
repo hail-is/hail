@@ -17,9 +17,8 @@ object InferPType {
     x.children.foreach(clearPTypes)
   }
 
-  // does not unify physical arg types if multiple nested seq/init ops appear; instead takes the first. The emitter checks equality.
-  def computePhysicalAgg(virt: AggStateSignature, initsAB: ArrayBuilder[RecursiveArrayBuilderElement[InitOp]],
-    seqAB: ArrayBuilder[RecursiveArrayBuilderElement[SeqOp]]): AggStatePhysicalSignature = {
+  def computePhysicalAgg(virt: AggStateSignature, initsAB: ArrayBuilder[RecursiveArrayBuilderElement[(AggOp, Seq[PType])]],
+    seqAB: ArrayBuilder[RecursiveArrayBuilderElement[(AggOp, Seq[PType])]]): AggStatePhysicalSignature = {
     val inits = initsAB.result()
     val seqs = seqAB.result()
     assert(inits.nonEmpty)
@@ -29,15 +28,15 @@ object InferPType {
         assert(inits.length == 1)
         assert(seqs.length == 2)
 
-        val iHead = inits.find(_.value.op == AggElementsLengthCheck()).get
+        val iHead = inits.find(_.value._1 == AggElementsLengthCheck()).get
         val iNested = iHead.nested.get
-        val iHeadArgTypes = iHead.value.args.map(_.pType)
+        val iHeadArgTypes = iHead.value._2
 
-        val sLCHead = seqs.find(_.value.op == AggElementsLengthCheck()).get
-        val sLCArgTypes = sLCHead.value.args.map(_.pType)
-        val sAEHead = seqs.find(_.value.op == AggElements()).get
+        val sLCHead = seqs.find(_.value._1 == AggElementsLengthCheck()).get
+        val sLCArgTypes = sLCHead.value._2
+        val sAEHead = seqs.find(_.value._1 == AggElements()).get
         val sNested = sAEHead.nested.get
-        val sHeadArgTypes = sAEHead.value.args.map(_.pType)
+        val sHeadArgTypes = sAEHead.value._2
 
         val vNested = virt.nested.get.toArray
 
@@ -52,11 +51,11 @@ object InferPType {
         assert(seqs.length == 1)
         val iHead = inits.head
         val iNested = iHead.nested.get
-        val iHeadArgTypes = iHead.value.args.map(_.pType)
+        val iHeadArgTypes = iHead.value._2
 
         val sHead = seqs.head
         val sNested = sHead.nested.get
-        val sHeadArgTypes = sHead.value.args.map(_.pType)
+        val sHeadArgTypes = sHead.value._2
 
         val vNested = virt.nested.get.toArray
 
@@ -67,9 +66,9 @@ object InferPType {
       case _ =>
         assert(inits.forall(_.nested.isEmpty))
         assert(seqs.forall(_.nested.isEmpty))
-        val initArgTypes = inits.map(i => i.value.args.map(_.pType).toArray).transpose
+        val initArgTypes = inits.map(i => i.value._2.toArray).transpose
           .map(ts => getCompatiblePType(ts))
-        val seqArgTypes = seqs.map(i => i.value.args.map(_.pType).toArray).transpose
+        val seqArgTypes = seqs.map(i => i.value._2.toArray).transpose
           .map(ts => getCompatiblePType(ts))
         virt.defaultSignature.toPhysical(initArgTypes, seqArgTypes).singletonContainer
     }
@@ -96,10 +95,10 @@ object InferPType {
 
   def newBuilder[T](n: Int): AAB[T] = Array.fill(n)(new ArrayBuilder[RecursiveArrayBuilderElement[T]])
 
-  def apply(ir: IR, env: Env[PType], aggs: Array[AggStatePhysicalSignature], inits: AAB[InitOp], seqs: AAB[SeqOp]): Unit = {
+  def apply(ir: IR, env: Env[PType], aggs: Array[AggStatePhysicalSignature], inits: AAB[(AggOp, Seq[PType])], seqs: AAB[(AggOp, Seq[PType])]): Unit = {
     try {
       val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-      val requiredness = Requiredness.apply(ir, usesAndDefs, null, env) // Value IR inference doesn't need context
+      val requiredness = Requiredness.apply(ir, usesAndDefs, null, env, Some(aggs)) // Value IR inference doesn't need context
       requiredness.states.m.foreach { case (ir, types) =>
         ir.t match {
           case x: StreamFold => x.accPTypes = types.map(r => r.canonicalPType(x.zero.typ))
@@ -112,7 +111,7 @@ object InferPType {
       }
       _inferWithRequiredness(ir, env, requiredness, usesAndDefs, aggs)
       if (inits != null || seqs != null)
-        _inferAggs(ir, inits, seqs)
+        _extractAggOps(ir, inits, seqs)
     } catch {
       case e: Exception =>
         throw new RuntimeException(s"error while inferring IR:\n${Pretty(ir)}", e)
@@ -151,51 +150,46 @@ object InferPType {
     case _ => throw new RuntimeException(s"$name not found in definition \n${ Pretty(defNode) }")
   }
 
-  private def _inferAggs(node: IR, inits: AAB[InitOp] = null, seqs: AAB[SeqOp] = null): Unit =
+  def _extractAggOps(node: IR, inits: AAB[(AggOp, Seq[PType])] = null, seqs: AAB[(AggOp, Seq[PType])] = null): Unit =
     node match {
       case _: RunAgg | _: RunAggScan =>
       case x@InitOp(i, args, sig, op) =>
-        op match {
+        val nested = op match {
           case Group() =>
-            val newInits = newBuilder[InitOp](sig.nested.get.length)
+            val newInits = newBuilder[(AggOp, Seq[PType])](sig.nested.get.length)
             val IndexedSeq(initArg) = args
-            _inferAggs(initArg, inits = newInits, seqs = null)
-            if (inits != null)
-              inits(i) += RecursiveArrayBuilderElement(x, Some(newInits))
+            _extractAggOps(initArg, inits = newInits, seqs = null)
+            Some(newInits)
           case AggElementsLengthCheck() =>
-            val newInits = newBuilder[InitOp](sig.nested.get.length)
+            val newInits = newBuilder[(AggOp, Seq[PType])](sig.nested.get.length)
             val initArg = args.last
-            _inferAggs(initArg, inits = newInits, seqs = null)
-            if (inits != null)
-              inits(i) += RecursiveArrayBuilderElement(x, Some(newInits))
+            _extractAggOps(initArg, inits = newInits, seqs = null)
+            Some(newInits)
           case _ =>
             assert(sig.nested.isEmpty)
-            if (inits != null)
-              inits(i) += RecursiveArrayBuilderElement(x, None)
+            None
         }
+        inits(i) += RecursiveArrayBuilderElement(x.op -> x.args.map(_.pType), nested)
       case x@SeqOp(i, args, sig, op) =>
-        op match {
+        val nested = op match {
           case Group() =>
-            val newSeqs = newBuilder[SeqOp](sig.nested.get.length)
+            val newSeqs = newBuilder[(AggOp, Seq[PType])](sig.nested.get.length)
             val IndexedSeq(_, seqArg) = args
-            _inferAggs(seqArg, inits = null, seqs = newSeqs)
-            if (seqs != null)
-              seqs(i) += RecursiveArrayBuilderElement(x, Some(newSeqs))
+            _extractAggOps(seqArg, inits = null, seqs = newSeqs)
+            Some(newSeqs)
           case AggElements() =>
-            val newSeqs = newBuilder[SeqOp](sig.nested.get.length)
+            val newSeqs = newBuilder[(AggOp, Seq[PType])](sig.nested.get.length)
             val IndexedSeq(_, seqArg) = args
-            _inferAggs(seqArg, inits = null, seqs = newSeqs)
-            if (seqs != null)
-              seqs(i) += RecursiveArrayBuilderElement(x, Some(newSeqs))
-          case AggElementsLengthCheck() =>
-            if (seqs != null)
-              seqs(i) += RecursiveArrayBuilderElement(x, None)
+            _extractAggOps(seqArg, inits = null, seqs = newSeqs)
+            Some(newSeqs)
+          case AggElementsLengthCheck() => None
           case _ =>
             assert(sig.nested.isEmpty)
-            if (seqs != null)
-              seqs(i) += RecursiveArrayBuilderElement(x, None)
+            None
         }
-      case _ => node.children.foreach(c => _inferAggs(c.asInstanceOf[IR], inits, seqs))
+        if (seqs != null)
+          seqs(i) += RecursiveArrayBuilderElement(x, nested)
+      case _ => node.children.foreach(c => _extractAggOps(c.asInstanceOf[IR], inits, seqs))
     }
 
   private def _inferWithRequiredness(node: IR, env: Env[PType], requiredness: RequirednessAnalysis, usesAndDefs: UsesAndDefs, aggs: Array[AggStatePhysicalSignature] = null): Unit = {
@@ -204,9 +198,9 @@ object InferPType {
     node match {
       case x@RunAgg(body, result, signature) =>
         _inferWithRequiredness(body, env, requiredness, usesAndDefs)
-        val inits = newBuilder[InitOp](signature.length)
-        val seqs = newBuilder[SeqOp](signature.length)
-        _inferAggs(body, inits = inits, seqs = seqs)
+        val inits = newBuilder[(AggOp, Seq[PType])](signature.length)
+        val seqs = newBuilder[(AggOp, Seq[PType])](signature.length)
+        _extractAggOps(body, inits = inits, seqs = seqs)
         val sigs = signature.indices.map { i => computePhysicalAgg(signature(i), inits(i), seqs(i)) }.toArray
         x.physicalSignatures = sigs
         _inferWithRequiredness(result, env, requiredness, usesAndDefs, x.physicalSignatures)
@@ -214,10 +208,10 @@ object InferPType {
         _inferWithRequiredness(array, env, requiredness, usesAndDefs)
         _inferWithRequiredness(init, env, requiredness, usesAndDefs)
         _inferWithRequiredness(seq, env, requiredness, usesAndDefs)
-        val inits = newBuilder[InitOp](signature.length)
-        val seqs = newBuilder[SeqOp](signature.length)
-        _inferAggs(init, inits = inits, seqs = null)
-        _inferAggs(seq, inits = null, seqs = seqs)
+        val inits = newBuilder[(AggOp, Seq[PType])](signature.length)
+        val seqs = newBuilder[(AggOp, Seq[PType])](signature.length)
+        _extractAggOps(init, inits = inits, seqs = null)
+        _extractAggOps(seq, inits = null, seqs = seqs)
         val sigs = signature.indices.map { i => computePhysicalAgg(signature(i), inits(i), seqs(i)) }.toArray
         x.physicalSignatures = sigs
         _inferWithRequiredness(result, env, requiredness, usesAndDefs, x.physicalSignatures)
