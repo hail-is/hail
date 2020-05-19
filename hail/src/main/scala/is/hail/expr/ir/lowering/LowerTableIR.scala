@@ -508,12 +508,13 @@ object LowerTableIR {
 
         case TableLeftJoinRightDistinct(left, right, root) =>
           require(right.typ.keyType isPrefixOf left.typ.keyType)
+
           val commonKeyLength = right.typ.keyType.size
           val loweredLeft = lower(left)
           val leftKeyToRightKeyMap = left.typ.keyType.fieldNames.zip(right.typ.keyType.fieldNames).toMap
-          val newRightPartioner = loweredLeft.partitioner.strictify.coarsen(commonKeyLength)
+          val newRightPartitioner = loweredLeft.partitioner.strictify.coarsen(commonKeyLength)
             .rename(leftKeyToRightKeyMap)
-          val loweredRight = lower(right).repartitionNoShuffle(newRightPartioner)
+          val loweredRight = lower(right).repartitionNoShuffle(newRightPartitioner)
 
           val leftCtxTyp = loweredLeft.contexts.typ.asInstanceOf[TStream].elementType
           val rightCtxTyp = loweredRight.contexts.typ.asInstanceOf[TStream].elementType
