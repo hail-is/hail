@@ -716,7 +716,7 @@ class TableIRSuite extends HailSuite {
     val table1KeyedByAAndB = TableKeyBy(table1, IndexedSeq("a1", "b1"), isSorted = true)
     val joinedParKeyedByAAndB = TableLeftJoinRightDistinct(table1KeyedByAAndB, table2KeyedByA, "joinRoot")
 
-    assertEvalsTo(TableCount(joinedParKeyedByAAndB), parTable1Length)
+    assertEvalsTo(TableCount(joinedParKeyedByAAndB), parTable1Length.toLong)
   }
 }
 

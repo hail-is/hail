@@ -508,11 +508,10 @@ object LowerTableIR {
 
         case TableLeftJoinRightDistinct(left, right, root) =>
           require(right.typ.keyType isPrefixOf left.typ.keyType)
+          val commonKeyLength = right.typ.keyType.size
           val loweredLeft = lower(left)
-          // TODO: coarsen?
-          // FIXME: Not cool to use the left partitioner here, it expects key a1.
           val leftKeyToRightKeyMap = left.typ.keyType.fieldNames.zip(right.typ.keyType.fieldNames).toMap
-          val newRightPartioner = loweredLeft.partitioner.strictify.coarsen(right.typ.keyType.size)
+          val newRightPartioner = loweredLeft.partitioner.strictify.coarsen(commonKeyLength)
             .rename(leftKeyToRightKeyMap)
           val loweredRight = lower(right).repartitionNoShuffle(newRightPartioner)
 
@@ -540,7 +539,10 @@ object LowerTableIR {
                   val rightElementRef = Ref("r_ele", right.typ.rowType)
 
                   val comparator = ApplyComparisonOp(Compare(right.typ.keyType),
-                    CastRename(SelectFields(leftElementRef, left.typ.key), left.typ.keyType.rename(leftKeyToRightKeyMap)),
+                    CastRename(
+                      SelectFields(leftElementRef, left.typ.key.take(commonKeyLength)),
+                      left.typ.keyType.truncate(commonKeyLength).rename(leftKeyToRightKeyMap)
+                    ),
                     SelectFields(rightElementRef, right.typ.key))
                   val typeOfRootStruct = right.typ.rowType.filterSet(right.typ.key.toSet, false)._1
 

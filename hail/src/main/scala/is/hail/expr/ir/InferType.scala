@@ -189,9 +189,8 @@ object InferType {
         TStruct(fields.map { case (name, a) =>
           (name, a.typ)
         }: _*)
-      case q@SelectFields(old, fields) =>
+      case SelectFields(old, fields) =>
         val tbs = coerce[TStruct](old.typ)
-        println(Pretty(q))
         tbs.select(fields.toFastIndexedSeq)._1
       case InsertFields(old, fields, fieldOrder) =>
         val tbs = coerce[TStruct](old.typ)
