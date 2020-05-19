@@ -40,7 +40,7 @@ Service Accounts
 
 A Google service account is automatically created for a new Batch user that is used by Batch to download data
 on your behalf. To get the name of the service account, click on your name on the header bar or go to
-`<https://notebook.hail.is/user>`__.
+`<https://auth.hail.is/user>`__.
 
 To give the service account read and write access to a Google Storage bucket, run the following command substituting
 `SERVICE_ACCOUNT_NAME` with the full service account name (ex: test@my-project.iam.gserviceaccount.com) and `BUCKET_NAME`
@@ -163,7 +163,8 @@ Submitting a Batch to the Service
 
 To execute a batch on the Batch service rather than locally, first
 construct a :class:`.ServiceBackend` object with a billing project and
-a bucket to store intermediate files. Next, pass the
+bucket for storing intermediate files.  Your service account must
+have read and write access to the bucket.  Next, pass the
 :class:`.ServiceBackend` object to the :class:`.Batch` constructor
 with the parameter name `backend`.
 

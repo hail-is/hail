@@ -5,7 +5,6 @@ import aiohttp_session
 import uvloop
 import google.auth.transport.requests
 import google.oauth2.id_token
-import google.cloud.storage
 import google_auth_oauthlib.flow
 from hailtop.config import get_deploy_config
 from hailtop.utils import secret_alnum_string
@@ -106,6 +105,12 @@ async def callback(request):
     session['session_id'] = session_id
     next = session.pop('next')
     return aiohttp.web.HTTPFound(next)
+
+
+@routes.get('/user')
+@web_authenticated_users_only()
+async def user_page(request, userdata):
+    return await render_template('auth', request, userdata, 'user.html', {})
 
 
 async def create_copy_paste_token(db, session_id, max_age_secs=300):
