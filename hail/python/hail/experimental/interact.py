@@ -9,6 +9,7 @@ __all__ = [
     'interact',
 ]
 
+
 def interact(obj):
     tab = widgets.Tab()
     base_style = widgets.ButtonStyle()
@@ -165,6 +166,7 @@ def interact(obj):
         button.on_click(button_action)
 
     display(box, tab)
+
 
 def html_code(text):
     return f'<pre>{text}</pre>'

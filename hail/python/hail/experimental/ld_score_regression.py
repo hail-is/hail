@@ -4,7 +4,6 @@ from hail.typecheck import typecheck, oneof, sequenceof, nullable
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 from hail.utils import wrap_to_list, new_temp_file
-import numpy as np
 
 
 @typecheck(weight_expr=expr_float64,

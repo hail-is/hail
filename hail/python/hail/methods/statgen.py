@@ -1,23 +1,29 @@
 import itertools
 import math
 import numpy as np
-from typing import *
+from typing import Dict, List, Tuple, Callable
 import builtins
 
+import hail
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.expr.expressions import *
-from hail.expr.types import *
-from hail.ir import *
+from hail.expr import Expression, ExpressionException, \
+    expr_float64, expr_call, expr_any, expr_numeric, expr_array, \
+    expr_locus, \
+    analyze, check_entry_indexed, check_row_indexed, \
+    matrix_table_source, table_source
+from hail.expr.types import tbool, tarray, tfloat64, tint32
+from hail import ir
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str
 from hail.stats import LinearMixedModel
 from hail.table import Table
-from hail.typecheck import *
-from hail.utils import wrap_to_list, new_temp_file
-from hail.utils.java import *
+from hail.typecheck import typecheck, nullable, numeric, oneof, sequenceof, \
+    enumeration, anytype
+from hail.utils import wrap_to_list, new_temp_file, FatalError
+from hail.utils.java import Env, info, warn
 
 
 @typecheck(dataset=MatrixTable,
@@ -50,7 +56,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
 
     Notes
     -----
-    
+
     The dataset must have a column field named `s` which is a :class:`.StringExpression`
     and which uniquely identifies a column.
 
@@ -102,13 +108,13 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
 
     if maf is not None:
         analyze('identity_by_descent/maf', maf, dataset._row_indices)
-        dataset = dataset.select_rows(__maf = maf)
+        dataset = dataset.select_rows(__maf=maf)
     else:
         dataset = dataset.select_rows()
     dataset = dataset.select_cols().select_globals().select_entries('GT')
     dataset = require_biallelic(dataset, 'ibd')
 
-    return Table(MatrixToTableApply(dataset._mir, {
+    return Table(ir.MatrixToTableApply(dataset._mir, {
         'name': 'IBD',
         'mafFieldName': '__maf' if maf is not None else None,
         'bounded': bounded,
@@ -124,8 +130,8 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
            male_threshold=numeric,
            aaf=nullable(str))
 def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, aaf=None) -> Table:
-    """Impute sex of samples by calculating inbreeding coefficient on the X
-    chromosome.
+    r"""Impute sex of samples by calculating inbreeding coefficient on the
+    X chromosome.
 
     .. include:: ../_templates/req_tvariant.rst
 
@@ -212,6 +218,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     ------
     :class:`.Table`
         Sex imputation statistics per sample.
+
     """
     if aaf_threshold < 0.0 or aaf_threshold > 1.0:
         raise FatalError("Invalid argument for `aaf_threshold`. Must be in range [0, 1].")
@@ -439,7 +446,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
         'rowBlockSize': block_size,
         'passThrough': [x for x in row_fields if x not in mt.row_key]
     }
-    ht_result = Table(MatrixToTableApply(mt._mir, config))
+    ht_result = Table(ir.MatrixToTableApply(mt._mir, config))
 
     if not y_is_list:
         fields = ['y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
@@ -850,12 +857,13 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
         'passThrough': [x for x in row_fields if x not in mt.row_key]
     }
 
-    result = Table(MatrixToTableApply(mt._mir, config))
+    result = Table(ir.MatrixToTableApply(mt._mir, config))
 
     if not y_is_list:
         result = result.transmute(**result.logistic_regression[0])
 
     return result.persist()
+
 
 @typecheck(test=enumeration('wald', 'lrt', 'score'),
            y=expr_float64,
@@ -928,8 +936,8 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
         'covFields': cov_field_names,
         'passThrough': [x for x in row_fields if x not in mt.row_key]
     }
-    
-    return Table(MatrixToTableApply(mt._mir, config)).persist()
+
+    return Table(ir.MatrixToTableApply(mt._mir, config)).persist()
 
 
 @typecheck(y=expr_float64,
@@ -1465,7 +1473,7 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
         'iterations': iterations
     }
 
-    return Table(MatrixToTableApply(mt._mir, config))
+    return Table(ir.MatrixToTableApply(mt._mir, config))
 
 
 @typecheck(p_value=expr_numeric,
@@ -1682,7 +1690,7 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
         mt = mt.select_entries(**{field: entry_expr})
     mt = mt.select_cols().select_rows().select_globals()
 
-    t = (Table(MatrixToTableApply(mt._mir, {
+    t = (Table(ir.MatrixToTableApply(mt._mir, {
         'name': 'PCA',
         'entryField': field,
         'k': k,
@@ -2000,7 +2008,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
     pcs = scores_table.collect(_localize=False).map(lambda x: x.__scores)
 
-    ht = Table(BlockMatrixToTableApply(g._bmir, pcs._ir, {
+    ht = Table(ir.BlockMatrixToTableApply(g._bmir, pcs._ir, {
         'name': 'PCRelate',
         'maf': min_individual_maf,
         'blockSize': block_size,
@@ -2132,7 +2140,7 @@ def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False
             if rekey:
                 return mt.key_rows_by('locus', 'alleles')
             else:
-                return MatrixTable(MatrixKeyRowsBy(mt._mir, ['locus', 'alleles'], is_sorted=True))
+                return MatrixTable(ir.MatrixKeyRowsBy(mt._mir, ['locus', 'alleles'], is_sorted=True))
         else:
             assert isinstance(ds, Table)
             ht = (ds.annotate(**{new_id: expr})
@@ -2152,7 +2160,7 @@ def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False
             if rekey:
                 return ht.key_by('locus', 'alleles')
             else:
-                return Table(TableKeyBy(ht._tir, ['locus', 'alleles'], is_sorted=True))
+                return Table(ir.TableKeyBy(ht._tir, ['locus', 'alleles'], is_sorted=True))
 
     if left_aligned:
         def make_struct(i):
@@ -3022,7 +3030,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
                                    af_dist))
     # entry info
     p = hl.sum(bn.pop * bn.af) if mixture else bn.af[bn.pop]
-    idx = hl.rand_cat([(1 - p) ** 2, 2 * p * (1-p), p ** 2])
+    idx = hl.rand_cat([(1 - p) ** 2, 2 * p * (1 - p), p ** 2])
     return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx))
 
 
@@ -3330,8 +3338,7 @@ def filter_alleles_hts(mt: MatrixTable,
                          "  found: {}\n"
                          "  expected: {}\n"
                          "  Use 'hl.filter_alleles' to split entries with non-HTS entry fields.".format(
-            mt.entry.dtype, hl.hts_entry_schema
-        ))
+                             mt.entry.dtype, hl.hts_entry_schema))
 
     mt = filter_alleles(mt, f)
 
@@ -3358,15 +3365,15 @@ def filter_alleles_hts(mt: MatrixTable,
             PL=newPL)
     # otherwise downcode
     else:
-        mt = mt.annotate_rows(__old_to_new_no_na = mt.old_to_new.map(lambda x: hl.or_else(x, 0)))
+        mt = mt.annotate_rows(__old_to_new_no_na=mt.old_to_new.map(lambda x: hl.or_else(x, 0)))
         newPL = hl.cond(
             hl.is_defined(mt.PL),
             (hl.range(0, hl.triangle(hl.len(mt.alleles)))
              .map(lambda newi: hl.min(hl.range(0, hl.triangle(hl.len(mt.old_alleles)))
                                       .filter(lambda oldi: hl.bind(
-                lambda oldc: hl.call(mt.__old_to_new_no_na[oldc[0]],
-                                     mt.__old_to_new_no_na[oldc[1]]) == hl.unphased_diploid_gt_index_call(newi),
-                hl.unphased_diploid_gt_index_call(oldi)))
+                                          lambda oldc: hl.call(mt.__old_to_new_no_na[oldc[0]],
+                                                               mt.__old_to_new_no_na[oldc[1]]) == hl.unphased_diploid_gt_index_call(newi),
+                                          hl.unphased_diploid_gt_index_call(oldi)))
                                       .map(lambda oldi: mt.PL[oldi])))),
             hl.null(tarray(tint32)))
         return mt.annotate_entries(
@@ -3404,7 +3411,7 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
 
     info(f'ld_prune: running local pruning stage with max queue size of {max_queue_size} variants')
 
-    return Table(MatrixToTableApply(mt._mir, {
+    return Table(ir.MatrixToTableApply(mt._mir, {
         'name': 'LocalLDPrune',
         'callField': call_field,
         'r2Threshold': float(r2),
@@ -3501,10 +3508,10 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
         block_size = BlockMatrix.default_block_size()
 
     if not 0.0 <= r2 <= 1:
-      raise ValueError(f'r2 must be in the range [0.0, 1.0], found {r2}')
+        raise ValueError(f'r2 must be in the range [0.0, 1.0], found {r2}')
 
     if bp_window_size < 0:
-      raise ValueError(f'bp_window_size must be non-negative, found {bp_window_size}')
+        raise ValueError(f'bp_window_size must be non-negative, found {bp_window_size}')
 
     check_entry_indexed('ld_prune/call_expr', call_expr)
     mt = matrix_table_source('ld_prune/call_expr', call_expr)
@@ -3538,7 +3545,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
 
     entries = r2_bm.sparsify_row_intervals(range(stops.size), stops, blocks_only=True).entries(keyed=False)
     entries = entries.filter((entries.entry >= r2) & (entries.i < entries.j))
-    entries = entries.select(i = hl.int32(entries.i), j = hl.int32(entries.j))
+    entries = entries.select(i=hl.int32(entries.i), j=hl.int32(entries.j))
 
     if keep_higher_maf:
         fields = ['mean', 'locus']
@@ -3549,7 +3556,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
         hl.agg.collect(locally_pruned_table.row.select('idx', *fields)), _localize=False)
     info = hl.sorted(info, key=lambda x: x.idx)
 
-    entries = entries.annotate_globals(info = info)
+    entries = entries.annotate_globals(info=info)
 
     entries = entries.filter(
         (entries.info[entries.i].locus.contig == entries.info[entries.j].locus.contig)
@@ -3571,7 +3578,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
         entries.i, entries.j, keep=False, tie_breaker=tie_breaker, keyed=False)
 
     locally_pruned_table = locally_pruned_table.annotate_globals(
-        variants_to_remove = variants_to_remove.aggregate(
+        variants_to_remove=variants_to_remove.aggregate(
             hl.agg.collect_as_set(variants_to_remove.node.idx), _localize=False))
     return locally_pruned_table.filter(
         locally_pruned_table.variants_to_remove.contains(hl.int32(locally_pruned_table.idx)),

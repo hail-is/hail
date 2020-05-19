@@ -9,7 +9,8 @@ class TypecheckFailure(Exception):
     pass
 
 
-identity = lambda x: x
+def identity(x):
+    return x
 
 
 def extract(t):
@@ -441,7 +442,9 @@ def dictof(k, v):
 def func_spec(n, tc):
     return FunctionChecker(n, only(tc))
 
+
 anyfunc = AnyFuncChecker()
+
 
 def transformed(*tcs):
     fs = []
@@ -557,11 +560,11 @@ def check_all(f, args, kwargs, checks, is_method):
             except TypecheckFailure as e:
                 raise TypeError("{fname}: parameter '{argname}': "
                                 "expected {expected}, found {found}".format(
-                    fname=name,
-                    argname=arg_name,
-                    expected=checker.expects(),
-                    found=checker.format(arg)
-                )) from e
+                                    fname=name,
+                                    argname=arg_name,
+                                    expected=checker.expects(),
+                                    found=checker.format(arg)
+                                )) from e
         elif param.kind == param.VAR_POSITIONAL:
             # consume the rest of the positional arguments
             varargs = args[i:]
@@ -571,13 +574,13 @@ def check_all(f, args, kwargs, checks, is_method):
                 except TypecheckFailure as e:
                     raise TypeError("{fname}: parameter '*{argname}' (arg {idx} of {tot}): "
                                     "expected {expected}, found {found}".format(
-                        fname=name,
-                        argname=arg_name,
-                        idx=j,
-                        tot=len(varargs),
-                        expected=checker.expects(),
-                        found=checker.format(arg)
-                    )) from e
+                                        fname=name,
+                                        argname=arg_name,
+                                        idx=j,
+                                        tot=len(varargs),
+                                        expected=checker.expects(),
+                                        found=checker.format(arg)
+                                    )) from e
         else:
             assert param.kind == param.VAR_KEYWORD
             # kwargs now holds all variable kwargs
@@ -587,10 +590,10 @@ def check_all(f, args, kwargs, checks, is_method):
                 except TypecheckFailure as e:
                     raise TypeError("{fname}: keyword argument '{argname}': "
                                     "expected {expected}, found {found}".format(
-                        fname=name,
-                        argname=kwarg_name,
-                        expected=checker.expects(),
-                        found=checker.format(arg))) from e
+                                        fname=name,
+                                        argname=kwarg_name,
+                                        expected=checker.expects(),
+                                        found=checker.format(arg))) from e
     return args_, kwargs_
 
 

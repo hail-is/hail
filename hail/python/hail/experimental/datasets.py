@@ -1,6 +1,6 @@
-
 import json
 import hail as hl
+
 
 def load_dataset(name,
                  version,
@@ -37,23 +37,23 @@ def load_dataset(name,
     if name not in names:
         raise ValueError('{} is not a dataset available in the repository.'.format(repr(name)))
 
-    versions = set([dataset['version'] for dataset in datasets if dataset['name']==name])
+    versions = set([dataset['version'] for dataset in datasets if dataset['name'] == name])
     if version not in versions:
         raise ValueError("""Version {0} not available for dataset {1}.
-                            Available versions: {{{2}}}.""".format(repr(version), 
+                            Available versions: {{{2}}}.""".format(repr(version),
                                                                    repr(name),
                                                                    repr('","'.join(versions))))
 
-    reference_genomes = set([dataset['reference_genome'] for dataset in datasets if dataset['name']==name])
+    reference_genomes = set([dataset['reference_genome'] for dataset in datasets if dataset['name'] == name])
     if reference_genome not in reference_genomes:
         raise ValueError("""Reference genome build {0} not available for dataset {1}.
                             Available reference genome builds: {{'{2}'}}.""".format(repr(reference_genome),
-                                                                                    repr(name), 
+                                                                                    repr(name),
                                                                                     '\',\''.join((reference_genomes))))
 
-    path = [dataset['path'] for dataset in datasets if all([dataset['name']==name,
-                                                            dataset['version']==version,
-                                                            dataset['reference_genome']==reference_genome])][0].strip('/')
+    path = [dataset['path'] for dataset in datasets if all([dataset['name'] == name,
+                                                            dataset['version'] == version,
+                                                            dataset['reference_genome'] == reference_genome])][0].strip('/')
 
     if path.endswith('.ht'):
         dataset = hl.read_table(path)

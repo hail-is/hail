@@ -1,5 +1,5 @@
 import hail as hl
-from .java import FatalError, Env, info
+from .java import Env, info
 from .misc import new_temp_file, local_path_uri, new_local_temp_dir
 import os
 import zipfile

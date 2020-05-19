@@ -1,3 +1,4 @@
+import pprint
 from hail.typecheck import typecheck_method, sequenceof
 from hail.utils.java import jiterable_to_list
 from hail.expr.types import dtype, hail_type
@@ -28,10 +29,10 @@ class tblockmatrix(object):
 
     def __eq__(self, other):
         return isinstance(other, tblockmatrix) and \
-               self.element_type == other.element_type and \
-               self.shape == other.shape and \
-               self.is_row_vector == other.is_row_vector and \
-               self.block_size == other.block_size
+            self.element_type == other.element_type and \
+            self.shape == other.shape and \
+            self.is_row_vector == other.is_row_vector and \
+            self.block_size == other.block_size
 
     def __hash__(self):
         return 43 + hash(str(self))
@@ -45,37 +46,35 @@ class tblockmatrix(object):
             f'is_row_vector: {self.is_row_vector}, block_size: {self.block_size})'
 
     def pretty(self, indent=0, increment=4):
-        l = []
-        l.append(' ' * indent)
-        l.append('blockmatrix {\n')
+        b = []
+        b.append(' ' * indent)
+        b.append('blockmatrix {\n')
         indent += increment
 
-        l.append(' ' * indent)
-        l.append('element_type: ')
-        self.element_type._pretty(l, indent, increment)
-        l.append(',\n')
+        b.append(' ' * indent)
+        b.append('element_type: ')
+        self.element_type._pretty(b, indent, increment)
+        b.append(',\n')
 
-        l.append(' ' * indent)
-        l.append(f'shape: [{self.shape}],\n')
+        b.append(' ' * indent)
+        b.append(f'shape: [{self.shape}],\n')
 
-        l.append(' ' * indent)
-        l.append('is_row_vector: ')
-        self.is_row_vector._pretty(l, indent, increment)
-        l.append(',\n')
+        b.append(' ' * indent)
+        b.append('is_row_vector: ')
+        self.is_row_vector._pretty(b, indent, increment)
+        b.append(',\n')
 
-        l.append(' ' * indent)
-        l.append('block_size: ')
-        self.block_size._pretty(l, indent, increment)
-        l.append(',\n')
+        b.append(' ' * indent)
+        b.append('block_size: ')
+        self.block_size._pretty(b, indent, increment)
+        b.append(',\n')
 
         indent -= increment
-        l.append(' ' * indent)
-        l.append('}')
+        b.append(' ' * indent)
+        b.append('}')
 
-        return ''.join(l)
+        return ''.join(b)
 
-
-import pprint
 
 _old_printer = pprint.PrettyPrinter
 

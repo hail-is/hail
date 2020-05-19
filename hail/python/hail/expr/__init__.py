@@ -6,7 +6,9 @@ from .types import dtype, HailType, hail_type, is_container, is_compound, \
 from .table_type import ttable
 from .matrix_type import tmatrix
 from .blockmatrix_type import tblockmatrix
-from .expressions import eval, eval_typed, eval_timed, \
+from .expressions import analyze, eval, eval_typed, eval_timed, \
+    extract_refs_by_indices, get_refs, matrix_table_source, table_source, \
+    check_entry_indexed, check_row_indexed, \
     Indices, Aggregation, apply_expr, construct_expr, construct_variable, \
     construct_reference, impute_type, to_expr, cast_expr, unify_all, \
     unify_types_limited, unify_types, unify_exprs, \
@@ -72,6 +74,7 @@ __all__ = ['HailType',
            'tmatrix',
            'tblockmatrix',
            'hts_entry_schema',
+           'analyze',
            'eval',
            'eval_typed',
            'eval_timed',

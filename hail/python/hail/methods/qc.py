@@ -1,8 +1,7 @@
 import hail as hl
 from collections import Counter
-from pprint import pprint
-from typing import *
-from hail.typecheck import *
+from typing import Tuple, List, Union
+from hail.typecheck import typecheck, oneof, anytype
 from hail.utils.java import Env, info
 from hail.utils.misc import divide_null
 from hail.matrixtable import MatrixTable
@@ -83,7 +82,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
 
     require_row_key_variant(mt, 'sample_qc')
 
-    from hail.expr.functions import _num_allele_type , _allele_types
+    from hail.expr.functions import _num_allele_type, _allele_types
 
     allele_types = _allele_types[:]
     allele_types.extend(['Transition', 'Transversion'])
@@ -115,7 +114,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     if has_field_of_type('GQ', hl.tint32):
         gq_dp_exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
 
-    if not has_field_of_type('GT',  hl.tcall):
+    if not has_field_of_type('GT', hl.tcall):
         raise ValueError(f"'sample_qc': expect an entry field 'GT' of type 'call'")
 
     bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
@@ -137,7 +136,8 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
 
     zero = hl.int64(0)
 
-    result_struct = hl.rbind(hl.struct(**bound_exprs),
+    result_struct = hl.rbind(
+        hl.struct(**bound_exprs),
         lambda x: hl.rbind(
             hl.struct(**{
                 **gq_dp_exprs,
@@ -150,8 +150,8 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
                 'n_hom_var': x.n_called - x.n_hom_ref - x.n_het,
                 'n_non_ref': x.n_called - x.n_hom_ref,
                 'n_singleton': x.n_singleton,
-                'n_snp': x.allele_type_counts.get(allele_ints["Transition"], zero) + \
-                         x.allele_type_counts.get(allele_ints["Transversion"], zero),
+                'n_snp': (x.allele_type_counts.get(allele_ints["Transition"], zero)
+                          + x.allele_type_counts.get(allele_ints["Transversion"], zero)),
                 'n_insertion': x.allele_type_counts.get(allele_ints["Insertion"], zero),
                 'n_deletion': x.allele_type_counts.get(allele_ints["Deletion"], zero),
                 'n_transition': x.allele_type_counts.get(allele_ints["Transition"], zero),
@@ -257,7 +257,7 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     if has_field_of_type('GQ', hl.tint32):
         gq_dp_exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
 
-    if not has_field_of_type('GT',  hl.tcall):
+    if not has_field_of_type('GT', hl.tcall):
         raise ValueError(f"'variant_qc': expect an entry field 'GT' of type 'call'")
 
     bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
@@ -456,15 +456,15 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
     def n_discordant(counter):
         return hl.sum(
             hl.array(counter)
-                .filter(lambda tup: hl.literal(discordant_indices).contains(tup[0]))
-                .map(lambda tup: tup[1]))
+            .filter(lambda tup: hl.literal(discordant_indices).contains(tup[0]))
+            .map(lambda tup: tup[1]))
 
     glob = joined.aggregate_entries(concordance_array(aggr), _localize=_localize_global_statistics)
     if _localize_global_statistics:
         total_conc = [x[1:] for x in glob[1:]]
         on_diag = sum(total_conc[i][i] for i in range(len(total_conc)))
         total_obs = sum(sum(x) for x in total_conc)
-        pct = on_diag/total_obs * 100 if total_obs > 0 else float('nan')
+        pct = on_diag / total_obs * 100 if total_obs > 0 else float('nan')
         info(f"concordance: total concordance {pct:.2f}%")
 
     per_variant = joined.annotate_rows(concordance=aggr)
@@ -973,7 +973,7 @@ class _VariantSummary(object):
         allele_type_formatter = f'%{max_allele_type_len}s'
 
         line_break = '=============================='
-        
+
         builder = []
         builder.append(line_break)
         builder.append(f'Number of variants: {self.n_variants}')
@@ -1116,9 +1116,9 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
 
     def explode_result(alleles):
         ref, alt = alleles
-        return hl.agg.counter(hl.allele_type(ref, alt)), \
-               hl.agg.count_where(hl.is_transition(ref, alt)), \
-               hl.agg.count_where(hl.is_transversion(ref, alt))
+        return (hl.agg.counter(hl.allele_type(ref, alt)),
+                hl.agg.count_where(hl.is_transition(ref, alt)),
+                hl.agg.count_where(hl.is_transversion(ref, alt)))
 
     (allele_types, nti, ntv), contigs, allele_counts, n_variants = ht.aggregate(
         (hl.agg.explode(explode_result, allele_pairs),

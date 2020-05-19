@@ -1,5 +1,3 @@
-
-import numpy as np
 import hail as hl
 from hail.table import Table
 from hail.linalg import BlockMatrix

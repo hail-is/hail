@@ -12,8 +12,6 @@ import re
 from urllib.parse import urlparse
 from io import StringIO
 
-import numpy as np
-
 import hail
 import hail as hl
 from hail.typecheck import enumeration, typecheck, nullable
@@ -66,6 +64,7 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
         check_positive_and_in_range('range_matrix_table', 'n_partitions', n_partitions)
     return hail.MatrixTable(hail.ir.MatrixRead(hail.ir.MatrixRangeReader(n_rows, n_cols, n_partitions)))
 
+
 @typecheck(n=int, n_partitions=nullable(int))
 def range_table(n, n_partitions=None) -> 'hail.Table':
     """Construct a table with the row index and no other fields.
@@ -104,6 +103,7 @@ def range_table(n, n_partitions=None) -> 'hail.Table':
 
     return hail.Table(hail.ir.TableRange(n, n_partitions))
 
+
 def check_positive_and_in_range(caller, name, value):
     if value <= 0:
         raise ValueError(f"'{caller}': parameter '{name}' must be positive, found {value}")
@@ -111,12 +111,14 @@ def check_positive_and_in_range(caller, name, value):
         raise ValueError(f"'{caller}': parameter '{name}' must be less than or equal to {hail.tint32.max_value}, "
                          f"found {value}")
 
+
 def check_nonnegative_and_in_range(caller, name, value):
     if value < 0:
         raise ValueError(f"'{caller}': parameter '{name}' must be non-negative, found {value}")
     elif value > hail.tint32.max_value:
         raise ValueError(f"'{caller}': parameter '{name}' must be less than or equal to {hail.tint32.max_value}, "
                          f"found {value}")
+
 
 def wrap_to_list(s):
     if isinstance(s, list):
@@ -126,11 +128,13 @@ def wrap_to_list(s):
     else:
         return [s]
 
+
 def wrap_to_tuple(x):
     if isinstance(x, tuple):
         return x
     else:
         return x,
+
 
 def wrap_to_sequence(x):
     if isinstance(x, tuple):
@@ -139,6 +143,7 @@ def wrap_to_sequence(x):
         return tuple(x)
     else:
         return x,
+
 
 def get_env_or_default(maybe, envvar, default):
     import os
@@ -278,11 +283,11 @@ def get_nice_attr_error(obj, item):
         if any([field_matches, method_matches, prop_matches, inherited_matches]):
             s.append('\n    Did you mean:')
             if field_matches:
-                l = []
+                fs = []
                 for f in field_matches:
-                    l.extend(field_dict[f])
-                word = plural('field', len(l))
-                s.append('\n        Data {}: {}'.format(word, ', '.join(handler(f) for f in l)))
+                    fs.extend(field_dict[f])
+                word = plural('field', len(fs))
+                s.append('\n        Data {}: {}'.format(word, ', '.join(handler(f) for f in fs)))
             if method_matches:
                 word = plural('method', len(method_matches))
                 s.append('\n        {} {}: {}'.format(class_name, word,
@@ -322,14 +327,17 @@ def get_nice_field_error(obj, item):
         s.append("\n    Hint: use 'describe()' to show the names of all data fields.")
     return ''.join(s)
 
+
 def check_collisions(caller, names, indices, override_protected_indices=None):
     from hail.expr.expressions import ExpressionException
     fields = indices.source._fields
 
     if override_protected_indices is not None:
-        invalid = lambda e: e._indices in override_protected_indices
+        def invalid(e):
+            return e._indices in override_protected_indices
     else:
-        invalid = lambda e: e._indices != indices
+        def invalid(e):
+            return e._indices != indices
 
     # check collisions with fields on other axes
     for name in names:
@@ -343,6 +351,7 @@ def check_collisions(caller, names, indices, override_protected_indices=None):
         if v > 1:
             from hail.expr.expressions import ExpressionException
             raise ExpressionException(f"{caller!r}: selection would produce duplicate field {k!r}")
+
 
 def get_key_by_exprs(caller, exprs, named_exprs, indices, override_protected_indices=None):
     from hail.expr.expressions import to_expr, ExpressionException, analyze
@@ -386,6 +395,7 @@ def check_keys(caller, name, protected_key):
               f"use key_by to modify keys."
         error('Analysis exception: {}'.format(msg))
         raise ExpressionException(msg)
+
 
 def get_select_exprs(caller, exprs, named_exprs, indices, base_struct):
     from hail.expr.expressions import to_expr, ExpressionException, analyze
@@ -432,12 +442,14 @@ def get_select_exprs(caller, exprs, named_exprs, indices, base_struct):
     assert list(s) == final_fields
     return s
 
+
 def check_annotate_exprs(caller, named_exprs, indices):
     protected_key = set(indices.protected_key)
     for k in named_exprs:
         check_keys(caller, k, protected_key)
     check_collisions(caller, list(named_exprs), indices)
     return named_exprs
+
 
 def process_joins(obj, exprs):
     all_uids = []
@@ -446,7 +458,7 @@ def process_joins(obj, exprs):
 
     for e in exprs:
         joins = e._ir.search(lambda a: isinstance(a, hail.ir.Join))
-        for j in sorted(joins, key=lambda j: j.idx): # Make sure joins happen in order
+        for j in sorted(joins, key=lambda j: j.idx):  # Make sure joins happen in order
             if j.idx not in used_joins:
                 left = j.join_func(left)
                 all_uids.extend(j.temp_vars)
@@ -457,6 +469,7 @@ def process_joins(obj, exprs):
         return table.drop(*remaining_uids)
 
     return left, cleanup
+
 
 def divide_null(num, denom):
     from hail.expr.expressions.base_expression import unify_types_limited
@@ -484,11 +497,13 @@ def timestamp_path(base, suffix=''):
                     datetime.datetime.now().strftime("%Y%m%d-%H%M"),
                     suffix])
 
+
 def upper_hex(n, num_digits=None):
     if num_digits is None:
         return "{0:X}".format(n)
     else:
         return "{0:0{1}X}".format(n, num_digits)
+
 
 def escape_str(s, backticked=False):
     sb = StringIO()
@@ -533,12 +548,14 @@ def escape_str(s, backticked=False):
     sb.close()
 
     return escaped
-   
+
+
 def escape_id(s):
     if re.fullmatch(r'[_a-zA-Z]\w*', s):
         return s
     else:
         return "`{}`".format(escape_str(s, backticked=True))
+
 
 def dump_json(obj):
     return f'"{escape_str(json.dumps(obj))}"'
@@ -571,7 +588,6 @@ def _dumps_partitions(partitions, row_key_type):
         if not point_type._is_prefix_of(row_key_type):
             raise ValueError(f'partitions type invalid: {point_type} must be prefix of {row_key_type}')
 
-    
     s = json.dumps(partitions.dtype._convert_to_json(hl.eval(partitions)))
     return s, partitions.dtype
 
