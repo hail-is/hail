@@ -1,5 +1,7 @@
 package is.hail.types.virtual
 
+import java.util.NoSuchElementException
+
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.expr.ir.{Env, IRParser}
 import is.hail.types.physical.{PField, PStruct}
@@ -73,7 +75,14 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
 
   def hasField(name: String): Boolean = fieldIdx.contains(name)
 
-  def field(name: String): Field = fields(fieldIdx(name))
+  def field(name: String): Field = try {
+    fields(fieldIdx(name))
+  } catch {
+    case e if e.isInstanceOf[NoSuchElementException] => {
+      println(s"Couldn't find $name in $fieldIdx")
+      throw e
+    }
+  }
 
   def fieldType(name: String): Type = types(fieldIdx(name))
 

@@ -673,37 +673,40 @@ class TableIRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.lowering
 
     // join two range tables
-    val rangeTable1 = TableRange(10, 3)
-    var rangeTable2: TableIR = TableRange(5, 2)
-    val row = Ref("row", rangeTable2.typ.rowType)
-    rangeTable2 = TableMapRows(rangeTable2, InsertFields(row, FastIndexedSeq("x" -> GetField(row, "idx"))))
-    val joinedRanges = TableLeftJoinRightDistinct(rangeTable1, rangeTable2, "foo")
-    assertEvalsTo(TableCount(joinedRanges), 10L)
-
-    val expectedJoinCollectResult = Row(
-      (0 until 5).map(i => Row(FastIndexedSeq(i, Row(i)): _*)) ++ (5 until 10).map(i => Row(FastIndexedSeq(i, null): _*)),
-      Row())
-    assertEvalsTo(collect(joinedRanges), expectedJoinCollectResult)
+//    val rangeTable1 = TableRange(10, 3)
+//    var rangeTable2: TableIR = TableRange(5, 2)
+//    val row = Ref("row", rangeTable2.typ.rowType)
+//    rangeTable2 = TableMapRows(rangeTable2, InsertFields(row, FastIndexedSeq("x" -> GetField(row, "idx"))))
+//    val joinedRanges = TableLeftJoinRightDistinct(rangeTable1, rangeTable2, "foo")
+//    assertEvalsTo(TableCount(joinedRanges), 10L)
+//
+//    val expectedJoinCollectResult = Row(
+//      (0 until 5).map(i => Row(FastIndexedSeq(i, Row(i)): _*)) ++ (5 until 10).map(i => Row(FastIndexedSeq(i, null): _*)),
+//      Row())
+//    assertEvalsTo(collect(joinedRanges), expectedJoinCollectResult)
 
     // join two parallelized tables on a string key
-    val parTable1Length = 17
+    val parTable1Length = 7
     val parTable1Type = TStruct("rows" -> TArray(TStruct("a1" -> TString, "b1" -> TInt32, "c1" -> TString)), "global" -> TStruct("x" -> TString))
     val value1 = Row(FastIndexedSeq(0 until parTable1Length: _*).map(i => Row("row" + i, i * i, s"t1_${i}")), Row("global"))
     val table1 = TableParallelize(Literal(parTable1Type, value1), Some(1))
     val table1KeyedByA = TableKeyBy(table1, IndexedSeq("a1"), isSorted = true)
 
-    val parTable2Length = 16
+    val parTable2Length = 13
     val parTable2Type = TStruct("rows" -> TArray(TStruct("a2" -> TString, "b2" -> TInt32, "c2" -> TString)), "global" -> TStruct("y"-> TInt32))
-    val value2 = Row(FastIndexedSeq(0 until parTable2Length: _*).map(i => Row("row" + i, -2 * i, s"t2_${i}")), Row("global"))
+    val value2 = Row(FastIndexedSeq(0 until parTable2Length: _*).map(i => Row("row" + i, -2 * i, s"t2_${i}")), Row(15))
     val table2 = TableParallelize(Literal(parTable2Type, value2), Some(1))
     val table2KeyedByA = TableKeyBy(table2, IndexedSeq("a2"), isSorted = true)
 
     assertEvalsTo(TableCount(table1KeyedByA), parTable1Length.toLong)
     assertEvalsTo(TableCount(table2KeyedByA), parTable2Length.toLong)
 
-    val joinedParKeyedByA = TableLeftJoinRightDistinct(table1, table2, "joinRoot")
-    assertEvalsTo(TableCount(joinedParKeyedByA), parTable1Length.toLong)
+    val joinedParKeyedByA = TableLeftJoinRightDistinct(table1KeyedByA, table2KeyedByA, "joinRoot")
 
+    println(joinedParKeyedByA.typ.rowType)
+
+    assertEvalsTo(TableCount(joinedParKeyedByA), parTable1Length.toLong)
+    assertEvalsTo(collect(joinedParKeyedByA), Row(FastIndexedSeq(0 until parTable1Length: _*).map(i => Row("row" + i, i * i, s"t1_${i}", Row(-2 * i, s"t2_${i}"))), Row("global")))
   }
 }
 
