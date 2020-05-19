@@ -82,6 +82,14 @@ abstract class TableStage(
     if (bind) wrapInBindings(cda) else cda
   }
 
+  def collectWithGlobals(): IR = {
+    val mapped = mapPartition(ToArray)
+    mapped.wrapInBindings(
+      MakeStruct(FastIndexedSeq(
+        "rows" -> ToArray(flatMapIR(ToStream(mapped.collect(bind = false))) { elt => ToStream(elt) }),
+        "global" -> mapped.globals)))
+  }
+
   def changePartitionerNoRepartition(newPartitioner: RVDPartitioner): TableStage = {
     new TableStage(letBindings, broadcastVals, globals, newPartitioner, contexts) {
       def partition(ctxRef: Ref): IR = self.partition(ctxRef)
@@ -492,15 +500,18 @@ object LowerTableIR {
               .coarsen(nPreservedFields)
               .extendKey(t.typ.keyType)
             loweredChild.changePartitionerNoRepartition(newPartitioner)
-          } else
-            ctx.backend.lowerDistributedSort(loweredChild, newKey.map(k => SortField(k, Ascending)))
+          } else {
+            val sorted = ctx.backend.lowerDistributedSort(ctx, loweredChild, newKey.map(k => SortField(k, Ascending)))
+            assert(sorted.partitioner.kType.fieldNames.sameElements(newKey))
+            sorted
+          }
 
         case TableOrderBy(child, sortFields) =>
           val loweredChild = lower(child)
           if (TableOrderBy.isAlreadyOrdered(sortFields, loweredChild.partitioner.kType.fieldNames))
             loweredChild
           else
-            ctx.backend.lowerDistributedSort(loweredChild, sortFields)
+            ctx.backend.lowerDistributedSort(ctx, loweredChild, sortFields)
 
         case TableExplode(child, path) =>
           lower(child).mapPartition { rows =>
@@ -557,11 +568,7 @@ object LowerTableIR {
         stage.wrapInBindings(stage.globals)
 
       case TableCollect(child) =>
-        val lowered = lower(child).mapPartition(ToArray)
-        lowered.wrapInBindings(
-          MakeStruct(FastIndexedSeq(
-            "rows" -> ToArray(flatMapIR(ToStream(lowered.collect(bind = false))) { elt => ToStream(elt) }),
-            "global" -> lowered.globals)))
+        lower(child).collectWithGlobals()
 
       case TableToValueApply(child, NPartitionsTable()) =>
         val lowered = lower(child)
