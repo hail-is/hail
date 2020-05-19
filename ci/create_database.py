@@ -106,7 +106,7 @@ async def create_database():
     user_password = secrets.token_urlsafe(16)
 
     await db.just_execute(f'''
-CREATE DATABASE IF NOT EXISTS `{_name}`;
+CREATE DATABASE `{_name}` IF NOT EXISTS;
 
 CREATE USER '{admin_username}'@'%' IDENTIFIED BY '{admin_password}';
 GRANT ALL ON `{_name}`.* TO '{admin_username}'@'%';
