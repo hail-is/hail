@@ -7,7 +7,7 @@ from .statgen import skat, identity_by_descent, impute_sex, \
     genetic_relatedness_matrix, realized_relationship_matrix, pca, \
     hwe_normalized_pca, pc_relate, split_multi, filter_alleles, filter_alleles_hts, \
     split_multi_hts, balding_nichols_model, ld_prune, row_correlation, ld_matrix, \
-    linear_mixed_model, linear_regression_rows, logistic_regression_rows, poisson_regression_rows, \
+    linear_mixed_model, linear_regression_rows, _linear_regression_rows_nd, logistic_regression_rows, poisson_regression_rows, \
     linear_mixed_regression_rows, lambda_gc
 from .qc import sample_qc, variant_qc, vep, concordance, nirvana, summarize_variants
 from .misc import rename_duplicates, maximal_independent_set, filter_intervals
@@ -18,6 +18,7 @@ __all__ = ['trio_matrix',
            'identity_by_descent',
            'impute_sex',
            'linear_regression_rows',
+           '_linear_regression_rows_nd',
            'logistic_regression_rows',
            'poisson_regression_rows',
            'linear_mixed_regression_rows',

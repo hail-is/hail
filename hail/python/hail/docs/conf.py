@@ -25,7 +25,7 @@ import datetime
 sys.path.insert(0, os.path.abspath('./_ext'))
 
 # sys.path.insert(0, os.path.abspath('.'))
-#import sphinx_rtd_theme
+# import sphinx_rtd_theme
 
 # -- General configuration ------------------------------------------------
 

@@ -2,6 +2,7 @@ import abc
 import json
 import math
 from collections.abc import Mapping, Sequence
+import pprint
 
 import numpy as np
 
@@ -46,6 +47,7 @@ __all__ = [
     'hts_entry_schema',
 ]
 
+
 def summary_type(t):
     if isinstance(t, hl.tdict):
         return f'dict<{summary_type(t.key_type)}, {summary_type(t.value_type)}>'
@@ -61,6 +63,7 @@ def summary_type(t):
         return f'interval<{summary_type(t.point_type)}>'
     else:
         return str(t)
+
 
 def dtype(type_str):
     r"""Parse a type from its string representation.
@@ -199,13 +202,13 @@ class HailType(object):
         -------
         :obj:`str`
         """
-        l = []
-        l.append(' ' * indent)
-        self._pretty(l, indent, increment)
-        return ''.join(l)
+        b = []
+        b.append(' ' * indent)
+        self._pretty(b, indent, increment)
+        return ''.join(b)
 
-    def _pretty(self, l, indent, increment):
-        l.append(str(self))
+    def _pretty(self, b, indent, increment):
+        b.append(str(self))
 
     @abc.abstractmethod
     def _parsable_string(self):
@@ -257,7 +260,6 @@ class HailType(object):
 
     def _convert_from_json(self, x):
         return x
-
 
     def _traverse(self, obj, f):
         """Traverse a nested type and object.
@@ -316,6 +318,7 @@ class _tvoid(HailType):
 
     def clear(self):
         pass
+
 
 class _tint32(HailType):
     """Hail type for signed 32-bit integers.
@@ -472,6 +475,7 @@ class _tfloat64(HailType):
     def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, (float, int)):
             raise TypeError("type 'float64' expected Python 'float', but found type '%s'" % type(annotation))
+
     def __str__(self):
         return "float64"
 
@@ -639,12 +643,12 @@ class tndarray(HailType):
     def _eq(self, other):
         return isinstance(other, tndarray) and self.element_type == other.element_type
 
-    def _pretty(self, l, indent, increment):
-        l.append('ndarray<')
-        self._element_type._pretty(l, indent, increment)
-        l.append(', ')
-        l.append(str(self.ndim))
-        l.append('>')
+    def _pretty(self, b, indent, increment):
+        b.append('ndarray<')
+        self._element_type._pretty(b, indent, increment)
+        b.append(', ')
+        b.append(str(self.ndim))
+        b.append('>')
 
     def _parsable_string(self):
         return f'NDArray[{self._element_type._parsable_string()},{self.ndim}]'
@@ -675,8 +679,8 @@ class tndarray(HailType):
 
     def unify(self, t):
         return isinstance(t, tndarray) and \
-               self._element_type.unify(t._element_type) and \
-               self._ndim.unify(t._ndim)
+            self._element_type.unify(t._element_type) and \
+            self._ndim.unify(t._ndim)
 
     def subst(self):
         return tndarray(self._element_type.subst(), self._ndim.subst())
@@ -738,10 +742,10 @@ class tarray(HailType):
     def _eq(self, other):
         return isinstance(other, tarray) and self.element_type == other.element_type
 
-    def _pretty(self, l, indent, increment):
-        l.append('array<')
-        self.element_type._pretty(l, indent, increment)
-        l.append('>')
+    def _pretty(self, b, indent, increment):
+        b.append('array<')
+        self.element_type._pretty(b, indent, increment)
+        b.append('>')
 
     def _parsable_string(self):
         return "Array[" + self.element_type._parsable_string() + "]"
@@ -792,10 +796,10 @@ class tstream(HailType):
     def _eq(self, other):
         return isinstance(other, tstream) and self.element_type == other.element_type
 
-    def _pretty(self, l, indent, increment):
-        l.append('stream<')
-        self.element_type._pretty(l, indent, increment)
-        l.append('>')
+    def _pretty(self, b, indent, increment):
+        b.append('stream<')
+        self.element_type._pretty(b, indent, increment)
+        b.append('>')
 
     def _parsable_string(self):
         return "Stream[" + self.element_type._parsable_string() + "]"
@@ -875,10 +879,10 @@ class tset(HailType):
     def _eq(self, other):
         return isinstance(other, tset) and self.element_type == other.element_type
 
-    def _pretty(self, l, indent, increment):
-        l.append('set<')
-        self.element_type._pretty(l, indent, increment)
-        l.append('>')
+    def _pretty(self, b, indent, increment):
+        b.append('set<')
+        self.element_type._pretty(b, indent, increment)
+        b.append('>')
 
     def _parsable_string(self):
         return "Set[" + self.element_type._parsable_string() + "]"
@@ -957,7 +961,7 @@ class tdict(HailType):
 
     @property
     def element_type(self):
-        return tstruct(key = self._key_type, value = self._value_type)
+        return tstruct(key=self._key_type, value=self._value_type)
 
     def _traverse(self, obj, f):
         if f(self, obj):
@@ -976,12 +980,12 @@ class tdict(HailType):
     def _eq(self, other):
         return isinstance(other, tdict) and self.key_type == other.key_type and self.value_type == other.value_type
 
-    def _pretty(self, l, indent, increment):
-        l.append('dict<')
-        self.key_type._pretty(l, indent, increment)
-        l.append(', ')
-        self.value_type._pretty(l, indent, increment)
-        l.append('>')
+    def _pretty(self, b, indent, increment):
+        b.append('dict<')
+        self.key_type._pretty(b, indent, increment)
+        b.append(', ')
+        self.value_type._pretty(b, indent, increment)
+        b.append('>')
 
     def _parsable_string(self):
         return "Dict[{},{}]".format(self.key_type._parsable_string(), self.value_type._parsable_string())
@@ -992,7 +996,7 @@ class tdict(HailType):
 
     def _convert_to_json(self, x):
         return [{'key': self.key_type._convert_to_json(k),
-                 'value':self.value_type._convert_to_json(v)} for k, v in x.items()]
+                 'value': self.value_type._convert_to_json(v)} for k, v in x.items()]
 
     def _propagate_jtypes(self, jtype):
         self._key_type._add_jtype(jtype.keyType())
@@ -1095,24 +1099,24 @@ class tstruct(HailType, Mapping):
                 and self._fields == other._fields
                 and all(self[f] == other[f] for f in self._fields))
 
-    def _pretty(self, l, indent, increment):
+    def _pretty(self, b, indent, increment):
         if not self._fields:
-            l.append('struct {}')
+            b.append('struct {}')
             return
 
         pre_indent = indent
         indent += increment
-        l.append('struct {')
+        b.append('struct {')
         for i, (f, t) in enumerate(self.items()):
             if i > 0:
-                l.append(', ')
-            l.append('\n')
-            l.append(' ' * indent)
-            l.append('{}: '.format(escape_parsable(f)))
-            t._pretty(l, indent, increment)
-        l.append('\n')
-        l.append(' ' * pre_indent)
-        l.append('}')
+                b.append(', ')
+            b.append('\n')
+            b.append(' ' * indent)
+            b.append('{}: '.format(escape_parsable(f)))
+            t._pretty(b, indent, increment)
+        b.append('\n')
+        b.append(' ' * pre_indent)
+        b.append('}')
 
     def _parsable_string(self):
         return "Struct{{{}}}".format(
@@ -1201,6 +1205,7 @@ class tstruct(HailType, Mapping):
     def _get_context(self):
         return HailTypeContext.union(*self.values())
 
+
 class tunion(HailType, Mapping):
     @typecheck_method(case_types=hail_type)
     def __init__(self, **case_types):
@@ -1251,24 +1256,24 @@ class tunion(HailType, Mapping):
                 and self._cases == other._cases
                 and all(self[c] == other[c] for c in self._cases))
 
-    def _pretty(self, l, indent, increment):
+    def _pretty(self, b, indent, increment):
         if not self._cases:
-            l.append('union {}')
+            b.append('union {}')
             return
 
         pre_indent = indent
         indent += increment
-        l.append('union {')
+        b.append('union {')
         for i, (f, t) in enumerate(self.items()):
             if i > 0:
-                l.append(', ')
-            l.append('\n')
-            l.append(' ' * indent)
-            l.append('{}: '.format(escape_parsable(f)))
-            t._pretty(l, indent, increment)
-        l.append('\n')
-        l.append(' ' * pre_indent)
-        l.append('}')
+                b.append(', ')
+            b.append('\n')
+            b.append(' ' * indent)
+            b.append('{}: '.format(escape_parsable(f)))
+            t._pretty(b, indent, increment)
+        b.append('\n')
+        b.append(' ' * pre_indent)
+        b.append('}')
 
     def _parsable_string(self):
         return "Union{{{}}}".format(
@@ -1356,19 +1361,19 @@ class ttuple(HailType, Sequence):
         return isinstance(other, ttuple) and len(self.types) == len(other.types) and all(
             map(eq, self.types, other.types))
 
-    def _pretty(self, l, indent, increment):
+    def _pretty(self, b, indent, increment):
         pre_indent = indent
         indent += increment
-        l.append('tuple (')
+        b.append('tuple (')
         for i, t in enumerate(self.types):
             if i > 0:
-                l.append(', ')
-            l.append('\n')
-            l.append(' ' * indent)
-            t._pretty(l, indent, increment)
-        l.append('\n')
-        l.append(' ' * pre_indent)
-        l.append(')')
+                b.append(', ')
+            b.append('\n')
+            b.append(' ' * indent)
+            t._pretty(b, indent, increment)
+        b.append('\n')
+        b.append(' ' * pre_indent)
+        b.append(')')
 
     def _parsable_string(self):
         return "Tuple[{}]".format(",".join([t._parsable_string() for t in self.types]))
@@ -1440,7 +1445,7 @@ class _tcall(HailType):
         if i == n:
             return hl.Call([int(x)])
 
-        return hl.Call([int(x[0:i]), int(x[i+1:])], phased=(c == '|'))
+        return hl.Call([int(x[0:i]), int(x[i + 1:])], phased=(c == '|'))
 
     def _convert_to_json(self, x):
         return str(x)
@@ -1507,8 +1512,8 @@ class tlocus(HailType):
             self._rg = hl.default_reference()
         return self._rg
 
-    def _pretty(self, l, indent, increment):
-        l.append('locus<{}>'.format(escape_parsable(self.reference_genome.name)))
+    def _pretty(self, b, indent, increment):
+        b.append('locus<{}>'.format(escape_parsable(self.reference_genome.name)))
 
     def _convert_from_json(self, x):
         return genetics.Locus(x['contig'], x['position'], reference_genome=self.reference_genome)
@@ -1582,10 +1587,10 @@ class tinterval(HailType):
     def _eq(self, other):
         return isinstance(other, tinterval) and self.point_type == other.point_type
 
-    def _pretty(self, l, indent, increment):
-        l.append('interval<')
-        self.point_type._pretty(l, indent, increment)
-        l.append('>')
+    def _pretty(self, b, indent, increment):
+        b.append('interval<')
+        self.point_type._pretty(b, indent, increment)
+        b.append('>')
 
     def _parsable_string(self):
         return "Interval[{}]".format(self.point_type._parsable_string())
@@ -1768,6 +1773,7 @@ def types_match(left, right) -> bool:
     return (len(left) == len(right)
             and all(map(lambda lr: lr[0].dtype == lr[1].dtype, zip(left, right))))
 
+
 def from_numpy(np_dtype):
     if np_dtype == np.int32:
         return tint32
@@ -1819,8 +1825,6 @@ class tvariable(HailType):
             s = s + ':' + self.cond
         return s
 
-
-import pprint
 
 _old_printer = pprint.PrettyPrinter
 

@@ -207,7 +207,8 @@ async def get_job(request, userdata):
         'batch_id': batch_id,
         'job_id': job_id,
         'job_log': await job.log(),
-        'job_status': json.dumps(await job.status(), indent=2)
+        'job_status': json.dumps(await job.status(), indent=2),
+        'attempts': await job.attempts()
     }
     return await render_template('ci', request, userdata, 'job.html', page_context)
 

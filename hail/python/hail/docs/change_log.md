@@ -22,9 +22,23 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.41
+
+Released 2020-05-15
+
+### Bug fixes
+
+- (hail#8799, hail#8786) Fix ArrayIndexOutOfBoundsException seen in pipelines that reuse a tuple value.
+
+### hailctl dataproc
+
+- (hail#8790) Use configured compute zone as default for `hailctl dataproc connect` and `hailctl dataproc modify`.
+
+---
+
 ## Version 0.2.40
 
-Release 2020-05-12
+Released 2020-05-12
 
 ### VCF Combiner
 

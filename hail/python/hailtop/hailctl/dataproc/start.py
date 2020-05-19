@@ -134,6 +134,8 @@ REGION_TO_REPLICATE_MAPPING = {
     'australia-southeast1': 'aus-sydney'
 }
 
+ANNOTATION_DB_BUCKETS = ["hail-datasets-us"]
+
 IMAGE_VERSION = '1.4-debian9'
 
 
@@ -202,6 +204,9 @@ def init_parser(parser):
                         required=False)
     parser.add_argument('--requester-pays-allow-buckets',
                         help="Comma-separated list of requester-pays buckets to allow reading from.")
+    parser.add_argument('--requester-pays-allow-annotation-db',
+                        action='store_true',
+                        help="Allows reading from any of the requester-pays buckets that hold data for the annotation database.")
 
 
 def main(args, pass_through_args):
@@ -226,7 +231,7 @@ def main(args, pass_through_args):
                      [deploy_metadata['init_notebook.py']])
 
     # requester pays support
-    if args.requester_pays_allow_all or args.requester_pays_allow_buckets:
+    if args.requester_pays_allow_all or args.requester_pays_allow_buckets or args.requester_pays_allow_annotation_db:
         if args.requester_pays_allow_all and args.requester_pays_allow_buckets:
             raise RuntimeError("Cannot specify both 'requester_pays_allow_all' and 'requester_pays_allow_buckets")
 
@@ -234,7 +239,13 @@ def main(args, pass_through_args):
             requester_pays_mode = "AUTO"
         else:
             requester_pays_mode = "CUSTOM"
-            conf.extend_flag("properties", {"spark:spark.hadoop.fs.gs.requester.pays.buckets": args.requester_pays_allow_buckets})
+            requester_pays_bucket_sources = []
+            if args.requester_pays_allow_buckets:
+                requester_pays_bucket_sources.append(args.requester_pays_allow_buckets)
+            if args.requester_pays_allow_annotation_db:
+                requester_pays_bucket_sources.extend(ANNOTATION_DB_BUCKETS)
+
+            conf.extend_flag("properties", {"spark:spark.hadoop.fs.gs.requester.pays.buckets": ",".join(requester_pays_bucket_sources)})
 
         # Need to pick requester pays project.
         requester_pays_project = args.project if args.project else sp.check_output(['gcloud', 'config', 'get-value', 'project']).decode().strip()
@@ -247,9 +258,12 @@ def main(args, pass_through_args):
         project_region = args.region
     else:
         try:
-            project_region = sp.check_output(['gcloud', 'config', 'get-value', 'dataproc/region']).decode().strip()
+            project_region = sp.check_output(['gcloud', 'config', 'get-value', 'dataproc/region'], stderr=sp.DEVNULL).decode().strip()
         except sp.CalledProcessError:
-            raise RuntimeError("Could not determine dataproc region. Use --region argument to hailctl, or use `gcloud config set dataproc/region <my-region>` to set a default.")
+            project_region = None
+
+    if not project_region:
+        raise RuntimeError("Could not determine dataproc region. Use --region argument to hailctl, or use `gcloud config set dataproc/region <my-region>` to set a default.")
 
     # add VEP init script
     if args.vep:

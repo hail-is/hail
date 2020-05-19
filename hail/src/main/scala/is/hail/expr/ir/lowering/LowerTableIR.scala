@@ -314,9 +314,10 @@ object LowerTableIR {
 
           val partitionSizeArrayFunc = genUID()
           val howManyPartsToTry = Ref(genUID(), TInt32)
+          val childContexts = Ref(genUID(), TArray(coerce[TStream](loweredChild.contexts.typ).elementType))
           val partitionSizeArray = TailLoop(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry.name -> 4),
-            bindIR(loweredChild.mapContexts(ctxs => StreamTake(ctxs, howManyPartsToTry)).mapPartition(rows =>  StreamLen(rows)).collect()) { counts =>
-              If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (StreamLen(loweredChild.contexts) <= ArrayLen(counts)),
+            bindIR(loweredChild.mapContexts(_ => StreamTake(ToStream(childContexts), howManyPartsToTry)).mapPartition(rows =>  StreamLen(rows)).collect()) { counts =>
+              If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (ArrayLen(childContexts) <= ArrayLen(counts)),
                 counts,
                 Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry * 4), TArray(TInt32))
               )
@@ -342,17 +343,18 @@ object LowerTableIR {
           }
 
           new TableStage(
-            loweredChild.letBindings :+ partitionSizeArrayRef.name -> partitionSizeArray,
+            loweredChild.letBindings
+              :+ childContexts.name -> ToArray(loweredChild.contexts)
+              :+ partitionSizeArrayRef.name -> partitionSizeArray,
             loweredChild.broadcastVals,
             loweredChild.globals,
             loweredChild.partitioner,
             {
-              val contexts = loweredChild.contexts
-              val contextElementType = contexts.typ.asInstanceOf[TStream].elementType
+              val contextElementType = coerce[TStream](loweredChild.contexts.typ).elementType
               bindIR(answerTuple) { answerTupleRef =>
                 val numParts = GetTupleElement(answerTupleRef, 0)
                 val numElementsFromLastPart = GetTupleElement(answerTupleRef, 1)
-                val onlyNeededPartitions = StreamTake(contexts, numParts)
+                val onlyNeededPartitions = StreamTake(ToStream(childContexts), numParts)
                 val howManyFromEachPart = mapIR(rangeIR(numParts)) { idxRef =>
                   If(idxRef ceq (numParts - 1),
                     Cast(numElementsFromLastPart, TInt32),
@@ -378,13 +380,13 @@ object LowerTableIR {
 
           val partitionSizeArrayFunc = genUID()
           val howManyPartsToTry = Ref(genUID(), TInt32)
+          val childContexts = Ref(genUID(), TArray(coerce[TStream](loweredChild.contexts.typ).elementType))
 
-          val totalNumPartitions = StreamLen(loweredChild.contexts)
-          val totalNumPartitionsRef = Ref(genUID(), TInt32)
+          val totalNumPartitions = Ref(genUID(), TInt32)
           val partitionSizeArray =
             TailLoop(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry.name -> 4),
-              bindIR(loweredChild.mapContexts(ctxs => StreamDrop(ctxs, maxIR(totalNumPartitionsRef - howManyPartsToTry, 0))).mapPartition(rows => StreamLen(rows)).collect()) { counts =>
-                If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (totalNumPartitionsRef <= ArrayLen(counts)),
+              bindIR(loweredChild.mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTry, 0))).mapPartition(rows => StreamLen(rows)).collect()) { counts =>
+                If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (totalNumPartitions <= ArrayLen(counts)),
                   counts,
                   Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry * 4), TArray(TInt32))
                 )
@@ -413,20 +415,20 @@ object LowerTableIR {
 
           new TableStage(
             loweredChild.letBindings ++ FastIndexedSeq(
-              totalNumPartitionsRef.name -> totalNumPartitions,
+              childContexts.name -> ToArray(loweredChild.contexts),
+              totalNumPartitions.name -> ArrayLen(childContexts),
               partitionSizeArrayRef.name -> partitionSizeArray
             ),
             loweredChild.broadcastVals,
             loweredChild.globals,
             loweredChild.partitioner,
             {
-              val contexts = loweredChild.contexts
-              val contextElementType = contexts.typ.asInstanceOf[TStream].elementType
+              val contextElementType = coerce[TStream](loweredChild.contexts.typ).elementType
               bindIR(answerTuple) { answerTupleRef =>
                 val numPartsToDropFromPartitionSizeArray = GetTupleElement(answerTupleRef, 0)
                 val numElementsFromFirstPart = GetTupleElement(answerTupleRef, 1)
-                val numPartsToDropFromTotal = numPartsToDropFromPartitionSizeArray + (totalNumPartitionsRef - ArrayLen(partitionSizeArrayRef))
-                val onlyNeededPartitions = StreamDrop(contexts, numPartsToDropFromTotal)
+                val numPartsToDropFromTotal = numPartsToDropFromPartitionSizeArray + (totalNumPartitions - ArrayLen(partitionSizeArrayRef))
+                val onlyNeededPartitions = StreamDrop(ToStream(childContexts), numPartsToDropFromTotal)
                 val howManyFromEachPart = mapIR(rangeIR(StreamLen(onlyNeededPartitions))) { idxRef =>
                   If(idxRef ceq 0,
                     Cast(numElementsFromFirstPart, TInt32),

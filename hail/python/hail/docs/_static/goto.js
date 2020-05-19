@@ -7,7 +7,7 @@ if ((window.history && window.history.pushState && window.scrollTo)) {
     var delay = 'scrollRestoration' in history === false || $.browser.mozilla ? 128 : 0;
 
     $(document).ready(function () {
-        var navHeight = $('nav').height();
+        var navHeight = $('nav').outerHeight();
         var hash = window.location.hash ? decodeURIComponent(window.location.hash.replace('#', '')) : null;
 
         if (hash) {

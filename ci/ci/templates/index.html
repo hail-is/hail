@@ -2,6 +2,7 @@
 {% block title %}CI{% endblock %}
 {% block head %}
     <script src="{{ base_path }}/common_static/search_bar.js"></script>
+    <script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
 {% endblock %}
 {% block content %}
     <h1>CI</h1>
@@ -88,6 +89,6 @@
       <button type="submit">Authorize</button>
     </form>
     <script type="text/javascript">
-      document.getElementById("searchBar").focus();
+      focusOnSlash("searchBar");
     </script>
 {% endblock %}

@@ -1,4 +1,5 @@
 /* Original base styles generated from Bootstrap 3.3.7 and normalize.css */
+
 /*!
  * Bootstrap v3.3.7 (http://getbootstrap.com)
  * Copyright 2011-2016 Twitter, Inc.
@@ -9,24 +10,28 @@
  * Generated using the Bootstrap Customizer (http://getbootstrap.com/customize/?id=b1a7a9799f5a13719dc42620cfa43461)
  * Config saved to config.json and https://gist.github.com/b1a7a9799f5a13719dc42620cfa43461
  */
+
 /*!
  * Bootstrap v3.3.7 (http://getbootstrap.com)
  * Copyright 2011-2016 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  */
+
 /*! normalize.css v3.0.3 | MIT License | github.com/necolas/normalize.css */
 
 #hail-navbar {
-  padding: 0px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; /* necessary to prevent font override in docs*/
+  line-height: 1.6; /* necessary to prevent font override in docs*/
+  padding: 10px 15px;
   margin: 0px;
   background-color: #fff;
-  height: 50px;
-  border-bottom: 1px solid;
-  border-color: #ddd;
 }
 
-#hail-navbar * {
-  font-size: 0.75rem;
+.sticky {
+  position: sticky;
+  top: 0px;
+  z-index: 999;
 }
 
 #hail-navbar #hail-navbar-header {
@@ -38,36 +43,43 @@
 
 #hail-navbar #hail-container-fluid {
   margin: auto;
-  height: 100%;
+  display: flex;
+  align-items: center;
 }
 
 #hail-navbar #hail-menu {
   margin-top: 0px;
   flex-direction: row;
   justify-content: flex-end;
+  display: flex;
 }
+
 #hail-navbar #hail-navbar-collapse {
   flex-direction: row;
   flex: 1;
   border-color: inherit;
 }
 
+#hail-navbar-brand {
+  margin-bottom: 2px;
+}
+
 #hail-navbar a {
   color: #444;
   text-decoration: none;
-  outline: none;
-  background: inherit; /*defeat bootstrap focus background*/
+  /*defeat bootstrap focus background*/
   text-transform: uppercase;
+  font-size: 0.75rem;
 }
 
-#hail-menu a:hover, #hail-menu a.active {
-  color: #2a388f;
-  border-bottom: 1px solid #2a388f;
+#hail-menu a:hover,
+#hail-menu a.active {
+  color: #283870;
+  border-bottom: 1px solid #283870;
 }
 
 #hail-navbar #hail-menu .nav-item {
   padding: 0px 0.875rem 0px 0.875rem;
-  line-height: 1;
 }
 
 #hail-navbar #hail-menu .nav-item:last-child {
@@ -79,54 +91,44 @@
 }
 
 @media (max-width: 767px) {
+  #hail-navbar #hail-menu .nav-item {
+    padding: 12px 18px;
+  }
+
+  #hail-navbar a {
+    font-size: 1rem;
+  }
+  /* #hail-navbar-brand {
+    margin-top:-3px;
+  } */
+
   #hail-navbar #hail-navbar-header {
     width: 100%;
   }
-
   #hail-navbar #hail-navbar-collapse {
+    display: none;
     flex-direction: column;
-    padding-right: 0px;
-    padding-left: 0px;
-    -webkit-box-shadow: 0 6px 12px #ddd;
-    box-shadow: 0 6px 12px #ddd;
-    width: 100%;
+    width: 100vw;
+    position: absolute;
+    top: 50px;
     background: #fff;
-    flex: auto;
-    margin-top: 1px;
-    border-radius: 4px;
+    height: 100vh;
+    left: 0px;
+    z-index: 999;
   }
-
-  #hail-navbar #hail-navbar-collapse .nav-item {
-    padding: 0px;
-  }
-
-  #hail-navbar #hail-navbar-collapse .nav-item > a {
-    padding: 0.875rem;
-    display: block;
-  }
-
   #hail-navbar #hail-navbar-collapse .nav-item:first-child {
-    padding-top: 0.875rem;
-  }
-
-  #hail-navbar #hail-navbar-collapse .nav-item:last-child {
-    padding-bottom: 0.875rem;
+    padding-top: 24px;
   }
 
   #hail-navbar #hail-menu {
     margin-top: 0px;
     flex-direction: column;
+    position: absolute;
     justify-content: flex-start;
+    width: 100vw;
+    background: white;
+    height: 100vh;
   }
-}
-
-#hail-navbar img#logo {
-  height: 35px;
-  border: 0;
-}
-
-#hail-navbar .dropdown-toggler:focus {
-  outline: 0;
 }
 
 #hail-navbar .dropdown-menu > li > a {
@@ -135,6 +137,13 @@
   white-space: nowrap;
   text-decoration: none;
 }
+
+#hail-menu a.img-link:hover,
+#hail-menu a.img-link.active {
+  color: #2a388f;
+  border-bottom: none;
+}
+
 #hail-navbar .dropdown-menu > li > a:hover,
 #hail-navbar .dropdown-menu > li > a:focus {
   color: #262626;
@@ -145,6 +154,7 @@
   left: 0;
   right: auto;
 }
+
 #hail-navbar .dropdown-header {
   display: block;
   padding: 3px 20px;
@@ -152,9 +162,10 @@
   color: #777777;
   white-space: nowrap;
 }
+
 @media (min-width: 768px) {
   #hail-navbar #hail-navbar-collapse {
-    display: block;
+    display: block !important;
   }
   #hail-navbar .navbar-right .dropdown-menu {
     left: auto;
@@ -165,6 +176,7 @@
     right: auto;
   }
 }
+
 #hail-navbar .nav {
   margin-bottom: 0;
   padding-left: 0;
@@ -182,7 +194,6 @@
 
 #hail-navbar .navbar {
   position: relative;
-  min-height: 50px;
   margin-bottom: 20px;
   border: 1px solid transparent;
   border-radius: 4px;
@@ -194,19 +205,6 @@
   -webkit-box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
   -webkit-overflow-scrolling: touch;
-}
-
-#hail-navbar .container-fluid {
-  margin-right: auto;
-  margin-left: auto;
-  /* body text won't align else */
-  padding-left: 1px;
-  padding-right: 1px;
-}
-
-#hail-navbar #hail-navbar-header {
-  margin-right: 0px;
-  margin-left: 0px;
 }
 
 #hail-navbar .dropdown-menu {
@@ -239,30 +237,36 @@
 }
 
 #hail-navbar #hail-container-fluid .navbar-toggler {
-  margin-left: auto;
-  padding-right: 0px;
+  margin: 0px 0px 0px auto;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  cursor: hand;
+  padding: 0px; /*to fix bootstrap override in docs*/
 }
 
 #hail-navbar #hail-container-fluid .navbar-toggler .icon-bar {
   display: block;
   width: 22px;
-  height: 1px;
+  height: 3px;
   margin: 5px 0px;
   border-radius: 1px;
   border: 1px solid #444;
 }
 
-#hail-navbar #hail-container-fluid .navbar-toggler:hover,
-#hail-navbar #hail-container-fluid .navbar-toggler:focus {
+#hail-navbar #hail-container-fluid .navbar-toggler:hover {
   outline: none;
 }
+
 #hail-navbar #hail-container-fluid .navbar-toggler:hover .icon-bar,
 #hail-navbar #hail-container-fluid .navbar-toggler:focus .icon-bar {
   border-color: #111;
 }
+
 #hail-navbar #hail-container-fluid .navbar-toggler .icon-bar {
   background-color: #444;
 }
+
 @media (min-width: 768px) {
   #hail-navbar #hail-container-fluid .navbar-toggler {
     display: none;

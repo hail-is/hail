@@ -10,18 +10,18 @@ del pkg_resources
 del sys
 
 __doc__ = r"""
-    __  __     <>__ 
-   / /_/ /__  __/ / 
-  / __  / _ `/ / /  
+    __  __     <>__
+   / /_/ /__  __/ /
+  / __  / _ `/ / /
  /_/ /_/\_,_/_/_/
 ===================
-    
+
 For API documentation, visit the website: www.hail.is
 
 For help, visit either:
- - the forum (discuss.hail.is) 
+ - the forum (discuss.hail.is)
  - or our Zulip chatroom: https://hail.zulipchat.com
- 
+
 To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 """
 

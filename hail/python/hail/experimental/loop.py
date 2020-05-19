@@ -9,7 +9,7 @@ from hail.utils.java import Env
 
 @typecheck(f=anytype, typ=hail_type, args=expr_any)
 def loop(f: Callable, typ, *args):
-    """Define and call a tail-recursive function with given arguments.
+    r"""Define and call a tail-recursive function with given arguments.
 
     Notes
     -----

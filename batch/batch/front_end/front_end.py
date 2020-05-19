@@ -29,7 +29,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 # import uvloop
 
 from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_memory_request, \
-    worker_memory_per_core_gb, cost_from_msec_mcpu, adjust_cores_for_packability
+    worker_memory_per_core_gb, cost_from_msec_mcpu, adjust_cores_for_packability, coalesce
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
@@ -49,6 +49,7 @@ REQUEST_TIME = pc.Summary('batch_request_latency_seconds', 'Batch request latenc
 REQUEST_TIME_GET_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs', verb="GET")
 REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
 REQUEST_TIME_GET_JOB_LOG = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/log', verb="GET")
+REQUEST_TIME_GET_ATTEMPTS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/attempts', verb="GET")
 REQUEST_TIME_GET_BATCHES = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches', verb="GET")
 REQUEST_TIME_POST_CREATE_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/create', verb="POST")
 REQUEST_TIME_POST_CREATE_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/create', verb='POST')
@@ -154,20 +155,25 @@ async def _query_batch_jobs(request, batch_id):
         where_args.extend(args)
 
     sql = f'''
-SELECT *, format_version, job_attributes.value as name
+SELECT *, cost, format_version, job_attributes.value as name
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN job_attributes
   ON jobs.batch_id = job_attributes.batch_id AND
      jobs.job_id = job_attributes.job_id AND
      job_attributes.`key` = 'name'
+LEFT JOIN (SELECT batch_id, job_id, SUM(`usage` * rate) AS cost
+           FROM aggregated_job_resources
+           INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
+           GROUP BY batch_id, job_id) AS t
+ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
 WHERE {' AND '.join(where_conditions)}
 ORDER BY jobs.batch_id, jobs.job_id ASC
 LIMIT 50;
 '''
     sql_args = where_args
 
-    jobs = [job_record_to_dict(request.app, record, record['name'])
+    jobs = [job_record_to_dict(record, record['name'])
             async for record
             in db.select_and_fetchall(sql, sql_args)]
 
@@ -439,13 +445,18 @@ async def _query_batches(request, user):
     sql = f'''
 SELECT *
 FROM batches
+LEFT JOIN (SELECT batch_id, SUM(`usage` * rate) AS cost
+           FROM aggregated_batch_resources
+           INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
+           GROUP BY batch_id) AS t
+ON batches.id = t.batch_id
 WHERE {' AND '.join(where_conditions)}
 ORDER BY id DESC
 LIMIT 50;
 '''
     sql_args = where_args
 
-    batches = [batch_record_to_dict(request.app, batch)
+    batches = [batch_record_to_dict(batch)
                async for batch
                in db.select_and_fetchall(sql, sql_args)]
 
@@ -800,15 +811,19 @@ VALUES (%s, %s, %s)
 async def _get_batch(app, batch_id, user):
     db = app['db']
 
-    record = await db.select_and_fetchone(
-        '''
+    record = await db.select_and_fetchone('''
 SELECT * FROM batches
+LEFT JOIN (SELECT batch_id, SUM(`usage` * rate) AS cost
+           FROM aggregated_batch_resources
+           INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
+           GROUP BY batch_id) AS t
+ON batches.id = t.batch_id
 WHERE user = %s AND id = %s AND NOT deleted;
 ''', (user, batch_id))
     if not record:
         raise web.HTTPNotFound()
 
-    return batch_record_to_dict(app, record)
+    return batch_record_to_dict(record)
 
 
 async def _cancel_batch(app, batch_id, user):
@@ -994,7 +1009,7 @@ async def _get_job(app, batch_id, job_id, user):
     db = app['db']
 
     record = await db.select_and_fetchone('''
-SELECT jobs.*, ip_address, format_version
+SELECT jobs.*, cost, ip_address, format_version
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -1002,6 +1017,11 @@ LEFT JOIN attempts
   ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
   ON attempts.instance_name = instances.name
+LEFT JOIN (SELECT batch_id, job_id, SUM(`usage` * rate) AS cost
+           FROM aggregated_job_resources
+           INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
+           GROUP BY batch_id, job_id) AS t
+ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
 WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
                                           (user, batch_id, job_id))
@@ -1014,12 +1034,64 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
         _get_attributes(app, record)
     )
 
-    job = job_record_to_dict(app, record, attributes.get('name'))
+    job = job_record_to_dict(record, attributes.get('name'))
     job['status'] = full_status
     job['spec'] = full_spec
     if attributes:
         job['attributes'] = attributes
     return job
+
+
+async def _get_attempts(app, batch_id, job_id, user):
+    db = app['db']
+
+    attempts = db.select_and_fetchall('''
+SELECT attempts.*
+FROM jobs
+INNER JOIN batches ON jobs.batch_id = batches.id
+LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id and jobs.job_id = attempts.job_id
+WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
+''',
+                                      (user, batch_id, job_id))
+
+    attempts = [attempt async for attempt in attempts]
+    if len(attempts) == 0:
+        raise web.HTTPNotFound()
+    if len(attempts) == 1 and attempts[0]['attempt_id'] is None:
+        return None
+    for attempt in attempts:
+        start_time = attempt['start_time']
+        if start_time is not None:
+            attempt['start_time'] = time_msecs_str(start_time)
+        else:
+            del attempt['start_time']
+
+        end_time = attempt['end_time']
+        if end_time is not None:
+            attempt['end_time'] = time_msecs_str(end_time)
+        else:
+            del attempt['end_time']
+
+        if start_time is not None:
+            # elapsed time if attempt is still running
+            if end_time is None:
+                end_time = time_msecs()
+            duration_msecs = max(end_time - start_time, 0)
+            attempt['duration'] = humanize_timedelta_msecs(duration_msecs)
+
+    return attempts
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts')
+@prom_async_time(REQUEST_TIME_GET_ATTEMPTS)
+@rest_authenticated_users_only
+async def get_attempts(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    job_id = int(request.match_info['job_id'])
+    user = userdata['username']
+
+    attempts = await _get_attempts(request.app, batch_id, job_id, user)
+    return web.json_response(attempts)
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
@@ -1039,46 +1111,18 @@ async def get_job(request, userdata):
 @web_authenticated_users_only()
 async def ui_get_job(request, userdata):
     app = request.app
-    db = app['db']
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
 
-    job_status = await _get_job(app, batch_id, job_id, user)
-
-    attempts = [
-        attempt
-        async for attempt
-        in db.select_and_fetchall(
-            '''
-SELECT * FROM attempts
-WHERE batch_id = %s AND job_id = %s
-''',
-            (batch_id, job_id))]
-    for attempt in attempts:
-        start_time = attempt['start_time']
-        if start_time:
-            attempt['start_time'] = time_msecs_str(start_time)
-        else:
-            del attempt['start_time']
-
-        end_time = attempt['end_time']
-        if end_time is not None:
-            attempt['end_time'] = time_msecs_str(end_time)
-        else:
-            del attempt['end_time']
-
-        if start_time is not None:
-            # elapsed time if attempt is still running
-            if end_time is None:
-                end_time = time_msecs()
-            duration_msecs = max(end_time - start_time, 0)
-            attempt['duration'] = humanize_timedelta_msecs(duration_msecs)
+    job_status, attempts, job_log = await asyncio.gather(_get_job(app, batch_id, job_id, user),
+                                                         _get_attempts(app, batch_id, job_id, user),
+                                                         _get_job_log(app, batch_id, job_id, user))
 
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
-        'job_log': await _get_job_log(app, batch_id, job_id, user),
+        'job_log': job_log,
         'attempts': attempts,
         'job_status': json.dumps(job_status, indent=2)
     }
@@ -1119,20 +1163,30 @@ async def _query_billing(request):
         return await parse_error(f'Invalid search; start must be earlier than end.')
 
     sql = f'''
-SELECT billing_project, user, CAST(COALESCE(SUM(msec_mcpu), 0) AS SIGNED) AS msec_mcpu
+SELECT
+  billing_project,
+  `user`,
+  CAST(SUM(IF(format_version < 3, msec_mcpu, 0)) AS SIGNED) as msec_mcpu,
+  SUM(IF(format_version >= 3, `usage` * rate, NULL)) as cost
 FROM batches
-WHERE batches.`time_created` >= %s AND batches.`time_created` <= %s
-GROUP by billing_project, user;
+LEFT JOIN aggregated_batch_resources
+       ON aggregated_batch_resources.batch_id = batches.id
+LEFT JOIN resources
+        ON resources.resource = aggregated_batch_resources.resource
+WHERE `time_completed` >= %s AND `time_completed` <= %s
+GROUP BY billing_project, `user`;
 '''
+
     sql_args = (start, end)
 
-    def billing_record_to_dict(app, record):
-        msec_mcpu = record['msec_mcpu']
-        record['cost'] = cost_from_msec_mcpu(app, msec_mcpu)
+    def billing_record_to_dict(record):
+        cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
+        cost_resources = record['cost']
+        record['cost'] = coalesce(cost_msec_mcpu, 0) + coalesce(cost_resources, 0)
         del record['msec_mcpu']
         return record
 
-    billing = [billing_record_to_dict(request.app, record)
+    billing = [billing_record_to_dict(record)
                async for record
                in db.select_and_fetchall(sql, sql_args)]
 
