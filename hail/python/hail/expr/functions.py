@@ -1836,7 +1836,7 @@ def pchisqtail(x, df, ncp=None) -> Float64Expression:
     >>> hl.eval(hl.pchisqtail(5, 1))
     0.025347318677468304
 
-    >>> hl.eval(3, 1, 2)
+    >>> hl.eval(hl.pchisqtail(3, 1, 2))
     0.3761310507217904
 
     Parameters
