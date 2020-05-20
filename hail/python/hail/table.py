@@ -1503,10 +1503,10 @@ class Table(ExprContainer):
         """
         try:
             return self._index(*exprs, all_matches=all_matches)
-        except TableIndexKeyError as e:
+        except TableIndexKeyError as err:
             raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
-                                      f"  Table key:         {', '.join(str(t) for t in e.key_type.values()) or '<<<empty key>>>'}\n"
-                                      f"  Index Expressions: {', '.join(str(e.dtype) for e in e.index_expressions)}")
+                                      f"  Table key:         {', '.join(str(t) for t in err.key_type.values()) or '<<<empty key>>>'}\n"
+                                      f"  Index Expressions: {', '.join(str(e.dtype) for e in err.index_expressions)}")
 
     @staticmethod
     def _maybe_truncate_for_flexindex(indexer, indexee_dtype):
