@@ -1825,8 +1825,8 @@ def binom_test(x, n, p, alternative: str) -> Float64Expression:
     return _func("binomTest", tfloat64, x, n, p, to_expr(alt_enum))
 
 
-@typecheck(x=expr_float64, df=expr_float64)
-def pchisqtail(x, df) -> Float64Expression:
+@typecheck(x=expr_float64, df=expr_float64, ncp=nullable(expr_float64))
+def pchisqtail(x, df, ncp=None) -> Float64Expression:
     """Returns the probability under the right-tail starting at x for a chi-squared
     distribution with df degrees of freedom.
 
@@ -1836,17 +1836,25 @@ def pchisqtail(x, df) -> Float64Expression:
     >>> hl.eval(hl.pchisqtail(5, 1))
     0.025347318677468304
 
+    >>> hl.eval(hl.pchisqtail(3, 1, 2))
+    0.3761310507217904
+
     Parameters
     ----------
     x : float or :class:`.Expression` of type :py:data:`.tfloat64`
     df : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Degrees of freedom.
+    ncp: float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Noncentrality parameter. Defaults to 0 if unspecified.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("pchisqtail", tfloat64, x, df)
+    if ncp is None:
+        return _func("pchisqtail", tfloat64, x, df)
+    else:
+        return _func("pnchisqtail", tfloat64, x, df, ncp)
 
 
 @typecheck(x=expr_float64)
