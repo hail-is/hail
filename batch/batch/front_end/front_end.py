@@ -732,6 +732,8 @@ VALUES (%s, %s, %s);
 
             try:
                 await insert()  # pylint: disable=no-value-for-parameter
+            except aiohttp.web.HTTPException:
+                raise
             except Exception as err:
                 raise ValueError(f'encountered exception while inserting a bunch'
                                  f'jobs_args={json.dumps(jobs_args)}'
