@@ -57,7 +57,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   private[this] def computeAggState(sigs: IndexedSeq[AggStateSignature], irs: Seq[IR]): Array[AggStatePhysicalSignature] = {
     val initsAB = InferPType.newBuilder[(AggOp, Seq[PType])](sigs.length)
     val seqsAB = InferPType.newBuilder[(AggOp, Seq[PType])](sigs.length)
-    irs.foreach { ir => InferPType._extractAggOps(ir, inits = initsAB, seqs = seqsAB) }
+    irs.foreach { ir => InferPType._extractAggOps(ir, inits = initsAB, seqs = seqsAB, Some(cache)) }
     Array.tabulate(sigs.length) { i => InferPType.computePhysicalAgg(sigs(i), initsAB(i), seqsAB(i)) }
   }
 

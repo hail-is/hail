@@ -150,7 +150,7 @@ object InferPType {
     case _ => throw new RuntimeException(s"$name not found in definition \n${ Pretty(defNode) }")
   }
 
-  def _extractAggOps(node: IR, inits: AAB[(AggOp, Seq[PType])] = null, seqs: AAB[(AggOp, Seq[PType])] = null): Unit =
+  def _extractAggOps(node: IR, inits: AAB[(AggOp, Seq[PType])] = null, seqs: AAB[(AggOp, Seq[PType])] = null, r: Option[Memo[BaseTypeWithRequiredness]] = None): Unit =
     node match {
       case _: RunAgg | _: RunAggScan =>
       case x@InitOp(i, args, sig, op) =>
@@ -158,38 +158,47 @@ object InferPType {
           case Group() =>
             val newInits = newBuilder[(AggOp, Seq[PType])](sig.nested.get.length)
             val IndexedSeq(initArg) = args
-            _extractAggOps(initArg, inits = newInits, seqs = null)
+            _extractAggOps(initArg, inits = newInits, seqs = null, r)
             Some(newInits)
           case AggElementsLengthCheck() =>
             val newInits = newBuilder[(AggOp, Seq[PType])](sig.nested.get.length)
             val initArg = args.last
-            _extractAggOps(initArg, inits = newInits, seqs = null)
+            _extractAggOps(initArg, inits = newInits, seqs = null, r)
             Some(newInits)
           case _ =>
             assert(sig.nested.isEmpty)
             None
         }
-        inits(i) += RecursiveArrayBuilderElement(x.op -> x.args.map(_.pType), nested)
+        if (inits != null) {
+          val argTypes = x.args.map { a =>
+            r.map(m => coerce[TypeWithRequiredness](m.lookup(a)).canonicalPType(a.typ)).getOrElse(a.pType)
+          }
+          inits(i) += RecursiveArrayBuilderElement(x.op -> argTypes, nested)
+        }
       case x@SeqOp(i, args, sig, op) =>
         val nested = op match {
           case Group() =>
             val newSeqs = newBuilder[(AggOp, Seq[PType])](sig.nested.get.length)
             val IndexedSeq(_, seqArg) = args
-            _extractAggOps(seqArg, inits = null, seqs = newSeqs)
+            _extractAggOps(seqArg, inits = null, seqs = newSeqs, r)
             Some(newSeqs)
           case AggElements() =>
             val newSeqs = newBuilder[(AggOp, Seq[PType])](sig.nested.get.length)
             val IndexedSeq(_, seqArg) = args
-            _extractAggOps(seqArg, inits = null, seqs = newSeqs)
+            _extractAggOps(seqArg, inits = null, seqs = newSeqs, r)
             Some(newSeqs)
           case AggElementsLengthCheck() => None
           case _ =>
             assert(sig.nested.isEmpty)
             None
         }
-        if (seqs != null)
-          seqs(i) += RecursiveArrayBuilderElement(x.op -> x.args.map(_.pType), nested)
-      case _ => node.children.foreach(c => _extractAggOps(c.asInstanceOf[IR], inits, seqs))
+        if (seqs != null) {
+          val argTypes = x.args.map { a =>
+            r.map(m => coerce[TypeWithRequiredness](m.lookup(a)).canonicalPType(a.typ)).getOrElse(a.pType)
+          }
+          seqs(i) += RecursiveArrayBuilderElement(x.op -> argTypes, nested)
+        }
+      case _ => node.children.foreach(c => _extractAggOps(c.asInstanceOf[IR], inits, seqs, r))
     }
 
   private def _inferWithRequiredness(node: IR, env: Env[PType], requiredness: RequirednessAnalysis, usesAndDefs: UsesAndDefs, aggs: Array[AggStatePhysicalSignature] = null): Unit = {
