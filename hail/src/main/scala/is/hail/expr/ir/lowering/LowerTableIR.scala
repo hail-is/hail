@@ -301,6 +301,28 @@ object LowerTableIR {
               )
             }
 
+        case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
+          val loweredChild = lower(child)
+
+          //Plan:
+          // 1. Annotate rows with a new field based on newKey
+          // 2. Shuffle to key by this newKey
+          // 3. Map over this new thing, flattening out pairs into rows with the new key fields as well as whatever agg results we have
+          val withNewKeyField = loweredChild.mapPartition { partition =>
+            mapIR(partition) { partitionElement =>
+              MakeStruct(Seq("newKey" -> newKey, "oldRowStruct" -> partitionElement))
+            }
+          }
+          val shuffled = ctx.backend.lowerDistributedSort(ctx, withNewKeyField, IndexedSeq(SortField("newKey", Ascending)))
+
+          shuffled.mapPartition { partition =>
+            mapIR(StreamGroupByKey(partition, shuffled.partitioner.kType.fieldNames.toIndexedSeq)) { group =>
+              //
+              ???
+            }
+          }
+          ???
+
         case TableDistinct(child) =>
           val loweredChild = lower(child)
 
