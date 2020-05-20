@@ -110,19 +110,20 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     page_context['wb'] = wb
     page_context['pr'] = pr
     # FIXME
-    if pr.batch:
-        if hasattr(pr.batch, 'id'):
-            status = await pr.batch.status()
-            jobs = await collect_agen(pr.batch.jobs())
+    batch = pr.batch
+    if batch:
+        if hasattr(batch, 'id'):
+            status = await batch.status()
+            jobs = await collect_agen(batch.jobs())
             for j in jobs:
                 j['duration'] = humanize_timedelta_msecs(j['duration'])
             page_context['batch'] = status
             page_context['jobs'] = jobs
             # [4:] strips off gs:/
-            page_context['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'[4:]
+            page_context['artifacts'] = f'{BUCKET}/build/{batch.attributes["token"]}'[4:]
         else:
             page_context['exception'] = '\n'.join(
-                traceback.format_exception(None, pr.batch.exception, pr.batch.exception.__traceback__))
+                traceback.format_exception(None, batch.exception, batch.exception.__traceback__))
 
     batch_client = request.app['batch_client']
     batches = batch_client.list_batches(
