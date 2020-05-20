@@ -102,10 +102,10 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
   def results: IR = ResultOp(0, aggs)
 
   def getPhysicalAggs(ctx: ExecuteContext, initBindings: Env[PType], seqBindings: Env[PType]): Array[AggStatePhysicalSignature] = {
-    val initsAB = InferPType.newBuilder[InitOp](aggs.length)
-    val seqsAB = InferPType.newBuilder[SeqOp](aggs.length)
     val init2 = LoweringPipeline.compileLowerer.apply(ctx, init, false).asInstanceOf[IR].noSharing
     val seq2 = LoweringPipeline.compileLowerer.apply(ctx, seqPerElt, false).asInstanceOf[IR].noSharing
+    val initsAB = InferPType.newBuilder[(AggOp, Seq[PType])](aggs.length)
+    val seqsAB = InferPType.newBuilder[(AggOp, Seq[PType])](aggs.length)
     InferPType(init2, initBindings, null, inits = initsAB, null)
     InferPType(seq2, seqBindings, null, null, seqs = seqsAB)
 
@@ -174,13 +174,13 @@ object Extract {
 
   def getAgg(aggSig: AggStatePhysicalSignature, op: AggOp): StagedAggregator = aggSig.lookup(op) match {
     case PhysicalAggSignature(Sum(), _, Seq(t)) =>
-      new SumAggregator(t)
+      new SumAggregator(t.setRequired(true))
     case PhysicalAggSignature(Product(), _, Seq(t)) =>
-      new ProductAggregator(t)
+      new ProductAggregator(t.setRequired(true))
     case PhysicalAggSignature(Min(), _, Seq(t)) =>
-      new MinAggregator(t)
+      new MinAggregator(t.setRequired(false))
     case PhysicalAggSignature(Max(), _, Seq(t)) =>
-      new MaxAggregator(t)
+      new MaxAggregator(t.setRequired(false))
     case PhysicalAggSignature(Count(), _, _) =>
       CountAggregator
     case PhysicalAggSignature(Take(), _, Seq(t)) => new TakeAggregator(t)

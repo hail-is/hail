@@ -44,7 +44,7 @@ object Compile {
     ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR].noSharing
 
     TypeCheck(ir, BindingEnv.empty)
-    InferPType(ir, Env.empty[PType])
+    InferPType(ir)
     val returnType = ir.pType
 
     val fb = EmitFunctionBuilder[F](ctx, "Compiled",
