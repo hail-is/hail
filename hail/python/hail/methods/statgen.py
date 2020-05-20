@@ -2806,7 +2806,7 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
            n_partitions=nullable(int),
            pop_dist=nullable(sequenceof(numeric)),
            fst=nullable(sequenceof(numeric)),
-           af_dist=expr_any,
+           af_dist=nullable(expr_any),
            reference_genome=reference_genome_type,
            mixture=bool)
 def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=None,
@@ -2945,9 +2945,10 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     fst : :obj:`list` of :obj:`float`, optional
         :math:`F_{ST}` values, a list of length `n_populations` with values
         in (0, 1). Default is ``[0.1, ..., 0.1]``.
-    af_dist : :class:`.Float64Expression` representing a random function.
-        Ancestral allele frequency distribution.
-        Default is :func:`.rand_unif` over the range `[0.1, 0.9]` with seed 0.
+    af_dist : :class:`.Float64Expression`, optional
+        Representing a random function.  Ancestral allele frequency
+        distribution.  Default is :func:`.rand_unif` over the range
+        `[0.1, 0.9]` with seed 0.
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
     mixture : :obj:`bool`
@@ -2958,6 +2959,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     -------
     :class:`.MatrixTable`
         Simulated matrix table of variants, samples, and genotypes.
+
     """
     if pop_dist is None:
         pop_dist = [1 for _ in range(n_populations)]
