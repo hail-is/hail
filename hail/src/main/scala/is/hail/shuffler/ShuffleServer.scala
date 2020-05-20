@@ -8,7 +8,7 @@ import java.util.concurrent.{ConcurrentSkipListMap, Executors, _}
 
 import is.hail.annotations.Region
 import is.hail.expr.ir.ExecuteContext
-import is.hail.expr.types.virtual.TStruct
+import is.hail.types.virtual.TStruct
 import is.hail.io.TypedCodecSpec
 import is.hail.utils._
 import javax.net.ssl._

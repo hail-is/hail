@@ -3,7 +3,7 @@ package is.hail
 import java.io.OutputStreamWriter
 import java.nio.charset._
 
-import is.hail.expr.types.virtual.Type
+import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.io.fs.FS
 

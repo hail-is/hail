@@ -1,7 +1,7 @@
 package is.hail.shuffler
 
 import is.hail.expr.ir.ExecuteContext
-import is.hail.expr.types.virtual._
+import is.hail.types.virtual._
 import is.hail.io._
 
 class KeyedCodecSpec(

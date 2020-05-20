@@ -8,8 +8,8 @@ import is.hail.asm4s._
 import is.hail.backend.HailTaskContext
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions.StringFunctions
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual._
+import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.{HailContext, lir}

@@ -1,7 +1,7 @@
 package is.hail.testUtils
 
 import is.hail.annotations.Annotation
-import is.hail.expr.types.virtual.{TArray, TLocus, TString, TStruct}
+import is.hail.types.virtual.{TArray, TLocus, TString, TStruct}
 import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.json4s._

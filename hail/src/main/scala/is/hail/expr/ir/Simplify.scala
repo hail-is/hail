@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual._
+import is.hail.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.utils._
 

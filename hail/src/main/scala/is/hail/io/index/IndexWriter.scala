@@ -5,11 +5,11 @@ import java.io.OutputStream
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IEmitCode, ParamType, coerce}
-import is.hail.expr.types
-import is.hail.expr.types._
-import is.hail.expr.types.encoded.EType
-import is.hail.expr.types.physical.{PBaseStruct, PBaseStructValue, PCanonicalArray, PCanonicalBaseStructSettable, PCanonicalStruct, PCode, PInt64, PType}
-import is.hail.expr.types.virtual.Type
+import is.hail.types
+import is.hail.types._
+import is.hail.types.encoded.EType
+import is.hail.types.physical.{PBaseStruct, PBaseStructValue, PCanonicalArray, PCanonicalBaseStructSettable, PCanonicalStruct, PCode, PInt64, PType}
+import is.hail.types.virtual.Type
 import is.hail.io.fs.FS
 import is.hail.io._
 import is.hail.rvd.AbstractRVDSpec

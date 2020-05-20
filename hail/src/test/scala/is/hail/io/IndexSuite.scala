@@ -2,9 +2,9 @@ package is.hail.io
 
 import is.hail.HailSuite
 import is.hail.annotations.Annotation
-import is.hail.expr.types.encoded.EType
-import is.hail.expr.types.physical.{PCanonicalString, PCanonicalStruct, PInt32, PString, PStruct, PType}
-import is.hail.expr.types.virtual._
+import is.hail.types.encoded.EType
+import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PInt32, PString, PStruct, PType}
+import is.hail.types.virtual._
 import is.hail.io.fs.FS
 import is.hail.io.index._
 import is.hail.utils._

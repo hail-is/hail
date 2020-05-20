@@ -6,8 +6,8 @@ import java.io.{OutputStream, OutputStreamWriter}
 import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.expr.ir.MatrixValue
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PString, PStruct}
+import is.hail.types._
+import is.hail.types.physical.{PString, PStruct}
 import is.hail.variant._
 import is.hail.utils._
 import org.apache.spark.TaskContext

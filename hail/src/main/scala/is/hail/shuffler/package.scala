@@ -4,7 +4,7 @@ import java.io._
 import java.security.KeyStore
 
 import is.hail.annotations._
-import is.hail.expr.types.physical._
+import is.hail.types.physical._
 import javax.net.ssl._;
 
 package object shuffler {

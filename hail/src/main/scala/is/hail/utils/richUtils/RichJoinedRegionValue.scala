@@ -1,7 +1,7 @@
 package is.hail.utils.richUtils
 
 import is.hail.annotations.{JoinedRegionValue, RegionValue}
-import is.hail.expr.types.physical.PType
+import is.hail.types.physical.PType
 
 class RichJoinedRegionValue(jrv: JoinedRegionValue) {
   def pretty(lTyp: PType, rTyp: PType): String = jrv._1.pretty(lTyp) + "," + jrv._2.pretty(rTyp)

@@ -3,7 +3,7 @@ package is.hail.linalg
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, MethodBuilder}
 import is.hail.asm4s._
-import is.hail.expr.types.physical.PType
+import is.hail.types.physical.PType
 
 object LinalgCodeUtils {
   def copyRowMajorToColumnMajor(rowMajorFirstElementAddress: Code[Long], targetFirstElementAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], elementPType: PType, mb: MethodBuilder[_]): Code[Unit] = {

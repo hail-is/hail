@@ -3,8 +3,8 @@ package is.hail.expr.ir.lowering
 import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow, UnsafeRow}
 import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, classInfo}
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.{PArray, PStruct, PTuple}
-import is.hail.expr.types.virtual.TStruct
+import is.hail.types.physical.{PArray, PStruct, PTuple}
+import is.hail.types.virtual.TStruct
 import is.hail.rvd.RVDPartitioner
 import is.hail.utils._
 import org.apache.spark.sql.Row

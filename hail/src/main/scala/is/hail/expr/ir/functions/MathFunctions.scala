@@ -3,13 +3,13 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{AsmFunction3, Code}
 import is.hail.expr.ir._
-import is.hail.expr.types._
+import is.hail.types._
 import org.apache.commons.math3.special.Gamma
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.asm4s
-import is.hail.expr.types.physical.{PBoolean, PFloat32, PFloat64, PInt32, PInt64, PType}
-import is.hail.expr.types.virtual._
+import is.hail.types.physical.{PBoolean, PFloat32, PFloat64, PInt32, PInt64, PType}
+import is.hail.types.virtual._
 
 object MathFunctions extends RegistryFunctions {
   def log(x: Double, b: Double): Double = math.log(x) / math.log(b)

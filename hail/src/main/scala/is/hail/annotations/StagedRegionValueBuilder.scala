@@ -4,8 +4,8 @@ import is.hail.asm4s.Code._
 import is.hail.asm4s.{Code, FunctionBuilder, _}
 import is.hail.expr.ir
 import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ParamType}
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.{TBoolean, TFloat32, TFloat64, TInt32, TInt64, Type}
+import is.hail.types.physical._
+import is.hail.types.virtual.{TBoolean, TFloat32, TFloat64, TInt32, TInt64, Type}
 import is.hail.utils._
 
 object StagedRegionValueBuilder {

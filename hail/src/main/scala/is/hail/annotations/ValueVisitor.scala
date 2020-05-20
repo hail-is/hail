@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.expr.types.physical._
+import is.hail.types.physical._
 
 trait ValueVisitor {
   def visitMissing(t: PType): Unit

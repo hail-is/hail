@@ -6,9 +6,9 @@ import is.hail.asm4s.{coerce, _}
 import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ExecuteContext, ParamType}
 import is.hail.expr.ir.functions.StringFunctions
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PCanonicalArray, PStruct, PType}
-import is.hail.expr.types.virtual.{TArray, TInterval, Type}
+import is.hail.types._
+import is.hail.types.physical.{PArray, PCanonicalArray, PStruct, PType}
+import is.hail.types.virtual.{TArray, TInterval, Type}
 import is.hail.io.index.{IndexReader, IndexReaderBuilder}
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
 import is.hail.utils._

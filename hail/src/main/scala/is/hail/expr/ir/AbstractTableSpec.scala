@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import java.io.OutputStreamWriter
 
 import is.hail.utils._
-import is.hail.expr.types._
+import is.hail.types._
 import is.hail.io.fs.FS
 import is.hail.rvd._
 import org.json4s.jackson.JsonMethods

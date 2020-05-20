@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.physical.PStream
-import is.hail.expr.types.virtual._
+import is.hail.types.physical.PStream
+import is.hail.types.virtual._
 import is.hail.utils._
 
 object TypeCheck {

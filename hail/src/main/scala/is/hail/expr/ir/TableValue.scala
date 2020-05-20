@@ -3,9 +3,9 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.TableAnnotationImpex
-import is.hail.expr.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PStruct}
-import is.hail.expr.types.virtual.{Field, TArray, TStruct}
-import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PStruct}
+import is.hail.types.virtual.{Field, TArray, TStruct}
+import is.hail.types.{MatrixType, TableType}
 import is.hail.io.{BufferSpec, TypedCodecSpec, exportTypes}
 import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType, RVDContext}
 import is.hail.sparkextras.ContextRDD

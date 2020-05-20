@@ -1,7 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.expr.ir._
-import is.hail.expr.types.virtual._
+import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 
 object SetFunctions extends RegistryFunctions {

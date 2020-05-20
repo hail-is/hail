@@ -2,9 +2,9 @@ package is.hail.expr.ir.lowering
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir._
-import is.hail.expr.types.virtual._
+import is.hail.types.virtual._
 import is.hail.TestUtils._
-import is.hail.expr.types.BlockMatrixSparsity
+import is.hail.types.BlockMatrixSparsity
 import is.hail.utils._
 import org.testng.annotations.Test
 

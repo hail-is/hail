@@ -5,10 +5,10 @@ import is.hail.asm4s.Value
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions._
-import is.hail.expr.types.{RStruct, RTable}
-import is.hail.expr.types.encoded._
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual._
+import is.hail.types.{RStruct, RTable}
+import is.hail.types.encoded._
+import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.utils.{FastIndexedSeq, _}
 import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}

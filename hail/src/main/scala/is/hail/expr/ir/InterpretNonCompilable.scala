@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual.TVoid
+import is.hail.types.virtual.TVoid
 import is.hail.utils._
 
 import scala.collection.mutable

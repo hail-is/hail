@@ -5,7 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.io.InputBuffer
 import is.hail.utils._
 import is.hail.asm4s._
-import is.hail.expr.types.physical._
+import is.hail.types.physical._
 
 class RichCodeInputBuffer(in: Code[InputBuffer]) {
   def readByte(): Code[Byte] = {
