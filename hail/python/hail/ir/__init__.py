@@ -18,7 +18,7 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     MakeStruct, SelectFields, InsertFields, GetField, MakeTuple, \
     GetTupleElement, Die, Apply, ApplySeeded, TableCount, TableGetGlobals, \
     TableCollect, TableAggregate, MatrixCount, MatrixAggregate, TableWrite, \
-    udf
+    udf, subst
 from .register_functions import register_functions
 from .register_aggregators import register_aggregators
 from .table_ir import MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, \
@@ -195,6 +195,7 @@ __all__ = [
     'MatrixAggregate',
     'TableWrite',
     'udf',
+    'subst',
     'MatrixWrite',
     'MatrixMultiWrite',
     'BlockMatrixWrite',
