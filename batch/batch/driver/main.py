@@ -666,7 +666,13 @@ async def on_startup(app):
 
     logging_client = aiogoogle.LoggingClient(
         credentials=aiogoogle_credentials,
-        # quota is 60/m, event loop runs 4/m
+        # The project-wide logging quota is 60 request/m.  The event
+        # loop sleeps 15s per iteration, so the max rate is 4
+        # iterations/m.  Note, the event loop could make multiple
+        # logging requests per iteration, so these numbers are not
+        # quite comparable.  I didn't want to consume the entire quota
+        # since there will be other users of the logging API (us at
+        # the web console, test deployments, etc.)
         rate_limit=RateLimit(10, 60))
     app['logging_client'] = logging_client
 
