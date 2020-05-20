@@ -81,16 +81,16 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case x@InitOp(_, args, _, _) =>
         aggStateMemo.bind(node, wrapped)
         q += RefEquality(x)
-        dependents.getOrElseUpdate(x, mutable.Set[RefEquality[BaseIR]]()) ++= args.map(RefEquality(_))
+        args.foreach(a => dependents.getOrElseUpdate(a, mutable.Set[RefEquality[BaseIR]]()) += RefEquality(x))
         if (wrapped.scope != null)
-          dependents(x) += wrapped.scope
+          dependents.getOrElseUpdate(x, mutable.Set[RefEquality[BaseIR]]()) += wrapped.scope
         node.children.foreach(initializeAggStates(_, wrapped))
       case x@SeqOp(_, args, _, _) =>
         aggStateMemo.bind(node, wrapped)
         q += RefEquality(x)
-        dependents.getOrElseUpdate(x, mutable.Set[RefEquality[BaseIR]]()) ++= args.map(RefEquality(_))
+        args.foreach(a => dependents.getOrElseUpdate(a, mutable.Set[RefEquality[BaseIR]]()) += RefEquality(x))
         if (wrapped.scope != null)
-          dependents(x) += wrapped.scope
+          dependents.getOrElseUpdate(x, mutable.Set[RefEquality[BaseIR]]()) += wrapped.scope
         node.children.foreach(initializeAggStates(_, wrapped))
       case x: ResultOp =>
         aggStateMemo.bind(node, wrapped)
