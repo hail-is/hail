@@ -1,6 +1,7 @@
 import asyncio
 import webbrowser
 import aiohttp
+import sys
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
@@ -27,7 +28,7 @@ class CIClient:
     async def __aenter__(self):
         headers = service_auth_headers(self._deploy_config, 'ci')
         self._session = ssl_client_session(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers)
+            timeout=aiohttp.ClientTimeout(total=60), headers=headers)
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
@@ -45,6 +46,10 @@ class CIClient:
         }
         async with self._session.post(
                 self._deploy_config.url('ci', '/api/v1alpha/dev_deploy_branch'), json=data) as resp:
+            if resp.status >= 400:
+                print(f'HTTP Response code was {resp.status}')
+                print(await resp.text())
+                sys.exit(1)
             resp_data = await resp.json()
             return resp_data['batch_id']
 
