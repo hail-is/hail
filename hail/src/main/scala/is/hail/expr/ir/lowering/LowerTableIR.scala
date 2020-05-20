@@ -313,12 +313,27 @@ object LowerTableIR {
           val shuffled = ctx.backend.lowerDistributedSort(ctx, withNewKeyField, IndexedSeq(SortField("newKey", Ascending)))
 
           shuffled.mapPartition { partition =>
-            mapIR(StreamGroupByKey(partition, shuffled.partitioner.kType.fieldNames.toIndexedSeq)) { group =>
-              //
-              ???
+            mapIR(StreamGroupByKey(partition, shuffled.partitioner.kType.fieldNames.toIndexedSeq)) { groupRef =>
+              // I believe that `expr` is a going to make a struct of aggregator fields.
+              StreamAgg(
+                groupRef,
+                "row",
+                bindIRs(
+                  ArrayRef(
+                    ApplyAggOp(FastSeq(I32(1)),
+                      FastSeq(SelectFields(Ref("row", child.typ.rowType), child.typ.key)),
+                      AggSignature(Take(), FastSeq(TInt32), FastSeq(child.typ.keyType))),
+                    I32(0)), // FIXME: would prefer a First() agg op
+                  expr) { case Seq(groupRep, value) =>
+
+                  val keyIRs: IndexedSeq[(String, IR)] = child.typ.key.map(k => (k, GetField(GetField(groupRep, "newKey"), k)))
+                  MakeStruct(keyIRs ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
+                    (f, GetField(value, f))
+                  })
+                }
+              )
             }
           }
-          ???
 
         case TableDistinct(child) =>
           val loweredChild = lower(child)
