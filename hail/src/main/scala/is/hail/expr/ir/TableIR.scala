@@ -10,9 +10,9 @@ import is.hail.expr.ir
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, TableToTableFunction}
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
-import is.hail.expr.types._
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual._
+import is.hail.types._
+import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
@@ -1096,9 +1096,9 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       pfs.map(pf => (pf.name, pf.typ))
 
     def unionFieldPTypes(ps: PStruct, ps2: PStruct): IndexedSeq[(String, PType)] =
-      ps.fields.zip(ps2.fields).map({
-        case(pf1, pf2) => (pf1.name, InferPType.getNestedElementPTypes(Seq(pf1.typ, pf2.typ)))
-      })
+      ps.fields.zip(ps2.fields).map { case(pf1, pf2) =>
+        (pf1.name, InferPType.getCompatiblePType(Seq(pf1.typ, pf2.typ)))
+      }
 
     def castFieldRequiredeness(ps: PStruct, required: Boolean): IndexedSeq[(String, PType)] =
       ps.fields.map(pf => (pf.name, pf.typ.setRequired(required)))

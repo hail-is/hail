@@ -2,9 +2,9 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.expr.ir.functions.RelationalFunctions
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual._
-import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.types.physical._
+import is.hail.types.virtual._
+import is.hail.types.{MatrixType, TableType}
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
 import is.hail.rvd.{AbstractRVDSpec, RVDType}

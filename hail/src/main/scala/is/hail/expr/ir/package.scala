@@ -5,9 +5,9 @@ import is.hail.asm4s._
 import is.hail.annotations.RegionValue
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.expr.ir.functions.IRFunctionRegistry
-import is.hail.expr.types._
-import is.hail.expr.types.physical.PType
-import is.hail.expr.types.virtual._
+import is.hail.types.{coerce => tycoerce, _}
+import is.hail.types.physical.PType
+import is.hail.types.virtual._
 import is.hail.utils._
 
 import scala.language.implicitConversions
@@ -75,11 +75,11 @@ package object ir {
 
   private[ir] def coerce[T](ti: TypeInfo[_]): TypeInfo[T] = ti.asInstanceOf[TypeInfo[T]]
 
-  private[ir] def coerce[T <: Type](x: Type): T = types.coerce[T](x)
+  private[ir] def coerce[T <: Type](x: Type): T = tycoerce[T](x)
 
-  private[ir] def coerce[T <: PType](x: PType): T = types.coerce[T](x)
+  private[ir] def coerce[T <: PType](x: PType): T = tycoerce[T](x)
 
-  private[ir] def coerce[T <: BaseTypeWithRequiredness](x: BaseTypeWithRequiredness): T = types.coerce[T](x)
+  private[ir] def coerce[T <: BaseTypeWithRequiredness](x: BaseTypeWithRequiredness): T = tycoerce[T](x)
 
   def invoke(name: String, rt: Type, typeArgs: Array[Type], args: IR*): IR = IRFunctionRegistry.lookupConversion(name, rt, typeArgs, args.map(_.typ)) match {
     case Some(f) => f(typeArgs, args)

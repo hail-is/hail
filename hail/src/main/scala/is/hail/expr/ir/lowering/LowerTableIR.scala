@@ -1,8 +1,8 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.expr.ir._
-import is.hail.expr.types
-import is.hail.expr.types.virtual._
+import is.hail.types
+import is.hail.types.virtual._
 import is.hail.methods.NPartitionsTable
 import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner}
 import is.hail.utils._
@@ -80,6 +80,14 @@ abstract class TableStage(
       ctx.name, glob.name,
       broadcastVals.foldLeft(partition(ctx))((accum, name) => Let(name, GetField(glob, name), accum)))
     if (bind) wrapInBindings(cda) else cda
+  }
+
+  def collectWithGlobals(): IR = {
+    val mapped = mapPartition(ToArray)
+    mapped.wrapInBindings(
+      MakeStruct(FastIndexedSeq(
+        "rows" -> ToArray(flatMapIR(ToStream(mapped.collect(bind = false))) { elt => ToStream(elt) }),
+        "global" -> mapped.globals)))
   }
 
   def changePartitionerNoRepartition(newPartitioner: RVDPartitioner): TableStage = {
@@ -492,15 +500,18 @@ object LowerTableIR {
               .coarsen(nPreservedFields)
               .extendKey(t.typ.keyType)
             loweredChild.changePartitionerNoRepartition(newPartitioner)
-          } else
-            ctx.backend.lowerDistributedSort(loweredChild, newKey.map(k => SortField(k, Ascending)))
+          } else {
+            val sorted = ctx.backend.lowerDistributedSort(ctx, loweredChild, newKey.map(k => SortField(k, Ascending)))
+            assert(sorted.partitioner.kType.fieldNames.sameElements(newKey))
+            sorted
+          }
 
         case TableOrderBy(child, sortFields) =>
           val loweredChild = lower(child)
           if (TableOrderBy.isAlreadyOrdered(sortFields, loweredChild.partitioner.kType.fieldNames))
             loweredChild
           else
-            ctx.backend.lowerDistributedSort(loweredChild, sortFields)
+            ctx.backend.lowerDistributedSort(ctx, loweredChild, sortFields)
 
         case TableExplode(child, path) =>
           lower(child).mapPartition { rows =>
@@ -557,11 +568,7 @@ object LowerTableIR {
         stage.wrapInBindings(stage.globals)
 
       case TableCollect(child) =>
-        val lowered = lower(child).mapPartition(ToArray)
-        lowered.wrapInBindings(
-          MakeStruct(FastIndexedSeq(
-            "rows" -> ToArray(flatMapIR(ToStream(lowered.collect(bind = false))) { elt => ToStream(elt) }),
-            "global" -> lowered.globals)))
+        lower(child).collectWithGlobals()
 
       case TableToValueApply(child, NPartitionsTable()) =>
         val lowered = lower(child)

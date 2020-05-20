@@ -83,7 +83,9 @@ def parse_memory_in_bytes(memory_string):
     if match:
         number = float(match.group(1))
         suffix = match.group(2)
-        return int(number * conv_factor[suffix])
+        if suffix:
+            return math.ceil(number * conv_factor[suffix])
+        return math.ceil(number)
     return None
 
 

@@ -2,10 +2,10 @@ package is.hail.expr.ir.functions
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
-import is.hail.expr.types.{coerce => _, _}
+import is.hail.types.{coerce => _, _}
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.{PArray, PCode, PFloat64, PIndexableCode, PInt32, PType}
-import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, Type}
+import is.hail.types.physical.{PArray, PCode, PFloat64, PIndexableCode, PInt32, PType}
+import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
 
 object GenotypeFunctions extends RegistryFunctions {
 

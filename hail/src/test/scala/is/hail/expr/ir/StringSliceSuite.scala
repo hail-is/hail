@@ -3,8 +3,8 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.utils._
 import is.hail.TestUtils._
-import is.hail.expr.types._
-import is.hail.expr.types.virtual.TString
+import is.hail.types._
+import is.hail.types.virtual.TString
 import org.testng.annotations.Test
 
 class StringSliceSuite extends HailSuite {

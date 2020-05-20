@@ -8,8 +8,8 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.{ExecuteContext, MatrixValue}
 import is.hail.expr.ir.functions.MatrixToValueFunction
-import is.hail.expr.types.MatrixType
-import is.hail.expr.types.virtual.{TVoid, Type}
+import is.hail.types.MatrixType
+import is.hail.types.virtual.{TVoid, Type}
 import is.hail.io.fs.FileStatus
 import is.hail.utils._
 import org.apache.spark.TaskContext

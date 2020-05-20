@@ -3,7 +3,7 @@ package is.hail.io.gen
 import is.hail.HailContext
 import is.hail.annotations.{RegionValue, UnsafeRow}
 import is.hail.expr.ir.{ExecuteContext, MatrixValue}
-import is.hail.expr.types.physical.PStruct
+import is.hail.types.physical.PStruct
 import is.hail.io.fs.FS
 import is.hail.utils.ArrayBuilder
 import is.hail.variant.{ArrayGenotypeView, RegionValueVariant, View}

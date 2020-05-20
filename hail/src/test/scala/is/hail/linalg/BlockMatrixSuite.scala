@@ -7,7 +7,7 @@ import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check._
 import is.hail.expr.ir.{CompileAndEvaluate, GetField, TableCollect, TableLiteral}
-import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
+import is.hail.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.linalg.BlockMatrix.ops._
 import is.hail.utils._
 import is.hail.{HailSuite, TestUtils}

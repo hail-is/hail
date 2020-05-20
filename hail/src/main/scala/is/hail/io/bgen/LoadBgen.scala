@@ -5,9 +5,9 @@ import is.hail.backend.BroadcastValue
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.{ExecuteContext, IRParser, IRParserEnvironment, Interpret, MatrixHybridReader, Pretty, TableIR, TableRead, TableValue}
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PCanonicalStruct, PStruct, PType}
-import is.hail.expr.types.virtual._
+import is.hail.types._
+import is.hail.types.physical.{PCanonicalStruct, PStruct, PType}
+import is.hail.types.virtual._
 import is.hail.io._
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.index.{IndexReader, IndexReaderBuilder}

@@ -3,8 +3,8 @@ package is.hail.expr.ir
 import is.hail.TestUtils._
 import is.hail.asm4s.Code
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
-import is.hail.expr.types.physical.{PInt32, PInt64}
-import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TInt64, TStream}
+import is.hail.types.physical.{PInt32, PInt64}
+import is.hail.types.virtual.{TArray, TFloat64, TInt32, TInt64, TStream}
 import is.hail.utils._
 import is.hail.{ExecStrategy, HailContext, HailSuite}
 import org.apache.spark.sql.Row

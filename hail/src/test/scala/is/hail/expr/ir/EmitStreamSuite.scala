@@ -3,8 +3,8 @@ package is.hail.expr.ir
 import is.hail.annotations.{Region, RegionValue, RegionValueBuilder, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual._
+import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
 import is.hail.HailSuite
@@ -262,7 +262,7 @@ class EmitStreamSuite extends HailSuite {
     val fb = EmitFunctionBuilder[F](ctx, "F", (classInfo[Region]: ParamType) +: inputTypes.map(pt => EmitParamType(pt): ParamType), LongInfo)
     val mb = fb.apply_method
     val ir = streamIR.deepCopy()
-    InferPType(ir, Env.empty)
+    InferPType(ir)
     val eltType = ir.pType.asInstanceOf[PStream].elementType
     val stream = ExecuteContext.scoped() { ctx =>
       val s = ir match {
@@ -319,7 +319,7 @@ class EmitStreamSuite extends HailSuite {
     val fb = EmitFunctionBuilder[Region, Int](ctx, "eval_stream_len")
     val mb = fb.apply_method
     val ir = streamIR.deepCopy()
-    InferPType(ir, Env.empty)
+    InferPType(ir)
     val optStream = ExecuteContext.scoped() { ctx =>
       TypeCheck(ir)
       EmitStream.emit(new Emit(ctx, fb.ecb), ir, mb, Env.empty, None)

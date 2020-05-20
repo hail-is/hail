@@ -4,7 +4,7 @@ import java.io._
 
 import is.hail.annotations._
 import is.hail.expr.ir.ExecuteContext
-import is.hail.expr.types.physical._
+import is.hail.types.physical._
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
 import is.hail.rvd.{AbstractIndexSpec, IndexSpec, MakeRVDSpec, RVDContext, RVDPartitioner, RVDType}

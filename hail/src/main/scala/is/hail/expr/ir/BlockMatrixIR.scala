@@ -1,8 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.HailContext
-import is.hail.expr.types.{BlockMatrixSparsity, BlockMatrixType}
-import is.hail.expr.types.virtual.{TArray, TBaseStruct, TFloat64, TInt64, TTuple, Type}
+import is.hail.types.{BlockMatrixSparsity, BlockMatrixType}
+import is.hail.types.virtual.{TArray, TBaseStruct, TFloat64, TInt64, TTuple, Type}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
 import is.hail.utils._
 import breeze.linalg

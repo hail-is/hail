@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.utils._
-import is.hail.expr.types.virtual.{TBoolean, TInt32, TInt64, TString, TStruct, Type}
+import is.hail.types.virtual.{TBoolean, TInt32, TInt64, TString, TStruct, Type}
 import is.hail.io.compress.{BGzipCodec, BGzipInputStream}
 import is.hail.io.fs.{FS, FileStatus, Positioned, PositionedInputStream, SeekableInputStream}
 import org.apache.commons.io.input.{CountingInputStream, ProxyInputStream}

@@ -5,9 +5,9 @@ import java.util
 import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
-import is.hail.expr.types._
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual._
+import is.hail.types._
+import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.rvd.RVD
 import is.hail.utils._
 import is.hail.variant._

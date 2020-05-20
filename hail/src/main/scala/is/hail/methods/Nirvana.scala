@@ -7,9 +7,9 @@ import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{ExecuteContext, TableValue}
 import is.hail.expr.ir.functions.TableToTableFunction
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PCanonicalStruct, PStruct, PType}
-import is.hail.expr.types.virtual._
+import is.hail.types._
+import is.hail.types.physical.{PCanonicalStruct, PStruct, PType}
+import is.hail.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._

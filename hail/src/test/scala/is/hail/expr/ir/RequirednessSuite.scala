@@ -2,10 +2,10 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.expr.Nat
-import is.hail.expr.types.encoded.EBaseStruct
-import is.hail.expr.types.{BaseTypeWithRequiredness, TypeWithRequiredness}
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual._
+import is.hail.types.encoded.EBaseStruct
+import is.hail.types.{BaseTypeWithRequiredness, TypeWithRequiredness}
+import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.stats.fetStruct
 import is.hail.utils.{ArrayBuilder, FastIndexedSeq, FastSeq}

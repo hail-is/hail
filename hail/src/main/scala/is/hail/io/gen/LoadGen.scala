@@ -5,9 +5,9 @@ import is.hail.annotations._
 import is.hail.backend.BroadcastValue
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, TableRead, TableValue}
-import is.hail.expr.types.{MatrixType, TableType}
-import is.hail.expr.types.physical.{PStruct, PType}
-import is.hail.expr.types.virtual._
+import is.hail.types.{MatrixType, TableType}
+import is.hail.types.physical.{PStruct, PType}
+import is.hail.types.virtual._
 import is.hail.io.bgen.LoadBgen
 import is.hail.io.vcf.LoadVCF
 import is.hail.rvd.{RVD, RVDContext, RVDType}

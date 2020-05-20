@@ -3,8 +3,8 @@ package is.hail.utils.richUtils
 import java.io.PrintWriter
 
 import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
-import is.hail.expr.types.physical.PStruct
-import is.hail.expr.types.virtual.TStruct
+import is.hail.types.physical.PStruct
+import is.hail.types.virtual.TStruct
 import is.hail.rvd.RVDContext
 
 import scala.collection.JavaConverters._

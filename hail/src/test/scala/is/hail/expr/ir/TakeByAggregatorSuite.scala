@@ -4,7 +4,7 @@ import is.hail.HailSuite
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.asm4s._
 import is.hail.expr.ir.agg.TakeByRVAS
-import is.hail.expr.types.physical._
+import is.hail.types.physical._
 import is.hail.utils._
 import org.testng.annotations.Test
 

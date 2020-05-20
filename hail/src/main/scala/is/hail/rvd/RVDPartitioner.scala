@@ -2,7 +2,7 @@ package is.hail.rvd
 
 import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering}
 import is.hail.expr.ir.Literal
-import is.hail.expr.types.virtual.{TArray, TBoolean, TInt32, TInterval, TStruct, TTuple}
+import is.hail.types.virtual.{TArray, TBoolean, TInt32, TInterval, TStruct, TTuple}
 import is.hail.utils._
 import org.apache.commons.lang.builder.HashCodeBuilder
 import org.apache.spark.broadcast.Broadcast

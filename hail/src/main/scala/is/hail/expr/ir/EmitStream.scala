@@ -4,7 +4,7 @@ import is.hail.annotations.{CodeOrdering, Region, RegionValue, StagedRegionValue
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
-import is.hail.expr.types.physical._
+import is.hail.types.physical._
 import is.hail.io.{AbstractTypedCodecSpec, InputBuffer}
 import is.hail.utils._
 
@@ -1196,7 +1196,7 @@ object EmitStream {
 
         case x@StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
           val eltType = coerce[PStream](childIR.pType).elementType
-          val accType = coerce[PStream](x.pType).elementType
+          val accType = x.accPType
 
           val streamOpt = emitStream(childIR, env)
           streamOpt.map { case SizedStream(setup, stream, len) =>

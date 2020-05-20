@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.expr.types.virtual._
+import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 

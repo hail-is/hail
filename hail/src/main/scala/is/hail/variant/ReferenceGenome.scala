@@ -7,7 +7,7 @@ import is.hail.HailContext
 import is.hail.asm4s.Code
 import is.hail.backend.BroadcastValue
 import is.hail.check.Gen
-import is.hail.expr.types._
+import is.hail.types._
 import is.hail.expr.{JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser}
 import is.hail.io.reference.FASTAReader
 import is.hail.utils._
@@ -18,7 +18,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import is.hail.expr.ir.{EmitClassBuilder, ExecuteContext, RelationalSpec}
-import is.hail.expr.types.virtual.{TInt64, TLocus, Type}
+import is.hail.types.virtual.{TInt64, TLocus, Type}
 import is.hail.io.reference.LiftOver
 import is.hail.io.fs.FS
 import org.apache.spark.TaskContext

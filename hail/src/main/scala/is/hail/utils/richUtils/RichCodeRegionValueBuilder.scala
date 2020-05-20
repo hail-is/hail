@@ -2,7 +2,7 @@ package is.hail.utils.richUtils
 
 import is.hail.annotations.{RegionValue, RegionValueBuilder}
 import is.hail.asm4s.Code
-import is.hail.expr.types.physical.PType
+import is.hail.types.physical.PType
 
 class RichCodeRegionValueBuilder(val rvb: Code[RegionValueBuilder]) {
   def start(pType: Code[PType]): Code[Unit] = {

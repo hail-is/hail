@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
-import is.hail.expr.types.physical.PType
+import is.hail.types.physical.PType
 
 abstract class StagedAggregator {
   type State <: AggregatorState

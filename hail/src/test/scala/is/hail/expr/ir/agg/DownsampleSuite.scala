@@ -4,7 +4,7 @@ import is.hail.HailSuite
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.expr.types.physical.{PCanonicalArray, PCanonicalString}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalString}
 import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.Test
 

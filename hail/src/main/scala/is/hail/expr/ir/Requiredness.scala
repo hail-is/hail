@@ -1,23 +1,29 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types._
-import is.hail.expr.types.physical.PType
-import is.hail.expr.types.virtual._
+import is.hail.types._
+import is.hail.types.physical.PType
+import is.hail.types.virtual._
 import is.hail.utils._
 
 import scala.collection.mutable
 
 object Requiredness {
-  def apply(node: BaseIR, ctx: ExecuteContext): RequirednessAnalysis = {
-    val usesAndDefs = ComputeUsesAndDefs(node)
+  def apply(node: BaseIR, usesAndDefs: UsesAndDefs, ctx: ExecuteContext, env: Env[PType], aggState: Option[Array[AggStatePhysicalSignature]]): RequirednessAnalysis = {
     val pass = new Requiredness(usesAndDefs, ctx)
-    pass.initialize(node)
+    pass.initialize(node, env, aggState)
     pass.run()
     pass.result()
   }
+
+  def apply(node: BaseIR, ctx: ExecuteContext): RequirednessAnalysis =
+    apply(node, ComputeUsesAndDefs(node), ctx, Env.empty, None)
 }
 
-case class RequirednessAnalysis(r: Memo[BaseTypeWithRequiredness], states: Memo[Array[TypeWithRequiredness]])
+case class RequirednessAnalysis(r: Memo[BaseTypeWithRequiredness], states: Memo[Array[TypeWithRequiredness]]) {
+  def lookup(node: BaseIR): BaseTypeWithRequiredness = r.lookup(node)
+  def apply(node: IR): TypeWithRequiredness = coerce[TypeWithRequiredness](lookup(node))
+  def getState(node: IR): Array[TypeWithRequiredness] = states(node)
+}
 
 class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   type State = Memo[BaseTypeWithRequiredness]
@@ -27,6 +33,74 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
 
   private val defs = Memo.empty[Array[BaseTypeWithRequiredness]]
   private val states = Memo.empty[Array[TypeWithRequiredness]]
+
+  private class WrappedAggState(val scope: RefEquality[IR], private var _sig: Array[AggStatePhysicalSignature]) {
+    private var changed: Boolean = false
+    def probeChangedAndReset(): Boolean = {
+      val r = changed
+      changed = false
+      r
+    }
+
+    def matchesSignature(newSig: Array[AggStatePhysicalSignature]): Boolean =
+      sig != null && (newSig sameElements sig)
+
+    def setSignature(newSig: Array[AggStatePhysicalSignature]): Unit = {
+      if (_sig == null || !(newSig sameElements _sig)) {
+        changed = true
+        _sig = newSig
+      }
+    }
+
+    def sig: Array[AggStatePhysicalSignature] = _sig
+  }
+
+  private[this] val aggStateMemo = Memo.empty[WrappedAggState]
+
+  private[this] def computeAggState(sigs: IndexedSeq[AggStateSignature], irs: Seq[IR]): Array[AggStatePhysicalSignature] = {
+    val initsAB = InferPType.newBuilder[(AggOp, Seq[PType])](sigs.length)
+    val seqsAB = InferPType.newBuilder[(AggOp, Seq[PType])](sigs.length)
+    irs.foreach { ir => InferPType._extractAggOps(ir, inits = initsAB, seqs = seqsAB, Some(cache)) }
+    Array.tabulate(sigs.length) { i => InferPType.computePhysicalAgg(sigs(i), initsAB(i), seqsAB(i)) }
+  }
+
+  private[this] def initializeAggStates(node: BaseIR, wrapped: WrappedAggState): Unit = {
+    node match {
+      case x@RunAgg(body, result, signature) =>
+        val next = new WrappedAggState(RefEquality[IR](x), null)
+        initializeAggStates(body, next)
+        initializeAggStates(result, next)
+        aggStateMemo.bind(x, next)
+      case x@RunAggScan(array, name, init, seqs, result, signature) =>
+        initializeAggStates(array, wrapped)
+        val next = new WrappedAggState(RefEquality[IR](x), null)
+        initializeAggStates(init, next)
+        initializeAggStates(seqs, next)
+        initializeAggStates(result, next)
+        aggStateMemo.bind(x, next)
+      case x@InitOp(_, args, _, _) =>
+        aggStateMemo.bind(node, wrapped)
+        q += RefEquality(x)
+        args.foreach(a => dependents.getOrElseUpdate(a, mutable.Set[RefEquality[BaseIR]]()) += RefEquality(x))
+        if (wrapped.scope != null)
+          dependents.getOrElseUpdate(x, mutable.Set[RefEquality[BaseIR]]()) += wrapped.scope
+        node.children.foreach(initializeAggStates(_, wrapped))
+      case x@SeqOp(_, args, _, _) =>
+        aggStateMemo.bind(node, wrapped)
+        q += RefEquality(x)
+        args.foreach(a => dependents.getOrElseUpdate(a, mutable.Set[RefEquality[BaseIR]]()) += RefEquality(x))
+        if (wrapped.scope != null)
+          dependents.getOrElseUpdate(x, mutable.Set[RefEquality[BaseIR]]()) += wrapped.scope
+        node.children.foreach(initializeAggStates(_, wrapped))
+      case x: ResultOp =>
+        aggStateMemo.bind(node, wrapped)
+        if (wrapped.scope != null)
+          dependents.getOrElseUpdate(wrapped.scope, mutable.Set[RefEquality[BaseIR]]()) += RefEquality(x)
+      case _ => node.children.foreach(initializeAggStates(_, wrapped))
+    }
+  }
+
+  private[this] def lookupAggState(ir: IR): WrappedAggState = aggStateMemo(ir)
 
   def result(): RequirednessAnalysis = RequirednessAnalysis(cache, states)
 
@@ -53,13 +127,19 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
     }
     if (node.typ != TVoid) {
       cache.bind(node, BaseTypeWithRequiredness(node.typ))
-      q += re
+      if (usesAndDefs.free == null || !re.t.isInstanceOf[BaseRef] || !usesAndDefs.free.contains(re.asInstanceOf[RefEquality[BaseRef]]))
+        q += re
     }
   }
 
-  def initialize(node: BaseIR): Unit = {
+  def initialize(node: BaseIR, env: Env[PType], outerAggStates: Option[Array[AggStatePhysicalSignature]]): Unit = {
     initializeState(node)
     usesAndDefs.uses.m.keys.foreach(n => addBindingRelations(n.t))
+    if (usesAndDefs.free != null)
+      usesAndDefs.free.foreach { re =>
+        lookup(re.t).fromPType(env.lookup(re.t.name))
+      }
+    initializeAggStates(node, outerAggStates.map { sigs => new WrappedAggState(null, sigs) }.orNull)
   }
 
   def run(): Unit = {
@@ -143,6 +223,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamScan(a, zero, accumName, valueName, body) =>
         addElementBinding(valueName, a)
         addBindings(accumName, Array[IR](zero, body))
+        states.bind(node, Array[TypeWithRequiredness](lookup(
+          refMap.get(accumName)
+            .flatMap(refs => refs.headOption.map(_.t.asInstanceOf[IR]))
+            .getOrElse(zero))))
       case StreamFold2(a, accums, valueName, seq, result) =>
         addElementBinding(valueName, a)
         val s = Array.fill[TypeWithRequiredness](accums.length)(null)
@@ -188,6 +272,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   }
 
   def analyzeIR(node: IR): Boolean = {
+    if (node.typ == TVoid)
+      return (node.isInstanceOf[InitOp] || node.isInstanceOf[SeqOp]) && (lookupAggState(node).scope != null)
     val requiredness = lookup(node)
     node match {
       // union all
@@ -215,6 +301,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
 
       // always required
       case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die =>
+      case _: CombOpValue | _: AggStateValue =>
       case x if x.typ == TVoid =>
       case ApplyComparisonOp(EQWithNA(_, _), _, _) | ApplyComparisonOp(NEQWithNA(_, _), _, _) | ApplyComparisonOp(Compare(_, _), _, _) =>
       case ApplyComparisonOp(op, l, r) =>
@@ -372,7 +459,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case NDArrayMatMul(l, r) =>
         requiredness.unionFrom(lookup(l))
         requiredness.union(lookup(r).required)
-      case NDArrayQR(nd, mode) => requiredness.maximize()
+      case NDArrayQR(nd, mode) => requiredness.fromPType(NDArrayQR.pTypes(mode))
       case MakeStruct(fields) =>
         fields.foreach { case (n, f) =>
           coerce[RStruct](requiredness).field(n).unionFrom(lookup(f))
@@ -422,9 +509,31 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.fromPType(spec.encodedType.decodedPType(rt))
       case In(_, t) => requiredness.fromPType(t)
       case LiftMeOut(f) => requiredness.unionFrom(lookup(f))
-      case _: ResultOp | _: RunAgg | _: RunAggScan | _: CombOpValue | _: AggStateValue => ???
-
+      case x@ResultOp(startIdx, aggSigs) =>
+        val wrappedSigs = lookupAggState(x)
+        if (wrappedSigs.sig != null) {
+          val pTypes = Array.tabulate(aggSigs.length) { i => wrappedSigs.sig(startIdx + i).resultType }
+          coerce[RBaseStruct](requiredness).fields.zip(pTypes).foreach { case (f, pt) =>
+            f.typ.fromPType(pt)
+          }
+        }
+      case x@RunAgg(body, result, signature) =>
+        val wrapped = lookupAggState(x)
+        val newAggSig = computeAggState(signature, FastSeq(body))
+        if (!wrapped.matchesSignature(newAggSig))
+          wrapped.setSignature(newAggSig)
+        else
+          requiredness.unionFrom(lookup(result))
+      case x@RunAggScan(array, name, init, seqs, result, signature) =>
+        requiredness.union(lookup(array).required)
+        val wrapped = lookupAggState(x)
+        val newAggSig = computeAggState(signature, FastSeq(init, seqs))
+        if (!wrapped.matchesSignature(newAggSig))
+          wrapped.setSignature(newAggSig)
+        else
+          coerce[RIterable](requiredness).elementType.unionFrom(lookup(result))
     }
-    requiredness.probeChangedAndReset()
+    val aggScopeChanged = (node.isInstanceOf[RunAgg] || node.isInstanceOf[RunAggScan]) && (lookupAggState(node).probeChangedAndReset())
+    requiredness.probeChangedAndReset() | aggScopeChanged
   }
 }

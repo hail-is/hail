@@ -4,8 +4,8 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual._
+import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.utils._
 import java.util.Locale
 import java.time.{Instant, ZoneId}

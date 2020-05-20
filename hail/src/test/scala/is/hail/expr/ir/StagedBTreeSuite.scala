@@ -7,7 +7,7 @@ import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.ir.agg._
-import is.hail.expr.types.physical._
+import is.hail.types.physical._
 import is.hail.io.{InputBuffer, OutputBuffer, StreamBufferSpec}
 import is.hail.utils._
 import org.testng.annotations.Test
