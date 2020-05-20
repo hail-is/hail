@@ -305,11 +305,12 @@ object TypeCheck {
         assert(body.typ == zero.typ)
         assert(coerce[TStream](x.typ).elementType == zero.typ)
         assert(zero.typ.isRealizable)
-      case x@StreamJoinRightDistinct(left, right, l, r, compare, join, joinType) =>
-        val ltyp = coerce[TStream](left.typ)
-        val rtyp = coerce[TStream](right.typ)
-        assert(compare.typ == TInt32)
+      case x@StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType) =>
+        val lEltTyp = coerce[TStruct](coerce[TStream](left.typ).elementType)
+        val rEltTyp = coerce[TStruct](coerce[TStream](right.typ).elementType)
         assert(coerce[TStream](x.typ).elementType == join.typ)
+        assert(lKey.forall(lEltTyp.hasField))
+        assert(rKey.forall(rEltTyp.hasField))
       case x@StreamFor(a, valueName, body) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(body.typ == TVoid)

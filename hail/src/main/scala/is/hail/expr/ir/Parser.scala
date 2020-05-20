@@ -930,6 +930,8 @@ object IRParser {
         val body = ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
         StreamScan(a, zero, accumName, valueName, body)
       case "StreamJoinRightDistinct" =>
+        val lKey = identifiers(it)
+        val rKey = identifiers(it)
         val l = identifier(it)
         val r = identifier(it)
         val joinType = identifier(it)
@@ -937,9 +939,8 @@ object IRParser {
         val right = ir_value_expr(env)(it)
         val lelt = coerce[TStream](left.typ).elementType
         val relt = coerce[TStream](right.typ).elementType
-        val comp = ir_value_expr(env.update(Map(l -> lelt, r -> relt)))(it)
         val join = ir_value_expr(env.update(Map(l -> lelt, r -> relt)))(it)
-        StreamJoinRightDistinct(left, right, l, r, comp, join, joinType)
+        StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType)
       case "StreamFor" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)

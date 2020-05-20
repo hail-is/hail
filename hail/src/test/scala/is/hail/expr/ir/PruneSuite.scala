@@ -651,12 +651,14 @@ class PruneSuite extends HailSuite {
     val l = Ref("l", ref.typ)
     val r = Ref("r", ref.typ)
     checkMemo(
-      StreamJoinRightDistinct(st, st, "l", "r",
-        ApplyComparisonOp(LT(TInt32), GetField(l, "a"), GetField(r, "a")),
+      StreamJoinRightDistinct(st, st, FastIndexedSeq("a"), FastIndexedSeq("a"), "l", "r",
         MakeStruct(FastIndexedSeq("a" -> GetField(l, "a"), "b" -> GetField(l, "b"), "c" -> GetField(l, "c"), "d" -> GetField(r, "b"), "e" -> GetField(r, "c"))),
-                              "left"),
-      TStream(justA),
-      Array(TStream(justA), TStream(justA), null, justA))
+        "left"),
+      TStream(TStruct("b" -> TInt32, "d" -> TInt32)),
+      Array(
+        TStream(TStruct("a" -> TInt32, "b" -> TInt32)),
+        TStream(TStruct("a" -> TInt32, "b" -> TInt32)),
+        TStruct("b" -> TInt32, "d" -> TInt32)))
   }
 
   @Test def testStreamForMemo() {

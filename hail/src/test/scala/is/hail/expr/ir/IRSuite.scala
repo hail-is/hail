@@ -2312,8 +2312,7 @@ class IRSuite extends HailSuite {
                 f.name -> GetField(Ref("_right", r.typ), f.name)
               })))
       }
-      ToArray(StreamJoinRightDistinct(left, right, "_l", "_r",
-        compF(Ref("_l", coerce[TStream](left.typ).elementType), Ref("_r", coerce[TStream](right.typ).elementType)),
+      ToArray(StreamJoinRightDistinct(left, right, keys, keys, "_l", "_r",
         joinF(Ref("_l", coerce[TStream](left.typ).elementType), Ref("_r", coerce[TStream](right.typ).elementType)),
         joinType))
     }
@@ -2329,6 +2328,26 @@ class IRSuite extends HailSuite {
       joinRows(left, right, "left")
     def outerJoinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR =
       joinRows(left, right, "outer")
+
+    assertEvalsTo(
+      join(
+        NA(TStream(TStruct("k1" -> TInt32, "k2" -> TString, "a" -> TInt64))),
+        MakeStream.unify(Seq(MakeStruct(FastIndexedSeq("b" -> I32(0), "k2" -> Str("x"), "k1" -> I32(3), "c" -> Str("foo"))))),
+        FastIndexedSeq("k1", "k2"),
+        "left"),
+      null)
+
+    assertEvalsTo(
+      join(
+        MakeStream.unify(Seq(MakeStruct(FastIndexedSeq("k1" -> I32(0), "k2" -> Str("x"), "a" -> I64(3))))),
+        NA(TStream(TStruct("b" -> TInt32, "k2" -> TString, "k1" -> TInt32, "c" -> TString))),
+        FastIndexedSeq("k1", "k2"),
+        "left"),
+      null)
+
+    assertEvalsTo(leftJoinRows(Array[Integer](0, null), Array[Integer](1, null)), FastIndexedSeq(
+      Row(0, "x", 0L, null, null),
+      Row(null, "x", 1L, 1, "foo")))
 
     assertEvalsTo(leftJoinRows(Array[Integer](0, null), Array[Integer](1, null)), FastIndexedSeq(
       Row(0, "x", 0L, null, null),
@@ -2772,7 +2791,10 @@ class IRSuite extends HailSuite {
       StreamFold(st, I32(0), "x", "v", v),
       StreamFold2(StreamFold(st, I32(0), "x", "v", v)),
       StreamScan(st, I32(0), "x", "v", v),
-      StreamJoinRightDistinct(StreamRange(0, 2, 1), StreamRange(0, 3, 1), "l", "r", I32(0), I32(1), "left"),
+      StreamJoinRightDistinct(
+        StreamMap(StreamRange(0, 2, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
+        StreamMap(StreamRange(0, 3, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
+        FastIndexedSeq("x"), FastIndexedSeq("x"), "l", "r", I32(1), "left"),
       StreamFor(st, "v", Void()),
       StreamAgg(st, "x", ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)),
       StreamAggScan(st, "x", ApplyScanOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)),

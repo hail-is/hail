@@ -275,7 +275,8 @@ object Pretty {
             case StreamFold(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
             case StreamFold2(_, acc, valueName, _, _) => prettyIdentifiers(acc.map(_._1)) + " " + prettyIdentifier(valueName)
             case StreamScan(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
-            case StreamJoinRightDistinct(_, _, l, r, _, _, joinType) => prettyIdentifier(l) + " " + prettyIdentifier(r) + " " + joinType
+            case StreamJoinRightDistinct(_, _, lKey, rKey, l, r, _, joinType) =>
+              s"${prettyIdentifiers(lKey)} ${prettyIdentifiers(rKey)} ${prettyIdentifier(l)} ${prettyIdentifier(r)} $joinType"
             case StreamFor(_, valueName, _) => prettyIdentifier(valueName)
             case StreamAgg(a, name, query) => prettyIdentifier(name)
             case StreamAggScan(a, name, query) => prettyIdentifier(name)

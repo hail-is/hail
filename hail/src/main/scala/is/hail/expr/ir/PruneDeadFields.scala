@@ -1035,25 +1035,24 @@ object PruneDeadFields {
           bodyEnv.deleteEval(valueName).deleteEval(accumName),
           memoizeValueIR(a, TStream(valueType), memo)
         )
-      case StreamJoinRightDistinct(left, right, l, r, compare, join, joinType) =>
+      case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType) =>
         val lType = left.typ.asInstanceOf[TStream]
         val rType = right.typ.asInstanceOf[TStream]
 
-        val compEnv = memoizeValueIR(compare, compare.typ, memo)
         val joinEnv = memoizeValueIR(join, requestedType.asInstanceOf[TStream].elementType, memo)
-
-        val combEnv = unifyEnvs(compEnv, joinEnv)
 
         val lRequested = unifySeq(
           lType.elementType,
-          combEnv.eval.lookupOption(l).map(_.result()).getOrElse(Array()))
+          joinEnv.eval.lookupOption(l).map(_.result()).getOrElse(Array())
+            :+ selectKey(lType.elementType.asInstanceOf[TStruct], lKey))
 
         val rRequested = unifySeq(
           rType.elementType,
-          combEnv.eval.lookupOption(r).map(_.result()).getOrElse(Array()))
+          joinEnv.eval.lookupOption(r).map(_.result()).getOrElse(Array())
+            :+ selectKey(rType.elementType.asInstanceOf[TStruct], rKey))
 
         unifyEnvs(
-          combEnv.deleteEval(l).deleteEval(r),
+          joinEnv.deleteEval(l).deleteEval(r),
           memoizeValueIR(left, TStream(lRequested), memo),
           memoizeValueIR(right, TStream(rRequested), memo))
       case ArraySort(a, left, right, lessThan) =>
@@ -1702,15 +1701,14 @@ object PruneDeadFields {
           valueName,
           rebuildIR(body, env.bindEval(accumName -> z2.typ, valueName -> a2.typ.asInstanceOf[TStream].elementType), memo)
         )
-      case StreamJoinRightDistinct(left, right, l, r, compare, join, joinType) =>
+      case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType) =>
         val left2 = rebuildIR(left, env, memo)
         val right2 = rebuildIR(right, env, memo)
 
         val ltyp = left2.typ.asInstanceOf[TStream]
         val rtyp = right2.typ.asInstanceOf[TStream]
         StreamJoinRightDistinct(
-          left2, right2, l, r,
-          rebuildIR(compare, env.bindEval(l -> ltyp.elementType, r -> rtyp.elementType), memo),
+          left2, right2, lKey, rKey, l, r,
           rebuildIR(join, env.bindEval(l -> ltyp.elementType, r -> rtyp.elementType), memo),
           joinType)
       case StreamFor(a, valueName, body) =>

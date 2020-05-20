@@ -461,7 +461,7 @@ object Stream {
     mb: EmitMethodBuilder[_],
     lElemType: PType, left: Stream[EmitCode],
     rElemType: PType, right: Stream[EmitCode],
-    comp: (EmitCode, EmitCode) => Code[Int]
+    comp: (EmitValue, EmitValue) => Code[Int]
   ): Stream[(EmitCode, EmitCode)] = new Stream[(EmitCode, EmitCode)] {
     def apply(eos: Code[Ctrl], push: ((EmitCode, EmitCode)) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(EmitCode, EmitCode)] = {
       val pulledRight = mb.newLocal[Boolean]()
@@ -513,7 +513,7 @@ object Stream {
     mb: EmitMethodBuilder[_],
     lElemType: PType, left: Stream[EmitCode],
     rElemType: PType, right: Stream[EmitCode],
-    comp: (EmitCode, EmitCode) => Code[Int]
+    comp: (EmitValue, EmitValue) => Code[Int]
   ): Stream[(EmitCode, EmitCode)] = new Stream[(EmitCode, EmitCode)] {
     def apply(eos: Code[Ctrl], push: ((EmitCode, EmitCode)) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(EmitCode, EmitCode)] = {
       val pulledRight = mb.newLocal[Boolean]()
@@ -1358,23 +1358,24 @@ object EmitStream {
             SizedStream(setup, newStream, len)
           }
 
-        case StreamJoinRightDistinct(leftIR, rightIR, leftName, rightName, compIR, joinIR, joinType) =>
+        case StreamJoinRightDistinct(leftIR, rightIR, lKey, rKey, leftName, rightName, joinIR, joinType) =>
           assert(joinType == "left" || joinType == "outer")
-          val lEltType = coerce[PStream](leftIR.pType).elementType
-          val rEltType = coerce[PStream](rightIR.pType).elementType
+          val lEltType = coerce[PStruct](coerce[PStream](leftIR.pType).elementType)
+          val rEltType = coerce[PStruct](coerce[PStream](rightIR.pType).elementType)
           val xLElt = mb.newEmitField("join_lelt", lEltType.orMissing(joinType == "left"))
           val xRElt = mb.newEmitField("join_relt", rEltType.setRequired(false))
           val newEnv = env.bind(leftName -> xLElt, rightName -> xRElt)
 
-          def compare(lelt: EmitCode, relt: EmitCode): Code[Int] = {
-            val compt = emitIR(compIR, newEnv)
-            Code(
-              xLElt := lelt,
-              xRElt := relt,
-              compt.setup,
-              compt.m.orEmpty(Code._fatal[Unit]("StreamJoinRightDistinct: comp can't be missing")),
-              coerce[Int](compt.v))
+          val lKeyViewType = PSubsetStruct(lEltType, lKey: _*)
+          val rKeyViewType = PSubsetStruct(rEltType, rKey: _*)
+          val ordering = lKeyViewType.codeOrdering(mb, rKeyViewType).asInstanceOf[CodeOrdering { type T = Long }]
+
+          def compare(lelt: EmitValue, relt: EmitValue): Code[Int] = {
+            assert(lelt.pt == lEltType)
+            assert(relt.pt == rEltType)
+            ordering.compare((lelt.m, lelt.value[Long]), (relt.m, relt.value[Long]))
           }
+
           def joinF: ((EmitCode, EmitCode)) => EmitCode = { case (lelt, relt) =>
             val joint = emitIR(joinIR, newEnv)
             EmitCode(

@@ -153,11 +153,11 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         val newName = gen()
         val newEnv = env.eval.bind(name, newName)
         StreamAggScan(normalize(a), newName, normalize(body, env.copy(eval = newEnv, scan = Some(newEnv))))
-      case StreamJoinRightDistinct(left, right, l, r, keyF, joinF, joinType) =>
+      case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, joinF, joinType) =>
         val newL = gen()
         val newR = gen()
         val newEnv = env.bindEval(l -> newL, r -> newR)
-        StreamJoinRightDistinct(normalize(left), normalize(right), newL, newR, normalize(keyF, newEnv), normalize(joinF, newEnv), joinType)
+        StreamJoinRightDistinct(normalize(left), normalize(right), lKey, rKey, newL, newR, normalize(joinF, newEnv), joinType)
       case NDArrayMap(nd, name, body) =>
         val newName = gen()
         NDArrayMap(normalize(nd), newName, normalize(body, env.bindEval(name -> newName)))

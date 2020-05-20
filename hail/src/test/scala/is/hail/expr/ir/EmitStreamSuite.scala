@@ -468,25 +468,21 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  @Test def testEmitLeftJoinDistinct() {
-    val tupTyp = TTuple(TInt32, TString)
-    def cmp = ApplyComparisonOp(
-      Compare(TInt32),
-      GetTupleElement(Ref("l", tupTyp), 0),
-      GetTupleElement(Ref("r", tupTyp), 0))
+  @Test def testEmitJoinRightDistinct() {
+    val eltType = TStruct("k" -> TInt32, "v" -> TString)
 
     def join(lstream: IR, rstream: IR, joinType: String): IR =
-      StreamJoinRightDistinct(lstream, rstream,
-                              "l", "r", cmp,
+      StreamJoinRightDistinct(
+        lstream, rstream, FastIndexedSeq("k"), FastIndexedSeq("k"), "l", "r",
         MakeTuple.ordered(Seq(
-          GetTupleElement(Ref("l", tupTyp), 1),
-          GetTupleElement(Ref("r", tupTyp), 1))),
+          GetField(Ref("l", eltType), "v"),
+          GetField(Ref("r", eltType), "v"))),
         joinType)
     def leftjoin(lstream: IR, rstream: IR): IR = join(lstream, rstream, "left")
     def outerjoin(lstream: IR, rstream: IR): IR = join(lstream, rstream, "outer")
 
     def pairs(xs: Seq[(Int, String)]): IR =
-      MakeStream(xs.map { case (a, b) => MakeTuple.ordered(Seq(I32(a), Str(b))) }, TStream(tupTyp))
+      MakeStream(xs.map { case (a, b) => MakeStruct(Seq("k" -> I32(a), "v" -> Str(b))) }, TStream(eltType))
 
     val tests: Array[(IR, IR, IndexedSeq[Any], IndexedSeq[Any])] = Array(
       (pairs(Seq()), pairs(Seq()), IndexedSeq(), IndexedSeq()),
