@@ -861,7 +861,7 @@ class Worker:
             await site.start()
 
             try:
-                await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS * 1000)
+                await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS)
             except asyncio.TimeoutError:
                 log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
             else:
