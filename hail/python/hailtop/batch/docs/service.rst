@@ -36,11 +36,33 @@ have been specified to be uploaded by the user. These files can either be specif
 Service Accounts
 ----------------
 
-A service account is automatically created for a new Batch user that is used by Batch to download data
+A Google service account is automatically created for a new Batch user that is used by Batch to download data
 on your behalf. This service account needs to be added to Google Storage buckets with your data and Docker
-images under Permissions. See this `page <https://cloud.google.com/container-registry/docs/access-control>`__
-for more information. To get the name of the service account, click on your name on the header bar or go to
-`<https://notebook.hail.is/user>`__. If you want to run gcloud or gsutil commands within your code, the service
+images under Permissions.
+
+To get the name of the service account, click on your name on the header bar or go to
+`<https://notebook.hail.is/user>`__.
+
+To add the service account to a Google Storage bucket, run the following command substituting `SERVICE_ACCOUNT_NAME`
+with the full service account name (ex: test@my-project.iam.gserviceaccount.com) and `BUCKET_NAME`
+with your bucket name. See this `page <https://cloud.google.com/container-registry/docs/access-control>`__
+for more information about access control and this `page <https://cloud.google.com/storage/docs/gsutil/commands/iam>`__
+for more information about how to set bucket access control using gsutil.
+
+.. code-block:: sh
+
+    gsutil iam ch serviceAccount:[SERVICE_ACCOUNT_NAME]:objectCreator,objectViewer gs://[BUCKET_NAME]
+
+If you have a Google Container Repository `associated with your project <https://cloud.google.com/container-registry/docs/>`__,
+then you can add the service account as follows where `SERVICE_ACCOUNT_NAME` is your full service account
+name and `PROJECT_ID` is the name of your project that contains the Google Container Repository you want
+to grant access to :
+
+.. code-block:: sh
+
+    gsutil iam ch serviceAccount:[SERVICE_ACCOUNT_NAME]:objectViewer gs://artifacts.[PROJECT-ID].appspot.com
+
+If you want to run gcloud or gsutil commands within your Batch jobs, the service
 account file is available at `/gsa-key/key.json` in the main container. You can authenticate using the service
 account by adding the following line to your user code and using a Docker image that has gcloud and gsutil
 installed.
@@ -119,6 +141,7 @@ you can select your google account to authenticate with. If everything works suc
 you should see a message "hailctl is now authenticated." in your browser window and no
 error messages in the terminal window.
 
+
 Submitting a Batch to the Service
 ---------------------------------
 
@@ -144,6 +167,7 @@ billing project with ``hailctl``:
 .. code-block:: sh
 
     hailctl config set batch/billing_project hail
+
 
 Using the UI
 ------------
