@@ -8,9 +8,9 @@ import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
-import is.hail.expr.types.TableType
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual._
+import is.hail.types.TableType
+import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.expr.Nat
 import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
 import is.hail.io.{BufferSpec, TypedCodecSpec}

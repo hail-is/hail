@@ -4,7 +4,7 @@ import is.hail.HailSuite
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.expr.ir.TestUtils._
-import is.hail.expr.types.virtual._
+import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}

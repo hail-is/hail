@@ -4,8 +4,8 @@ import java.io.DataOutputStream
 
 import is.hail.HailContext
 import is.hail.expr.ir.{ExecuteContext, MatrixValue}
-import is.hail.expr.types.MatrixType
-import is.hail.expr.types.virtual.{TVoid, Type}
+import is.hail.types.MatrixType
+import is.hail.types.virtual.{TVoid, Type}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner, WriteBlocksRDD}
 import is.hail.utils._
 import org.json4s.jackson

@@ -5,9 +5,9 @@ import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.ir.{Interpret, MatrixValue, TableValue}
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PStruct, PType}
-import is.hail.expr.types.virtual.{TArray, TString, TStruct}
+import is.hail.types._
+import is.hail.types.physical.{PStruct, PType}
+import is.hail.types.virtual.{TArray, TString, TStruct}
 import is.hail.utils._
 import is.hail.variant._
 import is.hail.{HailSuite, TestUtils}

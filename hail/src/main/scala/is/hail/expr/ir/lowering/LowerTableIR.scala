@@ -1,8 +1,8 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.expr.ir._
-import is.hail.expr.types
-import is.hail.expr.types.virtual._
+import is.hail.types
+import is.hail.types.virtual._
 import is.hail.methods.NPartitionsTable
 import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner}
 import is.hail.utils._

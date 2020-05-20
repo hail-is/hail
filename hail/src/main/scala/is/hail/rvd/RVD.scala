@@ -6,9 +6,9 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.PruneDeadFields.isSupertype
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PCanonicalStruct, PInt64, PStruct, PType}
-import is.hail.expr.types.virtual.{TArray, TInt64, TInterval, TStruct}
+import is.hail.types._
+import is.hail.types.physical.{PCanonicalStruct, PInt64, PStruct, PType}
+import is.hail.types.virtual.{TArray, TInt64, TInterval, TStruct}
 import is.hail.io._
 import is.hail.io.index.IndexWriter
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, RichContextRDDRegionValue, TypedCodecSpec}

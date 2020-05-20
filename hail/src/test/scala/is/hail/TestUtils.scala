@@ -10,8 +10,8 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
 import is.hail.expr.ir.{BindingEnv, MakeTuple, Subst}
 import is.hail.expr.ir.lowering.LowererUnsupportedOperation
-import is.hail.expr.types.physical.{PBaseStruct, PCanonicalArray, PType}
-import is.hail.expr.types.virtual._
+import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType}
+import is.hail.types.virtual._
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.utils._
 import is.hail.variant._

@@ -2,8 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
-import is.hail.expr.types.encoded._
-import is.hail.expr.types.physical.{PCanonicalArray, PCanonicalStringOptional, PCanonicalStringRequired, PCanonicalStruct, PInt32Optional, PInt32Required, PInt64Optional, PInt64Required}
+import is.hail.types.encoded._
+import is.hail.types.physical.{PCanonicalArray, PCanonicalStringOptional, PCanonicalStringRequired, PCanonicalStruct, PInt32Optional, PInt32Required, PInt64Optional, PInt64Required}
 import is.hail.io.{InputBuffer, MemoryBuffer, MemoryInputBuffer, MemoryOutputBuffer, OutputBuffer}
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._

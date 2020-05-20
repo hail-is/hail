@@ -1,9 +1,9 @@
 package is.hail.expr.ir.functions
 
 import is.hail.expr.ir.InferPType
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PBoolean, PCanonicalArray, PCanonicalCall, PInt32, PType}
-import is.hail.expr.types.virtual._
+import is.hail.types._
+import is.hail.types.physical.{PBoolean, PCanonicalArray, PCanonicalCall, PInt32, PType}
+import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 import is.hail.variant._
 

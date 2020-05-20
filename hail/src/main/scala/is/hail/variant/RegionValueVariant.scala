@@ -1,7 +1,7 @@
 package is.hail.variant
 
 import is.hail.annotations._
-import is.hail.expr.types.physical.{PArray, PLocus, PString, PStruct}
+import is.hail.types.physical.{PArray, PLocus, PString, PStruct}
 import is.hail.utils._
 
 class RegionValueVariant(rowType: PStruct) extends View {

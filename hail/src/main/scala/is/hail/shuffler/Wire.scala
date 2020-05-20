@@ -4,7 +4,7 @@ import java.io._
 
 import com.fasterxml.jackson.core.{JsonGenerator, JsonParser}
 import is.hail.expr.ir.IRParser
-import is.hail.expr.types.virtual.TStruct
+import is.hail.types.virtual.TStruct
 import is.hail.io.TypedCodecSpec
 import is.hail.rvd.AbstractRVDSpec
 import org.json4s.jackson.{JsonMethods, Serialization}

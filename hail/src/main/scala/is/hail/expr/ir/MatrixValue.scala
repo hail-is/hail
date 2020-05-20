@@ -4,9 +4,9 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.types.physical.{PArray, PCanonicalStruct, PStruct, PType}
-import is.hail.expr.types.virtual._
-import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.types.physical.{PArray, PCanonicalStruct, PStruct, PType}
+import is.hail.types.virtual._
+import is.hail.types.{MatrixType, TableType}
 import is.hail.io.BufferSpec
 import is.hail.io.fs.FS
 import is.hail.linalg.RowMatrix

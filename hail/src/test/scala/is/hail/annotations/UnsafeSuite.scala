@@ -4,8 +4,8 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.HailSuite
 import is.hail.check._
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.{TArray, TStruct, Type}
+import is.hail.types.physical._
+import is.hail.types.virtual.{TArray, TStruct, Type}
 import is.hail.io._
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._

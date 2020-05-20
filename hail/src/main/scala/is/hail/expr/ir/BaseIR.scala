@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.BaseType
+import is.hail.types.BaseType
 
 abstract class BaseIR {
   def typ: BaseType

@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.IntervalEndpointOrdering
-import is.hail.expr.types.virtual._
+import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, Interval, IntervalEndpoint, _}
 import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.Row

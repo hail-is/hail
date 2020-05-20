@@ -1,10 +1,10 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.{TNDArray, TVoid}
+import is.hail.types.physical._
+import is.hail.types.virtual.{TNDArray, TVoid}
 import is.hail.utils._
 import is.hail.HailContext
-import is.hail.expr.types.{BaseTypeWithRequiredness, TypeWithRequiredness}
+import is.hail.types.{BaseTypeWithRequiredness, TypeWithRequiredness}
 
 object InferPType {
 

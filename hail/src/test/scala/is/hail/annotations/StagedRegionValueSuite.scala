@@ -4,9 +4,9 @@ import is.hail.HailSuite
 import is.hail.asm4s._
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion}
-import is.hail.expr.types._
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual._
+import is.hail.types._
+import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test

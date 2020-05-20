@@ -2,8 +2,8 @@ package is.hail.compatibility
 
 import is.hail.expr.ir.IRParser._
 import is.hail.expr.ir.{IRParser, PunctuationToken, TokenIterator, TypeParserEnvironment, coerce}
-import is.hail.expr.types.encoded._
-import is.hail.expr.types.virtual._
+import is.hail.types.encoded._
+import is.hail.types.virtual._
 import is.hail.rvd.RVDType
 import is.hail.utils.FastIndexedSeq
 

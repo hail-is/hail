@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.expr.types.physical.PType
+import is.hail.types.physical.PType
 
 object ScalaToRegionValue {
   def apply(region: Region, t: PType, a: Annotation): Long = {

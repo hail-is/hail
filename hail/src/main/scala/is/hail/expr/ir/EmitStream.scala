@@ -4,7 +4,7 @@ import is.hail.annotations.{CodeOrdering, Region, RegionValue, StagedRegionValue
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
-import is.hail.expr.types.physical._
+import is.hail.types.physical._
 import is.hail.io.{AbstractTypedCodecSpec, InputBuffer}
 import is.hail.utils._
 

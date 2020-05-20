@@ -1,7 +1,7 @@
 package is.hail.utils.richUtils
 
 import is.hail.annotations.RegionValue
-import is.hail.expr.types.physical.PStruct
+import is.hail.types.physical.PStruct
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._

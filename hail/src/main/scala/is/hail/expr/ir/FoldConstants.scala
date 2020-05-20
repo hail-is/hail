@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual.TStream
+import is.hail.types.virtual.TStream
 import is.hail.utils.HailException
 
 object FoldConstants {

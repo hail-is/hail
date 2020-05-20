@@ -6,10 +6,10 @@ import is.hail.asm4s.{AsmFunction4, AsmFunction5}
 import is.hail.backend.BroadcastValue
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{ExecuteContext, PruneDeadFields}
-import is.hail.expr.types._
-import is.hail.expr.types.encoded.{EArray, EBaseStruct, EBinaryOptional, EBinaryRequired, EField, EInt32Optional, EInt32Required, EInt64Required}
-import is.hail.expr.types.physical.{PArray, PCall, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PFloat64Required, PInt32, PInt64, PLocus, PString, PStruct}
-import is.hail.expr.types.virtual.{Field, TArray, TInt64, TLocus, TString, TStruct, Type}
+import is.hail.types._
+import is.hail.types.encoded.{EArray, EBaseStruct, EBinaryOptional, EBinaryRequired, EField, EInt32Optional, EInt32Required, EInt64Required}
+import is.hail.types.physical.{PArray, PCall, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PFloat64Required, PInt32, PInt64, PLocus, PString, PStruct}
+import is.hail.types.virtual.{Field, TArray, TInt64, TLocus, TString, TStruct, Type}
 import is.hail.io.fs.FS
 import is.hail.io.{AbstractTypedCodecSpec, BlockingBufferSpec, HadoopFSDataBinaryReader, LEB128BufferSpec, LZ4HCBlockBufferSpec, StreamBlockBufferSpec, TypedCodecSpec}
 import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}

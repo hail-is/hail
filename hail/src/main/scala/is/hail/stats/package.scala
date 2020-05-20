@@ -1,6 +1,6 @@
 package is.hail
 
-import is.hail.expr.types.physical.{PCanonicalStruct, PFloat64, PStruct}
+import is.hail.types.physical.{PCanonicalStruct, PFloat64, PStruct}
 import is.hail.utils._
 import net.sourceforge.jdistlib.disttest.{DistributionTest, TestKind}
 import net.sourceforge.jdistlib.{Beta, ChiSquare, NonCentralChiSquare, Normal, Poisson}

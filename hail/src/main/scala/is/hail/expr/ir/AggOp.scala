@@ -1,8 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.expr.ir.agg.Extract
-import is.hail.expr.types.physical.PType
-import is.hail.expr.types.virtual._
+import is.hail.types.physical.PType
+import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 
 object AggStateSignature {

@@ -3,9 +3,9 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.expr.types.coerce
-import is.hail.expr.types.physical.{PArray, PCode, PFloat64, PType}
-import is.hail.expr.types.virtual._
+import is.hail.types.coerce
+import is.hail.types.physical.{PArray, PCode, PFloat64, PType}
+import is.hail.types.virtual._
 import is.hail.utils._
 
 object ArrayFunctions extends RegistryFunctions {

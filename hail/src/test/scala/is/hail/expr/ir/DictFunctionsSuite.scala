@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
-import is.hail.expr.types.virtual._
+import is.hail.types.virtual._
 import is.hail.utils.FastIndexedSeq
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}

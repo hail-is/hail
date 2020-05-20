@@ -2,8 +2,8 @@ package is.hail.rvd
 
 import is.hail.annotations._
 import is.hail.expr.ir.IRParser
-import is.hail.expr.types.physical.{PInterval, PStruct, PType}
-import is.hail.expr.types.virtual.TStruct
+import is.hail.types.physical.{PInterval, PStruct, PType}
+import is.hail.types.virtual.TStruct
 import is.hail.utils._
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.{JArray, JObject, JString, JValue}

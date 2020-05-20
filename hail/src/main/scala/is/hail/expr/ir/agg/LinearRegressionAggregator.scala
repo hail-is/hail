@@ -4,7 +4,7 @@ import breeze.linalg.{DenseMatrix, DenseVector, diag, inv}
 import is.hail.annotations.{Region, RegionValueBuilder, StagedRegionValueBuilder, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.expr.types.physical._
+import is.hail.types.physical._
 import is.hail.utils.FastIndexedSeq
 
 object LinearRegressionAggregator {

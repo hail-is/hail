@@ -6,9 +6,9 @@ import is.hail.asm4s.{Code, Value}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.expr.types.TableType
-import is.hail.expr.types.physical.{PStruct, PType}
-import is.hail.expr.types.virtual.{TArray, TStruct, Type}
+import is.hail.types.TableType
+import is.hail.types.physical.{PStruct, PType}
+import is.hail.types.virtual.{TArray, TStruct, Type}
 import is.hail.rvd.{RVD, RVDCoercer, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
 import org.apache.spark.{Partition, TaskContext}

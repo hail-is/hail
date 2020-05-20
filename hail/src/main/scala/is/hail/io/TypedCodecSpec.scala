@@ -5,9 +5,9 @@ import java.io._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, ExecuteContext}
-import is.hail.expr.types.encoded._
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual._
+import is.hail.types.encoded._
+import is.hail.types.physical._
+import is.hail.types.virtual._
 
 object TypedCodecSpec {
   def apply(pt: PType, bufferSpec: BufferSpec): TypedCodecSpec = {

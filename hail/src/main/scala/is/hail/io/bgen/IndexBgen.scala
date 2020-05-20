@@ -3,9 +3,9 @@ package is.hail.io.bgen
 import is.hail.HailContext
 import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.ExecuteContext
-import is.hail.expr.types.TableType
-import is.hail.expr.types.physical.{PCanonicalStruct, PStruct}
-import is.hail.expr.types.virtual._
+import is.hail.types.TableType
+import is.hail.types.physical.{PCanonicalStruct, PStruct}
+import is.hail.types.virtual._
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
 import is.hail.io._

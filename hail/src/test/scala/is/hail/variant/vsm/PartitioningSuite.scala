@@ -4,8 +4,8 @@ import is.hail.HailSuite
 import is.hail.annotations.BroadcastRow
 import is.hail.expr.ir
 import is.hail.expr.ir.{ExecuteContext, Interpret, MatrixAnnotateRowsTable, TableLiteral, TableRange, TableValue}
-import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TInt32, TStruct}
+import is.hail.types._
+import is.hail.types.virtual.{TInt32, TStruct}
 import is.hail.rvd.RVD
 import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.Test

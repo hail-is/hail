@@ -3,8 +3,8 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.lowering.LoweringPipeline
-import is.hail.expr.types.physical.{PTuple, PType}
-import is.hail.expr.types.virtual._
+import is.hail.types.physical.{PTuple, PType}
+import is.hail.types.virtual._
 import is.hail.io.BufferSpec
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDContext

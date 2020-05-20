@@ -6,8 +6,8 @@ import is.hail.annotations._
 import is.hail.backend.Backend
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.functions.MatrixToMatrixFunction
-import is.hail.expr.types._
-import is.hail.expr.types.virtual._
+import is.hail.types._
+import is.hail.types.virtual._
 import is.hail.io.TextMatrixReader
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.fs.FS
