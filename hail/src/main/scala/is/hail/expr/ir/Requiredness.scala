@@ -42,6 +42,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       r
     }
 
+    def matchesSignature(newSig: Array[AggStatePhysicalSignature]): Boolean =
+      sig != null && (newSig sameElements sig)
+
     def setSignature(newSig: Array[AggStatePhysicalSignature]): Unit = {
       if (_sig == null || !(newSig sameElements _sig)) {
         changed = true
@@ -496,24 +499,27 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case LiftMeOut(f) => requiredness.unionFrom(lookup(f))
       case x@ResultOp(startIdx, aggSigs) =>
         val wrappedSigs = lookupAggState(x)
-        val pTypes = Array.tabulate(aggSigs.length) { i => wrappedSigs.sig(startIdx + i).resultType }
-        coerce[RBaseStruct](requiredness).fields.zip(pTypes).foreach { case (f, pt) =>
+        if (wrappedSigs.sig != null) {
+          val pTypes = Array.tabulate(aggSigs.length) { i => wrappedSigs.sig(startIdx + i).resultType }
+          coerce[RBaseStruct](requiredness).fields.zip(pTypes).foreach { case (f, pt) =>
             f.typ.fromPType(pt)
+          }
         }
       case x@RunAgg(body, result, signature) =>
         val wrapped = lookupAggState(x)
         val newAggSig = computeAggState(signature, FastSeq(body))
-        if (!(newAggSig sameElements wrapped.sig))
+        if (!wrapped.matchesSignature(newAggSig))
           wrapped.setSignature(newAggSig)
         else
           requiredness.unionFrom(lookup(result))
       case x@RunAggScan(array, name, init, seqs, result, signature) =>
+        requiredness.union(lookup(array).required)
         val wrapped = lookupAggState(x)
         val newAggSig = computeAggState(signature, FastSeq(init, seqs))
-        if (!(newAggSig sameElements wrapped.sig))
+        if (!wrapped.matchesSignature(newAggSig))
           wrapped.setSignature(newAggSig)
         else
-          requiredness.unionFrom(lookup(result))
+          coerce[RIterable](requiredness).elementType.unionFrom(lookup(result))
     }
     val aggStateChanged = (node.isInstanceOf[InitOp] || node.isInstanceOf[SeqOp]) && (lookupAggState(node).scope != null)
     val aggScopeChanged = (node.isInstanceOf[RunAgg] || node.isInstanceOf[RunAggScan]) && (lookupAggState(node).probeChangedAndReset())
