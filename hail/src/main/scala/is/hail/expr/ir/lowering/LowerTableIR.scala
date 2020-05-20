@@ -277,18 +277,15 @@ object LowerTableIR {
         case TableMapGlobals(child, newGlobals) =>
           lower(child).mapGlobals(old => Let("global", old, newGlobals))
 
-        case x@TableAggregateByKey(child, expr) =>
+        case TableAggregateByKey(child, expr) =>
           val loweredChild = lower(child)
 
           loweredChild.repartitionNoShuffle(loweredChild.partitioner.coarsen(child.typ.key.length).strictify)
             .mapPartition { partition =>
-              val sUID = genUID()
 
-              StreamMap(
-                StreamGroupByKey(partition, child.typ.key),
-                sUID,
+              mapIR(StreamGroupByKey(partition, child.typ.key)) { groupRef =>
                 StreamAgg(
-                  Ref(sUID, TStream(child.typ.rowType)),
+                  groupRef,
                   "row",
                   bindIRs(ArrayRef(ApplyAggOp(FastSeq(I32(1)), FastSeq(SelectFields(Ref("row", child.typ.rowType), child.typ.key)),
                     AggSignature(Take(), FastSeq(TInt32), FastSeq(child.typ.keyType))), I32(0)), // FIXME: would prefer a First() agg op
@@ -298,7 +295,7 @@ object LowerTableIR {
                     })
                   }
                 )
-              )
+              }
             }
 
         case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
