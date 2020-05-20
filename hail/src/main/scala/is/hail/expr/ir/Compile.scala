@@ -5,8 +5,8 @@ import java.io.PrintWriter
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.lowering.LoweringPipeline
-import is.hail.expr.types.physical.PType
-import is.hail.expr.types.virtual.Type
+import is.hail.types.physical.PType
+import is.hail.types.virtual.Type
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, classTag}
@@ -44,7 +44,7 @@ object Compile {
     ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR].noSharing
 
     TypeCheck(ir, BindingEnv.empty)
-    InferPType(ir, Env.empty[PType])
+    InferPType(ir)
     val returnType = ir.pType
 
     val fb = EmitFunctionBuilder[F](ctx, "Compiled",

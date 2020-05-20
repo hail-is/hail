@@ -3,15 +3,15 @@ package is.hail.backend.spark
 import is.hail.annotations.UnsafeRow
 import is.hail.asm4s._
 import is.hail.expr.ir.IRParser
-import is.hail.expr.types.encoded.EType
+import is.hail.types.encoded.EType
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.HailContext
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.{PStruct, PTuple, PType}
-import is.hail.expr.types.virtual.{TStruct, TVoid}
+import is.hail.types.physical.{PStruct, PTuple, PType}
+import is.hail.types.virtual.{TStruct, TVoid}
 import is.hail.backend.{Backend, BroadcastValue, HailTaskContext}
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.utils._
@@ -525,5 +525,10 @@ class SparkBackend(
     withExecuteContext() { ctx =>
       IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
     }
+  }
+
+  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField]): TableStage = {
+    // Use a local sort for the moment to enable larger pipelines to run
+    LowerDistributedSort.localSort(ctx, stage, sortFields)
   }
 }

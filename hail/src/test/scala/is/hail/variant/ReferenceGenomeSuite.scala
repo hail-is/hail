@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.expr.types.virtual.TLocus
+import is.hail.types.virtual.TLocus
 import is.hail.io.reference.FASTAReader
 import is.hail.utils.Interval
 import is.hail.{HailSuite, TestUtils}

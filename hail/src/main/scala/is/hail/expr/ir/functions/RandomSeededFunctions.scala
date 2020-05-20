@@ -2,9 +2,9 @@ package is.hail.expr.ir.functions
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s.Code
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PBoolean, PCanonicalArray, PFloat64, PInt32, PType}
-import is.hail.expr.types.virtual.{TArray, TBoolean, TFloat64, TInt32, Type}
+import is.hail.types._
+import is.hail.types.physical.{PArray, PBoolean, PCanonicalArray, PFloat64, PInt32, PType}
+import is.hail.types.virtual.{TArray, TBoolean, TFloat64, TInt32, Type}
 import is.hail.utils._
 import net.sourceforge.jdistlib.rng.MersenneTwister
 import net.sourceforge.jdistlib.{Beta, Gamma, Poisson}

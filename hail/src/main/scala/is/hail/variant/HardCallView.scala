@@ -1,9 +1,9 @@
 package is.hail.variant
 
 import is.hail.annotations.{Region, RegionValue}
-import is.hail.expr.types._
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.TCall
+import is.hail.types._
+import is.hail.types.physical._
+import is.hail.types.virtual.TCall
 
 final class ArrayGenotypeView(rvType: PStruct) {
   private val entriesIndex = rvType.fieldByName(MatrixType.entriesIdentifier).index

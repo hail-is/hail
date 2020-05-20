@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
-import is.hail.expr.types.physical._
+import is.hail.types.physical._
 import is.hail.utils.FastIndexedSeq
 
 import scala.language.existentials

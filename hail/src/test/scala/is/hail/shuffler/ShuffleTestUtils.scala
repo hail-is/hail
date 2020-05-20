@@ -1,8 +1,8 @@
 package is.hail.shuffler
 
 import is.hail.annotations._
-import is.hail.expr.types.virtual._
-import is.hail.expr.types.physical._
+import is.hail.types.virtual._
+import is.hail.types.physical._
 
 object ShuffleTestUtils {
   private[this] lazy val region = Region()

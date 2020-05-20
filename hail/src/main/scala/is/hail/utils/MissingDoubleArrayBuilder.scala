@@ -1,7 +1,7 @@
 package is.hail.utils
 
 import is.hail.annotations._
-import is.hail.expr.types.virtual.{TArray, TFloat64}
+import is.hail.types.virtual.{TArray, TFloat64}
 
 import scala.collection.mutable
 

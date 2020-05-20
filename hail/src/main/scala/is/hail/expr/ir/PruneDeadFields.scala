@@ -1,8 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.annotations._
-import is.hail.expr.types._
-import is.hail.expr.types.virtual._
+import is.hail.types._
+import is.hail.types.virtual._
 import is.hail.utils._
 
 import scala.collection.mutable

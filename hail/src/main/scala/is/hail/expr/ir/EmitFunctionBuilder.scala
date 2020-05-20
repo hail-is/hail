@@ -8,8 +8,8 @@ import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.backend.BackendUtils
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.types.physical.{PCanonicalTuple, PCode, PSettable, PStream, PType, PValue}
-import is.hail.expr.types.virtual.Type
+import is.hail.types.physical.{PCanonicalTuple, PCode, PSettable, PStream, PType, PValue}
+import is.hail.types.virtual.Type
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.utils._

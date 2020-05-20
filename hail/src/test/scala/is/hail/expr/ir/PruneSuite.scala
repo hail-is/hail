@@ -2,9 +2,9 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.expr.Nat
-import is.hail.expr.types._
-import is.hail.expr.types.physical.PStruct
-import is.hail.expr.types.virtual._
+import is.hail.types._
+import is.hail.types.physical.PStruct
+import is.hail.types.virtual._
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.RVD
 import is.hail.utils._

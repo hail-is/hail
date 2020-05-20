@@ -359,7 +359,11 @@ date
 gcloud -q auth activate-service-account \
   --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
 
-gcloud -q container images untag {shq(self.image)}
+until gcloud -q container images untag {shq(self.image)} || ! gcloud -q container images describe {shq(self.image)}
+do
+    echo 'failed, will sleep 2 and retry'
+    sleep 2
+done
 
 date
 true
@@ -644,7 +648,11 @@ date
 set -x
 date
 
-kubectl delete namespace {self._name}
+until kubectl delete namespace --ignore-not-found=true {self._name}
+do
+    echo 'failed, will sleep 2 and retry'
+    sleep 2
+done
 
 date
 true
@@ -916,11 +924,20 @@ python3 create_database.py {shq(json.dumps(create_database_config))}
         cleanup_script = f'''
 set -ex
 
-cat | mysql --defaults-extra-file=/sql-config/sql-config.cnf <<EOF
-DROP DATABASE \\`{self._name}\\`;
-DROP USER '{self.admin_username}';
-DROP USER '{self.user_username}';
+commands=$(mktemp)
+
+cat >$commands <<EOF
+DROP DATABASE IF EXISTS \\`{self._name}\\`;
+DROP USER IF EXISTS '{self.admin_username}';
+DROP USER IF EXISTS '{self.user_username}';
 EOF
+
+until mysql --defaults-extra-file=/sql-config/sql-config.cnf <$commands
+do
+    echo 'failed, will sleep 2 and retry'
+    sleep 2
+done
+
 '''
 
         self.job = batch.create_job(CI_UTILS_IMAGE,

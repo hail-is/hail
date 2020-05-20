@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.functions.RelationalFunctions
-import is.hail.expr.types.virtual.{TArray, TInterval, Type}
+import is.hail.types.virtual.{TArray, TInterval, Type}
 import is.hail.utils._
 import org.json4s.jackson.{JsonMethods, Serialization}
 

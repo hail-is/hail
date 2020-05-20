@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual._
+import is.hail.types.virtual._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.utils._
 import org.json4s.{CustomSerializer, DefaultFormats, Formats, JObject, JValue}

@@ -6,7 +6,7 @@ import java.util.Base64
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.types.physical._
+import is.hail.types.physical._
 import is.hail.io._
 import is.hail.utils._
 import javax.net.ssl._;

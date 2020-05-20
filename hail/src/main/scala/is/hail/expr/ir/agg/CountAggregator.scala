@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
-import is.hail.expr.types.physical._
+import is.hail.types.physical._
 
 object CountAggregator extends StagedAggregator {
   type State = PrimitiveRVAState

@@ -3,9 +3,9 @@ package is.hail.expr.ir
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
-import is.hail.expr.types._
-import is.hail.expr.types.physical.PStruct
-import is.hail.expr.types.virtual._
+import is.hail.types._
+import is.hail.types.physical.PStruct
+import is.hail.types.virtual._
 import is.hail.rvd.RVDPartitioner
 import is.hail.utils._
 import is.hail.{ExecStrategy, HailSuite}
@@ -659,5 +659,13 @@ class TableIRSuite extends HailSuite {
 
     val distinctByAll = TableDistinct(tir)
     assertEvalsTo(TableCount(distinctByAll), 120L)
+  }
+
+  @Test def testRangeOrderByDescending() {
+    var tir: TableIR = TableRange(10, 3)
+    tir = TableOrderBy(tir, FastIndexedSeq(SortField("idx", Descending)))
+    val x = GetField(TableCollect(tir), "rows")
+
+    assertEvalsTo(x, (0 until 10).reverse.map(i => Row(i)))(ExecStrategy.allRelational)
   }
 }

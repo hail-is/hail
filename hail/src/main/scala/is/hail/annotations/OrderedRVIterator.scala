@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.expr.types.physical.PInterval
+import is.hail.types.physical.PInterval
 import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.utils._
 

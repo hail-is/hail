@@ -2,11 +2,11 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr._
-import is.hail.expr.types._
+import is.hail.types._
 import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.check.{Gen, Prop}
-import is.hail.expr.types.virtual._
+import is.hail.types.virtual._
 import org.testng.annotations.Test
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call2

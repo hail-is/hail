@@ -3,12 +3,17 @@ package is.hail.shuffler
 import java.util.Base64
 
 import is.hail.expr.ir._
-import is.hail.expr.types.encoded._
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual._
+import is.hail.types.encoded._
+import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.io._
 import org.json4s.jackson._
 import com.fasterxml.jackson.core.{JsonGenerator, JsonParser}
+import is.hail.expr.ir.IRParser
+import is.hail.types.virtual.TStruct
+import is.hail.io.TypedCodecSpec
+import is.hail.rvd.AbstractRVDSpec
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 object Wire {
   val EOS: Byte = 255.toByte

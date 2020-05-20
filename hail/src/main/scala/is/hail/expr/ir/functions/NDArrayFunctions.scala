@@ -2,8 +2,8 @@ package is.hail.expr.ir.functions
 
 import is.hail.expr.NatVariable
 import is.hail.expr.ir._
-import is.hail.expr.types.coerce
-import is.hail.expr.types.virtual._
+import is.hail.types.coerce
+import is.hail.types.virtual._
 
 object NDArrayFunctions extends RegistryFunctions {
   override def registerAll() {

@@ -11,6 +11,8 @@ class RichRow(r: Row) {
     Row.fromSeq(arr)
   }
 
+  def select(indices: Array[Int]): Row = Row.fromSeq(indices.map(r.get))
+
   def deleteField(i: Int): Row = {
     require(i >= 0 && i < r.length)
     new RowWithDeletedField(r, i)

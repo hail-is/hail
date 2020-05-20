@@ -4,8 +4,8 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.ExecuteContext
-import is.hail.expr.types.physical.{PArray, PStruct, PType}
-import is.hail.expr.types.virtual.{TBaseStruct, TStruct}
+import is.hail.types.physical.{PArray, PStruct, PType}
+import is.hail.types.virtual.{TBaseStruct, TStruct}
 import is.hail.io.{BufferSpec, Decoder, TypedCodecSpec}
 import org.apache.spark.sql.Row
 

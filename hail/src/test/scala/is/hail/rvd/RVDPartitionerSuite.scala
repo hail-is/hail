@@ -1,6 +1,6 @@
 package is.hail.rvd
 
-import is.hail.expr.types.virtual.{TInt32, TStruct}
+import is.hail.types.virtual.{TInt32, TStruct}
 import is.hail.utils.{FastIndexedSeq, Interval}
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite

@@ -2,9 +2,9 @@ package is.hail.expr.ir
 
 import java.io.OutputStreamWriter
 
-import is.hail.expr.types._
-import is.hail.expr.types.physical.PStruct
-import is.hail.expr.types.virtual._
+import is.hail.types._
+import is.hail.types.physical.PStruct
+import is.hail.types.virtual._
 import is.hail.io.fs.FS
 import is.hail.rvd._
 import is.hail.utils._

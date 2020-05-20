@@ -3,9 +3,9 @@ package is.hail.io.plink
 import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PBoolean, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PFloat64, PStruct, PType}
-import is.hail.expr.types.virtual._
+import is.hail.types._
+import is.hail.types.physical.{PBoolean, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PFloat64, PStruct, PType}
+import is.hail.types.virtual._
 import is.hail.io.vcf.LoadVCF
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._

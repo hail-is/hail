@@ -1,9 +1,9 @@
 package is.hail
 
-import is.hail.expr.types.physical.{PCanonicalStruct, PFloat64, PStruct}
+import is.hail.types.physical.{PCanonicalStruct, PFloat64, PStruct}
 import is.hail.utils._
 import net.sourceforge.jdistlib.disttest.{DistributionTest, TestKind}
-import net.sourceforge.jdistlib.{Beta, ChiSquare, Normal, Poisson}
+import net.sourceforge.jdistlib.{Beta, ChiSquare, NonCentralChiSquare, Normal, Poisson}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
 
 package object stats {
@@ -334,6 +334,8 @@ package object stats {
 
   // Returns the p for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
   def chiSquaredTail(x: Double, df: Double): Double = ChiSquare.cumulative(x, df, false, false)
+
+  def nonCentralChiSquaredTail(x: Double, df: Double, ncp: Double) = NonCentralChiSquare.cumulative(x, df, ncp, false, false)
 
   // Returns the x for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
   def inverseChiSquaredTail(p: Double, df: Double): Double = ChiSquare.quantile(p, df, false, false)

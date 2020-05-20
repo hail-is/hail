@@ -4,9 +4,9 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.expr.types.physical.{PCanonicalString, PCanonicalStruct, PFloat64, PInt64, PString, PStruct}
-import is.hail.expr.types.virtual.{TFloat64, TStruct}
-import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PFloat64, PInt64, PString, PStruct}
+import is.hail.types.virtual.{TFloat64, TStruct}
+import is.hail.types.{MatrixType, TableType}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._

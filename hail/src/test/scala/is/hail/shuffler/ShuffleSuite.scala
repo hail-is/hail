@@ -3,9 +3,9 @@ package is.hail.shuffler
 import org.apache.log4j.Logger;
 import is.hail.annotations._
 import is.hail.expr.ir._
-import is.hail.expr.types.virtual._
-import is.hail.expr.types.physical._
-import is.hail.expr.types.encoded._
+import is.hail.types.virtual._
+import is.hail.types.physical._
+import is.hail.types.encoded._
 import is.hail.shuffler.server._
 import is.hail.io.{ BufferSpec, TypedCodecSpec }
 import is.hail.testUtils._

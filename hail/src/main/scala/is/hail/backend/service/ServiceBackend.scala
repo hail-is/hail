@@ -6,9 +6,9 @@ import is.hail.annotations.{Region, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend.{Backend, BroadcastValue}
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.lowering.{DArrayLowering, LowererUnsupportedOperation, LoweringPipeline}
-import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple}
-import is.hail.expr.types.physical.{PBaseStruct, PType}
+import is.hail.expr.ir.lowering.{DArrayLowering, LowerDistributedSort, LowererUnsupportedOperation, LoweringPipeline, TableStage}
+import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple, SortField}
+import is.hail.types.physical.{PBaseStruct, PType}
 import is.hail.io.fs.GoogleStorageFS
 import is.hail.utils._
 import org.json4s.JsonAST.{JArray, JBool, JInt, JObject, JString}
@@ -160,5 +160,10 @@ class ServiceBackend() extends Backend {
             "type" -> JString(x.typ.toString))))
       }
     }
+  }
+
+  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField]): TableStage = {
+    // Use a local sort for the moment to enable larger pipelines to run
+    LowerDistributedSort.localSort(ctx, stage, sortFields)
   }
 }

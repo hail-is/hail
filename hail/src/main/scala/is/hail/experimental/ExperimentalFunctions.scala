@@ -1,8 +1,8 @@
 package is.hail.experimental
 
 import is.hail.expr.ir.functions._
-import is.hail.expr.types.physical.{PCanonicalArray, PFloat64, PType}
-import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, Type}
+import is.hail.types.physical.{PCanonicalArray, PFloat64, PType}
+import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
 
 object ExperimentalFunctions extends RegistryFunctions {
 

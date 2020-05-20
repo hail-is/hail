@@ -6,9 +6,9 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.PruneDeadFields.isSupertype
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PCanonicalStruct, PInt64, PStruct, PType}
-import is.hail.expr.types.virtual.{TArray, TInt64, TInterval, TStruct}
+import is.hail.types._
+import is.hail.types.physical.{PCanonicalStruct, PInt64, PStruct, PType}
+import is.hail.types.virtual.{TArray, TInt64, TInterval, TStruct}
 import is.hail.io._
 import is.hail.io.index.IndexWriter
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, RichContextRDDRegionValue, TypedCodecSpec}
@@ -1427,7 +1427,7 @@ object RVD {
     if (rvds.length == 1 || rvds.forall(_.rowPType == rvds.head.rowPType))
       return rvds
 
-    val unifiedRowPType = InferPType.getNestedElementPTypesOfSameType(rvds.map(_.rowPType)).asInstanceOf[PStruct]
+    val unifiedRowPType = InferPType.getCompatiblePType(rvds.map(_.rowPType)).asInstanceOf[PStruct]
     val unifiedKey = rvds.map(_.typ.key).reduce((l, r) => commonPrefix(l, r))
     rvds.map { rvd =>
       val srcRowPType = rvd.rowPType

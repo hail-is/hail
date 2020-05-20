@@ -1,7 +1,7 @@
 package is.hail.utils
 
 import is.hail.annotations.{Annotation, RegionValueBuilder}
-import is.hail.expr.types.virtual.Type
+import is.hail.types.virtual.Type
 
 import scala.collection.mutable
 
