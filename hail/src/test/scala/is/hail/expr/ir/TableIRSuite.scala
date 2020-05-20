@@ -669,11 +669,7 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(x, (0 until 10).reverse.map(i => Row(i)))(ExecStrategy.allRelational)
   }
 
-  @Test def testTableLeftJoinRightDistinct(): Unit = {
-    implicit val execStrats = ExecStrategy.lowering
-
   @Test def testTableLeftJoinRightDistinctRangeTables(): Unit = {
-    // join two range tables
     IndexedSeq((1, 1), (3, 2), (10, 5), (5, 10)).foreach { case(nParts1, nParts2) =>
       val rangeTable1 = TableRange(10, nParts1)
       var rangeTable2: TableIR = TableRange(5, nParts2)
