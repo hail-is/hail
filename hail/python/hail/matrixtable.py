@@ -2817,11 +2817,10 @@ class MatrixTable(ExprContainer):
         try:
             return self.cols()._index(*exprs, all_matches=all_matches)
         except TableIndexKeyError as err:
-            key_type, exprs = err.args
             raise ExpressionException(
                 f"Key type mismatch: cannot index matrix table with given expressions:\n"
-                f"  MatrixTable col key: {', '.join(str(t) for t in key_type.values()) or '<<<empty key>>>'}\n"
-                f"  Index expressions:   {', '.join(str(e.dtype) for e in exprs)}")
+                f"  MatrixTable col key: {', '.join(str(t) for t in err.key_type.values()) or '<<<empty key>>>'}\n"
+                f"  Index expressions:   {', '.join(str(e.dtype) for e in err.index_expressions)}")
 
     def index_entries(self, row_exprs, col_exprs):
         """Expose the entries as if looked up in a dictionary, indexing
