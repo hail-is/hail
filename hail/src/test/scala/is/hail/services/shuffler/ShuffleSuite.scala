@@ -26,16 +26,19 @@ class ShuffleSuite extends HailSuite {
     array.map(new UnsafeRow(elementPType, null, _)).toArray
 
   @Test def testShuffle() {
-    var server = new ShuffleServer(sslContext(
-      "src/test/resources/non-secret-key-and-trust-stores/server-keystore.p12",
-      "hailhail",
-      "PKCS12",
-      "src/test/resources/non-secret-key-and-trust-stores/server-truststore.p12",
-      "hailhail",
-      "JKS"
-    ),
-      8080)
-    server.serveInBackground()
+    var server: ShuffleServer = null
+    if (ShuffleClient.isLocalTest) {
+      server = new ShuffleServer(sslContext(
+        "src/test/resources/non-secret-key-and-trust-stores/server-keystore.p12",
+        "hailhail",
+        "PKCS12",
+        "src/test/resources/non-secret-key-and-trust-stores/server-truststore.p12",
+        "hailhail",
+        "JKS"
+      ),
+        ShuffleClient.port)
+      server.serveInBackground()
+    }
     try {
       val rowPType = PCanonicalStruct("x" -> PInt32())
       val rowType = rowPType.virtualType.asInstanceOf[TStruct]
@@ -125,16 +128,19 @@ class ShuffleSuite extends HailSuite {
   }
 
   @Test def testShuffleIR() {
-    var server = new ShuffleServer(sslContext(
-      "src/test/resources/non-secret-key-and-trust-stores/server-keystore.p12",
-      "hailhail",
-      "PKCS12",
-      "src/test/resources/non-secret-key-and-trust-stores/server-truststore.p12",
-      "hailhail",
-      "JKS"
-    ),
-      8080)
-    server.serveInBackground()
+    var server: ShuffleServer = null
+    if (ShuffleClient.isLocalTest) {
+      val server = new ShuffleServer(sslContext(
+        "src/test/resources/non-secret-key-and-trust-stores/server-keystore.p12",
+        "hailhail",
+        "PKCS12",
+        "src/test/resources/non-secret-key-and-trust-stores/server-truststore.p12",
+        "hailhail",
+        "JKS"
+      ),
+        ShuffleClient.port)
+      server.serveInBackground()
+    }
     try {
       val rowPType = PCanonicalStruct("x" -> PInt32())
       val rowType = rowPType.virtualType.asInstanceOf[TStruct]

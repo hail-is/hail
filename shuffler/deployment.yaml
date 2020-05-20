@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shuffler
+  labels:
+    app: shuffler
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: shuffler
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: shuffler
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+      serviceAccountName: shuffler
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      containers:
+        - name: shuffler
+          image: "{{ shuffler_image.image }}"
+          command:
+           - /bin/bash
+           - -c
+           - "./start-shuffler.sh"
+          env:
+           - name: HAIL_DOMAIN
+             value: "{{ global.domain }}"
+           - name: HAIL_DEPLOY_CONFIG_FILE
+             value: /deploy-config/deploy-config.json
+           - name: HAIL_SHA
+             value: "{{ code.sha }}"
+          ports:
+           - containerPort: 443
+          volumeMounts:
+           - name: deploy-config
+             mountPath: /deploy-config
+             readOnly: true
+           - name: ssl-config
+             mountPath: /ssl-config
+             readOnly: true
+          resources:
+            requests:
+              memory: "3.75G"
+              cpu: "800m"
+            limits:
+              memory: "3.75G"
+              cpu: "1"
+          readinessProbe:
+            tcpSocket:
+              port: 443
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+       - name: deploy-config
+         secret:
+           secretName: deploy-config
+       - name: ssl-config
+         secret:
+           optional: false
+           secretName: ssl-config-shuffler
