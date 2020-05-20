@@ -3581,7 +3581,10 @@ class NDArrayExpression(Expression):
                                   self._indices,
                                   self._aggregations)
 
-        return construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in item]), self._type.element_type)
+        return construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in item]),
+                              self._type.element_type,
+                              self._indices,
+                              self._aggregations)
 
     @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()))
     def reshape(self, shape):
