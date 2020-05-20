@@ -1,7 +1,5 @@
 package is.hail.types.virtual
 
-import java.util.NoSuchElementException
-
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.expr.ir.{Env, IRParser}
 import is.hail.types.physical.{PField, PStruct}
