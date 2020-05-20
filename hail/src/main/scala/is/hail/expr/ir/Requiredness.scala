@@ -503,14 +503,14 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case x@RunAgg(body, result, signature) =>
         val wrapped = lookupAggState(x)
         val newAggSig = computeAggState(signature, FastSeq(body))
-        if (newAggSig sameElements wrapped.sig)
+        if (!(newAggSig sameElements wrapped.sig))
           wrapped.setSignature(newAggSig)
         else
           requiredness.unionFrom(lookup(result))
       case x@RunAggScan(array, name, init, seqs, result, signature) =>
         val wrapped = lookupAggState(x)
         val newAggSig = computeAggState(signature, FastSeq(init, seqs))
-        if (newAggSig sameElements wrapped.sig)
+        if (!(newAggSig sameElements wrapped.sig))
           wrapped.setSignature(newAggSig)
         else
           requiredness.unionFrom(lookup(result))
