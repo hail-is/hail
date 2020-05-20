@@ -518,8 +518,11 @@ object LowerTableIR {
 
           val leftCtxTyp = loweredLeft.contexts.typ.asInstanceOf[TStream].elementType
           val rightCtxTyp = loweredRight.contexts.typ.asInstanceOf[TStream].elementType
-          val leftCtxRef = Ref("left_ctx", leftCtxTyp)
-          val rightCtxRef = Ref("right_ctx", rightCtxTyp)
+          val leftCtxRef = Ref(genUID(), leftCtxTyp)
+          val rightCtxRef = Ref(genUID(), rightCtxTyp)
+
+          val leftCtxStructField = genUID()
+          val rightCtxStructField = genUID()
 
           new TableStage(
             loweredLeft.letBindings ++ loweredRight.letBindings,
@@ -528,16 +531,16 @@ object LowerTableIR {
             loweredLeft.partitioner,
             StreamZip(
               FastIndexedSeq(loweredLeft.contexts, loweredRight.contexts), FastIndexedSeq(leftCtxRef.name, rightCtxRef.name),
-              MakeStruct(FastIndexedSeq("left_ctx_field" -> leftCtxRef, "right_ctx_field" -> rightCtxRef)), ArrayZipBehavior.AssertSameLength
+              MakeStruct(FastIndexedSeq(leftCtxStructField -> leftCtxRef, rightCtxStructField -> rightCtxRef)), ArrayZipBehavior.AssertSameLength
             )
           ) {
             override def partition(ctxRef: Ref): IR = {
-              bindIR(GetField(ctxRef, "left_ctx_field")) { leftCtxFieldRef =>
-                bindIR(GetField(ctxRef, "right_ctx_field")) { rightCtxFieldRef =>
+              bindIR(GetField(ctxRef, leftCtxStructField)) { leftCtxFieldRef =>
+                bindIR(GetField(ctxRef, rightCtxStructField)) { rightCtxFieldRef =>
                   val leftPart = loweredLeft.partition(leftCtxFieldRef)
                   val rightPart = loweredRight.partition(rightCtxFieldRef)
-                  val leftElementRef = Ref("l_ele", left.typ.rowType)
-                  val rightElementRef = Ref("r_ele", right.typ.rowType)
+                  val leftElementRef = Ref(genUID(), left.typ.rowType)
+                  val rightElementRef = Ref(genUID(), right.typ.rowType)
 
                   val comparator = ApplyComparisonOp(Compare(right.typ.keyType),
                     CastRename(
@@ -545,12 +548,11 @@ object LowerTableIR {
                       left.typ.keyType.truncate(commonKeyLength).rename(leftKeyToRightKeyMap)
                     ),
                     SelectFields(rightElementRef, right.typ.key))
-                  val typeOfRootStruct = right.typ.rowType.filterSet(right.typ.key.toSet, false)._1
+                  val (typeOfRootStruct, _) = right.typ.rowType.filterSet(right.typ.key.toSet, false)
 
                   val rootStruct = SelectFields(rightElementRef, typeOfRootStruct.fieldNames.toIndexedSeq)
                   val joiningOp = InsertFields(leftElementRef, Seq(root -> rootStruct))
-                  val joined = StreamLeftJoinDistinct(leftPart, rightPart, "l_ele", "r_ele", comparator, joiningOp)
-                  joined
+                  StreamLeftJoinDistinct(leftPart, rightPart, leftElementRef.name, rightElementRef.name, comparator, joiningOp)
                 }
 
               }
