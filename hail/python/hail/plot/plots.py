@@ -1,4 +1,3 @@
-import warnings
 import math
 
 import collections
@@ -23,6 +22,7 @@ from hail.typecheck import typecheck, oneof, nullable, sized_tupleof, numeric, \
     sequenceof, dictof
 from hail import Table
 from hail.utils.struct import Struct
+from hail.utils.java import warning
 from typing import List, Tuple, Dict, Union
 import hail
 
@@ -666,7 +666,7 @@ def _generate_hist2d_data(x, y, bins, range):
     else:
         x_range, y_range = range
     if x_range is None or y_range is None:
-        warnings.warn('At least one range was not defined in histogram_2d. Doing two passes...')
+        warning('At least one range was not defined in histogram_2d. Doing two passes...')
         ranges = source.aggregate(hail.struct(x_stats=hail.agg.stats(x),
                                               y_stats=hail.agg.stats(y)))
         if x_range is None:
@@ -674,7 +674,7 @@ def _generate_hist2d_data(x, y, bins, range):
         if y_range is None:
             y_range = (ranges.y_stats.min, ranges.y_stats.max)
     else:
-        warnings.warn('If x_range or y_range are specified in histogram_2d, and there are points '
+        warning('If x_range or y_range are specified in histogram_2d, and there are points '
                       'outside of these ranges, they will not be plotted')
     x_range = list(map(float, x_range))
     y_range = list(map(float, y_range))
@@ -1489,8 +1489,8 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
     data = ht.entry_fields.collect()
     if len(data) > 200:
         import warnings
-        warnings.warn(f'Missingness dataset has {len(data)} rows. '
-                      f'This may take {"a very long time" if len(data) > 1000 else "a few minutes"} to plot.')
+        warning(f'Missingness dataset has {len(data)} rows. '
+                f'This may take {"a very long time" if len(data) > 1000 else "a few minutes"} to plot.')
     rows = hail.str(ht._new_row_key).collect()
 
     df = pd.DataFrame(data)

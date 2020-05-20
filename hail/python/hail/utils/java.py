@@ -132,23 +132,13 @@ def jarray_to_list(a):
     return list(a) if a else None
 
 
-class Log4jLogger:
-    log_pkg = None
-
-    @staticmethod
-    def get():
-        if Log4jLogger.log_pkg is None:
-            Log4jLogger.log_pkg = Env.jutils()
-        return Log4jLogger.log_pkg
-
-
 def error(msg):
-    Log4jLogger.get().error(msg)
+    Env.backend().logger.error(msg)
 
 
-def warn(msg):
-    Log4jLogger.get().warn(msg)
+def warning(msg):
+    Env.backend().logger.warning(msg)
 
 
 def info(msg):
-    Log4jLogger.get().info(msg)
+    Env.backend().logger.info(msg)

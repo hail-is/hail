@@ -19,6 +19,7 @@ from hail.table import Table
 from hail.matrixtable import MatrixTable
 
 from .backend import Backend
+from ..hail_logging import Logger
 
 
 def handle_java_exception(f):
@@ -122,6 +123,20 @@ def connect_logger(utils_package_object, host, port):
     utils_package_object.addSocketAppender(host, port)
 
 
+class Log4jLogger(Logger):
+    def __init__(self, log_pkg):
+        self._log_pkg = log_pkg
+
+    def error(self, msg):
+        self._log_pkg.error(msg)
+
+    def warning(self, msg):
+        self._log_pkg.warn(msg)
+
+    def info(self, msg):
+        self._log_pkg.info(msg)
+
+
 class SparkBackend(Backend):
     def __init__(self, idempotent, sc, spark_conf, app_name, master,
                  local, log, quiet, append, min_block_size,
@@ -201,6 +216,7 @@ class SparkBackend(Backend):
                                f"  Python: {py_version}")
 
         self._fs = None
+        self._logger = None
 
         if not quiet:
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
@@ -241,6 +257,12 @@ class SparkBackend(Backend):
 
     def _parse_blockmatrix_ir(self, code, ref_map={}, ir_map={}):
         return self._jbackend.parse_blockmatrix_ir(code, ref_map, ir_map)
+
+    @property
+    def logger(self):
+        if self._logger is None:
+            self._logger = Log4jLogger(self._utils_package_object)
+        return self._logger
 
     @property
     def fs(self):

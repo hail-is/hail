@@ -23,7 +23,7 @@ from hail.table import Table
 from hail.typecheck import typecheck, nullable, numeric, oneof, sequenceof, \
     enumeration, anytype
 from hail.utils import wrap_to_list, new_temp_file, FatalError
-from hail.utils.java import Env, info, warn
+from hail.utils.java import Env, info, warning
 
 
 @typecheck(dataset=MatrixTable,
@@ -3588,7 +3588,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
 
 def _warn_if_no_intercept(caller, covariates):
     if all([e._indices.axes for e in covariates]):
-        warn(f'{caller}: model appears to have no intercept covariate.'
-             '\n    To include an intercept, add 1.0 to the list of covariates.')
+        warning(f'{caller}: model appears to have no intercept covariate.'
+                '\n    To include an intercept, add 1.0 to the list of covariates.')
         return True
     return False

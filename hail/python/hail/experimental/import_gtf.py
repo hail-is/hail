@@ -3,7 +3,6 @@ import functools
 import hail as hl
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import typecheck, nullable, sequenceof
-from hail.utils.java import info
 
 
 def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_partitions=None,
