@@ -114,14 +114,49 @@ class RVD(
   ): RVD = {
     require(newKey.forall(rowType.hasField))
     val nPreservedFields = typ.key.zip(newKey).takeWhile { case (l, r) => l == r }.length
-    require(!isSorted || nPreservedFields > 0 || newKey.isEmpty)
+    val maybeKeys = partitioner.keysIfOneToOne()
+    if (!(!isSorted || nPreservedFields > 0 || newKey.isEmpty || maybeKeys.isDefined)) {
+      throw new IllegalArgumentException(s"$isSorted, $nPreservedFields, $newKey, ${maybeKeys.isDefined}, ${typ}, ${partitioner}")
+    }
 
     if (nPreservedFields == newKey.length)
       this
     else if (isSorted)
-      truncateKey(newKey.take(nPreservedFields))
-        .extendKeyPreservesPartitioning(execCtx, newKey)
-        .checkKeyOrdering()
+      maybeKeys match {
+        case None =>
+          truncateKey(newKey.take(nPreservedFields))
+            .extendKeyPreservesPartitioning(execCtx, newKey)
+            .checkKeyOrdering()
+        case Some(keys) =>
+          val oldRVDType = typ
+          val oldKeyPType = oldRVDType.kType
+          val oldKeyVType = oldKeyPType.virtualType
+          val newRVDType = oldRVDType.copy(key = newKey)
+          val newKeyPType = newRVDType.kType
+          val newKeyVType = newKeyPType.virtualType
+          var keyInfo = keys.zipWithIndex.map { case (oldKey, partitionIndex) =>
+            val newKey = new SelectFieldsRow(oldKey, oldKeyPType, newKeyPType)
+            RVDPartitionInfo(
+              partitionIndex,
+              1,
+              newKey,
+              newKey,
+              Array[Any](newKey),
+              RVDPartitionInfo.KSORTED,
+              s"out-of-order partitions $newKey")
+          }
+          val kOrd = PartitionBoundOrdering(newKeyVType).toOrdering
+          keyInfo = keyInfo.sortBy(_.min)(kOrd)
+          val bounds = keyInfo.map(_.interval).toFastIndexedSeq
+          info("Coerced dataset with out-of-order partitions.")
+          val pids = keyInfo.map(_.partitionIndex).toArray
+          val unfixedPartitioner = new RVDPartitioner(newKeyVType, bounds)
+          log.info(s"generate args ${newRVDType.key} ${newKeyVType} ${bounds}")
+          val newPartitioner = RVDPartitioner.generate(
+            newRVDType.key, newKeyVType, bounds)
+          RVD(newRVDType, unfixedPartitioner, crdd.reorderPartitions(pids))
+            .repartition(execCtx, newPartitioner, shuffle = false)
+      }
     else
       changeKey(execCtx, newKey)
   }

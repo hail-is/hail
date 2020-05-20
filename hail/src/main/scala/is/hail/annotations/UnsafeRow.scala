@@ -253,3 +253,16 @@ class KeyedRow(var row: Row, keyFields: Array[Int]) extends Row {
     this
   }
 }
+
+class SelectFieldsRow(
+  old: Row,
+  oldPType: PStruct,
+  newPType: PStruct
+) extends Row {
+  private[this] val fieldMapping =
+    newPType.fieldNames.map(name => oldPType.fieldIdx(name))
+  override def length = newPType.types.length
+  override def get(i: Int) = old.get(fieldMapping(i))
+  override def isNullAt(i: Int) = old.isNullAt(fieldMapping(i))
+  override def copy(): Row = new SelectFieldsRow(old.copy(), oldPType, newPType)
+}

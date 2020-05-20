@@ -2,7 +2,7 @@ package is.hail.rvd
 
 import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering}
 import is.hail.expr.ir.Literal
-import is.hail.types.virtual.{TArray, TBoolean, TInt32, TInterval, TStruct, TTuple}
+import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.commons.lang.builder.HashCodeBuilder
 import org.apache.spark.broadcast.Broadcast
@@ -16,6 +16,9 @@ class RVDPartitioner(
   val rangeBounds: Array[Interval],
   allowedOverlap: Int
 ) {
+  override def toString: String =
+    s"RVDPartitioner($kType, ${rangeBounds.mkString("[", ",\n", "]")}, $allowedOverlap)"
+
   def this(
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval],
@@ -43,7 +46,10 @@ class RVDPartitioner(
     kType.relaxedTypeCheck(l) && kType.relaxedTypeCheck(r)
   })
   require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
-  require(RVDPartitioner.isValid(kType, rangeBounds, allowedOverlap))
+  if (!(RVDPartitioner.isValid(kType, rangeBounds, allowedOverlap))) {
+    throw new IllegalArgumentException(
+      s"requirement failed: ${kType}, ${rangeBounds.toSeq}, ${allowedOverlap}")
+  }
 
   val kord: ExtendedOrdering = PartitionBoundOrdering(kType)
   val intervalKeyLT: (Interval, Any) => Boolean = (i, k) => i.isBelowPosition(kord, k)
@@ -273,6 +279,77 @@ class RVDPartitioner(
   def partitionBoundsIRRepresentation: Literal = {
     Literal(TArray(RVDPartitioner.intervalIRRepresentation(kType)),
       rangeBounds.map(i => RVDPartitioner.intervalToIRRepresentation(i, kType.size)).toFastIndexedSeq)
+  }
+
+  def keysIfOneToOne(): Option[IndexedSeq[Row]] = {
+    log.info(s"keysIfOneToOne ${kType} ${this}")
+    if (kType.size == 0) {
+      return None
+    }
+    log.info(s"keysIfOneToOne ${kType.types}")
+    val lastType = kType.types.last
+    if (lastType != TInt32 && lastType != TInt64) {
+      log.info(s"keysIfOneToOne ${lastType} ${TInt32} ${TInt64}")
+      return None
+    }
+    val pord = lastType.ordering
+
+    def singleton(interval: Interval): Option[Row] = {
+      log.info(s"keysIfOneToOne singleton")
+      val left = interval.left.point.asInstanceOf[Row]
+      val leftSign = interval.left.sign
+      val right = interval.right.point.asInstanceOf[Row]
+      val rightSign = interval.right.sign
+      var i = 0
+      while (i < kType.types.length - 1) {
+        if (i >= left.length ||
+          i >= right.length ||
+          pord.compare(left(i), right(i)) != 0) {
+          log.info(s"bad ${kType} ${left.length} ${right.length} ${leftSign} ${left} ${rightSign} ${right}")
+          return None
+        }
+        i += 1
+      }
+      log.info(s"${kType} ${left.length} ${right.length} ${leftSign} ${left} ${rightSign} ${right} ${i}")
+      if (i >= left.length || i >= right.length)
+        return None
+      if (leftSign == rightSign) {
+        val isSizeOne = if (lastType == TInt32) {
+          val diff = left.getInt(i) - right.getInt(i)
+          diff == 1 || diff == -1
+        } else {
+          assert(lastType == TInt64)
+          val diff = left.getLong(i) - right.getLong(i)
+          diff == 1L || diff == -1L
+        }
+        if (isSizeOne) {
+          if (leftSign == -1) {
+            assert(rightSign == -1)
+            return Some(left)
+          } else {
+            assert(leftSign == 1)
+            assert(rightSign == 1)
+            return Some(right)
+          }
+        } else {
+          return None
+        }
+      }
+      if (leftSign == -1 && rightSign == 1) {
+        val isSizeOne = if (lastType == TInt32) {
+          left.getInt(i) == right.getInt(i)
+        } else {
+          assert(lastType == TInt64)
+          left.getLong(i) == right.getLong(i)
+        }
+        if (isSizeOne)
+          return Some(left)
+      }
+      assert(leftSign == 1 && rightSign == -1)
+      return None
+    }
+
+    anyFailAllFail(rangeBounds.map(singleton))
   }
 }
 
