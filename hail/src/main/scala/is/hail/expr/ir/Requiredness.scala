@@ -78,10 +78,20 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         initializeAggStates(seqs, next)
         initializeAggStates(result, next)
         aggStateMemo.bind(x, next)
-      case x@(_: InitOp | _: SeqOp) =>
+      case x@InitOp(_, args, _, _) =>
         aggStateMemo.bind(node, wrapped)
+        q += RefEquality(x)
+        dependents.getOrElseUpdate(x, mutable.Set[RefEquality[BaseIR]]()) ++= args.map(RefEquality(_))
         if (wrapped.scope != null)
-          dependents.getOrElseUpdate(x, mutable.Set[RefEquality[BaseIR]]()) += wrapped.scope
+          dependents(x) += wrapped.scope
+        node.children.foreach(initializeAggStates(_, wrapped))
+      case x@SeqOp(_, args, _, _) =>
+        aggStateMemo.bind(node, wrapped)
+        q += RefEquality(x)
+        dependents.getOrElseUpdate(x, mutable.Set[RefEquality[BaseIR]]()) ++= args.map(RefEquality(_))
+        if (wrapped.scope != null)
+          dependents(x) += wrapped.scope
+        node.children.foreach(initializeAggStates(_, wrapped))
       case x: ResultOp =>
         aggStateMemo.bind(node, wrapped)
         if (wrapped.scope != null)
@@ -262,6 +272,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   }
 
   def analyzeIR(node: IR): Boolean = {
+    if (node.typ == TVoid)
+      return (node.isInstanceOf[InitOp] || node.isInstanceOf[SeqOp]) && (lookupAggState(node).scope != null)
     val requiredness = lookup(node)
     node match {
       // union all
@@ -521,8 +533,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         else
           coerce[RIterable](requiredness).elementType.unionFrom(lookup(result))
     }
-    val aggStateChanged = (node.isInstanceOf[InitOp] || node.isInstanceOf[SeqOp]) && (lookupAggState(node).scope != null)
     val aggScopeChanged = (node.isInstanceOf[RunAgg] || node.isInstanceOf[RunAggScan]) && (lookupAggState(node).probeChangedAndReset())
-    requiredness.probeChangedAndReset() | aggStateChanged | aggScopeChanged
+    requiredness.probeChangedAndReset() | aggScopeChanged
   }
 }
