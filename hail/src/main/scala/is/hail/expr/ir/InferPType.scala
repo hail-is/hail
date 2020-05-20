@@ -171,7 +171,9 @@ object InferPType {
         }
         if (inits != null) {
           val argTypes = x.args.map { a =>
-            r.map(m => coerce[TypeWithRequiredness](m.lookup(a)).canonicalPType(a.typ)).getOrElse(a.pType)
+            if (a.typ != TVoid)
+              r.map(m => coerce[TypeWithRequiredness](m.lookup(a)).canonicalPType(a.typ)).getOrElse(a.pType)
+            else PVoid
           }
           inits(i) += RecursiveArrayBuilderElement(x.op -> argTypes, nested)
         }
@@ -194,7 +196,9 @@ object InferPType {
         }
         if (seqs != null) {
           val argTypes = x.args.map { a =>
-            r.map(m => coerce[TypeWithRequiredness](m.lookup(a)).canonicalPType(a.typ)).getOrElse(a.pType)
+            if (a.typ != TVoid)
+              r.map(m => coerce[TypeWithRequiredness](m.lookup(a)).canonicalPType(a.typ)).getOrElse(a.pType)
+            else PVoid
           }
           seqs(i) += RecursiveArrayBuilderElement(x.op -> argTypes, nested)
         }
