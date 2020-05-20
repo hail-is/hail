@@ -1035,7 +1035,7 @@ object PruneDeadFields {
           bodyEnv.deleteEval(valueName).deleteEval(accumName),
           memoizeValueIR(a, TStream(valueType), memo)
         )
-      case StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
+      case StreamJoinRightDistinct(left, right, l, r, compare, join, joinType) =>
         val lType = left.typ.asInstanceOf[TStream]
         val rType = right.typ.asInstanceOf[TStream]
 
@@ -1702,16 +1702,17 @@ object PruneDeadFields {
           valueName,
           rebuildIR(body, env.bindEval(accumName -> z2.typ, valueName -> a2.typ.asInstanceOf[TStream].elementType), memo)
         )
-      case StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
+      case StreamJoinRightDistinct(left, right, l, r, compare, join, joinType) =>
         val left2 = rebuildIR(left, env, memo)
         val right2 = rebuildIR(right, env, memo)
 
         val ltyp = left2.typ.asInstanceOf[TStream]
         val rtyp = right2.typ.asInstanceOf[TStream]
-        StreamLeftJoinDistinct(
+        StreamJoinRightDistinct(
           left2, right2, l, r,
           rebuildIR(compare, env.bindEval(l -> ltyp.elementType, r -> rtyp.elementType), memo),
-          rebuildIR(join, env.bindEval(l -> ltyp.elementType, r -> rtyp.elementType), memo))
+          rebuildIR(join, env.bindEval(l -> ltyp.elementType, r -> rtyp.elementType), memo),
+          joinType)
       case StreamFor(a, valueName, body) =>
         val a2 = rebuildIR(a, env, memo)
         val body2 = rebuildIR(body, env.bindEval(valueName -> a2.typ.asInstanceOf[TStream].elementType), memo)

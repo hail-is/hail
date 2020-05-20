@@ -105,7 +105,7 @@ object Children {
       Array(a) ++ accum.map(_._2) ++ seq ++ Array(result)
     case StreamScan(a, zero, accumName, valueName, body) =>
       Array(a, zero, body)
-    case StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
+    case StreamJoinRightDistinct(left, right, l, r, compare, join, joinType) =>
       Array(left, right, compare, join)
     case StreamFor(a, valueName, body) =>
       Array(a, body)

@@ -31,7 +31,7 @@ object Bindings {
     case RunAggScan(a, name, _, _, _, _) => if (i == 2 || i == 3) Array(name -> coerce[TStream](a.typ).elementType) else empty
     case StreamScan(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> coerce[TStream](a.typ).elementType) else empty
     case StreamAggScan(a, name, _) => if (i == 1) FastIndexedSeq(name -> a.typ.asInstanceOf[TStream].elementType) else empty
-    case StreamLeftJoinDistinct(ll, rr, l, r, _, _) => if (i == 2 || i == 3) Array(l -> coerce[TStream](ll.typ).elementType, r -> coerce[TStream](rr.typ).elementType) else empty
+    case StreamJoinRightDistinct(ll, rr, l, r, _, _, _) => if (i == 2 || i == 3) Array(l -> coerce[TStream](ll.typ).elementType, r -> coerce[TStream](rr.typ).elementType) else empty
     case ArraySort(a, left, right, _) => if (i == 1) Array(left -> coerce[TStream](a.typ).elementType, right -> coerce[TStream](a.typ).elementType) else empty
     case AggArrayPerElement(a, _, indexName, _, _, _) => if (i == 1) FastIndexedSeq(indexName -> TInt32) else empty
     case NDArrayMap(nd, name, _) => if (i == 1) Array(name -> coerce[TNDArray](nd.typ).elementType) else empty

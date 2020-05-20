@@ -2292,45 +2292,64 @@ class IRSuite extends HailSuite {
       FastIndexedSeq(FastIndexedSeq(4.0)))
   }
 
-  @Test def testLeftJoinRightDistinct() {
+  @Test def testJoinRightDistinct() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    def join(left: IR, right: IR, keys: IndexedSeq[String]): IR = {
+    def join(left: IR, right: IR, keys: IndexedSeq[String], joinType: String): IR = {
       val compF = { (l: IR, r: IR) =>
         ApplyComparisonOp(Compare(coerce[TStruct](l.typ).select(keys)._1), SelectFields(l, keys), SelectFields(r, keys))
       }
       val joinF = { (l: IR, r: IR) =>
-        Let("_right", r, InsertFields(l, coerce[TStruct](r.typ).fields.filter(f => !keys.contains(f.name)).map { f =>
-          f.name -> GetField(Ref("_right", r.typ), f.name)
-        }))
+        def getL(field: String): IR = GetField(Ref("_left", l.typ), field)
+        def getR(field: String): IR = GetField(Ref("_right", r.typ), field)
+        Let("_right", r,
+          Let("_left", l,
+            MakeStruct(
+              keys.map(k => k -> Coalesce(Seq(getL(k), getR(k))))
+              ++ coerce[TStruct](l.typ).fields.filter(f => !keys.contains(f.name)).map { f =>
+                f.name -> GetField(Ref("_left", l.typ), f.name)
+              } ++ coerce[TStruct](r.typ).fields.filter(f => !keys.contains(f.name)).map { f =>
+                f.name -> GetField(Ref("_right", r.typ), f.name)
+              })))
       }
-      ToArray(StreamLeftJoinDistinct(left, right, "_l", "_r",
+      ToArray(StreamJoinRightDistinct(left, right, "_l", "_r",
         compF(Ref("_l", coerce[TStream](left.typ).elementType), Ref("_r", coerce[TStream](right.typ).elementType)),
-        joinF(Ref("_l", coerce[TStream](left.typ).elementType), Ref("_r", coerce[TStream](right.typ).elementType))))
+        joinF(Ref("_l", coerce[TStream](left.typ).elementType), Ref("_r", coerce[TStream](right.typ).elementType)),
+        joinType))
     }
 
-    def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR = {
+    def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
       join(
         MakeStream.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("k1" -> (if (n == null) NA(TInt32) else I32(n)), "k2" -> Str("x"), "a" -> I64(idx))) }),
         MakeStream.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "k2" -> Str("x"), "k1" -> (if (n == null) NA(TInt32) else I32(n)), "c" -> Str("foo"))) }),
-        FastIndexedSeq("k1", "k2"))
+        FastIndexedSeq("k1", "k2"),
+        joinType)
     }
+    def leftJoinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR =
+      joinRows(left, right, "left")
+    def outerJoinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR =
+      joinRows(left, right, "outer")
 
-    assertEvalsTo(joinRows(Array[Integer](0, null), Array[Integer](1, null)), FastIndexedSeq(
+    assertEvalsTo(leftJoinRows(Array[Integer](0, null), Array[Integer](1, null)), FastIndexedSeq(
       Row(0, "x", 0L, null, null),
       Row(null, "x", 1L, 1, "foo")))
 
-    assertEvalsTo(joinRows(Array[Integer](0, 1, 2), Array[Integer](1)), FastIndexedSeq(
+    assertEvalsTo(outerJoinRows(Array[Integer](0, null), Array[Integer](1, null)), FastIndexedSeq(
+      Row(0, "x", 0L, null, null),
+      Row(1, "x", null, 0, "foo"),
+      Row(null, "x", 1L, 1, "foo")))
+
+    assertEvalsTo(leftJoinRows(Array[Integer](0, 1, 2), Array[Integer](1)), FastIndexedSeq(
       Row(0, "x", 0L, null, null),
       Row(1, "x", 1L, 0, "foo"),
       Row(2, "x", 2L, null, null)))
 
-    assertEvalsTo(joinRows(Array[Integer](0, 1, 2), Array[Integer](-1, 0, 0, 1, 1, 2, 2, 3)), FastIndexedSeq(
+    assertEvalsTo(leftJoinRows(Array[Integer](0, 1, 2), Array[Integer](-1, 0, 0, 1, 1, 2, 2, 3)), FastIndexedSeq(
       Row(0, "x", 0L, 1, "foo"),
       Row(1, "x", 1L, 3, "foo"),
       Row(2, "x", 2L, 5, "foo")))
 
-    assertEvalsTo(joinRows(Array[Integer](0, 1, 1, 2), Array[Integer](-1, 0, 0, 1, 1, 2, 2, 3)), FastIndexedSeq(
+    assertEvalsTo(leftJoinRows(Array[Integer](0, 1, 1, 2), Array[Integer](-1, 0, 0, 1, 1, 2, 2, 3)), FastIndexedSeq(
       Row(0, "x", 0L, 1, "foo"),
       Row(1, "x", 1L, 3, "foo"),
       Row(1, "x", 2L, 3, "foo"),
@@ -2753,7 +2772,7 @@ class IRSuite extends HailSuite {
       StreamFold(st, I32(0), "x", "v", v),
       StreamFold2(StreamFold(st, I32(0), "x", "v", v)),
       StreamScan(st, I32(0), "x", "v", v),
-      StreamLeftJoinDistinct(StreamRange(0, 2, 1), StreamRange(0, 3, 1), "l", "r", I32(0), I32(1)),
+      StreamJoinRightDistinct(StreamRange(0, 2, 1), StreamRange(0, 3, 1), "l", "r", I32(0), I32(1), "left"),
       StreamFor(st, "v", Void()),
       StreamAgg(st, "x", ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)),
       StreamAggScan(st, "x", ApplyScanOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)),
@@ -2822,7 +2841,7 @@ class IRSuite extends HailSuite {
       LiftMeOut(I32(1)),
       RelationalLet("x", I32(0), I32(0)),
       TailLoop("y", IndexedSeq("x" -> I32(0)), Recur("y", FastSeq(I32(4)), TInt32))
-    )
+      )
     irs.map(x => Array(x))
   }
 

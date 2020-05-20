@@ -468,7 +468,7 @@ object Stream {
       val rightEOS = mb.newLocal[Boolean]()
       val lx = mb.newEmitLocal(lElemType) // last value received from left
       val rx = mb.newEmitLocal(rElemType) // last value received from right
-      val rxOut = mb.newEmitLocal(rElemType) // B value to push (may be rNil while xB is not)
+      val rxOut = mb.newEmitLocal(rElemType.setRequired(false)) // right value to push (may be missing while rx is not)
 
       var rightSource: Source[EmitCode] = null
       val leftSource = left(
@@ -506,6 +506,98 @@ object Stream {
         setup = Code(pulledRight := false, rightEOS := false, leftSource.setup, rightSource.setup),
         close = Code(leftSource.close, rightSource.close),
         pull = leftSource.pull)
+    }
+  }
+
+  def outerJoinRightDistinct(
+    mb: EmitMethodBuilder[_],
+    lElemType: PType, left: Stream[EmitCode],
+    rElemType: PType, right: Stream[EmitCode],
+    comp: (EmitCode, EmitCode) => Code[Int]
+  ): Stream[(EmitCode, EmitCode)] = new Stream[(EmitCode, EmitCode)] {
+    def apply(eos: Code[Ctrl], push: ((EmitCode, EmitCode)) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(EmitCode, EmitCode)] = {
+      val pulledRight = mb.newLocal[Boolean]()
+      val rightEOS = mb.newLocal[Boolean]()
+      val leftEOS = mb.newLocal[Boolean]()
+      val lx = mb.newEmitLocal(lElemType) // last value received from left
+      val rx = mb.newEmitLocal(rElemType) // last value received from right
+      val lOutMissing = mb.newLocal[Boolean]("ojrd_lom")
+      val rOutMissing = mb.newLocal[Boolean]("ojrd_rom")
+      val c = mb.newLocal[Int]()
+
+      val Leos = CodeLabel()
+      Code(Leos, eos)
+      val LpullRight = CodeLabel()
+      val LpullLeft = CodeLabel()
+      val Lpush = CodeLabel()
+
+      var rightSource: Source[EmitCode] = null
+      val leftSource = left(
+        eos = rightEOS.mux(
+          Leos.goto,
+          Code(
+            leftEOS := true,
+            lOutMissing := true,
+            rOutMissing := false,
+            (pulledRight && c.cne(0)).mux(
+              Lpush.goto,
+              Code(
+                pulledRight := true,
+                LpullRight.goto)))),
+        push = a => {
+          val Lcompare = CodeLabel()
+
+          Code(Lcompare,
+            c := comp(lx, rx),
+            lOutMissing := false,
+            rOutMissing := false,
+            (c > 0).mux(
+              pulledRight.mux(
+                Code(lOutMissing := true, Lpush.goto),
+                Code(pulledRight := true, LpullRight.goto)
+              ),
+              (c < 0).mux(
+                Code(rOutMissing := true, Lpush.goto),
+                Code(
+                  (lOutMissing || rOutMissing).orEmpty(Code._fatal[Unit]("")),
+                  pulledRight := true,
+                  Lpush.goto)))
+          )
+
+          rightSource = right(
+            eos = leftEOS.mux(
+              Leos.goto,
+              Code(rightEOS := true, lOutMissing := false, rOutMissing := true, Lpush.goto)
+            ),
+            push = b => Code(
+              rx := b,
+              leftEOS.mux(
+                Code((!lOutMissing || rOutMissing).orEmpty(Code._fatal[Unit]("")), Lpush.goto),
+                Lcompare.goto
+              )))
+
+          Code(Lpush, push((lx.missingIf(mb, lOutMissing), rx.missingIf(mb, rOutMissing))))
+          Code(LpullRight, rightSource.pull)
+
+          Code(
+            lx := a,
+            pulledRight.mux[Unit](
+              rightEOS.mux[Ctrl](
+                Code((lOutMissing || !rOutMissing).orEmpty(Code._fatal[Unit]("")), Lpush.goto),
+                Code(
+                  c.ceq(0).orEmpty(pulledRight := false),
+                  Lcompare.goto)),
+              Code(pulledRight := true, LpullRight.goto)))
+        })
+
+      Code(LpullLeft, leftSource.pull)
+
+      Source[(EmitCode, EmitCode)](
+        setup0 = Code(leftSource.setup0, rightSource.setup0),
+        close0 = Code(leftSource.close0, rightSource.close0),
+        setup = Code(pulledRight := false, leftEOS := false, rightEOS := false, c := 0, leftSource.setup, rightSource.setup),
+        close = Code(leftSource.close, rightSource.close),
+        pull = leftEOS.mux(LpullRight.goto, rightEOS.mux(LpullLeft.goto, (c <= 0).mux(LpullLeft.goto, LpullRight.goto))))
     }
   }
 }
@@ -1266,41 +1358,50 @@ object EmitStream {
             SizedStream(setup, newStream, len)
           }
 
-        case StreamLeftJoinDistinct(leftIR, rightIR, leftName, rightName, compIR, joinIR) =>
+        case StreamJoinRightDistinct(leftIR, rightIR, leftName, rightName, compIR, joinIR, joinType) =>
+          assert(joinType == "left" || joinType == "outer")
           val lEltType = coerce[PStream](leftIR.pType).elementType
-          val rEltType = coerce[PStream](rightIR.pType).elementType.setRequired(false)
-          val xLElt = mb.newEmitField("join_lelt", lEltType)
-          val xRElt = mb.newEmitField("join_relt", rEltType)
-
-          val env2 = env.bind(leftName -> xLElt, rightName -> xRElt)
+          val rEltType = coerce[PStream](rightIR.pType).elementType
+          val xLElt = mb.newEmitField("join_lelt", lEltType.orMissing(joinType == "left"))
+          val xRElt = mb.newEmitField("join_relt", rEltType.setRequired(false))
+          val newEnv = env.bind(leftName -> xLElt, rightName -> xRElt)
 
           def compare(lelt: EmitCode, relt: EmitCode): Code[Int] = {
-            val compt = emitIR(compIR, env = env2)
+            val compt = emitIR(compIR, newEnv)
             Code(
               xLElt := lelt,
               xRElt := relt,
               compt.setup,
-              compt.m.orEmpty(Code._fatal[Unit]("StreamLeftJoinDistinct: comp can't be missing")),
+              compt.m.orEmpty(Code._fatal[Unit]("StreamJoinRightDistinct: comp can't be missing")),
               coerce[Int](compt.v))
+          }
+          def joinF: ((EmitCode, EmitCode)) => EmitCode = { case (lelt, relt) =>
+            val joint = emitIR(joinIR, newEnv)
+            EmitCode(
+              Code(xLElt := lelt, xRElt := relt, joint.setup),
+              joint.m,
+              joint.pv)
           }
 
           emitStream(leftIR, env).flatMap { case SizedStream(leftSetup, leftStream, leftLen) =>
             emitStream(rightIR, env).map { ss =>
               val rightStream = ss.getStream
-              val newStream = leftJoinRightDistinct(
-                mb,
-                lEltType, leftStream,
-                rEltType, rightStream,
-                compare)
-                .map { case (lelt, relt) =>
-                  val joint = emitIR(joinIR, env = env2)
-                  EmitCode(
-                    Code(xLElt := lelt, xRElt := relt, joint.setup),
-                    joint.m,
-                    joint.pv)
-                }
+              val newStream = if (joinType == "left")
+                leftJoinRightDistinct(
+                  mb,
+                  lEltType, leftStream,
+                  rEltType, rightStream,
+                  compare)
+                  .map(joinF)
+              else
+                outerJoinRightDistinct(
+                  mb,
+                  lEltType, leftStream,
+                  rEltType, rightStream,
+                  compare)
+                  .map(joinF)
 
-              SizedStream(leftSetup, newStream, leftLen)
+              SizedStream(leftSetup, newStream, if (joinType == "left") leftLen else None)
             }
           }
 

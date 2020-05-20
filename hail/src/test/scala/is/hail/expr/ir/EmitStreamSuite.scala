@@ -475,36 +475,49 @@ class EmitStreamSuite extends HailSuite {
       GetTupleElement(Ref("l", tupTyp), 0),
       GetTupleElement(Ref("r", tupTyp), 0))
 
-    def leftjoin(lstream: IR, rstream: IR): IR =
-      StreamLeftJoinDistinct(lstream, rstream,
-        "l", "r", cmp,
+    def join(lstream: IR, rstream: IR, joinType: String): IR =
+      StreamJoinRightDistinct(lstream, rstream,
+                              "l", "r", cmp,
         MakeTuple.ordered(Seq(
           GetTupleElement(Ref("l", tupTyp), 1),
-          GetTupleElement(Ref("r", tupTyp), 1))))
+          GetTupleElement(Ref("r", tupTyp), 1))),
+        joinType)
+    def leftjoin(lstream: IR, rstream: IR): IR = join(lstream, rstream, "left")
+    def outerjoin(lstream: IR, rstream: IR): IR = join(lstream, rstream, "outer")
 
     def pairs(xs: Seq[(Int, String)]): IR =
       MakeStream(xs.map { case (a, b) => MakeTuple.ordered(Seq(I32(a), Str(b))) }, TStream(tupTyp))
 
-    val tests: Array[(IR, IndexedSeq[Any])] = Array(
-      leftjoin(pairs(Seq()), pairs(Seq())) -> IndexedSeq(),
-      leftjoin(pairs(Seq(3 -> "A")), pairs(Seq())) ->
+    val tests: Array[(IR, IR, IndexedSeq[Any], IndexedSeq[Any])] = Array(
+      (pairs(Seq()), pairs(Seq()), IndexedSeq(), IndexedSeq()),
+      (pairs(Seq(3 -> "A")),
+        pairs(Seq()),
         IndexedSeq(Row("A", null)),
-      leftjoin(pairs(Seq()), pairs(Seq(3 -> "B"))) ->
+        IndexedSeq(Row("A", null))),
+      (pairs(Seq()),
+        pairs(Seq(3 -> "B")),
         IndexedSeq(),
-      leftjoin(pairs(Seq(0 -> "A")), pairs(Seq(0 -> "B"))) ->
+        IndexedSeq(Row(null, "B"))),
+      (pairs(Seq(0 -> "A")),
+        pairs(Seq(0 -> "B")),
         IndexedSeq(Row("A", "B")),
-      leftjoin(
-        pairs(Seq(0 -> "A", 2 -> "B", 3 -> "C")),
-        pairs(Seq(0 -> "a", 1 -> ".", 2 -> "b", 4 -> ".."))
-      ) -> IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", null)),
-      leftjoin(
-        pairs(Seq(0 -> "A", 1 -> "B1", 1 -> "B2")),
-        pairs(Seq(0 -> "a", 1 -> "b", 2 -> "c"))
-      ) -> IndexedSeq(Row("A", "a"), Row("B1", "b"), Row("B2", "b"))
+        IndexedSeq(Row("A", "B"))),
+      (pairs(Seq(0 -> "A", 2 -> "B", 3 -> "C")),
+        pairs(Seq(0 -> "a", 1 -> ".", 2 -> "b", 4 -> "..")),
+        IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", null)),
+        IndexedSeq(Row("A", "a"), Row(null, "."), Row("B", "b"), Row("C", null), Row(null, ".."))),
+      (pairs(Seq(0 -> "A", 1 -> "B1", 1 -> "B2")),
+        pairs(Seq(0 -> "a", 1 -> "b", 2 -> "c")),
+        IndexedSeq(Row("A", "a"), Row("B1", "b"), Row("B2", "b")),
+        IndexedSeq(Row("A", "a"), Row("B1", "b"), Row("B2", "b"), Row(null, "c")))
     )
-    for ((ir, v) <- tests) {
-      assert(evalStream(ir) == v, Pretty(ir))
-      assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
+    for ((lstream, rstream, expectedLeft, expectedOuter) <- tests) {
+      val l = leftjoin(lstream, rstream)
+      val o = outerjoin(lstream, rstream)
+      assert(evalStream(l) == expectedLeft, Pretty(l))
+      assert(evalStream(o) == expectedOuter, Pretty(o))
+      assert(evalStreamLen(l) == Some(expectedLeft.length), Pretty(l))
+      assert(evalStreamLen(o) == None, Pretty(o))
     }
   }
 

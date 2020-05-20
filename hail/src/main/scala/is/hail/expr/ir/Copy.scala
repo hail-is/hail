@@ -174,9 +174,9 @@ object Copy {
       case StreamScan(_, _, accumName, valueName, _) =>
         assert(newChildren.length == 3)
         StreamScan(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], accumName, valueName, newChildren(2).asInstanceOf[IR])
-      case StreamLeftJoinDistinct(_, _, l, r, _, _) =>
+      case StreamJoinRightDistinct(_, _, l, r, _, _, joinType) =>
         assert(newChildren.length == 4)
-        StreamLeftJoinDistinct(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], l, r, newChildren(2).asInstanceOf[IR], newChildren(3).asInstanceOf[IR])
+        StreamJoinRightDistinct(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], l, r, newChildren(2).asInstanceOf[IR], newChildren(3).asInstanceOf[IR], joinType)
       case StreamFor(_, valueName, _) =>
         assert(newChildren.length == 2)
         StreamFor(newChildren(0).asInstanceOf[IR], valueName, newChildren(1).asInstanceOf[IR])

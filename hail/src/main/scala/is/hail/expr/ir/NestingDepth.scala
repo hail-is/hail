@@ -70,7 +70,7 @@ object NestingDepth {
           computeIR(a, depth)
           computeIR(zero, depth)
           computeIR(body, depth.incrementEval)
-        case StreamLeftJoinDistinct(left, right, l, r, keyF, joinF) =>
+        case StreamJoinRightDistinct(left, right, l, r, keyF, joinF, joinType) =>
           computeIR(left, depth)
           computeIR(right, depth)
           computeIR(keyF, depth.incrementEval)

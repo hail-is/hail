@@ -73,7 +73,7 @@ class ValueIRTests(unittest.TestCase):
             ir.StreamFlatMap(sta, 'v', ir.ToStream(v)),
             ir.StreamFold(st, ir.I32(0), 'x', 'v', v),
             ir.StreamScan(st, ir.I32(0), 'x', 'v', v),
-            ir.StreamLeftJoinDistinct(st, st, 'l', 'r', ir.I32(0), ir.I32(1)),
+            ir.StreamJoinRightDistinct(st, st, 'l', 'r', ir.I32(0), ir.I32(1), "left"),
             ir.StreamFor(st, 'v', ir.Void()),
             ir.AggFilter(ir.TrueIR(), ir.I32(0), False),
             ir.AggExplode(ir.StreamRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0), False),

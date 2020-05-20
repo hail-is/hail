@@ -497,22 +497,47 @@ object Interpret {
           }
         }
 
-      case StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
+      case StreamJoinRightDistinct(left, right, l, r, compare, join, joinType) =>
         val lValue = interpret(left, env, args).asInstanceOf[IndexedSeq[Any]]
-        val rValue = interpret(right, env, args).asInstanceOf[IndexedSeq[Any]].toIterator
+        val rValue = interpret(right, env, args).asInstanceOf[IndexedSeq[Any]]
 
-        var relt: Any = if (rValue.hasNext) rValue.next() else null
+        def compF(lelt: Any, relt: Any): Int =
+          interpret(compare, env.bind(l -> lelt, r -> relt), args).asInstanceOf[Int]
+        def joinF(lelt: Any, relt: Any): Any =
+          interpret(join, env.bind(l -> lelt, r -> relt), args)
 
-        lValue.map { lelt =>
-          while (rValue.hasNext && interpret(compare, env.bind(l -> lelt, r -> relt), args).asInstanceOf[Int] > 0) {
-            relt = rValue.next()
-          }
-          if (interpret(compare, env.bind(l -> lelt, r -> relt), args).asInstanceOf[Int] == 0) {
-            interpret(join, env.bind(l -> lelt, r -> relt), args)
+        val builder = scala.collection.mutable.ArrayBuilder.make[Any]
+        var i = 0
+        var j = 0
+        while (i < lValue.length && j < rValue.length) {
+          val lelt = lValue(i)
+          val relt = rValue(j)
+          val c = compF(lelt, relt)
+          if (c < 0) {
+            builder += joinF(lelt, null)
+            i += 1
+          } else if (c > 0) {
+            if (joinType == "outer")
+              builder += joinF(null, relt)
+            j += 1
           } else {
-            interpret(join, env.bind(l -> lelt, r -> null), args)
+            builder += joinF(lelt, relt)
+            i += 1
+            if (i == lValue.length || compF(lValue(i), relt) > 0)
+              j += 1
           }
         }
+        while (i < lValue.length) {
+          builder += joinF(lValue(i), null)
+          i += 1
+        }
+        if (joinType == "outer") {
+          while (j < rValue.length) {
+            builder += joinF(null, rValue(j))
+            j += 1
+          }
+        }
+        builder.result().toFastIndexedSeq
 
       case StreamFor(a, valueName, body) =>
         val aValue = interpret(a, env, args)

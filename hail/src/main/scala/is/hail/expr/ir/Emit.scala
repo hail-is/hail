@@ -329,6 +329,18 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
     else
       tc :+ m
   }
+
+  def missingIf(mb: EmitMethodBuilder[_], cond: Code[Boolean]): EmitCode =
+    EmitCode.fromI(mb) { cb =>
+      val Ltrue = CodeLabel()
+      val Lfalse = CodeLabel()
+      cb.ifx(cond, cb.goto(Ltrue), cb.goto(Lfalse))
+      cb.define(Lfalse)
+      val eci = toI(cb)
+      cb.define(Ltrue)
+      cb.goto(eci.Lmissing)
+      eci
+    }
 }
 
 abstract class EmitSettable extends EmitValue {
