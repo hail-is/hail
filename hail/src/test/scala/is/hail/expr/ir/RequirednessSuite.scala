@@ -288,7 +288,6 @@ class RequirednessSuite extends HailSuite {
     nodes += Array(TableDistinct(table), rowType, globalType)
     nodes += Array(TableOrderBy(table, FastIndexedSeq()), rowType, globalType)
     nodes += Array(TableFilterIntervals(table, FastIndexedSeq(), true), rowType, globalType)
-    nodes += Array(RelationalLetTable("i", int(required), TableFilter(table, GetField(global, "y") < Ref("i", TInt32))), rowType, globalType)
 
     val rMap = Map("a" -> "d", "c" -> "f")
     val gMap = Map("x" -> "foo", "y" -> "bar")
