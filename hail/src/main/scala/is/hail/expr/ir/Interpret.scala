@@ -506,7 +506,7 @@ object Interpret {
         else {
           val (lKeyTyp, lGetKey) = coerce[TStruct](coerce[TStream](left.typ).elementType).select(lKey)
           val (rKeyTyp, rGetKey) = coerce[TStruct](coerce[TStream](right.typ).elementType).select(rKey)
-          assert(lKeyTyp == rKeyTyp)
+          assert(lKeyTyp isIsomorphicTo rKeyTyp)
           val keyOrd = lKeyTyp.ordering
 
           def compF(lelt: Any, relt: Any): Int =

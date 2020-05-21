@@ -2292,22 +2292,22 @@ class IRSuite extends HailSuite {
       FastIndexedSeq(FastIndexedSeq(4.0)))
   }
 
-  private def join(left: IR, right: IR, keys: IndexedSeq[String], rightDistinct: Boolean, joinType: String): IR = {
+  private def join(left: IR, right: IR, lKeys: IndexedSeq[String], rKeys: IndexedSeq[String], rightDistinct: Boolean, joinType: String): IR = {
     val joinF = { (l: IR, r: IR) =>
       def getL(field: String): IR = GetField(Ref("_left", l.typ), field)
       def getR(field: String): IR = GetField(Ref("_right", r.typ), field)
       Let("_right", r,
           Let("_left", l,
               MakeStruct(
-                keys.map(k => k -> Coalesce(Seq(getL(k), getR(k))))
-                  ++ coerce[TStruct](l.typ).fields.filter(f => !keys.contains(f.name)).map { f =>
+                (lKeys, rKeys).zipped.map { case (lk, rk) => lk -> Coalesce(Seq(getL(lk), getR(rk))) }
+                  ++ coerce[TStruct](l.typ).fields.filter(f => !lKeys.contains(f.name)).map { f =>
                   f.name -> GetField(Ref("_left", l.typ), f.name)
-                } ++ coerce[TStruct](r.typ).fields.filter(f => !keys.contains(f.name)).map { f =>
+                } ++ coerce[TStruct](r.typ).fields.filter(f => !rKeys.contains(f.name)).map { f =>
                   f.name -> GetField(Ref("_right", r.typ), f.name)
                 })))
     }
     val mkStream = if (rightDistinct) StreamJoinRightDistinct.apply _ else StreamJoin.apply _
-    ToArray(mkStream(left, right, keys, keys, "_l", "_r",
+    ToArray(mkStream(left, right, lKeys, rKeys, "_l", "_r",
                      joinF(Ref("_l", coerce[TStream](left.typ).elementType), Ref("_r", coerce[TStream](right.typ).elementType)),
                      joinType))
   }
@@ -2317,9 +2317,10 @@ class IRSuite extends HailSuite {
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
       join(
-        MakeStream.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("k1" -> (if (n == null) NA(TInt32) else I32(n)), "k2" -> Str("x"), "a" -> I64(idx))) }),
-        MakeStream.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "k2" -> Str("x"), "k1" -> (if (n == null) NA(TInt32) else I32(n)), "c" -> Str("foo"))) }),
-        FastIndexedSeq("k1", "k2"),
+        MakeStream.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("lk1" -> (if (n == null) NA(TInt32) else I32(n)), "lk2" -> Str("x"), "a" -> I64(idx))) }),
+        MakeStream.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "rk2" -> Str("x"), "rk1" -> (if (n == null) NA(TInt32) else I32(n)), "c" -> Str("foo"))) }),
+        FastIndexedSeq("lk1", "lk2"),
+        FastIndexedSeq("rk1", "rk2"),
         true,
         joinType)
     }
@@ -2333,6 +2334,7 @@ class IRSuite extends HailSuite {
         NA(TStream(TStruct("k1" -> TInt32, "k2" -> TString, "a" -> TInt64))),
         MakeStream.unify(Seq(MakeStruct(FastIndexedSeq("b" -> I32(0), "k2" -> Str("x"), "k1" -> I32(3), "c" -> Str("foo"))))),
         FastIndexedSeq("k1", "k2"),
+        FastIndexedSeq("k1", "k2"),
         true,
         "left"),
       null)
@@ -2341,6 +2343,7 @@ class IRSuite extends HailSuite {
       join(
         MakeStream.unify(Seq(MakeStruct(FastIndexedSeq("k1" -> I32(0), "k2" -> Str("x"), "a" -> I64(3))))),
         NA(TStream(TStruct("b" -> TInt32, "k2" -> TString, "k1" -> TInt32, "c" -> TString))),
+        FastIndexedSeq("k1", "k2"),
         FastIndexedSeq("k1", "k2"),
         true,
         "left"),
@@ -2381,9 +2384,10 @@ class IRSuite extends HailSuite {
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
       join(
-        MakeStream.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("k" -> (if (n == null) NA(TInt32) else I32(n)), "l" -> I32(idx))) }),
-        MakeStream.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("k" -> (if (n == null) NA(TInt32) else I32(n)), "r" -> I32(idx))) }),
-        FastIndexedSeq("k"),
+        MakeStream.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("lk" -> (if (n == null) NA(TInt32) else I32(n)), "l" -> I32(idx))) }),
+        MakeStream.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("rk" -> (if (n == null) NA(TInt32) else I32(n)), "r" -> I32(idx))) }),
+        FastIndexedSeq("lk"),
+        FastIndexedSeq("rk"),
         false,
         joinType)
     }
