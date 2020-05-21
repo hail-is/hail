@@ -238,8 +238,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           i += 1
         }
         states.bind(node, s)
-      case StreamLeftJoinDistinct(left, right, l, r, keyf, joinf) =>
-        addElementBinding(l, left)
+      case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, joinf, joinType) =>
+        addElementBinding(l, left, makeOptional = (joinType == "outer"))
         addElementBinding(r, right, makeOptional = true)
       case StreamAgg(a, name, query) =>
         addElementBinding(name, a)
@@ -392,8 +392,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamFold2(a, accums, valueName, seq, result) =>
         requiredness.union(lookup(a).required)
         requiredness.unionFrom(lookup(result))
-      case StreamLeftJoinDistinct(left, right, _, _, keyf, joinf) =>
-        requiredness.union(lookup(left).required)
+      case StreamJoinRightDistinct(left, right, _, _, _, _, joinf, joinType) =>
+        requiredness.union(lookup(left).required && lookup(right).required)
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(joinf))
       case StreamAgg(a, name, query) =>
         requiredness.union(lookup(a).required)

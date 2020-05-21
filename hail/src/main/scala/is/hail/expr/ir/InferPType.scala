@@ -139,8 +139,10 @@ object InferPType {
     case x: StreamScan => x.accPType
     case StreamFold2(a, _, `name`, _, _) => coerce[PStream](a.pType).elementType
     case x: StreamFold2 => x.accPTypes(x.nameIdx(name))
-    case StreamLeftJoinDistinct(left, _, `name`, _, _, _) => coerce[PStream](left.pType).elementType
-    case StreamLeftJoinDistinct(_, right, _, `name`, _, _) => coerce[PStream](right.pType).elementType.setRequired(false)
+    case StreamJoinRightDistinct(left, _, _, _, `name`, _, _, joinType) =>
+      coerce[PStream](left.pType).elementType.orMissing(joinType == "left")
+    case StreamJoinRightDistinct(_, right, _, _, _, `name`, _, _) =>
+      coerce[PStream](right.pType).elementType.setRequired(false)
     case RunAggScan(a, `name`, _, _, _, _) => coerce[PStream](a.pType).elementType
     case NDArrayMap(nd, `name`, _) => coerce[PNDArray](nd.pType).elementType
     case NDArrayMap2(left, _, `name`, _, _) => coerce[PNDArray](left.pType  ).elementType
@@ -310,7 +312,7 @@ object InferPType {
       case x: StreamScan =>
         val r = coerce[RIterable](requiredness(node))
         PCanonicalStream(x.accPType.setRequired(r.elementType.required), r.required)
-      case StreamLeftJoinDistinct(_, _, _, _, _, join) =>
+      case StreamJoinRightDistinct(_, _, _, _, _, _, join, _) =>
         PCanonicalStream(join.pType, requiredness(node).required)
       case NDArrayShape(nd) =>
         val r = nd.pType.asInstanceOf[PNDArray].shape.pType
