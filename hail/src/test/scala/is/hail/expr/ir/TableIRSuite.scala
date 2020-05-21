@@ -30,9 +30,11 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(node, 25L)
   }
 
-  @Test def testRangeForceCount(): Unit = {
-    val forceCountRange = TableToValueApply(TableRange(100, 2), ForceCountTable())
-    assertEvalsTo(forceCountRange, 100L)
+  @Test def testForceCount(): Unit = {
+    implicit val execStrats = ExecStrategy.interpretOnly
+    val tableRangeSize = Int.MaxValue / 20
+    val forceCountRange = TableToValueApply(TableRange(tableRangeSize, 2), ForceCountTable())
+    assertEvalsTo(forceCountRange, tableRangeSize.toLong)
   }
 
   @Test def testRangeRead() {
