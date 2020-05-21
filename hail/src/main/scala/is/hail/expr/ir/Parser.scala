@@ -2,9 +2,9 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.expr.ir.functions.RelationalFunctions
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual._
-import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.types.physical._
+import is.hail.types.virtual._
+import is.hail.types.{MatrixType, TableType}
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
 import is.hail.rvd.{AbstractRVDSpec, RVDType}
@@ -929,16 +929,18 @@ object IRParser {
         val eltType = coerce[TStream](a.typ).elementType
         val body = ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
         StreamScan(a, zero, accumName, valueName, body)
-      case "StreamLeftJoinDistinct" =>
+      case "StreamJoinRightDistinct" =>
+        val lKey = identifiers(it)
+        val rKey = identifiers(it)
         val l = identifier(it)
         val r = identifier(it)
+        val joinType = identifier(it)
         val left = ir_value_expr(env)(it)
         val right = ir_value_expr(env)(it)
         val lelt = coerce[TStream](left.typ).elementType
         val relt = coerce[TStream](right.typ).elementType
-        val comp = ir_value_expr(env.update(Map(l -> lelt, r -> relt)))(it)
         val join = ir_value_expr(env.update(Map(l -> lelt, r -> relt)))(it)
-        StreamLeftJoinDistinct(left, right, l, r, comp, join)
+        StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType)
       case "StreamFor" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)

@@ -12,15 +12,21 @@ from hailtop.utils import retry_response_returning_functions
 from hail.ir.renderer import CSERenderer
 
 from .backend import Backend
+from ..hail_logging import PythonOnlyLogger
 
 
 class ServiceBackend(Backend):
-    def __init__(self, deploy_config=None):
+    def __init__(self, deploy_config=None, skip_logging_configuration=False):
         if not deploy_config:
             deploy_config = get_deploy_config()
         self.url = deploy_config.base_url('query')
         self.headers = service_auth_headers(deploy_config, 'query')
         self._fs = None
+        self._logger = PythonOnlyLogger(skip_logging_configuration)
+
+    @property
+    def logger(self):
+        return self._logger
 
     @property
     def fs(self):

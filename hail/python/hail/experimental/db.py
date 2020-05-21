@@ -116,7 +116,7 @@ class DB:
                           for k, v in config.items()}
 
     def available_databases(self):
-        return self._by_name().keys()
+        return self.__by_name.keys()
 
     @staticmethod
     def _row_lens(rel):

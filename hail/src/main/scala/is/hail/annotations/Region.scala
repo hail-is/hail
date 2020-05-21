@@ -2,7 +2,7 @@ package is.hail.annotations
 
 import is.hail.asm4s
 import is.hail.asm4s.{Code, coerce}
-import is.hail.expr.types.physical._
+import is.hail.types.physical._
 import is.hail.utils._
 
 object Region {

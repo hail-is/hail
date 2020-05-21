@@ -2,7 +2,7 @@ package is.hail.utils.richUtils
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, coerce}
-import is.hail.expr.types.physical._
+import is.hail.types.physical._
 import is.hail.io.OutputBuffer
 
 class RichCodeOutputBuffer(out: Code[OutputBuffer]) {

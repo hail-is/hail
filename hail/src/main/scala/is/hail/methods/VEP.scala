@@ -8,9 +8,9 @@ import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.ir.{ExecuteContext, TableValue}
 import is.hail.expr.ir.functions.{RelationalFunctions, TableToTableFunction}
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PStruct, PType}
-import is.hail.expr.types.virtual._
+import is.hail.types._
+import is.hail.types.physical.{PStruct, PType}
+import is.hail.types.virtual._
 import is.hail.methods.VEP._
 import is.hail.rvd.RVD
 import is.hail.sparkextras.ContextRDD

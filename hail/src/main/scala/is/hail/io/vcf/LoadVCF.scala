@@ -8,9 +8,9 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.{ExecuteContext, GenericLine, GenericLines, GenericTableValue, IRParser, LowerMatrixIR, LoweredTableReader, MatrixHybridReader, MatrixIR, MatrixLiteral, PruneDeadFields, TableRead, TableValue}
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PBoolean, PCall, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalSet, PCanonicalString, PCanonicalStruct, PField, PFloat64, PInt32, PStruct, PType}
-import is.hail.expr.types.virtual._
+import is.hail.types._
+import is.hail.types.physical.{PBoolean, PCall, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalSet, PCanonicalString, PCanonicalStruct, PField, PFloat64, PInt32, PStruct, PType}
+import is.hail.types.virtual._
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}

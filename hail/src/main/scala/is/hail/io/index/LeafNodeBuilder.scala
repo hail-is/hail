@@ -3,9 +3,9 @@ package is.hail.io.index
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, SettableBuilder, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
-import is.hail.expr.types.encoded.EType
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.{TStruct, Type}
+import is.hail.types.encoded.EType
+import is.hail.types.physical._
+import is.hail.types.virtual.{TStruct, Type}
 import is.hail.io.OutputBuffer
 import is.hail.utils._
 

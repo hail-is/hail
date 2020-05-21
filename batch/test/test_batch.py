@@ -468,6 +468,7 @@ echo $HAIL_BATCH_WORKER_IP
         self.assertEqual(status['state'], 'Error', (status, j.log()))
         error_msg = j._get_error(status, 'main')
         assert error_msg and 'JobTimeoutError' in error_msg
+        assert j.exit_code(status) is None, status
 
     def test_client_max_size(self):
         builder = self.client.create_batch()

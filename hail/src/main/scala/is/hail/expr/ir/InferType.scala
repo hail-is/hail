@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.Nat
-import is.hail.expr.types.virtual._
+import is.hail.types.virtual._
 import is.hail.utils._
 
 // FIXME: strip all requiredness logic when possible
@@ -130,7 +130,7 @@ object InferType {
         result.typ
       case RunAggScan(_, _, _, _, result, _) =>
         TStream(result.typ)
-      case StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
+      case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType) =>
         TStream(join.typ)
       case NDArrayShape(nd) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]

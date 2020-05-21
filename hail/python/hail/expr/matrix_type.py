@@ -64,43 +64,43 @@ class tmatrix(object):
         return f'matrix {{global: {self.global_type}, col: {self.col_type}, col_key: {self._col_key_str()}, row: {self.row_type}, row_key: [{self._row_key_str()}], entry: {self.entry_type}}}'
 
     def pretty(self, indent=0, increment=4):
-        l = []
-        l.append(' ' * indent)
-        l.append('matrix {\n')
+        b = []
+        b.append(' ' * indent)
+        b.append('matrix {\n')
         indent += increment
-        
-        l.append(' ' * indent)
-        l.append('global: ')
-        self.global_type._pretty(l, indent, increment)
-        l.append(',\n')
-        
-        l.append(' ' * indent)
-        l.append('row: ')
-        self.row_type._pretty(l, indent, increment)
-        l.append(',\n')
-        
-        l.append(' ' * indent)
-        l.append(f'row_key: [{self._row_key_str()}],\n')
-        
-        l.append(' ' * indent)
-        l.append('col: ')
-        self.col_type._pretty(l, indent, increment)
-        l.append(',\n')
-        
-        l.append(' ' * indent)
-        l.append(f'col_key: [{self._col_key_str()}],\n')
-        
-        l.append(' ' * indent)
-        l.append('entry: ')
-        self.entry_type._pretty(l, indent, increment)
-        l.append('\n')
-        
+
+        b.append(' ' * indent)
+        b.append('global: ')
+        self.global_type._pretty(b, indent, increment)
+        b.append(',\n')
+
+        b.append(' ' * indent)
+        b.append('row: ')
+        self.row_type._pretty(b, indent, increment)
+        b.append(',\n')
+
+        b.append(' ' * indent)
+        b.append(f'row_key: [{self._row_key_str()}],\n')
+
+        b.append(' ' * indent)
+        b.append('col: ')
+        self.col_type._pretty(b, indent, increment)
+        b.append(',\n')
+
+        b.append(' ' * indent)
+        b.append(f'col_key: [{self._col_key_str()}],\n')
+
+        b.append(' ' * indent)
+        b.append('entry: ')
+        self.entry_type._pretty(b, indent, increment)
+        b.append('\n')
+
         indent -= increment
-        l.append(' ' * indent)
-        l.append('}')
-        
-        return ''.join(l)
- 
+        b.append(' ' * indent)
+        b.append('}')
+
+        return ''.join(b)
+
     @property
     def col_key_type(self):
         return self.col_type._select_fields(self.col_key)
@@ -108,7 +108,7 @@ class tmatrix(object):
     @property
     def col_value_type(self):
         return self.col_type._drop_fields(set(self.col_key))
-    
+
     @property
     def row_key_type(self):
         return self.row_type._select_fields(self.row_key)

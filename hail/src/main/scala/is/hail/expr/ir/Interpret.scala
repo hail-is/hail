@@ -3,8 +3,8 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.lowering.LoweringPipeline
-import is.hail.expr.types.physical.{PTuple, PType}
-import is.hail.expr.types.virtual._
+import is.hail.types.physical.{PTuple, PType}
+import is.hail.types.virtual._
 import is.hail.io.BufferSpec
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDContext
@@ -497,21 +497,55 @@ object Interpret {
           }
         }
 
-      case StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
+      case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType) =>
         val lValue = interpret(left, env, args).asInstanceOf[IndexedSeq[Any]]
-        val rValue = interpret(right, env, args).asInstanceOf[IndexedSeq[Any]].toIterator
+        val rValue = interpret(right, env, args).asInstanceOf[IndexedSeq[Any]]
 
-        var relt: Any = if (rValue.hasNext) rValue.next() else null
+        if (lValue == null || rValue == null)
+          null
+        else {
+          val (lKeyTyp, lGetKey) = coerce[TStruct](coerce[TStream](left.typ).elementType).select(lKey)
+          val (rKeyTyp, rGetKey) = coerce[TStruct](coerce[TStream](right.typ).elementType).select(rKey)
+          assert(lKeyTyp == rKeyTyp)
+          val keyOrd = lKeyTyp.ordering
 
-        lValue.map { lelt =>
-          while (rValue.hasNext && interpret(compare, env.bind(l -> lelt, r -> relt), args).asInstanceOf[Int] > 0) {
-            relt = rValue.next()
-          }
-          if (interpret(compare, env.bind(l -> lelt, r -> relt), args).asInstanceOf[Int] == 0) {
+          def compF(lelt: Any, relt: Any): Int =
+            keyOrd.compare(lGetKey(lelt.asInstanceOf[Row]), rGetKey(relt.asInstanceOf[Row]))
+          def joinF(lelt: Any, relt: Any): Any =
             interpret(join, env.bind(l -> lelt, r -> relt), args)
-          } else {
-            interpret(join, env.bind(l -> lelt, r -> null), args)
+
+          val builder = scala.collection.mutable.ArrayBuilder.make[Any]
+          var i = 0
+          var j = 0
+          while (i < lValue.length && j < rValue.length) {
+            val lelt = lValue(i)
+            val relt = rValue(j)
+            val c = compF(lelt, relt)
+            if (c < 0) {
+              builder += joinF(lelt, null)
+              i += 1
+            } else if (c > 0) {
+              if (joinType == "outer")
+                builder += joinF(null, relt)
+              j += 1
+            } else {
+              builder += joinF(lelt, relt)
+              i += 1
+              if (i == lValue.length || compF(lValue(i), relt) > 0)
+                j += 1
+            }
           }
+          while (i < lValue.length) {
+            builder += joinF(lValue(i), null)
+            i += 1
+          }
+          if (joinType == "outer") {
+            while (j < rValue.length) {
+              builder += joinF(null, rValue(j))
+              j += 1
+            }
+          }
+          builder.result().toFastIndexedSeq
         }
 
       case StreamFor(a, valueName, body) =>

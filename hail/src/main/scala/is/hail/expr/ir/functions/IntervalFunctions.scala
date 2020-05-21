@@ -3,8 +3,8 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.{PBoolean, PCanonicalInterval, PCode, PInterval, PIntervalCode, PType}
-import is.hail.expr.types.virtual.{TArray, TBoolean, TInt32, TInterval, TString, TStruct, TTuple, Type}
+import is.hail.types.physical.{PBoolean, PCanonicalInterval, PCode, PInterval, PIntervalCode, PType}
+import is.hail.types.virtual.{TArray, TBoolean, TInt32, TInterval, TString, TStruct, TTuple, Type}
 import is.hail.utils._
 
 object IntervalFunctions extends RegistryFunctions {
@@ -14,7 +14,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerEmitCode4("Interval", tv("T"), tv("T"), TBoolean, TBoolean, TInterval(tv("T")),
       { case (_: Type, startpt, endpt, includesStartPT, includesEndPT) =>
         PCanonicalInterval(
-          InferPType.getNestedElementPTypes(Seq(startpt, endpt)),
+          InferPType.getCompatiblePType(Seq(startpt, endpt)),
           required = includesStartPT.required && includesEndPT.required
         )
       }) {

@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations.{Region, RegionValue, SafeRow, WritableRegionValue}
-import is.hail.expr.types.virtual.Type
+import is.hail.types.virtual.Type
 import is.hail.utils._
 
 case class RVDPartitionInfo(

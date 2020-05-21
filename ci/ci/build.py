@@ -2,7 +2,7 @@ import abc
 import os.path
 import json
 import logging
-from collections import defaultdict
+from collections import defaultdict, Counter
 from shlex import quote as shq
 import yaml
 import jinja2
@@ -76,6 +76,10 @@ class StepParameters:
         self.name_step = name_step
 
 
+class BuildConfigurationError(Exception):
+    pass
+
+
 class BuildConfiguration:
     def __init__(self, code, config_str, scope, requested_step_names=()):
         config = yaml.safe_load(config_str)
@@ -138,6 +142,12 @@ class Step(abc.ABC):
 
         self.name = json['name']
         if 'dependsOn' in json:
+            duplicates = [
+                name
+                for name, count in Counter(json['dependsOn']).items()
+                if count > 1]
+            if duplicates:
+                raise BuildConfigurationError(f'found duplicate dependencies of {self.name}: {duplicates}')
             self.deps = [params.name_step[d] for d in json['dependsOn'] if params.name_step[d]]
         else:
             self.deps = []
@@ -194,7 +204,7 @@ class Step(abc.ABC):
             return DeployStep.from_json(params)
         if kind in ('createDatabase', 'createDatabase2'):
             return CreateDatabaseStep.from_json(params)
-        raise ValueError(f'unknown build step kind: {kind}')
+        raise BuildConfigurationError(f'unknown build step kind: {kind}')
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.name == other.name
@@ -359,7 +369,11 @@ date
 gcloud -q auth activate-service-account \
   --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
 
-gcloud -q container images untag {shq(self.image)}
+until gcloud -q container images untag {shq(self.image)} || ! gcloud -q container images describe {shq(self.image)}
+do
+    echo 'failed, will sleep 2 and retry'
+    sleep 2
+done
 
 date
 true
@@ -499,7 +513,7 @@ class CreateNamespaceStep(Step):
         elif params.scope == 'dev':
             self._name = params.code.namespace
         else:
-            raise ValueError(f"{params.scope} is not a valid scope for creating namespace")
+            raise BuildConfigurationError(f"{params.scope} is not a valid scope for creating namespace")
 
     def wrapped_job(self):
         if self.job:
@@ -644,7 +658,11 @@ date
 set -x
 date
 
-kubectl delete namespace {self._name}
+until kubectl delete namespace --ignore-not-found=true {self._name}
+do
+    echo 'failed, will sleep 2 and retry'
+    sleep 2
+done
 
 date
 true
@@ -916,11 +934,20 @@ python3 create_database.py {shq(json.dumps(create_database_config))}
         cleanup_script = f'''
 set -ex
 
-cat | mysql --defaults-extra-file=/sql-config/sql-config.cnf <<EOF
-DROP DATABASE \\`{self._name}\\`;
-DROP USER '{self.admin_username}';
-DROP USER '{self.user_username}';
+commands=$(mktemp)
+
+cat >$commands <<EOF
+DROP DATABASE IF EXISTS \\`{self._name}\\`;
+DROP USER IF EXISTS '{self.admin_username}';
+DROP USER IF EXISTS '{self.user_username}';
 EOF
+
+until mysql --defaults-extra-file=/sql-config/sql-config.cnf <$commands
+do
+    echo 'failed, will sleep 2 and retry'
+    sleep 2
+done
+
 '''
 
         self.job = batch.create_job(CI_UTILS_IMAGE,

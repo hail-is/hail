@@ -1,4 +1,5 @@
 import abc
+from ..hail_logging import Logger
 
 
 class Backend(abc.ABC):
@@ -60,6 +61,11 @@ class Backend(abc.ABC):
 
     @abc.abstractmethod
     def parse_vcf_metadata(self, path):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def logger(self):
         pass
 
     @property

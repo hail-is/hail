@@ -1229,6 +1229,10 @@ steps:
       script: /io/sql/add-batches-time-created-index.sql
     - name: change-test-worker-disk-size
       script: /io/sql/change_test_worker_disk_size.py
+    - name: add-resources
+      script: /io/sql/add-resources.sql
+    - name: insert-resources
+      script: /io/sql/insert_resources.py
    inputs:
     - from: /repo/batch/sql
       to: /io/

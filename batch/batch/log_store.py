@@ -18,7 +18,7 @@ class LogStore:
 
     def worker_log_path(self, machine_name, log_file):
         # this has to match worker startup-script
-        return f'gs://{self.worker_logs_root}/{machine_name}/{log_file}'
+        return f'{self.worker_logs_root}/{machine_name}/{log_file}'
 
     def batch_log_dir(self, batch_id):
         return f'{self.batch_logs_root}/{batch_id}'

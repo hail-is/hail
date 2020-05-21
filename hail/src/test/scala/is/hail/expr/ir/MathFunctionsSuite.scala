@@ -1,11 +1,11 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite, stats}
-import is.hail.expr.types._
+import is.hail.types._
 import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.expr.ir.functions.MathFunctions
-import is.hail.expr.types.virtual._
+import is.hail.types.virtual._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 

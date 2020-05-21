@@ -1,4 +1,4 @@
-from batch.utils import adjust_cores_for_packability
+from batch.utils import adjust_cores_for_packability, parse_memory_in_bytes
 
 
 def test_packability():
@@ -16,3 +16,9 @@ def test_packability():
     assert adjust_cores_for_packability(4000) == 4000
     assert adjust_cores_for_packability(4001) == 8000
     assert adjust_cores_for_packability(8001) == 16000
+
+
+def test_memory_str_to_bytes():
+    assert parse_memory_in_bytes('7') == 7
+    assert parse_memory_in_bytes('1K') == 1000
+    assert parse_memory_in_bytes('1Ki') == 1024

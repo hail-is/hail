@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.expr.types.virtual.TInt64
+import is.hail.types.virtual.TInt64
 import is.hail.utils.FastSeq
 import is.hail.TestUtils._
 import org.apache.spark.sql.Row

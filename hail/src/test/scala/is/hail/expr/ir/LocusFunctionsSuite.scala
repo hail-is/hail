@@ -3,8 +3,8 @@ package is.hail.expr.ir
 import is.hail.ExecStrategy
 import is.hail.HailSuite
 import is.hail.TestUtils.assertEvalsTo
-import is.hail.expr.types.physical.{PCanonicalLocus, PInterval}
-import is.hail.expr.types.virtual._
+import is.hail.types.physical.{PCanonicalLocus, PInterval}
+import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, FastSeq, Interval}
 import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.Row

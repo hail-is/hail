@@ -4,8 +4,8 @@ import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.Nat
-import is.hail.expr.types.encoded.{EFloat64Required, EBlockMatrixNDArray}
-import is.hail.expr.types.virtual._
+import is.hail.types.encoded.{EFloat64Required, EBlockMatrixNDArray}
+import is.hail.types.virtual._
 import is.hail.io.TypedCodecSpec
 import is.hail.linalg.BlockMatrix
 import is.hail.utils._

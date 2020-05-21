@@ -1,10 +1,10 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.expr.types._
+import is.hail.types._
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
-import is.hail.expr.types.virtual._
+import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite

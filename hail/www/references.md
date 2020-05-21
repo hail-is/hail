@@ -1,3 +1,4 @@
+<div id='references' style='padding:15px'>
 # Hail-Powered Science
 
 The following is an incomplete list of scientific work enabled by Hail.
@@ -9,9 +10,8 @@ print(hl.citation())
 ```
 
 Or you could include the following line in your bibliography: 
-```
-Hail Team. Hail 0.2. https://github.com/hail-is/hail
-```
+
+<pre class='sourceCode'><code>Hail Team. Hail 0.2. https://github.com/hail-is/hail</code></pre>
 
 Otherwise, we welcome you to add additional examples by [editing this page directly](https://github.com/hail-is/hail/edit/master/hail/www/references.md), after which we will review the pull request to confirm the addition is valid. Please adhere to the existing formatting conventions.
 
@@ -130,3 +130,4 @@ Otherwise, we welcome you to add additional examples by [editing this page direc
 
 *Footnote*
 In addition to software development, the Hail team engages in theoretical, algorithmic, and empirical research inspired by scientific collaboration. Examples include [Loss landscapes of regularized linear autoencoders](https://github.com/danielkunin/Regularized-Linear-Autoencoders), [Secure multi-party linear regression at plaintext speed](https://github.com/jbloom22/DASH), and [A synthetic-diploid benchmark for accurate variant-calling evaluation](https://www.nature.com/articles/s41592-018-0054-7).
+</div>

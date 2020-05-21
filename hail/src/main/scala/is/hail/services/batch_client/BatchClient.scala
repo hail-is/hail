@@ -1,9 +1,9 @@
 package is.hail.services.batch_client
 
-import java.nio.charset.{Charset, StandardCharsets}
-import java.util.Random
+import java.nio.charset.StandardCharsets
 
 import is.hail.utils._
+import is.hail.services._
 import is.hail.services.{DeployConfig, Tokens}
 import org.apache.commons.io.IOUtils
 import org.apache.http.{HttpEntity, HttpEntityEnclosingRequest}
@@ -11,9 +11,10 @@ import org.apache.http.client.methods.{HttpDelete, HttpGet, HttpPatch, HttpPost,
 import org.apache.http.entity.{ByteArrayEntity, ContentType, StringEntity}
 import org.apache.http.impl.client.{CloseableHttpClient, HttpClients}
 import org.apache.http.util.EntityUtils
-import org.json4s.JsonAST.JNull
 import org.json4s.{DefaultFormats, Formats, JObject, JValue}
 import org.json4s.jackson.JsonMethods
+
+import scala.util.Random
 
 class NoBodyException(message: String, cause: Throwable) extends Exception(message, cause) {
   def this() = this(null, null)
@@ -21,7 +22,11 @@ class NoBodyException(message: String, cause: Throwable) extends Exception(messa
   def this(message: String) = this(message, null)
 }
 
-class ClientResponseException(statusCode: Int, message: String, cause: Throwable) extends Exception(message, cause) {
+class ClientResponseException(
+  val status: Int,
+  message: String,
+  cause: Throwable
+) extends Exception(message, cause) {
   def this(statusCode: Int) = this(statusCode, null, null)
 
   def this(statusCode: Int, message: String) = this(statusCode, message, null)
@@ -36,28 +41,31 @@ class BatchClient extends AutoCloseable {
     if (body != null)
       req.asInstanceOf[HttpEntityEnclosingRequest].setEntity(body)
     Tokens.get.addServiceAuthHeaders("batch", req)
-    using(httpClient.execute(req)) { resp =>
-      val statusCode = resp.getStatusLine.getStatusCode
-      if (statusCode < 200 || statusCode >= 300) {
-        val entity = resp.getEntity
-        val message =
-          if (entity != null)
-            EntityUtils.toString(entity)
-          else
-            null
-        throw new ClientResponseException(statusCode, message)
-      }
-      val entity: HttpEntity = resp.getEntity
-      if (entity != null) {
-        using(entity.getContent) { content =>
-          val s = IOUtils.toByteArray(content)
-          if (s.isEmpty)
-            null
-          else
-            JsonMethods.parse(new String(s))
+
+    retryTransientErrors {
+      using(httpClient.execute(req)) { resp =>
+        val statusCode = resp.getStatusLine.getStatusCode
+        if (statusCode < 200 || statusCode >= 300) {
+          val entity = resp.getEntity
+          val message =
+            if (entity != null)
+              EntityUtils.toString(entity)
+            else
+              null
+          throw new ClientResponseException(statusCode, message)
         }
-      } else
-        null
+        val entity: HttpEntity = resp.getEntity
+        if (entity != null) {
+          using(entity.getContent) { content =>
+            val s = IOUtils.toByteArray(content)
+            if (s.isEmpty)
+              null
+            else
+              JsonMethods.parse(new String(s))
+          }
+        } else
+          null
+      }
     }
   }
 
@@ -134,7 +142,6 @@ class BatchClient extends AutoCloseable {
   def waitForBatch(batchID: Long): JValue = {
     implicit val formats: Formats = DefaultFormats
 
-    val random = new Random()
     val start = System.nanoTime()
 
     while (true) {
@@ -149,7 +156,7 @@ class BatchClient extends AutoCloseable {
       val elapsed = now - start
       var d = math.max(
         math.min(
-          (0.1 * (0.8 + random.nextFloat() * 0.4) * (elapsed / 1000.0 / 1000)).toInt,
+          (0.1 * (0.8 + Random.nextFloat() * 0.4) * (elapsed / 1000.0 / 1000)).toInt,
           5000),
         50)
       Thread.sleep(d)

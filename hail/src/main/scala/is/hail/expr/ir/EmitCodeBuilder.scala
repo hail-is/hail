@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s.{coerce => _, _}
-import is.hail.expr.types.physical.{PCode, PSettable, PValue}
+import is.hail.types.physical.{PCode, PSettable, PValue}
 import is.hail.utils.FastIndexedSeq
 
 object EmitCodeBuilder {

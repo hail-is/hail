@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.functions.RelationalFunctions
-import is.hail.expr.types.virtual.{TArray, TInterval, Type}
+import is.hail.types.virtual.{TArray, TInterval, Type}
 import is.hail.utils._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
@@ -275,7 +275,8 @@ object Pretty {
             case StreamFold(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
             case StreamFold2(_, acc, valueName, _, _) => prettyIdentifiers(acc.map(_._1)) + " " + prettyIdentifier(valueName)
             case StreamScan(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
-            case StreamLeftJoinDistinct(_, _, l, r, _, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
+            case StreamJoinRightDistinct(_, _, lKey, rKey, l, r, _, joinType) =>
+              s"${prettyIdentifiers(lKey)} ${prettyIdentifiers(rKey)} ${prettyIdentifier(l)} ${prettyIdentifier(r)} $joinType"
             case StreamFor(_, valueName, _) => prettyIdentifier(valueName)
             case StreamAgg(a, name, query) => prettyIdentifier(name)
             case StreamAggScan(a, name, query) => prettyIdentifier(name)

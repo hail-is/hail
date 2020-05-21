@@ -2,7 +2,7 @@ package is.hail.utils
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.annotations.Region
-import is.hail.expr.types.virtual.{TBoolean, TInt32, TStruct, TTuple}
+import is.hail.types.virtual.{TBoolean, TInt32, TStruct, TTuple}
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite

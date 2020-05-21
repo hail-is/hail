@@ -9,7 +9,7 @@ import hail
 from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, dictof
 from hail.utils import get_env_or_default
-from hail.utils.java import Env, FatalError, warn
+from hail.utils.java import Env, FatalError, warning
 from hail.backend import Backend
 
 
@@ -203,7 +203,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     spark_conf : :obj:`dict[str, str]`, optional
         Spark configuration parameters.
     skip_logging_configuration : :obj:`bool`
-        Skip logging configuration.
+        Skip logging configuration in java and python.
     local_tmpdir : obj:`str`, optional
         Local temporary directory.  Used on driver and executor nodes.
         Must use the file scheme.  Defaults to TMPDIR, or /tmp.
@@ -214,8 +214,8 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         if idempotent:
             return
         else:
-            warn('Hail has already been initialized. If this call was intended to change configuration,'
-                 ' close the session with hl.stop() first.')
+            warning('Hail has already been initialized. If this call was intended to change configuration,'
+                    ' close the session with hl.stop() first.')
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmp_dir)
@@ -239,7 +239,8 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     tmpdir=nullable(str),
     local_tmpdir=nullable(str),
     default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'),
-    global_seed=nullable(int))
+    global_seed=nullable(int),
+    skip_logging_configuration=bool)
 def init_service(
         log=None,
         quiet=False,
@@ -247,9 +248,10 @@ def init_service(
         tmpdir=None,
         local_tmpdir=None,
         default_reference='GRCh37',
-        global_seed=6348563392232659379):
+        global_seed=6348563392232659379,
+        skip_logging_configuration=False):
     from hail.backend.service_backend import ServiceBackend
-    backend = ServiceBackend()
+    backend = ServiceBackend(skip_logging_configuration)
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmpdir)

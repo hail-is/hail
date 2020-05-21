@@ -110,19 +110,20 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     page_context['wb'] = wb
     page_context['pr'] = pr
     # FIXME
-    if pr.batch:
-        if hasattr(pr.batch, 'id'):
-            status = await pr.batch.status()
-            jobs = await collect_agen(pr.batch.jobs())
+    batch = pr.batch
+    if batch:
+        if hasattr(batch, 'id'):
+            status = await batch.status()
+            jobs = await collect_agen(batch.jobs())
             for j in jobs:
                 j['duration'] = humanize_timedelta_msecs(j['duration'])
             page_context['batch'] = status
             page_context['jobs'] = jobs
             # [4:] strips off gs:/
-            page_context['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'[4:]
+            page_context['artifacts'] = f'{BUCKET}/build/{batch.attributes["token"]}'[4:]
         else:
             page_context['exception'] = '\n'.join(
-                traceback.format_exception(None, pr.batch.exception, pr.batch.exception.__traceback__))
+                traceback.format_exception(None, batch.exception, batch.exception.__traceback__))
 
     batch_client = request.app['batch_client']
     batches = batch_client.list_batches(
@@ -207,7 +208,8 @@ async def get_job(request, userdata):
         'batch_id': batch_id,
         'job_id': job_id,
         'job_log': await job.log(),
-        'job_status': json.dumps(await job.status(), indent=2)
+        'job_status': json.dumps(await job.status(), indent=2),
+        'attempts': await job.attempts()
     }
     return await render_template('ci', request, userdata, 'job.html', page_context)
 
@@ -333,20 +335,41 @@ async def post_update(request, userdata):  # pylint: disable=unused-argument
 @rest_authenticated_developers_only
 async def dev_deploy_branch(request, userdata):
     app = request.app
-    params = await request.json()
-    branch = FQBranch.from_short_str(params['branch'])
-    steps = params['steps']
+    try:
+        params = await request.json()
+    except Exception:
+        message = 'could not read body as JSON'
+        log.info('dev deploy failed: ' + message, exc_info=True)
+        raise web.HTTPBadRequest(text=message)
+
+    try:
+        branch = FQBranch.from_short_str(params['branch'])
+        steps = params['steps']
+    except Exception:
+        message = f'parameters are wrong; check the branch and steps syntax.\n\n{params}'
+        log.info('dev deploy failed: ' + message, exc_info=True)
+        raise web.HTTPBadRequest(text=message)
 
     gh = app['github_client']
     request_string = f'/repos/{branch.repo.owner}/{branch.repo.name}/git/refs/heads/{branch.name}'
-    branch_gh_json = await gh.getitem(request_string)
-    sha = branch_gh_json['object']['sha']
+
+    try:
+        branch_gh_json = await gh.getitem(request_string)
+        sha = branch_gh_json['object']['sha']
+    except Exception:
+        message = f'error finding {branch} at GitHub'
+        log.info('dev deploy failed: ' + message, exc_info=True)
+        raise web.HTTPBadRequest(text=message)
 
     unwatched_branch = UnwatchedBranch(branch, sha, userdata)
 
     batch_client = app['batch_client']
 
-    batch_id = await unwatched_branch.deploy(batch_client, steps)
+    try:
+        batch_id = await unwatched_branch.deploy(batch_client, steps)
+    except Exception as e:  # pylint: disable=broad-except
+        raise web.HTTPBadGateway(
+            text=f'starting the deploy failed due to {e}')
     return web.json_response({'sha': sha, 'batch_id': batch_id})
 
 

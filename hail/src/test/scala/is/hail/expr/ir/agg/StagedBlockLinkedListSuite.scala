@@ -6,7 +6,7 @@ import scala.collection.generic.Growable
 import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue, StagedRegionValueBuilder}
 import is.hail.asm4s.Code
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, EmitRegion}
-import is.hail.expr.types.physical._
+import is.hail.types.physical._
 import is.hail.utils._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test

@@ -10,8 +10,8 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.{BaseIR, ExecuteContext}
-import is.hail.expr.types.physical.PStruct
-import is.hail.expr.types.virtual._
+import is.hail.types.physical.PStruct
+import is.hail.types.virtual._
 import is.hail.io.fs.FS
 import is.hail.io.index._
 import is.hail.io.vcf._

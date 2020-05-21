@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering}
-import is.hail.expr.types.virtual._
+import is.hail.types.virtual._
 import is.hail.utils.IntervalEndpoint
 import org.apache.spark.sql.Row
 

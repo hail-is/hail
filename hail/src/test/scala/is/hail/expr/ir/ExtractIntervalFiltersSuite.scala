@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.TestUtils._
-import is.hail.expr.types.virtual._
+import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, FastSeq, Interval, IntervalEndpoint}
 import is.hail.variant.{Locus, ReferenceGenome}
 import is.hail.{ExecStrategy, HailSuite}

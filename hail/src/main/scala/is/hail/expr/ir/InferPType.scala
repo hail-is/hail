@@ -1,10 +1,10 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.{TNDArray, TVoid}
+import is.hail.types.physical._
+import is.hail.types.virtual.{TNDArray, TVoid}
 import is.hail.utils._
 import is.hail.HailContext
-import is.hail.expr.types.{BaseTypeWithRequiredness, TypeWithRequiredness}
+import is.hail.types.{BaseTypeWithRequiredness, RDict, RIterable, TypeWithRequiredness}
 
 object InferPType {
 
@@ -17,9 +17,8 @@ object InferPType {
     x.children.foreach(clearPTypes)
   }
 
-  // does not unify physical arg types if multiple nested seq/init ops appear; instead takes the first. The emitter checks equality.
-  def computePhysicalAgg(virt: AggStateSignature, initsAB: ArrayBuilder[RecursiveArrayBuilderElement[InitOp]],
-    seqAB: ArrayBuilder[RecursiveArrayBuilderElement[SeqOp]]): AggStatePhysicalSignature = {
+  def computePhysicalAgg(virt: AggStateSignature, initsAB: ArrayBuilder[RecursiveArrayBuilderElement[(AggOp, Seq[PType])]],
+    seqAB: ArrayBuilder[RecursiveArrayBuilderElement[(AggOp, Seq[PType])]]): AggStatePhysicalSignature = {
     val inits = initsAB.result()
     val seqs = seqAB.result()
     assert(inits.nonEmpty)
@@ -29,15 +28,15 @@ object InferPType {
         assert(inits.length == 1)
         assert(seqs.length == 2)
 
-        val iHead = inits.find(_.value.op == AggElementsLengthCheck()).get
+        val iHead = inits.find(_.value._1 == AggElementsLengthCheck()).get
         val iNested = iHead.nested.get
-        val iHeadArgTypes = iHead.value.args.map(_.pType)
+        val iHeadArgTypes = iHead.value._2
 
-        val sLCHead = seqs.find(_.value.op == AggElementsLengthCheck()).get
-        val sLCArgTypes = sLCHead.value.args.map(_.pType)
-        val sAEHead = seqs.find(_.value.op == AggElements()).get
+        val sLCHead = seqs.find(_.value._1 == AggElementsLengthCheck()).get
+        val sLCArgTypes = sLCHead.value._2
+        val sAEHead = seqs.find(_.value._1 == AggElements()).get
         val sNested = sAEHead.nested.get
-        val sHeadArgTypes = sAEHead.value.args.map(_.pType)
+        val sHeadArgTypes = sAEHead.value._2
 
         val vNested = virt.nested.get.toArray
 
@@ -52,11 +51,11 @@ object InferPType {
         assert(seqs.length == 1)
         val iHead = inits.head
         val iNested = iHead.nested.get
-        val iHeadArgTypes = iHead.value.args.map(_.pType)
+        val iHeadArgTypes = iHead.value._2
 
         val sHead = seqs.head
         val sNested = sHead.nested.get
-        val sHeadArgTypes = sHead.value.args.map(_.pType)
+        val sHeadArgTypes = sHead.value._2
 
         val vNested = virt.nested.get.toArray
 
@@ -67,50 +66,28 @@ object InferPType {
       case _ =>
         assert(inits.forall(_.nested.isEmpty))
         assert(seqs.forall(_.nested.isEmpty))
-        val initArgTypes = inits.map(i => i.value.args.map(_.pType).toArray).transpose
-          .map(ts => getNestedElementPTypes(ts))
-        val seqArgTypes = seqs.map(i => i.value.args.map(_.pType).toArray).transpose
-          .map(ts => getNestedElementPTypes(ts))
+        val initArgTypes = inits.map(i => i.value._2.toArray).transpose
+          .map(ts => getCompatiblePType(ts))
+        val seqArgTypes = seqs.map(i => i.value._2.toArray).transpose
+          .map(ts => getCompatiblePType(ts))
         virt.defaultSignature.toPhysical(initArgTypes, seqArgTypes).singletonContainer
     }
   }
 
-  def getNestedElementPTypes(ptypes: Seq[PType]): PType = {
-    assert(ptypes.forall(_.virtualType == ptypes.head.virtualType))
-    getNestedElementPTypesOfSameType(ptypes)
+  def getCompatiblePType(pTypes: Seq[PType]): PType = {
+    val r = TypeWithRequiredness.apply(pTypes.head.virtualType)
+    pTypes.foreach(r.fromPType)
+    getCompatiblePType(pTypes, r)
   }
 
-  def getNestedElementPTypesOfSameType(ptypes: Seq[PType]): PType = {
-    ptypes.head match {
-      case _: PStream =>
-        val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PStream].elementType))
-        PCanonicalStream(elementType, ptypes.forall(_.required))
-      case _: PCanonicalArray =>
-        val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PArray].elementType))
-        PCanonicalArray(elementType, ptypes.forall(_.required))
-      case _: PCanonicalSet =>
-        val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PSet].elementType))
-        PCanonicalSet(elementType, ptypes.forall(_.required))
-      case x: PStruct =>
-        PCanonicalStruct(ptypes.forall(_.required), x.fieldNames.map(fieldName =>
-          fieldName -> getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PStruct].field(fieldName).typ))
-        ): _*)
-      case x: PCanonicalTuple =>
-        PCanonicalTuple(x._types.map(pTupleField =>
-          pTupleField.copy(typ = getNestedElementPTypesOfSameType(ptypes.map { case t: PTuple => t._types(t.fieldIndex(pTupleField.index)).typ }))
-        ), ptypes.forall(_.required))
-      case _: PCanonicalDict =>
-        val keyType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PDict].keyType))
-        val valueType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PDict].valueType))
-        PCanonicalDict(keyType, valueType, ptypes.forall(_.required))
-      case _: PCanonicalInterval =>
-        val pointType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PInterval].pointType))
-        PCanonicalInterval(pointType, ptypes.forall(_.required))
-      case _ => ptypes.head.setRequired(ptypes.forall(_.required))
-    }
+  def getCompatiblePType(pTypes: Seq[PType], result: TypeWithRequiredness): PType = {
+    assert(pTypes.tail.forall(pt => pt.virtualType == pTypes.head.virtualType))
+    if (pTypes.tail.forall(pt => pt == pTypes.head))
+      pTypes.head
+    else result.canonicalPType(pTypes.head.virtualType)
   }
 
-  def apply(ir: IR, env: Env[PType]): Unit = apply(ir, env, null, null, null)
+  def apply(ir: IR): Unit = apply(ir, Env.empty, null, null, null)
 
   private type AAB[T] = Array[ArrayBuilder[RecursiveArrayBuilderElement[T]]]
 
@@ -118,401 +95,258 @@ object InferPType {
 
   def newBuilder[T](n: Int): AAB[T] = Array.fill(n)(new ArrayBuilder[RecursiveArrayBuilderElement[T]])
 
-  def apply(ir: IR, env: Env[PType], aggs: Array[AggStatePhysicalSignature], inits: AAB[InitOp], seqs: AAB[SeqOp]): Unit = {
+  def apply(ir: IR, env: Env[PType], aggs: Array[AggStatePhysicalSignature], inits: AAB[(AggOp, Seq[PType])], seqs: AAB[(AggOp, Seq[PType])]): Unit = {
     try {
-      if (aggs != null || inits != null || seqs != null || !env.isEmpty)
-          throw new NotImplementedError
-      val requiredness = Requiredness.apply(ir, null) // Value IR inference doesn't need context
-      _inferWithRequiredness(ir, requiredness)
+      val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
+      val requiredness = Requiredness.apply(ir, usesAndDefs, null, env, Some(aggs)) // Value IR inference doesn't need context
+      requiredness.states.m.foreach { case (ir, types) =>
+        ir.t match {
+          case x: StreamFold => x.accPTypes = types.map(r => r.canonicalPType(x.zero.typ))
+          case x: StreamScan => x.accPTypes = types.map(r => r.canonicalPType(x.zero.typ))
+          case x: StreamFold2 =>
+            x.accPTypes = x.accum.zip(types).map { case ((_, arg), r) => r.canonicalPType(arg.typ) }.toArray
+          case x: TailLoop =>
+            x.accPTypes = x.params.zip(types).map { case ((_, arg), r) => r.canonicalPType(arg.typ) }.toArray
+        }
+      }
+      _inferWithRequiredness(ir, env, requiredness, usesAndDefs, aggs)
+      if (inits != null || seqs != null)
+        _extractAggOps(ir, inits, seqs)
     } catch {
-      case _: NotImplementedError =>
-        try {
-          _apply(ir, env, aggs, inits, seqs)
-        } catch {
-          case e: Exception =>
-            throw new RuntimeException(s"error while inferring IR:\n${Pretty(ir)}", e)
-        }
-        VisitIR(ir) { case (node: IR) =>
-          if (node._pType == null)
-            throw new RuntimeException(s"ptype inference failure: node not inferred:\n${Pretty(node)}\n ** Full IR: **\n${Pretty(ir)}")
-        }
+      case e: Exception =>
+        throw new RuntimeException(s"error while inferring IR:\n${Pretty(ir)}", e)
+    }
+    VisitIR(ir) { case (node: IR) =>
+      if (node._pType == null)
+        throw new RuntimeException(s"ptype inference failure: node not inferred:\n${Pretty(node)}\n ** Full IR: **\n${Pretty(ir)}")
     }
   }
 
-  private def _inferWithRequiredness(node: IR, requiredness: RequirednessAnalysis): Unit = {
+  private def lookup(name: String, r: TypeWithRequiredness, defNode: IR): PType = defNode match {
+    case Let(`name`, value, _) => value.pType
+    case TailLoop(`name`, _, body) => r.canonicalPType(body.typ)
+    case x: TailLoop => x.accPTypes(x.paramIdx(name))
+    case ArraySort(a, l, r, c) => coerce[PStream](a.pType).elementType
+    case StreamMap(a, `name`, _) => coerce[PStream](a.pType).elementType
+    case x@StreamZip(as, _, _, _) =>
+      coerce[PStream](as(x.nameIdx(name)).pType).elementType.setRequired(r.required)
+    case StreamFilter(a, `name`, _) => coerce[PStream](a.pType).elementType
+    case StreamFlatMap(a, `name`, _) => coerce[PStream](a.pType).elementType
+    case StreamFor(a, `name`, _) => coerce[PStream](a.pType).elementType
+    case StreamFold(a, _, _, `name`, _) => coerce[PStream](a.pType).elementType
+    case x: StreamFold => x.accPType
+    case StreamScan(a, _, _, `name`, _) => coerce[PStream](a.pType).elementType
+    case x: StreamScan => x.accPType
+    case StreamFold2(a, _, `name`, _, _) => coerce[PStream](a.pType).elementType
+    case x: StreamFold2 => x.accPTypes(x.nameIdx(name))
+    case StreamJoinRightDistinct(left, _, _, _, `name`, _, _, joinType) =>
+      coerce[PStream](left.pType).elementType.orMissing(joinType == "left")
+    case StreamJoinRightDistinct(_, right, _, _, _, `name`, _, _) =>
+      coerce[PStream](right.pType).elementType.setRequired(false)
+    case RunAggScan(a, `name`, _, _, _, _) => coerce[PStream](a.pType).elementType
+    case NDArrayMap(nd, `name`, _) => coerce[PNDArray](nd.pType).elementType
+    case NDArrayMap2(left, _, `name`, _, _) => coerce[PNDArray](left.pType  ).elementType
+    case NDArrayMap2(_, right, _, `name`, _) => coerce[PNDArray](right.pType).elementType
+    case x@CollectDistributedArray(_, _, `name`, _, _) => x.decodedContextPType
+    case x@CollectDistributedArray(_, _, _, `name`, _) => x.decodedGlobalPType
+    case _ => throw new RuntimeException(s"$name not found in definition \n${ Pretty(defNode) }")
+  }
+
+  def _extractAggOps(node: IR, inits: AAB[(AggOp, Seq[PType])] = null, seqs: AAB[(AggOp, Seq[PType])] = null, r: Option[Memo[BaseTypeWithRequiredness]] = None): Unit =
+    node match {
+      case _: RunAgg | _: RunAggScan =>
+      case x@InitOp(i, args, sig, op) =>
+        val nested = op match {
+          case Group() =>
+            val newInits = newBuilder[(AggOp, Seq[PType])](sig.nested.get.length)
+            val IndexedSeq(initArg) = args
+            _extractAggOps(initArg, inits = newInits, seqs = null, r)
+            Some(newInits)
+          case AggElementsLengthCheck() =>
+            val newInits = newBuilder[(AggOp, Seq[PType])](sig.nested.get.length)
+            val initArg = args.last
+            _extractAggOps(initArg, inits = newInits, seqs = null, r)
+            Some(newInits)
+          case _ =>
+            assert(sig.nested.isEmpty)
+            None
+        }
+        if (inits != null) {
+          val argTypes = x.args.map { a =>
+            if (a.typ != TVoid)
+              r.map(m => coerce[TypeWithRequiredness](m.lookup(a)).canonicalPType(a.typ)).getOrElse(a.pType)
+            else PVoid
+          }
+          inits(i) += RecursiveArrayBuilderElement(x.op -> argTypes, nested)
+        }
+      case x@SeqOp(i, args, sig, op) =>
+        val nested = op match {
+          case Group() =>
+            val newSeqs = newBuilder[(AggOp, Seq[PType])](sig.nested.get.length)
+            val IndexedSeq(_, seqArg) = args
+            _extractAggOps(seqArg, inits = null, seqs = newSeqs, r)
+            Some(newSeqs)
+          case AggElements() =>
+            val newSeqs = newBuilder[(AggOp, Seq[PType])](sig.nested.get.length)
+            val IndexedSeq(_, seqArg) = args
+            _extractAggOps(seqArg, inits = null, seqs = newSeqs, r)
+            Some(newSeqs)
+          case AggElementsLengthCheck() => None
+          case _ =>
+            assert(sig.nested.isEmpty)
+            None
+        }
+        if (seqs != null) {
+          val argTypes = x.args.map { a =>
+            if (a.typ != TVoid)
+              r.map(m => coerce[TypeWithRequiredness](m.lookup(a)).canonicalPType(a.typ)).getOrElse(a.pType)
+            else PVoid
+          }
+          seqs(i) += RecursiveArrayBuilderElement(x.op -> argTypes, nested)
+        }
+      case _ => node.children.foreach(c => _extractAggOps(c.asInstanceOf[IR], inits, seqs, r))
+    }
+
+  private def _inferWithRequiredness(node: IR, env: Env[PType], requiredness: RequirednessAnalysis, usesAndDefs: UsesAndDefs, aggs: Array[AggStatePhysicalSignature] = null): Unit = {
     if (node._pType != null)
       throw new RuntimeException(node.toString)
-    node.children.foreach {
-      case x: IR => _inferWithRequiredness(x, requiredness)
-      case c => throw new RuntimeException(s"unsupported node:\n${Pretty(c)}")
+    node match {
+      case x@RunAgg(body, result, signature) =>
+        _inferWithRequiredness(body, env, requiredness, usesAndDefs)
+        val inits = newBuilder[(AggOp, Seq[PType])](signature.length)
+        val seqs = newBuilder[(AggOp, Seq[PType])](signature.length)
+        _extractAggOps(body, inits = inits, seqs = seqs)
+        val sigs = signature.indices.map { i => computePhysicalAgg(signature(i), inits(i), seqs(i)) }.toArray
+        x.physicalSignatures = sigs
+        _inferWithRequiredness(result, env, requiredness, usesAndDefs, x.physicalSignatures)
+      case x@RunAggScan(array, name, init, seq, result, signature) =>
+        _inferWithRequiredness(array, env, requiredness, usesAndDefs)
+        _inferWithRequiredness(init, env, requiredness, usesAndDefs)
+        _inferWithRequiredness(seq, env, requiredness, usesAndDefs)
+        val inits = newBuilder[(AggOp, Seq[PType])](signature.length)
+        val seqs = newBuilder[(AggOp, Seq[PType])](signature.length)
+        _extractAggOps(init, inits = inits, seqs = null)
+        _extractAggOps(seq, inits = null, seqs = seqs)
+        val sigs = signature.indices.map { i => computePhysicalAgg(signature(i), inits(i), seqs(i)) }.toArray
+        x.physicalSignatures = sigs
+        _inferWithRequiredness(result, env, requiredness, usesAndDefs, x.physicalSignatures)
+      case _ =>
+        node.children.foreach {
+          case x: IR => _inferWithRequiredness(x, env, requiredness, usesAndDefs, aggs)
+          case c => throw new RuntimeException(s"unsupported node:\n${Pretty(c)}")
+        }
     }
     node._pType = node match {
-      case x: IR if x.typ == TVoid => PVoid
-      case x: IR if requiredness.r.contains(x) => x match {
-        case a: AbstractApplyNode[_] =>
-          val pt = a.implementation.returnPType(a.returnType, a.args.map(_.pType))
-          assert(coerce[TypeWithRequiredness](requiredness.r.lookup(node)).matchesPType(pt))
-          pt
-        case x@StreamFold(a, zero, accumName, valueName, body) =>
-          x.accPType = requiredness.states.lookup(x).head.canonicalPType(zero.typ)
-          coerce[TypeWithRequiredness](requiredness.r.lookup(node)).canonicalPType(x.typ)
-        case x@StreamFold2(a, accum, valueName, seqs, result) =>
-          x.accPTypes = accum.zip(requiredness.states.lookup(x)).map { case ((_, z), r) =>
-              r.canonicalPType(z.typ)
-          }
-          coerce[TypeWithRequiredness](requiredness.r.lookup(node)).canonicalPType(x.typ)
-        case x@TailLoop(name, args, body) =>
-          x.argPTypes = args.zip(requiredness.states.lookup(x)).map { case ((_, i), r) =>
-            r.canonicalPType(i.typ)
-          }
-          coerce[TypeWithRequiredness](requiredness.r.lookup(node)).canonicalPType(x.typ)
-        case _ => coerce[TypeWithRequiredness](requiredness.r.lookup(node)).canonicalPType(x.typ)
-      }
-      case _ => throw new RuntimeException(s"unsupported node:\n${Pretty(node)}")
-    }
-  }
-  private def _apply(ir: IR, env: Env[PType], aggs: Array[AggStatePhysicalSignature], inits: AAB[InitOp], seqs: AAB[SeqOp]): Unit = {
-    if (ir._pType != null)
-      throw new RuntimeException(ir.toString)
-
-    def infer(ir: IR, env: Env[PType] = env, aggs: Array[AggStatePhysicalSignature] = aggs,
-      inits: AAB[InitOp] = inits, seqs: AAB[SeqOp] = seqs): Unit = _apply(ir, env, aggs, inits, seqs)
-
-    ir._pType = ir match {
-      case I32(_) => PInt32(true)
-      case I64(_) => PInt64(true)
-      case F32(_) => PFloat32(true)
-      case F64(_) => PFloat64(true)
-      case Str(_) => PCanonicalString(true)
-      case Literal(t, a) => PType.literalPType(t, a)
-      case True() | False() => PBoolean(true)
-      case Cast(ir, t) =>
-        infer(ir)
-        PType.canonical(t, ir.pType.required)
-      case CastRename(ir, t) =>
-        infer(ir)
-        ir.pType.deepRename(t)
-      case NA(t) =>
-        PType.canonical(t).deepInnerRequired(false)
-      case Die(msg, t) =>
-        infer(msg)
-        PType.canonical(t).deepInnerRequired(true)
-      case IsNA(ir) =>
-        infer(ir)
-        PBoolean(true)
-      case Ref(name, _) => env.lookup(name)
+      case x if x.typ == TVoid => PVoid
+      case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | _: Literal | _: True | _: False
+           | _: Cast | _: NA | _: Die | _: IsNA | _: ArrayZeros | _: ArrayLen | _: StreamLen
+           | _: LowerBoundOnOrderedCollection | _: ApplyBinaryPrimOp
+           | _: ApplyUnaryPrimOp | _: ApplyComparisonOp | _: WriteValue
+           | _: NDArrayAgg | _: ShuffleWrite | _: ShuffleStart | _: AggStateValue =>
+        requiredness(node).canonicalPType(node.typ)
+      case CastRename(v, typ) => v.pType.deepRename(typ)
+      case x: BaseRef if usesAndDefs.free.contains(RefEquality(x)) =>
+        env.lookup(x.name)
+      case x: BaseRef =>
+        lookup(x.name, requiredness(node), usesAndDefs.defs.lookup(node).asInstanceOf[IR])
       case MakeNDArray(data, shape, rowMajor) =>
-        infer(data)
-        infer(shape)
-        infer(rowMajor)
-
         val nElem = shape.pType.asInstanceOf[PTuple].size
-
-        PCanonicalNDArray(coerce[PArray](data.pType).elementType.setRequired(true), nElem, data.pType.required && shape.pType.required)
+        PCanonicalNDArray(coerce[PArray](data.pType).elementType.setRequired(true), nElem, requiredness(node).required)
       case StreamRange(start: IR, stop: IR, step: IR) =>
-        infer(start)
-        infer(stop)
-        infer(step)
-
         assert(start.pType isOfType stop.pType)
         assert(start.pType isOfType step.pType)
-
-        val allRequired = start.pType.required && stop.pType.required && step.pType.required
-        PCanonicalStream(start.pType.setRequired(true), allRequired)
-      case ArrayZeros(length) =>
-        infer(length)
-        PCanonicalArray(PInt32(true), length.pType.required)
-      case ArrayLen(a: IR) =>
-        infer(a)
-
-        PInt32(a.pType.required)
-      case LowerBoundOnOrderedCollection(orderedCollection: IR, bound: IR, _) =>
-        infer(orderedCollection)
-        infer(bound)
-
-        PInt32(orderedCollection.pType.required)
-      case Let(name, value, body) =>
-        infer(value)
-        infer(body, env.bind(name, value.pType))
-        body.pType
-      case TailLoop(_, args, body) =>
-        args.foreach { case (_, ir) => infer(ir) }
-        infer(body, env.bind(args.map { case (n, ir) => n -> ir.pType }: _*))
-        body.pType
-      case Recur(_, args, typ) =>
-        args.foreach { a => infer(a) }
-        PType.canonical(typ)
-      case ApplyBinaryPrimOp(op, l, r) =>
-        infer(l)
-        infer(r)
-
-        val vType = BinaryOp.getReturnType(op, l.pType.virtualType, r.pType.virtualType)
-        PType.canonical(vType, l.pType.required && r.pType.required)
-      case ApplyUnaryPrimOp(op, v) =>
-        infer(v)
-        PType.canonical(UnaryOp.getReturnType(op, v.pType.virtualType)).setRequired(v.pType.required)
-      case ApplyComparisonOp(op, l, r) =>
-        infer(l)
-        infer(r)
-
-        assert(l.pType isOfType r.pType)
-        op match {
-          case _: Compare => PInt32(l.pType.required && r.pType.required)
-          case _ => PBoolean(l.pType.required && r.pType.required)
-        }
-      case a: AbstractApplyNode[_] =>
-        val pTypes = a.args.map(i => {
-          infer(i)
-          i.pType
-        })
-        a.implementation.returnPType(a.returnType, pTypes)
+        PCanonicalStream(start.pType.setRequired(true), requiredness(node).required)
+      case Let(_, _, body) => body.pType
+      case TailLoop(_, _, body) => body.pType
+      case a: AbstractApplyNode[_] => a.implementation.returnPType(a.returnType, a.args.map(_.pType))
       case ArrayRef(a, i, s) =>
-        infer(a)
-        infer(i)
-        infer(s)
         assert(i.pType isOfType PInt32())
-
-        val aType = coerce[PArray](a.pType)
-        val elemType = aType.elementType
-        elemType.orMissing(a.pType.required && i.pType.required)
+        coerce[PArray](a.pType).elementType.setRequired(requiredness(node).required)
       case ArraySort(a, leftName, rightName, lessThan) =>
-        infer(a)
-        val et = coerce[PStream](a.pType).elementType
-
-        infer(lessThan, env.bind(leftName -> et, rightName -> et))
         assert(lessThan.pType.isOfType(PBoolean()))
-
-        PCanonicalArray(et, a.pType.required)
+        PCanonicalArray(coerce[PIterable](a.pType).elementType, requiredness(node).required)
       case ToSet(a) =>
-        infer(a)
-        val et = coerce[PIterable](a.pType).elementType
-        PCanonicalSet(et, a.pType.required)
+        PCanonicalSet(coerce[PIterable](a.pType).elementType, requiredness(node).required)
       case ToDict(a) =>
-        infer(a)
         val elt = coerce[PBaseStruct](coerce[PIterable](a.pType).elementType)
-        // Dict key/value types don't depend on PIterable's requiredeness because we have an interface guarantee that
-        // null PIterables are filtered out before dict construction
-        val keyRequired = elt.types(0).required
-        val valRequired = elt.types(1).required
-        PCanonicalDict(elt.types(0).setRequired(keyRequired), elt.types(1).setRequired(valRequired), a.pType.required)
+        PCanonicalDict(elt.types(0), elt.types(1), requiredness(node).required)
       case ToArray(a) =>
-        infer(a)
         val elt = coerce[PIterable](a.pType).elementType
-        PCanonicalArray(elt, a.pType.required)
+        PCanonicalArray(elt, requiredness(node).required)
       case CastToArray(a) =>
-        infer(a)
         val elt = coerce[PIterable](a.pType).elementType
-        PCanonicalArray(elt, a.pType.required)
+        PCanonicalArray(elt, requiredness(node).required)
       case ToStream(a) =>
-        infer(a)
         val elt = coerce[PIterable](a.pType).elementType
-        PCanonicalStream(elt, a.pType.required)
+        PCanonicalStream(elt, requiredness(node).required)
       case GroupByKey(collection) =>
-        infer(collection)
+        val r = coerce[RDict](requiredness(node))
         val elt = coerce[PBaseStruct](coerce[PStream](collection.pType).elementType)
-        PCanonicalDict(elt.types(0), PCanonicalArray(elt.types(1)), collection.pType.required)
-      case StreamLen(a) =>
-        infer(a)
-        PInt32(a.pType.required)
+        PCanonicalDict(elt.types(0), PCanonicalArray(elt.types(1), r.valueType.required), r.required)
       case StreamTake(a, len) =>
-        infer(a)
-        infer(len)
-        assert(len.pType isOfType PInt32())
-        assert(a.pType.isInstanceOf[PStream])
-        a.pType.orMissing(len.pType.required)
+        a.pType.setRequired(requiredness(node).required)
       case StreamDrop(a, len) =>
-        infer(a)
-        infer(len)
-        assert(len.pType isOfType PInt32())
-        assert(a.pType.isInstanceOf[PStream])
-        a.pType.orMissing(len.pType.required)
+        a.pType.setRequired(requiredness(node).required)
       case StreamGrouped(a, size) =>
-        infer(a)
-        infer(size)
+        val r = coerce[RIterable](requiredness(node))
         assert(size.pType isOfType PInt32())
         assert(a.pType.isInstanceOf[PStream])
-        PCanonicalStream(a.pType.setRequired(true), a.pType.required && size.pType.required)
+        PCanonicalStream(a.pType.setRequired(r.elementType.required), r.required)
       case StreamGroupByKey(a, key) =>
-        infer(a)
+        val r = coerce[RIterable](requiredness(node))
         val structType = a.pType.asInstanceOf[PStream].elementType.asInstanceOf[PStruct]
         assert(structType.required)
-        assert(key.forall { k =>
-          structType.fieldType(k).required
-        })
-        PCanonicalStream(a.pType.setRequired(true), a.pType.required)
+        assert(key.forall { k => structType.fieldType(k).required })
+        PCanonicalStream(a.pType.setRequired(r.elementType.required), r.required)
       case StreamMap(a, name, body) =>
-        infer(a)
-        infer(body, env.bind(name, a.pType.asInstanceOf[PStream].elementType))
-        PCanonicalStream(body.pType, a.pType.required)
+        PCanonicalStream(body.pType, requiredness(node).required)
       case StreamZip(as, names, body, behavior) =>
-        as.foreach(infer(_))
-        val e = behavior match {
-          case ArrayZipBehavior.ExtendNA =>
-            env.bindIterable(names.zip(as.map(a => -a.pType.asInstanceOf[PStream].elementType)))
-          case _ =>
-            env.bindIterable(names.zip(as.map(a => a.pType.asInstanceOf[PStream].elementType)))
-        }
-        infer(body, e)
-        PCanonicalStream(body.pType, as.forall(_.pType.required))
-      case StreamFilter(a, name, cond) =>
-        infer(a)
-        infer(cond, env = env.bind(name, a.pType.asInstanceOf[PStream].elementType))
-        a.pType
+        PCanonicalStream(body.pType, requiredness(node).required)
+      case StreamFilter(a, name, cond) => a.pType
       case StreamFlatMap(a, name, body) =>
-        infer(a)
-        infer(body, env.bind(name, a.pType.asInstanceOf[PStream].elementType))
-
-        // Whether an array must return depends on a, but element requiredeness depends on body (null a elements elided)
-        PCanonicalStream(coerce[PIterable](body.pType).elementType, a.pType.required)
-      case x@StreamFold(a, zero, accumName, valueName, body) =>
-        infer(zero)
-        infer(a)
-        val initAccType = zero.pType
-        infer(body, env.bind(accumName -> initAccType, valueName -> a.pType.asInstanceOf[PStream].elementType))
-        x.accPType = if (body.pType != initAccType) {
-          val resPType = InferPType.getNestedElementPTypes(FastSeq(body.pType, initAccType))
-          // the below does a two-pass inference to unify the accumulator with the body ptype.
-          // this is not ideal, may cause problems in the future.
-          clearPTypes(body)
-          infer(body, env.bind(accumName -> resPType, valueName -> a.pType.asInstanceOf[PStream].elementType))
-          resPType
-        } else initAccType
-        x.accPType.orMissing(a.pType.required)
-      case StreamFor(a, value, body) =>
-        infer(a)
-        infer(body, env.bind(value -> a.pType.asInstanceOf[PStream].elementType))
-        PVoid
-      case x@StreamFold2(a, acc, valueName, seq, res) =>
-        infer(a)
-        acc.foreach { case (_, accIR) => infer(accIR) }
-        var seqEnv = env.bind(acc.map { case (name, accIR) => (name, accIR.pType) }: _*)
-          .bind(valueName -> a.pType.asInstanceOf[PStream].elementType)
-        var anyMismatch = false
-        x.accPTypes = seq.zip(acc.map(_._1)).map { case (seqIR, name) =>
-          infer(seqIR, seqEnv)
-          if (seqIR.pType != seqEnv.lookup(name)) {
-            anyMismatch = true
-            val resPType = InferPType.getNestedElementPTypes(FastSeq(seqIR.pType, seqEnv.lookup(name)))
-            seqEnv = seqEnv.bind(name, resPType)
-            // the below does a two-pass inference to unify the accumulator with the body ptype.
-            // this is not ideal, may cause problems in the future.
-            resPType
-          } else seqIR.pType
-        }
-
-        acc.indices.foreach {i =>
-          clearPTypes(seq(i))
-          infer(seq(i), seqEnv)
-        }
-
-        infer(res, seqEnv.delete(valueName))
-        res.pType.setRequired(res.pType.required && a.pType.required)
-      case x@StreamScan(a, zero, accumName, valueName, body) =>
-        infer(zero)
-
-        infer(a)
-        infer(body, env.bind(accumName -> zero.pType, valueName -> a.pType.asInstanceOf[PStream].elementType))
-        val accPType = if (body.pType != zero.pType) {
-          val resPType = InferPType.getNestedElementPTypes(FastSeq(body.pType, zero.pType))
-          // the below does a two-pass inference to unify the accumulator with the body ptype.
-          // this is not ideal, may cause problems in the future.
-          clearPTypes(body)
-          infer(body, env.bind(accumName -> resPType, valueName -> a.pType.asInstanceOf[PStream].elementType))
-          resPType
-        } else zero.pType
-
-        PCanonicalStream(elementType = accPType)
-      case StreamLeftJoinDistinct(lIR, rIR, lName, rName, compare, join) =>
-        infer(lIR)
-        infer(rIR)
-        val e = env.bind(lName -> lIR.pType.asInstanceOf[PStream].elementType, rName -> -rIR.pType.asInstanceOf[PStream].elementType)
-
-        infer(compare, e)
-        infer(join, e)
-
-        PCanonicalStream(join.pType, lIR.pType.required)
+        PCanonicalStream(coerce[PIterable](body.pType).elementType, requiredness(node).required)
+      case x: StreamFold =>
+        x.accPType.setRequired(requiredness(node).required)
+      case x: StreamFold2 =>
+        x.result.pType.setRequired(requiredness(node).required)
+      case x: StreamScan =>
+        val r = coerce[RIterable](requiredness(node))
+        PCanonicalStream(x.accPType.setRequired(r.elementType.required), r.required)
+      case StreamJoinRightDistinct(_, _, _, _, _, _, join, _) =>
+        PCanonicalStream(join.pType, requiredness(node).required)
       case NDArrayShape(nd) =>
-        infer(nd)
         val r = nd.pType.asInstanceOf[PNDArray].shape.pType
-        r.setRequired(r.required && nd.pType.required)
+        r.setRequired(requiredness(node).required)
       case NDArrayReshape(nd, shape) =>
-        infer(nd)
-        infer(shape)
-
         val shapeT = shape.pType.asInstanceOf[PTuple]
         PCanonicalNDArray(coerce[PNDArray](nd.pType).elementType, shapeT.size,
-          nd.pType.required && shapeT.required && shapeT.types.forall(_.required))
+          requiredness(node).required)
       case NDArrayConcat(nds, _) =>
-        infer(nds)
         val ndtyp = coerce[PNDArray](coerce[PArray](nds.pType).elementType)
-        ndtyp.setRequired(nds.pType.required && ndtyp.required)
+        ndtyp.setRequired(requiredness(node).required)
       case NDArrayMap(nd, name, body) =>
-        infer(nd)
         val ndPType = nd.pType.asInstanceOf[PNDArray]
-        infer(body, env.bind(name -> ndPType.elementType))
-
-        PCanonicalNDArray(body.pType.setRequired(true), ndPType.nDims, nd.pType.required)
+        PCanonicalNDArray(body.pType.setRequired(true), ndPType.nDims, requiredness(node).required)
       case NDArrayMap2(l, r, lName, rName, body) =>
-        infer(l)
-        infer(r)
-
         val lPType = l.pType.asInstanceOf[PNDArray]
-        val rPType = r.pType.asInstanceOf[PNDArray]
-
-        InferPType(body, env.bind(lName -> lPType.elementType, rName -> rPType.elementType))
-
-        PCanonicalNDArray(body.pType.setRequired(true), lPType.nDims, l.pType.required && r.pType.required)
+        PCanonicalNDArray(body.pType.setRequired(true), lPType.nDims, requiredness(node).required)
       case NDArrayReindex(nd, indexExpr) =>
-        infer(nd)
-
-        PCanonicalNDArray(coerce[PNDArray](nd.pType).elementType, indexExpr.length, nd.pType.required)
+        PCanonicalNDArray(coerce[PNDArray](nd.pType).elementType, indexExpr.length, requiredness(node).required)
       case NDArrayRef(nd, idxs) =>
-        infer(nd)
-
-        var allRequired = nd.pType.required
-        val it = idxs.iterator
-        while (it.hasNext) {
-          val idxIR = it.next()
-          infer(idxIR)
-          assert(idxIR.pType.isOfType(PInt64()) || idxIR.pType.isOfType(PInt32()))
-          if (allRequired && !idxIR.pType.required) {
-            allRequired = false
-          }
-        }
-
-        coerce[PNDArray](nd.pType).elementType.setRequired(allRequired)
+        coerce[PNDArray](nd.pType).elementType.setRequired(requiredness(node).required)
       case NDArraySlice(nd, slices) =>
-        infer(nd)
-        infer(slices)
-        val slicesPT = coerce[PTuple](slices.pType)
-        val remainingDims = slicesPT.types.filter(_.isInstanceOf[PTuple])
-        PCanonicalNDArray(coerce[PNDArray](nd.pType).elementType, remainingDims.length,
-          slicesPT.required && slicesPT.types.forall(_.required)
-            && remainingDims.iterator.flatMap(t => coerce[PTuple](t).types).forall(_.required) && nd.pType.required)
-      case NDArrayFilter(nd, filters) =>
-        infer(nd)
-        filters.foreach(infer(_))
-        coerce[PNDArray](nd.pType)
+        val remainingDims = coerce[PTuple](slices.pType).types.filter(_.isInstanceOf[PTuple])
+        PCanonicalNDArray(coerce[PNDArray](nd.pType).elementType, remainingDims.length, requiredness(node).required)
+      case NDArrayFilter(nd, filters) => coerce[PNDArray](nd.pType)
       case NDArrayMatMul(l, r) =>
-        infer(l)
-        infer(r)
         val lTyp = coerce[PNDArray](l.pType)
         val rTyp = coerce[PNDArray](r.pType)
-        PCanonicalNDArray(lTyp.elementType, TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims), lTyp.required && rTyp.required)
-      case NDArrayQR(nd, mode) =>
-        infer(nd)
-        mode match {
-          case "r" => PCanonicalNDArray(PFloat64Required, 2)
-          case "raw" => PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 1))
-          case "reduced" | "complete" => PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 2))
-        }
+        PCanonicalNDArray(lTyp.elementType, TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims), requiredness(node).required)
+      case NDArrayQR(nd, mode) => NDArrayQR.pTypes(mode)
       case MakeStruct(fields) =>
-        PCanonicalStruct(true, fields.map { case (name, a) =>
-          infer(a)
-          (name, a.pType)
-        }: _ *)
+        PCanonicalStruct(requiredness(node).required,
+          fields.map { case (name, a) => (name, a.pType) }: _ *)
       case SelectFields(old, fields) =>
-        infer(old)
         if(HailContext.getFlag("use_spicy_ptypes") != null) {
           PSubsetStruct(coerce[PStruct](old.pType), fields:_*)
         } else {
@@ -520,192 +354,61 @@ object InferPType {
           tbs.selectFields(fields.toFastIndexedSeq)
         }
       case InsertFields(old, fields, fieldOrder) =>
-        infer(old)
         val tbs = coerce[PStruct](old.pType)
-
-        val s = tbs.insertFields(fields.map(f => {
-          infer(f._2)
-          (f._1, f._2.pType)
-        }))
-
+        val s = tbs.insertFields(fields.map(f => { (f._1, f._2.pType) }))
         fieldOrder.map { fds =>
           assert(fds.length == s.size)
           PCanonicalStruct(tbs.required, fds.map(f => f -> s.fieldType(f)): _*)
         }.getOrElse(s)
       case GetField(o, name) =>
-        infer(o)
         val t = coerce[PStruct](o.pType)
         if (t.index(name).isEmpty)
           throw new RuntimeException(s"$name not in $t")
-        val fd = t.field(name).typ
-        fd.setRequired(t.required && fd.required)
+        t.field(name).typ.setRequired(requiredness(node).required)
       case MakeTuple(values) =>
         PCanonicalTuple(values.map { case (idx, v) =>
-          infer(v)
           PTupleField(idx, v.pType)
-        }.toFastIndexedSeq, true)
+        }.toFastIndexedSeq, requiredness(node).required)
       case MakeArray(irs, t) =>
-        if (irs.isEmpty) {
-          PType.canonical(t, true).deepInnerRequired(true)
-        } else {
-          val elementTypes = irs.map { elt =>
-            infer(elt)
-            elt.pType
-          }
-
-          val inferredElementType = getNestedElementPTypes(elementTypes)
-          PCanonicalArray(inferredElementType, true)
-        }
+        val r = coerce[RIterable](requiredness(node))
+        if (irs.isEmpty) r.canonicalPType(t) else
+        PCanonicalArray(getCompatiblePType(irs.map(_.pType), r.elementType), r.required)
       case GetTupleElement(o, idx) =>
-        infer(o)
         val t = coerce[PTuple](o.pType)
-        val fd = t.fields(t.fieldIndex(idx)).typ
-        fd.setRequired(t.required && fd.required)
+        t.fields(t.fieldIndex(idx)).typ.setRequired(requiredness(node).required)
       case If(cond, cnsq, altr) =>
-        infer(cond)
-        infer(cnsq)
-        infer(altr)
-
         assert(cond.pType isOfType PBoolean())
-
-        val branchType = getNestedElementPTypes(IndexedSeq(cnsq.pType, altr.pType))
-
-        branchType.setRequired(branchType.required && cond.pType.required)
+        val r = requiredness(node)
+        getCompatiblePType(FastIndexedSeq(cnsq.pType, altr.pType), r).setRequired(r.required)
       case Coalesce(values) =>
-        values.foreach(v => infer(v))
-        val pt = getNestedElementPTypes(values.map(_.pType))
-        if (values.exists(_.pType.required))
-          pt.setRequired(true)
-        else
-          pt
+        val r = requiredness(node)
+        getCompatiblePType(values.map(_.pType), r).setRequired(r.required)
       case In(_, pType: PType) => pType
-      case x@CollectDistributedArray(contextsIR, globalsIR, contextsName, globalsName, bodyIR) =>
-        infer(contextsIR)
-        infer(globalsIR)
-        infer(bodyIR, env.bind(contextsName -> x.decodedContextPType, globalsName -> x.decodedGlobalPType))
-        PCanonicalArray(x.decodedBodyPType, contextsIR.pType.required)
+      case x: CollectDistributedArray =>
+        PCanonicalArray(x.decodedBodyPType, requiredness(node).required)
       case ReadPartition(context, rowType, reader) =>
-        infer(context)
         val child = reader.rowPType(rowType)
-        PCanonicalStream(child, child.required)
+        PCanonicalStream(child, requiredness(node).required)
       case ReadValue(path, spec, requestedType) =>
-        infer(path)
-        spec.decodedPType(requestedType)
-      case WriteValue(value, pathPrefix, spec) =>
-        infer(value)
-        infer(pathPrefix)
-        PCanonicalString(pathPrefix.pType.required && value.pType.required)
+        spec.decodedPType(requestedType).setRequired(requiredness(node).required)
       case MakeStream(irs, t) =>
-        if (irs.isEmpty) {
-          PType.canonical(t, true).deepInnerRequired(true)
-        } else {
-          PCanonicalStream(getNestedElementPTypes(irs.map(theIR => {
-            infer(theIR)
-            theIR.pType
-          })), true)
-        }
-      case x@InitOp(i, args, sig, op) =>
-        op match {
-          case Group() =>
-            val nested = sig.nested.get
-            val newInits = newBuilder[InitOp](nested.length)
-            val IndexedSeq(initArg) = args
-            infer(initArg, env, null, inits = newInits, seqs = null)
-            if (inits != null)
-              inits(i) += RecursiveArrayBuilderElement(x, Some(newInits))
-          case AggElementsLengthCheck() =>
-            val nested = sig.nested.get
-            val newInits = newBuilder[InitOp](nested.length)
-            val initArg = args match {
-              case Seq(len, initArg) =>
-                infer(len, env, null, null, null)
-                initArg
-              case Seq(initArg) => initArg
-            }
-            infer(initArg, env, null, inits = newInits, seqs = null)
-            if (inits != null)
-              inits(i) += RecursiveArrayBuilderElement(x, Some(newInits))
-          case _ =>
-            assert(sig.nested.isEmpty)
-            args.foreach(infer(_, env, null, null, null))
-            if (inits != null)
-              inits(i) += RecursiveArrayBuilderElement(x, None)
-        }
-        PVoid
-      case x@SeqOp(i, args, sig, op) =>
-        op match {
-          case Group() =>
-            val nested = sig.nested.get
-            val newSeqs = newBuilder[SeqOp](nested.length)
-            val IndexedSeq(k, seqArg) = args
-            infer(k, env, null, inits = null, seqs = null)
-            infer(seqArg, env, null, inits = null, seqs = newSeqs)
-            if (seqs != null)
-              seqs(i) += RecursiveArrayBuilderElement(x, Some(newSeqs))
-          case AggElements() =>
-            val nested = sig.nested.get
-            val newSeqs = newBuilder[SeqOp](nested.length)
-            val IndexedSeq(idx, seqArg) = args
-            infer(idx, env, null, inits = null, seqs = null)
-            infer(seqArg, env, null, inits = null, seqs = newSeqs)
-            if (seqs != null)
-              seqs(i) += RecursiveArrayBuilderElement(x, Some(newSeqs))
-          case AggElementsLengthCheck() =>
-            val nested = sig.nested.get
-            val IndexedSeq(idx) = args
-            infer(idx, env, null, inits = null, seqs = null)
-            if (seqs != null)
-              seqs(i) += RecursiveArrayBuilderElement(x, None)
-          case _ =>
-            assert(sig.nested.isEmpty)
-            args.foreach(infer(_, env, null, null, null))
-            if (seqs != null)
-              seqs(i) += RecursiveArrayBuilderElement(x, None)
-        }
-        PVoid
+        val r = coerce[RIterable](requiredness(node))
+        if (irs.isEmpty) r.canonicalPType(t) else
+          PCanonicalStream(getCompatiblePType(irs.map(_.pType), r.elementType), r.required)
       case x@ResultOp(resultIdx, sigs) =>
         PCanonicalTuple(true, (resultIdx until resultIdx + sigs.length).map(i => aggs(i).resultType): _*)
-      case x@RunAgg(body, result, signature) =>
-        val inits = newBuilder[InitOp](signature.length)
-        val seqs = newBuilder[SeqOp](signature.length)
-        infer(body, env, inits = inits, seqs = seqs, aggs = null)
-        val sigs = signature.indices.map { i => computePhysicalAgg(signature(i), inits(i), seqs(i)) }.toArray
-        infer(result, env, aggs = sigs, inits = null, seqs = null)
-        x.physicalSignatures = sigs
-        result.pType
+      case x@RunAgg(body, result, signature) => result.pType
       case x@RunAggScan(array, name, init, seq, result, signature) =>
-        infer(array)
-        val e2 = env.bind(name, coerce[PStream](array.pType).elementType)
-        val inits = newBuilder[InitOp](signature.length)
-        val seqs = newBuilder[SeqOp](signature.length)
-        infer(init, env = e2, inits = inits, seqs = null, aggs = null)
-        infer(seq, env = e2, inits = null, seqs = seqs, aggs = null)
-        val sigs = signature.indices.map { i => computePhysicalAgg(signature(i), inits(i), seqs(i)) }.toArray
-        infer(result, env = e2, aggs = sigs, inits = null, seqs = null)
-        x.physicalSignatures = sigs
         PCanonicalStream(result.pType, array.pType.required)
-      case AggStateValue(i, sig) => PCanonicalBinary(true)
-      case x if x.typ == TVoid =>
-        x.children.foreach(c => infer(c.asInstanceOf[IR]))
-        PVoid
-      case NDArrayAgg(nd, _) =>
-        infer(nd)
-        PType.canonical(ir.typ)
-      case ShuffleStart(_, _, _, _) =>
-        PCanonicalBinary(true)
-      case ShuffleWrite(_, _, _) =>
-        PCanonicalBinary(true)
       case ShuffleGetPartitionBounds(_, _, keyFields, rowType, keyEType) =>
         val keyPType = keyEType.decodedPType(rowType.typeAfterSelectNames(keyFields.map(_.field)))
-        PCanonicalArray(keyPType, true)
+        PCanonicalArray(keyPType, requiredness(node).required)
       case ShuffleRead(_, _, rowType, rowEType) =>
         val rowPType = rowEType.decodedPType(rowType)
-        PCanonicalStream(rowPType, true)
-      case x if x.typ == TVoid =>
-        x.children.foreach(c => infer(c.asInstanceOf[IR]))
-        PVoid
+        PCanonicalStream(rowPType, requiredness(node).required)
+      case _ => throw new RuntimeException(s"unsupported node:\n${Pretty(node)}")
     }
-    if (ir.pType.virtualType != ir.typ)
-      throw new RuntimeException(s"pType.virtualType: ${ir.pType.virtualType}, vType = ${ir.typ}\n  ir=$ir")
+    if (node.pType.virtualType != node.typ)
+      throw new RuntimeException(s"pType.virtualType: ${node.pType.virtualType}, vType = ${node.typ}\n  ir=$node")
   }
 }

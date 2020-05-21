@@ -2,7 +2,7 @@ package is.hail.variant
 
 import is.hail.annotations.Annotation
 import is.hail.check.Gen
-import is.hail.expr.types.virtual.{TArray, TCall, TInt32, TStruct}
+import is.hail.types.virtual.{TArray, TCall, TInt32, TStruct}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 

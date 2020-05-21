@@ -5,8 +5,8 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
-import is.hail.expr.types.virtual.{TArray, TFloat64, TStruct}
-import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.types.virtual.{TArray, TFloat64, TStruct}
+import is.hail.types.{MatrixType, TableType}
 import is.hail.rvd.RVDType
 import is.hail.stats._
 import is.hail.utils._

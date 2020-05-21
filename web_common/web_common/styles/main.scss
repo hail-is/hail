@@ -60,7 +60,7 @@ a {
     &:hover {
         text-decoration: underline;
         /* color: #3af */
-        
+
     }
 }
 
@@ -233,7 +233,7 @@ a {
     }
 
     tr {
-        &:nth-child(even) {
+        &:nth-of-type(even) {
             background-color: #f2f2f2;
         }
     }

@@ -1,7 +1,6 @@
-from hail.genetics.reference_genome import ReferenceGenome, reference_genome_type
-from hail.typecheck import *
-from hail.utils.java import scala_object, Env
-import hail as hl
+from hail.genetics.reference_genome import reference_genome_type
+from hail.typecheck import typecheck_method, oneof
+
 
 class Locus(object):
     """An object that represents a location in the genome.

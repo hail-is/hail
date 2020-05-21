@@ -1,8 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.CodeOrdering
-import is.hail.expr.types.physical.PType
-import is.hail.expr.types.virtual.Type
+import is.hail.types.physical.PType
+import is.hail.types.virtual.Type
 
 object ComparisonOp {
 

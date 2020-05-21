@@ -14,7 +14,11 @@ DROP TRIGGER IF EXISTS instances_before_update;
 DROP TRIGGER IF EXISTS attempts_before_update;
 DROP TRIGGER IF EXISTS attempts_after_update;
 DROP TRIGGER IF EXISTS jobs_after_update;
+DROP TRIGGER IF EXISTS attempt_resources_after_insert;
 
+DROP TABLE IF EXISTS `aggregated_batch_resources`;
+DROP TABLE IF EXISTS `aggregated_job_resources`;
+DROP TABLE IF EXISTS `attempt_resources`;
 DROP TABLE IF EXISTS `batch_cancellable_resources`;
 DROP TABLE IF EXISTS `globals`;
 DROP TABLE IF EXISTS `attempts`;
@@ -33,3 +37,4 @@ DROP TABLE IF EXISTS `billing_project_users`;
 DROP TABLE IF EXISTS `billing_projects`;
 DROP TABLE IF EXISTS `batch_migration_version`;
 DROP TABLE IF EXISTS `batch_migrations`;
+DROP TABLE IF EXISTS `resources`;

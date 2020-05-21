@@ -3,7 +3,7 @@ package is.hail.io.gen
 import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.expr.ir.{ExecuteContext, MatrixValue}
-import is.hail.expr.types.physical.{PString, PStruct}
+import is.hail.types.physical.{PString, PStruct}
 import is.hail.variant.{ArrayGenotypeView, RegionValueVariant, VariantMethods, View}
 import is.hail.utils._
 import org.apache.spark.sql.Row

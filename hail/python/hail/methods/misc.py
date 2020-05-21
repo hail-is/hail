@@ -1,15 +1,17 @@
-from typing import *
+from typing import Union
 
 import hail as hl
-from hail.expr.expressions import *
-from hail.expr.types import *
+from hail.expr import Expression, \
+    expr_numeric, expr_array, expr_interval, expr_any, \
+    construct_expr, construct_variable
+from hail.expr.types import ttuple, tlocus, tarray, tstr, tstruct
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from hail.typecheck import *
+from hail.typecheck import typecheck, nullable, func_spec, oneof
 from hail.utils import Interval, Struct, new_temp_file
 from hail.utils.misc import plural
 from hail.utils.java import Env, info
-from hail.ir import *
+from hail import ir
 
 
 @typecheck(i=Expression,
@@ -135,9 +137,9 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
 
     if tie_breaker:
         wrapped_node_t = ttuple(node_t)
-        l = construct_variable('l', wrapped_node_t)
-        r = construct_variable('r', wrapped_node_t)
-        tie_breaker_expr = hl.float64(tie_breaker(l[0], r[0]))
+        left = construct_variable('l', wrapped_node_t)
+        right = construct_variable('r', wrapped_node_t)
+        tie_breaker_expr = hl.float64(tie_breaker(left[0], right[0]))
         t, _ = source._process_joins(i, j, tie_breaker_expr)
         tie_breaker_str = str(tie_breaker_expr._ir)
     else:
@@ -149,13 +151,14 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
     edges.write(edges_path)
     edges = hl.read_table(edges_path)
 
-    mis_nodes = construct_expr(JavaIR(Env.hail().utils.Graph.pyMaximalIndependentSet(
-        Env.spark_backend('maximal_independent_set')._to_java_value_ir(edges.collect(_localize=False)._ir),
-        node_t._parsable_string(),
-        tie_breaker_str)),
-                               hl.tset(node_t))
+    mis_nodes = construct_expr(
+        ir.JavaIR(Env.hail().utils.Graph.pyMaximalIndependentSet(
+            Env.spark_backend('maximal_independent_set')._to_java_value_ir(edges.collect(_localize=False)._ir),
+            node_t._parsable_string(),
+            tie_breaker_str)),
+        hl.tset(node_t))
 
-    nodes = edges.select(node = [edges.__i, edges.__j])
+    nodes = edges.select(node=[edges.__i, edges.__j])
     nodes = nodes.explode(nodes.node)
     nodes = nodes.annotate_globals(mis_nodes=mis_nodes)
     nodes = nodes.filter(nodes.mis_nodes.contains(nodes.node), keep)
@@ -170,6 +173,7 @@ def require_col_key_str(dataset: MatrixTable, method: str):
         raise ValueError(f"Method '{method}' requires column key to be one field of type 'str', found "
                          f"{list(str(x.dtype) for x in dataset.col_key.values())}")
 
+
 def require_table_key_variant(ht, method):
     if (list(ht.key) != ['locus', 'alleles']
             or not isinstance(ht['locus'].dtype, tlocus)
@@ -177,7 +181,8 @@ def require_table_key_variant(ht, method):
         raise ValueError("Method '{}' requires key to be two fields 'locus' (type 'locus<any>') and "
                          "'alleles' (type 'array<str>')\n"
                          "  Found:{}".format(method, ''.join(
-            "\n    '{}': {}".format(k, str(ht[k].dtype)) for k in ht.key)))
+                             "\n    '{}': {}".format(k, str(ht[k].dtype)) for k in ht.key)))
+
 
 def require_row_key_variant(dataset, method):
     if isinstance(dataset, Table):
@@ -191,19 +196,20 @@ def require_row_key_variant(dataset, method):
         raise ValueError("Method '{}' requires row key to be two fields 'locus' (type 'locus<any>') and "
                          "'alleles' (type 'array<str>')\n"
                          "  Found:{}".format(method, ''.join(
-            "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)))
+                             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)))
 
 
 def require_row_key_variant_w_struct_locus(dataset, method):
     if (list(dataset.row_key) != ['locus', 'alleles']
-            or not dataset['alleles'].dtype == tarray(tstr)
-            or (not isinstance(dataset['locus'].dtype, tlocus)
-                     and dataset['locus'].dtype != hl.dtype('struct{contig: str, position: int32}'))):
+        or not dataset['alleles'].dtype == tarray(tstr)
+        or (not isinstance(dataset['locus'].dtype, tlocus)
+            and dataset['locus'].dtype != hl.dtype('struct{contig: str, position: int32}'))):
         raise ValueError("Method '{}' requires row key to be two fields 'locus'"
                          " (type 'locus<any>' or 'struct{{contig: str, position: int32}}') and "
                          "'alleles' (type 'array<str>')\n"
                          "  Found:{}".format(method, ''.join(
-            "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
+                             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
+
 
 def require_first_key_field_locus(dataset, method):
     if isinstance(dataset, Table):
@@ -215,7 +221,7 @@ def require_first_key_field_locus(dataset, method):
             or not isinstance(key[0].dtype, tlocus)):
         raise ValueError("Method '{}' requires first key field of type 'locus<any>'.\n"
                          "  Found:{}".format(method, ''.join(
-            "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)))
+                             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)))
 
 
 @typecheck(table=Table, method=str)
@@ -275,7 +281,9 @@ def rename_duplicates(dataset, name='unique_id') -> MatrixTable:
     mapping = []
     new_ids = []
 
-    fmt = lambda s, i: '{}_{}'.format(s, i)
+    def fmt(s, i):
+        return '{}_{}'.format(s, i)
+
     for s in ids:
         s_ = s
         i = 0
@@ -293,7 +301,6 @@ def rename_duplicates(dataset, name='unique_id') -> MatrixTable:
              + ''.join(f'\n  "{pre}" => "{post}"' for pre, post in mapping))
     else:
         info('No duplicate sample IDs found.')
-    uid = Env.get_uid()
     return dataset.annotate_cols(**{name: hl.literal(new_ids)[hl.int(hl.scan.count())]})
 
 
@@ -385,6 +392,6 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
     intervals = [wrap_input(i) for i in intervals]
 
     if isinstance(ds, MatrixTable):
-        return MatrixTable(MatrixFilterIntervals(ds._mir, intervals, point_type, keep))
+        return MatrixTable(ir.MatrixFilterIntervals(ds._mir, intervals, point_type, keep))
     else:
-        return Table(TableFilterIntervals(ds._tir, intervals, point_type, keep))
+        return Table(ir.TableFilterIntervals(ds._tir, intervals, point_type, keep))

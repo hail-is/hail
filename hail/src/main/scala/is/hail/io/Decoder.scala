@@ -5,7 +5,7 @@ import java.io._
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.utils.RestartableByteArrayInputStream
-import is.hail.expr.types.encoded.DecoderAsmFunction
+import is.hail.types.encoded.DecoderAsmFunction
 
 trait Decoder extends Closeable {
   def close()

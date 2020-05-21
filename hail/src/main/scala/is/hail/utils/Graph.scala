@@ -2,9 +2,9 @@ package is.hail.utils
 
 import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.types.physical.{PCanonicalTuple, PTuple, PType}
+import is.hail.types.physical.{PCanonicalTuple, PTuple, PType}
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple}
-import is.hail.expr.types.virtual._
+import is.hail.types.virtual._
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable

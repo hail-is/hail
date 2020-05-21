@@ -9,6 +9,8 @@ class Session:
         if credentials is None:
             credentials = Credentials.default_credentials()
 
+        if 'raise_for_status' not in kwargs:
+            kwargs['raise_for_status'] = True
         self._session = aiohttp.ClientSession(**kwargs)
         self._access_token = AccessToken(credentials)
 

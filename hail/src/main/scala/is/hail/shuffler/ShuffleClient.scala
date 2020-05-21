@@ -4,7 +4,7 @@ import java.io._
 
 import is.hail.annotations._
 import is.hail.expr.ir.ExecuteContext
-import is.hail.expr.types.virtual.TStruct
+import is.hail.types.virtual.TStruct
 import is.hail.io.TypedCodecSpec
 import is.hail.utils._
 import javax.net.ssl._

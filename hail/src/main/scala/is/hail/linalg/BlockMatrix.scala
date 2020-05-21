@@ -11,9 +11,9 @@ import is.hail.backend.BroadcastValue
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.Parser
 import is.hail.expr.ir.{CompileAndEvaluate, ExecuteContext, IR, TableValue}
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PFloat64Optional, PInt64, PInt64Optional, PStruct}
-import is.hail.expr.types.virtual._
+import is.hail.types._
+import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PFloat64Optional, PInt64, PInt64Optional, PStruct}
+import is.hail.types.virtual._
 import is.hail.io._
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.ContextRDD

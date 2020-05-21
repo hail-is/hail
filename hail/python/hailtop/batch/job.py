@@ -327,16 +327,26 @@ class Job:
         ...   .command(f'echo "hello"'))
         >>> b.run()
 
+        Notes
+        -----
+
+        The storage expression must be of the form {number}{suffix}
+        where valid optional suffixes are *K*, *Ki*, *M*, *Mi*,
+        *G*, *Gi*, *T*, *Ti*, *P*, and *Pi*. Omitting a suffix means
+        the value is in bytes.
+
         Parameters
         ----------
-        storage: :obj:`str`
+        storage: :obj:`str` or :obj:`int`
+            Units are in bytes if `storage` is an :obj:`int`.
 
         Returns
         -------
         :class:`.Job`
             Same job object with storage set.
         """
-        self._storage = storage
+
+        self._storage = str(storage)
         return self
 
     def memory(self, memory):
@@ -346,24 +356,33 @@ class Job:
         Examples
         --------
 
-        Set the job's memory requirement to 5GB:
+        Set the job's memory requirement to be 3Gi:
 
         >>> b = Batch()
         >>> j = b.new_job()
-        >>> (j.memory(5)
+        >>> (j.memory('3Gi')
         ...   .command(f'echo "hello"'))
         >>> b.run()
 
+        Notes
+        -----
+
+        The memory expression must be of the form {number}{suffix}
+        where valid optional suffixes are *K*, *Ki*, *M*, *Mi*,
+        *G*, *Gi*, *T*, *Ti*, *P*, and *Pi*. Omitting a suffix means
+        the value is in bytes.
+
         Parameters
         ----------
-        memory: :obj:`str` or :obj:`float` or :obj:`int`
-            Value is in GB.
+        memory: :obj:`str` or :obj:`int`
+            Units are in bytes if `memory` is an :obj:`int`.
 
         Returns
         -------
         :class:`.Job`
             Same job object with memory requirements set.
         """
+
         self._memory = str(memory)
         return self
 
@@ -371,20 +390,28 @@ class Job:
         """
         Set the job's CPU requirements.
 
+        Notes
+        -----
+
+        The string expression must be of the form {number}{suffix}
+        where the optional suffix is *m* representing millicpu.
+        Omitting a suffix means the value is in cpu.
+
         Examples
         --------
 
-        Set the job's CPU requirement to 0.1 cores:
+        Set the job's CPU requirement to 250 millicpu:
 
         >>> b = Batch()
         >>> j = b.new_job()
-        >>> (j.cpu(0.1)
+        >>> (j.cpu('250m')
         ...   .command(f'echo "hello"'))
         >>> b.run()
 
         Parameters
         ----------
-        cores: :obj:`str` or :obj:`float` or :obj:`int`
+        cores: :obj:`str` or :obj:`int` or :obj:`float`
+            Units are in cpu if `cores` is numeric.
 
         Returns
         -------

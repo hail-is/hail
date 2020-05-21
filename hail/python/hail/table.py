@@ -17,7 +17,7 @@ from hail.typecheck import typecheck, typecheck_method, dictof, anytype, \
     anyfunc, nullable, sequenceof, oneof, numeric, lazy, enumeration, \
     table_key_type
 from hail.utils.placement_tree import PlacementTree
-from hail.utils.java import Env, info, warn
+from hail.utils.java import Env, info, warning
 from hail.utils.misc import wrap_to_tuple, storage_level, plural, \
     get_nice_field_error, get_nice_attr_error, get_key_by_exprs, check_keys, \
     get_select_exprs, check_annotate_exprs, process_joins
@@ -90,8 +90,8 @@ class ExprContainer(object):
         if key in self._dir or key in self.__dict__:
             if key not in ExprContainer._warned_about:
                 ExprContainer._warned_about.add(key)
-                warn(f"Name collision: field {repr(key)} already in object dict. "
-                     f"\n  This field must be referenced with __getitem__ syntax: obj[{repr(key)}]")
+                warning(f"Name collision: field {repr(key)} already in object dict. "
+                        f"\n  This field must be referenced with __getitem__ syntax: obj[{repr(key)}]")
         else:
             self.__dict__[key] = value
 

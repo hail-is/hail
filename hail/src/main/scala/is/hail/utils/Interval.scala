@@ -3,7 +3,7 @@ package is.hail.utils
 import is.hail.annotations._
 import is.hail.check._
 import is.hail.expr.ir.IRParser
-import is.hail.expr.types.virtual.TBoolean
+import is.hail.types.virtual.TBoolean
 import org.apache.spark.sql.Row
 import org.json4s.JValue
 import org.json4s.JsonAST.JObject

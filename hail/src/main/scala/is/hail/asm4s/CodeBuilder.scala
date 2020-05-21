@@ -85,17 +85,19 @@ trait CodeBuilderLike {
     define(Lafter)
   }
 
-  def whileLoop(c: Code[Boolean], emitBody: => Unit): Unit = {
+  def whileLoop(c: Code[Boolean], emitBody: (CodeLabel) => Unit): Unit = {
     val Lstart = CodeLabel()
     val Lbody = CodeLabel()
     val Lafter = CodeLabel()
     define(Lstart)
     append(c.mux(Lbody.goto, Lafter.goto))
     define(Lbody)
-    emitBody
+    emitBody(Lstart)
     goto(Lstart)
     define(Lafter)
   }
+
+  def whileLoop(c: Code[Boolean], emitBody: => Unit): Unit = whileLoop(c, _ => emitBody)
 
   def newLocal[T](name: String)(implicit tti: TypeInfo[T]): LocalRef[T] = mb.newLocal[T](name)
 

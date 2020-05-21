@@ -1,8 +1,8 @@
 import re
 from collections import Counter
 
-from hail.typecheck import *
-from hail.utils.java import Env, FatalError, warn
+from hail.typecheck import typecheck_method, nullable, sequenceof
+from hail.utils.java import Env, FatalError, warning
 
 
 class Trio(object):
@@ -103,7 +103,7 @@ class Trio(object):
 
         if self._is_female is None:
             return None
-        
+
         return self._is_female is False
 
     @property
@@ -116,7 +116,7 @@ class Trio(object):
 
         if self._is_female is None:
             return None
-        
+
         return self._is_female is True
 
     def is_complete(self):
@@ -151,15 +151,13 @@ class Trio(object):
             if sample_id is None:
                 return "0"
             return sample_id
-        line_list = [sample_id_or_else_zero(self._fam_id), 
+        line_list = [sample_id_or_else_zero(self._fam_id),
                      self._s,
                      sample_id_or_else_zero(self._pat_id),
                      sample_id_or_else_zero(self._mat_id),
-                     self._sex_as_numeric_string(), 
+                     self._sex_as_numeric_string(),
                      "0"]
         return "\t".join(line_list)
-
-
 
 
 class Pedigree(object):
@@ -185,7 +183,7 @@ class Pedigree(object):
     @classmethod
     @typecheck_method(fam_path=str,
                       delimiter=str)
-    def read(cls, fam_path, delimiter='\s+') -> 'Pedigree':
+    def read(cls, fam_path, delimiter='\\s+') -> 'Pedigree':
         """Read a PLINK .fam file and return a pedigree object.
 
         **Examples**
@@ -223,9 +221,9 @@ class Pedigree(object):
                     missing_sex_values.add(kid)
 
                 trio = Trio(kid,
-                            fam if fam != "0" else None, 
-                            dad if dad != "0" else None, 
-                            mom if mom != "0" else None, 
+                            fam if fam != "0" else None,
+                            dad if dad != "0" else None,
+                            mom if mom != "0" else None,
                             is_female)
                 trios.append(trio)
 
@@ -235,7 +233,7 @@ class Pedigree(object):
             raise FatalError("Invalid pedigree: found duplicate proband IDs\n{}".format(duplicate_ids))
 
         if missing_sex_count > 0:
-            warn("Found {} samples with missing sex information (not 1 or 2).\n Missing samples: [{}]".format(missing_sex_count, missing_sex_values))
+            warning("Found {} samples with missing sex information (not 1 or 2).\n Missing samples: [{}]".format(missing_sex_count, missing_sex_values))
 
         return Pedigree(trios)
 
