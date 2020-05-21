@@ -74,8 +74,8 @@ Billing
 -------
 
 The cost for executing a job depends on the underlying machine type and how much CPU and
-memory is being requested. Currently, Batch runs all jobs on 16 core, preemptible, n1-standard
-machines with 100 GB of disk total. The costs are as follows:
+memory is being requested. Currently, Batch runs most jobs on 16 core, preemptible, n1-standard
+machines with 100 GB of disk total. The costs for jobs run on a 16 core machine are computed as follows:
 
 - Compute cost
    = $0.01 per core per hour
@@ -98,6 +98,10 @@ machines with 100 GB of disk total. The costs are as follows:
    = $0.01 per core per hour
 
 The sum of these costs is **$0.02170** per core per hour.
+
+Some jobs may be run on 4 core machines instead of 16 cores. In that case,
+the cost per core hour is **$0.02682**.
+
 
 .. note::
 

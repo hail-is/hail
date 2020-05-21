@@ -343,12 +343,19 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
     #     lambda v: v in valid_worker_types,
     #     f'one of {", ".join(valid_worker_types)}')
 
-    # valid_worker_cores = (1, 2, 4, 8, 16, 32, 64, 96)
+    valid_worker_cores = (1, 2, 4, 8, 16, 32, 64, 96)
     # worker_cores = validate_int(
     #     'Worker cores',
     #     post['worker_cores'],
     #     lambda v: v in valid_worker_cores,
     #     f'one of {", ".join(str(v) for v in valid_worker_cores)}')
+
+    standing_worker_cores = validate_int(
+        'Standing worker cores',
+        post['standing_worker_cores'],
+        lambda v: v in valid_worker_cores,
+        f'one of {", ".join(str(v) for v in valid_worker_cores)}'
+    )
 
     # worker_disk_size_gb = validate_int(
     #     'Worker disk size',
@@ -370,6 +377,7 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
 
     await inst_pool.configure(
         # worker_type, worker_cores, worker_disk_size_gb,
+        standing_worker_cores,
         max_instances, pool_size)
 
     set_message(session,
@@ -639,12 +647,15 @@ async def on_startup(app):
     await db.async_init(maxsize=50)
     app['db'] = db
 
-    row = await db.select_and_fetchone(
-        'SELECT worker_type, worker_cores, worker_disk_size_gb, instance_id, internal_token FROM globals;')
+    row = await db.select_and_fetchone('''
+SELECT worker_type, worker_cores, worker_disk_size_gb,
+  standing_worker_cores, instance_id, internal_token FROM globals;
+''')
 
     app['worker_type'] = row['worker_type']
     app['worker_cores'] = row['worker_cores']
     app['worker_disk_size_gb'] = row['worker_disk_size_gb']
+    app['standing_worker_cores'] = row['standing_worker_cores']
 
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')

@@ -65,11 +65,22 @@ spec:
            value: hail-batch
          - name: HAIL_WORKER_LOGS_BUCKET_NAME
            value: hail-batch-worker-logs
+         - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
+           value: "7200" # 2 hours
 {% else %}
          - name: HAIL_BATCH_BUCKET_NAME
            value: hail-test-dmk9z
          - name: HAIL_WORKER_LOGS_BUCKET_NAME
            value: hail-test-dmk9z
+         - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
+           value: "300"
+{% endif %}
+{% if deploy or scope == "test" %}
+         - name: ENABLE_STANDING_WORKER
+           value: "1"
+{% else %}
+         - name: ENABLE_STANDING_WORKER
+           value: "0"
 {% endif %}
         ports:
          - containerPort: 5000
@@ -182,11 +193,22 @@ spec:
            value: hail-batch
          - name: HAIL_WORKER_LOGS_BUCKET_NAME
            value: hail-batch-worker-logs
+         - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
+           value: "7200" # 2 hours
 {% else %}
          - name: HAIL_BATCH_BUCKET_NAME
            value: hail-test-dmk9z
          - name: HAIL_WORKER_LOGS_BUCKET_NAME
            value: hail-test-dmk9z
+         - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
+           value: "300"
+{% endif %}
+{% if deploy or scope == "test" %}
+         - name: ENABLE_STANDING_WORKER
+           value: "1"
+{% else %}
+         - name: ENABLE_STANDING_WORKER
+           value: "0"
 {% endif %}
         ports:
          - containerPort: 5000

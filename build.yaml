@@ -1234,6 +1234,8 @@ steps:
       script: /io/sql/add-resources.sql
     - name: insert-resources
       script: /io/sql/insert_resources.py
+    - name: insert-standing-worker-globals
+      script: /io/sql/insert_standing_worker_globals.py
    inputs:
     - from: /repo/batch/sql
       to: /io/
