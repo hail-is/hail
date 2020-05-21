@@ -2292,36 +2292,35 @@ class IRSuite extends HailSuite {
       FastIndexedSeq(FastIndexedSeq(4.0)))
   }
 
+  private def join(left: IR, right: IR, keys: IndexedSeq[String], rightDistinct: Boolean, joinType: String): IR = {
+    val joinF = { (l: IR, r: IR) =>
+      def getL(field: String): IR = GetField(Ref("_left", l.typ), field)
+      def getR(field: String): IR = GetField(Ref("_right", r.typ), field)
+      Let("_right", r,
+          Let("_left", l,
+              MakeStruct(
+                keys.map(k => k -> Coalesce(Seq(getL(k), getR(k))))
+                  ++ coerce[TStruct](l.typ).fields.filter(f => !keys.contains(f.name)).map { f =>
+                  f.name -> GetField(Ref("_left", l.typ), f.name)
+                } ++ coerce[TStruct](r.typ).fields.filter(f => !keys.contains(f.name)).map { f =>
+                  f.name -> GetField(Ref("_right", r.typ), f.name)
+                })))
+    }
+    val mkStream = if (rightDistinct) StreamJoinRightDistinct.apply _ else StreamJoin.apply _
+    ToArray(mkStream(left, right, keys, keys, "_l", "_r",
+                     joinF(Ref("_l", coerce[TStream](left.typ).elementType), Ref("_r", coerce[TStream](right.typ).elementType)),
+                     joinType))
+  }
+
   @Test def testJoinRightDistinct() {
     implicit val execStrats = ExecStrategy.javaOnly
-
-    def join(left: IR, right: IR, keys: IndexedSeq[String], joinType: String): IR = {
-      val compF = { (l: IR, r: IR) =>
-        ApplyComparisonOp(Compare(coerce[TStruct](l.typ).select(keys)._1), SelectFields(l, keys), SelectFields(r, keys))
-      }
-      val joinF = { (l: IR, r: IR) =>
-        def getL(field: String): IR = GetField(Ref("_left", l.typ), field)
-        def getR(field: String): IR = GetField(Ref("_right", r.typ), field)
-        Let("_right", r,
-          Let("_left", l,
-            MakeStruct(
-              keys.map(k => k -> Coalesce(Seq(getL(k), getR(k))))
-              ++ coerce[TStruct](l.typ).fields.filter(f => !keys.contains(f.name)).map { f =>
-                f.name -> GetField(Ref("_left", l.typ), f.name)
-              } ++ coerce[TStruct](r.typ).fields.filter(f => !keys.contains(f.name)).map { f =>
-                f.name -> GetField(Ref("_right", r.typ), f.name)
-              })))
-      }
-      ToArray(StreamJoinRightDistinct(left, right, keys, keys, "_l", "_r",
-        joinF(Ref("_l", coerce[TStream](left.typ).elementType), Ref("_r", coerce[TStream](right.typ).elementType)),
-        joinType))
-    }
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
       join(
         MakeStream.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("k1" -> (if (n == null) NA(TInt32) else I32(n)), "k2" -> Str("x"), "a" -> I64(idx))) }),
         MakeStream.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "k2" -> Str("x"), "k1" -> (if (n == null) NA(TInt32) else I32(n)), "c" -> Str("foo"))) }),
         FastIndexedSeq("k1", "k2"),
+        true,
         joinType)
     }
     def leftJoinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR =
@@ -2334,6 +2333,7 @@ class IRSuite extends HailSuite {
         NA(TStream(TStruct("k1" -> TInt32, "k2" -> TString, "a" -> TInt64))),
         MakeStream.unify(Seq(MakeStruct(FastIndexedSeq("b" -> I32(0), "k2" -> Str("x"), "k1" -> I32(3), "c" -> Str("foo"))))),
         FastIndexedSeq("k1", "k2"),
+        true,
         "left"),
       null)
 
@@ -2342,6 +2342,7 @@ class IRSuite extends HailSuite {
         MakeStream.unify(Seq(MakeStruct(FastIndexedSeq("k1" -> I32(0), "k2" -> Str("x"), "a" -> I64(3))))),
         NA(TStream(TStruct("b" -> TInt32, "k2" -> TString, "k1" -> TInt32, "c" -> TString))),
         FastIndexedSeq("k1", "k2"),
+        true,
         "left"),
       null)
 
@@ -2373,6 +2374,63 @@ class IRSuite extends HailSuite {
       Row(1, "x", 1L, 3, "foo"),
       Row(1, "x", 2L, 3, "foo"),
       Row(2, "x", 3L, 5, "foo")))
+  }
+
+  @Test def testStreamJoin() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
+    def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
+      join(
+        MakeStream.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("k" -> (if (n == null) NA(TInt32) else I32(n)), "l" -> I32(idx))) }),
+        MakeStream.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("k" -> (if (n == null) NA(TInt32) else I32(n)), "r" -> I32(idx))) }),
+        FastIndexedSeq("k"),
+        false,
+        joinType)
+    }
+    def leftJoinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR =
+      joinRows(left, right, "left")
+    def outerJoinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR =
+      joinRows(left, right, "outer")
+    def innerJoinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR =
+      joinRows(left, right, "inner")
+    def rightJoinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR =
+      joinRows(left, right, "right")
+
+    assertEvalsTo(leftJoinRows(Array[Integer](1, 1, 2, 2), Array[Integer](0, 0, 1, 1, 3, 3)), FastIndexedSeq(
+      Row(1, 0, 2),
+      Row(1, 0, 3),
+      Row(1, 1, 2),
+      Row(1, 1, 3),
+      Row(2, 2, null),
+      Row(2, 3, null)))
+
+    assertEvalsTo(outerJoinRows(Array[Integer](1, 1, 2, 2), Array[Integer](0, 0, 1, 1, 3, 3)), FastIndexedSeq(
+      Row(0, null, 0),
+      Row(0, null, 1),
+      Row(1, 0, 2),
+      Row(1, 0, 3),
+      Row(1, 1, 2),
+      Row(1, 1, 3),
+      Row(2, 2, null),
+      Row(2, 3, null),
+      Row(3, null, 4),
+      Row(3, null, 5)))
+
+    assertEvalsTo(innerJoinRows(Array[Integer](1, 1, 2, 2), Array[Integer](0, 0, 1, 1, 3, 3)), FastIndexedSeq(
+      Row(1, 0, 2),
+      Row(1, 0, 3),
+      Row(1, 1, 2),
+      Row(1, 1, 3)))
+
+    assertEvalsTo(rightJoinRows(Array[Integer](1, 1, 2, 2), Array[Integer](0, 0, 1, 1, 3, 3)), FastIndexedSeq(
+      Row(0, null, 0),
+      Row(0, null, 1),
+      Row(1, 0, 2),
+      Row(1, 0, 3),
+      Row(1, 1, 2),
+      Row(1, 1, 3),
+      Row(3, null, 4),
+      Row(3, null, 5)))
   }
 
   @Test def testDie() {

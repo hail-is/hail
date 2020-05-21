@@ -1380,11 +1380,16 @@ object EmitStream {
           }
 
           def joinF: ((EmitCode, EmitCode)) => EmitCode = { case (lelt, relt) =>
-            val joint = emitIR(joinIR, newEnv)
-            EmitCode(
-              Code(xLElt := lelt, xRElt := relt, joint.setup),
-              joint.m,
-              joint.pv)
+            val joint = joinIR.pType match {
+              case streamType: PCanonicalStream => COption.toEmitCode(
+                emitStream(joinIR, newEnv)
+                  .map(ss => PCanonicalStreamCode(streamType, ss.getStream)),
+                mb)
+              case _ =>
+                emitIR (joinIR, newEnv)
+            }
+
+            EmitCode(Code(xLElt := lelt, xRElt := relt), joint)
           }
 
           emitStream(leftIR, env).flatMap { case SizedStream(leftSetup, leftStream, leftLen) =>
