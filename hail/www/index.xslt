@@ -19,7 +19,7 @@
         </div>
         <div id="features" class="about dark">
             <div class="header-wrap" styel="justify-content: space-between">
-                <h1>Features</h1><a class="button" href="/tutorial.html" style='align-self: flex-end;'>Learn More ></a>
+                <h1>Features</h1>
             </div>
             <div class="about-content columns">
                 <section>
