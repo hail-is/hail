@@ -330,11 +330,11 @@ class RequirednessSuite extends HailSuite {
     val expr = makestruct("collect" -> collect, "callstats" -> callstats)
 
     nodes += Array(
-      TableKeyByAndAggregate(table, makestruct("a" -> GetField(row, "a")), expr, None, 5),
+      TableKeyByAndAggregate(table, expr, makestruct("a" -> GetField(row, "a")), None, 5),
       PCanonicalStruct(required,
+        "a" -> rowType.fieldType("a"),
         "collect" -> PCanonicalArray(rowType.fieldType("b"), required),
-        "callstats" -> CallStatsState.resultType,
-        "a" -> rowType.fieldType("a")),
+        "callstats" -> CallStatsState.resultType),
       globalType)
 
     nodes += Array(
