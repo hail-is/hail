@@ -512,7 +512,7 @@ object LowerTableIR {
           val commonKeyLength = right.typ.keyType.size
           val loweredLeft = lower(left)
           val leftKeyToRightKeyMap = left.typ.keyType.fieldNames.zip(right.typ.keyType.fieldNames).toMap
-          val newRightPartitioner = loweredLeft.partitioner.strictify.coarsen(commonKeyLength)
+          val newRightPartitioner = loweredLeft.partitioner.coarsen(commonKeyLength)
             .rename(leftKeyToRightKeyMap)
           val loweredRight = lower(right).repartitionNoShuffle(newRightPartitioner)
 
