@@ -140,7 +140,7 @@ object InferPType {
     case StreamFold2(a, _, `name`, _, _) => coerce[PStream](a.pType).elementType
     case x: StreamFold2 => x.accPTypes(x.nameIdx(name))
     case StreamJoinRightDistinct(left, _, _, _, `name`, _, _, joinType) =>
-      coerce[PStream](left.pType).elementType.setRequired(joinType == "left")
+      coerce[PStream](left.pType).elementType.orMissing(joinType == "left")
     case StreamJoinRightDistinct(_, right, _, _, _, `name`, _, _) =>
       coerce[PStream](right.pType).elementType.setRequired(false)
     case RunAggScan(a, `name`, _, _, _, _) => coerce[PStream](a.pType).elementType
