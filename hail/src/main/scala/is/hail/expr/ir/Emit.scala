@@ -675,6 +675,13 @@ class Emit[C](
         presentC(const(true))
       case False() =>
         presentC(const(false))
+      case Consume(value) => {
+        val iec = emitI(value)
+        iec.map(cb){pc =>
+          // Ignore pc, just return a 1
+          PCode(ir.pType, 1L)
+        }
+      }
 
       case Cast(v, typ) =>
         val iec = emitI(v)

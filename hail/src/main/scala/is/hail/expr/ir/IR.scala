@@ -107,6 +107,8 @@ final case class Coalesce(values: Seq[IR]) extends IR {
   require(values.nonEmpty)
 }
 
+final case class Consume(value: IR) extends IR
+
 final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 
 final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) extends IR
