@@ -9,17 +9,19 @@
     <xsl:template match="body">
         <div id="hero">
             <div id="hero-background"></div>
-            <div id="hero-content">
-                <h1 id="logo-title">Powering biobank-scale genomics</h1>
-                <subtitle id="logo-subtitle">An open-source library for scalable genomic data exploration</subtitle>
+            <div id="hero-content" class='wide'>
+                <h1 id="logo-title">Powering genomic analysis, at every scale</h1>
+                <subtitle class="logo-subtitle">An open-source library for scalable genomic data exploration</subtitle>
                 <div style="display: flex;" id="hero-button-container">
-                    <a class="button" href="/docs/0.2/getting_started.html#installation">Install</a><a class="button" href="#features">Features</a>
+                    <a class="button" href="#install">Install</a>
+                    <a class="button" href="/gethelp.html">Get Help</a>
+                    <a class="button" href="#features">Features</a>
                 </div>
             </div>
         </div>
         <div id="features" class="about dark">
             <div class="header-wrap" styel="justify-content: space-between">
-                <h1>Features</h1><a class="button" href="/tutorial.html" style='align-self: flex-end;'>Learn More ></a>
+                <h1>Features</h1>
             </div>
             <div class="about-content columns">
                 <section>
@@ -40,7 +42,8 @@
                 </section>
                 <section>
                     <h4>Input Unification</h4>
-                    The <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">Hail
+                    The
+                    <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">Hail
                         MatrixTable</a> unifies a wide range of input formats (e.g. vcf, bgen, plink, tsv, gtf, bed files),
                     and supports scalable queries, even on petabyte-size datasets.
                     By leveraging MatrixTable, Hail provides an integrated, scalable analysis platform for science.

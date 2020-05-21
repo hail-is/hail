@@ -1,0 +1,91 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hail</title>
+<link rel="shortcut icon" href="/hail_logo_sq-sm-opt.ico" type="image/x-icon">
+<meta name="description" content="Hail Overview">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/navbar.css">
+<script>
+                    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+                    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+                    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+                    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+                    ga('create', 'UA-86050742-1', 'auto');
+                    ga('send', 'pageview');
+                </script>
+</head>
+<body>
+<nav class="navbar align-content-start justify-content-start sticky" id="hail-navbar"><div class="container-fluid align-content-start justify-content-start d-flex" id="hail-container-fluid">
+<div class="navbar-header" id="hail-navbar-header">
+<a class="navbar-left" id="hail-navbar-brand" href="/"><img alt="Hail" height="30" id="logo" src="/hail-logo-cropped-sm-opt.png"></a><button type="button" id="navbar-toggler" class="navbar-toggler" data-toggle="collapse" data-target="#hail-navbar-collapse" aria-expanded="false"><span class="icon-bar"></span><span class="icon-bar"></span><span class="icon-bar"></span></button>
+</div>
+<div class="collapse navbar-collapse" id="hail-navbar-collapse"><ul class="nav navbar-nav navbar-right" id="hail-menu">
+<li class="nav-item"><a href="/docs/0.2/index.html">Docs</a></li>
+<li class="nav-item"><a href="https://discuss.hail.is">Forum</a></li>
+<li class="nav-item"><a href="/references.html">Powered-Science</a></li>
+<li class="nav-item"><a href="https://blog.hail.is/">Blog</a></li>
+<li class="nav-item"><a href="https://workshop.hail.is">Workshop</a></li>
+<li class="nav-item" style="margin-top:-2px"><a href="https://github.com/hail-is/hail" class="img-link" target="_blank"><img width="20" src="/GitHub-Mark-64px.png"></a></li>
+</ul></div>
+<script>
+                                
+                                    const cached = document.getElementById("hail-navbar-collapse");
+                                    document.getElementById("navbar-toggler").addEventListener("click", () => {
+                                        const computed = getComputedStyle(cached);
+
+                                        if (computed.display == 'none') {
+                                        cached.style.display = 'block';
+                                        } else {
+                                        cached.style.display = 'none';
+                                        }
+                                    });
+                                    (function(){
+                                        var cpage = location.pathname;
+                                        var menuItems = document.querySelectorAll('#hail-menu a');
+
+                                        for (var i = 0; i < menuItems.length; i++) {
+                                            if (menuItems[i].pathname === cpage && menuItems[i].host == location.host) {
+                                                menuItems[i].className = "active";
+                                                return;
+                                            }
+                                        }
+
+                                        if (cpage === "/" || cpage === "/index.html") {
+                                            document.getElementById('hail-navbar-brand').className = "active";
+                                        };
+                                    })();
+                                
+                            </script>
+</div></nav><span id="gethelp" class="non-home"><div id="hero" style="height:calc(25vh - 50px); min-height: 250px; background: #2a3a8c; color: #fff"><div id="hero-content" style="box-shadow: none; background: inherit" class="wide">
+<h1 id="logo-title" style="background: inherit; color: inherit;animation: none">Get Help!</h1>
+<subtitle id="logo-subtitle" style="background:inherit;animation: none; opacity: 1">Let us assist you on
+                your journey to efficient genomic analysis</subtitle>
+</div></div>
+<div id="about" class="about">
+<section><div>
+<p>
+                When you need to find detailed information on how to get started with Hail, examples of Hail use, and
+                how a function works: the reference document is your go to. All of Hailâs functionality is
+                well-documented. To do a quick search of a Hail function, try out the search bar in the documentation.
+            </p>
+<p>
+                When you reach a blocking issue with your analysis using Hail, and you think you are unable to find an
+                answer to your question via the documentation, (S)/(s)earch through or ask a question on our Forum! It
+                is highly recommended -- your question may be able to serve another person in our ever growing Hail
+                community.
+            </p>
+<p>
+                If you want to get a hold of us in real time and contribute to our dev forum, join us on 
+                        
+                            <a href="https://zulipchat.com/" target="_blank">Zulip chat</a>.
+            
+                    
+                        </p>
+</div></section><section class="left"><a class="button" href="/cheatsheets.html">Cheatsheets</a><div>Cheatsheets are two-page PDFs loaded with short examples and even shorter explanations. They push you over all the little roadblocks.</div></section><section class="left"><a class="button" href="https://discuss.hail.is/new-topic?category=Help%20%5B0.2%5D">Ask a question</a><div>Come ask us a question on the forum! The development team and other users help you resolve your issues.</div></section><section class="left"><a class="button" href="/docs/0.2/index.html">Docs</a><div>When you need to find the detailed description of how an operation works, the reference documentation is the place to go. All of Hail's functionality is exhaustively documented here.</div></section>
+</div></span>
+</body>
+</html>

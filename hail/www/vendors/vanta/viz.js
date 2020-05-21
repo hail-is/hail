@@ -246,7 +246,7 @@ class Viz {
       const started = Date.now();
       console.debug('updating')
       window.requestAnimationFrame(() => {
-        this.el.style.opacity = .5;
+        this.el.style.opacity = .4;
         this.hidden = false;
         this.startedAnimation = false;
         console.debug("done", Date.now() - started);
