@@ -542,17 +542,10 @@ object LowerTableIR {
                   val leftElementRef = Ref(genUID(), left.typ.rowType)
                   val rightElementRef = Ref(genUID(), right.typ.rowType)
 
-                  val comparator = ApplyComparisonOp(Compare(right.typ.keyType),
-                    CastRename(
-                      SelectFields(leftElementRef, left.typ.key.take(commonKeyLength)),
-                      left.typ.keyType.truncate(commonKeyLength).rename(leftKeyToRightKeyMap)
-                    ),
-                    SelectFields(rightElementRef, right.typ.key))
                   val (typeOfRootStruct, _) = right.typ.rowType.filterSet(right.typ.key.toSet, false)
-
                   val rootStruct = SelectFields(rightElementRef, typeOfRootStruct.fieldNames.toIndexedSeq)
                   val joiningOp = InsertFields(leftElementRef, Seq(root -> rootStruct))
-                  StreamLeftJoinDistinct(leftPart, rightPart, leftElementRef.name, rightElementRef.name, comparator, joiningOp)
+                  StreamJoinRightDistinct(leftPart, rightPart, left.typ.key.take(commonKeyLength), right.typ.key, leftElementRef.name, rightElementRef.name, joiningOp, "left")
                 }
 
               }
