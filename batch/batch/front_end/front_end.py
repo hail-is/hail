@@ -516,7 +516,6 @@ async def create_jobs(request, userdata):
     # which is sensitive
     userdata = {
         'username': user,
-        'bucket_name': userdata['bucket_name'],
         'gsa_key_secret_name': userdata['gsa_key_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name']
     }
@@ -752,7 +751,6 @@ async def create_batch(request, userdata):
     # which is sensitive
     userdata = {
         'username': user,
-        'bucket_name': userdata['bucket_name'],
         'gsa_key_secret_name': userdata['gsa_key_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name']
     }

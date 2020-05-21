@@ -9,7 +9,7 @@ import secrets
 from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config
-from hailtop.auth import async_get_userinfo, service_auth_headers
+from hailtop.auth import service_auth_headers
 from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, TQDM_DEFAULT_DISABLE
 from hailtop.tls import ssl_client_session
 
@@ -555,9 +555,6 @@ class BatchClient:
             session = ssl_client_session(raise_for_status=True,
                                          timeout=aiohttp.ClientTimeout(total=60))
         self._session = session
-
-        userinfo = await async_get_userinfo(deploy_config)
-        self.bucket = userinfo['bucket_name']
 
         h = {}
         if headers:

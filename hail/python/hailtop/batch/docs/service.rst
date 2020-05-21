@@ -122,28 +122,32 @@ error messages in the terminal window.
 Submitting a Batch to the Service
 ---------------------------------
 
-To execute a batch on the Batch service rather than locally, first construct a
-:class:`.ServiceBackend` object with a valid billing project name. Next, pass the :class:`.ServiceBackend`
-object to the :class:`.Batch` constructor with the parameter name `backend`.
+To execute a batch on the Batch service rather than locally, first
+construct a :class:`.ServiceBackend` object with a billing project and
+a bucket to store intermediate files. Next, pass the
+:class:`.ServiceBackend` object to the :class:`.Batch` constructor
+with the parameter name `backend`.
 
-An example of running "Hello World" on the Batch service rather than locally is shown below.
-You can open iPython or a Jupyter notebook and execute the following batch:
+An example of running "Hello World" on the Batch service rather than
+locally is shown below.  You can open iPython or a Jupyter notebook
+and execute the following batch:
 
 .. code-block:: python
 
-    >>> import hailtop.batch as hb
-    >>> backend = hb.ServiceBackend('test') # replace 'test' with your own billing project
-    >>> b = hb.Batch(backend=backend, name='test')
-    >>> j = b.new_job(name='hello')
-    >>> j.command('echo "hello world"')
-    >>> b.run(open=True)
+    >>> import hailtop.batch as hb # doctest: +SKIP
+    >>> backend = hb.ServiceBackend('my-billing-project', 'my-bucket') # doctest: +SKIP
+    >>> b = hb.Batch(backend=backend, name='test') # doctest: +SKIP
+    >>> j = b.new_job(name='hello') # doctest: +SKIP
+    >>> j.command('echo "hello world"') # doctest: +SKIP
+    >>> b.run(open=True) # doctest: +SKIP
 
-You may elide the ``billing_project`` parameter if you have previously set a
-billing project with ``hailctl``:
+You may elide the ``billing_project`` and ``bucket`` parameters if you
+have previously set them with ``hailctl``:
 
 .. code-block:: sh
 
-    hailctl config set batch/billing_project hail
+    hailctl config set batch/billing_project my-billing-project
+    hailctl config set batch/bucket my-bucket
 
 Using the UI
 ------------

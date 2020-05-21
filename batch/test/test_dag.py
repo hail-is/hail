@@ -4,9 +4,9 @@ import re
 import pytest
 import aiohttp
 from flask import Response
+from hailtop.config import get_user_config
 from hailtop.batch_client.client import BatchClient, Job
 import hailtop.batch_client.aioclient as aioclient
-from hailtop.auth import get_userinfo
 
 from .utils import batch_status_job_counter, \
     legacy_batch_status
@@ -176,14 +176,14 @@ def test_no_parents_allowed_in_other_batches(client):
 
 
 def test_input_dependency(client):
-    user = get_userinfo()
+    bucket_name = get_user_config().get('batch', 'bucket')
     batch = client.create_batch()
     head = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-                            output_files=[('/io/data*', f'gs://{user["bucket_name"]}')])
+                            output_files=[('/io/data*', f'gs://{bucket_name}')])
     tail = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-                            input_files=[(f'gs://{user["bucket_name"]}/data*', '/io/')],
+                            input_files=[(f'gs://{bucket_name}/data*', '/io/')],
                             parents=[head])
     batch.submit()
     tail.wait()
@@ -192,14 +192,14 @@ def test_input_dependency(client):
 
 
 def test_input_dependency_directory(client):
-    user = get_userinfo()
+    bucket_name = get_user_config().get('batch', 'bucket')
     batch = client.create_batch()
     head = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
-                            output_files=[('/io/test/', f'gs://{user["bucket_name"]}')])
+                            output_files=[('/io/test/', f'gs://{bucket_name}')])
     tail = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'cat /io/test/data1 ; cat /io/test/data2'],
-                            input_files=[(f'gs://{user["bucket_name"]}/test', '/io/')],
+                            input_files=[(f'gs://{bucket_name}/test', '/io/')],
                             parents=[head])
     batch.submit()
     tail.wait()
