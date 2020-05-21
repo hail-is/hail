@@ -867,6 +867,7 @@ object PruneDeadFields {
           memoizeValueIR(alt, requestedType, memo)
         )
       case Coalesce(values) => unifyEnvsSeq(values.map(memoizeValueIR(_, requestedType, memo)))
+      case Consume(value) => memoizeValueIR(value, value.typ, memo)
       case Let(name, value, body) =>
         val bodyEnv = memoizeValueIR(body, requestedType, memo)
         val valueType = bodyEnv.eval.lookupOption(name) match {
@@ -1636,6 +1637,10 @@ object PruneDeadFields {
           Coalesce(values2)
         else
           Coalesce(values2.map(upcast(_, requestedType)))
+      case Consume(value) => {
+        val value2 = rebuildIR(value, env, memo)
+        Consume(value2)
+      }
       case Let(name, value, body) =>
         val value2 = rebuildIR(value, env, memo)
         Let(
