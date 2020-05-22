@@ -7,7 +7,7 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.types.TableType
-import is.hail.types.physical.{PCode, PInt64Optional, PStruct, PType}
+import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.{TArray, TStruct, Type}
 import is.hail.rvd.{RVD, RVDCoercer, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
@@ -49,6 +49,7 @@ class PartitionIteratorLongReader(
       SizedStream.unsized(Stream.unfold[Code[Long]](
         (_, k) =>
           Code(
+            Code._fatal[Unit](""),
             hasNext := it.get.hasNext,
             hasNext.orEmpty(next := Code.longValue(it.get.next())),
             k(COption(!hasNext, next))),
