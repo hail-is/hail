@@ -254,12 +254,23 @@ class RequirednessSuite extends HailSuite {
     assert(actual.canonicalPType(node.typ) == expected, s"\n\n${Pretty(node)}: \n$actual\n\n${ dump(res.r) }")
   }
 
+  @Test def sharedNodesWorkCorrectly(): Unit = {
+    val n1 = Ref("foo", TInt32)
+    val n2 = Let("foo", I32(1), MakeStruct(FastSeq("a" -> n1, "b" -> n1)))
+    val node = InsertFields(n2, FastSeq("c" -> GetField(n2, "a"), "d" -> GetField(n2, "b")))
+    val res = Requiredness.apply(node, ctx)
+    val actual = coerce[TypeWithRequiredness](res.r.lookup(node)).canonicalPType(node.typ)
+    assert(actual == PCanonicalStruct(required,
+      "a" -> PInt32(required), "b" -> PInt32(required),
+      "c" -> PInt32(required), "d" -> PInt32(required)))
+  }
+
   @Test def testSubsettedTuple(): Unit = {
     val node = MakeTuple(FastSeq(0 -> I32(0), 4 -> NA(TInt32), 2 -> NA(TArray(TInt32))))
     val expected = PCanonicalTuple(FastIndexedSeq(
-      PTupleField(0, PInt32(required = true)),
-      PTupleField(4, PInt32(required = false)),
-      PTupleField(2, PCanonicalArray(PInt32(required = true), required = false))), required = true)
+      PTupleField(0, PInt32(required)),
+      PTupleField(4, PInt32(optional)),
+      PTupleField(2, PCanonicalArray(PInt32(required), optional))), required)
     val res = Requiredness.apply(node, ctx)
     val actual = coerce[TypeWithRequiredness](res.r.lookup(node)).canonicalPType(node.typ)
     assert(actual == expected)

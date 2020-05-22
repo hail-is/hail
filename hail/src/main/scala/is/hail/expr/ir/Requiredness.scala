@@ -107,7 +107,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   def lookup(node: IR): TypeWithRequiredness = coerce[TypeWithRequiredness](cache(node))
   def lookupAs[T <: TypeWithRequiredness](node: IR): T = coerce[T](cache(node))
 
-  private def initializeState(node: BaseIR): Unit = {
+  private def initializeState(node: BaseIR): Unit = if (!cache.contains(node)) {
     val re = RefEquality(node)
     node match {
       case x: ApplyIR =>
@@ -295,9 +295,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
            _: ArrayZeros |
            _: StreamRange |
            _: WriteValue =>
-        requiredness.union(node.children.forall(c => cache(c).required))
+        requiredness.union(node.children.forall { case c: IR => lookup(c).required })
       case x: ApplyComparisonOp if x.op.strict =>
-        requiredness.union(node.children.forall(c => cache(c).required))
+        requiredness.union(node.children.forall { case c: IR => lookup(c).required })
 
       // always required
       case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die =>
