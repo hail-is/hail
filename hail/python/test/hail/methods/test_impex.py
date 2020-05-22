@@ -450,8 +450,7 @@ class VCFTests(unittest.TestCase):
 
     def test_vcf_parallel_export(self):
         import glob
-        def concat_files(outpath, *inpaths):
-            import shutil
+        def concat_files(outpath, inpaths):
             with open(outpath, 'wb') as outfile:
                 for path in inpaths:
                     with open(path, 'rb') as infile:
