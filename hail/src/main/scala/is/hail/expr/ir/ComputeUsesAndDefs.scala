@@ -57,9 +57,11 @@ object ComputeUsesAndDefs {
         case r: BaseRef =>
           env.eval.lookupOption(r.name) match {
             case Some(decl) =>
-              val re = RefEquality(r)
-              uses.lookup(decl) += re
-              defs.bind(re, decl)
+              if (!defs.contains(r)) {
+                val re = RefEquality(r)
+                uses.lookup(decl) += re
+                defs.bind(re, decl)
+              }
             case None =>
               if (errorIfFreeVariables)
                 throw new RuntimeException(s"found variable with no definition: ${ r.name }")
