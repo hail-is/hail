@@ -443,13 +443,16 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends Partition
       val pathString = path.asString.loadString()
       val xRowBuf = mb.newLocal[InputBuffer]()
       val decRes = mb.newEmitLocal(PInt64Optional)
-      val stream = Stream.unfold[PCode](
+      val hasNext = mb.newLocal[Boolean]("pnr_hasNext")
+      val next = mb.newLocal[Long]("pnr_next")
+      val stream = Stream.unfold[Code[Long]](
         (_, k) =>
           Code(
-            decRes := EmitCode(Code._empty, !xRowBuf.load().readByte().toZ, PCode(PInt64Optional, dec(region, xRowBuf))),
-            k(COption.fromEmitCode(decRes))))
+            hasNext := xRowBuf.load().readByte().toZ,
+            hasNext.orEmpty(next := dec(region,xRowBuf)),
+            k(COption(!hasNext, next))))
         .map(
-          pc => EmitCode.present(eltType, pc.tcode[Long]),
+          pc => EmitCode.present(eltType, pc),
           setup0 = None,
           setup = Some(xRowBuf := spec
             .buildCodeInputBuffer(mb.open(pathString, true))))
