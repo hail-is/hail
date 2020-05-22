@@ -7,7 +7,7 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.types.TableType
-import is.hail.types.physical.{PStruct, PType}
+import is.hail.types.physical.{PCode, PInt64Optional, PStruct, PType}
 import is.hail.types.virtual.{TArray, TStruct, Type}
 import is.hail.rvd.{RVD, RVDCoercer, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
@@ -43,18 +43,20 @@ class PartitionIteratorLongReader(
       assert(contextPC.pt.isInstanceOf[PStruct])
 
       val it = mb.newLocal[Iterator[java.lang.Long]]("pilr_it")
+      val next = mb.newEmitLocal(PInt64Optional)
 
-      SizedStream.unsized(Stream.unfold[Code[Long]](
-        (_, k) => k(COption(
-          !it.get.hasNext,
-          Code.longValue(it.get.next()))),
+      SizedStream.unsized(Stream.unfold[PCode](
+        (_, k) =>
+          Code(
+            next := EmitCode(Code._empty, !it.get.hasNext, PCode(PInt64Optional, it.get.next())),
+            k(COption.fromEmitCode(next))),
         setup = Some(
           it := mb.getObject(body(requestedType))
             .invoke[java.lang.Object, java.lang.Object, Iterator[java.lang.Long]]("apply",
               region,
               Code.invokeScalaObject3[PType, Region, Long, java.lang.Object](UnsafeRow.getClass, "read",
                 mb.getPType(contextPC.pt), region, contextPC.tcode[Long]))))
-      .map(rv => EmitCode.present(eltPType, Region.loadIRIntermediate(eltPType)(rv))))
+      .map(rv => EmitCode.present(eltPType, Region.loadIRIntermediate(eltPType)(rv.tcode[Long]))))
     }
   }
 
