@@ -13,7 +13,7 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     ArraySort, ToSet, ToDict, ToArray, CastToArray, ToStream, \
     LowerBoundOnOrderedCollection, GroupByKey, StreamMap, StreamZip, \
     StreamFilter, StreamFlatMap, StreamFold, StreamScan, \
-    StreamLeftJoinDistinct, StreamFor, AggFilter, AggExplode, AggGroupBy, \
+    StreamFor, AggFilter, AggExplode, AggGroupBy, \
     AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, Begin, \
     MakeStruct, SelectFields, InsertFields, GetField, MakeTuple, \
     GetTupleElement, Die, Apply, ApplySeeded, TableCount, TableGetGlobals, \
