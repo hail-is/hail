@@ -262,6 +262,41 @@ def init_service(
         global_seed, backend)
 
 
+@typecheck(
+    log=nullable(str),
+    quiet=bool,
+    append=bool,
+    branching_factor=int,
+    tmpdir=nullable(str),
+    default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'),
+    global_seed=nullable(int),
+    skip_logging_configuration=bool,
+    _optimizer_iterations=nullable(int))
+def init_local(
+        log=None,
+        quiet=False,
+        append=False,
+        branching_factor=50,
+        tmpdir=None,
+        default_reference='GRCh37',
+        global_seed=6348563392232659379,
+        skip_logging_configuration=False,
+        _optimizer_iterations=None):
+    from hail.backend.local_backend import LocalBackend
+
+    log = _get_log(log)
+    tmpdir = _get_tmpdir(tmpdir)
+    optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
+
+    backend = LocalBackend(
+        tmpdir, log, quiet, append, branching_factor,
+        skip_logging_configuration, optimizer_iterations)
+
+    HailContext(
+        log, quiet, append, tmpdir, tmpdir, default_reference,
+        global_seed, backend)
+
+
 def version():
     """Get the installed hail version.
 
