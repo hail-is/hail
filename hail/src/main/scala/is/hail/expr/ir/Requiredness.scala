@@ -285,11 +285,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addTableBinding(child)
       case TableAggregateByKey(child, expr) =>
         addTableBinding(child)
-      case _ =>
-        usesAndDefs.uses(node).foreach { u =>
-          println(u.t)
-        }
-        fatal(Pretty(node))
+      case _ => fatal(Pretty(node))
     }
   }
 
