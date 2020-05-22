@@ -28,18 +28,18 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
     new CodeOrdering {
       type T = Float
 
-      def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
+      def compareNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Int] =
         Code.invokeStatic2[java.lang.Float, Float, Float, Int]("compare", x, y)
 
-      override def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x < y
+      override def ltNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = x < y
 
-      override def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x <= y
+      override def lteqNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = x <= y
 
-      override def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x > y
+      override def gtNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = x > y
 
-      override def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x >= y
+      override def gteqNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = x >= y
 
-      override def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x.ceq(y)
+      override def equivNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = x.ceq(y)
     }
   }
 
