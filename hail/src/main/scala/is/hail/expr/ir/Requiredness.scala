@@ -295,9 +295,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
            _: ArrayZeros |
            _: StreamRange |
            _: WriteValue =>
-        requiredness.union(node.children.forall { case c: IR => lookup(c).required }
+        requiredness.union(node.children.forall { case c: IR => lookup(c).required })
       case x: ApplyComparisonOp if x.op.strict =>
-        requiredness.union(node.children.forall { case c: IR => lookup(c).required }
+        requiredness.union(node.children.forall { case c: IR => lookup(c).required })
 
       // always required
       case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die =>
