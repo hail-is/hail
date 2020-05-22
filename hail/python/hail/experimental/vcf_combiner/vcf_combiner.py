@@ -177,7 +177,7 @@ def combine(ts):
         from hail.expr.functions import _num_allele_type, _allele_ints
         return hl.rbind(
             alleles.map(lambda a: hl.or_else(a[0], ''))
-                .fold(lambda s, t: hl.cond(hl.len(s) > hl.len(t), s, t), ''),
+            .fold(lambda s, t: hl.cond(hl.len(s) > hl.len(t), s, t), ''),
             lambda ref:
             hl.rbind(
                 alleles.map(

@@ -73,7 +73,7 @@ def generate_datasets(doctest_namespace):
                              populations=['AFR', 'EAS', 'EUR', 'SAS', 'AMR', 'HIS'])
     ds = ds.annotate_rows(gene=['TTN'])
     ds = ds.annotate_cols(cohorts=['1kg'], pop='EAS')
-    ds = ds.checkpoint(f'output/example.mt', overwrite=True)
+    ds = ds.checkpoint('output/example.mt', overwrite=True)
 
     doctest_namespace['ds'] = ds
     doctest_namespace['dataset'] = ds
@@ -163,7 +163,7 @@ def generate_datasets(doctest_namespace):
     burden_ds = hl.variant_qc(burden_ds)
     genekt = hl.import_locus_intervals('data/gene.interval_list')
     burden_ds = burden_ds.annotate_rows(gene=genekt[burden_ds.locus])
-    burden_ds = burden_ds.checkpoint(f'output/example_burden.vds', overwrite=True)
+    burden_ds = burden_ds.checkpoint('output/example_burden.vds', overwrite=True)
     doctest_namespace['burden_ds'] = burden_ds
 
     ld_score_one_pheno_sumstats = hl.import_table(

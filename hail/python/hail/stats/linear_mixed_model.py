@@ -498,7 +498,7 @@ class LinearMixedModel(object):
             else:
                 return neg_log_reml
         except LinAlgError as e:
-            raise Exception(f'linear algebra error while solving for REML estimate') from e
+            raise Exception('linear algebra error while solving for REML estimate') from e
 
     @typecheck_method(log_gamma=nullable(numeric), bounds=tupleof(numeric), tol=float, maxiter=int)
     def fit(self, log_gamma=None, bounds=(-8.0, 8.0), tol=1e-8, maxiter=500):

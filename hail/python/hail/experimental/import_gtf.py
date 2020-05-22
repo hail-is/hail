@@ -268,6 +268,6 @@ def _load_gencode_gtf(gtf_file=None, reference_genome=None):
                 'get_gene_intervals requires a GTF file, or the reference genome be one of GRCh37 or GRCh38 (when on Google Cloud Platform)')
     ht = hl.experimental.import_gtf(gtf_file, reference_genome=reference_genome,
                                     skip_invalid_contigs=True, min_partitions=12)
-    ht = ht.annotate(gene_id=ht.gene_id.split(f'\\.')[0],
+    ht = ht.annotate(gene_id=ht.gene_id.split('\\.')[0],
                      transcript_id=ht.transcript_id.split('\\.')[0])
     return ht

@@ -2359,7 +2359,7 @@ def _shape_after_broadcast(left, right):
     elif diff_len > 0:
         right = pad(right, diff_len)
 
-    return [join_dim(l, r) for l, r in zip(left, right)]
+    return [join_dim(lx, rx) for lx, rx in zip(left, right)]
 
 
 @typecheck(x=oneof(numeric, np.ndarray), block_size=int)

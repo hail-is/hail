@@ -1719,8 +1719,8 @@ def import_matrix_table(paths,
 
     if 'row_id' in row_fields and add_row_id:
         raise FatalError(
-            f"import_matrix_table reserves the field name 'row_id' for"
-            f'its own use, please use a different name')
+            "import_matrix_table reserves the field name 'row_id' for"
+            'its own use, please use a different name')
 
     for k, v in row_fields.items():
         if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
