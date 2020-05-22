@@ -928,13 +928,16 @@ object EmitStream {
 
         case In(n, PCanonicalStream(eltType, _)) =>
           val xIter = mb.newLocal[Iterator[RegionValue]]()
+          val hasNext = mb.newLocal[Boolean]()
+          val next = mb.newLocal[RegionValue]()
 
           // this, Region, ...
           mb.getStreamEmitParam(2 + n).map { iter =>
             val stream = unfold[Code[RegionValue]](
-              (_, k) => k(COption(
-                !xIter.load().hasNext,
-                xIter.load().next()))
+              (_, k) => Code(
+                hasNext := xIter.load().hasNext,
+                hasNext.orEmpty(next := xIter.load().next()),
+                k(COption(!hasNext, next)))
             ).map(
               rv => EmitCode.present(eltType, Region.loadIRIntermediate(eltType)(rv.invoke[Long]("getOffset"))),
               setup0 = None,

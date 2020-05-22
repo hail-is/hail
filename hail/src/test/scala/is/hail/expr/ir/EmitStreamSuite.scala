@@ -602,6 +602,11 @@ class EmitStreamSuite extends HailSuite {
       ), intsPType)
     assert(f2(Seq(1, 5, 2, 9).iterator) == IndexedSeq(1, 5, 2, 9).flatMap(0 until _))
     assert(f2(null) == null)
+
+    val f3 = compileStreamWithIter(
+      StreamRange(0, StreamLen(In(0, intsPType)), 1), intsPType)
+    assert(f3(Seq(1, 5, 2, 9).iterator) == IndexedSeq(0, 1, 2, 3))
+    assert(f3(Seq().iterator) == IndexedSeq())
   }
 
   @Test def testEmitIf() {

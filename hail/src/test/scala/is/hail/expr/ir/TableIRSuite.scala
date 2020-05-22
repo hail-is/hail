@@ -45,6 +45,12 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(TableCollect(droppedRows), Row(FastIndexedSeq(), expectedGlobals))
   }
 
+  @Test def testCountRead(): Unit = {
+    implicit val execStrats = ExecStrategy.lowering
+    val tir: TableIR = TableRead.native(fs, "src/test/resources/three_key.ht")
+    assertEvalsTo(TableCount(tir), 120L)
+  }
+
   @Test def testRangeCollect() {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)

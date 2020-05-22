@@ -43,11 +43,16 @@ class PartitionIteratorLongReader(
       assert(contextPC.pt.isInstanceOf[PStruct])
 
       val it = mb.newLocal[Iterator[java.lang.Long]]("pilr_it")
+      val hasNext = mb.newLocal[Boolean]("pilr_hasNext")
+      val next = mb.newLocal[Long]("pilr_next")
 
       SizedStream.unsized(Stream.unfold[Code[Long]](
-        (_, k) => k(COption(
-          !it.get.hasNext,
-          Code.longValue(it.get.next()))),
+        (_, k) =>
+          Code(
+            Code._fatal[Unit](""),
+            hasNext := it.get.hasNext,
+            hasNext.orEmpty(next := Code.longValue(it.get.next())),
+            k(COption(!hasNext, next))),
         setup = Some(
           it := mb.getObject(body(requestedType))
             .invoke[java.lang.Object, java.lang.Object, Iterator[java.lang.Long]]("apply",
