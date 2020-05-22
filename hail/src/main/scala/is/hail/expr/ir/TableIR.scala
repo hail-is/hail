@@ -2313,7 +2313,7 @@ case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval],
     val partitioner = RVDPartitioner.union(
       tv.typ.keyType,
       intervals,
-      tv.rvd.typ.key.length - 1)
+      tv.typ.keyType.size - 1)
     TableValue(ctx, tv.typ, tv.globals, tv.rvd.filterIntervals(partitioner, keep))
   }
 }
