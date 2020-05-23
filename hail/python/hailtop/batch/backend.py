@@ -7,6 +7,7 @@ import copy
 from shlex import quote as shq
 import webbrowser
 from hailtop.config import get_deploy_config, get_user_config
+from hailtop.auth import get_userinfo
 from hailtop.batch_client.client import BatchClient
 
 from .resource import InputResourceFile, JobResourceFile
@@ -252,7 +253,7 @@ class ServiceBackend(Backend):
                 f'the bucket parameter of ServiceBackend must be set '
                 f'or run `hailctl config set batch/bucket '
                 f'MY_BUCKET`')
-        self._bucket_name = bucket_name
+        self._bucket_name = bucket
 
     def close(self):
         """
