@@ -676,7 +676,7 @@ def _generate_hist2d_data(x, y, bins, range):
             y_range = (ranges.y_stats.min, ranges.y_stats.max)
     else:
         warning('If x_range or y_range are specified in histogram_2d, and there are points '
-                      'outside of these ranges, they will not be plotted')
+                'outside of these ranges, they will not be plotted')
     x_range = list(map(float, x_range))
     y_range = list(map(float, y_range))
     x_spacing = (x_range[1] - x_range[0]) / x_bins
@@ -1488,7 +1488,6 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
     ht = ht.select(entry_fields=ht.entry_fields.map(lambda entry: entry.is_defined))
     data = ht.entry_fields.collect()
     if len(data) > 200:
-        import warnings
         warning(f'Missingness dataset has {len(data)} rows. '
                 f'This may take {"a very long time" if len(data) > 1000 else "a few minutes"} to plot.')
     rows = hail.str(ht._new_row_key).collect()
