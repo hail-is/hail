@@ -706,7 +706,7 @@ steps:
      valueFrom: hail_base_image.image
    script: |
      set -ex
-     python3 -m flake8 --config setup.cfg hail/python/hail
+     (cd hail/python && python3 -m flake8 --config ../../setup.cfg hail)
      python3 -m flake8 --config setup.cfg hailtop
      python3 -m pylint --rcfile pylintrc hailtop
    dependsOn:
