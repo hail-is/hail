@@ -1,5 +1,4 @@
 import abc
-from ..hail_logging import Logger
 
 
 class Backend(abc.ABC):
