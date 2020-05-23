@@ -10,7 +10,7 @@ import google.cloud.storage
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
 from hailtop.batch.utils import arg_max
 from hailtop.utils import grouped
-from hailtop.auth import get_userinfo
+from hailtop.config import get_user_config
 
 
 class LocalTests(unittest.TestCase):
