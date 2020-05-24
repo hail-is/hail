@@ -2,7 +2,7 @@
 # these are necessary for the diver script included at the end of this file
 import math
 import uuid
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 
 import hail as hl
 from hail import MatrixTable, Table
@@ -459,7 +459,7 @@ def run_combiner(sample_paths: List[str],
                  target_records: int = CombinerConfig.default_target_records,
                  overwrite: bool = False,
                  reference_genome: str = 'default',
-                 contig_recoding: Dict[str, str] = None,
+                 contig_recoding: Optional[Dict[str, str]] = None,
                  key_by_locus_and_alleles: bool = False):
     """Run the Hail VCF combiner, performing a hierarchical merge to create a combined sparse matrix table.
 
@@ -487,7 +487,7 @@ def run_combiner(sample_paths: List[str],
         Overwrite output file, if it exists.
     reference_genome : :obj:`str`
         Reference genome for GVCF import.
-    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
+    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`), optional
         Mapping from contig name in gVCFs to contig name the reference
         genome.  All contigs must be present in the
         `reference_genome`, so this is useful for mapping
