@@ -459,7 +459,7 @@ def run_combiner(sample_paths: List[str],
                  target_records: int = CombinerConfig.default_target_records,
                  overwrite: bool = False,
                  reference_genome: str = 'default',
-                 contig_recoding: Dict[str, str] = None
+                 contig_recoding: Dict[str, str] = None,
                  key_by_locus_and_alleles: bool = False):
     """Run the Hail VCF combiner, performing a hierarchical merge to create a combined sparse matrix table.
 
