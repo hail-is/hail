@@ -2130,7 +2130,7 @@ def import_vcf(path,
         loaded as a call automatically.
     reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
-    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
+    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`), optional
         Mapping from contig name in VCF to contig name in loaded dataset.
         All contigs must be present in the `reference_genome`, so this is
         useful for mapping differently-formatted data onto known references.
