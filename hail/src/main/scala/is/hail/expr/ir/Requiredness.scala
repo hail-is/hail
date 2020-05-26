@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.methods.ForceCountTable
 import is.hail.types._
 import is.hail.types.physical.PType
 import is.hail.types.virtual._
@@ -307,6 +308,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case ApplyComparisonOp(op, l, r) =>
         fatal(s"non-strict comparison op $op must have explicit case")
       case TableCount(t) =>
+      case TableToValueApply(t, ForceCountTable()) =>
 
       case _: NA => requiredness.union(false)
       case Literal(t, a) => requiredness.unionLiteral(a)

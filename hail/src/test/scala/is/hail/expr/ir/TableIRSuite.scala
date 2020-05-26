@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
+import is.hail.methods.ForceCountTable
 import is.hail.types._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
@@ -27,6 +28,13 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(node1, 10L)
     assertEvalsTo(node2, 15L)
     assertEvalsTo(node, 25L)
+  }
+
+  @Test def testForceCount(): Unit = {
+    implicit val execStrats = ExecStrategy.interpretOnly
+    val tableRangeSize = Int.MaxValue / 20
+    val forceCountRange = TableToValueApply(TableRange(tableRangeSize, 2), ForceCountTable())
+    assertEvalsTo(forceCountRange, tableRangeSize.toLong)
   }
 
   @Test def testRangeRead() {
