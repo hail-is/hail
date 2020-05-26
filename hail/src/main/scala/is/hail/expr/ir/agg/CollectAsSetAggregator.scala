@@ -174,7 +174,7 @@ class CollectAsSetAggregator(t: PType) extends StagedAggregator {
 
   protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
     cb += srvb.addArray(resultType.arrayFundamentalType, { sab =>
-      EmitCodeBuilder.scopedVoid(sab.mb) { cb =>
+      EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
         cb += sab.start(state.size)
         state.foreach(cb) { (cb, km, kv) =>
           cb.ifx(km, {
