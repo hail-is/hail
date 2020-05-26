@@ -76,17 +76,20 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
     val combOp = this.combOpF(ctx, spec, physicalAggs)
 
     { (c1: Array[Byte], c2: Array[Byte]) =>
-      val r1 = Region(Region.SMALL)
-      val r2 = Region(Region.SMALL)
-      val rv1 = RegionValue(r1, deserialize(r1, c1))
-      val rv2 = RegionValue(r2, deserialize(r2, c2))
-      val resRV = combOp(rv1, rv2)
-      val res = serialize(resRV.region, resRV.offset)
-      resRV.region.clear()
-      res
+      Region.smallScoped { r1 =>
+        Region.smallScoped { r2 =>
+          val rv1 = RegionValue(r1, deserialize(r1, c1))
+          val rv2 = RegionValue(r2, deserialize(r2, c2))
+          val resRV = combOp(rv1, rv2)
+          val res = serialize(resRV.region, resRV.offset)
+          res
+        }
+      }
     }
   }
 
+  // Takes ownership of both input regions, and returns ownership of region in
+  // resulting RegionValue.
   def combOpF(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (RegionValue, RegionValue) => RegionValue = {
     val fb = ir.EmitFunctionBuilder[AsmFunction4RegionLongRegionLongLong](
       ctx,
@@ -131,7 +134,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
     { (l: RegionValue, r: RegionValue) =>
       val comb = f(0, l.region)
       l.setOffset(comb(l.region, l.offset, r.region, r.offset))
-      r.region.clear()
+      r.region.invalidate()
       l
     }
   }

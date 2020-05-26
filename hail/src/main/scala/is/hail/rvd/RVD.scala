@@ -166,7 +166,7 @@ class RVD(
       typ,
       partitioner,
       crdd.cmapPartitionsWithIndex { case (i, ctx, it) =>
-        val regionForWriting = ctx.freshRegion // This one gets cleaned up when context is freed.
+        val regionForWriting = ctx.freshRegion() // This one gets cleaned up when context is freed.
         val prevK = WritableRegionValue(localType.kType, regionForWriting)
         val kUR = new UnsafeRow(localKPType)
 
@@ -649,7 +649,7 @@ class RVD(
     itF: (Int, RVDContext, Iterator[Long]) => T,
     deserialize: U => T,
     serialize: T => U,
-    seqOp: (T, T) => T,
+    combOp: (T, T) => T,
     commutative: Boolean,
     tree: Boolean
   ): T = {
@@ -676,7 +676,7 @@ class RVD(
           .mapPartitions { it =>
             var acc = mkZero()
             it.foreach { case (newPart, (oldPart, v)) =>
-              acc = seqOp(acc, deserialize(v))
+              acc = combOp(acc, deserialize(v))
             }
             Iterator.single(serialize(acc))
           }
@@ -684,7 +684,7 @@ class RVD(
       }
     }
 
-    val ac = Combiner(mkZero(), seqOp, commutative, true)
+    val ac = Combiner(mkZero(), combOp, commutative, true)
     sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), (i, x: U) => ac.combine(i, deserialize(x)))
     ac.result()
   }

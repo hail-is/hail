@@ -1535,7 +1535,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       val d = digitsNeeded(tv.rvd.getNumPartitions)
       val files = tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
         val path = tmpBase + "/" + partFile(d, i, TaskContext.get)
-        val globalRegion = ctx.freshRegion
+        val globalRegion = ctx.freshRegion()
         val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion) else 0
 
         Region.smallScoped { aggRegion =>
@@ -1587,7 +1587,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       fileStack += filesToMerge
 
       val itF = { (i: Int, ctx: RVDContext, it: Iterator[Long]) =>
-        val globalRegion = ctx.freshRegion
+        val globalRegion = ctx.freshRegion()
         val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
           globalsBc.value.readRegionValue(globalRegion)
         else
@@ -1621,12 +1621,12 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
           b
         }
 
-        val aggRegion = ctx.freshRegion
+        val aggRegion = ctx.freshRegion()
         val newRow = f(i, globalRegion)
         val seq = eltSeqF(i, globalRegion)
         var aggOff = read(aggRegion, partitionAggs)
 
-        it.map { ptr =>
+        val res = it.map { ptr =>
           newRow.setAggState(aggRegion, aggOff)
           val newPtr = newRow(ctx.region, globals, ptr)
           seq.setAggState(aggRegion, newRow.getAggOffset())
@@ -1634,6 +1634,9 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
           aggOff = seq.getAggOffset()
           newPtr
         }
+        aggRegion.invalidate()
+
+        res
       }
       return tv.copy(
         typ = typ,
@@ -1697,7 +1700,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         partAggs
       }
 
-      val aggRegion = ctx.freshRegion
+      val aggRegion = ctx.freshRegion()
       val newRow = f(i, globalRegion)
       val seq = eltSeqF(i, globalRegion)
       var aggOff = read(aggRegion, partitionAggs)
@@ -2014,7 +2017,7 @@ case class TableKeyByAndAggregate(
           }
         }
         val makeAgg = { () =>
-          val aggRegion = ctx.freshRegion
+          val aggRegion = ctx.freshRegion()
           RegionValue(aggRegion, deserialize(aggRegion, initAggs))
         }
 
@@ -2149,12 +2152,12 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
         val sequence = makeSeq(i, partRegion)
         val newRowF = makeRow(i, partRegion)
 
-        val aggRegion = ctx.freshRegion
+        val aggRegion = ctx.freshRegion()
 
         new Iterator[Long] {
           var isEnd = false
           var current: Long = 0
-          val rowKey: WritableRegionValue = WritableRegionValue(keyType, ctx.freshRegion)
+          val rowKey: WritableRegionValue = WritableRegionValue(keyType, ctx.freshRegion())
           val consumerRegion: Region = ctx.region
           val newRV = RegionValue(consumerRegion)
 

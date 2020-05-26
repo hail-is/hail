@@ -702,45 +702,53 @@ object Interpret {
             FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
             extracted.seqPerElt)
 
-          case class WrappedByteArray(var bytes: Array[Byte])
-
-          val read = {
-            val deserialize = extracted.deserialize(ctx, spec, physicalAggs)
-            (a: WrappedByteArray) => {
-              val r = Region(Region.SMALL)
-              val res = deserialize(r, a.bytes)
-              a.bytes = null
-              RegionValue(r, res)
-            }
-          }
-          val write = {
-            val serialize = extracted.serialize(ctx, spec, physicalAggs)
-            (rv: RegionValue) => {
-              val a = serialize(rv.region, rv.offset)
-              rv.region.clear()
-              WrappedByteArray(a)
-            }
-          }
-          val combOpF = extracted.combOpF(ctx, spec, physicalAggs)
-
-          val (rTyp: PTuple, f) = CompileWithAggregators2[AsmFunction2RegionLongLong](ctx,
-            physicalAggs,
-            FastIndexedSeq(("global", value.globals.t)),
-            FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
-            Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
-          assert(rTyp.types(0).virtualType == query.typ)
-
           val useTreeAggregate = extracted.shouldTreeAggregate
           val isCommutative = extracted.isCommutative
           log.info(s"Aggregate: useTreeAggregate=${ useTreeAggregate }")
           log.info(s"Aggregate: commutative=${ isCommutative }")
 
+          // A mutable reference to a byte array. If someone higher up the
+          // call stack holds a WrappedByteArray, we can set the reference
+          // to null to allow the array to be GCed.
+          class WrappedByteArray(_bytes: Array[Byte]) {
+            private var ref: Array[Byte] = _bytes
+            def bytes: Array[Byte] = ref
+            def clear() { ref = null }
+          }
+
+          // creates a region, giving ownership to the caller
+          val read: WrappedByteArray => RegionValue = {
+            val deserialize = extracted.deserialize(ctx, spec, physicalAggs)
+            (a: WrappedByteArray) => {
+              val r = Region(Region.SMALL)
+              val res = deserialize(r, a.bytes)
+              a.clear()
+              RegionValue(r, res)
+            }
+          }
+
+          // consumes a region, taking ownership from the caller
+          val write: RegionValue => WrappedByteArray = {
+            val serialize = extracted.serialize(ctx, spec, physicalAggs)
+            (rv: RegionValue) => {
+              val a = serialize(rv.region, rv.offset)
+              rv.region.invalidate()
+              new WrappedByteArray(a)
+            }
+          }
+
+          // takes ownership of both inputs, returns ownership of result
+          val combOpF: (RegionValue, RegionValue) => RegionValue =
+            extracted.combOpF(ctx, spec, physicalAggs)
+
+          // returns ownership of a new region holding the partition aggregation
+          // result
           def itF(i: Int, ctx: RVDContext, it: Iterator[Long]): RegionValue = {
             val partRegion = ctx.partitionRegion
             val globalsOffset = globalsBc.value.readRegionValue(partRegion)
             val init = initOp(i, partRegion)
             val seqOps = partitionOpSeq(i, partRegion)
-            val aggRegion = Region(Region.SMALL)
+            val aggRegion = ctx.freshRegion(Region.SMALL)
 
             init.newAggState(aggRegion)
             init(partRegion, globalsOffset)
@@ -753,6 +761,8 @@ object Interpret {
             RegionValue(aggRegion, seqOps.getAggOffset())
           }
 
+          // creates a new region holding the zero value, giving ownership to
+          // the caller
           val mkZero = () => {
             val region = Region(Region.SMALL)
             val initF = initOp(0, region)
@@ -764,11 +774,19 @@ object Interpret {
           val rv = value.rvd.combine[WrappedByteArray, RegionValue](
             mkZero, itF, read, write, combOpF, isCommutative, useTreeAggregate)
 
+          val (rTyp: PTuple, f) = CompileWithAggregators2[AsmFunction2RegionLongLong](
+            ctx,
+            physicalAggs,
+            FastIndexedSeq(("global", value.globals.t)),
+            FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
+            Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
+          assert(rTyp.types(0).virtualType == query.typ)
+
           Region.scoped { r =>
             val resF = f(0, r)
             resF.setAggState(rv.region, rv.offset)
             val res = SafeRow(rTyp, resF(r, globalsOffset))
-            rv.region.clear()
+            rv.region.invalidate()
             res
           }
         }

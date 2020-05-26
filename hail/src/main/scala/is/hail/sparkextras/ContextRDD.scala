@@ -39,6 +39,8 @@ class AssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[
 
   case class TreeValue(var value: U, var end: Int)
 
+  // The type U may contain resources, e.g. regions. 't' has ownership of every
+  // U it holds.
   private val t = new java.util.TreeMap[Int, TreeValue]()
 
   def combine(i: Int, value0: U) {
@@ -67,6 +69,7 @@ class AssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[
   }
 
   def result(): U = {
+    // after 'result' returns, 't' owns no values.
     val n = t.size()
     if (n > 0) {
       assert(n == 1)

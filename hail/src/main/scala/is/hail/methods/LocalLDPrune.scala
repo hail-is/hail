@@ -259,7 +259,7 @@ object LocalLDPrune {
         }
 
         if (keepVariant) {
-          val r = ctx.freshRegion
+          val r = ctx.freshRegion()
           rvb.set(r)
           rvb.start(localRowType)
           rvb.addRegionValue(localRowType, ctx.r, ptr)

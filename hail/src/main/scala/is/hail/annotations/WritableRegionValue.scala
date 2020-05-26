@@ -99,7 +99,7 @@ class RegionValuePriorityQueue(val t: PType, ctx: RVDContext, ord: Ordering[Regi
   override def head: RegionValue = queue.head
 
   def enqueue(rv: RegionValue) {
-    val region = ctx.freshRegion
+    val region = ctx.freshRegion()
     rvb.set(region)
     rvb.start(t)
     rvb.addRegionValue(t, rv)
