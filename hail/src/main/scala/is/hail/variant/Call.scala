@@ -107,9 +107,13 @@ object Call extends Serializable {
   }
 
   def unphasedDiploidGtIndex(c: Call): Int = {
-    if (!isUnphasedDiploid(c))
-      fatal(s"Only support ploidy == 2 and unphased. Found ${ Call.toString(c) }.")
-    alleleRepr(c)
+    if (!isDiploid(c))
+      fatal(s"unphased_diploid_gt_index only supports ploidy == 2. Found ${ Call.toString(c) }.")
+    if (isPhased(c)) {
+      val p = Genotype.allelePair(alleleRepr(c))
+      Genotype.diploidGtIndexWithSwap(p.j, p.k - p.j)
+    } else
+      alleleRepr(c)
   }
 
   def alleles(c: Call): Array[Int] = {
