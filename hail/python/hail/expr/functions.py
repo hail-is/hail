@@ -139,6 +139,28 @@ def null(t: Union[HailType, str]):
     """
     return construct_expr(ir.NA(t), t)
 
+@typecheck(msg=expr_str, t=hail_type)
+def die(msg, t: Union[HailType, str]):
+    """Creates an expression representing a fatal exception.
+
+    Notes
+    -----
+    This method is useful for constructing an expression that includes error checking,
+    with :func:`.cond`, :func:`.case`, or :func:`.switch`.
+
+    Parameters
+    ----------
+    msg : :class:`.StringExpression`
+        Exception message.
+    t : :obj:`str` or :class:`.HailType`
+        Type of the expression.
+
+    Returns
+    -------
+    :class:`.Expression`
+    """
+    return construct_expr(ir.Die(msg._ir, t), t)
+
 
 @typecheck(x=anytype, dtype=nullable(hail_type))
 def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):

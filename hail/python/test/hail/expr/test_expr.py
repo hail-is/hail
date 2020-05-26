@@ -3354,3 +3354,7 @@ class Tests(unittest.TestCase):
             hl.tuple([1, 2, 'str'])
         ]
         assert hl.eval(hl._compare(hl.tuple(values), hl.tuple(hl.parse_json(hl.json(v), v.dtype) for v in values)) == 0)
+
+    def test_die(self):
+        with pytest.raises(hl.utils.FatalError, match='Foo'):
+            hl.eval(hl.die('Foo', 'int'))

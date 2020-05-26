@@ -12,6 +12,7 @@ Core language functions
     bind
     rbind
     null
+    die
     str
     is_missing
     is_defined
@@ -29,6 +30,7 @@ Core language functions
 .. autofunction:: bind
 .. autofunction:: rbind
 .. autofunction:: null
+.. autofunction:: die
 .. autofunction:: str
 .. autofunction:: is_missing
 .. autofunction:: is_defined

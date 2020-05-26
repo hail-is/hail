@@ -44,7 +44,7 @@ from .functions import literal, chi_squared_test, if_else, cond, switch, case, \
     parse_int32, parse_int64, bool, get_sequence, reverse_complement, \
     is_valid_contig, is_valid_locus, contig_length, liftover, min_rep, \
     uniroot, format, approx_equal, reversed, bit_and, bit_or, bit_xor, \
-    bit_lshift, bit_rshift, bit_not, binary_search, \
+    bit_lshift, bit_rshift, bit_not, binary_search, die, \
     _values_similar, _showstr, _sort_by, _compare, _locus_windows_per_contig
 
 __all__ = ['HailType',
@@ -126,6 +126,7 @@ __all__ = ['HailType',
            'log',
            'log10',
            'null',
+           'die',
            'or_else',
            'coalesce',
            'or_missing',
