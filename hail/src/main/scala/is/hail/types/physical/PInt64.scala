@@ -26,18 +26,18 @@ class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
     new CodeOrdering {
       type T = Long
 
-      def compareNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Int] =
+      def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
         Code.invokeStatic2[java.lang.Long, Long, Long, Int]("compare", x, y)
 
-      def ltNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = x < y
+      def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x < y
 
-      def lteqNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = x <= y
+      def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x <= y
 
-      def gtNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = x > y
+      def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x > y
 
-      def gteqNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = x >= y
+      def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x >= y
 
-      def equivNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = x.ceq(y)
+      def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x.ceq(y)
     }
   }
 

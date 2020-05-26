@@ -65,12 +65,12 @@ object CodeOrdering {
         if (sortOrders == null) Ascending else sortOrders(i),
         op)
 
-    override def compareNonnull(x: Code[Long], y: Code[Long], missingEqual: Boolean): Code[Int] = {
+    override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
       val cmp = mb.newLocal[Int]()
 
       Code.memoize(x, "cord_row_comp_x", y, "cord_row_comp_y") { (x, y) =>
         val c = Array.tabulate(t1.size) { i =>
-          val mbcmp = fieldOrdering(i, CodeOrdering.Compare(missingEqual))
+          val mbcmp = fieldOrdering(i, CodeOrdering.Compare())
           Code(setup(i)(x, y),
             mbcmp((m1, v1s(i)), (m2, v2s(i))))
         }.foldRight(cmp.get) { (ci, cont) => cmp.ceq(0).mux(Code(cmp := ci, cont), cmp) }
@@ -95,38 +95,38 @@ object CodeOrdering {
         }.foldRight(zero) { case ((cop, ceq), cont) => combine(cop, ceq, cont) }
       }
 
-    def _ltNonnull(missingEqual: Boolean) = dictionaryOrderingFromFields(
-      CodeOrdering.Lt(missingEqual),
+    val _ltNonnull = dictionaryOrderingFromFields(
+      CodeOrdering.Lt(),
       false,
       { (isLessThan, isEqual, subsequentLt) =>
         isLessThan || (isEqual && subsequentLt) }) _
-    override def ltNonnull(x: Code[Long], y: Code[Long], missingEqual: Boolean): Code[Boolean] = _ltNonnull(missingEqual)(x, y)
+    override def ltNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _ltNonnull(x, y)
 
-    def _lteqNonnull(missingEqual: Boolean) = dictionaryOrderingFromFields(
-      CodeOrdering.Lteq(missingEqual),
+    val _lteqNonnull = dictionaryOrderingFromFields(
+      CodeOrdering.Lteq(),
       true,
       { (isLessThanEq, isEqual, subsequentLtEq) =>
         isLessThanEq && (!isEqual || subsequentLtEq) }) _
-    override def lteqNonnull(x: Code[Long], y: Code[Long], missingEqual: Boolean): Code[Boolean] = _lteqNonnull(missingEqual)(x, y)
+    override def lteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _lteqNonnull(x, y)
 
-    def _gtNonnull(missingEqual: Boolean) = dictionaryOrderingFromFields(
-      CodeOrdering.Gt(missingEqual),
+    val _gtNonnull = dictionaryOrderingFromFields(
+      CodeOrdering.Gt(),
       false,
       { (isGreaterThan, isEqual, subsequentGt) =>
         isGreaterThan || (isEqual && subsequentGt) }) _
-    override def gtNonnull(x: Code[Long], y: Code[Long], missingEqual: Boolean): Code[Boolean] = _gtNonnull(missingEqual)(x, y)
+    override def gtNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _gtNonnull(x, y)
 
-    def _gteqNonnull(missingEqual: Boolean) = dictionaryOrderingFromFields(
-      CodeOrdering.Gteq(missingEqual),
+    val _gteqNonnull = dictionaryOrderingFromFields(
+      CodeOrdering.Gteq(),
       true,
       { (isGreaterThanEq, isEqual, subsequentGteq) =>
         isGreaterThanEq && (!isEqual || subsequentGteq) }) _
-    override def gteqNonnull(x: Code[Long], y: Code[Long], missingEqual: Boolean): Code[Boolean] = _gteqNonnull(missingEqual)(x, y)
+    override def gteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _gteqNonnull(x, y)
 
-    override def equivNonnull(x: Code[Long], y: Code[Long], missingEqual: Boolean): Code[Boolean] =
+    override def equivNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] =
       Code.memoize(x, "cord_row_equiv_x", y, "cord_row_equiv_y") { (x, y) =>
         Array.tabulate(t1.size) { i =>
-          val mbequiv = fieldOrdering(i, CodeOrdering.Equiv(missingEqual))
+          val mbequiv = fieldOrdering(i, CodeOrdering.Equiv())
           Code(setup(i)(x, y),
             mbequiv((m1, v1s(i)), (m2, v2s(i))))
         }.foldRight[Code[Boolean]](const(true))(_ && _)
@@ -164,8 +164,8 @@ object CodeOrdering {
       }
     }
 
-    override def compareNonnull(x: Code[Long], y: Code[Long], missingEqual: Boolean): Code[Int] = {
-      val mbcmp = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Compare(missingEqual))
+    override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
+      val mbcmp = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Compare())
       val cmp = mb.newLocal[Int]()
 
       Code(cmp := 0,
@@ -175,9 +175,9 @@ object CodeOrdering {
           cmp))
     }
 
-    override def ltNonnull(x: Code[Long], y: Code[Long], missingEqual: Boolean): Code[Boolean] = {
-      val mblt = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Lt(missingEqual))
-      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv(missingEqual))
+    override def ltNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
+      val mblt = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Lt())
+      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
       val lt = mb.newLocal[Boolean]()
       val lcmp = Code(
         lt := mblt((m1, v1), (m2, v2)),
@@ -188,9 +188,9 @@ object CodeOrdering {
         lt || eq && lord.ltNonnull(coerce[lord.T](len1.load()), coerce[lord.T](len2.load())))
     }
 
-    override def lteqNonnull(x: Code[Long], y: Code[Long], missingEqual: Boolean): Code[Boolean] = {
-      val mblteq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Lteq(missingEqual))
-      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv(missingEqual))
+    override def lteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
+      val mblteq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Lteq())
+      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
       val lteq = mb.newLocal[Boolean]()
       val lcmp = Code(
@@ -202,9 +202,9 @@ object CodeOrdering {
         lteq && (!eq || lord.lteqNonnull(coerce[lord.T](len1.load()), coerce[lord.T](len2.load()))))
     }
 
-    override def gtNonnull(x: Code[Long], y: Code[Long], missingEqual: Boolean): Code[Boolean] = {
-      val mbgt = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Gt(missingEqual))
-      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv(missingEqual))
+    override def gtNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
+      val mbgt = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Gt())
+      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
       val gt = mb.newLocal[Boolean]()
       val lcmp = Code(
         gt := mbgt((m1, v1), (m2, v2)),
@@ -217,9 +217,9 @@ object CodeOrdering {
             lord.gtNonnull(coerce[lord.T](len1.load()), coerce[lord.T](len2.load()))))
     }
 
-    override def gteqNonnull(x: Code[Long], y: Code[Long], missingEqual: Boolean): Code[Boolean] = {
-      val mbgteq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Gteq(missingEqual))
-      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv(missingEqual))
+    override def gteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
+      val mbgteq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Gteq())
+      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
       val gteq = mb.newLocal[Boolean]()
       val lcmp = Code(
@@ -232,8 +232,8 @@ object CodeOrdering {
         gteq && (!eq || lord.gteqNonnull(coerce[lord.T](len1.load()),  coerce[lord.T](len2.load()))))
     }
 
-    override def equivNonnull(x: Code[Long], y: Code[Long], missingEqual: Boolean): Code[Boolean] = {
-      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv(missingEqual))
+    override def equivNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
+      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
       val lcmp = eq := mbequiv((m1, v1), (m2, v2))
       Code(eq := true,
         loop(lcmp, eq)(x, y),
@@ -264,8 +264,8 @@ object CodeOrdering {
         p2.storeAny(mp2.mux(ir.defaultValue(t2.pointType), Region.loadIRIntermediate(t2.pointType)(t2.endOffset(y)))))
     }
 
-    override def compareNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Int] = {
-      val mbcmp = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Compare(missingEqual))
+    override def compareNonnull(x: Code[T], y: Code[T]): Code[Int] = {
+      val mbcmp = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Compare())
 
       val cmp = mb.newLocal[Int]()
       Code.memoize(x, "cord_int_comp_x", y, "cord_int_comp_y") { (x, y) =>
@@ -286,8 +286,8 @@ object CodeOrdering {
       }
     }
 
-    override def equivNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = {
-      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv(missingEqual))
+    override def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
+      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
       Code.memoize(x, "cord_int_equiv_x", y, "cord_int_equiv_y") { (x, y) =>
         Code(loadStart(x, y), mbeq((mp1, p1), (mp2, p2))) &&
@@ -297,9 +297,9 @@ object CodeOrdering {
       }
     }
 
-    override def ltNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = {
-      val mblt = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Lt(missingEqual))
-      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv(missingEqual))
+    override def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
+      val mblt = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Lt())
+      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
       Code.memoize(x, "cord_int_lt_x", y, "cord_int_lt_y") { (x, y) =>
         Code(loadStart(x, y), mblt((mp1, p1), (mp2, p2))) || (
@@ -311,9 +311,9 @@ object CodeOrdering {
       }
     }
 
-    override def lteqNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = {
-      val mblteq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Lteq(missingEqual))
-      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv(missingEqual))
+    override def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
+      val mblteq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Lteq())
+      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
       Code.memoize(x, "cord_int_lteq_x", y, "cord_int_lteq_y") { (x, y) =>
         Code(loadStart(x, y), mblteq((mp1, p1), (mp2, p2))) && (
@@ -325,9 +325,9 @@ object CodeOrdering {
       }
     }
 
-    override def gtNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = {
-      val mbgt = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Gt(missingEqual))
-      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv(missingEqual))
+    override def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
+      val mbgt = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Gt())
+      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
       Code.memoize(x, "cord_int_gt_x", y, "cord_int_gt_y") { (x, y) =>
         Code(loadStart(x, y), mbgt((mp1, p1), (mp2, p2))) || (
@@ -339,9 +339,9 @@ object CodeOrdering {
       }
     }
 
-    override def gteqNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = {
-      val mbgteq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Gteq(missingEqual))
-      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv(missingEqual))
+    override def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
+      val mbgteq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Gteq())
+      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
       Code.memoize(x, "cord_int_gteq_x", y, "cord_int_gteq_y") { (x, y) =>
         Code(loadStart(x, y), mbgteq((mp1, p1), (mp2, p2))) && (
@@ -368,46 +368,46 @@ abstract class CodeOrdering {
   type T
   type P = (Code[Boolean], Code[T])
 
-  def compareNonnull(x: Code[T], y: Code[T], missingEqual: Boolean = true): Code[Int]
+  def compareNonnull(x: Code[T], y: Code[T]): Code[Int]
 
-  def ltNonnull(x: Code[T], y: Code[T], missingEqual: Boolean = true): Code[Boolean]
+  def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean]
 
-  def lteqNonnull(x: Code[T], y: Code[T], missingEqual: Boolean = true): Code[Boolean]
+  def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean]
 
-  def gtNonnull(x: Code[T], y: Code[T], missingEqual: Boolean = true): Code[Boolean]
+  def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean]
 
-  def gteqNonnull(x: Code[T], y: Code[T], missingEqual: Boolean = true): Code[Boolean]
+  def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean]
 
-  def equivNonnull(x: Code[T], y: Code[T], missingEqual: Boolean = true): Code[Boolean]
+  def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean]
 
   def compare(x: P, y: P, missingEqual: Boolean = true): Code[Int] = (x, y) match { case ((xm, xv), (ym, yv)) =>
     Code.memoize(xm, "cord_compare_xm", ym, "cord_compare_ym") { (xm, ym) =>
       xm.mux(ym.mux(if (missingEqual) 0 else -1, 1),
-             ym.mux(-1, compareNonnull(xv, yv, missingEqual)))
+             ym.mux(-1, compareNonnull(xv, yv)))
     }
   }
   def lt(x: P, y: P, missingEqual: Boolean): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
-    val nonnull = ltNonnull(xv, yv, missingEqual)
+    val nonnull = ltNonnull(xv, yv)
     if (missingEqual)
       !xm && (ym || nonnull)
     else
       ym || (!xm && nonnull)
   }
   def lteq(x: P, y: P, missingEqual: Boolean): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
-    ym || (!xm && lteqNonnull(xv, yv, missingEqual))
+    ym || (!xm && lteqNonnull(xv, yv))
   }
   def gt(x: P, y: P, missingEqual: Boolean): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
-    !ym && (xm || gtNonnull(xv, yv, missingEqual))
+    !ym && (xm || gtNonnull(xv, yv))
   }
   def gteq(x: P, y: P, missingEqual: Boolean): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
-    val nonnull = gteqNonnull(xv, yv, missingEqual)
+    val nonnull = gteqNonnull(xv, yv)
     if (missingEqual)
       xm || (!ym && nonnull)
     else
       !ym && (xm || nonnull)
   }
   def equiv(x: P, y: P, missingEqual: Boolean): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
-    val nonnull = equivNonnull(xv, yv, missingEqual)
+    val nonnull = equivNonnull(xv, yv)
     if (missingEqual)
       Code.memoize(xm, "cord_lift_missing_xm", ym, "cord_lift_missing_ym") { (xm, ym) =>
         (xm && ym) || (!xm && !ym && nonnull)
@@ -422,23 +422,23 @@ abstract class CodeOrdering {
     override type T = CodeOrdering.this.T
     override type P = CodeOrdering.this.P
 
-    override def compareNonnull(x: Code[T], y: Code[T], missingEqual: Boolean) = CodeOrdering.this.compareNonnull(y, x, missingEqual)
-    override def ltNonnull(x: Code[T], y: Code[T], missingEqual: Boolean) = CodeOrdering.this.ltNonnull(y, x, missingEqual)
-    override def lteqNonnull(x: Code[T], y: Code[T], missingEqual: Boolean) = CodeOrdering.this.lteqNonnull(y, x, missingEqual)
-    override def gtNonnull(x: Code[T], y: Code[T], missingEqual: Boolean) = CodeOrdering.this.gtNonnull(y, x, missingEqual)
-    override def gteqNonnull(x: Code[T], y: Code[T], missingEqual: Boolean) = CodeOrdering.this.gteqNonnull(y, x, missingEqual)
-    override def equivNonnull(x: Code[T], y: Code[T], missingEqual: Boolean) = CodeOrdering.this.equivNonnull(y, x, missingEqual)
+    override def compareNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.compareNonnull(y, x)
+    override def ltNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.ltNonnull(y, x)
+    override def lteqNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.lteqNonnull(y, x)
+    override def gtNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.gtNonnull(y, x)
+    override def gteqNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.gteqNonnull(y, x)
+    override def equivNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.equivNonnull(y, x)
   }
 }
 
 abstract class CodeOrderingCompareConsistentWithOthers extends CodeOrdering {
-  def ltNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = compareNonnull(x, y, missingEqual) < 0
+  def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) < 0
 
-  def lteqNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = compareNonnull(x, y, missingEqual) <= 0
+  def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) <= 0
 
-  def gtNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = compareNonnull(x, y, missingEqual) > 0
+  def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) > 0
 
-  def gteqNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = compareNonnull(x, y, missingEqual) >= 0
+  def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) >= 0
 
-  def equivNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = compareNonnull(x, y, missingEqual).ceq(0)
+  def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y).ceq(0)
 }

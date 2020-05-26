@@ -25,18 +25,18 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
     new CodeOrderingCompareConsistentWithOthers {
       type T = Int
 
-      def compareNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Int] =
+      def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
         Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", x, y)
 
-      override def ltNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = x < y
+      override def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x < y
 
-      override def lteqNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = x <= y
+      override def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x <= y
 
-      override def gtNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = x > y
+      override def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x > y
 
-      override def gteqNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = x >= y
+      override def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x >= y
 
-      override def equivNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Boolean] = x.ceq(y)
+      override def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x.ceq(y)
     }
   }
 

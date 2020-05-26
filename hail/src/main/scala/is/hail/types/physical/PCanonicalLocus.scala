@@ -76,14 +76,14 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
       type T = Long
       val bincmp = representation.fundamentalType.fieldType("contig").asInstanceOf[PBinary].codeOrdering(mb)
 
-      override def compareNonnull(x: Code[Long], y: Code[Long], missingEqual: Boolean): Code[Int] = {
+      override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
         val c1 = mb.newLocal[Long]("c1")
         val c2 = mb.newLocal[Long]("c2")
 
         val s1 = contigType.loadString(c1)
         val s2 = contigType.loadString(c2)
 
-        val cmp = bincmp.compareNonnull(coerce[bincmp.T](c1), coerce[bincmp.T](c2), missingEqual)
+        val cmp = bincmp.compareNonnull(coerce[bincmp.T](c1), coerce[bincmp.T](c2))
         val codeRG = mb.getReferenceGenome(rg)
 
         Code.memoize(x, "plocus_code_ord_x", y, "plocus_code_ord_y") { (x, y) =>

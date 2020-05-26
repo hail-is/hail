@@ -26,7 +26,7 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
     new CodeOrderingCompareConsistentWithOthers {
       type T = Boolean
 
-      def compareNonnull(x: Code[T], y: Code[T], missingEqual: Boolean): Code[Int] =
+      def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
         Code.invokeStatic2[java.lang.Boolean, Boolean, Boolean, Int]("compare", x, y)
     }
   }
