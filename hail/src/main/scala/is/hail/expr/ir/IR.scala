@@ -280,6 +280,54 @@ trait InferredPhysicalAggSignature {
 final case class RunAgg(body: IR, result: IR, signature: IndexedSeq[AggStateSignature]) extends IR with InferredPhysicalAggSignature
 final case class RunAggScan(array: IR, name: String, init: IR, seqs: IR, result: IR, signature: IndexedSeq[AggStateSignature]) extends IR with InferredPhysicalAggSignature
 
+object StreamJoin {
+  def apply(
+    left: IR, right: IR,
+    lKey: IndexedSeq[String], rKey: IndexedSeq[String],
+    l: String, r: String,
+    joinF: IR,
+    joinType: String
+  ): IR = {
+    val lType = coerce[TStream](left.typ)
+    val rType = coerce[TStream](right.typ)
+    val lEltType = coerce[TStruct](lType.elementType)
+    val rEltType = coerce[TStruct](rType.elementType)
+    assert(lEltType.typeAfterSelectNames(lKey) isIsomorphicTo rEltType.typeAfterSelectNames(rKey))
+    val rightGroupedStream = StreamGroupByKey(right, rKey)
+
+    val groupField = genUID()
+
+    // stream of {key, groupField}, where 'groupField' is an array of all rows
+    // in 'right' with key 'key'
+    val rightGrouped =
+      mapIR(rightGroupedStream) { group =>
+        bindIR(ToArray(group)) { array =>
+          bindIR(ArrayRef(array, 0)) { head =>
+            MakeStruct(rKey.map { key => key -> GetField(head, key) } :+ groupField -> array)
+          }
+        }
+      }
+    val rElt = Ref(genUID(), coerce[TStream](rightGrouped.typ).elementType)
+    val nested = bindIR(GetField(rElt, groupField)) { rGroup =>
+      if (joinType == "left" || joinType == "outer") {
+        // Given a left element in 'l' and array of right elements in 'rGroup',
+        // compute array of results of 'joinF'. If 'rGroup' is missing, apply
+        // 'joinF' once to a missing right element.
+        StreamMap(If(IsNA(rGroup), MakeStream.unify(FastSeq(NA(rEltType))), ToStream(rGroup)), r, joinF)
+      } else {
+        StreamMap(ToStream(rGroup), r, joinF)
+      }
+    }
+    val rightDistinctJoinType =
+      if (joinType == "left" || joinType == "inner") "left" else "outer"
+
+    val joined = StreamJoinRightDistinct(left, rightGrouped, lKey, rKey, l, rElt.name, nested, rightDistinctJoinType)
+    val exploded = flatMapIR(joined) { x => x }
+
+    exploded
+  }
+}
+
 final case class StreamJoinRightDistinct(left: IR, right: IR, lKey: IndexedSeq[String], rKey: IndexedSeq[String], l: String, r: String, joinF: IR, joinType: String) extends IR
 
 sealed trait NDArrayIR extends TypedIR[TNDArray, PNDArray] {
