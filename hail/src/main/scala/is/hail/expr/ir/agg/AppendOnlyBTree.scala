@@ -201,10 +201,6 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     getF.invokeCode(root, km, kv)
 
   def foreach(cb: EmitCodeBuilder)(visitor: (EmitCodeBuilder, Code[Long]) => Unit): Unit = {
-    // This emit should be removable once method splitting has been done properly
-    val f = kb.genEmitMethod("btree_foreach", FastIndexedSeq(), typeInfo[Unit])
-    f.emitWithBuilder { cb =>
-
     val stackI = cb.newLocal[Int]("btree_foreach_stack_i", -1)
     val nodeStack = cb.newLocal("btree_foreach_node_stack", Code.newArray[Long](const(128)))
     val idxStack = cb.newLocal("btree_foreach_index_stack", Code.newArray[Int](const(128)))
@@ -221,10 +217,8 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
       cb.assign(stackI, stackI - 1)
     }
 
-    val maxStackI = cb.newLocal("max_stackI", -1)
     stackPush(root)
     cb.whileLoop(stackI >= 0, { (Lstart) =>
-      cb.ifx(stackI > maxStackI, cb.assign(maxStackI, stackI))
       val node = cb.newLocal("btree_foreach_node", nodeStack(stackI))
       val idx = cb.newLocal("btree_foreach_idx", idxStack(stackI))
       val Lend = CodeLabel()
@@ -262,9 +256,6 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
       cb.define(Lend)
       stackPop()
     })
-    Code._empty
-    }
-    cb.invokeVoid(f)
   }
 
   val deepCopy: Code[Long] => Code[Unit] = {
