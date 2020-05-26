@@ -1,4 +1,3 @@
-import pkg_resources
 import sys
 import os
 import json
@@ -6,7 +5,7 @@ import socket
 import socketserver
 from threading import Thread
 import py4j
-import pyspark
+from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
 
 import hail
 from hail.utils.java import FatalError, Env, scala_package_object, scala_object
@@ -20,11 +19,11 @@ from hail.matrixtable import MatrixTable
 
 from .py4j_backend import Py4JBackend
 from ..hail_logging import Logger
+from ..fs.local_fs import LocalFS
 
 
 def handle_java_exception(f):
     def deco(*args, **kwargs):
-        import pyspark
         try:
             return f(*args, **kwargs)
         except py4j.protocol.Py4JJavaError as e:
@@ -39,10 +38,6 @@ def handle_java_exception(f):
             raise FatalError('%s\n\nJava stack trace:\n%s\n'
                              'Hail version: %s\n'
                              'Error summary: %s' % (deepest, full, hail.__version__, deepest)) from None
-        except pyspark.sql.utils.CapturedException as e:
-            raise FatalError('%s\n\nJava stack trace:\n%s\n'
-                             'Hail version: %s\n'
-                             'Error summary: %s' % (e.desc, e.stackTrace, hail.__version__, e.desc)) from None
 
     return deco
 
@@ -137,70 +132,29 @@ class Log4jLogger(Logger):
         self._log_pkg.info(msg)
 
 
-class SparkBackend(Py4JBackend):
-    def __init__(self, idempotent, sc, spark_conf, app_name, master,
-                 local, log, quiet, append, min_block_size,
-                 branching_factor, tmpdir, local_tmpdir, skip_logging_configuration, optimizer_iterations):
-        if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
-            hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
-            assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
-            conf = pyspark.SparkConf()
-
-            base_conf = spark_conf or {}
-            for k, v in base_conf.items():
-                conf.set(k, v)
-
-            jars = [hail_jar_path]
-
-            if os.environ.get('HAIL_SPARK_MONITOR'):
-                import sparkmonitor
-                jars.append(os.path.join(os.path.dirname(sparkmonitor.__file__), 'listener.jar'))
-                conf.set("spark.extraListeners", "sparkmonitor.listener.JupyterSparkMonitorListener")
-
-            conf.set('spark.jars', ','.join(jars))
-            conf.set('spark.driver.extraClassPath', ','.join(jars))
-            conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
-            if sc is None:
-                pyspark.SparkContext._ensure_initialized(conf=conf)
-            elif not quiet:
-                sys.stderr.write(
-                    'pip-installed Hail requires additional configuration options in Spark referring\n'
-                    '  to the path to the Hail Python module directory HAIL_DIR,\n'
-                    '  e.g. /path/to/python/site-packages/hail:\n'
-                    '    spark.jars=HAIL_DIR/hail-all-spark.jar\n'
-                    '    spark.driver.extraClassPath=HAIL_DIR/hail-all-spark.jar\n'
-                    '    spark.executor.extraClassPath=./hail-all-spark.jar')
-        else:
-            pyspark.SparkContext._ensure_initialized()
-
-        self._gateway = pyspark.SparkContext._gateway
-        self._jvm = pyspark.SparkContext._jvm
+class LocalBackend(Py4JBackend):
+    def __init__(self, tmpdir, log, quiet, append, branching_factor,
+                 skip_logging_configuration, optimizer_iterations):
+        SPARK_HOME = os.environ['SPARK_HOME']
+        HAIL_HOME = os.environ['HAIL_HOME']
+        port = launch_gateway(
+            redirect_stdout=sys.stdout,
+            redirect_stderr=sys.stderr,
+            jarpath=f'{SPARK_HOME}/jars/py4j-0.10.7.jar',
+            classpath=f'{SPARK_HOME}/jars/*:{HAIL_HOME}/hail/build/libs/hail-all-spark.jar',
+            die_on_exit=True)
+        self._gateway = JavaGateway(
+            gateway_parameters=GatewayParameters(port=port, auto_convert=True))
+        self._jvm = self._gateway.jvm
 
         hail_package = getattr(self._jvm, 'is').hail
 
         self._hail_package = hail_package
         self._utils_package_object = scala_package_object(hail_package.utils)
 
-        jsc = sc._jsc.sc() if sc else None
-
-        if idempotent:
-            self._jbackend = hail_package.backend.spark.SparkBackend.getOrCreate(
-                jsc, app_name, master, local, True, min_block_size, tmpdir, local_tmpdir)
-            self._jhc = hail_package.HailContext.getOrCreate(
-                self._jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
-        else:
-            self._jbackend = hail_package.backend.spark.SparkBackend.apply(
-                jsc, app_name, master, local, True, min_block_size, tmpdir, local_tmpdir)
-            self._jhc = hail_package.HailContext.apply(
-                self._jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
-
-        self._jsc = self._jbackend.sc()
-        if sc:
-            self.sc = sc
-        else:
-            self.sc = pyspark.SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
-        self._jspark_session = self._jbackend.sparkSession()
-        self._spark_session = pyspark.sql.SparkSession(self.sc, self._jspark_session)
+        self._jbackend = hail_package.backend.local.LocalBackend.apply(tmpdir)
+        self._jhc = hail_package.HailContext.apply(
+            self._jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
 
         # This has to go after creating the SparkSession. Unclear why.
         # Maybe it does its own patch?
@@ -215,17 +169,11 @@ class SparkBackend(Py4JBackend):
                                f"  JAR:    {jar_version}\n"
                                f"  Python: {py_version}")
 
-        self._fs = None
+        self._fs = LocalFS()
         self._logger = None
 
         if not quiet:
-            sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
-            if self._jsc.uiWebUrl().isDefined():
-                sys.stderr.write('SparkUI available at {}\n'.format(self._jsc.uiWebUrl().get()))
-
             connect_logger(self._utils_package_object, 'localhost', 12888)
-
-            self._jbackend.startProgressBar()
 
     def jvm(self):
         return self._jvm
@@ -239,8 +187,7 @@ class SparkBackend(Py4JBackend):
     def stop(self):
         self._jhc.stop()
         self._jhc = None
-        self.sc.stop()
-        self.sc = None
+        # FIXME stop gateway?
         uninstall_exception_handler()
 
     def _parse_value_ir(self, code, ref_map={}, ir_map={}):
@@ -253,6 +200,10 @@ class SparkBackend(Py4JBackend):
         return self._jbackend.parse_table_ir(code, ref_map, ir_map)
 
     def _parse_matrix_ir(self, code, ref_map={}, ir_map={}):
+        print(type(code))
+        print(code)
+        print(ref_map)
+        print(ir_map)
         return self._jbackend.parse_matrix_ir(code, ref_map, ir_map)
 
     def _parse_blockmatrix_ir(self, code, ref_map={}, ir_map={}):
@@ -266,9 +217,6 @@ class SparkBackend(Py4JBackend):
 
     @property
     def fs(self):
-        if self._fs is None:
-            from hail.fs.hadoop_fs import HadoopFS
-            self._fs = HadoopFS(self._utils_package_object, self._jbackend.fs())
         return self._fs
 
     def _to_java_ir(self, ir, parse):
@@ -327,48 +275,33 @@ class SparkBackend(Py4JBackend):
         jir = self._to_java_blockmatrix_ir(bmir)
         return tblockmatrix._from_java(jir.typ())
 
-    def from_spark(self, df, key):
-        return Table._from_java(self._jbackend.pyFromDF(df._jdf, key))
-
-    def to_spark(self, t, flatten):
-        t = t.expand_types()
-        if flatten:
-            t = t.flatten()
-        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)), Env.spark_session()._wrapped)
-
-    def to_pandas(self, t, flatten):
-        return self.to_spark(t, flatten).toPandas()
-
-    def from_pandas(self, df, key):
-        return Table.from_spark(Env.spark_session().createDataFrame(df), key)
-
     def add_reference(self, config):
-        Env.hail().variant.ReferenceGenome.fromJSON(json.dumps(config))
+        self._hail_package.variant.ReferenceGenome.fromJSON(json.dumps(config))
 
     def load_references_from_dataset(self, path):
-        return json.loads(Env.hail().variant.ReferenceGenome.fromHailDataset(self.fs._jfs, path))
+        return json.loads(self._hail_package.variant.ReferenceGenome.fromHailDataset(self.fs._jfs, path))
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         self._jbackend.pyFromFASTAFile(
             name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par)
 
     def remove_reference(self, name):
-        Env.hail().variant.ReferenceGenome.removeReference(name)
+        self._hail_package.variant.ReferenceGenome.removeReference(name)
 
     def get_reference(self, name):
-        return json.loads(Env.hail().variant.ReferenceGenome.getReference(name).toJSONString())
+        return json.loads(self._hail_package.variant.ReferenceGenome.getReference(name).toJSONString())
 
     def add_sequence(self, name, fasta_file, index_file):
         self._jbackend.pyAddSequence(name, fasta_file, index_file)
 
     def remove_sequence(self, name):
-        scala_object(Env.hail().variant, 'ReferenceGenome').removeSequence(name)
+        scala_object(self._hail_package.variant, 'ReferenceGenome').removeSequence(name)
 
     def add_liftover(self, name, chain_file, dest_reference_genome):
         self._jbackend.pyReferenceAddLiftover(name, chain_file, dest_reference_genome)
 
     def remove_liftover(self, name, dest_reference_genome):
-        scala_object(Env.hail().variant, 'ReferenceGenome').referenceRemoveLiftover(
+        scala_object(self._hail_package.variant, 'ReferenceGenome').referenceRemoveLiftover(
             name, dest_reference_genome)
 
     def parse_vcf_metadata(self, path):
