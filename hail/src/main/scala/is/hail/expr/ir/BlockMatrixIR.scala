@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.types.{BlockMatrixSparsity, BlockMatrixType}
-import is.hail.types.virtual.{TArray, TBaseStruct, TFloat64, TInt64, TTuple, Type}
+import is.hail.types.virtual.{TArray, TBaseStruct, TFloat64, TInt32, TInt64, TTuple, Type}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
 import is.hail.utils._
 import breeze.linalg
@@ -734,6 +734,27 @@ case class RectangleSparsifier(rectangles: IndexedSeq[IndexedSeq[Long]]) extends
 
   def pretty(): String =
     s"(RectangleSparsifier ${ rectangles.flatten.mkString("(", " ", ")") })"
+}
+
+case class PerBlockSparsifier(blocks: IndexedSeq[Int]) extends BlockMatrixSparsifier {
+  override def typ: Type = TArray(TInt32)
+
+  //def blockBlockRow(bi: Int): Int = bi % nBlockRows
+  //def blockBlockCol(bi: Int): Int = bi / nBlockRows
+
+  override def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
+    val x = blocks.map { blockIndex =>
+      // TODO: Is this really right?
+      val blockRow = blockIndex % childType.nRowBlocks
+      val blockCol = blockIndex / childType.nColBlocks
+      (blockRow, blockCol)
+    }
+    BlockMatrixSparsity(x)
+  }
+
+  override def sparsify(bm: BlockMatrix): BlockMatrix = bm.filterBlocks(blocks.toArray)
+
+  override def pretty(): String = s"(PerBlockSparsifier with blocks $blocks"
 }
 
 case class BlockMatrixSparsify(

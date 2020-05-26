@@ -42,7 +42,7 @@ from .matrix_ir import MatrixAggregateRowsByKey, MatrixRead, MatrixFilterRows, \
 from .blockmatrix_ir import BlockMatrixRead, BlockMatrixMap, BlockMatrixMap2, \
     BlockMatrixDot, BlockMatrixBroadcast, BlockMatrixAgg, BlockMatrixFilter, \
     BlockMatrixDensify, BlockMatrixSparsifier, BandSparsifier, \
-    RowIntervalSparsifier, RectangleSparsifier, BlockMatrixSparsify, \
+    RowIntervalSparsifier, RectangleSparsifier, PerBlockSparsifier, BlockMatrixSparsify, \
     BlockMatrixSlice, ValueToBlockMatrix, BlockMatrixRandom, JavaBlockMatrix, \
     tensor_shape_to_matrix_shape
 from .utils import filter_predicate_with_keep, make_filter_and_replace

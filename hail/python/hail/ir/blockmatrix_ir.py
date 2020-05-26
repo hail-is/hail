@@ -259,6 +259,14 @@ class _RectangleSparsifier(BlockMatrixSparsifier):
 RectangleSparsifier = _RectangleSparsifier()
 
 
+class PerBlockSparsifier(BlockMatrixSparsifier):
+    def __init__(self):
+        pass
+
+    def __repr__(self):
+        return '(PyPerBlockSparsifier)'
+
+
 class BlockMatrixSparsify(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR, value=IR, sparsifier=BlockMatrixSparsifier)
     def __init__(self, child, value, sparsifier):
