@@ -1605,9 +1605,26 @@ private class BlockMatrixUnionOpRDD(
 
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
     val (i, j) = gp.partCoordinates(split.index)
-    val lm = op(block(l, lParts, lGP, context, i, j) -> block(r, rParts, rGP, context, i, j))
-    
-    Iterator.single(((i, j), lm))
+    val left = block(l, lParts, lGP, context, i, j)
+    val right = block(r, rParts, rGP, context, i, j)
+    try {
+      val lm = op(left -> right)
+
+      Iterator.single(((i, j), lm))
+    } catch {
+      case e: Throwable => {
+        throw new IllegalArgumentException(
+          s"""
+             | split.index = ${split.index}
+             | coordinates = ${(i, j)}
+             | left.shape = ${left.map(dm => (dm.rows, dm.cols))}
+             | right.shape = ${right.map(dm => (dm.rows, dm.cols))}
+             | leftBM.shape = ${(l.nRows, l.nCols)}
+             | rightBM.shape = ${(r.nRows, r.nCols)}
+             |""".stripMargin, e)
+      }
+    }
+
   }
 
   protected def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(pi =>
