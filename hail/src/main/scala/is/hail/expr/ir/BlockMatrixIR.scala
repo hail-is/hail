@@ -465,7 +465,7 @@ case class BlockMatrixBroadcast(
     !child.typ.shape.contains(in) || childMatrixShape(in) == shape(out)
   }))
 
-  override def typ: BlockMatrixType = {
+  override val typ: BlockMatrixType = {
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape(0), shape(1))
     val nRowBlocks = BlockMatrixType.numBlocks(shape(0), blockSize)
     val nColBlocks = BlockMatrixType.numBlocks(shape(1), blockSize)
@@ -483,7 +483,9 @@ case class BlockMatrixBroadcast(
             BlockMatrixSparsity(nRowBlocks, nColBlocks)((_, j: Int) => child.typ.hasBlock(j -> j))
           case IndexedSeq(1, 0) => // transpose
             assert(child.typ.blockSize == blockSize)
-            BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(j -> i))
+            BlockMatrixSparsity(child.typ.sparsity.definedBlocks.map(seq => seq.map { case (i, j) => (j, i)}))
+
+            //BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.//child.typ.hasBlock(j -> i))
           case IndexedSeq(0, 1) =>
             assert(child.typ.blockSize == blockSize)
             child.typ.sparsity
@@ -739,17 +741,28 @@ case class RectangleSparsifier(rectangles: IndexedSeq[IndexedSeq[Long]]) extends
 case class PerBlockSparsifier(blocks: IndexedSeq[Int]) extends BlockMatrixSparsifier {
   override def typ: Type = TArray(TInt32)
 
-  //def blockBlockRow(bi: Int): Int = bi % nBlockRows
-  //def blockBlockCol(bi: Int): Int = bi / nBlockRows
+  var definedBlocksST = IndexedSeq[StackTraceElement]()
+
+  val blockSet = blocks.toSet
 
   override def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
-    val x = blocks.map { blockIndex =>
-      // TODO: Is this really right?
-      val blockRow = blockIndex % childType.nRowBlocks
-      val blockCol = blockIndex / childType.nColBlocks
-      (blockRow, blockCol)
+    //definedBlocksST = Thread.currentThread().getStackTrace.toIndexedSeq
+    //info(definedBlocksST.take(10).toString())
+//    log.info("Defining blocks")
+//    info("Defining blocks")
+//    val x = blocks.map { blockIndex =>
+//      // TODO: Is this really right?
+//      val blockRow = blockIndex % childType.nRowBlocks
+//      val blockCol = blockIndex / childType.nColBlocks
+//      (blockRow, blockCol)
+//    }
+//    log.info("Defined blocks")
+//    info("Defined blocks")
+    val nRowBlocks = childType.nRowBlocks
+    val nColBlocks = childType.nColBlocks
+    BlockMatrixSparsity(nRowBlocks, nColBlocks){ case(i: Int, j: Int) =>
+      blockSet.contains(i + j * nRowBlocks)
     }
-    BlockMatrixSparsity(x)
   }
 
   override def sparsify(bm: BlockMatrix): BlockMatrix = bm.filterBlocks(blocks.toArray)
