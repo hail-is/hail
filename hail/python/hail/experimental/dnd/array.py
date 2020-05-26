@@ -44,9 +44,9 @@ class DNDArray:
     retention policy to automatically clean it up
     """
 
-    __default_block_size = 4096
+    default_block_size = 4096
     # FIXME: make lz4fast
-    __fastcodecspec = json.dumps({
+    fast_codec_spec = json.dumps({
         "name": "BlockingBufferSpec",
         "blockSize": 64 * 1024,
         "child": {
@@ -66,7 +66,7 @@ class DNDArray:
         if n_partitions is None:
             n_partitions = mt.n_partitions()
         if block_size is None:
-            block_size = DNDArray.__default_block_size
+            block_size = DNDArray.default_block_size
         if n_partitions == 0:
             assert mt.count_cols() == 0
             assert mt.count_rows() == 0
@@ -124,7 +124,7 @@ class DNDArray:
             block_size=block_size)
         fname = new_temp_file()
         mt = mt.key_by(mt.x, mt.y)
-        mt.write(fname, _codec_spec=DNDArray.__fastcodecspec)
+        mt.write(fname, _codec_spec=DNDArray.fast_codec_spec)
         t = hl.read_table(fname, _intervals=[
             hl.Interval(hl.Struct(x=x, y=y),
                         hl.Struct(x=x, y=y+1))
@@ -237,7 +237,7 @@ class DNDArray:
         return self.m.write(*args, **kwargs)
 
     def checkpoint(self, fname, *, overwrite=False) -> 'DNDArray':
-        self.write(fname, _codec_spec=DNDArray.__fastcodecspec, overwrite=overwrite)
+        self.write(fname, _codec_spec=DNDArray.fast_codec_spec, overwrite=overwrite)
         return read(fname)
 
     def _force_count_blocks(self) -> int:
