@@ -1,4 +1,3 @@
-import pkg_resources
 import sys
 import os
 import json
@@ -136,7 +135,6 @@ class Log4jLogger(Logger):
 class LocalBackend(Py4JBackend):
     def __init__(self, tmpdir, log, quiet, append, branching_factor,
                  skip_logging_configuration, optimizer_iterations):
-        print('in LocalBackend.__init__')
         SPARK_HOME = os.environ['SPARK_HOME']
         HAIL_HOME = os.environ['HAIL_HOME']
         port = launch_gateway(

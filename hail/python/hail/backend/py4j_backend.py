@@ -6,7 +6,7 @@ class Py4JBackend(Backend):
     @abc.abstractmethod
     def jvm(self):
         pass
-    
+
     @abc.abstractmethod
     def hail_package(self):
         pass
