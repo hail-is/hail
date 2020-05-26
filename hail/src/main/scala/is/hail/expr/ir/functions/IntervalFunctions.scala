@@ -97,7 +97,7 @@ object IntervalFunctions extends RegistryFunctions {
 
         val cmp = r.mb.newLocal[Int]()
         val interval = new IRInterval(r, int.pt.asInstanceOf[PInterval], int.value[Long])
-        val compare = interval.ordering(CodeOrdering.compare)
+        val compare = interval.ordering(CodeOrdering.Compare())
 
         val contains = Code(
           interval.storeToLocal,
@@ -207,8 +207,8 @@ class IRInterval(r: EmitRegion, typ: PInterval, value: Code[Long]) {
   def includesEnd: Code[Boolean] = typ.includesEnd(ref)
 
   def isEmpty: Code[Boolean] = {
-    val gt = ordering(CodeOrdering.gt)
-    val gteq = ordering(CodeOrdering.gteq)
+    val gt = ordering(CodeOrdering.Gt())
+    val gteq = ordering(CodeOrdering.Gteq())
 
     (includesStart && includesEnd).mux(
       gt(start, end),
@@ -217,7 +217,7 @@ class IRInterval(r: EmitRegion, typ: PInterval, value: Code[Long]) {
 
   def isAboveOnNonempty(other: IRInterval): Code[Boolean] = {
     val cmp = r.mb.newLocal[Int]()
-    val compare = ordering(CodeOrdering.compare)
+    val compare = ordering(CodeOrdering.Compare())
     Code(
       cmp := compare(start, other.end),
       cmp > 0 || (cmp.ceq(0) && (!includesStart || !other.includesEnd)))
@@ -225,7 +225,7 @@ class IRInterval(r: EmitRegion, typ: PInterval, value: Code[Long]) {
 
   def isBelowOnNonempty(other: IRInterval): Code[Boolean] = {
     val cmp = r.mb.newLocal[Int]()
-    val compare = ordering(CodeOrdering.compare)
+    val compare = ordering(CodeOrdering.Compare())
     Code(
       cmp := compare(end, other.start),
       cmp < 0 || (cmp.ceq(0) && (!includesEnd || !other.includesStart)))

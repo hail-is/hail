@@ -60,30 +60,30 @@ sealed trait ComparisonOp[ReturnType] {
   }
 }
 
-case class GT(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.gt }
+case class GT(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.Gt() }
 object GT { def apply(typ: Type): GT = GT(typ, typ) }
-case class GTEQ(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.gteq }
+case class GTEQ(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.Gteq() }
 object GTEQ { def apply(typ: Type): GTEQ = GTEQ(typ, typ) }
-case class LTEQ(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.lteq }
+case class LTEQ(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.Lteq() }
 object LTEQ { def apply(typ: Type): LTEQ = LTEQ(typ, typ) }
-case class LT(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.lt }
+case class LT(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.Lt() }
 object LT { def apply(typ: Type): LT = LT(typ, typ) }
-case class EQ(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.equiv }
+case class EQ(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.Equiv() }
 object EQ { def apply(typ: Type): EQ = EQ(typ, typ) }
-case class NEQ(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.neq }
+case class NEQ(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.Neq() }
 object NEQ { def apply(typ: Type): NEQ = NEQ(typ, typ) }
 case class EQWithNA(t1: Type, t2: Type) extends ComparisonOp[Boolean] {
-  val op: CodeOrdering.Op = CodeOrdering.equiv
+  val op: CodeOrdering.Op = CodeOrdering.Equiv()
   override val strict: Boolean = false
 }
 object EQWithNA { def apply(typ: Type): EQWithNA = EQWithNA(typ, typ) }
 case class NEQWithNA(t1: Type, t2: Type) extends ComparisonOp[Boolean] {
-  val op: CodeOrdering.Op = CodeOrdering.neq
+  val op: CodeOrdering.Op = CodeOrdering.Neq()
   override val strict: Boolean = false
 }
 object NEQWithNA { def apply(typ: Type): NEQWithNA = NEQWithNA(typ, typ) }
 case class Compare(t1: Type, t2: Type) extends ComparisonOp[Int] {
   override val strict: Boolean = false
-  val op: CodeOrdering.Op = CodeOrdering.compare
+  val op: CodeOrdering.Op = CodeOrdering.Compare()
 }
 object Compare { def apply(typ: Type): Compare = Compare(typ, typ) }

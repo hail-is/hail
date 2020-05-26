@@ -12,7 +12,7 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
   val inline: Boolean = typ.isPrimitive
   val storageType: PTuple = PCanonicalTuple(false, if (inline) typ else PInt64(typ.required), PCanonicalTuple(false))
   val compType: PType = typ
-  private val kcomp = kb.getCodeOrdering(typ, CodeOrdering.compare, ignoreMissingness = false)
+  private val kcomp = kb.getCodeOrdering(typ, CodeOrdering.Compare(), ignoreMissingness = false)
 
   def isKeyMissing(src: Code[Long]): Code[Boolean] = storageType.isFieldMissing(src, 0)
   def loadKey(src: Code[Long]): Code[_] = Region.loadIRIntermediate(if (inline) typ else PInt64(typ.required))(storageType.fieldOffset(src, 0))
