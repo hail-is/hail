@@ -221,7 +221,7 @@ object TextTableReader {
   }
 
   def readMetadata(fs: FS, options: TextTableReaderParameters): TextTableReaderMetadata = {
-    HailContext.maybeGZipAsBGZip(fs, options.forceBGZ) {
+    HailContext.maybeGZipAsBGZip(fs, options.forceBGZ) { () =>
       readMetadata1(fs, options)
     }
   }
