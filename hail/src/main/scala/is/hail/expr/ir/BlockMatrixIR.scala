@@ -484,8 +484,6 @@ case class BlockMatrixBroadcast(
           case IndexedSeq(1, 0) => // transpose
             assert(child.typ.blockSize == blockSize)
             BlockMatrixSparsity(child.typ.sparsity.definedBlocks.map(seq => seq.map { case (i, j) => (j, i)}))
-
-            //BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.//child.typ.hasBlock(j -> i))
           case IndexedSeq(0, 1) =>
             assert(child.typ.blockSize == blockSize)
             child.typ.sparsity
