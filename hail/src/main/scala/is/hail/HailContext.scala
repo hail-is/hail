@@ -406,9 +406,9 @@ object HailContext {
     }
   }
 
-  def maybeGZipAsBGZip[T](fs: FS, force: Boolean)(body: => T): T = {
+  def maybeGZipAsBGZip[T](fs: FS, force: Boolean)(body: () => T): T = {
     if (!force)
-      return body
+      return body()
 
     val codecs = fs.getCodecs()
     try {
@@ -419,7 +419,7 @@ object HailContext {
           else
             codec
         })
-      body
+      body()
     } finally {
       fs.setCodecs(codecs)
     }
