@@ -8,7 +8,7 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.{ExecuteContext, MatrixValue}
 import is.hail.expr.ir.functions.MatrixToValueFunction
-import is.hail.types.MatrixType
+import is.hail.types.{MatrixType, RTable, TypeWithRequiredness}
 import is.hail.types.virtual.{TVoid, Type}
 import is.hail.io.fs.FileStatus
 import is.hail.utils._
@@ -18,6 +18,8 @@ import org.apache.spark.sql.Row
 case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boolean,
   headerJsonInFile: Boolean, useStringKeyAsFileName: Boolean) extends MatrixToValueFunction {
   def typ(childType: MatrixType): Type = TVoid
+
+  def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit = ()
 
   def execute(ctx: ExecuteContext, mv: MatrixValue): Any = {
     val fs = ctx.fs
