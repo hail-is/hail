@@ -160,7 +160,6 @@ object InferPType {
         val r = coerce[RIterable](requiredness(node))
         val structType = a.pType.asInstanceOf[PStream].elementType.asInstanceOf[PStruct]
         assert(structType.required)
-        assert(key.forall { k => structType.fieldType(k).required })
         PCanonicalStream(a.pType.setRequired(r.elementType.required), r.required)
       case StreamMap(a, name, body) =>
         PCanonicalStream(body.pType, requiredness(node).required)

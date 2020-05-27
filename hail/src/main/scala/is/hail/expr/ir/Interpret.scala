@@ -390,12 +390,13 @@ object Interpret {
           else {
             val outer = new ArrayBuilder[IndexedSeq[Row]]()
             val inner = new ArrayBuilder[Row]()
-            val (_, getKey) = structType.select(key)
+            val (kType, getKey) = structType.select(key)
+            val keyOrd = TBaseStruct.getJoinOrdering(kType.types)
             var curKey: Row = getKey(seq.head)
 
             seq.foreach { elt =>
               val nextKey = getKey(elt)
-              if (curKey != nextKey) {
+              if (!keyOrd.equiv(curKey, nextKey)) {
                 outer += inner.result()
                 inner.clear()
                 curKey = nextKey
@@ -507,7 +508,7 @@ object Interpret {
           val (lKeyTyp, lGetKey) = coerce[TStruct](coerce[TStream](left.typ).elementType).select(lKey)
           val (rKeyTyp, rGetKey) = coerce[TStruct](coerce[TStream](right.typ).elementType).select(rKey)
           assert(lKeyTyp isIsomorphicTo rKeyTyp)
-          val keyOrd = lKeyTyp.ordering
+          val keyOrd = TBaseStruct.getJoinOrdering(lKeyTyp.types)
 
           def compF(lelt: Any, relt: Any): Int =
             keyOrd.compare(lGetKey(lelt.asInstanceOf[Row]), rGetKey(relt.asInstanceOf[Row]))

@@ -1853,6 +1853,8 @@ class IRSuite extends HailSuite {
       Seq(
         MakeStruct(Seq("a" -> I32(3), "b" -> I32(1))),
         MakeStruct(Seq("a" -> I32(3), "b" -> I32(3))),
+        MakeStruct(Seq("a" -> NA(TInt32), "b" -> I32(-1))),
+        MakeStruct(Seq("a" -> NA(TInt32), "b" -> I32(-2))),
         MakeStruct(Seq("a" -> I32(1), "b" -> I32(2))),
         MakeStruct(Seq("a" -> I32(1), "b" -> I32(4))),
         MakeStruct(Seq("a" -> I32(1), "b" -> I32(6))),
@@ -1863,6 +1865,8 @@ class IRSuite extends HailSuite {
     assertEvalsTo(toNestedArray(group(naa)), null)
     assertEvalsTo(toNestedArray(group(a)),
                   FastIndexedSeq(FastIndexedSeq(Row(3, 1), Row(3, 3)),
+                                 FastIndexedSeq(Row(null, -1)),
+                                 FastIndexedSeq(Row(null, -2)),
                                  FastIndexedSeq(Row(1, 2), Row(1, 4), Row(1, 6)),
                                  FastIndexedSeq(Row(4, null))))
     assertEvalsTo(toNestedArray(group(MakeStream(Seq(), TStream(structType)))), FastIndexedSeq())
@@ -1877,10 +1881,14 @@ class IRSuite extends HailSuite {
 
     assertEvalsTo(toNestedArray(takeFromEach(a, I32(1))),
                   FastIndexedSeq(FastIndexedSeq(Row(3, 1)),
+                                 FastIndexedSeq(Row(null, -1)),
+                                 FastIndexedSeq(Row(null, -2)),
                                  FastIndexedSeq(Row(1, 2)),
                                  FastIndexedSeq(Row(4, null))))
     assertEvalsTo(toNestedArray(takeFromEach(a, I32(2))),
                   FastIndexedSeq(FastIndexedSeq(Row(3, 1), Row(3, 3)),
+                                 FastIndexedSeq(Row(null, -1)),
+                                 FastIndexedSeq(Row(null, -2)),
                                  FastIndexedSeq(Row(1, 2), Row(1, 4)),
                                  FastIndexedSeq(Row(4, null))))
   }
@@ -2323,7 +2331,7 @@ class IRSuite extends HailSuite {
         MakeStream.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "rk2" -> Str("x"), "rk1" -> (if (n == null) NA(TInt32) else I32(n)), "c" -> Str("foo"))) }),
         FastIndexedSeq("lk1", "lk2"),
         FastIndexedSeq("rk1", "rk2"),
-        true,
+        rightDistinct = true,
         joinType)
     }
     def leftJoinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR =
@@ -2353,16 +2361,13 @@ class IRSuite extends HailSuite {
 
     assertEvalsTo(leftJoinRows(Array[Integer](0, null), Array[Integer](1, null)), FastIndexedSeq(
       Row(0, "x", 0L, null, null),
-      Row(null, "x", 1L, 1, "foo")))
-
-    assertEvalsTo(leftJoinRows(Array[Integer](0, null), Array[Integer](1, null)), FastIndexedSeq(
-      Row(0, "x", 0L, null, null),
-      Row(null, "x", 1L, 1, "foo")))
+      Row(null, "x", 1L, null, null)))
 
     assertEvalsTo(outerJoinRows(Array[Integer](0, null), Array[Integer](1, null)), FastIndexedSeq(
       Row(0, "x", 0L, null, null),
       Row(1, "x", null, 0, "foo"),
-      Row(null, "x", 1L, 1, "foo")))
+      Row(null, "x", 1L, null, null),
+      Row(null, "x", null, 1, "foo")))
 
     assertEvalsTo(leftJoinRows(Array[Integer](0, 1, 2), Array[Integer](1)), FastIndexedSeq(
       Row(0, "x", 0L, null, null),
@@ -2402,15 +2407,17 @@ class IRSuite extends HailSuite {
     def rightJoinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR =
       joinRows(left, right, "right")
 
-    assertEvalsTo(leftJoinRows(Array[Integer](1, 1, 2, 2), Array[Integer](0, 0, 1, 1, 3, 3)), FastIndexedSeq(
+    assertEvalsTo(leftJoinRows(Array[Integer](1, 1, 2, 2, null, null), Array[Integer](0, 0, 1, 1, 3, 3, null, null)), FastIndexedSeq(
       Row(1, 0, 2),
       Row(1, 0, 3),
       Row(1, 1, 2),
       Row(1, 1, 3),
       Row(2, 2, null),
-      Row(2, 3, null)))
+      Row(2, 3, null),
+      Row(null, 4, null),
+      Row(null, 5, null)))
 
-    assertEvalsTo(outerJoinRows(Array[Integer](1, 1, 2, 2), Array[Integer](0, 0, 1, 1, 3, 3)), FastIndexedSeq(
+    assertEvalsTo(outerJoinRows(Array[Integer](1, 1, 2, 2, null, null), Array[Integer](0, 0, 1, 1, 3, 3, null, null)), FastIndexedSeq(
       Row(0, null, 0),
       Row(0, null, 1),
       Row(1, 0, 2),
@@ -2420,15 +2427,19 @@ class IRSuite extends HailSuite {
       Row(2, 2, null),
       Row(2, 3, null),
       Row(3, null, 4),
-      Row(3, null, 5)))
+      Row(3, null, 5),
+      Row(null, 4, null),
+      Row(null, 5, null),
+      Row(null, null, 6),
+      Row(null, null, 7)))
 
-    assertEvalsTo(innerJoinRows(Array[Integer](1, 1, 2, 2), Array[Integer](0, 0, 1, 1, 3, 3)), FastIndexedSeq(
+    assertEvalsTo(innerJoinRows(Array[Integer](1, 1, 2, 2, null, null), Array[Integer](0, 0, 1, 1, 3, 3, null, null)), FastIndexedSeq(
       Row(1, 0, 2),
       Row(1, 0, 3),
       Row(1, 1, 2),
       Row(1, 1, 3)))
 
-    assertEvalsTo(rightJoinRows(Array[Integer](1, 1, 2, 2), Array[Integer](0, 0, 1, 1, 3, 3)), FastIndexedSeq(
+    assertEvalsTo(rightJoinRows(Array[Integer](1, 1, 2, 2, null, null), Array[Integer](0, 0, 1, 1, 3, 3, null, null)), FastIndexedSeq(
       Row(0, null, 0),
       Row(0, null, 1),
       Row(1, 0, 2),
@@ -2436,7 +2447,9 @@ class IRSuite extends HailSuite {
       Row(1, 1, 2),
       Row(1, 1, 3),
       Row(3, null, 4),
-      Row(3, null, 5)))
+      Row(3, null, 5),
+      Row(null, null, 6),
+      Row(null, null, 7)))
   }
 
   @Test def testDie() {
