@@ -1621,9 +1621,7 @@ private class BlockMatrixUnionOpRDD(
 
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
     val (i, j) = gp.partCoordinates(split.index)
-    val left = block(l, lParts, lGP, context, i, j)
-    val right = block(r, rParts, rGP, context, i, j)
-    val lm = op(left -> right)
+    val lm = op(block(l, lParts, lGP, context, i, j) -> block(r, rParts, rGP, context, i, j))
 
     Iterator.single(((i, j), lm))
   }
