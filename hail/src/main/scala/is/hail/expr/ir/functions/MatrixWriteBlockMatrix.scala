@@ -52,7 +52,7 @@ case class MatrixWriteBlockMatrix(path: String,
     using(new DataOutputStream(fs.create(path + BlockMatrix.metadataRelativePath))) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, nRows, localNCols, gp.maybeBlocks, partFiles),
+        BlockMatrixMetadata(blockSize, nRows, localNCols, gp.partitionIndexToBlockIndex, partFiles),
         os)
     }
 
