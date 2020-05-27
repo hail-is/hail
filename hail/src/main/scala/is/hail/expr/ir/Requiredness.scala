@@ -375,8 +375,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         }
 
         if (joinType == "inner")
-          requiredness.keyFields.foreach { k =>
-            requiredness.field(k).unionWithIntersection(FastSeq(leftReq.field(k), rightReq.field(k)))
+          requiredness.key.zipWithIndex.foreach { case (k, i) =>
+            requiredness.field(k).unionWithIntersection(FastSeq(
+              leftReq.field(leftReq.key(i)),
+              rightReq.field(rightReq.key(i))))
           }
 
         requiredness.unionGlobals(leftReq.globalType)

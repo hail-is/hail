@@ -339,8 +339,8 @@ case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: 
 
   def unionKeys(req: RStruct): Unit = key.foreach { n => field(n).unionFrom(req.field(n)) }
   def unionKeys(req: RTable): Unit = {
-    assert(key.zip(req.key).forall { case (k1, k2) => k1 == k2 } && key.length <= req.key.length)
-    unionKeys(req.rowType)
+    assert(key.length <= req.key.length)
+    key.zip(req.key).foreach { case (k, rk) => field(k).unionFrom(req.field(rk)) }
   }
 
   def unionValues(req: RStruct): Unit = valueFields.foreach { n => if (req.hasField(n)) field(n).unionFrom(req.field(n)) }
