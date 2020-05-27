@@ -3,20 +3,20 @@ package is.hail.expr.ir
 import java.util.regex.Pattern
 
 import is.hail.HailContext
-import is.hail.annotations.BroadcastRow
+import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.TableAnnotationImpex
+import is.hail.expr.ir.lowering.TableStage
+import is.hail.io.fs.{FS, FileStatus}
+import is.hail.rvd.RVDPartitioner
 import is.hail.types._
 import is.hail.types.physical.{PCanonicalStruct, PStruct, PType}
 import is.hail.types.virtual._
-import is.hail.io.fs.FS
-import is.hail.rvd.RVD
-import is.hail.sparkextras.ContextRDD
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
-import org.json4s.Formats
-import org.json4s.JValue
+import org.apache.spark.sql.Row
+import org.json4s.{DefaultFormats, Formats, JValue}
 
 import scala.collection.mutable
 import scala.util.matching.Regex
@@ -336,12 +336,12 @@ object TextTableReader {
       log.info(sb.result())
     }
 
-    TextTableReaderMetadata(globbedFiles, header, PCanonicalStruct(namesAndTypes: _*))
+    TextTableReaderMetadata(globbedFiles, header, PCanonicalStruct(true, namesAndTypes: _*))
   }
 
   def apply(fs: FS, params: TextTableReaderParameters): TextTableReader = {
     val metadata = TextTableReader.readMetadata(fs, params)
-    TextTableReader(params, metadata)
+    new TextTableReader(params, metadata.header, metadata.globbedFiles.map(fs.fileStatus), metadata.rowPType)
   }
 
   def fromJValue(fs: FS, jv: JValue): TextTableReader = {
@@ -351,80 +351,114 @@ object TextTableReader {
   }
 }
 
-case class TextTableReader(params: TextTableReaderParameters, metadata: TextTableReaderMetadata) extends TableReader {
+class TextTableReader(
+  val params: TextTableReaderParameters,
+  header: String,
+  fileStatuses: IndexedSeq[FileStatus],
+  fullRowPType: PStruct
+) extends TableReader {
+  val fullType: TableType = TableType(fullRowPType.virtualType, FastIndexedSeq.empty, TStruct())
+
   def pathsUsed: Seq[String] = params.files
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
-  lazy val fullType: TableType = metadata.fullType
 
   def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
     PType.canonical(requestedType.rowType, required = true).asInstanceOf[PStruct] ->
       PCanonicalStruct.empty(required = true)
   }
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    HailContext.maybeGZipAsBGZip(ctx.fs, params.forceBGZ) {
-      apply1(tr, ctx)
-    }
-  }
+  def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
+    val fs = ctx.fs
 
-  def apply1(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    val rowTyp = tr.typ.rowType
-    val nFieldOrig = fullType.rowType.size
-    val rowFields = rowTyp.fields
-    val rowPTyp = rowAndGlobalPTypes(ctx, tr.typ)._1
+    val lines = GenericLines.read(fs, fileStatuses, nPartitions = params.nPartitionsOpt,
+      blockSizeInMB = None, minPartitions = None, gzAsBGZ = params.forceBGZ, allowSerialRead = params.forceGZ)
+    val partitioner: Option[RVDPartitioner] = None
+    val globals: TStruct => Row = _ => Row.empty
 
-    val useColIndices = rowTyp.fields.map(f => fullType.rowType.fieldIdx(f.name))
+    val localParams = params
+    val localHeader = header
+    val localFullRowType = fullRowPType
+    val bodyPType: TStruct => PStruct = (requestedRowType: TStruct) => localFullRowType.subsetTo(requestedRowType).asInstanceOf[PStruct]
+    val linesBody = lines.body
+    val nFieldOrig = localFullRowType.size
 
-    val crdd = ContextRDD.textFilesLines(metadata.globbedFiles, params.nPartitions, params.filterAndReplace)
-      .filter { line =>
-        !params.isComment(line.value) &&
-          (!params.hasHeader || metadata.header != line.value) &&
-          !(params.skipBlankLines && line.value.isEmpty)
-      }.cmapPartitions { (ctx, it) =>
-      val rvb = ctx.rvb
+    val transformer = localParams.filterAndReplace.transformer()
+    val body = { (requestedRowType: TStruct) =>
+      val useColIndices = requestedRowType.fieldNames.map(localFullRowType.virtualType.fieldIdx)
+      val rowFields = requestedRowType.fields.toArray
+      val requestedPType = bodyPType(requestedRowType)
 
-      val ab = new ArrayBuilder[String]
-      val sb = new StringBuilder
-      it.map {
-        _.map { line =>
-          val sp = TextTableReader.splitLine(line, params.separator, params.quote, ab, sb)
-          if (sp.length != nFieldOrig)
-            fatal(s"expected $nFieldOrig fields, but found ${ sp.length } fields")
+      { (region: Region, context: Any) =>
 
-          rvb.start(rowPTyp)
-          rvb.startStruct()
+        val rvb = new RegionValueBuilder(region)
+        val ab = new ArrayBuilder[String]
+        val sb = new StringBuilder
+        linesBody(context)
+          .filter { bline =>
+            val line = transformer(bline.toString)
+            if (line == null || localParams.isComment(line) ||
+              (localParams.hasHeader && localHeader == line) ||
+              (localParams.skipBlankLines && line.isEmpty))
+              false
+            else {
+              val sp = TextTableReader.splitLine(line, localParams.separator, localParams.quote, ab, sb)
+              if (sp.length != nFieldOrig)
+                fatal(s"expected $nFieldOrig fields, but found ${ sp.length } fields")
 
-          var i = 0
-          while (i < useColIndices.length) {
-            val f = rowFields(i)
-            val name = f.name
-            val typ = f.typ
-            val field = sp(useColIndices(i))
-            try {
-              if (params.missing.contains(field))
-                rvb.setMissing()
-              else
-                rvb.addAnnotation(typ, TableAnnotationImpex.importAnnotation(field, typ))
-            } catch {
-              case e: Exception =>
-                fatal(s"""${ e.getClass.getName }: could not convert "$field" to $typ in column "$name" """, e)
+              rvb.start(requestedPType)
+              rvb.startStruct()
+
+              var i = 0
+              while (i < useColIndices.length) {
+                val f = rowFields(i)
+                val name = f.name
+                val typ = f.typ
+                val field = sp(useColIndices(i))
+                try {
+                  if (localParams.missing.contains(field))
+                    rvb.setMissing()
+                  else
+                    rvb.addAnnotation(typ, TableAnnotationImpex.importAnnotation(field, typ))
+                } catch {
+                  case e: Exception =>
+                    fatal(s"""${ e.getClass.getName }: could not convert "$field" to $typ in column "$name" """, e)
+                }
+                i += 1
+              }
+
+              rvb.endStruct()
+              rvb.end()
+              true
             }
-            i += 1
-          }
-
-          rvb.endStruct()
-
-          rvb.end()
-        }.value
+          }.map(_ => rvb.result().offset)
       }
     }
-
-    TableValue(ctx, tr.typ, BroadcastRow.empty(ctx), RVD.unkeyed(rowPTyp, crdd))
+    new GenericTableValue(partitioner = partitioner,
+      fullTableType = fullType,
+      globals = globals,
+      contextType = lines.contextType,
+      contexts = lines.contexts,
+      bodyPType = bodyPType,
+      body = body)
   }
 
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
+    executeGeneric(ctx).toTableStage(ctx, requestedType)
+
+  def apply(tr: TableRead, ctx: ExecuteContext): TableValue =
+    executeGeneric(ctx).toTableValue(ctx, tr.typ)
+
   override def toJValue: JValue = {
-    decomposeWithName(params, "TextTableReader")(TableReader.formats)
+    implicit val formats: Formats = DefaultFormats
+    decomposeWithName(params, "TextTableReader")
+  }
+
+  override def hashCode(): Int = params.hashCode()
+
+  override def equals(that: Any): Boolean = that match {
+    case that: TextTableReader => params == that.params
+    case _ => false
   }
 }
