@@ -1555,12 +1555,12 @@ case class BlockMatrixTransposeRDDPartition(index: Int, prevPartition: Partition
 private class BlockMatrixTransposeRDD(bm: BlockMatrix)
   extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) {
 
-  private val (newGP, inverseTransposePI) = bm.gp.transpose
+  private val (newGP, transposedPartitionIndicesToParentPartitions) = bm.gp.transpose
 
   override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
     new NarrowDependency(bm.blocks) {
       def getParents(partitionId: Int): Seq[Int] = {
-        val parent = inverseTransposePI(partitionId)
+        val parent = transposedPartitionIndicesToParentPartitions(partitionId)
         val (oldI, oldJ) = bm.gp.partCoordinates(parent)
         val (newI, newJ) = newGP.partCoordinates(partitionId)
         assert(newI == oldJ && newJ == oldI)
@@ -1574,7 +1574,7 @@ private class BlockMatrixTransposeRDD(bm: BlockMatrix)
 
   protected def getPartitions: Array[Partition] = {
     Array.tabulate(newGP.numPartitions) { pi =>
-      BlockMatrixTransposeRDDPartition(pi, bm.blocks.partitions(inverseTransposePI(pi)))
+      BlockMatrixTransposeRDDPartition(pi, bm.blocks.partitions(transposedPartitionIndicesToParentPartitions(pi)))
     }
   }
 

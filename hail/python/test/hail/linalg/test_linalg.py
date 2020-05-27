@@ -1028,6 +1028,12 @@ class Tests(unittest.TestCase):
         bm = bm._sparsify_blocks(block_list)
         sparse_numpy = sparsify_numpy(np_square, block_size, block_list)
         assert np.array_equal(bm.to_numpy(), sparse_numpy)
+        assert np.array_equal(
+            sparse_numpy,
+            np.array([[0,  0,  3, 4],
+                      [0,  0,  7, 8],
+                      [9,  10, 0, 0],
+                      [13, 14, 0, 0]]))
 
         block_list = [4, 8, 10, 12, 13, 14]
         np_square = np.arange(225, dtype=np.float64).reshape((15, 15))

@@ -121,10 +121,10 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
       case Some(bis) =>
         def transposeBI(bi: Int): Int = gpT.coordinatesBlock(this.blockBlockCol(bi), this.blockBlockRow(bi))
 
-        val (partIdxToBlockIdxT, partIdxTToPartIdx) = bis.map(transposeBI).zipWithIndex.sortBy(_._1).unzip
+        val (partIdxTToBlockIdxT, partIdxTToPartIdx) = bis.map(transposeBI).zipWithIndex.sortBy(_._1).unzip
         val transposedPartitionIndicesToParentPartitions = partIdxTToPartIdx.apply(_)
 
-        (GridPartitioner(blockSize, nCols, nRows, Some(partIdxToBlockIdxT)), transposedPartitionIndicesToParentPartitions)
+        (GridPartitioner(blockSize, nCols, nRows, Some(partIdxTToBlockIdxT)), transposedPartitionIndicesToParentPartitions)
       case None => {
         def transposedBlockIndicesToParentBlocks(bi: Int) = this.coordinatesBlock(gpT.blockBlockCol(bi), gpT.blockBlockRow(bi))
         (gpT, transposedBlockIndicesToParentBlocks)
