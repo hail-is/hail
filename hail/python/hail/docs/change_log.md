@@ -34,7 +34,7 @@ Released 2020-05-27
 ### Bug fixes
 
 - (hail#8863) Fixes VCF combiner to successfully import GVCFs with alleles called as <NON_REF>.
-- (hail#8845) Fixed issue where accessing an element of an ndarray in a call to Table.transmute would fail (#8845)
+- (hail#8845) Fixed issue where accessing an element of an ndarray in a call to Table.transmute would fail.
 - (hail#8855) Fix crash in `filter_intervals`.
 
 ---
