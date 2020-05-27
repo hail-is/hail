@@ -98,6 +98,7 @@ __all__ = [
     'BandSparsifier',
     'RowIntervalSparsifier',
     'RectangleSparsifier',
+    'PerBlockSparsifier',
     'BlockMatrixSparsify',
     'BlockMatrixSlice',
     'ValueToBlockMatrix',
