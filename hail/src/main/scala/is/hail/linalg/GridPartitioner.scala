@@ -112,8 +112,8 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
 
   /**
     *
-    * @return A transposed GridPartitioner and a function that maps partitions in the new partitioner to partitions
-    *         in the old partitioner.
+    * @return A transposed GridPartitioner and a function that maps partitions in the new transposed partitioner to
+    *         the parent partitions in the old partitioner.
     */
   def transpose: (GridPartitioner, Int => Int) = {
     val gpT = GridPartitioner(blockSize, nCols, nRows)
