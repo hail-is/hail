@@ -667,6 +667,21 @@ class PruneSuite extends HailSuite {
       Array(TStream(justA), null))
   }
 
+  @Test def testMakeNDArrayMemo(): Unit = {
+    checkMemo(
+      MakeNDArray(
+        Ref("x", TArray(TStruct("a" -> TInt32, "b" -> TInt64))),
+        Ref("y", TTuple(TInt32, TInt32)),
+        True()),
+      TNDArray(TStruct("a" -> TInt32), Nat(2)),
+      Array(
+        TArray(TStruct("a" -> TInt32)),
+        TTuple(TInt32, TInt32),
+        TBoolean
+      )
+    )
+  }
+
   @Test def testNDArrayMapMemo(): Unit = {
     checkMemo(NDArrayMap(ndArr, "foo", Ref("foo", ref.typ)),
       TNDArray(justBRequired, Nat(1)), Array(TNDArray(justBRequired, Nat(1)), null))
