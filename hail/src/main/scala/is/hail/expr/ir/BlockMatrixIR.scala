@@ -741,27 +741,11 @@ case class RectangleSparsifier(rectangles: IndexedSeq[IndexedSeq[Long]]) extends
 case class PerBlockSparsifier(blocks: IndexedSeq[Int]) extends BlockMatrixSparsifier {
   override def typ: Type = TArray(TInt32)
 
-  var definedBlocksST = IndexedSeq[StackTraceElement]()
-
   val blockSet = blocks.toSet
 
   override def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
-    //definedBlocksST = Thread.currentThread().getStackTrace.toIndexedSeq
-    //info(definedBlocksST.take(10).toString())
-//    log.info("Defining blocks")
-//    info("Defining blocks")
-//    val x = blocks.map { blockIndex =>
-//      // TODO: Is this really right?
-//      val blockRow = blockIndex % childType.nRowBlocks
-//      val blockCol = blockIndex / childType.nColBlocks
-//      (blockRow, blockCol)
-//    }
-//    log.info("Defined blocks")
-//    info("Defined blocks")
-    val nRowBlocks = childType.nRowBlocks
-    val nColBlocks = childType.nColBlocks
-    BlockMatrixSparsity(nRowBlocks, nColBlocks){ case(i: Int, j: Int) =>
-      blockSet.contains(i + j * nRowBlocks)
+    BlockMatrixSparsity(childType.nRowBlocks, childType.nColBlocks){ case(i: Int, j: Int) =>
+      blockSet.contains(i + j * childType.nRowBlocks)
     }
   }
 
