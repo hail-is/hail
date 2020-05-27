@@ -117,15 +117,17 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
     */
   def transpose: (GridPartitioner, Int => Int) = {
     val gpT = GridPartitioner(blockSize, nCols, nRows)
-    def transposeBI(bi: Int): Int = gpT.coordinatesBlock(this.blockBlockCol(bi), this.blockBlockRow(bi))
     maybeBlocks match {
       case Some(bis) =>
+        def transposeBI(bi: Int): Int = gpT.coordinatesBlock(this.blockBlockCol(bi), this.blockBlockRow(bi))
+
         val (biTranspose, newPIToOldPI) = bis.map(transposeBI).zipWithIndex.sortBy(_._1).unzip
-        
-        (GridPartitioner(blockSize, nCols, nRows, Some(biTranspose)), newPIToOldPI.apply)
+        val transposedPartitionIndicesToParentPartitions = newPIToOldPI.apply(_)
+
+        (GridPartitioner(blockSize, nCols, nRows, Some(biTranspose)), transposedPartitionIndicesToParentPartitions)
       case None => {
-        def newBIToOldBI(bi: Int) = this.coordinatesBlock(gpT.blockBlockCol(bi), gpT.blockBlockRow(bi))
-        (gpT, newBIToOldBI)
+        def transposedBlockIndicesToParentBlocks(bi: Int) = this.coordinatesBlock(gpT.blockBlockCol(bi), gpT.blockBlockRow(bi))
+        (gpT, transposedBlockIndicesToParentBlocks)
       }
     }
   }
