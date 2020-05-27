@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.functions.GetElement
 import is.hail.methods.ForceCountTable
 import is.hail.types._
 import is.hail.types.physical.PType
@@ -49,7 +50,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   def lookupAs[T <: TypeWithRequiredness](node: IR): T = coerce[T](cache(node))
   def lookup(node: TableIR): RTable = coerce[RTable](cache(node))
 
+  def supportedType(node: BaseIR): Boolean = node.isInstanceOf[TableIR] || node.isInstanceOf[IR]
+
   private def initializeState(node: BaseIR): Unit = if (!cache.contains(node)) {
+    assert(supportedType(node))
     val re = RefEquality(node)
     node match {
       case x: ApplyIR =>
@@ -64,7 +68,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
     }
     node.children.foreach {
       case c: BlockMatrixIR => //ignore block matrices
-      case c =>
+      case c: MatrixIR => fatal("Requiredness analysis only works on lowered MatrixTables. ")
+      case c if supportedType(node) =>
         initializeState(c)
         if (node.typ != TVoid)
           dependents.getOrElseUpdate(c, mutable.Set[RefEquality[BaseIR]]()) += re
@@ -78,7 +83,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
 
   def initialize(node: BaseIR, env: Env[PType]): Unit = {
     initializeState(node)
-    usesAndDefs.uses.m.keys.foreach { n => addBindingRelations(n.t) }
+    usesAndDefs.uses.m.keys.foreach { n =>
+      if (supportedType(n.t)) addBindingRelations(n.t)
+    }
     if (usesAndDefs.free != null)
       usesAndDefs.free.foreach { re =>
         lookup(re.t).fromPType(env.lookup(re.t.name))
@@ -229,12 +236,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addTableBinding(child)
       case TableAggregateByKey(child, expr) =>
         addTableBinding(child)
-      case BlockMatrixMap(c, name, expr, _) =>
-        val r = RPrimitive()
-        usesAndDefs.uses(node).foreach(u => defs.bind(u, Array[BaseTypeWithRequiredness](r)))
-      case BlockMatrixMap2(left, right, l, r, expr, _) =>
-        val r = RPrimitive()
-        usesAndDefs.uses(node).foreach(u => defs.bind(u, Array[BaseTypeWithRequiredness](r)))
       case _ => fatal(Pretty(node))
     }
   }
@@ -639,6 +640,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case TableCollect(c) =>
         coerce[RIterable](coerce[RStruct](requiredness).field("rows")).elementType.unionFrom(lookup(c).rowType)
         coerce[RStruct](requiredness).field("global").unionFrom(lookup(c).globalType)
+      case BlockMatrixToValueApply(child, GetElement(_)) => // BlockMatrix elements are all required
+      case BlockMatrixCollect(child) =>  // BlockMatrix elements are all required
     }
     requiredness.probeChangedAndReset()
   }
