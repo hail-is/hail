@@ -318,7 +318,7 @@ object HailContext {
     private val rowsIdxField = rowsOffsetField.map { f => idxr.get.annotationType.asInstanceOf[TStruct].fieldIdx(f) }
     private val entriesIdxField = entriesOffsetField.map { f => idxr.get.annotationType.asInstanceOf[TStruct].fieldIdx(f) }
 
-    private val inserter = mkInserter(partIdx, ctx.freshRegion)
+    private val inserter = mkInserter(partIdx, ctx.freshRegion())
     private val rows = try {
       if (idx.map(_.hasNext).getOrElse(true)) {
         val dec = mkRowsDec(trackedRowsIn)

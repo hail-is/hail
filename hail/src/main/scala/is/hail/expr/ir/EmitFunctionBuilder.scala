@@ -91,6 +91,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def setSerializedAgg(i: Int, b: Code[Array[Byte]]): Code[Unit] = ecb.setSerializedAgg(i, b)
 
+  def freeSerializedAgg(i: Int): Code[Unit] = ecb.freeSerializedAgg(i)
+
   def backend(): Code[BackendUtils] = ecb.backend()
 
   def addModule(name: String, mod: (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit =
@@ -386,6 +388,11 @@ class EmitClassBuilder[C](
     if (_nSerialized <= i)
       _nSerialized = i + 1
     _aggSerialized.load().update(i, b)
+  }
+
+  def freeSerializedAgg(i: Int): Code[Unit] = {
+    assert(i < _nSerialized)
+    _aggSerialized.load().update(i, Code._null)
   }
 
   def backend(): Code[BackendUtils] = {

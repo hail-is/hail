@@ -76,7 +76,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
       right.rvd,
       key
     ) { (ctx, leftIt, rightIt) =>
-      val sideBuffer = ctx.freshRegion
+      val sideBuffer = ctx.freshRegion()
       joiner(
         ctx,
         compute(
