@@ -743,8 +743,10 @@ class TableIRSuite extends HailSuite {
     val aggExpression = MakeStruct(FastSeq("y_sum" -> ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(Cast(GetField(rowRef, "y"), TInt64)), aggSignature)))
     val keyByXAndAggregateSum = TableKeyByAndAggregate(unkeyed, aggExpression, MakeStruct(FastSeq("x" -> GetField(rowRef, "x"))))
 
+    print(Pretty(keyByXAndAggregateSum))
+
 //    ("sum", ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(GetField(Ref("row", tir.typ.rowType), "z").toL), AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64)))),
 
-    //assertEvalsTo(TableCount(keyByXAndAggregateSum), 8L)
+    assertEvalsTo(TableCount(keyByXAndAggregateSum), 8L)
   }
 }

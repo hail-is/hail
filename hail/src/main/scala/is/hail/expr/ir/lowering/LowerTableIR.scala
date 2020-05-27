@@ -317,11 +317,11 @@ object LowerTableIR {
               // I believe that `expr` is a going to make a struct of aggregator fields.
               StreamAgg(
                 groupRef,
-                "row",
+                "rowVar",
                 bindIRs(
                   ArrayRef(
                     ApplyAggOp(FastSeq(I32(1)),
-                      FastSeq(SelectFields(Ref("row", child.typ.rowType), child.typ.key)),
+                      FastSeq(SelectFields(Ref("rowVar", child.typ.rowType), child.typ.key)),
                       AggSignature(Take(), FastSeq(TInt32), FastSeq(child.typ.keyType))),
                     I32(0)), // FIXME: would prefer a First() agg op
                   expr) { case Seq(groupRep, value) =>

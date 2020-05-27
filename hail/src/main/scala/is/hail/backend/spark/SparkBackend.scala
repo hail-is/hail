@@ -271,6 +271,10 @@ class SparkBackend(
     }
     val ir = LoweringPipeline.darrayLowerer(typesToLower).apply(ctx, ir0, optimize).asInstanceOf[IR]
 
+    println("LOWERING")
+    println(Pretty(ir))
+    println("LOWERED")
+
     if (!Compilable(ir))
       throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")
 
