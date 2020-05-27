@@ -1039,8 +1039,32 @@ class Tests(unittest.TestCase):
 
     @skip_unless_spark_backend()
     def test_sparse_transposition(self):
+        block_list = [1, 2]
+        np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
+        block_size = 2
+        bm = BlockMatrix.from_numpy(np_square, block_size=block_size)
+        sparse_bm = bm._sparsify_blocks(block_list).T
+        sparse_np = sparsify_numpy(np_square, block_size, block_list).T
+        assert np.array_equal(sparse_bm.to_numpy(), sparse_np)
+
         block_list = [4, 8, 10, 12, 13, 14]
         np_square = np.arange(225, dtype=np.float64).reshape((15, 15))
+        block_size = 4
+        bm = BlockMatrix.from_numpy(np_square, block_size=block_size)
+        sparse_bm = bm._sparsify_blocks(block_list).T
+        sparse_np = sparsify_numpy(np_square, block_size, block_list).T
+        assert np.array_equal(sparse_bm.to_numpy(), sparse_np)
+
+        block_list = [2, 5, 8, 10, 11]
+        np_square = np.arange(150, dtype=np.float64).reshape((10, 15))
+        block_size = 4
+        bm = BlockMatrix.from_numpy(np_square, block_size=block_size)
+        sparse_bm = bm._sparsify_blocks(block_list).T
+        sparse_np = sparsify_numpy(np_square, block_size, block_list).T
+        assert np.array_equal(sparse_bm.to_numpy(), sparse_np)
+
+        block_list = [2, 5, 8, 10, 11]
+        np_square = np.arange(165, dtype=np.float64).reshape((15, 11))
         block_size = 4
         bm = BlockMatrix.from_numpy(np_square, block_size=block_size)
         sparse_bm = bm._sparsify_blocks(block_list).T
