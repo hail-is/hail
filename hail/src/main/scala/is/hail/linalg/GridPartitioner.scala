@@ -7,6 +7,7 @@ import org.apache.spark.Partitioner
 import scala.collection.mutable
 
 /**
+  * BLOCKS ARE NUMBERED COLUMN MAJOR
   *
   * @param blockSize
   * @param nRows
@@ -117,14 +118,15 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
   def transpose: (GridPartitioner, Int => Int) = {
     val gpT = GridPartitioner(blockSize, nCols, nRows)
     def transposeBI(bi: Int): Int = gpT.coordinatesBlock(this.blockBlockCol(bi), this.blockBlockRow(bi))
-    def inverseTransposeBI(bi: Int) = this.coordinatesBlock(gpT.blockBlockCol(bi), gpT.blockBlockRow(bi))
     maybeBlocks match {
       case Some(bis) =>
-        val (biTranspose, piTranspose) = bis.map(transposeBI).zipWithIndex.sortBy(_._1).unzip
-        val inverseTransposePI = piTranspose.zipWithIndex.sortBy(_._1).map(_._2)
+        val (biTranspose, newPIToOldPI) = bis.map(transposeBI).zipWithIndex.sortBy(_._1).unzip
         
-        (GridPartitioner(blockSize, nCols, nRows, Some(biTranspose)), inverseTransposePI)
-      case None => (gpT, inverseTransposeBI)
+        (GridPartitioner(blockSize, nCols, nRows, Some(biTranspose)), newPIToOldPI.apply)
+      case None => {
+        def inverseTransposeBI(bi: Int) = this.coordinatesBlock(gpT.blockBlockCol(bi), gpT.blockBlockRow(bi))
+        (gpT, inverseTransposeBI)
+      }
     }
   }
 
