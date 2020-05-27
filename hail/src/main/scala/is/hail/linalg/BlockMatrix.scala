@@ -193,9 +193,7 @@ object BlockMatrix {
     i: Int, j: Int): Option[BDM[Double]] = {
     val pi = gp.coordinatesPart(i, j)
     if (pi >= 0) {
-      val partition = parts(pi)
-      assert(partition.index == pi)
-      val it = bm.blocks.iterator(partition, context)
+      val it = bm.blocks.iterator(parts(pi), context)
       assert(it.hasNext)
       val (_, lm) = it.next()
       assert(!it.hasNext)
@@ -1565,15 +1563,7 @@ private class BlockMatrixTransposeRDD(bm: BlockMatrix)
         val parent = inverseTransposePI(partitionId)
         val (oldI, oldJ) = bm.gp.partCoordinates(parent)
         val (newI, newJ) = newGP.partCoordinates(partitionId)
-        assert(newI == oldJ && newJ == oldI,
-          s"""
-           |${(oldI, oldJ)} doesn't map to ${(newI, newJ)}
-           | computedParentPartitionID = $parent
-           | partitionId = $partitionId
-           | gp.maybeBlocks = ${bm.gp.maybeBlocks}
-           | newGP.maybeBlocks = ${newGP.maybeBlocks}
-           | bm shape ${(bm.nRows, bm.nCols)}
-           """.stripMargin)
+        assert(newI == oldJ && newJ == oldI)
         Array(parent)
       }
     })
