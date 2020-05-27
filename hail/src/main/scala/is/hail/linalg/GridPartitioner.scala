@@ -124,8 +124,8 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
         
         (GridPartitioner(blockSize, nCols, nRows, Some(biTranspose)), newPIToOldPI.apply)
       case None => {
-        def inverseTransposeBI(bi: Int) = this.coordinatesBlock(gpT.blockBlockCol(bi), gpT.blockBlockRow(bi))
-        (gpT, inverseTransposeBI)
+        def newBIToOldBI(bi: Int) = this.coordinatesBlock(gpT.blockBlockCol(bi), gpT.blockBlockRow(bi))
+        (gpT, newBIToOldBI)
       }
     }
   }
