@@ -22,6 +22,17 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.43
+
+Released 2020-05-28
+
+### Bug fixes
+
+- (hail#8867) Fix a major correctness bug ocurring when calling BlockMatrix.transpose on sparse, non-symmetric BlockMatrices.
+- (hail#8876) Fixed "ChannelClosedException: null" in `{Table, MatrixTable}.write`
+
+---
+
 ## Version 0.2.42
 
 Released 2020-05-27
