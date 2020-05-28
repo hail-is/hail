@@ -1,5 +1,6 @@
 import re
 import math
+from collections import defaultdict
 
 from .globals import WORKER_CONFIG_VERSION
 
@@ -62,7 +63,8 @@ class WorkerConfig:
                 'project': disk_info.get('project'),
                 'zone': disk_info['zone'],
                 'type': disk_type,
-                'size': disk_size
+                'size': disk_size,
+                'image': params.get('sourceImage', None)
             })
 
         config = {
@@ -105,6 +107,7 @@ class WorkerConfig:
         return is_valid
 
     def resources(self, cpu_in_mcpu, memory_in_bytes):
+        assert memory_in_bytes % (1024 * 1024) == 0
         resources = []
 
         preemptible = 'preemptible' if self.preemptible else 'nonpreemptible'
@@ -114,18 +117,14 @@ class WorkerConfig:
                           'quantity': cpu_in_mcpu})
 
         resources.append({'name': f'memory/{self.instance_family}-{preemptible}/1',
-                          'quantity': math.ceil(memory_in_bytes / 1024 / 1024)})
+                          'quantity': memory_in_bytes // 1024 // 1024})
 
-        quantities = {}
+        quantities = defaultdict(lambda: 0)
         for disk in self.disks:
             name = f'disk/{disk["type"]}/1'
             # the factors of 1024 cancel between GiB -> MiB and fraction_1024 -> fraction
-            size = disk['size'] * worker_fraction_in_1024ths
-
-            if name not in quantities:
-                quantities[name] = size
-            else:
-                quantities[name] += size
+            disk_size_in_mib = disk['size'] * worker_fraction_in_1024ths
+            quantities[name] += disk_size_in_mib
 
         for name, quantity in quantities.items():
             resources.append({'name': name,

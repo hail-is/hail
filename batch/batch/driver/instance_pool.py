@@ -262,7 +262,7 @@ jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
 mv daemon.json.tmp /etc/docker/daemon.json
 kill -SIGHUP $(pidof dockerd)
 
-LOCAL_SSD_NAME=$(lsblk | grep 'nvme' | awk '{ print $1 }')
+LOCAL_SSD_NAME=$(lsblk | grep '^nvme' | awk '{ print $1 }')
 
 # format local SSD
 sudo mkfs.ext4 -F /dev/$LOCAL_SSD_NAME

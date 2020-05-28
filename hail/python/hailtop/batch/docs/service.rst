@@ -82,24 +82,25 @@ machines with 10 GB of persistent SSD boot disk and 375 GB of local SSD. The cos
 
 - Disk cost
 
-  Average number of days per month = 365.25 / 12 = 30.4375
+   - Boot Disk
 
-  - Boot Disk
+     .. code-block:: text
 
-    .. code-block:: text
+         Average number of days per month = 365.25 / 12 = 30.4375
 
-        Cost per GB per month = $0.17
+         Cost per GB per month = $0.17
 
-        Cost per core per hour = $0.17 * 10 / 30.4375 / 24 / 16
+         Cost per core per hour = $0.17 * 20 / 30.4375 / 24 / 16
 
-  - Local SSD
+   - Local SSD
 
-    .. code-block:: text
+     .. code-block:: text
 
-        Cost per GB per month = $0.048
+         Average number of days per month = 365.25 / 12 = 30.4375
 
-        Cost per core per hour = $0.048 * 375 / 30.4375 / 24 / 16
+         Cost per GB per month = $0.048
 
+         Cost per core per hour = $0.048 * 375 / 30.4375 / 24 / 16
 
    = $0.001685 per core per hour
 
