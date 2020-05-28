@@ -15,8 +15,7 @@ from hail.expr.expressions import Expression, ArrayExpression, SetExpression, \
     expr_array, expr_any, expr_struct, expr_int32, expr_int64, expr_float32, \
     expr_float64, expr_oneof, expr_bool, expr_tuple, expr_dict, expr_str, \
     expr_set, expr_call, expr_locus, expr_interval, expr_ndarray, \
-    expr_numeric, \
-    eval_timed, eval, eval_typed
+    expr_numeric
 from hail.expr.types import HailType, hail_type, tint32, tint64, tfloat32, \
     tfloat64, tstr, tbool, tarray, tset, tdict, tstruct, tlocus, tinterval, \
     tcall, ttuple, tndarray, \
@@ -25,7 +24,7 @@ from hail.genetics.reference_genome import reference_genome_type, ReferenceGenom
 import hail.ir as ir
 from hail.typecheck import typecheck, nullable, anytype, enumeration, tupleof, \
     func_spec, oneof
-from hail.utils.java import Env, warn
+from hail.utils.java import Env, warning
 from hail.utils.misc import plural
 
 import numpy as np
@@ -1816,9 +1815,9 @@ def binom_test(x, n, p, alternative: str) -> Float64Expression:
     """
 
     if alternative == 'two.sided':
-        warn('"two.sided" is a deprecated and will be removed in a future '
-             'release, please use "two-sided" for the `alternative` parameter '
-             'to hl.binom_test')
+        warning('"two.sided" is a deprecated and will be removed in a future '
+                'release, please use "two-sided" for the `alternative` parameter '
+                'to hl.binom_test')
         alternative = 'two-sided'
 
     alt_enum = {"two-sided": 0, "less": 1, "greater": 2}[alternative]
@@ -3587,6 +3586,7 @@ def nanmax(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
 
     return _comparison_func('max', exprs, filter_missing, filter_nan=True)
 
+
 @typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
            filter_missing=builtins.bool)
 def max(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
@@ -3635,6 +3635,7 @@ def max(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
     :class:`.NumericExpression`
     """
     return _comparison_func('max', exprs, filter_missing, filter_nan=False)
+
 
 @typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
            filter_missing=builtins.bool)
@@ -3686,6 +3687,7 @@ def nanmin(*exprs, filter_missing: builtins.bool = True) -> NumericExpression:
     """
 
     return _comparison_func('min', exprs, filter_missing, filter_nan=True)
+
 
 @typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
            filter_missing=builtins.bool)
@@ -4127,9 +4129,9 @@ def _ndarray(collection, row_major=None):
         else:
             return []
 
-    def deep_flatten(l):
+    def deep_flatten(es):
         result = []
-        for e in l:
+        for e in es:
             if isinstance(e, list):
                 result.extend(deep_flatten(e))
             else:
@@ -4147,7 +4149,7 @@ def _ndarray(collection, row_major=None):
     if isinstance(collection, Expression):
         if isinstance(collection, ArrayNumericExpression):
             data_expr = collection
-            shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ir.ttuple(tint64))
+            shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ttuple(tint64))
             ndim = 1
         elif isinstance(collection, NumericExpression):
             data_expr = array([collection])
@@ -4186,7 +4188,7 @@ def _ndarray(collection, row_major=None):
             shape = []
             data = [collection]
 
-        shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
+        shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ttuple(*[tint64 for _ in shape]))
         data_expr = hl.array(data) if data else hl.empty_array("float64")
         ndim = builtins.len(shape)
 
@@ -4341,12 +4343,12 @@ def sorted(collection,
         Sorted array.
     """
 
-    def comp(l, r):
+    def comp(left, right):
         return (hl.case()
-                .when(hl.is_missing(l), False)
-                .when(hl.is_missing(r), True)
-                .when(reverse, hl._compare(r, l) < 0)
-                .default(hl._compare(l, r) < 0))
+                .when(hl.is_missing(left), False)
+                .when(hl.is_missing(right), True)
+                .when(reverse, hl._compare(right, left) < 0)
+                .default(hl._compare(left, right) < 0))
 
     if key is None:
         return _sort_by(collection, comp)
@@ -4846,6 +4848,7 @@ def bool(x) -> BooleanExpression:
     else:
         return x._method("toBoolean", tbool)
 
+
 @typecheck(s=expr_str,
            rna=builtins.bool)
 def reverse_complement(s, rna=False):
@@ -4932,6 +4935,7 @@ def get_sequence(contig, position, before=0, after=0, reference_genome='default'
 
     return _func("getReferenceSequence", tstr, contig, position, before, after, type_args=(tlocus(reference_genome), ))
 
+
 @typecheck(contig=expr_str,
            reference_genome=reference_genome_type)
 def is_valid_contig(contig, reference_genome='default') -> BooleanExpression:
@@ -4956,6 +4960,7 @@ def is_valid_contig(contig, reference_genome='default') -> BooleanExpression:
     :class:`.BooleanExpression`
     """
     return _func("isValidContig", tbool, contig, type_args=(tlocus(reference_genome), ))
+
 
 @typecheck(contig=expr_str,
            reference_genome=reference_genome_type)

@@ -64,6 +64,11 @@ class Backend(abc.ABC):
 
     @property
     @abc.abstractmethod
+    def logger(self):
+        pass
+
+    @property
+    @abc.abstractmethod
     def fs(self):
         pass
 

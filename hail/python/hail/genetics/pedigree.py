@@ -2,7 +2,7 @@ import re
 from collections import Counter
 
 from hail.typecheck import typecheck_method, nullable, sequenceof
-from hail.utils.java import Env, FatalError, warn
+from hail.utils.java import Env, FatalError, warning
 
 
 class Trio(object):
@@ -233,7 +233,7 @@ class Pedigree(object):
             raise FatalError("Invalid pedigree: found duplicate proband IDs\n{}".format(duplicate_ids))
 
         if missing_sex_count > 0:
-            warn("Found {} samples with missing sex information (not 1 or 2).\n Missing samples: [{}]".format(missing_sex_count, missing_sex_values))
+            warning("Found {} samples with missing sex information (not 1 or 2).\n Missing samples: [{}]".format(missing_sex_count, missing_sex_values))
 
         return Pedigree(trios)
 

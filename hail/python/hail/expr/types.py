@@ -9,7 +9,7 @@ import numpy as np
 import hail as hl
 from hail import genetics
 from hail.expr.nat import NatBase, NatLiteral
-from hail.expr.type_parsing import type_grammar, type_node_visitor
+from .type_parsing import type_grammar, type_node_visitor
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import typecheck, typecheck_method, oneof, transformed
 from hail.utils.java import escape_parsable

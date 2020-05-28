@@ -735,3 +735,10 @@ def test_ndarray_emitter_extract():
     mat = hl.nd.array(np_mat)
     mapped_mat = mat.map(lambda x: hl.array([3, 4, 5])[hl.int(x)])
     assert hl.eval(hl.range(5).map(lambda i: mapped_mat[i])) == [3, 4, 5, 4, 3]
+
+
+def test_ndarrays_transmute_ops():
+    u = hl.utils.range_table(10, n_partitions=10)
+    u = u.annotate(x=hl.nd.array([u.idx]), y=hl.nd.array([u.idx]))
+    u = u.transmute(xxx=u.x @ u.y)
+    assert u.xxx.collect() == [x * x for x in range(10)]

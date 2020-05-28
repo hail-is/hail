@@ -12,7 +12,7 @@ trait PStruct extends PBaseStruct {
     codeOrdering(mb, other, null)
 
   final def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: Array[SortOrder]): CodeOrdering = {
-    assert(other isOfType this)
+    assert(other.asInstanceOf[PStruct].isIsomorphicTo(this))
     assert(so == null || so.size == types.size)
     CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb, so)
   }

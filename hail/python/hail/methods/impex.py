@@ -2,7 +2,7 @@ import json
 
 from hail.typecheck import typecheck, nullable, oneof, dictof, anytype, \
     sequenceof, enumeration, sized_tupleof, numeric, table_key_type, char
-from hail.utils.java import Env, FatalError, jindexed_seq_args
+from hail.utils.java import Env, FatalError, jindexed_seq_args, warning
 from hail.utils import wrap_to_list
 from hail.matrixtable import MatrixTable
 from hail.table import Table
@@ -508,7 +508,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     if fields_dropped:
         ignored_str = ''.join(f'\n    {f!r} ({axis})' for f, axis in fields_dropped)
-        hl.utils.java.warn('export_vcf: ignored the following fields:' + ignored_str)
+        warning('export_vcf: ignored the following fields:' + ignored_str)
         dataset = dataset.drop(*(f for f, _ in fields_dropped))
 
     parallel = ir.ExportType.default(parallel)
@@ -1719,8 +1719,8 @@ def import_matrix_table(paths,
 
     if 'row_id' in row_fields and add_row_id:
         raise FatalError(
-            f"import_matrix_table reserves the field name 'row_id' for"
-            f'its own use, please use a different name')
+            "import_matrix_table reserves the field name 'row_id' for"
+            'its own use, please use a different name')
 
     for k, v in row_fields.items():
         if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
@@ -2130,7 +2130,7 @@ def import_vcf(path,
         loaded as a call automatically.
     reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
-    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
+    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`), optional
         Mapping from contig name in VCF to contig name in loaded dataset.
         All contigs must be present in the `reference_genome`, so this is
         useful for mapping differently-formatted data onto known references.

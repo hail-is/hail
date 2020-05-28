@@ -16,11 +16,10 @@ import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, dictof, anytype, \
     anyfunc, nullable, sequenceof, oneof, numeric, lazy, enumeration, \
     table_key_type
-from hail.utils.java import Env, info, warn
+from hail.utils.java import Env, info, warning
 from hail.utils.misc import wrap_to_tuple, storage_level, plural, \
     get_nice_field_error, get_nice_attr_error, get_key_by_exprs, check_keys, \
     get_select_exprs, check_annotate_exprs, process_joins
-import hail
 import hail as hl
 
 table_type = lazy()
@@ -28,11 +27,12 @@ table_type = lazy()
 
 class TableIndexKeyError(Exception):
     def __init__(self, key_type, index_expressions):
+        super().__init__()
         self.key_type = key_type
         self.index_expressions = index_expressions
 
 
-class Ascending(object):
+class Ascending:
     def __init__(self, col):
         self.col = col
 
@@ -43,7 +43,7 @@ class Ascending(object):
         return not self == other
 
 
-class Descending(object):
+class Descending:
     def __init__(self, col):
         self.col = col
 
@@ -68,7 +68,7 @@ def desc(col):
     return Descending(col)
 
 
-class ExprContainer(object):
+class ExprContainer:
 
     # this can only grow as big as the object dir, so no need to worry about memory leak
     _warned_about = set()
@@ -89,16 +89,16 @@ class ExprContainer(object):
         if key in self._dir or key in self.__dict__:
             if key not in ExprContainer._warned_about:
                 ExprContainer._warned_about.add(key)
-                warn(f"Name collision: field {repr(key)} already in object dict. "
-                     f"\n  This field must be referenced with __getitem__ syntax: obj[{repr(key)}]")
+                warning(f"Name collision: field {repr(key)} already in object dict. "
+                        f"\n  This field must be referenced with __getitem__ syntax: obj[{repr(key)}]")
         else:
             self.__dict__[key] = value
 
     def _get_field(self, item) -> Expression:
         if item in self._fields:
             return self._fields[item]
-        else:
-            raise LookupError(get_nice_field_error(self, item))
+
+        raise LookupError(get_nice_field_error(self, item))
 
     def __iter__(self):
         raise TypeError(f"'{self.__class__.__name__}' object is not iterable")
@@ -115,8 +115,8 @@ class ExprContainer(object):
     def __getattr__(self, item):
         if item in self.__dict__:
             return self.__dict__[item]
-        else:
-            raise AttributeError(get_nice_attr_error(self, item))
+
+        raise AttributeError(get_nice_attr_error(self, item))
 
     def _copy_fields_from(self, other: 'ExprContainer'):
         self._fields = other._fields
@@ -354,7 +354,7 @@ class Table(ExprContainer):
         self._indices_from_ref = {'global': self._global_indices,
                                   'row': self._row_indices}
 
-        self._key = hail.struct(
+        self._key = hl.struct(
             **{k: self._row[k] for k in self._type.row_key})
 
         for k, v in itertools.chain(self._globals.items(),
@@ -368,13 +368,13 @@ class Table(ExprContainer):
     def __getitem__(self, item):
         if isinstance(item, str):
             return self._get_field(item)
-        else:
-            try:
-                return self.index(*wrap_to_tuple(item))
-            except TypeError as e:
-                raise TypeError(f"Table.__getitem__: invalid index argument(s)\n"
-                                f"  Usage 1: field selection: ht['field']\n"
-                                f"  Usage 2: Left distinct join: ht[ht2.key] or ht[ht2.field1, ht2.field2]") from e
+
+        try:
+            return self.index(*wrap_to_tuple(item))
+        except TypeError as e:
+            raise TypeError("Table.__getitem__: invalid index argument(s)\n"
+                            "  Usage 1: field selection: ht['field']\n"
+                            "  Usage 2: Left distinct join: ht[ht2.key] or ht[ht2.field1, ht2.field2]") from e
 
     @property
     def key(self) -> StructExpression:
@@ -544,16 +544,16 @@ class Table(ExprContainer):
 
         if not computed_keys:
             return Table(ir.TableKeyBy(self._tir, key_fields))
-        else:
-            new_row = self.row.annotate(**computed_keys)
-            base, cleanup = self._process_joins(new_row)
 
-            return cleanup(Table(
-                ir.TableKeyBy(
-                    ir.TableMapRows(
-                        ir.TableKeyBy(base._tir, []),
-                        new_row._ir),
-                    list(key_fields))))
+        new_row = self.row.annotate(**computed_keys)
+        base, cleanup = self._process_joins(new_row)
+
+        return cleanup(Table(
+            ir.TableKeyBy(
+                ir.TableMapRows(
+                    ir.TableKeyBy(base._tir, []),
+                    new_row._ir),
+                list(key_fields))))
 
     @typecheck_method(named_exprs=expr_any)
     def annotate_globals(self, **named_exprs) -> 'Table':
@@ -1148,8 +1148,8 @@ class Table(ExprContainer):
 
         if _localize:
             return Env.backend().execute(agg_ir)
-        else:
-            return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
+
+        return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
 
     @typecheck_method(output=str,
                       overwrite=bool,
@@ -1266,8 +1266,7 @@ class Table(ExprContainer):
             def trunc(s):
                 if len(s) > truncate:
                     return s[:truncate - 3] + "..."
-                else:
-                    return s
+                return s
 
             rows, has_more, dtype = self.data()
             fields = list(dtype)
@@ -1505,11 +1504,9 @@ class Table(ExprContainer):
         try:
             return self._index(*exprs, all_matches=all_matches)
         except TableIndexKeyError as err:
-            key_type, exprs = err.args
-
             raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
-                                      f"  Table key:         {', '.join(str(t) for t in key_type.values()) or '<<<empty key>>>'}\n"
-                                      f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
+                                      f"  Table key:         {', '.join(str(t) for t in err.key_type.values()) or '<<<empty key>>>'}\n"
+                                      f"  Index Expressions: {', '.join(str(e.dtype) for e in err.index_expressions)}")
 
     @staticmethod
     def _maybe_truncate_for_flexindex(indexer, indexee_dtype):
@@ -1608,7 +1605,7 @@ class Table(ExprContainer):
                     left = Table(ir.TableMapRows(left.key_by()._tir,
                                                  ir.InsertFields(left._row._ir,
                                                                  list(zip(uids, [e._ir for e in exprs])),
-                                                 None))).key_by(*uids)
+                                                                 None))).key_by(*uids)
 
                     def rekey_f(t):
                         return t.key_by(*original_key)
@@ -2132,7 +2129,7 @@ class Table(ExprContainer):
             Table with approximately ``p * n_rows`` rows.
         """
 
-        if not (0 <= p <= 1):
+        if not 0 <= p <= 1:
             raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
 
         return self.filter(hl.rand_bool(p, seed))
@@ -2395,7 +2392,7 @@ class Table(ExprContainer):
 
         if renames:
             right = right.rename(renames)
-            info(f'Table.join: renamed the following fields on the right to avoid name conflicts:'
+            info('Table.join: renamed the following fields on the right to avoid name conflicts:'
                  + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items()))
 
         return Table(ir.TableJoin(self._tir, right._tir, how, len(self.key)))
@@ -2424,7 +2421,7 @@ class Table(ExprContainer):
         -------
         :obj:`bool`
         """
-        return self.aggregate(hail.agg.all(expr))
+        return self.aggregate(hl.agg.all(expr))
 
     @typecheck_method(expr=BooleanExpression)
     def any(self, expr):
@@ -2448,7 +2445,7 @@ class Table(ExprContainer):
         :obj:`bool`
             ``True`` if the predicate evaluated for ``True`` for any row, otherwise ``False``.
         """
-        return self.aggregate(hail.agg.any(expr))
+        return self.aggregate(hl.agg.any(expr))
 
     @typecheck_method(mapping=dictof(str, str))
     def rename(self, mapping) -> 'Table':
@@ -2696,7 +2693,7 @@ class Table(ExprContainer):
                     raise ValueError(f"Sort fields must be fields of the callee Table,"
                                      f" found field of {e._indices.source}")
             elif e._indices != self._row_indices:
-                raise ValueError(f"Sort fields must be row-indexed, found global sort expression")
+                raise ValueError("Sort fields must be row-indexed, found global sort expression")
             else:
                 field_name = self._fields_inverse.get(e)
                 if field_name is None:
@@ -2817,12 +2814,12 @@ class Table(ExprContainer):
 
         for k in self.key.values():
             if k is field:
-                raise ValueError(f"method 'explode' cannot explode a key field")
+                raise ValueError("method 'explode' cannot explode a key field")
 
         t = Table(ir.TableExplode(self._tir, root))
         if name is not None:
             if len(root) > 1:
-                raise ValueError(f"'Table.explode' does not support the 'name' argument when exploding nested fields")
+                raise ValueError("'Table.explode' does not support the 'name' argument when exploding nested fields")
             t = t.rename({root[0]: name})
         return t
 
@@ -2899,9 +2896,9 @@ class Table(ExprContainer):
                 raise ValueError(f"'to_matrix_table': field {repr(k)} appeared in {v} field groups")
 
         if len(row_key) == 0:
-            raise ValueError(f"'to_matrix_table': require at least one row key field")
+            raise ValueError("'to_matrix_table': require at least one row key field")
         if len(col_key) == 0:
-            raise ValueError(f"'to_matrix_table': require at least one col key field")
+            raise ValueError("'to_matrix_table': require at least one col key field")
 
         ht = self.key_by()
 
@@ -2909,8 +2906,8 @@ class Table(ExprContainer):
         entry_fields = [x for x in ht.row if x not in non_entry_fields]
 
         if not entry_fields:
-            raise ValueError(f"'Table.to_matrix_table': no fields remain as entry fields:\n"
-                             f"  all table fields found in one of 'row_key', 'col_key', 'row_fields', 'col_fields'")
+            raise ValueError("'Table.to_matrix_table': no fields remain as entry fields:\n"
+                             "  all table fields found in one of 'row_key', 'col_key', 'row_fields', 'col_fields'")
 
         col_data = hl.rbind(
             hl.array(

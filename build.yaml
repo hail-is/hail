@@ -701,12 +701,13 @@ steps:
     - from: /hail.zip
       to: /hail.zip
  - kind: runImage
-   name: check_hailtop
+   name: check_hail
    image:
      valueFrom: hail_base_image.image
    script: |
      set -ex
-     python3 -m flake8 hailtop
+     (cd hail/python && python3 -m flake8 --config ../../setup.cfg hail)
+     python3 -m flake8 --config setup.cfg hailtop
      python3 -m pylint --rcfile pylintrc hailtop
    dependsOn:
      - hail_base_image

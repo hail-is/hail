@@ -1,4 +1,5 @@
 import re
+import math
 
 from .globals import WORKER_CONFIG_VERSION
 
@@ -112,7 +113,7 @@ class WorkerConfig:
                           'quantity': cpu_in_mcpu})
 
         resources.append({'name': f'memory/{self.instance_family}-{preemptible}/1',
-                          'quantity': memory_in_bytes / 1024 / 1024})
+                          'quantity': math.ceil(memory_in_bytes / 1024 / 1024)})
 
         # the factors of 1024 cancel between GiB -> MiB and fraction_1024 -> fraction
         resources.append({'name': f'boot-disk/{self.boot_disk_type}/1',

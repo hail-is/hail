@@ -107,7 +107,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   def lookup(node: IR): TypeWithRequiredness = coerce[TypeWithRequiredness](cache(node))
   def lookupAs[T <: TypeWithRequiredness](node: IR): T = coerce[T](cache(node))
 
-  private def initializeState(node: BaseIR): Unit = {
+  private def initializeState(node: BaseIR): Unit = if (!cache.contains(node)) {
     val re = RefEquality(node)
     node match {
       case x: ApplyIR =>
@@ -238,8 +238,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           i += 1
         }
         states.bind(node, s)
-      case StreamLeftJoinDistinct(left, right, l, r, keyf, joinf) =>
-        addElementBinding(l, left)
+      case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, joinf, joinType) =>
+        addElementBinding(l, left, makeOptional = (joinType == "outer"))
         addElementBinding(r, right, makeOptional = true)
       case StreamAgg(a, name, query) =>
         addElementBinding(name, a)
@@ -295,9 +295,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
            _: ArrayZeros |
            _: StreamRange |
            _: WriteValue =>
-        requiredness.union(node.children.forall(c => cache(c).required))
+        requiredness.union(node.children.forall { case c: IR => lookup(c).required })
       case x: ApplyComparisonOp if x.op.strict =>
-        requiredness.union(node.children.forall(c => cache(c).required))
+        requiredness.union(node.children.forall { case c: IR => lookup(c).required })
 
       // always required
       case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die =>
@@ -392,8 +392,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamFold2(a, accums, valueName, seq, result) =>
         requiredness.union(lookup(a).required)
         requiredness.unionFrom(lookup(result))
-      case StreamLeftJoinDistinct(left, right, _, _, keyf, joinf) =>
-        requiredness.union(lookup(left).required)
+      case StreamJoinRightDistinct(left, right, _, _, _, _, joinf, joinType) =>
+        requiredness.union(lookup(left).required && lookup(right).required)
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(joinf))
       case StreamAgg(a, name, query) =>
         requiredness.union(lookup(a).required)

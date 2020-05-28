@@ -33,10 +33,10 @@ def compile_comparison_binary(op, codecName, l_type, r_type):
         op, codecName, l_type, r_type)
 
 
-def compiled_compare(l, r, codec='unblockedUncompressed'):
-    type1, arr1 = encode(literal(l), codec)
+def compiled_compare(left, right, codec='unblockedUncompressed'):
+    type1, arr1 = encode(literal(left), codec)
     arr1size = len(arr1)
-    type2, arr2 = encode(literal(r), codec)
+    type2, arr2 = encode(literal(right), codec)
     arr2size = len(arr1)
     load_libhail()
     compare_binary = compile_comparison_binary("compare", codec, type1, type2)

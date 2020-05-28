@@ -1,20 +1,20 @@
-import hail as hl
 from hail.expr.nat import NatVariable
+from hail.expr.types import dtype, tvariable, tarray, \
+    tint32, tint64, tfloat32, tfloat64, tndarray
+
 from .ir import register_function, register_seeded_function
 
 
 def register_functions():
-    from hail.expr.types import dtype, tvariable
-
     locusVar = tvariable("R", "locus")
 
-    register_function(f"isValidContig", (dtype("str"),), dtype("bool"), (locusVar,))
-    register_function(f"isValidLocus", (dtype("str"), dtype("int32"),), dtype("bool"), (locusVar,))
-    register_function(f"contigLength", (dtype("str"),), dtype("int32"), (locusVar,))
-    register_function(f"getReferenceSequenceFromValidLocus", (dtype("str"), dtype("int32"), dtype("int32"), dtype("int32"),), dtype("str"), (locusVar,))
-    register_function(f"getReferenceSequence", (dtype("str"), dtype("int32"), dtype("int32"), dtype("int32"),), dtype("str"), (locusVar,))
+    register_function("isValidContig", (dtype("str"),), dtype("bool"), (locusVar,))
+    register_function("isValidLocus", (dtype("str"), dtype("int32"),), dtype("bool"), (locusVar,))
+    register_function("contigLength", (dtype("str"),), dtype("int32"), (locusVar,))
+    register_function("getReferenceSequenceFromValidLocus", (dtype("str"), dtype("int32"), dtype("int32"), dtype("int32"),), dtype("str"), (locusVar,))
+    register_function("getReferenceSequence", (dtype("str"), dtype("int32"), dtype("int32"), dtype("int32"),), dtype("str"), (locusVar,))
 
-    register_function(f"parse_json", (dtype("str"),), dtype("tuple(?T)"), (dtype("?T"),))
+    register_function("parse_json", (dtype("str"),), dtype("tuple(?T)"), (dtype("?T"),))
 
     register_function("flatten", (dtype("array<array<?T>>"),), dtype("array<?T>"))
     register_function("difference", (dtype("set<?T>"), dtype("set<?T>"),), dtype("set<?T>"))
@@ -27,23 +27,23 @@ def register_functions():
     register_function("toSet", (dtype("array<?T>"),), dtype("set<?T>"))
 
     def array_floating_point_divide(arg_type, ret_type):
-        register_function("div", (arg_type, hl.tarray(arg_type),), hl.tarray(ret_type))
-        register_function("div", (hl.tarray(arg_type), arg_type), hl.tarray(ret_type))
-        register_function("div", (hl.tarray(arg_type), hl.tarray(arg_type)), hl.tarray(ret_type))
-    array_floating_point_divide(hl.tint32, hl.tfloat32)
-    array_floating_point_divide(hl.tint64, hl.tfloat32)
-    array_floating_point_divide(hl.tfloat32, hl.tfloat32)
-    array_floating_point_divide(hl.tfloat64, hl.tfloat64)
+        register_function("div", (arg_type, tarray(arg_type),), tarray(ret_type))
+        register_function("div", (tarray(arg_type), arg_type), tarray(ret_type))
+        register_function("div", (tarray(arg_type), tarray(arg_type)), tarray(ret_type))
+    array_floating_point_divide(tint32, tfloat32)
+    array_floating_point_divide(tint64, tfloat32)
+    array_floating_point_divide(tfloat32, tfloat32)
+    array_floating_point_divide(tfloat64, tfloat64)
 
     def ndarray_floating_point_divide(arg_type, ret_type):
-        register_function("div", (arg_type, hl.tndarray(arg_type, NatVariable()),), hl.tndarray(ret_type, NatVariable()))
-        register_function("div", (hl.tndarray(arg_type, NatVariable()), arg_type), hl.tndarray(ret_type, NatVariable()))
-        register_function("div", (hl.tndarray(arg_type, NatVariable()),
-                                  hl.tndarray(arg_type, NatVariable())), hl.tndarray(ret_type, NatVariable()))
-    ndarray_floating_point_divide(hl.tint32, hl.tfloat32)
-    ndarray_floating_point_divide(hl.tint64, hl.tfloat32)
-    ndarray_floating_point_divide(hl.tfloat32, hl.tfloat32)
-    ndarray_floating_point_divide(hl.tfloat64, hl.tfloat64)
+        register_function("div", (arg_type, tndarray(arg_type, NatVariable()),), tndarray(ret_type, NatVariable()))
+        register_function("div", (tndarray(arg_type, NatVariable()), arg_type), tndarray(ret_type, NatVariable()))
+        register_function("div", (tndarray(arg_type, NatVariable()),
+                                  tndarray(arg_type, NatVariable())), tndarray(ret_type, NatVariable()))
+    ndarray_floating_point_divide(tint32, tfloat32)
+    ndarray_floating_point_divide(tint64, tfloat32)
+    ndarray_floating_point_divide(tfloat32, tfloat32)
+    ndarray_floating_point_divide(tfloat64, tfloat64)
 
     register_function("values", (dtype("dict<?key, ?value>"),), dtype("array<?value>"))
     register_function("sliceRight", (dtype("array<?T>"), dtype("int32"),), dtype("array<?T>"))
@@ -196,8 +196,8 @@ def register_functions():
     register_function("LocusInterval", (dtype("str"), dtype("int32"), dtype("int32"), dtype("bool"), dtype("bool"), dtype("bool"),), dtype("interval<?T:locus>"))
     register_function("globalPosToLocus", (dtype("int64"),), dtype("?T:locus"))
     register_function("locusToGlobalPos", (dtype("?T:locus"),), dtype("int64"))
-    register_function("liftoverLocus", (dtype(f"?T:locus"), dtype('float64'),), dtype(f"struct{{result:?U:locus,is_negative_strand:bool}}"))
-    register_function("liftoverLocusInterval", (dtype(f"interval<?T:locus>"), dtype('float64'),), dtype(f"struct{{result:interval<?U:locus>,is_negative_strand:bool}}"))
+    register_function("liftoverLocus", (dtype("?T:locus"), dtype('float64'),), dtype("struct{result:?U:locus,is_negative_strand:bool}"))
+    register_function("liftoverLocusInterval", (dtype("interval<?T:locus>"), dtype('float64'),), dtype("struct{result:interval<?U:locus>,is_negative_strand:bool}"))
     register_function("min_rep", (dtype("?T:locus"), dtype("array<str>"),), dtype("struct{locus: ?T, alleles: array<str>}"))
     register_function("locus_windows_per_contig", (dtype("array<array<float64>>"), dtype("float64"),), dtype("tuple(array<int32>, array<int32>)"))
     register_function("toBoolean", (dtype("str"),), dtype("bool"))

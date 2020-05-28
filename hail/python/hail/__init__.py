@@ -27,12 +27,14 @@ To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 
 from .table import Table, GroupedTable, asc, desc
 from .matrixtable import MatrixTable, GroupedMatrixTable
-from .expr import *
-from .genetics import *
-from .methods import *
+# F403 'from .expr import *' used; unable to detect undefined names
+# F401 '.expr.*' imported but unused
+from .expr import *  # noqa: F401,F403
+from .genetics import *  # noqa: F401,F403
+from .methods import *  # noqa: F401,F403
+from . import expr
 from . import genetics
 from . import methods
-from . import expr
 from . import stats
 from . import linalg
 from . import plot
@@ -71,6 +73,7 @@ __all__ = [
     'hadoop_is_dir',
     'hadoop_is_file',
     'hadoop_stat',
+    'hadoop_exists',
     'hadoop_ls',
     'copy_log',
     'Struct',

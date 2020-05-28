@@ -1,5 +1,4 @@
 import json
-import warnings
 import numpy as np
 import pandas as pd
 
@@ -11,6 +10,7 @@ from bokeh.plotting import figure
 from bokeh.transform import factor_cmap
 from hail.typecheck import typecheck
 from hail.utils.hadoop_utils import hadoop_open, hadoop_ls
+from hail.utils.java import warning
 
 
 def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title='ROC Curve', hover_mode='mouse'):
@@ -171,7 +171,7 @@ def hail_metadata(t_path):
     subpanel_size = 120
 
     if not row_partition_bounds:
-        warnings.warn('Table is not partitioned. Only plotting file sizes')
+        warning('Table is not partitioned. Only plotting file sizes')
         row_file_sizes_hist, row_file_sizes_edges = np.histogram(row_file_sizes, bins=50)
         p_file_size = figure(plot_width=panel_size, plot_height=panel_size)
         p_file_size.quad(right=row_file_sizes_hist, left=0, bottom=row_file_sizes_edges[:-1],

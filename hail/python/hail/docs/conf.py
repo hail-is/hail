@@ -61,7 +61,8 @@ katex_options = ''
 
 nbsphinx_timeout = 300
 nbsphinx_allow_errors = False
-if not tags.has('checktutorial'):
+# F821 undefined name 'tags'
+if not tags.has('checktutorial'):  # noqa: F821
     nbsphinx_execute = 'never'
 
 autosummary_generate = ['api.rst',
