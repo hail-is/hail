@@ -1,5 +1,4 @@
 import re
-import math
 from collections import defaultdict
 
 from .globals import WORKER_CONFIG_VERSION
