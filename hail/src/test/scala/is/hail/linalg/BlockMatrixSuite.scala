@@ -801,7 +801,7 @@ class BlockMatrixSuite extends HailSuite {
     val lm = new BDM[Double](9, 12, (0 to 107).map(_.toDouble).toArray)
     val bm = toBM(lm, blockSize = 3)
     val sparse = bm.filterBand(0, 0, true)
-    assert(sparse.transpose().gp.maybeBlocks.get.toIndexedSeq == IndexedSeq(0, 5, 10))
+    assert(sparse.transpose().gp.partitionIndexToBlockIndex.get.toIndexedSeq == IndexedSeq(0, 5, 10))
   }
 
   @Test

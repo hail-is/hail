@@ -1563,6 +1563,11 @@ object IRParser {
         val Row(l: Long, u: Long) =
           ExecuteContext.scoped() { ctx => CompileAndEvaluate[Row](ctx, ir_value_expr(env)(it)) }
         BandSparsifier(blocksOnly, l, u)
+      case "PyPerBlockSparsifier" =>
+        punctuation(it, ")")
+        val indices: IndexedSeq[Int] =
+          ExecuteContext.scoped() { ctx => CompileAndEvaluate[IndexedSeq[Int]](ctx, ir_value_expr(env)(it)) }
+        PerBlockSparsifier(indices)
       case "PyRectangleSparsifier" =>
         punctuation(it, ")")
         val rectangles: IndexedSeq[Long] =

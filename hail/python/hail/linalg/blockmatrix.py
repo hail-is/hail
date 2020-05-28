@@ -9,13 +9,13 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr import construct_expr, construct_variable
 from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed, \
-    expr_tuple, expr_array, expr_int64
+    expr_tuple, expr_array, expr_int32, expr_int64
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, F64, \
     BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
     ApplyUnaryPrimOp, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
     BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter, TableFromBlockMatrixNativeReader, TableRead, \
     BlockMatrixSlice, BlockMatrixSparsify, BlockMatrixDensify, RectangleSparsifier, \
-    RowIntervalSparsifier, BandSparsifier, UnpersistBlockMatrix
+    RowIntervalSparsifier, BandSparsifier, PerBlockSparsifier, UnpersistBlockMatrix
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader, BlockMatrixPersistReader
 from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter, BlockMatrixPersistWriter
 from hail.ir import ExportType
@@ -1004,6 +1004,12 @@ class BlockMatrix(object):
         return BlockMatrix(
             BlockMatrixSparsify(self._bmir, intervals._ir,
                                 RowIntervalSparsifier(blocks_only)))
+
+    @typecheck_method(indices=expr_array(expr_int32))
+    def _sparsify_blocks(self, indices):
+        return BlockMatrix(
+            BlockMatrixSparsify(self._bmir, indices._ir,
+                                PerBlockSparsifier()))
 
     @typecheck_method(starts=oneof(sequenceof(int), np.ndarray),
                       stops=oneof(sequenceof(int), np.ndarray),
