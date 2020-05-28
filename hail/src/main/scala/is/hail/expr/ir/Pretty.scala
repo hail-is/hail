@@ -238,6 +238,7 @@ object Pretty {
             case F32(x) => x.toString
             case F64(x) => x.toString
             case Str(x) => prettyStringLiteral(if (elideLiterals && x.length > 13) x.take(10) + "..." else x)
+            case UUID4(id) => prettyIdentifier(id)
             case Cast(_, typ) => typ.parsableString()
             case CastRename(_, typ) => typ.parsableString()
             case NA(typ) => typ.parsableString()

@@ -85,6 +85,7 @@ object TypeCheck {
       case True() =>
       case False() =>
       case Str(x) =>
+      case UUID4(_) =>
       case Literal(_, _) =>
       case Void() =>
       case Cast(v, typ) => if (!Casts.valid(v.typ, typ))

@@ -12,6 +12,8 @@ import is.hail.utils._
 
 import scala.language.implicitConversions
 
+import java.util.UUID
+
 package object ir {
   type TokenIterator = BufferedIterator[Token]
 
@@ -22,6 +24,8 @@ package object ir {
     uidCounter += 1
     uid
   }
+
+  def uuid4(): String = UUID.randomUUID().toString
 
   def genSym(base: String): Sym = Sym.gen(base)
 
@@ -141,6 +145,10 @@ package object ir {
     val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
     StreamFlatMap(stream, ref.name, f(ref))
   }
+
+  def flatten(stream: IR): IR = flatMapIR(stream) { elt =>
+      if (elt.typ.isInstanceOf[TStream]) elt else ToStream(elt)
+    }
 
   def foldIR(stream: IR, zero: IR)(f: (Ref, Ref) => IR): IR = {
     val elt = Ref(genUID(), coerce[TStream](stream.typ).elementType)
