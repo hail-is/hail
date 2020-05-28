@@ -186,24 +186,31 @@ object TextTableReader {
       val ma = MultiArray2.fill[Boolean](nFields, nMatchers + 1)(true)
       val ab = new ArrayBuilder[String]
       val sb = new StringBuilder
-      it.foreach { line =>
-        val split = splitLine(line.toString, delimiter, quote, ab, sb)
-        if (split.length != nFields)
-          fatal(s"expected $nFields fields, but found ${ split.length }")
+      it.foreach { genericLine =>
+        val line = genericLine.toString
 
-        var i = 0
-        while (i < nFields) {
-          val field = split(i)
-          if (!missing.contains(field)) {
-            var j = 0
-            while (j < nMatchers) {
-              ma.update(i, j, ma(i, j) && matchers(j)(field))
-              j += 1
-            }
-            ma.update(i, nMatchers, false)
-          } else
-            allDefined(i) = false
-          i += 1
+        if (!params.isComment(line) &&
+          (!params.hasHeader || line != header) &&
+          !(params.skipBlankLines && line.isEmpty)) {
+
+          val split = splitLine(line, delimiter, quote, ab, sb)
+          if (split.length != nFields)
+            fatal(s"expected $nFields fields, but found ${ split.length }")
+
+          var i = 0
+          while (i < nFields) {
+            val field = split(i)
+            if (!missing.contains(field)) {
+              var j = 0
+              while (j < nMatchers) {
+                ma.update(i, j, ma(i, j) && matchers(j)(field))
+                j += 1
+              }
+              ma.update(i, nMatchers, false)
+            } else
+              allDefined(i) = false
+            i += 1
+          }
         }
       }
       Iterator.single((ma, allDefined))
