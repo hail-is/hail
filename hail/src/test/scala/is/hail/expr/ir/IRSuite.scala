@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
-import is.hail.annotations.BroadcastRow
+import is.hail.annotations.{BroadcastRow, Memory}
 import is.hail.asm4s.Code
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
@@ -92,6 +92,12 @@ class IRSuite extends HailSuite {
   def assertPType(node: IR, expected: PType) {
     InferPType(node)
     assert(node.pType == expected)
+  }
+
+  @Test def testCheckedMemory() {
+    val a = Memory.malloc(17)
+    Memory.loadByte(a + 5)
+    Memory.loadByte(a + 17)
   }
 
   @Test def testI32() {
