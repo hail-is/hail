@@ -74,7 +74,7 @@ class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) 
     }
   }
 
-  private def deflateBlock(): Unit = {
+  final protected def deflateBlock(): Unit = {
     require(numUncompressedBytes != 0)
     assert(!finished)
 
@@ -147,5 +147,11 @@ class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) 
       out.write(constants.emptyGzipBlock)
       finished = true
     }
+  }
+}
+
+class ComposableBGzipOutputStream(out: OutputStream) extends BGzipOutputStream(out) {
+  override def finish() = if (numUncompressedBytes != 0) {
+    deflateBlock()
   }
 }
