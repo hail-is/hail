@@ -301,7 +301,7 @@ class GenericLine(
   var lineLength: Int) {
   def this(file: String) = this(file, 0, null, 0)
 
-  override def toString: String = {
+  private lazy val _str = {
     var n = lineLength
     assert(n > 0)
     // strip line delimiter to match behavior of Spark textFile
@@ -313,6 +313,8 @@ class GenericLine(
       n -= 1
     new String(data, 0, n)
   }
+
+  override def toString: String = _str
 }
 
 class GenericLinesRDDPartition(val index: Int, val context: Any) extends Partition
