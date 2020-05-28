@@ -17,7 +17,7 @@ class RVDPartitioner(
   allowedOverlap: Int
 ) {
   override def toString: String =
-    s"RVDPartitioner($kType, ${rangeBounds.mkString("[", ",\n", "]")}, $allowedOverlap)"
+    s"RVDPartitioner($kType, ${rangeBounds.mkString("[", ",\n", "]")})"
 
   def this(
     kType: TStruct,
@@ -131,6 +131,16 @@ class RVDPartitioner(
   def extendKey(newKType: TStruct): RVDPartitioner = {
     require(kType isPrefixOf newKType)
     RVDPartitioner.generate(newKType, rangeBounds)
+  }
+
+  def selectKey(newKType: TStruct): RVDPartitioner = {
+    require(newKType.isConstructibleFrom(kType))
+    val newRangeBounds = rangeBounds.map { (interval: Interval) =>
+      interval.copy(
+        start = new SelectFieldsRow(interval.start, kType, newKType),
+        end = new SelectFieldsRow(interval.start, kType, newKType))
+    }
+    RVDPartitioner.generate(newKType, newRangeBounds)
   }
 
   // Operators (produce new partitioners)

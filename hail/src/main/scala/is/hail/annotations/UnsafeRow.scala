@@ -244,25 +244,22 @@ object SafeIndexedSeq {
     apply(t, rv.offset)
 }
 
-class KeyedRow(var row: Row, keyFields: Array[Int]) extends Row {
-  def length: Int = row.size
-  def get(i: Int): Any = row.get(keyFields(i))
-  def copy(): Row = new KeyedRow(row, keyFields)
+class SelectFieldsRow(
+  private[this] val old: Row,
+  private[this] val fieldMapping: Array[Int]
+) extends Row {
+  def this(
+    old: Row,
+    oldPType: PStruct,
+    newPType: PStruct
+  ) = this(newPType.fieldNames.map(name => oldPType.fieldIdx(name)))
+
+  override def length = newPType.types.length
+  override def get(i: Int) = old.get(fieldMapping(i))
+  override def isNullAt(i: Int) = old.isNullAt(fieldMapping(i))
+  override def copy(): Row = new SelectFieldsRow(old.copy(), fieldMapping)
   def set(newRow: Row): KeyedRow = {
     row = newRow
     this
   }
-}
-
-class SelectFieldsRow(
-  old: Row,
-  oldPType: PStruct,
-  newPType: PStruct
-) extends Row {
-  private[this] val fieldMapping =
-    newPType.fieldNames.map(name => oldPType.fieldIdx(name))
-  override def length = newPType.types.length
-  override def get(i: Int) = old.get(fieldMapping(i))
-  override def isNullAt(i: Int) = old.isNullAt(fieldMapping(i))
-  override def copy(): Row = new SelectFieldsRow(old.copy(), oldPType, newPType)
 }

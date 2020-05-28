@@ -114,8 +114,8 @@ class RVD(
   ): RVD = {
     require(newKey.forall(rowType.hasField))
     val nPreservedFields = typ.key.zip(newKey).takeWhile { case (l, r) => l == r }.length
-    val maybeKeys = partitioner.keysIfOneToOne()
-    if (!(!isSorted || nPreservedFields > 0 || newKey.isEmpty || maybeKeys.isDefined)) {
+    val maybeKeys = partitioner.selectKey(newKey).keysIfOneToOne()
+    if (isSorted && nPreservedField == 0 && newKey.isEmpty) {
       throw new IllegalArgumentException(s"$isSorted, $nPreservedFields, $newKey, ${maybeKeys.isDefined}, ${typ}, ${partitioner}")
     }
 
@@ -280,9 +280,9 @@ class RVD(
       val partBc = newPartitioner.broadcast(crdd.sparkContext)
       val enc = TypedCodecSpec(rowPType, BufferSpec.wireSpec)
 
-      val filtered: RVD = if (filter) filterWithContext[(UnsafeRow, KeyedRow)]({ case (_, _) =>
+      val filtered: RVD = if (filter) filterWithContext[(UnsafeRow, SelectFieldsRow)]({ case (_, _) =>
         val ur = new UnsafeRow(localRowPType, null, 0)
-        val key = new KeyedRow(ur, newType.kFieldIdx)
+        val key = new SelectFieldsRow(ur, newType.kFieldIdx)
         (ur, key)
       }, { case ((ur, key), ctx, ptr) =>
         ur.set(ctx.r, ptr)
@@ -1458,7 +1458,7 @@ object RVD {
     else
       new RVD(typ, partitioner, crdd).checkKeyOrdering()
   }
-  
+
   def unify(rvds: Seq[RVD]): Seq[RVD] = {
     if (rvds.length == 1 || rvds.forall(_.rowPType == rvds.head.rowPType))
       return rvds
