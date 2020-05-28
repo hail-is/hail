@@ -661,7 +661,5 @@ class HailFeatureFlags {
 
   def get(flag: String): String = flags(flag)
 
-  def getOrNull(flag: String): String = flags.getOrElse(flag, null)
-
   def exists(flag: String): Boolean = flags.contains(flag)
 }

@@ -14,17 +14,9 @@ import org.apache.log4j.Logger
 object ShuffleClient {
   private[this] val log = Logger.getLogger(getClass.getName())
 
-  lazy val host = {
-    val x = HailContext.get.flags.getOrNull("shuffler_host")
-    if (x == null) "localhost" else x
-  }
-  lazy val port = {
-    val x = HailContext.get.flags.getOrNull("shuffler_port")
-    if (x == null) 8080 else x.toInt
-  }
   lazy val sslContext = {
-    val key = HailContext.get.flags.getOrNull("shuffler_ssl_client_key_file")
-    val cert = HailContext.get.flags.getOrNull("shuffler_ssl_client_cert_file")
+    val key = System.getenv("SHUFFLER_SSL_CLIENT_KEY_FILE")
+    val cert = System.getenv("SHUFFLER_SSL_CLIENT_CERT_FILE")
     if (key == null && cert != null ||
       cert == null && key != null) {
       fatal("you must specify both or neither of the hail context flags: " +
@@ -42,8 +34,6 @@ object ShuffleClient {
     }
   }
 
-  def socket(): Socket = socket(host, port)
-
   def socket(host: String, port: Int): Socket = {
     val s = sslContext.getSocketFactory().createSocket(host, port)
     log.info(s"connected to ${host}:${port} (socket())")
@@ -57,8 +47,8 @@ class ShuffleClient (
   rowEType: EBaseStruct,
   keyEType: EBaseStruct,
   ssl: SSLContext,
-  host: String = ShuffleClient.host,
-  port: Int = ShuffleClient.port
+  host: String,
+  port: Int
 ) {
   private[this] val log = Logger.getLogger(getClass.getName())
   private[this] var uuid: Array[Byte] = null
@@ -151,15 +141,15 @@ class ShuffleClient (
 
   def close(): Unit = {
     try {
-      out.writeByte(Wire.EOS)
-      out.flush()
-      assert(in.readByte() == Wire.EOS)
-    } finally {
       try {
-        s.close()
+        out.writeByte(Wire.EOS)
+        out.flush()
+        assert(in.readByte() == Wire.EOS)
       } finally {
-        ctx.close()
+        s.close()
       }
+    } finally {
+      ctx.close()
     }
   }
 }
