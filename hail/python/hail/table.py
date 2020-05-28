@@ -16,6 +16,7 @@ import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, dictof, anytype, \
     anyfunc, nullable, sequenceof, oneof, numeric, lazy, enumeration, \
     table_key_type
+from hail.utils.placement_tree import PlacementTree
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import wrap_to_tuple, storage_level, plural, \
     get_nice_field_error, get_nice_attr_error, get_key_by_exprs, check_keys, \
@@ -1251,7 +1252,7 @@ class Table(ExprContainer):
             if self._data is None:
                 t = self.table.flatten()
                 row_dtype = t.row.dtype
-                t = t.select(**{k: hl._showstr(v, self.truncate) for (k, v) in t.row.items()})
+                t = t.select(**{k: hl._showstr(v) for (k, v) in t.row.items()})
                 rows, has_more = t._take_n(self.n)
                 self._data = (rows, has_more, row_dtype)
             return self._data
@@ -1276,7 +1277,7 @@ class Table(ExprContainer):
             type_strs = [trunc(str(dtype[f])) for f in fields] if types else [''] * len(fields)
             right_align = [hl.expr.types.is_numeric(dtype[f]) for f in fields]
 
-            rows = [[row[f] for f in fields] for row in rows]
+            rows = [[trunc(row[f]) for f in fields] for row in rows]
 
             def max_value_width(i):
                 return max(itertools.chain([0], (len(row[i]) for row in rows)))
@@ -1350,14 +1351,37 @@ class Table(ExprContainer):
             rows, has_more, dtype = self.data()
             fields = list(dtype)
 
-            def format_line(values):
-                return '<tr><td>' + '</td><td>'.join(values) + '</td></tr>\n'
+            default_td_style = ('white-space: nowrap; '
+                                'max-width: 500px; '
+                                'overflow: hidden; '
+                                'text-overflow: ellipsis; ')
+
+            def format_line(values, extra_style=''):
+                style = default_td_style + extra_style
+                return (f'<tr><td style="{style}">' + f'</td><td style="{style}">'.join(values) + '</td></tr>\n')
+
+            arranged_field_names = PlacementTree.from_named_type('row', self.table.row.dtype)
 
             s = '<table>'
-            s += '<thead style="font-weight: bold;">'
-            s += format_line(fields)
+            s += '<thead>'
+            for header_row in arranged_field_names.to_grid():
+                s += '<tr>'
+                div_style = 'text-align: left;'
+                non_empty_div_style = 'border-bottom: solid 2px #000; padding-bottom: 5px'
+                for header_cell in header_row:
+                    text, width = header_cell
+                    s += f'<td style="{default_td_style}" colspan="{width}">'
+                    if text is not None:
+                        s += f'<div style="{div_style}{non_empty_div_style}">'
+                        s += text
+                        s += '</div>'
+                    else:
+                        s += f'<div style="{div_style}"></div>'
+                    s += '</td>'
+                s += '</tr>'
             if types:
-                s += format_line([html.escape(str(dtype[f])) for f in fields])
+                s += format_line([html.escape(str(dtype[f])) for f in fields],
+                                 extra_style="text-align: left;")
             s += '</thead><tbody>'
             for row in rows:
                 s += format_line([html.escape(row[f]) for f in row])

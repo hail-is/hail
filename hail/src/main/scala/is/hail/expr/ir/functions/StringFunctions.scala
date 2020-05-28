@@ -143,6 +143,14 @@ object StringFunctions extends RegistryFunctions {
       unwrapReturn(r, rt)(str)
     }
 
+    registerEmitCode1("showStr", tv("T"), TString, {
+      (_: Type, _: PType) => PCanonicalString(true)
+    }) { case (r, rt, a) =>
+      val annotation = Code(a.setup, a.m).muxAny(Code._null(boxedTypeInfo(a.pt)), boxArg(r, a.pt)(a.v))
+      val str = r.mb.getType(a.pt.virtualType).invoke[Any, String]("showStr", annotation)
+      EmitCode.present(PCode(rt, unwrapReturn(r, rt)(str)))
+    }
+
     registerEmitCode2("showStr", tv("T"), TInt32, TString, {
       (_: Type, _: PType, truncType: PType) => PCanonicalString(truncType.required)
     }) { case (r, rt, a, trunc) =>
