@@ -161,12 +161,13 @@ object TextTableReader {
     fs: FS,
     fileStatuses: Array[FileStatus],
     params: TextTableReaderParameters,
-    header: Array[String],
+    headerLine: String,
+    columns: Array[String],
     delimiter: String,
     missing: Set[String],
     quote: java.lang.Character
   ): Array[(Option[Type], Boolean)] = {
-    val nFields = header.length
+    val nFields = columns.length
 
     val matchTypes: Array[Type] = Array(TBoolean, TInt32, TInt64, TFloat64)
     val matchers: Array[String => Boolean] = Array(
@@ -190,7 +191,7 @@ object TextTableReader {
         val line = genericLine.toString
 
         if (!params.isComment(line) &&
-          (!params.hasHeader || line != header) &&
+          (!params.hasHeader || line != headerLine) &&
           !(params.skipBlankLines && line.isEmpty)) {
 
           val split = splitLine(line, delimiter, quote, ab, sb)
@@ -298,7 +299,7 @@ object TextTableReader {
 
         sb.append("Finished type imputation")
 
-        val imputedTypes = imputeTypes(fs, fileStatuses, options, columns, separator, missing, quote)
+        val imputedTypes = imputeTypes(fs, fileStatuses, options, header, columns, separator, missing, quote)
 
         columns.zip(imputedTypes).map { case (name, (imputedType, req)) =>
           types.get(name) match {
