@@ -109,6 +109,7 @@ def trio_matrix(dataset, pedigree, complete_trios=False) -> MatrixTable:
 
     return mt._unlocalize_entries(entries_sym, cols_sym, ['id'])
 
+
 @typecheck(call=expr_call,
            pedigree=Pedigree)
 def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
@@ -334,6 +335,7 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
     table4 = tm.select_rows(errors=hl.agg.count_where(hl.is_defined(tm.mendel_code))).rows()
 
     return table1, table2, table3, table4
+
 
 @typecheck(dataset=MatrixTable,
            pedigree=Pedigree)

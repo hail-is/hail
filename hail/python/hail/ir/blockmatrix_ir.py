@@ -253,7 +253,7 @@ class _RectangleSparsifier(BlockMatrixSparsifier):
         pass
 
     def __repr__(self):
-        return f'(PyRectangleSparsifier)'
+        return '(PyRectangleSparsifier)'
 
 
 RectangleSparsifier = _RectangleSparsifier()

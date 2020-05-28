@@ -1238,34 +1238,42 @@ class StreamScan(IR):
             return {}
 
 
-class StreamLeftJoinDistinct(IR):
-    @typecheck_method(left=IR, right=IR, l_name=str, r_name=str, compare=IR, join=IR)
-    def __init__(self, left, right, l_name, r_name, compare, join):
-        super().__init__(left, right, compare, join)
+class StreamJoinRightDistinct(IR):
+    @typecheck_method(left=IR, right=IR, l_key=sequenceof(str), r_key=sequenceof(str), l_name=str, r_name=str, join=IR, join_type=str)
+    def __init__(self, left, right, l_key, r_key, l_name, r_name, join, join_type):
+        super().__init__(left, right, join)
         self.left = left
         self.right = right
+        self.l_key = l_key
+        self.r_key = r_key
         self.l_name = l_name
         self.r_name = r_name
-        self.compare = compare
         self.join = join
+        self.join_type = join_type
 
-    @typecheck_method(left=IR, right=IR, compare=IR, join=IR)
-    def copy(self, left, right, compare, join):
-        return StreamLeftJoinDistinct(left, right, self.l_name, self.r_name, compare, join)
+    @typecheck_method(left=IR, right=IR, join=IR)
+    def copy(self, left, right, join):
+        return StreamJoinRightDistinct(left, right, self.l_key, self.r_key, self.l_name, self.r_name, join, self.join_type)
 
     def head_str(self):
-        return f'{escape_id(self.l_name)} {escape_id(self.r_name)}'
+        return '({}) ({}) {} {} {}'.format(
+            ' '.join([escape_id(x) for x in self.l_key]),
+            ' '.join([escape_id(x) for x in self.r_key]),
+            self.l_name,
+            self.r_name,
+            self.join_type)
 
     def _eq(self, other):
         return other.l_name == self.l_name and \
-            other.r_name == self.r_name
+            other.r_name == self.r_name and \
+            other.join_type == self.join_type
 
     @property
     def bound_variables(self):
         return {self.l_name, self.r_name} | super().bound_variables
 
     def renderable_bindings(self, i, default_value=None):
-        if i == 2 or i == 3:
+        if i == 2:
             if default_value is None:
                 return {self.l_name: self.left.typ.element_type,
                         self.r_name: self.right.typ.element_type}

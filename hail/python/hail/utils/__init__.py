@@ -3,7 +3,7 @@ from .hadoop_utils import hadoop_copy, hadoop_open, hadoop_exists, hadoop_is_dir
 from .struct import Struct
 from .linkedlist import LinkedList
 from .interval import Interval
-from .java import error, warn, info, FatalError
+from .java import error, warning, info, FatalError
 from .tutorial import get_1kg, get_movie_lens
 
 __all__ = ['hadoop_open',
@@ -26,7 +26,7 @@ __all__ = ['hadoop_open',
            'Struct',
            'Interval',
            'error',
-           'warn',
+           'warning',
            'info',
            'FatalError',
            'range_table',

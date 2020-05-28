@@ -506,6 +506,51 @@ object LowerTableIR {
             sorted
           }
 
+        case TableLeftJoinRightDistinct(left, right, root) =>
+          require(right.typ.keyType isPrefixOf left.typ.keyType)
+
+          val commonKeyLength = right.typ.keyType.size
+          val loweredLeft = lower(left)
+          val leftKeyToRightKeyMap = left.typ.keyType.fieldNames.zip(right.typ.keyType.fieldNames).toMap
+          val newRightPartitioner = loweredLeft.partitioner.coarsen(commonKeyLength)
+            .rename(leftKeyToRightKeyMap)
+          val loweredRight = lower(right).repartitionNoShuffle(newRightPartitioner)
+
+          val leftCtxTyp = loweredLeft.contexts.typ.asInstanceOf[TStream].elementType
+          val rightCtxTyp = loweredRight.contexts.typ.asInstanceOf[TStream].elementType
+          val leftCtxRef = Ref(genUID(), leftCtxTyp)
+          val rightCtxRef = Ref(genUID(), rightCtxTyp)
+
+          val leftCtxStructField = genUID()
+          val rightCtxStructField = genUID()
+
+          new TableStage(
+            loweredLeft.letBindings ++ loweredRight.letBindings,
+            loweredLeft.broadcastVals ++ loweredRight.broadcastVals,
+            loweredLeft.globals,
+            loweredLeft.partitioner,
+            StreamZip(
+              FastIndexedSeq(loweredLeft.contexts, loweredRight.contexts), FastIndexedSeq(leftCtxRef.name, rightCtxRef.name),
+              MakeStruct(FastIndexedSeq(leftCtxStructField -> leftCtxRef, rightCtxStructField -> rightCtxRef)), ArrayZipBehavior.AssertSameLength
+            )
+          ) {
+            override def partition(ctxRef: Ref): IR = {
+              bindIR(GetField(ctxRef, leftCtxStructField)) { leftCtxFieldRef =>
+                bindIR(GetField(ctxRef, rightCtxStructField)) { rightCtxFieldRef =>
+                  val leftPart = loweredLeft.partition(leftCtxFieldRef)
+                  val rightPart = loweredRight.partition(rightCtxFieldRef)
+                  val leftElementRef = Ref(genUID(), left.typ.rowType)
+                  val rightElementRef = Ref(genUID(), right.typ.rowType)
+
+                  val (typeOfRootStruct, _) = right.typ.rowType.filterSet(right.typ.key.toSet, false)
+                  val rootStruct = SelectFields(rightElementRef, typeOfRootStruct.fieldNames.toIndexedSeq)
+                  val joiningOp = InsertFields(leftElementRef, Seq(root -> rootStruct))
+                  StreamJoinRightDistinct(leftPart, rightPart, left.typ.key.take(commonKeyLength), right.typ.key, leftElementRef.name, rightElementRef.name, joiningOp, "left")
+                }
+
+              }
+            }
+          }
         case TableOrderBy(child, sortFields) =>
           val loweredChild = lower(child)
           if (TableOrderBy.isAlreadyOrdered(sortFields, loweredChild.partitioner.kType.fieldNames))

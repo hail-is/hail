@@ -68,6 +68,10 @@ abstract class PBaseStruct extends PType {
 
   def size: Int = fields.length
 
+  def isIsomorphicTo(other: PBaseStruct) = {
+    this.fields.size == other.fields.size && this.isCompatibleWith(other)
+  }
+
   def _toPretty: String = {
     val sb = new StringBuilder
     _pretty(sb, 0, compact = true)

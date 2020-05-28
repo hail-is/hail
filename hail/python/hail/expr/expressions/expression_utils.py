@@ -15,7 +15,7 @@ def analyze(caller: str,
             expected_indices: Indices,
             aggregation_axes: Set = set(),
             broadcast=True):
-    from hail.utils import warn, error
+    from hail.utils import warning, error
 
     indices = expr._indices
     source = indices.source
@@ -122,7 +122,7 @@ def analyze(caller: str,
             errors.append(ExpressionException("'{}' does not support aggregation".format(caller)))
 
     for w in warnings:
-        warn('{}'.format(w.msg))
+        warning('{}'.format(w.msg))
     if errors:
         for e in errors:
             error('{}'.format(e.msg))
@@ -295,6 +295,7 @@ def check_entry_indexed(caller, expr):
     if expr._indices != expr._indices.source._entry_indices:
         raise ExpressionException("{}: expression must be entry-indexed,"
                                   " found indices {}".format(caller, list(expr._indices.axes)))
+
 
 @typecheck(caller=str,
            expr=Expression)
