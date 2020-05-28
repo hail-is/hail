@@ -274,8 +274,7 @@ class ServiceBackend(Backend):
              wait=True,
              open=False,
              disable_progress_bar=False,
-             callback=None
-    ):  # pylint: disable-msg=too-many-statements
+             callback=None):  # pylint: disable-msg=too-many-statements
         """Execute a batch.
 
         Warning
