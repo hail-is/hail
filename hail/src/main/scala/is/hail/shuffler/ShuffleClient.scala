@@ -46,7 +46,7 @@ object ShuffleClient {
 
   def socket(host: String, port: Int): Socket = {
     val s = sslContext.getSocketFactory().createSocket(host, port)
-    log.info(s"CLNT connected to ${host}:${port} (socket())")
+    log.info(s"connected to ${host}:${port} (socket())")
     s
   }
 }
@@ -74,13 +74,13 @@ class ShuffleClient (
     out.writeByte(op)
     if (op != Wire.START) {
       assert(uuid != null)
-      log.info(s"CLNT operation $op uuid ${uuidToString(uuid)}")
+      log.info(s"operation $op uuid ${uuidToString(uuid)}")
       Wire.writeByteArray(out, uuid)
     }
   }
 
   def start(): Unit = {
-    log.info(s"CLNT start")
+    log.info(s"start")
     startOperation(Wire.START)
     Wire.writeTStruct(out, rowType)
     Wire.writeEBaseStruct(out, rowEType)
@@ -89,11 +89,11 @@ class ShuffleClient (
     out.flush()
     uuid = Wire.readByteArray(in)
     assert(uuid.length == Wire.ID_SIZE, s"${uuid.length} ${Wire.ID_SIZE}")
-    log.info(s"CLNT start done")
+    log.info(s"start done")
   }
 
   def put(values: Array[Long]): Unit = {
-    log.info(s"CLNT put")
+    log.info(s"put")
     startOperation(Wire.PUT)
     out.flush()
     val encoder = codecs.makeRowEncoder(out)
@@ -101,7 +101,7 @@ class ShuffleClient (
     // fixme: server needs to send uuid for the successful partition
     out.flush()
     assert(in.readByte() == 0.toByte)
-    log.info(s"CLNT put done")
+    log.info(s"put done")
   }
 
   def get(
@@ -111,7 +111,7 @@ class ShuffleClient (
     end: Long,
     endInclusive: Boolean
   ): Array[Long] = {
-    log.info(s"CLNT get ${Region.pretty(codecs.keyDecodedPType, start)} ${startInclusive} " +
+    log.info(s"get ${Region.pretty(codecs.keyDecodedPType, start)} ${startInclusive} " +
       s"${Region.pretty(codecs.keyDecodedPType, end)} ${endInclusive}")
     val keyEncoder = codecs.makeKeyEncoder(out)
     val decoder = codecs.makeRowDecoder(in)
@@ -122,31 +122,31 @@ class ShuffleClient (
     keyEncoder.writeRegionValue(end)
     keyEncoder.writeByte(if (endInclusive) 1.toByte else 0.toByte)
     keyEncoder.flush()
-    log.info(s"CLNT get receiving values")
+    log.info(s"get receiving values")
     val values = readRegionValueArray(region, decoder)
-    log.info(s"CLNT get done")
+    log.info(s"get done")
     values
   }
 
   def partitionBounds(region: Region, nPartitions: Int): Array[Long] = {
-    log.info(s"CLNT partitionBounds")
+    log.info(s"partitionBounds")
     val keyDecoder = codecs.makeKeyDecoder(in)
     startOperation(Wire.PARTITION_BOUNDS)
     out.writeInt(nPartitions)
     out.flush()
-    log.info(s"CLNT partitionBounds receiving values")
+    log.info(s"partitionBounds receiving values")
     val keys = readRegionValueArray(region, keyDecoder, nPartitions + 1)
-    log.info(s"CLNT partitionBounds done")
+    log.info(s"partitionBounds done")
     keys
   }
 
   def stop(): Unit = {
-    log.info(s"CLNT stop")
+    log.info(s"stop")
     out.writeByte(Wire.STOP)
     Wire.writeByteArray(out, uuid)
     out.flush()
     assert(in.readByte() == 0.toByte)
-    log.info(s"CLNT stop done")
+    log.info(s"stop done")
   }
 
   def close(): Unit = {
