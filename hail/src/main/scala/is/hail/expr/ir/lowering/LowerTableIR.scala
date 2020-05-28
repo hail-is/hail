@@ -305,6 +305,7 @@ object LowerTableIR {
           // 1. Annotate rows with a new field based on newKey
           // 2. Shuffle to key by this newKey
           // 3. Map over this new thing, flattening out pairs into rows with the new key fields as well as whatever agg results we have
+
           val withNewKeyField = loweredChild.mapPartition { partition =>
             mapIR(partition) { partitionElement =>
               Let("row",
@@ -313,6 +314,11 @@ object LowerTableIR {
               )
             }
           }
+
+          // New Plan:
+          // 1. Annotate rows with all the keys contained in newKey, assume always that newKey is a struct
+          // 2. Shuffle to all the new keys
+
           val shuffled = ctx.backend.lowerDistributedSort(ctx, withNewKeyField, IndexedSeq(SortField("newKey", Ascending)))
 
           shuffled.mapPartition { partition =>
@@ -326,7 +332,7 @@ object LowerTableIR {
                     ApplyAggOp(FastSeq(I32(1)),
                       FastSeq(SelectFields(Ref("row", child.typ.rowType), child.typ.key)),
                       AggSignature(Take(), FastSeq(TInt32), FastSeq(child.typ.keyType))),
-                    I32(0)), // FIXME: would prefer a First() agg op
+                    I32(0)),
                   expr) { case Seq(groupRep, value) =>
 
                   val keyIRs: IndexedSeq[(String, IR)] = child.typ.key.map(k => (k, GetField(GetField(groupRep, "newKey"), k)))
