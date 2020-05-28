@@ -103,6 +103,8 @@ In order to allow the dataproc cluster to read from them, you can either use ``-
 or use the special ``--requester-pays-allow-annotation-db`` to enable the specific list of buckets that the annotation database
 relies on.
 
+.. _vep_dataproc:
+
 Variant Effect Predictor (VEP)
 ------------------------------
 
