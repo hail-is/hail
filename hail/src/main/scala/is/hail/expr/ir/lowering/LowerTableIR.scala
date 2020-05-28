@@ -307,7 +307,10 @@ object LowerTableIR {
           // 3. Map over this new thing, flattening out pairs into rows with the new key fields as well as whatever agg results we have
           val withNewKeyField = loweredChild.mapPartition { partition =>
             mapIR(partition) { partitionElement =>
-              MakeStruct(Seq("newKey" -> newKey, "oldRowStruct" -> partitionElement))
+              Let("row",
+                partitionElement,
+                MakeStruct(Seq("newKey" -> newKey, "oldRowStruct" -> partitionElement))
+              )
             }
           }
           val shuffled = ctx.backend.lowerDistributedSort(ctx, withNewKeyField, IndexedSeq(SortField("newKey", Ascending)))
@@ -317,11 +320,11 @@ object LowerTableIR {
               // I believe that `expr` is a going to make a struct of aggregator fields.
               StreamAgg(
                 groupRef,
-                "rowVar",
+                "row",
                 bindIRs(
                   ArrayRef(
                     ApplyAggOp(FastSeq(I32(1)),
-                      FastSeq(SelectFields(Ref("rowVar", child.typ.rowType), child.typ.key)),
+                      FastSeq(SelectFields(Ref("row", child.typ.rowType), child.typ.key)),
                       AggSignature(Take(), FastSeq(TInt32), FastSeq(child.typ.keyType))),
                     I32(0)), // FIXME: would prefer a First() agg op
                   expr) { case Seq(groupRep, value) =>

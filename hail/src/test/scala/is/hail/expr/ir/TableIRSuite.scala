@@ -384,6 +384,18 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(distinctCount, 2L)
   }
 
+  @Test def testTableKeyByLowering() {
+    implicit val execStrats = ExecStrategy.lowering
+    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
+    val length = 10
+    val value = Row(FastIndexedSeq(0 until length: _*).map(i => Row(0, "row" + i)), Row("global"))
+
+    val par = TableParallelize(Literal(t, value))
+
+    val keyed = TableKeyBy(par, IndexedSeq("a"), false)
+    assertEvalsTo(TableCount(keyed), length.toLong)
+  }
+
   @Test def testTableParallelize() {
     implicit val execStrats = ExecStrategy.allRelational
     val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
@@ -737,13 +749,14 @@ class TableIRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.lowering
     val tir: TableIR = TableRead.native(fs, "src/test/resources/three_key.ht")
     val unkeyed = TableKeyBy(tir, IndexedSeq[String]())
-    assertEvalsTo(TableCount(unkeyed), 120L)
+    //assertEvalsTo(TableCount(unkeyed), 120L)
     val rowRef = Ref("row", unkeyed.typ.rowType)
     val aggSignature = AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64))
     val aggExpression = MakeStruct(FastSeq("y_sum" -> ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(Cast(GetField(rowRef, "y"), TInt64)), aggSignature)))
     val keyByXAndAggregateSum = TableKeyByAndAggregate(unkeyed, aggExpression, MakeStruct(FastSeq("x" -> GetField(rowRef, "x"))))
 
-    print(Pretty(keyByXAndAggregateSum))
+    println("Pretty IR from test")
+    println(Pretty(keyByXAndAggregateSum))
 
 //    ("sum", ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(GetField(Ref("row", tir.typ.rowType), "z").toL), AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64)))),
 

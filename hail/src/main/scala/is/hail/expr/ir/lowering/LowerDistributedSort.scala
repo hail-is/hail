@@ -37,12 +37,14 @@ object LowerDistributedSort {
 
     val ord: Ordering[Annotation] = ExtendedOrdering.rowOrdering(sortColIndexOrd).toOrdering
     val rows = rowsAndGlobal.getAs[IndexedSeq[Annotation]](0)
-    val sortedRows = ctx.timer.time("LowerDistributedSort.localSort.sort")(rows.sorted(ord))
+    val kType = TStruct(sortFields.takeWhile(_.sortOrder == Ascending).map(f => (f.field, rowType.virtualType.fieldType(f.field))): _*)
+    val kIndex = kType.fieldNames.map(f => rowType.fieldIdx(f))
+    val sortedRows = ctx.timer.time("LowerDistributedSort.localSort.sort")(rows.sortBy{ a: Annotation =>
+      a.asInstanceOf[Row].select(kIndex).asInstanceOf[Annotation]
+    }(ord))
     val nPartitionsAdj = math.max(math.min(sortedRows.length, numPartitions), 1)
     val itemsPerPartition = (sortedRows.length.toDouble / nPartitionsAdj).ceil.toInt
 
-    val kType = TStruct(sortFields.takeWhile(_.sortOrder == Ascending).map(f => (f.field, rowType.virtualType.fieldType(f.field))): _*)
-    val kIndex = kType.fieldNames.map(f => rowType.fieldIdx(f))
     val partitioner = new RVDPartitioner(kType,
       sortedRows.grouped(itemsPerPartition).map { group =>
         val first = group.head.asInstanceOf[Row].select(kIndex)
