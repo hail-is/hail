@@ -660,14 +660,15 @@ class CompiledLineParser(
 
     val parse = loadParserOnWorker()
     var index = partitionCounts(partition) - partitionCounts(firstPartitions(partition))
-    it.map { x =>
+    it.map { line =>
+      val x = line.toString
       try {
         val res =
           parse(
             r,
             filename,
             index,
-            x.toString)
+            x)
         index += 1
         res
       } catch {
@@ -676,13 +677,13 @@ class CompiledLineParser(
           s"""""Error parse line $index:${e.posStart}-${e.posEnd}:
                |    File: $filename
                |    Line:
-               |        ${ x.toString.truncate }""".stripMargin,
+               |        ${ x.truncate }""".stripMargin,
           e)
         case e: Exception => fatal(
           s"""""Error parse line $index:
                |    File: $filename
                |    Line:
-               |        ${ x.toString.truncate }""".stripMargin,
+               |        ${ x.truncate }""".stripMargin,
           e)
       }
     }
