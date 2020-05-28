@@ -1359,9 +1359,7 @@ class Table(ExprContainer):
 
             def format_line(values, extra_style=''):
                 style = default_td_style + extra_style
-                return (f'<tr><td style="{style}">' +
-                        f'</td><td style="{style}">'.join(values) +
-                        '</td></tr>\n')
+                return (f'<tr><td style="{style}">' + f'</td><td style="{style}">'.join(values) + '</td></tr>\n')
 
             arranged_field_names = PlacementTree.from_named_type('row', self.table.row.dtype)
 
