@@ -188,7 +188,7 @@ SET max_instances = %s, pool_size = %s;
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-7',
+                    'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-8',
                     'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(self.worker_disk_size_gb)
                 }
@@ -237,6 +237,11 @@ set -x
 # -I inserts at the head of the chain, so the ACCEPT rule runs first
 iptables -I FORWARD -i docker0 -d 169.254.169.254 -j DROP
 iptables -I FORWARD -i docker0 -d 169.254.169.254 -p udp -m udp --destination-port 53 -j ACCEPT
+
+# add docker daemon debug logging
+jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
+mv daemon.json.tmp /etc/docker/daemon.json
+kill -SIGHUP $(pidof dockerd)
 
 export HOME=/root
 
@@ -293,8 +298,10 @@ WORKER_LOGS_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 
+journalctl -u docker.service > dockerd.log
+
 # this has to match LogStore.worker_log_path
-gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/worker/$NAME/
+gsutil -m cp run.log worker.log /var/log/syslog dockerd.log  gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/worker/$NAME/
 '''
                 }, {
                     'key': 'activation_token',
