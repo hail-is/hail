@@ -198,7 +198,7 @@ object TextMatrixReader {
     val separator = params.separatorStr.charAt(0)
     val rowFields = params.rowFieldsStr.mapValues(IRParser.parseType(_))
     val entryType = TStruct("x" -> IRParser.parseType(params.entryTypeStr))
-    val fileStatuses = fs.globAll(params.paths).flatMap(fs.listStatus)
+    val fileStatuses = fs.globAllStatuses(params.paths)
     require(entryType.size == 1, "entryType can only have 1 field")
     if (fileStatuses.isEmpty)
       fatal("no paths specified for import_matrix_table.")
@@ -230,22 +230,23 @@ object TextMatrixReader {
       warnDuplicates(headerInfo.columnIdentifiers.asInstanceOf[Array[String]])
 
     val lines = GenericLines.read(fs, fileStatuses, params.nPartitions, None, None, params.gzipAsBGZip, false)
-      .toRDD()
+
+    val linesRDD = lines.toRDD()
       .filter { line =>
         val l = line.toString
         l.nonEmpty && !opts.isComment(l)
       }
 
-    val linesPartitionCounts = lines.countPerPartition()
-    val partitionPaths = lines.partitions.map(partitionPath)
+    val linesPartitionCounts = linesRDD.countPerPartition()
+    val partitionPaths = linesRDD.partitions.map(partitionPath)
 
     val headerPartitions = mutable.Set[Int]()
-    val firstPartitions = new Array[Int](lines.getNumPartitions)
+    val firstPartitions = new Array[Int](linesRDD.getNumPartitions)
 
     var firstPart = 0
     var i = 0
     var prevPartitionPath: String = null
-    while (i < lines.getNumPartitions) {
+    while (i < linesRDD.getNumPartitions) {
       val count = linesPartitionCounts(i)
       val partPath = partitionPaths(i)
       if (count > 0) {
@@ -262,7 +263,7 @@ object TextMatrixReader {
     }
 
     if (params.hasHeader)
-      checkHeaders(fileStatuses.head.getPath, headerInfo.headerValues, headerPartitions, partitionPaths, lines, separator)
+      checkHeaders(fileStatuses.head.getPath, headerInfo.headerValues, headerPartitions, partitionPaths, linesRDD, separator)
 
     val fullMatrixType = MatrixType(
       TStruct.empty,
@@ -272,7 +273,7 @@ object TextMatrixReader {
       rowKey = Array().toFastIndexedSeq,
       entryType = entryType)
 
-    new TextMatrixReader(params, fileStatuses, separator, rowFieldType, fullMatrixType,  headerInfo, headerPartitions, linesPartitionCounts, partitionPaths, firstPartitions)
+    new TextMatrixReader(params, lines, separator, rowFieldType, fullMatrixType,  headerInfo, headerPartitions, linesPartitionCounts, partitionPaths, firstPartitions)
   }
 }
 
@@ -292,7 +293,7 @@ case class TextMatrixReaderOptions(comment: Array[String], hasHeader: Boolean) e
 
 class TextMatrixReader(
   val params: TextMatrixReaderParameters,
-  fileStatuses: IndexedSeq[FileStatus],
+  lines: GenericLines,
   separator: Char,
   rowFieldType: TStruct,
   val fullMatrixType: MatrixType,
@@ -314,11 +315,7 @@ class TextMatrixReader(
   }
 
   def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
-    val fs = ctx.fs
-
     val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
-
-    val lines = GenericLines.read(fs, fileStatuses, params.nPartitions, None, None, params.gzipAsBGZip, false)
 
     val globals = Row(headerInfo.columnIdentifiers.map(Row(_)).toFastIndexedSeq)
 

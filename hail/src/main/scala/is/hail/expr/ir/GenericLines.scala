@@ -107,7 +107,7 @@ object GenericLines {
             return
           }
 
-          line.offset = offset
+          line.setOffset(offset)
 
           var sawcr = false
           var linePos = 0
@@ -296,12 +296,23 @@ object GenericLines {
 class GenericLine(
   val file: String,
   // possibly virtual
-  var offset: Long,
+  private var _offset: Long,
   var data: Array[Byte],
   var lineLength: Int) {
   def this(file: String) = this(file, 0, null, 0)
 
-  override def toString: String = {
+  private var strMemo: String = null
+
+  def setOffset(newOffset: Long): Unit = {
+    strMemo = null
+    _offset = newOffset
+  }
+
+  def offset: Long = _offset
+
+  override def toString: String = if (strMemo != null)
+    strMemo
+  else {
     var n = lineLength
     assert(n > 0)
     // strip line delimiter to match behavior of Spark textFile
@@ -311,7 +322,8 @@ class GenericLine(
         n -= 1
     } else if (data(n - 1) == '\r')
       n -= 1
-    new String(data, 0, n)
+    strMemo = new String(data, 0, n)
+    strMemo
   }
 }
 
