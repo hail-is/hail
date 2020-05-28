@@ -6,8 +6,8 @@ import java.util.concurrent.{ConcurrentSkipListMap, Executors, _}
 
 import is.hail.annotations.Region
 import is.hail.expr.ir._
-import is.hail.expr.types.encoded._
-import is.hail.expr.types.virtual._
+import is.hail.types.encoded._
+import is.hail.types.virtual._
 import is.hail.io._
 import is.hail.shuffler._
 import is.hail.utils._

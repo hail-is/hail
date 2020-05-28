@@ -1,8 +1,8 @@
 package is.hail.shuffler
 
 import is.hail.expr.ir._
-import is.hail.expr.types.encoded._
-import is.hail.expr.types.virtual._
+import is.hail.types.encoded._
+import is.hail.types.virtual._
 
 class ShuffleCodecSpec(
   ctx: ExecuteContext,
