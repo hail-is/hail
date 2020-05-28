@@ -1,13 +1,18 @@
 package is.hail.expr.ir
 
 import is.hail.HailContext
+import is.hail.backend.spark.SparkBackend
 import is.hail.utils._
 import is.hail.types.virtual.{TBoolean, TInt32, TInt64, TString, TStruct, Type}
 import is.hail.io.compress.{BGzipCodec, BGzipInputStream}
 import is.hail.io.fs.{FS, FileStatus, Positioned, PositionedInputStream, SeekableInputStream}
 import org.apache.commons.io.input.{CountingInputStream, ProxyInputStream}
 import org.apache.hadoop.io.compress.SplittableCompressionCodec
+import org.apache.spark.{Partition, TaskContext}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
+
+import scala.annotation.meta.param
 
 abstract class CloseableIterator[T] extends Iterator[T] with AutoCloseable
 
@@ -310,10 +315,33 @@ class GenericLine(
   }
 }
 
+class GenericLinesRDDPartition(val index: Int, val context: Any) extends Partition
+
+class GenericLinesRDD(
+  @(transient@param) contexts: IndexedSeq[Any],
+  body: (Any) => CloseableIterator[GenericLine]
+) extends RDD[GenericLine](SparkBackend.sparkContext("GenericLinesRDD"), Seq()) {
+
+  protected def getPartitions: Array[Partition] =
+    contexts.iterator.zipWithIndex.map { case (c, i) =>
+      new GenericLinesRDDPartition(i, c)
+    }.toArray
+
+  def compute(split: Partition, context: TaskContext): Iterator[GenericLine] = {
+    val it = body(split.asInstanceOf[GenericLinesRDDPartition].context)
+    TaskContext.get.addTaskCompletionListener { _ =>
+      it.close()
+    }
+    it
+  }
+}
+
 class GenericLines(
   val contextType: Type,
   val contexts: IndexedSeq[Any],
   val body: (Any) => CloseableIterator[GenericLine]) {
 
   def nPartitions: Int = contexts.length
+
+  def toRDD(): RDD[GenericLine] = new GenericLinesRDD(contexts, body)
 }

@@ -53,7 +53,7 @@ case class TextTableReaderParameters(
   def nPartitions: Int = nPartitionsOpt.getOrElse(HailContext.backend.defaultParallelism)
 }
 
-case class TextTableReaderMetadata(globbedFiles: Array[String], header: String, rowPType: PStruct) {
+case class TextTableReaderMetadata(fileStatuses: Array[FileStatus], header: String, rowPType: PStruct) {
   def fullType: TableType = TableType(rowType = rowPType.virtualType, globalType = TStruct(), key = FastIndexedSeq())
 }
 
@@ -157,8 +157,15 @@ object TextTableReader {
     case e: NumberFormatException => false
   }
 
-  def imputeTypes(values: RDD[WithContext[String]], header: Array[String],
-    delimiter: String, missing: Set[String], quote: java.lang.Character): Array[(Option[Type], Boolean)] = {
+  def imputeTypes(
+    fs: FS,
+    fileStatuses: Array[FileStatus],
+    params: TextTableReaderParameters,
+    header: Array[String],
+    delimiter: String,
+    missing: Set[String],
+    quote: java.lang.Character
+  ): Array[(Option[Type], Boolean)] = {
     val nFields = header.length
 
     val matchTypes: Array[Type] = Array(TBoolean, TInt32, TInt64, TFloat64)
@@ -169,31 +176,34 @@ object TextTableReader {
       float64Matcher)
     val nMatchers = matchers.length
 
-    val (imputation, allDefined) = values.mapPartitions { it =>
+    val lines = GenericLines.read(fs, fileStatuses, nPartitions = params.nPartitionsOpt,
+      blockSizeInMB = None, minPartitions = None, gzAsBGZ = params.forceBGZ, allowSerialRead = params.forceGZ)
+
+    val linesRDD: RDD[GenericLine] = lines.toRDD()
+
+    val (imputation, allDefined) = linesRDD.mapPartitions { it =>
       val allDefined = Array.fill(nFields)(true)
       val ma = MultiArray2.fill[Boolean](nFields, nMatchers + 1)(true)
       val ab = new ArrayBuilder[String]
       val sb = new StringBuilder
       it.foreach { line =>
-        line.foreach { l =>
-          val split = splitLine(l, delimiter, quote, ab, sb)
-          if (split.length != nFields)
-            fatal(s"expected $nFields fields, but found ${ split.length }")
+        val split = splitLine(line.toString, delimiter, quote, ab, sb)
+        if (split.length != nFields)
+          fatal(s"expected $nFields fields, but found ${ split.length }")
 
-          var i = 0
-          while (i < nFields) {
-            val field = split(i)
-            if (!missing.contains(field)) {
-              var j = 0
-              while (j < nMatchers) {
-                ma.update(i, j, ma(i, j) && matchers(j)(field))
-                j += 1
-              }
-              ma.update(i, nMatchers, false)
-            } else
-              allDefined(i) = false
-            i += 1
-          }
+        var i = 0
+        while (i < nFields) {
+          val field = split(i)
+          if (!missing.contains(field)) {
+            var j = 0
+            while (j < nMatchers) {
+              ma.update(i, j, ma(i, j) && matchers(j)(field))
+              j += 1
+            }
+            ma.update(i, nMatchers, false)
+          } else
+            allDefined(i) = false
+          i += 1
         }
       }
       Iterator.single((ma, allDefined))
@@ -227,26 +237,26 @@ object TextTableReader {
   }
 
   def readMetadata1(fs: FS, options: TextTableReaderParameters): TextTableReaderMetadata = {
-    val TextTableReaderParameters(files, _, comment, separator, missing, hasHeader, impute, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ) = options
+    val TextTableReaderParameters(files, _, _, separator, missing, hasHeader, impute, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ) = options
 
-    val globbedFiles: Array[String] = {
-      val globbed = fs.globAll(files)
-      if (globbed.isEmpty)
+    val fileStatuses: Array[FileStatus] = {
+      val status = fs.globAllStatuses(files)
+      if (status.isEmpty)
         fatal("arguments refer to no files")
       if (!forceBGZ) {
-        globbed.foreach { file =>
+        status.foreach { status =>
+          val file = status.getPath
           if (file.endsWith(".gz"))
             checkGzippedFile(fs, file, forceGZ, forceBGZ)
         }
       }
-      globbed
+      status
     }
 
     val types = options.typeMap
     val quote = options.quote
-    val nPartitions: Int = options.nPartitions
 
-    val firstFile = globbedFiles.head
+    val firstFile = fileStatuses.head.getPath
     val header = fs.readLines(firstFile, filterAndReplace) { lines =>
       val filt = lines.filter(line => !options.isComment(line.value) && !(skipBlankLines && line.value.isEmpty))
 
@@ -272,13 +282,6 @@ object TextTableReader {
         duplicates.map { case (pre, post) => s"'$pre' -> '$post'" }.truncatable("\n  "))
     }
 
-    val rdd = SparkBackend.sparkContext("TextTableReader.readMetadata1").textFilesLines(globbedFiles, nPartitions)
-      .filter { line =>
-        !options.isComment(line.value) &&
-          (!hasHeader || line.value != header) &&
-          !(skipBlankLines && line.value.isEmpty)
-      }
-
     val sb = new StringBuilder
     val categoryCounts = mutable.Map.empty[String, Int]
 
@@ -287,7 +290,9 @@ object TextTableReader {
         info("Reading table to impute column types")
 
         sb.append("Finished type imputation")
-        val imputedTypes = imputeTypes(rdd, columns, separator, missing, quote)
+
+        val imputedTypes = imputeTypes(fs, fileStatuses, options, columns, separator, missing, quote)
+
         columns.zip(imputedTypes).map { case (name, (imputedType, req)) =>
           types.get(name) match {
             case Some(t) =>
@@ -336,12 +341,12 @@ object TextTableReader {
       log.info(sb.result())
     }
 
-    TextTableReaderMetadata(globbedFiles, header, PCanonicalStruct(true, namesAndTypes: _*))
+    TextTableReaderMetadata(fileStatuses, header, PCanonicalStruct(true, namesAndTypes: _*))
   }
 
   def apply(fs: FS, params: TextTableReaderParameters): TextTableReader = {
     val metadata = TextTableReader.readMetadata(fs, params)
-    new TextTableReader(params, metadata.header, metadata.globbedFiles.map(fs.fileStatus), metadata.rowPType)
+    new TextTableReader(params, metadata.header, metadata.fileStatuses, metadata.rowPType)
   }
 
   def fromJValue(fs: FS, jv: JValue): TextTableReader = {
@@ -362,7 +367,6 @@ class TextTableReader(
   def pathsUsed: Seq[String] = params.files
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
-
 
   def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
     PType.canonical(requestedType.rowType, required = true).asInstanceOf[PStruct] ->
