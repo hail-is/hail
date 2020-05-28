@@ -99,8 +99,8 @@ machines with 100 GB of disk total. The costs for jobs run on a 16 core machine 
 
 The sum of these costs is **$0.02170** per core per hour.
 
-Some jobs may be run on 4 core machines instead of 16 cores. In that case,
-the cost per core hour is **$0.02682**.
+At any given moment as many as four cores of the cluster may come from a 4 core machine. If a job is
+scheduled on this machine, then the cost per core hour is **$0.02682**.
 
 
 .. note::

@@ -649,13 +649,12 @@ async def on_startup(app):
 
     row = await db.select_and_fetchone('''
 SELECT worker_type, worker_cores, worker_disk_size_gb,
-  standing_worker_cores, instance_id, internal_token FROM globals;
+  instance_id, internal_token FROM globals;
 ''')
 
     app['worker_type'] = row['worker_type']
     app['worker_cores'] = row['worker_cores']
     app['worker_disk_size_gb'] = row['worker_disk_size_gb']
-    app['standing_worker_cores'] = row['standing_worker_cores']
 
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
