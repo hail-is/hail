@@ -31,7 +31,12 @@ object RelationalSpec {
     if (!fs.isDir(path))
       fatal(s"MatrixTable and Table files are directories; path '$path' is not a directory")
     val metadataFile = path + "/metadata.json.gz"
-    val jv = using(fs.open(metadataFile)) { in => parse(in) }
+    val jv = try {
+      using(fs.open(metadataFile)) { in => parse(in) }
+    } catch {
+      case e: Throwable =>
+        fatal(s"error while parsing metadata file $metadataFile", e)
+    }
 
     val fileVersion = jv \ "file_version" match {
       case JInt(rep) => SemanticVersion(rep.toInt)
