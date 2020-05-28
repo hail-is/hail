@@ -1,12 +1,12 @@
-import aiohttp
 import secrets
 import random
 import json
+import datetime
 import asyncio
 import logging
 import base64
 import sortedcontainers
-import googleapiclient.errors
+import aiohttp
 from hailtop.utils import time_msecs, secret_alnum_string
 
 from ..batch_configuration import DEFAULT_NAMESPACE, BATCH_WORKER_IMAGE, \
@@ -25,8 +25,8 @@ class InstancePool:
         self.log_store = app['log_store']
         self.scheduler_state_changed = app['scheduler_state_changed']
         self.db = app['db']
-        self.gservices = app['gservices']
         self.compute_client = app['compute_client']
+        self.logging_client = app['logging_client']
         self.machine_name_prefix = machine_name_prefix
 
         # set in async_init
@@ -345,12 +345,6 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/ba
         try:
             await self.compute_client.delete(
                 f'/zones/{instance.zone}/instances/{instance.name}')
-        except googleapiclient.errors.HttpError as e:
-            if e.resp['status'] == '404':
-                log.info(f'{instance} already delete done')
-                await self.remove_instance(instance, reason, timestamp)
-                return
-            raise
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 log.info(f'{instance} already delete done')
@@ -419,8 +413,36 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/ba
         log.info(f'starting event loop')
         while True:
             try:
-                async for event in await self.gservices.stream_entries(self.db):
+                row = await self.db.select_and_fetchone('SELECT * FROM `gevents_mark`;')
+                if row['mark']:
+                    mark = row['mark']
+                else:
+                    mark = datetime.datetime.utcnow().isoformat() + 'Z'
+
+                filter = f'''
+logName="projects/{PROJECT}/logs/compute.googleapis.com%2Factivity_log" AND
+resource.type=gce_instance AND
+jsonPayload.resource.name:"{self.machine_name_prefix}" AND
+jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.delete")
+AND timestamp >= "{mark}"
+'''
+
+                new_mark = None
+                async for event in await self.logging_client.list_entries(
+                        body={
+                            'resourceNames': [f'projects/{PROJECT}'],
+                            'orderBy': 'timestamp asc',
+                            'pageSize': 100,
+                            'filter': filter
+                        }):
+                    # take the last, largest timestamp
+                    new_mark = event['timestamp']
                     await self.handle_event(event)
+
+                if new_mark is not None:
+                    await self.db.execute_update(
+                        'UPDATE `gevents_mark` SET mark = %s;',
+                        (new_mark,))
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:
@@ -478,11 +500,6 @@ FROM ready_cores;
         try:
             spec = await self.compute_client.get(
                 f'/zones/{instance.zone}/instances/{instance.name}')
-        except googleapiclient.errors.HttpError as e:
-            if e.resp['status'] == '404':
-                await self.remove_instance(instance, 'does_not_exist')
-                return
-            raise
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 await self.remove_instance(instance, 'does_not_exist')

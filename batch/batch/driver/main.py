@@ -13,7 +13,7 @@ from prometheus_async.aio.web import server_stats
 from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
     check_csrf_token, transaction, AccessLogger
 from hailtop.config import get_deploy_config
-from hailtop.utils import time_msecs
+from hailtop.utils import time_msecs, RateLimit
 from hailtop.tls import get_server_ssl_context
 from hailtop import aiogoogle
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
@@ -26,7 +26,6 @@ from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
     DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE, \
     WORKER_LOGS_BUCKET_NAME, PROJECT
-from ..google_compute import GServices
 from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..utils import cost_from_msec_mcpu
 
@@ -660,14 +659,22 @@ async def on_startup(app):
 
     machine_name_prefix = f'batch-worker-{DEFAULT_NAMESPACE}-'
 
-    credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-        '/gsa-key/key.json')
-    gservices = GServices(machine_name_prefix, credentials)
-    app['gservices'] = gservices
-
+    aiogoogle_credentials = aiogoogle.Credentials.from_file('/gsa-key/key.json')
     compute_client = aiogoogle.ComputeClient(
-        PROJECT, credentials=aiogoogle.Credentials.from_file('/gsa-key/key.json'))
+        PROJECT, credentials=aiogoogle_credentials)
     app['compute_client'] = compute_client
+
+    logging_client = aiogoogle.LoggingClient(
+        credentials=aiogoogle_credentials,
+        # The project-wide logging quota is 60 request/m.  The event
+        # loop sleeps 15s per iteration, so the max rate is 4
+        # iterations/m.  Note, the event loop could make multiple
+        # logging requests per iteration, so these numbers are not
+        # quite comparable.  I didn't want to consume the entire quota
+        # since there will be other users of the logging API (us at
+        # the web console, test deployments, etc.)
+        rate_limit=RateLimit(10, 60))
+    app['logging_client'] = logging_client
 
     scheduler_state_changed = asyncio.Event()
     app['scheduler_state_changed'] = scheduler_state_changed
@@ -678,6 +685,8 @@ async def on_startup(app):
     cancel_running_state_changed = asyncio.Event()
     app['cancel_running_state_changed'] = cancel_running_state_changed
 
+    credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+        '/gsa-key/key.json')
     log_store = LogStore(BATCH_BUCKET_NAME, WORKER_LOGS_BUCKET_NAME, instance_id, pool, credentials=credentials)
     app['log_store'] = log_store
 
