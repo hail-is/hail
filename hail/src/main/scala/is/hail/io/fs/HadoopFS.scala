@@ -4,7 +4,6 @@ import is.hail.utils._
 
 import org.apache.hadoop
 import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
-import org.apache.hadoop.io.compress.{CompressionCodec, CompressionCodecFactory}
 
 import java.io._
 
@@ -55,19 +54,6 @@ object HadoopFS {
 }
 
 class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
-  def getCodec(filename: String): CompressionCodec = {
-    val codecFactory = new CompressionCodecFactory(conf.value)
-    codecFactory.getCodec(new hadoop.fs.Path(filename))
-  }
-
-  def getCodecs(): IndexedSeq[String] = {
-    conf.value.get("io.compression.codecs").split(",")
-  }
-
-  def setCodecs(codecs: IndexedSeq[String]): Unit = {
-    conf.value.set("io.compression.codecs", codecs.mkString(","))
-  }
-
   def createNoCompression(filename: String): PositionedDataOutputStream = {
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)

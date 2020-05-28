@@ -33,9 +33,7 @@ object GenericLines {
         private val is: PositionedInputStream = {
           val fs = fsBc.value
           val rawIS = fs.openNoCompression(file)
-          val codec = HailContext.maybeGZipAsBGZip(fs, gzAsBGZ) { () =>
-            fs.getCodec(file)
-          }
+          val codec = fs.getCodecFromPath(file, gzAsBGZ)
           if (codec == null) {
             rawIS.seek(start)
             rawIS
@@ -47,7 +45,7 @@ object GenericLines {
             }
           } else {
             assert(!split)
-            new CountingInputStream(codec.createInputStream(rawIS)) with Positioned {
+            new CountingInputStream(codec.makeInputStream(rawIS)) with Positioned {
               def getPosition: Long = getByteCount
             }
           }
@@ -249,9 +247,7 @@ object GenericLines {
 
     val contexts = fileStatuses.flatMap { status =>
       val size = status.getLen
-      val codec = HailContext.maybeGZipAsBGZip(fs, gzAsBGZ) { () =>
-        fs.getCodec(status.getPath)
-      }
+      val codec = fs.getCodecFromPath(status.getPath, gzAsBGZ)
 
       val splittable = codec == null || codec.isInstanceOf[BGzipCodec]
       if (splittable) {
