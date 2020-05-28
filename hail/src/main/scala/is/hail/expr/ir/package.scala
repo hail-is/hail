@@ -152,6 +152,9 @@ package object ir {
     foldIR(stream, 0){ case (accum, elt) => accum + elt}
   }
 
+  def streamForceCount(stream: IR): IR =
+    streamSumIR(mapIR(stream)(_ => I32(1)))
+
   def rangeIR(n: IR): IR = StreamRange(0, n, 1)
 
   def rangeIR(start: IR, stop: IR): IR = StreamRange(start, stop, 1)
