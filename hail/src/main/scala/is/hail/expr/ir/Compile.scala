@@ -28,9 +28,6 @@ object Compile {
   ): (PType, (Int, Region) => F) = {
 
     val normalizeNames = new NormalizeNames(_.toString)
-    println("About to normalize names")
-    println(Pretty(body))
-    println("Done printing")
     val normalizedBody = normalizeNames(body,
       Env(params.map { case (n, _) => n -> n }: _*))
     val k = CodeCacheKey(FastIndexedSeq[AggStatePhysicalSignature](), params.map { case (n, pt) => (n, pt) }, normalizedBody)
