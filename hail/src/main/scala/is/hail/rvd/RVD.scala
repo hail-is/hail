@@ -115,7 +115,7 @@ class RVD(
     require(newKey.forall(rowType.hasField))
     val nPreservedFields = typ.key.zip(newKey).takeWhile { case (l, r) => l == r }.length
     val maybeKeys = partitioner.selectKey(newKey).keysIfOneToOne()
-    if (isSorted && nPreservedField == 0 && newKey.isEmpty) {
+    if (isSorted && nPreservedFields == 0 && newKey.isEmpty) {
       throw new IllegalArgumentException(s"$isSorted, $nPreservedFields, $newKey, ${maybeKeys.isDefined}, ${typ}, ${partitioner}")
     }
 

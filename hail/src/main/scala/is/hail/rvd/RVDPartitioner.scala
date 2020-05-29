@@ -1,6 +1,6 @@
 package is.hail.rvd
 
-import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering}
+import is.hail.annotations._
 import is.hail.expr.ir.Literal
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -133,12 +133,15 @@ class RVDPartitioner(
     RVDPartitioner.generate(newKType, rangeBounds)
   }
 
+  def selectKey(newKeyFields: IndexedSeq[String]): RVDPartitioner =
+    selectKey(kType.typeAfterSelectNames(newKeyFields))
+
   def selectKey(newKType: TStruct): RVDPartitioner = {
     require(newKType.isConstructibleFrom(kType))
     val newRangeBounds = rangeBounds.map { (interval: Interval) =>
       interval.copy(
-        start = new SelectFieldsRow(interval.start, kType, newKType),
-        end = new SelectFieldsRow(interval.start, kType, newKType))
+        start = new SelectFieldsRow(interval.start.asInstanceOf[Row], kType, newKType),
+        end = new SelectFieldsRow(interval.end.asInstanceOf[Row], kType, newKType))
     }
     RVDPartitioner.generate(newKType, newRangeBounds)
   }

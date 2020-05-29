@@ -4,6 +4,7 @@ import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
+import is.hail.types.virtual._
 import is.hail.types.physical._
 import is.hail.utils._
 import is.hail.variant.Locus
@@ -245,21 +246,27 @@ object SafeIndexedSeq {
 }
 
 class SelectFieldsRow(
-  private[this] val old: Row,
+  private[this] var old: Row,
   private[this] val fieldMapping: Array[Int]
 ) extends Row {
   def this(
     old: Row,
+    oldPType: TStruct,
+    newPType: TStruct
+  ) = this(old, newPType.fieldNames.map(name => oldPType.fieldIdx(name)))
+
+  def this(
+    old: Row,
     oldPType: PStruct,
     newPType: PStruct
-  ) = this(newPType.fieldNames.map(name => oldPType.fieldIdx(name)))
+  ) = this(old, newPType.fieldNames.map(name => oldPType.fieldIdx(name)))
 
-  override def length = newPType.types.length
+  override def length = fieldMapping.length
   override def get(i: Int) = old.get(fieldMapping(i))
   override def isNullAt(i: Int) = old.isNullAt(fieldMapping(i))
   override def copy(): Row = new SelectFieldsRow(old.copy(), fieldMapping)
-  def set(newRow: Row): KeyedRow = {
-    row = newRow
+  def set(newRow: Row): SelectFieldsRow = {
+    old = newRow
     this
   }
 }
