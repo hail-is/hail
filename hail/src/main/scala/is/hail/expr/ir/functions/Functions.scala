@@ -147,10 +147,43 @@ object IRFunctionRegistry {
     }
   }
 
-  def lookupConversion(name: String, returnType: Type, arguments: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] =
-    lookupConversion(name, returnType, Array.empty[Type], arguments)
+  def lookupSeeded(name: String, returnType: Type, arguments: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] =
 
-  def lookupConversion(name: String, returnType: Type, typeParameters: Seq[Type], arguments: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] = {
+  def lookupUnseeded(name: String, returnType: Type, typeParameters: Seq[Type], arguments: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] = {
+    val validIR: Option[(Seq[Type], Seq[IR]) => IR] = lookupIR(name, returnType, typeParameters, arguments).map {
+      case ((_, _, _, inline), conversion) => (typeParametersPassed, args) =>
+        val x = ApplyIR(name, typeParametersPassed, args)
+        x.conversion = conversion
+        x.inline = inline
+        x
+    }
+
+    val validMethods = lookupFunction(name, returnType, typeParameters, arguments)
+      .map { f =>
+      { (irValueParametersTypes: Seq[Type], irArguments: Seq[IR]) =>
+        f match {
+          case _: SeededJVMFunction =>
+            ApplySeeded(name, irArguments.init, irArguments.last.asInstanceOf[I64].x, f.returnType.subst())
+          case _: UnseededMissingnessObliviousJVMFunction =>
+            Apply(name, irValueParametersTypes, irArguments, f.returnType.subst())
+          case _: UnseededMissingnessAwareJVMFunction =>
+            ApplySpecial(name, irValueParametersTypes, irArguments, f.returnType.subst())
+        }
+      }
+      }
+
+    (validIR, validMethods) match {
+      case (None   , None)    => None
+      case (None   , Some(x)) => Some(x)
+      case (Some(x), None)    => Some(x)
+      case _ => fatal(s"Multiple methods found that satisfy $name(${ arguments.mkString(",") }).")
+    }
+  }
+
+  def lookupUnseeded(name: String, returnType: Type, arguments: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] =
+    lookupUnseeded(name, returnType, Array.empty[Type], arguments)
+
+  def lookupUnseeded(name: String, returnType: Type, typeParameters: Seq[Type], arguments: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] = {
     val validIR: Option[(Seq[Type], Seq[IR]) => IR] = lookupIR(name, returnType, typeParameters, arguments).map {
       case ((_, _, _, inline), conversion) => (typeParametersPassed, args) =>
         val x = ApplyIR(name, typeParametersPassed, args)
