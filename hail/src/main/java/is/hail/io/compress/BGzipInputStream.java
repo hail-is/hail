@@ -252,8 +252,9 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         fillInputBuffer();
 
         // the beginning of the file must be a valid bgzip block
-        if (inputBufferPos == 0) {
+        if (inputBufferInPos == 0) {
             new BGzipHeader(inputBuffer, 0, inputBufferSize);
+            // inputBufferPos already 0
             return;
         }
 
@@ -262,7 +263,6 @@ public class BGzipInputStream extends SplitCompressionInputStream {
                     && (inputBuffer[i + 1] & 0xff) == 139) {
                 try {
                     new BGzipHeader(inputBuffer, i, inputBufferSize);
-
                     inputBufferPos = i;
                     return;
                 } catch (ZipException e) {
