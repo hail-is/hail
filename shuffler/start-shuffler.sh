@@ -7,17 +7,20 @@ openssl pkcs12 -export \
         -in /ssl-config/shuffler-cert.pem \
         -name shuffler-key-store \
         -out shuffler-key-store.p12 \
-        -passout pass:hail
+        -passout pass:dummypw
 
-openssl pkcs12 -export \
-        -nokeys \
-        -in /ssl-config/shuffler-incoming.pem \
-        -out shuffler-trust-store.p12 \
-        -passout pass:hail
+keytool -noprompt
+         -import
+         -alias incoming-cert
+         -file /ssl-config/shuffler-incoming.pem
+         -keystore shuffle-trust-store.jks
+         -storepass dummypw
 
 java -jar /hail.jar is.hail.shuffler.server.ShuffleServer \
      shuffler-key-store.p12 \
+     PKCS12 \
      hail \
-     shuffler-trust-store.p12 \
+     shuffler-trust-store.jks \
+     JKS \
      hail \
      443
