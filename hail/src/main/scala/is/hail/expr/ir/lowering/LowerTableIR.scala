@@ -300,11 +300,6 @@ object LowerTableIR {
 
         case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
           val loweredChild = lower(child)
-
-          // New Plan:
-          // 1. Make new rows with all the keys contained in newKey, assume always that newKey is a struct
-          //     Maybe also include all the fields in the row that aren't keys?
-          // 2. Shuffle to all the new keys
           val newKeyType = newKey.typ.asInstanceOf[TStruct]
           val oldRowType = child.typ.rowType
           val oldRowFieldsNotInNewKey = oldRowType.fieldNames.filter(fieldName => !newKeyType.fieldNames.contains(fieldName))
@@ -325,10 +320,10 @@ object LowerTableIR {
 
           val sortFields = newKeyType.fieldNames.map(fieldName => SortField(fieldName, Ascending)).toIndexedSeq
           val shuffled = ctx.backend.lowerDistributedSort(ctx, withNewKeyFields, sortFields)
+          val repartitioned = shuffled.repartitionNoShuffle(shuffled.partitioner.strictify)
 
-          shuffled.mapPartition { partition =>
+          repartitioned.mapPartition { partition =>
             mapIR(StreamGroupByKey(partition, shuffled.partitioner.kType.fieldNames.toIndexedSeq)) { groupRef =>
-              // I believe that `expr` is a going to make a struct of aggregator fields.
               StreamAgg(
                 groupRef,
                 "row",
