@@ -977,6 +977,32 @@ steps:
     - site_image
     - deploy_router
     - create_certs
+ - kind: runImage
+   name: test_site
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     hailctl curl {{ default_ns.name }} site / \
+             -vvv \
+             -fsSL \
+             --retry 3 \
+             --retry-delay 5
+   secrets:
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+   dependsOn:
+    - default_ns
+    - create_accounts
+    - batch_pods_ns
+    - service_base_image
+    - deploy_site
  - kind: deploy
    name: deploy_scorecard
    namespace:
