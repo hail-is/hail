@@ -46,6 +46,16 @@ class RVD(
 
   require(typ.kType.virtualType isIsomorphicTo partitioner.kType)
 
+  val badRangeBounds = partitioner.rangeBounds.filter { interval =>
+    val left = interval.start.asInstanceOf[Row]
+    val right = interval.end.asInstanceOf[Row]
+    left.length < typ.kType.fields.length && right.length < typ.kType.fields.length
+  }.toSeq
+  if (badRangeBounds.length != 0) {
+    throw new IllegalArgumentException(
+      s"requirement failed: $badRangeBounds ${typ.kType} ${partitioner.rangeBounds.toSeq}")
+  }
+
   // Basic accessors
 
   def sparkContext: SparkContext = crdd.sparkContext
@@ -113,18 +123,21 @@ class RVD(
     isSorted: Boolean = false
   ): RVD = {
     require(newKey.forall(rowType.hasField))
-    val nPreservedFields = typ.key.zip(newKey).takeWhile { case (l, r) => l == r }.length
-    val maybeKeys = partitioner.selectKey(newKey).keysIfOneToOne()
-    if (isSorted && nPreservedFields == 0 && newKey.isEmpty) {
-      throw new IllegalArgumentException(s"$isSorted, $nPreservedFields, $newKey, ${maybeKeys.isDefined}, ${typ}, ${partitioner}")
+    val sharedPrefixLength = typ.key.zip(newKey).takeWhile { case (l, r) => l == r }.length
+    val maybeKeys = if (newKey.toSet.subsetOf(typ.key.toSet)) {
+      partitioner.selectKey(newKey).keysIfOneToOne()
+    } else None
+    if (isSorted && sharedPrefixLength == 0 && newKey.isEmpty) {
+      throw new IllegalArgumentException(s"$isSorted, $sharedPrefixLength, $newKey, ${maybeKeys.isDefined}, ${typ}, ${partitioner}")
     }
 
-    if (nPreservedFields == newKey.length)
+    if (sharedPrefixLength == newKey.length)
       this
     else if (isSorted)
       maybeKeys match {
         case None =>
-          truncateKey(newKey.take(nPreservedFields))
+          log.info(s"failed to use a transposition partitioner, had $partitioner")
+          truncateKey(newKey.take(sharedPrefixLength))
             .extendKeyPreservesPartitioning(execCtx, newKey)
             .checkKeyOrdering()
         case Some(keys) =>

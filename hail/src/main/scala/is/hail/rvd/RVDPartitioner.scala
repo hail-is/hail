@@ -19,6 +19,8 @@ class RVDPartitioner(
   override def toString: String =
     s"RVDPartitioner($kType, ${rangeBounds.mkString("[", ",\n", "]")})"
 
+  log.info(s"$this ${Thread.currentThread().getStackTrace().take(10).mkString("[", "\n", "]")}")
+
   def this(
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval],
@@ -49,6 +51,16 @@ class RVDPartitioner(
   if (!(RVDPartitioner.isValid(kType, rangeBounds, allowedOverlap))) {
     throw new IllegalArgumentException(
       s"requirement failed: ${kType}, ${rangeBounds.toSeq}, ${allowedOverlap}")
+  }
+
+  val badRangeBounds = rangeBounds.filter { interval =>
+    val left = interval.start.asInstanceOf[Row]
+    val right = interval.end.asInstanceOf[Row]
+    left.length < kType.fields.length && right.length < kType.fields.length
+  }.toSeq
+  if (badRangeBounds.length != 0) {
+    throw new IllegalArgumentException(
+      s"requirement failed: $badRangeBounds $kType ${rangeBounds.toSeq}")
   }
 
   val kord: ExtendedOrdering = PartitionBoundOrdering(kType)
@@ -133,15 +145,20 @@ class RVDPartitioner(
     RVDPartitioner.generate(newKType, rangeBounds)
   }
 
-  def selectKey(newKeyFields: IndexedSeq[String]): RVDPartitioner =
-    selectKey(kType.typeAfterSelectNames(newKeyFields))
+  def selectKey(newKeyFields: IndexedSeq[String]): RVDPartitioner = {
+    selectKey(kType.typeAfterSelectAndPermuteNames(newKeyFields))
+  }
 
   def selectKey(newKType: TStruct): RVDPartitioner = {
     require(newKType.isConstructibleFrom(kType))
-    val newRangeBounds = rangeBounds.map { (interval: Interval) =>
-      interval.copy(
-        start = new SelectFieldsRow(interval.start.asInstanceOf[Row], kType, newKType),
-        end = new SelectFieldsRow(interval.end.asInstanceOf[Row], kType, newKType))
+    val newRangeBounds = try {
+      rangeBounds.map { (interval: Interval) =>
+        interval.copy(
+          start = new SelectFieldsRow(interval.start.asInstanceOf[Row], kType, newKType),
+          end = new SelectFieldsRow(interval.end.asInstanceOf[Row], kType, newKType))
+      }
+    } catch {
+      case e: Exception => fatal(s"wtf $newKType $kType", e)
     }
     RVDPartitioner.generate(newKType, newRangeBounds)
   }

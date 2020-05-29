@@ -259,7 +259,19 @@ class SelectFieldsRow(
     old: Row,
     oldPType: PStruct,
     newPType: PStruct
-  ) = this(old, newPType.fieldNames.map(name => oldPType.fieldIdx(name)))
+  ) = {
+    this(old,
+      (require(
+        oldPType.fields.length <= old.length &&
+          newPType.fields.length <= old.length,
+        s"${oldPType}, ${newPType} ${old.length} $old")
+        ->
+        newPType.fieldNames.map(name => oldPType.fieldIdx(name)))._2
+    )
+  }
+
+  require(fieldMapping.forall(x => x < old.length),
+    s"${fieldMapping.toSeq}, ${old.length} $old")
 
   override def length = fieldMapping.length
   override def get(i: Int) = old.get(fieldMapping(i))

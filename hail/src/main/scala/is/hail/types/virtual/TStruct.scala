@@ -365,6 +365,13 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
     (t, selectF)
   }
 
+  def typeAfterSelectAndPermuteNames(keep: IndexedSeq[String]): TStruct = {
+    val newFields = keep.map { name =>
+      name -> fieldType(name)
+    }
+    TStruct(newFields:_*)
+  }
+
   def typeAfterSelectNames(keep: IndexedSeq[String]): TStruct =
     new TStruct(keep.map(i => fields(fieldIdx(i))))
 
