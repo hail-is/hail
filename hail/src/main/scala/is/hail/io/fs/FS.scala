@@ -5,10 +5,10 @@ import java.util.zip.{GZIPInputStream, GZIPOutputStream}
 
 import is.hail.HailContext
 import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.ExecuteContext
-import is.hail.io.compress.{BGzipCodec, BGzipInputStream, BGzipOutputStream}
+import is.hail.io.compress.{BGzipInputStream, BGzipOutputStream}
 import is.hail.utils._
-import org.apache.commons.io.{FilenameUtils, IOUtils}
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import org.apache.commons.io.IOUtils
 import org.apache.hadoop
 
 import scala.io.Source
@@ -47,7 +47,8 @@ trait CompressionCodec {
 }
 
 object GZipCompressionCodec extends CompressionCodec {
-  def makeInputStream(is: InputStream): InputStream = new GZIPInputStream(is)
+  // java.util.zip.GZIPInputStream does not support concatenated files/multiple blocks
+  def makeInputStream(is: InputStream): InputStream = new GzipCompressorInputStream(is, true)
 
   def makeOutputStream(os: OutputStream): OutputStream = new GZIPOutputStream(os)
 }
@@ -279,7 +280,7 @@ trait FS extends Serializable {
 
   def copyMergeList(srcFileStatuses: Array[FileStatus], destFilename: String, deleteSource: Boolean = true) {
     val codec = Option(getCodecFromPath(destFilename))
-    val isBGzip = codec.exists(_.isInstanceOf[BGzipCodec])
+    val isBGzip = codec.exists(_ == BGZipCompressionCodec)
 
     require(srcFileStatuses.forall {
       fileStatus => fileStatus.getPath != destFilename && fileStatus.isFile

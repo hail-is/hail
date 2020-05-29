@@ -60,7 +60,6 @@ class UtilsSuite extends HailSuite {
     assert(fs.stripCodecExtension("file.tsv") == "file.tsv")
     assert(fs.stripCodecExtension("file.tsv.gz") == "file.tsv")
     assert(fs.stripCodecExtension("file.tsv.bgz") == "file.tsv")
-    assert(fs.stripCodecExtension("file.tsv.lz4") == "file.tsv")
     assert(fs.stripCodecExtension("file") == "file")
   }
 

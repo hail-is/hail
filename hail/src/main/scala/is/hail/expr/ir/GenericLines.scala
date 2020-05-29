@@ -1,11 +1,10 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.utils._
 import is.hail.types.virtual.{TBoolean, TInt32, TInt64, TString, TStruct, Type}
-import is.hail.io.compress.{BGzipCodec, BGzipInputStream}
-import is.hail.io.fs.{FS, FileStatus, Positioned, PositionedInputStream, SeekableInputStream}
+import is.hail.io.compress.BGzipInputStream
+import is.hail.io.fs.{FS, FileStatus, Positioned, PositionedInputStream, BGZipCompressionCodec}
 import org.apache.commons.io.input.{CountingInputStream, ProxyInputStream}
 import org.apache.hadoop.io.compress.SplittableCompressionCodec
 import org.apache.spark.{Partition, TaskContext}
@@ -35,9 +34,11 @@ object GenericLines {
           val rawIS = fs.openNoCompression(file)
           val codec = fs.getCodecFromPath(file, gzAsBGZ)
           if (codec == null) {
+            assert(split)
             rawIS.seek(start)
             rawIS
-          } else if (codec.isInstanceOf[BGzipCodec]) {
+          } else if (codec == BGZipCompressionCodec) {
+            assert(split)
             splitCompressed = true
             val bgzIS = new BGzipInputStream(rawIS, start, end, SplittableCompressionCodec.READ_MODE.BYBLOCK)
             new ProxyInputStream(bgzIS) with Positioned {
@@ -45,6 +46,7 @@ object GenericLines {
             }
           } else {
             assert(!split)
+            println(codec)
             new CountingInputStream(codec.makeInputStream(rawIS)) with Positioned {
               def getPosition: Long = getByteCount
             }
@@ -249,7 +251,7 @@ object GenericLines {
       val size = status.getLen
       val codec = fs.getCodecFromPath(status.getPath, gzAsBGZ)
 
-      val splittable = codec == null || codec.isInstanceOf[BGzipCodec]
+      val splittable = codec == null || codec == BGZipCompressionCodec
       if (splittable) {
         var fileNParts = ((totalPartitions.toDouble * size) / totalSize + 0.5).toInt
         if (fileNParts == 0)
