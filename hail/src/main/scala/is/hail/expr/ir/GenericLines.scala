@@ -46,7 +46,6 @@ object GenericLines {
             }
           } else {
             assert(!split)
-            println(codec)
             new CountingInputStream(codec.makeInputStream(rawIS)) with Positioned {
               def getPosition: Long = getByteCount
             }
