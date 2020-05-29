@@ -3,6 +3,7 @@ from timeit import default_timer as timer
 import unittest
 from decorator import decorator
 
+from hail.utils.java import Env
 import hail as hl
 
 _initialized = False
@@ -11,7 +12,11 @@ _initialized = False
 def startTestHailContext():
     global _initialized
     if not _initialized:
-        hl.init(master='local[1]', min_block_size=0, quiet=True)
+        backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
+        if backend_name == 'spark':
+            hl.init(master='local[1]', min_block_size=0, quiet=True)
+        else:
+            Env.hc()  # force initialization
         _initialized = True
 
 

@@ -9,7 +9,7 @@ import is.hail.variant._
 
 object CallFunctions extends RegistryFunctions {
   def registerAll() {
-    registerWrappedScalaFunction1("Call", TString, TCall, (rt: Type, _: PType) => PCanonicalCall())(Call.getClass, "parse")
+    registerWrappedScalaFunction1("Call", TString, TCall, (rt: Type, st: PType) => PCanonicalCall(st.required))(Call.getClass, "parse")
 
     registerScalaFunction("Call", Array(TBoolean), TCall, (rt: Type, _: Seq[PType]) => PCanonicalCall())(Call0.getClass, "apply")
 

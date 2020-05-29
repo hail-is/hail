@@ -227,7 +227,7 @@ object TextMatrixReader {
         rowFieldTypeWithoutRowId
     if (params.hasHeader)
       warnDuplicates(headerInfo.columnIdentifiers.asInstanceOf[Array[String]])
-    val lines = HailContext.maybeGZipAsBGZip(fs, params.gzipAsBGZip) {
+    val lines = HailContext.maybeGZipAsBGZip(fs, params.gzipAsBGZip) { () =>
       val localOpts = opts
       SparkBackend.sparkContext("TextMatrixReader.fromJValue").textFilesLines(resolvedPaths, params.nPartitions.getOrElse(backend.defaultParallelism))
         .filter(line => line.value.nonEmpty && !localOpts.isComment(line.value))

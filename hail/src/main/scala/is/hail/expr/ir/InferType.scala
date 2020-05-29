@@ -21,6 +21,7 @@ object InferType {
       case NA(t) => t
       case IsNA(_) => TBoolean
       case Coalesce(values) => values.head.typ
+      case Consume(_) => TInt64
       case Ref(_, t) => t
       case RelationalRef(_, t) => t
       case RelationalLet(_, _, body) => body.typ

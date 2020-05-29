@@ -3,7 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.expr.ir._
 import is.hail.types
 import is.hail.types.virtual._
-import is.hail.methods.NPartitionsTable
+import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner}
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -264,7 +264,7 @@ object LowerTableIR {
                 Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
               }),
             MakeStream(ranges.map { case (start, end) =>
-              MakeStruct(FastIndexedSeq("start" -> start, "end" -> end)) },
+              MakeStruct(FastIndexedSeq[(String, IR)]("start" -> start, "end" -> end)) },
               TStream(contextType))) {
             override def partition(ctxRef: Ref): IR = {
               StreamMap(StreamRange(
@@ -607,6 +607,10 @@ object LowerTableIR {
       case TableCount(tableIR) =>
         invoke("sum", TInt64,
           lower(tableIR).mapPartition(rows => Cast(StreamLen(rows), TInt64)).collect())
+
+      case TableToValueApply(child, ForceCountTable()) =>
+        invoke("sum", TInt64,
+          lower(child).mapPartition(rows => Cast(StreamLen(mapIR(rows)(row => Consume(row))), TInt64)).collect())
 
       case TableGetGlobals(child) =>
         val stage = lower(child)

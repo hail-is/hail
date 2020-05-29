@@ -7,6 +7,7 @@ import copy
 from shlex import quote as shq
 import webbrowser
 from hailtop.config import get_deploy_config, get_user_config
+from hailtop.auth import get_userinfo
 from hailtop.batch_client.client import BatchClient
 
 from .resource import InputResourceFile, JobResourceFile
@@ -208,14 +209,14 @@ class ServiceBackend(Backend):
     Examples
     --------
 
-    >>> service_backend = ServiceBackend('test')
-    >>> b = Batch(backend=service_backend)
+    >>> service_backend = ServiceBackend('my-billing-account', 'my-bucket') # doctest: +SKIP
+    >>> b = Batch(backend=service_backend) # doctest: +SKIP
     >>> b.run() # doctest: +SKIP
-    >>> service_backend.close()
+    >>> service_backend.close() # doctest: +SKIP
 
-    If the Hail configuration parameter batch/billing_project was previously set
-    with ``hailctl config set``, then one may elide the billing_project
-    parameter.
+    If the Hail configuration parameters batch/billing_project and
+    batch/bucket were previously set with ``hailctl config set``, then
+    one may elide the `billing_project` and `bucket` parameters.
 
     >>> service_backend = ServiceBackend()
     >>> b = Batch(backend=service_backend)
@@ -224,19 +225,35 @@ class ServiceBackend(Backend):
 
     Parameters
     ----------
-    billing_project: :obj:`str`
+    billing_project: :obj:`str`, optional
         Name of billing project to use.
+    bucket: :obj:`str`, optional
+        Name of bucket to use.  Should not include the ``gs://``
+        prefix.
+
     """
 
-    def __init__(self, billing_project=None):
+    def __init__(self, billing_project=None, bucket=None):
         if billing_project is None:
             billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:
             raise ValueError(
                 f'the billing_project parameter of ServiceBackend must be set '
                 f'or run `hailctl config set batch/billing_project '
-                f'YOUR_BILLING_PROJECT`')
+                f'MY_BILLING_PROJECT`')
         self._batch_client = BatchClient(billing_project)
+
+        if bucket is None:
+            bucket = get_user_config().get('batch', 'bucket', fallback=None)
+        if bucket is None:
+            userinfo = get_userinfo()
+            bucket = userinfo.get('bucket_name')
+        if bucket is None:
+            raise ValueError(
+                f'the bucket parameter of ServiceBackend must be set '
+                f'or run `hailctl config set batch/bucket '
+                f'MY_BUCKET`')
+        self._bucket_name = bucket
 
     def close(self):
         """
@@ -284,10 +301,9 @@ class ServiceBackend(Backend):
         """
         build_dag_start = time.time()
 
-        bucket = self._batch_client.bucket
         subdir_name = 'batch-{}'.format(uuid.uuid4().hex[:12])
 
-        remote_tmpdir = f'gs://{bucket}/batch/{subdir_name}'
+        remote_tmpdir = f'gs://{self._bucket_name}/batch/{subdir_name}'
         local_tmpdir = f'/io/batch/{subdir_name}'
 
         default_image = 'ubuntu:latest'

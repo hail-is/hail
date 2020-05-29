@@ -29,8 +29,8 @@ class RVDContext(val partitionRegion: Region, val r: Region) extends AutoCloseab
     ctx
   }
 
-  def freshRegion: Region = {
-    val r2 = Region()
+  def freshRegion(blockSize: Region.Size = Region.REGULAR): Region = {
+    val r2 = Region(blockSize)
     own(r2)
     r2
   }

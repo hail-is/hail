@@ -24,6 +24,8 @@ object Copy {
         IsNA(newChildren(0).asInstanceOf[IR])
       case Coalesce(_) =>
         Coalesce(newChildren.map(_.asInstanceOf[IR]))
+      case Consume(_) =>
+        Consume(newChildren(0).asInstanceOf[IR])
       case If(_, _, _) =>
         assert(newChildren.length == 3)
         If(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])

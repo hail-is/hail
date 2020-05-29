@@ -506,7 +506,7 @@ object Interpret {
         else {
           val (lKeyTyp, lGetKey) = coerce[TStruct](coerce[TStream](left.typ).elementType).select(lKey)
           val (rKeyTyp, rGetKey) = coerce[TStruct](coerce[TStream](right.typ).elementType).select(rKey)
-          assert(lKeyTyp == rKeyTyp)
+          assert(lKeyTyp isIsomorphicTo rKeyTyp)
           val keyOrd = lKeyTyp.ordering
 
           def compF(lelt: Any, relt: Any): Int =
@@ -736,55 +736,92 @@ object Interpret {
             FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
             extracted.seqPerElt)
 
-          val read = extracted.deserialize(ctx, spec, physicalAggs)
-          val write = extracted.serialize(ctx, spec, physicalAggs)
-          val combOpF = extracted.combOpF(ctx, spec, physicalAggs)
+          val useTreeAggregate = extracted.shouldTreeAggregate
+          val isCommutative = extracted.isCommutative
+          log.info(s"Aggregate: useTreeAggregate=${ useTreeAggregate }")
+          log.info(s"Aggregate: commutative=${ isCommutative }")
 
-          val (rTyp: PTuple, f) = CompileWithAggregators2[AsmFunction2RegionLongLong](ctx,
+          // A mutable reference to a byte array. If someone higher up the
+          // call stack holds a WrappedByteArray, we can set the reference
+          // to null to allow the array to be GCed.
+          class WrappedByteArray(_bytes: Array[Byte]) {
+            private var ref: Array[Byte] = _bytes
+            def bytes: Array[Byte] = ref
+            def clear() { ref = null }
+          }
+
+          // creates a region, giving ownership to the caller
+          val read: WrappedByteArray => RegionValue = {
+            val deserialize = extracted.deserialize(ctx, spec, physicalAggs)
+            (a: WrappedByteArray) => {
+              val r = Region(Region.SMALL)
+              val res = deserialize(r, a.bytes)
+              a.clear()
+              RegionValue(r, res)
+            }
+          }
+
+          // consumes a region, taking ownership from the caller
+          val write: RegionValue => WrappedByteArray = {
+            val serialize = extracted.serialize(ctx, spec, physicalAggs)
+            (rv: RegionValue) => {
+              val a = serialize(rv.region, rv.offset)
+              rv.region.invalidate()
+              new WrappedByteArray(a)
+            }
+          }
+
+          // takes ownership of both inputs, returns ownership of result
+          val combOpF: (RegionValue, RegionValue) => RegionValue =
+            extracted.combOpF(ctx, spec, physicalAggs)
+
+          // returns ownership of a new region holding the partition aggregation
+          // result
+          def itF(i: Int, ctx: RVDContext, it: Iterator[Long]): RegionValue = {
+            val partRegion = ctx.partitionRegion
+            val globalsOffset = globalsBc.value.readRegionValue(partRegion)
+            val init = initOp(i, partRegion)
+            val seqOps = partitionOpSeq(i, partRegion)
+            val aggRegion = ctx.freshRegion(Region.SMALL)
+
+            init.newAggState(aggRegion)
+            init(partRegion, globalsOffset)
+            seqOps.setAggState(aggRegion, init.getAggOffset())
+            it.foreach { ptr =>
+              seqOps(ctx.region, globalsOffset, ptr)
+              ctx.region.clear()
+            }
+
+            RegionValue(aggRegion, seqOps.getAggOffset())
+          }
+
+          // creates a new region holding the zero value, giving ownership to
+          // the caller
+          val mkZero = () => {
+            val region = Region(Region.SMALL)
+            val initF = initOp(0, region)
+            initF.newAggState(region)
+            initF(region, globalsOffset)
+            RegionValue(region, initF.getAggOffset())
+          }
+
+          val rv = value.rvd.combine[WrappedByteArray, RegionValue](
+            mkZero, itF, read, write, combOpF, isCommutative, useTreeAggregate)
+
+          val (rTyp: PTuple, f) = CompileWithAggregators2[AsmFunction2RegionLongLong](
+            ctx,
             physicalAggs,
             FastIndexedSeq(("global", value.globals.t)),
             FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
             Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
           assert(rTyp.types(0).virtualType == query.typ)
 
-          val useTreeAggregate = extracted.shouldTreeAggregate
-          val isCommutative = extracted.isCommutative
-          log.info(s"Aggregate: useTreeAggregate=${ useTreeAggregate }")
-          log.info(s"Aggregate: commutative=${ isCommutative }")
-
-          val aggResults = value.rvd.combine[Array[Byte]](
-            Region.scoped { region =>
-              val initF = initOp(0, region)
-              Region.scoped { aggRegion =>
-                initF.newAggState(aggRegion)
-                initF(region, globalsOffset)
-                write(aggRegion, initF.getAggOffset())
-              }
-            },
-            { (i: Int, ctx: RVDContext, it: Iterator[Long]) =>
-              val partRegion = ctx.partitionRegion
-              val globalsOffset = globalsBc.value.readRegionValue(partRegion)
-              val init = initOp(i, partRegion)
-              val seqOps = partitionOpSeq(i, partRegion)
-
-              Region.smallScoped { aggRegion =>
-                init.newAggState(aggRegion)
-                init(partRegion, globalsOffset)
-                seqOps.setAggState(aggRegion, init.getAggOffset())
-                it.foreach { ptr =>
-                  seqOps(ctx.region, globalsOffset, ptr)
-                  ctx.region.clear()
-                }
-                write(aggRegion, seqOps.getAggOffset())
-              }
-            }, combOpF, commutative = isCommutative, tree = useTreeAggregate)
-
           Region.scoped { r =>
             val resF = f(0, r)
-            Region.smallScoped { aggRegion =>
-              resF.setAggState(aggRegion, read(aggRegion, aggResults))
-              SafeRow(rTyp, resF(r, globalsOffset))
-            }
+            resF.setAggState(rv.region, rv.offset)
+            val res = SafeRow(rTyp, resF(r, globalsOffset))
+            rv.region.invalidate()
+            res
           }
         }
 

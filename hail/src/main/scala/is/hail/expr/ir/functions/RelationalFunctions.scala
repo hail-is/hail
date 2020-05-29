@@ -2,7 +2,7 @@ package is.hail.expr.ir.functions
 
 import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixValue, RelationalSpec, TableReader, TableValue}
 import is.hail.types.virtual.Type
-import is.hail.types.{BlockMatrixType, MatrixType, TableType}
+import is.hail.types.{BlockMatrixType, MatrixType, RTable, TableType, TypeWithRequiredness}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.RVDType
@@ -68,6 +68,8 @@ abstract class TableToTableFunction {
 abstract class TableToValueFunction {
   def typ(childType: TableType): Type
 
+  def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit
+
   def execute(ctx: ExecuteContext, tv: TableValue): Any
 }
 
@@ -81,6 +83,8 @@ case class WrappedMatrixToValueFunction(
     function.typ(MatrixType.fromTableType(childType, colsFieldName, entriesFieldName, colKey))
   }
 
+  def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit = function.unionRequiredness(childType, resultType)
+
   def execute(ctx: ExecuteContext, tv: TableValue): Any = function.execute(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
 }
 
@@ -88,6 +92,8 @@ abstract class MatrixToValueFunction {
   def typ(childType: MatrixType): Type
 
   def execute(ctx: ExecuteContext, mv: MatrixValue): Any
+
+  def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit
 
   def lower(): Option[TableToValueFunction] = None
 }

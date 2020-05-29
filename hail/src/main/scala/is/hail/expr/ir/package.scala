@@ -156,6 +156,11 @@ package object ir {
 
   def rangeIR(start: IR, stop: IR): IR = StreamRange(start, stop, 1)
 
+  def insertIR(old: IR, fields: (String, IR)*): InsertFields = InsertFields(old, fields)
+  def selectIR(old: IR, fields: String*): SelectFields = SelectFields(old, fields)
+
+  def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields)
+
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
 
   implicit def emitValueToCode(ev: EmitValue): EmitCode = ev.get

@@ -74,22 +74,34 @@ Billing
 -------
 
 The cost for executing a job depends on the underlying machine type and how much CPU and
-memory is being requested. Currently, Batch runs all jobs on 16 core, preemptible, n1-standard
-machines with 100 GB of disk total. The costs are as follows:
+memory is being requested. Currently, Batch runs most jobs on 16 core, preemptible, n1-standard
+machines with 10 GB of persistent SSD boot disk and 375 GB of local SSD. The costs are as follows:
 
 - Compute cost
    = $0.01 per core per hour
 
 - Disk cost
-   .. code-block:: text
+   - Boot Disk
 
-       Average number of days per month = 365.25 / 12 = 30.4375
+     .. code-block:: text
 
-       Cost per GB per month = $0.17
+         Average number of days per month = 365.25 / 12 = 30.4375
 
-       Cost per core per hour = $0.17 * 100 / 30.4375 / 24 / 16
+         Cost per GB per month = $0.17
 
-   = $0.001454 per core per hour
+         Cost per core per hour = $0.17 * 10 / 30.4375 / 24 / 16
+
+   - Local SSD
+
+     .. code-block:: text
+
+         Average number of days per month = 365.25 / 12 = 30.4375
+
+         Cost per GB per month = $0.048
+
+         Cost per core per hour = $0.048 * 375 / 30.4375 / 24 / 16
+
+   = $0.001685 per core per hour
 
 - IP network cost
    = $0.00025 per core per hour
@@ -97,7 +109,11 @@ machines with 100 GB of disk total. The costs are as follows:
 - Service cost
    = $0.01 per core per hour
 
-The sum of these costs is **$0.02170** per core per hour.
+The sum of these costs is **$0.021935** per core per hour.
+
+At any given moment as many as four cores of the cluster may come from a 4 core machine. If a job is
+scheduled on this machine, then the cost per core hour is **$0.02774**.
+
 
 .. note::
 
@@ -143,28 +159,32 @@ error messages in the terminal window.
 Submitting a Batch to the Service
 ---------------------------------
 
-To execute a batch on the Batch service rather than locally, first construct a
-:class:`.ServiceBackend` object with a valid billing project name. Next, pass the :class:`.ServiceBackend`
-object to the :class:`.Batch` constructor with the parameter name `backend`.
+To execute a batch on the Batch service rather than locally, first
+construct a :class:`.ServiceBackend` object with a billing project and
+a bucket to store intermediate files. Next, pass the
+:class:`.ServiceBackend` object to the :class:`.Batch` constructor
+with the parameter name `backend`.
 
-An example of running "Hello World" on the Batch service rather than locally is shown below.
-You can open iPython or a Jupyter notebook and execute the following batch:
+An example of running "Hello World" on the Batch service rather than
+locally is shown below.  You can open iPython or a Jupyter notebook
+and execute the following batch:
 
 .. code-block:: python
 
-    >>> import hailtop.batch as hb
-    >>> backend = hb.ServiceBackend('test') # replace 'test' with your own billing project
-    >>> b = hb.Batch(backend=backend, name='test')
-    >>> j = b.new_job(name='hello')
-    >>> j.command('echo "hello world"')
-    >>> b.run(open=True)
+    >>> import hailtop.batch as hb # doctest: +SKIP
+    >>> backend = hb.ServiceBackend('my-billing-project', 'my-bucket') # doctest: +SKIP
+    >>> b = hb.Batch(backend=backend, name='test') # doctest: +SKIP
+    >>> j = b.new_job(name='hello') # doctest: +SKIP
+    >>> j.command('echo "hello world"') # doctest: +SKIP
+    >>> b.run(open=True) # doctest: +SKIP
 
-You may elide the ``billing_project`` parameter if you have previously set a
-billing project with ``hailctl``:
+You may elide the ``billing_project`` and ``bucket`` parameters if you
+have previously set them with ``hailctl``:
 
 .. code-block:: sh
 
-    hailctl config set batch/billing_project hail
+    hailctl config set batch/billing_project my-billing-project
+    hailctl config set batch/bucket my-bucket
 
 
 Using the UI

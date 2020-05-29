@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.types.{BlockMatrixSparsity, BlockMatrixType}
-import is.hail.types.virtual.{TArray, TBaseStruct, TFloat64, TInt64, TTuple, Type}
+import is.hail.types.virtual.{TArray, TBaseStruct, TFloat64, TInt32, TInt64, TTuple, Type}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
 import is.hail.utils._
 import breeze.linalg
@@ -465,7 +465,7 @@ case class BlockMatrixBroadcast(
     !child.typ.shape.contains(in) || childMatrixShape(in) == shape(out)
   }))
 
-  override def typ: BlockMatrixType = {
+  override val typ: BlockMatrixType = {
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape(0), shape(1))
     val nRowBlocks = BlockMatrixType.numBlocks(shape(0), blockSize)
     val nColBlocks = BlockMatrixType.numBlocks(shape(1), blockSize)
@@ -483,7 +483,7 @@ case class BlockMatrixBroadcast(
             BlockMatrixSparsity(nRowBlocks, nColBlocks)((_, j: Int) => child.typ.hasBlock(j -> j))
           case IndexedSeq(1, 0) => // transpose
             assert(child.typ.blockSize == blockSize)
-            BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(j -> i))
+            BlockMatrixSparsity(child.typ.sparsity.definedBlocks.map(seq => seq.map { case (i, j) => (j, i)}))
           case IndexedSeq(0, 1) =>
             assert(child.typ.blockSize == blockSize)
             child.typ.sparsity
@@ -734,6 +734,22 @@ case class RectangleSparsifier(rectangles: IndexedSeq[IndexedSeq[Long]]) extends
 
   def pretty(): String =
     s"(RectangleSparsifier ${ rectangles.flatten.mkString("(", " ", ")") })"
+}
+
+case class PerBlockSparsifier(blocks: IndexedSeq[Int]) extends BlockMatrixSparsifier {
+  override def typ: Type = TArray(TInt32)
+
+  val blockSet = blocks.toSet
+
+  override def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
+    BlockMatrixSparsity(childType.nRowBlocks, childType.nColBlocks){ case(i: Int, j: Int) =>
+      blockSet.contains(i + j * childType.nRowBlocks)
+    }
+  }
+
+  override def sparsify(bm: BlockMatrix): BlockMatrix = bm.filterBlocks(blocks.toArray)
+
+  override def pretty(): String = s"(PerBlockSparsifier with blocks $blocks"
 }
 
 case class BlockMatrixSparsify(

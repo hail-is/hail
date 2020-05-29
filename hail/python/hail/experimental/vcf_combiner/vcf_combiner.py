@@ -121,6 +121,15 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
     mt = localize(mt)
 
     if mt.row.dtype not in _transform_rows_function_map:
+        def get_lgt(e, n_alleles, has_non_ref, row):
+            index = e.GT.unphased_diploid_gt_index()
+            n_no_nonref = n_alleles - hl.int(has_non_ref)
+            triangle_without_nonref = hl.triangle(n_no_nonref)
+            return (hl.case()
+                    .when(index < triangle_without_nonref, e.GT)
+                    .when(index < hl.triangle(n_alleles), hl.null('call'))
+                    .or_error('invalid GT ' + hl.str(e.GT) + ' at site ' + hl.str(row.locus)))
+
         f = hl.experimental.define_function(
             lambda row: hl.rbind(
                 hl.len(row.alleles), '<NON_REF>' == row.alleles[-1],
@@ -136,7 +145,7 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
                             GQ=e.GQ,
                             LA=hl.range(0, alleles_len - hl.cond(has_non_ref, 1, 0)),
                             LAD=hl.cond(has_non_ref, e.AD[:-1], e.AD),
-                            LGT=e.GT,
+                            LGT=get_lgt(e, alleles_len, has_non_ref, row),
                             LPGT=e.PGT,
                             LPL=hl.cond(has_non_ref,
                                         hl.cond(alleles_len > 2,

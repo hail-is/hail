@@ -5,10 +5,36 @@ from hail.utils import new_temp_file, new_local_temp_dir, local_path_uri, FatalE
 from ..helpers import *
 import numpy as np
 import tempfile
+import math
 from hail.expr.expressions import ExpressionException
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
+
+
+def sparsify_numpy(np_mat, block_size, blocks_to_sparsify):
+    n_rows, n_cols = np_mat.shape
+    target_mat = np.zeros((n_rows, n_cols))
+    n_block_rows = math.ceil(n_rows / block_size)
+    n_block_cols = math.ceil(n_cols / block_size)
+    n_rows_last_block = block_size if (n_rows % block_size) == 0 else n_rows % block_size
+    n_cols_last_block = block_size if (n_cols % block_size) == 0 else n_cols % block_size
+
+    for block in blocks_to_sparsify:
+        block_row_idx = block % n_block_rows
+        block_col_idx = block // n_block_rows
+        rows_to_copy = block_size if block_row_idx != (n_block_rows - 1) else n_rows_last_block
+        cols_to_copy = block_size if block_col_idx != (n_block_cols - 1) else n_cols_last_block
+        starting_row_idx = block_row_idx * block_size
+        starting_col_idx = block_col_idx * block_size
+
+        a = starting_row_idx
+        b = starting_row_idx + rows_to_copy
+        c = starting_col_idx
+        d = starting_col_idx + cols_to_copy
+        target_mat[a:b, c:d] = np_mat[a:b, c:d]
+
+    return target_mat
 
 
 class Tests(unittest.TestCase):
@@ -991,3 +1017,62 @@ class Tests(unittest.TestCase):
         with pytest.raises(ValueError) as exc:
             bm.filter_rows([0]).filter_rows([3]).to_numpy()
         assert "index" in str(exc)
+
+
+    @skip_unless_spark_backend()
+    def test_sparsify_blocks(self):
+        block_list = [1, 2]
+        np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
+        block_size = 2
+        bm = BlockMatrix.from_numpy(np_square, block_size=block_size)
+        bm = bm._sparsify_blocks(block_list)
+        sparse_numpy = sparsify_numpy(np_square, block_size, block_list)
+        assert np.array_equal(bm.to_numpy(), sparse_numpy)
+        assert np.array_equal(
+            sparse_numpy,
+            np.array([[0,  0,  2, 3],
+                      [0,  0,  6, 7],
+                      [8,  9,  0, 0],
+                      [12, 13, 0, 0]]))
+
+        block_list = [4, 8, 10, 12, 13, 14]
+        np_square = np.arange(225, dtype=np.float64).reshape((15, 15))
+        block_size = 4
+        bm = BlockMatrix.from_numpy(np_square, block_size=block_size)
+        bm = bm._sparsify_blocks(block_list)
+        sparse_numpy = sparsify_numpy(np_square, block_size, block_list)
+        assert np.array_equal(bm.to_numpy(), sparse_numpy)
+
+    @skip_unless_spark_backend()
+    def test_sparse_transposition(self):
+        block_list = [1, 2]
+        np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
+        block_size = 2
+        bm = BlockMatrix.from_numpy(np_square, block_size=block_size)
+        sparse_bm = bm._sparsify_blocks(block_list).T
+        sparse_np = sparsify_numpy(np_square, block_size, block_list).T
+        assert np.array_equal(sparse_bm.to_numpy(), sparse_np)
+
+        block_list = [4, 8, 10, 12, 13, 14]
+        np_square = np.arange(225, dtype=np.float64).reshape((15, 15))
+        block_size = 4
+        bm = BlockMatrix.from_numpy(np_square, block_size=block_size)
+        sparse_bm = bm._sparsify_blocks(block_list).T
+        sparse_np = sparsify_numpy(np_square, block_size, block_list).T
+        assert np.array_equal(sparse_bm.to_numpy(), sparse_np)
+
+        block_list = [2, 5, 8, 10, 11]
+        np_square = np.arange(150, dtype=np.float64).reshape((10, 15))
+        block_size = 4
+        bm = BlockMatrix.from_numpy(np_square, block_size=block_size)
+        sparse_bm = bm._sparsify_blocks(block_list).T
+        sparse_np = sparsify_numpy(np_square, block_size, block_list).T
+        assert np.array_equal(sparse_bm.to_numpy(), sparse_np)
+
+        block_list = [2, 5, 8, 10, 11]
+        np_square = np.arange(165, dtype=np.float64).reshape((15, 11))
+        block_size = 4
+        bm = BlockMatrix.from_numpy(np_square, block_size=block_size)
+        sparse_bm = bm._sparsify_blocks(block_list).T
+        sparse_np = sparsify_numpy(np_square, block_size, block_list).T
+        assert np.array_equal(sparse_bm.to_numpy(), sparse_np)

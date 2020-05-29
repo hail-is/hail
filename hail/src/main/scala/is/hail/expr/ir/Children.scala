@@ -23,6 +23,7 @@ object Children {
     case IsNA(value) =>
       Array(value)
     case Coalesce(values) => values.toFastIndexedSeq
+    case Consume(value) => FastIndexedSeq(value)
     case If(cond, cnsq, altr) =>
       Array(cond, cnsq, altr)
     case Let(name, value, body) =>

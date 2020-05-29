@@ -14,7 +14,7 @@ import org.testng.annotations.Test
 
 import scala.collection.mutable
 class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
-  private val comp = mb.getCodeOrdering(PInt64(), CodeOrdering.compare)
+  private val comp = mb.getCodeOrdering(PInt64(), CodeOrdering.Compare())
   def storageType: PTuple = PCanonicalTuple(required = true, PInt64(), PCanonicalTuple(false))
   def compType: PType = PInt64()
   def isEmpty(off: Code[Long]): Code[Boolean] =

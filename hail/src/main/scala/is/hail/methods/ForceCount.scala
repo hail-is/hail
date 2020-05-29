@@ -2,17 +2,22 @@ package is.hail.methods
 
 import is.hail.expr.ir.functions.{MatrixToValueFunction, TableToValueFunction}
 import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
+
 import is.hail.types.virtual.{TInt64, Type}
-import is.hail.types.{MatrixType, TableType}
+import is.hail.types.{MatrixType, RTable, TableType, TypeWithRequiredness}
 
 case class ForceCountTable() extends TableToValueFunction {
   override def typ(childType: TableType): Type = TInt64
+
+  def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit = ()
 
   override def execute(ctx: ExecuteContext, tv: TableValue): Any = tv.rvd.count()
 }
 
 case class ForceCountMatrixTable() extends MatrixToValueFunction {
   override def typ(childType: MatrixType): Type = TInt64
+
+  def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit = ()
 
   override def execute(ctx: ExecuteContext, mv: MatrixValue): Any = throw new UnsupportedOperationException
 

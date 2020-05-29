@@ -304,7 +304,7 @@ object Simplify {
       val newFieldRefs = newFieldMap.map { case (k, ir) =>
         (k, Ref(genUID(), ir.typ))
       } // cannot be mapValues, or genUID() gets run for every usage!
-      def copiedNewFieldRefs(): Array[(String, IR)] = fieldNames.map(name => (name, newFieldRefs(name).copy(FastSeq())))
+      def copiedNewFieldRefs(): IndexedSeq[(String, IR)] = fieldNames.map(name => (name, newFieldRefs(name).copy(FastSeq()))).toFastIndexedSeq
 
       def rewrite(ir1: IR): IR = ir1 match {
         case GetField(Ref(`name`, _), fd) => newFieldRefs.get(fd) match {
@@ -316,9 +316,9 @@ object Simplify {
           InsertFields(Ref(name, old.typ),
             copiedNewFieldRefs().filter { case (name, _) => !newFieldSet.contains(name) }
               ++ fields.map { case (name, ir) => (name, rewrite(ir)) },
-            Some(ins.typ.fieldNames))
+            Some(ins.typ.fieldNames.toFastIndexedSeq))
         case SelectFields(Ref(`name`, _), fds) =>
-          SelectFields(InsertFields(Ref(name, old.typ), copiedNewFieldRefs(), Some(x.typ.fieldNames)), fds)
+          SelectFields(InsertFields(Ref(name, old.typ), copiedNewFieldRefs(), Some(x.typ.fieldNames.toFastIndexedSeq)), fds)
         case ta: TableAggregate => ta
         case ma: MatrixAggregate => ma
         case _ => ir1.copy(ir1.children
@@ -361,7 +361,7 @@ object Simplify {
       val (oldFields, newFields) =
         insertFields.partition {  case (name, f) => f == GetField(struct, name) }
       val preservedFields = selectFields.filter(f => !insertNames.contains(f)) ++ oldFields.map(_._1)
-      InsertFields(SelectFields(struct, preservedFields), newFields, Some(fields))
+      InsertFields(SelectFields(struct, preservedFields), newFields, Some(fields.toFastIndexedSeq))
 
     case GetTupleElement(MakeTuple(xs), idx) => xs.find(_._1 == idx).get._2
 
