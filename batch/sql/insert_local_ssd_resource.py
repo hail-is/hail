@@ -25,7 +25,7 @@ VALUES (%s, %s)
     scope = os.environ['HAIL_SCOPE']
 
     if scope == 'deploy':
-        worker_disk_size_gb = 20
+        worker_disk_size_gb = 10
     else:
         return
 

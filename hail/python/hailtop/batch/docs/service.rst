@@ -90,7 +90,7 @@ machines with 10 GB of persistent SSD boot disk and 375 GB of local SSD. The cos
 
          Cost per GB per month = $0.17
 
-         Cost per core per hour = $0.17 * 20 / 30.4375 / 24 / 16
+         Cost per core per hour = $0.17 * 10 / 30.4375 / 24 / 16
 
    - Local SSD
 
