@@ -298,12 +298,14 @@ object LowerTableIR {
               }
             }
 
+        // TODO: This ignores nPartitions and bufferSize
         case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
           val loweredChild = lower(child)
           val newKeyType = newKey.typ.asInstanceOf[TStruct]
           val oldRowType = child.typ.rowType
-          val oldRowFieldsNotInNewKey = oldRowType.fieldNames.filter(fieldName => !newKeyType.fieldNames.contains(fieldName))
-          val shuffledRowType = newKeyType ++ oldRowType.filter(field => !newKeyType.fieldNames.contains(field.name))._1
+          val filteredOldRowType = oldRowType.filter(field => !newKeyType.fieldNames.contains(field.name))._1
+          val oldRowFieldsNotInNewKey = filteredOldRowType.fieldNames
+          val shuffledRowType = newKeyType ++ filteredOldRowType
 
           val withNewKeyFields = loweredChild.mapPartition { partition =>
             mapIR(partition) { partitionElement =>
@@ -323,7 +325,7 @@ object LowerTableIR {
           val repartitioned = shuffled.repartitionNoShuffle(shuffled.partitioner.strictify)
 
           repartitioned.mapPartition { partition =>
-            mapIR(StreamGroupByKey(partition, shuffled.partitioner.kType.fieldNames.toIndexedSeq)) { groupRef =>
+            mapIR(StreamGroupByKey(partition, newKeyType.fieldNames.toIndexedSeq)) { groupRef =>
               StreamAgg(
                 groupRef,
                 "row",

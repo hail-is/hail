@@ -749,18 +749,28 @@ class TableIRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.lowering
     val tir: TableIR = TableRead.native(fs, "src/test/resources/three_key.ht")
     val unkeyed = TableKeyBy(tir, IndexedSeq[String]())
-    //assertEvalsTo(TableCount(unkeyed), 120L)
     val rowRef = Ref("row", unkeyed.typ.rowType)
     val aggSignature = AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64))
     val aggExpression = MakeStruct(FastSeq("y_sum" -> ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(Cast(GetField(rowRef, "y"), TInt64)), aggSignature)))
     val keyByXAndAggregateSum = TableKeyByAndAggregate(unkeyed, aggExpression, MakeStruct(FastSeq("x" -> GetField(rowRef, "x"))))
 
-    println("Pretty IR from test")
-    println(Pretty(keyByXAndAggregateSum))
-
     assertEvalsTo(
       collect(keyByXAndAggregateSum),
       Row(FastIndexedSeq(Row(2, 1), Row(3,5), Row(4, 14), Row(5, 30), Row(6, 55), Row(7, 91), Row(8, 140), Row(9, 204)), Row())
+    )
+
+    // Keying by a newly computed field.
+    val keyByXPlusTwoAndAggregateSum = TableKeyByAndAggregate(unkeyed, aggExpression, MakeStruct(FastSeq("xPlusTwo" -> (GetField(rowRef, "x") + 2))))
+    assertEvalsTo(
+      collect(keyByXPlusTwoAndAggregateSum),
+      Row(FastIndexedSeq(Row(4, 1), Row(5,5), Row(6, 14), Row(7, 30), Row(8, 55), Row(9, 91), Row(10, 140), Row(11, 204)), Row())
+    )
+
+    // Keying by just Z when original is keyed by x,y,z, naming it x anyway.
+    val keyByZAndAggregateSum =  TableKeyByAndAggregate(tir, aggExpression, MakeStruct(FastSeq("x" -> GetField(rowRef, "z"))))
+    assertEvalsTo(
+      collect(keyByZAndAggregateSum),
+      Row(FastIndexedSeq(Row(0, 120), Row(1, 112), Row(2, 98), Row(3, 80), Row(4, 60), Row(5, 40), Row(6, 22), Row(7, 8)), Row())
     )
   }
 
