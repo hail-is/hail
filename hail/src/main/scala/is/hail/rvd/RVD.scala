@@ -125,7 +125,7 @@ class RVD(
     require(newKey.forall(rowType.hasField))
     val sharedPrefixLength = typ.key.zip(newKey).takeWhile { case (l, r) => l == r }.length
     val maybeKeys = if (newKey.toSet.subsetOf(typ.key.toSet)) {
-      partitioner.selectKey(newKey).keysIfOneToOne()
+      partitioner.keysIfOneToOne()
     } else None
     if (isSorted && sharedPrefixLength == 0 && newKey.isEmpty) {
       throw new IllegalArgumentException(s"$isSorted, $sharedPrefixLength, $newKey, ${maybeKeys.isDefined}, ${typ}, ${partitioner}")
@@ -164,7 +164,6 @@ class RVD(
           info("Coerced dataset with out-of-order partitions.")
           val pids = keyInfo.map(_.partitionIndex).toArray
           val unfixedPartitioner = new RVDPartitioner(newKeyVType, bounds)
-          log.info(s"generate args ${newRVDType.key} ${newKeyVType} ${bounds}")
           val newPartitioner = RVDPartitioner.generate(
             newRVDType.key, newKeyVType, bounds)
           RVD(newRVDType, unfixedPartitioner, crdd.reorderPartitions(pids))

@@ -19,8 +19,6 @@ class RVDPartitioner(
   override def toString: String =
     s"RVDPartitioner($kType, ${rangeBounds.mkString("[", ",\n", "]")})"
 
-  log.info(s"$this ${Thread.currentThread().getStackTrace().take(10).mkString("[", "\n", "]")}")
-
   def this(
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval],
@@ -145,24 +143,6 @@ class RVDPartitioner(
     RVDPartitioner.generate(newKType, rangeBounds)
   }
 
-  def selectKey(newKeyFields: IndexedSeq[String]): RVDPartitioner = {
-    selectKey(kType.typeAfterSelectAndPermuteNames(newKeyFields))
-  }
-
-  def selectKey(newKType: TStruct): RVDPartitioner = {
-    require(newKType.isConstructibleFrom(kType))
-    val newRangeBounds = try {
-      rangeBounds.map { (interval: Interval) =>
-        interval.copy(
-          start = new SelectFieldsRow(interval.start.asInstanceOf[Row], kType, newKType),
-          end = new SelectFieldsRow(interval.end.asInstanceOf[Row], kType, newKType))
-      }
-    } catch {
-      case e: Exception => fatal(s"wtf $newKType $kType", e)
-    }
-    RVDPartitioner.generate(newKType, newRangeBounds)
-  }
-
   // Operators (produce new partitioners)
 
   def subdivide(
@@ -192,7 +172,9 @@ class RVDPartitioner(
       i = last
       for {
         (l, r) <- (interval.left +: cuts) zip (cuts :+ interval.right)
-        interval <- Interval.orNone(kord, l, r)
+        interval <- {
+          Interval.orNone(kord, l, r)
+        }
       } yield interval
     }
 
