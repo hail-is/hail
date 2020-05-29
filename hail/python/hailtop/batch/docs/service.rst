@@ -81,7 +81,6 @@ machines with 10 GB of persistent SSD boot disk and 375 GB of local SSD. The cos
    = $0.01 per core per hour
 
 - Disk cost
-
    - Boot Disk
 
      .. code-block:: text
