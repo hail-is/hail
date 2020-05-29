@@ -413,7 +413,7 @@ object EmitUtils {
       return Code._empty
 
     val sizes = items.map(_.estimatedSize)
-    if (sizes.sum < 1000000)
+    if (sizes.sum < 100)
       return Code(items.map(_.emit(mb)))
 
     val chunkBounds = getChunkBounds(sizes)
