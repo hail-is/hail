@@ -225,7 +225,7 @@ object ShuffleServer {
 
     val server = new ShuffleServer(sslContext(
       keystore,
-      keystorePassword
+      keystorePassword,
       keystoreType,
       truststore,
       truststorePassword,
