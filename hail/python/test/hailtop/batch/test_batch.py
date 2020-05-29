@@ -312,11 +312,13 @@ class BatchTests(unittest.TestCase):
             credentials = None
         gcs_client = google.cloud.storage.Client(project='hail-vdc', credentials=credentials)
         bucket = gcs_client.bucket(bucket_name)
-        if not bucket.blob('batch-tests/resources/hello (foo) spaces.txt').exists():
+        if not bucket.blob('batch-tests/resources/hello.txt').exists():
             bucket.blob('batch-tests/resources/hello.txt').upload_from_string(
                 'hello world')
+        if not bucket.blob('batch-tests/resources/hello spaces.txt').exists():
             bucket.blob('batch-tests/resources/hello spaces.txt').upload_from_string(
                 'hello')
+        if not bucket.blob('batch-tests/resources/hello (foo) spaces.txt').exists():
             bucket.blob('batch-tests/resources/hello (foo) spaces.txt').upload_from_string(
                 'hello')
 
