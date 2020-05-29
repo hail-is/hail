@@ -44,9 +44,6 @@ abstract class TBaseStruct extends Type {
     case _ => false
   }
 
-  def isConstructibleFrom(other: TBaseStruct): Boolean =
-    fields.map(_.name).toSet.subsetOf(other.fields.map(_.name).toSet)
-
   def relaxedTypeCheck(a: Any): Boolean = a match {
     case row: Row =>
       row.length <= types.length &&
