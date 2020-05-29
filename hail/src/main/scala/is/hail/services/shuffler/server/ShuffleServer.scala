@@ -228,8 +228,8 @@ object ShuffleServer {
       keystorePassword
       keystoreType,
       truststore,
-      truststorePassword
-      truststoreType,
+      truststorePassword,
+      truststoreType
     ),
       port.toInt)
 
