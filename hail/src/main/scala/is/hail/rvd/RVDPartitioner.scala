@@ -341,8 +341,8 @@ class RVDPartitioner(
         }
         if (isSizeOne)
           return Some(left)
+        return None
       }
-      assert(leftSign == 1 && rightSign == -1)
       return None
     }
 
