@@ -99,59 +99,12 @@ class GoogleStorageFileStatus(path: String, modificationTime: java.lang.Long, si
 
 class GoogleStorageFS(serviceAccountKey: String) extends FS {
   import GoogleStorageFS._
-
-  private var codecNames: IndexedSeq[String] = FastIndexedSeq(
-    "is.hail.io.compress.BGzipCodec",
-    "is.hail.io.compress.BGzipCodecTbi",
-    "org.apache.hadoop.io.compress.GzipCodec")
-
-  @transient private var codecs: IndexedSeq[hadoop.io.compress.CompressionCodec] = _
-
-  private val defaultHadoopConf = new hadoop.conf.Configuration()
-
-  def createCodecs(): Unit = {
-    if (codecs != null)
-      return
-
-    codecs = codecNames.map { codecName =>
-      val codecClass = Class.forName(codecName)
-      val codec = codecClass.newInstance().asInstanceOf[hadoop.io.compress.CompressionCodec]
-
-      codec match {
-        case codec: hadoop.io.compress.DefaultCodec =>
-          codec.setConf(defaultHadoopConf)
-        case _ =>
-      }
-      codec
-    }
-  }
-
   @transient private lazy val storage: Storage = {
     StorageOptions.newBuilder()
       .setCredentials(
         ServiceAccountCredentials.fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes)))
       .build()
       .getService
-  }
-
-  def getCodecs(): IndexedSeq[String] = codecNames
-
-  def setCodecs(newCodecs: IndexedSeq[String]): Unit = {
-    codecNames = newCodecs
-    codecs = null
-  }
-
-  def getCodec(filename: String): hadoop.io.compress.CompressionCodec = {
-    if (codecs == null)
-      createCodecs()
-
-    val ext = "." + FilenameUtils.getExtension(filename)
-    codecs.foreach { codec =>
-      if (codec.getDefaultExtension == ext)
-        return codec
-    }
-
-    null
   }
 
   def openNoCompression(filename: String): SeekableDataInputStream = {

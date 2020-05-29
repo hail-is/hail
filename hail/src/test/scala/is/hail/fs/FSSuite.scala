@@ -207,12 +207,12 @@ trait FSSuite {
     assert(!fs.exists(f))
   }
 
-  def testGetCodecExtension(): Unit = {
+  @Test def testGetCodecExtension(): Unit = {
     assert(fs.getCodecExtension("foo.vcf.bgz") == ".bgz")
   }
 
-  def testStripCodecExtension(): Unit = {
-    assert(fs.getCodecExtension("foo.vcf.bgz") == "foo.vcf")
+  @Test def testStripCodecExtension(): Unit = {
+    assert(fs.stripCodecExtension("foo.vcf.bgz") == "foo.vcf")
   }
 }
 
