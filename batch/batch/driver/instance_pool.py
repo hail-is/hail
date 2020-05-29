@@ -205,7 +205,13 @@ SET standing_worker_cores = %s, max_instances = %s, pool_size = %s;
                     'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(self.worker_disk_size_gb)
                 }
-            }],
+            }, {
+                'type': 'SCRATCH',
+                'autoDelete': True,
+                'interface': 'NVME',
+                'initializeParams': {
+                    'diskType': f'zones/{zone}/diskTypes/local-ssd'
+                }}],
 
             'networkInterfaces': [{
                 'network': 'global/networks/default',
@@ -255,6 +261,27 @@ iptables -I FORWARD -i docker0 -d 169.254.169.254 -p udp -m udp --destination-po
 jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
 mv daemon.json.tmp /etc/docker/daemon.json
 kill -SIGHUP $(pidof dockerd)
+
+LOCAL_SSD_NAME=$(lsblk | grep '^nvme' | awk '{ print $1 }')
+
+# format local SSD
+sudo mkfs.ext4 -F /dev/$LOCAL_SSD_NAME
+sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME
+sudo mount /dev/$LOCAL_SSD_NAME /mnt/disks/$LOCAL_SSD_NAME
+sudo chmod a+w /mnt/disks/$LOCAL_SSD_NAME
+
+# reconfigure docker to use local SSD
+sudo service docker stop
+sudo mv /var/lib/docker /mnt/disks/$LOCAL_SSD_NAME/docker
+sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/docker /var/lib/docker
+sudo service docker start
+
+# reconfigure /batch and /logs to use local SSD
+sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/batch/
+sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/batch /batch
+
+sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/logs/
+sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/logs /logs
 
 export HOME=/root
 

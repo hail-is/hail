@@ -75,21 +75,33 @@ Billing
 
 The cost for executing a job depends on the underlying machine type and how much CPU and
 memory is being requested. Currently, Batch runs most jobs on 16 core, preemptible, n1-standard
-machines with 100 GB of disk total. The costs for jobs run on a 16 core machine are computed as follows:
+machines with 10 GB of persistent SSD boot disk and 375 GB of local SSD. The costs are as follows:
 
 - Compute cost
    = $0.01 per core per hour
 
 - Disk cost
-   .. code-block:: text
+   - Boot Disk
 
-       Average number of days per month = 365.25 / 12 = 30.4375
+     .. code-block:: text
 
-       Cost per GB per month = $0.17
+         Average number of days per month = 365.25 / 12 = 30.4375
 
-       Cost per core per hour = $0.17 * 100 / 30.4375 / 24 / 16
+         Cost per GB per month = $0.17
 
-   = $0.001454 per core per hour
+         Cost per core per hour = $0.17 * 10 / 30.4375 / 24 / 16
+
+   - Local SSD
+
+     .. code-block:: text
+
+         Average number of days per month = 365.25 / 12 = 30.4375
+
+         Cost per GB per month = $0.048
+
+         Cost per core per hour = $0.048 * 375 / 30.4375 / 24 / 16
+
+   = $0.001685 per core per hour
 
 - IP network cost
    = $0.00025 per core per hour
@@ -97,10 +109,10 @@ machines with 100 GB of disk total. The costs for jobs run on a 16 core machine 
 - Service cost
    = $0.01 per core per hour
 
-The sum of these costs is **$0.02170** per core per hour.
+The sum of these costs is **$0.021935** per core per hour.
 
 At any given moment as many as four cores of the cluster may come from a 4 core machine. If a job is
-scheduled on this machine, then the cost per core hour is **$0.02682**.
+scheduled on this machine, then the cost per core hour is **$0.02774**.
 
 
 .. note::
