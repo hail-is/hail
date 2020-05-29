@@ -10,7 +10,8 @@ import aiohttp
 from hailtop.utils import time_msecs, secret_alnum_string
 
 from ..batch_configuration import DEFAULT_NAMESPACE, BATCH_WORKER_IMAGE, \
-    PROJECT
+    PROJECT, WORKER_MAX_IDLE_TIME_MSECS, STANDING_WORKER_MAX_IDLE_TIME_MSECS, \
+    ENABLE_STANDING_WORKER
 
 from .instance import Instance
 from ..worker_config import WorkerConfig
@@ -33,6 +34,7 @@ class InstancePool:
         self.worker_type = None
         self.worker_cores = None
         self.worker_disk_size_gb = None
+        self.standing_worker_cores = None
         self.max_instances = None
         self.pool_size = None
 
@@ -51,18 +53,21 @@ class InstancePool:
 
         # pending and active
         self.live_free_cores_mcpu = 0
+        self.live_total_cores_mcpu = 0
 
         self.name_instance = {}
 
     async def async_init(self):
         log.info('initializing instance pool')
 
-        row = await self.db.select_and_fetchone(
-            'SELECT worker_type, worker_cores, worker_disk_size_gb, max_instances, pool_size FROM globals;')
+        row = await self.db.select_and_fetchone('''
+SELECT worker_type, worker_cores, worker_disk_size_gb, standing_worker_cores, max_instances, pool_size FROM globals;
+''')
 
         self.worker_type = row['worker_type']
         self.worker_cores = row['worker_cores']
         self.worker_disk_size_gb = row['worker_disk_size_gb']
+        self.standing_worker_cores = row['standing_worker_cores']
         self.max_instances = row['max_instances']
         self.pool_size = row['pool_size']
 
@@ -80,6 +85,7 @@ class InstancePool:
             'worker_type': self.worker_type,
             'worker_cores': self.worker_cores,
             'worker_disk_size_gb': self.worker_disk_size_gb,
+            'standing_worker_cores': self.standing_worker_cores,
             'max_instances': self.max_instances,
             'pool_size': self.pool_size
         }
@@ -90,19 +96,22 @@ class InstancePool:
     async def configure(
             self,
             # worker_type, worker_cores, worker_disk_size_gb,
+            standing_worker_cores,
             max_instances, pool_size):
         await self.db.just_execute(
             # worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
             '''
 UPDATE globals
-SET max_instances = %s, pool_size = %s;
+SET standing_worker_cores = %s, max_instances = %s, pool_size = %s;
 ''',
             (
                 # worker_type, worker_cores, worker_disk_size_gb,
+                standing_worker_cores,
                 max_instances, pool_size))
         # self.worker_type = worker_type
         # self.worker_cores = worker_cores
         # self.worker_disk_size_gb = worker_disk_size_gb
+        self.standing_worker_cores = standing_worker_cores
         self.max_instances = max_instances
         self.pool_size = pool_size
 
@@ -119,6 +128,7 @@ SET max_instances = %s, pool_size = %s;
 
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
+            self.live_total_cores_mcpu -= instance.cores_mcpu
         if instance in self.healthy_instances_by_free_cores:
             self.healthy_instances_by_free_cores.remove(instance)
 
@@ -139,6 +149,7 @@ SET max_instances = %s, pool_size = %s;
         self.instances_by_last_updated.add(instance)
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
+            self.live_total_cores_mcpu += instance.cores_mcpu
         if (instance.state == 'active'
                 and instance.failed_request_count <= 1):
             self.healthy_instances_by_free_cores.add(instance)
@@ -149,7 +160,12 @@ SET max_instances = %s, pool_size = %s;
         self.name_instance[instance.name] = instance
         self.adjust_for_add_instance(instance)
 
-    async def create_instance(self):
+    async def create_instance(self, cores=None, max_idle_time_msecs=None):
+        if cores is None:
+            cores = self.worker_cores
+        if max_idle_time_msecs is None:
+            max_idle_time_msecs = WORKER_MAX_IDLE_TIME_MSECS
+
         while True:
             # 36 ** 5 = ~60M
             suffix = secret_alnum_string(5, case='lower')
@@ -157,10 +173,7 @@ SET max_instances = %s, pool_size = %s;
             if machine_name not in self.name_instance:
                 break
 
-        n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
-        total_cores = self.worker_cores * n_live_instances
-
-        if total_cores < 5_000:
+        if self.live_total_cores_mcpu < 5_000:
             zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
             zone = random.choice(zones)
         else:
@@ -171,14 +184,14 @@ SET max_instances = %s, pool_size = %s;
             zone = random.choices(zones, weights)[0]
 
         activation_token = secrets.token_urlsafe(32)
-        instance = await Instance.create(self.app, machine_name, activation_token, self.worker_cores * 1000, zone)
+        instance = await Instance.create(self.app, machine_name, activation_token, cores * 1000, zone)
         self.add_instance(instance)
 
         log.info(f'created {instance}')
 
         config = {
             'name': machine_name,
-            'machineType': f'projects/{PROJECT}/zones/{zone}/machineTypes/n1-{self.worker_type}-{self.worker_cores}',
+            'machineType': f'projects/{PROJECT}/zones/{zone}/machineTypes/n1-{self.worker_type}-{cores}',
             'labels': {
                 'role': 'batch2-agent',
                 'namespace': DEFAULT_NAMESPACE
@@ -255,6 +268,7 @@ BATCH_LOGS_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.g
 WORKER_LOGS_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_logs_bucket_name")
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 WORKER_CONFIG=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_config")
+MAX_IDLE_TIME_MSECS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/max_idle_time_msecs")
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
 
@@ -276,6 +290,7 @@ docker run \
     -e INSTANCE_ID=$INSTANCE_ID \
     -e PROJECT=$PROJECT \
     -e WORKER_CONFIG=$WORKER_CONFIG \
+    -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /usr/bin/docker:/usr/bin/docker \
     -v /batch:/batch \
@@ -321,6 +336,9 @@ gsutil -m cp run.log worker.log /var/log/syslog dockerd.log  gs://$WORKER_LOGS_B
                 }, {
                     'key': 'instance_id',
                     'value': self.log_store.instance_id
+                }, {
+                    'key': 'max_idle_time_msecs',
+                    'value': max_idle_time_msecs
                 }]
             },
             'tags': {
@@ -493,6 +511,11 @@ FROM ready_cores;
                         log.info(f'creating {instances_needed} new instances')
                         # parallelism will be bounded by thread pool
                         await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
+
+                n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
+                if ENABLE_STANDING_WORKER and n_live_instances == 0 and self.max_instances > 0:
+                    await self.create_instance(cores=self.standing_worker_cores,
+                                               max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:
