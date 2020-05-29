@@ -150,7 +150,6 @@ class RVD(
           val kOrd = PartitionBoundOrdering(newKeyVType).toOrdering
           keyInfo = keyInfo.sortBy(_.min)(kOrd)
           val bounds = keyInfo.map(_.interval).toFastIndexedSeq
-          info("Coerced dataset with out-of-order partitions.")
           val pids = keyInfo.map(_.partitionIndex).toArray
           val unfixedPartitioner = new RVDPartitioner(newKeyVType, bounds)
           val newPartitioner = RVDPartitioner.generate(
