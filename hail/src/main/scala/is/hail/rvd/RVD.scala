@@ -46,16 +46,6 @@ class RVD(
 
   require(typ.kType.virtualType isIsomorphicTo partitioner.kType)
 
-  val badRangeBounds = partitioner.rangeBounds.filter { interval =>
-    val left = interval.start.asInstanceOf[Row]
-    val right = interval.end.asInstanceOf[Row]
-    left.length < typ.kType.fields.length && right.length < typ.kType.fields.length
-  }.toSeq
-  if (badRangeBounds.length != 0) {
-    throw new IllegalArgumentException(
-      s"requirement failed: $badRangeBounds ${typ.kType} ${partitioner.rangeBounds.toSeq}")
-  }
-
   // Basic accessors
 
   def sparkContext: SparkContext = crdd.sparkContext

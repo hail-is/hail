@@ -46,20 +46,7 @@ class RVDPartitioner(
     kType.relaxedTypeCheck(l) && kType.relaxedTypeCheck(r)
   })
   require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
-  if (!(RVDPartitioner.isValid(kType, rangeBounds, allowedOverlap))) {
-    throw new IllegalArgumentException(
-      s"requirement failed: ${kType}, ${rangeBounds.toSeq}, ${allowedOverlap}")
-  }
-
-  val badRangeBounds = rangeBounds.filter { interval =>
-    val left = interval.start.asInstanceOf[Row]
-    val right = interval.end.asInstanceOf[Row]
-    left.length < kType.fields.length && right.length < kType.fields.length
-  }.toSeq
-  if (badRangeBounds.length != 0) {
-    throw new IllegalArgumentException(
-      s"requirement failed: $badRangeBounds $kType ${rangeBounds.toSeq}")
-  }
+  require(RVDPartitioner.isValid(kType, rangeBounds, allowedOverlap))
 
   val kord: ExtendedOrdering = PartitionBoundOrdering(kType)
   val intervalKeyLT: (Interval, Any) => Boolean = (i, k) => i.isBelowPosition(kord, k)
@@ -172,9 +159,7 @@ class RVDPartitioner(
       i = last
       for {
         (l, r) <- (interval.left +: cuts) zip (cuts :+ interval.right)
-        interval <- {
-          Interval.orNone(kord, l, r)
-        }
+        interval <- Interval.orNone(kord, l, r)
       } yield interval
     }
 
