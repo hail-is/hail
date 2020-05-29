@@ -126,7 +126,6 @@ class RVD(
     else if (isSorted)
       maybeKeys match {
         case None =>
-          log.info(s"failed to use a transposition partitioner, had $partitioner")
           truncateKey(newKey.take(sharedPrefixLength))
             .extendKeyPreservesPartitioning(execCtx, newKey)
             .checkKeyOrdering()
