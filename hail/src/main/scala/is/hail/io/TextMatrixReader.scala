@@ -238,7 +238,7 @@ object TextMatrixReader {
       }
 
     val linesPartitionCounts = linesRDD.countPerPartition()
-    val partitionPaths = linesRDD.partitions.map(partitionPath)
+    val partitionPaths = lines.contexts.map(a => a.asInstanceOf[Row].getAs[String](1)).toArray
 
     val headerPartitions = mutable.Set[Int]()
     val firstPartitions = new Array[Int](linesRDD.getNumPartitions)
@@ -321,8 +321,8 @@ class TextMatrixReader(
 
     val bodyPType = (requestedRowType: TStruct) => PType.canonical(requestedRowType, required = true).asInstanceOf[PStruct]
 
-    val linesBody = lines.body
     val body = { (requestedType: TStruct) =>
+      val linesBody = lines.body
       val requestedPType = bodyPType(requestedType)
 
       val compiledLineParser = new CompiledLineParser(ctx,
