@@ -1329,7 +1329,7 @@ steps:
      assert n == 17
      EOF
      HAIL_BILLING_PROJECT=test HAIL_DONT_RETRY_500=1 HAIL_QUERY_BACKEND=service python3 test.py
-   timeout: 300
+   timeout: 600
    secrets:
     - name: gce-deploy-config
       namespace:
