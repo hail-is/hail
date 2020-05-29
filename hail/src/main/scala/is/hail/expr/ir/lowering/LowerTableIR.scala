@@ -301,25 +301,31 @@ object LowerTableIR {
         case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
           val loweredChild = lower(child)
 
-          //Plan:
-          // 1. Annotate rows with a new field based on newKey
-          // 2. Shuffle to key by this newKey
-          // 3. Map over this new thing, flattening out pairs into rows with the new key fields as well as whatever agg results we have
+          // New Plan:
+          // 1. Make new rows with all the keys contained in newKey, assume always that newKey is a struct
+          //     Maybe also include all the fields in the row that aren't keys?
+          // 2. Shuffle to all the new keys
+          val newKeyType = newKey.typ.asInstanceOf[TStruct]
+          val oldRowType = child.typ.rowType
+          val oldRowFieldsNotInNewKey = oldRowType.fieldNames.filter(fieldName => !newKeyType.fieldNames.contains(fieldName))
+          val shuffledRowType = newKeyType ++ oldRowType.filter(field => !newKeyType.fieldNames.contains(field.name))
 
-          val withNewKeyField = loweredChild.mapPartition { partition =>
+          val withNewKeyFields = loweredChild.mapPartition { partition =>
             mapIR(partition) { partitionElement =>
               Let("row",
                 partitionElement,
-                MakeStruct(Seq("newKey" -> newKey, "oldRowStruct" -> partitionElement))
+                bindIR(newKey) { newKeyRef =>
+                  val getKeyFields = newKeyType.fieldNames.map(fieldName => fieldName -> GetField(newKeyRef, fieldName)).toIndexedSeq
+                  val getOtherFields = oldRowFieldsNotInNewKey.map(fieldName => fieldName -> GetField(partitionElement, fieldName)).toIndexedSeq
+                 // MakeStruct( getKeyFields ++ IndexedSeq("oldRowStruct" -> partitionElement))
+                  MakeStruct( getKeyFields ++ getOtherFields)
+                }
               )
             }
           }
 
-          // New Plan:
-          // 1. Annotate rows with all the keys contained in newKey, assume always that newKey is a struct
-          // 2. Shuffle to all the new keys
-
-          val shuffled = ctx.backend.lowerDistributedSort(ctx, withNewKeyField, IndexedSeq(SortField("newKey", Ascending)))
+          val sortFields = newKeyType.fieldNames.map(fieldName => SortField(fieldName, Ascending)).toIndexedSeq
+          val shuffled = ctx.backend.lowerDistributedSort(ctx, withNewKeyFields, sortFields)
 
           shuffled.mapPartition { partition =>
             mapIR(StreamGroupByKey(partition, shuffled.partitioner.kType.fieldNames.toIndexedSeq)) { groupRef =>
@@ -339,6 +345,9 @@ object LowerTableIR {
                   MakeStruct(keyIRs ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
                     (f, GetField(value, f))
                   })
+//                  MakeStruct(child.typ.key.map(k => (k, GetField(key, k))) ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
+//                    (f, GetField(value, f))
+//                  })
                 }
               )
             }
