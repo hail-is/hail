@@ -273,7 +273,7 @@ object TextMatrixReader {
       rowKey = Array().toFastIndexedSeq,
       entryType = entryType)
 
-    new TextMatrixReader(params, lines, separator, rowFieldType, fullMatrixType,  headerInfo, headerPartitions, linesPartitionCounts, partitionPaths, firstPartitions)
+    new TextMatrixReader(params, opts, lines, separator, rowFieldType, fullMatrixType,  headerInfo, headerPartitions, linesPartitionCounts, partitionPaths, firstPartitions)
   }
 }
 
@@ -293,6 +293,7 @@ case class TextMatrixReaderOptions(comment: Array[String], hasHeader: Boolean) e
 
 class TextMatrixReader(
   val params: TextMatrixReaderParameters,
+  opts: TextMatrixReaderOptions,
   lines: GenericLines,
   separator: Char,
   rowFieldType: TStruct,
@@ -324,6 +325,7 @@ class TextMatrixReader(
     val body = { (requestedType: TStruct) =>
       val linesBody = lines.body
       val requestedPType = bodyPType(requestedType)
+      val localOpts = opts
 
       val compiledLineParser = new CompiledLineParser(ctx,
         rowFieldType,
@@ -339,7 +341,12 @@ class TextMatrixReader(
 
       { (region: Region, context: Any) =>
         val (lc, partitionIdx: Int) = context
-        compiledLineParser.apply(partitionIdx, region, linesBody(lc).filter(_.toString.nonEmpty))
+        compiledLineParser.apply(partitionIdx, region,
+          linesBody(lc).filter { line =>
+            val l = line.toString
+            l.nonEmpty && !localOpts.isComment(l)
+          }
+        )
       }
     }
 
