@@ -308,7 +308,7 @@ object LowerTableIR {
           val newKeyType = newKey.typ.asInstanceOf[TStruct]
           val oldRowType = child.typ.rowType
           val oldRowFieldsNotInNewKey = oldRowType.fieldNames.filter(fieldName => !newKeyType.fieldNames.contains(fieldName))
-          val shuffledRowType = newKeyType ++ oldRowType.filter(field => !newKeyType.fieldNames.contains(field.name))
+          val shuffledRowType = newKeyType ++ oldRowType.filter(field => !newKeyType.fieldNames.contains(field.name))._1
 
           val withNewKeyFields = loweredChild.mapPartition { partition =>
             mapIR(partition) { partitionElement =>
@@ -317,7 +317,6 @@ object LowerTableIR {
                 bindIR(newKey) { newKeyRef =>
                   val getKeyFields = newKeyType.fieldNames.map(fieldName => fieldName -> GetField(newKeyRef, fieldName)).toIndexedSeq
                   val getOtherFields = oldRowFieldsNotInNewKey.map(fieldName => fieldName -> GetField(partitionElement, fieldName)).toIndexedSeq
-                 // MakeStruct( getKeyFields ++ IndexedSeq("oldRowStruct" -> partitionElement))
                   MakeStruct( getKeyFields ++ getOtherFields)
                 }
               )
@@ -336,18 +335,15 @@ object LowerTableIR {
                 bindIRs(
                   ArrayRef(
                     ApplyAggOp(FastSeq(I32(1)),
-                      FastSeq(SelectFields(Ref("row", child.typ.rowType), child.typ.key)),
-                      AggSignature(Take(), FastSeq(TInt32), FastSeq(child.typ.keyType))),
+                      FastSeq(SelectFields(Ref("row", shuffledRowType), newKeyType.fieldNames)),
+                      AggSignature(Take(), FastSeq(TInt32), FastSeq(newKeyType))),
                     I32(0)),
                   expr) { case Seq(groupRep, value) =>
 
-                  val keyIRs: IndexedSeq[(String, IR)] = child.typ.key.map(k => (k, GetField(GetField(groupRep, "newKey"), k)))
+                  val keyIRs: IndexedSeq[(String, IR)] = newKeyType.fieldNames.map(keyName => keyName -> GetField(groupRep, keyName))
                   MakeStruct(keyIRs ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
                     (f, GetField(value, f))
                   })
-//                  MakeStruct(child.typ.key.map(k => (k, GetField(key, k))) ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
-//                    (f, GetField(value, f))
-//                  })
                 }
               )
             }

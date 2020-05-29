@@ -758,9 +758,10 @@ class TableIRSuite extends HailSuite {
     println("Pretty IR from test")
     println(Pretty(keyByXAndAggregateSum))
 
-//    ("sum", ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(GetField(Ref("row", tir.typ.rowType), "z").toL), AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64)))),
-
-    assertEvalsTo(collect(keyByXAndAggregateSum), 8L)
+    assertEvalsTo(
+      collect(keyByXAndAggregateSum),
+      Row(FastIndexedSeq(Row(2, 1), Row(3,5), Row(4, 14), Row(5, 30), Row(6, 55), Row(7, 91), Row(8, 140), Row(9, 204)), Row())
+    )
   }
 
   @Test def testTableAggregate2(): Unit = {

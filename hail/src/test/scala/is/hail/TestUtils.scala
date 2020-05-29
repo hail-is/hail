@@ -372,7 +372,6 @@ object TestUtils {
             case ExecStrategy.LoweredJVMCompile =>
               loweredExecute(x, env, args, agg)
           }
-          println(res)
           assert(t.typeCheck(res))
           assert(t.valuesSimilar(res, expected), s"\n  result=$res\n  expect=$expected\n  strategy=$strat)")
         } catch {
