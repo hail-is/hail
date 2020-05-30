@@ -5711,3 +5711,28 @@ def _values_similar(left, right, tolerance=1e-6, absolute=False):
 def _locus_windows_per_contig(coords, radius):
     rt = hl.ttuple(hl.tarray(hl.tint32), hl.tarray(hl.tint32))
     return _func("locus_windows_per_contig", rt, coords, radius)
+
+
+@typecheck(a=expr_array(),
+           seed=nullable(int))
+def shuffle(a, seed: int = None) -> ArrayExpression:
+    """Randomly permute an array
+
+    Example
+    -------
+
+    >>> hl.eval(hl.shuffle(hl.range(5)))  # doctest: +SKIP_OUTPUT_CHECK
+    [4, 2, 0, 3, 1]
+
+    Parameters
+    ----------
+    a : :class:`.ArrayExpression`
+        Array to permute.
+    seed : :obj:`int`, optional
+        Random seed.
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+    """
+    return sorted(a, key=lambda _: hl.rand_unif(0.0, 1.0, seed=seed))
