@@ -1830,7 +1830,10 @@ class IRSuite extends HailSuite {
     assertEvalsTo(toNestedArray(StreamGrouped(a, I32(5))), FastIndexedSeq(FastIndexedSeq(3, null, 7)))
     assertFatal(toNestedArray(StreamGrouped(a, I32(0))), "StreamGrouped: nonpositive size")
 
-    val r = StreamRange(I32(0), I32(10), I32(1))
+    val r = rangeIR(10)
+
+    // test when inner streams are unused
+    assertEvalsTo(streamForceCount(StreamGrouped(rangeIR(10), 2)), 5)
 
     assertEvalsTo(StreamLen(StreamGrouped(r, 2)), 5)
 
@@ -1867,6 +1870,9 @@ class IRSuite extends HailSuite {
                                  FastIndexedSeq(Row(1, 2), Row(1, 4), Row(1, 6)),
                                  FastIndexedSeq(Row(4, null))))
     assertEvalsTo(toNestedArray(group(MakeStream(Seq(), TStream(structType)))), FastIndexedSeq())
+
+    // test when inner streams are unused
+    assertEvalsTo(streamForceCount(group(a)), 3)
 
     def takeFromEach(stream: IR, take: IR): IR = {
       val innerType = coerce[TStream](stream.typ)
