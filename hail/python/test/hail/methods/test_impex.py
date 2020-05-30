@@ -448,6 +448,32 @@ class VCFTests(unittest.TestCase):
         hl.export_vcf(mt, f)
         assert hl.import_vcf(f)._same(mt)
 
+    def test_vcf_parallel_export(self):
+        import glob
+        def concat_files(outpath, inpaths):
+            with open(outpath, 'wb') as outfile:
+                for path in inpaths:
+                    with open(path, 'rb') as infile:
+                        shutil.copyfileobj(infile, outfile)
+
+        mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4)
+        f = new_temp_file(extension='vcf.bgz')
+        hl.export_vcf(mt, f, parallel='separate_header')
+        shard_paths = glob.glob(f + "/*.bgz")
+        shard_paths.sort()
+        nf = new_temp_file(extension='vcf.bgz')
+        concat_files(nf, shard_paths)
+        assert hl.import_vcf(nf)._same(mt)
+
+        f = new_temp_file(extension='vcf.bgz')
+        hl.export_vcf(mt, f, parallel='composable')
+        shard_paths = glob.glob(f + "/*.bgz")
+        shard_paths.sort()
+        nf = new_temp_file(extension='vcf.bgz')
+        concat_files(nf, shard_paths)
+        assert hl.import_vcf(nf)._same(mt)
+
+
     def test_sorted(self):
         mt = hl.utils.range_matrix_table(10, 10, n_partitions=4).filter_cols(False)
         mt = mt.key_cols_by(s='dummy')
