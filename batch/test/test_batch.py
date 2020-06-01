@@ -544,7 +544,6 @@ echo $HAIL_BATCH_WORKER_IP
         try:
             batch = batch.submit()
         except aiohttp.ClientResponseError as e:
-            assert e.status == 400 and 'bunch contains job with duplicated parents' in e.message, \
-                f'bad status or error message {e} {e.status} {e.message}'
+            assert e.status == 400
         else:
             assert False, f'should receive a 400 Bad Request {batch.id}'
