@@ -9,11 +9,11 @@ openssl pkcs12 -export \
         -out shuffler-key-store.p12 \
         -passout pass:dummypw
 
-keytool -noprompt
-         -import
-         -alias incoming-cert
-         -file /ssl-config/shuffler-incoming.pem
-         -keystore shuffle-trust-store.jks
+keytool -noprompt \
+         -import \
+         -alias incoming-cert \
+         -file /ssl-config/shuffler-incoming.pem \
+         -keystore shuffle-trust-store.jks \
          -storepass dummypw
 
 java -jar /hail.jar is.hail.shuffler.server.ShuffleServer \
