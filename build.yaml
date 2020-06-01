@@ -667,19 +667,22 @@ steps:
    script: |
      set -ex
      cd /io
-     export HAIL_SHUFFLER_PORT=443
-     export HAIL_SHUFFLER_HOST="shuffler.{{ default_ns }}"
      openssl pkcs12 -export \
              -inkey /ssl-config/shuffler-tests-key.pem \
              -in /ssl-config/shuffler-tests-cert.pem \
-             -name shuffler-tests-key-store \
-             -out shuffler-tests-key-store.p12
-     openssl pkcs12 -export \
-             -nokeys \
-             -in /ssl-config/shuffler-tests-outgoing.pem \
-             -out shuffler-tests-trust-store.p12
-     export HAIL_SHUFFLER_SSL_CLIENT_KEY_STORE=/io/shuffler-tests-key-store.p12
-     export HAIL_SHUFFLER_SSL_CLIENT_TRUST_STORE=/io/shuffler-tests-trust-store.p12
+             -name shuffler-key-store \
+             -out /io/shuffler-tests-key-store.p12 \
+             -passout pass:dummypw
+     keytool -noprompt \
+              -import \
+              -alias incoming-cert \
+              -file /ssl-config/shuffler-tests-outgoing.pem \
+              -keystore /io/shuffler-tests-trust-store.jks \
+              -storepass dummypw
+     export HAIL_SHUFFLER_CLIENT_KEY_STORE=/io/shuffler-tests-key-store.p12
+     export HAIL_SHUFFLER_CLIENT_TRUST_STORE=/io/shuffler-tests-trust-store.jks
+     export HAIL_SHUFFLER_CLIENT_HOST="shuffler.{{ default_ns }}"
+     export HAIL_SHUFFLER_CLIENT_PORT=443
      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-shuffler.xml
    inputs:
     - from: /resources.tar.gz
