@@ -289,8 +289,6 @@ class RVDPartitioner(
       log.info(s"keysIfOneToOne ${lastType} ${TInt32} ${TInt64}")
       return None
     }
-    val pord = lastType.ordering
-
     def singleton(interval: Interval): Option[Row] = {
       log.info(s"keysIfOneToOne singleton")
       val left = interval.left.point.asInstanceOf[Row]
@@ -301,7 +299,7 @@ class RVDPartitioner(
       while (i < kType.types.length - 1) {
         if (i >= left.length ||
           i >= right.length ||
-          pord.compare(left(i), right(i)) != 0) {
+          kType.types(i).ordering.compare(left(i), right(i)) != 0) {
           log.info(s"bad ${kType} ${left.length} ${right.length} ${leftSign} ${left} ${rightSign} ${right}")
           return None
         }
