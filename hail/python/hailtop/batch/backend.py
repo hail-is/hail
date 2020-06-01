@@ -273,9 +273,9 @@ class ServiceBackend(Backend):
              delete_scratch_on_exit,
              wait=True,
              open=False,
-             disable_progress_bar=False):  # pylint: disable-msg=too-many-statements
-        """
-        Execute a batch.
+             disable_progress_bar=False,
+             callback=None):  # pylint: disable-msg=too-many-statements
+        """Execute a batch.
 
         Warning
         -------
@@ -298,6 +298,9 @@ class ServiceBackend(Backend):
             If `True`, open the UI page for the batch.
         disable_progress_bar: :obj:`bool`, optional
             If `True`, disable the progress bar.
+        callback: :obj:`str`, optional
+            If not `None`, a URL that will receive at most one POST request
+            after the entire batch completes.
         """
         build_dag_start = time.time()
 
@@ -312,7 +315,7 @@ class ServiceBackend(Backend):
         if batch.name is not None:
             attributes['name'] = batch.name
 
-        bc_batch = self._batch_client.create_batch(attributes=attributes)
+        bc_batch = self._batch_client.create_batch(attributes=attributes, callback=callback)
 
         n_jobs_submitted = 0
         used_remote_tmpdir = False
