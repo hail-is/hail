@@ -409,34 +409,42 @@ class TextTableReader(
               (localParams.skipBlankLines && line.isEmpty))
               false
             else {
-              val sp = TextTableReader.splitLine(line, localParams.separator, localParams.quote, ab, sb)
-              if (sp.length != nFieldOrig)
-                fatal(s"expected $nFieldOrig fields, but found ${ sp.length } fields")
+              try {
+                val sp = TextTableReader.splitLine(line, localParams.separator, localParams.quote, ab, sb)
+                if (sp.length != nFieldOrig)
+                  fatal(s"expected $nFieldOrig fields, but found ${ sp.length } fields")
 
-              rvb.start(requestedPType)
-              rvb.startStruct()
+                rvb.start(requestedPType)
+                rvb.startStruct()
 
-              var i = 0
-              while (i < useColIndices.length) {
-                val f = rowFields(i)
-                val name = f.name
-                val typ = f.typ
-                val field = sp(useColIndices(i))
-                try {
-                  if (localParams.missing.contains(field))
-                    rvb.setMissing()
-                  else
-                    rvb.addAnnotation(typ, TableAnnotationImpex.importAnnotation(field, typ))
-                } catch {
-                  case e: Exception =>
-                    fatal(s"""${ e.getClass.getName }: could not convert "$field" to $typ in column "$name" """, e)
+                var i = 0
+                while (i < useColIndices.length) {
+                  val f = rowFields(i)
+                  val name = f.name
+                  val typ = f.typ
+                  val field = sp(useColIndices(i))
+                  try {
+                    if (localParams.missing.contains(field))
+                      rvb.setMissing()
+                    else
+                      rvb.addAnnotation(typ, TableAnnotationImpex.importAnnotation(field, typ))
+                  } catch {
+                    case e: Exception =>
+                      fatal(s"""${ e.getClass.getName }: could not convert "$field" to $typ in column "$name" """, e)
+                  }
+                  i += 1
                 }
-                i += 1
-              }
 
-              rvb.endStruct()
-              rvb.end()
-              true
+                rvb.endStruct()
+                rvb.end()
+                true
+              } catch {
+                case e: Throwable =>
+                  fatal(
+                    s"""Caught exception while reading ${ bline.file }: ${ e.getMessage }
+                       |  offending line: @1""".stripMargin, line, e)
+
+              }
             }
           }.map(_ => rvb.result().offset)
       }
