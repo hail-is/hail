@@ -304,7 +304,6 @@ object LowerTableIR {
           val newKeyType = newKey.typ.asInstanceOf[TStruct]
           val oldRowType = child.typ.rowType
           val filteredOldRowType = oldRowType.filter(field => !newKeyType.fieldNames.contains(field.name))._1
-          val oldRowFieldsNotInNewKey = filteredOldRowType.fieldNames
           val shuffledRowType = newKeyType ++ filteredOldRowType
 
           val withNewKeyFields = loweredChild.mapPartition { partition =>
@@ -313,8 +312,7 @@ object LowerTableIR {
                 partitionElement,
                 bindIR(newKey) { newKeyRef =>
                   val getKeyFields = newKeyType.fieldNames.map(fieldName => fieldName -> GetField(newKeyRef, fieldName)).toIndexedSeq
-                  val getOtherFields = oldRowFieldsNotInNewKey.map(fieldName => fieldName -> GetField(partitionElement, fieldName)).toIndexedSeq
-                  MakeStruct( getKeyFields ++ getOtherFields)
+                  InsertFields(partitionElement, getKeyFields)
                 }
               )
             }

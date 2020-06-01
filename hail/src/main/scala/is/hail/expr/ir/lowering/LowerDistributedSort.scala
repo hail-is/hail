@@ -54,8 +54,7 @@ object LowerDistributedSort {
         val first = group.head.asInstanceOf[Row].select(partitionerKeyIndex)
         val last = group.last.asInstanceOf[Row].select(partitionerKeyIndex)
         Interval(first, last, includesStart = true, includesEnd = true)
-      }.toArray,
-      allowedOverlap = partitionerKeyType.size)
+      }.toIndexedSeq)
 
     new TableStage(letBindings = FastIndexedSeq.empty, Set(),
       globals = Literal(resultPType.fieldType("global").virtualType, rowsAndGlobal.get(1)),
