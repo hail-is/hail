@@ -14,6 +14,7 @@ import is.hail.services.batch_client.BatchClient
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
 import org.apache.log4j.LogManager
+import org.json4s.{DefaultFormats, Formats}
 import org.json4s.JsonAST.{JArray, JBool, JInt, JObject, JString}
 import org.json4s.jackson.JsonMethods
 
@@ -187,13 +188,17 @@ class ServiceBackend(queryFS: FS) extends Backend {
     log.info(s"parallelizeAndComputeWithIndex: token $token: running job")
 
     val batchClient = BatchClient.fromSessionID(backendContext.sessionID)
-    // FIXME check return
     val batch = batchClient.run(
       JObject(
         "billing_project" -> JString(backendContext.billingProject),
         "n_jobs" -> JInt(n),
         "token" -> JString(token)),
       jobs)
+    implicit val formats: Formats = DefaultFormats
+    val batchID = (batch \ "state").extract[Int]
+    val batchState = (batch \ "state").extract[String]
+    if (batchState != "success")
+      throw new RuntimeException(s"batch $batchID failed: $batchState")
 
     log.info(s"parallelizeAndComputeWithIndex: token $token: reading results")
 
