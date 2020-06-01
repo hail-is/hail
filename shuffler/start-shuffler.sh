@@ -18,9 +18,9 @@ keytool -noprompt \
 
 java -cp '/spark-2.4.0-bin-hadoop2.7/jars/*:/hail.jar' is.hail.shuffler.server.ShuffleServer \
      shuffler-key-store.p12 \
+     hail \
      PKCS12 \
-     hail \
      shuffler-trust-store.jks \
-     JKS \
      hail \
+     JKS \
      443
