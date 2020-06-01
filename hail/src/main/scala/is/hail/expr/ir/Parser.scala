@@ -690,6 +690,7 @@ object IRParser {
       case "F32" => F32(float32_literal(it))
       case "F64" => F64(float64_literal(it))
       case "Str" => Str(string_literal(it))
+      case "UUID4" => UUID4(identifier(it))
       case "True" => True()
       case "False" => False()
       case "Literal" =>

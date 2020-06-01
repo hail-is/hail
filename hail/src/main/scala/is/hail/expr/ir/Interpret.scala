@@ -835,7 +835,8 @@ object Interpret {
         Region.scoped { r =>
           SafeRow.read(rt, makeFunction(0, r)(r)).asInstanceOf[Row](0)
         }
-
+      case UUID4(_) =>
+         uuid4()
     }
   }
 }

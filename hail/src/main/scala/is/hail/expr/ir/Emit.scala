@@ -674,6 +674,10 @@ class Emit[C](
         presentC(const(x))
       case s@Str(x) =>
         presentPC(mb.addLiteral(x, coerce[PString](s.pType)))
+      case x@UUID4(_) =>
+        presentPC(PCode(x.pType, coerce[PString](x.pType).
+          allocateAndStoreString(mb, region, Code.invokeScalaObject0[String](
+            Class.forName("is.hail.expr.ir.package$"), "uuid4"))))
       case x@Literal(t, v) =>
         presentPC(mb.addLiteral(v, x.pType))
       case True() =>

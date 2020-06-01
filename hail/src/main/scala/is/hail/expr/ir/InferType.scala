@@ -13,6 +13,7 @@ object InferType {
       case F32(_) => TFloat32
       case F64(_) => TFloat64
       case Str(_) => TString
+      case UUID4(_) => TString
       case Literal(t, _) => t
       case True() | False() => TBoolean
       case Void() => TVoid
