@@ -16,7 +16,7 @@ keytool -noprompt \
          -keystore shuffle-trust-store.jks \
          -storepass dummypw
 
-java -jar /hail.jar is.hail.shuffler.server.ShuffleServer \
+java -cp /hail.jar is.hail.shuffler.server.ShuffleServer \
      shuffler-key-store.p12 \
      PKCS12 \
      hail \
