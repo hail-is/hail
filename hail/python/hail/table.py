@@ -575,8 +575,6 @@ class Table(ExprContainer):
                     list(key_fields),
                     is_sorted=True)))
 
-
-
     @typecheck_method(named_exprs=expr_any)
     def annotate_globals(self, **named_exprs) -> 'Table':
         """Add new global fields.
