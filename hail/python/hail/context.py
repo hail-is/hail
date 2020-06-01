@@ -204,7 +204,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         Spark configuration parameters.
     skip_logging_configuration : :obj:`bool`
         Skip logging configuration in java and python.
-    local_tmpdir : obj:`str`, optional
+    local_tmpdir : :obj:`str`, optional
         Local temporary directory.  Used on driver and executor nodes.
         Must use the file scheme.  Defaults to TMPDIR, or /tmp.
     """
