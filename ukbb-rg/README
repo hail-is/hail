@@ -23,16 +23,12 @@ app consists of two files:
  - app/app.R
  - app/www/rainbowvis.js
 
-which must be copied into ./app in this directory before running "make
-deploy" to update the images.
+which must be copied into ./app in this directory before running "make deploy"
+to update the images. You can find these files [in Duncan's GitHub repository at
+`/r2_browser`](https://github.com/astheeggeggs/UKBB_ldsc_r2/tree/master/r2_browser).
 
-The contents of docs and site_libs must be copied (using kubectl cp,
-for example) into ukbb-rg/ukbb-rg-static:/ukbb-rg-static.  So,
-
- - docs/rg_summary_102.html => /ukbb-rg-static/rg_summary_102.html, and
- - site_libs => /ukbb-rg-static/site_libs.
-
-Rdata_outputs must be copied into
-ukbb-rg/ukbb-rg-browser:/ukbb-rg-browser.
-
-Currently, this is done manually with possible downtime.
+The other three sets of files should already be present on the persistent disks
+associated with the stateful set. If they are not, you can upload them with
+`make update-ukbb-rg-browser-files` and `make
+update-ukbb-rg-static-files`. These make targets only work for stateful sets of
+size one.
