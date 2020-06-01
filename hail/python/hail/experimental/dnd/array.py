@@ -26,7 +26,7 @@ def read(fname: str) -> 'DNDArray':
     a = DNDArray(hl.read_table(fname))
     t = hl.read_table(fname, _intervals=[
         hl.Interval(hl.Struct(**{a.x_field: x, a.y_field: y}),
-                    hl.Struct(**{a.x_field: x, a.y_field: y+1}))
+                    hl.Struct(**{a.x_field: x, a.y_field: y + 1}))
         for x in range(a.n_block_rows)
         for y in range(a.n_block_cols)])
     return DNDArray(t)
@@ -102,7 +102,7 @@ class DNDArray:
             **{col_blocks: hl.range(n_block_cols).map(
                 lambda y: hl.struct(
                     y=y,
-                    entries=mt[entries][y*block_size:(y + 1)*block_size]))}
+                    entries=mt[entries][(y * block_size):((y + 1) * block_size)]))}
         )
         mt = mt.explode(col_blocks)
         mt = mt.select(row_index, **mt[col_blocks])
@@ -127,7 +127,7 @@ class DNDArray:
         mt.write(fname, _codec_spec=DNDArray.fast_codec_spec)
         t = hl.read_table(fname, _intervals=[
             hl.Interval(hl.Struct(x=x, y=y),
-                        hl.Struct(x=x, y=y+1))
+                        hl.Struct(x=x, y=y + 1))
             for x in range(n_block_rows)
             for y in range(n_block_cols)])
         return DNDArray(t)
