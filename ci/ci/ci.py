@@ -320,7 +320,7 @@ async def deploy_status(request, userdata):  # pylint: disable=unused-argument
 @routes.post('/api/v1alpha/update')
 @rest_authenticated_developers_only
 async def post_update(request, userdata):  # pylint: disable=unused-argument
-    log.info(f'developer triggered update')
+    log.info('developer triggered update')
 
     async def update_all():
         for wb in watched_branches:
