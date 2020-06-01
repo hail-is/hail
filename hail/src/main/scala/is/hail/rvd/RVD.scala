@@ -117,7 +117,7 @@ class RVD(
     val maybeKeys = if (newKey.toSet.subsetOf(typ.key.toSet)) {
       partitioner.keysIfOneToOne()
     } else None
-    if (isSorted && sharedPrefixLength == 0 && !newKey.isEmpty) {
+    if (isSorted && sharedPrefixLength == 0 && !newKey.isEmpty && maybeKeys.isEmpty) {
       throw new IllegalArgumentException(s"$isSorted, $sharedPrefixLength, $newKey, ${maybeKeys.isDefined}, ${typ}, ${partitioner}")
     }
 
