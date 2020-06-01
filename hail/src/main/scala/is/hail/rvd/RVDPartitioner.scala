@@ -283,14 +283,11 @@ class RVDPartitioner(
     if (kType.size == 0) {
       return None
     }
-    log.info(s"keysIfOneToOne ${kType.types}")
     val lastType = kType.types.last
     if (lastType != TInt32 && lastType != TInt64) {
-      log.info(s"keysIfOneToOne ${lastType} ${TInt32} ${TInt64}")
       return None
     }
     def singleton(interval: Interval): Option[Row] = {
-      log.info(s"keysIfOneToOne singleton")
       val left = interval.left.point.asInstanceOf[Row]
       val leftSign = interval.left.sign
       val right = interval.right.point.asInstanceOf[Row]
@@ -300,48 +297,61 @@ class RVDPartitioner(
         if (i >= left.length ||
           i >= right.length ||
           kType.types(i).ordering.compare(left(i), right(i)) != 0) {
-          log.info(s"bad ${kType} ${left.length} ${right.length} ${leftSign} ${left} ${rightSign} ${right}")
           return None
         }
         i += 1
       }
-      log.info(s"${kType} ${left.length} ${right.length} ${leftSign} ${left} ${rightSign} ${right} ${i}")
-      if (i >= left.length || i >= right.length)
-        return None
-      if (leftSign == rightSign) {
-        val isSizeOne = if (lastType == TInt32) {
-          val diff = left.getInt(i) - right.getInt(i)
-          diff == 1 || diff == -1
-        } else {
-          assert(lastType == TInt64)
-          val diff = left.getLong(i) - right.getLong(i)
-          diff == 1L || diff == -1L
+      if (i >= left.length || i >= right.length) {
+        None
+      } else {
+        val someContainedPoints = (leftSign, rightSign) match {
+          case (-1,  1) => Seq(left, right)  // [left, right]
+          case (-1, -1) => Seq(left)         // [left, right)
+          case ( 1,  1) => Seq(right)        // (left, right]
+          case ( 1, -1) => Seq()             // (left, right)
         }
-        if (isSizeOne) {
-          if (leftSign == -1) {
-            assert(rightSign == -1)
-            return Some(left)
-          } else {
-            assert(leftSign == 1)
-            assert(rightSign == 1)
-            return Some(right)
-          }
-        } else {
-          return None
+
+        (someContainedPoints, left.isNullAt(i), right.isNullAt(i), lastType) match {
+          case (Seq(), _, _, _) =>
+            None
+          case (_, false, true, _) =>
+            None
+          case (_, true, false, _) =>
+            None
+          case (Seq(somePoint), true, true, _) =>
+            Some(somePoint)
+          case (Seq(left, right), true, true, _) =>
+            Some(left) // both null so last field must be equal
+          case (Seq(somePoint), false, false, TInt32) =>
+            val diff = left.getInt(i) - right.getInt(i)
+            if (diff == 1 || diff == -1) {
+              Some(somePoint)
+            } else {
+              None
+            }
+          case (Seq(somePoint), false, false, TInt64) =>
+            val diff = left.getLong(i) - right.getLong(i)
+            if (diff == 1 || diff == -1) {
+              Some(somePoint)
+            } else {
+              None
+            }
+          case (Seq(lPoint, rPoint), false, false, TInt32) =>
+            if (left.getInt(i) == right.getInt(i)) {
+              Some(lPoint) // equal so it doesn't matter
+            } else {
+              None
+            }
+          case (Seq(lPoint, rPoint), false, false, TInt64) =>
+            if (left.getLong(i) == right.getLong(i)) {
+              Some(lPoint) // equal so it doesn't matter
+            } else {
+              None
+            }
+          case x =>
+            throw new AssertionError(s"unexpected case $x")
         }
       }
-      if (leftSign == -1 && rightSign == 1) {
-        val isSizeOne = if (lastType == TInt32) {
-          left.getInt(i) == right.getInt(i)
-        } else {
-          assert(lastType == TInt64)
-          left.getLong(i) == right.getLong(i)
-        }
-        if (isSizeOne)
-          return Some(left)
-        return None
-      }
-      return None
     }
 
     anyFailAllFail(rangeBounds.map(singleton))
