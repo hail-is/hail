@@ -16,7 +16,6 @@ spec:
         app: shuffler
         hail.is/sha: "{{ code.sha }}"
     spec:
-      serviceAccountName: shuffler
 {% if deploy %}
       priorityClassName: production
 {% endif %}
