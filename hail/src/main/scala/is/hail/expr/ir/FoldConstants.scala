@@ -16,6 +16,7 @@ object FoldConstants {
            _: RelationalRef |
            _: RelationalLet |
            _: ApplySeeded |
+           _: UUID4 |
            _: ApplyAggOp |
            _: ApplyScanOp |
            _: Begin |

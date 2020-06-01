@@ -2806,6 +2806,7 @@ class IRSuite extends HailSuite {
 
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
+      UUID4(),
       Cast(i, TFloat64),
       CastRename(NA(TStruct("a" -> TInt32)), TStruct("b" -> TInt32)),
       NA(TInt32), IsNA(i),
@@ -3556,5 +3557,30 @@ class IRSuite extends HailSuite {
     for (v <- Array(value, null)) {
       assertEvalsTo(ToArray(readArray), FastIndexedSeq(v -> pt.virtualType), Array.fill(10)(v).toFastIndexedSeq)
     }
+  }
+
+  @Test def testUUID4() {
+    val single = UUID4()
+    val hex = "[0-9a-f]"
+    val format = s"$hex{8}-$hex{4}-$hex{4}-$hex{4}-$hex{12}"
+    // 12345678-1234-5678-1234-567812345678
+    assertEvalsTo(
+      bindIR(single){ s =>
+        invoke("regexMatch", TBoolean, Str(format), s) &&
+          invoke("length", TInt32, s).ceq(I32(36))
+      }, true)
+
+    val stream = mapIR(rangeIR(5)) { _ => single }
+
+    def selfZip(s: IR, n: Int) = StreamZip(Array.fill(n)(s), Array.tabulate(n)(i => s"$i"),
+      MakeArray(Array.tabulate(n)(i => Ref(s"$i", TString)), TArray(TString)),
+      ArrayZipBehavior.AssumeSameLength)
+
+    def assertNumDistinct(s: IR, expected: Int) =
+      assertEvalsTo(ArrayLen(CastToArray(ToSet(s))), expected)
+
+    assertNumDistinct(stream, 5)
+    assertNumDistinct(flatten(selfZip(stream, 2)), 10)
+    assertNumDistinct(bindIR(ToArray(stream))(a => selfZip(ToStream(a), 2)), 5)
   }
 }

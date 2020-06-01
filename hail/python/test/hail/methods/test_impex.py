@@ -3,7 +3,7 @@ import os
 import unittest
 
 import shutil
-
+import pytest
 import hail as hl
 from ..helpers import *
 from hail.utils import new_temp_file, FatalError, run_command, uri_path
@@ -1743,6 +1743,7 @@ class ImportTableTests(unittest.TestCase):
         f = new_temp_file(extension='ht')
         ht.write(f)
         assert ht._same(hl.read_table(f))
+
     def test_read_write_identity_keyed(self):
         ht = self.small_dataset_1().key_by()
         f = new_temp_file(extension='ht')
@@ -1753,6 +1754,11 @@ class ImportTableTests(unittest.TestCase):
         ht = hl.import_table(resource('sampleAnnotations.tsv'))
         ht2 = hl.import_table(resource('sampleAnnotations.tsv'))
         assert ht._same(ht2)
+
+    def test_error_with_context(self):
+        with pytest.raises(FatalError, match='offending line'):
+            ht = hl.import_table(resource('tsv_errors.tsv'), types={'col1': 'int32'})
+            ht._force_count()
 
 
 class GrepTests(unittest.TestCase):
