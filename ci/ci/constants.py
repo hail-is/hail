@@ -12,8 +12,7 @@ AUTHORIZED_USERS = {
     'tpoterba',
     'chrisvittal',
     'catoverdrive',
-    'GreatBrando',
     'johnc1231',
-    'gsarma',
+    'nawatts',
     'mkveerapen'
 }
