@@ -250,26 +250,29 @@ public class BGzipInputStream extends SplitCompressionInputStream {
 
         // find first block
         fillInputBuffer();
-        boolean foundBlock = false;
+
+        // the beginning of the file must be a valid bgzip block
+        if (inputBufferInPos == 0) {
+            new BGzipHeader(inputBuffer, 0, inputBufferSize);
+            // inputBufferPos already 0
+            return;
+        }
+
         for (int i = 0; i < inputBufferSize - 1; ++i) {
             if ((inputBuffer[i] & 0xff) == 31
                     && (inputBuffer[i + 1] & 0xff) == 139) {
                 try {
                     new BGzipHeader(inputBuffer, i, inputBufferSize);
-
                     inputBufferPos = i;
-                    foundBlock = true;
-                    break;
+                    return;
                 } catch (ZipException e) {
 
                 }
             }
         }
 
-        if (!foundBlock) {
-            assert (inputBufferSize < BGZF_MAX_BLOCK_SIZE);
-            inputBufferPos = inputBufferSize;
-        }
+        assert (inputBufferSize < BGZF_MAX_BLOCK_SIZE);
+        inputBufferPos = inputBufferSize;
     }
 
     // pos is a virtual file pointer, it is not a strict offset into the compressed data.

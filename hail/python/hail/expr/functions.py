@@ -511,8 +511,9 @@ def rbind(*exprs, _ctx=None):
         Result of evaluating `f` with `exprs` as arguments.
     """
 
-    f = exprs[-1]
-    args = [expr_any.check(arg, 'rbind', f'argument {index}') for index, arg in enumerate(exprs[:-1])]
+    *args, f = exprs
+    args = [expr_any.check(arg, 'rbind', f'argument {index}')
+            for index, arg in enumerate(args)]
 
     return hl.bind(f, *args, _ctx=_ctx)
 

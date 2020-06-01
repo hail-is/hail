@@ -239,12 +239,6 @@ object TextTableReader {
   }
 
   def readMetadata(fs: FS, options: TextTableReaderParameters): TextTableReaderMetadata = {
-    HailContext.maybeGZipAsBGZip(fs, options.forceBGZ) { () =>
-      readMetadata1(fs, options)
-    }
-  }
-
-  def readMetadata1(fs: FS, options: TextTableReaderParameters): TextTableReaderMetadata = {
     val TextTableReaderParameters(files, _, _, separator, missing, hasHeader, impute, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ) = options
 
     val fileStatuses: Array[FileStatus] = {

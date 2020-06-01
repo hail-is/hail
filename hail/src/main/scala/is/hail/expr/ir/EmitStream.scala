@@ -1,4 +1,4 @@
- package is.hail.expr.ir
+package is.hail.expr.ir
 
 import is.hail.annotations.{CodeOrdering, Region, RegionValue, StagedRegionValueBuilder}
 import is.hail.asm4s._
@@ -220,16 +220,15 @@ abstract class Stream[+A] { self =>
       val xSize = ctx.mb.newLocal[Int]("st_grp_sz")
       val LchildPull = CodeLabel()
       val LouterPush = CodeLabel()
-      val LinnerPush = CodeLabel()
-      val LouterEos = CodeLabel()
 
       var childSource: Source[A] = null
       val inner = new Stream[A] {
         def apply(innerEos: Code[Ctrl], innerPush: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
           val LinnerEos = CodeLabel()
+          val LinnerPush = CodeLabel()
 
           childSource = self(
-            xInOuter.mux(LouterEos.goto, LinnerEos.goto),
+            xInOuter.mux(outerEos, LinnerEos.goto),
             { a =>
               Code(LinnerPush, innerPush(a))
 
@@ -247,7 +246,6 @@ abstract class Stream[+A] { self =>
             })
 
           Code(LinnerEos, innerEos)
-          Code(LchildPull, childSource.pull)
 
           Source[A](
             setup0 = Code._empty,
@@ -268,7 +266,15 @@ abstract class Stream[+A] { self =>
       }
 
       Code(LouterPush, outerPush(inner))
-      Code(LouterEos, outerEos)
+
+      if (childSource == null) {
+        // inner stream is unused
+        val Lunreachable = CodeLabel()
+        Code(Lunreachable, Code._fatal[Unit]("unreachable"))
+        val unusedInnerSource = inner(Lunreachable.goto, _ => Lunreachable.goto)
+      }
+
+      Code(LchildPull, childSource.pull)
 
       Source[Stream[A]](
         setup0 = childSource.setup0,
@@ -720,13 +726,14 @@ object EmitStream {
 
       val LchildPull = CodeLabel()
       val LouterPush = CodeLabel()
-      val LinnerPush = CodeLabel()
       val LouterEos = CodeLabel()
-      val LinnerEos = CodeLabel()
 
       var childSource: Source[PCode] = null
       val inner = new Stream[PCode] {
         def apply(innerEos: Code[Ctrl], innerPush: PCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[PCode] = {
+          val LinnerEos = CodeLabel()
+          val LinnerPush = CodeLabel()
+
           childSource = stream(
             xInOuter.mux(LouterEos.goto, Code(xEOS := true, LinnerEos.goto)),
             { a: PCode =>
@@ -747,7 +754,6 @@ object EmitStream {
 
           Code(LinnerPush, innerPush(xCurElt))
           Code(LinnerEos, innerEos)
-          Code(LchildPull, childSource.pull)
 
           Source[PCode](
             setup0 = Code._empty,
@@ -763,6 +769,15 @@ object EmitStream {
       }
 
       Code(LouterPush, outerPush(inner))
+
+      if (childSource == null) {
+        // inner stream is unused
+        val Lunreachable = CodeLabel()
+        Code(Lunreachable, Code._fatal[Unit]("unreachable"))
+        val unusedInnerSource = inner(Lunreachable.goto, _ => Lunreachable.goto)
+      }
+
+      Code(LchildPull, childSource.pull)
       Code(LouterEos, outerEos)
 
       Source[Stream[PCode]](

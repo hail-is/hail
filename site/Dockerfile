@@ -14,7 +14,7 @@ RUN ln -sf /dev/stderr /var/log/nginx/error.log
 
 RUN rm -f /etc/nginx/sites-enabled/default && \
     rm -f /etc/nginx/nginx.conf
-ADD hail.nginx.conf /etc/nginx/conf.d/hail.conf
+ADD hail.nginx.conf.in /
 ADD nginx.conf /etc/nginx/
 
 ADD poll.sh /poll.sh

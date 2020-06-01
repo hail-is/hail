@@ -217,6 +217,9 @@ object IEmitCode {
 
     IEmitCode(Lmissing, Lpresent, pc)
   }
+
+  def flatten(seq: IndexedSeq[() => IEmitCode], cb: EmitCodeBuilder)(f: IndexedSeq[PCode] => PCode): IEmitCode =
+    sequence(seq, { (i: () => IEmitCode) => i() }, cb)(f)
 }
 
 case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
@@ -832,6 +835,13 @@ class Emit[C](
         sc.store(cb)
 
         presentC(srvb.offset)
+
+      case x@ApplySeeded(fn, args, seed, rt) =>
+        val codeArgs = args.map(a => (a.pType, () => emitI(a)))
+        val impl = x.implementation
+        val unified = impl.unify(Array.empty[Type], args.map(_.typ), rt)
+        assert(unified)
+        impl.applySeededI(seed, cb, EmitRegion(mb, region), pt, codeArgs: _*)
 
       case _ =>
         emitFallback(ir)
@@ -1500,13 +1510,6 @@ class Emit[C](
         val value = Code(Code(ins), meth.invokeCode[Any](
           ((mb.getCodeParam[Region](1): Param) +: vars.map(_.get: Param)): _*))
         strict(pt, value, codeArgs: _*)
-      case x@ApplySeeded(fn, args, seed, rt) =>
-        val codeArgs = args.map(a => emit(a))
-        val impl = x.implementation
-        val unified = impl.unify(Array.empty[Type], args.map(_.typ), rt)
-        assert(unified)
-        impl.setSeed(seed)
-        impl.apply(EmitRegion(mb, region), pt, codeArgs: _*)
       case x@ApplySpecial(_, typeArgs, args, rt) =>
         val codeArgs = args.map(a => emit(a))
         val impl = x.implementation

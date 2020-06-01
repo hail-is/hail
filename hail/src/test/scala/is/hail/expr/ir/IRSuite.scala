@@ -42,14 +42,14 @@ object IRSuite {
       returnType: Type,
       calculateReturnType: (Type, Seq[PType]) => PType
     )(
-      impl: (EmitRegion, PType, Long, Array[EmitCode]) => EmitCode
+      impl: (EmitCodeBuilder, EmitRegion, PType, Long, Array[() => IEmitCode]) => IEmitCode
     ) {
       IRFunctionRegistry.addJVMFunction(
         new SeededMissingnessAwareJVMFunction(name, valueParameterTypes, returnType, calculateReturnType) {
           val isDeterministic: Boolean = false
-          def applySeeded(seed: Long, r: EmitRegion, returnPType: PType, args: EmitCode*): EmitCode = {
-            assert(unify(FastSeq(), args.map(_.pt.virtualType), returnPType.virtualType))
-            impl(r, returnPType, seed, args.toArray)
+          def applySeededI(seed: Long, cb: EmitCodeBuilder, r: EmitRegion, returnPType: PType, args: (PType, () => IEmitCode)*): IEmitCode = {
+            assert(unify(FastSeq(), args.map(_._1.virtualType), returnPType.virtualType))
+            impl(cb, r, returnPType, seed, args.map(a => a._2).toArray)
           }
         }
       )
@@ -61,28 +61,23 @@ object IRSuite {
       returnType: Type,
       calculateReturnType: (Type, PType) => PType
     )(
-      impl: (EmitRegion, PType, Long, EmitCode) => EmitCode
+      impl: (EmitCodeBuilder, EmitRegion, PType, Long, () => IEmitCode) => IEmitCode
     ): Unit =
       registerSeededWithMissingness(name, Array(valueParameterType), returnType, unwrappedApply(calculateReturnType)) {
-        case (r, rt, seed, Array(a1)) => impl(r, rt, seed, a1) }
+        case (cb, r, rt, seed, Array(a1)) => impl(cb, r, rt, seed, a1)
+      }
 
     def registerAll() {
-      registerSeededWithMissingness("incr_s", TBoolean, TBoolean, null) { case (mb, rt,  _, l) =>
-        EmitCode(Code(Code.invokeScalaObject0[Unit](outer.getClass, "incr"), l.setup),
-          l.m,
-          PCode(rt, l.v))
+      registerSeededWithMissingness("incr_s", TBoolean, TBoolean, null) { case (cb, mb, rt,  _, l) =>
+        cb += Code.invokeScalaObject0[Unit](outer.getClass, "incr")
+        l()
       }
 
-      registerSeededWithMissingness("incr_m", TBoolean, TBoolean, null) { case (mb, rt, _, l) =>
-        EmitCode(l.setup,
-          Code(Code.invokeScalaObject0[Unit](outer.getClass, "incr"), l.m),
-          PCode(rt, l.v))
-      }
-
-      registerSeededWithMissingness("incr_v", TBoolean, TBoolean, null) { case (mb, rt, _, l) =>
-        EmitCode(l.setup,
-          l.m,
-          PCode(rt, Code(Code.invokeScalaObject0[Unit](outer.getClass, "incr"), l.v)))
+      registerSeededWithMissingness("incr_v", TBoolean, TBoolean, null) { case (cb, mb, rt, _, l) =>
+        l().map(cb) { pc =>
+          cb += Code.invokeScalaObject0[Unit](outer.getClass, "incr")
+          pc
+        }
       }
     }
   }
@@ -1830,7 +1825,10 @@ class IRSuite extends HailSuite {
     assertEvalsTo(toNestedArray(StreamGrouped(a, I32(5))), FastIndexedSeq(FastIndexedSeq(3, null, 7)))
     assertFatal(toNestedArray(StreamGrouped(a, I32(0))), "StreamGrouped: nonpositive size")
 
-    val r = StreamRange(I32(0), I32(10), I32(1))
+    val r = rangeIR(10)
+
+    // test when inner streams are unused
+    assertEvalsTo(streamForceCount(StreamGrouped(rangeIR(10), 2)), 5)
 
     assertEvalsTo(StreamLen(StreamGrouped(r, 2)), 5)
 
@@ -1867,6 +1865,9 @@ class IRSuite extends HailSuite {
                                  FastIndexedSeq(Row(1, 2), Row(1, 4), Row(1, 6)),
                                  FastIndexedSeq(Row(4, null))))
     assertEvalsTo(toNestedArray(group(MakeStream(Seq(), TStream(structType)))), FastIndexedSeq())
+
+    // test when inner streams are unused
+    assertEvalsTo(streamForceCount(group(a)), 3)
 
     def takeFromEach(stream: IR, take: IR): IR = {
       val innerType = coerce[TStream](stream.typ)
@@ -3250,12 +3251,6 @@ class IRSuite extends HailSuite {
 
     def sm = ApplySeeded("incr_s", FastSeq(NA(TBoolean)), 0L, TBoolean)
 
-    def mt = ApplySeeded("incr_m", FastSeq(True()), 0L, TBoolean)
-
-    def mf = ApplySeeded("incr_m", FastSeq(True()), 0L, TBoolean)
-
-    def mm = ApplySeeded("incr_m", FastSeq(NA(TBoolean)), 0L, TBoolean)
-
     def vt = ApplySeeded("incr_v", FastSeq(True()), 0L, TBoolean)
 
     def vf = ApplySeeded("incr_v", FastSeq(True()), 0L, TBoolean)
@@ -3264,7 +3259,6 @@ class IRSuite extends HailSuite {
 
     // baseline
     test(st, true, 1); test(sf, true, 1); test(sm, true, 1)
-    test(mt, true, 1); test(mf, true, 1); test(mm, true, 1)
     test(vt, true, 1); test(vf, true, 1); test(vm, true, 0)
 
     // if
@@ -3272,10 +3266,6 @@ class IRSuite extends HailSuite {
     test(If(st, i, True()), true, 1)
     test(If(sf, i, True()), true, 1)
     test(If(sm, i, True()), true, 1)
-
-    test(If(mt, i, True()), true, 1)
-    test(If(mf, i, True()), true, 1)
-    test(If(mm, i, True()), true, 1)
 
     test(If(vt, i, True()), true, 1)
     test(If(vf, i, True()), true, 1)
@@ -3286,10 +3276,6 @@ class IRSuite extends HailSuite {
     test(If(i, sf, True()), true, 1)
     test(If(i, sm, True()), true, 1)
 
-    test(If(i, mt, True()), true, 1)
-    test(If(i, mf, True()), true, 1)
-    test(If(i, mm, True()), true, 1)
-
     test(If(i, vt, True()), true, 1)
     test(If(i, vf, True()), true, 1)
     test(If(i, vm, True()), true, 0)
@@ -3298,10 +3284,6 @@ class IRSuite extends HailSuite {
     test(If(i, True(), st), false, 1)
     test(If(i, True(), sf), false, 1)
     test(If(i, True(), sm), false, 1)
-
-    test(If(i, True(), mt), false, 1)
-    test(If(i, True(), mf), false, 1)
-    test(If(i, True(), mm), false, 1)
 
     test(If(i, True(), vt), false, 1)
     test(If(i, True(), vf), false, 1)

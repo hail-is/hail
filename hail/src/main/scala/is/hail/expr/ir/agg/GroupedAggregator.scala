@@ -286,14 +286,14 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
   }
 
   protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
-    cb += srvb.addArray(resultType.arrayFundamentalType, sab => EmitCodeBuilder.scopedVoid(sab.mb) { cb =>
+    cb += srvb.addArray(resultType.arrayFundamentalType, sab => EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
       cb += sab.start(state.size)
       state.foreach(cb) { (cb, km, kv) =>
-        cb += sab.addBaseStruct(resultType.elementType, ssb => EmitCodeBuilder.scopedVoid(ssb.mb) { cb =>
+        cb += sab.addBaseStruct(resultType.elementType, ssb => EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
           cb += ssb.start
           cb.ifx(km, cb += ssb.setMissing(), cb += ssb.addWithDeepCopy(kt, kv))
           cb += ssb.advance()
-          cb += ssb.addBaseStruct(resultEltType, svb => EmitCodeBuilder.scopedVoid(svb.mb) { cb =>
+          cb += ssb.addBaseStruct(resultEltType, svb => EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
             cb += svb.start()
             state.nested.toCode(cb, "grouped_result", { (cb, i, s) =>
               nestedAggs(i).result(cb, s, svb)

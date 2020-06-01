@@ -406,25 +406,6 @@ object HailContext {
     }
   }
 
-  def maybeGZipAsBGZip[T](fs: FS, force: Boolean)(body: () => T): T = {
-    if (!force)
-      return body()
-
-    val codecs = fs.getCodecs()
-    try {
-      fs.setCodecs(
-        codecs.map { codec =>
-          if (codec == "org.apache.hadoop.io.compress.GzipCodec")
-            "is.hail.io.compress.BGzipCodecGZ"
-          else
-            codec
-        })
-      body()
-    } finally {
-      fs.setCodecs(codecs)
-    }
-  }
-
   def pyRemoveIrVector(id: Int) {
     get.irVectors.remove(id)
   }
