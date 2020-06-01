@@ -76,7 +76,7 @@ class BatchClient(
     retryTransientErrors {
       using(httpClient.execute(req)) { resp =>
         val statusCode = resp.getStatusLine.getStatusCode
-        log.info(s"request: response $statusCode")
+        log.info(s"request ${ req.getMethod } ${ req.getURI } response $statusCode")
         if (statusCode < 200 || statusCode >= 300) {
           val entity = resp.getEntity
           val message =

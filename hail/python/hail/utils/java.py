@@ -40,14 +40,7 @@ class Env:
             backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
             if backend_name == 'service':
                 from hail.context import init_service
-                billing_project = os.environ['HAIL_BILLING_PROJECT']
-                if billing_project is None:
-                    raise ValueError('''\
-Cannot initialize Hail Query service backend without a billing
-project.  Call hl.init_service explicitly or set the
-HAIL_BILLING_PROJECT environment variable.
-''')
-                init_service(billing_project)
+                init_service()
             elif backend_name == 'spark':
                 from hail.context import init
                 init()

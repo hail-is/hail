@@ -1,12 +1,11 @@
 package is.hail.services
 
 import is.hail.utils._
-import org.json4s.{DefaultFormats, Formats, JValue}
+import org.json4s.{DefaultFormats, Formats}
 import java.io.{File, FileInputStream}
 import java.security.KeyStore
 
 import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
-import org.apache.commons.httpclient.protocol.{Protocol, ProtocolSocketFactory}
 import org.apache.log4j.{LogManager, Logger}
 import org.json4s.jackson.JsonMethods
 
@@ -36,7 +35,7 @@ package object tls {
     if (configFile == null)
       configFile = "/ssl-config/ssl-config.json"
     if (!new File(configFile).isFile)
-      throw new NoSSLConfigFound(s"no java ssl config file found at $configFile")
+      throw new NoSSLConfigFound(s"no ssl config file found at $configFile")
 
     log.info(s"ssl config file found at $configFile")
 

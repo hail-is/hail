@@ -74,9 +74,9 @@ object Worker {
 
 class ServiceBackendContext(
   val username: String,
-  val sessionID: String,
+  @transient val sessionID: String,
   val billingProject: String
-) extends BackendContext with Serializable
+) extends BackendContext
 
 object ServiceBackend {
   lazy val log = LogManager.getLogger("ServiceBackend")
