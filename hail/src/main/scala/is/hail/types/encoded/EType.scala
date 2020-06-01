@@ -275,7 +275,11 @@ object EType {
   }
 
   def defaultFromPType(pt: PType): EType = {
-    pt.fundamentalType match {
+    if (pt.isInstanceOf[PNDArray]) {
+      val pnd = pt.asInstanceOf[PNDArray]
+      ENDArray(defaultFromPType(pnd.elementType), pt.required)
+    }
+    else pt.fundamentalType match {
       case t: PInt32 => EInt32(t.required)
       case t: PInt64 => EInt64(t.required)
       case t: PFloat32 => EFloat32(t.required)
@@ -339,6 +343,13 @@ object EType {
         val args = IRParser.repsepUntil(it, IRParser.struct_field(eTypeParser), PunctuationToken(","), PunctuationToken("}"))
         IRParser.punctuation(it, "}")
         ETransposedArrayOfStructs(args.zipWithIndex.map { case ((name, t), i) => EField(name, t, i) }, req, structRequired)
+      case "ENDArray" =>
+        IRParser.punctuation(it, "[")
+        val elementType = eTypeParser(it)
+        IRParser.punctuation(it, "]")
+        ENDArray(elementType, req)
+      case x => throw new UnsupportedOperationException(s"Couldn't parse $x ${it.toIndexedSeq}")
+
     }
   }
 }
