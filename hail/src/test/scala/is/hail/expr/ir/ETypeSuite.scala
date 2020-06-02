@@ -31,7 +31,7 @@ class ETypeSuite extends HailSuite {
       EArray(EArray(EInt32Optional, required = true), required = true),
       EBaseStruct(FastIndexedSeq(), required = true),
       EBaseStruct(FastIndexedSeq(EField("x", EBinaryRequired, 0), EField("y", EFloat64Optional, 1)), required = true),
-      ENDArray(EArray(EFloat64Required, true), 3)
+      ENDArray(EFloat64Required , 3)
     ).map(t => Array(t: Any))
   }
 

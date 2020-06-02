@@ -75,10 +75,4 @@ case class ENDArray(elementType: EType, nDims: Int, required: Boolean = false) e
 
   override def _asIdent = s"ndarray_of_${elementType.asIdent}"
   override def _toPretty = s"ENDArray[$elementType,$nDims]"
-
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-    sb.append("ENDArray[")
-    elementType.pretty(sb, indent, compact)
-    sb.append("]")
-  }
 }
