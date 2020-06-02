@@ -38,11 +38,12 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testRangeRead() {
+    implicit val execStrats = ExecStrategy.lowering
     val original = TableKeyBy(TableMapGlobals(TableRange(10, 3), MakeStruct(FastIndexedSeq("foo" -> I32(57)))), FastIndexedSeq())
 
     val path = ctx.createTmpPath("test-range-read", "ht")
-    CompileAndEvaluate[Unit](ctx, TableWrite(original, TableNativeWriter(path, overwrite = true)), false)
-
+    val write = TableWrite(original, TableNativeWriter(path, overwrite = true))
+    assertEvalsTo(write, ())
     val read = TableIR.read(fs, path, false, None)
     val droppedRows = TableIR.read(fs, path, true, None)
 
