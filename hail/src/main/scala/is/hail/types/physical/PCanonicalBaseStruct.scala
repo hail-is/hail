@@ -192,11 +192,10 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
         addrVar := addr,
         stagedInitialize(addrVar, setMissing = true),
         Code(fields.zip(srcStruct.fields).map { case (dest, src) =>
+          assert(dest.typ.required <= src.typ.required)
           val idx = dest.index
           assert(idx == src.index)
-          srcStruct.isFieldMissing(srcAddrVar, idx).mux(
-            if (dest.typ.required <= src.typ.required) Code._empty else Code._fatal(s"required field ${ dest.name } in struct cannot be missing!"),
-            Code(
+          srcStruct.isFieldDefined(srcAddrVar, idx).orEmpty(Code(
             setFieldPresent(addrVar, idx),
             dest.typ.constructAtAddress(mb, fieldOffset(addrVar, idx), region, src.typ, srcStruct.loadField(srcAddrVar, idx), deepCopy))
           )
