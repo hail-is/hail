@@ -681,7 +681,7 @@ steps:
               -storepass dummypw
      export HAIL_SHUFFLER_CLIENT_KEY_STORE=/io/shuffler-tests-key-store.p12
      export HAIL_SHUFFLER_CLIENT_TRUST_STORE=/io/shuffler-tests-trust-store.jks
-     export HAIL_SHUFFLER_CLIENT_HOST="shuffler.{{ default_ns }}"
+     export HAIL_SHUFFLER_CLIENT_HOST="shuffler.{{ default_ns.name }}"
      export HAIL_SHUFFLER_CLIENT_PORT=443
      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-shuffler.xml
    inputs:
