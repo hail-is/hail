@@ -58,7 +58,12 @@ case class ENDArray(elementType: EType, nDims: Int, required: Boolean = false) e
   }
 
   override def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
-    ???
+    val arraySkipper = EArray(elementType, true).buildSkip(mb)
+
+    Code(
+      Code((0 until nDims * 2).map(_ => in.skipLong())),
+      arraySkipper(r, in)
+    )
   }
 
   def _decodedPType(requestedType: Type): PType = {

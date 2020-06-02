@@ -275,11 +275,7 @@ object EType {
   }
 
   def defaultFromPType(pt: PType): EType = {
-    if (pt.isInstanceOf[PNDArray]) {
-      val pnd = pt.asInstanceOf[PNDArray]
-      ENDArray(defaultFromPType(pnd.elementType), pnd.nDims, pnd.required)
-    }
-    else pt.fundamentalType match {
+    pt.fundamentalType match {
       case t: PInt32 => EInt32(t.required)
       case t: PInt64 => EInt64(t.required)
       case t: PFloat32 => EFloat32(t.required)

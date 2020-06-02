@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
 import is.hail.types.encoded._
-import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PCanonicalStringOptional, PCanonicalStringRequired, PCanonicalStruct, PInt32Optional, PInt32Required, PInt64Optional, PInt64Required, PType}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PCanonicalStringOptional, PCanonicalStringRequired, PCanonicalStruct, PFloat64Required, PInt32Optional, PInt32Required, PInt64Optional, PInt64Required, PType}
 import is.hail.io.{InputBuffer, MemoryBuffer, MemoryInputBuffer, MemoryOutputBuffer, OutputBuffer}
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._
@@ -111,11 +111,16 @@ class ETypeSuite extends HailSuite {
   }
 
   @Test def testNDArrayEncodeDecode(): Unit = {
-    val pType = PCanonicalNDArray(PInt32Required, 2, true)
-    val eType = ENDArray(EInt32Required, 2, true)
-    val data = Row(Row(2L, 2L), Row(16L, 8L), FastIndexedSeq(1, 2, 3, 4))
+    val pTypeInt2 = PCanonicalNDArray(PInt32Required, 2, true)
+    val eTypeInt2 = ENDArray(EInt32Required, 2, true)
+    val dataInt2 = Row(Row(2L, 2L), Row(16L, 8L), FastIndexedSeq(1, 2, 3, 4))
 
-    assertEqualEncodeDecode(pType, eType, pType, data)
+    assertEqualEncodeDecode(pTypeInt2, eTypeInt2, pTypeInt2, dataInt2)
+
+    val pTypeFloat3 = PCanonicalNDArray(PFloat64Required, 3, false)
+    val eTypeFloat3 = ENDArray(EFloat64Required, 3, false)
+    val dataFloat3 = Row(Row(3L, 2L, 1L), Row(32L, 16L, 16L), FastIndexedSeq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
+
+    assertEqualEncodeDecode(pTypeFloat3, eTypeFloat3, pTypeFloat3, dataFloat3)
   }
-
 }
