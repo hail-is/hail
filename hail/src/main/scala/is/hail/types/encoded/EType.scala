@@ -277,7 +277,7 @@ object EType {
   def defaultFromPType(pt: PType): EType = {
     if (pt.isInstanceOf[PNDArray]) {
       val pnd = pt.asInstanceOf[PNDArray]
-      ENDArray(defaultFromPType(pnd.elementType), pt.required)
+      ENDArray(defaultFromPType(pnd.elementType), pnd.nDims, pnd.required)
     }
     else pt.fundamentalType match {
       case t: PInt32 => EInt32(t.required)
@@ -346,8 +346,10 @@ object EType {
       case "ENDArray" =>
         IRParser.punctuation(it, "[")
         val elementType = eTypeParser(it)
+        IRParser.punctuation(it, ",")
+        val nDims = IRParser.int32_literal(it)
         IRParser.punctuation(it, "]")
-        ENDArray(elementType, req)
+        ENDArray(elementType, nDims,  req)
       case x => throw new UnsupportedOperationException(s"Couldn't parse $x ${it.toIndexedSeq}")
 
     }

@@ -7,7 +7,7 @@ import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils._
 
-case class ENDArray(elementType: EType, required: Boolean = false) extends EContainer {
+case class ENDArray(elementType: EType, nDims: Int, required: Boolean = false) extends EContainer {
   type DecodedPType = PCanonicalNDArray
 
   override def decodeCompatible(pt: PType): Boolean = {
@@ -27,9 +27,9 @@ case class ENDArray(elementType: EType, required: Boolean = false) extends ECont
     assert(pnd.elementType.required)
     val ndarray = coerce[Long](v)
 
-    val writeShapes = (0 until pnd.nDims).map(i => out.get.writeLong(pnd.loadShape(ndarray, i)))
+    val writeShapes = (0 until nDims).map(i => out.get.writeLong(pnd.loadShape(ndarray, i)))
     // Note, encoded strides is in terms of indices into ndarray, not bytes.
-    val writeStrides = (0 until pnd.nDims).map(i => out.get.writeLong(pnd.loadStride(ndarray, i) / pnd.elementType.byteSize))
+    val writeStrides = (0 until nDims).map(i => out.get.writeLong(pnd.loadStride(ndarray, i) / pnd.elementType.byteSize))
 
     val dataArrayType = EArray(elementType, required)
     val writeData = dataArrayType.buildEncoder(pnd.data.pType, mb.ecb)
@@ -43,8 +43,8 @@ case class ENDArray(elementType: EType, required: Boolean = false) extends ECont
 
   override def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] = {
     val pnd = pt.asInstanceOf[PCanonicalNDArray]
-    val shapeVars = (0 until pnd.nDims).map(i => mb.newLocal[Long](s"shape_$i"))
-    val strideVars = (0 until pnd.nDims).map(i => mb.newLocal[Long](s"stride_$i"))
+    val shapeVars = (0 until nDims).map(i => mb.newLocal[Long](s"shape_$i"))
+    val strideVars = (0 until nDims).map(i => mb.newLocal[Long](s"stride_$i"))
 
     val arrayDecoder = EArray(elementType, true).buildDecoder(pnd.data.pType, mb.ecb)
     val dataAddress = mb.newLocal[Long]("data_addr")
@@ -58,7 +58,6 @@ case class ENDArray(elementType: EType, required: Boolean = false) extends ECont
   }
 
   override def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
-    
     ???
   }
 
@@ -67,10 +66,10 @@ case class ENDArray(elementType: EType, required: Boolean = false) extends ECont
     val elementPType = elementType.decodedPType(requestedTNDArray.elementType)
     PCanonicalNDArray(elementPType, requestedTNDArray.nDims, required)
   }
-  override def setRequired(required: Boolean): EType = ENDArray(elementType, required)
+  override def setRequired(required: Boolean): EType = ENDArray(elementType, nDims, required)
 
   override def _asIdent = s"ndarray_of_${elementType.asIdent}"
-  override def _toPretty = s"ENDArray[$elementType]"
+  override def _toPretty = s"ENDArray[$elementType,$nDims]"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("ENDArray[")

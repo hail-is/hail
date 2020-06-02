@@ -31,7 +31,7 @@ class ETypeSuite extends HailSuite {
       EArray(EArray(EInt32Optional, required = true), required = true),
       EBaseStruct(FastIndexedSeq(), required = true),
       EBaseStruct(FastIndexedSeq(EField("x", EBinaryRequired, 0), EField("y", EFloat64Optional, 1)), required = true),
-      ENDArray(EArray(EFloat64Required,true))
+      ENDArray(EArray(EFloat64Required, true), 3)
     ).map(t => Array(t: Any))
   }
 
@@ -112,7 +112,7 @@ class ETypeSuite extends HailSuite {
 
   @Test def testNDArrayEncodeDecode(): Unit = {
     val pType = PCanonicalNDArray(PInt32Required, 2, true)
-    val eType = ENDArray(EInt32Required, true)
+    val eType = ENDArray(EInt32Required, 2, true)
     val data = Row(Row(2L, 2L), Row(16L, 8L), FastIndexedSeq(1, 2, 3, 4))
 
     assertEqualEncodeDecode(pType, eType, pType, data)
