@@ -170,6 +170,12 @@ package object ir {
   def insertIR(old: IR, fields: (String, IR)*): InsertFields = InsertFields(old, fields)
   def selectIR(old: IR, fields: String*): SelectFields = SelectFields(old, fields)
 
+  def zip2(s1: IR, s2: IR, behavior: ArrayZipBehavior.ArrayZipBehavior)(f: (Ref, Ref) => IR): IR = {
+    val r1 = Ref(genUID(), coerce[TStream](s1.typ).elementType)
+    val r2 = Ref(genUID(), coerce[TStream](s2.typ).elementType)
+    StreamZip(FastSeq(s1, s2), FastSeq(r1.name, r2.name), f(r1, r2), behavior)
+  }
+
   def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields)
 
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)

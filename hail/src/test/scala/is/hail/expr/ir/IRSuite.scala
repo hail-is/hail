@@ -16,7 +16,7 @@ import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
-import is.hail.rvd.RVD
+import is.hail.rvd.{RVD, RVDPartitioner}
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
 import is.hail.{ExecStrategy, HailContext, HailSuite}
@@ -2922,6 +2922,18 @@ class IRSuite extends HailSuite {
       ReadPartition(Str("foo"),
         TStruct("foo" -> TInt32),
         PartitionNativeReader(TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default))),
+      WritePartition(
+        MakeStream(FastSeq(), TStream(TStruct())), NA(TString),
+        PartitionNativeWriter(TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default), "path", None, None)),
+      WriteMetadata(
+        NA(TStruct("global" -> TString, "partitions" -> TStruct("filePath" -> TString, "partitionCounts" -> TInt64))),
+        MetadataNativeWriter("path", overwrite = false,
+          TypedCodecSpec(PType.canonical(TStruct("a" -> TInt32)), BufferSpec.default),
+          TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default),
+          TableType(TStruct("a" -> TInt32), IndexedSeq("a"), TStruct()),
+          new RVDPartitioner(TStruct("a" -> TInt32), Array[Interval](), 1),
+          PCanonicalStruct("a" -> PInt32()))
+      ),
       ReadValue(Str("foo"), TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default), TStruct("foo" -> TInt32)),
       WriteValue(I32(1), Str("foo"), TypedCodecSpec(PInt32(), BufferSpec.default)),
       LiftMeOut(I32(1)),

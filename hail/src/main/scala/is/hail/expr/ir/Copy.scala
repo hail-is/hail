@@ -328,6 +328,12 @@ object Copy {
       case ReadPartition(context, rowType, reader) =>
         assert(newChildren.length == 1)
         ReadPartition(newChildren(0).asInstanceOf[IR], rowType, reader)
+      case WritePartition(stream, ctx, writer) =>
+        assert(newChildren.length == 2)
+        WritePartition(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], writer)
+      case WriteMetadata(ctx, writer) =>
+        assert(newChildren.length == 1)
+        WriteMetadata(newChildren(0).asInstanceOf[IR], writer)
       case ReadValue(path, spec, requestedType) =>
         assert(newChildren.length == 1)
         ReadValue(newChildren(0).asInstanceOf[IR], spec, requestedType)

@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.methods.ForceCountTable
 import is.hail.types._
-import is.hail.types.physical.PType
+import is.hail.types.physical.{PStream, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -661,6 +661,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case ReadPartition(context, rowType, reader) =>
         requiredness.union(lookup(context).required)
         coerce[RIterable](requiredness).elementType.fromPType(reader.rowPType(rowType))
+      case WritePartition(value, writeCtx, writer) =>
+        val sType = coerce[PStream](lookup(value).canonicalPType(value.typ))
+        val ctxType = lookup(writeCtx).canonicalPType(writeCtx.typ)
+        requiredness.fromPType(writer.returnPType(ctxType, sType))
       case ReadValue(path, spec, rt) =>
         requiredness.union(lookup(path).required)
         requiredness.fromPType(spec.encodedType.decodedPType(rt))

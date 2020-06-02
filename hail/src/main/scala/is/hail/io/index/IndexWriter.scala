@@ -4,7 +4,7 @@ import java.io.OutputStream
 
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IEmitCode, ParamType, coerce}
+import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, EmitParamType, ExecuteContext, IEmitCode, ParamType, coerce}
 import is.hail.types
 import is.hail.types._
 import is.hail.types.encoded.EType
@@ -127,7 +127,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
 
   def setFieldValue(cb: EmitCodeBuilder, name: String, field: PCode): Unit = {
     cb += eltType.setFieldPresent(elt.a, name)
-    cb += StagedRegionValueBuilder.deepCopy(cb.emb.ecb, region, eltType.fieldType(name), field.code, eltType.fieldOffset(elt.a, name))
+    cb += eltType.fieldType(name).constructAtAddressFromValue(cb.emb, eltType.fieldOffset(elt.a, name), region, field.pt, field.code, deepCopy = true)
   }
 
   def setField(cb: EmitCodeBuilder, name: String, v: => IEmitCode): Unit =
@@ -262,6 +262,12 @@ object StagedIndexWriter {
       f
     }
   }
+
+  def withDefaults(keyType: PType, cb: EmitClassBuilder[_],
+    branchingFactor: Int = 4096,
+    annotationType: PType = +PCanonicalStruct(),
+    attributes: Map[String, Any] = Map.empty[String, Any]): StagedIndexWriter =
+    new StagedIndexWriter(branchingFactor, keyType, annotationType, attributes, cb)
 }
 
 class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PType, attributes: Map[String, Any], cb: EmitClassBuilder[_]) {
@@ -380,4 +386,38 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
     internalBuilder.create(cb)
     internalBuilder.store(cb, utils, 0)
   }
+
+  class NonImperativeIndexWriter(newInit: EmitMethodBuilder[_], newAdd: EmitMethodBuilder[_], newClose: EmitMethodBuilder[_]) {
+    def init(path: Code[String]): Code[Unit] = newInit.invokeCode(CodeParam(path))
+    def add(key: EmitCode, offset: Code[Long], annotation: EmitCode): Code[Unit] =
+      Code(
+        key.setup,
+        key.m.mux(
+          Code._fatal[Unit]("index key can't be missing"),
+          Code(
+            annotation.setup,
+            annotation.m.mux(
+              Code._fatal[Unit]("index annotation can't be missing"),
+              newAdd.invokeCode[Unit](key.value[Long], offset, annotation.value[Long])))))
+    def close(): Code[Unit] = newClose.invokeCode()
+  }
+
+  def streamCompatible(): NonImperativeIndexWriter = {
+    val newInit = cb.genEmitMethod("init", FastIndexedSeq[ParamType](typeInfo[String]), typeInfo[Unit])
+    val newAdd = cb.genEmitMethod("add",
+      FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Long], typeInfo[Long]),
+      typeInfo[Unit])
+    val newClose = cb.genEmitMethod("close", FastIndexedSeq[ParamType](), typeInfo[Unit])
+
+    newInit.voidWithBuilder(cb => init(cb, cb.emb.getCodeParam[String](1)))
+    newAdd.voidWithBuilder { codeBuilder =>
+      add(codeBuilder,
+        IEmitCode(codeBuilder, false, PCode(keyType, newAdd.getCodeParam[Long](1))),
+        newAdd.getCodeParam[Long](2),
+        IEmitCode(codeBuilder, false, PCode(annotationType, newAdd.getCodeParam[Long](3))))
+    }
+    newClose.voidWithBuilder(close)
+    new NonImperativeIndexWriter(newInit, newAdd, newClose)
+  }
+
 }

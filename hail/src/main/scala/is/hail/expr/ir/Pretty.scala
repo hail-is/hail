@@ -422,6 +422,10 @@ object Pretty {
             case RelationalLetBlockMatrix(name, _, _) => prettyIdentifier(name)
             case ReadPartition(_, rowType, reader) =>
               s"${ rowType.parsableString() } ${ prettyStringLiteral(JsonMethods.compact(reader.toJValue)) }"
+            case WritePartition(value, writeCtx, writer) =>
+              prettyStringLiteral(JsonMethods.compact(writer.toJValue))
+            case WriteMetadata(writeAnnotations, writer) =>
+              prettyStringLiteral(JsonMethods.compact(writer.toJValue))
             case ReadValue(_, spec, reqType) =>
               s"${ prettyStringLiteral(spec.toString) } ${ reqType.parsableString() }"
             case WriteValue(_, _, spec) => prettyStringLiteral(spec.toString)
