@@ -22,15 +22,7 @@ object Requiredness {
 }
 
 case class RequirednessAnalysis(r: Memo[BaseTypeWithRequiredness], states: Memo[Array[TypeWithRequiredness]]) {
-  def lookup(node: BaseIR): BaseTypeWithRequiredness = {
-    if (!r.contains(node)) {
-      r.m.keys.foreachBetween { re =>
-        println(Pretty(re.t))
-      }(println("\n\n"))
-    }
-
-    r.lookup(node)
-  }
+  def lookup(node: BaseIR): BaseTypeWithRequiredness = r.lookup(node)
   def apply(node: IR): TypeWithRequiredness = coerce[TypeWithRequiredness](lookup(node))
   def getState(node: IR): Array[TypeWithRequiredness] = states(node)
 }
