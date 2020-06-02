@@ -1,9 +1,9 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
-import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
+import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
 import is.hail.types.encoded._
-import is.hail.types.physical.{PCanonicalArray, PCanonicalStringOptional, PCanonicalStringRequired, PCanonicalStruct, PInt32Optional, PInt32Required, PInt64Optional, PInt64Required}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalStringOptional, PCanonicalStringRequired, PCanonicalStruct, PInt32Optional, PInt32Required, PInt64Optional, PInt64Required, PType}
 import is.hail.io.{InputBuffer, MemoryBuffer, MemoryInputBuffer, MemoryOutputBuffer, OutputBuffer}
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._
@@ -46,6 +46,37 @@ class ETypeSuite extends HailSuite {
     assert(Serialization.read[EType](s) == etype)
   }
 
+  def assertEqualEncodeDecode(inPType: PType, eType: EType, outPType: PType, data: Annotation): Unit = {
+    assert(inPType.virtualType == outPType.virtualType)
+
+    val fb = EmitFunctionBuilder[Long, OutputBuffer, Unit](ctx, "fb")
+    val arg1 = fb.apply_method.getCodeParam[Long](1)
+    val arg2 = fb.apply_method.getCodeParam[OutputBuffer](2)
+    val enc = eType.buildEncoderMethod(inPType, fb.apply_method.ecb)
+    fb.emit(enc.invokeCode(arg1, arg2))
+
+    val rvb = new RegionValueBuilder(ctx.r)
+    rvb.start(inPType)
+    rvb.addAnnotation(inPType.virtualType, data)
+    val x = rvb.end()
+
+    val buffer = new MemoryBuffer
+    val ob = new MemoryOutputBuffer(buffer)
+
+    fb.resultWithIndex()(0, ctx.r).apply(x, ob)
+    ob.flush()
+    buffer.clearPos()
+
+    val fb2 = EmitFunctionBuilder[Region, InputBuffer, Long](ctx, "fb2")
+    val regArg = fb2.apply_method.getCodeParam[Region](1)
+    val ibArg = fb2.apply_method.getCodeParam[InputBuffer](2)
+    val dec = eType.buildDecoderMethod(outPType, fb2.apply_method.ecb)
+    fb2.emit(dec.invokeCode(regArg, ibArg))
+
+    val result = fb2.resultWithIndex()(0, ctx.r).apply(ctx.r, new MemoryInputBuffer(buffer))
+    assert(SafeRow.read(outPType, result) == data)
+  }
+
   @Test def testDifferentRequirednessEncodeDecode() {
 
     val inPType = PCanonicalArray(
@@ -71,35 +102,9 @@ class ETypeSuite extends HailSuite {
         "d" -> PCanonicalArray(PCanonicalStruct(false, "x" -> PInt64Optional), false)),
       false)
 
-    assert(inPType.virtualType == outPType.virtualType)
     val data = FastIndexedSeq(Row(1, null, "abc", FastIndexedSeq(Row(7L), Row(8L))))
 
-
-    val fb = EmitFunctionBuilder[Long, OutputBuffer, Unit](ctx, "fb")
-    val arg1 = fb.apply_method.getCodeParam[Long](1)
-    val arg2 = fb.apply_method.getCodeParam[OutputBuffer](2)
-    val enc = etype.buildEncoderMethod(inPType, fb.apply_method.ecb)
-    fb.emit(enc.invokeCode(arg1, arg2))
-
-    val rvb = new RegionValueBuilder(ctx.r)
-    rvb.start(inPType)
-    rvb.addAnnotation(inPType.virtualType, data)
-    val x = rvb.end()
-
-    val buffer = new MemoryBuffer
-    val ob = new MemoryOutputBuffer(buffer)
-
-    fb.resultWithIndex()(0, ctx.r).apply(x, ob)
-    ob.flush()
-    buffer.clearPos()
-
-    val fb2 = EmitFunctionBuilder[Region, InputBuffer, Long](ctx, "fb2")
-    val regArg = fb2.apply_method.getCodeParam[Region](1)
-    val ibArg = fb2.apply_method.getCodeParam[InputBuffer](2)
-    val dec = etype.buildDecoderMethod(outPType, fb2.apply_method.ecb)
-    fb2.emit(dec.invokeCode(regArg, ibArg))
-
-    val result = fb2.resultWithIndex()(0, ctx.r).apply(ctx.r, new MemoryInputBuffer(buffer))
-    assert(SafeRow.read(outPType, result) == data)
+    assertEqualEncodeDecode(inPType, etype, outPType, data)
   }
+
 }
