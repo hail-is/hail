@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
 import is.hail.types.encoded._
-import is.hail.types.physical.{PCanonicalArray, PCanonicalStringOptional, PCanonicalStringRequired, PCanonicalStruct, PInt32Optional, PInt32Required, PInt64Optional, PInt64Required, PType}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PCanonicalStringOptional, PCanonicalStringRequired, PCanonicalStruct, PInt32Optional, PInt32Required, PInt64Optional, PInt64Required, PType}
 import is.hail.io.{InputBuffer, MemoryBuffer, MemoryInputBuffer, MemoryOutputBuffer, OutputBuffer}
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._
@@ -66,14 +66,17 @@ class ETypeSuite extends HailSuite {
     fb.resultWithIndex()(0, ctx.r).apply(x, ob)
     ob.flush()
     buffer.clearPos()
+    println("Got encode fb.result")
 
     val fb2 = EmitFunctionBuilder[Region, InputBuffer, Long](ctx, "fb2")
     val regArg = fb2.apply_method.getCodeParam[Region](1)
     val ibArg = fb2.apply_method.getCodeParam[InputBuffer](2)
     val dec = eType.buildDecoderMethod(outPType, fb2.apply_method.ecb)
     fb2.emit(dec.invokeCode(regArg, ibArg))
+    println("Emitted decoder")
 
     val result = fb2.resultWithIndex()(0, ctx.r).apply(ctx.r, new MemoryInputBuffer(buffer))
+    println("Got result")
     assert(SafeRow.read(outPType, result) == data)
   }
 
@@ -105,6 +108,14 @@ class ETypeSuite extends HailSuite {
     val data = FastIndexedSeq(Row(1, null, "abc", FastIndexedSeq(Row(7L), Row(8L))))
 
     assertEqualEncodeDecode(inPType, etype, outPType, data)
+  }
+
+  @Test def testNDArrayEncodeDecode(): Unit = {
+    val pType = PCanonicalNDArray(PInt32Required, 2, true)
+    val eType = ENDArray(EInt32Required, true)
+    val data = Row(Row(2L, 2L), Row(16L, 8L), FastIndexedSeq(1, 2, 3, 4))
+
+    assertEqualEncodeDecode(pType, eType, pType, data)
   }
 
 }

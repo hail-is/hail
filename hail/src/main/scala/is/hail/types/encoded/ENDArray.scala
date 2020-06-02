@@ -8,6 +8,20 @@ import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils._
 
 case class ENDArray(elementType: EType, required: Boolean = false) extends EContainer {
+  type DecodedPType = PCanonicalNDArray
+
+  override def decodeCompatible(pt: PType): Boolean = {
+    pt.required == required &&
+      pt.isInstanceOf[DecodedPType] &&
+      elementType.decodeCompatible(pt.asInstanceOf[DecodedPType].elementType)
+  }
+
+  override def encodeCompatible(pt: PType): Boolean = {
+    pt.required == required &&
+      pt.isInstanceOf[DecodedPType] &&
+      elementType.encodeCompatible(pt.asInstanceOf[DecodedPType].elementType)
+  }
+
   override def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     val pnd = pt.asInstanceOf[PCanonicalNDArray]
     assert(pnd.elementType.required)
@@ -31,12 +45,15 @@ case class ENDArray(elementType: EType, required: Boolean = false) extends ECont
     val pnd = pt.asInstanceOf[PCanonicalNDArray]
     val shapeVars = (0 until pnd.nDims).map(i => mb.newLocal[Long](s"shape_$i"))
     val strideVars = (0 until pnd.nDims).map(i => mb.newLocal[Long](s"stride_$i"))
-    val data = pnd.data.load(in.readLong())
+
+    val arrayDecoder = EArray(elementType, true).buildDecoder(pnd.data.pType, mb.ecb)
+    val dataAddress = mb.newLocal[Long]("data_addr")
 
     Code(
       Code(shapeVars.map(shapeVar => shapeVar := in.readLong())),
-      Code(strideVars.map(strideVar => strideVar := in.readLong() * pt.byteSize)),
-      pnd.construct(pnd.makeShapeBuilder(shapeVars), pnd.makeShapeBuilder(strideVars), data, mb)
+      Code(strideVars.map(strideVar => strideVar := (in.readLong() * pnd.elementType.byteSize))),
+      dataAddress := arrayDecoder(region, in),
+      pnd.construct(pnd.makeShapeBuilder(shapeVars), pnd.makeShapeBuilder(strideVars), dataAddress, mb)
     )
   }
 
