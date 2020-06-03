@@ -120,6 +120,7 @@ class LocalTests(unittest.TestCase):
                                        in2=input_file2.name)
             j = b.new_job()
             j.command(f'cat {input.in1} {input.in2} > {j.ofile}')
+            j.command(f'cat {input}.in1 {input}.in2')
             b.write_output(j.ofile, output_file.name)
             b.run()
 
@@ -349,6 +350,7 @@ class BatchTests(unittest.TestCase):
         j = b.new_job()
         j.storage('0.25Gi')
         j.command(f'cat {input.foo}')
+        j.command(f'cat {input}.foo')
         assert b.run().status()['state'] == 'success'
 
     def test_single_task_output(self):

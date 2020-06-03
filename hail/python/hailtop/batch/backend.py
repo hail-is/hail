@@ -10,7 +10,7 @@ from hailtop.config import get_deploy_config, get_user_config
 from hailtop.auth import get_userinfo
 from hailtop.batch_client.client import BatchClient
 
-from .resource import InputResourceFile, JobResourceFile
+from .resource import InputResourceFile, JobResourceFile, ResourceGroup
 
 
 class Backend:
@@ -55,7 +55,7 @@ class LocalBackend(Backend):
     """
 
     def __init__(self, tmp_dir='/tmp/', gsa_key_file=None, extra_docker_run_flags=None):
-        self._tmp_dir = tmp_dir
+        self._tmp_dir = tmp_dir.rstrip('/')
 
         flags = ''
 
@@ -100,7 +100,7 @@ class LocalBackend(Backend):
                   '\n']
 
         copied_input_resource_files = set()
-        os.makedirs(tmpdir + 'inputs/', exist_ok=True)
+        os.makedirs(tmpdir + '/inputs/', exist_ok=True)
 
         def copy_input(job, r):
             if isinstance(r, InputResourceFile):
@@ -111,10 +111,15 @@ class LocalBackend(Backend):
                         return [f'gsutil cp {r._input_path} {r._get_path(tmpdir)}']
 
                     absolute_input_path = shq(os.path.realpath(r._input_path))
-                    if job._image is not None:  # pylint: disable-msg=W0640
-                        return [f'cp {absolute_input_path} {r._get_path(tmpdir)}']
 
-                    return [f'ln -sf {absolute_input_path} {r._get_path(tmpdir)}']
+                    dest = r._get_path(tmpdir)
+                    dir = os.path.dirname(dest)
+                    os.makedirs(dir, exist_ok=True)
+
+                    if job._image is not None:  # pylint: disable-msg=W0640
+                        return [f'cp {absolute_input_path} {dest}']
+
+                    return [f'ln -sf {absolute_input_path} {dest}']
 
                 return []
 
@@ -138,6 +143,15 @@ class LocalBackend(Backend):
             return [f'{_cp(dest)} {r._get_path(tmpdir)} {shq(dest)}'
                     for dest in r._output_paths]
 
+        def symlink_input_resource_group(r):
+            symlinks = []
+            if isinstance(r, ResourceGroup) and r._source is None:
+                for name, irf in r._resources.items():
+                    src = irf._get_path(tmpdir)
+                    dest = f'{r._get_path(tmpdir)}.{name}'
+                    symlinks.append(f'ln -sf {src} {dest}')
+            return symlinks
+
         write_inputs = [x for r in batch._input_resources for x in copy_external_output(r)]
         if write_inputs:
             script += ["# Write input resources to output destinations"]
@@ -145,11 +159,12 @@ class LocalBackend(Backend):
             script += ['\n']
 
         for job in batch._jobs:
-            os.makedirs(tmpdir + job._uid + '/', exist_ok=True)
+            os.makedirs(f'{tmpdir}/{job._job_id}/', exist_ok=True)
 
-            script.append(f"# {job._uid} {job.name if job.name else ''}")
+            script.append(f"# {job._job_id}: {job.name if job.name else ''}")
 
             script += [x for r in job._inputs for x in copy_input(job, r)]
+            script += [x for r in job._mentioned for x in symlink_input_resource_group(r)]
 
             resource_defs = [r._declare(tmpdir) for r in job._mentioned]
 
@@ -193,12 +208,11 @@ class LocalBackend(Backend):
 
     def _get_scratch_dir(self):
         def _get_random_name():
-            directory = self._tmp_dir + '/batch-{}/'.format(uuid.uuid4().hex[:12])
-
-            if os.path.isdir(directory):
+            dir = f'{self._tmp_dir}/batch/{uuid.uuid4().hex[:6]}'
+            if os.path.isdir(dir):
                 return _get_random_name()
-            os.makedirs(directory, exist_ok=True)
-            return directory
+            os.makedirs(dir, exist_ok=True)
+            return dir
 
         return _get_random_name()
 
@@ -304,10 +318,9 @@ class ServiceBackend(Backend):
         """
         build_dag_start = time.time()
 
-        subdir_name = 'batch-{}'.format(uuid.uuid4().hex[:12])
-
-        remote_tmpdir = f'gs://{self._bucket_name}/batch/{subdir_name}'
-        local_tmpdir = f'/io/batch/{subdir_name}'
+        token = uuid.uuid4().hex[:6]
+        remote_tmpdir = f'gs://{self._bucket_name}/batch/{token}'
+        local_tmpdir = f'/io/batch/{token}'
 
         default_image = 'ubuntu:latest'
 
@@ -324,7 +337,7 @@ class ServiceBackend(Backend):
         jobs_to_command = {}
         commands = []
 
-        bash_flags = 'set -e' + ('x' if verbose else '') + '; '
+        bash_flags = 'set -e' + ('x' if verbose else '')
 
         activate_service_account = 'gcloud -q auth activate-service-account ' \
                                    '--key-file=/gsa-key/key.json'
@@ -344,6 +357,15 @@ class ServiceBackend(Backend):
                 return [(r._input_path, dest) for dest in r._output_paths]
             assert isinstance(r, JobResourceFile)
             return [(r._get_path(local_tmpdir), dest) for dest in r._output_paths]
+
+        def symlink_input_resource_group(r):
+            symlinks = []
+            if isinstance(r, ResourceGroup) and r._source is None:
+                for name, irf in r._resources.items():
+                    src = irf._get_path(local_tmpdir)
+                    dest = f'{r._get_path(local_tmpdir)}.{name}'
+                    symlinks.append(f'ln -sf {src} {dest}')
+            return symlinks
 
         write_external_inputs = [x for r in batch._input_resources for x in copy_external_output(r)]
         if write_external_inputs:
@@ -370,16 +392,23 @@ class ServiceBackend(Backend):
                 used_remote_tmpdir = True
             outputs += [x for r in job._external_outputs for x in copy_external_output(r)]
 
+            symlinks = [x for r in job._mentioned for x in symlink_input_resource_group(r)]
+
             env_vars = {r._uid: r._get_path(local_tmpdir) for r in job._mentioned}
 
             if job._image is None:
                 if verbose:
                     print(f"Using image '{default_image}' since no image was specified.")
 
-            make_local_tmpdir = f'mkdir -p {local_tmpdir}/{job._uid}/; '
+            make_local_tmpdir = f'mkdir -p {local_tmpdir}/{job._job_id}'
             job_command = [cmd.strip() for cmd in job._command]
 
-            cmd = bash_flags + make_local_tmpdir + " && ".join(job_command)
+            cmd = f'''
+{bash_flags}
+{make_local_tmpdir}
+{"; ".join(symlinks)}
+{" && ".join(job_command)}
+'''
 
             if dry_run:
                 commands.append(cmd)
@@ -421,7 +450,10 @@ class ServiceBackend(Backend):
         if delete_scratch_on_exit and used_remote_tmpdir:
             parents = list(jobs_to_command.keys())
             rm_cmd = f'gsutil -m rm -r {remote_tmpdir}'
-            cmd = bash_flags + f'{activate_service_account} && {rm_cmd}'
+            cmd = f'''
+{bash_flags}
+{activate_service_account} && {rm_cmd}
+'''
             j = bc_batch.create_job(
                 image='google/cloud-sdk:237.0.0-alpine',
                 command=['/bin/bash', '-c', cmd],

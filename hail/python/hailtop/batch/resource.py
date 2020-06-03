@@ -52,7 +52,6 @@ class ResourceFile(Resource, str):
         self._source = None
         self._output_paths = set()
         self._resource_group = None
-        self._has_extension = False
 
     def _get_path(self, directory):
         raise NotImplementedError
@@ -76,40 +75,6 @@ class ResourceFile(Resource, str):
 
     def _get_resource_group(self):
         return self._resource_group
-
-    def add_extension(self, extension):
-        """
-        Specify the file extension to use.
-
-        Examples
-        --------
-
-        >>> b = Batch()
-        >>> j = b.new_job()
-        >>> j.command(f'echo "hello" > {j.ofile}')
-        >>> j.ofile.add_extension('.txt')
-        >>> b.run()
-
-        Notes
-        -----
-        The default file name for a :class:`.ResourceFile` is a unique
-        identifier with no file extensions.
-
-        Parameters
-        ----------
-        extension: :obj:`str`
-            File extension to use.
-
-        Returns
-        -------
-        :class:`.ResourceFile`
-            Same resource file with the extension specified
-        """
-        if self._has_extension:
-            raise BatchException("Resource already has a file extension added.")
-        self._value += extension
-        self._has_extension = True
-        return self
 
     def __str__(self):
         return self._uid  # pylint: disable=no-member
@@ -167,10 +132,48 @@ class JobResourceFile(ResourceFile):
     to be saved.
     """
 
+    def __init__(self, value):
+        super().__init__(value)
+        self._has_extension = False
+
     def _get_path(self, directory):
         assert self._source is not None
         assert self._value is not None
-        return shq(directory + '/' + self._source._uid + '/' + self._value)
+        return shq(f'{directory}/{self._source._job_id}/{self._value}')
+
+    def add_extension(self, extension):
+        """
+        Specify the file extension to use.
+
+        Examples
+        --------
+
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> j.command(f'echo "hello" > {j.ofile}')
+        >>> j.ofile.add_extension('.txt')
+        >>> b.run()
+
+        Notes
+        -----
+        The default file name for a :class:`.ResourceFile` is a unique
+        identifier with no file extensions.
+
+        Parameters
+        ----------
+        extension: :obj:`str`
+            File extension to use.
+
+        Returns
+        -------
+        :class:`.ResourceFile`
+            Same resource file with the extension specified
+        """
+        if self._has_extension:
+            raise BatchException("Resource already has a file extension added.")
+        self._value += extension
+        self._has_extension = True
+        return self
 
 
 class ResourceGroup(Resource):
@@ -240,7 +243,7 @@ class ResourceGroup(Resource):
             resource_file._add_resource_group(self)
 
     def _get_path(self, directory):
-        subdir = self._source._uid if self._source else 'inputs'
+        subdir = str(self._source._job_id) if self._source else 'inputs'
         return directory + '/' + subdir + '/' + self._root
 
     def _add_output_path(self, path):
