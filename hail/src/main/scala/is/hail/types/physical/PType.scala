@@ -312,7 +312,7 @@ abstract class PType extends Serializable with Requiredness {
     sb.result()
   }
 
-  def unsafeOrdering(): UnsafeOrdering = ???
+  def unsafeOrdering(): UnsafeOrdering
 
   def isCanonical: Boolean = PType.canonical(this) == this // will recons, may need to rewrite this method
 

@@ -1,6 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.{CodeOrdering, Region, UnsafeOrdering}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.utils.FastIndexedSeq
@@ -12,6 +12,8 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PCCall")
 
   val representation: PType = PInt32(required)
+
+  override def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering()  // this was a terrible idea
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
     assert(other isOfType this)

@@ -1,5 +1,6 @@
 package is.hail.types.physical
 
+import is.hail.annotations.UnsafeOrdering
 import is.hail.types.virtual.{TStream, Type}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitUnrealizableValue, Stream}
 
@@ -10,6 +11,8 @@ final case class PCanonicalStream(elementType: PType, required: Boolean = false)
     else
       this.copy(elementType = elementType.fundamentalType)
   }
+
+  override def unsafeOrdering(): UnsafeOrdering = throw new NotImplementedError()
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("PCStream[")
