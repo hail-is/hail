@@ -1017,10 +1017,10 @@ LEFT JOIN attempts
 LEFT JOIN instances
   ON attempts.instance_name = instances.name
 LEFT JOIN aggregated_job_resources
-       ON jobs.batch_id = aggregated_job_resources.batch_id
-      AND jobs.job_id = aggregated_job_resources.job_id
+  ON jobs.batch_id = aggregated_job_resources.batch_id AND
+     jobs.job_id = aggregated_job_resources.job_id
 LEFT JOIN resources
-       ON aggregated_job_resources.resource = resources.resource
+  ON aggregated_job_resources.resource = resources.resource
 WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
 GROUP BY jobs.batch_id, jobs.job_id;
 ''',
@@ -1170,9 +1170,9 @@ SELECT
   SUM(IF(format_version >= 3, `usage` * rate, NULL)) as cost
 FROM batches
 LEFT JOIN aggregated_batch_resources
-       ON aggregated_batch_resources.batch_id = batches.id
+  ON aggregated_batch_resources.batch_id = batches.id
 LEFT JOIN resources
-        ON resources.resource = aggregated_batch_resources.resource
+  ON resources.resource = aggregated_batch_resources.resource
 WHERE `time_completed` >= %s AND `time_completed` <= %s
 GROUP BY billing_project, `user`;
 '''
