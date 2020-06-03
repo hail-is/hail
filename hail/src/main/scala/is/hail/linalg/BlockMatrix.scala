@@ -12,7 +12,7 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.Parser
 import is.hail.expr.ir.{CompileAndEvaluate, ExecuteContext, IR, TableValue}
 import is.hail.types._
-import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PFloat64Optional, PInt64, PInt64Optional, PStruct}
+import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PFloat64Optional, PFloat64Required, PInt64, PInt64Optional, PInt64Required, PStruct}
 import is.hail.types.virtual._
 import is.hail.io._
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
@@ -1247,7 +1247,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def entriesTable(ctx: ExecuteContext): TableValue = {
-    val rowType = PCanonicalStruct(true, "i" -> PInt64Optional, "j" -> PInt64Optional, "entry" -> PFloat64Optional)
+    val rowType = PCanonicalStruct(true, "i" -> PInt64Required, "j" -> PInt64Required, "entry" -> PFloat64Required)
     
     val entriesRDD = ContextRDD.weaken(blocks).cflatMap { case (ctx, ((blockRow, blockCol), block)) =>
       val rowOffset = blockRow * blockSize.toLong

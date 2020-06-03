@@ -132,7 +132,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   ): CodeOrdering.F[op.ReturnType] =
     ecb.getCodeOrdering(t1, t2, sortOrder, op, ignoreMissingness)
 
-  def addAggStates(aggSigs: Array[AggStatePhysicalSignature]): agg.TupleAggregatorState = ecb.addAggStates(aggSigs)
+  def addAggStates(aggSigs: Array[agg.AggStateSig]): agg.TupleAggregatorState = ecb.addAggStates(aggSigs)
 
   def genDependentFunction[F](baseName: String,
     maybeGenericParameterTypeInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
@@ -316,14 +316,14 @@ class EmitClassBuilder[C](
   private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
   private[this] var _backendField: Settable[BackendUtils] = _
 
-  private[this] var _aggSigs: Array[AggStatePhysicalSignature] = _
+  private[this] var _aggSigs: Array[agg.AggStateSig] = _
   private[this] var _aggRegion: Settable[Region] = _
   private[this] var _aggOff: Settable[Long] = _
   private[this] var _aggState: agg.TupleAggregatorState = _
   private[this] var _nSerialized: Int = 0
   private[this] var _aggSerialized: Settable[Array[Array[Byte]]] = _
 
-  def addAggStates(aggSigs: Array[AggStatePhysicalSignature]): agg.TupleAggregatorState = {
+  def addAggStates(aggSigs: Array[agg.AggStateSig]): agg.TupleAggregatorState = {
     if (_aggSigs != null) {
       assert(aggSigs sameElements _aggSigs)
       return _aggState
@@ -342,7 +342,7 @@ class EmitClassBuilder[C](
     val getSer = newEmitMethod("getSerializedAgg", FastIndexedSeq[ParamType](typeInfo[Int]), typeInfo[Array[Byte]])
 
     val (nfcode, states) = EmitCodeBuilder.scoped(newF) { cb =>
-      val states = agg.StateTuple(aggSigs.map(a => agg.Extract.getAgg(a, a.default).createState(cb)).toArray)
+      val states = agg.StateTuple(aggSigs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)).toArray)
       _aggState = new agg.TupleAggregatorState(this, states, _aggRegion, _aggOff)
       cb += (_aggRegion := newF.getCodeParam[Region](1))
       cb += _aggState.topRegion.setNumParents(aggSigs.length)

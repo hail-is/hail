@@ -696,14 +696,15 @@ object Interpret {
         function.execute(ctx, child.execute(ctx))
       case BlockMatrixToValueApply(child, function) =>
         function.execute(ctx, child.execute(ctx))
-      case TableAggregate(child, query) =>
+      case x@TableAggregate(child, query) =>
         val value = child.execute(ctx)
 
         val globalsBc = value.globals.broadcast
         val globalsOffset = value.globals.value.offset
 
         val res = genUID()
-        val extracted = agg.Extract(query, res)
+
+        val extracted = agg.Extract(query, res, Requiredness(x, ctx))
 
         val wrapped = if (extracted.aggs.isEmpty) {
           val (rt: PTuple, f) = Compile[AsmFunction2RegionLongLong](ctx,
@@ -717,20 +718,14 @@ object Interpret {
         } else {
           val spec = BufferSpec.defaultUncompressed
 
-          val physicalAggs = extracted.getPhysicalAggs(
-            ctx,
-            Env("global" -> value.globals.t),
-            Env("global" -> value.globals.decodedPType, "row" -> value.rvd.rowPType)
-          )
-
           val (_, initOp) = CompileWithAggregators2[AsmFunction2RegionLongUnit](ctx,
-            physicalAggs,
+            extracted.states,
             IndexedSeq(("global", value.globals.t)),
             IndexedSeq(classInfo[Region], LongInfo), UnitInfo,
             extracted.init)
 
           val (_, partitionOpSeq) = CompileWithAggregators2[AsmFunction3RegionLongLongUnit](ctx,
-            physicalAggs,
+            extracted.states,
             FastIndexedSeq(("global", value.globals.t),
               ("row", value.rvd.rowPType)),
             FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
@@ -752,7 +747,7 @@ object Interpret {
 
           // creates a region, giving ownership to the caller
           val read: WrappedByteArray => RegionValue = {
-            val deserialize = extracted.deserialize(ctx, spec, physicalAggs)
+            val deserialize = extracted.deserialize(ctx, spec)
             (a: WrappedByteArray) => {
               val r = Region(Region.SMALL)
               val res = deserialize(r, a.bytes)
@@ -763,7 +758,7 @@ object Interpret {
 
           // consumes a region, taking ownership from the caller
           val write: RegionValue => WrappedByteArray = {
-            val serialize = extracted.serialize(ctx, spec, physicalAggs)
+            val serialize = extracted.serialize(ctx, spec)
             (rv: RegionValue) => {
               val a = serialize(rv.region, rv.offset)
               rv.region.invalidate()
@@ -773,7 +768,7 @@ object Interpret {
 
           // takes ownership of both inputs, returns ownership of result
           val combOpF: (RegionValue, RegionValue) => RegionValue =
-            extracted.combOpF(ctx, spec, physicalAggs)
+            extracted.combOpF(ctx, spec)
 
           // returns ownership of a new region holding the partition aggregation
           // result
@@ -810,7 +805,7 @@ object Interpret {
 
           val (rTyp: PTuple, f) = CompileWithAggregators2[AsmFunction2RegionLongLong](
             ctx,
-            physicalAggs,
+            extracted.states,
             FastIndexedSeq(("global", value.globals.t)),
             FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
             Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))

@@ -156,8 +156,8 @@ class CollectAsSetAggregator(t: PType) extends StagedAggregator {
 
   assert(t.isCanonical)
   val resultType: PSet = PCanonicalSet(t)
-
-  def createState(cb: EmitCodeBuilder): State = new AppendOnlySetState(cb.emb.ecb, t)
+  val initOpTypes: Seq[PType] = Array[PType]()
+  val seqOpTypes: Seq[PType] = Array[PType](t)
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)

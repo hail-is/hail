@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.functions.GetElement
 import is.hail.methods.ForceCountTable
 import is.hail.types._
 import is.hail.types.physical.PType
@@ -9,15 +10,15 @@ import is.hail.utils._
 import scala.collection.mutable
 
 object Requiredness {
-  def apply(node: BaseIR, usesAndDefs: UsesAndDefs, ctx: ExecuteContext, env: Env[PType], aggState: Option[Array[AggStatePhysicalSignature]]): RequirednessAnalysis = {
+  def apply(node: BaseIR, usesAndDefs: UsesAndDefs, ctx: ExecuteContext, env: Env[PType]): RequirednessAnalysis = {
     val pass = new Requiredness(usesAndDefs, ctx)
-    pass.initialize(node, env, aggState)
+    pass.initialize(node, env)
     pass.run()
     pass.result()
   }
 
   def apply(node: BaseIR, ctx: ExecuteContext): RequirednessAnalysis =
-    apply(node, ComputeUsesAndDefs(node), ctx, Env.empty, None)
+    apply(node, ComputeUsesAndDefs(node), ctx, Env.empty)
 }
 
 case class RequirednessAnalysis(r: Memo[BaseTypeWithRequiredness], states: Memo[Array[TypeWithRequiredness]]) {
@@ -35,81 +36,16 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   private val defs = Memo.empty[Array[BaseTypeWithRequiredness]]
   private val states = Memo.empty[Array[TypeWithRequiredness]]
 
-  private class WrappedAggState(val scope: RefEquality[IR], private var _sig: Array[AggStatePhysicalSignature]) {
-    private var changed: Boolean = false
-    def probeChangedAndReset(): Boolean = {
-      val r = changed
-      changed = false
-      r
-    }
-
-    def matchesSignature(newSig: Array[AggStatePhysicalSignature]): Boolean =
-      sig != null && (newSig sameElements sig)
-
-    def setSignature(newSig: Array[AggStatePhysicalSignature]): Unit = {
-      if (_sig == null || !(newSig sameElements _sig)) {
-        changed = true
-        _sig = newSig
-      }
-    }
-
-    def sig: Array[AggStatePhysicalSignature] = _sig
-  }
-
-  private[this] val aggStateMemo = Memo.empty[WrappedAggState]
-
-  private[this] def computeAggState(sigs: IndexedSeq[AggStateSignature], irs: Seq[IR]): Array[AggStatePhysicalSignature] = {
-    val initsAB = InferPType.newBuilder[(AggOp, Seq[PType])](sigs.length)
-    val seqsAB = InferPType.newBuilder[(AggOp, Seq[PType])](sigs.length)
-    irs.foreach { ir => InferPType._extractAggOps(ir, inits = initsAB, seqs = seqsAB, Some(cache)) }
-    Array.tabulate(sigs.length) { i => InferPType.computePhysicalAgg(sigs(i), initsAB(i), seqsAB(i)) }
-  }
-
-  private[this] def initializeAggStates(node: BaseIR, wrapped: WrappedAggState): Unit = {
-    node match {
-      case x@RunAgg(body, result, signature) =>
-        val next = new WrappedAggState(RefEquality[IR](x), null)
-        initializeAggStates(body, next)
-        initializeAggStates(result, next)
-        aggStateMemo.bind(x, next)
-      case x@RunAggScan(array, name, init, seqs, result, signature) =>
-        initializeAggStates(array, wrapped)
-        val next = new WrappedAggState(RefEquality[IR](x), null)
-        initializeAggStates(init, next)
-        initializeAggStates(seqs, next)
-        initializeAggStates(result, next)
-        aggStateMemo.bind(x, next)
-      case x@InitOp(_, args, _, _) =>
-        aggStateMemo.bind(node, wrapped)
-        q += RefEquality(x)
-        args.foreach(a => dependents.getOrElseUpdate(a, mutable.Set[RefEquality[BaseIR]]()) += RefEquality(x))
-        if (wrapped.scope != null)
-          dependents.getOrElseUpdate(x, mutable.Set[RefEquality[BaseIR]]()) += wrapped.scope
-        node.children.foreach(initializeAggStates(_, wrapped))
-      case x@SeqOp(_, args, _, _) =>
-        aggStateMemo.bind(node, wrapped)
-        q += RefEquality(x)
-        args.foreach(a => dependents.getOrElseUpdate(a, mutable.Set[RefEquality[BaseIR]]()) += RefEquality(x))
-        if (wrapped.scope != null)
-          dependents.getOrElseUpdate(x, mutable.Set[RefEquality[BaseIR]]()) += wrapped.scope
-        node.children.foreach(initializeAggStates(_, wrapped))
-      case x: ResultOp =>
-        aggStateMemo.bind(node, wrapped)
-        if (wrapped.scope != null)
-          dependents.getOrElseUpdate(wrapped.scope, mutable.Set[RefEquality[BaseIR]]()) += RefEquality(x)
-      case _ => node.children.foreach(initializeAggStates(_, wrapped))
-    }
-  }
-
-  private[this] def lookupAggState(ir: IR): WrappedAggState = aggStateMemo(ir)
-
   def result(): RequirednessAnalysis = RequirednessAnalysis(cache, states)
 
   def lookup(node: IR): TypeWithRequiredness = coerce[TypeWithRequiredness](cache(node))
   def lookupAs[T <: TypeWithRequiredness](node: IR): T = coerce[T](cache(node))
   def lookup(node: TableIR): RTable = coerce[RTable](cache(node))
 
+  def supportedType(node: BaseIR): Boolean = node.isInstanceOf[TableIR] || node.isInstanceOf[IR]
+
   private def initializeState(node: BaseIR): Unit = if (!cache.contains(node)) {
+    assert(supportedType(node))
     val re = RefEquality(node)
     node match {
       case x: ApplyIR =>
@@ -122,10 +58,13 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         dependents.getOrElseUpdate(x.body, mutable.Set[RefEquality[BaseIR]]()) += re
       case _ =>
     }
-    node.children.foreach { c =>
-      initializeState(c)
-      if (node.typ != TVoid)
-        dependents.getOrElseUpdate(c, mutable.Set[RefEquality[BaseIR]]()) += re
+    node.children.foreach {
+      case c: BlockMatrixIR => //ignore block matrices
+      case c: MatrixIR => fatal("Requiredness analysis only works on lowered MatrixTables. ")
+      case c if supportedType(node) =>
+        initializeState(c)
+        if (node.typ != TVoid)
+          dependents.getOrElseUpdate(c, mutable.Set[RefEquality[BaseIR]]()) += re
     }
     if (node.typ != TVoid) {
       cache.bind(node, BaseTypeWithRequiredness(node.typ))
@@ -134,14 +73,15 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
     }
   }
 
-  def initialize(node: BaseIR, env: Env[PType], outerAggStates: Option[Array[AggStatePhysicalSignature]]): Unit = {
+  def initialize(node: BaseIR, env: Env[PType]): Unit = {
     initializeState(node)
-    usesAndDefs.uses.m.keys.foreach { n => addBindingRelations(n.t) }
+    usesAndDefs.uses.m.keys.foreach { n =>
+      if (supportedType(n.t)) addBindingRelations(n.t)
+    }
     if (usesAndDefs.free != null)
       usesAndDefs.free.foreach { re =>
         lookup(re.t).fromPType(env.lookup(re.t.name))
       }
-    initializeAggStates(node, outerAggStates.map { sigs => new WrappedAggState(null, sigs) }.orNull)
   }
 
   def run(): Unit = {
@@ -264,7 +204,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addElementBinding(name, a)
       case AggArrayPerElement(a, elt, idx, body, knownLength, isScan) =>
         addElementBinding(elt, a)
-      //idx is always required Int32
+        //idx is always required Int32
+        if (refMap.contains(idx))
+          refMap(idx).foreach { use => defs.bind(use, Array[BaseTypeWithRequiredness](RPrimitive())) }
       case NDArrayMap(nd, name, body) =>
         addElementBinding(name, nd)
       case NDArrayMap2(left, right, l, r, body) =>
@@ -423,13 +365,13 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         cReq.valueFields.foreach(n => valueStruct.field(n).unionFrom(cReq.field(n)))
         requiredness.unionGlobals(cReq.globalType)
       case TableToTableApply(child, function) => requiredness.maximize() //FIXME: needs implementation
+      case BlockMatrixToTableApply(child, _, function) => requiredness.maximize() //FIXME: needs implementation
+      case BlockMatrixToTable(child) => //all required
     }
     requiredness.probeChangedAndReset()
   }
 
   def analyzeIR(node: IR): Boolean = {
-    if (node.typ == TVoid)
-      return (node.isInstanceOf[InitOp] || node.isInstanceOf[SeqOp]) && (lookupAggState(node).scope != null)
     val requiredness = lookup(node)
     node match {
       // union all
@@ -571,14 +513,15 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         rit.union(lookup(a).required)
         rit.elementType.unionFrom(lookup(body))
       case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) => //FIXME round-tripping through ptype
-        val initPTypes = initOpArgs.map(a => lookup(a).canonicalPType(a.typ))
-        val seqPTypes = seqOpArgs.map(a => lookup(a).canonicalPType(a.typ))
-        requiredness.fromPType(aggSig.toPhysical(initPTypes, seqPTypes).returnType)
+        val pResult = agg.PhysicalAggSig(aggSig.op, agg.AggStateSig(aggSig.op,
+          initOpArgs.map(i => i -> lookup(i)),
+          seqOpArgs.map(s => s -> lookup(s)))).pResultType
+        requiredness.fromPType(pResult)
       case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
-        val initPTypes = initOpArgs.map(a => lookup(a).canonicalPType(a.typ))
-        val seqPTypes = seqOpArgs.map(a => lookup(a).canonicalPType(a.typ))
-        requiredness.fromPType(aggSig.toPhysical(initPTypes, seqPTypes).returnType)
-
+        val pResult = agg.PhysicalAggSig(aggSig.op, agg.AggStateSig(aggSig.op,
+          initOpArgs.map(i => i -> lookup(i)),
+          seqOpArgs.map(s => s -> lookup(s)))).pResultType
+        requiredness.fromPType(pResult)
       case MakeNDArray(data, shape, rowMajor) =>
         requiredness.unionFrom(lookup(data))
         requiredness.union(lookup(shape).required)
@@ -666,30 +609,14 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.fromPType(spec.encodedType.decodedPType(rt))
       case In(_, t) => requiredness.fromPType(t)
       case LiftMeOut(f) => requiredness.unionFrom(lookup(f))
-      case x@ResultOp(startIdx, aggSigs) =>
-        val wrappedSigs = lookupAggState(x)
-        if (wrappedSigs.sig != null) {
-          val pTypes = Array.tabulate(aggSigs.length) { i => wrappedSigs.sig(startIdx + i).resultType }
-          coerce[RBaseStruct](requiredness).fields.zip(pTypes).foreach { case (f, pt) =>
-            f.typ.fromPType(pt)
-          }
-        }
-      case x@RunAgg(body, result, signature) =>
-        val wrapped = lookupAggState(x)
-        val newAggSig = computeAggState(signature, FastSeq(body))
-        if (!wrapped.matchesSignature(newAggSig))
-          wrapped.setSignature(newAggSig)
-        else
-          requiredness.unionFrom(lookup(result))
-      case x@RunAggScan(array, name, init, seqs, result, signature) =>
+      case ResultOp(_, sigs) =>
+        val r = coerce[RBaseStruct](requiredness)
+        r.fields.foreach { f => f.typ.fromPType(sigs(f.index).pResultType) }
+      case RunAgg(_, result, _) =>
+        requiredness.unionFrom(lookup(result))
+      case RunAggScan(array, name, init, seqs, result, signature) =>
         requiredness.union(lookup(array).required)
-        val wrapped = lookupAggState(x)
-        val newAggSig = computeAggState(signature, FastSeq(init, seqs))
-        if (!wrapped.matchesSignature(newAggSig))
-          wrapped.setSignature(newAggSig)
-        else
-          coerce[RIterable](requiredness).elementType.unionFrom(lookup(result))
-
+        coerce[RIterable](requiredness).elementType.unionFrom(lookup(result))
       case TableAggregate(c, q) => requiredness.unionFrom(lookup(q))
       case TableGetGlobals(c) => requiredness.unionFrom(lookup(c).globalType)
       case TableCollect(c) =>
@@ -705,8 +632,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case TableCollect(c) =>
         coerce[RIterable](coerce[RStruct](requiredness).field("rows")).elementType.unionFrom(lookup(c).rowType)
         coerce[RStruct](requiredness).field("global").unionFrom(lookup(c).globalType)
+      case BlockMatrixToValueApply(child, GetElement(_)) => // BlockMatrix elements are all required
+      case BlockMatrixCollect(child) =>  // BlockMatrix elements are all required
     }
-    val aggScopeChanged = (node.isInstanceOf[RunAgg] || node.isInstanceOf[RunAggScan]) && (lookupAggState(node).probeChangedAndReset())
-    requiredness.probeChangedAndReset() | aggScopeChanged
+    requiredness.probeChangedAndReset()
   }
 }

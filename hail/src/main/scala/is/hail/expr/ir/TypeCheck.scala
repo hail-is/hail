@@ -339,12 +339,10 @@ object TypeCheck {
       case x@AggArrayPerElement(a, _, _, aggBody, knownLength, _) =>
         assert(x.typ == TArray(aggBody.typ))
         assert(knownLength.forall(_.typ == TInt32))
-      case x@InitOp(_, args, aggSig, op) =>
-        assert(args.map(_.typ).zip(aggSig.lookup(op).initOpArgs).forall { case (l, r) => l == r })
-      case x@SeqOp(_, args, aggSig, op) =>
-        val sig = aggSig.lookup(op)
-        assert(args.map(_.typ).zip(sig.seqOpArgs).forall { case (l, r) => l == r },
-          s"${args.map(_.typ.parsableString())} ${sig.seqOpArgs.map(_.parsableString)}")
+      case x@InitOp(_, args, aggSig) =>
+        assert(args.map(_.typ) == aggSig.initOpTypes)
+      case x@SeqOp(_, args, aggSig) =>
+        assert(args.map(_.typ) == aggSig.seqOpTypes)
       case _: CombOp =>
       case _: ResultOp =>
       case AggStateValue(i, sig) =>
