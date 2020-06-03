@@ -54,7 +54,7 @@ defaults are given. However, with Batch, we only get a subset of the computer, s
 explicitly specify how much resources Hail can use based on the input argument `--cores`.
 
 .. literalinclude:: files/run_gwas.py
-    :language: text
+    :language: python
     :emphasize-lines: 47-48
     :caption: run_gwas.py
     :name: run_gwas
