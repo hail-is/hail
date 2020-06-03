@@ -88,7 +88,6 @@ LEFT JOIN aggregated_batch_resources
   ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
   ON aggregated_batch_resources.resource = resources.resource
-ON batches.id = t.batch_id
 WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
    batches.`state` = 'complete'
 GROUP BY batches.id;
