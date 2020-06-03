@@ -261,6 +261,76 @@ class TableStage(
         .changePartitionerNoRepartition(adjustedPartitioner.copy(kType = newKeyType))
     }
   }
+
+  def orderedJoin(
+    right: TableStage,
+    joinKey: Int,
+    joinType: String,
+    globalJoiner: (IR, IR) => IR,
+    joiner: (Ref, Ref) => IR
+  ): TableStage = {
+    assert(this.kType.truncate(joinKey).isIsomorphicTo(right.kType.truncate(joinKey)))
+
+    val newPartitioner = {
+      def leftPart: RVDPartitioner = this.partitioner.strictify
+      def rightPart: RVDPartitioner = right.partitioner.coarsen(joinKey).extendKey(this.kType)
+      (joinType: @unchecked) match {
+        case "left" => leftPart
+        case "right" => rightPart
+        case "inner" => leftPart.intersect(rightPart)
+        case "outer" => RVDPartitioner.generate(
+          this.kType.fieldNames.take(joinKey),
+          this.kType,
+          leftPart.rangeBounds ++ rightPart.rangeBounds)
+      }
+    }
+    val repartitionedLeft: TableStage = this.repartitionNoShuffle(newPartitioner)
+
+    val partitionJoiner: (IR, IR) => IR = (lPart, rPart) => {
+      val lEltType = lPart.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
+      val rEltType = rPart.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
+
+      val lKey = this.kType.fieldNames.take(joinKey)
+      val rKey = right.kType.fieldNames.take(joinKey)
+
+      val lEltRef = Ref(genUID(), lEltType)
+      val rEltRef = Ref(genUID(), rEltType)
+
+      StreamJoin(lPart, rPart, lKey, rKey, lEltRef.name, rEltRef.name, joiner(lEltRef, rEltRef), joinType)
+    }
+
+    val newKey = kType.fieldNames ++ right.kType.fieldNames.drop(joinKey)
+
+    val leftKeyToRightKeyMap = kType.fieldNames.zip(right.kType.fieldNames).toMap
+    val newRightPartitioner = newPartitioner.coarsen(joinKey).strictify.rename(leftKeyToRightKeyMap)
+    val repartitionedRight = right.repartitionNoShuffle(newRightPartitioner)
+
+    repartitionedLeft.zipPartitions(repartitionedRight, globalJoiner, partitionJoiner)
+      .extendKeyPreservesPartitioning(newKey)
+  }
+
+  // 'joiner' must take all output key values from
+  // left stream, and be monotonic on left stream (it can drop or duplicate
+  // elements of left iterator, or insert new elements in order, but cannot
+  // rearrange them), and output values must conform to 'newTyp'. The
+  // partitioner of the result will be the left partitioner. Each partition will
+  // be computed by 'joiner', with corresponding partition of 'this' as first
+  // iterator, and with all rows of 'that' whose 'joinKey' might match something
+  // in partition as the second iterator.
+  def alignAndZipPartitions(
+    right: TableStage,
+    joinKey: Int,
+    globalJoiner: (IR, IR) => IR,
+    joiner: (IR, IR) => IR
+  ): TableStage = {
+    require(joinKey <= kType.size)
+    require(joinKey <= right.kType.size)
+
+    val leftKeyToRightKeyMap = kType.fieldNames.zip(right.kType.fieldNames).toMap
+    val newRightPartitioner = partitioner.coarsen(joinKey).strictify.rename(leftKeyToRightKeyMap)
+    val repartitionedRight = right.repartitionNoShuffle(newRightPartitioner)
+    zipPartitions(repartitionedRight, globalJoiner, joiner)
+  }
 }
 
 object LowerTableIR {
@@ -661,6 +731,32 @@ object LowerTableIR {
                 leftElementRef.name, rightElementRef.name,
                 joiningOp, "left")
             })
+
+        case TableJoin(left, right, joinType, joinKey) if joinType != "zip" =>
+          val loweredLeft = lower(left)
+          val loweredRight = lower(right)
+
+          val lKeyFields = left.typ.key.take(joinKey)
+          val lValueFields = left.typ.rowType.fieldNames.filter(f => !lKeyFields.contains(f))
+          val rKeyFields = right.typ.key.take(joinKey)
+          val rValueFields = right.typ.rowType.fieldNames.filter(f => !rKeyFields.contains(f))
+
+          loweredLeft.orderedJoin(
+            loweredRight, joinKey, joinType,
+            (lGlobals, rGlobals) => {
+              val rGlobalType = rGlobals.typ.asInstanceOf[TStruct]
+              val rGlobalRef = Ref(genUID(), rGlobalType)
+              Let(rGlobalRef.name, rGlobals,
+                  InsertFields(lGlobals, rGlobalType.fieldNames.map(f => f -> GetField(rGlobalRef, f))))
+            },
+            (lEltRef, rEltRef) => {
+            MakeStruct(
+              (lKeyFields, rKeyFields).zipped.map { (lKey, rKey) =>
+                lKey -> Coalesce(FastSeq(GetField(lEltRef, lKey), GetField(rEltRef, rKey)))
+              }
+                ++ lValueFields.map(f => f -> GetField(lEltRef, f))
+                ++ rValueFields.map(f => f -> GetField(rEltRef, f)))
+          })
 
         case TableOrderBy(child, sortFields) =>
           val loweredChild = lower(child)
