@@ -40,7 +40,7 @@ like the one depicted in the image below and execute it with the Batch Service.
 Create Hail GWAS Script
 -----------------------
 
-We wrote a stand-alone Python script that takes a VCF file, a phenotypes file,
+We wrote a stand-alone Python script `run_gwas.py` that takes a VCF file, a phenotypes file,
 the output destination file root, and the number of cores to use as input arguments.
 The Hail code for performing the GWAS is described
 `here <https://hail.is/docs/0.2/tutorials/01-genome-wide-association-study.html>`__.
@@ -53,9 +53,8 @@ Notice the lines highlighted below. Hail will attempt to use all cores on the co
 defaults are given. However, with Batch, we only get a subset of the computer, so we must
 explicitly specify how much resources Hail can use based on the input argument `--cores`.
 
-
 .. literalinclude:: files/run_gwas.py
-    :language: python
+    :language: text
     :emphasize-lines: 47-48
     :caption: run_gwas.py
     :name: run_gwas
@@ -93,7 +92,7 @@ To push the Docker image to GCR, we run the following Docker command:
 .. code-block:: sh
 
     docker tag 1kg-gwas gcr.io/<MY_PROJECT>/1kg-gwas
-	docker push gcr.io/<MY_PROJECT>/1kg-gwas
+    docker push gcr.io/<MY_PROJECT>/1kg-gwas
 
 Replace `<MY_PROJECT` with the name of your Google project. Make sure your Batch service account
 can access images in GCR by following the directions :ref:`here <service-accounts>`.
@@ -258,14 +257,16 @@ in Batch has no extension.
 
     phenotypes = batch.read_input('gs://hail-tutorial/1kg_annotations.txt')
 
-We use the `run_gwas` function defined above to create a new job on the batch:
+We use the `run_gwas` function defined above to create a new job on the batch to
+perform a GWAS that outputs a binary PLINK file and association results:
 
 .. code-block:: python
 
     gwas = run_gwas(batch, vcf, phenotypes)
 
 We call the `clump` function once per chromosome and aggregate a list of the
-clumping results files:
+clumping results files passing the outputs from the `gwas` job defined above
+as inputs to the `clump` function:
 
 .. code-block:: python
 
@@ -275,7 +276,9 @@ clumping results files:
         results.append(c.clumped)
 
 Finally, we use the `merge` function to concatenate the results into a single file
-and then write this output to a permanent location using :meth:`.Batch.write_output`
+and then write this output to a permanent location using :meth:`.Batch.write_output`.
+The inputs to the `merge` function are the clumped output files from each of the `clump`
+jobs.
 
 .. code-block:: python
 
@@ -286,5 +289,5 @@ The last thing we do is submit the Batch to the service and then close the Backe
 
 .. code-block:: python
 
-    batch.run(open=True, wait=False)
+    batch.run(open=True, wait=False)  # doctest: +SKIP
     backend.close()
