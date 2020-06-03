@@ -1222,7 +1222,7 @@ case class TableIntervalJoin(
     val rightValue = right.execute(ctx)
 
     val leftRVDType = leftValue.rvd.typ
-    val rightRVDType = rightValue.rvd.typ
+    val rightRVDType = rightValue.rvd.typ.copy(key = rightValue.typ.key)
     val rightValueFields = rightRVDType.valueType.fieldNames
 
     val localKey = typ.key
@@ -2327,11 +2327,11 @@ case class TableGroupWithinPartitions(child: TableIR, name: String, n: Int) exte
 
   override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
-    val prevRVD = prev.rvd
-    val prevRowType = prev.rvd.typ.rowType
+    val prevRVD = prev.rvd.truncateKey(child.typ.key)
+    val prevRowType = prevRVD.typ.rowType
 
     val rowType = PCanonicalStruct(required = true,
-      prev.rvd.typ.kType.fields.map(f => (f.name, f.typ)) ++
+      prevRVD.typ.kType.fields.map(f => (f.name, f.typ)) ++
         Array((name, PCanonicalArray(prevRowType, required = true))): _*)
     val newRVDType = prevRVD.typ.copy(rowType = rowType)
     val keyIndices = child.typ.keyFieldIdx
