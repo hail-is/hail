@@ -62,3 +62,18 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-shuffler
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shuffler
+  annotations:
+    cloud.google.com/load-balancer-type: "Internal"
+spec:
+  selector:
+    app: shuffler
+  ports:
+    - protocol: TCP
+      port: 443
+      targetPort: 443
+  type: LoadBalancer

@@ -25,9 +25,11 @@ class ShuffleSuite extends HailSuite {
   private[this] def arrayOfUnsafeRow(elementPType: PStruct, array: Array[Long]): Array[UnsafeRow] =
     array.map(new UnsafeRow(elementPType, null, _)).toArray
 
+  private[this] val isRemoteTest = System.getenv("HAIL_SHUFFLER_REMOTE_TEST") != null
+
   @Test def testShuffle() {
     var server: ShuffleServer = null
-    if (ShuffleClient.isLocalTest) {
+    if (isRemoteTest) {
       server = new ShuffleServer(sslContext(
         "src/test/resources/non-secret-key-and-trust-stores/server-keystore.p12",
         "hailhail",
@@ -129,7 +131,7 @@ class ShuffleSuite extends HailSuite {
 
   @Test def testShuffleIR() {
     var server: ShuffleServer = null
-    if (ShuffleClient.isLocalTest) {
+    if (isRemoteTest) {
       val server = new ShuffleServer(sslContext(
         "src/test/resources/non-secret-key-and-trust-stores/server-keystore.p12",
         "hailhail",
