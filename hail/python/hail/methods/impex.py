@@ -381,13 +381,13 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     Env.backend().execute(ir.MatrixWrite(dataset._mir, writer))
 
 
-@typecheck(dataset=MatrixTable,
+@typecheck(dataset=oneof(MatrixTable, Table),
            output=str,
            append_to_header=nullable(str),
            parallel=nullable(ir.ExportType.checker),
            metadata=nullable(dictof(str, dictof(str, dictof(str, str)))))
 def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=None):
-    """Export a :class:`.MatrixTable` as a VCF file.
+    """Export a :class:`.MatrixTable` or :class:`.Table` as a VCF file.
 
     .. include:: ../_templates/req_tvariant.rst
 
@@ -417,7 +417,8 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     The FORMAT field is generated from the entry schema, which
     must be a :class:`.tstruct`.  There is a FORMAT
-    field for each field of the struct.
+    field for each field of the struct. If `dataset` is a :class:`.Table`,
+    then there will be no FORMAT field and the output will be a sites-only VCF.
 
     INFO and FORMAT fields may be generated from Struct fields of type
     :py:data:`.tcall`, :py:data:`.tint32`, :py:data:`.tfloat32`,
@@ -493,6 +494,10 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         dictionary should be structured.
 
     """
+    if isinstance(dataset, Table):
+        mt = MatrixTable.from_rows_table(dataset)
+        dataset = mt.key_cols_by(sample="")
+
     require_col_key_str(dataset, 'export_vcf')
     require_row_key_variant(dataset, 'export_vcf')
     row_fields_used = {'rsid', 'info', 'filters', 'qual'}

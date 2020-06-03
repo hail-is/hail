@@ -280,6 +280,15 @@ class VCFTests(unittest.TestCase):
         mt2 = hl.import_vcf(tmp, reference_genome='GRCh38')
         self.assertTrue(mt._same(mt2))
 
+    def test_export_sites_only_from_table(self):
+        mt = hl.import_vcf(resource('sample.vcf.bgz'))\
+            .select_entries()\
+            .filter_cols(False)
+
+        tmp = new_temp_file(extension="vcf")
+        hl.export_vcf(mt.rows(), tmp)
+        assert hl.import_vcf(tmp)._same(mt)
+
     @skip_unless_spark_backend()
     def test_import_gvcfs(self):
         path = resource('sample.vcf.bgz')
