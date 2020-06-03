@@ -956,13 +956,35 @@ steps:
     - default_ns
     - router_image
     - create_certs
+ - kind: runImage
+   name: build_site_www
+   image:
+     valueFrom: hail_build_image.image
+   script: |
+     make -C site/www
+     rsync rsync --archive \
+           --verbose \
+           --exclude='*.xslt' \
+           --exclude='*.md' \
+           site/www/* \
+           /io/www
+     cs /io/www && tar -cvzf /io/site-www.tar.gz /io/www/*
+   outputs:
+    - from: /io/site-www.tar.gz
+      to: /site-www.tar.gz
+   dependsOn:
+     - hail_build_image
  - kind: buildImage
    name: site_image
    dockerFile: site/Dockerfile
    contextPath: site
    publishAs: site
+   inputs:
+     from: /site-www.tar.gz
+     to: /site-www.tar.gz
    dependsOn:
      - base_image
+     - build_site_www
  - kind: deploy
    name: deploy_site
    namespace:
