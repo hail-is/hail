@@ -1,4 +1,4 @@
-FROM debian:9.5
+ooFROM debian:9.5
 
 RUN apt-get update -y && \
     apt-get install -y nginx curl python-minimal && \
@@ -21,5 +21,13 @@ ADD poll.sh /poll.sh
 ADD poll-0.1.sh /poll-0.1.sh
 ADD poll-0.2.sh /poll-0.2.sh
 ADD site.sh /site.sh
+ADD www /tmp/www
+RUN make -C /tmp/www && \
+    rsync --archive \
+          --verbose \
+          --exclude='*.xslt' \
+          --exclude='*.md' \
+          /tmp/www/ \
+          /var/www/html
 
 CMD ["/bin/bash", "/site.sh"]

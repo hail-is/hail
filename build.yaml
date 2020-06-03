@@ -455,13 +455,6 @@ steps:
    dependsOn:
      - auth_image
  - kind: buildImage
-   name: site_image
-   dockerFile: site/Dockerfile
-   contextPath: site
-   publishAs: site
-   dependsOn:
-     - base_image
- - kind: buildImage
    name: router_image
    dockerFile: router/Dockerfile
    contextPath: router
@@ -963,6 +956,13 @@ steps:
     - default_ns
     - router_image
     - create_certs
+ - kind: buildImage
+   name: site_image
+   dockerFile: site/Dockerfile
+   contextPath: site
+   publishAs: site
+   dependsOn:
+     - base_image
  - kind: deploy
    name: deploy_site
    namespace:
