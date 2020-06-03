@@ -12,18 +12,17 @@ if [[ $DEPLOYED_SHA = $LATEST_SHA ]]; then
     exit 0
 fi
 
-mkdir -p /var/www/html-new
+new=$(mktemp -d)
+
+mkdir -p $new
 
 gsutil cat gs://hail-common/builds/0.2/docs/hail-0.2-docs-$LATEST_SHA.tar.gz |
-    tar zxvf - -C /var/www/html-new --strip-components=1
+    tar zxvf - -C $new --strip-components=1
 
-ln -s /var/www/0.1 /var/www/html-new/docs/0.1
+old=$(mktemp -d)
 
-# just in case
-rm -rf /var/www/html-old
-
-mv /var/www/html /var/www/html-old || true
-mv /var/www/html-new /var/www/html
-rm -rf /var/www/html-old
+mv /var/www/docs/0.2 $old || true
+mv $new /var/www/docs/0.2
+rm -rf $old
 
 echo $LATEST_SHA > /var/www/0.2-deployed-hash.txt

@@ -282,7 +282,6 @@ test: pytest jvm-test doctest tutorial-test
 docs-no-test: install $(PYTHON_VERSION_INFO) install-dev-deps
 	mkdir -p build
 	rm -rf build/www
-	cp -R www build/www
 	rm -rf build/docs
 	mkdir -p build/docs
 	cp -R python/hail/docs build/
@@ -290,8 +289,6 @@ docs-no-test: install $(PYTHON_VERSION_INFO) install-dev-deps
 	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
     < build/docs/change_log.md \
     | pandoc -o build/docs/change_log.rst
-	$(MAKE) -C build/www
-	rm build/www/*.md
 	$(MAKE) -C build/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
