@@ -32,7 +32,10 @@ case class TInterval(pointType: Type) extends ComplexType {
 
   override def scalaClassTag: ClassTag[Interval] = classTag[Interval]
 
-  lazy val ordering: ExtendedOrdering = Interval.ordering(pointType.ordering, startPrimary=true)
+  override lazy val ordering: ExtendedOrdering = mkOrdering()
+
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+    Interval.ordering(pointType.ordering, startPrimary=true, missingEqual)
 
   lazy val representation: TStruct = {
     TStruct(

@@ -23,8 +23,10 @@ case object TString extends Type {
 
   override def scalaClassTag: ClassTag[String] = classTag[String]
 
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.extendToNull(implicitly[Ordering[String]])
+  override val ordering: ExtendedOrdering = mkOrdering()
+
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+    ExtendedOrdering.extendToNull(implicitly[Ordering[String]], missingEqual)
 
   override def fundamentalType: Type = TBinary
 }

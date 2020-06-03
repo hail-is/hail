@@ -10,7 +10,7 @@ case object TVoid extends Type {
     sb.append("void")
   }
 
-  val ordering: ExtendedOrdering = null
+  def mkOrdering(missingEqual: Boolean): ExtendedOrdering = null
 
   override def scalaClassTag: scala.reflect.ClassTag[_ <: AnyRef] = throw new UnsupportedOperationException("No ClassTag for Void")
 

@@ -194,7 +194,9 @@ abstract class Type extends BaseType with Serializable {
 
   def canCompare(other: Type): Boolean = this == other
 
-  def ordering: ExtendedOrdering
+  def mkOrdering(missingEqual: Boolean = true): ExtendedOrdering
+
+  def ordering: ExtendedOrdering = mkOrdering()
 
   def jsonReader: JSONReader[Annotation] = new JSONReader[Annotation] {
     def fromJSON(a: JValue): Annotation = JSONAnnotationImpex.importAnnotation(a, self)
