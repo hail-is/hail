@@ -962,7 +962,7 @@ steps:
      valueFrom: hail_build_image.image
    script: |
      make -C site/www
-     rsync rsync --archive \
+     rsync --archive \
            --verbose \
            --exclude='*.xslt' \
            --exclude='*.md' \
