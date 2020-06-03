@@ -980,8 +980,8 @@ steps:
    contextPath: site
    publishAs: site
    inputs:
-     from: /site-www.tar.gz
-     to: /site-www.tar.gz
+     - from: /site-www.tar.gz
+       to: /site-www.tar.gz
    dependsOn:
      - base_image
      - build_site_www
