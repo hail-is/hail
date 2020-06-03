@@ -214,7 +214,9 @@ object Interval {
           Interval(y, x, s, e)
       }
 
-  def ordering(pord: ExtendedOrdering, startPrimary: Boolean): ExtendedOrdering = new ExtendedOrdering {
+  def ordering(pord: ExtendedOrdering, startPrimary: Boolean, _missingEqual: Boolean = true): ExtendedOrdering = new ExtendedOrdering {
+    val missingEqual = _missingEqual
+
     override def compareNonnull(x: Any, y: Any): Int = {
       val xi = x.asInstanceOf[Interval]
       val yi = y.asInstanceOf[Interval]

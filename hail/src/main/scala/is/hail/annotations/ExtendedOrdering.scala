@@ -4,8 +4,10 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 
 object ExtendedOrdering {
-  def extendToNull[S](ord: Ordering[S]): ExtendedOrdering = {
+  def extendToNull[S](ord: Ordering[S], _missingEqual: Boolean = true): ExtendedOrdering = {
     new ExtendedOrdering {
+      val missingEqual = _missingEqual
+
       def compareNonnull(x: T, y: T): Int = ord.compare(x.asInstanceOf[S], y.asInstanceOf[S])
 
       override def ltNonnull(x: T, y: T): Boolean = ord.lt(x.asInstanceOf[S], y.asInstanceOf[S])
@@ -16,8 +18,10 @@ object ExtendedOrdering {
     }
   }
 
-  def iterableOrdering[T](ord: ExtendedOrdering): ExtendedOrdering =
+  def iterableOrdering[T](ord: ExtendedOrdering, _missingEqual: Boolean = true): ExtendedOrdering =
     new ExtendedOrdering {
+      val missingEqual = _missingEqual
+
       def compareNonnull(x: T, y: T): Int = {
         val xit = x.asInstanceOf[Iterable[T]].iterator
         val yit = y.asInstanceOf[Iterable[T]].iterator
@@ -78,12 +82,14 @@ object ExtendedOrdering {
       }
     }
 
-  def sortArrayOrdering(ord: ExtendedOrdering): ExtendedOrdering =
+  def sortArrayOrdering(ord: ExtendedOrdering, _missingEqual: Boolean = true): ExtendedOrdering =
     new ExtendedOrdering {
+      val missingEqual = _missingEqual
+
       private val itOrd = iterableOrdering(ord)
 
       // ord can be null if the element type is a TVariable
-      private val elemOrd = if (ord != null) ord.toOrdering else null
+      val elemOrd = if (ord != null) ord.toOrdering else null
 
       def compareNonnull(x: T, y: T): Int = {
         itOrd.compareNonnull(
@@ -110,9 +116,11 @@ object ExtendedOrdering {
       }
     }
 
-  def setOrdering(ord: ExtendedOrdering): ExtendedOrdering =
+  def setOrdering(ord: ExtendedOrdering, _missingEqual: Boolean = true): ExtendedOrdering =
     new ExtendedOrdering {
       private val saOrd = sortArrayOrdering(ord)
+
+      val missingEqual = _missingEqual
 
       def compareNonnull(x: T, y: T): Int = {
         saOrd.compareNonnull(
@@ -139,9 +147,11 @@ object ExtendedOrdering {
       }
     }
 
-  def mapOrdering(ord: ExtendedOrdering): ExtendedOrdering =
+  def mapOrdering(ord: ExtendedOrdering, _missingEqual: Boolean = true): ExtendedOrdering =
     new ExtendedOrdering {
       private val saOrd = sortArrayOrdering(ord)
+
+      val missingEqual = _missingEqual
 
       private def toArrayOfT(x: T): Array[T] =
         x.asInstanceOf[Map[_, _]].iterator.map { case (k, v) => Row(k, v): T }.toArray
@@ -167,9 +177,12 @@ object ExtendedOrdering {
       }
     }
 
-  def rowOrdering(fieldOrd: Array[ExtendedOrdering]): ExtendedOrdering =
+  def rowOrdering(fieldOrd: Array[ExtendedOrdering], _missingEqual: Boolean = true): ExtendedOrdering =
     new ExtendedOrdering {
       outer =>
+
+      val missingEqual = _missingEqual
+
       override def compareNonnull(x: T, y: T): Int = {
         val rx = x.asInstanceOf[Row]
         val ry = y.asInstanceOf[Row]
@@ -261,6 +274,8 @@ abstract class ExtendedOrdering extends Serializable {
 
   type T = Any
 
+  val missingEqual: Boolean
+
   def compareNonnull(x: T, y: T): Int
 
   def ltNonnull(x: T, y: T): Boolean = compareNonnull(x, y) < 0
@@ -276,7 +291,7 @@ abstract class ExtendedOrdering extends Serializable {
   def compare(x: T, y: T): Int = {
     if (y == null) {
       if (x == null)
-        0
+        if (missingEqual) 0 else -1
       else -1
     } else {
       if (x == null)
@@ -289,7 +304,7 @@ abstract class ExtendedOrdering extends Serializable {
   def lt(x: T, y: T): Boolean = {
     if (y == null) {
       if (x == null)
-        false
+        !missingEqual
       else
         true
     } else {
@@ -302,10 +317,7 @@ abstract class ExtendedOrdering extends Serializable {
 
   def lteq(x: T, y: T): Boolean = {
     if (y == null) {
-      if (x == null)
-        true
-      else
-        true
+      true
     } else {
       if (x == null)
         false
@@ -317,7 +329,7 @@ abstract class ExtendedOrdering extends Serializable {
   def equiv(x: T, y: T): Boolean = {
     if (y == null) {
       if (x == null)
-        true
+        missingEqual
       else
         false
     } else {
@@ -328,12 +340,35 @@ abstract class ExtendedOrdering extends Serializable {
     }
   }
 
-  def gt(x: T, y: T): Boolean = lt(y, x)
+  def gt(x: T, y: T): Boolean = {
+    if (y == null) {
+      false
+    } else {
+      if (x == null)
+        true
+      else
+        gtNonnull(x, y)
+    }
+  }
 
-  def gteq(x: T, y: T): Boolean = lteq(y, x)
+  def gteq(x: T, y: T): Boolean = {
+    if (y == null) {
+      if (x == null)
+        missingEqual
+      else
+        false
+    } else {
+      if (x == null)
+        true
+      else
+        gteqNonnull(x, y)
+    }
+  }
 
   // reverses the sense of the non-null comparison only
   def reverse: ExtendedOrdering = new ExtendedOrdering {
+    val missingEqual = outer.missingEqual
+
     override def reverse: ExtendedOrdering = outer
 
     def compareNonnull(x: T, y: T): Int = outer.compareNonnull(y, x)
@@ -384,6 +419,8 @@ abstract class IntervalEndpointOrdering extends ExtendedOrdering {
   def compareIntervalEndpoints(xp: Any, xs: Int, yp: Any, ys: Int): Int
 
   def lteqWithOverlap(allowedOverlap: Int)(x: IntervalEndpoint, y: IntervalEndpoint): Boolean
+
+  val missingEqual = true
 
   override def compareNonnull(x: Any, y: Any): Int = {
     val xp = if (x.isInstanceOf[IntervalEndpoint]) x.asInstanceOf[IntervalEndpoint].point else x
