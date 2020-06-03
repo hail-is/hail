@@ -961,6 +961,8 @@ steps:
    image:
      valueFrom: hail_build_image.image
    script: |
+     set -ex
+
      cd /io
      rm -rf repo
      mkdir repo
@@ -973,7 +975,7 @@ steps:
            --exclude='*.md' \
            site/www/* \
            /io/www
-     cs /io/www && tar -cvzf /io/site-www.tar.gz /io/www/*
+     cd /io/www && tar -cvzf /io/site-www.tar.gz *
    outputs:
     - from: /io/site-www.tar.gz
       to: /site-www.tar.gz
