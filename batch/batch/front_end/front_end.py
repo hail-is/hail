@@ -155,19 +155,20 @@ async def _query_batch_jobs(request, batch_id):
         where_args.extend(args)
 
     sql = f'''
-SELECT *, cost, format_version, job_attributes.value as name
+SELECT jobs.*, batches.format_version, job_attributes.value AS name, SUM(`usage` * rate) AS cost
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN job_attributes
   ON jobs.batch_id = job_attributes.batch_id AND
      jobs.job_id = job_attributes.job_id AND
      job_attributes.`key` = 'name'
-LEFT JOIN (SELECT batch_id, job_id, SUM(`usage` * rate) AS cost
-           FROM aggregated_job_resources
-           INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
-           GROUP BY batch_id, job_id) AS t
-ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
+LEFT JOIN aggregated_job_resources
+  ON jobs.batch_id = aggregated_job_resources.batch_id AND
+     jobs.job_id = aggregated_job_resources.job_id
+LEFT JOIN resources
+  ON aggregated_job_resources.resource = resources.resource
 WHERE {' AND '.join(where_conditions)}
+GROUP BY jobs.batch_id, jobs.job_id
 ORDER BY jobs.batch_id, jobs.job_id ASC
 LIMIT 50;
 '''
@@ -443,15 +444,15 @@ async def _query_batches(request, user):
         where_args.extend(args)
 
     sql = f'''
-SELECT *
+SELECT batches.*, SUM(`usage` * rate) AS cost
 FROM batches
-LEFT JOIN (SELECT batch_id, SUM(`usage` * rate) AS cost
-           FROM aggregated_batch_resources
-           INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
-           GROUP BY batch_id) AS t
-ON batches.id = t.batch_id
+LEFT JOIN aggregated_batch_resources
+  ON batches.id = aggregated_batch_resources.batch_id
+LEFT JOIN resources
+  ON aggregated_batch_resources.resource = resources.resource
 WHERE {' AND '.join(where_conditions)}
-ORDER BY id DESC
+GROUP BY batches.id
+ORDER BY batches.id DESC
 LIMIT 50;
 '''
     sql_args = where_args
@@ -810,13 +811,13 @@ async def _get_batch(app, batch_id, user):
     db = app['db']
 
     record = await db.select_and_fetchone('''
-SELECT * FROM batches
-LEFT JOIN (SELECT batch_id, SUM(`usage` * rate) AS cost
-           FROM aggregated_batch_resources
-           INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
-           GROUP BY batch_id) AS t
-ON batches.id = t.batch_id
-WHERE user = %s AND id = %s AND NOT deleted;
+SELECT batches.*, SUM(`usage` * rate) AS cost FROM batches
+LEFT JOIN aggregated_batch_resources
+       ON batches.id = aggregated_batch_resources.batch_id
+LEFT JOIN resources
+       ON aggregated_batch_resources.resource = resources.resource
+WHERE user = %s AND id = %s AND NOT deleted
+GROUP BY batches.id;
 ''', (user, batch_id))
     if not record:
         raise web.HTTPNotFound()
@@ -1007,7 +1008,7 @@ async def _get_job(app, batch_id, job_id, user):
     db = app['db']
 
     record = await db.select_and_fetchone('''
-SELECT jobs.*, cost, ip_address, format_version
+SELECT jobs.*, ip_address, format_version, SUM(`usage` * rate) AS cost
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -1015,12 +1016,13 @@ LEFT JOIN attempts
   ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
   ON attempts.instance_name = instances.name
-LEFT JOIN (SELECT batch_id, job_id, SUM(`usage` * rate) AS cost
-           FROM aggregated_job_resources
-           INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
-           GROUP BY batch_id, job_id) AS t
-ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
-WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
+LEFT JOIN aggregated_job_resources
+       ON jobs.batch_id = aggregated_job_resources.batch_id
+      AND jobs.job_id = aggregated_job_resources.job_id
+LEFT JOIN resources
+       ON aggregated_job_resources.resource = resources.resource
+WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
+GROUP BY jobs.batch_id, jobs.job_id;
 ''',
                                           (user, batch_id, job_id))
     if not record:
