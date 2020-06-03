@@ -7,7 +7,6 @@ import pkg_resources
 
 def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')
-    parser.add_argument('--wheel', type=str, help='New Hail installation.')
     parser.add_argument('--num-workers', '--n-workers', '-w', type=int,
                         help='New number of worker machines (min. 2).')
     parser.add_argument('--num-preemptible-workers', '--n-pre-workers', '-p', type=int,
@@ -17,8 +16,10 @@ def init_parser(parser):
     parser.add_argument('--max-idle', type=str, help='New maximum idle time before shutdown (e.g. "60m").')
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
     parser.add_argument('--zone', '-z', type=str, help='Compute zone for Dataproc cluster.')
-    parser.add_argument('--update-hail-version', action='store_true', help="Update the version of hail running on cluster to match "
-                        "the currently installed version.")
+    wheel_group = parser.add_mutually_exclusive_group()
+    wheel_group.add_argument('--update-hail-version', action='store_true', help="Update the version of hail running on cluster to match "
+                             "the currently installed version.")
+    wheel_group.add_argument('--wheel', type=str, help='New Hail installation.')
 
 
 def main(args, pass_through_args):
@@ -36,9 +37,6 @@ def main(args, pass_through_args):
 
     if args.max_idle:
         modify_args.append('--max-idle={}'.format(args.max_idle))
-
-    if args.update_hail_version and args.wheel:
-        sys.exit("Error: Cannot specify both --update-hail-version and --wheel")
 
     if modify_args:
         cmd = ['gcloud',
