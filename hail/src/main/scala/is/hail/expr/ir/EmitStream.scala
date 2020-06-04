@@ -716,7 +716,7 @@ object EmitStream {
     def apply(outerEos: Code[Ctrl], outerPush: Stream[PCode] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[Stream[PCode]] = {
       val keyType = eltType.selectFields(key)
       val keyViewType = PSubsetStruct(eltType, key)
-      val ordering = keyType.codeOrdering(mb, keyViewType).asInstanceOf[CodeOrdering { type T = Long }]
+      val ordering = keyType.codeOrdering(mb, keyViewType, missingFieldsEqual = false).asInstanceOf[CodeOrdering { type T = Long }]
 
       val xCurKey = ctx.mb.newPLocal("st_grpby_curkey", keyType)
       val xCurElt = ctx.mb.newPLocal("st_grpby_curelt", eltType)
@@ -1385,7 +1385,7 @@ object EmitStream {
 
           val lKeyViewType = PSubsetStruct(lEltType, lKey: _*)
           val rKeyViewType = PSubsetStruct(rEltType, rKey: _*)
-          val ordering = lKeyViewType.codeOrdering(mb, rKeyViewType).asInstanceOf[CodeOrdering { type T = Long }]
+          val ordering = lKeyViewType.codeOrdering(mb, rKeyViewType, missingFieldsEqual = false).asInstanceOf[CodeOrdering { type T = Long }]
 
           def compare(lelt: EmitValue, relt: EmitValue): Code[Int] = {
             assert(lelt.pt == lEltType)

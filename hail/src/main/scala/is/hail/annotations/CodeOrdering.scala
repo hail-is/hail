@@ -37,7 +37,8 @@ object CodeOrdering {
     t1: PBaseStruct,
     t2: PBaseStruct,
     mb: EmitMethodBuilder[_],
-    sortOrders: Array[SortOrder] = null
+    sortOrders: Array[SortOrder] = null,
+    missingFieldsEqual: Boolean = true
   ): CodeOrdering = new CodeOrdering {
     require(sortOrders == null || sortOrders.size == t1.size)
     type T = Long
@@ -70,7 +71,7 @@ object CodeOrdering {
 
       Code.memoize(x, "cord_row_comp_x", y, "cord_row_comp_y") { (x, y) =>
         val c = Array.tabulate(t1.size) { i =>
-          val mbcmp = fieldOrdering(i, CodeOrdering.Compare())
+          val mbcmp = fieldOrdering(i, CodeOrdering.Compare(missingFieldsEqual))
           Code(setup(i)(x, y),
             mbcmp((m1, v1s(i)), (m2, v2s(i))))
         }.foldRight(cmp.get) { (ci, cont) => cmp.ceq(0).mux(Code(cmp := ci, cont), cmp) }
@@ -96,28 +97,28 @@ object CodeOrdering {
       }
 
     val _ltNonnull = dictionaryOrderingFromFields(
-      CodeOrdering.Lt(),
+      CodeOrdering.Lt(missingFieldsEqual),
       false,
       { (isLessThan, isEqual, subsequentLt) =>
         isLessThan || (isEqual && subsequentLt) }) _
     override def ltNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _ltNonnull(x, y)
 
     val _lteqNonnull = dictionaryOrderingFromFields(
-      CodeOrdering.Lteq(),
+      CodeOrdering.Lteq(missingFieldsEqual),
       true,
       { (isLessThanEq, isEqual, subsequentLtEq) =>
         isLessThanEq && (!isEqual || subsequentLtEq) }) _
     override def lteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _lteqNonnull(x, y)
 
     val _gtNonnull = dictionaryOrderingFromFields(
-      CodeOrdering.Gt(),
+      CodeOrdering.Gt(missingFieldsEqual),
       false,
       { (isGreaterThan, isEqual, subsequentGt) =>
         isGreaterThan || (isEqual && subsequentGt) }) _
     override def gtNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _gtNonnull(x, y)
 
     val _gteqNonnull = dictionaryOrderingFromFields(
-      CodeOrdering.Gteq(),
+      CodeOrdering.Gteq(missingFieldsEqual),
       true,
       { (isGreaterThanEq, isEqual, subsequentGteq) =>
         isGreaterThanEq && (!isEqual || subsequentGteq) }) _
@@ -126,7 +127,7 @@ object CodeOrdering {
     override def equivNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] =
       Code.memoize(x, "cord_row_equiv_x", y, "cord_row_equiv_y") { (x, y) =>
         Array.tabulate(t1.size) { i =>
-          val mbequiv = fieldOrdering(i, CodeOrdering.Equiv())
+          val mbequiv = fieldOrdering(i, CodeOrdering.Equiv(missingFieldsEqual))
           Code(setup(i)(x, y),
             mbequiv((m1, v1s(i)), (m2, v2s(i))))
         }.foldRight[Code[Boolean]](const(true))(_ && _)
