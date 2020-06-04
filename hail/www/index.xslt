@@ -11,7 +11,7 @@
             <div id="hero-background"></div>
             <div id="hero-content" class='wide'>
                 <h1 id="logo-title">Powering genomic analysis, at every scale</h1>
-                <subtitle class="logo-subtitle">An open-source library for scalable genomic data exploration</subtitle>
+                <subtitle id="logo-subtitle">An open-source library for scalable genomic data exploration</subtitle>
                 <div style="display: flex;" id="hero-button-container">
                     <a class="button" href="/docs/0.2/getting_started.html#installation">Install</a>
                     <a class="button" href="/gethelp.html">Get Help</a>
