@@ -20,7 +20,7 @@ Contents
    Tutorial <tutorial>
    Docker Resources <docker_resources>
    Batch Service <service>
-   Cookbook <cookbook>
+   Cookbooks <cookbook>
    Reference (Python API) <api>
    Change Log <change_log>
 

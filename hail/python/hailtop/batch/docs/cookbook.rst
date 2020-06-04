@@ -1,7 +1,7 @@
 .. _sec-cookbook:
 
-Cookbook
-========
+Cookbooks
+=========
 
 .. toctree::
     :maxdepth: 1
