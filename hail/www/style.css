@@ -775,30 +775,20 @@ pre code {
 }
 
 @media only screen and (min-width: 2048px) {
-  #all-hero-content {
+  #all-hero-content, .about > .content {
     width: 2048px;
-    max-width: 2048px;
     margin: auto;
   }
 
-  #home .about > .content {
-    width: 1820px;
-    max-width: 1820px;
-    margin-left: auto;
-    margin-right: auto;
-    align-self: center;
+  #hero-content {
+    padding-left: 0px;
   }
-}
 
-@media only screen and (min-width: 2048px) {
+  #hero-content-right {
+    padding-right: 0px;
+  }
+
   .non-home  .about, .non-home #hero-content.wide {
-    width: 1948px;
-    max-width: 1948px;
-    margin: auto;
-  }
-
-  .non-home  .about {
-    /* padding: 75px 50px; */
     margin: auto;
   }
 }

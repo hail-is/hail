@@ -7,7 +7,7 @@
         <meta name="description" content="Hail Overview" />
     </xsl:template>
     <xsl:template name="header">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.20.0/themes/prism.min.css"></link>>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.20.0/themes/prism.min.css"></link>
     </xsl:template>
     <xsl:template match="body">
         <div id="hero">
@@ -175,7 +175,7 @@ show(p)
         <script src="/vendors/vanta/threeR115.min.js"></script>
         <script type="module">
             <![CDATA[
-                import Viz from "/vendors/vanta/viz.js";
+                import Viz from "/vendors/vanta/viz.min.js";
                 new Viz({
                     el: "#hero-background",
                     points: 10,
