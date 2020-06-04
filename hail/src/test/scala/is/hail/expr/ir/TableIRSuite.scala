@@ -384,6 +384,18 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(distinctCount, 2L)
   }
 
+  @Test def testTableKeyByLowering() {
+    implicit val execStrats = ExecStrategy.lowering
+    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
+    val length = 10
+    val value = Row(FastIndexedSeq(0 until length: _*).map(i => Row(0, "row" + i)), Row("global"))
+
+    val par = TableParallelize(Literal(t, value))
+
+    val keyed = TableKeyBy(par, IndexedSeq("a"), false)
+    assertEvalsTo(TableCount(keyed), length.toLong)
+  }
+
   @Test def testTableParallelize() {
     implicit val execStrats = ExecStrategy.allRelational
     val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
@@ -730,6 +742,35 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(TableCount(joinedParKeyedByAAndB), parTable1Length.toLong)
     assertEvalsTo(collect(joinedParKeyedByA), Row(FastIndexedSeq(0 until parTable1Length: _*).map(i =>
       Row("row" + i, i * i, s"t1_${i}", Row(-2 * i, s"t2_${i}"))), Row("global"))
+    )
+  }
+
+  @Test def testTableKeyByAndAggregate(): Unit = {
+    implicit val execStrats = ExecStrategy.interpretOnly //FIXME: Lowering is implemented, will work when method splitting is fixed.
+    val tir: TableIR = TableRead.native(fs, "src/test/resources/three_key.ht")
+    val unkeyed = TableKeyBy(tir, IndexedSeq[String]())
+    val rowRef = Ref("row", unkeyed.typ.rowType)
+    val aggSignature = AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64))
+    val aggExpression = MakeStruct(FastSeq("y_sum" -> ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(Cast(GetField(rowRef, "y"), TInt64)), aggSignature)))
+    val keyByXAndAggregateSum = TableKeyByAndAggregate(unkeyed, aggExpression, MakeStruct(FastSeq("x" -> GetField(rowRef, "x"))))
+
+    assertEvalsTo(
+      collect(keyByXAndAggregateSum),
+      Row(FastIndexedSeq(Row(2, 1L), Row(3,5L), Row(4, 14L), Row(5, 30L), Row(6, 55L), Row(7, 91L), Row(8, 140L), Row(9, 204L)), Row())
+    )
+
+    // Keying by a newly computed field.
+    val keyByXPlusTwoAndAggregateSum = TableKeyByAndAggregate(unkeyed, aggExpression, MakeStruct(FastSeq("xPlusTwo" -> (GetField(rowRef, "x") + 2))))
+    assertEvalsTo(
+      collect(keyByXPlusTwoAndAggregateSum),
+      Row(FastIndexedSeq(Row(4, 1L), Row(5,5L), Row(6, 14L), Row(7, 30L), Row(8, 55L), Row(9, 91L), Row(10, 140L), Row(11, 204L)), Row())
+    )
+
+    // Keying by just Z when original is keyed by x,y,z, naming it x anyway.
+    val keyByZAndAggregateSum =  TableKeyByAndAggregate(tir, aggExpression, MakeStruct(FastSeq("x" -> GetField(rowRef, "z"))))
+    assertEvalsTo(
+      collect(keyByZAndAggregateSum),
+      Row(FastIndexedSeq(Row(0, 120L), Row(1, 112L), Row(2, 98L), Row(3, 80L), Row(4, 60L), Row(5, 40L), Row(6, 22L), Row(7, 8L)), Row())
     )
   }
 }

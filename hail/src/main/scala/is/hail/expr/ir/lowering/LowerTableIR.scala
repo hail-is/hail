@@ -277,18 +277,15 @@ object LowerTableIR {
         case TableMapGlobals(child, newGlobals) =>
           lower(child).mapGlobals(old => Let("global", old, newGlobals))
 
-        case x@TableAggregateByKey(child, expr) =>
+        case TableAggregateByKey(child, expr) =>
           val loweredChild = lower(child)
 
           loweredChild.repartitionNoShuffle(loweredChild.partitioner.coarsen(child.typ.key.length).strictify)
             .mapPartition { partition =>
-              val sUID = genUID()
 
-              StreamMap(
-                StreamGroupByKey(partition, child.typ.key),
-                sUID,
+              mapIR(StreamGroupByKey(partition, child.typ.key)) { groupRef =>
                 StreamAgg(
-                  Ref(sUID, TStream(child.typ.rowType)),
+                  groupRef,
                   "row",
                   bindIRs(ArrayRef(ApplyAggOp(FastSeq(I32(1)), FastSeq(SelectFields(Ref("row", child.typ.rowType), child.typ.key)),
                     AggSignature(Take(), FastSeq(TInt32), FastSeq(child.typ.keyType))), I32(0)), // FIXME: would prefer a First() agg op
@@ -298,8 +295,54 @@ object LowerTableIR {
                     })
                   }
                 )
+              }
+            }
+
+        // TODO: This ignores nPartitions and bufferSize
+        case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
+          val loweredChild = lower(child)
+          val newKeyType = newKey.typ.asInstanceOf[TStruct]
+          val oldRowType = child.typ.rowType
+          val filteredOldRowType = oldRowType.filter(field => !newKeyType.fieldNames.contains(field.name))._1
+          val shuffledRowType = newKeyType ++ filteredOldRowType
+
+          val withNewKeyFields = loweredChild.mapPartition { partition =>
+            mapIR(partition) { partitionElement =>
+              Let("row",
+                partitionElement,
+                bindIR(newKey) { newKeyRef =>
+                  val getKeyFields = newKeyType.fieldNames.map(fieldName => fieldName -> GetField(newKeyRef, fieldName)).toIndexedSeq
+                  InsertFields(partitionElement, getKeyFields)
+                }
               )
             }
+          }
+
+          val sortFields = newKeyType.fieldNames.map(fieldName => SortField(fieldName, Ascending)).toIndexedSeq
+          val shuffled = ctx.backend.lowerDistributedSort(ctx, withNewKeyFields, sortFields)
+          val repartitioned = shuffled.repartitionNoShuffle(shuffled.partitioner.strictify)
+
+          repartitioned.mapPartition { partition =>
+            mapIR(StreamGroupByKey(partition, newKeyType.fieldNames.toIndexedSeq)) { groupRef =>
+              StreamAgg(
+                groupRef,
+                "row",
+                bindIRs(
+                  ArrayRef(
+                    ApplyAggOp(FastSeq(I32(1)),
+                      FastSeq(SelectFields(Ref("row", shuffledRowType), newKeyType.fieldNames)),
+                      AggSignature(Take(), FastSeq(TInt32), FastSeq(newKeyType))),
+                    I32(0)),
+                  expr) { case Seq(groupRep, value) =>
+
+                  val keyIRs: IndexedSeq[(String, IR)] = newKeyType.fieldNames.map(keyName => keyName -> GetField(groupRep, keyName))
+                  MakeStruct(keyIRs ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
+                    (f, GetField(value, f))
+                  })
+                }
+              )
+            }
+          }
 
         case TableDistinct(child) =>
           val loweredChild = lower(child)
