@@ -215,7 +215,13 @@
   {% endif %}
 
   <script type="text/javascript">
-    $.get('/index.html', function(data) {
+    let hostname = window.location.hostname
+    let prefix = if (hostname == "internal.hail.is") {
+      window.location.pathname.split("/").slice(0, 3).join("/")
+    } else {
+      ""
+    }
+    $.get(prefix + '/index.html', function(data) {
       $("#hail-navbar").replaceWith($("<div>").html(data).find("#hail-navbar").addClass('documentation-view'));
     });
   </script> 
