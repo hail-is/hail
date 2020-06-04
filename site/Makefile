@@ -17,16 +17,12 @@ build:
 	cd www-out && tar -cvzf ../site-www.tar.gz *
 	docker build -t site .
 
-test: build
-	./get-test-ssl.sh
-	docker run -p 8080:80 -v "$(PWD)/ssl-config-site:/ssl-config/" site nginx -g "daemon off;"
-
 push: build
 	docker tag site $(IMAGE)
 	docker push $(IMAGE)
 
 deploy: push
-	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"site_image":{"image":"$(IMAGE)"}}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"global": {"domain":"hail.is"},"default_ns":{"name":"dking"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"site_image":{"image":"$(IMAGE)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n dking apply -f deployment.yaml.out
 
 clean:
