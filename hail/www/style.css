@@ -327,8 +327,6 @@ a {
   font-family: monospace!important;
   padding: 2rem;
   border-radius: 0px;
-  /* border-bottom: 2px solid #444; */
-  border-bottom: 0px;
   box-shadow: 0px 2px 5px 0px rgba(68,68,68,.5);
   border-top: 0px;
   border-left: 0px;
@@ -690,8 +688,6 @@ template {
   }
 }
 
-/* references.html */
-
 code, samp, kbd {
   color: #000;
   font-family: monospace, monospace;
@@ -750,6 +746,8 @@ pre code {
   font-family: monospace;
 }
 
+/* help pages */
+
 #gethelp .about {
   padding-top: 50px;
 }
@@ -773,6 +771,22 @@ pre code {
 #gethelp .about section:first-child {
   margin-top: 0px;
 }
+
+@media only screen and (max-width:480px) {
+  #gethelp .about section {
+      display: flex;
+      justify-content: flex-start;
+      align-items: flex-start;
+      flex-direction: column;
+      margin: 25px 0px;
+  }
+
+  #gethelp .about section .button {
+      margin-bottom: 25px;
+  }
+}
+
+/* /help */
 
 @media only screen and (min-width: 2048px) {
   #all-hero-content, .about > .content {
@@ -800,7 +814,6 @@ pre code {
 }
 
 @media only screen and (max-width: 2048px) {
-
   #hero-content {
     padding-right: 50px;
   }
@@ -809,6 +822,7 @@ pre code {
     justify-content: flex-start;
   }
 }
+
 @media only screen and (min-width: 1680px) {
   .non-home  .about, .non-home #hero-content.wide {
     width: 1680px;
@@ -818,19 +832,5 @@ pre code {
 
   .non-home  .about {
     margin: auto;
-  }
-}
-
-@media only screen and (max-width:480px) {
-  #gethelp .about section {
-      display: flex;
-      justify-content: flex-start;
-      align-items: flex-start;
-      flex-direction: column;
-      margin: 25px 0px;
-  }
-
-  #gethelp .about section .button {
-      margin-bottom: 25px;
   }
 }
