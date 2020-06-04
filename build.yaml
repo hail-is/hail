@@ -915,7 +915,6 @@ steps:
      sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
        < python/hail/docs/change_log.md \
        | pandoc -o python/hail/docs/change_log.rst
-     make -C www
      make -C python/hail/docs BUILDDIR=_build clean html
      make -C python/hailtop/batch/docs BUILDDIR=_build clean html
      mkdir -p www/docs
