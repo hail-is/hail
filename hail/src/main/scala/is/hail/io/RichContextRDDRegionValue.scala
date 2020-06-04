@@ -163,12 +163,11 @@ object RichContextRDDRegionValue {
     partFiles: Array[String],
     partitioner: RVDPartitioner
   ) {
-    val rowsSpec = MakeRVDSpec(t.key, rowsCodecSpec, partFiles, partitioner, rowsIndexSpec)
+    val rowsSpec = MakeRVDSpec(rowsCodecSpec, partFiles, partitioner, rowsIndexSpec)
     rowsSpec.write(fs, path + "/rows/rows")
 
-    val entriesSpec = MakeRVDSpec(
-      FastIndexedSeq(), entriesCodecSpec, partFiles, RVDPartitioner.unkeyed(partitioner.numPartitions),
-      entriesIndexSpec)
+    val entriesSpec = MakeRVDSpec(entriesCodecSpec, partFiles,
+      RVDPartitioner.unkeyed(partitioner.numPartitions), entriesIndexSpec)
     entriesSpec.write(fs, path + "/entries/rows")
   }
 }

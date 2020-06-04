@@ -99,7 +99,7 @@ object AbstractRVDSpec {
         }
       }
 
-    val spec = MakeRVDSpec(FastIndexedSeq(), codecSpec, Array(filePath), RVDPartitioner.unkeyed(1))
+    val spec = MakeRVDSpec(codecSpec, Array(filePath), RVDPartitioner.unkeyed(1))
     spec.write(fs, path)
 
     Array(part0Count)
@@ -261,7 +261,6 @@ object IndexSpec {
 
 object MakeRVDSpec {
   def apply(
-    key: IndexedSeq[String],
     codecSpec: AbstractTypedCodecSpec,
     partFiles: Array[String],
     partitioner: RVDPartitioner,
@@ -271,23 +270,33 @@ object MakeRVDSpec {
     val partJV = JSONAnnotationImpex.exportAnnotation(
       partitioner.rangeBounds.toFastSeq,
       partitioner.rangeBoundsType)
+    RVDSpecMaker(codecSpec, partitioner.kType.fieldNames, partJV, indexSpec, attrs)(partFiles)
+  }
+}
+
+case class RVDSpecMaker(
+  codecSpec: AbstractTypedCodecSpec,
+  key: Array[String],
+  bounds: JValue,
+  indexSpec: AbstractIndexSpec,
+  attrs: Map[String, String]) {
+  def apply(partFiles: Array[String]): AbstractRVDSpec =
     Option(indexSpec) match {
       case Some(ais) => IndexedRVDSpec2(
         key,
         codecSpec,
         ais,
         partFiles,
-        partJV,
+        bounds,
         attrs)
       case None => OrderedRVDSpec2(
         key,
         codecSpec,
         partFiles,
-        partJV,
+        bounds,
         attrs
       )
     }
-  }
 }
 
 object IndexedRVDSpec2 {
