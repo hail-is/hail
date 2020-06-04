@@ -760,7 +760,7 @@ class RVD(
 
   def write(ctx: ExecuteContext, path: String, idxRelPath: String, stageLocally: Boolean, codecSpec: AbstractTypedCodecSpec): Array[Long] = {
     val (partFiles, partitionCounts) = crdd.writeRows(ctx, path, idxRelPath, typ, stageLocally, codecSpec)
-    val spec = MakeRVDSpec(typ.key, codecSpec, partFiles, partitioner, IndexSpec.emptyAnnotation(idxRelPath, typ.kType))
+    val spec = MakeRVDSpec(codecSpec, partFiles, partitioner, IndexSpec.emptyAnnotation(idxRelPath, typ.kType))
     spec.write(ctx.fs, path)
     partitionCounts
   }
