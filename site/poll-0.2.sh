@@ -30,7 +30,7 @@ fi
 [ -e "$new/0.2" ]
 
 chown -R www-data $new
-chmod -R 555 $new
+chmod -R u=rX,g=rX $new
 
 mv $web_root/docs/0.2 $old || mkdir -p $web_root/docs
 mv $new/0.2 $web_root/docs/0.2

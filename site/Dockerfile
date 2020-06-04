@@ -23,6 +23,6 @@ ADD poll-0.2.sh /poll-0.2.sh
 ADD site.sh /site.sh
 ADD site-www.tar.gz /var/www/html
 RUN chown -R www-data /var/www/html && \
-    chmod -R 555 /var/www/html
+    chmod -R u=rX,g=rX /var/www/html
 
 CMD ["/bin/bash", "/site.sh"]

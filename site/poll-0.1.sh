@@ -23,7 +23,7 @@ old=$(mktemp -d)
 mkdir -p $old
 
 chown -R www-data $new
-chmod -R 555 $new
+chmod -R u=rX,g=rX $new
 
 mv $web_root/docs/0.1 $old || mkdir -p $web_root/docs
 mv $new $web_root/docs/0.1
