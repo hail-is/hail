@@ -16,13 +16,9 @@
                 </div>
             </div>
             <div id="about" class="about">
-                <section>
-                    <div>
-                        <p>
+                <p>
                 Hail has two cheatsheets, describing the two data structures in Hail: the Table and the MatrixTable.
-            </p>
-                    </div>
-                </section>
+                </p>
                 <section class='left'>
                     <a class='button' href='/docs/0.2/_static/cheatsheets/hail_tables_cheat_sheet.pdf'>Tables</a>
                     <div>Tables are the Hail data structure for one-dimensional data. You can create a Table from TSVs, CSVs, sites VCFs, FAM files, and Pandas DataFrames.</div>

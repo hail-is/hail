@@ -336,7 +336,7 @@ a {
   flex-direction: column;
   z-index: 1;
   align-items: flex-start;
-  padding: 50px 150px 50px 50px;
+  padding: 50px 50px 50px 50px;
   background: #fff;
   box-shadow: 0px 0px 25px 20px rgba(255,255,255, 1);
   border-radius: 50px;
@@ -893,11 +893,12 @@ section pre {
 
 #gethelp .about section .button {
   margin-right: 25px;
-  width: 180px;
+  width: 160px;
+  min-width: 160px;
 }
 
-#gethelp.non-home .about section:first-child {
-  margin: 0px;
+#gethelp .about section.left * + * {
+  max-width: 800px;
 }
 
 @media only screen and (min-width: 1680px) {
@@ -969,5 +970,19 @@ section pre {
 
   .right .el + .el {
     align-items: flex-start;
+  }
+}
+
+@media only screen and (max-width:480px) {
+  #gethelp .about section {
+      display: flex;
+      justify-content: flex-start;
+      align-items: flex-start;
+      flex-direction: column;
+      margin: 25px 0px;
+  }
+
+  #gethelp .about section .button {
+      margin-bottom: 25px;
   }
 }
