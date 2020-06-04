@@ -13,7 +13,7 @@ build:
         --exclude='*.md' \
         www/* \
         www-out
-	-rm site-www.tar.gz
+	-rm ../site-www.tar.gz
 	cd www-out && tar -cvzf ../site-www.tar.gz *
 	docker build -t site .
 
