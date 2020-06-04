@@ -34,6 +34,8 @@ object Interpretable {
         _: TailLoop |
         _: Recur |
         _: ReadPartition |
+        _: WritePartition |
+        _: WriteMetadata |
         _: ReadValue |
         _: WriteValue |
         _: NDArrayWrite => false

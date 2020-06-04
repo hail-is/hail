@@ -252,6 +252,8 @@ object InferPType {
       case ReadPartition(context, rowType, reader) =>
         val child = reader.rowPType(rowType)
         PCanonicalStream(child, requiredness(node).required)
+      case WritePartition(value, writeCtx, writer) =>
+        writer.returnPType(writeCtx.pType, coerce[PStream](value.pType))
       case ReadValue(path, spec, requestedType) =>
         spec.decodedPType(requestedType).setRequired(requiredness(node).required)
       case MakeStream(irs, t) =>

@@ -1219,6 +1219,17 @@ object IRParser {
         val reader = JsonMethods.parse(string_literal(it)).extract[PartitionReader]
         val context = ir_value_expr(env)(it)
         ReadPartition(context, rowType, reader)
+      case "WritePartition" =>
+        import PartitionWriter.formats
+        val writer = JsonMethods.parse(string_literal(it)).extract[PartitionWriter]
+        val stream = ir_value_expr(env)(it)
+        val ctx = ir_value_expr(env)(it)
+        WritePartition(stream, ctx, writer)
+      case "WriteMetadata" =>
+        import MetadataWriter.formats
+        val writer = JsonMethods.parse(string_literal(it)).extract[MetadataWriter]
+        val ctx = ir_value_expr(env)(it)
+        WriteMetadata(ctx, writer)
       case "ReadValue" =>
         import AbstractRVDSpec.formats
         val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]

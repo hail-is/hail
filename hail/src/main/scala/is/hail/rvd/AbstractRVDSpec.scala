@@ -266,12 +266,22 @@ object MakeRVDSpec {
     partitioner: RVDPartitioner,
     indexSpec: AbstractIndexSpec = null,
     attrs: Map[String, String] = Map.empty
-  ): AbstractRVDSpec = {
-    val partJV = JSONAnnotationImpex.exportAnnotation(
+  ): AbstractRVDSpec =
+    RVDSpecMaker(codecSpec, partitioner, indexSpec, attrs)(partFiles)
+}
+
+object RVDSpecMaker {
+  def apply(codecSpec: AbstractTypedCodecSpec,
+    partitioner: RVDPartitioner,
+    indexSpec: AbstractIndexSpec = null,
+    attrs: Map[String, String] =  Map.empty): RVDSpecMaker = RVDSpecMaker(
+    codecSpec,
+    partitioner.kType.fieldNames,
+    JSONAnnotationImpex.exportAnnotation(
       partitioner.rangeBounds.toFastSeq,
-      partitioner.rangeBoundsType)
-    RVDSpecMaker(codecSpec, partitioner.kType.fieldNames, partJV, indexSpec, attrs)(partFiles)
-  }
+      partitioner.rangeBoundsType),
+    indexSpec,
+    attrs)
 }
 
 case class RVDSpecMaker(
