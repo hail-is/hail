@@ -8,8 +8,7 @@ import tempfile
 def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')
     parser.add_argument('service', type=str,
-                        choices=['notebook', 'nb', 'spark-ui', 'ui', 'spark-ui1', 'ui1',
-                                 'spark-ui2', 'ui2', 'spark-history', 'hist'],
+                        choices=['notebook', 'nb', 'spark-ui', 'ui', 'spark-history', 'hist'],
                         help='Web service to launch.')
     parser.add_argument('--port', '-p', default='10000', type=str,
                         help='Local port to use for SSH tunnel to master node (default: %(default)s).')
