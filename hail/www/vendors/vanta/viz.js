@@ -225,6 +225,7 @@ class Viz {
     }
 
     if (this.animationTimeout != null) {
+      console.info("clearing", this.animationTimeout);
       clearTimeout(this.animationTimeout);
     }
 
@@ -244,12 +245,12 @@ class Viz {
     if (this.hidden) {
       this.startedAnimation = true;
       const started = Date.now();
-      console.debug('updating')
+      console.info('updating')
       window.requestAnimationFrame(() => {
-        this.el.style.opacity = .4;
+        this.el.style.opacity = .5;
         this.hidden = false;
         this.startedAnimation = false;
-        console.debug("done", Date.now() - started);
+        console.info("done", Date.now() - started);
 
         this.then = now - 1000 - (delta % this.interval);
 
@@ -302,7 +303,7 @@ class Viz {
     const material = new THREE.MeshLambertMaterial({
       color: this.options.color,
       transparent: true,
-      opacity: .4
+      opacity: .35
     });
     const sphere = new THREE.Mesh(geometry, material);
     sphere.position.set(x, y, z);
@@ -369,7 +370,12 @@ class Viz {
 
     let dist, distToMouse, lineColor, p, p2, ang;
     let affected1 = 0;
-
+    // console.info("called")
+    // if(!this.mouse.updated) {
+    //   return;
+    // }
+    // console.info("past")
+    this.updatedCountXX += 1;
     for (let i = 0; i < this.points.length; i++) {
       p = this.points[i];
 

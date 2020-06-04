@@ -7,6 +7,8 @@
     <xsl:template name="meta-description">
         <meta name="description" content="Hail Overview"/>
     </xsl:template>
+    <xsl:template name="header">
+    </xsl:template>
     <xsl:template match="body">
         <span id='gethelp' class='non-home'>
             <div id="hero" style='height:calc(25vh - 50px); min-height: 250px; background: #2a3a8c; color: #fff'>
