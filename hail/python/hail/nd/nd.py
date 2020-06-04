@@ -42,6 +42,15 @@ def array(input_array):
     return _ndarray(input_array)
 
 
+shape_type = oneof(expr_int64, tupleof(expr_int64), expr_tuple())
+
+
+@typecheck(a=expr_ndarray(), shape=shape_type)
+def from_column_major(a, shape):
+    assert len(shape) == 2
+    return array(a).reshape(tuple(reversed(shape))).T
+
+
 @typecheck(start=expr_int32, stop=nullable(expr_int32), step=expr_int32)
 def arange(start, stop=None, step=1) -> NDArrayNumericExpression:
     """Returns a 1-dimensions ndarray of integers from `start` to `stop` by `step`.
@@ -82,7 +91,7 @@ def arange(start, stop=None, step=1) -> NDArrayNumericExpression:
     return array(hl.range(start, stop, step))
 
 
-@typecheck(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()), value=expr_any, dtype=nullable(HailType))
+@typecheck(shape=shape_type, value=expr_any, dtype=nullable(HailType))
 def full(shape, value, dtype=None):
     """Creates a hail :class:`.NDArrayNumericExpression` full of the specified value.
 
@@ -118,7 +127,7 @@ def full(shape, value, dtype=None):
     return arange(hl.int32(shape_product)).map(lambda x: cast_expr(value, dtype)).reshape(shape)
 
 
-@typecheck(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()), dtype=HailType)
+@typecheck(shape=shape_type, dtype=HailType)
 def zeros(shape, dtype=tfloat64):
     """Creates a hail :class:`.NDArrayNumericExpression` full of zeros.
 
@@ -153,7 +162,7 @@ def zeros(shape, dtype=tfloat64):
     return full(shape, 0, dtype)
 
 
-@typecheck(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()), dtype=HailType)
+@typecheck(shape=shape_type, dtype=HailType)
 def ones(shape, dtype=tfloat64):
     """Creates a hail :class:`.NDArrayNumericExpression` full of ones.
 

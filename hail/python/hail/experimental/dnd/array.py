@@ -2,12 +2,6 @@ import json
 import numpy as np
 from typing import Optional, Tuple
 
-# from ..utils.java import Env
-# from ..utils import range_table, new_temp_file
-# from .. import nd
-# from ..matrixtable import MatrixTable
-# from ..table import Table
-
 from hail.utils.java import Env
 from hail.utils import range_table, new_temp_file
 from hail import nd
@@ -154,6 +148,9 @@ class DNDArray:
     def count_blocks(self) -> Tuple[int, int]:
         return (self.n_block_cols, self.n_block_rows)
 
+    def transpose(self) -> 'DNDArray':
+        return self.T
+
     @property
     def T(self) -> 'DNDArray':
         m = self.m
@@ -221,7 +218,7 @@ class DNDArray:
                 block=hl.agg.array_sum(o.product))._ir))
         # FIXME: need a "from_column_major" or other semantically meaningful
         # name
-        o = o.annotate(block=hl.nd.array(o.block).reshape(tuple(reversed(o.shape))).T)
+        o = o.annotate(block=hl.nd.from_column_major(o.block, o.shape))
         o = o.select('block')
         o = o.select_globals(
             x_field='x',
