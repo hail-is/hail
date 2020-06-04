@@ -1872,7 +1872,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(toNestedArray(group(MakeStream(Seq(), TStream(structType)))), FastIndexedSeq())
 
     // test when inner streams are unused
-    assertEvalsTo(streamForceCount(group(a)), 3)
+    assertEvalsTo(streamForceCount(group(a)), 5)
 
     def takeFromEach(stream: IR, take: IR): IR = {
       val innerType = coerce[TStream](stream.typ)
