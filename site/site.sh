@@ -14,8 +14,8 @@ EOF
 else
     prefix="/$HAIL_DEFAULT_NAMESPACE/site"
     cat >$rewrite_conf_location <<EOF
-subs_filter href=(['"])/([^/]) href=\$1/$HAIL_DEFAULT_NAMESPACE/site/\$2 gr;
-subs_filter src=(['"])/([^/]) src=\$1/$HAIL_DEFAULT_NAMESPACE/site/\$2 gr;
+subs_filter href="/([^/]) href="/$HAIL_DEFAULT_NAMESPACE/site/\$1 gr;
+subs_filter src="/([^/]) src="/$HAIL_DEFAULT_NAMESPACE/site/\$1 gr;
 EOF
 fi
 
