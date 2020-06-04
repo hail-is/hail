@@ -88,7 +88,7 @@
             </div>
         </div>
         <script src="/vendors/vanta/threeR115.min.js"></script>
-        <script type="module">
+        <script type="module" crossorigin="">
             <![CDATA[
                 import Viz from "/vendors/vanta/viz.min.js";
                 new Viz({
