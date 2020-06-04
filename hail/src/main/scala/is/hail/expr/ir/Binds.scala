@@ -172,6 +172,7 @@ object ChildEnvWithoutBindings {
     ir match {
       case StreamAgg(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = Some(env.eval)) else env
       case StreamAggScan(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, scan = Some(env.eval)) else env
+      case CollectDistributedArray(_, _, _, _, _) => if (i == 2) BindingEnv.empty else env
       case MatrixAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty))
       case TableAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty))
       case RelationalLet(_, _, _) => if (i == 0) BindingEnv.empty else env
