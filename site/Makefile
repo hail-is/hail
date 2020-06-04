@@ -22,8 +22,9 @@ push: build
 	docker push $(IMAGE)
 
 deploy: push
-	python3 ../ci/jinja2_render.py '{"global": {"domain":"hail.is"},"default_ns":{"name":"default"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"site_image":{"image":"$(IMAGE)"}}' deployment.yaml deployment.yaml.out
-	kubectl -n default apply -f deployment.yaml.out
+	test $(NAMESPACE)
+	python3 ../ci/jinja2_render.py '{"global": {"domain":"hail.is"},"default_ns":{"name":"$(NAMESPACE)"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"site_image":{"image":"$(IMAGE)"}}' deployment.yaml deployment.yaml.out
+	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
 
 clean:
 	rm -rf deployment.yaml
