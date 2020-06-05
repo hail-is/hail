@@ -8,7 +8,7 @@ setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
 
-def test_range_collect(self):
+def test_range_collect():
     n_variants = 10
     n_samples = 10
     block_size = 3
@@ -21,7 +21,7 @@ def test_range_collect(self):
     assert np.array_equal(da.collect(), a)
 
 
-def test_range_matmul(self):
+def test_range_matmul():
     n_variants = 10
     n_samples = 10
     block_size = 3
@@ -40,7 +40,7 @@ def test_range_matmul(self):
     assert np.array_equal(da_result, a_result)
 
 
-def test_small_collect(self):
+def test_small_collect():
     n_variants = 10
     n_samples = 10
     block_size = 3
@@ -55,7 +55,7 @@ def test_small_collect(self):
     assert np.array_equal(da.collect(), a)
 
 
-def test_medium_collect(self):
+def test_medium_collect():
     n_variants = 100
     n_samples = 100
     block_size = 32
@@ -70,7 +70,7 @@ def test_medium_collect(self):
     assert np.array_equal(da.collect(), a)
 
 
-def test_small_matmul(self):
+def test_small_matmul():
     n_variants = 10
     n_samples = 10
     block_size = 3
@@ -91,7 +91,7 @@ def test_small_matmul(self):
     assert np.array_equal(da_result, a_result)
 
 
-def test_medium_matmul(self):
+def test_medium_matmul():
     n_variants = 100
     n_samples = 100
     block_size = 32
