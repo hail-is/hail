@@ -553,7 +553,7 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
      - ``GRCh37``: ``gs://hail-us-vep/vep85-loftee-gcloud.json``
      - ``GRCh38``: ``gs://hail-us-vep/vep95-GRCh38-loftee-gcloud.json``
 
-     If no config file is specified, this function will check the to see if `VEP_CONFIG_URI` is set with a path to a config file.
+     If no config file is specified, this function will check to see if environment variable `VEP_CONFIG_URI` is set with a path to a config file.
 
     **Annotations**
 
