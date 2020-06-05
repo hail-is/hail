@@ -69,51 +69,6 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     filterWithPartitionOp((_, _) => ())((_, ctx, ptr, glob) => p(ctx, ptr, glob))
   }
 
-  def write(ctx: ExecuteContext, path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSON: String) {
-    assert(typ.isCanonical)
-    val fs = ctx.fs
-
-    val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSON)
-
-    if (overwrite)
-      fs.delete(path, recursive = true)
-    else if (fs.exists(path))
-      fatal(s"file already exists: $path")
-
-    fs.mkDir(path)
-
-    val globalsPath = path + "/globals"
-    fs.mkDir(globalsPath)
-    AbstractRVDSpec.writeSingle(ctx, globalsPath, globals.t, bufferSpec, Array(globals.javaValue))
-
-    val codecSpec = TypedCodecSpec(rvd.rowPType, bufferSpec)
-    val partitionCounts = rvd.write(ctx, path + "/rows", "../index", stageLocally, codecSpec)
-
-    val referencesPath = path + "/references"
-    fs.mkDir(referencesPath)
-    ReferenceGenome.exportReferences(fs, referencesPath, typ.rowType)
-    ReferenceGenome.exportReferences(fs, referencesPath, typ.globalType)
-
-    val spec = TableSpecParameters(
-      FileFormat.version.rep,
-      is.hail.HAIL_PRETTY_VERSION,
-      "references",
-      typ,
-      Map("globals" -> RVDComponentSpec("globals"),
-        "rows" -> RVDComponentSpec("rows"),
-        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    spec.write(fs, path)
-
-    writeNativeFileReadMe(fs, path)
-
-    using(fs.create(path + "/_SUCCESS"))(_ => ())
-
-    val nRows = partitionCounts.sum
-    info(s"wrote table with $nRows ${ plural(nRows, "row") } " +
-      s"in ${ partitionCounts.length } ${ plural(partitionCounts.length, "partition") } " +
-      s"to $path")
-  }
-
   def export(ctx: ExecuteContext, path: String, typesFile: String = null, header: Boolean = true, exportType: String = ExportType.CONCATENATED, delimiter: String = "\t") {
     val fs = ctx.fs
     fs.delete(path, recursive = true)

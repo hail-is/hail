@@ -11,8 +11,9 @@ import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
+import is.hail.rvd.RVDSpecMaker
 import is.hail.utils.{FastIndexedSeq, _}
-import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
+import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import scala.language.existentials
 
@@ -577,6 +578,38 @@ object PartitionReader {
     new ETypeSerializer
 }
 
+object PartitionWriter {
+  implicit val formats: Formats = new DefaultFormats() {
+    override val typeHints = ShortTypeHints(List(
+      classOf[PartitionNativeWriter],
+      classOf[AbstractTypedCodecSpec],
+      classOf[TypedCodecSpec])
+    ) + BufferSpec.shortTypeHints
+    override val typeHintFieldName = "name"
+  }  +
+    new TStructSerializer +
+    new TypeSerializer +
+    new PTypeSerializer +
+    new PStructSerializer +
+    new ETypeSerializer
+}
+
+object MetadataWriter {
+  implicit val formats: Formats = new DefaultFormats() {
+    override val typeHints = ShortTypeHints(List(
+      classOf[MetadataNativeWriter],
+      classOf[RVDSpecMaker],
+      classOf[AbstractTypedCodecSpec],
+      classOf[TypedCodecSpec])
+    ) + BufferSpec.shortTypeHints
+    override val typeHintFieldName = "name"
+  }  +
+    new TStructSerializer +
+    new TypeSerializer +
+    new PTypeSerializer +
+    new ETypeSerializer
+}
+
 abstract class PartitionReader {
   def contextType: Type
 
@@ -595,7 +628,34 @@ abstract class PartitionReader {
   def toJValue: JValue
 }
 
+abstract class PartitionWriter {
+  def consumeStream(
+    context: EmitCode,
+    eltType: PStruct,
+    mb: EmitMethodBuilder[_],
+    region: Value[Region],
+    stream: SizedStream): EmitCode
+
+  def ctxType: Type
+  def returnType: Type
+  def returnPType(ctxType: PType, streamType: PStream): PType
+
+  def toJValue: JValue = Extraction.decompose(this)(PartitionWriter.formats)
+}
+
+abstract class MetadataWriter {
+  def annotationType: Type
+  def writeMetadata(
+    writeAnnotations: => IEmitCode,
+    cb: EmitCodeBuilder,
+    region: Value[Region]): Unit
+
+  def toJValue: JValue = Extraction.decompose(this)(MetadataWriter.formats)
+}
+
 final case class ReadPartition(context: IR, rowType: Type, reader: PartitionReader) extends IR
+final case class WritePartition(value: IR, writeCtx: IR, writer: PartitionWriter) extends IR
+final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) extends IR
 
 final case class ReadValue(path: IR, spec: AbstractTypedCodecSpec, requestedType: Type) extends IR
 final case class WriteValue(value: IR, pathPrefix: IR, spec: AbstractTypedCodecSpec) extends IR
@@ -603,7 +663,13 @@ final case class WriteValue(value: IR, pathPrefix: IR, spec: AbstractTypedCodecS
 final case class UnpersistBlockMatrix(child: BlockMatrixIR) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
-  def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)
+  def +(other: IR): IR = {
+    assert(self.typ == other.typ)
+    if (self.typ == TString)
+      invoke("concat", TString, self, other)
+    else
+      ApplyBinaryPrimOp(Add(), self, other)
+  }
   def -(other: IR): IR = ApplyBinaryPrimOp(Subtract(), self, other)
   def *(other: IR): IR = ApplyBinaryPrimOp(Multiply(), self, other)
   def /(other: IR): IR = ApplyBinaryPrimOp(FloatingPointDivide(), self, other)

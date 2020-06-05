@@ -17,6 +17,9 @@ class PTypeSerializer extends CustomSerializer[PType](format => (
   { case JString(s) => PType.canonical(IRParser.parsePType(s)) },
   { case t: PType => JString(t.toString) }))
 
+class PStructSerializer extends CustomSerializer[PStruct](format => (
+  { case JString(s) => IRParser.parsePType(s).asInstanceOf[PStruct] },
+  { case t: PStruct => JString(t.toString) }))
 
 object PType {
   def genScalar(required: Boolean): Gen[PType] =
