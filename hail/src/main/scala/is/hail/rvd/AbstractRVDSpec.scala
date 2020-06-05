@@ -286,7 +286,7 @@ object RVDSpecMaker {
 
 case class RVDSpecMaker(
   codecSpec: AbstractTypedCodecSpec,
-  key: Array[String],
+  key: IndexedSeq[String],
   bounds: JValue,
   indexSpec: AbstractIndexSpec,
   attrs: Map[String, String]) {

@@ -2947,7 +2947,7 @@ class IRSuite extends HailSuite {
           RVDSpecMaker(
             TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default),
             new RVDPartitioner(TStruct("a" -> TInt32), Array[Interval](), 1)),
-          TableType(TStruct("a" -> PInt32()), FastIndexedSeq("a"), TStruct()))
+          TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct()))
       ),
       ReadValue(Str("foo"), TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default), TStruct("foo" -> TInt32)),
       WriteValue(I32(1), Str("foo"), TypedCodecSpec(PInt32(), BufferSpec.default)),
