@@ -86,6 +86,15 @@ if role == 'Master':
         'PYSPARK_DRIVER_PYTHON': '/opt/conda/default/bin/python',
     }
 
+    # VEP ENV
+    try:
+        vep_config_uri = get_metadata('VEP_CONFIG_URI')
+    except Exception:
+        pass
+    else:
+        env_to_set["VEP_CONFIG_URI"] = vep_config_uri
+
+
     print('setting environment')
 
     for e, value in env_to_set.items():

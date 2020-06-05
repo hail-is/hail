@@ -583,12 +583,12 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
 
     """
     if config is None:
-        maybe_config = os.getenv("HAIL_VEP_CONFIG")
+        maybe_config = os.getenv("VEP_CONFIG_URI")
         if maybe_config is not None:
             config = maybe_config
         else:
-            raise ValueError("No config set and HAIL_VEP_CONFIG was not set.")
-    
+            raise ValueError("No config set and VEP_CONFIG_URI was not set.")
+
     if isinstance(dataset, MatrixTable):
         require_row_key_variant(dataset, 'vep')
         ht = dataset.select_rows().rows()
