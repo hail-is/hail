@@ -88,7 +88,7 @@
             </div>
         </div>
         <script src="/vendors/vanta/threeR115.min.js"></script>
-        <script type="module" crossorigin="">
+        <script type="module" crossorigin="use-credentials"> <!-- https://github.com/hail-is/hail/pull/8928#issuecomment-639218007 -->
             <![CDATA[
                 import Viz from "/vendors/vanta/viz.min.js";
                 new Viz({
