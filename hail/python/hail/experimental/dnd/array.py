@@ -39,7 +39,6 @@ class DNDArray:
     """
 
     default_block_size = 4096
-    # FIXME: make lz4fast
     fast_codec_spec = json.dumps({
         "name": "BlockingBufferSpec",
         "blockSize": 64 * 1024,
