@@ -195,7 +195,7 @@ class ServiceBackend(queryFS: FS) extends Backend {
         "token" -> JString(token)),
       jobs)
     implicit val formats: Formats = DefaultFormats
-    val batchID = (batch \ "state").extract[Int]
+    val batchID = (batch \ "id").extract[Int]
     val batchState = (batch \ "state").extract[String]
     if (batchState != "success")
       throw new RuntimeException(s"batch $batchID failed: $batchState")
