@@ -12,7 +12,7 @@ import is.hail.expr.ir.lowering._
 import is.hail.expr.ir._
 import is.hail.types.physical.{PStruct, PTuple, PType}
 import is.hail.types.virtual.{TStruct, TVoid}
-import is.hail.backend.{Backend, BroadcastValue, HailTaskContext}
+import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.utils._
 import is.hail.io.bgen.IndexBgen
@@ -231,8 +231,8 @@ class SparkBackend(
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
 
-  def parallelizeAndComputeWithIndex[T : ClassTag, U : ClassTag](collection: Array[T])(f: (T, Int) => U): Array[U] = {
-    val rdd = sc.parallelize[T](collection, numSlices = collection.length)
+  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]])(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]] = {
+    val rdd = sc.parallelize(collection, numSlices = collection.length)
     rdd.mapPartitionsWithIndex { (i, it) =>
       HailTaskContext.setTaskContext(new SparkTaskContext(TaskContext.get))
       val elt = it.next()

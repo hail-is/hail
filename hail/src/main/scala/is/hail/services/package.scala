@@ -1,6 +1,7 @@
 package is.hail
 
 import is.hail.services.batch_client.ClientResponseException
+import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
 
 import scala.util.Random
@@ -26,6 +27,8 @@ package object services {
     e match {
       case e: ClientResponseException =>
         RETRYABLE_HTTP_STATUS_CODES.contains(e.status)
+      case e: HttpHostConnectException =>
+        true
       case _ =>
         false
     }

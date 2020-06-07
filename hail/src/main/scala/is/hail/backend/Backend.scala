@@ -9,12 +9,14 @@ import scala.reflect.ClassTag
 
 abstract class BroadcastValue[T] { def value: T }
 
+abstract class BackendContext
+
 abstract class Backend {
   def defaultParallelism: Int
 
   def broadcast[T: ClassTag](value: T): BroadcastValue[T]
 
-  def parallelizeAndComputeWithIndex[T: ClassTag, U : ClassTag](collection: Array[T])(f: (T, Int) => U): Array[U]
+  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]])(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]]
 
   def stop(): Unit
 
