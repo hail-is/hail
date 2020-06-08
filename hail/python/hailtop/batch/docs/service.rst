@@ -33,6 +33,8 @@ have been specified to be uploaded by the user. These files can either be specif
 .. image:: _static/images/file_localization.png
 
 
+.. _service-accounts:
+
 Service Accounts
 ----------------
 
