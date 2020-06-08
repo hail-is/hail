@@ -295,15 +295,6 @@ a {
   font-size: .875rem;
 }
 
-.non-home #hero-content.wide {
-  display: block;
-  z-index: 1;
-  padding: 50px 100px 50px 50px;
-  box-shadow: none;
-  border-radius: 0px;
-  text-align: l;
-}
-
 /* Modified for Hail*/
 /*! normalize.css v8.0.1 | MIT License | github.com/necolas/normalize.css */
 
