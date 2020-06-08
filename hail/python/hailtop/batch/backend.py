@@ -108,18 +108,18 @@ class LocalBackend(Backend):
                     copied_input_resource_files.add(r)
 
                     if r._input_path.startswith('gs://'):
-                        return [f'gsutil cp {r._input_path} {r._get_path(tmpdir)}']
+                        return [f'gsutil cp {shq(r._input_path)} {shq(r._get_path(tmpdir))}']
 
-                    absolute_input_path = shq(os.path.realpath(r._input_path))
+                    absolute_input_path = os.path.realpath(r._input_path)
 
                     dest = r._get_path(tmpdir)
                     dir = os.path.dirname(dest)
                     os.makedirs(dir, exist_ok=True)
 
                     if job._image is not None:  # pylint: disable-msg=W0640
-                        return [f'cp {absolute_input_path} {dest}']
+                        return [f'cp {shq(absolute_input_path)} {shq(dest)}']
 
-                    return [f'ln -sf {absolute_input_path} {dest}']
+                    return [f'ln -sf {shq(absolute_input_path)} {shq(dest)}']
 
                 return []
 
@@ -370,7 +370,7 @@ class ServiceBackend(Backend):
         write_external_inputs = [x for r in batch._input_resources for x in copy_external_output(r)]
         if write_external_inputs:
             def _cp(src, dst):
-                return f'gsutil -m cp -R {src} {dst}'
+                return f'gsutil -m cp -R {shq(src)} {shq(dst)}'
 
             write_cmd = f'''
 {bash_flags}
@@ -397,7 +397,7 @@ class ServiceBackend(Backend):
 
             symlinks = [x for r in job._mentioned for x in symlink_input_resource_group(r)]
 
-            env_vars = {r._uid: r._get_path(local_tmpdir) for r in job._mentioned}
+            env_vars = {r._uid: shq(r._get_path(local_tmpdir)) for r in job._mentioned}
 
             if job._image is None:
                 if verbose:
@@ -455,7 +455,8 @@ class ServiceBackend(Backend):
             rm_cmd = f'gsutil -m rm -r {remote_tmpdir}'
             cmd = f'''
 {bash_flags}
-{activate_service_account} && {rm_cmd}
+{activate_service_account}
+{rm_cmd}
 '''
             j = bc_batch.create_job(
                 image='google/cloud-sdk:237.0.0-alpine',
