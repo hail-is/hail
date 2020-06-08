@@ -194,7 +194,7 @@ class Batch:
         self._resource_map.update({rg._uid: rg})
         return rg
 
-    def read_input(self, path, extension=None):
+    def read_input(self, path):
         """
         Create a new input resource file object representing a single file.
 
@@ -222,8 +222,6 @@ class Batch:
         """
 
         irf = self._new_input_resource_file(path)
-        if extension is not None:
-            irf.add_extension(extension)
         return irf
 
     def read_input_group(self, **kwargs):

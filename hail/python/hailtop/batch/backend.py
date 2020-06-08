@@ -149,7 +149,7 @@ class LocalBackend(Backend):
                 for name, irf in r._resources.items():
                     src = irf._get_path(tmpdir)
                     dest = f'{r._get_path(tmpdir)}.{name}'
-                    symlinks.append(f'ln -sf {src} {dest}')
+                    symlinks.append(f'ln -sf {shq(src)} {shq(dest)}')
             return symlinks
 
         write_inputs = [x for r in batch._input_resources for x in copy_external_output(r)]
@@ -364,7 +364,7 @@ class ServiceBackend(Backend):
                 for name, irf in r._resources.items():
                     src = irf._get_path(local_tmpdir)
                     dest = f'{r._get_path(local_tmpdir)}.{name}'
-                    symlinks.append(f'ln -sf {src} {dest}')
+                    symlinks.append(f'ln -sf {shq(src)} {shq(dest)}')
             return symlinks
 
         write_external_inputs = [x for r in batch._input_resources for x in copy_external_output(r)]
@@ -372,8 +372,11 @@ class ServiceBackend(Backend):
             def _cp(src, dst):
                 return f'gsutil -m cp -R {src} {dst}'
 
-            write_cmd = bash_flags + activate_service_account + ' && ' + \
-                ' && '.join([_cp(*files) for files in write_external_inputs])
+            write_cmd = f'''
+{bash_flags}
+{activate_service_account}
+{' && '.join([_cp(*files) for files in write_external_inputs])}
+'''
 
             if dry_run:
                 commands.append(write_cmd)

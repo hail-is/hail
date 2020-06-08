@@ -262,9 +262,7 @@ class LocalTests(unittest.TestCase):
     def test_add_extension_input_resource_file(self):
         input_file1 = '/tmp/data/example1.txt.bgz.foo'
         b = self.batch()
-        in1 = b.read_input(input_file1, extension='.txt.bgz.foo')
-        with self.assertRaises(Exception):
-            in1.add_extension('.baz')
+        in1 = b.read_input(input_file1)
         assert in1._value.endswith('.txt.bgz.foo')
 
     def test_file_name_space(self):
