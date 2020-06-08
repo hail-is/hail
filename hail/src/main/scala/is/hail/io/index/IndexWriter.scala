@@ -386,38 +386,4 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
     internalBuilder.create(cb)
     internalBuilder.store(cb, utils, 0)
   }
-
-  class NonImperativeIndexWriter(newInit: EmitMethodBuilder[_], newAdd: EmitMethodBuilder[_], newClose: EmitMethodBuilder[_]) {
-    def init(path: Code[String]): Code[Unit] = newInit.invokeCode(CodeParam(path))
-    def add(key: EmitCode, offset: Code[Long], annotation: EmitCode): Code[Unit] =
-      Code(
-        key.setup,
-        key.m.mux(
-          Code._fatal[Unit]("index key can't be missing"),
-          Code(
-            annotation.setup,
-            annotation.m.mux(
-              Code._fatal[Unit]("index annotation can't be missing"),
-              newAdd.invokeCode[Unit](key.value[Long], offset, annotation.value[Long])))))
-    def close(): Code[Unit] = newClose.invokeCode()
-  }
-
-  def streamCompatible(): NonImperativeIndexWriter = {
-    val newInit = cb.genEmitMethod("init", FastIndexedSeq[ParamType](typeInfo[String]), typeInfo[Unit])
-    val newAdd = cb.genEmitMethod("add",
-      FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Long], typeInfo[Long]),
-      typeInfo[Unit])
-    val newClose = cb.genEmitMethod("close", FastIndexedSeq[ParamType](), typeInfo[Unit])
-
-    newInit.voidWithBuilder(cb => init(cb, cb.emb.getCodeParam[String](1)))
-    newAdd.voidWithBuilder { codeBuilder =>
-      add(codeBuilder,
-        IEmitCode(codeBuilder, false, PCode(keyType, newAdd.getCodeParam[Long](1))),
-        newAdd.getCodeParam[Long](2),
-        IEmitCode(codeBuilder, false, PCode(annotationType, newAdd.getCodeParam[Long](3))))
-    }
-    newClose.voidWithBuilder(close)
-    new NonImperativeIndexWriter(newInit, newAdd, newClose)
-  }
-
 }

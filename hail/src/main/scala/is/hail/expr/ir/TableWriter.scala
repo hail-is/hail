@@ -139,8 +139,6 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
 
   if (stageLocally)
     throw new LowererUnsupportedOperation("stageLocally option not yet implemented")
-
-  def ifIndexedCode(code: => Code[Unit]): Code[Unit] = if (hasIndex) code else Code._empty
   def ifIndexed[T >: Null](obj: => T): T = if (hasIndex) obj else null
 
   def consumeStream(
@@ -152,68 +150,68 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
     val enc = spec.buildEmitEncoderF(eltType, mb.ecb, typeInfo[Long]) //(Value[Region], Value[T], Value[OutputBuffer]) => Code[Unit]
 
     val keyType = ifIndexed { index.get._2 }
-    val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb).streamCompatible() }
+    val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb) }
 
     context.map { ctxCode: PCode =>
       val ctx = mb.newLocal[Long]("ctx")
       val result = mb.newLocal[Long]("write_result")
 
       val filename = mb.newLocal[String]("filename")
-      val indexFile = ifIndexed { mb.newLocal[String]("indexFile") }
-
       val os = mb.newLocal[ByteTrackingOutputStream]("write_os")
       val ob = mb.newLocal[OutputBuffer]("write_ob")
       val n = mb.newLocal[Long]("partition_count")
-      val keyRVB = ifIndexed { new StagedRegionValueBuilder(mb, keyType) }
-      val row = mb.newLocal[Long]("row")
-
-      val init = Code(
-        ctx := ctxCode.tcode[Long],
-        filename := pContextType.loadString(ctx),
-        ifIndexedCode {
-          Code(indexFile := const(index.get._1).concat(filename),
-            indexWriter.init(indexFile))
-        },
-        filename := const(partPrefix).concat(filename),
-        os := Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename)),
-        ob := spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)),
-        n := 0L)
 
       def writeFile(codeRow: EmitCode): Code[Unit] = {
         val rowType = coerce[PStruct](codeRow.pt)
-        Code(
-          codeRow.setup,
-          codeRow.m.mux(
-            Code._fatal[Unit]("row can't be missing"),
-            Code(
-              row := codeRow.value[Long],
-              ifIndexedCode {
-                val annotation = EmitCode.present(+PCanonicalStruct(), 0L)
-                Code(
-                  keyRVB.start(),
-                  Code(keyType.fields.map { f =>
-                    keyRVB.addIRIntermediate(f.typ)(Region.loadIRIntermediate(f.typ)(rowType.fieldOffset(row, f.name)))
-                  }),
-                  indexWriter.add(EmitCode.present(keyType, keyRVB.offset), ob.invoke[Long]("indexOffset"), annotation))
-              },
-              ob.writeByte(1.asInstanceOf[Byte]),
-              enc(region, row, ob),
-              n := n + 1L)))
+        EmitCodeBuilder.scopedVoid(mb) { cb =>
+          codeRow.toI(cb).consume(cb,
+            cb._fatal("row can't be missing"),
+            { pc =>
+              val row = pc.memoize(cb, "row")
+              if (hasIndex) {
+                val annotation = IEmitCode.present(cb, PCode(+PCanonicalStruct(), 0L))
+                val keyRVB = new StagedRegionValueBuilder(mb, keyType)
+                val key = IEmitCode.present(cb, {
+                  cb += keyRVB.start()
+                  keyType.fields.foreach { f =>
+                    cb += keyRVB.addIRIntermediate(f.typ)(Region.loadIRIntermediate(f.typ)(rowType.fieldOffset(coerce[Long](row.value), f.name)))
+                    cb += keyRVB.advance()
+                  }
+                  PCode(keyType, keyRVB.offset)
+                })
+                indexWriter.add(cb, key, ob.invoke[Long]("indexOffset"), annotation)
+              }
+              cb += ob.writeByte(1.asInstanceOf[Byte])
+              cb += enc(region, coerce[Long](row.value), ob)
+              cb.assign(n, n + 1L)
+            })
+          }
       }
 
-      PCode(pResultType,
-        Code.sequence1(FastIndexedSeq(
-          init,
-          stream.getStream.forEach(mb, writeFile),
-          ob.writeByte(0.asInstanceOf[Byte]),
-          result := pResultType.allocate(region),
-          ifIndexedCode { indexWriter.close() },
-          ob.flush(),
-          os.invoke[Unit]("close"),
-          Region.storeIRIntermediate(filenameType)(
-            pResultType.fieldOffset(result, "filePath"), ctx),
-          Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)),
-          result))
+      PCode(pResultType, EmitCodeBuilder.scopedCode(mb) { cb: EmitCodeBuilder =>
+        cb.assign(ctx, ctxCode.tcode[Long])
+        cb.assign(filename, pContextType.loadString(ctx))
+        if (hasIndex) {
+          val indexFile = cb.newLocal[String]("indexFile")
+          cb.assign(indexFile, const(index.get._1).concat(filename))
+          indexWriter.init(cb, indexFile)
+        }
+        cb.assign(filename, const(partPrefix).concat(filename))
+        cb.assign(os, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename)))
+        cb.assign(ob, spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)))
+        cb.assign(n, 0L)
+        cb += stream.getStream.forEach(mb, writeFile)
+        cb += ob.writeByte(0.asInstanceOf[Byte])
+        cb.assign(result, pResultType.allocate(region))
+        if (hasIndex)
+          indexWriter.close(cb)
+        cb += ob.flush()
+        cb += os.invoke[Unit]("close")
+        Region.storeIRIntermediate(filenameType)(
+          pResultType.fieldOffset(result, "filePath"), ctx),
+        Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)),
+        result.get
+      })
     }
   }
 }

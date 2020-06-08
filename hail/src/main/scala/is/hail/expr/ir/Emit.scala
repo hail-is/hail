@@ -194,6 +194,12 @@ object IEmitCode {
     IEmitCode(Lmissing, Lpresent, resPc)
   }
 
+  def present(cb: EmitCodeBuilder, pc: => PCode): IEmitCode = {
+    val Lpresent = CodeLabel()
+    cb.goto(Lpresent)
+    IEmitCode(CodeLabel(), Lpresent, pc)
+  }
+
   def sequence[T](seq: IndexedSeq[T], toIec: T => IEmitCode, cb: EmitCodeBuilder)
       (f: IndexedSeq[PCode] => PCode): IEmitCode = {
     val Lmissing = CodeLabel()
