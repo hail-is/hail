@@ -408,8 +408,8 @@ Stratified by Group
 PLINK Conversions
 ~~~~~~~~~~~~~~~~~
 
-Polygenic Risk Score Calculation
-................................
+Polygenic Score Calculation
+...........................
 
 :**plink**:
 
