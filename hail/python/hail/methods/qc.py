@@ -1,7 +1,8 @@
 import hail as hl
 from collections import Counter
+import os
 from typing import Tuple, List, Union
-from hail.typecheck import typecheck, oneof, anytype
+from hail.typecheck import typecheck, oneof, anytype, nullable
 from hail.utils.java import Env, info
 from hail.utils.misc import divide_null
 from hail.matrixtable import MatrixTable
@@ -478,11 +479,11 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
 
 
 @typecheck(dataset=oneof(Table, MatrixTable),
-           config=str,
+           config=nullable(str),
            block_size=int,
            name=str,
            csq=bool)
-def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep', csq=False):
+def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='vep', csq=False):
     """Annotate variants with VEP.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -552,6 +553,8 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
      - ``GRCh37``: ``gs://hail-us-vep/vep85-loftee-gcloud.json``
      - ``GRCh38``: ``gs://hail-us-vep/vep95-GRCh38-loftee-gcloud.json``
 
+     If no config file is specified, this function will check to see if environment variable `VEP_CONFIG_URI` is set with a path to a config file.
+
     **Annotations**
 
     A new row field is added in the location specified by `name` with type given
@@ -581,6 +584,13 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
         Dataset with new row-indexed field `name` containing VEP annotations.
 
     """
+    if config is None:
+        maybe_config = os.getenv("VEP_CONFIG_URI")
+        if maybe_config is not None:
+            config = maybe_config
+        else:
+            raise ValueError("No config set and VEP_CONFIG_URI was not set.")
+
     if isinstance(dataset, MatrixTable):
         require_row_key_variant(dataset, 'vep')
         ht = dataset.select_rows().rows()
