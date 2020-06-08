@@ -9,7 +9,7 @@
     <xsl:template match="body">
         <div id="hero">
             <div id="hero-background"></div>
-            <div id="hero-content" class='wide'>
+            <div id="hero-content">
                 <h1 id="logo-title">Powering genomic analysis, at every scale</h1>
                 <subtitle id="logo-subtitle">An open-source library for scalable genomic data exploration</subtitle>
                 <div style="display: flex;" id="hero-button-container">
