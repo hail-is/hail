@@ -1,7 +1,6 @@
 import os
 
 import re
-import uuid
 from typing import Optional, Dict, Union
 
 from hailtop.utils import secret_alnum_string
