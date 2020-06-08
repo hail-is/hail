@@ -94,7 +94,6 @@ if role == 'Master':
     else:
         env_to_set["VEP_CONFIG_URI"] = vep_config_uri
 
-
     print('setting environment')
 
     for e, value in env_to_set.items():
