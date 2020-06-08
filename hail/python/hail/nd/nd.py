@@ -4,7 +4,9 @@ import hail as hl
 from hail.expr.functions import _ndarray
 from hail.expr.types import HailType, tfloat64, ttuple, tndarray
 from hail.typecheck import typecheck, nullable, oneof, tupleof
-from hail.expr.expressions import expr_int32, expr_int64, expr_tuple, expr_any, expr_ndarray, Int64Expression, cast_expr, construct_expr
+from hail.expr.expressions import (
+    expr_int32, expr_int64, expr_tuple, expr_any, expr_array, expr_ndarray,
+    Int64Expression, cast_expr, construct_expr)
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
 from hail.ir import NDArrayQR
 
@@ -45,7 +47,7 @@ def array(input_array):
 shape_type = oneof(expr_int64, tupleof(expr_int64), expr_tuple())
 
 
-@typecheck(a=expr_ndarray(), shape=shape_type)
+@typecheck(a=expr_array(), shape=shape_type)
 def from_column_major(a, shape):
     assert len(shape) == 2
     return array(a).reshape(tuple(reversed(shape))).T
