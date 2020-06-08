@@ -419,18 +419,18 @@ gsutil -m cp run.log worker.log /var/log/syslog dockerd.log  gs://$WORKER_LOGS_B
         await instance.mark_deleted('deleted', timestamp)
 
     async def handle_event(self, event):
-        if not event.payload:
+        payload = event.get('jsonPayload')
+        if payload is None:
             log.warning(f'event has no payload')
             return
 
         timestamp = event.timestamp.timestamp() * 1000
-        payload = event.payload
         version = payload['version']
         if version != '1.2':
             log.warning('unknown event verison {version}')
             return
 
-        resource_type = event.resource.type
+        resource_type = event['resource']['type']
         if resource_type != 'gce_instance':
             log.warning(f'unknown event resource type {resource_type}')
             return
