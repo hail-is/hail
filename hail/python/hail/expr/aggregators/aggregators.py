@@ -1423,7 +1423,7 @@ def info_score(gp) -> StructExpression:
             .when(hl.len(unchecked_gp) == 3,
                   unchecked_gp)
             .or_error(f"'info_score': expected 'gp' to have length 3, "
-                      f"found length " + hl.str(hl.len(unchecked_gp))),
+                      f"found length {hl.str(hl.len(unchecked_gp))}"),
             lambda gp: hl.rbind(
                 gp[1], gp[2],
                 lambda gp1, gp2: hl.rbind(
@@ -1742,6 +1742,7 @@ def _prev_nonnull(expr) -> ArrayExpression:
     if wrap:
         r = r[0]
     return r
+
 
 @typecheck(f=func_spec(1, expr_any),
            array=expr_array())

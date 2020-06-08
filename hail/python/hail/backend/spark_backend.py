@@ -18,7 +18,7 @@ from hail.ir.renderer import CSERenderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 
-from .backend import Backend
+from .py4j_backend import Py4JBackend
 from ..hail_logging import Logger
 
 
@@ -137,7 +137,7 @@ class Log4jLogger(Logger):
         self._log_pkg.info(msg)
 
 
-class SparkBackend(Backend):
+class SparkBackend(Py4JBackend):
     def __init__(self, idempotent, sc, spark_conf, app_name, master,
                  local, log, quiet, append, min_block_size,
                  branching_factor, tmpdir, local_tmpdir, skip_logging_configuration, optimizer_iterations):

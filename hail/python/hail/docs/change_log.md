@@ -22,6 +22,54 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.44
+
+Release 2020-06-06
+
+### New Features
+
+ - (hail#8914) `hl.export_vcf` can now export tables as sites-only VCFs.
+ - (hail#8894) Added `hl.shuffle` function to randomly permute arrays.
+ - (hail#8854) Add `composable` option to parallel text export for use with `gsutil compose`.
+
+### Bug fixes
+
+ - (hail#8883) Fix an issue related to failures in pipelines with `force_bgz=True`.
+ 
+### Performance
+
+ - (hail#8887) Substantially improve the performance of `hl.experimental.import_gtf`.
+ 
+---
+
+## Version 0.2.43
+
+Released 2020-05-28
+
+### Bug fixes
+
+- (hail#8867) Fix a major correctness bug ocurring when calling BlockMatrix.transpose on sparse, non-symmetric BlockMatrices.
+- (hail#8876) Fixed "ChannelClosedException: null" in `{Table, MatrixTable}.write`.
+
+---
+
+## Version 0.2.42
+
+Released 2020-05-27
+
+### New Features
+
+- (hail#8822) Add optional non-centrality parameter to `hl.pchisqtail`.
+- (hail#8861) Add `contig_recoding` option to `hl.experimental.run_combiner`.
+
+### Bug fixes
+
+- (hail#8863) Fixes VCF combiner to successfully import GVCFs with alleles called as <NON_REF>.
+- (hail#8845) Fixed issue where accessing an element of an ndarray in a call to Table.transmute would fail.
+- (hail#8855) Fix crash in `filter_intervals`.
+
+---
+
 ## Version 0.2.41
 
 Released 2020-05-15

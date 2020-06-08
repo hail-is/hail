@@ -19,7 +19,10 @@ final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
 
   lazy val fieldIndex: Map[Int, Int] = _types.zipWithIndex.map { case (tf, idx) => tf.index -> idx }.toMap
 
-  lazy val ordering: ExtendedOrdering = TBaseStruct.getOrdering(types)
+  override lazy val ordering: ExtendedOrdering = mkOrdering()
+
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+    TBaseStruct.getOrdering(types, missingEqual)
 
   override lazy val _isCanonical: Boolean = _types.indices.forall(i => i == _types(i).index)
 

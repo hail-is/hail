@@ -12,7 +12,7 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
   val inline: Boolean = typ.isPrimitive
   val storageType: PTuple = PCanonicalTuple(false, if (inline) typ else PInt64(typ.required), PCanonicalTuple(false))
   val compType: PType = typ
-  private val kcomp = kb.getCodeOrdering(typ, CodeOrdering.compare, ignoreMissingness = false)
+  private val kcomp = kb.getCodeOrdering(typ, CodeOrdering.Compare(), ignoreMissingness = false)
 
   def isKeyMissing(src: Code[Long]): Code[Boolean] = storageType.isFieldMissing(src, 0)
   def loadKey(src: Code[Long]): Code[_] = Region.loadIRIntermediate(if (inline) typ else PInt64(typ.required))(storageType.fieldOffset(src, 0))
@@ -156,8 +156,8 @@ class CollectAsSetAggregator(t: PType) extends StagedAggregator {
 
   assert(t.isCanonical)
   val resultType: PSet = PCanonicalSet(t)
-
-  def createState(cb: EmitCodeBuilder): State = new AppendOnlySetState(cb.emb.ecb, t)
+  val initOpTypes: Seq[PType] = Array[PType]()
+  val seqOpTypes: Seq[PType] = Array[PType](t)
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)
@@ -174,7 +174,7 @@ class CollectAsSetAggregator(t: PType) extends StagedAggregator {
 
   protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
     cb += srvb.addArray(resultType.arrayFundamentalType, { sab =>
-      EmitCodeBuilder.scopedVoid(sab.mb) { cb =>
+      EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
         cb += sab.start(state.size)
         state.foreach(cb) { (cb, km, kv) =>
           cb.ifx(km, {

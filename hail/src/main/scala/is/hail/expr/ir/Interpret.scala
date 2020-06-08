@@ -390,12 +390,13 @@ object Interpret {
           else {
             val outer = new ArrayBuilder[IndexedSeq[Row]]()
             val inner = new ArrayBuilder[Row]()
-            val (_, getKey) = structType.select(key)
+            val (kType, getKey) = structType.select(key)
+            val keyOrd = TBaseStruct.getJoinOrdering(kType.types)
             var curKey: Row = getKey(seq.head)
 
             seq.foreach { elt =>
               val nextKey = getKey(elt)
-              if (curKey != nextKey) {
+              if (!keyOrd.equiv(curKey, nextKey)) {
                 outer += inner.result()
                 inner.clear()
                 curKey = nextKey
@@ -497,21 +498,55 @@ object Interpret {
           }
         }
 
-      case StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
+      case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType) =>
         val lValue = interpret(left, env, args).asInstanceOf[IndexedSeq[Any]]
-        val rValue = interpret(right, env, args).asInstanceOf[IndexedSeq[Any]].toIterator
+        val rValue = interpret(right, env, args).asInstanceOf[IndexedSeq[Any]]
 
-        var relt: Any = if (rValue.hasNext) rValue.next() else null
+        if (lValue == null || rValue == null)
+          null
+        else {
+          val (lKeyTyp, lGetKey) = coerce[TStruct](coerce[TStream](left.typ).elementType).select(lKey)
+          val (rKeyTyp, rGetKey) = coerce[TStruct](coerce[TStream](right.typ).elementType).select(rKey)
+          assert(lKeyTyp isIsomorphicTo rKeyTyp)
+          val keyOrd = TBaseStruct.getJoinOrdering(lKeyTyp.types)
 
-        lValue.map { lelt =>
-          while (rValue.hasNext && interpret(compare, env.bind(l -> lelt, r -> relt), args).asInstanceOf[Int] > 0) {
-            relt = rValue.next()
-          }
-          if (interpret(compare, env.bind(l -> lelt, r -> relt), args).asInstanceOf[Int] == 0) {
+          def compF(lelt: Any, relt: Any): Int =
+            keyOrd.compare(lGetKey(lelt.asInstanceOf[Row]), rGetKey(relt.asInstanceOf[Row]))
+          def joinF(lelt: Any, relt: Any): Any =
             interpret(join, env.bind(l -> lelt, r -> relt), args)
-          } else {
-            interpret(join, env.bind(l -> lelt, r -> null), args)
+
+          val builder = scala.collection.mutable.ArrayBuilder.make[Any]
+          var i = 0
+          var j = 0
+          while (i < lValue.length && j < rValue.length) {
+            val lelt = lValue(i)
+            val relt = rValue(j)
+            val c = compF(lelt, relt)
+            if (c < 0) {
+              builder += joinF(lelt, null)
+              i += 1
+            } else if (c > 0) {
+              if (joinType == "outer")
+                builder += joinF(null, relt)
+              j += 1
+            } else {
+              builder += joinF(lelt, relt)
+              i += 1
+              if (i == lValue.length || compF(lValue(i), relt) > 0)
+                j += 1
+            }
           }
+          while (i < lValue.length) {
+            builder += joinF(lValue(i), null)
+            i += 1
+          }
+          if (joinType == "outer") {
+            while (j < rValue.length) {
+              builder += joinF(null, rValue(j))
+              j += 1
+            }
+          }
+          builder.result().toFastIndexedSeq
         }
 
       case StreamFor(a, valueName, body) =>
@@ -662,14 +697,15 @@ object Interpret {
         function.execute(ctx, child.execute(ctx))
       case BlockMatrixToValueApply(child, function) =>
         function.execute(ctx, child.execute(ctx))
-      case TableAggregate(child, query) =>
+      case x@TableAggregate(child, query) =>
         val value = child.execute(ctx)
 
         val globalsBc = value.globals.broadcast
         val globalsOffset = value.globals.value.offset
 
         val res = genUID()
-        val extracted = agg.Extract(query, res)
+
+        val extracted = agg.Extract(query, res, Requiredness(x, ctx))
 
         val wrapped = if (extracted.aggs.isEmpty) {
           val (rt: PTuple, f) = Compile[AsmFunction2RegionLongLong](ctx,
@@ -683,74 +719,105 @@ object Interpret {
         } else {
           val spec = BufferSpec.defaultUncompressed
 
-          val physicalAggs = extracted.getPhysicalAggs(
-            ctx,
-            Env("global" -> value.globals.t),
-            Env("global" -> value.globals.decodedPType, "row" -> value.rvd.rowPType)
-          )
-
           val (_, initOp) = CompileWithAggregators2[AsmFunction2RegionLongUnit](ctx,
-            physicalAggs,
+            extracted.states,
             IndexedSeq(("global", value.globals.t)),
             IndexedSeq(classInfo[Region], LongInfo), UnitInfo,
             extracted.init)
 
           val (_, partitionOpSeq) = CompileWithAggregators2[AsmFunction3RegionLongLongUnit](ctx,
-            physicalAggs,
+            extracted.states,
             FastIndexedSeq(("global", value.globals.t),
               ("row", value.rvd.rowPType)),
             FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
             extracted.seqPerElt)
-
-          val read = extracted.deserialize(ctx, spec, physicalAggs)
-          val write = extracted.serialize(ctx, spec, physicalAggs)
-          val combOpF = extracted.combOpF(ctx, spec, physicalAggs)
-
-          val (rTyp: PTuple, f) = CompileWithAggregators2[AsmFunction2RegionLongLong](ctx,
-            physicalAggs,
-            FastIndexedSeq(("global", value.globals.t)),
-            FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
-            Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
-          assert(rTyp.types(0).virtualType == query.typ)
 
           val useTreeAggregate = extracted.shouldTreeAggregate
           val isCommutative = extracted.isCommutative
           log.info(s"Aggregate: useTreeAggregate=${ useTreeAggregate }")
           log.info(s"Aggregate: commutative=${ isCommutative }")
 
-          val aggResults = value.rvd.combine[Array[Byte]](
-            Region.scoped { region =>
-              val initF = initOp(0, region)
-              Region.scoped { aggRegion =>
-                initF.newAggState(aggRegion)
-                initF(region, globalsOffset)
-                write(aggRegion, initF.getAggOffset())
-              }
-            },
-            { (i: Int, ctx: RVDContext, it: Iterator[Long]) =>
-              val partRegion = ctx.partitionRegion
-              val globalsOffset = globalsBc.value.readRegionValue(partRegion)
-              val init = initOp(i, partRegion)
-              val seqOps = partitionOpSeq(i, partRegion)
+          // A mutable reference to a byte array. If someone higher up the
+          // call stack holds a WrappedByteArray, we can set the reference
+          // to null to allow the array to be GCed.
+          class WrappedByteArray(_bytes: Array[Byte]) {
+            private var ref: Array[Byte] = _bytes
+            def bytes: Array[Byte] = ref
+            def clear() { ref = null }
+          }
 
-              Region.smallScoped { aggRegion =>
-                init.newAggState(aggRegion)
-                init(partRegion, globalsOffset)
-                seqOps.setAggState(aggRegion, init.getAggOffset())
-                it.foreach { ptr =>
-                  seqOps(ctx.region, globalsOffset, ptr)
-                  ctx.region.clear()
-                }
-                write(aggRegion, seqOps.getAggOffset())
-              }
-            }, combOpF, commutative = isCommutative, tree = useTreeAggregate)
+          // creates a region, giving ownership to the caller
+          val read: WrappedByteArray => RegionValue = {
+            val deserialize = extracted.deserialize(ctx, spec)
+            (a: WrappedByteArray) => {
+              val r = Region(Region.SMALL)
+              val res = deserialize(r, a.bytes)
+              a.clear()
+              RegionValue(r, res)
+            }
+          }
+
+          // consumes a region, taking ownership from the caller
+          val write: RegionValue => WrappedByteArray = {
+            val serialize = extracted.serialize(ctx, spec)
+            (rv: RegionValue) => {
+              val a = serialize(rv.region, rv.offset)
+              rv.region.invalidate()
+              new WrappedByteArray(a)
+            }
+          }
+
+          // takes ownership of both inputs, returns ownership of result
+          val combOpF: (RegionValue, RegionValue) => RegionValue =
+            extracted.combOpF(ctx, spec)
+
+          // returns ownership of a new region holding the partition aggregation
+          // result
+          def itF(i: Int, ctx: RVDContext, it: Iterator[Long]): RegionValue = {
+            val partRegion = ctx.partitionRegion
+            val globalsOffset = globalsBc.value.readRegionValue(partRegion)
+            val init = initOp(i, partRegion)
+            val seqOps = partitionOpSeq(i, partRegion)
+            val aggRegion = ctx.freshRegion(Region.SMALL)
+
+            init.newAggState(aggRegion)
+            init(partRegion, globalsOffset)
+            seqOps.setAggState(aggRegion, init.getAggOffset())
+            it.foreach { ptr =>
+              seqOps(ctx.region, globalsOffset, ptr)
+              ctx.region.clear()
+            }
+
+            RegionValue(aggRegion, seqOps.getAggOffset())
+          }
+
+          // creates a new region holding the zero value, giving ownership to
+          // the caller
+          val mkZero = () => {
+            val region = Region(Region.SMALL)
+            val initF = initOp(0, region)
+            initF.newAggState(region)
+            initF(region, globalsOffset)
+            RegionValue(region, initF.getAggOffset())
+          }
+
+          val rv = value.rvd.combine[WrappedByteArray, RegionValue](
+            mkZero, itF, read, write, combOpF, isCommutative, useTreeAggregate)
+
+          val (rTyp: PTuple, f) = CompileWithAggregators2[AsmFunction2RegionLongLong](
+            ctx,
+            extracted.states,
+            FastIndexedSeq(("global", value.globals.t)),
+            FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
+            Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
+          assert(rTyp.types(0).virtualType == query.typ)
 
           Region.scoped { r =>
             val resF = f(0, r)
-            Region.smallScoped { aggRegion =>
-              resF.setAggState(aggRegion, read(aggRegion, aggResults))
-              SafeRow(rTyp, resF(r, globalsOffset))
-            }
+            resF.setAggState(rv.region, rv.offset)
+            val res = SafeRow(rTyp, resF(r, globalsOffset))
+            rv.region.invalidate()
+            res
           }
         }
 
@@ -764,7 +831,8 @@ object Interpret {
         Region.scoped { r =>
           SafeRow.read(rt, makeFunction(0, r)(r)).asInstanceOf[Row](0)
         }
-
+      case UUID4(_) =>
+         uuid4()
     }
   }
 }

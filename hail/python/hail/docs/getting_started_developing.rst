@@ -10,7 +10,7 @@ Requirements
   Note: it *must* be Java **8**. Hail does not support versions 9+ due to our
   dependency on Spark.
 
-- The Python and non-pip installation requiremenets in `Getting Started <getting_started.html>`_
+- The Python and non-pip installation requirements in `Getting Started <getting_started.html>`_
 
 
 Building Hail

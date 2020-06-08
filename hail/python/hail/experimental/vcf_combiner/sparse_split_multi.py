@@ -121,8 +121,7 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
                             + "old alt  : " + ds.alleles[i] + "\n"
                             + "mr locus : " + hl.str(mr.locus) + "\n"
                             + "mr ref   : " + mr.alleles[0] + "\n"
-                            + "mr alt   : " + mr.alleles[1]
-                            )),
+                            + "mr alt   : " + mr.alleles[1])),
                        hl.min_rep(ds.locus, [ds.alleles[0], ds.alleles[i]]))
 
     explode_structs = hl.cond(hl.len(ds.alleles) < 3,
@@ -135,8 +134,7 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
                                   hl.cond(filter_changed_loci,
                                           hl.range(1, hl.len(ds.alleles)).map(struct_from_min_rep).filter(hl.is_defined),
                                           hl.range(1, hl.len(ds.alleles)).map(struct_from_min_rep)),
-                                  lambda l, r: hl._compare(l.alleles, r.alleles) < 0
-                              ))
+                                  lambda l, r: hl._compare(l.alleles, r.alleles) < 0))
 
     ds = ds.annotate(**{new_id: explode_structs}).explode(new_id)
 
@@ -154,7 +152,7 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
                     new_exprs['PGT'] = hl.downcode(old_entry.LPGT, hl.or_else(local_a_index, hl.len(old_entry.LA)))
                     dropped_fields.append('LPGT')
                 if 'LAD' in fields:
-                    non_ref_ad = hl.or_else(old_entry.LAD[local_a_index], 0) # zeroed if not in LAD
+                    non_ref_ad = hl.or_else(old_entry.LAD[local_a_index], 0)  # zeroed if not in LAD
                     new_exprs['AD'] = hl.or_missing(
                         hl.is_defined(old_entry.LAD),
                         [hl.sum(old_entry.LAD) - non_ref_ad, non_ref_ad])
@@ -180,17 +178,17 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
                         hl.is_defined(local_a_index),
                         hl.range(0, 3).map(lambda i: hl.min(
                             hl.range(0, hl.triangle(hl.len(old_entry.LA)))
-                                .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), local_a_index) == hl.unphased_diploid_gt_index_call(i))
-                                .map(lambda idx: old_entry.LPL[idx])))))
+                            .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), local_a_index) == hl.unphased_diploid_gt_index_call(i))
+                            .map(lambda idx: old_entry.LPL[idx])))))
                 return hl.bind(with_pl, new_pl)
             else:
                 return with_pl(None)
 
         lai = hl.fold(lambda accum, elt:
-                        hl.cond(old_entry.LA[elt] == ds[new_id].a_index,
-                                elt, accum),
-                        hl.null(hl.tint32),
-                        hl.range(0, hl.len(old_entry.LA)))
+                      hl.cond(old_entry.LA[elt] == ds[new_id].a_index,
+                              elt, accum),
+                      hl.null(hl.tint32),
+                      hl.range(0, hl.len(old_entry.LA)))
         return hl.bind(with_local_a_index, lai)
 
     new_row = ds.row.annotate(**{

@@ -68,6 +68,10 @@ abstract class PBaseStruct extends PType {
 
   def size: Int = fields.length
 
+  def isIsomorphicTo(other: PBaseStruct) = {
+    this.fields.size == other.fields.size && this.isCompatibleWith(other)
+  }
+
   def _toPretty: String = {
     val sb = new StringBuilder
     _pretty(sb, 0, compact = true)
@@ -89,10 +93,16 @@ abstract class PBaseStruct extends PType {
     sb.result()
   }
 
-  def codeOrdering(mb: EmitMethodBuilder[_], so: Array[SortOrder]): CodeOrdering =
-    codeOrdering(mb, this, so)
+  final def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering =
+    codeOrdering(mb, other, null, true)
 
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: Array[SortOrder]): CodeOrdering
+  final def codeOrdering(mb: EmitMethodBuilder[_], other: PType, missingFieldsEqual: Boolean): CodeOrdering =
+    codeOrdering(mb, other, null, missingFieldsEqual)
+
+  final def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: Array[SortOrder]): CodeOrdering =
+    codeOrdering(mb, other, so, true)
+
+  def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: Array[SortOrder], missingFieldsEqual: Boolean): CodeOrdering
 
   def isPrefixOf(other: PBaseStruct): Boolean =
     size <= other.size && isCompatibleWith(other)

@@ -22,6 +22,8 @@ case object TBoolean extends Type {
 
   override def scalaClassTag: ClassTag[java.lang.Boolean] = classTag[java.lang.Boolean]
 
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.extendToNull(implicitly[Ordering[Boolean]])
+  override val ordering: ExtendedOrdering = mkOrdering()
+
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+    ExtendedOrdering.extendToNull(implicitly[Ordering[Boolean]], missingEqual)
 }

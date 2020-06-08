@@ -4,14 +4,16 @@ import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.Value
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.EmitStream.SizedStream
+import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
 import is.hail.expr.ir.functions._
 import is.hail.types.{RStruct, RTable}
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
+import is.hail.rvd.RVDSpecMaker
 import is.hail.utils.{FastIndexedSeq, _}
-import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
+import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import scala.language.existentials
 
@@ -97,6 +99,17 @@ final case class True() extends IR
 final case class False() extends IR
 final case class Void() extends IR
 
+object UUID4 {
+  def apply(): UUID4 = UUID4(genUID())
+}
+
+// WARNING! This node can only be used when trying to append a one-off,
+// random string that will not be reused elsewhere in the pipeline.
+// Any other uses will need to write and then read again; this node is
+// non-deterministic and will not e.g. exhibit the correct semantics when
+// self-joining on streams.
+final case class UUID4(id: String) extends IR
+
 final case class Cast(v: IR, _typ: Type) extends IR
 final case class CastRename(v: IR, _typ: Type) extends IR
 
@@ -106,6 +119,8 @@ final case class IsNA(value: IR) extends IR
 final case class Coalesce(values: Seq[IR]) extends IR {
   require(values.nonEmpty)
 }
+
+final case class Consume(value: IR) extends IR
 
 final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 
@@ -135,6 +150,11 @@ final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR
 final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR
 
 object MakeArray {
+  def apply(args: IR*): MakeArray = {
+    assert(args.nonEmpty)
+    MakeArray(args, TArray(args.head.typ))
+  }
+
   def unify(args: Seq[IR], requestedType: TArray = null): MakeArray = {
     assert(requestedType != null || args.nonEmpty)
 
@@ -271,16 +291,55 @@ final case class StreamFor(a: IR, valueName: String, body: IR) extends IR
 final case class StreamAgg(a: IR, name: String, query: IR) extends IR
 final case class StreamAggScan(a: IR, name: String, query: IR) extends IR
 
-trait InferredPhysicalAggSignature {
-  // will be filled in by InferPType in subsequent PR
-  var physicalSignatures: Array[AggStatePhysicalSignature] = _
+object StreamJoin {
+  def apply(
+    left: IR, right: IR,
+    lKey: IndexedSeq[String], rKey: IndexedSeq[String],
+    l: String, r: String,
+    joinF: IR,
+    joinType: String
+  ): IR = {
+    val lType = coerce[TStream](left.typ)
+    val rType = coerce[TStream](right.typ)
+    val lEltType = coerce[TStruct](lType.elementType)
+    val rEltType = coerce[TStruct](rType.elementType)
+    assert(lEltType.typeAfterSelectNames(lKey) isIsomorphicTo rEltType.typeAfterSelectNames(rKey))
+    val rightGroupedStream = StreamGroupByKey(right, rKey)
 
-  def signature: IndexedSeq[AggStateSignature]
+    val groupField = genUID()
+
+    // stream of {key, groupField}, where 'groupField' is an array of all rows
+    // in 'right' with key 'key'
+    val rightGrouped =
+      mapIR(rightGroupedStream) { group =>
+        bindIR(ToArray(group)) { array =>
+          bindIR(ArrayRef(array, 0)) { head =>
+            MakeStruct(rKey.map { key => key -> GetField(head, key) } :+ groupField -> array)
+          }
+        }
+      }
+    val rElt = Ref(genUID(), coerce[TStream](rightGrouped.typ).elementType)
+    val nested = bindIR(GetField(rElt, groupField)) { rGroup =>
+      if (joinType == "left" || joinType == "outer") {
+        // Given a left element in 'l' and array of right elements in 'rGroup',
+        // compute array of results of 'joinF'. If 'rGroup' is missing, apply
+        // 'joinF' once to a missing right element.
+        StreamMap(If(IsNA(rGroup), MakeStream.unify(FastSeq(NA(rEltType))), ToStream(rGroup)), r, joinF)
+      } else {
+        StreamMap(ToStream(rGroup), r, joinF)
+      }
+    }
+    val rightDistinctJoinType =
+      if (joinType == "left" || joinType == "inner") "left" else "outer"
+
+    val joined = StreamJoinRightDistinct(left, rightGrouped, lKey, rKey, l, rElt.name, nested, rightDistinctJoinType)
+    val exploded = flatMapIR(joined) { x => x }
+
+    exploded
+  }
 }
-final case class RunAgg(body: IR, result: IR, signature: IndexedSeq[AggStateSignature]) extends IR with InferredPhysicalAggSignature
-final case class RunAggScan(array: IR, name: String, init: IR, seqs: IR, result: IR, signature: IndexedSeq[AggStateSignature]) extends IR with InferredPhysicalAggSignature
 
-final case class StreamLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
+final case class StreamJoinRightDistinct(left: IR, right: IR, lKey: IndexedSeq[String], rKey: IndexedSeq[String], l: String, r: String, joinF: IR, joinType: String) extends IR
 
 sealed trait NDArrayIR extends TypedIR[TNDArray, PNDArray] {
   def elementTyp: Type = typ.elementType
@@ -332,6 +391,11 @@ final case class AggGroupBy(key: IR, aggIR: IR, isScan: Boolean) extends IR
 
 final case class AggArrayPerElement(a: IR, elementName: String, indexName: String, aggBody: IR, knownLength: Option[IR], isScan: Boolean) extends IR
 
+object ApplyAggOp {
+  def apply(op: AggOp, initOpArgs: IR*)(seqOpArgs: IR*): ApplyAggOp =
+    ApplyAggOp(initOpArgs.toIndexedSeq, seqOpArgs.toIndexedSeq, AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ)))
+}
+
 final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
 
   def nSeqOpArgs = seqOpArgs.length
@@ -339,6 +403,11 @@ final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR
   def nInitArgs = initOpArgs.length
 
   def op: AggOp = aggSig.op
+}
+
+object ApplyScanOp {
+  def apply(op: AggOp, initOpArgs: IR*)(seqOpArgs: IR*): ApplyScanOp =
+    ApplyScanOp(initOpArgs.toIndexedSeq, seqOpArgs.toIndexedSeq, AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ)))
 }
 
 final case class ApplyScanOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
@@ -350,22 +419,18 @@ final case class ApplyScanOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[I
   def op: AggOp = aggSig.op
 }
 
-object InitOp {
-  def apply(i: Int, args: IndexedSeq[IR], aggSig: AggSignature): InitOp = InitOp(i, args, AggStateSignature(aggSig), aggSig.op)
-}
-final case class InitOp(i: Int, args: IndexedSeq[IR], aggSig: AggStateSignature, op: AggOp) extends IR
+final case class InitOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSig) extends IR
+final case class SeqOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSig) extends IR
+final case class CombOp(i1: Int, i2: Int, aggSig: PhysicalAggSig) extends IR
+final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[PhysicalAggSig]) extends IR
+final case class CombOpValue(i: Int, value: IR, aggSig: PhysicalAggSig) extends IR
+final case class AggStateValue(i: Int, aggSig: AggStateSig) extends IR
 
-object SeqOp {
-  def apply(i: Int, args: IndexedSeq[IR], aggSig: AggSignature): SeqOp = SeqOp(i, args, AggStateSignature(aggSig), aggSig.op)
-}
-final case class SeqOp(i: Int, args: IndexedSeq[IR], aggSig: AggStateSignature, op: AggOp) extends IR
-final case class CombOp(i1: Int, i2: Int, aggSig: AggStateSignature) extends IR
-final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[AggStateSignature]) extends IR
-final case class CombOpValue(i: Int, value: IR, aggSig: AggStateSignature) extends IR
-final case class AggStateValue(i: Int, aggSig: AggStateSignature) extends IR
+final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSig]) extends IR
+final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSig]) extends IR
 
-final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSignature]) extends IR
-final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSignature]) extends IR
+final case class RunAgg(body: IR, result: IR, signature: IndexedSeq[AggStateSig]) extends IR
+final case class RunAggScan(array: IR, name: String, init: IR, seqs: IR, result: IR, signature: IndexedSeq[AggStateSig]) extends IR
 
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: Seq[(String, IR)]) extends IR
@@ -513,6 +578,38 @@ object PartitionReader {
     new ETypeSerializer
 }
 
+object PartitionWriter {
+  implicit val formats: Formats = new DefaultFormats() {
+    override val typeHints = ShortTypeHints(List(
+      classOf[PartitionNativeWriter],
+      classOf[AbstractTypedCodecSpec],
+      classOf[TypedCodecSpec])
+    ) + BufferSpec.shortTypeHints
+    override val typeHintFieldName = "name"
+  }  +
+    new TStructSerializer +
+    new TypeSerializer +
+    new PTypeSerializer +
+    new PStructSerializer +
+    new ETypeSerializer
+}
+
+object MetadataWriter {
+  implicit val formats: Formats = new DefaultFormats() {
+    override val typeHints = ShortTypeHints(List(
+      classOf[MetadataNativeWriter],
+      classOf[RVDSpecMaker],
+      classOf[AbstractTypedCodecSpec],
+      classOf[TypedCodecSpec])
+    ) + BufferSpec.shortTypeHints
+    override val typeHintFieldName = "name"
+  }  +
+    new TStructSerializer +
+    new TypeSerializer +
+    new PTypeSerializer +
+    new ETypeSerializer
+}
+
 abstract class PartitionReader {
   def contextType: Type
 
@@ -531,7 +628,34 @@ abstract class PartitionReader {
   def toJValue: JValue
 }
 
+abstract class PartitionWriter {
+  def consumeStream(
+    context: EmitCode,
+    eltType: PStruct,
+    mb: EmitMethodBuilder[_],
+    region: Value[Region],
+    stream: SizedStream): EmitCode
+
+  def ctxType: Type
+  def returnType: Type
+  def returnPType(ctxType: PType, streamType: PStream): PType
+
+  def toJValue: JValue = Extraction.decompose(this)(PartitionWriter.formats)
+}
+
+abstract class MetadataWriter {
+  def annotationType: Type
+  def writeMetadata(
+    writeAnnotations: => IEmitCode,
+    cb: EmitCodeBuilder,
+    region: Value[Region]): Unit
+
+  def toJValue: JValue = Extraction.decompose(this)(MetadataWriter.formats)
+}
+
 final case class ReadPartition(context: IR, rowType: Type, reader: PartitionReader) extends IR
+final case class WritePartition(value: IR, writeCtx: IR, writer: PartitionWriter) extends IR
+final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) extends IR
 
 final case class ReadValue(path: IR, spec: AbstractTypedCodecSpec, requestedType: Type) extends IR
 final case class WriteValue(value: IR, pathPrefix: IR, spec: AbstractTypedCodecSpec) extends IR
@@ -539,7 +663,13 @@ final case class WriteValue(value: IR, pathPrefix: IR, spec: AbstractTypedCodecS
 final case class UnpersistBlockMatrix(child: BlockMatrixIR) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
-  def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)
+  def +(other: IR): IR = {
+    assert(self.typ == other.typ)
+    if (self.typ == TString)
+      invoke("concat", TString, self, other)
+    else
+      ApplyBinaryPrimOp(Add(), self, other)
+  }
   def -(other: IR): IR = ApplyBinaryPrimOp(Subtract(), self, other)
   def *(other: IR): IR = ApplyBinaryPrimOp(Multiply(), self, other)
   def /(other: IR): IR = ApplyBinaryPrimOp(FloatingPointDivide(), self, other)

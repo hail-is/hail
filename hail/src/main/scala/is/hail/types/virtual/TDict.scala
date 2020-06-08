@@ -72,8 +72,10 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   override def scalaClassTag: ClassTag[Map[_, _]] = classTag[Map[_, _]]
 
-  lazy val ordering: ExtendedOrdering =
-    ExtendedOrdering.mapOrdering(elementType.ordering)
+  override lazy val ordering: ExtendedOrdering = mkOrdering()
+
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+    ExtendedOrdering.mapOrdering(elementType.ordering, missingEqual)
 
   override def valueSubsetter(subtype: Type): Any => Any = {
     val subdict = subtype.asInstanceOf[TDict]

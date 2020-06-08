@@ -24,6 +24,8 @@ case object TCall extends ComplexType {
 
   override def str(a: Annotation): String = if (a == null) "NA" else Call.toString(a.asInstanceOf[Call])
 
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])
+  override val ordering: ExtendedOrdering = mkOrdering()
+
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+    ExtendedOrdering.extendToNull(implicitly[Ordering[Int]], missingEqual)
 }

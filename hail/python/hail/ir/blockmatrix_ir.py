@@ -253,10 +253,18 @@ class _RectangleSparsifier(BlockMatrixSparsifier):
         pass
 
     def __repr__(self):
-        return f'(PyRectangleSparsifier)'
+        return '(PyRectangleSparsifier)'
 
 
 RectangleSparsifier = _RectangleSparsifier()
+
+
+class PerBlockSparsifier(BlockMatrixSparsifier):
+    def __init__(self):
+        pass
+
+    def __repr__(self):
+        return '(PyPerBlockSparsifier)'
 
 
 class BlockMatrixSparsify(BlockMatrixIR):

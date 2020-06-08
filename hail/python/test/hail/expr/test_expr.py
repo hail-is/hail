@@ -2200,6 +2200,20 @@ class Tests(unittest.TestCase):
         self.check_expr(call_expr[1], 1, tint32)
         self.check_expr(call_expr.ploidy, 2, tint32)
 
+    def test_call_unphase_diploid_gt_index(self):
+        calls_and_indices = [
+            (hl.call(0, 0), 0),
+            (hl.call(0, 1), 1),
+            (hl.call(1, 1), 2),
+            (hl.call(0, 2), 3),
+            (hl.call(0, 0, phased=True), 0),
+            (hl.call(1, 1, phased=True), 2),
+            (hl.call(2, 0, phased=True), 3),
+        ]
+
+        gt_idx = tuple(c[0].unphased_diploid_gt_index() for c in calls_and_indices)
+        assert hl.eval(gt_idx) == tuple(i for c, i in calls_and_indices)
+
     def test_parse_variant(self):
         self.assertEqual(hl.eval(hl.parse_variant('1:1:A:T')),
                          hl.Struct(locus=hl.Locus('1', 1), alleles=['A', 'T']))

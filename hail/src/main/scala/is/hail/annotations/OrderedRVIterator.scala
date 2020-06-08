@@ -28,14 +28,14 @@ case class OrderedRVIterator(
 ) {
 
   def staircase: StagingIterator[FlipbookIterator[RegionValue]] =
-    iterator.toFlipbookIterator.staircased(t.kRowOrdView(ctx.freshRegion))
+    iterator.toFlipbookIterator.staircased(t.kRowOrdView(ctx.freshRegion()))
 
   def cogroup(other: OrderedRVIterator):
       FlipbookIterator[Muple[FlipbookIterator[RegionValue], FlipbookIterator[RegionValue]]] =
     this.iterator.toFlipbookIterator.cogroup(
       other.iterator.toFlipbookIterator,
-      this.t.kRowOrdView(ctx.freshRegion),
-      other.t.kRowOrdView(ctx.freshRegion),
+      this.t.kRowOrdView(ctx.freshRegion()),
+      other.t.kRowOrdView(ctx.freshRegion()),
       this.t.kComp(other.t).compare
     )
 
@@ -118,8 +118,8 @@ case class OrderedRVIterator(
   ): Iterator[JoinedRegionValue] = {
     iterator.toFlipbookIterator.innerJoin(
       other.iterator.toFlipbookIterator,
-      this.t.kRowOrdView(ctx.freshRegion),
-      other.t.kRowOrdView(ctx.freshRegion),
+      this.t.kRowOrdView(ctx.freshRegion()),
+      other.t.kRowOrdView(ctx.freshRegion()),
       null,
       null,
       rightBuffer,
@@ -133,8 +133,8 @@ case class OrderedRVIterator(
   ): Iterator[JoinedRegionValue] = {
     iterator.toFlipbookIterator.leftJoin(
       other.iterator.toFlipbookIterator,
-      this.t.kRowOrdView(ctx.freshRegion),
-      other.t.kRowOrdView(ctx.freshRegion),
+      this.t.kRowOrdView(ctx.freshRegion()),
+      other.t.kRowOrdView(ctx.freshRegion()),
       null,
       null,
       rightBuffer,
@@ -148,8 +148,8 @@ case class OrderedRVIterator(
   ): Iterator[JoinedRegionValue] = {
     iterator.toFlipbookIterator.rightJoin(
       other.iterator.toFlipbookIterator,
-      this.t.kRowOrdView(ctx.freshRegion),
-      other.t.kRowOrdView(ctx.freshRegion),
+      this.t.kRowOrdView(ctx.freshRegion()),
+      other.t.kRowOrdView(ctx.freshRegion()),
       null,
       null,
       rightBuffer,
@@ -163,8 +163,8 @@ case class OrderedRVIterator(
   ): Iterator[JoinedRegionValue] = {
     iterator.toFlipbookIterator.outerJoin(
       other.iterator.toFlipbookIterator,
-      this.t.kRowOrdView(ctx.freshRegion),
-      other.t.kRowOrdView(ctx.freshRegion),
+      this.t.kRowOrdView(ctx.freshRegion()),
+      other.t.kRowOrdView(ctx.freshRegion()),
       null,
       null,
       rightBuffer,
@@ -202,7 +202,7 @@ case class OrderedRVIterator(
         if (q.isEmpty) {
           do {
             val rv = bit.next()
-            val r = ctx.freshRegion
+            val r = ctx.freshRegion()
             rvb.set(r)
             rvb.start(t.rowType)
             rvb.addRegionValue(t.rowType, rv)

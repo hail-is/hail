@@ -423,6 +423,21 @@ class Tests(unittest.TestCase):
         self.assertTrue(left.all(hl.sorted(left.interval_matches.map(lambda x: x.i))
                                  == hl.range(0, hl.min(left.idx % 10, 10 - left.idx % 10))))
 
+    def test_interval_product_join_long_key(self):
+        left = hl.utils.range_table(50, n_partitions=8)
+        intervals = hl.utils.range_table(25)
+        intervals = intervals.key_by(
+            interval=hl.interval(
+                1 + (intervals.idx // 5) * 10 + (intervals.idx % 5),
+                (1 + intervals.idx // 5) * 10 - (intervals.idx % 5)),
+            k2=1)
+        intervals = intervals.checkpoint('/tmp/bar.ht', overwrite=True)
+        intervals = intervals.annotate(i=intervals.idx % 5)
+        intervals = intervals.key_by('interval')
+        left = left.annotate(interval_matches=intervals.index(left.idx, all_matches=True))
+        self.assertTrue(left.all(hl.sorted(left.interval_matches.map(lambda x: x.i))
+                                 == hl.range(0, hl.min(left.idx % 10, 10 - left.idx % 10))))
+
     def test_join_with_empty(self):
         kt = hl.utils.range_table(10)
         kt2 = kt.head(0)

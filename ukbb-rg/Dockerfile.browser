@@ -1,4 +1,4 @@
-FROM ubuntu:19.04
+FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
@@ -19,6 +19,8 @@ RUN wget -nv -O shiny-server-1.5.9.923-amd64.deb https://download3.rstudio.org/u
 COPY shiny-server.conf /etc/shiny-server/shiny-server.conf
 COPY app/app.R /srv/shiny-server/rg_browser/
 COPY app/www/rainbowvis.js /srv/shiny-server/static/
+
+RUN ln -s /ukbb-rg-browser/Rdata_outputs /srv/shiny-server/rg_browser/Rdata_outputs
 
 EXPOSE 3838
 

@@ -74,39 +74,42 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
   val after: IRState = EmittableIR
   val context: String = "LowerArrayAggsToRunAggs"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = RewriteBottomUp(ir, {
-    case x@StreamAgg(a, name, query) =>
-      val res = genUID()
-      val aggs = Extract(query, res)
-      val newNode = Let(
-        res,
-        RunAgg(
-          Begin(FastSeq(
-            aggs.init,
-            StreamFor(
-              a,
-              name,
-              aggs.seqPerElt))),
-          aggs.results,
-          aggs.aggs),
-        aggs.postAggIR)
-      if (newNode.typ != x.typ)
-        throw new RuntimeException(s"types differ:\n  new: ${ newNode.typ }\n  old: ${ x.typ }")
-      Some(newNode)
-    case x@StreamAggScan(a, name, query) =>
-      val res = genUID()
-      val aggs = Extract(Extract.liftScan(query), res)
-      val newNode = RunAggScan(
-        a,
-        name,
-        aggs.init,
-        aggs.seqPerElt,
-        Let(res, aggs.results, aggs.postAggIR),
-        aggs.aggs
-      )
-      if (newNode.typ != x.typ)
-        throw new RuntimeException(s"types differ:\n  new: ${ newNode.typ }\n  old: ${ x.typ }")
-      Some(newNode)
-    case _ => None
-  })
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
+    val r = Requiredness(ir, ctx)
+    RewriteBottomUp(ir, {
+      case x@StreamAgg(a, name, query) =>
+        val res = genUID()
+        val aggs = Extract(query, res, r)
+        val newNode = Let(
+          res,
+          RunAgg(
+            Begin(FastSeq(
+              aggs.init,
+              StreamFor(
+                a,
+                name,
+                aggs.seqPerElt))),
+            aggs.results,
+            aggs.states),
+          aggs.postAggIR)
+        if (newNode.typ != x.typ)
+          throw new RuntimeException(s"types differ:\n  new: ${ newNode.typ }\n  old: ${ x.typ }")
+        Some(newNode)
+      case x@StreamAggScan(a, name, query) =>
+        val res = genUID()
+        val aggs = Extract(query, res, r, isScan=true)
+        val newNode = RunAggScan(
+          a,
+          name,
+          aggs.init,
+          aggs.seqPerElt,
+          Let(res, aggs.results, aggs.postAggIR),
+          aggs.states
+        )
+        if (newNode.typ != x.typ)
+          throw new RuntimeException(s"types differ:\n  new: ${ newNode.typ }\n  old: ${ x.typ }")
+        Some(newNode)
+      case _ => None
+    })
+  }
 }

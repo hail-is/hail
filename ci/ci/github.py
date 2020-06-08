@@ -231,7 +231,7 @@ class PR(Code):
         self.title = gh_json['title']
         self.author = gh_json['user']['login']
 
-        new_labels = {l['name'] for l in gh_json['labels']}
+        new_labels = {label['name'] for label in gh_json['labels']}
         if new_labels != self.labels:
             self.labels = new_labels
             self.target_branch.state_changed = True
@@ -259,7 +259,7 @@ class PR(Code):
                   head['sha'],
                   target_branch,
                   gh_json['user']['login'],
-                  {l['name'] for l in gh_json['labels']})
+                  {label['name'] for label in gh_json['labels']})
 
     def repo_dir(self):
         return self.target_branch.repo_dir()
@@ -311,15 +311,10 @@ class PR(Code):
             await gh_client.post(
                 f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}',
                 data=data)
-        except KeyError:
-            log.exception(f'{self.short_str()}: KeyError when updating github status, this is likely due to'
-                          f'a bug in gidgethub. Gidgethub does not correctly parse and raise the too many'
-                          f'status updates error. If that is the issue, pushing a fresh commit to this PR'
-                          f'will fix the problem. {data}')
-        except gidgethub.HTTPException as e:
-            log.info(f'{self.short_str()}: notify github of build state failed due to exception: {data} {e}')
-        except aiohttp.client_exceptions.ClientResponseError as e:
-            log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data} {e}')
+        except gidgethub.HTTPException:
+            log.info(f'{self.short_str()}: notify github of build state failed due to exception: {data}', exc_info=True)
+        except aiohttp.client_exceptions.ClientResponseError:
+            log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
 
     async def _update_github(self, gh):
         await self._update_last_known_github_status(gh)
@@ -336,7 +331,7 @@ class PR(Code):
             return hail_status[0]['state']
         raise ValueError(
             f'github sent multiple status summaries for our one '
-            'context {GITHUB_STATUS_CONTEXT}: {hail_status}\n\n{statuses_json}')
+            f'context {GITHUB_STATUS_CONTEXT}: {hail_status}\n\n{statuses_json}')
 
     async def _update_last_known_github_status(self, gh):
         if self.source_sha:
@@ -411,7 +406,7 @@ mkdir -p {shq(repo_dir)}
         except concurrent.futures.CancelledError:
             raise
         except Exception as e:  # pylint: disable=broad-except
-            log.exception(f'could not start build due to {e}')
+            log.exception('could not start build')
 
             # FIXME save merge failure output for UI
             self.batch = MergeFailureBatch(
@@ -453,8 +448,8 @@ mkdir -p {shq(repo_dir)}
                 continue
             try:
                 s = await b.status()
-            except Exception as err:
-                log.info(f'failed to get the status for batch {b.id} due to error: {err}')
+            except Exception:
+                log.info(f'failed to get the status for batch {b.id}', exc_info=True)
                 raise
             if s['state'] != 'cancelled':
                 if min_batch is None or b.id > min_batch.id:
@@ -512,8 +507,8 @@ mkdir -p {shq(repo_dir)}
                              'sha': self.source_sha
                          })
             return True
-        except (gidgethub.HTTPException, aiohttp.client_exceptions.ClientResponseError) as e:
-            log.info(f'merge {self.target_branch.branch.short_str()} {self.number} failed due to exception: {e}')
+        except (gidgethub.HTTPException, aiohttp.client_exceptions.ClientResponseError):
+            log.info(f'merge {self.target_branch.branch.short_str()} {self.number} failed', exc_info=True)
         return False
 
     def checkout_script(self):
@@ -794,7 +789,7 @@ mkdir -p {shq(repo_dir)}
         except concurrent.futures.CancelledError:
             raise
         except Exception as e:  # pylint: disable=broad-except
-            log.exception(f'could not start deploy due to {e}')
+            log.exception('could not start deploy')
             self.deploy_batch = MergeFailureBatch(
                 e,
                 attributes={

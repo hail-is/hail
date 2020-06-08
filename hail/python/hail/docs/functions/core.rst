@@ -4,7 +4,6 @@ Core language functions
 
 .. autosummary::
 
-    eval
     literal
     cond
     if_else
@@ -22,7 +21,6 @@ Core language functions
     range
 
 
-.. autofunction:: eval
 .. autofunction:: literal
 .. autofunction:: cond
 .. autofunction:: if_else

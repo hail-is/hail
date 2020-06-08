@@ -60,6 +60,18 @@ sealed abstract class BaseTypeWithRequiredness {
     }
   }
 
+  protected[this] def _unionWithIntersection(ts: Seq[BaseTypeWithRequiredness]): Unit = {
+    var i = 0
+    while(i < children.length) {
+      children(i).unionWithIntersection(ts.map(_.children(i)))
+      i += 1
+    }
+  }
+  def unionWithIntersection(ts: Seq[BaseTypeWithRequiredness]): Unit = {
+    union(ts.exists(_.required))
+    _unionWithIntersection(ts)
+  }
+
   final def union(r: Boolean): Unit = { change |= !r && required }
   final def maximize(): Unit = {
     change |= required
@@ -144,6 +156,18 @@ sealed class RIterable(val elementType: TypeWithRequiredness, eltRequired: Boole
   override def _unionChildren(newChildren: Seq[BaseTypeWithRequiredness]): Unit = {
     val Seq(newEltReq) = newChildren
     unionElement(newEltReq)
+  }
+
+  override def _unionWithIntersection(ts: Seq[BaseTypeWithRequiredness]): Unit = {
+    if (eltRequired) {
+      var i = 0
+      while(i < elementType.children.length) {
+        elementType.children(i).unionWithIntersection(ts.map(t => coerce[RIterable](t).elementType.children(i)))
+        i += 1
+      }
+    }
+    else
+      elementType.unionWithIntersection(ts.map(t => coerce[RIterable](t).elementType))
   }
 
   def unionElement(newElement: BaseTypeWithRequiredness): Unit = {
@@ -315,8 +339,8 @@ case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: 
 
   def unionKeys(req: RStruct): Unit = key.foreach { n => field(n).unionFrom(req.field(n)) }
   def unionKeys(req: RTable): Unit = {
-    assert(key.zip(req.key).forall { case (k1, k2) => k1 == k2 } && key.length <= req.key.length)
-    unionKeys(req.rowType)
+    assert(key.length <= req.key.length)
+    key.zip(req.key).foreach { case (k, rk) => field(k).unionFrom(req.field(rk)) }
   }
 
   def unionValues(req: RStruct): Unit = valueFields.foreach { n => if (req.hasField(n)) field(n).unionFrom(req.field(n)) }

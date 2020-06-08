@@ -31,3 +31,7 @@ def test_pchisqtail():
 
     for args in arglists:
         assert hl.eval(hl.pchisqtail(*args)) == pytest.approx(right_tail_from_scipy(*args)), args
+
+
+def test_shuffle():
+    assert set(hl.eval(hl.shuffle(hl.range(5)))) == set(range(5))

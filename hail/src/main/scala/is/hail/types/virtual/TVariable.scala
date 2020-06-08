@@ -73,5 +73,5 @@ final case class TVariable(name: String, cond: String = null) extends Type {
 
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TVariable is not realizable")
 
-  val ordering: ExtendedOrdering = null
+  def mkOrdering(missingEqual: Boolean): ExtendedOrdering = null
 }

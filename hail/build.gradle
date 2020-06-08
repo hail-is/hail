@@ -173,8 +173,8 @@ dependencies {
 
     bundled 'com.google.cloud:google-cloud-storage:1.106.0'
 
-    bundled 'org.apache.httpcomponents:httpcore:4.4.3'
-    bundled('org.apache.httpcomponents:httpclient:4.5.1') {
+    bundled 'org.apache.httpcomponents:httpcore:4.4.13'
+    bundled('org.apache.httpcomponents:httpclient:4.5.12') {
         transitive = false
     }
 
@@ -274,7 +274,6 @@ tasks.withType(ShadowJar) {
     relocate 'org.codehaus.jackson', 'is.hail.relocated.org.codehaus.jackson'
     relocate 'org.apache.commons.lang3', 'is.hail.relocated.org.apache.commons.lang3'
     relocate 'org.apache.commons.io', 'is.hail.relocated.org.apache.commons.io'
-    relocate 'org.apache.httpcomponents', 'is.hail.relocated.org.apache.httpcomponents'
     // we should really shade indeed, but it has native libraries
     // relocate 'com.indeed', 'is.hail.relocated.com.indeed'
     relocate 'com.google.cloud', 'is.hail.relocated.com.google.cloud'

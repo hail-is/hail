@@ -89,7 +89,6 @@ async def main():
 
     async with aiogoogle.ContainerClient(
             project=project,
-            raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60)) as client:
         cleanup_images = CleanupImages(client)
         await cleanup_images.run()

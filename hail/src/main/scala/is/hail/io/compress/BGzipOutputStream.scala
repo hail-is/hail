@@ -35,6 +35,8 @@ class BGzipConstants {
 }
 
 class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) {
+  private[this] var finished: Boolean = false
+
   val constants = new BGzipConstants
   var numUncompressedBytes = 0
   var uncompressedBuffer = new Array[Byte](constants.defaultUncompressedBlockSize)
@@ -72,8 +74,9 @@ class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) 
     }
   }
 
-  private def deflateBlock() = {
+  final protected def deflateBlock(): Unit = {
     require(numUncompressedBytes != 0)
+    assert(!finished)
 
     deflater.reset()
     deflater.setInput(uncompressedBuffer, 0, numUncompressedBytes)
@@ -137,10 +140,18 @@ class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) 
 
   def resetState() = throw new UnsupportedOperationException
 
-  override def finish() = {
+  override def finish(): Unit = {
     if (numUncompressedBytes != 0)
       deflateBlock()
-    out.write(constants.emptyGzipBlock)
+    if (!finished) {
+      out.write(constants.emptyGzipBlock)
+      finished = true
+    }
   }
+}
 
+class ComposableBGzipOutputStream(out: OutputStream) extends BGzipOutputStream(out) {
+  override def finish() = if (numUncompressedBytes != 0) {
+    deflateBlock()
+  }
 }

@@ -12,7 +12,7 @@ import org.apache.spark.ExposedUtils
 import scala.reflect.ClassTag
 
 object Combiner {
-  def apply[U](zero: U, combine: (U, U) => U, commutative: Boolean, associative: Boolean): Combiner[U] = {
+  def apply[U](zero: => U, combine: (U, U) => U, commutative: Boolean, associative: Boolean): Combiner[U] = {
     assert(associative)
     if (commutative)
       new CommutativeAndAssociativeCombiner(zero, combine)
@@ -27,7 +27,7 @@ abstract class Combiner[U] {
   def result(): U
 }
 
-class CommutativeAndAssociativeCombiner[U](zero: U, combine: (U, U) => U) extends Combiner[U] {
+class CommutativeAndAssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[U] {
   var state: U = zero
 
   def combine(i: Int, value0: U): Unit = state = combine(state, value0)
@@ -35,10 +35,12 @@ class CommutativeAndAssociativeCombiner[U](zero: U, combine: (U, U) => U) extend
   def result(): U = state
 }
 
-class AssociativeCombiner[U](zero: U, combine: (U, U) => U) extends Combiner[U] {
+class AssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[U] {
 
   case class TreeValue(var value: U, var end: Int)
 
+  // The type U may contain resources, e.g. regions. 't' has ownership of every
+  // U it holds.
   private val t = new java.util.TreeMap[Int, TreeValue]()
 
   def combine(i: Int, value0: U) {
@@ -67,6 +69,7 @@ class AssociativeCombiner[U](zero: U, combine: (U, U) => U) extends Combiner[U] 
   }
 
   def result(): U = {
+    // after 'result' returns, 't' owns no values.
     val n = t.size()
     if (n > 0) {
       assert(n == 1)

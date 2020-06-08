@@ -571,9 +571,8 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
   type State = TakeByRVAS
 
   val resultType: PArray = PCanonicalArray(valueType, true)
-
-  def createState(cb: EmitCodeBuilder): State =
-    new TakeByRVAS(valueType, keyType, resultType, cb.emb.ecb)
+  val initOpTypes: Seq[PType] = Array(PInt32(true))
+  val seqOpTypes: Seq[PType] = Array(valueType, keyType)
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 1)

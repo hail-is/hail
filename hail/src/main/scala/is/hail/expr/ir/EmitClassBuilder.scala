@@ -91,6 +91,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def setSerializedAgg(i: Int, b: Code[Array[Byte]]): Code[Unit] = ecb.setSerializedAgg(i, b)
 
+  def freeSerializedAgg(i: Int): Code[Unit] = ecb.freeSerializedAgg(i)
+
   def backend(): Code[BackendUtils] = ecb.backend()
 
   def addModule(name: String, mod: (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit =
@@ -130,7 +132,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   ): CodeOrdering.F[op.ReturnType] =
     ecb.getCodeOrdering(t1, t2, sortOrder, op, ignoreMissingness)
 
-  def addAggStates(aggSigs: Array[AggStatePhysicalSignature]): agg.TupleAggregatorState = ecb.addAggStates(aggSigs)
+  def addAggStates(aggSigs: Array[agg.AggStateSig]): agg.TupleAggregatorState = ecb.addAggStates(aggSigs)
 
   def genDependentFunction[F](baseName: String,
     maybeGenericParameterTypeInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
@@ -314,14 +316,14 @@ class EmitClassBuilder[C](
   private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
   private[this] var _backendField: Settable[BackendUtils] = _
 
-  private[this] var _aggSigs: Array[AggStatePhysicalSignature] = _
+  private[this] var _aggSigs: Array[agg.AggStateSig] = _
   private[this] var _aggRegion: Settable[Region] = _
   private[this] var _aggOff: Settable[Long] = _
   private[this] var _aggState: agg.TupleAggregatorState = _
   private[this] var _nSerialized: Int = 0
   private[this] var _aggSerialized: Settable[Array[Array[Byte]]] = _
 
-  def addAggStates(aggSigs: Array[AggStatePhysicalSignature]): agg.TupleAggregatorState = {
+  def addAggStates(aggSigs: Array[agg.AggStateSig]): agg.TupleAggregatorState = {
     if (_aggSigs != null) {
       assert(aggSigs sameElements _aggSigs)
       return _aggState
@@ -340,7 +342,7 @@ class EmitClassBuilder[C](
     val getSer = newEmitMethod("getSerializedAgg", FastIndexedSeq[ParamType](typeInfo[Int]), typeInfo[Array[Byte]])
 
     val (nfcode, states) = EmitCodeBuilder.scoped(newF) { cb =>
-      val states = agg.StateTuple(aggSigs.map(a => agg.Extract.getAgg(a, a.default).createState(cb)).toArray)
+      val states = agg.StateTuple(aggSigs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)).toArray)
       _aggState = new agg.TupleAggregatorState(this, states, _aggRegion, _aggOff)
       cb += (_aggRegion := newF.getCodeParam[Region](1))
       cb += _aggState.topRegion.setNumParents(aggSigs.length)
@@ -386,6 +388,11 @@ class EmitClassBuilder[C](
     if (_nSerialized <= i)
       _nSerialized = i + 1
     _aggSerialized.load().update(i, b)
+  }
+
+  def freeSerializedAgg(i: Int): Code[Unit] = {
+    assert(i < _nSerialized)
+    _aggSerialized.load().update(i, Code._null)
   }
 
   def backend(): Code[BackendUtils] = {
@@ -456,7 +463,7 @@ class EmitClassBuilder[C](
   ): CodeOrdering.F[op.ReturnType] = {
     val f = compareMap.getOrElseUpdate((t1, t2, op, sortOrder, ignoreMissingness), {
       val ti = typeToTypeInfo(t1)
-      val rt = if (op == CodeOrdering.compare) typeInfo[Int] else typeInfo[Boolean]
+      val rt = op.rtti
 
       val newMB = if (ignoreMissingness) {
         val newMB = genEmitMethod("cord", FastIndexedSeq[ParamType](ti, ti), rt)
@@ -464,13 +471,13 @@ class EmitClassBuilder[C](
         val v1 = newMB.getCodeParam(1)(ti)
         val v2 = newMB.getCodeParam(3)(ti)
         val c: Code[_] = op match {
-          case CodeOrdering.compare => ord.compareNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
-          case CodeOrdering.equiv => ord.equivNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
-          case CodeOrdering.lt => ord.ltNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
-          case CodeOrdering.lteq => ord.lteqNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
-          case CodeOrdering.gt => ord.gtNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
-          case CodeOrdering.gteq => ord.gteqNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
-          case CodeOrdering.neq => !ord.equivNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.Compare(_) => ord.compareNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.Equiv(_) => ord.equivNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.Lt(_) => ord.ltNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.Lteq(_) => ord.lteqNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.Gt(_) => ord.gtNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.Gteq(_) => ord.gteqNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.Neq(_) => !ord.equivNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
         }
         newMB.emit(c)
         newMB
@@ -482,13 +489,13 @@ class EmitClassBuilder[C](
         val m2 = newMB.getCodeParam[Boolean](3)
         val v2 = newMB.getCodeParam(4)(ti)
         val c: Code[_] = op match {
-          case CodeOrdering.compare => ord.compare((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
-          case CodeOrdering.equiv => ord.equiv((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
-          case CodeOrdering.lt => ord.lt((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
-          case CodeOrdering.lteq => ord.lteq((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
-          case CodeOrdering.gt => ord.gt((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
-          case CodeOrdering.gteq => ord.gteq((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
-          case CodeOrdering.neq => !ord.equiv((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
+          case CodeOrdering.Compare(missingEqual) => ord.compare((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
+          case CodeOrdering.Equiv(missingEqual) => ord.equiv((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
+          case CodeOrdering.Lt(missingEqual) => ord.lt((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
+          case CodeOrdering.Lteq(missingEqual) => ord.lteq((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
+          case CodeOrdering.Gt(missingEqual) => ord.gt((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
+          case CodeOrdering.Gteq(missingEqual) => ord.gteq((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
+          case CodeOrdering.Neq(missingEqual) => !ord.equiv((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
         }
         newMB.emit(c)
         newMB

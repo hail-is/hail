@@ -1,7 +1,8 @@
 import hail as hl
 from collections import Counter
+import os
 from typing import Tuple, List, Union
-from hail.typecheck import typecheck, oneof, anytype
+from hail.typecheck import typecheck, oneof, anytype, nullable
 from hail.utils.java import Env, info
 from hail.utils.misc import divide_null
 from hail.matrixtable import MatrixTable
@@ -115,7 +116,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
         gq_dp_exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
 
     if not has_field_of_type('GT', hl.tcall):
-        raise ValueError(f"'sample_qc': expect an entry field 'GT' of type 'call'")
+        raise ValueError("'sample_qc': expect an entry field 'GT' of type 'call'")
 
     bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
     bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
@@ -258,7 +259,7 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
         gq_dp_exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
 
     if not has_field_of_type('GT', hl.tcall):
-        raise ValueError(f"'variant_qc': expect an entry field 'GT' of type 'call'")
+        raise ValueError("'variant_qc': expect an entry field 'GT' of type 'call'")
 
     bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
     bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
@@ -478,11 +479,11 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
 
 
 @typecheck(dataset=oneof(Table, MatrixTable),
-           config=str,
+           config=nullable(str),
            block_size=int,
            name=str,
            csq=bool)
-def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep', csq=False):
+def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='vep', csq=False):
     """Annotate variants with VEP.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -505,12 +506,16 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
 
     This VEP command only works if you have already installed VEP on your
     computing environment. If you use `hailctl dataproc` to start Hail clusters,
-    installing VEP is achieved by specifying the `--vep` flag. For more detail
-    see `hailctl dataproc start --help`.
+    installing VEP is achieved by specifying the `--vep` flag. For more detailed instructions,
+    see :ref:`vep_dataproc`.
 
     **Configuration**
 
-    :func:`.vep` needs a configuration file to tell it how to run VEP.
+    :func:`.vep` needs a configuration file to tell it how to run VEP. This is the ``config`` argument
+    to the VEP function. If you are using `hailctl dataproc` as mentioned above, you can just use the
+    default argument for ``config`` and everything will work. If you need to run VEP with Hail in other environments,
+    there are detailed instructions below.
+
     The format of the configuration file is JSON, and :func:`.vep`
     expects a JSON object with three fields:
 
@@ -543,12 +548,12 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
             "vep_json_schema": "Struct{assembly_name:String,allele_string:String,ancestral:String,colocated_variants:Array[Struct{aa_allele:String,aa_maf:Float64,afr_allele:String,afr_maf:Float64,allele_string:String,amr_allele:String,amr_maf:Float64,clin_sig:Array[String],end:Int32,eas_allele:String,eas_maf:Float64,ea_allele:String,ea_maf:Float64,eur_allele:String,eur_maf:Float64,exac_adj_allele:String,exac_adj_maf:Float64,exac_allele:String,exac_afr_allele:String,exac_afr_maf:Float64,exac_amr_allele:String,exac_amr_maf:Float64,exac_eas_allele:String,exac_eas_maf:Float64,exac_fin_allele:String,exac_fin_maf:Float64,exac_maf:Float64,exac_nfe_allele:String,exac_nfe_maf:Float64,exac_oth_allele:String,exac_oth_maf:Float64,exac_sas_allele:String,exac_sas_maf:Float64,id:String,minor_allele:String,minor_allele_freq:Float64,phenotype_or_disease:Int32,pubmed:Array[Int32],sas_allele:String,sas_maf:Float64,somatic:Int32,start:Int32,strand:Int32}],context:String,end:Int32,id:String,input:String,intergenic_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],impact:String,minimised:Int32,variant_allele:String}],most_severe_consequence:String,motif_feature_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],high_inf_pos:String,impact:String,minimised:Int32,motif_feature_id:String,motif_name:String,motif_pos:Int32,motif_score_change:Float64,strand:Int32,variant_allele:String}],regulatory_feature_consequences:Array[Struct{allele_num:Int32,biotype:String,consequence_terms:Array[String],impact:String,minimised:Int32,regulatory_feature_id:String,variant_allele:String}],seq_region_name:String,start:Int32,strand:Int32,transcript_consequences:Array[Struct{allele_num:Int32,amino_acids:String,biotype:String,canonical:Int32,ccds:String,cdna_start:Int32,cdna_end:Int32,cds_end:Int32,cds_start:Int32,codons:String,consequence_terms:Array[String],distance:Int32,domains:Array[Struct{db:String,name:String}],exon:String,gene_id:String,gene_pheno:Int32,gene_symbol:String,gene_symbol_source:String,hgnc_id:String,hgvsc:String,hgvsp:String,hgvs_offset:Int32,impact:String,intron:String,lof:String,lof_flags:String,lof_filter:String,lof_info:String,minimised:Int32,polyphen_prediction:String,polyphen_score:Float64,protein_end:Int32,protein_start:Int32,protein_id:String,sift_prediction:String,sift_score:Float64,strand:Int32,swissprot:String,transcript_id:String,trembl:String,uniparc:String,variant_allele:String}],variant_class:String}"
         }
 
-    If running on Google Dataproc with ``hailctl dataproc``, then the
-    configuration files referring to the installed VEP distributions
-    are as follows:
+    The configuration files used by``hailctl dataproc`` can be found at the following locations:
 
      - ``GRCh37``: ``gs://hail-us-vep/vep85-loftee-gcloud.json``
      - ``GRCh38``: ``gs://hail-us-vep/vep95-GRCh38-loftee-gcloud.json``
+
+     If no config file is specified, this function will check to see if environment variable `VEP_CONFIG_URI` is set with a path to a config file.
 
     **Annotations**
 
@@ -579,6 +584,13 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
         Dataset with new row-indexed field `name` containing VEP annotations.
 
     """
+    if config is None:
+        maybe_config = os.getenv("VEP_CONFIG_URI")
+        if maybe_config is not None:
+            config = maybe_config
+        else:
+            raise ValueError("No config set and VEP_CONFIG_URI was not set.")
+
     if isinstance(dataset, MatrixTable):
         require_row_key_variant(dataset, 'vep')
         ht = dataset.select_rows().rows()
@@ -1005,33 +1017,33 @@ class _VariantSummary(object):
 
         import html
         builder = []
-        builder.append(f'<p><b>Variant summary:</b></p>')
+        builder.append('<p><b>Variant summary:</b></p>')
         builder.append('<ul>')
         builder.append(f'<li><p>Total variants: {self.n_variants}</p></li>')
 
-        builder.append(f'<li><p>Alleles per variant:</p>')
+        builder.append('<li><p>Alleles per variant:</p>')
         builder.append('<table><thead style="font-weight: bold;">')
         builder.append('<tr><th>Number of alleles</th><th>Count</th></tr></thead><tbody>')
         for n_alleles, count in sorted(self.alleles_per_variant.items(), key=lambda x: x[0]):
-            builder.append(f'<tr>')
+            builder.append('<tr>')
             builder.append(f'<td>{n_alleles}</td>')
             builder.append(f'<td>{count}</td>')
-            builder.append(f'</tr>')
+            builder.append('</tr>')
         builder.append('</tbody></table>')
         builder.append('</li>')
 
-        builder.append(f'<li><p>Counts by allele type:</p>')
+        builder.append('<li><p>Counts by allele type:</p>')
         builder.append('<table><thead style="font-weight: bold;">')
         builder.append('<tr><th>Allele type</th><th>Count</th></tr></thead><tbody>')
         for allele_type, count in Counter(self.allele_types).most_common():
-            builder.append(f'<tr>')
+            builder.append('<tr>')
             builder.append(f'<td>{html.escape(allele_type)}</td>')
             builder.append(f'<td>{count}</td>')
-            builder.append(f'</tr>')
+            builder.append('</tr>')
         builder.append('</tbody></table>')
         builder.append('</li>')
 
-        builder.append(f'<li><p>Transitions/Transversions:</p>')
+        builder.append('<li><p>Transitions/Transversions:</p>')
         builder.append('<table><thead style="font-weight: bold;">')
         builder.append('<tr><th>Metric</th><th>Value</th></tr></thead><tbody>')
         builder.append(f'<tr><td>Transitions</td><td>{self.nti}</td></tr>')
@@ -1040,14 +1052,14 @@ class _VariantSummary(object):
         builder.append('</tbody></table>')
         builder.append('</li>')
 
-        builder.append(f'<li><p>Variants per contig:</p>')
+        builder.append('<li><p>Variants per contig:</p>')
         builder.append('<table><thead style="font-weight: bold;">')
         builder.append('<tr><th>Contig</th><th>Count</th></tr></thead><tbody>')
         for contig, count in sorted(self.variants_per_contig.items(), key=lambda x: contig_idx[x[0]]):
-            builder.append(f'<tr>')
+            builder.append('<tr>')
             builder.append(f'<td>{html.escape(contig)}</td>')
             builder.append(f'<td>{count}</td>')
-            builder.append(f'</tr>')
+            builder.append('</tr>')
         builder.append('</tbody></table>')
         builder.append('</li>')
 

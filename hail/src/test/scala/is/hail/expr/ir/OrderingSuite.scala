@@ -6,6 +6,7 @@ import is.hail.annotations._
 import is.hail.check.{Gen, Prop}
 import is.hail.asm4s._
 import is.hail.TestUtils._
+import is.hail.rvd.RVDType
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -41,6 +42,173 @@ class OrderingSuite extends HailSuite {
     fb.resultWithIndex()(0, r)
   }
 
+  @Test def testMissingNonequalComparisons() {
+    def getStagedOrderingFunctionWithMissingness(
+      t: PType,
+      op: CodeOrdering.Op,
+      r: Region,
+      sortOrder: SortOrder = Ascending
+    ): AsmFunction5[Region, Boolean, Long, Boolean, Long, op.ReturnType] = {
+      implicit val x = op.rtti
+      val fb = EmitFunctionBuilder[Region, Boolean, Long, Boolean, Long, op.ReturnType](ctx, "lifted")
+      val m1 = fb.getCodeParam[Boolean](2)
+      val cv1 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](3))
+      val m2 = fb.getCodeParam[Boolean](4)
+      val cv2 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](5))
+      fb.emit(fb.apply_method.getCodeOrdering(t, op)((m1, cv1), (m2, cv2)))
+      fb.resultWithIndex()(0, r)
+    }
+
+    val compareGen = for {
+      t <- Type.genStruct
+      a <- t.genNonmissingValue
+    } yield (t, a)
+    val p = Prop.forAll(compareGen) { case (t, a) => Region.scoped { region =>
+      val pType = PType.canonical(t).asInstanceOf[PStruct]
+      val rvb = new RegionValueBuilder(region)
+
+      rvb.start(pType)
+      rvb.addAnnotation(t, a)
+      val v = rvb.end()
+
+      val eordME = t.mkOrdering()
+      val eordMNE = t.mkOrdering(missingEqual = false)
+
+      def checkCompare(compResult: Int, expected: Int) {
+        assert(java.lang.Integer.signum(compResult) == expected,
+               s"compare expected: $expected vs $compResult\n  t=${t.parsableString()}\n  v=$a")
+      }
+
+      val fcompareME = getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Compare(), region)
+
+      checkCompare(fcompareME(region, true, v, true, v), 0)
+      checkCompare(fcompareME(region, true, v, false, v), 1)
+      checkCompare(fcompareME(region, false, v, true, v), -1)
+
+      checkCompare(eordME.compare(null, null), 0)
+      checkCompare(eordME.compare(null, a), 1)
+      checkCompare(eordME.compare(a, null), -1)
+
+      val fcompareMNE = getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Compare(false), region)
+
+      checkCompare(fcompareMNE(region, true, v, true, v), -1)
+      checkCompare(fcompareMNE(region, true, v, false, v), 1)
+      checkCompare(fcompareMNE(region, false, v, true, v), -1)
+
+      checkCompare(eordMNE.compare(null, null), -1)
+      checkCompare(eordMNE.compare(null, a), 1)
+      checkCompare(eordMNE.compare(a, null), -1)
+
+      def check(result: Boolean, expected: Boolean) {
+        assert(result == expected, s"t=${t.parsableString()}\n  v=$a")
+      }
+
+      val fequivME = getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Equiv(), region)
+
+      check(fequivME(region, true, v, true, v), true)
+      check(fequivME(region, true, v, false, v), false)
+      check(fequivME(region, false, v, true, v), false)
+
+      check(eordME.equiv(null, null), true)
+      check(eordME.equiv(null, a), false)
+      check(eordME.equiv(a, null), false)
+
+      val fequivMNE = getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Equiv(false), region)
+
+      check(fequivMNE(region, true, v, true, v), false)
+      check(fequivMNE(region, true, v, false, v), false)
+      check(fequivMNE(region, false, v, true, v), false)
+
+      check(eordMNE.equiv(null, null), false)
+      check(eordMNE.equiv(null, a), false)
+      check(eordMNE.equiv(a, null), false)
+
+      val fltME = getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Lt(), region)
+
+      check(fltME(region, true, v, true, v), false)
+      check(fltME(region, true, v, false, v), false)
+      check(fltME(region, false, v, true, v), true)
+
+      check(eordME.lt(null, null), false)
+      check(eordME.lt(null, a), false)
+      check(eordME.lt(a, null), true)
+
+      val fltMNE = getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Lt(false), region)
+
+      check(fltMNE(region, true, v, true, v), true)
+      check(fltMNE(region, true, v, false, v), false)
+      check(fltMNE(region, false, v, true, v), true)
+
+      check(eordMNE.lt(null, null), true)
+      check(eordMNE.lt(null, a), false)
+      check(eordMNE.lt(a, null), true)
+
+      val flteqME = getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Lteq(), region)
+
+      check(flteqME(region, true, v, true, v), true)
+      check(flteqME(region, true, v, false, v), false)
+      check(flteqME(region, false, v, true, v), true)
+
+      check(eordME.lteq(null, null), true)
+      check(eordME.lteq(null, a), false)
+      check(eordME.lteq(a, null), true)
+
+      val flteqMNE = getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Lteq(false), region)
+
+      check(flteqMNE(region, true, v, true, v), true)
+      check(flteqMNE(region, true, v, false, v), false)
+      check(flteqMNE(region, false, v, true, v), true)
+
+      check(eordMNE.lteq(null, null), true)
+      check(eordMNE.lteq(null, a), false)
+      check(eordMNE.lteq(a, null), true)
+
+      val fgtME = getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Gt(), region)
+
+      check(fgtME(region, true, v, true, v), false)
+      check(fgtME(region, true, v, false, v), true)
+      check(fgtME(region, false, v, true, v), false)
+
+      check(eordME.gt(null, null), false)
+      check(eordME.gt(null, a), true)
+      check(eordME.gt(a, null), false)
+
+      val fgtMNE = getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Gt(false), region)
+
+      check(fgtMNE(region, true, v, true, v), false)
+      check(fgtMNE(region, true, v, false, v), true)
+      check(fgtMNE(region, false, v, true, v), false)
+
+      check(eordMNE.gt(null, null), false)
+      check(eordMNE.gt(null, a), true)
+      check(eordMNE.gt(a, null), false)
+
+      val fgteqME = getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Gteq(), region)
+
+      check(fgteqME(region, true, v, true, v), true)
+      check(fgteqME(region, true, v, false, v), true)
+      check(fgteqME(region, false, v, true, v), false)
+
+      check(eordME.gteq(null, null), true)
+      check(eordME.gteq(null, a), true)
+      check(eordME.gteq(a, null), false)
+
+      val fgteqMNE = getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Gt(false), region)
+
+      check(fgteqMNE(region, true, v, true, v), false)
+      check(fgteqMNE(region, true, v, false, v), true)
+      check(fgteqMNE(region, false, v, true, v), false)
+
+      check(eordMNE.gteq(null, null), false)
+      check(eordMNE.gteq(null, a), true)
+      check(eordMNE.gteq(a, null), false)
+
+      true
+    }}
+
+    p.check()
+  }
+
   @Test def testRandomOpsAgainstExtended() {
     val compareGen = for {
       t <- Type.genArb
@@ -61,34 +229,33 @@ class OrderingSuite extends HailSuite {
         val v2 = rvb.end()
 
         val compare = java.lang.Integer.signum(t.ordering.compare(a1, a2))
-        val fcompare = getStagedOrderingFunction(pType, CodeOrdering.compare, region)
+        val fcompare = getStagedOrderingFunction(pType, CodeOrdering.Compare(), region)
         val result = java.lang.Integer.signum(fcompare(region, v1, v2))
 
         assert(result == compare, s"compare expected: $compare vs $result\n  t=${t.parsableString()}\n  v1=${a1}\n  v2=$a2")
 
-
         val equiv = t.ordering.equiv(a1, a2)
-        val fequiv = getStagedOrderingFunction(pType, CodeOrdering.equiv, region)
+        val fequiv = getStagedOrderingFunction(pType, CodeOrdering.Equiv(), region)
 
         assert(fequiv(region, v1, v2) == equiv, s"equiv expected: $equiv")
 
         val lt = t.ordering.lt(a1, a2)
-        val flt = getStagedOrderingFunction(pType, CodeOrdering.lt, region)
+        val flt = getStagedOrderingFunction(pType, CodeOrdering.Lt(), region)
 
         assert(flt(region, v1, v2) == lt, s"lt expected: $lt")
 
         val lteq = t.ordering.lteq(a1, a2)
-        val flteq = getStagedOrderingFunction(pType, CodeOrdering.lteq, region)
+        val flteq = getStagedOrderingFunction(pType, CodeOrdering.Lteq(), region)
 
         assert(flteq(region, v1, v2) == lteq, s"lteq expected: $lteq")
 
         val gt = t.ordering.gt(a1, a2)
-        val fgt = getStagedOrderingFunction(pType, CodeOrdering.gt, region)
+        val fgt = getStagedOrderingFunction(pType, CodeOrdering.Gt(), region)
 
         assert(fgt(region, v1, v2) == gt, s"gt expected: $gt")
 
         val gteq = t.ordering.gteq(a1, a2)
-        val fgteq = getStagedOrderingFunction(pType, CodeOrdering.gteq, region)
+        val fgteq = getStagedOrderingFunction(pType, CodeOrdering.Gteq(), region)
 
         assert(fgteq(region, v1, v2) == gteq, s"gteq expected: $gteq")
       }
@@ -120,34 +287,34 @@ class OrderingSuite extends HailSuite {
         val reversedExtendedOrdering = t.ordering.reverse
 
         val compare = java.lang.Integer.signum(reversedExtendedOrdering.compare(a2, a1))
-        val fcompare = getStagedOrderingFunction(pType, CodeOrdering.compare, region, Descending)
+        val fcompare = getStagedOrderingFunction(pType, CodeOrdering.Compare(), region, Descending)
         val result = java.lang.Integer.signum(fcompare(region, v1, v2))
 
         assert(result == compare, s"compare expected: $compare vs $result")
 
 
         val equiv = reversedExtendedOrdering.equiv(a2, a1)
-        val fequiv = getStagedOrderingFunction(pType, CodeOrdering.equiv, region, Descending)
+        val fequiv = getStagedOrderingFunction(pType, CodeOrdering.Equiv(), region, Descending)
 
         assert(fequiv(region, v1, v2) == equiv, s"equiv expected: $equiv")
 
         val lt = reversedExtendedOrdering.lt(a2, a1)
-        val flt = getStagedOrderingFunction(pType, CodeOrdering.lt, region, Descending)
+        val flt = getStagedOrderingFunction(pType, CodeOrdering.Lt(), region, Descending)
 
         assert(flt(region, v1, v2) == lt, s"lt expected: $lt")
 
         val lteq = reversedExtendedOrdering.lteq(a2, a1)
-        val flteq = getStagedOrderingFunction(pType, CodeOrdering.lteq, region, Descending)
+        val flteq = getStagedOrderingFunction(pType, CodeOrdering.Lteq(), region, Descending)
 
         assert(flteq(region, v1, v2) == lteq, s"lteq expected: $lteq")
 
         val gt = reversedExtendedOrdering.gt(a2, a1)
-        val fgt = getStagedOrderingFunction(pType, CodeOrdering.gt, region, Descending)
+        val fgt = getStagedOrderingFunction(pType, CodeOrdering.Gt(), region, Descending)
 
         assert(fgt(region, v1, v2) == gt, s"gt expected: $gt")
 
         val gteq = reversedExtendedOrdering.gteq(a2, a1)
-        val fgteq = getStagedOrderingFunction(pType, CodeOrdering.gteq, region, Descending)
+        val fgteq = getStagedOrderingFunction(pType, CodeOrdering.Gteq(), region, Descending)
 
         assert(fgteq(region, v1, v2) == gteq, s"gteq expected: $gteq")
       }

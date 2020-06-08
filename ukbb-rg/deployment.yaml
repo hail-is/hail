@@ -91,6 +91,13 @@ spec:
          volumeMounts:
           - mountPath: "/ukbb-rg-browser"
             name: ukbb-rg-browser-storage
+         readinessProbe: # shiny loads data on first request, this takes ~15 seconds
+           httpGet:
+             path: /rg_browser/
+             port: 3838
+           initialDelaySeconds: 1
+           periodSeconds: 30
+           timeoutSeconds: 30
   volumeClaimTemplates:
     - metadata:
         name: ukbb-rg-browser-storage

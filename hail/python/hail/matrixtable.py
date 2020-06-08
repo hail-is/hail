@@ -1,7 +1,6 @@
 import itertools
 from typing import Optional, Dict, Tuple, Any, List
 from collections import Counter
-import hail
 import hail as hl
 from hail.expr.expressions import Expression, StructExpression, \
     expr_struct, expr_any, expr_bool, analyze, Indices, \
@@ -69,12 +68,11 @@ class GroupedMatrixTable(ExprContainer):
     def _fixed_indices(self):
         if self._row_keys is None and self._col_keys is None:
             return self._parent._entry_indices
-        elif self._row_keys is not None and self._col_keys is None:
+        if self._row_keys is not None and self._col_keys is None:
             return self._parent._col_indices
-        elif self._row_keys is None and self._col_keys is not None:
+        if self._row_keys is None and self._col_keys is not None:
             return self._parent._row_indices
-        else:
-            return self._parent._global_indices
+        return self._parent._global_indices
 
     @typecheck_method(item=str)
     def __getitem__(self, item):
@@ -93,12 +91,10 @@ class GroupedMatrixTable(ExprContainer):
         else:
             colstr = "\nColumns: \n" + "\n    ".join(["{}: {}".format(k, v) for k, v in self._col_keys.items()])
 
-        s = '----------------------------------------\n' \
-            'GroupedMatrixTable grouped by {}\n' \
-            '----------------------------------------\n' \
-            'Parent MatrixTable:\n'.format(
-                rowstr,
-                colstr)
+        s = (f'----------------------------------------\n'
+             f'GroupedMatrixTable grouped by {rowstr}{colstr}\n'
+             f'----------------------------------------\n'
+             f'Parent MatrixTable:\n')
 
         handler(s)
         self._parent.describe(handler)
@@ -571,7 +567,7 @@ class MatrixTable(ExprContainer):
         self._rvrow = construct_reference('va',
                                           self._type.row_type,
                                           indices=self._row_indices)
-        self._row = hail.struct(**{k: self._rvrow[k] for k in self._row_type.keys()})
+        self._row = hl.struct(**{k: self._rvrow[k] for k in self._row_type.keys()})
         self._col = construct_reference('sa', self._col_type,
                                         indices=self._col_indices)
         self._entry = construct_reference('g', self._entry_type,
@@ -582,10 +578,10 @@ class MatrixTable(ExprContainer):
                                   'sa': self._col_indices,
                                   'g': self._entry_indices}
 
-        self._row_key = hail.struct(
+        self._row_key = hl.struct(
             **{k: self._row[k] for k in self._type.row_key})
         self._partition_key = self._row_key
-        self._col_key = hail.struct(
+        self._col_key = hl.struct(
             **{k: self._col[k] for k in self._type.col_key})
 
         self._num_samples = None
@@ -605,22 +601,22 @@ class MatrixTable(ExprContainer):
             self._entry_type)
 
     def __getitem__(self, item):
-        invalid_usage = TypeError(f"MatrixTable.__getitem__: invalid index argument(s)\n"
-                                  f"  Usage 1: field selection: mt['field']\n"
-                                  f"  Usage 2: Entry joining: mt[mt2.row_key, mt2.col_key]\n\n"
-                                  f"  To join row or column fields, use one of the following:\n"
-                                  f"    rows:\n"
-                                  f"       mt.index_rows(mt2.row_key)\n"
-                                  f"       mt.rows().index(mt2.row_key)\n"
-                                  f"       mt.rows()[mt2.row_key]\n"
-                                  f"    cols:\n"
-                                  f"       mt.index_cols(mt2.col_key)\n"
-                                  f"       mt.cols().index(mt2.col_key)\n"
-                                  f"       mt.cols()[mt2.col_key]")
+        invalid_usage = TypeError("MatrixTable.__getitem__: invalid index argument(s)\n"
+                                  "  Usage 1: field selection: mt['field']\n"
+                                  "  Usage 2: Entry joining: mt[mt2.row_key, mt2.col_key]\n\n"
+                                  "  To join row or column fields, use one of the following:\n"
+                                  "    rows:\n"
+                                  "       mt.index_rows(mt2.row_key)\n"
+                                  "       mt.rows().index(mt2.row_key)\n"
+                                  "       mt.rows()[mt2.row_key]\n"
+                                  "    cols:\n"
+                                  "       mt.index_cols(mt2.col_key)\n"
+                                  "       mt.cols().index(mt2.col_key)\n"
+                                  "       mt.cols()[mt2.col_key]")
 
         if isinstance(item, str):
             return self._get_field(item)
-        elif isinstance(item, tuple) and len(item) == 2:
+        if isinstance(item, tuple) and len(item) == 2:
             # this is the join path
             exprs = item
             row_key = wrap_to_tuple(exprs[0])
@@ -630,8 +626,7 @@ class MatrixTable(ExprContainer):
                 return self.index_entries(row_key, col_key)
             except TypeError as e:
                 raise invalid_usage from e
-        else:
-            raise invalid_usage
+        raise invalid_usage
 
     @property
     def _col_key_types(self):
@@ -2144,7 +2139,7 @@ class MatrixTable(ExprContainer):
         if self.row_key is not None:
             for k in self.row_key.values():
                 if k is field_expr:
-                    raise ValueError(f"method 'explode_rows' cannot explode a key field")
+                    raise ValueError("method 'explode_rows' cannot explode a key field")
 
         return MatrixTable(ir.MatrixExplodeRows(self._mir, root))
 
@@ -2206,7 +2201,7 @@ class MatrixTable(ExprContainer):
         if self.col_key is not None:
             for k in self.col_key.values():
                 if k is field_expr:
-                    raise ValueError(f"method 'explode_cols' cannot explode a key field")
+                    raise ValueError("method 'explode_cols' cannot explode a key field")
 
         return MatrixTable(ir.MatrixExplodeCols(self._mir, root))
 
@@ -2783,11 +2778,10 @@ class MatrixTable(ExprContainer):
         try:
             return self.rows()._index(*exprs, all_matches=all_matches)
         except TableIndexKeyError as err:
-            key_type, exprs = err.args
             raise ExpressionException(
                 f"Key type mismatch: cannot index matrix table with given expressions:\n"
-                f"  MatrixTable row key: {', '.join(str(t) for t in key_type.values()) or '<<<empty key>>>'}\n"
-                f"  Index expressions:   {', '.join(str(e.dtype) for e in exprs)}")
+                f"  MatrixTable row key: {', '.join(str(t) for t in err.key_type.values()) or '<<<empty key>>>'}\n"
+                f"  Index expressions:   {', '.join(str(e.dtype) for e in err.index_expressions)}")
 
     def index_cols(self, *exprs, all_matches=False) -> 'Expression':
         """Expose the column values as if looked up in a dictionary, indexing
@@ -2823,11 +2817,10 @@ class MatrixTable(ExprContainer):
         try:
             return self.cols()._index(*exprs, all_matches=all_matches)
         except TableIndexKeyError as err:
-            key_type, exprs = err.args
             raise ExpressionException(
                 f"Key type mismatch: cannot index matrix table with given expressions:\n"
-                f"  MatrixTable col key: {', '.join(str(t) for t in key_type.values()) or '<<<empty key>>>'}\n"
-                f"  Index expressions:   {', '.join(str(e.dtype) for e in exprs)}")
+                f"  MatrixTable col key: {', '.join(str(t) for t in err.key_type.values()) or '<<<empty key>>>'}\n"
+                f"  Index expressions:   {', '.join(str(e.dtype) for e in err.index_expressions)}")
 
     def index_entries(self, row_exprs, col_exprs):
         """Expose the entries as if looked up in a dictionary, indexing
@@ -3587,7 +3580,7 @@ class MatrixTable(ExprContainer):
                     .find(lambda x: ~(x[1] == first_keys))[0])))
                 if wrong_keys is not None:
                     raise ValueError(f"'MatrixTable.union_rows' expects all datasets to have the same columns. "
-                                     + f"Datasets 0 and {wrong_keys + 1} have different columns (or possibly different order).")
+                                     f"Datasets 0 and {wrong_keys + 1} have different columns (or possibly different order).")
             return MatrixTable(ir.MatrixUnionRows(*[d._mir for d in datasets]))
 
     @typecheck_method(other=matrix_table_type,
@@ -3856,7 +3849,7 @@ class MatrixTable(ExprContainer):
             Matrix table with approximately ``p * n_rows`` rows.
         """
 
-        if not (0 <= p <= 1):
+        if not 0 <= p <= 1:
             raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
 
         return self.filter_rows(hl.rand_bool(p, seed))
@@ -3885,7 +3878,7 @@ class MatrixTable(ExprContainer):
             Matrix table with approximately ``p * n_cols`` column.
         """
 
-        if not (0 <= p <= 1):
+        if not 0 <= p <= 1:
             raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
 
         return self.filter_cols(hl.rand_bool(p, seed))
@@ -4052,9 +4045,9 @@ class MatrixTable(ExprContainer):
 
         counts = Counter(col_keys)
         if counts[None] > 0:
-            raise ValueError(f"'make_table' encountered a missing column key; ensure all identifiers are defined.\n"
-                             f"  To fill in key index, run:\n"
-                             f"    mt = mt.key_cols_by(ck = hl.coalesce(mt.COL_KEY_NAME, 'missing_' + hl.str(hl.scan.count())))")
+            raise ValueError("'make_table' encountered a missing column key; ensure all identifiers are defined.\n"
+                             "  To fill in key index, run:\n"
+                             "    mt = mt.key_cols_by(ck = hl.coalesce(mt.COL_KEY_NAME, 'missing_' + hl.str(hl.scan.count())))")
 
         duplicates = [k for k, count in counts.items() if count > 1]
         if duplicates:

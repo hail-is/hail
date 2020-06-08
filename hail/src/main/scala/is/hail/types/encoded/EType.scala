@@ -339,6 +339,15 @@ object EType {
         val args = IRParser.repsepUntil(it, IRParser.struct_field(eTypeParser), PunctuationToken(","), PunctuationToken("}"))
         IRParser.punctuation(it, "}")
         ETransposedArrayOfStructs(args.zipWithIndex.map { case ((name, t), i) => EField(name, t, i) }, req, structRequired)
+      case "ENDArray" =>
+        IRParser.punctuation(it, "[")
+        val elementType = eTypeParser(it)
+        IRParser.punctuation(it, ",")
+        val nDims = IRParser.int32_literal(it)
+        IRParser.punctuation(it, "]")
+        ENDArray(elementType, nDims,  req)
+      case x => throw new UnsupportedOperationException(s"Couldn't parse $x ${it.toIndexedSeq}")
+
     }
   }
 }

@@ -296,6 +296,7 @@ def check_entry_indexed(caller, expr):
         raise ExpressionException("{}: expression must be entry-indexed,"
                                   " found indices {}".format(caller, list(expr._indices.axes)))
 
+
 @typecheck(caller=str,
            expr=Expression)
 def check_row_indexed(caller, expr):

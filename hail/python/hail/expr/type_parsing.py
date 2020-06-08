@@ -1,6 +1,6 @@
 from parsimonious import Grammar, NodeVisitor
-import hail as hl
 from hail.expr.nat import NatVariable
+from . import types
 from hail.utils.java import unescape_parsable
 
 type_grammar = Grammar(
@@ -49,75 +49,75 @@ class TypeConstructor(NodeVisitor):
         cond = None
         if cond_opt:
             colon, cond = cond_opt[0]
-        return hl.tvariable(name, cond)
+        return types.tvariable(name, cond)
 
     def visit_void(self, node, visited_children):
-        return hl.tvoid
+        return types.tvoid
 
     def visit_int64(self, node, visited_children):
-        return hl.tint64
+        return types.tint64
 
     def visit_int32(self, node, visited_children):
-        return hl.tint32
+        return types.tint32
 
     def visit_float64(self, node, visited_children):
-        return hl.tfloat64
+        return types.tfloat64
 
     def visit_float32(self, node, visited_children):
-        return hl.tfloat32
+        return types.tfloat32
 
     def visit_bool(self, node, visited_children):
-        return hl.tbool
+        return types.tbool
 
     def visit_call(self, node, visited_children):
-        return hl.tcall
+        return types.tcall
 
     def visit_str(self, node, visited_children):
-        return hl.tstr
+        return types.tstr
 
     def visit_locus(self, node, visited_children):
         tlocus, _, angle_bracket, gr, angle_bracket = visited_children
-        return hl.tlocus(gr)
+        return types.tlocus(gr)
 
     def visit_array(self, node, visited_children):
         tarray, _, angle_bracket, t, angle_bracket = visited_children
-        return hl.tarray(t)
+        return types.tarray(t)
 
     def visit_ndarray(self, node, visited_children):
         tndarray, _, angle_bracket, elem_t, comma, ndim, angle_bracket = visited_children
-        return hl.tndarray(elem_t, ndim)
+        return types.tndarray(elem_t, ndim)
 
     def visit_set(self, node, visited_children):
         tset, _, angle_bracket, t, angle_bracket = visited_children
-        return hl.tset(t)
+        return types.tset(t)
 
     def visit_dict(self, node, visited_children):
         tdict, _, angle_bracket, kt, comma, vt, angle_bracket = visited_children
-        return hl.tdict(kt, vt)
+        return types.tdict(kt, vt)
 
     def visit_struct(self, node, visited_children):
         tstruct, _, brace, maybe_fields, brace = visited_children
         if not maybe_fields:
-            return hl.tstruct()
+            return types.tstruct()
         else:
             fields = maybe_fields[0]
-            return hl.tstruct(**dict(fields))
+            return types.tstruct(**dict(fields))
 
     def visit_union(self, node, visited_children):
         tunion, _, brace, maybe_fields, brace = visited_children
         if not maybe_fields:
-            return hl.tunion()
+            return types.tunion()
         else:
             fields = maybe_fields[0]
-            return hl.tunion(**dict(fields))
+            return types.tunion(**dict(fields))
 
     def visit_tuple(self, node, visited_children):
         ttuple, _, paren, [maybe_types], paren = visited_children
         if not maybe_types:
-            return hl.ttuple()
+            return types.ttuple()
         else:
             [first, rest] = maybe_types
-            return hl.ttuple(first, *(t for comma, t in rest))
+            return types.ttuple(first, *(t for comma, t in rest))
 
     def visit_fields(self, node, visited_children):
         first, rest = visited_children
@@ -129,7 +129,7 @@ class TypeConstructor(NodeVisitor):
 
     def visit_interval(self, node, visited_children):
         tinterval, _, angle_bracket, point_t, angle_bracket = visited_children
-        return hl.tinterval(point_t)
+        return types.tinterval(point_t)
 
     def visit_identifier(self, node, visited_children):
         _, [id], _ = visited_children

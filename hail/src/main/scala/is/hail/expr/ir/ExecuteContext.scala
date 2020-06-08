@@ -6,7 +6,7 @@ import java.security.SecureRandom
 import is.hail.HailContext
 import is.hail.utils._
 import is.hail.annotations.Region
-import is.hail.backend.{Backend, BroadcastValue}
+import is.hail.backend.{Backend, BackendContext, BroadcastValue}
 import is.hail.io.fs.FS
 
 import scala.collection.mutable
@@ -50,6 +50,8 @@ class ExecuteContext(
   var r: Region,
   val timer: ExecutionTimer
 ) extends Closeable {
+  var backendContext: BackendContext = _
+
   def fsBc: BroadcastValue[FS] = fs.broadcast
 
   private val tmpPaths = mutable.ArrayBuffer[String]()

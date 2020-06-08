@@ -3,6 +3,8 @@ import functools
 import hail as hl
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import typecheck, nullable, sequenceof
+from hail.utils.java import info
+from hail.utils import new_temp_file
 
 
 def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_partitions=None,
@@ -138,10 +140,18 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_part
                     'f7': 'frame',
                     'f8': 'attribute'})
 
-    ht = ht.annotate(attribute=hl.dict(
-        hl.map(lambda x: (x.split(' ')[0],
-                          x.split(' ')[1].replace('"', '').replace(';$', '')),
-               ht['attribute'].split('; '))))
+    def parse_attributes(unparsed_attributes):
+        def parse_attribute(attribute):
+            key_and_value = attribute.split(' ')
+            key = key_and_value[0]
+            value = key_and_value[1]
+            return (key, value.replace('"|;\\$', ''))
+
+        return hl.dict(unparsed_attributes.split('; ').map(parse_attribute))
+
+    ht = ht.annotate(attribute=parse_attributes(ht['attribute']))
+
+    ht = ht.checkpoint(new_temp_file())
 
     attributes = ht.aggregate(hl.agg.explode(lambda x: hl.agg.collect_as_set(x), ht['attribute'].keys()))
 
@@ -268,6 +278,6 @@ def _load_gencode_gtf(gtf_file=None, reference_genome=None):
                 'get_gene_intervals requires a GTF file, or the reference genome be one of GRCh37 or GRCh38 (when on Google Cloud Platform)')
     ht = hl.experimental.import_gtf(gtf_file, reference_genome=reference_genome,
                                     skip_invalid_contigs=True, min_partitions=12)
-    ht = ht.annotate(gene_id=ht.gene_id.split(f'\\.')[0],
+    ht = ht.annotate(gene_id=ht.gene_id.split('\\.')[0],
                      transcript_id=ht.transcript_id.split('\\.')[0])
     return ht

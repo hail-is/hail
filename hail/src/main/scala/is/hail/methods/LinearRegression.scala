@@ -92,7 +92,7 @@ case class LinearRegressionRowsSingle(
         val blockWRVs = new Array[WritableRegionValue](rowBlockSize)
         var i = 0
         while (i < rowBlockSize) {
-          blockWRVs(i) = WritableRegionValue(fullRowType, producerCtx.freshRegion)
+          blockWRVs(i) = WritableRegionValue(fullRowType, producerCtx.freshRegion())
           i += 1
         }
 
@@ -250,7 +250,7 @@ case class LinearRegressionRowsChained(
         val blockWRVs = new Array[WritableRegionValue](rowBlockSize)
         var i = 0
         while (i < rowBlockSize) {
-          blockWRVs(i) = WritableRegionValue(fullRowType, producerCtx.freshRegion)
+          blockWRVs(i) = WritableRegionValue(fullRowType, producerCtx.freshRegion())
           i += 1
         }
 

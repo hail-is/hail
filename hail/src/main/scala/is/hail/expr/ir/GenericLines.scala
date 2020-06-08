@@ -1,13 +1,17 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
+import is.hail.backend.spark.SparkBackend
 import is.hail.utils._
 import is.hail.types.virtual.{TBoolean, TInt32, TInt64, TString, TStruct, Type}
-import is.hail.io.compress.{BGzipCodec, BGzipInputStream}
-import is.hail.io.fs.{FS, FileStatus, Positioned, PositionedInputStream, SeekableInputStream}
+import is.hail.io.compress.BGzipInputStream
+import is.hail.io.fs.{FS, FileStatus, Positioned, PositionedInputStream, BGZipCompressionCodec}
 import org.apache.commons.io.input.{CountingInputStream, ProxyInputStream}
 import org.apache.hadoop.io.compress.SplittableCompressionCodec
+import org.apache.spark.{Partition, TaskContext}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
+
+import scala.annotation.meta.param
 
 abstract class CloseableIterator[T] extends Iterator[T] with AutoCloseable
 
@@ -28,13 +32,13 @@ object GenericLines {
         private val is: PositionedInputStream = {
           val fs = fsBc.value
           val rawIS = fs.openNoCompression(file)
-          val codec = HailContext.maybeGZipAsBGZip(fs, gzAsBGZ) {
-            fs.getCodec(file)
-          }
+          val codec = fs.getCodecFromPath(file, gzAsBGZ)
           if (codec == null) {
+            assert(split)
             rawIS.seek(start)
             rawIS
-          } else if (codec.isInstanceOf[BGzipCodec]) {
+          } else if (codec == BGZipCompressionCodec) {
+            assert(split)
             splitCompressed = true
             val bgzIS = new BGzipInputStream(rawIS, start, end, SplittableCompressionCodec.READ_MODE.BYBLOCK)
             new ProxyInputStream(bgzIS) with Positioned {
@@ -42,7 +46,7 @@ object GenericLines {
             }
           } else {
             assert(!split)
-            new CountingInputStream(codec.createInputStream(rawIS)) with Positioned {
+            new CountingInputStream(codec.makeInputStream(rawIS)) with Positioned {
               def getPosition: Long = getByteCount
             }
           }
@@ -102,15 +106,13 @@ object GenericLines {
             return
           }
 
-          line.offset = offset
-
           var sawcr = false
           var linePos = 0
 
           while (true) {
             if (eof) {
               assert(linePos > 0)
-              line.lineLength = linePos
+              line.setLine(offset, linePos)
               return
             }
 
@@ -168,7 +170,7 @@ object GenericLines {
 
             if (eol) {
               assert(linePos > 0)
-              line.lineLength = linePos
+              line.setLine(offset, linePos)
               return
             }
           }
@@ -246,11 +248,9 @@ object GenericLines {
 
     val contexts = fileStatuses.flatMap { status =>
       val size = status.getLen
-      val codec = HailContext.maybeGZipAsBGZip(fs, gzAsBGZ) {
-        fs.getCodec(status.getPath)
-      }
+      val codec = fs.getCodecFromPath(status.getPath, gzAsBGZ)
 
-      val splittable = codec == null || codec.isInstanceOf[BGzipCodec]
+      val splittable = codec == null || codec == BGZipCompressionCodec
       if (splittable) {
         var fileNParts = ((totalPartitions.toDouble * size) / totalSize + 0.5).toInt
         if (fileNParts == 0)
@@ -291,22 +291,58 @@ object GenericLines {
 class GenericLine(
   val file: String,
   // possibly virtual
-  var offset: Long,
+  private var _offset: Long,
   var data: Array[Byte],
-  var lineLength: Int) {
+  private var _lineLength: Int) {
   def this(file: String) = this(file, 0, null, 0)
 
+  private var _str: String = null
+
+  def setLine(newOffset: Long, newLength: Int): Unit = {
+    _offset = newOffset
+    _lineLength = newLength
+    _str = null
+  }
+
+  def offset: Long = _offset
+
+  def lineLength: Int = _lineLength
+
   override def toString: String = {
-    var n = lineLength
-    assert(n > 0)
-    // strip line delimiter to match behavior of Spark textFile
-    if (data(n - 1) == '\n') {
-      n -= 1
-      if (n > 0 && data(n - 1) == '\r')
+    if (_str == null) {
+      var n = lineLength
+      assert(n > 0)
+      // strip line delimiter to match behavior of Spark textFile
+      if (data(n - 1) == '\n') {
         n -= 1
-    } else if (data(n - 1) == '\r')
-      n -= 1
-    new String(data, 0, n)
+        if (n > 0 && data(n - 1) == '\r')
+          n -= 1
+      } else if (data(n - 1) == '\r')
+        n -= 1
+      _str = new String(data, 0, n)
+    }
+    _str
+  }
+}
+
+class GenericLinesRDDPartition(val index: Int, val context: Any) extends Partition
+
+class GenericLinesRDD(
+  @(transient@param) contexts: IndexedSeq[Any],
+  body: (Any) => CloseableIterator[GenericLine]
+) extends RDD[GenericLine](SparkBackend.sparkContext("GenericLinesRDD"), Seq()) {
+
+  protected def getPartitions: Array[Partition] =
+    contexts.iterator.zipWithIndex.map { case (c, i) =>
+      new GenericLinesRDDPartition(i, c)
+    }.toArray
+
+  def compute(split: Partition, context: TaskContext): Iterator[GenericLine] = {
+    val it = body(split.asInstanceOf[GenericLinesRDDPartition].context)
+    TaskContext.get.addTaskCompletionListener { _ =>
+      it.close()
+    }
+    it
   }
 }
 
@@ -316,4 +352,6 @@ class GenericLines(
   val body: (Any) => CloseableIterator[GenericLine]) {
 
   def nPartitions: Int = contexts.length
+
+  def toRDD(): RDD[GenericLine] = new GenericLinesRDD(contexts, body)
 }

@@ -647,20 +647,39 @@ class PruneSuite extends HailSuite {
       Array(TStream(justA), null, null))
   }
 
-  @Test def testStreamLeftJoinDistinct() {
+  @Test def testStreamJoinRightDistinct() {
     val l = Ref("l", ref.typ)
     val r = Ref("r", ref.typ)
-    checkMemo(StreamLeftJoinDistinct(st, st, "l", "r",
-      ApplyComparisonOp(LT(TInt32), GetField(l, "a"), GetField(r, "a")),
-      MakeStruct(FastIndexedSeq("a" -> GetField(l, "a"), "b" -> GetField(l, "b"), "c" -> GetField(l, "c"), "d" -> GetField(r, "b"), "e" -> GetField(r, "c")))),
-      TStream(justA),
-      Array(TStream(justA), TStream(justA), null, justA))
+    checkMemo(
+      StreamJoinRightDistinct(st, st, FastIndexedSeq("a"), FastIndexedSeq("a"), "l", "r",
+        MakeStruct(FastIndexedSeq("a" -> GetField(l, "a"), "b" -> GetField(l, "b"), "c" -> GetField(l, "c"), "d" -> GetField(r, "b"), "e" -> GetField(r, "c"))),
+        "left"),
+      TStream(TStruct("b" -> TInt32, "d" -> TInt32)),
+      Array(
+        TStream(TStruct("a" -> TInt32, "b" -> TInt32)),
+        TStream(TStruct("a" -> TInt32, "b" -> TInt32)),
+        TStruct("b" -> TInt32, "d" -> TInt32)))
   }
 
   @Test def testStreamForMemo() {
     checkMemo(StreamFor(st, "foo", Begin(FastIndexedSeq(GetField(Ref("foo", ref.typ), "a")))),
       TVoid,
       Array(TStream(justA), null))
+  }
+
+  @Test def testMakeNDArrayMemo(): Unit = {
+    checkMemo(
+      MakeNDArray(
+        Ref("x", TArray(TStruct("a" -> TInt32, "b" -> TInt64))),
+        Ref("y", TTuple(TInt32, TInt32)),
+        True()),
+      TNDArray(TStruct("a" -> TInt32), Nat(2)),
+      Array(
+        TArray(TStruct("a" -> TInt32)),
+        TTuple(TInt32, TInt32),
+        TBoolean
+      )
+    )
   }
 
   @Test def testNDArrayMapMemo(): Unit = {
@@ -1416,5 +1435,29 @@ class PruneSuite extends HailSuite {
     checkRebuild(takeByAgg, TArray(TStruct("y" -> TInt32)), { (_: BaseIR, reb: BaseIR) =>
       val a = reb.asInstanceOf[ApplyAggOp]
       a.seqOpArgs == FastIndexedSeq(MakeStruct(FastSeq(("y", y))), MakeStruct(FastSeq(("x", x), ("y", y))))})
+  }
+
+  @Test def testStreamFold2() {
+    val eltType = TStruct("a" -> TInt32, "b" -> TInt32)
+    val accum1Type = TStruct("c" -> TInt32, "d" -> TInt32)
+
+    val ir0 = StreamFold2(
+      NA(TStream(eltType)),
+      FastSeq("1" -> NA(accum1Type)),
+      "elt",
+      FastSeq(
+        MakeStruct(FastSeq(
+          "c" -> GetField(Ref("elt", eltType), "a"),
+          "d" -> GetField(Ref("1", accum1Type), "c")))),
+      Ref("1", TStruct("c" -> TInt32, "d" -> TInt32)))
+
+    def checker(original: IR, rebuilt: IR): Boolean = {
+      val r = rebuilt.asInstanceOf[StreamFold2]
+      r.typ == TStruct("c" -> TInt32)
+      r.a.typ == TStream(TStruct("a" -> TInt32))
+      r.accum(0)._2.typ == r.typ
+    }
+
+    checkRebuild(ir0, TStruct("c" -> TInt32), checker)
   }
 }

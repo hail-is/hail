@@ -82,15 +82,15 @@ def batch_record_to_dict(record):
 async def notify_batch_job_complete(db, batch_id):
     record = await db.select_and_fetchone(
         '''
-SELECT *
+SELECT batches.*, SUM(`usage` * rate) AS cost
 FROM batches
-LEFT JOIN (SELECT batch_id, SUM(`usage` * rate) AS cost
-           FROM aggregated_batch_resources
-           INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
-           GROUP BY batch_id) AS t
-ON batches.id = t.batch_id
+LEFT JOIN aggregated_batch_resources
+  ON batches.id = aggregated_batch_resources.batch_id
+LEFT JOIN resources
+  ON aggregated_batch_resources.resource = resources.resource
 WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
    batches.`state` = 'complete'
+GROUP BY batches.id;
 ''',
         (batch_id,))
 

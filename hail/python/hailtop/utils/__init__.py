@@ -14,6 +14,7 @@ from .rates import (
     rate_cpu_hour_to_mcpu_msec, rate_gib_hour_to_mib_msec, rate_gib_month_to_mib_msec,
     rate_instance_hour_to_fraction_msec
 )
+from .rate_limiter import RateLimit, RateLimiter
 
 __all__ = [
     'time_msecs',
@@ -50,5 +51,7 @@ __all__ = [
     'rate_gib_hour_to_mib_msec',
     'rate_gib_month_to_mib_msec',
     'rate_cpu_hour_to_mcpu_msec',
-    'rate_instance_hour_to_fraction_msec'
+    'rate_instance_hour_to_fraction_msec',
+    'RateLimit',
+    'RateLimiter'
 ]
