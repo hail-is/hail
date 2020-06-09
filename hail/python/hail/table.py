@@ -1178,6 +1178,7 @@ class Table(ExprContainer):
         -------
         :class:`Table`
 
+
         .. include:: _templates/write_warning.rst
 
         Notes
