@@ -17,6 +17,7 @@
                 <xsl:call-template name="meta-description"/>
                 <link rel="stylesheet" href="/style.css"/>
                 <link rel="stylesheet" href="/navbar.css"/>
+                <xsl:call-template name="header"/>
                 <script>
                     (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
                     (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),

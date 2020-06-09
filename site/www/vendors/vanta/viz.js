@@ -145,7 +145,6 @@ class Viz {
       }, this.mouse.dontshow ? 32 : 4);
     }, false);
 
-    // TODO: generalize this
     const d = document.getElementById('hero-content');
     const n = document.getElementById('hail-navbar');
 
@@ -243,13 +242,11 @@ class Viz {
 
     if (this.hidden) {
       this.startedAnimation = true;
-      const started = Date.now();
-      console.debug('updating')
+
       window.requestAnimationFrame(() => {
         this.el.style.opacity = .5;
         this.hidden = false;
         this.startedAnimation = false;
-        console.debug("done", Date.now() - started);
 
         this.then = now - 1000 - (delta % this.interval);
 
@@ -302,7 +299,7 @@ class Viz {
     const material = new THREE.MeshLambertMaterial({
       color: this.options.color,
       transparent: true,
-      opacity: .4
+      opacity: .35
     });
     const sphere = new THREE.Mesh(geometry, material);
     sphere.position.set(x, y, z);

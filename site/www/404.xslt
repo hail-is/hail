@@ -5,4 +5,6 @@
 
     <xsl:template name="page-title">404</xsl:template>
     <xsl:template name="meta-description"></xsl:template>
+    <xsl:template name="header">
+    </xsl:template>
 </xsl:stylesheet>

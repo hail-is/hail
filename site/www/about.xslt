@@ -7,5 +7,7 @@
     <xsl:template name="meta-description">
         <meta name="description" content="About Hail"/>
     </xsl:template>
+    <xsl:template name="header">
+    </xsl:template>
 
 </xsl:stylesheet>
