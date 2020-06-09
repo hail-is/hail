@@ -6,6 +6,7 @@ import is.hail.expr.ir.ExecuteContext
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
 import is.hail.utils._
+import is.hail.io.compress.{BGzipCodec, ComposableBGzipCodec, ComposableBGzipOutputStream}
 import is.hail.io.fs.FS
 import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
@@ -32,7 +33,13 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def writeTable(ctx: ExecuteContext, filename: String, header: Option[String] = None, exportType: String = ExportType.CONCATENATED) {
     val hConf = r.sparkContext.hadoopConfiguration
     val codecFactory = new CompressionCodecFactory(hConf)
-    val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(filename)))
+    val codec = {
+      val codec = codecFactory.getCodec(new hadoop.fs.Path(filename))
+      if (codec != null && codec.isInstanceOf[BGzipCodec] && exportType == ExportType.PARALLEL_COMPOSABLE)
+        new ComposableBGzipCodec
+      else
+        codec
+    }
 
     val fs = ctx.fs
     fs.delete(filename, recursive = true) // overwriting by default
@@ -57,6 +64,8 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
             }
           case ExportType.PARALLEL_SEPARATE_HEADER =>
             r
+          case ExportType.PARALLEL_COMPOSABLE =>
+            r
           case ExportType.PARALLEL_HEADER_IN_SHARD =>
             r.mapPartitions { it => Iterator(h) ++ it }
           case _ => fatal(s"Unknown export type: $exportType")
@@ -64,7 +73,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       }
     }.getOrElse(r)
 
-    codec match {
+    Option(codec) match {
       case Some(x) => rWithHeader.saveAsTextFile(parallelOutputPath, x.getClass)
       case None => rWithHeader.saveAsTextFile(parallelOutputPath)
     }
@@ -76,6 +85,28 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
           out.write(h)
           out.write('\n')
         }
+      }
+    }
+
+    if (exportType == ExportType.PARALLEL_COMPOSABLE) {
+      val ext = fs.getCodecExtension(filename)
+      val headerPath = parallelOutputPath + "/header" + ext
+      val headerOs = if (ext == ".bgz") {
+        val os = fs.createNoCompression(headerPath)
+        new ComposableBGzipOutputStream(os)
+      } else {
+        fs.create(headerPath)
+      }
+      using(new OutputStreamWriter(headerOs)) { out =>
+        header.foreach { h =>
+          out.write(h)
+          out.write('\n')
+        }
+      }
+
+      // this filename should sort after every partition
+      using(new OutputStreamWriter(fs.create(parallelOutputPath + "/part-composable-end" + ext))) { out =>
+        // do nothing, for bgzip, this will write the empty block
       }
     }
 

@@ -40,8 +40,10 @@ case class TLocus(rgBc: BroadcastRG) extends ComplexType {
 
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 
-  lazy val ordering: ExtendedOrdering =
-    ExtendedOrdering.extendToNull(rg.locusOrdering)
+  override lazy val ordering: ExtendedOrdering = mkOrdering()
+
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+    ExtendedOrdering.extendToNull(rg.locusOrdering, missingEqual)
 
   lazy val representation: TStruct = TLocus.representation
 

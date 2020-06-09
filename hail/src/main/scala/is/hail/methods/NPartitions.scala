@@ -3,16 +3,20 @@ package is.hail.methods
 import is.hail.expr.ir.functions.{MatrixToValueFunction, TableToValueFunction}
 import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
 import is.hail.types.virtual.{TInt32, Type}
-import is.hail.types.{MatrixType, TableType}
+import is.hail.types.{MatrixType, RTable, TableType, TypeWithRequiredness}
 
 case class NPartitionsTable() extends TableToValueFunction {
   override def typ(childType: TableType): Type = TInt32
+
+  def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit = ()
 
   override def execute(ctx: ExecuteContext, tv: TableValue): Any = tv.rvd.getNumPartitions
 }
 
 case class NPartitionsMatrixTable() extends MatrixToValueFunction {
   override def typ(childType: MatrixType): Type = TInt32
+
+  def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit = ()
 
   override def execute(ctx: ExecuteContext, mv: MatrixValue): Any = mv.rvd.getNumPartitions
 

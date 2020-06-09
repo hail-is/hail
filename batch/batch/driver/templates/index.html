@@ -6,6 +6,7 @@
     <div>Worker cores: {{ config['worker_cores'] }}</div>
     <div>Worker type: {{ config['worker_type'] }}</div>
     <div>Worker disk size (in GB): {{ config['worker_disk_size_gb'] }}</div>
+    <div>Standing worker cores: <input name="standing_worker_cores" value="{{ config['standing_worker_cores'] }}" /></div>
     <div>Max instances: <input name="max_instances" value="{{ config['max_instances'] }}" /></div>
     <div>Worker pool size: <input name="pool_size" value="{{ config['pool_size'] }}" /></div>
     <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>

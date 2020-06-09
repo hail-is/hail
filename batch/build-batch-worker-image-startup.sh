@@ -6,6 +6,7 @@ apt-get install -y \
     apt-transport-https \
     ca-certificates \
     curl \
+    jq \
     software-properties-common
 
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
@@ -18,6 +19,8 @@ add-apt-repository \
 apt-get install -y docker-ce
 
 rm -rf /var/lib/apt/lists/*
+
+[ -f /etc/docker/daemon.json ] || echo "{}" > /etc/docker/daemon.json
 
 VERSION=1.5.0
 OS=linux 

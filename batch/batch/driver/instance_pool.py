@@ -1,21 +1,27 @@
-import aiohttp
+import os
 import secrets
 import random
 import json
+import datetime
 import asyncio
 import logging
 import base64
 import sortedcontainers
-import googleapiclient.errors
+import aiohttp
 from hailtop.utils import time_msecs, secret_alnum_string
 
-from ..batch_configuration import DEFAULT_NAMESPACE, BATCH_WORKER_IMAGE, \
-    PROJECT
+from ..batch_configuration import DEFAULT_NAMESPACE, PROJECT, \
+    WORKER_MAX_IDLE_TIME_MSECS, STANDING_WORKER_MAX_IDLE_TIME_MSECS, \
+    ENABLE_STANDING_WORKER
 
 from .instance import Instance
 from ..worker_config import WorkerConfig
 
 log = logging.getLogger('instance_pool')
+
+BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
+
+log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 
 class InstancePool:
@@ -25,14 +31,15 @@ class InstancePool:
         self.log_store = app['log_store']
         self.scheduler_state_changed = app['scheduler_state_changed']
         self.db = app['db']
-        self.gservices = app['gservices']
         self.compute_client = app['compute_client']
+        self.logging_client = app['logging_client']
         self.machine_name_prefix = machine_name_prefix
 
         # set in async_init
         self.worker_type = None
         self.worker_cores = None
         self.worker_disk_size_gb = None
+        self.standing_worker_cores = None
         self.max_instances = None
         self.pool_size = None
 
@@ -51,18 +58,21 @@ class InstancePool:
 
         # pending and active
         self.live_free_cores_mcpu = 0
+        self.live_total_cores_mcpu = 0
 
         self.name_instance = {}
 
     async def async_init(self):
         log.info('initializing instance pool')
 
-        row = await self.db.select_and_fetchone(
-            'SELECT worker_type, worker_cores, worker_disk_size_gb, max_instances, pool_size FROM globals;')
+        row = await self.db.select_and_fetchone('''
+SELECT worker_type, worker_cores, worker_disk_size_gb, standing_worker_cores, max_instances, pool_size FROM globals;
+''')
 
         self.worker_type = row['worker_type']
         self.worker_cores = row['worker_cores']
         self.worker_disk_size_gb = row['worker_disk_size_gb']
+        self.standing_worker_cores = row['standing_worker_cores']
         self.max_instances = row['max_instances']
         self.pool_size = row['pool_size']
 
@@ -80,6 +90,7 @@ class InstancePool:
             'worker_type': self.worker_type,
             'worker_cores': self.worker_cores,
             'worker_disk_size_gb': self.worker_disk_size_gb,
+            'standing_worker_cores': self.standing_worker_cores,
             'max_instances': self.max_instances,
             'pool_size': self.pool_size
         }
@@ -90,19 +101,22 @@ class InstancePool:
     async def configure(
             self,
             # worker_type, worker_cores, worker_disk_size_gb,
+            standing_worker_cores,
             max_instances, pool_size):
         await self.db.just_execute(
             # worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
             '''
 UPDATE globals
-SET max_instances = %s, pool_size = %s;
+SET standing_worker_cores = %s, max_instances = %s, pool_size = %s;
 ''',
             (
                 # worker_type, worker_cores, worker_disk_size_gb,
+                standing_worker_cores,
                 max_instances, pool_size))
         # self.worker_type = worker_type
         # self.worker_cores = worker_cores
         # self.worker_disk_size_gb = worker_disk_size_gb
+        self.standing_worker_cores = standing_worker_cores
         self.max_instances = max_instances
         self.pool_size = pool_size
 
@@ -119,6 +133,7 @@ SET max_instances = %s, pool_size = %s;
 
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
+            self.live_total_cores_mcpu -= instance.cores_mcpu
         if instance in self.healthy_instances_by_free_cores:
             self.healthy_instances_by_free_cores.remove(instance)
 
@@ -139,6 +154,7 @@ SET max_instances = %s, pool_size = %s;
         self.instances_by_last_updated.add(instance)
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
+            self.live_total_cores_mcpu += instance.cores_mcpu
         if (instance.state == 'active'
                 and instance.failed_request_count <= 1):
             self.healthy_instances_by_free_cores.add(instance)
@@ -149,7 +165,12 @@ SET max_instances = %s, pool_size = %s;
         self.name_instance[instance.name] = instance
         self.adjust_for_add_instance(instance)
 
-    async def create_instance(self):
+    async def create_instance(self, cores=None, max_idle_time_msecs=None):
+        if cores is None:
+            cores = self.worker_cores
+        if max_idle_time_msecs is None:
+            max_idle_time_msecs = WORKER_MAX_IDLE_TIME_MSECS
+
         while True:
             # 36 ** 5 = ~60M
             suffix = secret_alnum_string(5, case='lower')
@@ -157,10 +178,7 @@ SET max_instances = %s, pool_size = %s;
             if machine_name not in self.name_instance:
                 break
 
-        n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
-        total_cores = self.worker_cores * n_live_instances
-
-        if total_cores < 5_000:
+        if self.live_total_cores_mcpu < 5_000:
             zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
             zone = random.choice(zones)
         else:
@@ -171,14 +189,14 @@ SET max_instances = %s, pool_size = %s;
             zone = random.choices(zones, weights)[0]
 
         activation_token = secrets.token_urlsafe(32)
-        instance = await Instance.create(self.app, machine_name, activation_token, self.worker_cores * 1000, zone)
+        instance = await Instance.create(self.app, machine_name, activation_token, cores * 1000, zone)
         self.add_instance(instance)
 
         log.info(f'created {instance}')
 
         config = {
             'name': machine_name,
-            'machineType': f'projects/{PROJECT}/zones/{zone}/machineTypes/n1-{self.worker_type}-{self.worker_cores}',
+            'machineType': f'projects/{PROJECT}/zones/{zone}/machineTypes/n1-{self.worker_type}-{cores}',
             'labels': {
                 'role': 'batch2-agent',
                 'namespace': DEFAULT_NAMESPACE
@@ -188,11 +206,17 @@ SET max_instances = %s, pool_size = %s;
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-7',
+                    'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-8',
                     'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(self.worker_disk_size_gb)
                 }
-            }],
+            }, {
+                'type': 'SCRATCH',
+                'autoDelete': True,
+                'interface': 'NVME',
+                'initializeParams': {
+                    'diskType': f'zones/{zone}/diskTypes/local-ssd'
+                }}],
 
             'networkInterfaces': [{
                 'network': 'global/networks/default',
@@ -238,6 +262,32 @@ set -x
 iptables -I FORWARD -i docker0 -d 169.254.169.254 -j DROP
 iptables -I FORWARD -i docker0 -d 169.254.169.254 -p udp -m udp --destination-port 53 -j ACCEPT
 
+# add docker daemon debug logging
+jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
+mv daemon.json.tmp /etc/docker/daemon.json
+kill -SIGHUP $(pidof dockerd)
+
+LOCAL_SSD_NAME=$(lsblk | grep '^nvme' | awk '{ print $1 }')
+
+# format local SSD
+sudo mkfs.ext4 -F /dev/$LOCAL_SSD_NAME
+sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME
+sudo mount /dev/$LOCAL_SSD_NAME /mnt/disks/$LOCAL_SSD_NAME
+sudo chmod a+w /mnt/disks/$LOCAL_SSD_NAME
+
+# reconfigure docker to use local SSD
+sudo service docker stop
+sudo mv /var/lib/docker /mnt/disks/$LOCAL_SSD_NAME/docker
+sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/docker /var/lib/docker
+sudo service docker start
+
+# reconfigure /batch and /logs to use local SSD
+sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/batch/
+sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/batch /batch
+
+sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/logs/
+sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/logs /logs
+
 export HOME=/root
 
 CORES=$(nproc)
@@ -250,6 +300,7 @@ BATCH_LOGS_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.g
 WORKER_LOGS_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_logs_bucket_name")
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 WORKER_CONFIG=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_config")
+MAX_IDLE_TIME_MSECS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/max_idle_time_msecs")
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
 
@@ -271,6 +322,7 @@ docker run \
     -e INSTANCE_ID=$INSTANCE_ID \
     -e PROJECT=$PROJECT \
     -e WORKER_CONFIG=$WORKER_CONFIG \
+    -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /usr/bin/docker:/usr/bin/docker \
     -v /batch:/batch \
@@ -293,8 +345,10 @@ WORKER_LOGS_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 
+journalctl -u docker.service > dockerd.log
+
 # this has to match LogStore.worker_log_path
-gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/worker/$NAME/
+gsutil -m cp run.log worker.log /var/log/syslog dockerd.log  gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/worker/$NAME/
 '''
                 }, {
                     'key': 'activation_token',
@@ -314,6 +368,9 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/ba
                 }, {
                     'key': 'instance_id',
                     'value': self.log_store.instance_id
+                }, {
+                    'key': 'max_idle_time_msecs',
+                    'value': max_idle_time_msecs
                 }]
             },
             'tags': {
@@ -345,12 +402,6 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/ba
         try:
             await self.compute_client.delete(
                 f'/zones/{instance.zone}/instances/{instance.name}')
-        except googleapiclient.errors.HttpError as e:
-            if e.resp['status'] == '404':
-                log.info(f'{instance} already delete done')
-                await self.remove_instance(instance, reason, timestamp)
-                return
-            raise
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 log.info(f'{instance} already delete done')
@@ -368,18 +419,18 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/ba
         await instance.mark_deleted('deleted', timestamp)
 
     async def handle_event(self, event):
-        if not event.payload:
+        payload = event.get('jsonPayload')
+        if payload is None:
             log.warning(f'event has no payload')
             return
 
         timestamp = event.timestamp.timestamp() * 1000
-        payload = event.payload
         version = payload['version']
         if version != '1.2':
             log.warning('unknown event verison {version}')
             return
 
-        resource_type = event.resource.type
+        resource_type = event['resource']['type']
         if resource_type != 'gce_instance':
             log.warning(f'unknown event resource type {resource_type}')
             return
@@ -419,8 +470,36 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/ba
         log.info(f'starting event loop')
         while True:
             try:
-                async for event in await self.gservices.stream_entries(self.db):
+                row = await self.db.select_and_fetchone('SELECT * FROM `gevents_mark`;')
+                if row['mark']:
+                    mark = row['mark']
+                else:
+                    mark = datetime.datetime.utcnow().isoformat() + 'Z'
+
+                filter = f'''
+logName="projects/{PROJECT}/logs/compute.googleapis.com%2Factivity_log" AND
+resource.type=gce_instance AND
+jsonPayload.resource.name:"{self.machine_name_prefix}" AND
+jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.delete")
+AND timestamp >= "{mark}"
+'''
+
+                new_mark = None
+                async for event in await self.logging_client.list_entries(
+                        body={
+                            'resourceNames': [f'projects/{PROJECT}'],
+                            'orderBy': 'timestamp asc',
+                            'pageSize': 100,
+                            'filter': filter
+                        }):
+                    # take the last, largest timestamp
+                    new_mark = event['timestamp']
                     await self.handle_event(event)
+
+                if new_mark is not None:
+                    await self.db.execute_update(
+                        'UPDATE `gevents_mark` SET mark = %s;',
+                        (new_mark,))
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:
@@ -464,6 +543,11 @@ FROM ready_cores;
                         log.info(f'creating {instances_needed} new instances')
                         # parallelism will be bounded by thread pool
                         await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
+
+                n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
+                if ENABLE_STANDING_WORKER and n_live_instances == 0 and self.max_instances > 0:
+                    await self.create_instance(cores=self.standing_worker_cores,
+                                               max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:
@@ -478,11 +562,6 @@ FROM ready_cores;
         try:
             spec = await self.compute_client.get(
                 f'/zones/{instance.zone}/instances/{instance.name}')
-        except googleapiclient.errors.HttpError as e:
-            if e.resp['status'] == '404':
-                await self.remove_instance(instance, 'does_not_exist')
-                return
-            raise
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 await self.remove_instance(instance, 'does_not_exist')

@@ -15,14 +15,14 @@ class BackendUtils(mods: Array[(String, (Int, Region) => BackendUtils.F)]) {
 
   def getModule(id: String): (Int, Region) => F = loadedModules(id)
 
-  def collectDArray(modID: String, contexts: Array[Array[Byte]], globals: Array[Byte]): Array[Array[Byte]] = {
+  def collectDArray(backendContext: BackendContext, modID: String, contexts: Array[Array[Byte]], globals: Array[Byte]): Array[Array[Byte]] = {
     if (contexts.isEmpty)
       return Array()
     val backend = HailContext.backend
     val globalsBC = backend.broadcast(globals)
     val f = getModule(modID)
 
-    backend.parallelizeAndComputeWithIndex(contexts) { (ctx, i) =>
+    backend.parallelizeAndComputeWithIndex(backendContext, contexts) { (ctx, i) =>
       val gs = globalsBC.value
       Region.scoped { region =>
         val res = f(i, region)(region, ctx, gs)

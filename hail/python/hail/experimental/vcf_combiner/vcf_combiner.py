@@ -2,7 +2,7 @@
 # these are necessary for the diver script included at the end of this file
 import math
 import uuid
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 
 import hail as hl
 from hail import MatrixTable, Table
@@ -121,6 +121,15 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
     mt = localize(mt)
 
     if mt.row.dtype not in _transform_rows_function_map:
+        def get_lgt(e, n_alleles, has_non_ref, row):
+            index = e.GT.unphased_diploid_gt_index()
+            n_no_nonref = n_alleles - hl.int(has_non_ref)
+            triangle_without_nonref = hl.triangle(n_no_nonref)
+            return (hl.case()
+                    .when(index < triangle_without_nonref, e.GT)
+                    .when(index < hl.triangle(n_alleles), hl.null('call'))
+                    .or_error('invalid GT ' + hl.str(e.GT) + ' at site ' + hl.str(row.locus)))
+
         f = hl.experimental.define_function(
             lambda row: hl.rbind(
                 hl.len(row.alleles), '<NON_REF>' == row.alleles[-1],
@@ -136,7 +145,7 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
                             GQ=e.GQ,
                             LA=hl.range(0, alleles_len - hl.cond(has_non_ref, 1, 0)),
                             LAD=hl.cond(has_non_ref, e.AD[:-1], e.AD),
-                            LGT=e.GT,
+                            LGT=get_lgt(e, alleles_len, has_non_ref, row),
                             LPGT=e.PGT,
                             LPL=hl.cond(has_non_ref,
                                         hl.cond(alleles_len > 2,
@@ -177,7 +186,7 @@ def combine(ts):
         from hail.expr.functions import _num_allele_type, _allele_ints
         return hl.rbind(
             alleles.map(lambda a: hl.or_else(a[0], ''))
-                .fold(lambda s, t: hl.cond(hl.len(s) > hl.len(t), s, t), ''),
+            .fold(lambda s, t: hl.cond(hl.len(s) > hl.len(t), s, t), ''),
             lambda ref:
             hl.rbind(
                 alleles.map(
@@ -459,6 +468,7 @@ def run_combiner(sample_paths: List[str],
                  target_records: int = CombinerConfig.default_target_records,
                  overwrite: bool = False,
                  reference_genome: str = 'default',
+                 contig_recoding: Optional[Dict[str, str]] = None,
                  key_by_locus_and_alleles: bool = False):
     """Run the Hail VCF combiner, performing a hierarchical merge to create a combined sparse matrix table.
 
@@ -486,12 +496,18 @@ def run_combiner(sample_paths: List[str],
         Overwrite output file, if it exists.
     reference_genome : :obj:`str`
         Reference genome for GVCF import.
+    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`), optional
+        Mapping from contig name in gVCFs to contig name the reference
+        genome.  All contigs must be present in the
+        `reference_genome`, so this is useful for mapping
+        differently-formatted data onto known references.
     key_by_locus_and_alleles : :obj:`bool`
         Key by both locus and alleles in the final output.
 
     Returns
     -------
     None
+
     """
     tmp_path += f'/combiner-temporary/{uuid.uuid4()}/'
     if header is not None:
@@ -543,7 +559,8 @@ def run_combiner(sample_paths: List[str],
                                                       _external_header=header,
                                                       _external_sample_ids=[sample_names[i] for i in
                                                                             merge.inputs] if header is not None else None,
-                                                      reference_genome=reference_genome)]
+                                                      reference_genome=reference_genome,
+                                                      contig_recoding=contig_recoding)]
                 else:
                     mts = [hl.read_matrix_table(path, _intervals=intervals) for path in inputs]
 

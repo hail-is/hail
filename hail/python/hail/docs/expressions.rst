@@ -7,6 +7,10 @@ Expressions
 .. currentmodule:: hail.expr
 
 .. autosummary::
+
+   eval
+
+.. autosummary::
     :nosignatures:
     :toctree:
     :template: class2.rst
@@ -31,3 +35,5 @@ Expressions
     TupleExpression
     NDArrayExpression
     NDArrayNumericExpression
+
+.. autofunction:: eval

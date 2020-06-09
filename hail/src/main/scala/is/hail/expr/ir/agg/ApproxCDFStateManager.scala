@@ -114,9 +114,9 @@ object ApproxCDFCombiner {
   def apply(
     numLevels: Int, capacity: Int, keepRatio: Option[Double], rand: java.util.Random
   ): ApproxCDFCombiner = new ApproxCDFCombiner(
-    Array.fill[Int](numLevels + 1)(capacity),
+    { val a = Array.ofDim[Int](numLevels + 1); java.util.Arrays.fill(a, capacity); a },
     Array.ofDim[Double](capacity),
-    Array.fill[Int](numLevels)(0),
+    Array.ofDim[Int](numLevels),
     1,
     keepRatio.getOrElse(Double.NaN),
     rand)
@@ -173,12 +173,27 @@ class ApproxCDFCombiner(
 ) extends Serializable {
 
   def serializeTo(ob: OutputBuffer): Unit = {
+    var i = 0
     ob.writeInt(levels.length)
-    levels.foreach(ob.writeInt)
+    while (i < levels.length) {
+      ob.writeInt(levels(i))
+      i += 1
+    }
+
     ob.writeInt(items.length)
-    items.foreach(ob.writeDouble)
+    i = 0
+    while (i < items.length) {
+      ob.writeDouble(items(i))
+      i += 1
+    }
+
     ob.writeInt(compactionCounts.length)
-    compactionCounts.foreach(ob.writeInt)
+    i = 0
+    while (i < compactionCounts.length) {
+      ob.writeInt(compactionCounts(i))
+      i += 1
+    }
+
     ob.writeInt(numLevels)
     ob.writeDouble(keepRatio)
   }
@@ -597,9 +612,35 @@ class ApproxCDFStateManager(val k: Int) {
   }
 
   def result(rvb: RegionValueBuilder): Unit = {
-    val cdf = makeCdf()
-    val res = Row(cdf._1, cdf._2, combiner.compactionCounts.toFastIndexedSeq)
-    rvb.addAnnotation(QuantilesAggregator.resultType.virtualType, res)
+    val (values, ranks) = makeCdf()
+    val counts = combiner.compactionCounts
+    rvb.startBaseStruct()
+
+    rvb.startArray(values.length)
+    var i = 0
+    while (i < values.length) {
+      rvb.addDouble(values(i))
+      i += 1
+    }
+    rvb.endArray()
+
+    rvb.startArray(ranks.length)
+    i = 0
+    while (i < ranks.length) {
+      rvb.addLong(ranks(i))
+      i += 1
+    }
+    rvb.endArray()
+
+    rvb.startArray(counts.length)
+    i = 0
+    while (i < counts.length) {
+      rvb.addInt(counts(i))
+      i += 1
+    }
+    rvb.endArray()
+
+    rvb.endBaseStruct()
   }
 
   def rvResult(r: Region): Long = {

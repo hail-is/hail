@@ -3,7 +3,7 @@ import os
 import unittest
 
 import shutil
-
+import pytest
 import hail as hl
 from ..helpers import *
 from hail.utils import new_temp_file, FatalError, run_command, uri_path
@@ -280,6 +280,15 @@ class VCFTests(unittest.TestCase):
         mt2 = hl.import_vcf(tmp, reference_genome='GRCh38')
         self.assertTrue(mt._same(mt2))
 
+    def test_export_sites_only_from_table(self):
+        mt = hl.import_vcf(resource('sample.vcf.bgz'))\
+            .select_entries()\
+            .filter_cols(False)
+
+        tmp = new_temp_file(extension="vcf")
+        hl.export_vcf(mt.rows(), tmp)
+        assert hl.import_vcf(tmp)._same(mt)
+
     @skip_unless_spark_backend()
     def test_import_gvcfs(self):
         path = resource('sample.vcf.bgz')
@@ -447,6 +456,32 @@ class VCFTests(unittest.TestCase):
         f = new_temp_file(extension='vcf.bgz')
         hl.export_vcf(mt, f)
         assert hl.import_vcf(f)._same(mt)
+
+    def test_vcf_parallel_export(self):
+        import glob
+        def concat_files(outpath, inpaths):
+            with open(outpath, 'wb') as outfile:
+                for path in inpaths:
+                    with open(path, 'rb') as infile:
+                        shutil.copyfileobj(infile, outfile)
+
+        mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4)
+        f = new_temp_file(extension='vcf.bgz')
+        hl.export_vcf(mt, f, parallel='separate_header')
+        shard_paths = glob.glob(f + "/*.bgz")
+        shard_paths.sort()
+        nf = new_temp_file(extension='vcf.bgz')
+        concat_files(nf, shard_paths)
+        assert hl.import_vcf(nf)._same(mt)
+
+        f = new_temp_file(extension='vcf.bgz')
+        hl.export_vcf(mt, f, parallel='composable')
+        shard_paths = glob.glob(f + "/*.bgz")
+        shard_paths.sort()
+        nf = new_temp_file(extension='vcf.bgz')
+        concat_files(nf, shard_paths)
+        assert hl.import_vcf(nf)._same(mt)
+
 
     def test_sorted(self):
         mt = hl.utils.range_matrix_table(10, 10, n_partitions=4).filter_cols(False)
@@ -1717,6 +1752,7 @@ class ImportTableTests(unittest.TestCase):
         f = new_temp_file(extension='ht')
         ht.write(f)
         assert ht._same(hl.read_table(f))
+
     def test_read_write_identity_keyed(self):
         ht = self.small_dataset_1().key_by()
         f = new_temp_file(extension='ht')
@@ -1727,6 +1763,14 @@ class ImportTableTests(unittest.TestCase):
         ht = hl.import_table(resource('sampleAnnotations.tsv'))
         ht2 = hl.import_table(resource('sampleAnnotations.tsv'))
         assert ht._same(ht2)
+
+    def test_error_with_context(self):
+        with pytest.raises(FatalError, match='offending line'):
+            ht = hl.import_table(resource('tsv_errors.tsv'), types={'col1': 'int32'})
+            ht._force_count()
+
+        with pytest.raises(FatalError, match='offending line'):
+            ht = hl.import_table(resource('tsv_errors.tsv'), impute=True)
 
 
 class GrepTests(unittest.TestCase):

@@ -7,7 +7,7 @@ from .utils import benchmark
 @benchmark(args=profile_25.handle('vcf'))
 def import_vcf_write(vcf):
     mt = hl.import_vcf(vcf)
-    out = hl.utils.new_temp_file(suffix='mt')
+    out = hl.utils.new_temp_file(extension='mt')
     mt.write(out)
 
 
@@ -20,7 +20,7 @@ def import_vcf_count_rows(vcf):
 @benchmark(args=profile_25.handle('mt'))
 def export_vcf(mt_path):
     mt = hl.read_matrix_table(mt_path)
-    out = hl.utils.new_temp_file(suffix='vcf.bgz')
+    out = hl.utils.new_temp_file(extension='vcf.bgz')
     hl.export_vcf(mt, out)
 
 
@@ -137,7 +137,7 @@ def pc_relate(mt_path):
 
 @benchmark()
 def pc_relate_big():
-    mt = hl.balding_nichols_model(3, 2 * 4096, 2 * 4096).checkpoint(hl.utils.new_temp_file(suffix='mt'))
+    mt = hl.balding_nichols_model(3, 2 * 4096, 2 * 4096).checkpoint(hl.utils.new_temp_file(extension='mt'))
     mt = mt.annotate_cols(scores = hl.range(2).map(lambda x: hl.rand_unif(0, 1)))
     rel = hl.pc_relate(mt.GT,
                        0.05,

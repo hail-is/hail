@@ -201,30 +201,61 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     getF.invokeCode(root, km, kv)
 
   def foreach(cb: EmitCodeBuilder)(visitor: (EmitCodeBuilder, Code[Long]) => Unit): Unit = {
-    val f = kb.genEmitMethod("btree_foreach", FastIndexedSeq[ParamType](typeInfo[Long]), typeInfo[Unit])
-    val node = f.getCodeParam[Long](1)
-    val i = f.newLocal[Int]("aobt_foreach_i")
+    val stackI = cb.newLocal[Int]("btree_foreach_stack_i", -1)
+    val nodeStack = cb.newLocal("btree_foreach_node_stack", Code.newArray[Long](const(128)))
+    val idxStack = cb.newLocal("btree_foreach_index_stack", Code.newArray[Int](const(128)))
 
-    f.emitWithBuilder { cb =>
+    def stackPush(node: Code[Long]) = {
+      cb.assign(stackI, stackI + 1)
+      cb += nodeStack.update(stackI, node)
+      cb += idxStack.update(stackI, -1)
+    }
+    def stackUpdateIdx(newIdx: Code[Int]) = {
+      cb += idxStack.update(stackI, newIdx)
+    }
+    def stackPop() = {
+      cb.assign(stackI, stackI - 1)
+    }
+
+    stackPush(root)
+    cb.whileLoop(stackI >= 0, { (Lstart) =>
+      val node = cb.newLocal("btree_foreach_node", nodeStack(stackI))
+      val idx = cb.newLocal("btree_foreach_idx", idxStack(stackI))
+      val Lend = CodeLabel()
+      val Lminus1 = CodeLabel()
+      val labels = Array.fill[CodeLabel](maxElements)(CodeLabel())
+      // this should probably be a switch, don't know how to make it one though
+      // furthermore, we should be able to do the lookups at runtime
+      // FIXME, clean this up once we have fixed arrays
+      cb.ifx(idx.ceq(-1), cb.goto(Lminus1))
+      (0 until maxElements).zip(labels).foreach { case (i, l) =>
+        cb.ifx(idx.ceq(i), cb.goto(l))
+      }
+      cb.goto(Lend)
+
+      cb.define(Lminus1)
       cb.ifx(!isLeaf(node), {
-        cb += f.invokeCode(loadChild(node, -1))
+        stackUpdateIdx(0)
+        stackPush(loadChild(node, -1))
+        cb.goto(Lstart)
       })
-      cb.assign(i, 0)
-      val Lexit = CodeLabel()
       (0 until maxElements).foreach { i =>
+        cb.define(labels(i))
         cb.ifx(hasKey(node, i), {
           visitor(cb, loadKey(node, i))
           cb.ifx(!isLeaf(node), {
-            cb += f.invokeCode(loadChild(node, i))
+            stackUpdateIdx(i + 1)
+            stackPush(loadChild(node, i))
+            cb.goto(Lstart)
           })
         }, {
-          cb.goto(Lexit)
+          cb.goto(Lend)
         })
       }
-      cb.define(Lexit)
-      Code._empty
-    }
-    cb += f.invokeCode(root)
+
+      cb.define(Lend)
+      stackPop()
+    })
   }
 
   val deepCopy: Code[Long] => Code[Unit] = {

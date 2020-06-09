@@ -13,7 +13,7 @@ object Tokens {
 
   def get: Tokens = {
     val file = getTokensFile()
-    if (new File(file).isFile()) {
+    if (new File(file).isFile) {
       using(new FileInputStream(file)) { is =>
         implicit val formats: Formats = DefaultFormats
         new Tokens(JsonMethods.parse(is).extract[Map[String, String]])
@@ -38,7 +38,8 @@ class Tokens(
   def namespaceToken(ns: String): String = tokens(ns)
 
   def addNamespaceAuthHeaders(ns: String, req: HttpUriRequest): Unit = {
-    req.addHeader("Authorization", s"Bearer ${ namespaceToken(ns) }")
+    val token = namespaceToken(ns)
+    req.addHeader("Authorization", s"Bearer $token")
     val location = DeployConfig.get.location
     if (location == "external" && ns != "default")
       req.addHeader("X-Hail-Internal-Authorization", s"Bearer ${ namespaceToken("default") }")

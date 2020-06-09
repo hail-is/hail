@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
+import is.hail.methods.ForceCountTable
 import is.hail.types._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
@@ -29,6 +30,13 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(node, 25L)
   }
 
+  @Test def testForceCount(): Unit = {
+    implicit val execStrats = ExecStrategy.interpretOnly
+    val tableRangeSize = Int.MaxValue / 20
+    val forceCountRange = TableToValueApply(TableRange(tableRangeSize, 2), ForceCountTable())
+    assertEvalsTo(forceCountRange, tableRangeSize.toLong)
+  }
+
   @Test def testRangeRead() {
     val original = TableKeyBy(TableMapGlobals(TableRange(10, 3), MakeStruct(FastIndexedSeq("foo" -> I32(57)))), FastIndexedSeq())
 
@@ -43,6 +51,12 @@ class TableIRSuite extends HailSuite {
 
     assertEvalsTo(TableCollect(read), Row(expectedRows, expectedGlobals))
     assertEvalsTo(TableCollect(droppedRows), Row(FastIndexedSeq(), expectedGlobals))
+  }
+
+  @Test def testCountRead(): Unit = {
+    implicit val execStrats = ExecStrategy.lowering
+    val tir: TableIR = TableRead.native(fs, "src/test/resources/three_key.ht")
+    assertEvalsTo(TableCount(tir), 120L)
   }
 
   @Test def testRangeCollect() {
@@ -370,6 +384,18 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(distinctCount, 2L)
   }
 
+  @Test def testTableKeyByLowering() {
+    implicit val execStrats = ExecStrategy.lowering
+    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
+    val length = 10
+    val value = Row(FastIndexedSeq(0 until length: _*).map(i => Row(0, "row" + i)), Row("global"))
+
+    val par = TableParallelize(Literal(t, value))
+
+    val keyed = TableKeyBy(par, IndexedSeq("a"), false)
+    assertEvalsTo(TableCount(keyed), length.toLong)
+  }
+
   @Test def testTableParallelize() {
     implicit val execStrats = ExecStrategy.allRelational
     val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
@@ -667,5 +693,84 @@ class TableIRSuite extends HailSuite {
     val x = GetField(TableCollect(tir), "rows")
 
     assertEvalsTo(x, (0 until 10).reverse.map(i => Row(i)))(ExecStrategy.allRelational)
+  }
+
+  @Test def testTableLeftJoinRightDistinctRangeTables(): Unit = {
+    IndexedSeq((1, 1), (3, 2), (10, 5), (5, 10)).foreach { case(nParts1, nParts2) =>
+      val rangeTable1 = TableRange(10, nParts1)
+      var rangeTable2: TableIR = TableRange(5, nParts2)
+      val row = Ref("row", rangeTable2.typ.rowType)
+      rangeTable2 = TableMapRows(rangeTable2, InsertFields(row, FastIndexedSeq("x" -> GetField(row, "idx"))))
+      val joinedRanges = TableLeftJoinRightDistinct(rangeTable1, rangeTable2, "foo")
+      assertEvalsTo(TableCount(joinedRanges), 10L)
+
+      val expectedJoinCollectResult = Row(
+        (0 until 5).map(i => Row(FastIndexedSeq(i, Row(i)): _*)) ++ (5 until 10).map(i => Row(FastIndexedSeq(i, null): _*)),
+        Row())
+      assertEvalsTo(collect(joinedRanges), expectedJoinCollectResult)
+    }
+  }
+
+  val parTable1Length = 7
+  val parTable1Type = TStruct("rows" -> TArray(TStruct("a1" -> TString, "b1" -> TInt32, "c1" -> TString)), "global" -> TStruct("x" -> TString))
+  val value1 = Row(FastIndexedSeq(0 until parTable1Length: _*).map(i => Row("row" + i, i * i, s"t1_${i}")), Row("global"))
+  val table1 = TableParallelize(Literal(parTable1Type, value1), Some(2))
+
+  val parTable2Length = 13
+  val parTable2Type = TStruct("rows" -> TArray(TStruct("a2" -> TString, "b2" -> TInt32, "c2" -> TString)), "global" -> TStruct("y"-> TInt32))
+  val value2 = Row(FastIndexedSeq(0 until parTable2Length: _*).map(i => Row("row" + i, -2 * i, s"t2_${i}")), Row(15))
+  val table2 = TableParallelize(Literal(parTable2Type, value2), Some(3))
+
+  val table1KeyedByA = TableKeyBy(table1, IndexedSeq("a1"))
+  val table2KeyedByA = TableKeyBy(table2, IndexedSeq("a2"))
+  val joinedParKeyedByA = TableLeftJoinRightDistinct(table1KeyedByA, table2KeyedByA, "joinRoot")
+
+  @Test def testTableLeftJoinRightDistinctParallelizeSameKey(): Unit = {
+    assertEvalsTo(TableCount(table1KeyedByA), parTable1Length.toLong)
+    assertEvalsTo(TableCount(table2KeyedByA), parTable2Length.toLong)
+
+    assertEvalsTo(TableCount(joinedParKeyedByA), parTable1Length.toLong)
+    assertEvalsTo(collect(joinedParKeyedByA), Row(FastIndexedSeq(0 until parTable1Length: _*).map(i =>
+      Row("row" + i, i * i, s"t1_${i}", Row(-2 * i, s"t2_${i}"))), Row("global"))
+    )
+  }
+
+  @Test def testTableLeftJoinRightDistinctParallelizePrefixKey(): Unit = {
+    val table1KeyedByAAndB = TableKeyBy(table1, IndexedSeq("a1", "b1"))
+    val joinedParKeyedByAAndB = TableLeftJoinRightDistinct(table1KeyedByAAndB, table2KeyedByA, "joinRoot")
+
+    assertEvalsTo(TableCount(joinedParKeyedByAAndB), parTable1Length.toLong)
+    assertEvalsTo(collect(joinedParKeyedByA), Row(FastIndexedSeq(0 until parTable1Length: _*).map(i =>
+      Row("row" + i, i * i, s"t1_${i}", Row(-2 * i, s"t2_${i}"))), Row("global"))
+    )
+  }
+
+  @Test def testTableKeyByAndAggregate(): Unit = {
+    implicit val execStrats = ExecStrategy.interpretOnly //FIXME: Lowering is implemented, will work when method splitting is fixed.
+    val tir: TableIR = TableRead.native(fs, "src/test/resources/three_key.ht")
+    val unkeyed = TableKeyBy(tir, IndexedSeq[String]())
+    val rowRef = Ref("row", unkeyed.typ.rowType)
+    val aggSignature = AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64))
+    val aggExpression = MakeStruct(FastSeq("y_sum" -> ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(Cast(GetField(rowRef, "y"), TInt64)), aggSignature)))
+    val keyByXAndAggregateSum = TableKeyByAndAggregate(unkeyed, aggExpression, MakeStruct(FastSeq("x" -> GetField(rowRef, "x"))))
+
+    assertEvalsTo(
+      collect(keyByXAndAggregateSum),
+      Row(FastIndexedSeq(Row(2, 1L), Row(3,5L), Row(4, 14L), Row(5, 30L), Row(6, 55L), Row(7, 91L), Row(8, 140L), Row(9, 204L)), Row())
+    )
+
+    // Keying by a newly computed field.
+    val keyByXPlusTwoAndAggregateSum = TableKeyByAndAggregate(unkeyed, aggExpression, MakeStruct(FastSeq("xPlusTwo" -> (GetField(rowRef, "x") + 2))))
+    assertEvalsTo(
+      collect(keyByXPlusTwoAndAggregateSum),
+      Row(FastIndexedSeq(Row(4, 1L), Row(5,5L), Row(6, 14L), Row(7, 30L), Row(8, 55L), Row(9, 91L), Row(10, 140L), Row(11, 204L)), Row())
+    )
+
+    // Keying by just Z when original is keyed by x,y,z, naming it x anyway.
+    val keyByZAndAggregateSum =  TableKeyByAndAggregate(tir, aggExpression, MakeStruct(FastSeq("x" -> GetField(rowRef, "z"))))
+    assertEvalsTo(
+      collect(keyByZAndAggregateSum),
+      Row(FastIndexedSeq(Row(0, 120L), Row(1, 112L), Row(2, 98L), Row(3, 80L), Row(4, 60L), Row(5, 40L), Row(6, 22L), Row(7, 8L)), Row())
+    )
   }
 }

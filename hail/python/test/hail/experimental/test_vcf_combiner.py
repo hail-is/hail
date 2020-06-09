@@ -77,3 +77,35 @@ def test_key_by_locus_alleles():
     assert(list(mt.row_key) == ['locus', 'alleles'])
     mt._force_count_rows()
 
+
+def test_non_ref_alleles_set_to_missing():
+    path = os.path.join(resource('gvcfs'), 'non_ref_call.g.vcf.gz')
+    out_file = new_temp_file(extension='mt')
+    vc.run_combiner([path, path],
+                    out_file=out_file,
+                    tmp_path=Env.hc()._tmpdir,
+                    branch_factor=2,
+                    batch_size=2,
+                    reference_genome='GRCh38')
+
+    mt = hl.read_matrix_table(out_file)
+    n_alleles = hl.len(mt.alleles)
+    gt_idx = hl.experimental.lgt_to_gt(mt.LGT, mt.LA).unphased_diploid_gt_index()
+    assert mt.aggregate_entries(
+        hl.agg.all(gt_idx < (n_alleles * (n_alleles + 1)) / 2))
+
+def test_contig_recoding():
+    path1 = os.path.join(resource('gvcfs'), 'recoding', 'HG00187.hg38.g.vcf.gz')
+    path2 = os.path.join(resource('gvcfs'), 'recoding', 'HG00187.hg38.recoded.g.vcf.gz')
+
+    out_file_1 = new_temp_file(extension='mt')
+    out_file_2 = new_temp_file(extension='mt')
+
+    vc.run_combiner([path1, path1], out_file_1, Env.hc()._tmpdir, reference_genome='GRCh38')
+    vc.run_combiner([path2, path2], out_file_2, Env.hc()._tmpdir, reference_genome='GRCh38', contig_recoding={'22': 'chr22'})
+
+    mt1 = hl.read_matrix_table(out_file_1)
+    mt2 = hl.read_matrix_table(out_file_2)
+
+    assert mt1.count() == mt2.count()
+    assert mt1._same(mt2)

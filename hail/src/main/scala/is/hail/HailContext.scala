@@ -318,7 +318,7 @@ object HailContext {
     private val rowsIdxField = rowsOffsetField.map { f => idxr.get.annotationType.asInstanceOf[TStruct].fieldIdx(f) }
     private val entriesIdxField = entriesOffsetField.map { f => idxr.get.annotationType.asInstanceOf[TStruct].fieldIdx(f) }
 
-    private val inserter = mkInserter(partIdx, ctx.freshRegion)
+    private val inserter = mkInserter(partIdx, ctx.freshRegion())
     private val rows = try {
       if (idx.map(_.hasNext).getOrElse(true)) {
         val dec = mkRowsDec(trackedRowsIn)
@@ -403,25 +403,6 @@ object HailContext {
       idxr.foreach(_.close())
       if (rows != null) rows.close()
       if (entries != null) entries.close()
-    }
-  }
-
-  def maybeGZipAsBGZip[T](fs: FS, force: Boolean)(body: => T): T = {
-    if (!force)
-      return body
-
-    val codecs = fs.getCodecs()
-    try {
-      fs.setCodecs(
-        codecs.map { codec =>
-          if (codec == "org.apache.hadoop.io.compress.GzipCodec")
-            "is.hail.io.compress.BGzipCodecGZ"
-          else
-            codec
-        })
-      body
-    } finally {
-      fs.setCodecs(codecs)
     }
   }
 

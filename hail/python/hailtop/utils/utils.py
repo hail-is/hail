@@ -60,10 +60,10 @@ def grouped(n, ls):
         yield group
 
 
-def unzip(l):
+def unzip(lst):
     a = []
     b = []
-    for x, y in l:
+    for x, y in lst:
         a.append(x)
         b.append(y)
     return a, b

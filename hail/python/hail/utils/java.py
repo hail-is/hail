@@ -26,11 +26,11 @@ class Env:
 
     @staticmethod
     def hail():
-        return Env.spark_backend('Env.hail').hail_package()
+        return Env.py4j_backend('Env.hail').hail_package()
 
     @staticmethod
     def jutils():
-        return Env.spark_backend('Env.jutils').utils_package_object()
+        return Env.py4j_backend('Env.jutils').utils_package_object()
 
     @staticmethod
     def hc():
@@ -44,6 +44,11 @@ class Env:
             elif backend_name == 'spark':
                 from hail.context import init
                 init()
+            elif backend_name == 'local':
+                from hail.context import init_local
+                init_local()
+            else:
+                raise ValueError(f'unknown Hail Query backend: {backend_name}')
 
         assert Env._hc is not None
         return Env._hc
@@ -51,6 +56,16 @@ class Env:
     @staticmethod
     def backend():
         return Env.hc()._backend
+
+    @staticmethod
+    def py4j_backend(op):
+        from hail.backend.py4j_backend import Py4JBackend
+        b = Env.backend()
+        if isinstance(b, Py4JBackend):
+            return b
+        else:
+            raise NotImplementedError(
+                f"{b.__class__.__name__} doesn't support {op}, only Py4JBackend")
 
     @staticmethod
     def spark_backend(op):

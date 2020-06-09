@@ -12,6 +12,9 @@ object PartitionBoundOrdering {
 
     new ExtendedOrdering {
       outer =>
+
+      val missingEqual = true
+
       override def compareNonnull(x: T, y: T): Int = {
         val rx = x.asInstanceOf[Row]
         val ry = y.asInstanceOf[Row]

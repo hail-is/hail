@@ -166,7 +166,7 @@ class RVD(
       typ,
       partitioner,
       crdd.cmapPartitionsWithIndex { case (i, ctx, it) =>
-        val regionForWriting = ctx.freshRegion // This one gets cleaned up when context is freed.
+        val regionForWriting = ctx.freshRegion() // This one gets cleaned up when context is freed.
         val prevK = WritableRegionValue(localType.kType, regionForWriting)
         val kUR = new UnsafeRow(localKPType)
 
@@ -644,47 +644,48 @@ class RVD(
     RVD(typ, newPartitioner, crdd.subsetPartitions(keep))
   }
 
-  def combine[U : ClassTag](
-    zeroValue: U,
-    itF: (Int, RVDContext, Iterator[Long]) => U,
-    combOp: (U, U) => U,
+  def combine[U: ClassTag, T: ClassTag](
+    mkZero: () => T,
+    itF: (Int, RVDContext, Iterator[Long]) => T,
+    deserialize: U => T,
+    serialize: T => U,
+    combOp: (T, T) => T,
     commutative: Boolean,
-    tree: Boolean): U = {
-
-    val makeComb: () => Combiner[U] = () => Combiner(zeroValue, combOp, commutative = commutative, associative = true)
-
-    var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
+    tree: Boolean
+  ): T = {
+    var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(serialize(itF(i, ctx, it))) }
 
     if (tree) {
-      val depth = treeAggDepth(reduced.getNumPartitions)
+      val depth = treeAggDepth(getNumPartitions)
       val scale = math.max(
-        math.ceil(math.pow(reduced.partitions.length, 1.0 / depth)).toInt,
+        math.ceil(math.pow(getNumPartitions, 1.0 / depth)).toInt,
         2)
+
       var i = 0
       while (i < depth - 1 && reduced.getNumPartitions > scale) {
         val nParts = reduced.getNumPartitions
         val newNParts = nParts / scale
-        reduced = reduced.mapPartitionsWithIndex { (i, it) =>
-          it.map(x => (itemPartition(i, nParts, newNParts), (i, x)))
-        }
+        reduced = reduced
+          .mapPartitionsWithIndex { (i, it) =>
+            it.map(x => (itemPartition(i, nParts, newNParts), (i, x)))
+          }
           .partitionBy(new Partitioner {
             override def getPartition(key: Any): Int = key.asInstanceOf[Int]
-
             override def numPartitions: Int = newNParts
           })
           .mapPartitions { it =>
-            val ac = makeComb()
+            var acc = mkZero()
             it.foreach { case (newPart, (oldPart, v)) =>
-              ac.combine(oldPart, v)
+              acc = combOp(acc, deserialize(v))
             }
-            Iterator.single(ac.result())
+            Iterator.single(serialize(acc))
           }
         i += 1
       }
     }
 
-    val ac = makeComb()
-    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), ac.combine _)
+    val ac = Combiner(mkZero(), combOp, commutative, true)
+    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), (i, x: U) => ac.combine(i, deserialize(x)))
     ac.result()
   }
 
@@ -759,7 +760,7 @@ class RVD(
 
   def write(ctx: ExecuteContext, path: String, idxRelPath: String, stageLocally: Boolean, codecSpec: AbstractTypedCodecSpec): Array[Long] = {
     val (partFiles, partitionCounts) = crdd.writeRows(ctx, path, idxRelPath, typ, stageLocally, codecSpec)
-    val spec = MakeRVDSpec(typ.key, codecSpec, partFiles, partitioner, IndexSpec.emptyAnnotation(idxRelPath, typ.kType))
+    val spec = MakeRVDSpec(codecSpec, partFiles, partitioner, IndexSpec.emptyAnnotation(idxRelPath, typ.kType))
     spec.write(ctx.fs, path)
     partitionCounts
   }

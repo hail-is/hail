@@ -1,12 +1,13 @@
 package is.hail.io.fs
 
 import java.io._
+import java.util.zip.{GZIPInputStream, GZIPOutputStream}
 
 import is.hail.HailContext
 import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.ExecuteContext
-import is.hail.io.compress.BGzipCodec
+import is.hail.io.compress.{BGzipInputStream, BGzipOutputStream}
 import is.hail.utils._
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop
 
@@ -39,12 +40,78 @@ trait FileStatus {
   def getOwner: String
 }
 
+trait CompressionCodec {
+  def makeInputStream(is: InputStream): InputStream
+
+  def makeOutputStream(os: OutputStream): OutputStream
+}
+
+object GZipCompressionCodec extends CompressionCodec {
+  // java.util.zip.GZIPInputStream does not support concatenated files/multiple blocks
+  def makeInputStream(is: InputStream): InputStream = new GzipCompressorInputStream(is, true)
+
+  def makeOutputStream(os: OutputStream): OutputStream = new GZIPOutputStream(os)
+}
+
+object BGZipCompressionCodec extends CompressionCodec {
+  def makeInputStream(is: InputStream): InputStream = new BGzipInputStream(is)
+
+  def makeOutputStream(os: OutputStream): OutputStream = new BGzipOutputStream(os)
+}
+
 trait FS extends Serializable {
-  def getCodec(filename: String): hadoop.io.compress.CompressionCodec
+  def getCodecFromExtension(extension: String, gzAsBGZ: Boolean = false): CompressionCodec = {
+    extension match {
+      case ".gz" =>
+        if (gzAsBGZ)
+          BGZipCompressionCodec
+        else
+          GZipCompressionCodec
+      case ".bgz" =>
+        BGZipCompressionCodec
+      case ".tbi" =>
+        BGZipCompressionCodec
+      case _ =>
+        null
+    }
+  }
 
-  def getCodecs(): IndexedSeq[String]
+  def getCodecFromPath(path: String, gzAsBGZ: Boolean = false): CompressionCodec =
+    getCodecFromExtension(getExtension(path), gzAsBGZ)
 
-  def setCodecs(codecs: IndexedSeq[String]): Unit
+  def getExtension(path: String): String = {
+    var i = path.length - 1
+    while (i >= 0) {
+      if (i == 0)
+        return ""
+
+      val c = path(i)
+      if (c == '.') {
+        if (path(i - 1) == '/')
+          return ""
+        else
+          return path.substring(i)
+      }
+      if (c == '/')
+        return ""
+      i -= 1
+    }
+
+    throw new AssertionError("unreachable")
+  }
+
+  def stripCodecExtension(path: String): String = {
+    val ext = getCodecExtension(path)
+    path.dropRight(ext.length)
+  }
+
+  def getCodecExtension(path: String): String = {
+    val ext = getExtension(path)
+    if (ext == ".gz" || ext == ".bgz" || ext == ".tbi")
+      ext
+    else
+      ""
+  }
 
   def openNoCompression(filename: String): SeekableDataInputStream
 
@@ -68,25 +135,24 @@ trait FS extends Serializable {
 
   def deleteOnExit(path: String): Unit
 
-  def open(filename: String, checkCodec: Boolean = true): InputStream = {
-    val is = openNoCompression(filename)
-
-    if (checkCodec) {
-      val codec = getCodec(filename)
-      if (codec != null)
-        codec.createInputStream(is)
-      else
-        is
-    } else
+  def open(path: String, codec: CompressionCodec): InputStream = {
+    val is = openNoCompression(path)
+    if (codec != null)
+      codec.makeInputStream(is)
+    else
       is
+
   }
 
-  def create(filename: String): OutputStream = {
-    val os = createNoCompression(filename)
+  def open(path: String, gzAsBGZ: Boolean = false): InputStream =
+    open(path, getCodecFromPath(path, gzAsBGZ))
 
-    val codec = getCodec(filename)
+  def create(path: String): OutputStream = {
+    val os = createNoCompression(path)
+
+    val codec = getCodecFromPath(path, gzAsBGZ = false)
     if (codec != null)
-      codec.createOutputStream(os)
+      codec.makeOutputStream(os)
     else
       os
   }
@@ -116,21 +182,6 @@ trait FS extends Serializable {
     } catch {
       case _: FileNotFoundException => false
     }
-  }
-
-  def stripCodecExtension(filename: String): String = {
-    val ext = getCodecExtension(filename)
-    filename.dropRight(ext.length)
-  }
-
-  def getCodecExtension(filename: String): String = {
-    val codec = getCodec(filename)
-    if (codec != null) {
-      val ext = codec.getDefaultExtension
-      assert(filename.endsWith(ext))
-      ext
-    } else
-      ""
   }
 
   def copy(src: String, dst: String, deleteSource: Boolean = false) {
@@ -228,8 +279,8 @@ trait FS extends Serializable {
   }
 
   def copyMergeList(srcFileStatuses: Array[FileStatus], destFilename: String, deleteSource: Boolean = true) {
-    val codec = Option(getCodec(destFilename))
-    val isBGzip = codec.exists(_.isInstanceOf[BGzipCodec])
+    val codec = Option(getCodecFromPath(destFilename))
+    val isBGzip = codec.exists(_ == BGZipCompressionCodec)
 
     require(srcFileStatuses.forall {
       fileStatus => fileStatus.getPath != destFilename && fileStatus.isFile

@@ -59,6 +59,12 @@ spec:
              value: "{{ batch_pods_ns.name }}"
            - name: KUBERNETES_SERVER_URL
              value: "{{ global.k8s_server_url }}"
+           - name: HAIL_CI_BUCKET_NAME
+{% if deploy %}
+             value: "hail-ci-bpk3h"
+{% else %}
+             value: "hail-test-dmk9z"
+{% endif %}
           ports:
             - containerPort: 5000
           volumeMounts:

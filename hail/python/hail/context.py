@@ -204,7 +204,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         Spark configuration parameters.
     skip_logging_configuration : :obj:`bool`
         Skip logging configuration in java and python.
-    local_tmpdir : obj:`str`, optional
+    local_tmpdir : :obj:`str`, optional
         Local temporary directory.  Used on driver and executor nodes.
         Must use the file scheme.  Defaults to TMPDIR, or /tmp.
     """
@@ -233,6 +233,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
 
 
 @typecheck(
+    billing_project=nullable(str),
     log=nullable(str),
     quiet=bool,
     append=bool,
@@ -242,6 +243,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     global_seed=nullable(int),
     skip_logging_configuration=bool)
 def init_service(
+        billing_project: str = None,
         log=None,
         quiet=False,
         append=False,
@@ -251,7 +253,7 @@ def init_service(
         global_seed=6348563392232659379,
         skip_logging_configuration=False):
     from hail.backend.service_backend import ServiceBackend
-    backend = ServiceBackend(skip_logging_configuration)
+    backend = ServiceBackend(billing_project, skip_logging_configuration)
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmpdir)
@@ -259,6 +261,41 @@ def init_service(
 
     HailContext(
         log, quiet, append, tmpdir, local_tmpdir, default_reference,
+        global_seed, backend)
+
+
+@typecheck(
+    log=nullable(str),
+    quiet=bool,
+    append=bool,
+    branching_factor=int,
+    tmpdir=nullable(str),
+    default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'),
+    global_seed=nullable(int),
+    skip_logging_configuration=bool,
+    _optimizer_iterations=nullable(int))
+def init_local(
+        log=None,
+        quiet=False,
+        append=False,
+        branching_factor=50,
+        tmpdir=None,
+        default_reference='GRCh37',
+        global_seed=6348563392232659379,
+        skip_logging_configuration=False,
+        _optimizer_iterations=None):
+    from hail.backend.local_backend import LocalBackend
+
+    log = _get_log(log)
+    tmpdir = _get_tmpdir(tmpdir)
+    optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
+
+    backend = LocalBackend(
+        tmpdir, log, quiet, append, branching_factor,
+        skip_logging_configuration, optimizer_iterations)
+
+    HailContext(
+        log, quiet, append, tmpdir, tmpdir, default_reference,
         global_seed, backend)
 
 

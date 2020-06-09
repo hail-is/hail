@@ -21,7 +21,6 @@ Features:
 """
 
 import hail as hl
-from hail import dtype
 from hail.typecheck import typecheck, oneof, nullable
 from hail.expr.expressions import expr_float64, expr_int32, expr_array, expr_call
 from hail.matrixtable import MatrixTable
@@ -100,25 +99,25 @@ def simulate_phenotypes(mt, genotype, h2, pi=None, rg=None, annot=None, popstrat
     pi = pi.tolist() if type(pi) is np.ndarray else pi
     uid = Env.get_uid(base=100)
     mt = annotate_all(mt=mt,
-                      row_exprs={} if annot is None else {'annot_'+uid: annot},
-                      col_exprs={} if popstrat is None else {'popstrat_'+uid: popstrat},
-                      entry_exprs={'gt_'+uid: genotype.n_alt_alleles() if genotype.dtype is dtype('call') else genotype})
+                      row_exprs={} if annot is None else {'annot_' + uid: annot},
+                      col_exprs={} if popstrat is None else {'popstrat_' + uid: popstrat},
+                      entry_exprs={'gt_' + uid: genotype.n_alt_alleles() if genotype.dtype is hl.dtype('call') else genotype})
     mt, pi, rg = make_betas(mt=mt,
                             h2=h2,
                             pi=pi,
-                            annot=None if annot is None else mt['annot_'+uid],
+                            annot=None if annot is None else mt['annot_' + uid],
                             rg=rg)
     mt = calculate_phenotypes(mt=mt,
-                              genotype=mt['gt_'+uid],
+                              genotype=mt['gt_' + uid],
                               beta=mt['beta'],
                               h2=h2,
-                              popstrat=None if popstrat is None else mt['popstrat_'+uid],
+                              popstrat=None if popstrat is None else mt['popstrat_' + uid],
                               popstrat_var=popstrat_var,
                               exact_h2=exact_h2)
     mt = annotate_all(mt=mt,
-                      global_exprs={'ldscsim': hl.struct(**{'h2': h2[0] if len(h2)==1 else h2,
+                      global_exprs={'ldscsim': hl.struct(**{'h2': h2[0] if len(h2) == 1 else h2,
                                                             **({} if pi == [None] else {'pi': pi}),
-                                                            **({} if rg == [None] else {'rg': rg[0] if len(rg)==1 else rg}),
+                                                            **({} if rg == [None] else {'rg': rg[0] if len(rg) == 1 else rg}),
                                                             **({} if annot is None else {'is_annot_inf': True}),
                                                             **({} if popstrat is None else {'is_popstrat_inf': True}),
                                                             **({} if popstrat_var is None else {'popstrat_var': popstrat_var}),
@@ -126,6 +125,7 @@ def simulate_phenotypes(mt, genotype, h2, pi=None, rg=None, annot=None, popstrat
                                                             })})
     mt = _clean_fields(mt, uid)
     return mt
+
 
 @typecheck(mt=MatrixTable,
            h2=(oneof(float,
@@ -196,12 +196,12 @@ def make_betas(mt, h2, pi=None, annot=None, rg=None):
         h2 = h2 if type(h2) is list else [h2]
         annot_sum = mt.aggregate_rows(hl.agg.sum(annot))
         mt = mt.annotate_rows(beta=hl.literal(h2).map(
-            lambda x: hl.rand_norm(0, hl.sqrt(annot*x/(annot_sum*M)))))
-    elif len(h2) > 1 and (pi == [None] or pi == [1]): # multi-trait correlated infinitesimal
+            lambda x: hl.rand_norm(0, hl.sqrt(annot * x / (annot_sum * M)))))
+    elif len(h2) > 1 and (pi == [None] or pi == [1]):  # multi-trait correlated infinitesimal
         mt, rg = multitrait_inf(mt=mt,
                                 h2=h2,
                                 rg=rg)
-    elif len(h2) == 2 and len(pi) > 1 and len(rg)==1:  # two trait correlated spike & slab
+    elif len(h2) == 2 and len(pi) > 1 and len(rg) == 1:  # two trait correlated spike & slab
         print('multitrait ss')
         mt, pi, rg = multitrait_ss(mt=mt,
                                    h2=h2,
@@ -211,10 +211,11 @@ def make_betas(mt, h2, pi=None, annot=None, rg=None):
         M = mt.count_rows()
         pi_temp = 1 if pi == [None] else pi[0]
         mt = mt.annotate_rows(beta=hl.rand_bool(
-            pi_temp)*hl.rand_norm(0, hl.sqrt(h2[0]/(M*pi_temp))))
+            pi_temp) * hl.rand_norm(0, hl.sqrt(h2[0] / (M * pi_temp))))
     else:
         raise ValueError('Parameters passed do not match any models.')
     return mt, pi, rg
+
 
 @typecheck(mt=MatrixTable,
            h2=nullable(oneof(float,
@@ -265,29 +266,30 @@ def multitrait_inf(mt, h2=None, rg=None, cov_matrix=None, seed=None):
     assert h2 is not [None] or cov_matrix is not None, 'h2 and cov_matrix cannot both be None'
     seed = seed if seed is not None else int(str(Env.next_seed())[:8])
     M = mt.count_rows()
-    if cov_matrix != None:
+    if cov_matrix is not None:
         n_phens = cov_matrix.shape[0]
     else:
         n_phens = len(h2)
         if rg == [None]:
             print(f'Assuming rg=0 for all {n_phens} traits')
-            rg = [0]*int((n_phens**2-n_phens)/2)
+            rg = [0] * int((n_phens ** 2 - n_phens) / 2)
         assert (all(x >= -1 and x <= 1 for x in rg)
                 ), 'rg values must be between 0 and 1'
         cov, rg = get_cov_matrix(h2, rg)
-    cov = (1/M)*cov
+    cov = (1 / M) * cov
     # seed random state for replicability
     randstate = np.random.RandomState(int(seed))
     betas = randstate.multivariate_normal(
         mean=np.zeros(n_phens), cov=cov, size=[M, ])
-    df = pd.DataFrame([0]*M, columns=['beta'])
+    df = pd.DataFrame([0] * M, columns=['beta'])
     tb = hl.Table.from_pandas(df)
     tb = tb.add_index().key_by('idx')
     tb = tb.annotate(beta=hl.literal(betas.tolist())[hl.int32(tb.idx)])
-    mt = mt.add_row_index(name='row_idx'+uid)
-    mt = mt.annotate_rows(beta=tb[mt['row_idx'+uid]]['beta'])
+    mt = mt.add_row_index(name='row_idx' + uid)
+    mt = mt.annotate_rows(beta=tb[mt['row_idx' + uid]]['beta'])
     mt = _clean_fields(mt, uid)
     return mt, rg
+
 
 @typecheck(mt=MatrixTable,
            h2=oneof(list,
@@ -335,8 +337,8 @@ def multitrait_ss(mt, h2, pi, rg=0, seed=None):
     """
     assert sum(pi) <= 1, "probabilities of being causal must sum to be less than 1"
     seed = seed if seed is not None else int(str(Env.next_seed())[:8])
-    ptt, ptf, pft, pff = pi[0], pi[1], pi[2], 1-sum(pi)
-    cov_matrix = np.asarray([[1/(ptt+ptf), rg/ptt], [rg/ptt, 1/(ptt+pft)]])
+    ptt, ptf, pft, pff = pi[0], pi[1], pi[2], 1 - sum(pi)
+    cov_matrix = np.asarray([[1 / (ptt + ptf), rg / ptt], [rg / ptt, 1 / (ptt + pft)]])
     M = mt.count_rows()
     # seed random state for replicability
     randstate = np.random.RandomState(int(seed))
@@ -344,11 +346,11 @@ def multitrait_ss(mt, h2, pi, rg=0, seed=None):
         print('adjusting parameters to make covariance matrix positive semidefinite')
         rg0, ptt0 = rg, ptt
         while np.any(np.linalg.eigvals(cov_matrix) < 0):  # check positive semidefinite
-            rg = round(0.99*rg, 6)
-            ptt = round(ptt+(pff)*0.001, 6)
+            rg = round(0.99 * rg, 6)
+            ptt = round(ptt + (pff) * 0.001, 6)
             cov_matrix = np.asarray(
-                [[1/(ptt+ptf), rg/ptt], [rg/ptt, 1/(ptt+pft)]])
-        pff0, pff = pff, 1-sum([ptt, ptf, pft])
+                [[1 / (ptt + ptf), rg / ptt], [rg / ptt, 1 / (ptt + pft)]])
+        pff0, pff = pff, 1 - sum([ptt, ptf, pft])
         print(f'rg: {rg0} -> {rg}\nptt: {ptt0} -> {ptt}\npff: {pff0} -> {pff}')
         pi = [ptt, ptf, pft, pff]
     beta = randstate.multivariate_normal(mean=np.zeros(2),
@@ -362,15 +364,16 @@ def multitrait_ss(mt, h2, pi, rg=0, seed=None):
                            size=int(M),
                            p=[ptt, ptf, pft, pff])
     betas = beta_matrix[range(int(M)), idx, :]
-    betas[:, 0] *= (h2[0]/M)**(1/2)
-    betas[:, 1] *= (h2[1]/M)**(1/2)
-    df = pd.DataFrame([0]*M, columns=['beta'])
+    betas[:, 0] *= (h2[0] / M) ** (1 / 2)
+    betas[:, 1] *= (h2[1] / M) ** (1 / 2)
+    df = pd.DataFrame([0] * M, columns=['beta'])
     tb = hl.Table.from_pandas(df)
     tb = tb.add_index().key_by('idx')
     tb = tb.annotate(beta=hl.literal(betas.tolist())[hl.int32(tb.idx)])
     mt = mt.add_row_index()
     mt = mt.annotate_rows(beta=tb[mt.row_idx]['beta'])
     return mt, pi, [rg]
+
 
 @typecheck(h2=oneof(list,
                     np.ndarray),
@@ -476,7 +479,7 @@ def get_cov_matrix(h2, rg, psd_rg=False):
     n_rg = len(rg)
     n_h2 = len(h2)
     # expected number of rg values, given number of traits
-    exp_n_rg = int((n_h2**2-n_h2)/2)
+    exp_n_rg = int((n_h2 ** 2 - n_h2) / 2)
     assert n_rg == exp_n_rg, f'The number of rg values given is {n_rg}, expected {exp_n_rg}'
     cor = np.zeros(shape=(n_h2, n_h2))
     # set upper triangle of correlation matrix to be rg
@@ -491,11 +494,11 @@ def get_cov_matrix(h2, rg, psd_rg=False):
         msg = ['Adjusting rg values to make covariance matrix positive semidefinite']
         msg += ([(f'{cor0[idx[0][i],idx[1][i]]} -> {cor[idx[0][i],idx[1][i]]}') for i in range(n_rg)] if n_rg <= maxlines
                 else [(f'{cor0[idx[0][i],idx[1][i]]} -> {cor[idx[0][i],idx[1][i]]}') for i in range(maxlines)]
-                + [f'[ printed first {maxlines} rg changes -- omitted {n_rg-maxlines} ]'])
+                + [f'[ printed first {maxlines} rg changes -- omitted {n_rg - maxlines} ]'])
         print('\n'.join(msg))
         rg = np.ravel(cor[idx])
-    S = np.diag(h2)**(1/2)
-    cov_matrix = S@cor@S  # covariance matrix decomposition
+    S = np.diag(h2) ** (1 / 2)
+    cov_matrix = S @ cor @ S  # covariance matrix decomposition
 
     # check positive semidefinite
     if not np.all(np.linalg.eigvals(cov_matrix) >= 0) and not psd_rg:
@@ -508,6 +511,7 @@ def get_cov_matrix(h2, rg, psd_rg=False):
     rg = rg.tolist()
     return cov_matrix, rg
 
+
 @typecheck(A=np.ndarray)
 def _nearpsd(A):
     r""" Obtain the "closest" positive semidefinite matrix to A."""
@@ -515,10 +519,10 @@ def _nearpsd(A):
     eigval, eigvec = np.linalg.eig(A)
     val = np.matrix(np.maximum(eigval, 0))
     vec = np.matrix(eigvec)
-    T = 1/(np.multiply(vec, vec) * val.T)
+    T = 1 / (np.multiply(vec, vec) * val.T)
     T = np.matrix(np.sqrt(np.diag(np.array(T).reshape((n)))))
     B = T * vec * np.diag(np.array(np.sqrt(val)).reshape((n)))
-    out = np.real(B*B.T)
+    out = np.real(B * B.T)
     return out
 
 
@@ -574,40 +578,41 @@ def calculate_phenotypes(mt, genotype, beta, h2, popstrat=None, popstrat_var=Non
         popstrat_var >= 0), 'popstrat_var must be non-negative'
     uid = Env.get_uid(base=100)
     mt = annotate_all(mt=mt,
-                      row_exprs={'beta_'+uid: beta},
-                      col_exprs={} if popstrat is None else {'popstrat_'+uid: popstrat},
-                      entry_exprs={'gt_'+uid: genotype.n_alt_alleles() if genotype.dtype is dtype('call') else genotype})
-    mt = mt.filter_rows(hl.agg.stats(mt['gt_'+uid]).stdev>0)
-    mt = normalize_genotypes(mt['gt_'+uid])
-    if mt['beta_'+uid].dtype == dtype('array<float64>'):  # if >1 traits
+                      row_exprs={'beta_' + uid: beta},
+                      col_exprs={} if popstrat is None else {'popstrat_' + uid: popstrat},
+                      entry_exprs={'gt_' + uid: genotype.n_alt_alleles() if genotype.dtype is hl.dtype('call') else genotype})
+    mt = mt.filter_rows(hl.agg.stats(mt['gt_' + uid]).stdev > 0)
+    mt = normalize_genotypes(mt['gt_' + uid])
+    if mt['beta_' + uid].dtype == hl.dtype('array<float64>'):  # if >1 traits
         if exact_h2:
             raise ValueError('exact_h2=True not supported for multitrait simulations')
         else:
             mt = mt.annotate_cols(y_no_noise=hl.agg.array_agg(
-                lambda beta: hl.agg.sum(beta*mt['norm_gt']), mt['beta_'+uid]))
+                lambda beta: hl.agg.sum(beta * mt['norm_gt']), mt['beta_' + uid]))
             mt = mt.annotate_cols(
-                y=mt.y_no_noise + hl.literal(h2).map(lambda x: hl.rand_norm(0, hl.sqrt(1-x))))
+                y=mt.y_no_noise + hl.literal(h2).map(lambda x: hl.rand_norm(0, hl.sqrt(1 - x))))
     else:
-        if exact_h2 and min([h2[0], 1-h2[0]])!=0:
+        if exact_h2 and min([h2[0], 1 - h2[0]]) != 0:
             print('exact h2')
-            mt = mt.annotate_cols(**{'y_no_noise_'+uid: hl.agg.sum(mt['beta_'+uid] * mt['norm_gt'])})
-            y_no_noise_stdev = mt.aggregate_cols(hl.agg.stats(mt['y_no_noise_'+uid]).stdev)
-            mt = mt.annotate_cols(y_no_noise = hl.sqrt(h2[0])*mt['y_no_noise_'+uid]/y_no_noise_stdev) #normalize genetic component of phenotype to have variance of exactly h2
-            mt = mt.annotate_cols(**{'noise_'+uid: hl.rand_norm(0, hl.sqrt(1-h2[0]))})
-            noise_stdev = mt.aggregate_cols(hl.agg.stats(mt['noise_'+uid]).stdev)
-            mt = mt.annotate_cols(noise = hl.sqrt(1-h2[0])*mt['noise_'+uid]/noise_stdev)
-            mt = mt.annotate_cols(y=mt.y_no_noise + hl.sqrt(1-h2[0])*mt['noise_'+uid]/noise_stdev)
+            mt = mt.annotate_cols(**{'y_no_noise_' + uid: hl.agg.sum(mt['beta_' + uid] * mt['norm_gt'])})
+            y_no_noise_stdev = mt.aggregate_cols(hl.agg.stats(mt['y_no_noise_' + uid]).stdev)
+            mt = mt.annotate_cols(y_no_noise=hl.sqrt(h2[0]) * mt['y_no_noise_' + uid] / y_no_noise_stdev)  # normalize genetic component of phenotype to have variance of exactly h2
+            mt = mt.annotate_cols(**{'noise_' + uid: hl.rand_norm(0, hl.sqrt(1 - h2[0]))})
+            noise_stdev = mt.aggregate_cols(hl.agg.stats(mt['noise_' + uid]).stdev)
+            mt = mt.annotate_cols(noise=hl.sqrt(1 - h2[0]) * mt['noise_' + uid] / noise_stdev)
+            mt = mt.annotate_cols(y=mt.y_no_noise + hl.sqrt(1 - h2[0]) * mt['noise_' + uid] / noise_stdev)
         else:
-            mt = mt.annotate_cols(y_no_noise=hl.agg.sum(mt['beta_'+uid] * mt['norm_gt']))
-            mt = mt.annotate_cols(y=mt.y_no_noise + hl.rand_norm(0, hl.sqrt(1-h2[0])))
+            mt = mt.annotate_cols(y_no_noise=hl.agg.sum(mt['beta_' + uid] * mt['norm_gt']))
+            mt = mt.annotate_cols(y=mt.y_no_noise + hl.rand_norm(0, hl.sqrt(1 - h2[0])))
     if popstrat is not None:
         var_factor = 1 if popstrat_var is None else (
-            popstrat_var**(1/2))/mt.aggregate_cols(hl.agg.stats(mt['popstrat_'+uid])).stdev
+            popstrat_var ** (1 / 2)) / mt.aggregate_cols(hl.agg.stats(mt['popstrat_' + uid])).stdev
         mt = mt.rename({'y': 'y_no_popstrat'})
         mt = mt.annotate_cols(y=mt.y_no_popstrat
-                              + mt['popstrat_'+uid]*var_factor)
+                              + mt['popstrat_' + uid] * var_factor)
     mt = _clean_fields(mt, uid)
     return mt
+
 
 @typecheck(genotype=oneof(expr_int32,
                           expr_float64,
@@ -628,12 +633,13 @@ def normalize_genotypes(genotype):
     uid = Env.get_uid(base=100)
     mt = genotype._indices.source
     mt = mt.annotate_entries(
-        **{'gt_'+uid: genotype.n_alt_alleles() if genotype.dtype is dtype('call') else genotype})
-    mt = mt.annotate_rows(**{'gt_stats_'+uid: hl.agg.stats(mt['gt_'+uid])})
+        **{'gt_' + uid: genotype.n_alt_alleles() if genotype.dtype is hl.dtype('call') else genotype})
+    mt = mt.annotate_rows(**{'gt_stats_' + uid: hl.agg.stats(mt['gt_' + uid])})
     # TODO: Add MAF filter to remove invariant SNPs?
-    mt = mt.annotate_entries(norm_gt=(mt['gt_'+uid]-mt['gt_stats_'+uid].mean)/mt['gt_stats_'+uid].stdev)
+    mt = mt.annotate_entries(norm_gt=(mt['gt_' + uid] - mt['gt_stats_' + uid].mean) / mt['gt_stats_' + uid].stdev)
     mt = _clean_fields(mt, uid)
     return mt
+
 
 @typecheck(mt=MatrixTable,
            str_expr=str)
@@ -652,8 +658,9 @@ def _clean_fields(mt, str_expr):
     :class:`.MatrixTable`
         :class:`.MatrixTable` with specified fields removed.
     """
-    all_fields = list(mt.col)+list(mt.row)+list(mt.entry)+list(mt.globals)
+    all_fields = list(mt.col) + list(mt.row) + list(mt.entry) + list(mt.globals)
     return mt.drop(*(x for x in all_fields if str_expr in x))
+
 
 @typecheck(mt=MatrixTable,
            row_exprs=dict,
@@ -667,6 +674,7 @@ def annotate_all(mt, row_exprs={}, col_exprs={}, entry_exprs={}, global_exprs={}
         if type(value) == expr_float64 or type(value) == expr_int32:
             assert value._indices.source == mt, 'Cannot combine expressions from different source objects.'
     return mt._annotate_all(row_exprs, col_exprs, entry_exprs, global_exprs)
+
 
 @typecheck(tb=oneof(MatrixTable,
                     Table),
@@ -697,20 +705,21 @@ def agg_fields(tb, coef_dict=None, str_expr=None, axis='rows'):
     :class:`.MatrixTable` or :class:`.Table`
         :class:`.MatrixTable` or :class:`.Table` containing aggregation field.
     """
-    assert (str_expr != None or coef_dict != None), "str_expr and coef_dict cannot both be None"
-    assert axis=='rows' or axis=='cols', "axis must be 'rows' or 'cols'"
+    assert (str_expr is not None or coef_dict is not None), "str_expr and coef_dict cannot both be None"
+    assert axis == 'rows' or axis == 'cols', "axis must be 'rows' or 'cols'"
     coef_dict = get_coef_dict(tb=tb, str_expr=str_expr,
                               ref_coef_dict=coef_dict, axis=axis)
     axis_field = 'annot' if axis == 'rows' else 'cov'
     annotate_fn = (MatrixTable.annotate_rows if axis == 'rows' else MatrixTable.annotate_cols) if type(
         tb) is MatrixTable else Table.annotate
-    tb = annotate_fn(self=tb, **{'agg_'+axis_field: 0})
+    tb = annotate_fn(self=tb, **{'agg_' + axis_field: 0})
     print(
         f'Fields and associated coefficients used in {axis_field} aggregation: {coef_dict}')
     for field, coef in coef_dict.items():
         tb = annotate_fn(
-            self=tb, **{'agg_'+axis_field: tb['agg_'+axis_field]+coef*tb[field]})
+            self=tb, **{'agg_' + axis_field: tb['agg_' + axis_field] + coef * tb[field]})
     return tb
+
 
 @typecheck(tb=oneof(MatrixTable,
                     Table),
@@ -741,8 +750,8 @@ def get_coef_dict(tb, str_expr=None, ref_coef_dict=None, axis='rows'):
         Coefficients to multiply each field. The coefficients are specified by
         `coef_dict` value, the row (or col) field name is specified by `coef_dict` key.
     """
-    assert (str_expr != None or ref_coef_dict != None), "str_expr and ref_coef_dict cannot both be None"
-    assert axis=='rows' or axis=='cols', "axis must be 'rows' or 'cols'"
+    assert (str_expr is not None or ref_coef_dict is not None), "str_expr and ref_coef_dict cannot both be None"
+    assert axis == 'rows' or axis == 'cols', "axis must be 'rows' or 'cols'"
     fields_to_search = (tb.row if axis == 'rows' or type(tb)
                         is Table else tb.col)
     # when axis='rows' we're searching for annotations, axis='cols' searching for covariates
@@ -777,6 +786,7 @@ def get_coef_dict(tb, str_expr=None, ref_coef_dict=None, axis='rows'):
             fields = list(in_ref_coef_dict)
         return {k: ref_coef_dict[k] for k in fields}
 
+
 @typecheck(mt=MatrixTable,
            y=expr_int32,
            P=oneof(int,
@@ -806,27 +816,27 @@ def ascertainment_bias(mt, y, P):
     K = y_stats.mean
     n = y_stats.n
     assert abs(
-        P-K) < 1, 'Specified sample prevalence is incompatible with population prevalence.'
+        P - K) < 1, 'Specified sample prevalence is incompatible with population prevalence.'
     if P < K:
-        p = (1-K)*P/(K*(1-P))
+        p = (1 - K) * P / (K * (1 - P))
         con = mt.filter_cols(mt.y_w_asc_bias == 0)
         cas = mt.filter_cols(mt.y_w_asc_bias == 1).add_col_index(
-            name='col_idx_'+uid)
-        keep = round(p*n*K)*[1]+round((1-p)*n*K)*[0]
+            name='col_idx_' + uid)
+        keep = round(p * n * K) * [1] + round((1 - p) * n * K) * [0]
         cas = cas.annotate_cols(
-            **{'keep_'+uid: hl.literal(keep)[hl.int32(cas['col_idx_'+uid])]})
-        cas = cas.filter_cols(cas['keep_'+uid] == 1)
+            **{'keep_' + uid: hl.literal(keep)[hl.int32(cas['col_idx_' + uid])]})
+        cas = cas.filter_cols(cas['keep_' + uid] == 1)
         cas = _clean_fields(cas, uid)
         mt = cas.union_cols(con)
     elif P > K:
-        p = K*(1-P)/((1-K)*P)
+        p = K * (1 - P) / ((1 - K) * P)
         cas = mt.filter_cols(mt.y_w_asc_bias == 1)
         con = mt.filter_cols(mt.y_w_asc_bias == 0).add_col_index(
-            name='col_idx_'+uid)
-        keep = round(p*n*(1-K))*[1]+round((1-p)*n*(1-K))*[0]
+            name='col_idx_' + uid)
+        keep = round(p * n * (1 - K)) * [1] + round((1 - p) * n * (1 - K)) * [0]
         con = con.annotate_cols(
-            **{'keep_'+uid: hl.literal(keep)[hl.int32(con['col_idx_'+uid])]})
-        con = con.filter_cols(con['keep_'+uid] == 1)
+            **{'keep_' + uid: hl.literal(keep)[hl.int32(con['col_idx_' + uid])]})
+        con = con.filter_cols(con['keep_' + uid] == 1)
         con = _clean_fields(con, uid)
         mt = con.union_cols(cas)
     return mt
@@ -862,17 +872,17 @@ def binarize(mt, y, K, exact=False):
     if exact:
         key = list(mt.col_key)
         uid = Env.get_uid(base=100)
-        mt = mt.annotate_cols(**{'y_'+uid: y})
-        tb = mt.cols().order_by('y_'+uid)
-        tb = tb.add_index('idx_'+uid)
+        mt = mt.annotate_cols(**{'y_' + uid: y})
+        tb = mt.cols().order_by('y_' + uid)
+        tb = tb.add_index('idx_' + uid)
         n = tb.count()
-        # "+1" because of zero indexing
-        tb = tb.annotate(y_binarized=tb['idx_'+uid]+1 <= round(n*K))
-        tb, mt = tb.key_by('y_'+uid), mt.key_cols_by('y_'+uid)
-        mt = mt.annotate_cols(y_binarized=tb[mt['y_'+uid]].y_binarized)
+        # "+ 1" because of zero indexing
+        tb = tb.annotate(y_binarized=tb['idx_' + uid] + 1 <= round(n * K))
+        tb, mt = tb.key_by('y_' + uid), mt.key_cols_by('y_' + uid)
+        mt = mt.annotate_cols(y_binarized=tb[mt['y_' + uid]].y_binarized)
         mt = mt.key_cols_by(*map(lambda x: mt[x], key))
     else:  # use inverse CDF
         y_stats = mt.aggregate_cols(hl.agg.stats(y))
-        threshold = stats.norm.ppf(1-K, loc=y_stats.mean, scale=y_stats.stdev)
+        threshold = stats.norm.ppf(1 - K, loc=y_stats.mean, scale=y_stats.stdev)
         mt = mt.annotate_cols(y_binarized=y > threshold)
     return mt

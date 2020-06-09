@@ -867,6 +867,7 @@ object PruneDeadFields {
           memoizeValueIR(alt, requestedType, memo)
         )
       case Coalesce(values) => unifyEnvsSeq(values.map(memoizeValueIR(_, requestedType, memo)))
+      case Consume(value) => memoizeValueIR(value, value.typ, memo)
       case Let(name, value, body) =>
         val bodyEnv = memoizeValueIR(body, requestedType, memo)
         val valueType = bodyEnv.eval.lookupOption(name) match {
@@ -1035,25 +1036,24 @@ object PruneDeadFields {
           bodyEnv.deleteEval(valueName).deleteEval(accumName),
           memoizeValueIR(a, TStream(valueType), memo)
         )
-      case StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
+      case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType) =>
         val lType = left.typ.asInstanceOf[TStream]
         val rType = right.typ.asInstanceOf[TStream]
 
-        val compEnv = memoizeValueIR(compare, compare.typ, memo)
         val joinEnv = memoizeValueIR(join, requestedType.asInstanceOf[TStream].elementType, memo)
-
-        val combEnv = unifyEnvs(compEnv, joinEnv)
 
         val lRequested = unifySeq(
           lType.elementType,
-          combEnv.eval.lookupOption(l).map(_.result()).getOrElse(Array()))
+          joinEnv.eval.lookupOption(l).map(_.result()).getOrElse(Array())
+            :+ selectKey(lType.elementType.asInstanceOf[TStruct], lKey))
 
         val rRequested = unifySeq(
           rType.elementType,
-          combEnv.eval.lookupOption(r).map(_.result()).getOrElse(Array()))
+          joinEnv.eval.lookupOption(r).map(_.result()).getOrElse(Array())
+            :+ selectKey(rType.elementType.asInstanceOf[TStruct], rKey))
 
         unifyEnvs(
-          combEnv.deleteEval(l).deleteEval(r),
+          joinEnv.deleteEval(l).deleteEval(r),
           memoizeValueIR(left, TStream(lRequested), memo),
           memoizeValueIR(right, TStream(rRequested), memo))
       case ArraySort(a, left, right, lessThan) =>
@@ -1083,10 +1083,13 @@ object PruneDeadFields {
           bodyEnv.deleteEval(valueName),
           memoizeValueIR(a, TStream(valueType), memo)
         )
-      case MakeNDArray(data, _, _) =>
-        val dataType = data.typ.asInstanceOf[TArray]
+      case MakeNDArray(data, shape, rowMajor) =>
         val elementType = requestedType.asInstanceOf[TNDArray].elementType
-        memoizeValueIR(data, TArray(elementType), memo)
+        unifyEnvs(
+          memoizeValueIR(data, TArray(elementType), memo),
+          memoizeValueIR(shape, shape.typ, memo),
+          memoizeValueIR(rowMajor, rowMajor.typ, memo)
+        )
       case NDArrayMap(nd, valueName, body) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
         val bodyEnv = memoizeValueIR(body, requestedType.asInstanceOf[TNDArray].elementType, memo)
@@ -1637,6 +1640,10 @@ object PruneDeadFields {
           Coalesce(values2)
         else
           Coalesce(values2.map(upcast(_, requestedType)))
+      case Consume(value) => {
+        val value2 = rebuildIR(value, env, memo)
+        Consume(value2)
+      }
       case Let(name, value, body) =>
         val value2 = rebuildIR(value, env, memo)
         Let(
@@ -1692,6 +1699,18 @@ object PruneDeadFields {
           valueName,
           rebuildIR(body, env.bindEval(accumName -> z2.typ, valueName -> a2.typ.asInstanceOf[TStream].elementType), memo)
         )
+      case StreamFold2(a: IR, accum, valueName, seqs, result) =>
+        val a2 = rebuildIR(a, env, memo)
+        val newAccum = accum.map { case (n, z) => n -> rebuildIR(z, env, memo) }
+        val newEnv = env
+          .bindEval(valueName -> a2.typ.asInstanceOf[TStream].elementType)
+          .bindEval(newAccum.map { case (n, z) => n -> z.typ }: _*)
+        StreamFold2(
+          a2,
+          newAccum,
+          valueName,
+          seqs.map(rebuildIR(_, newEnv, memo)),
+          rebuildIR(result, newEnv, memo))
       case StreamScan(a, zero, accumName, valueName, body) =>
         val a2 = rebuildIR(a, env, memo)
         val z2 = rebuildIR(zero, env, memo)
@@ -1702,16 +1721,16 @@ object PruneDeadFields {
           valueName,
           rebuildIR(body, env.bindEval(accumName -> z2.typ, valueName -> a2.typ.asInstanceOf[TStream].elementType), memo)
         )
-      case StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
+      case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType) =>
         val left2 = rebuildIR(left, env, memo)
         val right2 = rebuildIR(right, env, memo)
 
         val ltyp = left2.typ.asInstanceOf[TStream]
         val rtyp = right2.typ.asInstanceOf[TStream]
-        StreamLeftJoinDistinct(
-          left2, right2, l, r,
-          rebuildIR(compare, env.bindEval(l -> ltyp.elementType, r -> rtyp.elementType), memo),
-          rebuildIR(join, env.bindEval(l -> ltyp.elementType, r -> rtyp.elementType), memo))
+        StreamJoinRightDistinct(
+          left2, right2, lKey, rKey, l, r,
+          rebuildIR(join, env.bindEval(l -> ltyp.elementType, r -> rtyp.elementType), memo),
+          joinType)
       case StreamFor(a, valueName, body) =>
         val a2 = rebuildIR(a, env, memo)
         val body2 = rebuildIR(body, env.bindEval(valueName -> a2.typ.asInstanceOf[TStream].elementType), memo)
@@ -1723,7 +1742,9 @@ object PruneDeadFields {
         ArraySort(a2, left, right, lessThan2)
       case MakeNDArray(data, shape, rowMajor) =>
         val data2 = rebuildIR(data, env, memo)
-        MakeNDArray(data2, shape, rowMajor)
+        val shape2 = rebuildIR(shape, env, memo)
+        val rowMajor2 = rebuildIR(rowMajor, env, memo)
+        MakeNDArray(data2, shape2, rowMajor2)
       case NDArrayMap(nd, valueName, body) =>
         val nd2 = rebuildIR(nd, env, memo)
         NDArrayMap(nd2, valueName, rebuildIR(body, env.bindEval(valueName, nd2.typ.asInstanceOf[TNDArray].elementType), memo))

@@ -8,9 +8,8 @@ import yaml
 import jinja2
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
 from .utils import generate_token
-from .constants import BUCKET
 from .environment import GCP_PROJECT, GCP_ZONE, DOMAIN, IP, CI_UTILS_IMAGE, \
-    DEFAULT_NAMESPACE, BATCH_PODS_NAMESPACE, KUBERNETES_SERVER_URL
+    DEFAULT_NAMESPACE, BATCH_PODS_NAMESPACE, KUBERNETES_SERVER_URL, BUCKET
 from .globals import is_test_deployment
 
 log = logging.getLogger('ci')
@@ -259,7 +258,7 @@ class BuildImageStep(Step):
         if self.inputs:
             input_files = []
             for i in self.inputs:
-                input_files.append((f'{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', f'/io/{os.path.basename(i["to"])}'))
+                input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', f'/io/{os.path.basename(i["to"])}'))
         else:
             input_files = None
 
@@ -446,14 +445,14 @@ class RunImageStep(Step):
         if self.inputs:
             input_files = []
             for i in self.inputs:
-                input_files.append((f'{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
+                input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
         else:
             input_files = None
 
         if self.outputs:
             output_files = []
             for o in self.outputs:
-                output_files.append((o["from"], f'{BUCKET}/build/{batch.attributes["token"]}{o["to"]}'))
+                output_files.append((o["from"], f'gs://{BUCKET}/build/{batch.attributes["token"]}{o["to"]}'))
         else:
             output_files = None
 
@@ -908,7 +907,7 @@ python3 create_database.py {shq(json.dumps(create_database_config))}
         if self.inputs:
             input_files = []
             for i in self.inputs:
-                input_files.append((f'{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
+                input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
         else:
             input_files = None
 

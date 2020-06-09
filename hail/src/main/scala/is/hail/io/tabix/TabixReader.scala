@@ -319,7 +319,7 @@ final class TabixLineIterator(
 {
   private var i: Int = -1
   private var isEof = false
-  private var is = new BGzipInputStream(fsBc.value.open(filePath, checkCodec = false))
+  private var is = new BGzipInputStream(fsBc.value.openNoCompression(filePath))
 
   private var buffer = new Array[Byte](1 << 16)  // gvcf block is 64k; this can decode an entire block with one call to read()
   private var bufferCursor: Int = 0

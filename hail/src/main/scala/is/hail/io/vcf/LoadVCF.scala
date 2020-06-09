@@ -1461,16 +1461,21 @@ case class PartitionedVCFPartition(index: Int, chrom: String, start: Int, end: I
 class PartitionedVCFRDD(
   fsBc: BroadcastValue[FS],
   file: String,
+  @(transient@param) reverseContigMapping: Map[String, String],
   @(transient@param) _partitions: Array[Partition]
 ) extends RDD[String](SparkBackend.sparkContext("PartitionedVCFRDD"), Seq()) {
+
+  val contigRemappingBc = sparkContext.broadcast(reverseContigMapping)
+
   protected def getPartitions: Array[Partition] = _partitions
 
   def compute(split: Partition, context: TaskContext): Iterator[String] = {
     val p = split.asInstanceOf[PartitionedVCFPartition]
 
+    val chromToQuery = contigRemappingBc.value.getOrElse(p.chrom, p.chrom)
     val reg = {
       val r = new TabixReader(file, fsBc.value)
-      val tid = r.chr2tid(p.chrom)
+      val tid = r.chr2tid(chromToQuery)
       r.queryPairs(tid, p.start - 1, p.end)
     }
     if (reg.isEmpty)
@@ -1506,8 +1511,8 @@ class PartitionedVCFRDD(
       val chrom = l.substring(0, t1)
       val pos = l.substring(t1 + 1, t2).toInt
 
-      if (chrom != p.chrom) {
-        throw new RuntimeException(s"bad chromosome! ${p.chrom}, $l")
+      if (chrom != chromToQuery) {
+        throw new RuntimeException(s"bad chromosome! ${chromToQuery}, $l")
       }
       p.start <= pos && pos <= p.end
     }
@@ -1803,6 +1808,17 @@ class VCFsReader(
 
   referenceGenome.foreach(_.validateContigRemap(contigRecoding))
 
+  val reverseContigMapping: Map[String, String] =
+    contigRecoding.toArray
+      .groupBy(_._2)
+      .map { case (target, mappings) =>
+        if (mappings.length > 1)
+          fatal(s"contig_recoding may not map multiple contigs to the same target contig, " +
+            s"due to ambiguity when querying the tabix index." +
+            s"\n  Duplicate mappings: ${ mappings.map(_._1).mkString(",") } all map to ${ target }")
+        (target, mappings.head._1)
+      }.toMap
+
   private val locusType = TLocus.schemaFromRG(referenceGenome)
   private val rowKeyType = TStruct("locus" -> locusType)
 
@@ -1898,7 +1914,7 @@ class VCFsReader(
     val rvdType = fullRVDType
 
     val lines = ContextRDD.weaken(
-      new PartitionedVCFRDD(ctx.fsBc, file, partitions)
+      new PartitionedVCFRDD(ctx.fsBc, file, reverseContigMapping, partitions)
         .map(l =>
           WithContext(l, Context(l, file, None))))
 

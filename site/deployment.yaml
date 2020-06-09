@@ -46,6 +46,11 @@ spec:
              cpu: "1"
          ports:
           - containerPort: 443
+         env:
+          - name: HAIL_DOMAIN
+            value: {{ global.domain }}
+          - name: HAIL_DEFAULT_NAMESPACE
+            value: {{ default_ns.name }}
          volumeMounts:
           - name: ssl-config-site
             mountPath: /ssl-config

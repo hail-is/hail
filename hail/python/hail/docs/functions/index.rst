@@ -23,7 +23,6 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
 
 .. autosummary::
 
-    eval
     literal
     cond
     if_else
@@ -180,6 +179,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     rand_norm
     rand_pois
     rand_unif
+    shuffle
 
 .. rubric:: Genetics functions
 

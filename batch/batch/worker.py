@@ -40,7 +40,6 @@ from .worker_config import WorkerConfig
 configure_logging()
 log = logging.getLogger('batch-worker')
 
-MAX_IDLE_TIME_MSECS = 30 * 1000
 MAX_DOCKER_IMAGE_PULL_SECS = 20 * 60
 MAX_DOCKER_WAIT_SECS = 5 * 60
 MAX_DOCKER_OTHER_OPERATION_SECS = 1 * 60
@@ -55,17 +54,19 @@ WORKER_LOGS_BUCKET_NAME = os.environ['WORKER_LOGS_BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
 PROJECT = os.environ['PROJECT']
 WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
+MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 
 log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
 log.info(f'NAMESPACE {NAMESPACE}')
 # ACTIVATION_TOKEN
 log.info(f'IP_ADDRESS {IP_ADDRESS}')
-log.info(f'WORKER_CONFIG {WORKER_CONFIG}')
 log.info(f'BATCH_LOGS_BUCKET_NAME {BATCH_LOGS_BUCKET_NAME}')
 log.info(f'WORKER_LOGS_BUCKET_NAME {WORKER_LOGS_BUCKET_NAME}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'PROJECT {PROJECT}')
+log.info(f'WORKER_CONFIG {WORKER_CONFIG}')
+log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
 
 worker_config = WorkerConfig(WORKER_CONFIG)
 assert worker_config.cores == CORES
@@ -466,8 +467,8 @@ def populate_secret_host_path(host_path, secret_data):
     os.makedirs(host_path)
     if secret_data is not None:
         for filename, data in secret_data.items():
-            with open(f'{host_path}/{filename}', 'w') as f:
-                f.write(base64.b64decode(data).decode())
+            with open(f'{host_path}/{filename}', 'wb') as f:
+                f.write(base64.b64decode(data))
 
 
 def copy_command(src, dst):
@@ -861,7 +862,7 @@ class Worker:
             await site.start()
 
             try:
-                await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS * 1000)
+                await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
             except asyncio.TimeoutError:
                 log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
             else:

@@ -1,6 +1,6 @@
 from .auth import Credentials, ApplicationDefaultCredentials, \
     ServiceAccountCredentials, AccessToken, Session
-from .client import ContainerClient, ComputeClient, IAmClient
+from .client import ContainerClient, ComputeClient, IAmClient, LoggingClient
 
 __all__ = [
     'Credentials',
@@ -10,5 +10,6 @@ __all__ = [
     'Session',
     'ContainerClient',
     'ComputeClient',
-    'IAmClient'
+    'IAmClient',
+    'LoggingClient'
 ]

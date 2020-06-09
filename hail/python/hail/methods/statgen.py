@@ -401,10 +401,10 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
 
     y_is_list = isinstance(y, list)
     if y_is_list and len(y) == 0:
-        raise ValueError(f"'linear_regression_rows': found no values for 'y'")
+        raise ValueError("'linear_regression_rows': found no values for 'y'")
     is_chained = y_is_list and isinstance(y[0], list)
-    if is_chained and any(len(l) == 0 for l in y):
-        raise ValueError(f"'linear_regression_rows': found empty inner list for 'y'")
+    if is_chained and any(len(lst) == 0 for lst in y):
+        raise ValueError("'linear_regression_rows': found empty inner list for 'y'")
 
     y = wrap_to_list(y)
 
@@ -454,6 +454,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
 
     return ht_result.persist()
 
+
 @typecheck(y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
@@ -465,15 +466,14 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     y_is_list = isinstance(y, list)
     if y_is_list and len(y) == 0:
-        raise ValueError(f"'linear_regression_rows_nd': found no values for 'y'")
+        raise ValueError("'linear_regression_rows_nd': found no values for 'y'")
     is_chained = y_is_list and isinstance(y[0], list)
 
     if is_chained:
         raise ValueError("linear_regression_rows_nd does not currently support chained linear regression.")
 
-
-    if is_chained and any(len(l) == 0 for l in y):
-        raise ValueError(f"'linear_regression_rows': found empty inner list for 'y'")
+    if is_chained and any(len(lst) == 0 for lst in y):
+        raise ValueError("'linear_regression_rows': found empty inner list for 'y'")
 
     y = wrap_to_list(y)
 
@@ -550,7 +550,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     ht = ht.annotate(**{X_field_name: hl.nd.array(hl.map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples)), ht["grouped_fields"][entries_field_name])).T})
     n = hl.len(ht.kept_samples)
-    ht = ht.annotate_globals(d=n-k-1)
+    ht = ht.annotate_globals(d=n - k - 1)
     cov_Qt = hl.if_else(k > 0, hl.nd.qr(ht.__cov_nd)[0].T, hl.nd.zeros((0, n)))
     ht = ht.annotate_globals(__Qty=cov_Qt @ ht.__y_nd)
     ht = ht.annotate_globals(__yyp=dot_rows_with_themselves(ht.__y_nd.T) - dot_rows_with_themselves(ht.__Qty.T))
@@ -562,8 +562,8 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     xyp = ytx - (ht.__Qty.T @ Qtx)
     xxpRec = (dot_rows_with_themselves(ht[X_field_name].T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
     b = xyp * xxpRec
-    se = ((1.0/ht.d) * (ht.__yyp.reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
-    t = b/se
+    se = ((1.0 / ht.d) * (ht.__yyp.reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
+    t = b / se
     p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.d, True, False))
     ht = ht.annotate(__b=b, __ytx=ytx, __se=se, __t=t, __p=p)
 
@@ -572,7 +572,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         sources = [pair[1] for pair in mapping]
         dests = [pair[0] for pair in mapping]
         ht = ht.annotate(**{struct_root_name: hl.zip(*sources)})
-        ht = ht.transmute(**{struct_root_name: ht[struct_root_name].map(lambda tup: hl.struct(**{dests[i]:tup[i] for i in range(len(dests))}))})
+        ht = ht.transmute(**{struct_root_name: ht[struct_root_name].map(lambda tup: hl.struct(**{dests[i]: tup[i] for i in range(len(dests))}))})
         return ht
 
     res = ht.key_by()
@@ -825,7 +825,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
 
     y_is_list = isinstance(y, list)
     if y_is_list and len(y) == 0:
-        raise ValueError(f"'logistic_regression_rows': found no values for 'y'")
+        raise ValueError("'logistic_regression_rows': found no values for 'y'")
     y = wrap_to_list(y)
 
     for e in covariates:
@@ -2806,11 +2806,11 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
            n_partitions=nullable(int),
            pop_dist=nullable(sequenceof(numeric)),
            fst=nullable(sequenceof(numeric)),
-           af_dist=expr_any,
+           af_dist=nullable(expr_any),
            reference_genome=reference_genome_type,
            mixture=bool)
 def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=None,
-                          pop_dist=None, fst=None, af_dist=hl.rand_unif(0.1, 0.9, seed=0),
+                          pop_dist=None, fst=None, af_dist=None,
                           reference_genome='default', mixture=False) -> MatrixTable:
     r"""Generate a matrix table of variants, samples, and genotypes using the
     Balding-Nichols or Pritchard-Stephens-Donnelly model.
@@ -2945,9 +2945,10 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     fst : :obj:`list` of :obj:`float`, optional
         :math:`F_{ST}` values, a list of length `n_populations` with values
         in (0, 1). Default is ``[0.1, ..., 0.1]``.
-    af_dist : :class:`.Float64Expression` representing a random function.
-        Ancestral allele frequency distribution.
-        Default is :func:`.rand_unif` over the range `[0.1, 0.9]` with seed 0.
+    af_dist : :class:`.Float64Expression`, optional
+        Representing a random function.  Ancestral allele frequency
+        distribution.  Default is :func:`.rand_unif` over the range
+        `[0.1, 0.9]` with seed 0.
     reference_genome : :obj:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
     mixture : :obj:`bool`
@@ -2958,12 +2959,16 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     -------
     :class:`.MatrixTable`
         Simulated matrix table of variants, samples, and genotypes.
+
     """
     if pop_dist is None:
         pop_dist = [1 for _ in range(n_populations)]
 
     if fst is None:
         fst = [0.1 for _ in range(n_populations)]
+
+    if af_dist is None:
+        af_dist = hl.rand_unif(0.1, 0.9, seed=0)
 
     if n_partitions is None:
         n_partitions = max(8, int(n_samples * n_variants / (128 * 1024 * 1024)))
@@ -3569,8 +3574,8 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
             j=hl.struct(idx=entries.j,
                         twice_maf=hl.min(entries.info[entries.j].mean, 2.0 - entries.info[entries.j].mean)))
 
-        def tie_breaker(l, r):
-            return hl.sign(r.twice_maf - l.twice_maf)
+        def tie_breaker(left, right):
+            return hl.sign(right.twice_maf - left.twice_maf)
     else:
         tie_breaker = None
 

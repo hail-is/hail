@@ -155,19 +155,20 @@ async def _query_batch_jobs(request, batch_id):
         where_args.extend(args)
 
     sql = f'''
-SELECT *, cost, format_version, job_attributes.value as name
+SELECT jobs.*, batches.format_version, job_attributes.value AS name, SUM(`usage` * rate) AS cost
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN job_attributes
   ON jobs.batch_id = job_attributes.batch_id AND
      jobs.job_id = job_attributes.job_id AND
      job_attributes.`key` = 'name'
-LEFT JOIN (SELECT batch_id, job_id, SUM(`usage` * rate) AS cost
-           FROM aggregated_job_resources
-           INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
-           GROUP BY batch_id, job_id) AS t
-ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
+LEFT JOIN aggregated_job_resources
+  ON jobs.batch_id = aggregated_job_resources.batch_id AND
+     jobs.job_id = aggregated_job_resources.job_id
+LEFT JOIN resources
+  ON aggregated_job_resources.resource = resources.resource
 WHERE {' AND '.join(where_conditions)}
+GROUP BY jobs.batch_id, jobs.job_id
 ORDER BY jobs.batch_id, jobs.job_id ASC
 LIMIT 50;
 '''
@@ -443,15 +444,15 @@ async def _query_batches(request, user):
         where_args.extend(args)
 
     sql = f'''
-SELECT *
+SELECT batches.*, SUM(`usage` * rate) AS cost
 FROM batches
-LEFT JOIN (SELECT batch_id, SUM(`usage` * rate) AS cost
-           FROM aggregated_batch_resources
-           INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
-           GROUP BY batch_id) AS t
-ON batches.id = t.batch_id
+LEFT JOIN aggregated_batch_resources
+  ON batches.id = aggregated_batch_resources.batch_id
+LEFT JOIN resources
+  ON aggregated_batch_resources.resource = resources.resource
 WHERE {' AND '.join(where_conditions)}
-ORDER BY id DESC
+GROUP BY batches.id
+ORDER BY batches.id DESC
 LIMIT 50;
 '''
     sql_args = where_args
@@ -516,7 +517,6 @@ async def create_jobs(request, userdata):
     # which is sensitive
     userdata = {
         'username': user,
-        'bucket_name': userdata['bucket_name'],
         'gsa_key_secret_name': userdata['gsa_key_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name']
     }
@@ -684,11 +684,18 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
                         log.info(f'bunch containing job {(batch_id, jobs_args[0][1])} already inserted ({err})')
                         return
                     raise
-                await tx.execute_many('''
+                try:
+                    await tx.execute_many('''
 INSERT INTO `job_parents` (batch_id, job_id, parent_id)
 VALUES (%s, %s, %s);
 ''',
-                                      job_parents_args)
+                                          job_parents_args)
+                except pymysql.err.IntegrityError as err:
+                    # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
+                    if err.args[0] == 1062:
+                        raise web.HTTPBadRequest(
+                            text=f'bunch contains job with duplicated parents ({err})')
+                    raise
                 await tx.execute_many('''
 INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
@@ -725,6 +732,8 @@ VALUES (%s, %s, %s);
 
             try:
                 await insert()  # pylint: disable=no-value-for-parameter
+            except aiohttp.web.HTTPException:
+                raise
             except Exception as err:
                 raise ValueError(f'encountered exception while inserting a bunch'
                                  f'jobs_args={json.dumps(jobs_args)}'
@@ -752,7 +761,6 @@ async def create_batch(request, userdata):
     # which is sensitive
     userdata = {
         'username': user,
-        'bucket_name': userdata['bucket_name'],
         'gsa_key_secret_name': userdata['gsa_key_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name']
     }
@@ -812,13 +820,13 @@ async def _get_batch(app, batch_id, user):
     db = app['db']
 
     record = await db.select_and_fetchone('''
-SELECT * FROM batches
-LEFT JOIN (SELECT batch_id, SUM(`usage` * rate) AS cost
-           FROM aggregated_batch_resources
-           INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
-           GROUP BY batch_id) AS t
-ON batches.id = t.batch_id
-WHERE user = %s AND id = %s AND NOT deleted;
+SELECT batches.*, SUM(`usage` * rate) AS cost FROM batches
+LEFT JOIN aggregated_batch_resources
+       ON batches.id = aggregated_batch_resources.batch_id
+LEFT JOIN resources
+       ON aggregated_batch_resources.resource = resources.resource
+WHERE user = %s AND id = %s AND NOT deleted
+GROUP BY batches.id;
 ''', (user, batch_id))
     if not record:
         raise web.HTTPNotFound()
@@ -1009,7 +1017,7 @@ async def _get_job(app, batch_id, job_id, user):
     db = app['db']
 
     record = await db.select_and_fetchone('''
-SELECT jobs.*, cost, ip_address, format_version
+SELECT jobs.*, ip_address, format_version, SUM(`usage` * rate) AS cost
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -1017,12 +1025,13 @@ LEFT JOIN attempts
   ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
   ON attempts.instance_name = instances.name
-LEFT JOIN (SELECT batch_id, job_id, SUM(`usage` * rate) AS cost
-           FROM aggregated_job_resources
-           INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
-           GROUP BY batch_id, job_id) AS t
-ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
-WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
+LEFT JOIN aggregated_job_resources
+  ON jobs.batch_id = aggregated_job_resources.batch_id AND
+     jobs.job_id = aggregated_job_resources.job_id
+LEFT JOIN resources
+  ON aggregated_job_resources.resource = resources.resource
+WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
+GROUP BY jobs.batch_id, jobs.job_id;
 ''',
                                           (user, batch_id, job_id))
     if not record:
@@ -1170,9 +1179,9 @@ SELECT
   SUM(IF(format_version >= 3, `usage` * rate, NULL)) as cost
 FROM batches
 LEFT JOIN aggregated_batch_resources
-       ON aggregated_batch_resources.batch_id = batches.id
+  ON aggregated_batch_resources.batch_id = batches.id
 LEFT JOIN resources
-        ON resources.resource = aggregated_batch_resources.resource
+  ON resources.resource = aggregated_batch_resources.resource
 WHERE `time_completed` >= %s AND `time_completed` <= %s
 GROUP BY billing_project, `user`;
 '''

@@ -142,7 +142,7 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
     using(new DataOutputStream(fs.create(path + BlockMatrix.metadataRelativePath))) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, m.rows, m.cols, gp.maybeBlocks, partFiles),
+        BlockMatrixMetadata(blockSize, m.rows, m.cols, gp.partitionIndexToBlockIndex, partFiles),
         os)
     }
 

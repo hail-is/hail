@@ -13,7 +13,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     "regionIdx" -> PInt32(true),
     "container" -> states.storageType)
   val compType: PType = kt
-  private val kcomp = kb.getCodeOrdering(kt, CodeOrdering.compare, ignoreMissingness = false)
+  private val kcomp = kb.getCodeOrdering(kt, CodeOrdering.Compare(), ignoreMissingness = false)
 
   private val compLoader: EmitMethodBuilder[_] = {
     val mb = kb.genEmitMethod("compWithKey", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Boolean], compType.ti), typeInfo[Int])
@@ -265,8 +265,8 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
   assert(kt.isCanonical)
   val resultEltType: PTuple = PCanonicalTuple(true, nestedAggs.map(_.resultType): _*)
   val resultType: PDict = PCanonicalDict(kt, resultEltType)
-
-  def createState(cb: EmitCodeBuilder): State = new DictState(cb.emb.ecb, kt, StateTuple(nestedAggs.map(_.createState(cb))))
+  val initOpTypes: Seq[PType] = Array(PVoid)
+  val seqOpTypes: Seq[PType] = Array(kt, PVoid)
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(inits) = init
@@ -286,14 +286,14 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
   }
 
   protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
-    cb += srvb.addArray(resultType.arrayFundamentalType, sab => EmitCodeBuilder.scopedVoid(sab.mb) { cb =>
+    cb += srvb.addArray(resultType.arrayFundamentalType, sab => EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
       cb += sab.start(state.size)
       state.foreach(cb) { (cb, km, kv) =>
-        cb += sab.addBaseStruct(resultType.elementType, ssb => EmitCodeBuilder.scopedVoid(ssb.mb) { cb =>
+        cb += sab.addBaseStruct(resultType.elementType, ssb => EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
           cb += ssb.start
           cb.ifx(km, cb += ssb.setMissing(), cb += ssb.addWithDeepCopy(kt, kv))
           cb += ssb.advance()
-          cb += ssb.addBaseStruct(resultEltType, svb => EmitCodeBuilder.scopedVoid(svb.mb) { cb =>
+          cb += ssb.addBaseStruct(resultEltType, svb => EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
             cb += svb.start()
             state.nested.toCode(cb, "grouped_result", { (cb, i, s) =>
               nestedAggs(i).result(cb, s, svb)

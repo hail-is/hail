@@ -19,7 +19,7 @@ from gear import setup_aiohttp_session, \
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 
-from .constants import BUCKET
+from .environment import BUCKET
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
@@ -119,8 +119,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
                 j['duration'] = humanize_timedelta_msecs(j['duration'])
             page_context['batch'] = status
             page_context['jobs'] = jobs
-            # [4:] strips off gs:/
-            page_context['artifacts'] = f'{BUCKET}/build/{batch.attributes["token"]}'[4:]
+            page_context['artifacts'] = f'/{BUCKET}/build/{batch.attributes["token"]}'
         else:
             page_context['exception'] = '\n'.join(
                 traceback.format_exception(None, batch.exception, batch.exception.__traceback__))
@@ -321,7 +320,7 @@ async def deploy_status(request, userdata):  # pylint: disable=unused-argument
 @routes.post('/api/v1alpha/update')
 @rest_authenticated_developers_only
 async def post_update(request, userdata):  # pylint: disable=unused-argument
-    log.info(f'developer triggered update')
+    log.info('developer triggered update')
 
     async def update_all():
         for wb in watched_branches:

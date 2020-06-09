@@ -9,8 +9,8 @@ object CountAggregator extends StagedAggregator {
   type State = PrimitiveRVAState
 
   val resultType: PType = PInt64(true)
-
-  def createState(cb: EmitCodeBuilder): State = new PrimitiveRVAState(Array(PInt64(true)), cb.emb.ecb)
+  val initOpTypes: Seq[PType] = Array[PType]()
+  val seqOpTypes: Seq[PType] = Array[PType]()
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)

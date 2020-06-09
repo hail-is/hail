@@ -147,10 +147,18 @@ object IRFunctionRegistry {
     }
   }
 
-  def lookupConversion(name: String, returnType: Type, arguments: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] =
-    lookupConversion(name, returnType, Array.empty[Type], arguments)
+  def lookupSeeded(name: String, seed: Long, returnType: Type, arguments: Seq[Type]): Option[(Seq[IR]) => IR] = {
+    lookupFunction(name, returnType, Array.empty[Type], arguments)
+      .filter(_.isInstanceOf[SeededJVMFunction])
+      .map { case f: SeededJVMFunction =>
+        (irArguments: Seq[IR]) => ApplySeeded(name, irArguments, seed, f.returnType.subst())
+      }
+  }
 
-  def lookupConversion(name: String, returnType: Type, typeParameters: Seq[Type], arguments: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] = {
+  def lookupUnseeded(name: String, returnType: Type, arguments: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] =
+    lookupUnseeded(name, returnType, Array.empty[Type], arguments)
+
+  def lookupUnseeded(name: String, returnType: Type, typeParameters: Seq[Type], arguments: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] = {
     val validIR: Option[(Seq[Type], Seq[IR]) => IR] = lookupIR(name, returnType, typeParameters, arguments).map {
       case ((_, _, _, inline), conversion) => (typeParametersPassed, args) =>
         val x = ApplyIR(name, typeParametersPassed, args)
@@ -160,11 +168,9 @@ object IRFunctionRegistry {
     }
 
     val validMethods = lookupFunction(name, returnType, typeParameters, arguments)
-      .map { f =>
+      .filter(!_.isInstanceOf[SeededJVMFunction]).map { f =>
         { (irValueParametersTypes: Seq[Type], irArguments: Seq[IR]) =>
           f match {
-            case _: SeededJVMFunction =>
-              ApplySeeded(name, irArguments.init, irArguments.last.asInstanceOf[I64].x, f.returnType.subst())
             case _: UnseededMissingnessObliviousJVMFunction =>
               Apply(name, irValueParametersTypes, irArguments, f.returnType.subst())
             case _: UnseededMissingnessAwareJVMFunction =>
@@ -629,13 +635,10 @@ abstract class RegistryFunctions {
           impl(r, rpt, seed, args.toArray)
         }
 
-        def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: EmitCode*): EmitCode = {
-          val setup = Code(args.map(_.setup))
-          val rpt = returnPType(returnType, args.map(_.pt))
-          val missing: Code[Boolean] = if (args.isEmpty) false else args.map(_.m).reduce(_ || _)
-          val value = applySeeded(seed, r, rpt, args.map { a => (a.pt, a.v) }: _*)
-
-          EmitCode(setup, missing, PCode(rpt, value))
+        def applySeededI(seed: Long, cb: EmitCodeBuilder, r: EmitRegion, rpt: PType, args: (PType, () => IEmitCode)*): IEmitCode = {
+          IEmitCode.flatten(args.map(a => a._2).toFastIndexedSeq, cb) {
+            argPCs => PCode(rpt, applySeeded(seed, r, rpt, argPCs.map(pc => pc.pt -> pc.code): _*))
+          }
         }
 
         override val isStrict: Boolean = true
@@ -779,13 +782,13 @@ abstract class SeededJVMFunction (
 
   def setSeed(s: Long): Unit = { seed = s }
 
-  def applySeeded(seed: Long, region: EmitRegion, rpt: PType, args: EmitCode*): EmitCode
+  def applySeededI(seed: Long, cb: EmitCodeBuilder, region: EmitRegion, rpt: PType, args: (PType, () => IEmitCode)*): IEmitCode
 
   def apply(region: EmitRegion, rpt: PType, typeParameters: Seq[Type], args: EmitCode*): EmitCode =
-    applySeeded(seed, region, rpt, args: _*)
+    fatal("seeded functions must go through IEmitCode path")
 
   def apply(region: EmitRegion, rpt: PType, args: EmitCode*): EmitCode =
-    applySeeded(seed, region, rpt, args: _*)
+    fatal("seeded functions must go through IEmitCode path")
 
   def isStrict: Boolean = false
 }

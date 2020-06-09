@@ -10,7 +10,7 @@ import google.cloud.storage
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
 from hailtop.batch.utils import arg_max
 from hailtop.utils import grouped
-from hailtop.auth import get_userinfo
+from hailtop.config import get_user_config
 
 
 class LocalTests(unittest.TestCase):
@@ -296,10 +296,14 @@ class LocalTests(unittest.TestCase):
 class BatchTests(unittest.TestCase):
     def setUp(self):
         self.backend = ServiceBackend()
-        bucket_name = get_userinfo()['bucket_name']
-        token = uuid.uuid4()
+
+        bucket_name = get_user_config().get('batch', 'bucket')
+
         self.gcs_input_dir = f'gs://{bucket_name}/batch-tests/resources'
+
+        token = uuid.uuid4()
         self.gcs_output_dir = f'gs://{bucket_name}/batch-tests/{token}'
+
         in_cluster_key_file = '/test-gsa-key/key.json'
         if os.path.exists(in_cluster_key_file):
             credentials = google.oauth2.service_account.Credentials.from_service_account_file(
@@ -308,11 +312,13 @@ class BatchTests(unittest.TestCase):
             credentials = None
         gcs_client = google.cloud.storage.Client(project='hail-vdc', credentials=credentials)
         bucket = gcs_client.bucket(bucket_name)
-        if not bucket.blob('batch-tests/resources/hello (foo) spaces.txt').exists():
+        if not bucket.blob('batch-tests/resources/hello.txt').exists():
             bucket.blob('batch-tests/resources/hello.txt').upload_from_string(
                 'hello world')
+        if not bucket.blob('batch-tests/resources/hello spaces.txt').exists():
             bucket.blob('batch-tests/resources/hello spaces.txt').upload_from_string(
                 'hello')
+        if not bucket.blob('batch-tests/resources/hello (foo) spaces.txt').exists():
             bucket.blob('batch-tests/resources/hello (foo) spaces.txt').upload_from_string(
                 'hello')
 

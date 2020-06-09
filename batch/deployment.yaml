@@ -44,7 +44,7 @@ spec:
            value: "{{ global.domain }}"
          - name: HAIL_DEPLOY_CONFIG_FILE
            value: /deploy-config/deploy-config.json
-         - name: BATCH_WORKER_IMAGE
+         - name: HAIL_BATCH_WORKER_IMAGE
            value: "{{ batch_worker_image.image }}"
          - name: HAIL_DEFAULT_NAMESPACE
            value: "{{ default_ns.name }}"
@@ -65,11 +65,19 @@ spec:
            value: hail-batch
          - name: HAIL_WORKER_LOGS_BUCKET_NAME
            value: hail-batch-worker-logs
+         - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
+           value: "7200" # 2 hours
 {% else %}
          - name: HAIL_BATCH_BUCKET_NAME
            value: hail-test-dmk9z
          - name: HAIL_WORKER_LOGS_BUCKET_NAME
            value: hail-test-dmk9z
+         - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
+           value: "300"
+{% endif %}
+{% if deploy or scope == "test" %}
+         - name: ENABLE_STANDING_WORKER
+           value: "1"
 {% endif %}
         ports:
          - containerPort: 5000
@@ -182,11 +190,15 @@ spec:
            value: hail-batch
          - name: HAIL_WORKER_LOGS_BUCKET_NAME
            value: hail-batch-worker-logs
+         - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
+           value: "7200" # 2 hours
 {% else %}
          - name: HAIL_BATCH_BUCKET_NAME
            value: hail-test-dmk9z
          - name: HAIL_WORKER_LOGS_BUCKET_NAME
            value: hail-test-dmk9z
+         - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
+           value: "300"
 {% endif %}
         ports:
          - containerPort: 5000
