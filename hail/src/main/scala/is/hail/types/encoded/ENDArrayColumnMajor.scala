@@ -7,7 +7,7 @@ import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils._
 
-case class ENDArray(elementType: EType, nDims: Int, required: Boolean = false) extends EContainer {
+case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean = false) extends EContainer {
   type DecodedPType = PCanonicalNDArray
 
   override def decodeCompatible(pt: PType): Boolean = {
@@ -71,7 +71,7 @@ case class ENDArray(elementType: EType, nDims: Int, required: Boolean = false) e
     val elementPType = elementType.decodedPType(requestedTNDArray.elementType)
     PCanonicalNDArray(elementPType, requestedTNDArray.nDims, required)
   }
-  override def setRequired(required: Boolean): EType = ENDArray(elementType, nDims, required)
+  override def setRequired(required: Boolean): EType = ENDArrayColumnMajor(elementType, nDims, required)
 
   override def _asIdent = s"ndarray_of_${elementType.asIdent}"
   override def _toPretty = s"ENDArray[$elementType,$nDims]"

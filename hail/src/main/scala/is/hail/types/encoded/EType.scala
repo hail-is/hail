@@ -395,7 +395,7 @@ object EType {
         IRParser.punctuation(it, ",")
         val nDims = IRParser.int32_literal(it)
         IRParser.punctuation(it, "]")
-        ENDArray(elementType, nDims,  req)
+        ENDArrayColumnMajor(elementType, nDims,  req)
       case x => throw new UnsupportedOperationException(s"Couldn't parse $x ${it.toIndexedSeq}")
 
     }
