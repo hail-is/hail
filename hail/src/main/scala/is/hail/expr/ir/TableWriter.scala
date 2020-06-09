@@ -207,9 +207,9 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
           indexWriter.close(cb)
         cb += ob.flush()
         cb += os.invoke[Unit]("close")
-        Region.storeIRIntermediate(filenameType)(
-          pResultType.fieldOffset(result, "filePath"), ctx),
-        Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)),
+        cb += Region.storeIRIntermediate(filenameType)(
+          pResultType.fieldOffset(result, "filePath"), ctx)
+        cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
         result.get
       })
     }
