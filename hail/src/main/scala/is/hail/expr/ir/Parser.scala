@@ -917,6 +917,11 @@ object IRParser {
         val a = ir_value_expr(env)(it)
         val num = ir_value_expr(env)(it)
         StreamDrop(a, num)
+      case "StreamMerge" =>
+        val key = identifiers(it)
+        val left = ir_value_expr(env)(it)
+        val right = ir_value_expr(env)(it)
+        StreamMerge(left, right, key)
       case "StreamZip" =>
         val behavior = identifier(it) match {
           case "AssertSameLength" => ArrayZipBehavior.AssertSameLength

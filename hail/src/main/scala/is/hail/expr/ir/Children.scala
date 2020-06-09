@@ -95,6 +95,8 @@ object Children {
       Array(a)
     case StreamMap(a, name, body) =>
       Array(a, body)
+    case StreamMerge(l, r, _) =>
+      Array(l, r)
     case StreamZip(as, names, body, _) =>
       as ++ Array(body)
     case StreamFilter(a, name, cond) =>

@@ -536,6 +536,7 @@ class PruneSuite extends HailSuite {
   val empty = TStruct.empty
   val justA = TStruct("a" -> TInt32)
   val justB = TStruct("b" -> TInt32)
+  val aAndB = TStruct("a" -> TInt32, "b" -> TInt32)
   val justARequired = TStruct("a" -> TInt32)
   val justBRequired = TStruct("b" -> TInt32)
 
@@ -600,24 +601,32 @@ class PruneSuite extends HailSuite {
               TStream(TStream(justB)), Array(TStream(TStruct("a" -> TInt32, "b" -> TInt32)), null))
   }
 
+  @Test def testStreamMergeMemo() {
+    val st2 = st.deepCopy()
+    checkMemo(
+      StreamMerge(
+        st, st2,
+        FastSeq("a")),
+      TStream(justB), Array(TStream(aAndB), TStream(aAndB)))
+  }
+
   @Test def testStreamZipMemo() {
     val a2 = st.deepCopy()
     val a3 = st.deepCopy()
     for (b <- Array(ArrayZipBehavior.ExtendNA, ArrayZipBehavior.TakeMinLength, ArrayZipBehavior.AssertSameLength)) {
-
-    checkMemo(StreamZip(
-      FastIndexedSeq(st, a2, a3),
-      FastIndexedSeq("foo", "bar", "baz"),
-      Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())), b),
-      TStream(TBoolean), Array(TStream(justB), TStream(justA), TStream(empty), null))
+      checkMemo(StreamZip(
+        FastIndexedSeq(st, a2, a3),
+        FastIndexedSeq("foo", "bar", "baz"),
+        Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())), b),
+        TStream(TBoolean), Array(TStream(justB), TStream(justA), TStream(empty), null))
     }
+
     checkMemo(StreamZip(
       FastIndexedSeq(st, a2, a3),
       FastIndexedSeq("foo", "bar", "baz"),
       Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())),
       ArrayZipBehavior.AssumeSameLength),
       TStream(TBoolean), Array(TStream(justB), TStream(justA), null, null))
-
   }
 
   @Test def testStreamFilterMemo() {
@@ -1153,6 +1162,13 @@ class PruneSuite extends HailSuite {
                    val ir = r.asInstanceOf[StreamGroupByKey]
                    ir.a.typ == TStream(subsetTS("a", "b"))
                  })
+  }
+
+  @Test def testStreamMergeRebuild() {
+    checkRebuild(
+      StreamMerge(MakeStream(Seq(NA(ts)), TStream(ts)), MakeStream(Seq(NA(ts)), TStream(ts)), FastIndexedSeq("a")),
+      TStream(subsetTS("b")),
+      (_: BaseIR, r: BaseIR) => r.typ == TStream(subsetTS("a", "b")))
   }
 
   @Test def testStreamZipRebuild() {

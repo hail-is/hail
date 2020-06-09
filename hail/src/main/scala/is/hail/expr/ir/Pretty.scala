@@ -276,6 +276,7 @@ object Pretty {
             case MakeArray(_, typ) => typ.parsableString()
             case MakeStream(_, typ) => typ.parsableString()
             case StreamMap(_, name, _) => prettyIdentifier(name)
+            case StreamMerge(_, _, key) => prettyIdentifiers(key)
             case StreamZip(_, names, _, behavior) => prettyIdentifier(behavior match {
               case ArrayZipBehavior.AssertSameLength => "AssertSameLength"
               case ArrayZipBehavior.TakeMinLength => "TakeMinLength"
