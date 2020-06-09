@@ -234,6 +234,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
 
 @typecheck(
     billing_project=nullable(str),
+    bucket=nullable(str),
     log=nullable(str),
     quiet=bool,
     append=bool,
