@@ -2038,7 +2038,15 @@ def import_vcf(path,
     Examples
     --------
 
+    Import a standard bgzipped VCF with GRCh37 as the reference genome.
+
     >>> ds = hl.import_vcf('data/example2.vcf.bgz', reference_genome='GRCh37')
+
+    Import a VCF with GRCh38 as the reference genome that incorrectly uses the
+    contig names from GRCh37 (i.e. uses contig name "1" instead of "chr1").
+
+    >>> recode = {f"{i}":f"chr{i}" for i in (list(range(1, 23)) + ['X', 'Y'])}
+    >>> ds = hl.import_vcf('data/grch38_bad_contig_names.vcf', reference_genome='GRCh38', contig_recoding=recode)
 
     Notes
     -----
