@@ -30,7 +30,7 @@
 
 mt = hl.read_matrix_table('resources/post_qc.mt')
 mt = mt.filter_rows(hl.agg.call_stats(mt.GT, mt.alleles).AF[1] > 0.01)
-pca_scores = hl.hwe_normalized_pca(mt.GT, True)[1]
+pca_scores = hl.hwe_normalized_pca(mt.GT, k = 5, True)[1]
 mt = mt.annotate_cols(pca = pca_scores[mt.s])
 
 gwas = hl.linear_regression_rows(
