@@ -217,8 +217,8 @@ object MatrixPLINKReader {
       var end = partScan(p + 1)
       if (start < end) {
         while (end + 1 < nVariants
-          && lOrd.equiv(variants(end).asInstanceOf[Row].get(0),
-            variants(end + 1).asInstanceOf[Row].get(0)))
+          && lOrd.equiv(variants(end).locusAlleles.asInstanceOf[Row].get(0),
+            variants(end + 1).locusAlleles.asInstanceOf[Row].get(0)))
           end += 1
         
         cb += Row(params.bed, start, end)

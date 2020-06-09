@@ -606,7 +606,7 @@ class PLINKTests(unittest.TestCase):
         hl.export_plink(mt, bfile, ind_id=mt.s, cm_position=mt.cm_position)
 
         mt_imported = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam',
-                                      a2_reference=True, reference_genome='GRCh37')
+                                      a2_reference=True, reference_genome='GRCh37', n_partitions=8)
         self.assertTrue(mt._same(mt_imported))
         self.assertTrue(mt.aggregate_rows(hl.agg.all(mt.cm_position == 15.0)))
 
