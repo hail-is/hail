@@ -51,8 +51,8 @@ async def healthcheck(request):  # pylint: disable=unused-argument
     return web.Response()
 
 
-def blocking_execute(jbackend, username, session_id, billing_project, code):
-    return jbackend.execute(username, session_id, billing_project, code)
+def blocking_execute(jbackend, username, session_id, billing_project, bucket, code):
+    return jbackend.execute(username, session_id, billing_project, bucket, code)
 
 
 @routes.post('/execute')
@@ -63,10 +63,11 @@ async def execute(request, userdata):
     jbackend = app['jbackend']
     body = await request.json()
     billing_project = body['billing_project']
+    bucket = body['bucket']
     code = body['code']
     log.info(f'execute: {code}')
     await add_user(app, userdata)
-    jresp = await blocking_to_async(thread_pool, blocking_execute, jbackend, userdata['username'], userdata['session_id'], billing_project, code)
+    jresp = await blocking_to_async(thread_pool, blocking_execute, jbackend, userdata['username'], userdata['session_id'], billing_project, bucket, code)
     return java_to_web_response(jresp)
 
 

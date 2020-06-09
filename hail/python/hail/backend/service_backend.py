@@ -17,7 +17,7 @@ from ..hail_logging import PythonOnlyLogger
 
 
 class ServiceBackend(Backend):
-    def __init__(self, billing_project: str = None, deploy_config=None, skip_logging_configuration=False):
+    def __init__(self, billing_project: str = None, bucket: str = None, deploy_config=None, skip_logging_configuration: bool = False):
         if billing_project is None:
             billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:
@@ -29,6 +29,15 @@ class ServiceBackend(Backend):
                 "or run 'hailctl config set batch/billing_project "
                 "MY_BILLING_PROJECT'")
         self._billing_project = billing_project
+
+        if bucket is None:
+            bucket = get_user_config().get('batch', 'bucket', fallback=None)
+        if bucket is None:
+            raise ValueError(
+                f'the bucket parameter of ServiceBackend must be set '
+                f'or run `hailctl config set batch/bucket '
+                f'MY_BUCKET`')
+        self._bucket = bucket
 
         if not deploy_config:
             deploy_config = get_deploy_config()
@@ -60,7 +69,8 @@ class ServiceBackend(Backend):
         code = self._render(ir)
         body = {
             'code': code,
-            'billing_project': self._billing_project
+            'billing_project': self._billing_project,
+            'bucket': self._bucket
         }
         resp = retry_response_returning_functions(
             requests.post,
