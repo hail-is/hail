@@ -7,69 +7,84 @@ import is.hail.utils._
 import is.hail.asm4s._
 import is.hail.types.physical._
 
-class RichCodeInputBuffer(in: Code[InputBuffer]) {
-  def readByte(): Code[Byte] = {
-    in.invoke[Byte]("readByte")
-  }
+class RichCodeInputBuffer(
+  val ib: Value[InputBuffer]
+) extends AnyVal {
+  def close(): Code[Unit] =
+    ib.invoke[Unit]("close")
 
-  def read(buf: Code[Array[Byte]], toOff: Code[Int], n: Code[Int]): Code[Unit] = {
-    in.invoke[Array[Byte], Int, Int, Unit]("read", buf, toOff, n)
-  }
+  def seek(offset: Code[Long]): Code[Unit] =
+    ib.invoke[Long, Unit]("seek", offset)
 
-  def readBoolean(): Code[Boolean] = {
-    in.invoke[Boolean]("readBoolean")
-  }
+  def readByte(): Code[Byte] =
+    ib.invoke[Byte]("readByte")
 
-  def readInt(): Code[Int] = {
-    in.invoke[Int]("readInt")
-  }
+  def read(buf: Code[Array[Byte]], toOff: Code[Int], n: Code[Int]): Code[Unit] =
+    ib.invoke[Array[Byte], Int, Int, Unit]("read", buf, toOff, n)
 
-  def readLong(): Code[Long] = {
-    in.invoke[Long]("readLong")
-  }
+  def readInt(): Code[Int] =
+    ib.invoke[Int]("readInt")
 
-  def readFloat(): Code[Float] = {
-    in.invoke[Float]("readFloat")
-  }
+  def readLong(): Code[Long] =
+    ib.invoke[Long]("readLong")
 
-  def readDouble(): Code[Double] = {
-    in.invoke[Double]("readDouble")
-  }
+  def readFloat(): Code[Float] =
+    ib.invoke[Float]("readFloat")
 
-  def readBytes(toRegion: Code[Region], toOff: Code[Long], n: Code[Int]): Code[Unit] = {
-    in.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
-  }
+  def readDouble(): Code[Double] =
+    ib.invoke[Double]("readDouble")
+
+  def readBytes(toRegion: Code[Region], toOff: Code[Long], n: Code[Int]): Code[Unit] =
+    ib.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
+
+  def readBytesArray(n: Code[Int]): Code[Array[Byte]] =
+    ib.invoke[Int, Array[Byte]]("readBytesArray", n)
+
+  def skipBoolean(): Code[Unit] =
+    ib.invoke[Unit]("skipBoolean")
+
+  def skipByte(): Code[Unit] =
+    ib.invoke[Unit]("skipByte")
+
+  def skipInt(): Code[Unit] =
+    ib.invoke[Unit]("skipInt")
+
+  def skipLong(): Code[Unit] =
+    ib.invoke[Unit]("skipLong")
+
+  def skipFloat(): Code[Unit] =
+    ib.invoke[Unit]("skipFloat")
+
+  def skipDouble(): Code[Unit] =
+    ib.invoke[Unit]("skipDouble")
+
+  def skipBytes(n: Code[Int]): Code[Unit] =
+    ib.invoke[Int, Unit]("skipBytes", n)
+
+  def readDoubles(to: Code[Array[Double]], off: Code[Int], n: Code[Int]): Code[Unit] =
+    ib.invoke[Array[Double], Int, Int, Unit]("readDoubles", to, off, n)
+
+  def readDoubles(to: Code[Array[Double]]): Code[Unit] =
+    ib.invoke[Array[Double], Unit]("readDoubles", to)
+
+  def readBoolean(): Code[Boolean] =
+    ib.invoke[Boolean]("readBoolean")
+
+  def readUTF(): Code[String] =
+    ib.invoke[String]("readUTF")
 
   def readBytes(toRegion: Value[Region], toOff: Code[Long], n: Int): Code[Unit] = {
     if (n == 0)
       Code._empty
     else if (n < 5)
       Code.memoize(toOff, "ib_ready_bytes_to") { toOff =>
-        Code.memoize(in, "ib_ready_bytes_in") { in =>
+        Code.memoize(ib, "ib_ready_bytes_in") { ib =>
           Code((0 until n).map(i =>
-            Region.storeByte(toOff.get + i.toLong, in.readByte())))
+            Region.storeByte(toOff.get + i.toLong, ib.readByte())))
         }
       }
     else
-      in.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
-  }
-
-  def readBytesArray(n: Code[Int]): Code[Array[Byte]] = in.invoke[Int, Array[Byte]]("readBytesArray", n)
-
-  def skipBoolean(): Code[Unit] = in.invoke[Unit]("skipBoolean")
-
-  def skipByte(): Code[Unit] = in.invoke[Unit]("skipByte")
-
-  def skipInt(): Code[Unit] = in.invoke[Unit]("skipInt")
-
-  def skipLong(): Code[Unit] = in.invoke[Unit]("skipLong")
-
-  def skipFloat(): Code[Unit] = in.invoke[Unit]("skipFloat")
-
-  def skipDouble(): Code[Unit] = in.invoke[Unit]("skipDouble")
-
-  def skipBytes(n: Code[Int]): Code[Unit] = {
-    in.invoke[Int, Unit]("skipBytes", n)
+      ib.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
   }
 
   def readPrimitive(typ: PType): Code[_] = typ.fundamentalType match {

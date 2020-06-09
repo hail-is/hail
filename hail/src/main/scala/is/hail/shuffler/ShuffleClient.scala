@@ -4,7 +4,7 @@ import java.net.Socket
 
 import is.hail._
 import is.hail.annotations._
-import is.hail.asm4s.Code
+import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.types.virtual._
 import is.hail.io._
@@ -59,42 +59,43 @@ object ShuffleClient {
   def codeSocket(): Code[Socket] =
     Code.invokeScalaObject0[Socket](ShuffleClient.getClass, "socket")
 
-  def openConnection(cb: EmitCodeBuilder, typ: TShuffle): (SocketCode, InputBufferValue, OutputBufferValue, LoggerCode) = {
-    val socketLocal = cb.emb.newLocal[Socket]("shuffleClientSocket")
-    cb.append(socketLocal := codeSocket())
-    val socket = new SocketCode(socketLocal)
+  def openConnection(
+    cb: EmitCodeBuilder,
+    typ: TShuffle
+  ): (Value[Socket], Value[InputBuffer], Value[OutputBuffer], Value[Logger]) = {
+    val socket = cb.newLocal[Socket]("shuffleClientSocket", codeSocket())
 
-    val inputBufferLocal = cb.emb.newLocal[InputBuffer]("shuffleClientInputBuffer")
-    cb.append(inputBufferLocal := typ.bufferSpec.buildCodeInputBuffer(socket.getInputStream()))
-    val in = new InputBufferValue(inputBufferLocal)
+    val in = cb.newLocal[InputBuffer](
+      "shuffleClientInputBuffer",
+      typ.bufferSpec.buildCodeInputBuffer(socket.getInputStream()))
 
-    val outputBufferLocal = cb.emb.newLocal[OutputBuffer]("shuffleClientOutputBuffer")
-    cb.append(outputBufferLocal := typ.bufferSpec.buildCodeOutputBuffer(socket.getOutputStream()))
-    val out = new OutputBufferValue(outputBufferLocal)
+    val out = cb.newLocal[OutputBuffer](
+      "shuffleClientOutputBuffer",
+      typ.bufferSpec.buildCodeOutputBuffer(socket.getOutputStream()))
 
-    val loggerLocal = cb.emb.newLocal[Logger]("shuffleClientLogger")
-    cb.append(loggerLocal := LoggerCode.getLogger[ShuffleClient]())
-    val log = new LoggerCode(loggerLocal)
+    val logger = cb.newLocal[Logger](
+      "shuffleClientLogger",
+      CodeLogger.getLogger[ShuffleClient]())
 
-    (socket, in, out, log)
+    (socket, in, out, logger)
   }
 
-  def openConnection(code: ArrayBuilder[Code[Unit]], mb: EmitMethodBuilder[_], typ: TShuffle): (SocketCode, InputBufferValue, OutputBufferValue, LoggerCode) = {
-    val socketLocal = mb.newLocal[Socket]("shuffleClientSocket")
-    code += (socketLocal := codeSocket())
-    val socket = new SocketCode(socketLocal)
+  def openConnection(
+    code: ArrayBuilder[Code[Unit]],
+    mb: EmitMethodBuilder[_],
+    typ: TShuffle
+  ): (Value[Socket], Value[InputBuffer], Value[OutputBuffer], Value[Logger]) = {
+    val socket = mb.newLocal[Socket]("shuffleClientSocket")
+    code += (socket := codeSocket())
 
-    val inputBufferLocal = mb.newLocal[InputBuffer]("shuffleClientInputBuffer")
-    code += (inputBufferLocal := typ.bufferSpec.buildCodeInputBuffer(socket.getInputStream()))
-    val in = new InputBufferValue(inputBufferLocal)
+    val in = mb.newLocal[InputBuffer]("shuffleClientInputBuffer")
+    code += (in := typ.bufferSpec.buildCodeInputBuffer(socket.getInputStream()))
 
-    val outputBufferLocal = mb.newLocal[OutputBuffer]("shuffleClientOutputBuffer")
-    code += (outputBufferLocal := typ.bufferSpec.buildCodeOutputBuffer(socket.getOutputStream()))
-    val out = new OutputBufferValue(outputBufferLocal)
+    val out = mb.newLocal[OutputBuffer]("shuffleClientOutputBuffer")
+    code += (out := typ.bufferSpec.buildCodeOutputBuffer(socket.getOutputStream()))
 
-    val loggerLocal = mb.newLocal[Logger]("shuffleClientLogger")
-    code += (loggerLocal := LoggerCode.getLogger[ShuffleClient]())
-    val log = new LoggerCode(loggerLocal)
+    val log = mb.newLocal[Logger]("shuffleClientLogger")
+    code += (log := CodeLogger.getLogger[ShuffleClient]())
 
     (socket, in, out, log)
   }

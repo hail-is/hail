@@ -9,7 +9,6 @@ import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.types.virtual._
 import is.hail.types.physical._
 import is.hail.types.encoded._
-import is.hail.io.{AbstractTypedCodecSpec, InputBuffer}
 import is.hail.utils._
 import java.io.{ DataOutputStream, InputStream, OutputStream }
 import java.net.Socket
@@ -1887,10 +1886,10 @@ object EmitStream {
                   val setup = Code(
                     Code(
                       Code(code.result()),
-                      log.info("CLNT get"),
+                      log.info("get"),
                       out.writeByte(Wire.GET),
                       uuidBytes := uuid.loadBytes(),
-                      log.info(const("CLNT get to uuid ").concat(uuidToString(uuidBytes))),
+                      log.info(const("get to uuid ").concat(uuidToString(uuidBytes))),
                       Wire.writeByteArray(out, uuidBytes)),
                     Code(
                       Code(
@@ -1898,26 +1897,26 @@ object EmitStream {
                         startInclusive := startInclusivet,
                         encodeKey(start),
                         out.writeByte(startInclusive.mux(1.toByte, 0.toByte)),
-                        log.info(const("CLNT wrote start key: ").concat(
-                          RegionCode.pretty(keyPType, start).concat(const(" isInclusive: ")).concat(
+                        log.info(const("wrote start key: ").concat(
+                          Region.pretty(keyPType, start).concat(const(" isInclusive: ")).concat(
                             startInclusive.toS)))),
                       Code(
                         end := endt,
                         endInclusive := endInclusivet,
                         encodeKey(end),
                         out.writeByte(endInclusive.mux(1.toByte, 0.toByte)),
-                        log.info(const("CLNT wrote end key: ").concat(
-                          RegionCode.pretty(keyPType, end)).concat(const(" isInclusive: ")).concat(
+                        log.info(const("wrote end key: ").concat(
+                          Region.pretty(keyPType, end)).concat(const(" isInclusive: ")).concat(
                           endInclusive.toS)),
                         out.flush(),
-                        log.info("CLNT get flush"))))
+                        log.info("get flush"))))
                   val close = Code(
-                    log.info("CLNT get sending EOS"),
+                    log.info("get sending EOS"),
                     out.writeByte(Wire.EOS),
                     out.flush(),
                     eosByte := in.readByte(),
                     Code._assert(eosByte.get.ceq(Wire.EOS), const("did not receive end of stream: ").concat(eosByte.get.toS)),
-                    log.info("CLNT get exiting cleanly"),
+                    log.info("get exiting cleanly"),
                     socket.close())
                   val stream = unfold[EmitCode](
                     { (_, k) =>
@@ -1952,19 +1951,19 @@ object EmitStream {
               val eosByte = mb.newLocal[Byte]("eosByte")
               val setup = Code(
                 Code(code.result()),
-                log.info("CLNT partitionBounds"),
+                log.info("partitionBounds"),
                 out.writeByte(Wire.PARTITION_BOUNDS),
                 uuidBytes := uuid.loadBytes(),
                 Wire.writeByteArray(out, uuidBytes),
                 out.writeInt(nPartitions),
                 out.flush())
               val close = Code(
-                log.info("CLNT get sending EOS"),
+                log.info("get sending EOS"),
                 out.writeByte(Wire.EOS),
                 out.flush(),
                 eosByte := in.readByte(),
                 Code._assert(eosByte.get.ceq(Wire.EOS), const("did not receive end of stream: ").concat(eosByte.get.toS)),
-                log.info("CLNT get exiting cleanly"),
+                log.info("get exiting cleanly"),
                 socket.close())
               val stream = unfold[EmitCode](
                 { (_, k) =>

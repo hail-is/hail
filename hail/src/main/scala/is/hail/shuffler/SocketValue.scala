@@ -5,11 +5,9 @@ import java.net.Socket
 
 import is.hail.asm4s._
 
-class SocketCode(
-  s: Value[Socket]
-) extends Value[Socket] {
-  def get: Code[Socket] = s.get
-
+class SocketValue (
+  val s: Value[Socket]
+) extends AnyVal {
   def getInputStream(): Code[InputStream] =
     s.invoke[InputStream]("getInputStream")
 

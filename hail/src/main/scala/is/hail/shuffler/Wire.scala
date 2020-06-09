@@ -7,6 +7,7 @@ import is.hail.expr.ir._
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._
+import is.hail.utils._
 import is.hail.io._
 import org.json4s.jackson._
 import com.fasterxml.jackson.core.{JsonGenerator, JsonParser}
@@ -35,7 +36,7 @@ object Wire {
     out.writeUTF(x.parsableString())
   }
 
-  def writeTStruct(out: OutputBufferValue, x: TStruct): Code[Unit] = {
+  def writeTStruct(out: Value[OutputBuffer], x: TStruct): Code[Unit] = {
     out.writeUTF(x.parsableString)
   }
 
@@ -63,7 +64,7 @@ object Wire {
     Code.invokeScalaObject1[String, PType](
       Wire.getClass, "deserializePType", x)
 
-  def writeEType(out: OutputBufferValue, x: EType): Code[Unit] = {
+  def writeEType(out: Value[OutputBuffer], x: EType): Code[Unit] = {
     out.writeUTF(x.parsableString())
   }
 
@@ -83,7 +84,7 @@ object Wire {
     IRParser.parse(x, EType.eTypeParser)
   }
 
-  def writeEBaseStruct(out: OutputBufferValue, x: EBaseStruct): Code[Unit] = {
+  def writeEBaseStruct(out: Value[OutputBuffer], x: EBaseStruct): Code[Unit] = {
     out.writeUTF(x.parsableString())
   }
 
@@ -105,7 +106,7 @@ object Wire {
     }
   }
 
-  def writeStringArray(out: OutputBufferValue, x: Array[String]): Code[Unit] = Code(
+  def writeStringArray(out: Value[OutputBuffer], x: Array[String]): Code[Unit] = Code(
     out.writeInt(x.length),
     Code(x.map(s => out.writeUTF(s))))
 
@@ -135,7 +136,7 @@ object Wire {
     readStringArray(new MemoryInputBuffer(mb))
   }
 
-  def writeSortFieldArray(out: OutputBufferValue, x: Array[SortField]): Code[Unit] = Code(
+  def writeSortFieldArray(out: Value[OutputBuffer], x: Array[SortField]): Code[Unit] = Code(
     out.writeInt(x.length),
     Code(x.map(sf => Code(
       out.writeUTF(sf.field),
@@ -168,7 +169,7 @@ object Wire {
     out.write(x)
   }
 
-  def writeByteArray(out: OutputBufferValue, _x: Value[Array[Byte]]): Code[Unit] = {
+  def writeByteArray(out: Value[OutputBuffer], _x: Value[Array[Byte]]): Code[Unit] = {
     val x = new CodeArray(_x)
     Code(
       out.writeInt(x.length),
@@ -180,7 +181,7 @@ object Wire {
     in.readBytesArray(n)
   }
 
-  def readByteArray(in: InputBufferValue): Code[Array[Byte]] =
+  def readByteArray(in: Value[InputBuffer]): Code[Array[Byte]] =
     in.readBytesArray(in.readInt())
 }
 

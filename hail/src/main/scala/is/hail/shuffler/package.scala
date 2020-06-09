@@ -1,6 +1,7 @@
 package is.hail
 
 import java.io._
+import java.net.Socket
 import java.security.KeyStore
 import java.util.Base64
 
@@ -9,6 +10,7 @@ import is.hail.asm4s._
 import is.hail.types.physical._
 import is.hail.io._
 import is.hail.utils._
+import org.apache.log4j.Logger
 import javax.net.ssl._;
 
 package object shuffler {
@@ -101,4 +103,8 @@ package object shuffler {
 
   def uuidToString(uuid: Code[Array[Byte]]): Code[String] =
     Code.invokeScalaObject1[Array[Byte], String](getClass, "uuidToString", uuid)
+
+  implicit def toLoggerValue(code: Value[Logger]): LoggerValue = new LoggerValue(code)
+
+  implicit def toSocketValue(code: Value[Socket]): SocketValue = new SocketValue(code)
 }
