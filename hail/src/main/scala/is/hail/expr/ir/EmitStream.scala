@@ -531,6 +531,16 @@ object Stream {
       val outx = mb.newEmitLocal(outElemType) // value to push
       val c = mb.newLocal[Int]()
 
+      // Invariants:
+      // * 'pulledRight' is false until after the first pull from 'left',
+      //   before the first pull from 'right'
+      // * 'rightEOS'/'leftEOS' are true iff 'left'/'right' have reached EOS
+      // * 'lx'/'rx' contain the most recent value received from 'left'/'right',
+      //   and are uninitialized before the first pull
+      // * 'c' contains the result of the most recent comparison, unless
+      //   'left'/'right' has reached EOS, in which case it is permanently set
+      //   to 1/-1.
+
       val Leos = CodeLabel()
       Code(Leos, eos)
       val LpullRight = CodeLabel()
@@ -542,7 +552,7 @@ object Stream {
           Leos.goto,
           Code(
             leftEOS := true,
-            c := 1,
+            c := 1, // 'c' will not change again
             pulledRight.mux(
               Lpush.goto,
               Code(pulledRight := true, LpullRight.goto)))),
@@ -555,12 +565,16 @@ object Stream {
           rightSource = right(
             eos = leftEOS.mux(
               Leos.goto,
-              Code(rightEOS := true, c := -1, Lpush.goto)),
+              Code(rightEOS := true, c := -1, Lpush.goto)), // 'c' will not change again
             push = b => Code(
               rx := b,
+              // If 'left' has ended, we know 'c' == 1, so jumping to 'Lpush'
+              // will push 'rx'. If 'right' has not ended, compare 'lx' and 'rx'
+              // and push smaller.
               leftEOS.mux(Lpush.goto, Lcompare.goto)))
 
           Code(Lpush,
+               // Push smaller of 'lx' and 'rx', with 'lx' breaking ties.
                (c <= 0).mux(outx := lx.castTo(mb, region, outElemType),
                             outx := rx.castTo(mb, region, outElemType)),
                push(outx))
@@ -568,6 +582,10 @@ object Stream {
 
           Code(
             lx := a,
+            // If this was the first pull, still need to pull from 'right.
+            // Otherwise, if 'right' has ended, we know 'c' == -1, so jumping
+            // to 'Lpush' will push 'lx'. If 'right' has not ended, compare 'lx'
+            // and 'rx' and push smaller.
             pulledRight.mux(
               rightEOS.mux(Lpush.goto, Lcompare.goto),
               Code(pulledRight := true, LpullRight.goto)))
@@ -578,6 +596,8 @@ object Stream {
         close0 = Code(leftSource.close0, rightSource.close0),
         setup = Code(pulledRight := false, leftEOS := false, rightEOS := false, c := 0, leftSource.setup, rightSource.setup),
         close = Code(leftSource.close, rightSource.close),
+        // On first pull, pull from 'left', then 'right', then compare.
+        // Subsequently, look at 'c' to pull from whichever side was last pushed.
         pull = leftEOS.mux(
           LpullRight.goto,
           (rightEOS || c <= 0).mux(leftSource.pull, LpullRight.goto)))
