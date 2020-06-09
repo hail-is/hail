@@ -33,6 +33,8 @@ have been specified to be uploaded by the user. These files can either be specif
 .. image:: _static/images/file_localization.png
 
 
+.. _service-accounts:
+
 Service Accounts
 ----------------
 
@@ -47,7 +49,7 @@ for more information about access control.
 
 .. code-block:: sh
 
-    gsutil iam ch serviceAccount:[SERVICE_ACCOUNT_NAME]:objectCreator,objectViewer gs://[BUCKET_NAME]
+    gsutil iam ch serviceAccount:[SERVICE_ACCOUNT_NAME]:objectAdmin gs://[BUCKET_NAME]
 
 The Google Container Repository (GCR) is a Docker repository hosted by Google that is an alternative
 to Dockerhub for storing images. It is recommended to use GCR for images that shouldn't be publically

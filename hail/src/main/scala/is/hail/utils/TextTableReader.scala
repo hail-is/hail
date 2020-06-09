@@ -194,23 +194,30 @@ object TextTableReader {
           (!params.hasHeader || line != headerLine) &&
           !(params.skipBlankLines && line.isEmpty)) {
 
-          val split = splitLine(line, delimiter, quote, ab, sb)
-          if (split.length != nFields)
-            fatal(s"expected $nFields fields, but found ${ split.length }")
+          try {
+            val split = splitLine(line, delimiter, quote, ab, sb)
+            if (split.length != nFields)
+              fatal(s"expected $nFields fields, but found ${ split.length }")
 
-          var i = 0
-          while (i < nFields) {
-            val field = split(i)
-            if (!missing.contains(field)) {
-              var j = 0
-              while (j < nMatchers) {
-                ma.update(i, j, ma(i, j) && matchers(j)(field))
-                j += 1
-              }
-              ma.update(i, nMatchers, false)
-            } else
-              allDefined(i) = false
-            i += 1
+            var i = 0
+            while (i < nFields) {
+              val field = split(i)
+              if (!missing.contains(field)) {
+                var j = 0
+                while (j < nMatchers) {
+                  ma.update(i, j, ma(i, j) && matchers(j)(field))
+                  j += 1
+                }
+                ma.update(i, nMatchers, false)
+              } else
+                allDefined(i) = false
+              i += 1
+            }
+          } catch {
+            case e: Throwable =>
+              fatal(
+                s"""Caught exception while reading ${ genericLine.file }: ${ e.getMessage }
+                   |  offending line: @1""".stripMargin, line, e)
           }
         }
       }
@@ -443,7 +450,6 @@ class TextTableReader(
                   fatal(
                     s"""Caught exception while reading ${ bline.file }: ${ e.getMessage }
                        |  offending line: @1""".stripMargin, line, e)
-
               }
             }
           }.map(_ => rvb.result().offset)

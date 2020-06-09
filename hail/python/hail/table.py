@@ -556,6 +556,25 @@ class Table(ExprContainer):
                     new_row._ir),
                 list(key_fields))))
 
+    @typecheck_method(keys=oneof(str, expr_any),
+                      named_keys=expr_any)
+    def _key_by_assert_sorted(self, *keys, **named_keys) -> 'Table':
+        key_fields, computed_keys = get_key_by_exprs("Table.key_by", keys, named_keys, self._row_indices)
+
+        if not computed_keys:
+            return Table(ir.TableKeyBy(self._tir, key_fields, is_sorted=True))
+        else:
+            new_row = self.row.annotate(**computed_keys)
+            base, cleanup = self._process_joins(new_row)
+
+            return cleanup(Table(
+                ir.TableKeyBy(
+                    ir.TableMapRows(
+                        ir.TableKeyBy(base._tir, []),
+                        new_row._ir),
+                    list(key_fields),
+                    is_sorted=True)))
+
     @typecheck_method(named_exprs=expr_any)
     def annotate_globals(self, **named_exprs) -> 'Table':
         """Add new global fields.
@@ -1177,6 +1196,7 @@ class Table(ExprContainer):
         Returns
         -------
         :class:`Table`
+
 
         .. include:: _templates/write_warning.rst
 

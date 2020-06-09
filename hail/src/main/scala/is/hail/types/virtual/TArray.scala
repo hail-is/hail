@@ -52,8 +52,10 @@ final case class TArray(elementType: Type) extends TContainer {
   override def genNonmissingValue: Gen[IndexedSeq[Annotation]] =
     Gen.buildableOf[Array](elementType.genValue).map(x => x: IndexedSeq[Annotation])
 
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.iterableOrdering(elementType.ordering)
+  override val ordering: ExtendedOrdering = mkOrdering()
+
+  def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+    ExtendedOrdering.iterableOrdering(elementType.ordering, missingEqual)
 
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
 

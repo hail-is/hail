@@ -544,7 +544,8 @@ class DownsampleAggregator(arrayType: PArray) extends StagedAggregator {
 
   val resultType: PArray = PCanonicalArray(PCanonicalTuple(required = true, PFloat64(true), PFloat64(true), PType.canonical(arrayType)))
 
-  def createState(cb: EmitCodeBuilder): State = new DownsampleState(cb.emb.ecb, arrayType)
+  val initOpTypes: Seq[PType] = Array(PInt32(true))
+  val seqOpTypes: Seq[PType] = Array(PFloat64(), PFloat64(), PType.canonical(arrayType))
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(nDivisions) = init

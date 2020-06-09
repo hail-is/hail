@@ -3,9 +3,8 @@
 
     <xsl:import href="template.xslt"/>
 
-    <xsl:template name="page-title">Hail</xsl:template>
-    <xsl:template name="meta-description">
-        <meta name="description" content="About Hail"/>
+    <xsl:template name="page-title">404</xsl:template>
+    <xsl:template name="meta-description"></xsl:template>
+    <xsl:template name="header">
     </xsl:template>
-
 </xsl:stylesheet>

@@ -276,6 +276,8 @@ def main(args, pass_through_args):
                                f"  Supported regions: {', '.join(REGION_TO_REPLICATE_MAPPING.keys())}")
         print(f"Pulling VEP data from bucket in {replicate}.")
         conf.extend_flag('metadata', {"VEP_REPLICATE": replicate})
+        vep_config_path = "/vep_data/vep-gcloud.json"
+        conf.extend_flag('metadata', {"VEP_CONFIG_PATH": vep_config_path, "VEP_CONFIG_URI": f"file://{vep_config_path}"})
         conf.extend_flag('initialization-actions', [deploy_metadata[f'vep-{args.vep}.sh']])
     # add custom init scripts
     if args.init:

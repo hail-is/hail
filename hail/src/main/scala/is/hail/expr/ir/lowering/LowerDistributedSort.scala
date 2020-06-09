@@ -37,19 +37,24 @@ object LowerDistributedSort {
 
     val ord: Ordering[Annotation] = ExtendedOrdering.rowOrdering(sortColIndexOrd).toOrdering
     val rows = rowsAndGlobal.getAs[IndexedSeq[Annotation]](0)
-    val sortedRows = ctx.timer.time("LowerDistributedSort.localSort.sort")(rows.sorted(ord))
+    val kType = TStruct(sortFields.map(f => (f.field, rowType.virtualType.fieldType(f.field))): _*)
+    val kIndex = kType.fieldNames.map(f => rowType.fieldIdx(f))
+    val sortedRows = ctx.timer.time("LowerDistributedSort.localSort.sort")(rows.sortBy{ a: Annotation =>
+      a.asInstanceOf[Row].select(kIndex).asInstanceOf[Annotation]
+    }(ord))
     val nPartitionsAdj = math.max(math.min(sortedRows.length, numPartitions), 1)
     val itemsPerPartition = (sortedRows.length.toDouble / nPartitionsAdj).ceil.toInt
 
-    val kType = TStruct(sortFields.takeWhile(_.sortOrder == Ascending).map(f => (f.field, rowType.virtualType.fieldType(f.field))): _*)
-    val kIndex = kType.fieldNames.map(f => rowType.fieldIdx(f))
-    val partitioner = new RVDPartitioner(kType,
+    // partitioner needs keys to be ascending
+    val partitionerKeyType = TStruct(sortFields.takeWhile(_.sortOrder == Ascending).map(f => (f.field, rowType.virtualType.fieldType(f.field))): _*)
+    val partitionerKeyIndex = partitionerKeyType.fieldNames.map(f => rowType.fieldIdx(f))
+
+    val partitioner = new RVDPartitioner(partitionerKeyType,
       sortedRows.grouped(itemsPerPartition).map { group =>
-        val first = group.head.asInstanceOf[Row].select(kIndex)
-        val last = group.last.asInstanceOf[Row].select(kIndex)
+        val first = group.head.asInstanceOf[Row].select(partitionerKeyIndex)
+        val last = group.last.asInstanceOf[Row].select(partitionerKeyIndex)
         Interval(first, last, includesStart = true, includesEnd = true)
-      }.toArray,
-      allowedOverlap = kType.size)
+      }.toIndexedSeq)
 
     new TableStage(letBindings = FastIndexedSeq.empty, Set(),
       globals = Literal(resultPType.fieldType("global").virtualType, rowsAndGlobal.get(1)),

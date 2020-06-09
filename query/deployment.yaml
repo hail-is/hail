@@ -36,6 +36,15 @@ spec:
              value: "{{ batch_pods_ns.name }}"
            - name: HAIL_SHA
              value: "{{ code.sha }}"
+           - name: HAIL_QUERY_WORKER_IMAGE
+             value: {{ query_image.image }}
+{% if deploy %}
+           - name: HAIL_QUERY_BUCKET
+             value: hail-query
+{% else %}
+           - name: HAIL_QUERY_BUCKET
+             value: hail-test-dmk9z
+{% endif %}
           ports:
            - containerPort: 5000
           volumeMounts:
@@ -44,6 +53,9 @@ spec:
              readOnly: true
            - name: session-secret-key
              mountPath: /session-secret-key
+             readOnly: true
+           - name: gsa-key
+             mountPath: /gsa-key
              readOnly: true
            - name: ssl-config
              mountPath: /ssl-config
@@ -67,6 +79,9 @@ spec:
        - name: session-secret-key
          secret:
            secretName: session-secret-key
+       - name: gsa-key
+         secret:
+           secretName: query-gsa-key
        - name: ssl-config
          secret:
            optional: false

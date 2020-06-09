@@ -21,6 +21,7 @@ from .compile import compile_comparison_binary, compiled_compare
 from .loop import loop
 from .time import strftime, strptime
 from .pca import pc_project
+from . import dnd
 
 __all__ = ['ld_score',
            'ld_score_regression',
@@ -58,4 +59,5 @@ __all__ = ['ld_score',
            'loop',
            'strptime',
            'strftime',
-           'pc_project']
+           'pc_project',
+           'dnd']

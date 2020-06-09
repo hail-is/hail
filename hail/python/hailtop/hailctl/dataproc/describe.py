@@ -18,7 +18,7 @@ def parse_schema(s):
             if s[i] == end_delimiter:
                 if s[:i]:
                     values.append(s[:i])
-                if element_type in ['Array', 'Set', 'Dict']:
+                if element_type in ['Array', 'Set', 'Dict', 'Tuple']:
                     return {'type': element_type, 'value': values}, s[i + 1:]
                 return {'type': element_type, 'value': OrderedDict(zip(keys, values))}, s[i + 1:]
 

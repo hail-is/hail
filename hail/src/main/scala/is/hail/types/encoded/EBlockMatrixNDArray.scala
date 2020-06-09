@@ -37,7 +37,7 @@ final case class EBlockMatrixNDArray(elementType: EType, override val required: 
     assert(pnd.elementType.required)
     val ndarray = coerce[Long](v)
     val i = mb.newLocal[Long]("i")
-    val j = mb.newLocal[Long]("i")
+    val j = mb.newLocal[Long]("j")
     val r = mb.newLocal[Long]("r")
     val c = mb.newLocal[Long]("c")
     val writeElemF = elementType.buildEncoder(pnd.elementType, mb.ecb)

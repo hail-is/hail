@@ -4,14 +4,16 @@ import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.Value
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.EmitStream.SizedStream
+import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
 import is.hail.expr.ir.functions._
 import is.hail.types.{RStruct, RTable}
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
+import is.hail.rvd.RVDSpecMaker
 import is.hail.utils.{FastIndexedSeq, _}
-import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
+import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import scala.language.existentials
 
@@ -289,15 +291,6 @@ final case class StreamFor(a: IR, valueName: String, body: IR) extends IR
 final case class StreamAgg(a: IR, name: String, query: IR) extends IR
 final case class StreamAggScan(a: IR, name: String, query: IR) extends IR
 
-trait InferredPhysicalAggSignature {
-  // will be filled in by InferPType in subsequent PR
-  var physicalSignatures: Array[AggStatePhysicalSignature] = _
-
-  def signature: IndexedSeq[AggStateSignature]
-}
-final case class RunAgg(body: IR, result: IR, signature: IndexedSeq[AggStateSignature]) extends IR with InferredPhysicalAggSignature
-final case class RunAggScan(array: IR, name: String, init: IR, seqs: IR, result: IR, signature: IndexedSeq[AggStateSignature]) extends IR with InferredPhysicalAggSignature
-
 object StreamJoin {
   def apply(
     left: IR, right: IR,
@@ -426,22 +419,18 @@ final case class ApplyScanOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[I
   def op: AggOp = aggSig.op
 }
 
-object InitOp {
-  def apply(i: Int, args: IndexedSeq[IR], aggSig: AggSignature): InitOp = InitOp(i, args, AggStateSignature(aggSig), aggSig.op)
-}
-final case class InitOp(i: Int, args: IndexedSeq[IR], aggSig: AggStateSignature, op: AggOp) extends IR
+final case class InitOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSig) extends IR
+final case class SeqOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSig) extends IR
+final case class CombOp(i1: Int, i2: Int, aggSig: PhysicalAggSig) extends IR
+final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[PhysicalAggSig]) extends IR
+final case class CombOpValue(i: Int, value: IR, aggSig: PhysicalAggSig) extends IR
+final case class AggStateValue(i: Int, aggSig: AggStateSig) extends IR
 
-object SeqOp {
-  def apply(i: Int, args: IndexedSeq[IR], aggSig: AggSignature): SeqOp = SeqOp(i, args, AggStateSignature(aggSig), aggSig.op)
-}
-final case class SeqOp(i: Int, args: IndexedSeq[IR], aggSig: AggStateSignature, op: AggOp) extends IR
-final case class CombOp(i1: Int, i2: Int, aggSig: AggStateSignature) extends IR
-final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[AggStateSignature]) extends IR
-final case class CombOpValue(i: Int, value: IR, aggSig: AggStateSignature) extends IR
-final case class AggStateValue(i: Int, aggSig: AggStateSignature) extends IR
+final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSig]) extends IR
+final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSig]) extends IR
 
-final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSignature]) extends IR
-final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSignature]) extends IR
+final case class RunAgg(body: IR, result: IR, signature: IndexedSeq[AggStateSig]) extends IR
+final case class RunAggScan(array: IR, name: String, init: IR, seqs: IR, result: IR, signature: IndexedSeq[AggStateSig]) extends IR
 
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: Seq[(String, IR)]) extends IR
@@ -589,6 +578,38 @@ object PartitionReader {
     new ETypeSerializer
 }
 
+object PartitionWriter {
+  implicit val formats: Formats = new DefaultFormats() {
+    override val typeHints = ShortTypeHints(List(
+      classOf[PartitionNativeWriter],
+      classOf[AbstractTypedCodecSpec],
+      classOf[TypedCodecSpec])
+    ) + BufferSpec.shortTypeHints
+    override val typeHintFieldName = "name"
+  }  +
+    new TStructSerializer +
+    new TypeSerializer +
+    new PTypeSerializer +
+    new PStructSerializer +
+    new ETypeSerializer
+}
+
+object MetadataWriter {
+  implicit val formats: Formats = new DefaultFormats() {
+    override val typeHints = ShortTypeHints(List(
+      classOf[MetadataNativeWriter],
+      classOf[RVDSpecMaker],
+      classOf[AbstractTypedCodecSpec],
+      classOf[TypedCodecSpec])
+    ) + BufferSpec.shortTypeHints
+    override val typeHintFieldName = "name"
+  }  +
+    new TStructSerializer +
+    new TypeSerializer +
+    new PTypeSerializer +
+    new ETypeSerializer
+}
+
 abstract class PartitionReader {
   def contextType: Type
 
@@ -607,7 +628,34 @@ abstract class PartitionReader {
   def toJValue: JValue
 }
 
+abstract class PartitionWriter {
+  def consumeStream(
+    context: EmitCode,
+    eltType: PStruct,
+    mb: EmitMethodBuilder[_],
+    region: Value[Region],
+    stream: SizedStream): EmitCode
+
+  def ctxType: Type
+  def returnType: Type
+  def returnPType(ctxType: PType, streamType: PStream): PType
+
+  def toJValue: JValue = Extraction.decompose(this)(PartitionWriter.formats)
+}
+
+abstract class MetadataWriter {
+  def annotationType: Type
+  def writeMetadata(
+    writeAnnotations: => IEmitCode,
+    cb: EmitCodeBuilder,
+    region: Value[Region]): Unit
+
+  def toJValue: JValue = Extraction.decompose(this)(MetadataWriter.formats)
+}
+
 final case class ReadPartition(context: IR, rowType: Type, reader: PartitionReader) extends IR
+final case class WritePartition(value: IR, writeCtx: IR, writer: PartitionWriter) extends IR
+final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) extends IR
 
 final case class ReadValue(path: IR, spec: AbstractTypedCodecSpec, requestedType: Type) extends IR
 final case class WriteValue(value: IR, pathPrefix: IR, spec: AbstractTypedCodecSpec) extends IR
@@ -615,7 +663,13 @@ final case class WriteValue(value: IR, pathPrefix: IR, spec: AbstractTypedCodecS
 final case class UnpersistBlockMatrix(child: BlockMatrixIR) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
-  def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)
+  def +(other: IR): IR = {
+    assert(self.typ == other.typ)
+    if (self.typ == TString)
+      invoke("concat", TString, self, other)
+    else
+      ApplyBinaryPrimOp(Add(), self, other)
+  }
   def -(other: IR): IR = ApplyBinaryPrimOp(Subtract(), self, other)
   def *(other: IR): IR = ApplyBinaryPrimOp(Multiply(), self, other)
   def /(other: IR): IR = ApplyBinaryPrimOp(FloatingPointDivide(), self, other)

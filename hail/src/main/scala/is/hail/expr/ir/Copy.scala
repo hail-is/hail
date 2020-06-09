@@ -223,18 +223,21 @@ object Copy {
       case GetField(_, name) =>
         assert(newChildren.length == 1)
         GetField(newChildren(0).asInstanceOf[IR], name)
-      case InitOp(i, _, aggSig, op) =>
-        InitOp(i, newChildren.map(_.asInstanceOf[IR]), aggSig, op)
-      case SeqOp(i, _, aggSig, op) =>
-        SeqOp(i, newChildren.map(_.asInstanceOf[IR]), aggSig, op)
-      case x@(_: ResultOp | _: CombOp | _: AggStateValue) =>
-        assert(newChildren.isEmpty)
-        x
+      case InitOp(i, _, aggSig) =>
+        InitOp(i, newChildren.map(_.asInstanceOf[IR]), aggSig)
+      case SeqOp(i, _, aggSig) =>
+        SeqOp(i, newChildren.map(_.asInstanceOf[IR]), aggSig)
+      case ResultOp(i, aggSigs) =>
+        ResultOp(i, aggSigs)
+      case CombOp(i1, i2, aggSig) =>
+        CombOp(i1, i2, aggSig)
+      case AggStateValue(i, aggSig) =>
+        AggStateValue(i, aggSig)
       case CombOpValue(i, _, aggSig) =>
         assert(newChildren.length == 1)
         CombOpValue(i, newChildren(0).asInstanceOf[IR], aggSig)
-      case x: SerializeAggs => x
-      case x: DeserializeAggs => x
+      case SerializeAggs(startIdx, serIdx, spec, aggSigs) => SerializeAggs(startIdx, serIdx, spec, aggSigs)
+      case DeserializeAggs(startIdx, serIdx, spec, aggSigs) => DeserializeAggs(startIdx, serIdx, spec, aggSigs)
       case Begin(_) =>
         Begin(newChildren.map(_.asInstanceOf[IR]))
       case x@ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
@@ -328,6 +331,12 @@ object Copy {
       case ReadPartition(context, rowType, reader) =>
         assert(newChildren.length == 1)
         ReadPartition(newChildren(0).asInstanceOf[IR], rowType, reader)
+      case WritePartition(stream, ctx, writer) =>
+        assert(newChildren.length == 2)
+        WritePartition(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], writer)
+      case WriteMetadata(ctx, writer) =>
+        assert(newChildren.length == 1)
+        WriteMetadata(newChildren(0).asInstanceOf[IR], writer)
       case ReadValue(path, spec, requestedType) =>
         assert(newChildren.length == 1)
         ReadValue(newChildren(0).asInstanceOf[IR], spec, requestedType)

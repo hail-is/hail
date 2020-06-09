@@ -1,6 +1,7 @@
 #!/bin/bash
 
 export PROJECT="$(gcloud config get-value project)"
+export VEP_CONFIG_PATH="$(/usr/share/google/get_metadata_value attributes/VEP_CONFIG_PATH)"
 export VEP_REPLICATE="$(/usr/share/google/get_metadata_value attributes/VEP_REPLICATE)"
 export VEP_BUCKET=hail-${VEP_REPLICATE}-vep
 export ASSEMBLY=GRCh38
@@ -25,7 +26,7 @@ apt-get install -y --allow-unauthenticated docker-ce
 
 # Get VEP cache and LOFTEE data
 gsutil -u $PROJECT cp gs://hail-us-vep/vep95-GRCh38-loftee-gcloud.json /vep_data/vep95-GRCh38-gcloud.json
-ln -s /vep_data/vep95-GRCh38-gcloud.json /vep_data/vep-gcloud.json
+ln -s /vep_data/vep95-GRCh38-gcloud.json $VEP_CONFIG_PATH
 
 gsutil -u $PROJECT cat gs://${VEP_BUCKET}/loftee-beta/${ASSEMBLY}.tar | tar -xf - -C /vep_data/ &
 gsutil -u $PROJECT cat gs://${VEP_BUCKET}/Plugins.tar /vep_data/Plugins.tar | tar -xf - -C /vep_data

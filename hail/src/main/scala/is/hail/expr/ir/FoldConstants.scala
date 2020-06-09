@@ -19,6 +19,7 @@ object FoldConstants {
            _: UUID4 |
            _: ApplyAggOp |
            _: ApplyScanOp |
+           _: AggLet |
            _: Begin |
            _: MakeNDArray |
            _: NDArrayShape |

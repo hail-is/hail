@@ -2453,6 +2453,7 @@ class MatrixTable(ExprContainer):
         -------
         :class:`MatrixTable`
 
+
         .. include:: _templates/write_warning.rst
 
         Notes

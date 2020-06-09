@@ -1,6 +1,3 @@
-
-/* Global */
-
 html {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
   font-size: 100%;
@@ -129,8 +126,20 @@ img {
   height: calc(100vh - 50px);
   min-height: 480px;
   display: flex;
-  justify-content: center;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  flex-direction: row;
+}
+
+section.left div {
+  max-width: 800px;
+}
+
+#all-hero-content {
+  justify-content: space-between;
+  align-items: center;
+  display: flex;
+  width: 100%;
 }
 
 #hero-background {
@@ -144,7 +153,6 @@ img {
 
 #hero-button-container {
   display: flex;
-  width: 250px;
   margin-top: 1.5625rem;
 }
 
@@ -173,6 +181,16 @@ img {
   padding: 75px 50px;
 }
 
+.about > .content {
+  display: flex;
+  flex-direction: column;
+}
+
+#learn-more {
+  align-self: flex-end;
+  margin-top: 30px;
+}
+
 .about-content.columns {
   display: flex;
   align-content: center;
@@ -184,8 +202,11 @@ img {
 }
 
 .about-content.columns p {
-  margin: 0px;
   align-self: flex-start;
+}
+
+#home .about section > *{
+  margin: 20px auto
 }
 
 .about-content.columns > section:nth-child(2n) {
@@ -214,6 +235,7 @@ nav a {
 
 a {
   font-weight: 700;
+  text-decoration: underline;
 }
 
 .about.dark {
@@ -262,7 +284,7 @@ a {
 }
 
 #logo-title {
-  font-size: 3.85rem;
+  font-size: 4.25rem;
   color: #283891;
   animation: ease-in 0.25s in;
   animation-fill-mode: forwards;
@@ -273,7 +295,7 @@ a {
   padding-bottom: 1.875rem;
 }
 
-#logo-subtitle {
+.logo-subtitle {
   background: #fff;
   font-size: 1rem;
   animation: ease-in 0.3s in;
@@ -287,20 +309,31 @@ a {
   flex-direction: column;
   z-index: 1;
   align-items: flex-start;
-  padding: 50px 100px 50px 50px;
+  padding: 50px 50px 50px 50px;
   background: #fff;
   box-shadow: 0px 0px 25px 20px rgba(255,255,255, 1);
   border-radius: 50px;
-  max-width: calc(44rem + 100px);
+  max-width: calc(48rem + 100px);
 }
 
-#hero-content.wide {
-  display: block;
+#hero-content-right {
+  background: white;
+  padding: 50px 50px 50px 50px;
   z-index: 1;
-  padding: 50px 100px 50px 50px;
-  box-shadow: none;
+  font-size: .875rem;
+}
+
+#hero-content-right pre {
+  font-family: monospace!important;
+  padding: 2rem;
   border-radius: 0px;
-  text-align: l;
+  box-shadow: 0px 2px 5px 0px rgba(68,68,68,.5);
+  border-top: 0px;
+  border-left: 0px;
+  border-right: 0px;
+  min-width: 515px;
+  margin: 0px;
+  background: inherit;
 }
 
 /* Modified for Hail*/
@@ -311,7 +344,6 @@ a {
 
 a {
   background-color: transparent;
-  text-decoration: none;
   color: inherit;
 }
 
@@ -565,11 +597,15 @@ template {
 
 @media only screen and (max-width: 950px) {
   .about-content.columns > section:nth-child(2n) {
-    margin: 4rem 0;
+    margin: 25px 0;
   }
 
   .about-content.columns {
     flex-direction: column;
+  }
+
+  #learn-more {
+    align-self: center;
   }
 }
 
@@ -639,8 +675,6 @@ template {
   }
 }
 
-/* references.html */
-
 code, samp, kbd {
   color: #000;
   font-family: monospace, monospace;
@@ -689,4 +723,92 @@ pre code {
 
 .sourceCode {
   border-color: #ddd;
+}
+
+#hero-content-right pre {
+  margin-bottom: 5px;
+}
+
+.about code[class*=language-], pre[class*=language-] {
+  font-family: monospace;
+}
+
+/* help pages */
+
+#gethelp .about {
+  padding-top: 50px;
+}
+#gethelp .about section {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  margin: 25px 0px;
+}
+
+#gethelp .about section .button {
+  margin-right: 25px;
+  width: 160px;
+  min-width: 160px;
+}
+
+#gethelp .about section.left * + * {
+  max-width: 800px;
+}
+
+#gethelp .about section:first-child {
+  margin-top: 0px;
+}
+
+@media only screen and (max-width:480px) {
+  #gethelp .about section {
+      display: flex;
+      justify-content: flex-start;
+      align-items: flex-start;
+      flex-direction: column;
+      margin: 25px 0px;
+  }
+
+  #gethelp .about section .button {
+      margin-bottom: 25px;
+  }
+}
+
+/* /help */
+
+@media only screen and (min-width: 2048px) {
+  #all-hero-content, .about > .content {
+    width: 2048px;
+    margin: auto;
+  }
+
+  #hero-content {
+    padding-left: 0px;
+  }
+
+  #hero-content-right {
+    padding-right: 0px;
+  }
+
+  .non-home  .about, .non-home #hero-content.wide{
+    padding-left: 50px;
+    max-width: 2048px;
+    width: 2048px;
+    margin: auto;
+  }
+}
+
+@media only screen and (max-width: 1520px) {
+  #hero-content-right {
+    display: none;
+  }
+}
+
+@media only screen and (max-width: 2048px) {
+  #hero-content {
+    padding-right: 50px;
+  }
+
+  #hero {
+    justify-content: flex-start;
+  }
 }

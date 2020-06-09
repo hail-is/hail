@@ -40,7 +40,10 @@ final case class TSet(elementType: Type) extends TContainer {
     sb.append("]")
   }
 
-  lazy val ordering: ExtendedOrdering = ExtendedOrdering.setOrdering(elementType.ordering)
+  override lazy val ordering: ExtendedOrdering = mkOrdering()
+
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+    ExtendedOrdering.setOrdering(elementType.ordering, missingEqual)
 
   override def _showStr(a: Annotation): String =
     a.asInstanceOf[Set[Annotation]]

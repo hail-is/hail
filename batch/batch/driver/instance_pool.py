@@ -1,3 +1,4 @@
+import os
 import secrets
 import random
 import json
@@ -9,14 +10,18 @@ import sortedcontainers
 import aiohttp
 from hailtop.utils import time_msecs, secret_alnum_string
 
-from ..batch_configuration import DEFAULT_NAMESPACE, BATCH_WORKER_IMAGE, \
-    PROJECT, WORKER_MAX_IDLE_TIME_MSECS, STANDING_WORKER_MAX_IDLE_TIME_MSECS, \
+from ..batch_configuration import DEFAULT_NAMESPACE, PROJECT, \
+    WORKER_MAX_IDLE_TIME_MSECS, STANDING_WORKER_MAX_IDLE_TIME_MSECS, \
     ENABLE_STANDING_WORKER
 
 from .instance import Instance
 from ..worker_config import WorkerConfig
 
 log = logging.getLogger('instance_pool')
+
+BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
+
+log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 
 class InstancePool:
@@ -414,18 +419,18 @@ gsutil -m cp run.log worker.log /var/log/syslog dockerd.log  gs://$WORKER_LOGS_B
         await instance.mark_deleted('deleted', timestamp)
 
     async def handle_event(self, event):
-        if not event.payload:
+        payload = event.get('jsonPayload')
+        if payload is None:
             log.warning(f'event has no payload')
             return
 
         timestamp = event.timestamp.timestamp() * 1000
-        payload = event.payload
         version = payload['version']
         if version != '1.2':
             log.warning('unknown event verison {version}')
             return
 
-        resource_type = event.resource.type
+        resource_type = event['resource']['type']
         if resource_type != 'gce_instance':
             log.warning(f'unknown event resource type {resource_type}')
             return

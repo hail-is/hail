@@ -113,15 +113,50 @@ class RVD(
     isSorted: Boolean = false
   ): RVD = {
     require(newKey.forall(rowType.hasField))
-    val nPreservedFields = typ.key.zip(newKey).takeWhile { case (l, r) => l == r }.length
-    require(!isSorted || nPreservedFields > 0 || newKey.isEmpty)
+    val sharedPrefixLength = typ.key.zip(newKey).takeWhile { case (l, r) => l == r }.length
+    val maybeKeys = if (newKey.toSet.subsetOf(typ.key.toSet)) {
+      partitioner.keysIfOneToOne()
+    } else None
+    if (isSorted && sharedPrefixLength == 0 && !newKey.isEmpty && maybeKeys.isEmpty) {
+      throw new IllegalArgumentException(s"$isSorted, $sharedPrefixLength, $newKey, ${maybeKeys.isDefined}, ${typ}, ${partitioner}")
+    }
 
-    if (nPreservedFields == newKey.length)
+    if (sharedPrefixLength == newKey.length)
       this
     else if (isSorted)
-      truncateKey(newKey.take(nPreservedFields))
-        .extendKeyPreservesPartitioning(execCtx, newKey)
-        .checkKeyOrdering()
+      maybeKeys match {
+        case None =>
+          truncateKey(newKey.take(sharedPrefixLength))
+            .extendKeyPreservesPartitioning(execCtx, newKey)
+            .checkKeyOrdering()
+        case Some(keys) =>
+          val oldRVDType = typ
+          val oldKeyPType = oldRVDType.kType
+          val oldKeyVType = oldKeyPType.virtualType
+          val newRVDType = oldRVDType.copy(key = newKey)
+          val newKeyPType = newRVDType.kType
+          val newKeyVType = newKeyPType.virtualType
+          var keyInfo = keys.zipWithIndex.map { case (oldKey, partitionIndex) =>
+            val newKey = new SelectFieldsRow(oldKey, oldKeyPType, newKeyPType)
+            RVDPartitionInfo(
+              partitionIndex,
+              1,
+              newKey,
+              newKey,
+              Array[Any](newKey),
+              RVDPartitionInfo.KSORTED,
+              s"out-of-order partitions $newKey")
+          }
+          val kOrd = PartitionBoundOrdering(newKeyVType).toOrdering
+          keyInfo = keyInfo.sortBy(_.min)(kOrd)
+          val bounds = keyInfo.map(_.interval).toFastIndexedSeq
+          val pids = keyInfo.map(_.partitionIndex).toArray
+          val unfixedPartitioner = new RVDPartitioner(newKeyVType, bounds)
+          val newPartitioner = RVDPartitioner.generate(
+            newRVDType.key, newKeyVType, bounds)
+          RVD(newRVDType, unfixedPartitioner, crdd.reorderPartitions(pids))
+            .repartition(execCtx, newPartitioner, shuffle = false)
+      }
     else
       changeKey(execCtx, newKey)
   }
@@ -245,9 +280,9 @@ class RVD(
       val partBc = newPartitioner.broadcast(crdd.sparkContext)
       val enc = TypedCodecSpec(rowPType, BufferSpec.wireSpec)
 
-      val filtered: RVD = if (filter) filterWithContext[(UnsafeRow, KeyedRow)]({ case (_, _) =>
+      val filtered: RVD = if (filter) filterWithContext[(UnsafeRow, SelectFieldsRow)]({ case (_, _) =>
         val ur = new UnsafeRow(localRowPType, null, 0)
-        val key = new KeyedRow(ur, newType.kFieldIdx)
+        val key = new SelectFieldsRow(ur, newType.kFieldIdx)
         (ur, key)
       }, { case ((ur, key), ctx, ptr) =>
         ur.set(ctx.r, ptr)
@@ -760,7 +795,7 @@ class RVD(
 
   def write(ctx: ExecuteContext, path: String, idxRelPath: String, stageLocally: Boolean, codecSpec: AbstractTypedCodecSpec): Array[Long] = {
     val (partFiles, partitionCounts) = crdd.writeRows(ctx, path, idxRelPath, typ, stageLocally, codecSpec)
-    val spec = MakeRVDSpec(typ.key, codecSpec, partFiles, partitioner, IndexSpec.emptyAnnotation(idxRelPath, typ.kType))
+    val spec = MakeRVDSpec(codecSpec, partFiles, partitioner, IndexSpec.emptyAnnotation(idxRelPath, typ.kType))
     spec.write(ctx.fs, path)
     partitionCounts
   }
@@ -1423,7 +1458,7 @@ object RVD {
     else
       new RVD(typ, partitioner, crdd).checkKeyOrdering()
   }
-  
+
   def unify(rvds: Seq[RVD]): Seq[RVD] = {
     if (rvds.length == 1 || rvds.forall(_.rowPType == rvds.head.rowPType))
       return rvds

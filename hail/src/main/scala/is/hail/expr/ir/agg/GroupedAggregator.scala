@@ -265,8 +265,8 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
   assert(kt.isCanonical)
   val resultEltType: PTuple = PCanonicalTuple(true, nestedAggs.map(_.resultType): _*)
   val resultType: PDict = PCanonicalDict(kt, resultEltType)
-
-  def createState(cb: EmitCodeBuilder): State = new DictState(cb.emb.ecb, kt, StateTuple(nestedAggs.map(_.createState(cb))))
+  val initOpTypes: Seq[PType] = Array(PVoid)
+  val seqOpTypes: Seq[PType] = Array(kt, PVoid)
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(inits) = init

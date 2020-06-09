@@ -4,6 +4,7 @@ import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
+import is.hail.types.virtual._
 import is.hail.types.physical._
 import is.hail.utils._
 import is.hail.variant.Locus
@@ -244,12 +245,40 @@ object SafeIndexedSeq {
     apply(t, rv.offset)
 }
 
-class KeyedRow(var row: Row, keyFields: Array[Int]) extends Row {
-  def length: Int = row.size
-  def get(i: Int): Any = row.get(keyFields(i))
-  def copy(): Row = new KeyedRow(row, keyFields)
-  def set(newRow: Row): KeyedRow = {
-    row = newRow
+class SelectFieldsRow(
+  private[this] var old: Row,
+  private[this] val fieldMapping: Array[Int]
+) extends Row {
+  def this(
+    old: Row,
+    oldPType: TStruct,
+    newPType: TStruct
+  ) = this(old, newPType.fieldNames.map(name => oldPType.fieldIdx(name)))
+
+  def this(
+    old: Row,
+    oldPType: PStruct,
+    newPType: PStruct
+  ) = {
+    this(old,
+      (require(
+        oldPType.fields.length <= old.length &&
+          newPType.fields.length <= old.length,
+        s"${oldPType}, ${newPType} ${old.length} $old")
+        ->
+        newPType.fieldNames.map(name => oldPType.fieldIdx(name)))._2
+    )
+  }
+
+  require(fieldMapping.forall(x => x < old.length),
+    s"${fieldMapping.toSeq}, ${old.length} $old")
+
+  override def length = fieldMapping.length
+  override def get(i: Int) = old.get(fieldMapping(i))
+  override def isNullAt(i: Int) = old.isNullAt(fieldMapping(i))
+  override def copy(): Row = new SelectFieldsRow(old.copy(), fieldMapping)
+  def set(newRow: Row): SelectFieldsRow = {
+    old = newRow
     this
   }
 }

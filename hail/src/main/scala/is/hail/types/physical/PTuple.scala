@@ -20,13 +20,10 @@ trait PTuple extends PBaseStruct {
   protected val tupleFundamentalType: PTuple
   override lazy val fundamentalType: PTuple = tupleFundamentalType
 
-  final def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering =
-    codeOrdering(mb, other, null)
-
-  final def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: Array[SortOrder]): CodeOrdering = {
+  final def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: Array[SortOrder], missingFieldsEqual: Boolean): CodeOrdering = {
     assert(other isOfType this)
     assert(so == null || so.size == types.size)
-    CodeOrdering.rowOrdering(this, other.asInstanceOf[PTuple], mb, so)
+    CodeOrdering.rowOrdering(this, other.asInstanceOf[PTuple], mb, so, missingFieldsEqual)
   }
 
   def identBase: String = "tuple"

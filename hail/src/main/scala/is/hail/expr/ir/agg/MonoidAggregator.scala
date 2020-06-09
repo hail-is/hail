@@ -19,9 +19,8 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   type State = PrimitiveRVAState
   val typ: PType = monoid.typ
   val resultType: PType = typ.setRequired(monoid.neutral.isDefined)
-
-  def createState(cb: EmitCodeBuilder): State =
-    new PrimitiveRVAState(Array(typ.setRequired(monoid.neutral.isDefined)), cb.emb.ecb)
+  val initOpTypes: Seq[PType] = Array[PType]()
+  val seqOpTypes: Seq[PType] = Array[PType](typ)
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)

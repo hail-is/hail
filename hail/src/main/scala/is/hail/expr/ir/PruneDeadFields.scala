@@ -1699,6 +1699,18 @@ object PruneDeadFields {
           valueName,
           rebuildIR(body, env.bindEval(accumName -> z2.typ, valueName -> a2.typ.asInstanceOf[TStream].elementType), memo)
         )
+      case StreamFold2(a: IR, accum, valueName, seqs, result) =>
+        val a2 = rebuildIR(a, env, memo)
+        val newAccum = accum.map { case (n, z) => n -> rebuildIR(z, env, memo) }
+        val newEnv = env
+          .bindEval(valueName -> a2.typ.asInstanceOf[TStream].elementType)
+          .bindEval(newAccum.map { case (n, z) => n -> z.typ }: _*)
+        StreamFold2(
+          a2,
+          newAccum,
+          valueName,
+          seqs.map(rebuildIR(_, newEnv, memo)),
+          rebuildIR(result, newEnv, memo))
       case StreamScan(a, zero, accumName, valueName, body) =>
         val a2 = rebuildIR(a, env, memo)
         val z2 = rebuildIR(zero, env, memo)

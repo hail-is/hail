@@ -12,11 +12,12 @@ import is.hail.types.TableType
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.expr.Nat
+import is.hail.expr.ir.agg.{CallStatsStateSig, CollectStateSig, GroupedAggSig, PhysicalAggSig, TypedStateSig}
 import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
-import is.hail.rvd.RVD
+import is.hail.rvd.{RVD, RVDPartitioner, RVDSpecMaker}
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
 import is.hail.{ExecStrategy, HailContext, HailSuite}
@@ -1852,6 +1853,8 @@ class IRSuite extends HailSuite {
       Seq(
         MakeStruct(Seq("a" -> I32(3), "b" -> I32(1))),
         MakeStruct(Seq("a" -> I32(3), "b" -> I32(3))),
+        MakeStruct(Seq("a" -> NA(TInt32), "b" -> I32(-1))),
+        MakeStruct(Seq("a" -> NA(TInt32), "b" -> I32(-2))),
         MakeStruct(Seq("a" -> I32(1), "b" -> I32(2))),
         MakeStruct(Seq("a" -> I32(1), "b" -> I32(4))),
         MakeStruct(Seq("a" -> I32(1), "b" -> I32(6))),
@@ -1862,12 +1865,14 @@ class IRSuite extends HailSuite {
     assertEvalsTo(toNestedArray(group(naa)), null)
     assertEvalsTo(toNestedArray(group(a)),
                   FastIndexedSeq(FastIndexedSeq(Row(3, 1), Row(3, 3)),
+                                 FastIndexedSeq(Row(null, -1)),
+                                 FastIndexedSeq(Row(null, -2)),
                                  FastIndexedSeq(Row(1, 2), Row(1, 4), Row(1, 6)),
                                  FastIndexedSeq(Row(4, null))))
     assertEvalsTo(toNestedArray(group(MakeStream(Seq(), TStream(structType)))), FastIndexedSeq())
 
     // test when inner streams are unused
-    assertEvalsTo(streamForceCount(group(a)), 3)
+    assertEvalsTo(streamForceCount(group(a)), 5)
 
     def takeFromEach(stream: IR, take: IR): IR = {
       val innerType = coerce[TStream](stream.typ)
@@ -1876,10 +1881,14 @@ class IRSuite extends HailSuite {
 
     assertEvalsTo(toNestedArray(takeFromEach(a, I32(1))),
                   FastIndexedSeq(FastIndexedSeq(Row(3, 1)),
+                                 FastIndexedSeq(Row(null, -1)),
+                                 FastIndexedSeq(Row(null, -2)),
                                  FastIndexedSeq(Row(1, 2)),
                                  FastIndexedSeq(Row(4, null))))
     assertEvalsTo(toNestedArray(takeFromEach(a, I32(2))),
                   FastIndexedSeq(FastIndexedSeq(Row(3, 1), Row(3, 3)),
+                                 FastIndexedSeq(Row(null, -1)),
+                                 FastIndexedSeq(Row(null, -2)),
                                  FastIndexedSeq(Row(1, 2), Row(1, 4)),
                                  FastIndexedSeq(Row(4, null))))
   }
@@ -2322,7 +2331,7 @@ class IRSuite extends HailSuite {
         MakeStream.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "rk2" -> Str("x"), "rk1" -> (if (n == null) NA(TInt32) else I32(n)), "c" -> Str("foo"))) }),
         FastIndexedSeq("lk1", "lk2"),
         FastIndexedSeq("rk1", "rk2"),
-        true,
+        rightDistinct = true,
         joinType)
     }
     def leftJoinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR =
@@ -2352,16 +2361,13 @@ class IRSuite extends HailSuite {
 
     assertEvalsTo(leftJoinRows(Array[Integer](0, null), Array[Integer](1, null)), FastIndexedSeq(
       Row(0, "x", 0L, null, null),
-      Row(null, "x", 1L, 1, "foo")))
-
-    assertEvalsTo(leftJoinRows(Array[Integer](0, null), Array[Integer](1, null)), FastIndexedSeq(
-      Row(0, "x", 0L, null, null),
-      Row(null, "x", 1L, 1, "foo")))
+      Row(null, "x", 1L, null, null)))
 
     assertEvalsTo(outerJoinRows(Array[Integer](0, null), Array[Integer](1, null)), FastIndexedSeq(
       Row(0, "x", 0L, null, null),
       Row(1, "x", null, 0, "foo"),
-      Row(null, "x", 1L, 1, "foo")))
+      Row(null, "x", 1L, null, null),
+      Row(null, "x", null, 1, "foo")))
 
     assertEvalsTo(leftJoinRows(Array[Integer](0, 1, 2), Array[Integer](1)), FastIndexedSeq(
       Row(0, "x", 0L, null, null),
@@ -2401,15 +2407,17 @@ class IRSuite extends HailSuite {
     def rightJoinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR =
       joinRows(left, right, "right")
 
-    assertEvalsTo(leftJoinRows(Array[Integer](1, 1, 2, 2), Array[Integer](0, 0, 1, 1, 3, 3)), FastIndexedSeq(
+    assertEvalsTo(leftJoinRows(Array[Integer](1, 1, 2, 2, null, null), Array[Integer](0, 0, 1, 1, 3, 3, null, null)), FastIndexedSeq(
       Row(1, 0, 2),
       Row(1, 0, 3),
       Row(1, 1, 2),
       Row(1, 1, 3),
       Row(2, 2, null),
-      Row(2, 3, null)))
+      Row(2, 3, null),
+      Row(null, 4, null),
+      Row(null, 5, null)))
 
-    assertEvalsTo(outerJoinRows(Array[Integer](1, 1, 2, 2), Array[Integer](0, 0, 1, 1, 3, 3)), FastIndexedSeq(
+    assertEvalsTo(outerJoinRows(Array[Integer](1, 1, 2, 2, null, null), Array[Integer](0, 0, 1, 1, 3, 3, null, null)), FastIndexedSeq(
       Row(0, null, 0),
       Row(0, null, 1),
       Row(1, 0, 2),
@@ -2419,15 +2427,19 @@ class IRSuite extends HailSuite {
       Row(2, 2, null),
       Row(2, 3, null),
       Row(3, null, 4),
-      Row(3, null, 5)))
+      Row(3, null, 5),
+      Row(null, 4, null),
+      Row(null, 5, null),
+      Row(null, null, 6),
+      Row(null, null, 7)))
 
-    assertEvalsTo(innerJoinRows(Array[Integer](1, 1, 2, 2), Array[Integer](0, 0, 1, 1, 3, 3)), FastIndexedSeq(
+    assertEvalsTo(innerJoinRows(Array[Integer](1, 1, 2, 2, null, null), Array[Integer](0, 0, 1, 1, 3, 3, null, null)), FastIndexedSeq(
       Row(1, 0, 2),
       Row(1, 0, 3),
       Row(1, 1, 2),
       Row(1, 1, 3)))
 
-    assertEvalsTo(rightJoinRows(Array[Integer](1, 1, 2, 2), Array[Integer](0, 0, 1, 1, 3, 3)), FastIndexedSeq(
+    assertEvalsTo(rightJoinRows(Array[Integer](1, 1, 2, 2, null, null), Array[Integer](0, 0, 1, 1, 3, 3, null, null)), FastIndexedSeq(
       Row(0, null, 0),
       Row(0, null, 1),
       Row(1, 0, 2),
@@ -2435,7 +2447,9 @@ class IRSuite extends HailSuite {
       Row(1, 1, 2),
       Row(1, 1, 3),
       Row(3, null, 4),
-      Row(3, null, 5)))
+      Row(3, null, 5),
+      Row(null, null, 6),
+      Row(null, null, 7)))
   }
 
   @Test def testDie() {
@@ -2774,20 +2788,20 @@ class IRSuite extends HailSuite {
     val call = Ref("call", TCall)
 
     val collectSig = AggSignature(Collect(), Seq(), Seq(TInt32))
+    val pCollectSig = PhysicalAggSig(Collect(), CollectStateSig(PInt32()))
 
     val sumSig = AggSignature(Sum(), Seq(), Seq(TInt64))
+    val pSumSig = PhysicalAggSig(Sum(), TypedStateSig(PInt64(true)))
 
     val callStatsSig = AggSignature(CallStats(), Seq(TInt32), Seq(TCall))
+    val pCallStatsSig = PhysicalAggSig(CallStats(), CallStatsStateSig())
 
     val takeBySig = AggSignature(TakeBy(), Seq(TInt32), Seq(TFloat64, TInt32))
 
     val countSig = AggSignature(Count(), Seq(), Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, countSig)
 
-    val groupSignature = AggStateSignature(
-      Map(Group() -> AggSignature(Group(), FastIndexedSeq(TVoid), FastIndexedSeq(TInt32, TVoid))),
-      Group(),
-      Some(FastIndexedSeq(sumSig.singletonContainer)))
+    val groupSignature = GroupedAggSig(PInt32(true), FastSeq(FastSeq(pSumSig)))
 
     val table = TableRange(100, 10)
 
@@ -2863,28 +2877,27 @@ class IRSuite extends HailSuite {
       StreamAgg(st, "x", ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)),
       StreamAggScan(st, "x", ApplyScanOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)),
       RunAgg(Begin(FastSeq(
-        InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), sumSig)))), groupSignature, Group()),
-        SeqOp(0, FastSeq(I32(1), SeqOp(0, FastSeq(), sumSig)), groupSignature, Group()))),
-        AggStateValue(0, groupSignature), FastIndexedSeq(groupSignature)),
+        InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), pSumSig)))), groupSignature),
+        SeqOp(0, FastSeq(I32(1), SeqOp(0, FastSeq(), pSumSig)), groupSignature))),
+        AggStateValue(0, groupSignature.state), FastIndexedSeq(groupSignature.state)),
       RunAggScan(StreamRange(I32(0), I32(1), I32(1)),
         "foo",
-        InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), sumSig)))), groupSignature, Group()),
-        SeqOp(0, FastSeq(Ref("foo", TInt32), SeqOp(0, FastSeq(), sumSig)), groupSignature, Group()),
-        AggStateValue(0, groupSignature),
-        FastIndexedSeq(groupSignature)
-        ),
+        InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), pSumSig)))), groupSignature),
+        SeqOp(0, FastSeq(Ref("foo", TInt32), SeqOp(0, FastSeq(), pSumSig)), groupSignature),
+        AggStateValue(0, groupSignature.state),
+        FastIndexedSeq(groupSignature.state)),
       AggFilter(True(), I32(0), false),
       AggExplode(NA(TStream(TInt32)), "x", I32(0), false),
       AggGroupBy(True(), I32(0), false),
       ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(I32(0)), collectSig),
       ApplyAggOp(FastIndexedSeq(I32(2)), FastIndexedSeq(call), callStatsSig),
       ApplyAggOp(FastIndexedSeq(I32(10)), FastIndexedSeq(F64(-2.11), I32(4)), takeBySig),
-      InitOp(0, FastIndexedSeq(I32(2)), AggStateSignature(callStatsSig), callStatsSig.op),
-      SeqOp(0, FastIndexedSeq(i), AggStateSignature(collectSig), collectSig.op),
-      CombOp(0, 1, collectSig.singletonContainer),
-      ResultOp(0, FastSeq(collectSig.singletonContainer)),
-      SerializeAggs(0, 0, BufferSpec.default, FastSeq(collectSig.singletonContainer)),
-      DeserializeAggs(0, 0, BufferSpec.default, FastSeq(collectSig.singletonContainer)),
+      InitOp(0, FastIndexedSeq(I32(2)), pCallStatsSig),
+      SeqOp(0, FastIndexedSeq(i), pCollectSig),
+      CombOp(0, 1, pCollectSig),
+      ResultOp(0, FastIndexedSeq(pCollectSig)),
+      SerializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
+      DeserializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
       Begin(FastIndexedSeq(Void())),
       MakeStruct(FastIndexedSeq("x" -> i)),
       SelectFields(s, FastIndexedSeq("x", "z")),
@@ -2922,6 +2935,20 @@ class IRSuite extends HailSuite {
       ReadPartition(Str("foo"),
         TStruct("foo" -> TInt32),
         PartitionNativeReader(TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default))),
+      WritePartition(
+        MakeStream(FastSeq(), TStream(TStruct())), NA(TString),
+        PartitionNativeWriter(TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default), "path", None, None)),
+      WriteMetadata(
+        NA(TStruct("global" -> TString, "partitions" -> TStruct("filePath" -> TString, "partitionCounts" -> TInt64))),
+        MetadataNativeWriter("path", overwrite = false,
+          RVDSpecMaker(
+            TypedCodecSpec(PType.canonical(TStruct("a" -> TInt32)), BufferSpec.default),
+            RVDPartitioner.unkeyed(1)),
+          RVDSpecMaker(
+            TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default),
+            new RVDPartitioner(TStruct("a" -> TInt32), Array[Interval](), 1)),
+          TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct()))
+      ),
       ReadValue(Str("foo"), TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default), TStruct("foo" -> TInt32)),
       WriteValue(I32(1), Str("foo"), TypedCodecSpec(PInt32(), BufferSpec.default)),
       LiftMeOut(I32(1)),

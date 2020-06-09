@@ -5,8 +5,9 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import is.hail.annotations._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.asm4s._
-import is.hail.backend.HailTaskContext
+import is.hail.backend.{BackendContext, HailTaskContext}
 import is.hail.expr.ir.EmitStream.SizedStream
+import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -68,7 +69,7 @@ class SetupBuilder(mb: EmitMethodBuilder[_], var setup: Code[Unit]) {
 object Emit {
   type E = Env[EmitValue]
 
-  def apply[C](ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[C], aggs: Option[Array[AggStatePhysicalSignature]] = None) {
+  def apply[C](ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[C], aggs: Option[Array[AggStateSig]] = None) {
     TypeCheck(ir)
 
     val mb = fb.apply_method
@@ -95,10 +96,10 @@ object Emit {
 
 object AggContainer {
   // FIXME remove this when EmitStream also has a codebuilder
-  def fromVars(aggs: Array[AggStatePhysicalSignature], mb: EmitMethodBuilder[_], region: Settable[Region], off: Settable[Long]): (AggContainer, Code[Unit], Code[Unit]) = {
+  def fromVars(aggs: Array[AggStateSig], mb: EmitMethodBuilder[_], region: Settable[Region], off: Settable[Long]): (AggContainer, Code[Unit], Code[Unit]) = {
 
     val (setup, aggState) = EmitCodeBuilder.scoped(mb) { cb =>
-      val states = agg.StateTuple(aggs.map(a => agg.Extract.getAgg(a, a.default).createState(cb)).toArray)
+      val states = agg.StateTuple(aggs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)))
       val aggState = new agg.TupleAggregatorState(mb.ecb, states, region, off)
       cb += (region := Region.stagedCreate(Region.REGULAR))
       cb += region.load().setNumParents(aggs.length)
@@ -114,13 +115,13 @@ object AggContainer {
     (AggContainer(aggs, aggState, () => ()), setup, cleanup)
   }
 
-  def fromMethodBuilder[C](aggs: Array[AggStatePhysicalSignature], mb: EmitMethodBuilder[C], varPrefix: String): (AggContainer, Code[Unit], Code[Unit]) =
+  def fromMethodBuilder[C](aggs: Array[AggStateSig], mb: EmitMethodBuilder[C], varPrefix: String): (AggContainer, Code[Unit], Code[Unit]) =
     fromVars(aggs, mb, mb.genFieldThisRef[Region](s"${varPrefix}_top_region"), mb.genFieldThisRef[Long](s"${varPrefix}_off"))
 
-  def fromBuilder[C](cb: EmitCodeBuilder, aggs: Array[AggStatePhysicalSignature], varPrefix: String): AggContainer = {
+  def fromBuilder[C](cb: EmitCodeBuilder, aggs: Array[AggStateSig], varPrefix: String): AggContainer = {
     val off = cb.newField[Long](s"${varPrefix}_off")
     val region = cb.newField[Region](s"${varPrefix}_top_region", Region.stagedCreate(Region.REGULAR))
-    val states = agg.StateTuple(aggs.map(a => agg.Extract.getAgg(a, a.default).createState(cb)).toArray)
+    val states = agg.StateTuple(aggs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)))
     val aggState = new agg.TupleAggregatorState(cb.emb.ecb, states, region, off)
     cb += region.load().setNumParents(aggs.length)
     cb.assign(off, region.load().allocate(aggState.storageType.alignment, aggState.storageType.byteSize))
@@ -133,24 +134,19 @@ object AggContainer {
   }
 }
 
-case class AggContainer(aggs: Array[AggStatePhysicalSignature], container: agg.TupleAggregatorState, cleanup: () => Unit) {
+case class AggContainer(aggs: Array[AggStateSig], container: agg.TupleAggregatorState, cleanup: () => Unit) {
 
   def nested(i: Int, init: Boolean): Option[AggContainer] = {
-    aggs(i).nested.map { n =>
-      aggs(i).default match {
-        case AggElementsLengthCheck() =>
-          val state = container.states(i).asInstanceOf[agg.ArrayElementState]
-          if (init)
-            AggContainer(n.toArray, state.initContainer, () => ())
-          else
-            AggContainer(n.toArray, state.container, () => ())
-        case Group() =>
+    aggs(i).n.map { nested =>
+      val c = aggs(i) match {
+        case _: GroupedStateSig =>
           val state = container.states(i).asInstanceOf[agg.DictState]
-          if (init)
-            AggContainer(n.toArray, state.initContainer, () => ())
-          else
-            AggContainer(n.toArray, state.keyed.container, () => ())
+          if (init) state.initContainer else state.keyed.container
+        case _: ArrayAggStateSig =>
+          val state = container.states(i).asInstanceOf[agg.ArrayElementState]
+          if (init) state.initContainer else state.container
       }
+      AggContainer(nested.toArray, c, () => ())
     }
   }
 }
@@ -549,12 +545,12 @@ class Emit[C](
           Code._empty,
           _.getStream.forEach(mb, forBody))
 
-      case x@InitOp(i, args, _, op) =>
+      case x@InitOp(i, args, sig) =>
         val AggContainer(aggs, sc, _) = container.get
-        val statePTypes = aggs(i).lookup(op).physicalInitOpArgs
-        val rvAgg = agg.Extract.getAgg(aggs(i), op)
+        assert(aggs(i) == sig.state)
+        val rvAgg = agg.Extract.getAgg(sig)
 
-        val argVars = args.zip(statePTypes).map { case (a, t) =>
+        val argVars = args.zip(rvAgg.initOpTypes).map { case (a, t) =>
           emit(a, container = container.flatMap(_.nested(i, init = true)))
             .map(t.copyFromPValue(mb, region, _))
         }.toArray
@@ -562,25 +558,21 @@ class Emit[C](
         cb += sc.newState(i)
         rvAgg.initOp(cb, sc.states(i), argVars)
 
-      case x@SeqOp(i, args, _, op) =>
+      case x@SeqOp(i, args, sig) =>
         val AggContainer(aggs, sc, _) = container.get
-        val aggSig = aggs(i)
-        val statePTypes = aggSig.lookup(op).physicalSeqOpArgs
-        val rvAgg = agg.Extract.getAgg(aggSig, op)
+        assert(sig.state == aggs(i))
+        val rvAgg = agg.Extract.getAgg(sig)
 
-        val argVars = args.zip(statePTypes).map { case (a, t) =>
+        val argVars = args.zip(rvAgg.seqOpTypes).map { case (a, t) =>
           emit(a, container = container.flatMap(_.nested(i, init = false)))
             .map(t.copyFromPValue(mb, region, _))
         }.toArray
-
         rvAgg.seqOp(cb, sc.states(i), argVars)
 
-      case x@CombOp(i1, i2, _) =>
+      case x@CombOp(i1, i2, sig) =>
         val AggContainer(aggs, sc, _) = container.get
-        val aggSig = aggs(i1)
-        assert(agg.Extract.compatible(aggs(i2), aggSig), s"${aggs(i2)} vs $aggSig")
-        val rvAgg = agg.Extract.getAgg(aggSig, aggSig.default)
-
+        assert(sig.state == aggs(i1) && sig.state == aggs(i2))
+        val rvAgg = agg.Extract.getAgg(sig)
         rvAgg.combOp(cb, sc.states(i1), sc.states(i2))
 
       case x@SerializeAggs(start, sIdx, spec, sigs) =>
@@ -811,10 +803,9 @@ class Emit[C](
           }
         }
 
-      case x@RunAgg(body, result, _) =>
-        val aggs = x.physicalSignatures
-        val newContainer = AggContainer.fromBuilder(cb, aggs, "run_agg")
-        val codeBody = emitVoid(body, container = Some(newContainer))
+      case x@RunAgg(body, result, states) =>
+        val newContainer = AggContainer.fromBuilder(cb, states.toArray, "run_agg")
+        emitVoid(body, container = Some(newContainer))
         val codeRes = emitI(result, container = Some(newContainer))
 
         codeRes.map(cb) { pc =>
@@ -823,7 +814,7 @@ class Emit[C](
           res
         }
 
-      case x@ResultOp(start, _) =>
+      case x@ResultOp(start, sig) =>
         val newRegion = cb.newField("resultop_region", region)
         val AggContainer(aggs, sc, _) = container.get
         val srvb = new StagedRegionValueBuilder(cb.emb, x.pType, newRegion)
@@ -831,7 +822,7 @@ class Emit[C](
 
         mb.wrapVoids(cb, Array.tabulate(aggs.length) { j => (cb: EmitCodeBuilder) =>
           val idx = start + j
-          val rvAgg = agg.Extract.getAgg(aggs(j), aggs(j).default)
+          val rvAgg = agg.Extract.getAgg(sig(j))
           rvAgg.result(cb, sc.states(idx), srvb)
           cb += srvb.advance()
         }, "aggs_result")
@@ -2086,8 +2077,10 @@ class Emit[C](
           addContexts(ctxStream),
           baos.invoke[Unit]("reset"),
           addGlobals,
-          encRes := spark.invoke[String, Array[Array[Byte]], Array[Byte], Array[Array[Byte]]](
-            "collectDArray", functionID,
+          encRes := spark.invoke[BackendContext, String, Array[Array[Byte]], Array[Byte], Array[Array[Byte]]](
+            "collectDArray",
+            mb.getObject(ctx.backendContext),
+            functionID,
             ctxab.invoke[Array[Array[Byte]]]("result"),
             baos.invoke[Array[Byte]]("toByteArray")),
           decodeResult))

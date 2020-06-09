@@ -17,6 +17,9 @@ class PTypeSerializer extends CustomSerializer[PType](format => (
   { case JString(s) => PType.canonical(IRParser.parsePType(s)) },
   { case t: PType => JString(t.toString) }))
 
+class PStructSerializer extends CustomSerializer[PStruct](format => (
+  { case JString(s) => IRParser.parsePType(s).asInstanceOf[PStruct] },
+  { case t: PStruct => JString(t.toString) }))
 
 object PType {
   def genScalar(required: Boolean): Gen[PType] =
@@ -312,7 +315,7 @@ abstract class PType extends Serializable with Requiredness {
     sb.result()
   }
 
-  def unsafeOrdering(): UnsafeOrdering = ???
+  def unsafeOrdering(): UnsafeOrdering
 
   def isCanonical: Boolean = PType.canonical(this) == this // will recons, may need to rewrite this method
 
