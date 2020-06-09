@@ -1347,6 +1347,7 @@ steps:
      cd /io
      tar xvf wheel-container.tar
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+     hailctl config set batch/bucket hail-test-dmk9z
      cat > test.py <<EOF
      import hail as hl
      t = hl.utils.range_table(50, 3)
