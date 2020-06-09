@@ -52,7 +52,7 @@ class RepartitionedOrderedRDD2 private (prev: RVD, newRangeBounds: IndexedSeq[In
     val pord = kOrd.intervalEndpointOrdering
     val range = ordPartition.range
     val ur = new UnsafeRow(typ.rowType)
-    val key = new KeyedRow(ur, typ.kFieldIdx)
+    val key = new SelectFieldsRow(ur, typ.kFieldIdx)
 
     Iterator.single { (ctx: RVDContext) =>
       ordPartition.parents.iterator
