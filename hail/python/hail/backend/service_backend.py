@@ -17,7 +17,7 @@ from ..hail_logging import PythonOnlyLogger
 
 
 class ServiceBackend(Backend):
-    def __init__(self, billing_project: str = None, bucket: str = None, deploy_config=None, skip_logging_configuration: bool = False):
+    def __init__(self, billing_project: str = None, bucket: str = None, *, deploy_config=None, skip_logging_configuration: bool = False):
         if billing_project is None:
             billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:
