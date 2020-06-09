@@ -54,9 +54,6 @@ spec:
            - name: session-secret-key
              mountPath: /session-secret-key
              readOnly: true
-           - name: gsa-key
-             mountPath: /gsa-key
-             readOnly: true
            - name: ssl-config
              mountPath: /ssl-config
              readOnly: true
@@ -79,9 +76,6 @@ spec:
        - name: session-secret-key
          secret:
            secretName: session-secret-key
-       - name: gsa-key
-         secret:
-           secretName: query-gsa-key
        - name: ssl-config
          secret:
            optional: false
