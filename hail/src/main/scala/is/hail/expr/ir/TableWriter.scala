@@ -68,7 +68,8 @@ case class TableNativeWriter(
     } { (parts, globals) =>
       val writeGlobals = WritePartition(MakeStream(FastSeq(globals), TStream(globals.typ)),
         Str(partFile(1, 0)), globalWriter)
-      WriteMetadata(
+
+      RelationalWriter.scoped(path, overwrite, Some(t.typ))(
         bindIR(parts) { fileAndCount =>
           Begin(FastIndexedSeq(
             WriteMetadata(MakeArray(GetField(writeGlobals, "filePath")),
@@ -77,7 +78,7 @@ case class TableNativeWriter(
               RVDSpecWriter(s"$path/rows", RVDSpecMaker(rowSpec, partitioner, IndexSpec.emptyAnnotation("../index", coerce[PStruct](pKey))))),
             WriteMetadata(ToArray(mapIR(ToStream(fileAndCount)) { fc => GetField(fc, "partitionCounts") }),
               TableSpecWriter(path, t.typ, "rows", "globals", "references", log = true))))
-        }, RelationalWriter(path, overwrite, Some("references" -> (ReferenceGenome.getReferences(t.typ.rowType) ++ ReferenceGenome.getReferences(t.typ.globalType)))))
+        })
     }
   }
 
@@ -292,6 +293,11 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
     cb += cb.emb.getObject(new TableSpecHelper(path, rowRelPath, globalRelPath, refRelPath, typ, log))
       .invoke[FS, Array[Long], Unit]("write", cb.emb.getFS, partCounts)
   }
+}
+
+object RelationalWriter {
+  def scoped(path: String, overwrite: Boolean, refs: Option[TableType])(write: IR): IR = WriteMetadata(
+    write, RelationalWriter(path, overwrite, refs.map(typ => "references" -> (ReferenceGenome.getReferences(typ.rowType) ++ ReferenceGenome.getReferences(typ.globalType)))))
 }
 
 case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[(String, Set[ReferenceGenome])]) extends MetadataWriter {

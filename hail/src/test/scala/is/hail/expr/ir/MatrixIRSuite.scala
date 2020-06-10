@@ -1,15 +1,50 @@
 package is.hail.expr.ir
 
-import is.hail.HailSuite
+import is.hail.ExecStrategy.ExecStrategy
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
+import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.TestUtils._
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
+import org.json4s.jackson.JsonMethods
 import org.testng.annotations.{DataProvider, Test}
 
 class MatrixIRSuite extends HailSuite {
+
+  implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.LoweredJVMCompile)
+
+  @Test def testMatrixWriteRead(): Unit = {
+    val range = MatrixIR.range(10, 10, Some(3))
+    val withEntries = MatrixMapEntries(range, makestruct(
+      "i" -> GetField(Ref("va", range.typ.rowType), "row_idx"),
+      "j" -> GetField(Ref("sa", range.typ.colType), "col_idx")))
+    val original = MatrixMapGlobals(withEntries, makestruct("foo" -> I32(0)))
+    val path = ctx.createTmpPath("test-range-read", "mt")
+
+    val writer1 = MatrixNativeWriter(path, overwrite = true)
+    val partType = TArray(TInterval(TStruct("row_idx" -> TInt32)))
+    val parts = JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(FastIndexedSeq(Interval(Row(0), Row(10), true, false)), partType))
+    val writer2 = MatrixNativeWriter(path, overwrite = true, partitions = parts.toString, partitionsTypeStr = partType.parsableString())
+
+    for (writer <- Array(writer1, writer2)) {
+      assertEvalsTo(MatrixWrite(original, writer), ())
+
+      val read = MatrixIR.read(fs, path, dropCols = false, dropRows = false, None)
+      val droppedRows = MatrixIR.read(fs, path, dropCols = false, dropRows = true, None)
+
+      val expectedCols = Array.tabulate(10)(i => Row(i)).toFastIndexedSeq
+      val expectedRows = Array.tabulate(10)(i => Row(i, expectedCols.map { case Row(j) => Row(i, j) })).toFastIndexedSeq
+      val expectedGlobals = Row(0, expectedCols);
+      {
+        implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
+        assertEvalsTo(TableCollect(TableKeyBy(CastMatrixToTable(read, "entries", "cols"), FastIndexedSeq())), Row(expectedRows, expectedGlobals))
+        assertEvalsTo(TableCollect(TableKeyBy(CastMatrixToTable(droppedRows, "entries", "cols"), FastIndexedSeq())), Row(FastIndexedSeq(), expectedGlobals))
+      }
+    }
+  }
 
   def rangeMatrix(nRows: Int = 20, nCols: Int = 20, nPartitions: Option[Int] = Some(4)): MatrixIR = {
     val reader = MatrixRangeReader(nRows, nCols, nPartitions)
