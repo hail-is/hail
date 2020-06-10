@@ -129,6 +129,7 @@ img {
   justify-content: space-between;
   align-items: center;
   flex-direction: row;
+  padding: 0px 50px;
 }
 
 section.left div {
@@ -147,6 +148,7 @@ section.left div {
   height: calc(100% - 50px);
   position: absolute;
   width: 100%;
+  left: 0px;
   transition: opacity 1000ms ease-in-out;
   z-index: 1;
 }
@@ -309,7 +311,7 @@ a {
   flex-direction: column;
   z-index: 1;
   align-items: flex-start;
-  padding: 50px 50px 50px 50px;
+  padding: 50px 50px 50px 0px;
   background: #fff;
   box-shadow: 0px 0px 25px 20px rgba(255,255,255, 1);
   border-radius: 50px;
@@ -318,7 +320,7 @@ a {
 
 #hero-content-right {
   background: white;
-  padding: 50px 50px 50px 50px;
+  padding: 50px 0px 50px 50px;
   z-index: 1;
   font-size: .875rem;
 }
@@ -335,6 +337,7 @@ a {
   margin: 0px;
   background: inherit;
 }
+
 
 /* Modified for Hail*/
 /*! normalize.css v8.0.1 | MIT License | github.com/necolas/normalize.css */
@@ -760,6 +763,20 @@ pre code {
 }
 
 @media only screen and (max-width:480px) {
+  #hero, .about {
+    padding-left: 25px;
+    padding-right: 25px;
+  }
+
+  .about {
+    padding-top: 50px;
+    padding-bottom: 50px;
+  }
+
+  .header-wrap {
+    margin-bottom: 25px;
+  }
+
   #gethelp .about section {
       display: flex;
       justify-content: flex-start;
@@ -781,14 +798,6 @@ pre code {
     margin: auto;
   }
 
-  #hero-content {
-    padding-left: 0px;
-  }
-
-  #hero-content-right {
-    padding-right: 0px;
-  }
-
   .non-home  .about, .non-home #hero-content.wide{
     padding-left: 50px;
     max-width: 2048px;
@@ -801,13 +810,14 @@ pre code {
   #hero-content-right {
     display: none;
   }
+
+  #hero-content {
+    padding-right: 0px;
+    max-width: 48rem;
+  }
 }
 
 @media only screen and (max-width: 2048px) {
-  #hero-content {
-    padding-right: 50px;
-  }
-
   #hero {
     justify-content: flex-start;
   }

@@ -45,7 +45,7 @@ show(p)
 </code>
                     </pre>
 
-                    <subtitle class="logo-subtitle small">GWAS with Hail (click to show code)</subtitle>
+                    <subtitle class="logo-subtitle small">GWAS with Hail (click to <span id='reveal-text'>show code</span>)</subtitle>
                 </div>
             </div>
         </div>
@@ -162,13 +162,18 @@ show(p)
             <![CDATA[
                 const cachedImg = document.getElementById("reveal-img");
                 const cachedCode = document.getElementById("reveal-code");
+                const cachedText = document.getElementById("reveal-text");
+                const defText = cachedText.textContent;
+
                 function reveal(e) {
                     cachedCode.style.display = "block";
                     cachedImg.style.display = "none";
+                    cachedText.textContent = "hide code";
                 }
                 function hide(e) {
                     cachedCode.style.display = "none";
                     cachedImg.style.display = "initial";
+                    cachedText.textContent = defText;
                 }
             ]]>
         </script>
