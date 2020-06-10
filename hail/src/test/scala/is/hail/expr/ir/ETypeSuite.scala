@@ -46,7 +46,7 @@ class ETypeSuite extends HailSuite {
     assert(Serialization.read[EType](s) == etype)
   }
 
-  def assertEqualEncodeDecode(inPType: PType, eType: EType, outPType: PType, data: Annotation): Unit = {
+  def encodeDecode(inPType: PType, eType: EType, outPType: PType, data: Annotation): Annotation = {
     assert(inPType.virtualType == outPType.virtualType)
 
     val fb = EmitFunctionBuilder[Long, OutputBuffer, Unit](ctx, "fb")
@@ -76,8 +76,13 @@ class ETypeSuite extends HailSuite {
     println("Emitted decoder")
 
     val result = fb2.resultWithIndex()(0, ctx.r).apply(ctx.r, new MemoryInputBuffer(buffer))
+    SafeRow.read(outPType, result)
+  }
+
+  def assertEqualEncodeDecode(inPType: PType, eType: EType, outPType: PType, data: Annotation): Unit = {
+    val encodeDecodeResult = encodeDecode(inPType, eType, outPType, data)
     println("Got result")
-    assert(SafeRow.read(outPType, result) == data)
+    assert(encodeDecodeResult == data)
   }
 
   @Test def testDifferentRequirednessEncodeDecode() {
@@ -111,16 +116,17 @@ class ETypeSuite extends HailSuite {
   }
 
   @Test def testNDArrayEncodeDecode(): Unit = {
-    val pTypeInt2 = PCanonicalNDArray(PInt32Required, 2, true)
-    val eTypeInt2 = ENDArrayColumnMajor(EInt32Required, 2, true)
-    val dataInt2 = Row(Row(2L, 2L), Row(16L, 8L), FastIndexedSeq(1, 2, 3, 4))
-
-    assertEqualEncodeDecode(pTypeInt2, eTypeInt2, pTypeInt2, dataInt2)
+//    val pTypeInt2 = PCanonicalNDArray(PInt32Required, 2, true)
+//    val eTypeInt2 = ENDArrayColumnMajor(EInt32Required, 2, true)
+//    val dataInt2 = Row(Row(2L, 2L), Row(4L, 8L), FastIndexedSeq(10, 20, 30, 40))
+//
+//    assertEqualEncodeDecode(pTypeInt2, eTypeInt2, pTypeInt2, dataInt2)
 
     val pTypeFloat3 = PCanonicalNDArray(PFloat64Required, 3, false)
     val eTypeFloat3 = ENDArrayColumnMajor(EFloat64Required, 3, false)
-    val dataFloat3 = Row(Row(3L, 2L, 1L), Row(32L, 16L, 16L), FastIndexedSeq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
+    val dataFloat3 = Row(Row(3L, 2L, 1L), Row(16L, 8L, 8L), FastIndexedSeq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
 
-    assertEqualEncodeDecode(pTypeFloat3, eTypeFloat3, pTypeFloat3, dataFloat3)
+    assert(encodeDecode(pTypeFloat3, eTypeFloat3, pTypeFloat3, dataFloat3) ==
+      Row(Row(3L, 2L, 1L), Row(8L, 24L, 48L), FastIndexedSeq(1.0, 3.0, 5.0, 2.0, 4.0, 6.0)))
   }
 }
