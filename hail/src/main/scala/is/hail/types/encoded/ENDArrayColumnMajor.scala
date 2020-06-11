@@ -1,9 +1,9 @@
 package is.hail.types.encoded
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, typeToTypeInfo}
 import is.hail.io.{InputBuffer, OutputBuffer}
-import is.hail.types.physical.{PCanonicalNDArray, PCanonicalNDArraySettable, PNDArrayValue, PType}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PCanonicalNDArraySettable, PNDArrayValue, PType}
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils._
 
@@ -26,7 +26,6 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     val pnd = pt.asInstanceOf[PCanonicalNDArray]
     assert(pnd.elementType.required)
     val ndarray = coerce[Long](v)
-    assert(ndarray.isInstanceOf[Settable[Long]])
 
     val writeShapes = (0 until nDims).map(i => out.writeLong(pnd.loadShape(ndarray, i)))
     // Note, encoded strides is in terms of indices into ndarray, not bytes.
@@ -34,16 +33,9 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
 
     val writeElemF = elementType.buildEncoder(pnd.elementType, mb.ecb)
 
-    val idxVars = (0 until nDims).map(i => mb.newLocal[Long]())
-    val storeElement = mb.newLocal[Double]("nda_elem_out")
+    val idxVars = (0 until nDims).map(_ => mb.newLocal[Long]())
 
-    val loadAndWrite = Code(
-      storeElement := pnd.loadElementToIRIntermediate(idxVars, ndarray, mb).asInstanceOf[Code[Double]],
-      Code._println(const("Indices ").concat(idxVars.map(_.toS.concat(" ")).reduce(_ concat _))),
-      Code._println(storeElement.get.toS),
-      writeElemF(storeElement, out)
-    )
-
+    val loadAndWrite = writeElemF(pnd.loadElementToIRIntermediate(idxVars, ndarray, mb), out)
 
     val columnMajorLoops = idxVars.zipWithIndex.foldLeft(loadAndWrite) { case (innerLoops, (dimVar, dimIdx)) =>
       Code(
@@ -57,8 +49,6 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
 
     EmitCodeBuilder.scopedVoid(mb){cb =>
       cb.append(Code(writeShapes))
-      // Print data array
-      cb.append(out.writeInt(6))
       cb.append(columnMajorLoops)
     }
   }
@@ -66,24 +56,31 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
   override def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] = {
     val pnd = pt.asInstanceOf[PCanonicalNDArray]
     val shapeVars = (0 until nDims).map(i => mb.newLocal[Long](s"shape_$i"))
+    val totalNumElements = mb.newLocal[Long]()
 
     val arrayDecoder = EArray(elementType, true).buildDecoder(pnd.data.pType, mb.ecb)
+    val readElemF = elementType.buildInplaceDecoder(pnd.elementType, mb.ecb)
     val dataAddress = mb.newLocal[Long]("data_addr")
 
+    val dataIdx = mb.newLocal[Int]()
+
     Code(
-      Code(shapeVars.map(shapeVar => shapeVar := in.readLong())),
-      dataAddress := arrayDecoder(region, in),
+      totalNumElements := 1L,
+      Code(shapeVars.map(shapeVar => Code(
+        shapeVar := in.readLong(),
+        totalNumElements := totalNumElements * shapeVar
+      ))),
+      dataAddress := pnd.data.pType.allocate(region, totalNumElements.toI),
+      pnd.data.pType.stagedInitialize(dataAddress, totalNumElements.toI),
+      Code.forLoop(dataIdx := 0, dataIdx < totalNumElements.toI, dataIdx := dataIdx + 1,
+        readElemF(region, pnd.data.pType.elementOffset(dataAddress, totalNumElements.toI, dataIdx), in)
+      ),
       pnd.construct(pnd.makeShapeBuilder(shapeVars), pnd.makeColumnMajorStridesBuilder(shapeVars, mb), dataAddress, mb)
     )
   }
 
   override def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
-    val arraySkipper = EArray(elementType, true).buildSkip(mb)
-
-    Code(
-      Code((0 until nDims * 2).map(_ => in.skipLong())),
-      arraySkipper(r, in)
-    )
+    throw new UnsupportedOperationException("Can't skip in ENDArrayColumnMajor")
   }
 
   def _decodedPType(requestedType: Type): PType = {

@@ -131,11 +131,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_] = {
-    Code(
-      Code._println(const("Element Address: ").concat(getElementAddress(indices, ndAddress, mb).toS)),
-      Region.loadIRIntermediate(data.pType.elementType)(getElementAddress(indices, ndAddress, mb))
-    )
-
+    Region.loadIRIntermediate(data.pType.elementType)(getElementAddress(indices, ndAddress, mb))
   }
 
   def outOfBounds(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Boolean] = {
