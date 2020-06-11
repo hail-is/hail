@@ -56,17 +56,14 @@ object LowerDistributedSort {
         Interval(first, last, includesStart = true, includesEnd = true)
       }.toIndexedSeq)
 
-    new TableStage(letBindings = FastIndexedSeq.empty, Set(),
+    TableStage(
       globals = Literal(resultPType.fieldType("global").virtualType, rowsAndGlobal.get(1)),
       partitioner = partitioner,
       contexts = mapIR(
         StreamGrouped(
           ToStream(Literal(rowsType.virtualType, sortedRows)),
-          I32(itemsPerPartition))) { s =>
-        ToArray(s)
-      }
-    ) {
-      def partition(ctxRef: Ref): IR = ToStream(ctxRef)
-    }
+          I32(itemsPerPartition))
+        )(ToArray(_)),
+      ctxRef => ToStream(ctxRef))
   }
 }

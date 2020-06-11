@@ -58,7 +58,7 @@ case class TableNativeWriter(
       RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)),
       t.typ)
 
-    val writePartitions = ts.mapContexts { oldCtx =>
+    ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
       val partFiles = Array.tabulate(ts.numPartitions)(i => Str(s"${ partFile(d, i) }-"))
 
@@ -67,17 +67,18 @@ case class TableNativeWriter(
           "oldCtx" -> ctxElt,
           "writeCtx" -> pf))
       }
-    }(GetField(_, "oldCtx")).mapPartitionWithContext { (rows, ctxRef) =>
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals { (rows, ctxRef) =>
       val file = GetField(ctxRef, "writeCtx")
       WritePartition(rows, file + UUID4(), rowWriter)
-    }.collect(bind=false)
+    } { (parts, globals) =>
+      val writeGlobals = WritePartition(
+        MakeStream(FastSeq(globals), TStream(globals.typ)),
+        Str(partFile(1, 0)), globalWriter)
 
-    val writeGlobals = WritePartition(MakeStream(FastSeq(ts.globals), TStream(ts.globals.typ)),
-      Str(partFile(1, 0)), globalWriter)
-
-    WriteMetadata(ts.wrapInBindings(makestruct(
-      "global" -> GetField(writeGlobals, "filePath"),
-      "partitions" -> writePartitions)), metadataWriter)
+      WriteMetadata(makestruct(
+        "global" -> GetField(writeGlobals, "filePath"),
+        "partitions" -> parts), metadataWriter)
+    }
   }
 
   def apply(ctx: ExecuteContext, tv: TableValue): Unit = {
