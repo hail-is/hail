@@ -12,6 +12,7 @@ import is.hail.io._
 import is.hail.utils._
 import org.apache.log4j.Logger
 import javax.net.ssl._;
+import scala.language.implicitConversions
 
 package object shuffler {
   val shuffleBufferSpec = BufferSpec.unblockedUncompressed
