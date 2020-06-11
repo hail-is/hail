@@ -169,17 +169,17 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
             { pc =>
               val row = pc.memoize(cb, "row")
               if (hasIndex) {
-                val annotation = IEmitCode.present(cb, PCode(+PCanonicalStruct(), 0L))
                 val keyRVB = new StagedRegionValueBuilder(mb, keyType)
-                val key = IEmitCode.present(cb, {
+                indexWriter.add(cb, {
                   cb += keyRVB.start()
                   keyType.fields.foreach { f =>
                     cb += keyRVB.addIRIntermediate(f.typ)(Region.loadIRIntermediate(f.typ)(rowType.fieldOffset(coerce[Long](row.value), f.name)))
                     cb += keyRVB.advance()
                   }
-                  PCode(keyType, keyRVB.offset)
-                })
-                indexWriter.add(cb, key, ob.invoke[Long]("indexOffset"), annotation)
+                  IEmitCode.present(cb, PCode(keyType, keyRVB.offset))
+                },
+                  ob.invoke[Long]("indexOffset"),
+                  IEmitCode.present(cb, PCode(+PCanonicalStruct(), 0L)))
               }
               cb += ob.writeByte(1.asInstanceOf[Byte])
               cb += enc(region, coerce[Long](row.value), ob)
