@@ -77,7 +77,7 @@ class ResourceFile(Resource, str):
         return self._resource_group
 
     def __str__(self):
-        return self._uid  # pylint: disable=no-member
+        return f'"{self._uid}"'  # pylint: disable=no-member
 
     def __repr__(self):
         return self._uid  # pylint: disable=no-member
@@ -109,7 +109,7 @@ class InputResourceFile(ResourceFile):
 
     def _get_path(self, directory):
         assert self._value is not None
-        return shq(directory + '/inputs/' + self._value)
+        return directory + '/inputs/' + self._value
 
 
 class JobResourceFile(ResourceFile):
@@ -139,7 +139,7 @@ class JobResourceFile(ResourceFile):
     def _get_path(self, directory):
         assert self._source is not None
         assert self._value is not None
-        return shq(f'{directory}/{self._source._job_id}/{self._value}')
+        return f'{directory}/{self._source._job_id}/{self._value}'
 
     def add_extension(self, extension):
         """
@@ -271,4 +271,4 @@ class ResourceGroup(Resource):
         return other + str(self._uid)
 
     def __str__(self):
-        return self._uid
+        return f'"{self._uid}"'

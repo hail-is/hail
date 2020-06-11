@@ -181,8 +181,7 @@ class LocalBackend(Backend):
                            f"{memory} "
                            f"{cpu} "
                            f"{job._image} /bin/bash "
-                           f"-c {shq(defs + cmd)}",
-                           '\n']
+                           f"-c {shq(defs + cmd)}"]
             else:
                 script += resource_defs
                 script += job._command
