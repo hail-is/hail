@@ -325,9 +325,12 @@ docker run \
     -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /usr/bin/docker:/usr/bin/docker \
-    -v /batch:/batch \
+    -v /batch:/batch:shared \
     -v /logs:/logs \
     -p 5000:5000 \
+    --device /dev/fuse \
+    --cap-add SYS_ADMIN \
+    --privileged \
     $BATCH_WORKER_IMAGE \
     python3 -u -m batch.worker >worker.log 2>&1
 

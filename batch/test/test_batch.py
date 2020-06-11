@@ -1,20 +1,18 @@
 import random
 import math
 import collections
-import hailtop
-from hailtop.batch_client.client import BatchClient, Job
-import json
 import os
 import base64
-import pkg_resources
 import secrets
 import time
 import unittest
 import aiohttp
 import requests
+
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
 from hailtop.utils import retry_response_returning_functions
+from hailtop.batch_client.client import BatchClient, Job
 
 from .utils import legacy_batch_status
 from .failure_injecting_client_session import FailureInjectingClientSession

@@ -19,7 +19,7 @@ import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
 from hailtop.utils import time_msecs, request_retry_transient_errors, RETRY_FUNCTION_SCRIPT, \
-    sleep_and_backoff, retry_all_errors
+    sleep_and_backoff, retry_all_errors, check_shell, CalledProcessError
 from hailtop.tls import ssl_client_session
 
 # import uvloop
@@ -471,6 +471,31 @@ def populate_secret_host_path(host_path, secret_data):
                 f.write(base64.b64decode(data))
 
 
+async def add_gcsfuse_bucket(mount_path, bucket, key_file):
+    os.makedirs(mount_path)
+    delay = 0.1
+    error = 0
+    while True:
+        try:
+            return await check_shell(f'''
+/usr/bin/gcsfuse \
+    -o allow_other \
+    --file-mode 777 \
+    --dir-mode 777 \
+    --key-file {key_file} \
+    {bucket} {mount_path}
+''')
+        except CalledProcessError:
+            error += 1
+            if error == 5:
+                raise
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            raise
+
+        delay = await sleep_and_backoff(delay)
+
+
+
 def copy_command(src, dst):
     if not dst.startswith('gs://'):
         mkdirs = f'mkdir -p {shq(os.path.dirname(dst))} && '
@@ -514,6 +539,12 @@ class Job:
     def io_host_path(self):
         return f'{self.scratch}/io'
 
+    def gcsfuse_path(self, bucket):
+        return f'{self.scratch}/gcsfuse/{bucket}'
+
+    def gsa_key_file_path(self):
+        return f'{self.scratch}/gsa-key'
+
     def __init__(self, batch_id, user, gsa_key, job_spec, format_version):
         self.batch_id = batch_id
         self.user = user
@@ -547,6 +578,12 @@ class Job:
             volume_mount = f'{self.io_host_path()}:/io'
             main_volume_mounts.append(volume_mount)
             copy_volume_mounts.append(volume_mount)
+
+        gcsfuse = job_spec.get('gcsfuse')
+        self.gcsfuse = gcsfuse
+        if gcsfuse:
+            for b in gcsfuse:
+                main_volume_mounts.append(f'{self.gcsfuse_path(b["bucket"])}:{b["mount_path"]}:shared')
 
         secrets = job_spec.get('secrets')
         self.secrets = secrets
@@ -634,6 +671,12 @@ class Job:
                 if self.secrets:
                     for secret in self.secrets:
                         populate_secret_host_path(self.secret_host_path(secret), secret['data'])
+
+                if self.gcsfuse:
+                    populate_secret_host_path(self.gsa_key_file_path(), self.gsa_key)
+                    for b in self.gcsfuse:
+                        bucket = b['bucket']
+                        await add_gcsfuse_bucket(self.gcsfuse_path(bucket), bucket, f'{self.gsa_key_file_path()}/key.json')
 
                 self.state = 'running'
 
