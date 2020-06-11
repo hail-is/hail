@@ -194,6 +194,12 @@ object IEmitCode {
     IEmitCode(Lmissing, Lpresent, resPc)
   }
 
+  def present(cb: EmitCodeBuilder, pc: => PCode): IEmitCode = {
+    val Lpresent = CodeLabel()
+    cb.goto(Lpresent)
+    IEmitCode(CodeLabel(), Lpresent, pc)
+  }
+
   def sequence[T](seq: IndexedSeq[T], toIec: T => IEmitCode, cb: EmitCodeBuilder)
       (f: IndexedSeq[PCode] => PCode): IEmitCode = {
     val Lmissing = CodeLabel()
@@ -620,6 +626,9 @@ class Emit[C](
         val msg = cb.newLocal[String]("exmsg", "<exception message missing>")
         cm.consume(cb, {}, s => cb.assign(msg, s.asString.loadString()))
         cb._throw(Code.newInstance[HailException, String](msg))
+
+      case x@WriteMetadata(annotations, writer) =>
+        writer.writeMetadata(emitI(annotations), cb, region)
     }
   }
 
@@ -2123,6 +2132,15 @@ class Emit[C](
             loopRef.L.goto),
           // dead code
           const(true), pt.defaultValue)
+
+      case x@WritePartition(stream, ctx, writer) =>
+        val ctxCode = emit(ctx)
+        val eltType = coerce[PStruct](coerce[PStream](stream.pType).elementType)
+        COption.toEmitCode(
+          emitStream(stream).flatMap { s =>
+            COption.fromEmitCode(writer.consumeStream(ctxCode, eltType, mb, region, s))
+          }, mb)
+
       case x@ReadValue(path, spec, requestedType) =>
         val p = emit(path)
         val pathString = coerce[PString](path.pType).loadString(p.value[Long])

@@ -329,7 +329,7 @@ object TestUtils {
     TypeCheck(x, BindingEnv(env.mapValues(_._2), agg = agg.map(_._2.toEnv)))
 
     val t = x.typ
-    assert(t.typeCheck(expected), s"$t, $expected")
+    assert(t == TVoid || t.typeCheck(expected), s"$t, $expected")
 
     ExecuteContext.scoped() { ctx =>
       val filteredExecStrats: Set[ExecStrategy] =
@@ -372,8 +372,10 @@ object TestUtils {
             case ExecStrategy.LoweredJVMCompile =>
               loweredExecute(x, env, args, agg)
           }
-          assert(t.typeCheck(res))
-          assert(t.valuesSimilar(res, expected), s"\n  result=$res\n  expect=$expected\n  strategy=$strat)")
+          if (t != TVoid) {
+            assert(t.typeCheck(res))
+            assert(t.valuesSimilar(res, expected), s"\n  result=$res\n  expect=$expected\n  strategy=$strat)")
+          }
         } catch {
           case e: Exception =>
             error(s"error from strategy $strat")

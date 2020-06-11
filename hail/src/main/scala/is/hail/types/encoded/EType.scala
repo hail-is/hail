@@ -4,11 +4,11 @@ import java.util.Map.Entry
 
 import is.hail.HailContext
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
-import is.hail.asm4s._
+import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, ParamType, PunctuationToken, TokenIterator, typeToTypeInfo}
 import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.types.{BaseType, Requiredness}
+import is.hail.types._
 import is.hail.io._
 import is.hail.utils._
 import org.json4s.CustomSerializer
@@ -299,6 +299,37 @@ object EType {
       case t: PBaseStruct => EBaseStruct(t.fields.map(f =>
           EField(f.name, defaultFromPType(f.typ), f.index)), t.required)
     }
+  }
+
+  def fromTypeAndAnalysis(t: Type, r: TypeWithRequiredness): EType = t.fundamentalType match {
+    case TInt32 => EInt32(r.required)
+    case TInt64 => EInt64(r.required)
+    case TFloat32 => EFloat32(r.required)
+    case TFloat64 => EFloat64(r.required)
+    case TBoolean => EBoolean(r.required)
+    case TBinary => EBinary(r.required)
+    // FIXME(chrisvittal): turn this on when performance is adequate
+    case t: TArray if t.elementType == TInt32 &&
+      HailContext.getFlag("use_packed_int_encoding") != null =>
+      EPackedIntArray(r.required, coerce[RIterable](r).elementType.required)
+    // FIXME(chrisvittal): Turn this on when it works
+    case t: TArray if t.elementType.isInstanceOf[TBaseStruct] &&
+      HailContext.getFlag("use_column_encoding") != null =>
+      val et = t.elementType.asInstanceOf[TBaseStruct]
+      val rstruct = coerce[RBaseStruct](coerce[RIterable](r).elementType)
+      ETransposedArrayOfStructs(
+        Array.tabulate(et.size) { i =>
+          val f = rstruct.fields(i)
+          EField(f.name, fromTypeAndAnalysis(et.fields(i).typ, f.typ), f.index)
+        }, required = r.required,
+        structRequired = rstruct.required)
+    case t: TArray => EArray(fromTypeAndAnalysis(t.elementType, coerce[RIterable](r).elementType), r.required)
+    case t: TBaseStruct =>
+      val rstruct = coerce[RBaseStruct](r)
+      EBaseStruct(Array.tabulate(t.size) { i =>
+        val f = rstruct.fields(i)
+        EField(f.name, fromTypeAndAnalysis(t.fields(i).typ, f.typ), f.index)
+      }, required = r.required)
   }
 
   def eTypeParser(it: TokenIterator): EType = {

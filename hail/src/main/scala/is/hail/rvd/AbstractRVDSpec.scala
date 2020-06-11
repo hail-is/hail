@@ -240,6 +240,7 @@ case class IndexSpec2(_relPath: String,
 
 
 object IndexSpec {
+
   def fromKeyAndValuePTypes(relPath: String, keyPType: PType, annotationPType: PType, offsetFieldName: Option[String]): AbstractIndexSpec = {
     val leafType = LeafNodeBuilder.typ(keyPType, annotationPType)
     val leafNodeSpec = TypedCodecSpec(leafType, BufferSpec.default)

@@ -1,12 +1,13 @@
 package is.hail.types.physical
 
 import is.hail.annotations._
+import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.types.virtual._
-import is.hail.types.Requiredness
+import is.hail.types.{coerce, Requiredness}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
@@ -18,7 +19,7 @@ class PTypeSerializer extends CustomSerializer[PType](format => (
   { case t: PType => JString(t.toString) }))
 
 class PStructSerializer extends CustomSerializer[PStruct](format => (
-  { case JString(s) => IRParser.parsePType(s).asInstanceOf[PStruct] },
+  { case JString(s) => coerce[PStruct](IRParser.parsePType(s)) },
   { case t: PStruct => JString(t.toString) }))
 
 object PType {
@@ -451,7 +452,7 @@ abstract class PType extends Serializable with Requiredness {
 
   def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit]
   def constructAtAddressFromValue(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], deepCopy: Boolean): Code[Unit]
-    = constructAtAddress(mb, addr, region, srcPType, coerce[Long](src), deepCopy)
+    = constructAtAddress(mb, addr, region, srcPType, asm4s.coerce[Long](src), deepCopy)
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit
 
