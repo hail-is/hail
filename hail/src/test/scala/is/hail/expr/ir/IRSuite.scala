@@ -3032,15 +3032,7 @@ class IRSuite extends HailSuite {
         PartitionNativeWriter(TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default), "path", None, None)),
       WriteMetadata(
         NA(TStruct("global" -> TString, "partitions" -> TStruct("filePath" -> TString, "partitionCounts" -> TInt64))),
-        MetadataNativeWriter("path", overwrite = false,
-          RVDSpecMaker(
-            TypedCodecSpec(PType.canonical(TStruct("a" -> TInt32)), BufferSpec.default),
-            RVDPartitioner.unkeyed(1)),
-          RVDSpecMaker(
-            TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default),
-            new RVDPartitioner(TStruct("a" -> TInt32), Array[Interval](), 1)),
-          TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct()))
-      ),
+        RelationalWriter("path", overwrite = false, None)),
       ReadValue(Str("foo"), TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default), TStruct("foo" -> TInt32)),
       WriteValue(I32(1), Str("foo"), TypedCodecSpec(PInt32(), BufferSpec.default)),
       LiftMeOut(I32(1)),
