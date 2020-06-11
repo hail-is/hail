@@ -114,11 +114,7 @@ trait Implicits {
 
   implicit def toRichContextRDDRow(x: ContextRDD[Row]): RichContextRDDRow = new RichContextRDDRow(x)
 
-  implicit def toRichCodeInputBuffer(in: Code[InputBuffer]): RichCodeInputBuffer = new RichCodeInputBuffer(in)
-
   implicit def valueToRichCodeInputBuffer(in: Value[InputBuffer]): RichCodeInputBuffer = new RichCodeInputBuffer(in)
-
-  implicit def toRichCodeOutputBuffer(out: Code[OutputBuffer]): RichCodeOutputBuffer = new RichCodeOutputBuffer(out)
 
   implicit def valueToRichCodeOutputBuffer(out: Value[OutputBuffer]): RichCodeOutputBuffer = new RichCodeOutputBuffer(out)
 
