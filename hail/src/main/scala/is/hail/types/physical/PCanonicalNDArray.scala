@@ -45,13 +45,15 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       ("data", data.pType))
   }
 
+  override lazy val ndArrayFundamentalType: PNDArray = {
+    PCanonicalNDArray(elementType.fundamentalType, nDims)
+  }
+
   override lazy val byteSize: Long = representation.byteSize
 
   override lazy val alignment: Long = representation.alignment
 
   override def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering()
-
-  override lazy val fundamentalType: PType = representation.fundamentalType
 
   def numElements(shape: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {
     shape.foldLeft(1L: Code[Long])(_ * _)

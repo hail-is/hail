@@ -192,6 +192,31 @@ class RegionValueBuilder(var region: Region) {
     advance()
   }
 
+  def startNDArray(init: Boolean = true, setMissing: Boolean = false) {
+    val tempT = currentType()
+    val t = tempT.asInstanceOf[PNDArray].representation.asInstanceOf[PBaseStruct]
+    if (typestk.isEmpty)
+      allocateRoot()
+
+    val off = currentOffset()
+    typestk.push(t)
+    offsetstk.push(off)
+    indexstk.push(0)
+
+    if (init)
+      t.initialize(off, setMissing)
+  }
+
+  def endNDArray() {
+    val t = typestk.top.asInstanceOf[PBaseStruct]
+    typestk.pop()
+    offsetstk.pop()
+    val last = indexstk.pop()
+    assert(last == t.size)
+
+    advance()
+  }
+
   def setArrayIndex(newI: Int) {
     assert(typestk.top.isInstanceOf[PArray])
     indexstk(0) = newI
@@ -300,6 +325,17 @@ class RegionValueBuilder(var region: Region) {
     endBaseStruct()
   }
 
+  def addRow(t: TNDArray, r: Row): Unit = {
+    assert(r != null)
+    startNDArray()
+    var i = 0
+    while (i < t.representation.size) {
+      addAnnotation(t.representation.types(i), r.get(i))
+      i += 1
+    }
+    endNDArray()
+  }
+
   def addField(t: PBaseStruct, fromRegion: Region, fromOff: Long, i: Int) {
     addField(t, fromOff, i, region.ne(fromRegion))
   }
@@ -402,6 +438,11 @@ class RegionValueBuilder(var region: Region) {
     addRegionValue(t, ur.region, ur.offset)
   }
 
+  def addUnsafeRow(t: PNDArray, ur: UnsafeRow) {
+    assert(t.representation == ur.t)
+    addRegionValue(t.representation, ur.region, ur.offset)
+  }
+
   def addUnsafeArray(t: PArray, uis: UnsafeIndexedSeq) {
     assert(t == uis.t)
     addRegionValue(t, uis.region, uis.aoff)
@@ -483,8 +524,15 @@ class RegionValueBuilder(var region: Region) {
           addBoolean(i.includesStart)
           addBoolean(i.includesEnd)
           endStruct()
-        case t: TNDArray =>
-          addAnnotation(t.representation, a)
+        case t: TNDArray => {
+          val cur = currentType().asInstanceOf[PNDArray]
+          a match {
+            case ur: UnsafeRow if cur.representation == ur.t =>
+              addUnsafeRow(cur, ur)
+            case r: Row =>
+              addRow(t, r)
+          }
+        }
       }
   }
 

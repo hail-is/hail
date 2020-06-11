@@ -26,6 +26,8 @@ abstract class PNDArray extends PType {
   val strides: StaticallyKnownField[PTuple, Long]
   val data: StaticallyKnownField[PArray, Long]
 
+  val ndArrayFundamentalType: PNDArray
+  override lazy val fundamentalType: PNDArray = ndArrayFundamentalType
   val representation: PStruct
 
   def dimensionLength(off: Code[Long], idx: Int): Code[Long] = {
