@@ -1840,8 +1840,12 @@ object EmitStream {
         case x@ShuffleRead(idIR, keyRangeIR) =>
           val shuffleType = coerce[TShuffle](idIR.typ)
           assert(shuffleType.rowDecodedPType == coerce[PStream](x.pType).elementType)
-          COption.fromEmitCode(emitIR(idIR)).flatMap { case (idt: PCanonicalShuffleCode) =>
-            COption.fromEmitCode(emitIR(keyRangeIR)).flatMap { case (keyRanget: PIntervalCode) =>
+          COption.fromEmitCode(emitIR(idIR)).doIfNone(
+            Code._fatal[Unit]("ShuffleRead cannot have null ID")
+          ).flatMap { case (idt: PCanonicalShuffleCode) =>
+            COption.fromEmitCode(emitIR(keyRangeIR)).doIfNone(
+              Code._fatal[Unit]("ShuffleRead cannot have null key range")
+            ).flatMap { case (keyRanget: PIntervalCode) =>
               val intervalPhysicalType = keyRanget.pt
 
               val uuidLocal = mb.newLocal[Long]("shuffleUUID")
@@ -1857,78 +1861,80 @@ object EmitStream {
                   keyRange := keyRanget.tcode[Long],
                   !intervalPhysicalType.startDefined(keyRange) || !intervalPhysicalType.endDefined(keyRange)),
                 keyRange
+              ).doIfNone(
+                Code._fatal[Unit]("ShuffleRead cannot have null start or end points of key range")
               ).map { (keyRange: LocalRef[Long]) =>
-                  val code = new ArrayBuilder[Code[Unit]]()
+                val code = new ArrayBuilder[Code[Unit]]()
 
-                  val startt = intervalPhysicalType.loadStart(keyRange)
-                  val startInclusivet = intervalPhysicalType.includesStart(keyRange)
-                  val endt = intervalPhysicalType.loadEnd(keyRange)
-                  val endInclusivet = intervalPhysicalType.includesEnd(keyRange)
+                val startt = intervalPhysicalType.loadStart(keyRange)
+                val startInclusivet = intervalPhysicalType.includesStart(keyRange)
+                val endt = intervalPhysicalType.loadEnd(keyRange)
+                val endInclusivet = intervalPhysicalType.includesEnd(keyRange)
 
-                  val codecSpec = shuffleType.rowCodecSpec
-                  val (rowPType, makeDecoder) = codecSpec.buildEmitDecoderF[Long](mb.ecb)
-                  assert(rowPType == shuffleType.rowDecodedPType)
+                val codecSpec = shuffleType.rowCodecSpec
+                val (rowPType, makeDecoder) = codecSpec.buildEmitDecoderF[Long](mb.ecb)
+                assert(rowPType == shuffleType.rowDecodedPType)
 
-                  val keyType = coerce[TInterval](keyRangeIR.typ).pointType
-                  val keyPType = coerce[PInterval](keyRangeIR.pType).pointType
-                  assert(keyType == shuffleType.keyType)
-                  val keyCodecSpec = shuffleType.keyCodecSpec
-                  val makeKeyEncoder = keyCodecSpec.buildEmitEncoderF[Long](keyPType, mb.ecb)
+                val keyType = coerce[TInterval](keyRangeIR.typ).pointType
+                val keyPType = coerce[PInterval](keyRangeIR.pType).pointType
+                assert(keyType == shuffleType.keyType)
+                val keyCodecSpec = shuffleType.keyCodecSpec
+                val makeKeyEncoder = keyCodecSpec.buildEmitEncoderF[Long](keyPType, mb.ecb)
 
-                  val (socket, in, out, log) = ShuffleClient.openConnection(code, mb, shuffleType)
+                val (socket, in, out, log) = ShuffleClient.openConnection(code, mb, shuffleType)
 
-                  val decodeRow = makeDecoder(region, in)
-                  val encodeKey = (off: Value[Long]) => makeKeyEncoder(region, off, out)
+                val decodeRow = makeDecoder(region, in)
+                val encodeKey = (off: Value[Long]) => makeKeyEncoder(region, off, out)
 
-                  val uuidBytes = mb.newLocal[Array[Byte]]("shuffleClientUUIDBytes")
-                  val eosByte = mb.newLocal[Byte]("eosByte")
+                val uuidBytes = mb.newLocal[Array[Byte]]("shuffleClientUUIDBytes")
+                val eosByte = mb.newLocal[Byte]("eosByte")
 
-                  val setup = Code(
+                val setup = Code(
+                  Code(
+                    Code(code.result()),
+                    log.info("get"),
+                    out.writeByte(Wire.GET),
+                    uuidBytes := uuid.loadBytes(),
+                    log.info(const("get to uuid ").concat(uuidToString(uuidBytes))),
+                    Wire.writeByteArray(out, uuidBytes)),
+                  Code(
                     Code(
-                      Code(code.result()),
-                      log.info("get"),
-                      out.writeByte(Wire.GET),
-                      uuidBytes := uuid.loadBytes(),
-                      log.info(const("get to uuid ").concat(uuidToString(uuidBytes))),
-                      Wire.writeByteArray(out, uuidBytes)),
+                      start := startt,
+                      startInclusive := startInclusivet,
+                      encodeKey(start),
+                      out.writeByte(startInclusive.mux(1.toByte, 0.toByte)),
+                      log.info(const("wrote start key: ").concat(
+                        Region.pretty(mb.ecb, keyPType, start).concat(const(" isInclusive: ")).concat(
+                          startInclusive.toS)))),
                     Code(
-                      Code(
-                        start := startt,
-                        startInclusive := startInclusivet,
-                        encodeKey(start),
-                        out.writeByte(startInclusive.mux(1.toByte, 0.toByte)),
-                        log.info(const("wrote start key: ").concat(
-                          Region.pretty(keyPType, start).concat(const(" isInclusive: ")).concat(
-                            startInclusive.toS)))),
-                      Code(
-                        end := endt,
-                        endInclusive := endInclusivet,
-                        encodeKey(end),
-                        out.writeByte(endInclusive.mux(1.toByte, 0.toByte)),
-                        log.info(const("wrote end key: ").concat(
-                          Region.pretty(keyPType, end)).concat(const(" isInclusive: ")).concat(
-                          endInclusive.toS)),
-                        out.flush(),
-                        log.info("get flush"))))
-                  val close = Code(
-                    log.info("get sending EOS"),
-                    out.writeByte(Wire.EOS),
-                    out.flush(),
-                    eosByte := in.readByte(),
-                    Code._assert(eosByte.get.ceq(Wire.EOS), const("did not receive end of stream: ").concat(eosByte.get.toS)),
-                    log.info("get exiting cleanly"),
-                    socket.close())
-                  val stream = unfold[EmitCode](
-                    { (_, k) =>
-                      k(
-                        COption(
-                          in.readByte().ceq(0.toByte),
-                          EmitCode.present(
-                            rowPType, decodeRow)))
-                    },
-                    setup = Some(setup),
-                    close = Some(close))
-                  SizedStream.unsized(stream)
+                      end := endt,
+                      endInclusive := endInclusivet,
+                      encodeKey(end),
+                      out.writeByte(endInclusive.mux(1.toByte, 0.toByte)),
+                      log.info(const("wrote end key: ").concat(
+                        Region.pretty(mb.ecb, keyPType, end)).concat(const(" isInclusive: ")).concat(
+                        endInclusive.toS)),
+                      out.flush(),
+                      log.info("get flush"))))
+                val close = Code(
+                  log.info("get sending EOS"),
+                  out.writeByte(Wire.EOS),
+                  out.flush(),
+                  eosByte := in.readByte(),
+                  Code._assert(eosByte.get.ceq(Wire.EOS), const("did not receive end of stream: ").concat(eosByte.get.toS)),
+                  log.info("get exiting cleanly"),
+                  socket.close())
+                val stream = unfold[EmitCode](
+                  { (_, k) =>
+                    k(
+                      COption(
+                        in.readByte().ceq(0.toByte),
+                        EmitCode.present(
+                          rowPType, decodeRow)))
+                  },
+                  setup = Some(setup),
+                  close = Some(close))
+                SizedStream.unsized(stream)
               }
             }
           }
@@ -1936,8 +1942,12 @@ object EmitStream {
       case x@ShufflePartitionBounds(idIR, nPartitionsIR) =>
           val shuffleType = coerce[TShuffle](idIR.typ)
           assert(shuffleType.keyDecodedPType == coerce[PStream](x.pType).elementType)
-          COption.fromEmitCode(emitIR(idIR)).flatMap { case (idt: PCanonicalShuffleCode) =>
-            COption.fromEmitCode(emitIR(nPartitionsIR)).map { case (nPartitionst: PCode) =>
+          COption.fromEmitCode(emitIR(idIR)).doIfNone(
+            Code._fatal[Unit]("ShufflePartitionBounds cannot have null ID")
+          ).flatMap { case (idt: PCanonicalShuffleCode) =>
+            COption.fromEmitCode(emitIR(nPartitionsIR)).doIfNone(
+              Code._fatal[Unit]("ShufflePartitionBounds cannot have null number of partitions")
+            ).map { case (nPartitionst: PCode) =>
               val code = new ArrayBuilder[Code[Unit]]()
               val uuidLocal = mb.newLocal[Long]("shuffleUUID")
               val uuid = new PCanonicalShuffleSettable(idt.pt.asInstanceOf[PCanonicalShuffle], uuidLocal)
@@ -1976,8 +1986,8 @@ object EmitStream {
                 setup = Some(setup),
                 close = Some(close))
               SizedStream.unsized(stream)
-            }
           }
+        }
 
         case _ =>
           fatal(s"not a streamable IR: ${Pretty(streamIR)}")

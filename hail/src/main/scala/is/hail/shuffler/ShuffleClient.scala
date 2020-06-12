@@ -60,7 +60,7 @@ object ShuffleClient {
     Code.invokeScalaObject0[Socket](ShuffleClient.getClass, "socket")
 
   def openConnection(
-    cb: EmitCodeBuilder,
+    cb: CodeBuilderLike,
     typ: TShuffle
   ): (Value[Socket], Value[InputBuffer], Value[OutputBuffer], Value[Logger]) = {
     val socket = cb.newLocal[Socket]("shuffleClientSocket", codeSocket())

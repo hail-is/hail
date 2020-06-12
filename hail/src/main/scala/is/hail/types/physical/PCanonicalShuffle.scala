@@ -22,6 +22,8 @@ final case class PCanonicalShuffle(
   }
 
   def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalShuffle(tShuffle, required)
+
+  def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering()
 }
 
 object PCanonicalShuffleSettable {

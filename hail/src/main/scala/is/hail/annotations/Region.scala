@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.expr.ir.IRParser
+import is.hail.expr.ir._
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.types.physical._
@@ -302,14 +302,11 @@ object Region {
     v.result()
   }
 
-  def pretty(pType: PType, off: Code[Long]): Code[String] =
+  def pretty(ecb: EmitClassBuilder[_], pType: PType, off: Code[Long]): Code[String] =
     Code.invokeScalaObject2[PType, Long, String](
       Region.getClass,
       "pretty",
-      Code.invokeScalaObject1[String, PType](
-        IRParser.getClass,
-        "parsePType",
-        const(pType.toString)),
+      ecb.getPType(pType),
       off)
 
   def visit(t: PType, off: Long, v: ValueVisitor) {

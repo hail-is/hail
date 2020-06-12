@@ -244,6 +244,20 @@ case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
     IEmitCode(Lmissing, ec2.Lpresent, ec2.pc)
   }
 
+  def withCleanup(cb: EmitCodeBuilder)(emitCleanup: CodeBuilder => Unit): IEmitCode = {
+    val cleanupMethod = cb.mb.genMethod("cleanup", FastIndexedSeq(), UnitInfo)
+    cleanupMethod.emit(CodeBuilder.scopedVoid(cleanupMethod)(emitCleanup))
+    val Lpresent2 = CodeLabel()
+    cb.define(Lpresent)
+    cb += cleanupMethod.invoke()
+    cb.goto(Lpresent2)
+    val Lmissing2 = CodeLabel()
+    cb.define(Lmissing)
+    cb += cleanupMethod.invoke()
+    cb.goto(Lmissing2)
+    IEmitCode(Lmissing2, Lpresent2, pc)
+  }
+
   def handle(cb: EmitCodeBuilder, ifMissing: => Unit): PCode = {
     cb.define(Lmissing)
     ifMissing
@@ -905,28 +919,29 @@ class Emit[C](
 
         val (socket, in, out, log) = ShuffleClient.openConnection(cb, shuffleType)
 
-        cb.append(log.info("CLNT start"))
+        cb.append(log.info("start"))
         cb.append(out.writeByte(Wire.START))
         cb.append(Wire.writeTStruct(out, rowType))
-        cb.append(log.info("CLNT start wrote row type"))
+        cb.append(log.info("start wrote row type"))
         cb.append(Wire.writeEBaseStruct(out, rowEType))
-        cb.append(log.info("CLNT start wrote row encoded type"))
+        cb.append(log.info("start wrote row encoded type"))
         cb.append(Wire.writeSortFieldArray(out, keyFields))
-        cb.append(log.info("CLNT start wrote key fields"))
+        cb.append(log.info("start wrote key fields"))
         cb.append(Wire.writeEBaseStruct(out, keyEType))
-        cb.append(log.info("CLNT start wrote key encoded type"))
+        cb.append(log.info("start wrote key encoded type"))
         cb.append(out.flush())
-        cb.append(log.info("CLNT start flush"))
+        cb.append(log.info("start flush"))
 
-        val uuidBytes = mb.newLocal[Array[Byte]]("shuffleClientUUIDBytes")
-        cb.append(uuidBytes := Wire.readByteArray(in))
+        val uuidBytes = cb.newLocal[Array[Byte]](
+          "shuffleClientUUIDBytes",
+          Wire.readByteArray(in))
         cb.append(Code._assert(uuidBytes.length.ceq(Wire.ID_SIZE),
           uuidBytes.length.toS.concat(" ").concat(s"${Wire.ID_SIZE}")))
         cb.append(out.writeByte(Wire.EOS))
         cb.append(out.flush())
         cb.append(Code._assert(in.readByte().ceq(Wire.EOS)))
         cb.append(socket.close())
-        cb.append(log.info("CLNT start done"))
+        cb.append(log.info("start done"))
 
         val uuidRV = new PCanonicalShuffleCode(
           shufflePType, shufflePType.representation.allocate(region, Wire.ID_SIZE)
@@ -935,79 +950,77 @@ class Emit[C](
 
         val shuffleEnv = env.bind(name -> mb.newPresentEmitSettable(shufflePType, uuidRV))
 
-        emitI(writerIR, env = shuffleEnv).flatMap(cb) { case (successfulShuffleIds: PCode) =>
-          // just store it so the writer gets run
-          successfulShuffleIds.memoize(cb, "shuffleSuccessfulShuffleIds")
-          emitI(readersIR, env = shuffleEnv).map(cb) { case (_result: PCode) =>
-            val result = _result.memoize(cb, "shuffleResult")
+        val successfulShuffleIds: PCode = emitI(writerIR, env = shuffleEnv).handle(cb, {
+          cb._fatal("shuffle ID must be non-missing")
+        })
 
-            val (socket, in, out, log) = ShuffleClient.openConnection(cb, shuffleType)
+        // just store it so the writer gets run
+        successfulShuffleIds.memoize(cb, "shuffleSuccessfulShuffleIds")
 
-            cb.append(log.info(const("CLNT shuffle done ").concat(uuidToString(uuidBytes))))
-            cb.append(out.writeByte(Wire.STOP))
-            cb.append(Wire.writeByteArray(out, uuidBytes))
-            cb.append(out.flush())
-            cb.append(Code._assert(in.readByte().ceq(0)))
-            cb.append(out.writeByte(Wire.EOS))
-            cb.append(out.flush())
-            cb.append(Code._assert(in.readByte().ceq(Wire.EOS)))
-            cb.append(socket.close())
-            cb.append(log.info(const("CLNT shuffle deleted ").concat(uuidToString(uuidBytes))))
-
-            result
-          }
-        }
-      case ShuffleWrite(idIR, rowsIR) =>
-        val shuffleType = coerce[TShuffle](idIR.typ)
-        emitI(idIR).flatMap(cb) { case (_uuid: PCanonicalShuffleCode) =>
-          val rowType = coerce[TStruct](coerce[TStream](rowsIR.typ).elementType)
-          val rowPType = coerce[PStruct](coerce[PStream](rowsIR.pType).elementType)
-
+        emitI(readersIR, env = shuffleEnv).withCleanup(cb) { cb =>
           val (socket, in, out, log) = ShuffleClient.openConnection(cb, shuffleType)
-
-          val makeRowEncoder = shuffleType.rowCodecSpec.buildEmitEncoderF[Long](rowPType, mb.ecb)
-          val encodeRow = (row: Value[Long]) => makeRowEncoder(region, row, out)
-
-          val rowsWritten = mb.newLocal[Long]("shuffleClientRowsWritten")
-          cb.append(rowsWritten := 0)
-
-          val uuidBytes = mb.newLocal[Array[Byte]]("shuffleClientUUIDBytes")
-          val storedRow = mb.newLocal[Long]("row")
-
-          cb.append(log.info("CLNT put"))
-          cb.append(out.writeByte(Wire.PUT))
-          val uuid = _uuid.memoize(cb, "shuffleClientUUID")
-          cb.append(uuidBytes := uuid.loadBytes())
-          cb.append(log.info(const("CLNT put to uuid ").concat(uuidToString(uuidBytes))))
+          cb.append(log.info(const("shuffle done ").concat(uuidToString(uuidBytes))))
+          cb.append(out.writeByte(Wire.STOP))
           cb.append(Wire.writeByteArray(out, uuidBytes))
-          cb.append(emitStream(rowsIR).cases(mb)(
-            Code._assert(false, "rows stream was missing in shuffle write"),
-            { case (rows: EmitStream.SizedStream) =>
-              rows.getStream.forEach(mb, { case (row: EmitCode) =>
-                Code(
-                  row.setup,
-                  row.m.mux(
-                    Code._assert(false, "cannot handle empty rows in shuffle put"),
-                    Code(
-                      out.writeByte(1.toByte),
-                      storedRow := row.value[Long],
-                      encodeRow(storedRow),
-                      rowsWritten := rowsWritten + 1)))
-              })
-            }))
-          cb.append(out.writeByte(0.toByte))
           cb.append(out.flush())
-          cb.append(Code._assert(in.readByte().ceq(0.toByte)))
-          cb.append(log.info(
-            const("CLNT put wrote ").concat(rowsWritten.toS).concat(" rows")))
+          cb.append(Code._assert(in.readByte().ceq(0)))
           cb.append(out.writeByte(Wire.EOS))
           cb.append(out.flush())
           cb.append(Code._assert(in.readByte().ceq(Wire.EOS)))
           cb.append(socket.close())
-          cb.append(log.info("CLNT put done"))
-          // FIXME: server needs to send uuid for the successful partition
-          presentC(PCanonicalBinary(false).allocate(region, 0))
+          cb.append(log.info(const("shuffle deleted ").concat(uuidToString(uuidBytes))))
         }
+
+      case ShuffleWrite(idIR, rowsIR) =>
+        val shuffleType = coerce[TShuffle](idIR.typ)
+        val _uuid = (emitI(idIR).handle(cb, {
+          cb._fatal("shuffle ID must be non-missing")
+        })).asInstanceOf[PCanonicalShuffleCode]
+        val rowType = coerce[TStruct](coerce[TStream](rowsIR.typ).elementType)
+        val rowPType = coerce[PStruct](coerce[PStream](rowsIR.pType).elementType)
+
+        val (socket, in, out, log) = ShuffleClient.openConnection(cb, shuffleType)
+
+        val makeRowEncoder = shuffleType.rowCodecSpec.buildEmitEncoderF[Long](rowPType, mb.ecb)
+        val encodeRow = (row: Value[Long]) => makeRowEncoder(region, row, out)
+
+        val rowsWritten = cb.newLocal[Long]("shuffleClientRowsWritten", 0)
+
+        val storedRow = mb.newLocal[Long]("row")
+
+        cb.append(log.info("put"))
+        cb.append(out.writeByte(Wire.PUT))
+        val uuid = _uuid.memoize(cb, "shuffleClientUUID")
+        val uuidBytes = cb.newLocal[Array[Byte]]("shuffleClientUUIDBytes", uuid.loadBytes())
+        cb.append(log.info(const("put to uuid ").concat(uuidToString(uuidBytes))))
+        cb.append(Wire.writeByteArray(out, uuidBytes))
+        cb.append(emitStream(rowsIR).cases(mb)(
+          Code._assert(false, "rows stream was missing in shuffle write"),
+          { case (rows: EmitStream.SizedStream) =>
+            rows.getStream.forEach(mb, { case (row: EmitCode) =>
+              Code(
+                row.setup,
+                row.m.mux(
+                  Code._assert(false, "cannot handle empty rows in shuffle put"),
+                  Code(
+                    out.writeByte(1.toByte),
+                    storedRow := row.value[Long],
+                    encodeRow(storedRow),
+                    rowsWritten := rowsWritten + 1)))
+            })
+          }))
+        cb.append(out.writeByte(0.toByte))
+        cb.append(out.flush())
+        cb.append(Code._assert(in.readByte().ceq(0.toByte)))
+        cb.append(log.info(
+          const("put wrote ").concat(rowsWritten.toS).concat(" rows")))
+        cb.append(out.writeByte(Wire.EOS))
+        cb.append(out.flush())
+        cb.append(Code._assert(in.readByte().ceq(Wire.EOS)))
+        cb.append(socket.close())
+        cb.append(log.info("put done"))
+        // FIXME: server needs to send uuid for the successful partition
+        presentC(PCanonicalBinary(false).allocate(region, 0))
 
       case _ =>
         emitFallback(ir)
