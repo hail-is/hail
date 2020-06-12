@@ -2,8 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
-import is.hail.types.encoded._
-import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PCanonicalStringOptional, PCanonicalStringRequired, PCanonicalStruct, PFloat32Required, PFloat64Required, PInt32Optional, PInt32Required, PInt64Optional, PInt64Required, PType}
+import is.hail.types.encoded.{EField, _}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PCanonicalStringOptional, PCanonicalStringRequired, PCanonicalStruct, PCanonicalTuple, PFloat32Required, PFloat64Required, PInt32Optional, PInt32Required, PInt64Optional, PInt64Required, PSubsetStruct, PType}
 import is.hail.io.{InputBuffer, MemoryBuffer, MemoryInputBuffer, MemoryOutputBuffer, OutputBuffer}
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._
@@ -137,5 +137,22 @@ class ETypeSuite extends HailSuite {
 
     assert(encodeDecode(pTypeDouble3, eTypeDouble3, pTypeDouble3, dataDouble3) ==
       Row(Row(3L, 2L, 1L), Row(8L, 24L, 48L), FastIndexedSeq(1.0, 3.0, 5.0, 2.0, 4.0, 6.0)))
+
+    // Test for skipping
+    val pStructContainingNDArray = PCanonicalStruct(true,
+      "a" -> pTypeInt2,
+      "b" -> PInt32Optional
+    )
+    val pOnlyReadB = PSubsetStruct(pStructContainingNDArray, "b")
+    val eStructContainingNDArray = EBaseStruct(
+      FastIndexedSeq(
+        EField("a", ENDArrayColumnMajor(EInt32Required, 2, true), 0),
+        EField("b", EInt32Required, 1)
+      ),
+      true)
+
+    val dataStruct = Row(eTypeInt2, 3)
+
+    println(encodeDecode(pStructContainingNDArray, eStructContainingNDArray, pOnlyReadB, dataStruct))
   }
 }

@@ -233,7 +233,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     Code(
       srcLocal := srcAddress,
       addrLocal := addr,
-      this.representation.constructAtAddress(mb, addrLocal, region, srcNDArray.representation, srcLocal, deepCopy),
+      this.representation.constructAtAddress(mb, addrLocal, region, srcNDArray.representation, srcLocal, deepCopy)
     )
 
   }
