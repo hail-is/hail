@@ -234,6 +234,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
 
 @typecheck(
     billing_project=nullable(str),
+    bucket=nullable(str),
     log=nullable(str),
     quiet=bool,
     append=bool,
@@ -244,6 +245,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     skip_logging_configuration=bool)
 def init_service(
         billing_project: str = None,
+        bucket: str = None,
         log=None,
         quiet=False,
         append=False,
@@ -253,7 +255,7 @@ def init_service(
         global_seed=6348563392232659379,
         skip_logging_configuration=False):
     from hail.backend.service_backend import ServiceBackend
-    backend = ServiceBackend(billing_project, skip_logging_configuration)
+    backend = ServiceBackend(billing_project, bucket, skip_logging_configuration=skip_logging_configuration)
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmpdir)

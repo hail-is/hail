@@ -21,18 +21,6 @@ import org.json4s.jackson.JsonMethods
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-object ServiceBackendUtils {
-  def getQueryFS(): FS = {
-    var keyFile = System.getenv("HAIL_QUERY_GSAKEY_FILE")
-    if (keyFile == null)
-      keyFile = "/gsa-key/key.json"
-
-    using(new FileInputStream(keyFile)) { is =>
-      new GoogleStorageFS(IOUtils.toString(is))
-    }
-  }
-}
-
 object Worker {
   def main(args: Array[String]): Unit = {
     if (args.length != 2)
@@ -41,7 +29,9 @@ object Worker {
     val root = args(0)
     val i = args(1).toInt
 
-    val fs = ServiceBackendUtils.getQueryFS()
+    val fs = using(new FileInputStream("/gsa-key/key.json")) { is =>
+      new GoogleStorageFS(IOUtils.toString(is))
+    }
 
     val f = using(new ObjectInputStream(fs.openNoCompression(s"$root/f"))) { is =>
       is.readObject().asInstanceOf[(Array[Byte], Int) => Array[Byte]]
@@ -76,14 +66,15 @@ object Worker {
 class ServiceBackendContext(
   val username: String,
   @transient val sessionID: String,
-  val billingProject: String
+  val billingProject: String,
+  val bucket: String
 ) extends BackendContext
 
 object ServiceBackend {
-  lazy val log = LogManager.getLogger("ServiceBackend")
+  lazy val log = LogManager.getLogger("is.hail.backend.service.ServiceBackend")
 
   def apply(): ServiceBackend = {
-    new ServiceBackend(ServiceBackendUtils.getQueryFS())
+    new ServiceBackend()
   }
 }
 
@@ -94,16 +85,8 @@ class User(
 
 final class Response(val status: Int, val value: String)
 
-class ServiceBackend(queryFS: FS) extends Backend {
+class ServiceBackend() extends Backend {
   import ServiceBackend.log
-
-  private[this] val queryBucket: String = {
-    val bucket = System.getenv("HAIL_QUERY_BUCKET")
-    if (bucket != null)
-      bucket
-    else
-      "hail-query"
-  }
 
   private[this] val workerImage = System.getenv("HAIL_QUERY_WORKER_IMAGE")
 
@@ -133,23 +116,26 @@ class ServiceBackend(queryFS: FS) extends Backend {
   def parallelizeAndComputeWithIndex(_backendContext: BackendContext, collection: Array[Array[Byte]])(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]] = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
 
+    val user = users(backendContext.username)
+    val fs = user.fs
+
     val n = collection.length
 
     val token = tokenUrlSafe(32)
 
     log.info(s"parallelizeAndComputeWithIndex: nPartitions $n token $token")
 
-    val root = s"gs://$queryBucket/stages/$token"
+    val root = s"gs://${ backendContext.bucket }/tmp/hail/query/$token"
 
     log.info(s"parallelizeAndComputeWithIndex: token $token: writing f")
 
-    using(new ObjectOutputStream(queryFS.create(s"$root/f"))) { os =>
+    using(new ObjectOutputStream(fs.create(s"$root/f"))) { os =>
       os.writeObject(f)
     }
 
     log.info(s"parallelizeAndComputeWithIndex: token $token: writing context offsets")
 
-    using(queryFS.createNoCompression(s"$root/context.offsets")) { os =>
+    using(fs.createNoCompression(s"$root/context.offsets")) { os =>
       var o = 0L
       var i = 0
       while (i < n) {
@@ -163,7 +149,7 @@ class ServiceBackend(queryFS: FS) extends Backend {
 
     log.info(s"parallelizeAndComputeWithIndex: token $token: writing contexts")
 
-    using(queryFS.createNoCompression(s"$root/contexts")) { os =>
+    using(fs.createNoCompression(s"$root/contexts")) { os =>
       collection.foreach { context =>
         os.write(context)
       }
@@ -205,7 +191,7 @@ class ServiceBackend(queryFS: FS) extends Backend {
     val r = new Array[Array[Byte]](n)
     i = 0  // reusing
     while (i < n) {
-      r(i) = using(queryFS.openNoCompression(s"$root/result.$i")) { is =>
+      r(i) = using(fs.openNoCompression(s"$root/result.$i")) { is =>
         IOUtils.toByteArray(is)
       }
       i += 1
@@ -287,10 +273,10 @@ class ServiceBackend(queryFS: FS) extends Backend {
     }
   }
 
-  def execute(username: String, sessionID: String, billingProject: String, code: String): Response = {
+  def execute(username: String, sessionID: String, billingProject: String, bucket: String, code: String): Response = {
     statusForException {
       userContext(username) { ctx =>
-        ctx.backendContext = new ServiceBackendContext(username, sessionID, billingProject)
+        ctx.backendContext = new ServiceBackendContext(username, sessionID, billingProject, bucket)
 
         var x = IRParser.parse_value_ir(ctx, code)
         x = LoweringPipeline.darrayLowerer(DArrayLowering.All).apply(ctx, x, optimize = true)

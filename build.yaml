@@ -353,7 +353,6 @@ steps:
      # batch, auth gsa keys
      kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "auth-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
-     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "query-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
      # create ci
      N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers ci-tokens | wc -l | tr -d '[:space:]')
      if [[ $N = 0 ]]; then
@@ -1348,6 +1347,7 @@ steps:
      cd /io
      tar xvf wheel-container.tar
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+     hailctl config set batch/bucket hail-test-dmk9z
      cat > test.py <<EOF
      import hail as hl
      t = hl.utils.range_table(50, 3)

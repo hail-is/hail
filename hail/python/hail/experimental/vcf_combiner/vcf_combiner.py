@@ -130,6 +130,52 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
                     .when(index < hl.triangle(n_alleles), hl.null('call'))
                     .or_error('invalid GT ' + hl.str(e.GT) + ' at site ' + hl.str(row.locus)))
 
+        def make_entry_struct(e, alleles_len, has_non_ref, row):
+            handled_fields = dict()
+            handled_names = {'LA', 'gvcf_info',
+                             'END',
+                             'LAD', 'AD',
+                             'LGT', 'GT',
+                             'LPL', 'PL',
+                             'LPGT', 'PGT'}
+
+            if 'END' not in row.info:
+                raise hl.utils.FatalError("the Hail GVCF combiner expects GVCFs to have an 'END' field in INFO.")
+            if 'GT' not in e:
+                raise hl.utils.FatalError("the Hail GVCF combiner expects GVCFs to have a 'GT' field in FORMAT.")
+
+            handled_fields['LA'] = hl.range(0, alleles_len - hl.cond(has_non_ref, 1, 0))
+            handled_fields['LGT'] = get_lgt(e, alleles_len, has_non_ref, row)
+            if 'AD' in e:
+                handled_fields['LAD'] = hl.cond(has_non_ref, e.AD[:-1], e.AD)
+            if 'PGT' in e:
+                handled_fields['LPGT'] = e.PGT
+            if 'PL' in e:
+                handled_fields['LPL'] = hl.cond(has_non_ref,
+                                                hl.cond(alleles_len > 2,
+                                                        e.PL[:-alleles_len],
+                                                        hl.null(e.PL.dtype)),
+                                                hl.cond(alleles_len > 1,
+                                                        e.PL,
+                                                        hl.null(e.PL.dtype)))
+                handled_fields['RGQ'] = hl.cond(
+                    has_non_ref,
+                    e.PL[hl.call(0, alleles_len - 1).unphased_diploid_gt_index()],
+                    hl.null(e.PL.dtype.element_type))
+
+            handled_fields['END'] = row.info.END
+            handled_fields['gvcf_info'] = (hl.case()
+                                           .when(hl.is_missing(row.info.END),
+                                                 hl.struct(**(
+                                                     parse_as_fields(
+                                                         row.info.select(*info_to_keep),
+                                                         has_non_ref)
+                                                 )))
+                                           .or_missing())
+
+            pass_through_fields = {k: v for k, v in e.items() if k not in handled_names}
+            return hl.struct(**handled_fields, **pass_through_fields)
+
         f = hl.experimental.define_function(
             lambda row: hl.rbind(
                 hl.len(row.alleles), '<NON_REF>' == row.alleles[-1],
@@ -138,39 +184,7 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
                     alleles=hl.cond(has_non_ref, row.alleles[:-1], row.alleles),
                     rsid=row.rsid,
                     __entries=row.__entries.map(
-                        lambda e:
-                        hl.struct(
-                            DP=e.DP,
-                            END=row.info.END,
-                            GQ=e.GQ,
-                            LA=hl.range(0, alleles_len - hl.cond(has_non_ref, 1, 0)),
-                            LAD=hl.cond(has_non_ref, e.AD[:-1], e.AD),
-                            LGT=get_lgt(e, alleles_len, has_non_ref, row),
-                            LPGT=e.PGT,
-                            LPL=hl.cond(has_non_ref,
-                                        hl.cond(alleles_len > 2,
-                                                e.PL[:-alleles_len],
-                                                hl.null(e.PL.dtype)),
-                                        hl.cond(alleles_len > 1,
-                                                e.PL,
-                                                hl.null(e.PL.dtype))),
-                            MIN_DP=e.MIN_DP,
-                            PID=e.PID,
-                            RGQ=hl.cond(
-                                has_non_ref,
-                                e.PL[hl.call(0, alleles_len - 1).unphased_diploid_gt_index()],
-                                hl.null(e.PL.dtype.element_type)),
-                            SB=e.SB,
-                            gvcf_info=hl.case()
-                                .when(hl.is_missing(row.info.END),
-                                      hl.struct(**(
-                                          parse_as_fields(
-                                              row.info.select(*info_to_keep),
-                                              has_non_ref)
-                                      )))
-                                .or_missing()
-                        ))),
-            ),
+                        lambda e: make_entry_struct(e, alleles_len, has_non_ref, row)))),
             mt.row.dtype)
         _transform_rows_function_map[mt.row.dtype] = f
     transform_row = _transform_rows_function_map[mt.row.dtype]

@@ -163,6 +163,11 @@ object InferPType {
         PCanonicalStream(a.pType.setRequired(r.elementType.required), r.required)
       case StreamMap(a, name, body) =>
         PCanonicalStream(body.pType, requiredness(node).required)
+      case StreamMerge(left, right, key) =>
+        val r = coerce[RIterable](requiredness(node))
+        val leftEltType = coerce[PStream](left.pType).elementType
+        val rightEltType = coerce[PStream](right.pType).elementType
+        PCanonicalStream(getCompatiblePType(Seq(leftEltType, rightEltType), r.elementType), r.required)
       case StreamZip(as, names, body, behavior) =>
         PCanonicalStream(body.pType, requiredness(node).required)
       case StreamFilter(a, name, cond) => a.pType

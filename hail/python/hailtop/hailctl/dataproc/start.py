@@ -297,7 +297,7 @@ def main(args, pass_through_args):
         packages.extend(re.split(split_regex, metadata_pkgs))
     if args.packages:
         packages.extend(re.split(split_regex, args.packages))
-    conf.extend_flag('metadata', {'PKGS': '|'.join(packages)})
+    conf.extend_flag('metadata', {'PKGS': '|'.join(set(packages))})
 
     def disk_size(size):
         if args.vep:

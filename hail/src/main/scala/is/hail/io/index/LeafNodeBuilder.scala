@@ -38,7 +38,7 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
     sb, region,
     LeafNodeBuilder.arrayType(keyType, annotationType))
 
-  val pType: PCanonicalStruct = LeafNodeBuilder.typ(keyType, annotationType)
+  private val pType: PCanonicalStruct = LeafNodeBuilder.typ(keyType, annotationType)
   private val node = new PCanonicalBaseStructSettable(pType, sb.newSettable[Long]("lef_node_addr"))
 
   def close(cb: EmitCodeBuilder): Unit = cb.ifx(!region.isNull, cb += region.invalidate())

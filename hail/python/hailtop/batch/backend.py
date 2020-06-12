@@ -233,7 +233,7 @@ class ServiceBackend(Backend):
 
     """
 
-    def __init__(self, billing_project=None, bucket=None):
+    def __init__(self, billing_project: str = None, bucket: str = None):
         if billing_project is None:
             billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:

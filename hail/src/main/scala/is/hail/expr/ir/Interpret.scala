@@ -417,6 +417,44 @@ object Interpret {
             interpret(body, env.bind(name, element), args)
           }
         }
+      case StreamMerge(left, right, key) =>
+        val lValue = interpret(left, env, args).asInstanceOf[IndexedSeq[Any]]
+        val rValue = interpret(right, env, args).asInstanceOf[IndexedSeq[Any]]
+
+        if (lValue == null || rValue == null)
+          null
+        else {
+          val (keyTyp, getKey) = coerce[TStruct](coerce[TStream](left.typ).elementType).select(key)
+          val keyOrd = TBaseStruct.getJoinOrdering(keyTyp.types)
+
+          def compF(lelt: Any, relt: Any): Int =
+            keyOrd.compare(getKey(lelt.asInstanceOf[Row]), getKey(relt.asInstanceOf[Row]))
+
+          val builder = scala.collection.mutable.ArrayBuilder.make[Any]
+          var i = 0
+          var j = 0
+          while (i < lValue.length && j < rValue.length) {
+            val lelt = lValue(i)
+            val relt = rValue(j)
+            val c = compF(lelt, relt)
+            if (c <= 0) {
+              builder += lelt
+              i += 1
+            } else {
+              builder += relt
+              j += 1
+            }
+          }
+          while (i < lValue.length) {
+            builder += lValue(i)
+            i += 1
+          }
+          while (j < rValue.length) {
+            builder += rValue(j)
+            j += 1
+          }
+          builder.result().toFastIndexedSeq
+        }
       case StreamZip(as, names, body, behavior) =>
         val aValues = as.map(interpret(_, env, args).asInstanceOf[IndexedSeq[_]])
         if (aValues.contains(null))
