@@ -351,7 +351,7 @@ class MatrixPLINKReader(
         TaskContext.get.addTaskCompletionListener { (context: TaskContext) =>
           is.close()
         }
-        var offset = 0
+        var offset: Long = 0
 
         val input = new Array[Byte](blockLength)
 
@@ -364,7 +364,7 @@ class MatrixPLINKReader(
         Iterator.range(start, end).flatMap { i =>
           val variant = variantsBc.value(i)
 
-          val newOffset = 3 + variant.index * blockLength
+          val newOffset: Long = 3L + variant.index.toLong * blockLength
           if (newOffset != offset) {
             is match {
               case base: Seekable =>
