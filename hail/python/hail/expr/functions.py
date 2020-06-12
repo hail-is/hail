@@ -4029,7 +4029,7 @@ def set(collection) -> SetExpression:
 
 
 @typecheck(t=hail_type)
-def empty_set(t: Union[HailType, str]) -> SetExpression:
+def empty_set(t: Union[HailType, builtins.str]) -> SetExpression:
     """Returns an empty set of elements of a type `t`.
 
     Examples
@@ -4080,7 +4080,7 @@ def array(collection) -> ArrayExpression:
 
 
 @typecheck(t=hail_type)
-def empty_array(t: Union[HailType, str]) -> ArrayExpression:
+def empty_array(t: Union[HailType, builtins.str]) -> ArrayExpression:
     """Returns an empty array of elements of a type `t`.
 
     Examples
@@ -4200,7 +4200,7 @@ def _ndarray(collection, row_major=None):
 
 
 @typecheck(key_type=hail_type, value_type=hail_type)
-def empty_dict(key_type: Union[HailType, str], value_type: Union[HailType, str]) -> DictExpression:
+def empty_dict(key_type: Union[HailType, builtins.str], value_type: Union[HailType, builtins.str]) -> DictExpression:
     """Returns an empty dictionary with key type `key_type` and value type
     `value_type`.
 
@@ -5717,8 +5717,8 @@ def _locus_windows_per_contig(coords, radius):
 
 
 @typecheck(a=expr_array(),
-           seed=nullable(int))
-def shuffle(a, seed: int = None) -> ArrayExpression:
+           seed=nullable(builtins.int))
+def shuffle(a, seed: builtins.int = None) -> ArrayExpression:
     """Randomly permute an array
 
     Example
