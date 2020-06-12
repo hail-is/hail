@@ -37,7 +37,7 @@ case class TShuffle (
 
   override def scalaClassTag: ClassTag[Array[Byte]] = classTag[Array[Byte]]
 
-  val ordering: ExtendedOrdering = ExtendedOrdering.iterableOrdering(new ExtendedOrdering {
+  override val ordering: ExtendedOrdering = ExtendedOrdering.iterableOrdering(new ExtendedOrdering {
     override def compareNonnull(x: Any, y: Any): Int =
       java.lang.Integer.compare(
         java.lang.Byte.toUnsignedInt(x.asInstanceOf[Byte]),
