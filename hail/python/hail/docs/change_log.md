@@ -1130,4 +1130,4 @@ Released 2018-12-07
 
 We didn't start manually curating information about user-facing changes until version 0.2.4.
 
-The full commit history is available [here](https://github.com/hail-is/hail/commits/master).
+The full commit history is available [here](https://github.com/hail-is/hail/commits/trunk).
