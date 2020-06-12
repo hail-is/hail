@@ -990,8 +990,8 @@ Released 2018-12-07
 
  - (hail#4845) The [or_error](https://hail.is/docs/0.2/functions/core.html#hail.expr.builders.CaseBuilder.or_error) method in `hl.case` and `hl.switch` statements now takes a string expression rather than a string literal, allowing more informative messages for errors and assertions.
  - (hail#4865) We use this new `or_error` functionality in methods that require biallelic variants to include an offending variant in the error message.
- - (hail#4820) Added [hl.reversed](https://hail.is/docs/0.2/functions/collections.html?highlight=reversed#hail.expr.functions.reversed) for reversing arrays and strings.
- - (hail#4895) Added `include_strand` option to the [hl.liftover](https://hail.is/docs/0.2/functions/genetics.html?highlight=liftover#hail.expr.functions.liftover) function.
+ - (hail#4820) Added [hl.reversed](https://hail.is/docs/0.2/functions/collections.html#hail.expr.functions.reversed) for reversing arrays and strings.
+ - (hail#4895) Added `include_strand` option to the [hl.liftover](https://hail.is/docs/0.2/functions/genetics.html#hail.expr.functions.liftover) function.
 
 
 ### Performance improvements
