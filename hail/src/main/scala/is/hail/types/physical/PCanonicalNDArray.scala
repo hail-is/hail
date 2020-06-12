@@ -1,8 +1,8 @@
 package is.hail.types.physical
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder, UnsafeOrdering}
-import is.hail.asm4s.{Code, MethodBuilder, _}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.asm4s.{Code, _}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, EmitRegion}
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -46,7 +46,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   override lazy val ndArrayFundamentalType: PNDArray = {
-    PCanonicalNDArray(elementType.fundamentalType, nDims)
+    PCanonicalNDArray(elementType.fundamentalType, nDims, required)
   }
 
   override lazy val byteSize: Long = representation.byteSize
@@ -224,11 +224,24 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalNDArray(elementType, nDims, required)
 
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =
-    this.fundamentalType.constructAtAddress(mb, addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
+  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
+    val srcNDArray = srcPType.asInstanceOf[PNDArray]
+    val srcLocal = mb.newLocal[Long]()
+    val addrLocal = mb.newLocal[Long]()
+    val er = EmitRegion(mb, region)
 
-  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
-    this.fundamentalType.constructAtAddress(addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
+    Code(
+      srcLocal := srcAddress,
+      addrLocal := addr,
+      this.representation.constructAtAddress(mb, addrLocal, region, srcNDArray.representation, srcLocal, deepCopy),
+    )
+
+  }
+
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+    val srcNDArray = srcPType.asInstanceOf[PNDArray]
+    this.representation.constructAtAddress(addr, region, srcNDArray.representation, srcAddress, deepCopy)
+  }
 }
 
 object PCanonicalNDArraySettable {

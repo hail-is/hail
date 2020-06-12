@@ -247,6 +247,7 @@ object Region {
     case _: PArray => loadAddress
     case _: PBinary => loadAddress
     case _: PBaseStruct => off => off
+    case p: PNDArray => loadIRIntermediate(p.representation)
   }
 
   def getIRIntermediate(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {
@@ -267,6 +268,7 @@ object Region {
     case _: PArray => (addr, v) => Region.storeAddress(addr, coerce[Long](v))
     case _: PBinary => (addr, v) => Region.storeAddress(addr, coerce[Long](v))
     case t: PBaseStruct => (addr, v) => Region.copyFrom(coerce[Long](v), addr, t.byteSize)
+    case t: PNDArray => storeIRIntermediate(t.representation)
   }
 
   def stagedCreate(blockSize: Size): Code[Region] =

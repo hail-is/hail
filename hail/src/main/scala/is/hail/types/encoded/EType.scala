@@ -298,6 +298,7 @@ object EType {
       case t: PArray => EArray(defaultFromPType(t.elementType), t.required)
       case t: PBaseStruct => EBaseStruct(t.fields.map(f =>
           EField(f.name, defaultFromPType(f.typ), f.index)), t.required)
+      case t: PNDArray => ENDArrayColumnMajor(defaultFromPType(t.elementType), t.nDims, t.required)
     }
   }
 
@@ -389,7 +390,7 @@ object EType {
         val args = IRParser.repsepUntil(it, IRParser.struct_field(eTypeParser), PunctuationToken(","), PunctuationToken("}"))
         IRParser.punctuation(it, "}")
         ETransposedArrayOfStructs(args.zipWithIndex.map { case ((name, t), i) => EField(name, t, i) }, req, structRequired)
-      case "ENDArray" =>
+      case "ENDArrayColumnMajor" =>
         IRParser.punctuation(it, "[")
         val elementType = eTypeParser(it)
         IRParser.punctuation(it, ",")

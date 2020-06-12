@@ -10,7 +10,10 @@ import is.hail.utils._
 
 object StagedRegionValueBuilder {
   def deepCopy(cb: EmitClassBuilder[_], region: Code[Region], typ: PType, value: Code[_], dest: Code[Long]): Code[Unit] = {
-    val t = typ.fundamentalType
+    val t = typ match {
+      case t: PNDArray => t.representation
+      case t => t.fundamentalType
+    }
     val valueTI = ir.typeToTypeInfo(t)
     val mb = cb.getOrGenEmitMethod("deepCopy", ("deepCopy", typ),
       FastIndexedSeq[ParamType](classInfo[Region], valueTI, LongInfo), UnitInfo) { mb =>
@@ -23,7 +26,10 @@ object StagedRegionValueBuilder {
   }
 
   def deepCopyFromOffset(cb: EmitClassBuilder[_], region: Code[Region], typ: PType, value: Code[Long]): Code[Long] = {
-    val t = typ.fundamentalType
+    val t = typ match {
+      case t: PNDArray => t.representation
+      case t => t.fundamentalType
+    }
     val mb = cb.getOrGenEmitMethod("deepCopyFromOffset", ("deepCopyFromOffset", typ),
       FastIndexedSeq[ParamType](classInfo[Region], LongInfo), LongInfo) { mb =>
       val r = mb.getCodeParam[Region](1)
@@ -65,14 +71,18 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     this(er.mb, rowType, er.region, null)
   }
 
-  private val ftype = typ.fundamentalType
+  //private val ftype = typ.fundamentalType
+  private val stype = typ match {
+    case t: PNDArray => t.representation
+    case t => t.fundamentalType
+  }
 
   private var staticIdx: Int = 0
   private var idx: Settable[Int] = _
   private var elementsOffset: Settable[Long] = _
   private val startOffset: Settable[Long] = mb.genFieldThisRef[Long]("srvb_start")
 
-  ftype match {
+  stype match {
     case t: PBaseStruct => elementsOffset = mb.genFieldThisRef[Long]("srvb_struct_addr")
     case t: PArray =>
       elementsOffset = mb.genFieldThisRef[Long]("srvb_array_addr")
@@ -85,7 +95,7 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
   def arrayIdx: Value[Int] = idx
 
   def currentOffset: Value[Long] = {
-    ftype match {
+    stype match {
       case _: PBaseStruct => elementsOffset
       case _: PArray => elementsOffset
       case _ => startOffset
@@ -99,20 +109,19 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
   )
 
   def start(): Code[Unit] = {
-    assert(!ftype.isInstanceOf[PArray]) // Need to use other start with length.
-    ftype match {
+    assert(!stype.isInstanceOf[PArray]) // Need to use other start with length.
+    stype match {
       case _: PBaseStruct => start(true)
       case _: PBinary =>
         assert(pOffset == null)
         startOffset := -1L
-      case _ =>
-        startOffset := region.allocate(ftype.alignment, ftype.byteSize)
+      case _ => startOffset := region.allocate(stype.alignment, stype.byteSize)
     }
   }
 
   def start(length: Code[Int], init: Boolean = true): Code[Unit] =
     Code.memoize(length, "srvb_start_length") { length =>
-      val t = ftype.asInstanceOf[PArray]
+      val t = stype.asInstanceOf[PArray]
       var c = startOffset.store(t.allocate(region, length))
       if (pOffset != null) {
         c = Code(c, Region.storeAddress(pOffset, startOffset))
@@ -124,7 +133,7 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     }
 
   def start(init: Boolean): Code[Unit] = {
-    val t = ftype.asInstanceOf[PCanonicalBaseStruct]
+    val t = stype.asInstanceOf[PCanonicalBaseStruct]
     var c = if (pOffset == null)
       startOffset.store(region.allocate(t.alignment, t.byteSize))
     else
@@ -138,14 +147,14 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
   }
 
   def setMissing(): Code[Unit] = {
-    ftype match {
+    stype match {
       case t: PArray => t.setElementMissing(startOffset, idx)
       case t: PCanonicalBaseStruct => t.setFieldMissing(startOffset, staticIdx)
     }
   }
 
   def currentPType(): PType = {
-    ftype match {
+    stype match {
       case t: PArray => t.elementType
       case t: PCanonicalBaseStruct =>
         t.types(staticIdx)
@@ -192,7 +201,7 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     Code(
       b := bytes,
       boff := pbT.allocate(region, b.length()),
-      ftype match {
+      stype match {
         case _: PBinary => startOffset := boff
         case _ =>
           Region.storeAddress(currentOffset, boff)
@@ -207,13 +216,13 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
 
   def addArray(t: PArray, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = {
     if (!(t.fundamentalType isOfType currentPType()))
-      throw new RuntimeException(s"Fundamental type doesn't match. current=${currentPType()}, t=${t.fundamentalType}, ftype=$ftype")
+      throw new RuntimeException(s"Fundamental type doesn't match. current=${currentPType()}, t=${t.fundamentalType}, ftype=$stype")
     f(new StagedRegionValueBuilder(mb, currentPType(), this))
   }
 
   def addBaseStruct(t: PBaseStruct, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = {
     if (!(t.fundamentalType isOfType currentPType()))
-      throw new RuntimeException(s"Fundamental type doesn't match. current=${currentPType()}, t=${t.fundamentalType}, ftype=$ftype")
+      throw new RuntimeException(s"Fundamental type doesn't match. current=${currentPType()}, t=${t.fundamentalType}, ftype=$stype")
     f(new StagedRegionValueBuilder(mb, currentPType(), this))
   }
 
@@ -240,14 +249,14 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
 
   def addWithDeepCopy(t: PType, v: Code[_]): Code[Unit] = {
     if (!(t.fundamentalType isOfType currentPType()))
-      throw new RuntimeException(s"Fundamental type doesn't match. current=${currentPType()}, t=${t.fundamentalType}, ftype=$ftype")
+      throw new RuntimeException(s"Fundamental type doesn't match. current=${currentPType()}, t=${t.fundamentalType}, ftype=$stype")
     StagedRegionValueBuilder.deepCopy(
       EmitRegion(mb.asInstanceOf[EmitMethodBuilder[_]], region),
       t, v, currentOffset)
   }
 
   def advance(): Code[Unit] = {
-    ftype match {
+    stype match {
       case t: PArray => Code(
         elementsOffset := elementsOffset + t.elementByteSize,
         idx := idx + 1

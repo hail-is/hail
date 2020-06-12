@@ -199,7 +199,8 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
             setFieldPresent(addrVar, idx),
             dest.typ.constructAtAddress(mb, fieldOffset(addrVar, idx), region, src.typ, srcStruct.loadField(srcAddrVar, idx), deepCopy))
           )
-        }))
+        })
+      )
     }
   }
 
