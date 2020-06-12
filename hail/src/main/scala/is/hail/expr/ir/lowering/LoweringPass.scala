@@ -55,7 +55,7 @@ case class LowerToDistributedArrayPass(t: DArrayLowering.Type) extends LoweringP
   val after: IRState = CompilableIR
   val context: String = "LowerToDistributedArray"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerIR.lower(ir.asInstanceOf[IR], t, ctx)
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerToCDA(ir.asInstanceOf[IR], t, ctx)
 }
 
 case object InlineApplyIR extends LoweringPass {
