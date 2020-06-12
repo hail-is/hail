@@ -448,7 +448,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends Partition
       val stream = Stream.unfold[Code[Long]](
         (_, k) =>
           Code(
-            hasNext := xRowBuf.load().readByte().toZ,
+            hasNext := xRowBuf.readByte().toZ,
             hasNext.orEmpty(next := dec(region,xRowBuf)),
             k(COption(!hasNext, next))))
         .map(
