@@ -227,8 +227,8 @@ _i = 0
 while _i < 50 and not os.path.isdir(os.path.join(www_root, 'www')):
     www_root = os.path.join(www_root, '..')
     _i += 1
-html_extra_path = [os.path.join(www_root, 'www/hail-logo-cropped.png'),
-                   os.path.join(www_root, 'www/navbar.css'),
+html_extra_path = [os.path.join(www_root, '../site/www/hail-logo-cropped.png'),
+                   os.path.join(www_root, '../site/www/navbar.css'),
                    'misc/']
 
 # If not None, a 'Last updated on:' timestamp is inserted at every page

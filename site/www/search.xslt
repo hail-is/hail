@@ -206,8 +206,6 @@
          </xsl:text>
     </script>
     <style>
-    <xsl:text disable-output-escaping="yes" >
-            <![CDATA[
         .algolia-docsearch-suggestion--highlight {
             color: #174d8c;
             background: rgba(143, 187, 237, .1);
@@ -255,7 +253,7 @@
             align-items: flex-start;
         }
 
-        .smaller {
+        .search-result .smaller {
             font-size: .825rem;
         }
 
@@ -263,12 +261,12 @@
             margin-top: 5px;
         }
 
-        p {
+        .search-result p {
             font-weight: normal;
             line-height: 1.58;
         }
 
-        p.small {
+        .search-result .small {
             font-size: .875rem;
         }
 
@@ -298,9 +296,6 @@
             visibility: visible;
             color: #efefef;
         }
-        body {
-            padding: 0px;
-        }
         .ais-pagination--item {
             display: inline-block;
             padding: 3px;
@@ -308,8 +303,10 @@
         li.ais-pagination--item.ais-pagination--item__page.ais-pagination--item__active > * {
             text-decoration: none;
             color: #283891;
-        }]]>
-         </xsl:text>
+        }
+        .search-hits h5 b {
+            font-weight: bold;
+        }
     </style>
     </xsl:template>
 </xsl:stylesheet>
