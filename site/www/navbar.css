@@ -162,6 +162,18 @@ input[type="search"]::placeholder {
   width: 80%!important;
 }
 
+.aa-suggestion-title-separator:before {
+  content: "→";
+  margin-left: 5px;
+  margin-right: 5px;
+}
+
+@media only screen and (max-width: 800px) {
+  #hail-navbar #hail-menu {
+    margin-top: 2.5px;
+  }
+}
+
 @media (max-width: 767px) {
   #nhits {
     margin: 12.5px 0px 25px 0px;

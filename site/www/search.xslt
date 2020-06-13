@@ -152,7 +152,7 @@
                                         break
                                     }
 
-                                    headerRes += '<span class="aa-suggestion-title-separator" aria-hidden="true"> › </span>' + values[i];
+                                    headerRes += '<span class="aa-suggestion-title-separator" aria-hidden="true"></span>' + values[i];
                                 }
                             } else {
                                 headerRes = `<h5><b>${values[0]}</b></h5>`;
