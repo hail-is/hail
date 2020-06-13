@@ -123,8 +123,7 @@
                                         apiKey: 'd2dee24912091336c40033044c9bac58',
                                         indexName: 'hail_is',
                                         inputSelector: '#search',
-                                        hint: false,
-                                        debug: true, // hide on blur
+                                        debug: false, // hide on blur
                                         handleSelected: function(input, event, suggestion, datasetNumber, context) {
                                             isHighlighted = !!suggestion;
                                             location.href = suggestion.url;
@@ -134,8 +133,6 @@
                                             return query.replace(/\./g, " ");
                                         },
                                         autocompleteOptions: {
-                                            debug: false,
-                                            hint: true,
                                             autoselect: false
                                         },
                                         algoliaOptions: {
