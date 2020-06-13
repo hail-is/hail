@@ -89,16 +89,6 @@
 
 /* search  */
 
-#nhits {
-  color: #444;
-  margin: 0px 0px 50px 0px;
-}
-
-#hits {
-  margin-left: calc(66px + 1.7rem);
-  max-width: 75%;
-}
-
 input[type="search"] {
   flex: 1;
   margin: 0px .875rem 0px 1.7rem;
@@ -188,10 +178,6 @@ input[type="search"]::placeholder {
 }
 
 @media (max-width: 767px) {
-  #nhits {
-    margin: 12.5px 0px 25px 0px;
-  }
-
   .algolia-autocomplete .ds-dropdown-menu {
     min-width: 400px!important;
   }
@@ -210,11 +196,6 @@ input[type="search"]::placeholder {
 
   #hail-navbar a {
     font-size: 1rem;
-  }
-
-  #hits {
-    margin-left: 15px;
-    max-width: 100%;
   }
 
   #hail-navbar #hail-navbar-header {
