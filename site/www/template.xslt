@@ -100,24 +100,24 @@
                             </xsl:text>
                         </script>
                         <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/docsearch.js@2/dist/cdn/docsearch.min.js" async="true"></script>
-                        <script type="text/javascript" async="true">
+                        <script type="text/javascript">
                             <xsl:text disable-output-escaping="yes" >
                                 <![CDATA[
-                                    function run() {
-                                        let isHighlighted = false;
-                                        const cachedSearchInput = document.getElementById("search");
+                                    let isHighlighted = false;
+                                    const cachedSearchInput = document.getElementById("search");
 
-                                        const cachedNavbar = document.getElementById("hail-navbar")
-                                        cachedSearchInput.addEventListener("keyup", (ev) => {
-                                            handleSearchKeyUp(cachedSearchInput.value, ev)
-                                        });
+                                    const cachedNavbar = document.getElementById("hail-navbar")
+                                    cachedSearchInput.addEventListener("keyup", (ev) => {
+                                        handleSearchKeyUp(cachedSearchInput.value, ev)
+                                    });
 
-                                        function handleSearchKeyUp(query, ev) {
-                                            if(ev.keyCode == 13 && !isHighlighted) {
-                                                location.href = `/search.html?query=${query}`;
-                                            }
+                                    function handleSearchKeyUp(query, ev) {
+                                        if(ev.keyCode == 13 && !isHighlighted) {
+                                            location.href = `/search.html?query=${query}`;
                                         }
+                                    }
 
+                                    function run() {
                                         docsearch({
                                         apiKey: 'd2dee24912091336c40033044c9bac58',
                                         indexName: 'hail_is',
@@ -154,22 +154,17 @@
                                             evTimeout = setTimeout(() => {
                                                 cachedAlgolia.style.maxHeight = `${window.innerHeight - cachedNavbar.offsetHeight}px`;
                                                 evTimeout = null;
-                                            }, 33);
+                                            }, 100);
                                         })
                                     }
 
-                                    let timeout = null;
                                     function check()  {
-                                        if(timeout) {
-                                            clearTimeout(timeout);
-                                        }
-
                                         if(window.docsearch)  {
                                             run();
                                             return;
                                         }
 
-                                        timeout = setTimeout(check, 100);
+                                        setTimeout(check, 16);
                                     }
 
                                     check();

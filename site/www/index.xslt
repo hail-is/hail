@@ -177,18 +177,28 @@ show(p)
                 }
             ]]>
         </script>
-        <script src="/vendors/vanta/threeR115.min.js"></script>
+        <script src="/vendors/vanta/threeR115.min.js" async="true"></script>
         <script type="module" crossorigin="use-credentials"> <!-- https://github.com/hail-is/hail/pull/8928#issuecomment-639218007 -->
             <![CDATA[
-                import Viz from "/vendors/vanta/viz.min.js";
-                new Viz({
-                    el: "#hero-background",
-                    points: 10,
-                    maxDistance: 23,
-                    spacing: 20,
-                    backgroundColor: "#fff",
-                    color: "#283870",
-                });
+                function checkViz() {
+                    if(window.THREE) {
+                        import("/vendors/vanta/viz.min.js").then(module => {
+                            new module.default({
+                                el: "#hero-background",
+                                points: 10,
+                                maxDistance: 23,
+                                spacing: 20,
+                                backgroundColor: "#fff",
+                                color: "#283870",
+                            });
+                        })
+                        return;
+                    }
+
+                    setTimeout(checkViz, 16);
+                }
+
+                checkViz();
             ]]>
         </script>
     </xsl:template>
