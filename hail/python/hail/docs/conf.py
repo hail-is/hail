@@ -224,7 +224,14 @@ html_static_path = ['_static']
 #
 www_root = os.path.dirname(os.path.abspath(__file__))
 _i = 0
-while _i < 50 and not os.path.isdir(os.path.join(www_root, 'www')):
+while _i < 50:
+    if(os.path.isdir(os.path.join(www_root, 'www'))):
+        break
+
+    if(os.path.isdir(os.path.join(www_root, 'site'))):
+        www_root = os.path.join(www_root, 'site')
+        break
+
     www_root = os.path.join(www_root, '..')
     _i += 1
 html_extra_path = [os.path.join(www_root, 'www/hail-logo-cropped.png'),
