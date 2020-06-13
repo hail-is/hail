@@ -114,7 +114,6 @@
 
                                         function handleSearchKeyUp(query, ev) {
                                             if(ev.keyCode == 13 && !isHighlighted) {
-                                                console.info("redirecting");
                                                 location.href = `/search.html?query=${query}`;
                                             }
                                         }
