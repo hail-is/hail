@@ -104,14 +104,16 @@ input[type="search"] {
   margin: 0px .875rem 0px 1.7rem;
   border-radius: 5px;
   outline: none;
-  border: 1px solid #efefef;
   background-color: #efefef;
   padding: 3px 10px 5px 10px;
-  /* height: 30px; */
   display:flex;
   max-width: 100%;
   height: 30px;
   font-size: .875rem
+}
+
+input[type="search"]:focus, input[type="search"]  {
+  border: 1px solid #efefef;
 }
 
 .algolia-autocomplete  input[type="search"] {
