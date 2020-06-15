@@ -45,7 +45,10 @@ class Classx[C](val name: String, val superName: String) {
     method
   }
 
-  def asBytes(print: Option[PrintWriter]): Array[Byte] = {
+  def asBytes(print: Option[PrintWriter]): Array[(String, Array[Byte])] = {
+    val classes = new mutable.ArrayBuffer[Classx[_]]()
+    classes += this
+
     for (m <- methods) {
       val blocks = m.findBlocks()
       for (b <- blocks) {
@@ -71,7 +74,8 @@ class Classx[C](val name: String, val superName: String) {
           else {
             /*
             if (l.method ne m) {
-              println(s"$l ${l.method} $m\n  ${l.stack.mkString("  \n")}")
+              // println(s"$l ${l.method} $m\n  ${l.stack.mkString("  \n")}")
+              println(s"$l ${l.method} $m")
             }
              */
             assert(l.method eq m)
@@ -97,13 +101,13 @@ class Classx[C](val name: String, val superName: String) {
       SimplifyControl(m)
     }
 
-    /*
     for (m <- methods) {
-      if (m.approxByteCodeSize() > SplitMethod.TargetMethodSize)
-      if (m.name != "<init>")
-        SplitMethod(this, m)
+      if (m.name != "<init>") {
+        if (m.approxByteCodeSize() > SplitMethod.TargetMethodSize) {
+          classes += SplitMethod(this, m)
+        }
+      }
     }
-     */
 
     for (m <- methods) {
       val blocks = m.findBlocks()
@@ -124,10 +128,14 @@ class Classx[C](val name: String, val superName: String) {
      */
 
     // println(Pretty(this))
-    Emit(this,
-      print
-      // Some(new PrintWriter(System.out))
-    )
+    classes.iterator
+      .map { c =>
+      val bytes = Emit(c,
+        print
+        // Some(new PrintWriter(System.out))
+      )
+      (c.name.replace("/", "."), bytes)
+    }.toArray
   }
 }
 

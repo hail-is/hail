@@ -225,7 +225,7 @@ package object asm4s {
         try {
           loadClass(name)
         } catch {
-          case e: java.lang.ClassNotFoundException =>
+          case _: java.lang.ClassNotFoundException =>
             defineClass(name, b, 0, b.length)
         }
       }
