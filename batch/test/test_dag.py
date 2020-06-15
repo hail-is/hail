@@ -248,20 +248,3 @@ def test_always_run_error(client):
         status = job.status()
         assert status['state'] == state, status
         assert job._get_exit_code(status, 'main') == ec, status
-
-
-def test_gcsfuse(client):
-    bucket_name = get_user_config().get('batch', 'bucket')
-    batch = client.create_batch()
-    head = batch.create_job('ubuntu:18.04',
-                            command=['/bin/sh', '-c', 'echo head > /io/gcsfuse_test'],
-                            output_files=[('/io/gcsfuse_test', f'gs://{bucket_name}')])
-    tail = batch.create_job('ubuntu:18.04',
-                            command=['cat', '/test/gcsfuse_test'],
-                            parents=[head],
-                            gcsfuse=[(bucket_name, '/test')])
-
-    batch.submit()
-    tail.wait()
-    assert head._get_exit_code(head.status(), 'main') == 0, head._status
-    assert tail.log()['main'] == 'head\n', tail.status()
