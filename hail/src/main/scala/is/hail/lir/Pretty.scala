@@ -122,7 +122,11 @@ object Pretty {
 
   def header(x: X): String = x match {
     case x: IfX => s"${ asm.util.Printer.OPCODES(x.op) } ${ x.Ltrue } ${ x.Lfalse }"
-    case x: GotoX => x.L.toString
+    case x: GotoX =>
+      if (x.L != null)
+        x.L.toString
+      else
+        "null"
     case x: SwitchX => s"${ x.Ldefault } (${ x.Lcases.mkString(" ") })"
     case x: LdcX => s"${ x.a.toString } ${ x.ti }"
     case x: InsnX => asm.util.Printer.OPCODES(x.op)
@@ -132,7 +136,7 @@ object Pretty {
       s"${ asm.util.Printer.OPCODES(x.op) } ${ x.f }"
     case x: GetFieldX =>
       s"${ asm.util.Printer.OPCODES(x.op) } ${ x.f }"
-    case x: NewInstanceX => x.ti.iname
+    case x: NewInstanceX => s"${ x.ti.iname } ${ x.ctor }"
     case x: TypeInsnX =>
       s"${ asm.util.Printer.OPCODES(x.op) } ${ x.t }"
     case x: NewArrayX => x.eti.desc

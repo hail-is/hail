@@ -90,12 +90,30 @@ object Emit {
     def getLocalIndex(l: Local): Int = {
       l match {
         case p: Parameter => parameterIndex(p.i)
-        case _ =>localIndex(l)
+        case _ => localIndex(l)
       }
     }
 
     var maxStack = 0
     def emitX(x: X, depth: Int): Unit = {
+      x match {
+        case x: NewInstanceX =>
+          mn.instructions.add(new TypeInsnNode(NEW, x.ti.iname))
+          mn.instructions.add(new InsnNode(DUP))
+          var i = 0
+          while (i < x.children.length) {
+            emitX(x.children(i), depth + 2 + i)
+            i += 1
+	  }
+	  if (depth + 2 > maxStack)
+	    maxStack = depth + 2
+          mn.instructions.add(
+            new MethodInsnNode(INVOKESPECIAL,
+              x.ctor.owner, x.ctor.name, x.ctor.desc, x.ctor.isInterface))
+          return
+        case _ =>
+      }
+
       var i = 0
       while (i < x.children.length) {
         emitX(x.children(i), depth + i)
@@ -136,8 +154,6 @@ object Emit {
         case x: MethodStmtX =>
           mn.instructions.add(new MethodInsnNode(x.op,
             x.method.owner, x.method.name, x.method.desc, x.method.isInterface))
-        case x: NewInstanceX =>
-          mn.instructions.add(new TypeInsnNode(NEW, x.ti.iname))
         case x: LdcX =>
           mn.instructions.add(new LdcInsnNode(x.a))
         case x: GetFieldX =>
