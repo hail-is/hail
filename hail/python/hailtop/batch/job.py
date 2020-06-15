@@ -544,13 +544,13 @@ class Job:
         bucket: :obj:`str`
             Name of the google storage bucket to mount.
         mount_point: :obj:`str`
-            The path for which the bucket should be mounted to in the Docker
+            The path at which the bucket should be mounted to in the Docker
             container.
 
         Returns
         -------
         :class:`.Job`
-            Same job object set with a timeout.
+            Same job object set with a bucket to mount with gcsfuse.
         """
 
         if not isinstance(self._batch._backend, ServiceBackend):

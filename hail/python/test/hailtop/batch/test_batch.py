@@ -458,6 +458,7 @@ class BatchTests(unittest.TestCase):
         tail = b.new_job()
         tail.command(f'cat /{self.bucket_name}{self.gcs_output_path}/gcsfuse_test')
         tail.gcsfuse(self.bucket_name, f'/{self.bucket_name}')
+        tail.depends_on(head)
 
         assert b.run().status()['state'] == 'success'
 
