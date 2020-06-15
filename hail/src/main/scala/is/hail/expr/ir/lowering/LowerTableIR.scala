@@ -68,6 +68,7 @@ class TableStage(
   def key: IndexedSeq[String] = kType.fieldNames
   def globalType: TStruct = globals.typ.asInstanceOf[TStruct]
 
+  assert(key.forall(f => rowType.hasField(f)))
   assert(kType.fields.forall(f => rowType.field(f.name).typ == f.typ))
   assert(broadcastVals.exists { case (name, value) => name == globals.name && value == globals})
 
@@ -577,9 +578,7 @@ object LowerTableIR {
             .takeWhile { case (l, r) => l == r }
             .length
 
-          if (nPreservedFields == newKey.length)
-            loweredChild
-          else if (isSorted) {
+          if (nPreservedFields == newKey.length || isSorted) {
             val newPartitioner = loweredChild.partitioner
               .coarsen(nPreservedFields)
               .extendKey(t.typ.keyType)
@@ -642,7 +641,7 @@ object LowerTableIR {
         case TableOrderBy(child, sortFields) =>
           val loweredChild = lower(child)
           if (TableOrderBy.isAlreadyOrdered(sortFields, loweredChild.partitioner.kType.fieldNames))
-            loweredChild
+            loweredChild.changePartitionerNoRepartition(RVDPartitioner.unkeyed(loweredChild.partitioner.numPartitions))
           else
             ctx.backend.lowerDistributedSort(ctx, loweredChild, sortFields)
 
@@ -659,7 +658,7 @@ object LowerTableIR {
                 i += 1
               }
               refs.tail.zip(roots).foldRight(
-                mapIR(refs.last) { elt =>
+                mapIR(ToStream(refs.last)) { elt =>
                   path.zip(refs.init).foldRight[IR](elt) { case ((p, ref), inserted) =>
                     InsertFields(ref, FastSeq(p -> inserted))
                   }
