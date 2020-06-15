@@ -932,7 +932,7 @@ class Emit[C](
         cb.append(out.flush())
         cb.append(log.info("start flush"))
 
-        val uuidBytes = cb.newLocal[Array[Byte]](
+        val uuidBytes = cb.newField[Array[Byte]](
           "shuffleClientUUIDBytes",
           Wire.readByteArray(in))
         cb.append(Code._assert(uuidBytes.length.ceq(Wire.ID_SIZE),
