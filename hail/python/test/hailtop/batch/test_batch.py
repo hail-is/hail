@@ -450,13 +450,13 @@ class BatchTests(unittest.TestCase):
 
     def test_gcsfuse(self):
         b = self.batch()
-
+        path = f'/{self.bucket_name}{self.gcs_output_path}'
         head = b.new_job()
-        head.command(f'echo head > /{self.bucket_name}{self.gcs_output_path}/gcsfuse_test')
+        head.command(f'mkdir -p {path}; echo head > {path}/gcsfuse_test')
         head.gcsfuse(self.bucket_name, f'/{self.bucket_name}')
 
         tail = b.new_job()
-        tail.command(f'cat /{self.bucket_name}{self.gcs_output_path}/gcsfuse_test')
+        tail.command(f'cat {path}/gcsfuse_test')
         tail.gcsfuse(self.bucket_name, f'/{self.bucket_name}')
         tail.depends_on(head)
 
