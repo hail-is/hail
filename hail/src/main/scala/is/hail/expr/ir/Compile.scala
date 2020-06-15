@@ -10,8 +10,6 @@ import is.hail.types.physical.PType
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
-import scala.reflect.{ClassTag, classTag}
-
 case class CodeCacheKey(aggSigs: IndexedSeq[AggStateSig], args: Seq[(String, PType)], body: IR)
 
 case class CodeCacheValue(typ: PType, f: (Int, Region) => Any)

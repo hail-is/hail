@@ -581,7 +581,7 @@ object LowerTableIR {
           if (nPreservedFields == newKey.length || isSorted) {
             val newPartitioner = loweredChild.partitioner
               .coarsen(nPreservedFields)
-              .extendKey(t.typ.keyType)
+              .extendKeySamePartitions(t.typ.keyType)
             loweredChild.changePartitionerNoRepartition(newPartitioner)
           } else {
             val sorted = ctx.backend.lowerDistributedSort(ctx, loweredChild, newKey.map(k => SortField(k, Ascending)))

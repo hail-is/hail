@@ -130,6 +130,14 @@ class RVDPartitioner(
     RVDPartitioner.generate(newKType, rangeBounds)
   }
 
+  def extendKeySamePartitions(newKType: TStruct): RVDPartitioner = {
+    require(kType isPrefixOf newKType)
+    new RVDPartitioner(
+      newKType,
+      rangeBounds,
+      allowedOverlap)
+  }
+
   // Operators (produce new partitioners)
 
   def subdivide(
