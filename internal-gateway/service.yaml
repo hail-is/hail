@@ -6,6 +6,7 @@ metadata:
     app: internal-gateway
   annotations:
     cloud.google.com/load-balancer-type: "Internal"
+    networking.gke.io/internal-load-balancer-allow-global-access: "true"
 spec:
   ports:
   - name: http

@@ -213,8 +213,8 @@ class TableStage(
 }
 
 object LowerTableIR {
-  def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext): IR = {
-    def lowerIR(ir: IR) = LowerIR.lower(ir, typesToLower, ctx)
+  def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis): IR = {
+    def lowerIR(ir: IR) = LowerToCDA.lower(ir, typesToLower, ctx, r)
 
     def lower(tir: TableIR): TableStage = {
       if (typesToLower == DArrayLowering.BMOnly)

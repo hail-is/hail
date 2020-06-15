@@ -46,12 +46,12 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
 }
 
 object LowerBlockMatrixIR {
-  def apply(node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext): IR = {
+  def apply(node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis): IR = {
 
     def unimplemented[T](node: BaseIR): T =
       throw new LowererUnsupportedOperation(s"unimplemented: \n${ Pretty(node) }")
 
-    def lowerIR(node: IR): IR = LowerIR.lower(node, typesToLower, ctx)
+    def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, r)
 
     def lower(bmir: BlockMatrixIR): BlockMatrixStage = {
       if (!DArrayLowering.lowerBM(typesToLower))
