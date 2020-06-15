@@ -297,12 +297,13 @@ class BatchTests(unittest.TestCase):
     def setUp(self):
         self.backend = ServiceBackend()
 
-        bucket_name = get_user_config().get('batch', 'bucket')
+        self.bucket_name = get_user_config().get('batch', 'bucket')
 
-        self.gcs_input_dir = f'gs://{bucket_name}/batch-tests/resources'
+        self.gcs_input_dir = f'gs://{self.bucket_name}/batch-tests/resources'
 
         token = uuid.uuid4()
-        self.gcs_output_dir = f'gs://{bucket_name}/batch-tests/{token}'
+        self.gcs_output_path = f'/batch-tests/{token}'
+        self.gcs_output_dir = f'gs://{self.bucket_name}{self.gcs_output_path}'
 
         in_cluster_key_file = '/test-gsa-key/key.json'
         if os.path.exists(in_cluster_key_file):
@@ -311,7 +312,7 @@ class BatchTests(unittest.TestCase):
         else:
             credentials = None
         gcs_client = google.cloud.storage.Client(project='hail-vdc', credentials=credentials)
-        bucket = gcs_client.bucket(bucket_name)
+        bucket = gcs_client.bucket(self.bucket_name)
         if not bucket.blob('batch-tests/resources/hello.txt').exists():
             bucket.blob('batch-tests/resources/hello.txt').upload_from_string(
                 'hello world')
@@ -446,6 +447,20 @@ class BatchTests(unittest.TestCase):
         j.command(f'cat {input}')
         b.write_output(input, f'{self.gcs_output_dir}/hello.txt')
         assert b.run(verbose=True).status()['state'] == 'success'
+
+    def test_gcsfuse(self):
+        b = self.batch()
+        path = f'/{self.bucket_name}{self.gcs_output_path}'
+        head = b.new_job()
+        head.command(f'mkdir -p {path}; echo head > {path}/gcsfuse_test')
+        head.gcsfuse(self.bucket_name, f'/{self.bucket_name}')
+
+        tail = b.new_job()
+        tail.command(f'cat {path}/gcsfuse_test')
+        tail.gcsfuse(self.bucket_name, f'/{self.bucket_name}')
+        tail.depends_on(head)
+
+        assert b.run().status()['state'] == 'success'
 
     def test_benchmark_lookalike_workflow(self):
         b = self.batch()
