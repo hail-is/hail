@@ -396,7 +396,7 @@ class ServiceBackend(Backend):
 
             symlinks = [x for r in job._mentioned for x in symlink_input_resource_group(r)]
 
-            env_vars = {r._uid: shq(r._get_path(local_tmpdir)) for r in job._mentioned}
+            env_vars = {r._uid: r._get_path(local_tmpdir) for r in job._mentioned}
 
             if job._image is None:
                 if verbose:
