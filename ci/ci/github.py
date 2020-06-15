@@ -140,8 +140,8 @@ def clone_or_fetch_script(repo):
 { RETRY_FUNCTION_SCRIPT }
 
 function clone() {{
-    rm -rf ./{*,.*}
-    git clone {shq(repo)} ./
+    rm -rf ./{{*,.*}}
+    git clone { shq(repo) } ./
 }}
 
 if [ ! -d .git ]; then
