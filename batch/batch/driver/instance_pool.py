@@ -178,7 +178,7 @@ SET standing_worker_cores = %s, max_instances = %s, pool_size = %s;
             if machine_name not in self.name_instance:
                 break
 
-        if self.live_total_cores_mcpu < 5_000:
+        if self.live_total_cores_mcpu // 1000 < 5_000:
             zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
             zone = random.choice(zones)
         else:
