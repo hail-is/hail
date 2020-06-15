@@ -68,7 +68,7 @@
                             </ul>
                         </div>
                         <script>
-                            <xsl:text disable-output-escaping="yes" async="true">
+                            <xsl:text disable-output-escaping="yes">
                                 <![CDATA[
                                     const cached = document.getElementById("hail-navbar-collapse");
                                     const initialStyle = cached.style.display;
