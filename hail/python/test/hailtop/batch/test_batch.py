@@ -452,10 +452,16 @@ class BatchTests(unittest.TestCase):
         b = self.batch()
         path = f'/{self.bucket_name}{self.gcs_output_path}'
         head = b.new_job()
+        head.image('google/cloud-sdk:269.0.0-alpine')
         head.command(f'mkdir -p {path}; echo head > {path}/gcsfuse_test')
+        head.command('gcloud -q auth activate-service-account --key-file=/gsa-key/key.json')
+        head.command(f'gsutil ls gs:/{path}')
         head.gcsfuse(self.bucket_name, f'/{self.bucket_name}')
 
         tail = b.new_job()
+        tail.image('google/cloud-sdk:269.0.0-alpine')
+        tail.command('gcloud -q auth activate-service-account --key-file=/gsa-key/key.json')
+        tail.command(f'gsutil ls gs:/{path}')
         tail.command(f'cat {path}/gcsfuse_test')
         tail.gcsfuse(self.bucket_name, f'/{self.bucket_name}')
         tail.depends_on(head)
