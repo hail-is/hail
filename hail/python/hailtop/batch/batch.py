@@ -1,14 +1,14 @@
 import os
 
 import re
-from typing import Optional, Dict, Union
+from typing import Optional, Dict, Union, List, Any, Set
 
 from hailtop.utils import secret_alnum_string
 
-from .backend import Backend, LocalBackend
-from .job import Job
-from .resource import Resource, InputResourceFile, JobResourceFile, ResourceGroup
-from .utils import BatchException
+from .backend import Backend, LocalBackend  # type: ignore
+from .job import Job  # type: ignore
+from .resource import Resource, InputResourceFile, JobResourceFile, ResourceGroup  # type: ignore
+from .utils import BatchException  # type: ignore
 
 
 class Batch:
@@ -88,10 +88,10 @@ class Batch:
                  default_cpu: Optional[str] = None,
                  default_storage: Optional[str] = None,
                  default_timeout: Optional[Union[float, int]] = None):
-        self._jobs = []
-        self._resource_map = {}
-        self._allocated_files = set()
-        self._input_resources = set()
+        self._jobs: List[Job] = []
+        self._resource_map: Dict[str, Resource] = {}
+        self._allocated_files: Set[str] = set()
+        self._input_resources: Set[InputResourceFile] = set()
         self._uid = Batch._get_uid()
 
         self.name = name

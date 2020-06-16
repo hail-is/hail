@@ -1,14 +1,14 @@
+from __future__ import annotations
 import abc
 
-from __future__ import annotations
 from shlex import quote as shq
-from typing import Optional
+from typing import Optional, Set
 
-from .utils import BatchException
+from .utils import BatchException  # type: ignore
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .job import Job
+    from .job import Job  # type: ignore
 
 
 class Resource:
@@ -56,13 +56,13 @@ class ResourceFile(Resource, str):
         assert value is None or isinstance(value, str)
         self._value = value
         self._source = None
-        self._output_paths = set()
-        self._resource_group = None
+        self._output_paths: Set[str] = set()
+        self._resource_group: Optional[ResourceGroup] = None
 
     def _get_path(self, directory: str):
         raise NotImplementedError
 
-    def _add_source(self, source: 'Job') -> ResourceFile:
+    def _add_source(self, source: Job) -> ResourceFile:
         from .job import Job  # pylint: disable=cyclic-import
         assert isinstance(source, Job)
         self._source = source
@@ -162,8 +162,8 @@ class JobResourceFile(ResourceFile):
 
         Notes
         -----
-        The default file name for a :class:`.ResourceFile` is a unique
-        identifier with no file extensions.
+        The default file name for a :class:`.JobResourceFile` is the name
+        of the identifier.
 
         Parameters
         ----------

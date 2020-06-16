@@ -1,14 +1,14 @@
-import re
-from typing import Union, Optional, Dict
 from __future__ import annotations
+import re
+from typing import Union, Optional, Dict, List, Set
 
-from .backend import ServiceBackend
-from .resource import ResourceFile, ResourceGroup, JobResourceFile, Resource
-from .utils import BatchException
+from .backend import ServiceBackend  # type: ignore
+from .resource import ResourceFile, ResourceGroup, JobResourceFile, Resource  # type: ignore
+from .utils import BatchException  # type: ignore
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .batch import Batch
+    from .batch import Batch  # type: ignore
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
@@ -73,25 +73,25 @@ class Job:
         self._batch = batch
         self.name = name
         self.attributes = attributes
-        self._cpu = None
-        self._memory = None
-        self._storage = None
-        self._image = None
-        self._always_run = False
-        self._timeout = None
-        self._command = []
+        self._cpu: Optional[Union[float, int, str]] = None
+        self._memory: Optional[Union[int, str]] = None
+        self._storage: Optional[Union[int, str]] = None
+        self._image: Optional[str] = None
+        self._always_run: bool = False
+        self._timeout: Optional[Union[int, float]] = None
+        self._command: List[str] = []
 
-        self._resources = {}  # dict of name to resource
-        self._resources_inverse = {}  # dict of resource to name
+        self._resources: Dict[str, Resource] = {}
+        self._resources_inverse: Dict[Resource, str] = {}
         self._uid = Job._new_uid()
         self._job_id = None
 
-        self._inputs = set()
-        self._internal_outputs = set()
-        self._external_outputs = set()
-        self._mentioned = set()  # resources used in the command
-        self._valid = set()  # resources declared in the appropriate place
-        self._dependencies = set()
+        self._inputs: Set[Resource] = set()
+        self._internal_outputs: Set[Resource] = set()
+        self._external_outputs: Set[Resource] = set()
+        self._mentioned: Set[Resource] = set()  # resources used in the command
+        self._valid: Set[Resource] = set()  # resources declared in the appropriate place
+        self._dependencies: Set[Job] = set()
 
     def _get_resource(self, item: str) -> JobResourceFile:
         if item not in self._resources:
