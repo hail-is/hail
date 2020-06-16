@@ -266,6 +266,12 @@
             font-size: .825rem;
         }
 
+        #hits .aa-suggestion-title-separator:before {
+          content: "→";
+          margin-left: 5px;
+          margin-right: 5px;
+        }
+
         .search-hit {
             margin-top: 5px;
         }

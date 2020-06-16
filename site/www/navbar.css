@@ -161,12 +161,6 @@ input[type="search"]::placeholder {
   width: 80%!important;
 }
 
-.aa-suggestion-title-separator:before {
-  content: "→";
-  margin-left: 5px;
-  margin-right: 5px;
-}
-
 #hail-navbar.documentation-view  #hail-menu {
   margin-top: -3px;
 }
