@@ -26,7 +26,7 @@ def assert_ndarrays_eq(*expr_and_expected):
 def assert_ndarrays_almost_eq(*expr_and_expected):
     assert_ndarrays(np.allclose, expr_and_expected)
 
-@skip_unless_spark_backend()
+
 def test_ndarray_ref():
 
     scalar = 5.0
@@ -61,7 +61,7 @@ def test_ndarray_ref():
         hl.eval(hl.nd.array([1, 2, 3])[4])
     assert "Index out of bounds" in str(exc)
 
-@skip_unless_spark_backend()
+
 def test_ndarray_slice():
     np_rect_prism = np.arange(24).reshape((2, 3, 4))
     rect_prism = hl.nd.array(np_rect_prism)
@@ -105,7 +105,6 @@ def test_ndarray_slice():
     assert "Slice step cannot be zero" in str(exc)
 
 
-@skip_unless_spark_backend()
 def test_ndarray_eval():
     data_list = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     mishapen_data_list1 = [[4], [1, 2, 3]]
@@ -160,7 +159,6 @@ def test_ndarray_eval():
     assert "inner dimensions do not match" in str(exc.value)
 
 
-@skip_unless_spark_backend()
 def test_ndarray_shape():
     np_e = np.array(3)
     np_row = np.array([1, 2, 3])
@@ -187,7 +185,7 @@ def test_ndarray_shape():
         (missing.shape, None)
     )
 
-@skip_unless_spark_backend()
+
 def test_ndarray_reshape():
     np_single = np.array([8])
     single = hl.nd.array([8])
@@ -260,7 +258,6 @@ def test_ndarray_reshape():
     assert "Can't reshape" in str(exc)
 
 
-@skip_unless_spark_backend()
 def test_ndarray_map():
     a = hl.nd.array([[2, 3, 4], [5, 6, 7]])
     b = hl.map(lambda x: -x, a)
@@ -273,7 +270,7 @@ def test_ndarray_map():
 
     assert hl.eval(hl.null(hl.tndarray(hl.tfloat, 1)).map(lambda x: x * 2)) is None
 
-@skip_unless_spark_backend()
+
 def test_ndarray_map2():
 
     a = 2.0
@@ -416,7 +413,7 @@ def test_ndarray_sum():
         (m.sum(axis=1), np_m.sum(axis=1)),
         (m.sum(), np_m.sum()))
 
-@skip_unless_spark_backend()
+
 def test_ndarray_transpose():
     np_v = np.array([1, 2, 3])
     np_m = np.array([[1, 2, 3], [4, 5, 6]])
@@ -449,7 +446,7 @@ def test_ndarray_transpose():
         cube.transpose((1, 1, 1))
     assert "Axes cannot contain duplicates" in str(exc.value)
 
-@skip_unless_spark_backend()
+
 def test_ndarray_matmul():
     np_v = np.array([1, 2])
     np_y = np.array([1, 1, 1])
@@ -536,11 +533,11 @@ def test_ndarray_matmul():
         hl.eval(hl.nd.array([1, 2]) @ hl.nd.array([1, 2, 3]))
     assert "Matrix dimensions incompatible" in str(exc)
 
-@skip_unless_spark_backend()
+
 def test_ndarray_big():
     assert hl.eval(hl.nd.array(hl.range(100_000))).size == 100_000
 
-@skip_unless_spark_backend()
+
 def test_ndarray_full():
     assert_ndarrays_eq(
         (hl.nd.zeros(4), np.zeros(4)),
@@ -567,7 +564,7 @@ def test_ndarray_arange():
         hl.eval(hl.nd.arange(5, 20, 0))
     assert "Array range cannot have step size 0" in str(exc)
 
-@skip_unless_spark_backend()
+
 def test_ndarray_mixed():
     assert hl.eval(hl.null(hl.tndarray(hl.tint64, 2)).map(lambda x: x * x).reshape((4, 5)).T) is None
     assert hl.eval(
@@ -575,7 +572,7 @@ def test_ndarray_mixed():
          hl.nd.ones((5, 10)).map(lambda x: x + 5)).reshape(hl.null(hl.ttuple(hl.tint64, hl.tint64))).T.reshape((10, 5))) is None
     assert hl.eval(hl.or_missing(False, hl.nd.array(np.arange(10)).reshape((5,2)).map(lambda x: x * 2)).map(lambda y: y * 2)) is None
 
-@skip_unless_spark_backend()
+
 def test_ndarray_show():
     hl.nd.array(3).show()
     hl.nd.arange(6).show()
@@ -583,7 +580,6 @@ def test_ndarray_show():
     hl.nd.arange(8).reshape((2, 2, 2)).show()
 
 
-@skip_unless_spark_backend()
 def test_ndarray_diagonal():
     assert np.array_equal(hl.eval(hl.nd.diagonal(hl.nd.array([[1, 2], [3, 4]]))), np.array([1, 4]))
     assert np.array_equal(hl.eval(hl.nd.diagonal(hl.nd.array([[1, 2, 3], [4, 5, 6]]))), np.array([1, 5]))
@@ -594,7 +590,6 @@ def test_ndarray_diagonal():
     assert "2 dimensional" in str(exc)
 
 
-@skip_unless_spark_backend()
 def test_ndarray_qr():
     def assert_raw_equivalence(hl_ndarray, np_ndarray):
         ndarray_h, ndarray_tau = hl.eval(hl.nd.qr(hl_ndarray, mode="raw"))
