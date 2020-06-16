@@ -722,6 +722,13 @@ class Job:
 
                 log.info(f'{self}: cleaning up')
                 try:
+                    if self.gcsfuse:
+                        for b in self.gcsfuse:
+                            bucket = b['bucket']
+                            mount_path = self.gcsfuse_path(bucket)
+                            log.info(f'unmounting gcsfuse bucket {bucket} from {mount_path}')
+                            await check_shell(f'fusermount -u {mount_path}')
+                            log.info(f'successfully unmounted gcsfuse bucket {bucket} from {mount_path}')
                     shutil.rmtree(self.scratch, ignore_errors=True)
                 except Exception:
                     log.exception('while deleting volumes')
