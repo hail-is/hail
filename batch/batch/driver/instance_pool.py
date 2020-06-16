@@ -178,13 +178,13 @@ SET standing_worker_cores = %s, max_instances = %s, pool_size = %s;
             if machine_name not in self.name_instance:
                 break
 
-        if self.live_total_cores_mcpu // 1000 < 5_000:
+        if self.live_total_cores_mcpu // 1000 < 4_000:
             zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
             zone = random.choice(zones)
         else:
             zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f', 'us-east1-a', 'us-east1-b', 'us-east1-c', 'us-east4-a', 'us-east4-b', 'us-east4-c', 'us-west1-a', 'us-west1-b', 'us-west1-c', 'us-west2-a', 'us-west2-b', 'us-west2-c']
-            # based on quotas, us-central1: 300K over 4 zones, rest: 100K over 3 zones
-            weights = 4 * [295 / 4] + 12 * [100 / 3]
+            # based on quotas, us-central1: 4266 over 4 zones, us-east1: 12800 over 3 zones, us-east4: 4266 over 3 zones, us-west1: 4266 over 3 zones, us-west2: 2133 over 3 zones
+            weights = 4 * [266 / 4] + 3 * [12800 / 3] + 3 * [4266 / 3] + 3 * [4266 / 3] + 3 * [2133 / 3]
 
             zone = random.choices(zones, weights)[0]
 
