@@ -22,6 +22,13 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.46
+
+Release 2020-06-17
+
+### site
+- (hail#8955) Natural language documentation search
+
 ## Version 0.2.45
 
 Release 2020-06-15
