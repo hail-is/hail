@@ -302,9 +302,9 @@ object LoweredTableReader {
       FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
       summary,
       optimize = true)
-
+    
     val a = f(0, ctx.r)(ctx.r)
-    val s = new UnsafeRow(resultPType.asInstanceOf[PStruct], ctx.r, a)
+    val s = SafeRow(resultPType.asInstanceOf[PStruct], a)
 
     val ksorted = s.getBoolean(0)
     val pksorted = s.getBoolean(1)
