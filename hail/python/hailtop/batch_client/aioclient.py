@@ -436,9 +436,7 @@ class BatchBuilder:
         if pvc_size:
             job_spec['pvc_size'] = pvc_size
         if gcsfuse:
-            job_spec['gcsfuse'] = [{"bucket": bucket, "mount_path": mount_path,
-                                    "file_mode": file_mode, "dir_mode": dir_mode}
-                                   for (bucket, mount_path, file_mode, dir_mode) in gcsfuse]
+            job_spec['gcsfuse'] = [{"bucket": bucket, "mount_path": mount_path} for (bucket, mount_path) in gcsfuse]
 
         self._job_specs.append(job_spec)
 

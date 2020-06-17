@@ -522,7 +522,7 @@ class Job:
         self._timeout = timeout
         return self
 
-    def gcsfuse(self, bucket, mount_point, file_mode='500', dir_mode='500'):
+    def gcsfuse(self, bucket, mount_point):
         """
         Add a bucket to mount with gcsfuse.
 
@@ -540,7 +540,7 @@ class Job:
 
         >>> b = Batch(backend=ServiceBackend('test'))
         >>> j = b.new_job()
-        >>> (j.gcsfuse('my-bucket', '/my-bucket', file_mode='500', dir_mode='700')
+        >>> (j.gcsfuse('my-bucket', '/my-bucket')
         ...   .command(f'cat /my-bucket/my-file'))
 
         Parameters
@@ -550,12 +550,6 @@ class Job:
         mount_point: :obj:`str`
             The path at which the bucket should be mounted to in the Docker
             container.
-        file_mode: :obj:`str`
-            The mode for files. Use ``'700'`` for read, write, and execute.
-            Use ``'500'`` for read and execute only.
-        dir_mode: :obj:`str`
-            The mode for directories. Use ``'700'`` for read, write, and execute.
-            Use ``'500'`` for read and execute only.
 
         Returns
         -------
@@ -566,7 +560,7 @@ class Job:
         if not isinstance(self._batch._backend, ServiceBackend):
             raise NotImplementedError("A ServiceBackend is required to use the 'gcsfuse' option")
 
-        self._gcsfuse.append((bucket, mount_point, file_mode, dir_mode))
+        self._gcsfuse.append((bucket, mount_point))
         return self
 
     def _pretty(self):
