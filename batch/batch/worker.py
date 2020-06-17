@@ -471,7 +471,7 @@ def populate_secret_host_path(host_path, secret_data):
                 f.write(base64.b64decode(data))
 
 
-async def add_gcsfuse_bucket(mount_path, bucket, key_file, file_mode, dir_mode):
+async def add_gcsfuse_bucket(mount_path, bucket, key_file):
     os.makedirs(mount_path)
     delay = 0.1
     error = 0
@@ -480,8 +480,8 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, file_mode, dir_mode):
             return await check_shell(f'''
 /usr/bin/gcsfuse \
     -o allow_other \
-    --file-mode {file_mode} \
-    --dir-mode {dir_mode} \
+    --file-mode 770 \
+    --dir-mode 770 \
     --key-file {key_file} \
     {bucket} {mount_path}
 ''')
@@ -678,9 +678,7 @@ class Job:
                         bucket = b['bucket']
                         await add_gcsfuse_bucket(mount_path=self.gcsfuse_path(bucket),
                                                  bucket=bucket,
-                                                 key_file=f'{self.gsa_key_file_path()}/key.json',
-                                                 file_mode=b['file_mode'],
-                                                 dir_mode=b['dir_mode'])
+                                                 key_file=f'{self.gsa_key_file_path()}/key.json')
 
                 self.state = 'running'
 
