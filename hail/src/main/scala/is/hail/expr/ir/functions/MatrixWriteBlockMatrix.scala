@@ -43,7 +43,7 @@ case class MatrixWriteBlockMatrix(path: String,
     fs.mkDir(path + "/parts")
     val gp = GridPartitioner(blockSize, nRows, localNCols)
     val blockPartFiles =
-      new WriteBlocksRDD(fs.broadcast, path, rvd, partStarts, entryField, gp)
+      new WriteBlocksRDD(fs.broadcast, ctx.localTmpdir, path, rvd, partStarts, entryField, gp)
         .collect()
 
     val blockCount = blockPartFiles.length
