@@ -454,7 +454,7 @@ class BatchTests(unittest.TestCase):
         b = self.batch()
         head = b.new_job()
         head.command(f'mkdir -p {path}; echo head > {path}/gcsfuse_test_1')
-        head.gcsfuse(self.bucket_name, f'/{self.bucket_name}', file_mode='700', dir_mode='700')
+        head.gcsfuse(self.bucket_name, f'/{self.bucket_name}')
 
         tail = b.new_job()
         tail.command(f'cat {path}/gcsfuse_test_1')
