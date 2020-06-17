@@ -480,8 +480,8 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, file_mode, dir_mode):
             return await check_shell(f'''
 /usr/bin/gcsfuse \
     -o allow_other \
-    --file-mode {file_mode}00 \
-    --dir-mode {dir_mode}00 \
+    --file-mode {file_mode} \
+    --dir-mode {dir_mode} \
     --key-file {key_file} \
     {bucket} {mount_path}
 ''')
