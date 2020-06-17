@@ -143,9 +143,7 @@ object Code {
     end.append(lir.store(linst, lir.newInstance(tti,
       Type.getInternalName(tcls), "<init>", Type.getConstructorDescriptor(c), tti, argvs)))
 
-    val newC = new VCode(start, end, lir.load(linst))
-    args.foreach(_.clear())
-    newC
+    new VCode(start, end, lir.load(linst))
   }
 
   def newInstance[C](cb: ClassBuilder[C], ctor: MethodBuilder[C], args: IndexedSeq[Code[_]]): Code[C] = {
@@ -155,9 +153,7 @@ object Code {
 
     end.append(lir.store(linst, lir.newInstance(cb.ti, ctor.lmethod, argvs)))
 
-    val newC = new VCode(start, end, lir.load(linst))
-    args.foreach(_.clear())
-    newC
+    new VCode(start, end, lir.load(linst))
   }
 
   def newInstance[T <: AnyRef]()(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =

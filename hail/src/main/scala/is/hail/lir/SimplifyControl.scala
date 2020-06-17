@@ -137,10 +137,12 @@ class SimplifyControl(m: Method) {
     }
 
     val rootFinalTarget = mutable.Map[Int, Block]()
-    blocks.zipWithIndex.foreach { case (b, i) =>
+    blocks.indices.foreach { i =>
       val r = u.find(i)
-      val t = finalTarget(blocks(r))
-      rootFinalTarget(r) = t
+      if (r == i) {
+        val t = finalTarget(blocks(r))
+        rootFinalTarget(r) = t
+      }
     }
 
     for (b <- blocks) {

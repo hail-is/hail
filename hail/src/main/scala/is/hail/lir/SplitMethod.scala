@@ -13,7 +13,7 @@ object SplitMethod {
 }
 
 class SplitMethod(c: Classx[_], m: Method) {
-  private var blocks = m.findBlocks()
+  private val blocks = m.findBlocks()
 
   private val paramFields = m.parameterTypeInfo.zipWithIndex.map { case (ti, i) =>
     c.newField(genName("f", s"arg$i"), ti)
