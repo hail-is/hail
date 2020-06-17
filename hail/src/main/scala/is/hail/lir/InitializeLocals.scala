@@ -32,16 +32,22 @@ class InitializeLocals(m: Method) {
       def visit(x: X): Unit = {
         x match {
           case x: StoreX =>
-            val l = localIdx(x.l)
-            geni.clear(l)
-            killi.set(l)
+            if (!x.l.isInstanceOf[Parameter]) {
+              val l = localIdx(x.l)
+              geni.clear(l)
+              killi.set(l)
+            }
           case x: LoadX =>
-            val l = localIdx(x.l)
-            geni.set(l)
+            if (!x.l.isInstanceOf[Parameter]) {
+              val l = localIdx(x.l)
+              geni.set(l)
+            }
           case x: IincX =>
-            val l = localIdx(x.l)
-            geni.set(l)
-            killi.set(l)
+            if (!x.l.isInstanceOf[Parameter]) {
+              val l = localIdx(x.l)
+              geni.set(l)
+              killi.set(l)
+            }
           case _ =>
         }
         x.children.foreach(visit)
@@ -108,11 +114,9 @@ class InitializeLocals(m: Method) {
     var i = entryUsedIn.nextSetBit(0)
     while (i >= 0) {
       val l = locals(i)
-      if (!l.isInstanceOf[Parameter]) {
-        // println(s"  init $l ${l.ti}")
-        m.entry.prepend(
-          store(locals(i), defaultValue(l.ti)))
-      }
+      // println(s"  init $l ${l.ti}")
+      m.entry.prepend(
+        store(locals(i), defaultValue(l.ti)))
 
       i = entryUsedIn.nextSetBit(i + 1)
     }

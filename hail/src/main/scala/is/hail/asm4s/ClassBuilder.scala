@@ -483,11 +483,7 @@ class DependentMethodBuilder[C](val mb: MethodBuilder[C]) extends WrappedMethodB
     val L = new lir.Block()
 
     val obj = new lir.Local(null, "new_dep_fun", cb.ti)
-    L.append(lir.store(obj, lir.newInstance(cb.ti)))
-    L.append(lir.methodStmt(INVOKESPECIAL,
-      cb.className, "<init>", "()V", false,
-      UnitInfo,
-      Array(lir.load(obj))))
+    L.append(lir.store(obj, lir.newInstance(cb.ti, cb.lInit, FastIndexedSeq.empty[lir.ValueX])))
 
     var end = L
     setFields.foreach { f =>
