@@ -85,9 +85,17 @@ hr {
 
 #hail-navbar.documentation-view {
   position: fixed;
-  height: 52px;
+  min-height: 60px;
   z-index: 999;
   width: 100%;
+}
+
+.wy-side-nav-search {
+  display: none;
+}
+
+.wy-menu-vertical {
+  padding-top: calc(60px + .4045em);
 }
 
 #hail-navbar.documentation-view #hail-container-fluid {

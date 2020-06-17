@@ -15,6 +15,7 @@
                 <title><xsl:call-template name="page-title"/></title>
                 <link rel='shortcut icon' href='/hail_logo_sq-sm-opt.ico' type='image/x-icon'/>
                 <xsl:call-template name="meta-description"/>
+                <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsearch.js@2/dist/cdn/docsearch.min.css" />
                 <link rel="stylesheet" href="/style.css"/>
                 <link rel="stylesheet" href="/navbar.css"/>
                 <xsl:call-template name="header"/>
@@ -42,6 +43,7 @@
                             </button>
                         </div>
                         <div class="collapse navbar-collapse" id="hail-navbar-collapse">
+                            <input id='search' type='search' placeholder='Search Hail Docs'/>
                             <ul class="nav navbar-nav navbar-right" id="hail-menu">
                                 <li class="nav-item">
                                     <a href="/docs/0.2/index.html">Docs</a>
@@ -66,19 +68,20 @@
                             </ul>
                         </div>
                         <script>
-                            <xsl:text disable-output-escaping="yes" >
+                            <xsl:text disable-output-escaping="yes">
                                 <![CDATA[
                                     const cached = document.getElementById("hail-navbar-collapse");
+                                    const initialStyle = cached.style.display;
                                     document.getElementById("navbar-toggler").addEventListener("click", () => {
                                         const computed = getComputedStyle(cached);
 
                                         if (computed.display == 'none') {
-                                        cached.style.display = 'block';
+                                            cached.style.display = 'block';
                                         } else {
-                                        cached.style.display = 'none';
+                                            cached.style.display = initialStyle;
                                         }
                                     });
-                                    (function(){
+                                    (function () {
                                         var cpage = location.pathname;
                                         var menuItems = document.querySelectorAll('#hail-menu a');
 
@@ -93,6 +96,78 @@
                                             document.getElementById('hail-navbar-brand').className = "active";
                                         };
                                     })();
+                                ]]>
+                            </xsl:text>
+                        </script>
+                        <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/docsearch.js@2/dist/cdn/docsearch.min.js" async="true"></script>
+                        <script type="text/javascript">
+                            <xsl:text disable-output-escaping="yes" >
+                                <![CDATA[
+                                    let isHighlighted = false;
+                                    const cachedSearchInput = document.getElementById("search");
+
+                                    const cachedNavbar = document.getElementById("hail-navbar")
+                                    cachedSearchInput.addEventListener("keyup", (ev) => {
+                                        handleSearchKeyUp(cachedSearchInput.value, ev)
+                                    });
+
+                                    function handleSearchKeyUp(query, ev) {
+                                        if(ev.keyCode == 13 && !isHighlighted) {
+                                            location.href = `/search.html?query=${query}`;
+                                        }
+                                    }
+
+                                    function run() {
+                                        docsearch({
+                                        apiKey: 'd2dee24912091336c40033044c9bac58',
+                                        indexName: 'hail_is',
+                                        inputSelector: '#search',
+                                        debug: false, // hide on blur
+                                        handleSelected: function(input, event, suggestion, datasetNumber, context) {
+                                            isHighlighted = !!suggestion;
+                                            location.href = suggestion.url;
+                                        },
+                                        queryHook: function(query) {
+                                            // algolia seems to split on period, but not split queries on period, affects methods search
+                                            return query.replace(/\./g, " ");
+                                        },
+                                        autocompleteOptions: {
+                                            autoselect: false
+                                        },
+                                        algoliaOptions: {
+                                            hitsPerPage: 10,
+                                            exactOnSingleWordQuery: "word",
+                                        },
+                                        });
+
+                                        const cachedAlgolia = document.querySelector("#algolia-autocomplete-listbox-0 > .ds-dataset-1");
+
+                                        cachedAlgolia.style.overflow = 'scroll';
+
+                                        cachedAlgolia.style.maxHeight = `${window.innerHeight - cachedNavbar.offsetHeight}px`;
+                                        let evTimeout = null;
+                                        const ev = window.addEventListener("resize", () => {
+                                            if (evTimeout) {
+                                                clearTimeout(evTimeout);
+                                            }
+
+                                            evTimeout = setTimeout(() => {
+                                                cachedAlgolia.style.maxHeight = `${window.innerHeight - cachedNavbar.offsetHeight}px`;
+                                                evTimeout = null;
+                                            }, 100);
+                                        })
+                                    }
+
+                                    function check()  {
+                                        if(window.docsearch)  {
+                                            run();
+                                            return;
+                                        }
+
+                                        setTimeout(check, 16);
+                                    }
+
+                                    check();
                                 ]]>
                             </xsl:text>
                         </script>
