@@ -26,11 +26,13 @@ an earlier version of Hail to read files written in a later version.
 
 Released 2020-06-17
 
-### site
+### Site
 - (hail#8955) Natural language documentation search
 
 ### Bug fixes
 - (hail#8981) Fix BlockMatrix OOM triggered by the MatrixWriteBlockMatrix WriteBlocksRDD method
+
+---
 
 ## Version 0.2.45
 
