@@ -128,16 +128,14 @@ case class MatrixNativeWriter(
                         RVDSpecWriter(s"$path/globals/globals", RVDSpecMaker(emptySpec, RVDPartitioner.unkeyed(1)))),
                       WriteMetadata(MakeArray(GetField(writeGlobals, "filePath")),
                         RVDSpecWriter(s"$path/globals/rows", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)))),
-                      WriteMetadata(MakeArray(I64(1)),
-                        TableSpecWriter(path, t.typ, "rows", "globals", "references", log = true)),
+                      WriteMetadata(MakeArray(I64(1)), globalTableWriter),
                       WriteMetadata(MakeArray(GetField(colInfo, "filePath")),
-                        RVDSpecWriter(s"$path/cols/rows", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)))),
+                        RVDSpecWriter(s"$path/cols/rows", RVDSpecMaker(colSpec, RVDPartitioner.unkeyed(1)))),
                       WriteMetadata(MakeArray(GetField(colInfo, "partitionCounts")), colTableWriter),
                       bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => GetField(fc, "filePath") })) { files =>
                         Begin(FastIndexedSeq(
                           WriteMetadata(files, RVDSpecWriter(s"$path/rows/rows", RVDSpecMaker(rowSpec, lowered.partitioner))),
-                          WriteMetadata(files,
-                            RVDSpecWriter(s"$path/entries/rows", RVDSpecMaker(entrySpec, RVDPartitioner.unkeyed(lowered.numPartitions))))))
+                          WriteMetadata(files, RVDSpecWriter(s"$path/entries/rows", RVDSpecMaker(entrySpec, RVDPartitioner.unkeyed(lowered.numPartitions))))))
                       },
                       bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => GetField(fc, "partitionCounts") })) { counts =>
                         Begin(FastIndexedSeq(
