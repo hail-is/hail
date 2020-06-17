@@ -282,12 +282,15 @@ sudo mv /var/lib/docker /mnt/disks/$LOCAL_SSD_NAME/docker
 sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/docker /var/lib/docker
 sudo service docker start
 
-# reconfigure /batch and /logs to use local SSD
+# reconfigure /batch and /logs and /gcsfuse to use local SSD
 sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/batch/
 sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/batch /batch
 
 sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/logs/
 sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/logs /logs
+
+sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/gcsfuse/
+sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/gcsfuse /gcsfuse
 
 export HOME=/root
 
@@ -326,8 +329,9 @@ docker run \
     -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /usr/bin/docker:/usr/bin/docker \
-    -v /batch:/batch:shared \
+    -v /batch:/batch \
     -v /logs:/logs \
+    -v /gcsfuse:/gcsfuse:shared \
     -p 5000:5000 \
     --device /dev/fuse \
     --cap-add SYS_ADMIN \
