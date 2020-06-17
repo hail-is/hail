@@ -24,7 +24,7 @@ an earlier version of Hail to read files written in a later version.
 
 ## Version 0.2.46
 
-Release 2020-06-17
+Released 2020-06-17
 
 ### site
 - (hail#8955) Natural language documentation search
