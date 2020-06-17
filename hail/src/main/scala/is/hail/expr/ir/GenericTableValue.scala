@@ -49,7 +49,6 @@ class PartitionIteratorLongReader(
       SizedStream.unsized(Stream.unfold[Code[Long]](
         (_, k) =>
           Code(
-            Code._fatal[Unit](""),
             hasNext := it.get.hasNext,
             hasNext.orEmpty(next := Code.longValue(it.get.next())),
             k(COption(!hasNext, next))),
