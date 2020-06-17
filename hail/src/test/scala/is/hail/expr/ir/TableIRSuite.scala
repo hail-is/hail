@@ -326,7 +326,6 @@ class TableIRSuite extends HailSuite {
     leftProject: Set[Int],
     rightProject: Set[Int]
   ) {
-    implicit val execStrats = ExecStrategy.allRelational
     val (leftType, leftProjectF) = rowType.filter(f => !leftProject.contains(f.index))
     val left = TableKeyBy(
       TableParallelize(
