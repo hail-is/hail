@@ -480,8 +480,8 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file):
             return await check_shell(f'''
 /usr/bin/gcsfuse \
     -o allow_other \
-    --file-mode 777 \
-    --dir-mode 777 \
+    --file-mode 770 \
+    --dir-mode 770 \
     --key-file {key_file} \
     {bucket} {mount_path}
 ''')
@@ -493,7 +493,6 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file):
             raise
 
         delay = await sleep_and_backoff(delay)
-
 
 
 def copy_command(src, dst):
@@ -540,7 +539,8 @@ class Job:
         return f'{self.scratch}/io'
 
     def gcsfuse_path(self, bucket):
-        return f'{self.scratch}/gcsfuse/{bucket}'
+        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
+        return f'/gcsfuse/{self.token}/{bucket}'
 
     def gsa_key_file_path(self):
         return f'{self.scratch}/gsa-key'
@@ -554,8 +554,8 @@ class Job:
 
         self.deleted = False
 
-        token = uuid.uuid4().hex
-        self.scratch = f'/batch/{token}'
+        self.token = uuid.uuid4().hex
+        self.scratch = f'/batch/{self.token}'
 
         self.state = 'pending'
         self.error = None
@@ -676,7 +676,9 @@ class Job:
                     populate_secret_host_path(self.gsa_key_file_path(), self.gsa_key)
                     for b in self.gcsfuse:
                         bucket = b['bucket']
-                        await add_gcsfuse_bucket(self.gcsfuse_path(bucket), bucket, f'{self.gsa_key_file_path()}/key.json')
+                        await add_gcsfuse_bucket(mount_path=self.gcsfuse_path(bucket),
+                                                 bucket=bucket,
+                                                 key_file=f'{self.gsa_key_file_path()}/key.json')
 
                 self.state = 'running'
 
@@ -722,6 +724,12 @@ class Job:
 
                 log.info(f'{self}: cleaning up')
                 try:
+                    if self.gcsfuse:
+                        for b in self.gcsfuse:
+                            bucket = b['bucket']
+                            mount_path = self.gcsfuse_path(bucket)
+                            await check_shell(f'fusermount -u {mount_path}')
+                            log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
                     shutil.rmtree(self.scratch, ignore_errors=True)
                 except Exception:
                     log.exception('while deleting volumes')
