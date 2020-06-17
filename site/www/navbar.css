@@ -153,6 +153,11 @@ input[type="search"]::placeholder {
   text-overflow: ellipsis;
   max-width: 99%;
 }
+
+.algolia-autocomplete .algolia-docsearch-suggestion--text, .algolia-autocomplete .algolia-docsearch-suggestion--title {
+  text-transform: none;
+}
+
 .algolia-autocomplete .algolia-docsearch-suggestion--subcategory-column {
   width: 20%!important;
 }
