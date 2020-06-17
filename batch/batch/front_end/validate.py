@@ -46,7 +46,7 @@ RESOURCES_KEYS = {'memory', 'cpu'}
 
 FILE_KEYS = {'from', 'to'}
 
-GCSFUSE_KEYS = {'bucket', 'mount_path'}
+GCSFUSE_KEYS = {'bucket', 'mount_path', 'file_mode', 'dir_mode'}
 
 K8S_NAME_REGEXPAT = r'[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*'
 K8S_NAME_REGEX = re.compile(K8S_NAME_REGEXPAT)
@@ -56,6 +56,12 @@ MEMORY_REGEX = re.compile(MEMORY_REGEXPAT)
 
 CPU_REGEXPAT = r'[+]?((?:[0-9]*[.])?[0-9]+)([m])?'
 CPU_REGEX = re.compile(CPU_REGEXPAT)
+
+FILE_MODE_REGEXPAT = r'[0-7]'
+FILE_MODE_REGEX = re.compile(FILE_MODE_REGEXPAT)
+
+DIR_MODE_REGEXPAT = r'[0-7]'
+DIR_MODE_REGEX = re.compile(FILE_MODE_REGEXPAT)
 
 
 class ValidationError(Exception):
@@ -148,6 +154,22 @@ def validate_job(i, job):
             mount_path = b['mount_path']
             if not isinstance(mount_path, str):
                 raise ValidationError(f'jobs[{i}].gcsfuse[{j}].mount_path is not str')
+
+            if 'file_mode' not in b:
+                raise ValidationError(f'no required key file_mode in jobs[{i}].gcsfuse[{j}]')
+            file_mode = b['file_mode']
+            if not isinstance(file_mode, str):
+                raise ValidationError(f'jobs[{i}].gcsfuse[{j}].file_mode is not str')
+            if not FILE_MODE_REGEX.match(file_mode):
+                raise ValidationError(f'jobs[{i}].gcsfuse[{j}].file_mode must be a single digit between 0-7')
+
+            if 'dir_mode' not in b:
+                raise ValidationError(f'no required key dir_mode in jobs[{i}].gcsfuse[{j}]')
+            dir_mode = b['dir_mode']
+            if not isinstance(dir_mode, str):
+                raise ValidationError(f'jobs[{i}].gcsfuse[{j}].dir_mode is not str')
+            if not DIR_MODE_REGEX.match(dir_mode):
+                raise ValidationError(f'jobs[{i}].gcsfuse[{j}].dir_mode must be a single digit between 0-7')
 
     if 'image' not in job:
         raise ValidationError(f'no required key image in jobs[{i}]')

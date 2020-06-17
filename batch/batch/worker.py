@@ -471,7 +471,7 @@ def populate_secret_host_path(host_path, secret_data):
                 f.write(base64.b64decode(data))
 
 
-async def add_gcsfuse_bucket(mount_path, bucket, key_file):
+async def add_gcsfuse_bucket(mount_path, bucket, key_file, file_mode, dir_mode):
     os.makedirs(mount_path)
     delay = 0.1
     error = 0
@@ -480,8 +480,8 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file):
             return await check_shell(f'''
 /usr/bin/gcsfuse \
     -o allow_other \
-    --file-mode 777 \
-    --dir-mode 777 \
+    --file-mode {file_mode}00 \
+    --dir-mode {dir_mode}00 \
     --key-file {key_file} \
     {bucket} {mount_path}
 ''')
@@ -493,7 +493,6 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file):
             raise
 
         delay = await sleep_and_backoff(delay)
-
 
 
 def copy_command(src, dst):
@@ -540,7 +539,8 @@ class Job:
         return f'{self.scratch}/io'
 
     def gcsfuse_path(self, bucket):
-        return f'{self.scratch}/gcsfuse/{bucket}'
+        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
+        return f'/gcsfuse/{self.token}/{bucket}'
 
     def gsa_key_file_path(self):
         return f'{self.scratch}/gsa-key'
@@ -554,8 +554,8 @@ class Job:
 
         self.deleted = False
 
-        token = uuid.uuid4().hex
-        self.scratch = f'/batch/{token}'
+        self.token = uuid.uuid4().hex
+        self.scratch = f'/batch/{self.token}'
 
         self.state = 'pending'
         self.error = None
@@ -676,7 +676,11 @@ class Job:
                     populate_secret_host_path(self.gsa_key_file_path(), self.gsa_key)
                     for b in self.gcsfuse:
                         bucket = b['bucket']
-                        await add_gcsfuse_bucket(self.gcsfuse_path(bucket), bucket, f'{self.gsa_key_file_path()}/key.json')
+                        await add_gcsfuse_bucket(mount_path=self.gcsfuse_path(bucket),
+                                                 bucket=bucket,
+                                                 key_file=f'{self.gsa_key_file_path()}/key.json',
+                                                 file_mode=b['file_mode'],
+                                                 dir_mode=b['dir_mode'])
 
                 self.state = 'running'
 
@@ -726,9 +730,8 @@ class Job:
                         for b in self.gcsfuse:
                             bucket = b['bucket']
                             mount_path = self.gcsfuse_path(bucket)
-                            log.info(f'unmounting gcsfuse bucket {bucket} from {mount_path}')
                             await check_shell(f'fusermount -u {mount_path}')
-                            log.info(f'successfully unmounted gcsfuse bucket {bucket} from {mount_path}')
+                            log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
                     shutil.rmtree(self.scratch, ignore_errors=True)
                 except Exception:
                     log.exception('while deleting volumes')
