@@ -522,7 +522,7 @@ class Job:
         self._timeout = timeout
         return self
 
-    def gcsfuse(self, bucket, mount_point, file_mode, dir_mode):
+    def gcsfuse(self, bucket, mount_point, file_mode='500', dir_mode='500'):
         """
         Add a bucket to mount with gcsfuse.
 
@@ -530,6 +530,10 @@ class Job:
         -----
         Can only be used with the :class:`.ServiceBackend`. This method can
         be called more than once.
+
+        Warning
+        -------
+        There are performance and cost implications of using `gcsfuse <https://cloud.google.com/storage/docs/gcs-fuse>`__.
 
         Examples
         --------
@@ -546,6 +550,12 @@ class Job:
         mount_point: :obj:`str`
             The path at which the bucket should be mounted to in the Docker
             container.
+        file_mode: :obj:`str`
+            The mode for files. Use ``'700'`` for read, write, and execute.
+            Use ``'500'`` for read and execute only.
+        dir_mode: :obj:`str`
+            The mode for directories. Use ``'700'`` for read, write, and execute.
+            Use ``'500'`` for read and execute only.
 
         Returns
         -------
