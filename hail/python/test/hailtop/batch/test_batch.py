@@ -468,7 +468,7 @@ class BatchTests(unittest.TestCase):
         j.command(f'mkdir -p {path}; echo head > {path}/gcsfuse_test_2')
         j.gcsfuse(self.bucket_name, f'/{self.bucket_name}', file_mode='500', dir_mode='500')
 
-        assert b.run().status['state'] == 'failure'
+        assert b.run().status()['state'] == 'failure'
 
     def test_benchmark_lookalike_workflow(self):
         b = self.batch()
