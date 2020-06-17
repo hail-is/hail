@@ -6,6 +6,7 @@ import datetime
 import asyncio
 import logging
 import base64
+import dateutil.parser
 import sortedcontainers
 import aiohttp
 from hailtop.utils import time_msecs, secret_alnum_string
@@ -427,7 +428,7 @@ gsutil -m cp run.log worker.log /var/log/syslog dockerd.log  gs://$WORKER_LOGS_B
             log.warning(f'event has no payload')
             return
 
-        timestamp = event.timestamp.timestamp() * 1000
+        timestamp = dateutil.parser.isoparse(event['timestamp']).timestamp() * 1000
         version = payload['version']
         if version != '1.2':
             log.warning('unknown event verison {version}')
