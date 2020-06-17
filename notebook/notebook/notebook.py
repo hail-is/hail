@@ -512,12 +512,6 @@ async def get_error(request, userdata):
     return await _get_error('notebook', request, userdata)
 
 
-@routes.get('/user')
-@web_authenticated_users_only()
-async def user_page(request, userdata):
-    return await render_template('notebook', request, userdata, 'user.html', {})
-
-
 @routes.get('/workshop-admin')
 @web_authenticated_developers_only()
 async def workshop_admin(request, userdata):

@@ -7,7 +7,6 @@ import copy
 from shlex import quote as shq
 import webbrowser
 from hailtop.config import get_deploy_config, get_user_config
-from hailtop.auth import get_userinfo
 from hailtop.batch_client.client import BatchClient
 
 from .resource import InputResourceFile, JobResourceFile
@@ -245,9 +244,6 @@ class ServiceBackend(Backend):
 
         if bucket is None:
             bucket = get_user_config().get('batch', 'bucket', fallback=None)
-        if bucket is None:
-            userinfo = get_userinfo()
-            bucket = userinfo.get('bucket_name')
         if bucket is None:
             raise ValueError(
                 f'the bucket parameter of ServiceBackend must be set '
