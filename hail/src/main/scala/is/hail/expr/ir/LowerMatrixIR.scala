@@ -592,7 +592,7 @@ object LowerMatrixIR {
                 let(sa = 'global (colsField)('__result_idx)) {
                   aggLet(sa = 'global (colsField)('__element_idx),
                     g = 'row (entriesField)('__element_idx)) {
-                    eeSub
+                    aggFilter(!'g.isNA, eeSub)
                   }
                 })))
 
@@ -661,7 +661,7 @@ object LowerMatrixIR {
                   .apply('value)
                   .streamAgg(aggElementIdx ~>
                     aggLet(g = '__entries (aggElementIdx), sa = 'global (colsField)(aggElementIdx)) {
-                      eeSub
+                      aggFilter(!'g.isNA, eeSub)
                     }))
             }))
           .mapGlobals(
