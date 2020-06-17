@@ -249,13 +249,14 @@ case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
     cleanupMethod.emit(CodeBuilder.scopedVoid(cleanupMethod)(emitCleanup))
     val Lpresent2 = CodeLabel()
     cb.define(Lpresent)
+    val result = pc.memoize(cb, "valueBeforeCleanup")
     cb += cleanupMethod.invoke()
     cb.goto(Lpresent2)
     val Lmissing2 = CodeLabel()
     cb.define(Lmissing)
     cb += cleanupMethod.invoke()
     cb.goto(Lmissing2)
-    IEmitCode(Lmissing2, Lpresent2, pc)
+    IEmitCode(Lmissing2, Lpresent2, result)
   }
 
   def handle(cb: EmitCodeBuilder, ifMissing: => Unit): PCode = {

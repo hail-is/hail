@@ -61,7 +61,7 @@ class Handler (
     log.info(s"uuid ${uuidToString(uuid)}")
     val shuffle = server.shuffles.get(uuid)
     if (shuffle == null) {
-      throw new RuntimeException(s"shuffle does not exist $uuid")
+      throw new RuntimeException(s"shuffle does not exist ${uuidToString(uuid)}")
     }
     shuffle
   }
