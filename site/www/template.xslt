@@ -111,6 +111,20 @@
                                         handleSearchKeyUp(cachedSearchInput.value, ev)
                                     });
 
+                                    function handleSearchKeyUp(query, ev) {
+                                        if(ev.keyCode == 13 && !isHighlighted) {
+                                            location.href = `/search.html?query=${query}`;
+                                        }
+                                    }
+
+                                    window.addEventListener("keyup", (ev) => {
+                                        if(ev.keyCode != 191) {
+                                            return;
+                                        }
+
+                                        cachedSearchInput.focus();
+                                    })
+
                                     const algoliaOptions = {
                                         hitsPerPage: 10,
                                         exactOnSingleWordQuery: "word",
@@ -136,7 +150,7 @@
                                                 autoselect: false
                                             },
                                             algoliaOptions: algoliaOptions,
-=                                        });
+                                        });
 
                                         const cachedAlgolia = document.querySelector("#algolia-autocomplete-listbox-0 > .ds-dataset-1");
 
