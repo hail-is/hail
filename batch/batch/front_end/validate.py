@@ -9,7 +9,7 @@ import re
 #     'name': str,
 #     'value': str
 #   }],
-#   'gcsfuse': [{"bucket": str, "mount_path": str}],
+#   'gcsfuse': [{"bucket": str, "mount_path": str, "read_only": bool}],
 #   'image': str,
 #   'input_files': [{"from": str, "to": str}],
 #   'job_id': int,
@@ -46,7 +46,7 @@ RESOURCES_KEYS = {'memory', 'cpu'}
 
 FILE_KEYS = {'from', 'to'}
 
-GCSFUSE_KEYS = {'bucket', 'mount_path'}
+GCSFUSE_KEYS = {'bucket', 'mount_path', 'read_only'}
 
 K8S_NAME_REGEXPAT = r'[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*'
 K8S_NAME_REGEX = re.compile(K8S_NAME_REGEXPAT)
@@ -148,6 +148,12 @@ def validate_job(i, job):
             mount_path = b['mount_path']
             if not isinstance(mount_path, str):
                 raise ValidationError(f'jobs[{i}].gcsfuse[{j}].mount_path is not str')
+
+            if 'read_only' not in b:
+                raise ValidationError(f'no required key read_only in jobs[{i}].gcsfuse[{j}]')
+            read_only = b['read_only']
+            if not isinstance(read_only, bool):
+                raise ValidationError(f'jobs[{i}].gcsfuse[{j}].read_only is not bool')
 
     if 'image' not in job:
         raise ValidationError(f'no required key image in jobs[{i}]')
