@@ -41,6 +41,7 @@ trait AggregatorState {
     val ob = cb.newLocal("aggstate_ser_to_region_ob", lazyBuffer.invoke[OutputBuffer]("buffer"))
     serialize(BufferSpec.defaultUncompressed)(cb, ob)
     cb.assign(addr, t.allocate(r, lazyBuffer.invoke[Int]("length")))
+    cb += t.storeLength(addr, lazyBuffer.invoke[Int]("length"))
     cb += lazyBuffer.invoke[Long, Unit]("copyToAddress", t.bytesAddress(addr))
 
     addr

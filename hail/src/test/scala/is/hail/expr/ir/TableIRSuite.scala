@@ -764,4 +764,19 @@ class TableIRSuite extends HailSuite {
       Row(FastIndexedSeq(Row(0, 120L), Row(1, 112L), Row(2, 98L), Row(3, 80L), Row(4, 60L), Row(5, 40L), Row(6, 22L), Row(7, 8L)), Row())
     )
   }
+
+  @Test def testTableAggregateCollectAndTake(): Unit = {
+    implicit val execStrats = ExecStrategy.allRelational
+    var tir: TableIR = TableRange(10, 3)
+    tir = TableMapRows(tir, InsertFields(Ref("row", tir.typ.rowType), FastSeq("aStr" -> Str("foo"))))
+    val x = TableAggregate(tir,
+      MakeTuple.ordered(FastSeq(
+        ApplyAggOp(Collect())(Ref("row", tir.typ.rowType)),
+        ApplyAggOp(Take(), I32(5))(GetField(Ref("row", tir.typ.rowType), "idx"))
+      )))
+
+    assertEvalsTo(x, Row(
+      (0 until 10).map(i => Row(i, "foo")),
+      0 until 5))
+  }
 }

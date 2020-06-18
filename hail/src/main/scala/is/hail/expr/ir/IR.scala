@@ -429,7 +429,7 @@ final case class SeqOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSig) ext
 final case class CombOp(i1: Int, i2: Int, aggSig: PhysicalAggSig) extends IR
 final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[PhysicalAggSig]) extends IR
 final case class CombOpValue(i: Int, value: IR, aggSig: PhysicalAggSig) extends IR
-final case class AggStateValue(i: Int, aggSig: AggStateSig) extends IR
+final case class AggStateValue(i: Int, aggSig: PhysicalAggSig) extends IR
 
 final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSig]) extends IR
 final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSig]) extends IR

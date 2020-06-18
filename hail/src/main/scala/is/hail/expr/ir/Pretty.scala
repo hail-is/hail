@@ -173,7 +173,7 @@ object Pretty {
           sb += ' '
           sb.append(i)
           sb += ' '
-          prettyAggStateSignature(sig, depth + 2)
+          prettyPhysicalAggSig(sig, depth + 2)
         case CombOpValue(i, _, sig) =>
           sb += ' '
           sb.append(i)

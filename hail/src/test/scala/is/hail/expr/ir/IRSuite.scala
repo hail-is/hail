@@ -2790,7 +2790,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testTableAggregate() {
-    implicit val execStrats = ExecStrategy.interpretOnly
+    implicit val execStrats = ExecStrategy.allRelational
 
     val table = TableRange(3, 2)
     val countSig = AggSignature(Count(), Seq(), Seq())
@@ -2971,12 +2971,12 @@ class IRSuite extends HailSuite {
       RunAgg(Begin(FastSeq(
         InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), pSumSig)))), groupSignature),
         SeqOp(0, FastSeq(I32(1), SeqOp(0, FastSeq(), pSumSig)), groupSignature))),
-        AggStateValue(0, groupSignature.state), FastIndexedSeq(groupSignature.state)),
+        AggStateValue(0, groupSignature), FastIndexedSeq(groupSignature.state)),
       RunAggScan(StreamRange(I32(0), I32(1), I32(1)),
         "foo",
         InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), pSumSig)))), groupSignature),
         SeqOp(0, FastSeq(Ref("foo", TInt32), SeqOp(0, FastSeq(), pSumSig)), groupSignature),
-        AggStateValue(0, groupSignature.state),
+        AggStateValue(0, groupSignature),
         FastIndexedSeq(groupSignature.state)),
       AggFilter(True(), I32(0), false),
       AggExplode(NA(TStream(TInt32)), "x", I32(0), false),

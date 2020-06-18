@@ -831,6 +831,42 @@ object LowerTableIR {
       case TableCollect(child) =>
         lower(child).collectWithGlobals()
 
+      case TableAggregate(child, query) =>
+        val resultUID = genUID()
+        val aggs = agg.Extract(query, resultUID, r, false)
+        val lc = lower(child)
+
+        lc.mapCollectWithGlobals({ part: IR =>
+          Let("global", lc.globals,
+            RunAgg(
+              Begin(FastIndexedSeq(
+                aggs.init,
+                StreamFor(part,
+                  "row",
+                  aggs.seqPerElt
+                )
+              )),
+              MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig) }),
+              aggs.states
+            ))
+        }) { case (collected, globals) =>
+          Let("global",
+            globals,
+            RunAgg(
+              Begin(FastIndexedSeq(
+                aggs.init,
+                forIR(ToStream(collected)) { state =>
+                  Begin(aggs.aggs.zipWithIndex.map { case (sig, i) => CombOpValue(i, GetTupleElement(state, i), sig) })
+                }
+              )),
+              Let(
+                resultUID,
+                ResultOp(0, aggs.aggs),
+                aggs.postAggIR),
+              aggs.states
+            ))
+        }
+
       case TableToValueApply(child, NPartitionsTable()) =>
         lower(child).getNumPartitions()
 

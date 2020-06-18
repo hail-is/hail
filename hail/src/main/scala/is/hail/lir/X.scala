@@ -249,6 +249,7 @@ class Method private[lir] (
     }
 
     def visitX(x: X): Unit = {
+      println(x)
       x match {
         case x: StoreX => visitLocal(x.l)
         case x: LoadX => visitLocal(x.l)
