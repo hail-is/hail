@@ -952,7 +952,7 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
-     HAIL_CACHE_VERSION=$(cat repo/hail/python/hail/hail_version)
+     ls -ls ./
      make -C site/www
      find site/www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
      rsync --archive \
