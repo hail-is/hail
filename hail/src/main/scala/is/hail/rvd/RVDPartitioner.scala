@@ -16,6 +16,7 @@ class RVDPartitioner(
   val rangeBounds: Array[Interval],
   allowedOverlap: Int
 ) {
+  // expensive, for debugging
   // assert(rangeBounds.forall(SafeRow.isSafe))
 
   override def toString: String =
