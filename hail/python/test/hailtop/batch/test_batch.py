@@ -455,14 +455,24 @@ class BatchTests(unittest.TestCase):
         b = self.batch()
         head = b.new_job()
         head.command(f'mkdir -p {path}; echo head > {path}/gcsfuse_test_1')
-        head.gcsfuse(self.bucket_name, f'/{self.bucket_name}')
+        head.gcsfuse(self.bucket_name, f'/{self.bucket_name}', read_only=False)
 
         tail = b.new_job()
         tail.command(f'cat {path}/gcsfuse_test_1')
-        tail.gcsfuse(self.bucket_name, f'/{self.bucket_name}')
+        tail.gcsfuse(self.bucket_name, f'/{self.bucket_name}', read_only=True)
         tail.depends_on(head)
 
         assert b.run().status()['state'] == 'success'
+
+    def test_gcsfuse_read_only(self):
+        path = f'/{self.bucket_name}{self.gcs_output_path}'
+
+        b = self.batch()
+        j = b.new_job()
+        j.command(f'mkdir -p {path}; echo head > {path}/gcsfuse_test_1')
+        j.gcsfuse(self.bucket_name, f'/{self.bucket_name}', read_only=True)
+
+        assert b.run().status()['state'] == 'failure'
 
     def test_benchmark_lookalike_workflow(self):
         b = self.batch()

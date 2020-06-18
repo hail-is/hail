@@ -522,7 +522,7 @@ class Job:
         self._timeout = timeout
         return self
 
-    def gcsfuse(self, bucket, mount_point):
+    def gcsfuse(self, bucket, mount_point, read_only=True):
         """
         Add a bucket to mount with gcsfuse.
 
@@ -550,6 +550,8 @@ class Job:
         mount_point: :obj:`str`
             The path at which the bucket should be mounted to in the Docker
             container.
+        read_only: :obj:`bool`
+            If ``True``, mount the bucket in read-only mode.
 
         Returns
         -------
@@ -560,7 +562,7 @@ class Job:
         if not isinstance(self._batch._backend, ServiceBackend):
             raise NotImplementedError("A ServiceBackend is required to use the 'gcsfuse' option")
 
-        self._gcsfuse.append((bucket, mount_point))
+        self._gcsfuse.append((bucket, mount_point, read_only))
         return self
 
     def _pretty(self):
