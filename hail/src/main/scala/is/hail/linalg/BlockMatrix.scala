@@ -1762,6 +1762,7 @@ case class WriteBlocksRDDPartition(
 
 class WriteBlocksRDD(
   fsBc: BroadcastValue[FS],
+  localTmpDir: String,
   path: String,
   rvd: RVD,
   parentPartStarts: Array[Long],
@@ -1825,23 +1826,24 @@ class WriteBlocksRDD(
     val nRowsInBlock = gp.blockRowNRows(blockRow)
     val ctx = TaskContext.get
 
-    val (blockPartFiles, outPerBlockCol) = Array.tabulate(gp.nBlockCols) { blockCol =>
+    val (blockPartFiles, outPerBlockCol, paths) = Array.tabulate(gp.nBlockCols) { blockCol =>
       val nColsInBlock = gp.blockColNCols(blockCol)
 
       val i = gp.coordinatesBlock(blockRow, blockCol)
       val f = partFile(d, i, ctx)
-      val filename = path + "/parts/" + f
 
-      val os = fsBc.value.create(filename)
+      val finalPath = path + "/parts/" + f
+      val tmpPath = ExecuteContext.createTmpPathNoCleanup(localTmpDir, "writeBlocksRDD")
+
+      val os = fsBc.value.create(tmpPath)
       val out = BlockMatrix.bufferSpec.buildOutputBuffer(os)
 
       out.writeInt(nRowsInBlock)
       out.writeInt(nColsInBlock)
       out.writeBoolean(true) // transposed, stored row major
 
-      ((i, f), out)
-    }
-      .unzip
+      ((i, f), out, (tmpPath, finalPath))
+    }.unzip3
 
     val entryArrayType = MatrixType.getEntryArrayType(rvRowType)
     val entryType = MatrixType.getEntryType(rvRowType)
@@ -1909,6 +1911,7 @@ class WriteBlocksRDD(
       }
     }
     outPerBlockCol.foreach(_.close())
+    paths.foreach { case (tempPath, finalPath) => fsBc.value.copy(tempPath, finalPath, deleteSource = true)}
     blockPartFiles.iterator
   }
 }
