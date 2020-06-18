@@ -22,6 +22,18 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.46
+
+Released 2020-06-17
+
+### Site
+- (hail#8955) Natural language documentation search
+
+### Bug fixes
+- (hail#8981) Fix BlockMatrix OOM triggered by the MatrixWriteBlockMatrix WriteBlocksRDD method
+
+---
+
 ## Version 0.2.45
 
 Release 2020-06-15
