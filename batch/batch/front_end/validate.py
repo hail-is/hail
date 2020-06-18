@@ -9,6 +9,7 @@ import re
 #     'name': str,
 #     'value': str
 #   }],
+#   'gcsfuse': [{"bucket": str, "mount_path": str}],
 #   'image': str,
 #   'input_files': [{"from": str, "to": str}],
 #   'job_id': int,
@@ -34,7 +35,7 @@ import re
 # }]
 
 JOB_KEYS = {
-    'always_run', 'attributes', 'command', 'env', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'resources', 'secrets', 'service_account', 'timeout'
+    'always_run', 'attributes', 'command', 'env', 'gcsfuse', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'resources', 'secrets', 'service_account', 'timeout'
 }
 
 ENV_VAR_KEYS = {'name', 'value'}
@@ -44,6 +45,8 @@ SECRET_KEYS = {'namespace', 'name', 'mount_path'}
 RESOURCES_KEYS = {'memory', 'cpu'}
 
 FILE_KEYS = {'from', 'to'}
+
+GCSFUSE_KEYS = {'bucket', 'mount_path'}
 
 K8S_NAME_REGEXPAT = r'[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*'
 K8S_NAME_REGEX = re.compile(K8S_NAME_REGEXPAT)
@@ -121,6 +124,31 @@ def validate_job(i, job):
             if not isinstance(value, str):
                 raise ValidationError(f'jobs[{i}].env[{j}].value is not str')
 
+    if 'gcsfuse' in job:
+        gcsfuse = job['gcsfuse']
+        if not isinstance(gcsfuse, list):
+            raise ValidationError(f'jobs[{i}].gcsfuse not list')
+
+        for j, b in enumerate(gcsfuse):
+            if not isinstance(b, dict):
+                raise ValidationError(f'jobs[{i}].gcsfuse[{j}] not dict')
+
+            for k in b:
+                if k not in GCSFUSE_KEYS:
+                    raise ValidationError(f'unknown key in jobs[{i}].gcsfuse[{j}]: {k}')
+
+            if 'bucket' not in b:
+                raise ValidationError(f'no required key bucket in jobs[{i}].gcsfuse[{j}]')
+            bucket = b['bucket']
+            if not isinstance(bucket, str):
+                raise ValidationError(f'jobs[{i}].gcsfuse[{j}].bucket is not str')
+
+            if 'mount_path' not in b:
+                raise ValidationError(f'no required key mount_path in jobs[{i}].gcsfuse[{j}]')
+            mount_path = b['mount_path']
+            if not isinstance(mount_path, str):
+                raise ValidationError(f'jobs[{i}].gcsfuse[{j}].mount_path is not str')
+
     if 'image' not in job:
         raise ValidationError(f'no required key image in jobs[{i}]')
     image = job['image']
@@ -141,17 +169,17 @@ def validate_job(i, job):
                 if k not in FILE_KEYS:
                     raise ValidationError(f'unknown key in jobs[{i}].input_files[{j}]: {k}')
 
-                if 'from' not in f:
-                    raise ValidationError(f'no required key from in jobs[{i}].input_files[{j}]')
-                src = f['from']
-                if not isinstance(src, str):
-                    raise ValidationError(f'jobs[{i}].input_files[{j}].from is not str')
+            if 'from' not in f:
+                raise ValidationError(f'no required key from in jobs[{i}].input_files[{j}]')
+            src = f['from']
+            if not isinstance(src, str):
+                raise ValidationError(f'jobs[{i}].input_files[{j}].from is not str')
 
-                if 'to' not in f:
-                    raise ValidationError(f'no required key to in jobs[{i}].input_files[{j}]')
-                dst = f['to']
-                if not isinstance(dst, str):
-                    raise ValidationError(f'jobs[{i}].input_files[{j}].to is not str')
+            if 'to' not in f:
+                raise ValidationError(f'no required key to in jobs[{i}].input_files[{j}]')
+            dst = f['to']
+            if not isinstance(dst, str):
+                raise ValidationError(f'jobs[{i}].input_files[{j}].to is not str')
 
     if 'job_id' not in job:
         raise ValidationError(f'no required key job_id in jobs[{i}]')

@@ -234,6 +234,8 @@ steps:
       script: /io/sql/initial.sql
     - name: copy-paste-tokens
       script: /io/sql/copy-paste-tokens.sql
+    - name: drop-bucket
+      script: /io/sql/drop-bucket.sql
    inputs:
     - from: /repo/auth/sql
       to: /io/
@@ -359,7 +361,7 @@ steps:
          rm -f /user-tokens/tokens.json
          kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
          kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci-gsa-key"' | kubectl -n {{ batch_pods_ns.name }} apply -f -
-         python3 create-session.py '{"state":"active","username":"ci","is_service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-dmk9z","gsa_key_secret_name":"ci-gsa-key","tokens_secret_name":"ci-tokens"}'
+         python3 create-session.py '{"state":"active","username":"ci","is_service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"ci-gsa-key","tokens_secret_name":"ci-tokens"}'
          kubectl -n {{ default_ns.name }} create secret generic ci-tokens --from-file=/user-tokens/tokens.json
      fi
      # created ci
@@ -368,7 +370,7 @@ steps:
      if [[ $N = 0 ]]; then
          # if test-tokens does not exist
          rm -f /user-tokens/tokens.json
-         python3 create-session.py '{"state":"active","username":"test","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-dmk9z","gsa_key_secret_name":"test-gsa-key","tokens_secret_name":"test-tokens"}'
+         python3 create-session.py '{"state":"active","username":"test","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"test-gsa-key","tokens_secret_name":"test-tokens"}'
          kubectl -n {{ batch_pods_ns.name }} create secret generic test-tokens --from-file=/user-tokens/tokens.json
      fi
      # created test
@@ -377,7 +379,7 @@ steps:
      if [[ $N = 0 ]]; then
          # if test-dev-tokens does not exist
          rm -f /user-tokens/tokens.json
-         python3 create-session.py '{"state":"active","username":"test-dev","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","bucket_name":"hail-test-dmk9z","gsa_key_secret_name":"test-gsa-key","tokens_secret_name":"test-dev-tokens","is_developer":1}'
+         python3 create-session.py '{"state":"active","username":"test-dev","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"test-gsa-key","tokens_secret_name":"test-dev-tokens","is_developer":1}'
          kubectl -n {{ batch_pods_ns.name }} create secret generic test-dev-tokens --from-file=/user-tokens/tokens.json
      fi
      # created test-dev
@@ -538,7 +540,7 @@ steps:
      {{ code.checkout_script }}
      cd hail
      time retry ./gradlew --version
-     time make jars python-version-info wheel
+     time retry make jars python-version-info wheel
      time (cd python && zip -r hail.zip hail hailtop)
      time tar czf test.tar.gz -C python test
      time tar czf resources.tar.gz -C src/test resources
@@ -1577,7 +1579,6 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
-
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/test/hailtop/batch/

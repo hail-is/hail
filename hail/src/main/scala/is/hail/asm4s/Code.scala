@@ -128,27 +128,30 @@ object Code {
   def foreach[A](it: Seq[A])(f: A => Code[Unit]): Code[Unit] = Code(it.map(f))
 
   def newInstance[T <: AnyRef](parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T]): Code[T] = {
-    val ti = classInfo[T]
+    val tti = classInfo[T]
 
-    val L = new lir.Block()
+    val tcls = tct.runtimeClass
 
-    val linst = new lir.Local(null, "new_inst", ti)
-    L.append(lir.store(linst, lir.newInstance(ti)))
+    val c = tcls.getDeclaredConstructor(parameterTypes: _*)
+    assert(c != null,
+      s"no such method ${ tcls.getName }(${
+        parameterTypes.map(_.getName).mkString(", ")
+      })")
 
-    val inst = new VCode(L, L, lir.load(linst))
-    val ctor = inst.invokeConstructor(parameterTypes, args)
+    val (start, end, argvs) = Code.sequenceValues(args)
+    val linst = new lir.Local(null, "new_inst", tti)
+    end.append(lir.store(linst, lir.newInstance(tti,
+      Type.getInternalName(tcls), "<init>", Type.getConstructorDescriptor(c), tti, argvs)))
 
-    val newC = new VCode(ctor.start, ctor.end, lir.load(linst))
-    ctor.clear()
-    newC
+    new VCode(start, end, lir.load(linst))
   }
 
   def newInstance[C](cb: ClassBuilder[C], ctor: MethodBuilder[C], args: IndexedSeq[Code[_]]): Code[C] = {
     val (start, end, argvs) = sequenceValues(args)
 
     val linst = new lir.Local(null, "new_inst", cb.ti)
-    end.append(lir.store(linst, lir.newInstance(cb.ti)))
-    end.append(lir.methodStmt(INVOKESPECIAL, ctor.lmethod, argvs))
+
+    end.append(lir.store(linst, lir.newInstance(cb.ti, ctor.lmethod, argvs)))
 
     new VCode(start, end, lir.load(linst))
   }
@@ -445,6 +448,8 @@ object Code {
 }
 
 trait Code[+T] {
+  // val stack = Thread.currentThread().getStackTrace
+
   def start: lir.Block
 
   def end: lir.Block
@@ -1052,16 +1057,6 @@ object Invokeable {
 
     Invokeable(cls, m)
   }
-
-  def lookupConstructor[T](cls: Class[T], parameterTypes: Array[Class[_]]): Invokeable[T, Unit] = {
-    val c = cls.getDeclaredConstructor(parameterTypes: _*)
-    assert(c != null,
-      s"no such method ${ cls.getName }(${
-        parameterTypes.map(_.getName).mkString(", ")
-      })")
-
-    Invokeable(cls, c)
-  }
 }
 
 class Invokeable[T, S](tcls: Class[T],
@@ -1086,12 +1081,11 @@ class Invokeable[T, S](tcls: Class[T],
       new VCode(start, end, null)
     } else {
       val t = new lir.Local(null, "invoke", sti)
-      end.append(
-        lir.store(t, lir.methodInsn(invokeOp, Type.getInternalName(tcls), name, descriptor, isInterface, sti, argvs)))
-      var v = lir.load(t)
+      var r = lir.methodInsn(invokeOp, Type.getInternalName(tcls), name, descriptor, isInterface, sti, argvs)
       if (concreteReturnType != sct.runtimeClass)
-        v = lir.checkcast(Type.getInternalName(sct.runtimeClass), v)
-      new VCode(start, end, v)
+        r = lir.checkcast(Type.getInternalName(sct.runtimeClass), r)
+      end.append(lir.store(t, r))
+      new VCode(start, end, lir.load(t))
     }
   }
 }
@@ -1198,9 +1192,6 @@ class CodeObject[T <: AnyRef : ClassTag](val lhs: Code[T]) {
 
   def put[S](field: String, rhs: Code[S])(implicit sct: ClassTag[S], sti: TypeInfo[S]): Code[Unit] =
     FieldRef[T, S](field).put(lhs, rhs)
-
-  def invokeConstructor(parameterTypes: Array[Class[_]], args: Array[Code[_]]): Code[Unit] =
-    Invokeable.lookupConstructor[T](implicitly[ClassTag[T]].runtimeClass.asInstanceOf[Class[T]], parameterTypes).invoke(lhs, args)
 
   def invoke[S](method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])
     (implicit sct: ClassTag[S]): Code[S] =

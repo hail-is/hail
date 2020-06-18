@@ -5,14 +5,10 @@ import base64
 import logging
 import secrets
 import string
-import concurrent
 import asyncio
 import aiohttp
 import kubernetes_asyncio as kube
-import google.auth.transport.requests
-import google.oauth2.id_token
-import google.cloud.storage
-from hailtop.utils import blocking_to_async, time_msecs
+from hailtop.utils import time_msecs
 from hailtop import aiogoogle
 from gear import create_session, Database
 
@@ -28,36 +24,6 @@ is_test_deployment = DEFAULT_NAMESPACE != 'default'
 
 class DatabaseConflictError(Exception):
     pass
-
-
-class GoogleClient:
-    def __init__(self, credentials):
-        self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=40)
-
-        # https://googleapis.dev/python/storage/latest/index.html
-        self.storage_client = google.cloud.storage.Client(credentials=credentials)
-
-    def _create_bucket(self, name):
-        bucket = self.storage_client.bucket(name)
-        bucket.create()
-        return bucket
-
-    async def create_bucket(self, name):
-        return await blocking_to_async(self.thread_pool, self._create_bucket, name)
-
-    def _delete_bucket(self, name):
-        bucket = self.storage_client.bucket(name)
-        bucket.delete()
-
-    async def delete_bucket(self, name):
-        return await blocking_to_async(self.thread_pool, self._delete_bucket, name)
-
-    @staticmethod
-    def _save_acl(acl):
-        acl.save()
-
-    async def save_acl(self, acl):
-        return await blocking_to_async(self.thread_pool, self._save_acl, acl)
 
 
 class EventHandler:
@@ -82,7 +48,7 @@ class EventHandler:
             except Exception:
                 end_time = time_msecs()
 
-                log.exception(f'caught exception in event handler loop')
+                log.exception('caught exception in event handler loop')
 
                 t = delay_secs * random.uniform(0.7, 1.3)
                 await asyncio.sleep(t)
@@ -118,7 +84,7 @@ class SessionResource:
         if self.session_id is None:
             return
 
-        await self.db.just_execute(f'''
+        await self.db.just_execute('''
 DELETE FROM sessions
 WHERE session_id = %s;
 ''',
@@ -210,41 +176,6 @@ class GSAResource:
         self.gsa_email = None
 
 
-class BucketResource:
-    def __init__(self, google_client, name=None):
-        self.google_client = google_client
-        self.name = name
-
-    async def create(self, name, gsa_email):
-        assert self.name is None
-
-        await self._delete(name)
-
-        bucket = await self.google_client.create_bucket(name)
-        self.name = name
-
-        acl = bucket.acl
-        acl.user(gsa_email).grant_write()
-        acl.user(gsa_email).grant_read()
-        await self.google_client.save_acl(acl)
-
-        default_object_acl = bucket.default_object_acl
-        default_object_acl.user(gsa_email).grant_read()
-        await self.google_client.save_acl(default_object_acl)
-
-    async def _delete(self, name):
-        try:
-            await self.google_client.delete_bucket(name)
-        except google.cloud.exceptions.NotFound:
-            pass
-
-    async def delete(self):
-        if self.name is None:
-            return
-        await self._delete(self.name)
-        self.name = None
-
-
 class DatabaseResource:
     def __init__(self, db_instance, name=None):
         self.db_instance = db_instance
@@ -309,7 +240,7 @@ database={config['db']}
 
         # no DROP USER IF EXISTS in current db version
         row = await self.db_instance.execute_and_fetchone(
-            f'SELECT 1 FROM mysql.user WHERE User = %s;', (name,))
+            'SELECT 1 FROM mysql.user WHERE User = %s;', (name,))
         if row is not None:
             await self.db_instance.just_execute(f"DROP USER '{name}';")
 
@@ -358,7 +289,6 @@ async def _create_user(app, user, cleanup):
     db_instance = app['db_instance']
     db = app['db']
     k8s_client = app['k8s_client']
-    google_client = app['google_client']
     iam_client = app['iam_client']
 
     alnum = string.ascii_lowercase + string.digits
@@ -408,14 +338,6 @@ async def _create_user(app, user, cleanup):
         })
         updates['gsa_key_secret_name'] = gsa_key_secret_name
 
-    bucket_name = user['bucket_name']
-    if bucket_name is None:
-        bucket_name = f'hail-{ident_token}'
-        bucket = BucketResource(google_client)
-        cleanup.append(bucket.delete)
-        await bucket.create(bucket_name, gsa_email)
-        updates['bucket_name'] = bucket_name
-
     namespace_name = user['namespace_name']
     if namespace_name is None and user['is_developer'] == 1:
         namespace_name = ident
@@ -464,7 +386,6 @@ async def delete_user(app, user):
     db_instance = app['db_instance']
     db = app['db']
     k8s_client = app['k8s_client']
-    google_client = app['google_client']
     iam_client = app['iam_client']
 
     tokens_secret_name = user['tokens_secret_name']
@@ -483,11 +404,6 @@ async def delete_user(app, user):
     if gsa_key_secret_name is not None:
         gsa_key_secret = K8sSecretResource(k8s_client, gsa_key_secret_name, BATCH_PODS_NAMESPACE)
         await gsa_key_secret.delete()
-
-    bucket_name = user['bucket_name']
-    if bucket_name is not None:
-        bucket = BucketResource(google_client, bucket_name)
-        await bucket.delete()
 
     namespace_name = user['namespace_name']
     if namespace_name is not None:
@@ -545,14 +461,6 @@ async def async_main():
         kube.config.load_incluster_config()
         k8s_client = kube.client.CoreV1Api()
         app['k8s_client'] = k8s_client
-
-        credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-            '/gsa-key/key.json',
-            scopes=[
-                'https://www.googleapis.com/auth/cloud-platform',
-                'https://www.googleapis.com/auth/devstorage.full_control'
-            ])
-        app['google_client'] = GoogleClient(credentials)
 
         app['iam_client'] = aiogoogle.IAmClient(
             PROJECT, credentials=aiogoogle.Credentials.from_file('/gsa-key/key.json'))

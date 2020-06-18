@@ -7,6 +7,7 @@ import uuid
 import google.oauth2.service_account
 import google.cloud.storage
 
+from hailtop.config import get_user_config
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
 from hailtop.batch.utils import arg_max
 from hailtop.utils import grouped

@@ -22,24 +22,45 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.45
+
+Release 2020-06-15
+
+### Bug fixes
+
+- (hail#8948) Fix integer overflow error when reading files >2G with
+  `hl.import_plink`.
+- (hail#8903) Fix Python type annotations for empty collection constructors and
+  `hl.shuffle`.
+- (hail#8942) Refactored VCF combiner to support other GVCF schemas.
+- (hail#8941) Fixed `hl.import_plink` with multiple data partitions.
+
+### hailctl dataproc
+
+- (hail#8946) Fix bug when a user specifies packages in `hailctl dataproc start`
+  that are also dependencies of the Hail package.
+- (hail#8939) Support tuples in `hailctl dataproc describe`.
+
+---
+
 ## Version 0.2.44
 
 Release 2020-06-06
 
 ### New Features
 
- - (hail#8914) `hl.export_vcf` can now export tables as sites-only VCFs.
- - (hail#8894) Added `hl.shuffle` function to randomly permute arrays.
- - (hail#8854) Add `composable` option to parallel text export for use with `gsutil compose`.
+- (hail#8914) `hl.export_vcf` can now export tables as sites-only VCFs.
+- (hail#8894) Added `hl.shuffle` function to randomly permute arrays.
+- (hail#8854) Add `composable` option to parallel text export for use with `gsutil compose`.
 
 ### Bug fixes
 
- - (hail#8883) Fix an issue related to failures in pipelines with `force_bgz=True`.
- 
+- (hail#8883) Fix an issue related to failures in pipelines with `force_bgz=True`.
+
 ### Performance
 
- - (hail#8887) Substantially improve the performance of `hl.experimental.import_gtf`.
- 
+- (hail#8887) Substantially improve the performance of `hl.experimental.import_gtf`.
+
 ---
 
 ## Version 0.2.43
@@ -91,7 +112,7 @@ Released 2020-05-12
 ### VCF Combiner
 
  - (hail#8706) Add option to key by both locus and alleles for final output.
- 
+
 ### Bug fixes
 
  - (hail#8729) Fix assertion error in `Table.group_by(...).aggregate(...)`
@@ -99,7 +120,7 @@ Released 2020-05-12
  - (hail#8756) Fix return type of `LocusExpression.window` to use locus's reference genome instead of default RG.
 
 ---
- 
+
 ## Version 0.2.39
 
 Released 2020-04-29

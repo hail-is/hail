@@ -1,0 +1,12 @@
+{% extends "layout.html" %}
+{% block title %}User{% endblock %}
+{% block content %}
+  <div id="profile" class="vcentered">
+    <h1>{{ userdata['username'] }}</h1>
+    <p><b>Google Service Account: </b>{{ userdata['gsa_email'] }}</p>
+    <form action="{{ auth_base_url }}/copy-paste-token" method="post">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+      <button class="nb-create">Get a copy-paste login token</button>
+    </form>
+  </div>
+{% endblock %}

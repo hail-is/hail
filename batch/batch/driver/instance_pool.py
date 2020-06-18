@@ -6,6 +6,7 @@ import datetime
 import asyncio
 import logging
 import base64
+import dateutil.parser
 import sortedcontainers
 import aiohttp
 from hailtop.utils import time_msecs, secret_alnum_string
@@ -178,13 +179,13 @@ SET standing_worker_cores = %s, max_instances = %s, pool_size = %s;
             if machine_name not in self.name_instance:
                 break
 
-        if self.live_total_cores_mcpu < 5_000:
+        if self.live_total_cores_mcpu // 1000 < 4_000:
             zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
             zone = random.choice(zones)
         else:
             zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f', 'us-east1-a', 'us-east1-b', 'us-east1-c', 'us-east4-a', 'us-east4-b', 'us-east4-c', 'us-west1-a', 'us-west1-b', 'us-west1-c', 'us-west2-a', 'us-west2-b', 'us-west2-c']
-            # based on quotas, us-central1: 300K over 4 zones, rest: 100K over 3 zones
-            weights = 4 * [295 / 4] + 12 * [100 / 3]
+            # based on quotas, us-central1: 4266 over 4 zones, us-east1: 12800 over 3 zones, us-east4: 4266 over 3 zones, us-west1: 4266 over 3 zones, us-west2: 2133 over 3 zones
+            weights = 4 * [266 / 4] + 3 * [12800 / 3] + 3 * [4266 / 3] + 3 * [4266 / 3] + 3 * [2133 / 3]
 
             zone = random.choices(zones, weights)[0]
 
@@ -281,12 +282,15 @@ sudo mv /var/lib/docker /mnt/disks/$LOCAL_SSD_NAME/docker
 sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/docker /var/lib/docker
 sudo service docker start
 
-# reconfigure /batch and /logs to use local SSD
+# reconfigure /batch and /logs and /gcsfuse to use local SSD
 sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/batch/
 sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/batch /batch
 
 sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/logs/
 sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/logs /logs
+
+sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/gcsfuse/
+sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/gcsfuse /gcsfuse
 
 export HOME=/root
 
@@ -327,7 +331,11 @@ docker run \
     -v /usr/bin/docker:/usr/bin/docker \
     -v /batch:/batch \
     -v /logs:/logs \
+    -v /gcsfuse:/gcsfuse:shared \
     -p 5000:5000 \
+    --device /dev/fuse \
+    --cap-add SYS_ADMIN \
+    --privileged \
     $BATCH_WORKER_IMAGE \
     python3 -u -m batch.worker >worker.log 2>&1
 
@@ -424,7 +432,7 @@ gsutil -m cp run.log worker.log /var/log/syslog dockerd.log  gs://$WORKER_LOGS_B
             log.warning(f'event has no payload')
             return
 
-        timestamp = event.timestamp.timestamp() * 1000
+        timestamp = dateutil.parser.isoparse(event['timestamp']).timestamp() * 1000
         version = payload['version']
         if version != '1.2':
             log.warning('unknown event verison {version}')

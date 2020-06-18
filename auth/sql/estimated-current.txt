@@ -11,8 +11,6 @@ CREATE TABLE `users` (
   -- gsa
   `gsa_email` varchar(255) DEFAULT NULL,
   `gsa_key_secret_name` varchar(255) DEFAULT NULL,
-  -- bucket
-  `bucket_name` varchar(255) DEFAULT NULL,
   -- namespace, for developers
   `namespace_name` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),

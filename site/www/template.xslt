@@ -117,14 +117,6 @@
                                         }
                                     }
 
-                                    window.addEventListener("keyup", (ev) => {
-                                        if(ev.keyCode != 191) {
-                                            return;
-                                        }
-
-                                        cachedSearchInput.focus();
-                                    })
-
                                     function run() {
                                         docsearch({
                                             apiKey: 'd2dee24912091336c40033044c9bac58',
@@ -136,7 +128,7 @@
                                                 location.href = suggestion.url;
                                             },
                                             queryHook: function(query) {
-                                                // algolia seems to split on period, but not split queries on period, affects methods search
+                                                // algolia seems to split on period during indexing, but not at query time, breaks methods search
                                                 return query.replace(/\./g, " ");
                                             },
                                             autocompleteOptions: {
@@ -145,8 +137,6 @@
                                             algoliaOptions: {
                                                 hitsPerPage: 10,
                                                 exactOnSingleWordQuery: "word",
-                                                //ignorePlurals: ['en'],
-                                                queryType: "prefixAll",
                                             },
                                         });
 
