@@ -335,7 +335,7 @@ docker run \
     -p 5000:5000 \
     --device /dev/fuse \
     --cap-add SYS_ADMIN \
-    --privileged \
+    --security-opt apparmor:unconfined \
     $BATCH_WORKER_IMAGE \
     python3 -u -m batch.worker >worker.log 2>&1
 
