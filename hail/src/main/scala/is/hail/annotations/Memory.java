@@ -209,13 +209,13 @@ public class Memory {
     static void checkAddress(long addr, long size) {
         Map.Entry<Long, Long> e = blocks.floorEntry(addr);
         if (e == null) {
-            throw new RuntimeException("invalid memory access");
+            throw new RuntimeException(String.format("invalid memory access: %08x/%08x: no block", addr, size));
         }
 
         long blockBase = e.getKey();
         long blockSize = e.getValue();
         if (! (addr + size <= blockBase + blockSize)) {
-            throw new RuntimeException("invalid memory access");
+            throw new RuntimeException(String.format("invalid memory access: %08x/%08x: not in %08x/%08x", addr, size, blockBase, blockSize));
         }
     }
 
@@ -232,10 +232,9 @@ public class Memory {
     }
 
     public static void free(long a) {
-        Map.Entry<Long, Long> e = blocks.floorEntry(a);
-        if (e == null)
+        Long blockSize = blocks.get(a);
+        if (blockSize == null)
             throw new RuntimeException("free invalid memory");
-        long blockSize = e.getValue();
         if (unsafe.getLong(a - 8) != HEADER)
             throw new RuntimeException("corrupt block");
         if (unsafe.getLong(a + blockSize) != FOOTER)
