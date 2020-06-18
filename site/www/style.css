@@ -3,6 +3,7 @@ html {
   font-size: 100%;
   line-height: 1.15;
   -webkit-text-size-adjust: 100%;
+  background: #fff;
 }
 
 * {
@@ -15,6 +16,7 @@ body {
   line-height: 1.6;
   margin: auto;
   border-color: #ddd;
+  background: inherit;
 }
 
 a:hover {
@@ -130,6 +132,7 @@ img {
   align-items: center;
   flex-direction: row;
   padding: 0px 50px;
+  background: inherit;
 }
 
 section.left div {
@@ -256,7 +259,7 @@ a {
   text-decoration: underline;
 }
 
-.about.dark a.button:hover, {
+.about.dark a.button:hover {
   text-decoration: none;
 }
 
@@ -821,6 +824,14 @@ pre code {
   #hero-content {
     padding-right: 0px;
     max-width: 48rem;
+  }
+}
+
+@media only screen and (min-width: 1521px) {
+  #all-hero-content {
+    box-shadow: 0px 0px 100px 100px rgba(255,255,255, 1);
+    background: inherit;
+    z-index:1;
   }
 }
 
