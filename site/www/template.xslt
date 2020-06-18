@@ -111,34 +111,32 @@
                                         handleSearchKeyUp(cachedSearchInput.value, ev)
                                     });
 
-                                    function handleSearchKeyUp(query, ev) {
-                                        if(ev.keyCode == 13 && !isHighlighted) {
-                                            location.href = `/search.html?query=${query}`;
-                                        }
-                                    }
+                                    const algoliaOptions = {
+                                        hitsPerPage: 10,
+                                        exactOnSingleWordQuery: "word",
+                                        queryType: "prefixAll",
+                                        advancedSyntax: true,
+                                    };
 
                                     function run() {
                                         docsearch({
                                             apiKey: 'd2dee24912091336c40033044c9bac58',
                                             indexName: 'hail_is',
                                             inputSelector: '#search',
-                                            debug: false, // hide on blur
+                                            debug: true, // hide on blur
                                             handleSelected: function(input, event, suggestion, datasetNumber, context) {
                                                 isHighlighted = !!suggestion;
                                                 location.href = suggestion.url;
                                             },
                                             queryHook: function(query) {
-                                                // algolia seems to split on period during indexing, but not at query time, breaks methods search
+                                                // algolia seems to split on period, but not split queries on period, affects methods search
                                                 return query.replace(/\./g, " ");
                                             },
                                             autocompleteOptions: {
                                                 autoselect: false
                                             },
-                                            algoliaOptions: {
-                                                hitsPerPage: 10,
-                                                exactOnSingleWordQuery: "word",
-                                            },
-                                        });
+                                            algoliaOptions: algoliaOptions,
+=                                        });
 
                                         const cachedAlgolia = document.querySelector("#algolia-autocomplete-listbox-0 > .ds-dataset-1");
 
