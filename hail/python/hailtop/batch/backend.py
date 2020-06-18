@@ -82,7 +82,7 @@ class LocalBackend(Backend):
         self._extra_docker_run_flags = flags
 
     def _run(self,
-             batch: Batch,
+             batch: 'Batch',
              dry_run: bool,
              verbose: bool,
              delete_scratch_on_exit: bool,
@@ -194,13 +194,13 @@ class LocalBackend(Backend):
                 cpu = f'--cpus={job._cpu}' if job._cpu else ''
 
                 lines += [f"docker run "
-                           f"{self._extra_docker_run_flags} "
-                           f"-v {tmpdir}:{tmpdir} "
-                           f"-w {tmpdir} "
-                           f"{memory} "
-                           f"{cpu} "
-                           f"{job._image} /bin/bash "
-                           f"-c {shq(defs + cmd)}"]
+                          f"{self._extra_docker_run_flags} "
+                          f"-v {tmpdir}:{tmpdir} "
+                          f"-w {tmpdir} "
+                          f"{memory} "
+                          f"{cpu} "
+                          f"{job._image} /bin/bash "
+                          f"-c {shq(defs + cmd)}"]
             else:
                 lines += resource_defs
                 lines += job._command
@@ -296,7 +296,7 @@ class ServiceBackend(Backend):
         self._batch_client.close()
 
     def _run(self,
-             batch: Batch,
+             batch: 'Batch',
              dry_run: bool,
              verbose: bool,
              delete_scratch_on_exit: bool,
@@ -353,7 +353,7 @@ class ServiceBackend(Backend):
         n_jobs_submitted = 0
         used_remote_tmpdir = False
 
-        job_to_client_job_mapping: Dict[Job, bc.Job] = {}
+        job_to_client_job_mapping: Dict['Job', bc.Job] = {}
         jobs_to_command = {}
         commands = []
 

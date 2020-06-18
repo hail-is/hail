@@ -62,7 +62,7 @@ class ResourceFile(Resource, str):
     def _get_path(self, directory: str):
         raise NotImplementedError
 
-    def _add_source(self, source: Job) -> ResourceFile:
+    def _add_source(self, source: 'Job') -> ResourceFile:
         from .job import Job  # pylint: disable=cyclic-import
         assert isinstance(source, Job)
         self._source = source
@@ -237,7 +237,7 @@ class ResourceGroup(Resource):
         cls._counter += 1
         return uid
 
-    def __init__(self, source: Optional[Job], root: str, **values: ResourceFile):
+    def __init__(self, source: Optional['Job'], root: str, **values: ResourceFile):
         self._source = source
         self._resources = {}  # dict of name to resource uid
         self._root = root
