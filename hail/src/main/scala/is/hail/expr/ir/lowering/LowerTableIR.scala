@@ -697,9 +697,10 @@ object LowerTableIR {
           require(!isSorted || nPreservedFields > 0 || newKey.isEmpty)
 
           if (nPreservedFields == newKey.length || isSorted)
+            // TODO: should this add a runtime check that keys are within the
+            // partition bounds, like in RVD?
             loweredChild.changePartitionerNoRepartition(loweredChild.partitioner.coarsen(nPreservedFields))
               .extendKeyPreservesPartitioning(newKey)
-          //        .checkKeyOrdering()
           else {
             val sorted = ctx.backend.lowerDistributedSort(
               ctx, loweredChild, newKey.map(k => SortField(k, Ascending)))
