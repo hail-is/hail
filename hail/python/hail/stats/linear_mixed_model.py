@@ -391,7 +391,7 @@ class LinearMixedModel(object):
         likelihood at these parameters (shifted by the constant defined below).
 
         The implementation has complexity :math:`\mathit{O}(rp^2 + p^3)` and is
-        inspired by FaST linear mixed models for genome-wide association studies (2011)
+        inspired by `FaST linear mixed models for genome-wide association studies (2011)
         <https://www.nature.com/articles/nmeth.1681>`__.
 
         The formulae follow from `Bayesian Inference for Variance Components Using Only Error Contrasts (1974)

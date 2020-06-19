@@ -75,8 +75,8 @@ def ld_score(entry_expr,
 
     For more in-depth discussion of LD scores, see:
 
-    - `"LD Score regression distinguishes confounding from polygenicity in genome-wide association studies" (Bulik-Sullivan et al, 2015) <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4495769/>`__
-    - `"Partitioning heritability by functional annotation using genome-wide association summary statistics" (Finucane et al, 2015) <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4626285/>`__
+    - `LD Score regression distinguishes confounding from polygenicity in genome-wide association studies (Bulik-Sullivan et al, 2015) <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4495769/>`__
+    - `Partitioning heritability by functional annotation using genome-wide association summary statistics (Finucane et al, 2015) <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4626285/>`__
 
     Notes
     -----
