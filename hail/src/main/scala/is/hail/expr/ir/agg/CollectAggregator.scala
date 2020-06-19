@@ -18,7 +18,8 @@ class CollectAggState(val elemType: PType, val kb: EmitClassBuilder[_]) extends 
   def createState(cb: EmitCodeBuilder): Unit =
     cb.ifx(region.isNull, {
       cb.assign(r, Region.stagedCreate(regionSize))
-    }, cb += region.getNewRegion(regionSize))
+      cb += region.invalidate()
+    })
 
   def newState(off: Code[Long]): Code[Unit] =
     region.getNewRegion(regionSize)
