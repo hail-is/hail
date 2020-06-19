@@ -49,7 +49,7 @@ show(p)
                 </div>
             </div>
         </div>
-        <div id="install" class="about dark">
+        <div id="install" class="about dark" style='z-index:1'>
             <div class="header-wrap" style="justify-content: center;">
                 <h1>Install</h1>
             </div>
