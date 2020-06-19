@@ -12,7 +12,7 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
 
   def registerAll() {
     registerCode1t("isValidContig", LocusFunctions.tlocus("R"), TString, TBoolean, (_: Type, _: PType) => PBoolean()) {
-      case (r, rt, tlocus, (contigT, contig: Code[Long])) => {}
+      case (r, rt, tlocus, (contigT, contig: Code[Long])) =>
         val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
         rgCode(r.mb, tlocus.asInstanceOf[TLocus].rg).invoke[String, Boolean]("isValidContig", scontig)
     }

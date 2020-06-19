@@ -1647,10 +1647,9 @@ object PruneDeadFields {
           Coalesce(values2)
         else
           Coalesce(values2.map(upcast(_, requestedType)))
-      case Consume(value) => {
+      case Consume(value) =>
         val value2 = rebuildIR(value, env, memo)
         Consume(value2)
-      }
       case Let(name, value, body) =>
         val value2 = rebuildIR(value, env, memo)
         Let(
