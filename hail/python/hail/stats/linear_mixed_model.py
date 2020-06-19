@@ -391,10 +391,10 @@ class LinearMixedModel(object):
         likelihood at these parameters (shifted by the constant defined below).
 
         The implementation has complexity :math:`\mathit{O}(rp^2 + p^3)` and is
-        inspired by `FaST linear mixed models for genome-wide association studies (2011)
+        inspired by "FaST linear mixed models for genome-wide association studies" (2011)
         <https://www.nature.com/articles/nmeth.1681>`__.
 
-        The formulae follow from `Bayesian Inference for Variance Components Using Only Error Contrasts (1974)
+        The formulae follow from `"Bayesian Inference for Variance Components Using Only Error Contrasts" (1974)
         <http://faculty.dbmi.pitt.edu/day/Bioinf2132-advanced-Bayes-and-R/previousDocuments/Bioinf2132-documents-2016/2016-11-22/Harville-1974.pdf>`__.
         Harville derives that for fixed covariance :math:`V`, the restricted
         likelihood of the variance parameter :math:`V` in the model

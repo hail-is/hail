@@ -1,5 +1,5 @@
 -----------
-MatrixTable
+MatrixTable Overview
 -----------
 
 A :class:`.MatrixTable` is a distributed two-dimensional extension of a

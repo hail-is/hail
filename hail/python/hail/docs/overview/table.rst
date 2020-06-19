@@ -1,5 +1,5 @@
 -----
-Table
+Table Overview
 -----
 
 A :class:`.Table` is the Hail equivalent of a SQL table, a Pandas Dataframe, an
