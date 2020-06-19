@@ -22,11 +22,10 @@ def ld_score_regression(weight_expr,
                         n_blocks=200,
                         two_step_threshold=30,
                         n_reference_panel_variants=None) -> Table:
-    r"""Estimate SNP-heritability and level of confounding biases from
-    GWAS summary statistics.
+    r"""Estimate SNP-heritability and level of confounding biases from genome-wide association study
+    (GWAS) summary statistics.
 
-    Given a set or multiple sets of genome-wide association study (GWAS)
-    summary statistics, :func:`.ld_score_regression` estimates the heritability
+    Given a set or multiple sets of GWAS summary statistics, :func:`.ld_score_regression` estimates the heritability
     of a trait or set of traits and the level of confounding biases present in
     the underlying studies by regressing chi-squared statistics on LD scores,
     leveraging the model:
@@ -180,7 +179,7 @@ def ld_score_regression(weight_expr,
                         One or more row-indexed (if table) or entry-indexed
                         (if matrix table) expressions for chi-squared
                         statistics resulting from genome-wide association
-                        studies.
+                        studies (GWAS).
     n_samples_exprs: :class:`.NumericExpression` or :obj:`list` of
                      :class:`.NumericExpression`
                      One or more row-indexed (if table) or entry-indexed
