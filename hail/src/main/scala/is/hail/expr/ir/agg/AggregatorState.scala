@@ -17,6 +17,9 @@ trait AggregatorState {
   def createState(cb: EmitCodeBuilder): Unit
   def newState(off: Code[Long]): Code[Unit]
 
+  // null to safeguard against users of off
+  def newState(): Code[Unit] = newState(null)
+
   def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit]
   def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit]
 
@@ -85,6 +88,7 @@ class TypedRegionBackedAggState(val typ: PType, val kb: EmitClassBuilder[_]) ext
   val storageType: PTuple = PCanonicalTuple(required = true, typ)
   val off: Settable[Long] = kb.genFieldThisRef[Long]()
 
+  override def newState(): Code[Unit] = Code(region.getNewRegion(const(regionSize)), off := storageType.allocate(region))
   override def newState(src: Code[Long]): Code[Unit] = Code(off := src, super.newState(off))
   override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     Code(super.load(r => r.invalidate(), src), off := src)

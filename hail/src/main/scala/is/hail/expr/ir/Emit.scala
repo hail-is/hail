@@ -642,6 +642,7 @@ class Emit[C](
           { serializedValue =>
             cb.assign(aggStateOffset, region.allocate(tempState.storageType.alignment, tempState.storageType.byteSize))
             tempState.createState(cb)
+            cb += tempState.newState()
             tempState.deserializeFromBytes(cb, serializedValue.pt.asInstanceOf[PBinary], serializedValue.code.asInstanceOf[Code[Long]])
             rvAgg.combOp(cb, sc.states(i), tempState)
           }
