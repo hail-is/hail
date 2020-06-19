@@ -93,22 +93,21 @@ class PhysicalAggSig(val op: AggOp, val state: AggStateSig, val nestedOps: Array
 
 case class BasicPhysicalAggSig(override val op: AggOp, override val state: AggStateSig) extends PhysicalAggSig(op, state, Array())
 
-case class GroupedAggSig(kt: PType, nested: Seq[Seq[PhysicalAggSig]]) extends
-  PhysicalAggSig(Group(), GroupedStateSig(kt, nested.map(_.head.state)), nested.flatten.flatMap(sig => sig.allOps).toArray)
-case class AggElementsAggSig(nested: Seq[Seq[PhysicalAggSig]]) extends
-  PhysicalAggSig(AggElements(), ArrayAggStateSig(nested.map(_.head.state)), nested.flatten.flatMap(sig => sig.allOps).toArray)
+case class GroupedAggSig(kt: PType, nested: Seq[PhysicalAggSig]) extends
+  PhysicalAggSig(Group(), GroupedStateSig(kt, nested.map(_.state)), nested.flatMap(sig => sig.allOps).toArray)
+case class AggElementsAggSig(nested: Seq[PhysicalAggSig]) extends
+  PhysicalAggSig(AggElements(), ArrayAggStateSig(nested.map(_.state)), nested.flatMap(sig => sig.allOps).toArray)
 
-case class ArrayLenAggSig(knownLength: Boolean, nested: Seq[Seq[PhysicalAggSig]]) extends
-  PhysicalAggSig(AggElementsLengthCheck(), ArrayAggStateSig(nested.map(_.head.state)), nested.flatten.flatMap(sig => sig.allOps).toArray)
+case class ArrayLenAggSig(knownLength: Boolean, nested: Seq[PhysicalAggSig]) extends
+  PhysicalAggSig(AggElementsLengthCheck(), ArrayAggStateSig(nested.map(_.state)), nested.flatMap(sig => sig.allOps).toArray)
 
-case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[Array[PhysicalAggSig]]) {
-  assert(aggs.forall(a => a.tail.forall(_.state == a.head.state)))
-  val states: Array[AggStateSig] = aggs.map(_.head.state)
+case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggSig]) {
+  val states: Array[AggStateSig] = aggs.map(_.state)
   val nAggs: Int = aggs.length
 
   def isCommutative: Boolean = {
     def aggCommutes(agg: PhysicalAggSig): Boolean = agg.allOps.forall(AggIsCommutative(_))
-    aggs.flatten.forall(aggCommutes)
+    aggs.forall(aggCommutes)
   }
 
   def shouldTreeAggregate: Boolean = {
@@ -118,7 +117,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[Array[Physic
       case Downsample() => true
       case _ => false
     }
-    aggs.flatten.exists(containsBigAggregator)
+    aggs.exists(containsBigAggregator)
   }
 
   def eltOp(ctx: ExecuteContext): IR = seqPerElt
@@ -204,7 +203,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[Array[Physic
       rightAggState.load(cb)
 
       for (i <- 0 until nAggs) {
-        val rvAgg = agg.Extract.getAgg(aggs(i).head)
+        val rvAgg = agg.Extract.getAgg(aggs(i))
         rvAgg.combOp(cb, leftAggState.states(i), rightAggState.states(i))
       }
 
@@ -222,7 +221,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[Array[Physic
     }
   }
 
-  def results: IR = ResultOp(0, aggs.map(_.head))
+  def results: IR = ResultOp(0, aggs)
 }
 
 object Extract {
@@ -284,15 +283,15 @@ object Extract {
     case PhysicalAggSig(ApproxCDF(), ApproxCDFStateSig()) => new ApproxCDFAggregator
     case PhysicalAggSig(Downsample(), DownsampleStateSig(labelType)) => new DownsampleAggregator(labelType)
     case ArrayLenAggSig(knownLength, nested) => //FIXME nested things shouldn't need to know state
-      new ArrayElementLengthCheckAggregator(nested.map(n => getAgg(n.head)).toArray, knownLength)
+      new ArrayElementLengthCheckAggregator(nested.map(getAgg).toArray, knownLength)
     case AggElementsAggSig(nested) =>
-      new ArrayElementwiseOpAggregator(nested.map(n => getAgg(n.head)).toArray)
+      new ArrayElementwiseOpAggregator(nested.map(getAgg).toArray)
     case GroupedAggSig(k, nested) =>
-      new GroupedAggregator(k, nested.map(n => getAgg(n.head)).toArray)
+      new GroupedAggregator(k, nested.map(getAgg).toArray)
   }
 
   def apply(ir: IR, resultName: String, r: RequirednessAnalysis, isScan: Boolean = false): Aggs = {
-    val ab = new ArrayBuilder[(InitOp, Array[PhysicalAggSig])]()
+    val ab = new ArrayBuilder[(InitOp, PhysicalAggSig)]()
     val seq = new ArrayBuilder[IR]()
     val let = new ArrayBuilder[AggLet]()
     val ref = Ref(resultName, null)
@@ -304,7 +303,7 @@ object Extract {
     Aggs(postAgg, Begin(initOps), addLets(Begin(seq.result()), let.result()), pAggSigs)
   }
 
-  private def extract(ir: IR, ab: ArrayBuilder[(InitOp, Array[PhysicalAggSig])], seqBuilder: ArrayBuilder[IR], letBuilder: ArrayBuilder[AggLet], result: IR, r: RequirednessAnalysis, isScan: Boolean): IR = {
+  private def extract(ir: IR, ab: ArrayBuilder[(InitOp, PhysicalAggSig)], seqBuilder: ArrayBuilder[IR], letBuilder: ArrayBuilder[AggLet], result: IR, r: RequirednessAnalysis, isScan: Boolean): IR = {
     def extract(node: IR): IR = this.extract(node, ab, seqBuilder, letBuilder, result, r, isScan)
 
     ir match {
@@ -318,14 +317,14 @@ object Extract {
         val i = ab.length
         val op = x.aggSig.op
         val state = PhysicalAggSig(op, AggStateSig(op, x.initOpArgs, x.seqOpArgs, r))
-        ab += InitOp(i, x.initOpArgs, state) -> Array(state)
+        ab += InitOp(i, x.initOpArgs, state) -> state
         seqBuilder += SeqOp(i, x.seqOpArgs, state)
         GetTupleElement(result, i)
       case x: ApplyScanOp if isScan =>
         val i = ab.length
         val op = x.aggSig.op
         val state = PhysicalAggSig(op, AggStateSig(op, x.initOpArgs, x.seqOpArgs, r))
-        ab += InitOp(i, x.initOpArgs, state) -> Array(state)
+        ab += InitOp(i, x.initOpArgs, state) -> state
         seqBuilder += SeqOp(i, x.seqOpArgs, state)
         GetTupleElement(result, i)
       case AggFilter(cond, aggIR, _) =>
@@ -347,27 +346,26 @@ object Extract {
         transformed
 
       case AggGroupBy(key, aggIR, _) =>
-        val newAggs = new ArrayBuilder[(InitOp, Array[PhysicalAggSig])]()
+        val newAggs = new ArrayBuilder[(InitOp, PhysicalAggSig)]()
         val newSeq = new ArrayBuilder[IR]()
         val newRef = Ref(genUID(), null)
         val transformed = this.extract(aggIR, newAggs, newSeq, letBuilder, GetField(newRef, "value"), r, isScan)
 
         val i = ab.length
         val (initOps, pAggSigs) = newAggs.result().unzip
-        assert(pAggSigs.forall { sigs => sigs.tail.forall(s => s.state == sigs.head.state) })
 
         val rt = TDict(key.typ, TTuple(initOps.map(_.aggSig.resultType): _*))
         newRef._typ = rt.elementType
 
-        val groupState = AggStateSig.grouped(key, pAggSigs.map(_.head.state), r)
-        val groupSig = GroupedAggSig(groupState.kt, pAggSigs.map(_.toFastSeq).toFastSeq)
-        ab += InitOp(i, FastIndexedSeq(Begin(initOps)), groupSig) -> Array(groupSig)
+        val groupState = AggStateSig.grouped(key, pAggSigs.map(_.state), r)
+        val groupSig = GroupedAggSig(groupState.kt, pAggSigs.toFastSeq)
+        ab += InitOp(i, FastIndexedSeq(Begin(initOps)), groupSig) -> groupSig
         seqBuilder += SeqOp(i, FastIndexedSeq(key, Begin(newSeq.result().toFastIndexedSeq)), groupSig)
 
         ToDict(StreamMap(ToStream(GetTupleElement(result, i)), newRef.name, MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed))))
 
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
-        val newAggs = new ArrayBuilder[(InitOp, Array[PhysicalAggSig])]()
+        val newAggs = new ArrayBuilder[(InitOp, PhysicalAggSig)]()
         val newSeq = new ArrayBuilder[IR]()
         val newLet = new ArrayBuilder[AggLet]()
         val newRef = Ref(genUID(), null)
@@ -382,13 +380,13 @@ object Extract {
         val rt = TArray(TTuple(initOps.map(_.aggSig.resultType): _*))
         newRef._typ = rt.elementType
 
-        val checkSig = ArrayLenAggSig(knownLength.isDefined, pAggSigs.map(_.toFastSeq))
-        val eltSig = AggElementsAggSig(pAggSigs.map(_.toFastSeq))
+        val checkSig = ArrayLenAggSig(knownLength.isDefined, pAggSigs)
+        val eltSig = AggElementsAggSig(pAggSigs)
 
         val aRef = Ref(genUID(), a.typ)
         val iRef = Ref(genUID(), TInt32)
 
-        ab += InitOp(i, knownLength.map(FastSeq(_)).getOrElse(FastSeq[IR]()) :+ Begin(initOps), checkSig) -> Array(checkSig, eltSig)
+        ab += InitOp(i, knownLength.map(FastSeq(_)).getOrElse(FastSeq[IR]()) :+ Begin(initOps), checkSig) -> checkSig
         seqBuilder +=
           Let(
             aRef.name, a,
