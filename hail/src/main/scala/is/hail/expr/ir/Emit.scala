@@ -647,6 +647,20 @@ class Emit[C](
             rvAgg.combOp(cb, sc.states(i), tempState)
           }
         )
+
+      case InitFromSerializedValue(i, value, sig) =>
+        val AggContainer(aggs, sc, _) = container.get
+        assert(aggs(i) == sig.state)
+
+        val v = emitI(value)
+        v.consume(cb,
+          cb._fatal("cannot initialize aggs from a missing value"),
+          { serializedValue =>
+            cb += sc.newState(i)
+            sc.states(i).createState(cb)
+            sc.states(i).deserializeFromBytes(cb, serializedValue.pt.asInstanceOf[PBinary], serializedValue.code.asInstanceOf[Code[Long]])
+          }
+        )
     }
   }
 

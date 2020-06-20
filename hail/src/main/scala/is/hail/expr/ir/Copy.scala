@@ -239,6 +239,9 @@ object Copy {
       case CombOpValue(i, _, aggSig) =>
         assert(newChildren.length == 1)
         CombOpValue(i, newChildren(0).asInstanceOf[IR], aggSig)
+      case InitFromSerializedValue(i, _, aggSig) =>
+        assert(newChildren.length == 1)
+        InitFromSerializedValue(i, newChildren(0).asInstanceOf[IR], aggSig)
       case SerializeAggs(startIdx, serIdx, spec, aggSigs) => SerializeAggs(startIdx, serIdx, spec, aggSigs)
       case DeserializeAggs(startIdx, serIdx, spec, aggSigs) => DeserializeAggs(startIdx, serIdx, spec, aggSigs)
       case Begin(_) =>

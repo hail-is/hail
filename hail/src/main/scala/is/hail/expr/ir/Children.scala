@@ -160,6 +160,7 @@ object Children {
     case _: AggStateValue => none
     case _: CombOp => none
     case CombOpValue(_, value, _) => Array(value)
+    case InitFromSerializedValue(_, value, _) => Array(value)
     case SerializeAggs(_, _, _, _) => none
     case DeserializeAggs(_, _, _, _) => none
     case Begin(xs) =>

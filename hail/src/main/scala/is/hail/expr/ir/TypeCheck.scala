@@ -355,6 +355,7 @@ object TypeCheck {
       case _: ResultOp =>
       case AggStateValue(i, sig) =>
       case CombOpValue(i, value, sig) => assert(value.typ == TBinary)
+      case InitFromSerializedValue(i, value, sig) => assert(value.typ == TBinary)
       case _: SerializeAggs =>
       case _: DeserializeAggs =>
       case x@Begin(xs) =>

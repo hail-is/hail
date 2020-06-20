@@ -116,6 +116,7 @@ class Classx[C](val name: String, val superName: String) {
     }
      */
 
+    // println(Pretty(this))
     Emit(this,
       print
       // Some(new PrintWriter(System.out))

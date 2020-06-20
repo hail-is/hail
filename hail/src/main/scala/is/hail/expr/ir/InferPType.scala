@@ -106,7 +106,7 @@ object InferPType {
            | _: Cast | _: NA | _: Die | _: IsNA | _: ArrayZeros | _: ArrayLen | _: StreamLen
            | _: LowerBoundOnOrderedCollection | _: ApplyBinaryPrimOp
            | _: ApplyUnaryPrimOp | _: ApplyComparisonOp | _: WriteValue
-           | _: NDArrayAgg | _: ShuffleWrite | _: ShuffleStart | _: AggStateValue | _: CombOpValue =>
+           | _: NDArrayAgg | _: ShuffleWrite | _: ShuffleStart | _: AggStateValue | _: CombOpValue | _: InitFromSerializedValue =>
         requiredness(node).canonicalPType(node.typ)
       case CastRename(v, typ) => v.pType.deepRename(typ)
       case x: BaseRef if usesAndDefs.free.contains(RefEquality(x)) =>
