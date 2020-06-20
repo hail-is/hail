@@ -102,6 +102,14 @@ class Classx[C](val name: String, val superName: String) {
     }
 
     for (m <- methods) {
+      val (blocks, blockIdx) = m.findAndIndexBlocks()
+
+      val cfg = CFG(m, blocks, blockIdx)
+      // cfg.dump()
+
+      val pst = PST(cfg)
+      // pst.dump()
+
       if (m.name != "<init>") {
         if (m.approxByteCodeSize() > SplitMethod.TargetMethodSize) {
           classes += SplitMethod(this, m)
