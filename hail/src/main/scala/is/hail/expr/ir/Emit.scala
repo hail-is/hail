@@ -685,13 +685,12 @@ class Emit[C](
         presentC(const(true))
       case False() =>
         presentC(const(false))
-      case Consume(value) => {
+      case Consume(value) =>
         emitI(value).map(cb){pc =>
           cb.memoizeField(pc, "consumed_field")
           // Ignore pc, just return a 1
           PCode(ir.pType, 1L)
         }
-      }
       case Cast(v, typ) =>
         val iec = emitI(v)
         val cast = Casts.get(v.typ, typ)
