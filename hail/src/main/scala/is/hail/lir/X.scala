@@ -216,6 +216,16 @@ class Method private[lir] (
       }
     }
 
+    // prune dead Block uses
+    for (b <- blocks) {
+      // don't traverse a set that's being modified
+      val uses2 = b.uses.toArray
+      for ((u, i) <- uses2) {
+        if (!visited(u.parent))
+          u.setTarget(i, null)
+      }
+    }
+
     blocks
   }
 
@@ -310,6 +320,27 @@ class Block {
 
   var first: StmtX = _
   var last: StmtX = _
+
+  val uses: mutable.Set[(ControlX, Int)] = mutable.Set[(ControlX, Int)]()
+
+  def addUse(x: ControlX, i: Int): Unit = {
+    val added = uses.add(x -> i)
+    assert(added)
+  }
+
+  def removeUse(x: ControlX, i: Int): Unit = {
+    val removed = uses.remove(x -> i)
+    assert(removed)
+  }
+
+  def replace(L: Block): Unit = {
+    // don't traverse a set that's being modified
+    val uses2 = uses.toArray
+    for ((x, i) <- uses2) {
+      x.setTarget(i, L)
+    }
+    assert(uses.isEmpty)
+  }
 
   def prepend(x: StmtX): Unit = {
     assert(x.parent == null)
@@ -522,7 +553,11 @@ class GotoX extends ControlX {
 
   def setTarget(i: Int, b: Block): Unit = {
     assert(i == 0)
+    if (L != null)
+      L.removeUse(this, 0)
     L = b
+    if (b != null)
+      b.addUse(this, 0)
   }
 }
 
@@ -542,11 +577,19 @@ class IfX(val op: Int) extends ControlX {
   }
 
   def setTarget(i: Int, b: Block): Unit = {
-    if (i == 0)
+    if (i == 0) {
+      if (Ltrue != null)
+        Ltrue.removeUse(this, 0)
       Ltrue = b
-    else {
+      if (b != null)
+        b.addUse(this, 0)
+    } else {
       assert(i == 1)
+      if (Lfalse != null)
+        Lfalse.removeUse(this, 1)
       Lfalse = b
+      if (b != null)
+        b.addUse(this, 1)
     }
   }
 }
@@ -566,10 +609,20 @@ class SwitchX() extends ControlX {
   }
 
   def setTarget(i: Int, b: Block): Unit = {
-    if (i == 0)
+    if (i == 0) {
+      if (Ldefault != null)
+        Ldefault.removeUse(this, 0)
       Ldefault = b
-    else
+      if (b != null)
+        b.addUse(this, 0)
+    } else {
+      val L = Lcases(i - 1)
+      if (L != null)
+        L.removeUse(this, i)
       Lcases(i - 1) = b
+      if (b != null)
+        b.addUse(this, i)
+    }
   }
 }
 

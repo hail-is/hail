@@ -11,19 +11,7 @@ object SimplifyControl {
 }
 
 class SimplifyControl(m: Method) {
-  private val uses = mutable.Map[Block, mutable.Set[(ControlX, Int)]]()
-
   private val q = mutable.Set[Block]()
-
-  def removeUse(M: Block, c: ControlX, i: Int): Unit = {
-    val r = uses(M).remove((c, i))
-    assert(r)
-  }
-
-  def addUse(M: Block, c: ControlX, i: Int): Unit = {
-    val r = uses(M).add((c, i))
-    assert(r)
-  }
 
   def finalTarget(b0: Block): Block = {
     var b = b0
@@ -36,24 +24,20 @@ class SimplifyControl(m: Method) {
   def simplifyBlock(L: Block): Unit = {
     val last = L.last.asInstanceOf[ControlX]
 
-    if (uses(L).isEmpty && (L ne m.entry)) {
+    if (L.uses.isEmpty && (L ne m.entry)) {
       var i = 0
       while (i < last.targetArity()) {
         val M = last.target(i)
-        removeUse(M, last, i)
         last.setTarget(i, null)
 
         q += M
-        if (uses(M).size == 1) {
-          val (u, _) = uses(M).head
+        if (M.uses.size == 1) {
+          val (u, _) = M.uses.head
           q += u.parent
         }
 
         i += 1
       }
-
-      // just popped off q
-      uses -= L
 
       return
     }
@@ -63,13 +47,11 @@ class SimplifyControl(m: Method) {
       val M = last.target(i)
       val newM = finalTarget(M)
       if (M ne newM) {
-        removeUse(M, last, i)
         last.setTarget(i, newM)
-        addUse(newM, last, i)
 
         q += M
-        if (uses(M).size == 1) {
-          val (u, _) = uses(M).head
+        if (M.uses.size == 1) {
+          val (u, _) = M.uses.head
           q += u.parent
         }
         q += L
@@ -82,13 +64,10 @@ class SimplifyControl(m: Method) {
         val M = x.Ltrue
         if (M eq x.Lfalse) {
           x.remove()
-          removeUse(x.Ltrue, x, 0)
           x.Ltrue = null
-          removeUse(x.Lfalse, x, 1)
           x.Lfalse = null
 
           val g = goto(M)
-          addUse(M, g, 0)
 
           L.append(g)
 
@@ -98,9 +77,8 @@ class SimplifyControl(m: Method) {
 
       case x: GotoX =>
         val M = x.L
-        if ((M ne L) && uses(M).size == 1 && (m.entry ne M)) {
+        if ((M ne L) && M.uses.size == 1 && (m.entry ne M)) {
           x.remove()
-          removeUse(x.L, x, 0)
           x.L = null
 
           while (M.first != null) {
@@ -110,7 +88,6 @@ class SimplifyControl(m: Method) {
           }
 
           q -= M
-          uses -= M
 
           q += L
         }
@@ -161,21 +138,8 @@ class SimplifyControl(m: Method) {
 
     val blocks = m.findBlocks()
 
-    blocks.foreach { b =>
-      uses(b) = mutable.Set()
-    }
-
-    for (b <- blocks) {
+    for (b <- blocks)
       q += b
-
-      val last = b.last.asInstanceOf[ControlX]
-      var i = 0
-      while (i < last.targetArity()) {
-        val t = last.target(i)
-        addUse(t, last, i)
-        i += 1
-      }
-    }
 
     while (q.nonEmpty) {
       val b = q.head
