@@ -12,7 +12,7 @@ See the [documentation](https://hail.is/docs/0.2/) for more info on using Hail.
 
 ### Community
 
-Hail has been widely adopted in academia and industry, including as the analysis platform for the [genome aggregation database](https://gnomad.broadinstitute.org) and [UK Biobank rapid GWAS](https://www.nealelab.is/uk-biobank). Learn more about [Hail-powered science](hail/www/references.md).
+Hail has been widely adopted in academia and industry, including as the analysis platform for the [genome aggregation database](https://gnomad.broadinstitute.org) and [UK Biobank rapid GWAS](https://www.nealelab.is/uk-biobank). Learn more about [Hail-powered science](https://hail.is/references.html).
 
 ### Contribute
 
