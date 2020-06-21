@@ -21,6 +21,7 @@ class Region(
   val end: Int) {
   // computed
   var parent: Int = -1
+  var children: Array[Int] = null
 }
 
 object PST {
@@ -315,14 +316,16 @@ object PST {
     }
      */
 
-    new PST(linearization, blockLinearIdx, regions)
+    new PST(linearization, blockLinearIdx, regions, children)
   }
 }
 
 class  PST(
   val linearization: Array[Int],
   val blockLinearIdx: Array[Int],
-  val regions: Array[Region]) {
+  val regions: Array[Region],
+  val children: Array[Array[Int]]
+) {
   def nBlocks: Int = linearization.length
 
   def nRegions: Int = regions.length

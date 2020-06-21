@@ -102,17 +102,19 @@ class Classx[C](val name: String, val superName: String) {
     }
 
     for (m <- methods) {
-      val (blocks, blockIdx) = m.findAndIndexBlocks()
-
-      val cfg = CFG(m, blocks, blockIdx)
-      // cfg.dump()
-
-      val pst = PST(cfg)
-      // pst.dump()
-
       if (m.name != "<init>") {
+        CreateExitBlock(m)
+
+        val (blocks, blockIdx) = m.findAndIndexBlocks()
+
+        val cfg = CFG(m, blocks, blockIdx)
+        // cfg.dump()
+
+        val pst = PST(cfg)
+        // pst.dump()
+
         if (m.approxByteCodeSize() > SplitMethod.TargetMethodSize) {
-          classes += SplitMethod(this, m)
+          classes += SplitMethod(this, m, blocks, pst)
         }
       }
     }
@@ -228,7 +230,7 @@ class Method private[lir] (
     val visited = mutable.Set[Block]()
 
     s.push(entry)
-
+    
     while (s.nonEmpty) {
       val L = s.pop()
       if (!visited.contains(L)) {
