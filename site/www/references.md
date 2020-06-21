@@ -13,7 +13,7 @@ Or you could include the following line in your bibliography:
 
 <pre class='sourceCode'><code>Hail Team. Hail 0.2. https://github.com/hail-is/hail</code></pre>
 
-Otherwise, we welcome you to add additional examples by [editing this page directly](https://github.com/hail-is/hail/edit/master/hail/www/references.md), after which we will review the pull request to confirm the addition is valid. Please adhere to the existing formatting conventions.
+Otherwise, we welcome you to add additional examples by [editing this page directly](https://github.com/hail-is/hail/edit/master/site/www/references.md), after which we will review the pull request to confirm the addition is valid. Please adhere to the existing formatting conventions.
 
 *Last updated on March 30th, 2020*
 
