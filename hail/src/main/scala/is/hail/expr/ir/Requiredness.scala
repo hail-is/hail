@@ -301,54 +301,32 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.unionValues(lookupAs[RStruct](expr))
         requiredness.unionGlobals(lookup(child))
       case TableJoin(left, right, joinType, joinKey) =>
-        val leftReq = lookup(left)
-        val rightReq = lookup(right)
+        val leftReq = lookup(left).changeKey(left.typ.key.take(joinKey))
+        val rightReq = lookup(right).changeKey(right.typ.key.take(joinKey))
 
-        if (joinType == "left") {
-          val leftFields = left.typ.rowType.fieldNames.toSet
-          requiredness.rowFields.foreach { case (f, t) =>
-            if (leftFields contains f)
-              t.unionFrom(leftReq.field(f))
-            else
-              t.union(r = false)
+        requiredness.unionValues(leftReq)
+        requiredness.unionValues(rightReq)
+
+        if (joinType == "outer" || joinType == "zip" || joinType == "left") {
+          requiredness.key.zip(leftReq.key).foreach { case (k, rk) =>
+            requiredness.field(k).unionFrom(leftReq.field(rk))
           }
+          rightReq.valueFields.foreach(n => requiredness.field(n).union(r = false))
         }
 
-        if (joinType == "right") {
-          val rightFields = right.typ.rowType.fieldNames.toSet
-          val keyMap = left.typ.key.zip(right.typ.key).take(joinKey).toMap
-          requiredness.rowFields.foreach { case (f, t) =>
-            if (keyMap.contains(f))
-              t.unionFrom(rightReq.field(keyMap(f)))
-            else if (rightFields.contains(f))
-              t.unionFrom(rightReq.field(f))
-            else
-              t.union(r = false)
+        if (joinType == "outer" || joinType == "zip" || joinType == "right") {
+          requiredness.key.zip(rightReq.key).foreach { case (k, rk) =>
+            requiredness.field(k).unionFrom(rightReq.field(rk))
           }
+          leftReq.valueFields.foreach(n => requiredness.field(n).union(r = false))
         }
 
-        if (joinType == "outer" || joinType == "zip") {
-          val keyMap = left.typ.key.zip(right.typ.key).take(joinKey).toMap
-          requiredness.rowFields.foreach { case (f, t) =>
-            if (keyMap.contains(f)) {
-              t.unionFrom(leftReq.field(f))
-              t.unionFrom(rightReq.field(keyMap(f)))
-            } else
-              t.union(r = false)
+        if (joinType == "inner")
+          requiredness.key.zipWithIndex.foreach { case (k, i) =>
+            requiredness.field(k).unionWithIntersection(FastSeq(
+              leftReq.field(leftReq.key(i)),
+              rightReq.field(rightReq.key(i))))
           }
-        }
-
-        if (joinType == "inner") {
-          val keyMap = left.typ.key.zip(right.typ.key).take(joinKey).toMap
-          requiredness.rowFields.foreach { case (f, t) =>
-            if (keyMap.contains(f))
-              t.unionWithIntersection(FastSeq(leftReq.field(f), rightReq.field(keyMap(f))))
-            else if (leftReq.fieldMap.contains(f))
-              t.unionFrom(leftReq.field(f))
-            else
-              t.unionFrom(rightReq.field(f))
-          }
-        }
 
         requiredness.unionGlobals(leftReq.globalType)
         requiredness.unionGlobals(rightReq.globalType)
