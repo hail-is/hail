@@ -15,7 +15,7 @@ else:
         try:
             sp.check_output(args, stderr=sp.STDOUT, **kwargs)
         except sp.CalledProcessError as e:
-            print(e.output).decode()
+            print(e.output.decode())
             raise e
 
 
