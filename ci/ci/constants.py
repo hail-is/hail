@@ -14,5 +14,6 @@ AUTHORIZED_USERS = {
     'catoverdrive',
     'johnc1231',
     'nawatts',
-    'mkveerapen'
+    'mkveerapen',
+    'annamiraotoole'
 }
