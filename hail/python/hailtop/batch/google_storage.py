@@ -30,7 +30,7 @@ class GCS:
             self.gcs_client = google.cloud.storage.Client(
                 credentials=credentials)
         self._wrapped_write_gs_file_from_string = self._wrap_network_call(GCS._write_gs_file_from_string)
-        self._wrapped_write_gs_file_from_file = self._wrap_network_call(GCS._write_gs_file_from_file)
+        self._wrapped_write_gs_file_from_file_like_object = self._wrap_network_call(GCS._write_gs_file_from_file_like_object)
         self._wrapped_read_gs_file = self._wrap_network_call(GCS._read_gs_file)
         self._wrapped_read_binary_gs_file = self._wrap_network_call(GCS._read_binary_gs_file)
         self._wrapped_read_gs_file_to_file = self._wrap_network_call(GCS._read_gs_file_to_file)
@@ -41,13 +41,20 @@ class GCS:
         self._wrapped_compose_gs_file = self._wrap_network_call(GCS._compose_gs_file)
         self._wrapped_get_blob = self._wrap_network_call(GCS._get_blob)
 
+    def shutdown(self, wait=True):
+        self.blocking_pool.shutdown(wait)
+
     async def write_gs_file_from_string(self, uri, string, *args, **kwargs):
         return await retry_transient_errors(self._wrapped_write_gs_file_from_string,
                                             self, uri, string, *args, **kwargs)
 
-    async def write_gs_file_from_file(self, uri, file_name, start, end, *args, **kwargs):
-        return await retry_transient_errors(self._wrapped_write_gs_file_from_file,
-                                            self, uri, file_name, start, end, *args, **kwargs)
+    async def write_gs_file_from_file_like_object(self, uri, file, start=None, end=None, *args, **kwargs):
+        return await retry_transient_errors(self._wrapped_write_gs_file_from_file_like_object,
+                                            self, uri, file, start, end, *args, **kwargs)
+
+    async def write_gs_file_from_file(self, uri, file_name, start=None, end=None, *args, **kwargs):
+        with open(file_name, 'r') as file:
+            await self.write_gs_file_from_file_like_object(uri, file, start, end, args, **kwargs)
 
     async def read_gs_file(self, uri, *args, **kwargs):
         return await retry_transient_errors(self._wrapped_read_gs_file,
@@ -99,11 +106,10 @@ class GCS:
         b.metadata = {'Cache-Control': 'no-cache'}
         b.upload_from_string(string, *args, **kwargs)
 
-    def _write_gs_file_from_file(self, uri, file_name, *args, **kwargs):
-        with open(file_name, 'r') as file:
-            b = self._get_blob(uri)
-            b.metadata = {'Cache-Control': 'no-cache'}
-            b.upload_from_file(file, *args, **kwargs)
+    def _write_gs_file_from_file_like_object(self, uri, file, *args, **kwargs):
+        b = self._get_blob(uri)
+        b.metadata = {'Cache-Control': 'no-cache'}
+        b.upload_from_file(file, *args, **kwargs)
 
     def _read_gs_file(self, uri, *args, **kwargs):
         content = self._read_binary_gs_file(uri, *args, **kwargs)

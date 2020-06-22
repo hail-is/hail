@@ -1,6 +1,7 @@
 import nest_asyncio
 
-from .batch import Batch, BatchPoolExecutor
+from .batch import Batch
+from .batch_pool_executor import BatchPoolExecutor
 from .backend import LocalBackend, ServiceBackend
 from .utils import BatchException
 
