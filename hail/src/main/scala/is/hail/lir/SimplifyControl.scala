@@ -64,8 +64,8 @@ class SimplifyControl(m: Method) {
         val M = x.Ltrue
         if (M eq x.Lfalse) {
           x.remove()
-          x.Ltrue = null
-          x.Lfalse = null
+          x.setLtrue(null)
+          x.setLfalse(null)
 
           val g = goto(M)
 
@@ -79,7 +79,7 @@ class SimplifyControl(m: Method) {
         val M = x.L
         if ((M ne L) && M.uses.size == 1 && (m.entry ne M)) {
           x.remove()
-          x.L = null
+          x.setL(null)
 
           while (M.first != null) {
             val z = M.first

@@ -542,52 +542,64 @@ abstract class ValueX extends X {
 }
 
 class GotoX extends ControlX {
-  var L: Block = _
+  private var _L: Block = _
+
+  def L: Block = _L
+
+  def setL(newL: Block): Unit = setTarget(0, newL)
 
   def targetArity(): Int = 1
 
   def target(i: Int): Block = {
     assert(i == 0)
-    L
+    _L
   }
 
   def setTarget(i: Int, b: Block): Unit = {
     assert(i == 0)
-    if (L != null)
-      L.removeUse(this, 0)
-    L = b
+    if (_L != null)
+      _L.removeUse(this, 0)
+    _L = b
     if (b != null)
       b.addUse(this, 0)
   }
 }
 
 class IfX(val op: Int) extends ControlX {
-  var Ltrue: Block = _
-  var Lfalse: Block = _
+  private var _Ltrue: Block = _
+  private var _Lfalse: Block = _
+
+  def Ltrue: Block = _Ltrue
+
+  def Lfalse: Block = _Lfalse
+
+  def setLtrue(newLtrue: Block): Unit = setTarget(0, newLtrue)
+
+  def setLfalse(newLfalse: Block): Unit = setTarget(1, newLfalse)
 
   def targetArity(): Int = 2
 
   def target(i: Int): Block = {
     if (i == 0)
-      Ltrue
+      _Ltrue
     else {
       assert(i == 1)
-      Lfalse
+      _Lfalse
     }
   }
 
   def setTarget(i: Int, b: Block): Unit = {
     if (i == 0) {
-      if (Ltrue != null)
-        Ltrue.removeUse(this, 0)
-      Ltrue = b
+      if (_Ltrue != null)
+        _Ltrue.removeUse(this, 0)
+      _Ltrue = b
       if (b != null)
         b.addUse(this, 0)
     } else {
       assert(i == 1)
-      if (Lfalse != null)
-        Lfalse.removeUse(this, 1)
-      Lfalse = b
+      if (_Lfalse != null)
+        _Lfalse.removeUse(this, 1)
+      _Lfalse = b
       if (b != null)
         b.addUse(this, 1)
     }
@@ -595,31 +607,56 @@ class IfX(val op: Int) extends ControlX {
 }
 
 class SwitchX() extends ControlX {
-  var Ldefault: Block = _
+  private var _Ldefault: Block = _
 
-  var Lcases: Array[Block] = Array.empty[Block]
+  private var _Lcases: Array[Block] = Array.empty[Block]
 
-  def targetArity(): Int = 1 + Lcases.length
+  def Ldefault: Block = _Ldefault
+
+  def setLdefault(newLdefault: Block): Unit = setTarget(0, newLdefault)
+
+  def Lcases: IndexedSeq[Block] = _Lcases
+
+  def setLcases(newLcases: IndexedSeq[Block]): Unit = {
+    var i = 0
+    while (i < _Lcases.length) {
+      val L = _Lcases(i)
+      if (L != null)
+        L.removeUse(this, i + 1)
+      _Lcases(i) = null
+      i += 1
+    }
+    _Lcases = newLcases.toArray
+    i = 0
+    while (i < _Lcases.length) {
+      val L = _Lcases(i)
+      if (L != null)
+        L.addUse(this, i + 1)
+      i += 1
+    }
+  }
+  
+  def targetArity(): Int = 1 + _Lcases.length
 
   def target(i: Int): Block = {
     if (i == 0)
       Ldefault
     else
-      Lcases(i - 1)
+      _Lcases(i - 1)
   }
 
   def setTarget(i: Int, b: Block): Unit = {
     if (i == 0) {
-      if (Ldefault != null)
-        Ldefault.removeUse(this, 0)
-      Ldefault = b
+      if (_Ldefault != null)
+        _Ldefault.removeUse(this, 0)
+      _Ldefault = b
       if (b != null)
         b.addUse(this, 0)
     } else {
-      val L = Lcases(i - 1)
+      val L = _Lcases(i - 1)
       if (L != null)
         L.removeUse(this, i)
-      Lcases(i - 1) = b
+      _Lcases(i - 1) = b
       if (b != null)
         b.addUse(this, i)
     }
