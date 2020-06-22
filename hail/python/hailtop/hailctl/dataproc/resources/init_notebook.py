@@ -3,6 +3,7 @@ import json
 import os
 import subprocess as sp
 import sys
+import errno
 from subprocess import check_output
 
 assert sys.version_info > (3, 0), sys.version_info
@@ -27,7 +28,7 @@ def mkdir_if_not_exists(path):
     try:
         os.makedirs(path)
     except OSError as e:
-        if e.errno != os.errno.EEXIST:
+        if e.errno != errno.EEXIST:
             raise
 
 
