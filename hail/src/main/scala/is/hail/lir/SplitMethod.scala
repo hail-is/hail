@@ -2,9 +2,14 @@ package is.hail.lir
 
 import java.util.Comparator
 
-import is.hail.asm4s.{BooleanInfo, IntInfo, TypeInfo, UnitInfo}
-import is.hail.utils.{ArrayBuilder, FastIndexedSeq, UnionFind}
+import is.hail.asm4s._
+import is.hail.utils._
 import org.objectweb.asm.Opcodes._
+import org.objectweb.asm._
+
+import scala.collection.mutable
+
+class SplitReturn() extends Exception()
 
 object SplitMethod {
   val TargetMethodSize: Int = 2000
@@ -12,7 +17,7 @@ object SplitMethod {
   def apply(
     c: Classx[_],
     m: Method,
-    blocks: IndexedSeq[Block],
+    blocks: Array[Block],
     pst: PST
   ): Classx[_] = {
     val split = new SplitMethod(c, m, blocks, pst)
@@ -24,7 +29,7 @@ object SplitMethod {
 class SplitMethod(
   c: Classx[_],
   m: Method,
-  blocks: IndexedSeq[Block],
+  blocks: Array[Block],
   pst: PST
 ) {
   def nBlocks: Int = blocks.length
@@ -103,61 +108,51 @@ class SplitMethod(
     ctor
   }
 
+  // index before creating spills
+  private val (locals, localIdx) = m.findAndIndexLocals(blocks)
+
   private val spills = m.newLocal("spills", spillsClass.ti)
 
   private val paramFields = m.parameterTypeInfo.zipWithIndex.map { case (ti, i) =>
     spillsClass.newField(genName("f", s"arg${ i + 1 }"), ti)
   }
 
-  def splitLargeStatements(): Unit = {
-    for (b <- blocks) {
-      def splitLargeStatement(c: StmtX): Unit = {
-        def visit(x: ValueX): Int = {
-          // FIXME this doesn't handle many moderate-sized children
-          val size = 1 + x.children.map(visit).sum
-
-          if (size > SplitMethod.TargetMethodSize / 2) {
-            val l = m.newLocal("spill_large_expr", x.ti)
-            x.replace(load(l))
-            c.insertBefore(store(l, x))
-            1
-          } else
-            size
-        }
-
-        c.children.foreach(visit)
-      }
-
-      var x = b.first
-      while (x != null) {
-        splitLargeStatement(x)
-        x = x.next
-      }
-    }
+  private val fields = locals.map { l =>
+    if (l.isInstanceOf[Parameter])
+      null
+    else
+      spillsClass.newField(genName("f", l.name), l.ti)
   }
 
-  def spillLocals(): Unit = {
-    val locals = m.findLocals(blocks)
+  private val splitMethods = mutable.ArrayBuffer[Method]()
 
-    val fields = locals.map { l =>
-      if (l.isInstanceOf[Parameter])
-        null
-      else
-        spillsClass.newField(genName("f", l.name), l.ti)
-    }
-
+  def spillLocals(method: Method): Unit = {
     def localField(l: Local): Field =
       l match {
         case p: Parameter =>
           if (p.i == 0)
             null
-          else
-            paramFields(p.i - 1)
-        case _ => fields(locals.index(l))
+          else {
+            if (method eq m)
+              null
+            else
+              paramFields(p.i - 1)
+          }
+        case _ =>
+          localIdx.get(l) match {
+            case Some(i) =>
+              fields(i)
+            case None =>
+              null
+          }
       }
 
-    def spillsParam(): Parameter =
-      new Parameter(null, 1, spillsClass.ti)
+    def getSpills(): ValueX = {
+      if (method eq m)
+        load(spills)
+      else
+        load(new Parameter(method, 1, spillsClass.ti))
+    }
 
     def spill(x: X): Unit = {
       x.children.foreach(spill)
@@ -165,21 +160,23 @@ class SplitMethod(
         case x: LoadX =>
           val f = localField(x.l)
           if (f != null)
-            x.replace(getField(f, load(spillsParam())))
+            x.replace(getField(f, getSpills()))
         case x: IincX =>
           val f = localField(x.l)
-          assert(f != null)
-          x.replace(
-            putField(f, load(spillsParam()),
-              insn(IADD,
-                getField(f, load(spillsParam())),
-                ldcInsn(x.i, IntInfo))))
+          if (f != null) {
+            x.replace(
+              putField(f, getSpills(),
+                insn(IADD,
+                  getField(f, getSpills()),
+                  ldcInsn(x.i, IntInfo))))
+          }
         case x: StoreX =>
           val f = localField(x.l)
-          assert(f != null)
-          val v = x.children(0)
-          v.remove()
-          x.replace(putField(f, load(spillsParam()), v))
+          if (f != null) {
+            val v = x.children(0)
+            v.remove()
+            x.replace(putField(f, getSpills(), v))
+          }
         case _ =>
       }
     }
@@ -194,92 +191,11 @@ class SplitMethod(
     }
   }
 
-  def splitBlock(b: Block): Unit = {
-    val last = b.last
-
-    val returnTI = last match {
-      case _: GotoX => UnitInfo
-      case _: IfX => BooleanInfo
-      case _: SwitchX => IntInfo
-      case _: ReturnX => m.returnTypeInfo
-      case _: ThrowX => last.children(0).ti
+  def spillLocals(): Unit = {
+    for (splitM <- splitMethods) {
+      spillLocals(splitM)
     }
-
-    var L = new Block()
-    var x = b.first
-    var size = 0
-
-    while (x != last) {
-      if (size > SplitMethod.TargetMethodSize) {
-        val newM = c.newMethod(genName("m", "wrapped"), FastIndexedSeq(spillsClass.ti), UnitInfo)
-        L.method = newM
-        newM.setEntry(L)
-        L.append(returnx())
-
-        x.insertBefore(methodStmt(INVOKEVIRTUAL, newM, Array(load(m.getParam(0)), load(spills))))
-
-        L = new Block()
-        size = 0
-      }
-
-      size += x.approxByteCodeSize()
-      val n = x.next
-      x.remove()
-      L.append(x)
-      x = n
-    }
-
-    val newM = c.newMethod(genName("m", "wrapped"), FastIndexedSeq(spillsClass.ti), returnTI)
-    L.method = newM
-    newM.setEntry(L)
-
-    def invokeNewM(): ValueX =
-      methodInsn(INVOKEVIRTUAL, newM, Array(load(m.getParam(0)), load(spills)))
-
-    def invokeNewMStmt(): StmtX =
-      methodStmt(INVOKEVIRTUAL, newM, Array(load(m.getParam(0)), load(spills)))
-
-    last match {
-      case _: GotoX =>
-        L.append(returnx())
-        last.insertBefore(invokeNewMStmt())
-      case x: ThrowX =>
-        val err = x.children(0)
-        x.setChild(0, invokeNewM())
-        L.append(returnx(err))
-      case x: IfX =>
-        val Ltrue = x.Ltrue
-        val Lfalse = x.Lfalse
-
-        x.remove()
-        L.append(x)
-
-        val newLtrue = new Block()
-        newLtrue.method = newM
-        newLtrue.append(returnx(ldcInsn(1, BooleanInfo)))
-        x.setLtrue(newLtrue)
-
-        val newLfalse = new Block()
-        newLfalse.method = newM
-        newLfalse.append(returnx(ldcInsn(0, BooleanInfo)))
-        x.setLfalse(newLfalse)
-
-        b.append(
-          ifx(IFNE, invokeNewM(), Ltrue, Lfalse))
-      case x: SwitchX => IntInfo
-        val i = x.children(0)
-        x.setChild(0, invokeNewM())
-        L.append(returnx(i))
-      case _: ReturnX =>
-        if (returnTI eq UnitInfo) {
-          L.append(returnx())
-          last.insertBefore(invokeNewMStmt())
-        } else {
-          val c = x.children(0)
-          x.setChild(0, invokeNewM())
-          L.append(returnx(c))
-        }
-    }
+    spillLocals(m)
   }
 
   val q = new java.util.TreeSet[Integer](
@@ -288,8 +204,6 @@ class SplitMethod(
         Integer.compare(regionSize(i), regionSize(j))
     })
 
-  private val splitMethods = new ArrayBuilder[Method]()
-
   private var counter = 0
   private def genSplitMethodName(): String = {
     val c = counter
@@ -297,24 +211,10 @@ class SplitMethod(
     s"${ m.name }split$c"
   }
 
-  private var splitReturn: Field = null
-  private var splitReturnValue: Field = null
+  private var spillReturnValue: Field = _
 
   private def splitRegion(i: Int): Unit = {
     val r = pst.regions(i)
-
-    // don't include end
-    val splittingReturn = (r.start until r.end).exists { i =>
-      val L = blocks(blockPartitions.find(pst.linearization(i)))
-      L.last.isInstanceOf[ReturnX]
-    }
-
-    if (splittingReturn && splitReturn == null) {
-      splitReturn = spillsClass.newField(genName("f", "splitReturn"), BooleanInfo)
-      if (m.returnTypeInfo != UnitInfo) {
-        splitReturnValue = spillsClass.newField(genName("f", "splitReturnValue"), m.returnTypeInfo)
-      }
-    }
 
     val Lstart = blocks(pst.linearization(r.start))
     val Lend = blocks(pst.linearization(r.end))
@@ -328,37 +228,68 @@ class SplitMethod(
     }
 
     val splitM = c.newMethod(genSplitMethodName(), FastIndexedSeq(spillsClass.ti), returnTI)
+    splitMethods += splitM
 
     (r.start to r.end).foreach { i =>
       val b = blockPartitions.find(pst.linearization(i))
       val L = blocks(b)
+
       blocks(b) = null
       L.method = splitM
+
+      // handle split return statements
+      if (i < r.end) {
+        L.last match {
+          case x: ReturnX =>
+            x.remove()
+            if (m.catchSplitReturn == null) {
+              if (m.returnTypeInfo == UnitInfo) {
+                m.catchSplitReturn = returnx()
+              } else {
+                spillReturnValue = spillsClass.newField("returnValue", m.returnTypeInfo)
+                m.catchSplitReturn = returnx(getField(spillReturnValue, load(spills)))
+              }
+            }
+            if (m.returnTypeInfo != UnitInfo) {
+              val v = x.children(0)
+              v.remove()
+              x.insertBefore(putField(spillReturnValue, load(spills), v))
+            }
+            val ti = classInfo[SplitReturn]
+            val tcls = classOf[SplitReturn]
+            val c = tcls.getDeclaredConstructor()
+            x.replace(
+              throwx(newInstance(ti,
+                  Type.getInternalName(tcls), "<init>", Type.getConstructorDescriptor(c), ti, FastIndexedSeq())))
+        }
+      }
     }
 
     splitM.setEntry(Lstart)
 
+    // replacement block for region
     val L = new Block()
     L.method = m
+    Lstart.replace(L)
 
     blockPartitions.union(
       pst.linearization(r.start), pst.linearization(r.end))
     blocks(blockPartitions.find(pst.linearization(r.start))) = L
 
-    def invokeNewM(): ValueX =
+    def invokeSplitM(): ValueX =
       methodInsn(INVOKEVIRTUAL, splitM, Array(load(m.getParam(0)), load(spills)))
 
-    def invokeNewMStmt(): StmtX =
+    def invokeSplitMStmt(): StmtX =
       methodStmt(INVOKEVIRTUAL, splitM, Array(load(m.getParam(0)), load(spills)))
 
     Lend.last match {
       case x: GotoX =>
         x.remove()
         Lend.append(returnx())
-        L.append(invokeNewMStmt())
+        L.append(invokeSplitMStmt())
         L.append(x)
       case x: ThrowX =>
-        L.append(invokeNewMStmt())
+        L.append(invokeSplitMStmt())
       case x: IfX =>
         val Ltrue = x.Ltrue
         val Lfalse = x.Lfalse
@@ -366,34 +297,30 @@ class SplitMethod(
         val newLtrue = new Block()
         newLtrue.method = splitM
         newLtrue.append(returnx(ldcInsn(1, BooleanInfo)))
-        x.Ltrue = newLtrue
+        x.setLtrue(newLtrue)
 
         val newLfalse = new Block()
         newLfalse.method = splitM
         newLfalse.append(returnx(ldcInsn(0, BooleanInfo)))
-        x.Lfalse = newLfalse
+        x.setLfalse(newLfalse)
 
         L.append(
-          ifx(IFNE, invokeNewM(), Ltrue, Lfalse))
+          ifx(IFNE, invokeSplitM(), Ltrue, Lfalse))
       case x: SwitchX => IntInfo
-        val i = x.children(0)
-        x.setChild(0, invokeNewM())
-        Lend.append(returnx(i))
-      case x: ReturnX =>
         x.remove()
-
-        if (returnTI eq UnitInfo) {
+        val i = x.children(0)
+        i.remove()
+        Lend.append(returnx(i))
+        x.setChild(0, invokeSplitM())
+        L.append(x)
+      case _: ReturnX =>
+        if (returnTI == UnitInfo) {
+          L.append(invokeSplitMStmt())
           L.append(returnx())
-          last.insertBefore(invokeNewMStmt())
         } else {
-          val c = x.children(0)
-          x.setChild(0, invokeNewM())
-          L.append(returnx(c))
+          L.append(returnx(invokeSplitM()))
         }
     }
-
-
-    ???
 
     // update sizes
     val size = regionSize(i)
@@ -432,25 +359,19 @@ class SplitMethod(
     computeSizes()
     splitRegions()
 
-    splitLargeStatements()
     spillLocals()
 
-    for (b <- blocks) {
-      splitBlock(b)
-    }
+    var x: StmtX = store(spills, new NewInstanceX(spillsClass.ti, spillsCtor))
+    m.entry.prepend(x)
 
-    val newEntry = new Block()
-    newEntry.method = m
-    newEntry.append(store(spills, new NewInstanceX(spillsClass.ti, spillsCtor)))
-
-    // this can't get split
+    // spill parameters
     m.parameterTypeInfo.indices.foreach { i =>
-      newEntry.append(putField(
+      val putParam = putField(
         paramFields(i),
         load(spills),
-        load(m.getParam(i + 1))))
+        load(m.getParam(i + 1)))
+      x.insertAfter(putParam)
+      x = putParam
     }
-    newEntry.append(goto(m.entry))
-    m.setEntry(newEntry)
   }
 }

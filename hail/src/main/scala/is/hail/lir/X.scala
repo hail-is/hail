@@ -102,8 +102,10 @@ class Classx[C](val name: String, val superName: String) {
     }
 
     for (m <- methods) {
-      if (m.name != "<init>") {
-        CreateExitBlock(m)
+      if (m.name != "<init>" &&
+        m.approxByteCodeSize() > SplitMethod.TargetMethodSize) {
+
+        SplitLargeBlocks(m)
 
         val (blocks, blockIdx) = m.findAndIndexBlocks()
 
@@ -113,9 +115,7 @@ class Classx[C](val name: String, val superName: String) {
         val pst = PST(cfg)
         // pst.dump()
 
-        if (m.approxByteCodeSize() > SplitMethod.TargetMethodSize) {
-          classes += SplitMethod(this, m, blocks, pst)
-        }
+        classes += SplitMethod(this, m, blocks, pst)
       }
     }
 
@@ -128,14 +128,12 @@ class Classx[C](val name: String, val superName: String) {
       InitializeLocals(m, blocks, locals, liveness)
     }
 
-    /*
     {
       println(name)
       for (m <- methods) {
         println(s"  ${ m.name } ${ m.approxByteCodeSize() }")
       }
     }
-     */
 
     // println(Pretty(this))
     classes.iterator
@@ -202,13 +200,17 @@ class Method private[lir] (
 
   def isInterface: Boolean = false
 
-  var _entry: Block = _
+  private var _entry: Block = _
 
   def setEntry(newEntry: Block): Unit = {
     _entry = newEntry
   }
 
   def entry: Block = _entry
+
+  // if not null, execute catchSplitReturn
+  // if method throws SplitReturn exception
+  var catchSplitReturn: StmtX = _
 
   def getParam(i: Int): Parameter = {
     new Parameter(this, i,
@@ -550,6 +552,21 @@ abstract class StmtX extends X {
       parent.first = x
     }
     prev = x
+  }
+
+  def insertAfter(x: StmtX): Unit = {
+    assert(parent != null)
+    assert(x.parent == null)
+
+    x.prev = this
+    x.parent = parent
+    if (next != null) {
+      x.next = next
+      next.prev = x
+    } else {
+      parent.last = x
+    }
+    next = x
   }
 }
 
