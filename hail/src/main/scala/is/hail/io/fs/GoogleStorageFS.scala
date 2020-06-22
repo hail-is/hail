@@ -173,7 +173,8 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
       }
     }
 
-    new WrappedSeekableDataInputStream(is)
+    new DoubleCloseSafeInputStream(
+      new WrappedSeekableDataInputStream(is))
   }
 
   def createNoCompression(filename: String): PositionedDataOutputStream = {
@@ -226,7 +227,8 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
       def getPosition: Long = pos
     }
 
-    new WrappedPositionedDataOutputStream(os)
+    new DoubleCloseSafeOutputStream(
+      new WrappedPositionedDataOutputStream(os))
   }
 
   def mkDir(dirname: String): Unit = ()

@@ -58,7 +58,9 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     val os = fs.create(hPath)
-    new WrappedPositionedDataOutputStream(HadoopFS.toPositionedOutputStream(os))
+    new DoubleCloseSafeOutputStream(
+      new WrappedPositionedDataOutputStream(
+        HadoopFS.toPositionedOutputStream(os)))
   }
 
   def openNoCompression(filename: String): SeekableDataInputStream = {
@@ -74,7 +76,9 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
           throw e
     }
 
-    new WrappedSeekableDataInputStream(HadoopFS.toSeekableInputStream(is))
+    new DoubleCloseSafeInputStream(
+      new WrappedSeekableDataInputStream(
+        HadoopFS.toSeekableInputStream(is)))
   }
 
   def getFileSystem(filename: String): hadoop.fs.FileSystem = {
