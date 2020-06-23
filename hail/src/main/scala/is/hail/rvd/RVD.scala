@@ -739,6 +739,7 @@ class RVD(
       var count = 0L
       it.foreach { _ =>
         count += 1
+        ctx.region.clear()
       }
       Iterator.single(count)
     }.collect()
