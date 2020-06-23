@@ -10,6 +10,7 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.20.0/themes/prism.min.css"></link>
     </xsl:template>
     <xsl:template match="body">
+    <span id='home'>
         <div id="hero">
             <div id="hero-background"></div>
             <div id="all-hero-content">
@@ -202,5 +203,6 @@ show(p)
                 checkViz();
             ]]>
         </script>
+    </span>
     </xsl:template>
 </xsl:stylesheet>

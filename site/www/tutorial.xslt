@@ -9,12 +9,12 @@
     <xsl:template name="header">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.20.0/themes/prism.min.css"></link>
     </xsl:template>
-    <xsl:template match="body" class='non-home'>
-        <div id="hero" style='height:calc(25vh - 50px); min-height: 250px; background: #2a3a8c; color: #fff'>
-            <div id="hero-content" style='box-shadow: none; background: inherit' class='wide'>
-                <h1 id="logo-title" style='background: inherit; color: inherit;animation: none'>Import, prototype, scale
+    <xsl:template match="body">
+        <div id="hero" class='dark short'>
+            <div id="hero-content" class='wide'>
+                <h1 id="logo-title">Import, prototype, scale
                 </h1>
-                <subtitle id="logo-subtitle" style='background:inherit;animation: none; opacity: 1'>Perform analyses with distributed
+                <subtitle id="logo-subtitle">Perform analyses with distributed
                     dataframe-like
                     collections</subtitle>
 
