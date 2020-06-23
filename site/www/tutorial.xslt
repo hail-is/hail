@@ -61,7 +61,7 @@ mt.describe(widget=True)
 
 # filter to rare, loss-of-function variants
 mt = mt.filter_rows(mt.variant_qc.AF[1] &lt; 0.005)
-Mt = mt.filter_rows(mt.csq == 'LOF')
+mt = mt.filter_rows(mt.csq == 'LOF')
 </code></pre>
                     </div>
 
