@@ -109,7 +109,7 @@ show(p)
                         </p>
                     </section>
                 </div>
-                <a class="button" href="/tutorial.html" target="_blank" style='align-self: flex-end;margin-top:25px;'>Learn More ></a>
+                <a class="button" href="/tutorial.html" target="_blank" style='align-self:flex-end; margin-top:1rem;'>Learn More ></a>
             </div>
         </div>
         <div class="about dark">
