@@ -55,6 +55,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
         case "right" => rightPart
         case "inner" => leftPart.intersect(rightPart)
         case "outer" => RVDPartitioner.generate(
+          kType.fieldNames,
           realType.kType.virtualType,
           leftPart.rangeBounds ++ rightPart.rangeBounds)
       }

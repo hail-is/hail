@@ -309,64 +309,54 @@ class TableIRSuite extends HailSuite {
   @DataProvider(name = "join")
   def joinData(): Array[Array[Any]] =
     for {
-      l <- leftPartitioners
-      r <- rightPartitioners
+      lParts <- Array[Integer](1, 2, 3)
+      rParts <- Array[Integer](1, 2, 3)
       (j, p) <- joinTypes
       leftProject <- Seq[Set[Int]](Set(), Set(1), Set(2), Set(1, 2))
       rightProject <- Seq[Set[Int]](Set(), Set(1), Set(2), Set(1, 2))
       if !leftProject.contains(1) || rightProject.contains(1)
-    } yield Array[Any](l, r, j, p, leftProject, rightProject)
+    } yield Array[Any](lParts, rParts, j, p, leftProject, rightProject)
 
   @Test(dataProvider = "join")
   def testTableJoin(
-    leftPart: RVDPartitioner,
-    rightPart: RVDPartitioner,
+    lParts: Int,
+    rParts: Int,
     joinType: String,
     pred: Row => Boolean,
     leftProject: Set[Int],
     rightProject: Set[Int]
   ) {
-    implicit val execStrats = ExecStrategy.interpretOnly
     val (leftType, leftProjectF) = rowType.filter(f => !leftProject.contains(f.index))
-    val left = Interpret(TableKeyBy(
+    val left = TableKeyBy(
       TableParallelize(
         Literal(
           TStruct("rows" -> TArray(leftType), "global" -> TStruct.empty),
           Row(leftData.map(leftProjectF.asInstanceOf[Row => Row]), Row())),
-        Some(1)),
-      if (!leftProject.contains(1)) FastIndexedSeq("A", "B") else FastIndexedSeq("A")),
-      ctx,
-      optimize = false)
-    val partitionedLeft = left.copy(rvd = left.rvd
-      .repartition(ctx, if (!leftProject.contains(1)) leftPart else leftPart.coarsen(1))
-    )
+        Some(lParts)),
+      if (!leftProject.contains(1)) FastIndexedSeq("A", "B") else FastIndexedSeq("A"))
 
     val (rightType, rightProjectF) = rowType.filter(f => !rightProject.contains(f.index))
-    val right = Interpret(TableKeyBy(
+    val right = TableKeyBy(
       TableParallelize(
         Literal(
           TStruct("rows" -> TArray(rightType), "global" -> TStruct.empty),
           Row(rightData.map(rightProjectF.asInstanceOf[Row => Row]), Row())),
         Some(1)),
-      if (!rightProject.contains(1)) FastIndexedSeq("A", "B") else FastIndexedSeq("A")),
-      ctx,
-      optimize = false)
-    val partitionedRight = right.copy(
-      rvd = right.rvd
-        .repartition(ctx, if (!rightProject.contains(1)) rightPart else rightPart.coarsen(1)))
+      if (!rightProject.contains(1)) FastIndexedSeq("A", "B") else FastIndexedSeq("A"))
 
     val (_, joinProjectF) = joinedType.filter(f => !leftProject.contains(f.index) && !rightProject.contains(f.index - 2))
     val joined = collect(
       TableJoin(
-        TableLiteral(partitionedLeft),
+        left,
         TableRename(
-          TableLiteral(partitionedRight),
+          right,
           Array("A", "B", "C")
-            .filter(partitionedRight.typ.rowType.hasField)
+            .filter(right.typ.rowType.hasField)
             .map(a => a -> (a + "_"))
             .toMap,
           Map.empty),
         joinType, 1))
+
     assertEvalsTo(joined, Row(expected.filter(pred).map(joinProjectF).toFastIndexedSeq, Row()))
   }
 
@@ -717,7 +707,7 @@ class TableIRSuite extends HailSuite {
   val value1 = Row(FastIndexedSeq(0 until parTable1Length: _*).map(i => Row("row" + i, i * i, s"t1_${i}")), Row("global"))
   val table1 = TableParallelize(Literal(parTable1Type, value1), Some(2))
 
-  val parTable2Length = 13
+  val parTable2Length = 9
   val parTable2Type = TStruct("rows" -> TArray(TStruct("a2" -> TString, "b2" -> TInt32, "c2" -> TString)), "global" -> TStruct("y"-> TInt32))
   val value2 = Row(FastIndexedSeq(0 until parTable2Length: _*).map(i => Row("row" + i, -2 * i, s"t2_${i}")), Row(15))
   val table2 = TableParallelize(Literal(parTable2Type, value2), Some(3))
@@ -741,7 +731,7 @@ class TableIRSuite extends HailSuite {
     val joinedParKeyedByAAndB = TableLeftJoinRightDistinct(table1KeyedByAAndB, table2KeyedByA, "joinRoot")
 
     assertEvalsTo(TableCount(joinedParKeyedByAAndB), parTable1Length.toLong)
-    assertEvalsTo(collect(joinedParKeyedByA), Row(FastIndexedSeq(0 until parTable1Length: _*).map(i =>
+    assertEvalsTo(collect(joinedParKeyedByAAndB), Row(FastIndexedSeq(0 until parTable1Length: _*).map(i =>
       Row("row" + i, i * i, s"t1_${i}", Row(-2 * i, s"t2_${i}"))), Row("global"))
     )
   }

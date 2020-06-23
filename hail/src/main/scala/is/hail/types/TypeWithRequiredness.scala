@@ -346,6 +346,8 @@ case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: 
   def unionValues(req: RStruct): Unit = valueFields.foreach { n => if (req.hasField(n)) field(n).unionFrom(req.field(n)) }
   def unionValues(req: RTable): Unit = unionValues(req.rowType)
 
+  def changeKey(key: Seq[String]): RTable = RTable(rowFields, globalFields, key)
+
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RTable = {
     assert(newChildren.length == rowFields.length + globalFields.length)
     val newRowFields = rowFields.zip(newChildren.take(rowFields.length)).map { case ((n, _), r: TypeWithRequiredness) => n -> r }
