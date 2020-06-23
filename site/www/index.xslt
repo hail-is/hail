@@ -10,10 +10,11 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.20.0/themes/prism.min.css"></link>
     </xsl:template>
     <xsl:template match="body">
+    <span id='home'>
         <div id="hero">
             <div id="hero-background"></div>
             <div id="all-hero-content">
-                <div id="hero-content" class="wide">
+                <div id="hero-content">
                     <h1 id="logo-title">Powering genomic analysis, at every scale</h1>
                     <subtitle class="logo-subtitle">An open-source library for scalable genomic data exploration</subtitle>
                     <div style="display: flex;" id="hero-button-container">
@@ -109,6 +110,7 @@ show(p)
                         </p>
                     </section>
                 </div>
+                <a class="button" href="/tutorial.html" target="_blank" style='align-self:flex-end; margin-top:1rem;'>Learn More ></a>
             </div>
         </div>
         <div class="about dark">
@@ -201,5 +203,6 @@ show(p)
                 checkViz();
             ]]>
         </script>
+    </span>
     </xsl:template>
 </xsl:stylesheet>
