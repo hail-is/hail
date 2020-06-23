@@ -1,6 +1,6 @@
------
-Table
------
+--------------
+Table Overview
+--------------
 
 A :class:`.Table` is the Hail equivalent of a SQL table, a Pandas Dataframe, an
 R Dataframe, a dyplr Tibble, or a Spark Dataframe. It consists of rows of data
