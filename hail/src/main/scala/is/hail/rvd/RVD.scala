@@ -725,21 +725,19 @@ class RVD(
   }
 
   def count(): Long =
-    crdd.cmapPartitions { (ctx, it) =>
+    crdd.boundary.cmapPartitions { (ctx, it) =>
       var count = 0L
       it.foreach { _ =>
         count += 1
-        ctx.region.clear()
       }
       Iterator.single(count)
     }.run.fold(0L)(_ + _)
 
   def countPerPartition(): Array[Long] =
-    crdd.cmapPartitions { (ctx, it) =>
+    crdd.boundary.cmapPartitions { (ctx, it) =>
       var count = 0L
       it.foreach { _ =>
         count += 1
-        ctx.region.clear()
       }
       Iterator.single(count)
     }.collect()
