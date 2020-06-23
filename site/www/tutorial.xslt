@@ -117,7 +117,7 @@ mt = mt.annotate_cols(
 mt = hl.vep(mt)</code></pre>
                     </div>
                     <div class='el'>
-                        <h3 style='margin-top:0px'>Easy Variant Effect Predictor</h3>
+                        <h3 style='margin-top:0px'>Variant Effect Predictor</h3>
                         <p>Annotating variants with Variant effect predictor has never been easier.</p>
                     </div>
                 </section>
@@ -127,7 +127,7 @@ mt = hl.vep(mt)</code></pre>
                 </svg>
                 <section class='right'>
                     <div class='el'>
-                        <h3 style='margin-top:0px'>Analyze Rare Variants With Ease</h3>
+                        <h3 style='margin-top:0px'>Rare-Variant Association Testing</h3>
                         <p>Perform Gene Burden Tests on sequencing data with just a few lines of Python.</p>
                     </div>
                     <div class='el'>
