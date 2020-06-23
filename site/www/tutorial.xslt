@@ -38,8 +38,7 @@ mt3 = hl.import_plink(bed='/path/to/my.bed',
                     <div class='el'>
                         <h3 style='margin-top:0px'>Input Unification
                         </h3>
-                        <p>Input Unification from multiple different formats such as bed, bgen, plink, or vcf
-                        </p>
+                        <p>Import formats such as bed, bgen, plink, or vcf, and manipulate them using a common dataframe-like interface.</p>
                     </div>
 
                 </section>
