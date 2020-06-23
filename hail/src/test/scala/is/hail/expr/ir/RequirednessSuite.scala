@@ -489,8 +489,6 @@ class RequirednessSuite extends HailSuite {
   def testTableRequiredness(node: TableIR, row: PType, global: PType): Unit = {
     val res = Requiredness.apply(node, ctx)
     val actual = res.r.lookup(node).asInstanceOf[RTable]
-    if (actual.rowType.canonicalPType(node.typ.rowType) != row)
-      println()
     assert(actual.rowType.canonicalPType(node.typ.rowType) == row, s"\n\n${Pretty(node)}: \n$actual\n\n${ dump(res.r) }")
     assert(actual.globalType.canonicalPType(node.typ.globalType) == global, s"\n\n${Pretty(node)}: \n$actual\n\n${ dump(res.r) }")
   }
