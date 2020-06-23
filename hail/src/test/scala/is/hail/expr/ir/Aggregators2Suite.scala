@@ -465,7 +465,7 @@ class Aggregators2Suite extends HailSuite {
   }
 
   @Test def testArrayElementsAgg() {
-    val alState = ArrayLenAggSig(knownLength = false, Array(pnnAggSig, countAggSig, sumAggSig).map(FastSeq(_)))
+    val alState = ArrayLenAggSig(knownLength = false, FastSeq(pnnAggSig, countAggSig, sumAggSig))
 
     val value = FastIndexedSeq(
       FastIndexedSeq(Row("a", 0L), Row("b", 0L), Row("c", 0L), Row("f", 0L)),
@@ -502,9 +502,9 @@ class Aggregators2Suite extends HailSuite {
   }
 
   @Test def testNestedArrayElementsAgg() {
-    val alstate1 = ArrayLenAggSig(knownLength = false, Array(FastSeq(sumAggSig)))
-    val aestate1 = AggElementsAggSig(Array(FastSeq(sumAggSig)))
-    val alstate2 = ArrayLenAggSig(knownLength = false, Array(FastSeq[PhysicalAggSig](alstate1, aestate1)))
+    val alstate1 = ArrayLenAggSig(knownLength = false, FastSeq(sumAggSig))
+    val aestate1 = AggElementsAggSig(FastSeq(sumAggSig))
+    val alstate2 = ArrayLenAggSig(knownLength = false, FastSeq[PhysicalAggSig](alstate1))
 
     val init = InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
       InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
@@ -537,7 +537,7 @@ class Aggregators2Suite extends HailSuite {
       FastIndexedSeq(null, null, null, Row("f", 5L)))
 
     val take = PhysicalAggSig(Take(), TakeStateSig(PType.canonical(t)))
-    val alstate = ArrayLenAggSig(knownLength = false, Array(FastSeq(take)))
+    val alstate = ArrayLenAggSig(knownLength = false, FastSeq(take))
 
     val init = InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
       InitOp(0, FastIndexedSeq(I32(3)), take)
@@ -555,7 +555,7 @@ class Aggregators2Suite extends HailSuite {
   }
 
   @Test def testGroup() {
-    val group = GroupedAggSig(PCanonicalString(), Array(pnnAggSig, countAggSig, sumAggSig).map(FastSeq(_)))
+    val group = GroupedAggSig(PCanonicalString(), FastSeq(pnnAggSig, countAggSig, sumAggSig))
 
     val initOpArgs = FastIndexedSeq(Begin(FastIndexedSeq(
       InitOp(0, FastIndexedSeq(), pnnAggSig),
@@ -582,8 +582,8 @@ class Aggregators2Suite extends HailSuite {
 
   @Test def testNestedGroup() {
 
-    val group1 = GroupedAggSig(PCanonicalString(), Array(pnnAggSig, countAggSig, sumAggSig).map(FastSeq(_)))
-    val group2 = GroupedAggSig(PCanonicalString(), FastSeq(FastSeq[PhysicalAggSig](group1)))
+    val group1 = GroupedAggSig(PCanonicalString(), FastSeq(pnnAggSig, countAggSig, sumAggSig))
+    val group2 = GroupedAggSig(PCanonicalString(), FastSeq[PhysicalAggSig](group1))
 
     val initOpArgs = FastIndexedSeq(
       InitOp(0, FastIndexedSeq(
