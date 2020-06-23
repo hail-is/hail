@@ -2889,7 +2889,7 @@ class IRSuite extends HailSuite {
     val countSig = AggSignature(Count(), Seq(), Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, countSig)
 
-    val groupSignature = GroupedAggSig(PInt32(true), FastSeq(FastSeq(pSumSig)))
+    val groupSignature = GroupedAggSig(PInt32(true), FastSeq(pSumSig))
 
     val table = TableRange(100, 10)
 

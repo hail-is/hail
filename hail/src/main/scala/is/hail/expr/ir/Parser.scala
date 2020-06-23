@@ -653,15 +653,15 @@ object IRParser {
     val sig = identifier(it) match {
       case "Grouped" =>
         val pt = ptype_expr(env)(it)
-        val nested = base_seq_parser(p_agg_sigs(env))(it)
-        GroupedAggSig(pt, nested.map(_.toFastSeq))
+        val nested = p_agg_sigs(env)(it)
+        GroupedAggSig(pt, nested)
       case "ArrayLen" =>
         val knownLength = boolean_literal(it)
-        val nested = base_seq_parser(p_agg_sigs(env))(it)
-        ArrayLenAggSig(knownLength, nested.map(_.toFastSeq))
+        val nested = p_agg_sigs(env)(it)
+        ArrayLenAggSig(knownLength, nested)
       case "AggElements" =>
-        val nested = base_seq_parser(p_agg_sigs(env))(it)
-        AggElementsAggSig(nested.map(_.toFastSeq))
+        val nested = p_agg_sigs(env)(it)
+        AggElementsAggSig(nested)
       case op =>
         val state = agg_state_signature(env)(it)
         PhysicalAggSig(AggOp.fromString(op), state)
