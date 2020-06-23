@@ -13,6 +13,4 @@ def test_memory_issue_from_9009():
     try:
         hl.linalg.BlockMatrix.write_from_entry_expr(mt.x, new_temp_file(), overwrite=True)
     except Exception:
-        pass
-    else:
         assert False
