@@ -166,6 +166,9 @@ class LocalBackend(Backend):
             script += [x for r in job._mentioned for x in symlink_input_resource_group(r)]
 
             resource_defs = [r._declare(tmpdir) for r in job._mentioned]
+            env = '; '.join(f'export {k}={v}' for k, v in job._env.items())
+            if job._env:
+                env += '; '
 
             if job._image:
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
@@ -180,8 +183,10 @@ class LocalBackend(Backend):
                            f"{memory} "
                            f"{cpu} "
                            f"{job._image} /bin/bash "
-                           f"-c {shq(defs + cmd)}"]
+                           f"-c {shq(env + defs + cmd)}",
+                           '\n']
             else:
+                script += env
                 script += resource_defs
                 script += job._command
 
@@ -392,7 +397,9 @@ class ServiceBackend(Backend):
 
             symlinks = [x for r in job._mentioned for x in symlink_input_resource_group(r)]
 
-            env_vars = {r._uid: r._get_path(local_tmpdir) for r in job._mentioned}
+            env_vars = {
+                **job._env,
+                **{r._uid: r._get_path(local_tmpdir) for r in job._mentioned}}
 
             if job._image is None:
                 if verbose:

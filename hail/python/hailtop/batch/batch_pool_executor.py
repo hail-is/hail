@@ -39,7 +39,8 @@ class BatchPoolExecutor(concurrent.futures.Executor):
     def __init__(self, *,
                  name: Optional[str] = None,
                  backend: Optional[ServiceBackend] = None,
-                 image: Optional[str] = None):
+                 image: Optional[str] = None,
+                 cpus_per_job: Optional[int] = None):
         self.name = name or "BatchPoolExecutor-" + secret_alnum_string(4)
         self.backend = backend or ServiceBackend()
         if not isinstance(self.backend, ServiceBackend):
@@ -55,6 +56,7 @@ class BatchPoolExecutor(concurrent.futures.Executor):
         self.already_shutdown = False
         version = sys.version_info
         self.image = image or f'hailgenetics/python-dill:{version.major}.{version.minor}'
+        self.cpus_per_job = cpus_per_job or 1
 
     @staticmethod
     def async_to_blocking(coro):
@@ -63,7 +65,19 @@ class BatchPoolExecutor(concurrent.futures.Executor):
     def __enter__(self):
         return self
 
-    def submit(self, unapplied: Callable, *args, **kwargs):
+    def map(self, *callable_and_args):
+        unapplied, *args = callable_and_args
+        return self._map(callable, args)
+
+    def _map(self, unapplied: Callable, args):
+        futures = [self.submit(unapplied, arg) for arg in args]
+        return [future.result() for future in futures]
+
+    def submit(self, *callable_and_args, **kwargs):
+        unapplied, *args = callable_and_args
+        return self._submit(unapplied, args, kwargs)
+
+    def _submit(self, unapplied: Callable, *args, **kwargs):
     # def submit(self, *callable_and_args, **kwargs):
     #     unapplied, *args = callable_and_args
     #     return BatchPoolExecutor.async_to_blocking(self.async_submit(unapplied, args, kwargs))
@@ -84,21 +98,30 @@ class BatchPoolExecutor(concurrent.futures.Executor):
         j = batch.new_job(name)
 
         pipe = BytesIO()
-        dill.dump(functools.partial(unapplied, *args, **kwargs), pipe)
+        dill.dump(functools.partial(unapplied, *args, **kwargs), pipe, recurse=True)
         pipe.seek(0)
         pickledfun_gcs = self.inputs + f'{name}/pickledfun'
         BatchPoolExecutor.async_to_blocking(self.gcs.write_gs_file_from_file_like_object(pickledfun_gcs, pipe))
         pickledfun_local = batch.read_input(pickledfun_gcs)
+        j.cpu(self.cpus_per_job)
+        thread_limit = str(int(max(1.0, cpu_spec_to_float(self.cpus_per_job))))
+        j.env("OMP_NUM_THREADS", thread_limit)
+        j.env("OPENBLAS_NUM_THREADS", thread_limit)
+        j.env("MKL_NUM_THREADS", thread_limit)
+        j.env("VECLIB_MAXIMUM_THREADS", thread_limit)
+        j.env("NUMEXPR_NUM_THREADS", thread_limit)
+
         j.command('set -ex')
         j.command(f'''python3 -c "
 import base64
 import dill
+import traceback
 with open(\\"{j.ofile}\\", \\"wb\\") as out:
     try:
         with open(\\"{pickledfun_local}\\", \\"rb\\") as f:
-            dill.dump(dill.load(f)(), out)
+            dill.dump((dill.load(f)(), None), out, recurse=True)
     except Exception as e:
-        dill.dump(e, out)
+        dill.dump((e, traceback.format_exception(type(e), e, e.__traceback__)), out, recurse=True)
 "''')
         output_gcs = self.outputs + f'{name}/output'
         batch.write_output(j.ofile, output_gcs)
@@ -169,7 +192,7 @@ class BatchPoolFuture:
     async def async_result(self, timeout: Optional[Union[float, int]] = None):
         await self._async_fetch_result(timeout)
         if self._exception:
-            raise ValueError(f'submitted job failed') from self._exception
+            raise self._exception
         return self.value
 
     def _fetch_result(self, timeout: Optional[Union[float, int]] = None):
@@ -181,18 +204,33 @@ class BatchPoolFuture:
         if self.cancelled():
             raise concurrent.futures.CancelledError()
         try:
-            await asyncio.wait_for(self.batch._async_batch.wait(), timeout)
+            await asyncio.wait_for(self.batch._async_batch.wait(disable_progress_bar=True), timeout)
         except asyncio.TimeoutError:
             raise concurrent.futures.TimeoutError()
         try:
-            self.value = dill.loads(await self.executor.gcs.read_binary_gs_file(self.output_gcs))
+            value, traceback = dill.loads(await self.executor.gcs.read_binary_gs_file(self.output_gcs))
+            if traceback is not None:
+                assert isinstance(value, BaseException)
+                self.value = None
+                traceback = ''.join(traceback)
+                self._exception = ValueError(
+                    f'submitted job failed:\n{traceback}')
+            else:
+                self.value = value
         except Exception as exc:
-            self.value = exc
-        if isinstance(self.value, BaseException):
-            self._exception = self.value
+            self.value = None
+            self._exception = exc
 
     def exception(self, timeout: Optional[Union[float, int]] = None):
         self.result(timeout)
 
     def add_done_callback(self, fn):
         pass
+
+
+def cpu_spec_to_float(spec):
+    if isinstance(spec, str):
+        if spec[-1] == 'm':
+            return int(spec[:-1]) / 1000
+        return float(spec)
+    return float(spec)

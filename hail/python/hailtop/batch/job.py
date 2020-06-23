@@ -72,6 +72,7 @@ class Job:
         self._always_run = False
         self._timeout = None
         self._gcsfuse = []
+        self._env = dict()
         self._command = []
 
         self._resources = {}  # dict of name to resource
@@ -202,6 +203,9 @@ class Job:
         for j in jobs:
             self._dependencies.add(j)
         return self
+
+    def env(self, variable, value):
+        self._env[variable] = value
 
     def command(self, command):
         """
