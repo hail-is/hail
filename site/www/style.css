@@ -135,10 +135,6 @@ img {
   background: inherit;
 }
 
-section.left div {
-  max-width: 800px;
-}
-
 #all-hero-content {
   justify-content: space-between;
   align-items: center;
@@ -808,8 +804,7 @@ pre code {
     margin: auto;
   }
 
-  .non-home  .about, .non-home #hero-content.wide{
-    padding-left: 50px;
+  .about.wide, #hero-content.wide{
     max-width: 2048px;
     width: 2048px;
     margin: auto;
@@ -840,3 +835,126 @@ pre code {
     justify-content: flex-start;
   }
 }
+
+
+/* tutorial.md */
+
+section pre {
+  min-width: 300px;
+}
+
+.about.staggered .el {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  width: calc(50% - 50px);
+  max-width: 800px;
+  margin-top: 25px;
+}
+
+.right .el + .el {
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+
+.staggered .left pre + div, .staggered .right div + pre, .staggered .el + .el {
+  margin-left: 25px;
+}
+
+.about.staggered section {
+  justify-content: space-between;
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  position: relative;
+}
+
+.about.staggered svg {
+  width: 302px;
+  margin: 50px auto;
+  height: 101px;
+  stroke-width: 1;
+  stroke: #444;
+  stroke-opacity: .2;
+  animation: ease-in 750ms in;
+}
+
+.about.staggered svg path {
+  transform: translate(-363px, -243px) scale(.75, .5);
+  transform-origin: 707px 287px;
+}
+
+.about.staggered section:last {
+  padding-bottom: 0px;
+}
+
+.about.staggered pre, #hero-content-right pre {
+  font-family: monospace!important;
+  padding: 2rem;
+  border-radius: 0px;
+  border-bottom: 0px;
+  box-shadow: 0px 2px 5px 0px rgba(68,68,68,.5);
+  border-top: 0px;
+  border-left: 0px;
+  border-right: 0px;
+  margin: 0px;
+  background: inherit;
+  width: 100%;
+  max-width: calc(600px + 2rem)
+}
+
+#hero-content-right pre {
+  margin-bottom: 5px;
+}
+
+.about code[class*=language-], pre[class*=language-] {
+  font-family: monospace;
+}
+
+.about.staggered pre * {
+  font-size: .875rem;
+}
+
+@media only screen and (max-width: 960px) {
+  .about.staggered section.left {
+    flex-direction: column-reverse;
+  }
+  .about.staggered section {
+    flex-direction: column;
+  }
+
+  .about.staggered .el {
+    width: 100%;
+  }
+
+  .about.staggered pre {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0px;
+  }
+  .staggered .left pre + div, .staggered .right div + pre, .staggered .el + .el {
+    margin-left: 0px;
+  }
+  .about.staggered section {
+    padding-bottom: 5rem;
+  }
+
+  .about.staggered svg {
+    display: none;
+  }
+
+  .staggered p {
+    margin-bottom: 0px;
+  }
+
+  .staggered .el pre {
+    margin-top: 25px;
+  }
+
+  .right .el + .el {
+    align-items: flex-start;
+  }
+}
+
+/* end tutorial */
