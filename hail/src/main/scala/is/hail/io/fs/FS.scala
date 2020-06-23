@@ -221,14 +221,14 @@ trait FS extends Serializable {
 
   def writeTable(filename: String, lines: Traversable[String], header: Option[String] = None): Unit = {
     using(new OutputStreamWriter(create(filename))) { fw =>
-        header.foreach { h =>
-          fw.write(h)
-          fw.write('\n')
-        }
-        lines.foreach { line =>
-          fw.write(line)
-          fw.write('\n')
-        }
+      header.foreach { h =>
+        fw.write(h)
+        fw.write('\n')
+      }
+      lines.foreach { line =>
+        fw.write(line)
+        fw.write('\n')
+      }
     }
   }
 

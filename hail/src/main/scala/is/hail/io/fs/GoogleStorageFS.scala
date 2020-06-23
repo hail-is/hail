@@ -109,12 +109,20 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
     val (bucket, path) = getBucketPath(filename)
 
     val is: SeekableInputStream = new InputStream with Seekable {
-      val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
+      private[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
       bb.limit(0)
 
-      val reader: ReadChannel = storage.reader(bucket, path)
-      var pos: Long = 0
-      var eof: Boolean = false
+      private[this] var closed: Boolean = false
+      private[this] val reader: ReadChannel = storage.reader(bucket, path)
+      private[this] var pos: Long = 0
+      private[this] var eof: Boolean = false
+
+      override def close(): Unit = {
+        if (!closed) {
+          reader.close()
+          closed = true
+        }
+      }
 
       def fill(): Unit = {
         bb.clear()
@@ -184,9 +192,10 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
       .build()
 
     val os: PositionedOutputStream = new OutputStream with Positioned {
-      val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
-      var pos: Long = 0
-      val write: WriteChannel = storage.writer(blobInfo)
+      private[this] var closed: Boolean = false
+      private[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
+      private[this] var pos: Long = 0
+      private[this] val write: WriteChannel = storage.writer(blobInfo)
 
       override def flush(): Unit = {
         bb.flip()
@@ -219,8 +228,11 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
       }
 
       override def close(): Unit = {
-        flush()
-        write.close()
+        if (!closed) {
+          flush()
+          write.close()
+          closed = true
+        }
       }
 
       def getPosition: Long = pos
