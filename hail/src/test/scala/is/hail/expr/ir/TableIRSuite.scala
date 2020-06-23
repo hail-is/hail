@@ -774,11 +774,4 @@ class TableIRSuite extends HailSuite {
       Row(FastIndexedSeq(Row(0, 120L), Row(1, 112L), Row(2, 98L), Row(3, 80L), Row(4, 60L), Row(5, 40L), Row(6, 22L), Row(7, 8L)), Row())
     )
   }
-
-  @Test def testCountPerPartitionClears(): Unit = {
-    implicit val execStrats = Set(ExecStrategy.InterpretUnoptimized)
-    val range = TableKeyBy(TableRange(100000, 1), FastIndexedSeq())
-    val repartitioned = TableRepartition(TableMapRows(range, makestruct("a" -> ToArray(rangeIR(50000)))), 100, RepartitionStrategy.COALESCE)
-    assertEvalsTo(TableCollect(TableMapRows(TableHead(repartitioned, 1), makestruct())), Row(FastIndexedSeq(Row()), Row()))
-  }
 }
