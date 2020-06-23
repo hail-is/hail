@@ -78,35 +78,27 @@ show(p)
                 <div class="about-content columns">
                     <section>
                         <h4>Simplified Analysis</h4>
-                        <p> Hail is an open-source Python library that simplifies genomic data analysis.
+                        <p>Hail is an open-source Python library that simplifies genomic data analysis.
                         It provides powerful, easy-to-use data science tools that can be used to interrogate even
                         biobank-scale genomic data (e.g UK Biobank, TopMed, FinnGen, and Biobank Japan).
                     </p>
                     </section>
                     <section>
                         <h4>Genomic Dataframes</h4>
-                        <p>
-                            Modern data science is driven by table-like data structures, often called dataframes (see
-                            <a href="https://pandas.pydata.org">Pandas</a>
-                            ).
-                    While convenient, they don't capture the structure of genetic data, which has row (variant) and
-                    column
-                    (genotype) groups.
-                    To remedy this, Hail introduces a distributed, dataframe-like structure called
-                            <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>
-                            .
+                        <p>Modern data science is driven by table-like data structures, often called dataframes (see <a href="https://pandas.pydata.org">Pandas</a>).
+                            While convenient, they don't capture the structure of genetic data, which has row (variant) and
+                            column
+                            (genotype) groups.
+                            To remedy this, Hail introduces a distributed, dataframe-like structure called
+                            <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>.
                         </p>
                     </section>
                     <section>
                         <h4>Input Unification</h4>
-                        <p>
-                            The
-                            <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">Hail
-                        MatrixTable</a>
-                            unifies a wide range of input formats (e.g. vcf, bgen, plink, tsv, gtf, bed
-                    files),
-                    and supports scalable queries, even on petabyte-size datasets.
-                    By leveraging MatrixTable, Hail provides an integrated, scalable analysis platform for science.
+                        <p>The <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">Hail
+                            MatrixTable</a> unifies a wide range of input formats (e.g. vcf, bgen, plink, tsv, gtf, bed files),
+                            and supports scalable queries, even on petabyte-size datasets.
+                            By leveraging MatrixTable, Hail provides an integrated, scalable analysis platform for science.
                         </p>
                     </section>
                 </div>
