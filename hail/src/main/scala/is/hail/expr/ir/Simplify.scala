@@ -142,6 +142,25 @@ object Simplify {
 
     case StreamZip(as, names, body, _) if as.length == 1 => StreamMap(as.head, names.head, body)
     case StreamMap(StreamZip(as, names, zipBody, b), name, mapBody) => StreamZip(as, names, Let(name, zipBody, mapBody), b)
+    case StreamZip(as, names, body, behavior) if as.exists(_.isInstanceOf[StreamMap]) =>
+      val newStreams = Array.fill[IR](as.length)(null)
+      val newNames = Array.fill[String](as.length)(null)
+
+      var newBody = body
+      var i = 0
+      while (i < as.length) {
+        as(i) match {
+          case StreamMap(a, name, mapBody) =>
+            newNames(i) = name
+            newStreams(i) = a
+            newBody = Let(names(i), mapBody, newBody)
+          case a =>
+            newNames(i) = names(i)
+            newStreams(i) = a
+        }
+        i += 1
+      }
+      StreamZip(newStreams, newNames, newBody, behavior)
 
     case x@StreamFlatMap(NA(_), _, _) => NA(x.typ)
 
