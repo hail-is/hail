@@ -27,6 +27,7 @@ an earlier version of Hail to read files written in a later version.
 Released 2020-06-23
 
 ### Bug fixes
+- (hail#9009) Fix memory leak when counting per-partition. This caused excessive memory use in `BlockMatrix.write_from_entry_expr`, and likely in many other places.
 - (hail#9006) Fix memory leak in `hl.export_bgen`. 
 - (hail#9001) Fix double close error that showed up on Azure Cloud. 
 
