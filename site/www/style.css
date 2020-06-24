@@ -145,8 +145,8 @@ img {
 }
 
 #hero.short {
-  height:calc(25vh - 50px);
-  min-height: 250px;
+  height: auto;
+  min-height: 0px;
 }
 
 #all-hero-content {
@@ -643,11 +643,6 @@ template {
     padding-right: 15px;
     padding-left: 15px;
   }
-
-  #hero.short {
-    height: auto;
-    min-height: none;
-  }  
 }
 
 @media only screen and (max-width: 680px) {
