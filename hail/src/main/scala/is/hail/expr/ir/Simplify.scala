@@ -142,7 +142,7 @@ object Simplify {
 
     case StreamZip(as, names, body, _) if as.length == 1 => StreamMap(as.head, names.head, body)
     case StreamMap(StreamZip(as, names, zipBody, b), name, mapBody) => StreamZip(as, names, Let(name, zipBody, mapBody), b)
-    case StreamZip(as, names, body, behavior) if as.exists(_.isInstanceOf[StreamMap]) =>
+    case StreamZip(as, names, body, behavior) if as.exists(s => s.isInstanceOf[StreamMap] && coerce[TStream](s.typ).elementType.isRealizable) =>
       val newStreams = Array.fill[IR](as.length)(null)
       val newNames = Array.fill[String](as.length)(null)
 
