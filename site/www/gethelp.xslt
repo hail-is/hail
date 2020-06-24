@@ -14,8 +14,8 @@
             <div id="hero" class='short dark'>
                 <div id="hero-content" class='wide'>
                     <h1 id="logo-title">Get Help!</h1>
-                    <subtitle id="logo-subtitle" style='background:inherit;animation: none; opacity: 1'>Let us assist you on
-                your journey to efficient genomic analysis</subtitle>
+                    <div class="logo-subtitle">Let us assist you on
+                your journey to efficient genomic analysis</div>
                 </div>
             </div>
             <div id="about" class="about">

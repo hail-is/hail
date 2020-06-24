@@ -14,9 +14,9 @@
             <div id="hero-content" class='wide'>
                 <h1 id="logo-title">Import, prototype, scale
                 </h1>
-                <subtitle id="logo-subtitle">Perform analyses with distributed
+                <div class="logo-subtitle">Perform analyses with distributed
                     dataframe-like
-                    collections</subtitle>
+                    collections</div>
 
             </div>
         </div>
