@@ -2111,7 +2111,7 @@ steps:
  - kind: runImage
    name: test_address
    image:
-     valueFrom: base_image.image
+     valueFrom: service_base_image.image
    script: |
      python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" --log-cli-level=INFO -s -vv --instafail -k "" /io/test/
    inputs:
@@ -2129,9 +2129,9 @@ steps:
         valueFrom: default_ns.name
       mountPath: /ssl-config
    dependsOn:
-    - create_deploy_config
+    # - create_deploy_config
     - copy_files
     - default_ns
-    - base_image
-    - create_certs
-    - deploy_address
+    - service_base_image
+    # - create_certs
+    # - deploy_address
