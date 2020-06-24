@@ -315,10 +315,9 @@ a {
 }
 
 .logo-subtitle {
-  background: #fff;
+  background: inherit;
   font-size: 1rem;
   animation: ease-in 0.3s in;
-  animation-delay: 0.06s;
   opacity: 0;
   animation-fill-mode: forwards;
 }

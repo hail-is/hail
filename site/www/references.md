@@ -1,7 +1,7 @@
 <div id='references' class='width-960'>
 <div id="hero" class='dark short'>
 <div id="hero-content" class='wide'>
-<h1 id="logo-title">Hail-Powered Science</h1><div id="logo-subtitle">An incomplete list of scientific work enabled by Hail.</div></div></div>
+<h1 id="logo-title">Hail-Powered Science</h1><div class="logo-subtitle">An incomplete list of scientific work enabled by Hail.</div></div></div>
 
 
 <div class='about'>
