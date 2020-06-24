@@ -2129,7 +2129,7 @@ steps:
         valueFrom: default_ns.name
       mountPath: /ssl-config
    dependsOn:
-    - create_deploy_config
+    # - create_deploy_config
     - copy_files
     - default_ns
     - service_base_image

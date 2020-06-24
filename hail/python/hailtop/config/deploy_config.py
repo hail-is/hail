@@ -106,7 +106,7 @@ class DeployConfig:
 
         return root_app
 
-    async def async_ips(self, service):
+    async def ips(self, service):
         namespace = self.service_ns(service)
         async with ssl_client_session(
                 raise_for_status=True,
