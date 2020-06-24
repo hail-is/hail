@@ -41,7 +41,7 @@ spec:
         command:
          - python3
          - -m
-         - address.front_end
+         - address
         ports:
          - containerPort: 5000
         resources:
