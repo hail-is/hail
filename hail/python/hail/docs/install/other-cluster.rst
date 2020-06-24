@@ -5,10 +5,28 @@ Install Hail on a Spark Cluster
 If you are using Google Dataproc, please see `these simpler instructions
 <dataproc.rst>`__.
 
-Hail works on any Spark 2.4.x cluster built with Scala 2.11.
+Hail should work with any Spark 2.4.x cluster built with Scala 2.11.
 
-On the leader node of the cluster, the following instructions download and
-install Hail.
+Hail needs to be built from source on the leader node. Building Hail from source
+requires:
+
+- Java 8 JDK.
+- Python 3.6 or 3.7.
+- A recent C and a C++ compiler, GCC 5.0, LLVM 3.4, or later versions of either
+  suffice.
+- BLAS and LAPACK.
+
+On a Debian-like system, the following should suffice:
+
+.. code-block:: sh
+
+   apt-get install \
+       openjdk-8-jdk-headless \
+       g++ \
+       python3 python3-pip \
+       libopenblas-dev liblapack-dev
+
+The next block of commands downloads, builds, and installs Hail from source.
 
 .. code-block:: sh
 
