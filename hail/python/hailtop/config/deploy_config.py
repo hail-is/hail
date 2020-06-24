@@ -1,8 +1,10 @@
+import aiohttp
 import os
 import json
 import logging
 from aiohttp import web
-from hailtop.utils import first_extant_file
+from ..utils import first_extant_file
+from ..tls import ssl_client_session
 
 log = logging.getLogger('gear')
 
@@ -103,6 +105,13 @@ class DeployConfig:
         root_app.add_subapp(base_path, app)
 
         return root_app
+
+    async def async_ips(self, service):
+        namespace = self.service_ns(service)
+        async with ssl_client_session(
+                raise_for_status=True,
+                timeout=aiohttp.ClientTimeout(total=5)) as session:
+            return await session.get(f'/api/{namespace}/{service}')
 
 
 deploy_config = None

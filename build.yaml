@@ -115,6 +115,8 @@ steps:
        to: /hail_pip_version
      - from: /io/repo/git_version
        to: /git_version
+     - from: /io/repo/address/test
+       to: /repo/address/test
    dependsOn:
      - base_image
  - kind: buildImage
@@ -2106,3 +2108,29 @@ steps:
     - deploy_router
     - address_image
     - create_certs
+ - kind: runImage
+   name: test_address
+   image:
+     valueFrom: base_image.image
+   script: |
+     python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" --log-cli-level=INFO -s -vv --instafail -k "" /io/test/
+   inputs:
+    - from: /repo/address/test
+      to: /io/
+   port: 5000
+   timeout: 1200
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: ssl-config-address-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
+   dependsOn:
+    - create_deploy_config
+    - copy_files
+    - default_ns
+    - base_image
+    - deploy_address
