@@ -2133,5 +2133,5 @@ steps:
     - copy_files
     - default_ns
     - service_base_image
-    # - create_certs
+    - create_certs
     # - deploy_address

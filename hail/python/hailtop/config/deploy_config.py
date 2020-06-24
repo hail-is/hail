@@ -22,8 +22,10 @@ class DeployConfig:
             os.path.expanduser('~/.hail/deploy-config.json'),
             '/deploy-config/deploy-config.json')
         if config_file is not None:
+            log.info(f'deploy config file found at {config_file}')
             with open(config_file, 'r') as f:
                 config = json.loads(f.read())
+            log.info(f'location: {config["location"]}')
         else:
             log.info(f'deploy config file not found: {config_file}')
             config = {
