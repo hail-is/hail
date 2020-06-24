@@ -2073,3 +2073,35 @@ steps:
      - genetics_public_image
    scopes:
     - dev
+
+
+ - kind: buildImage
+   name: address_image
+   dockerFile: address/Dockerfile
+   contextPath: .
+   publishAs: address
+   dependsOn:
+     - service_base_image
+ - kind: runImage
+   name: check_address
+   image:
+     valueFrom: address_image.image
+   script: |
+     set -ex
+     python3 -m flake8 address
+     python3 -m pylint --rcfile pylintrc address
+   dependsOn:
+     - address_image
+ - kind: deploy
+   name: deploy_address
+   namespace:
+     valueFrom: default_ns.name
+   config: address/deployment.yaml
+   wait:
+    - kind: Service
+      name: address
+      for: alive
+   dependsOn:
+    - default_ns
+    - address_image
+    - create_certs
