@@ -86,7 +86,9 @@ class Cache:
         if key in self.values:
             entry = self.values[key]
             if entry.expire_time < time.time():
+                log.info(f'hit cache for {key}')
                 return entry.values
+            log.info(f'stale cache for {key}')
         async with self.locks.get(key):
             if key in self.values:
                 entry = self.values[key]
@@ -100,6 +102,7 @@ class Cache:
                          for e in k8s_endpoints.subsets]
             self.values[key] = CacheEntry(endpoints)
             self.keys.add(key)
+            log.info(f'fetched new value for {key}: {endpoints}')
             return endpoints
 
     async def maybe_remove_one_old_entry(self):

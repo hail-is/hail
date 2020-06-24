@@ -118,7 +118,7 @@ class DeployConfig:
             log.info(self.base_url('address'))
             log.info(self.url('address', f'/api/{namespace}/{service}'))
             return await session.get(
-                self.url('address', f'/api/{namespace}/{service}'))
+                json.loads(self.url('address', f'/api/{namespace}/{service}')))
 
 
 deploy_config = None
