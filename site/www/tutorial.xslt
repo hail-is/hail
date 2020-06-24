@@ -32,8 +32,8 @@ mt = hl.read_matrix_table('gs://bucket/path/dataset.mt')
 mt1 = hl.import_vcf('/path/to/my.vcf.bgz')
 mt2 = hl.import_bgen('/path/to/my.bgen')
 mt3 = hl.import_plink(bed='/path/to/my.bed',
-                        bim='/path/to/my.bim',
-                        fam='/path/to/my.fam')</code></pre>
+                      bim='/path/to/my.bim',
+                      fam='/path/to/my.fam')</code></pre>
                     </div>
                     <div class='el'>
                         <h3 style='margin-top:0px'>Input Unification
@@ -101,8 +101,7 @@ mt = mt.filter_rows(mt.variant_qc_.AF[1] > 0.01)</code></pre>
                     <div class='el'>
                         <pre class='right'><code class="language-python">imputed_sex = hl.impute_sex(mt.GT)
 mt = mt.annotate_cols(
-    sex_check = imputed_sex[mt.s].is_female == mt.reported_female
-)</code></pre>
+     sex_check = imputed_sex[mt.s].is_female == mt.reported_female)</code></pre>
                     </div>
                 </section>
                 <svg>
@@ -133,7 +132,7 @@ mt = hl.vep(mt)</code></pre>
                     <div class='el'>
                         <pre class='right'><code class="language-python">gene_intervals = hl.read_table("gs://my_bucket/gene_intervals.t")
 mt = mt.annotate_rows(gene = gene_intervals.index(mt.locus,
-                            all_matches=True).gene_name)
+                             all_matches=True).gene_name)
 
 mt = mt.explode_rows(mt.gene)
 mt = mt.group_rows_by(mt.gene)
@@ -156,9 +155,8 @@ mt = mt.annotate_cols(scores = pca_scores[mt.sample_id].scores)
 results = hl.linear_regression_rows(
     y=mt.phenotype,
     x=mt.GT.n_alt_alleles(),
-    covariates=[1, mt.scores[0],
-                mt.scores[1], mt.scores[2],
-                mt.scores[3]]
+    covariates=[1, mt.scores[0], mt.scores[1],
+                mt.scores[2], mt.scores[3]]
 )</code></pre>
                     </div>
                     <div class='el'>

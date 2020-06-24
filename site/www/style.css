@@ -199,6 +199,7 @@ img {
 .about > .content {
   display: flex;
   flex-direction: column;
+  word-break: break-word;
 }
 
 #learn-more {
@@ -642,6 +643,11 @@ template {
     padding-right: 15px;
     padding-left: 15px;
   }
+
+  #hero.short {
+    height: auto;
+    min-height: none;
+  }  
 }
 
 @media only screen and (max-width: 680px) {
@@ -712,7 +718,7 @@ code, samp, kbd {
 }
 
 .sourceCode {
-  width: 515px;
+  max-width: 515px;
 }
 
 pre, code {
