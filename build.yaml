@@ -2128,4 +2128,5 @@ steps:
     - copy_files
     - default_ns
     - base_image
+    - create_certs
     - deploy_address
