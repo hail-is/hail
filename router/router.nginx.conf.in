@@ -271,3 +271,17 @@ server {
     listen 443 ssl;
     listen [::]:443 ssl;
 }
+
+
+server {
+    server_name address.*;
+    client_max_body_size 8m;
+
+    location / {
+        proxy_pass https://address/;
+        include /etc/nginx/proxy.conf;
+    }
+
+    listen 443 ssl;
+    listen [::]:443 ssl;
+}
