@@ -107,8 +107,6 @@ mt = mt.annotate_cols(
                 </section>
                 <svg>
                     <path d="M 250 400 L 250 300 L 400 300 L 400 300 L 450 300 L 650 300 L 650 200 " fill="transparent" />
-                    <!--d="M8,103 C-2,468 499,78 491,463"-->
-                    <!--curved: M 100 200 Q 100 300 200 300 L 300 300 L 400 300 L 500 300 L 600 300 Q 700 300 700 400-->
                 </svg>
                 <section class='left'>
                     <div class='el'>
@@ -123,7 +121,7 @@ mt = hl.vep(mt)</code></pre>
                 </section>
 
                 <svg>
-                    <path d="M 250 400 L 250 300 L 400 300 L 400 300 L 450 300 L 650 300 L 650 200 " fill="transparent" />
+                    <path d="M 250 200 L 250 300 L 400 300 L 400 300 L 450 300 L 650 300 L 650 400 " fill="transparent" />
                 </svg>
                 <section class='right'>
                     <div class='el'>
@@ -142,7 +140,7 @@ mt = mt.group_rows_by(mt.gene)
 result = hl.linear_regression_rows(y=mt.phenotype, x=mt.burden)</code></pre>
                     </div>
                 </section>
-                <svg>
+                 <svg>
                     <path d="M 250 400 L 250 300 L 400 300 L 400 300 L 450 300 L 650 300 L 650 200 " fill="transparent" />
                 </svg>
                 <section class='left'>
