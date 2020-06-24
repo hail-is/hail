@@ -145,8 +145,8 @@ img {
 }
 
 #hero.short {
-  height:calc(25vh - 50px);
-  min-height: 250px;
+  height: auto;
+  min-height: 0px;
 }
 
 #all-hero-content {
@@ -199,6 +199,7 @@ img {
 .about > .content {
   display: flex;
   flex-direction: column;
+  word-break: break-word;
 }
 
 #learn-more {
@@ -712,7 +713,7 @@ code, samp, kbd {
 }
 
 .sourceCode {
-  width: 515px;
+  max-width: 515px;
 }
 
 pre, code {
