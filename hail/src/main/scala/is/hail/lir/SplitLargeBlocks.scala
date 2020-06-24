@@ -3,6 +3,7 @@ package is.hail.lir
 object SplitLargeBlocks {
   def splitLargeBlock(m: Method, b: Block): Unit = {
     var L = new Block()
+    L.method = m
     var size = 0
 
     b.replace(L)
@@ -16,6 +17,7 @@ object SplitLargeBlocks {
         x.replace(load(l))
         L.append(store(l, x))
         val newL = new Block()
+        newL.method = m
         L.append(goto(newL))
         L = newL
         size = 0
@@ -31,6 +33,7 @@ object SplitLargeBlocks {
       L.append(x)
       if (size > SplitMethod.TargetMethodSize && b.first != null) {
         val newL = new Block()
+        newL.method = m
         L.append(goto(newL))
         L = newL
         size = 0

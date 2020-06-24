@@ -51,19 +51,6 @@ class Classx[C](val name: String, val superName: String) {
 
     for (m <- methods) {
       val blocks = m.findBlocks()
-      for (b <- blocks) {
-        if (b.method == null)
-          b.method = m
-        else {
-          /*
-        if (m.method ne this) {
-          println(s"${ b.method } $m")
-          println(b.stack.mkString("\n"))
-        }
-         */
-          assert(b.method eq m)
-        }
-      }
 
       val locals = m.findLocals(blocks)
       for (l <- locals) {
@@ -208,9 +195,9 @@ class Method private[lir] (
 
   def entry: Block = _entry
 
-  // if not null, execute catchSplitReturn
-  // if method throws SplitReturn exception
-  var catchSplitReturn: StmtX = _
+  var spillsInit: StmtX = _
+
+  var spillsReturn: StmtX = _
 
   def getParam(i: Int): Parameter = {
     new Parameter(this, i,
@@ -237,6 +224,16 @@ class Method private[lir] (
       val L = s.pop()
       if (!visited.contains(L)) {
         if (L != null) {
+          if (L.method == null)
+            L.method = this
+          else {
+            if (L.method ne this) {
+              println(s"${ L.method } $this")
+              // println(b.stack.mkString("\n"))
+            }
+            assert(L.method eq this)
+          }
+
           blocksb += L
 
           var x = L.first
@@ -378,6 +375,9 @@ class Block {
   }
 
   def replace(L: Block): Unit = {
+    if (method.entry eq this)
+      method.setEntry(L)
+
     // don't traverse a set that's being modified
     val uses2 = uses.toArray
     for ((x, i) <- uses2) {
@@ -483,6 +483,19 @@ abstract class X {
   }
 
   def remove(): Unit
+
+  def containingBlock(): Block = {
+    var x: X = this
+    while (x != null) {
+      x match {
+        case vx: ValueX =>
+          x = vx.parent
+        case sx: StmtX =>
+          return sx.parent
+      }
+    }
+    null
+  }
 
   def approxByteCodeSize(): Int = {
     var size = 0
@@ -685,7 +698,15 @@ class SwitchX() extends ControlX {
       _Lcases(i) = null
       i += 1
     }
-    _Lcases = newLcases.toArray
+
+    // don't allow sharing
+    _Lcases = new Array[Block](newLcases.length)
+    i = 0
+    while (i < _Lcases.length) {
+      _Lcases(i) = newLcases(i)
+      i += 1
+    }
+
     i = 0
     while (i < _Lcases.length) {
       val L = _Lcases(i)
@@ -699,7 +720,7 @@ class SwitchX() extends ControlX {
 
   def target(i: Int): Block = {
     if (i == 0)
-      Ldefault
+      _Ldefault
     else
       _Lcases(i - 1)
   }
@@ -722,11 +743,11 @@ class SwitchX() extends ControlX {
   }
 }
 
-class StoreX(val l: Local) extends StmtX
+class StoreX(var l: Local) extends StmtX
 
 class PutFieldX(val op: Int, val f: FieldRef) extends StmtX
 
-class IincX(val l: Local, val i: Int) extends StmtX
+class IincX(var l: Local, val i: Int) extends StmtX
 
 class ReturnX() extends ControlX {
   def targetArity(): Int = 0
@@ -777,6 +798,14 @@ class InsnX(val op: Int, _ti: TypeInfo[_]) extends ValueX {
       case IMUL => IntInfo
       case IDIV => IntInfo
       case IREM => IntInfo
+      case ISHL => IntInfo
+      case ISHR => IntInfo
+      case IUSHR => IntInfo
+      case LCMP => IntInfo
+      case FCMPL => IntInfo
+      case FCMPG => IntInfo
+      case DCMPL => IntInfo
+      case DCMPG => IntInfo
       case L2I => IntInfo
       case F2I => IntInfo
       case D2I => IntInfo
@@ -790,6 +819,9 @@ class InsnX(val op: Int, _ti: TypeInfo[_]) extends ValueX {
       case LAND => LongInfo
       case LOR => LongInfo
       case LXOR => LongInfo
+      case LSHL => LongInfo
+      case LSHR => LongInfo
+      case LUSHR => LongInfo
       case I2L => LongInfo
       case F2L => LongInfo
       case D2L => LongInfo
@@ -815,12 +847,11 @@ class InsnX(val op: Int, _ti: TypeInfo[_]) extends ValueX {
       case F2D => DoubleInfo
       // Boolean
       case I2B => BooleanInfo
-
     }
   }
 }
 
-class LoadX(val l: Local) extends ValueX {
+class LoadX(var l: Local) extends ValueX {
   def ti: TypeInfo[_] = l.ti
 }
 

@@ -32,25 +32,37 @@ object PST {
     val backEdges = mutable.Set[(Int, Int)]()
 
     {
+      // recursion will blow out the stack
+      val stack = mutable.Stack[(Int, Iterator[Int])]()
       val onStack = mutable.Set[Int]()
       val visited = mutable.Set[Int]()
 
-      def visit(i: Int): Unit = {
-        assert(!onStack(i))
+      def push(i: Int): Unit = {
+        stack.push(i -> cfg.succ(i).iterator)
         onStack += i
         visited += i
-        for (s <- cfg.succ(i)) {
+      }
+
+      def pop(): Unit = {
+        val (i, _) = stack.pop()
+        onStack -= i
+      }
+
+      push(cfg.entry)
+      while (stack.nonEmpty) {
+        val (i, it) = stack.top
+        if (it.hasNext) {
+          val s = it.next()
           if (onStack(s)) {
             backEdges += i -> s
           } else {
             if (!visited(s))
-              visit(s)
+              push(s)
           }
-        }
-        onStack -= i
+        } else
+          pop()
       }
 
-      visit(cfg.entry)
       assert(onStack.isEmpty)
     }
 
@@ -77,22 +89,31 @@ object PST {
       }
       var k = 0
 
-      def visit(b: Int): Unit = {
+      // recursion will blow out the stack
+      val stack = mutable.Stack[(Int, Iterator[Int])]()
+      def push(b: Int): Unit = {
         val i = k
         k += 1
         linearization(i) = b
         blockLinearIdx(b) = i
-        for (s <- cfg.succ(b)) {
+        stack.push(b -> cfg.succ(b).iterator)
+      }
+
+      push(cfg.entry)
+      while (stack.nonEmpty) {
+        val (b, it) = stack.top
+        if (it.hasNext) {
+          val s = it.next()
           if (!backEdges(b -> s)) {
             pending(s) -= 1
             if (pending(s) == 0) {
-              visit(s)
+              push(s)
             }
           }
-        }
+        } else
+          stack.pop()
       }
 
-      visit(cfg.entry)
       assert(k == nBlocks)
 
       var i = 0
@@ -188,9 +209,6 @@ object PST {
     // find regions in [start, max]
     // [start, end] is a region
     def findRegions(start: Int, end: Int): Unit = {
-      // block is region
-      regionsb += new Region(start, start)
-
       var regionStarts = new ArrayBuilder[Int]()
       regionStarts += start
 
@@ -255,10 +273,8 @@ object PST {
     findRegions(0, nBlocks - 1)
 
     // compute tree
-    var regions = regionsb.result().sorted
+    val regions = regionsb.result().sorted
     val nRegions = regions.length
-
-    val children = new Array[Array[Int]](nRegions)
 
     {
       var n = 0
@@ -281,6 +297,7 @@ object PST {
                 assert(prev.end <= next.start)
               }
               childrenb += n
+              assert(next.parent == -1)
               next.parent = i
               findChildren()
               f()
@@ -290,7 +307,7 @@ object PST {
         }
         f()
 
-        children(i) = childrenb.result()
+        r.children = childrenb.result()
       }
       while (n < nRegions) {
         findChildren()
@@ -298,33 +315,14 @@ object PST {
       assert(n == nRegions)
     }
 
-    /*
-    {
-      def pretty(i: Int, depth: Int): Unit = {
-        val r = regions(i)
-        println(s"${ " " * depth }$i: ${ r.start } ${ r.end } [${ linearization(r.start)} ${ linearization(r.end) }]")
-        for (c <- children(i)) {
-          pretty(c, depth + 2)
-        }
-      }
-      var i = 0
-      while (i < nRegions) {
-        if (regions(i).parent == -1)
-          pretty(i, 0)
-        i += 1
-      }
-    }
-     */
-
-    new PST(linearization, blockLinearIdx, regions, children)
+    new PST(linearization, blockLinearIdx, regions)
   }
 }
 
 class  PST(
   val linearization: Array[Int],
   val blockLinearIdx: Array[Int],
-  val regions: Array[Region],
-  val children: Array[Array[Int]]
+  val regions: Array[Region]
 ) {
   def nBlocks: Int = linearization.length
 
@@ -344,13 +342,24 @@ class  PST(
     i = 0
     while (i < nRegions) {
       val r = regions(i)
-      println(s"  ${ r.start } ${ r.end } [${ linearization(r.start) } ${ linearization(r.end) }]")
+      println(s"  $i: ${ r.start } ${ r.end } [${ linearization(r.start) } ${ linearization(r.end) }] ${ r.parent } ${ r.children.mkString(",") }")
       i += 1
     }
-  }
 
-  // for debugging
-  def check(): Unit = {
+    println(" children:")
+    def printTree(i: Int, depth: Int): Unit = {
+      val r = regions(i)
+      println(s"${ " " * depth }$i: ${ r.start } ${ r.end } [${ linearization(r.start)} ${ linearization(r.end) }]")
+      for (c <- regions(i).children) {
+        printTree(c, depth + 2)
+      }
+    }
 
+    i = 0
+    while (i < nRegions) {
+      if (regions(i).parent == -1)
+        printTree(i, 0)
+      i += 1
+    }
   }
 }
