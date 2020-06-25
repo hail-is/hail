@@ -36,9 +36,12 @@ class OrderingSuite extends HailSuite {
   ): AsmFunction3[Region, Long, Long, op.ReturnType] = {
     implicit val x = op.rtti
     val fb = EmitFunctionBuilder[Region, Long, Long, op.ReturnType](ctx, "lifted")
-    val cv1 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](2))
-    val cv2 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](3))
-    fb.emit(fb.apply_method.getCodeOrdering(t, op)((const(false), cv1), (const(false), cv2)))
+    fb.emitWithBuilder { cb =>
+      val cv1 = EmitCode.present(t, Region.getIRIntermediate(t)(fb.getCodeParam[Long](2)))
+      val cv2 = EmitCode.present(t, Region.getIRIntermediate(t)(fb.getCodeParam[Long](3)))
+      val ord = fb.emodb.getCodeOrdering2(t, t).selectOrdering(op)
+      ord(cb, cv1, cv2)
+    }
     fb.resultWithIndex()(0, r)
   }
 
