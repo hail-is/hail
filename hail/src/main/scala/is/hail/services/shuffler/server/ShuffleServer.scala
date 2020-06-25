@@ -1,4 +1,4 @@
-package is.hail.shuffler.server
+package is.hail.services.shuffler.server
 
 import java.net._
 import java.security.SecureRandom

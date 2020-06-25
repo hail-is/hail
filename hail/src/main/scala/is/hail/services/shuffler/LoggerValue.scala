@@ -1,4 +1,4 @@
-package is.hail.shuffler
+package is.hail.services.shuffler
 
 import is.hail.asm4s._
 import org.apache.log4j.Logger

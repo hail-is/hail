@@ -1,4 +1,4 @@
-package is.hail.shuffler
+package is.hail.services.shuffler
 
 import java.net.Socket
 
