@@ -29,12 +29,12 @@ object SplitMethod {
 class SplitMethod(
   c: Classx[_],
   m: Method,
-  blocks: Array[Block],
+  blocks: Blocks,
   pst: PST
 ) {
-  def nBlocks: Int = blocks.length
+  def nBlocks: Int = blocks.nBlocks
 
-  val blockPartitions = new UnionFind(nBlocks)
+  private val blockPartitions = new UnionFind(nBlocks)
   (0 until nBlocks).foreach { i => blockPartitions.makeSet(i) }
 
   private var methodSize = 0
@@ -85,7 +85,7 @@ class SplitMethod(
   }
 
   // index before creating spills
-  private val (locals, localIdx) = m.findAndIndexLocals(blocks)
+  private val locals = m.findLocals(blocks)
 
   private val spills = m.newLocal("spills", spillsClass.ti)
 
@@ -116,7 +116,7 @@ class SplitMethod(
               paramFields(p.i - 1)
           }
         case _ =>
-          localIdx.get(l) match {
+          locals.getIndex(l) match {
             case Some(i) =>
               fields(i)
             case None =>
@@ -200,16 +200,19 @@ class SplitMethod(
     spillLocals(m)
   }
 
+  // updated while we split
+  private val updatedBlocks = blocks.toArray
+
   private def splitSlice(start: Int, end: Int): Unit = {
-    val Lstart = blocks(blockPartitions.find(start))
-    val Lend = blocks(blockPartitions.find(end))
+    val Lstart = updatedBlocks(blockPartitions.find(start))
+    val Lend = updatedBlocks(blockPartitions.find(end))
 
     val regionBlocks = mutable.Set[Block]()
     (start to end).foreach { i =>
       val b = blockPartitions.find(i)
-      val L = blocks(b)
+      val L = updatedBlocks(b)
       if (L != null) {
-        blocks(b) = null
+        updatedBlocks(b) = null
         regionBlocks += L
       }
     }
@@ -232,7 +235,7 @@ class SplitMethod(
     (start to end).foreach { i =>
       blockPartitions.union(start, i)
     }
-    blocks(blockPartitions.find(start)) = newL
+    updatedBlocks(blockPartitions.find(start)) = newL
 
     val returnTI = Lend.last match {
       case _: GotoX => UnitInfo

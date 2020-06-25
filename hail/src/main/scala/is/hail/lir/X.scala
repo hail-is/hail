@@ -94,15 +94,14 @@ class Classx[C](val name: String, val superName: String) {
 
         SplitLargeBlocks(m)
 
-        val (blocks, blockIdx) = m.findAndIndexBlocks()
+        val blocks = m.findBlocks()
 
         println("cfg1:")
-        val cfg = CFG(m, blocks, blockIdx)
+        val cfg = CFG(m, blocks)
         cfg.dump()
 
         val pst = PST(m, blocks, cfg)
-        val blockIdx2 = m.indexBlocks(pst.blocks)
-        val cfg2 = CFG(m, pst.blocks, blockIdx2)
+        val cfg2 = CFG(m, pst.blocks)
         println("cfg2:")
         cfg2.dump()
         pst.dump()

@@ -31,7 +31,7 @@ object CFG {
       }
     }
 
-    new CFG(blockIdx(m.entry), pred, succ)
+    new CFG(blocks.index(m.entry), pred, succ)
   }
 }
 

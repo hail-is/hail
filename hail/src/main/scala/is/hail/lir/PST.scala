@@ -13,7 +13,7 @@ class Region(
 
 class PSTBuilder(
   m: Method,
-  blocks: Array[Block],
+  blocks: Blocks,
   cfg: CFG
 ) {
   def nBlocks: Int = blocks.length
@@ -431,7 +431,7 @@ class PSTBuilder(
     }
 
     new PST(
-      newBlocks.result(),
+      new Blocks(newBlocks.result()),
       newSplitBlock.result(),
       newRegions.result(),
       regionNewRegion(root))
@@ -439,14 +439,14 @@ class PSTBuilder(
 }
 
 object PST {
-  def apply(m: Method, blocks: Array[Block], cfg: CFG): PST = {
+  def apply(m: Method, blocks: Blocks, cfg: CFG): PST = {
     val pstb = new PSTBuilder(m, blocks, cfg)
     pstb.result()
   }
 }
 
 class  PST(
-  val blocks: Array[Block],
+  val blocks: Blocks,
   val splitBlock: Array[Boolean],
   val regions: Array[Region],
   val root: Int
