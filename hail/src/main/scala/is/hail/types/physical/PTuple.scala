@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, Value, coerce}
-import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.{EmitMethodBuilder, EmitModuleBuilder, SortOrder, StructEmitCodeOrdering}
 import is.hail.types.virtual.{TTuple, TupleField}
 import is.hail.utils._
 
@@ -25,6 +25,9 @@ trait PTuple extends PBaseStruct {
     assert(so == null || so.size == types.size)
     CodeOrdering.rowOrdering(this, other.asInstanceOf[PTuple], mb, so, missingFieldsEqual)
   }
+
+  override def codeOrdering2(modb: EmitModuleBuilder, other: PType): StructEmitCodeOrdering =
+    new StructEmitCodeOrdering(modb, this, other.asInstanceOf[PTuple])
 
   def identBase: String = "tuple"
 }

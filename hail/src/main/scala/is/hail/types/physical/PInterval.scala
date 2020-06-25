@@ -3,7 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations.{CodeOrdering, _}
 import is.hail.asm4s._
 import is.hail.check.Gen
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.expr.ir.{IntervalEmitCodeOrdering, EmitCodeBuilder, EmitMethodBuilder, EmitModuleBuilder, IEmitCode}
 import is.hail.types.virtual.TInterval
 import is.hail.utils._
 
@@ -16,6 +16,9 @@ abstract class PInterval extends ComplexPType {
     assert(other isOfType this)
     CodeOrdering.intervalOrdering(this, other.asInstanceOf[PInterval], mb)
   }
+
+  override def codeOrdering2(modb: EmitModuleBuilder, other: PType): IntervalEmitCodeOrdering =
+    new IntervalEmitCodeOrdering(modb, this, other.asInstanceOf[PInterval])
 
   override def unsafeOrdering(): UnsafeOrdering =
     new UnsafeOrdering {

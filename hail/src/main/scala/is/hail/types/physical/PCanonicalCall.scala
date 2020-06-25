@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{CodeOrdering, Region, UnsafeOrdering}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.expr.ir.{ConsistentEmitCodeOrdering, EmitCodeBuilder, EmitCodeOrdering, EmitMethodBuilder, EmitModuleBuilder}
 import is.hail.utils.FastIndexedSeq
 import is.hail.variant.Genotype
 
@@ -18,6 +18,23 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
     assert(other isOfType this)
     PInt32().codeOrdering(mb)
+  }
+
+  override def codeOrdering2(modb: EmitModuleBuilder, other: PType): EmitCodeOrdering = {
+    new ConsistentEmitCodeOrdering(modb, this, other) {
+      def emitCompare(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Int] =
+        Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", lhs.tcode[Int], rhs.tcode[Int])
+      override def emitEq(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] =
+        lhs.tcode[Int].ceq(rhs.tcode[Int])
+      override def emitGt(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] =
+        lhs.tcode[Int] > rhs.tcode[Int]
+      override def emitGtEq(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] =
+        lhs.tcode[Int] >= rhs.tcode[Int]
+      override def emitLt(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] =
+        lhs.tcode[Int] < rhs.tcode[Int]
+      override def emitLtEq(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] =
+        lhs.tcode[Int] <= rhs.tcode[Int]
+    }
   }
 
   def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalCall(required)

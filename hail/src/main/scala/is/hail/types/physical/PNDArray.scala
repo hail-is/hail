@@ -3,7 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.Nat
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitCodeOrdering, EmitMethodBuilder, EmitModuleBuilder}
 import is.hail.types.virtual.TNDArray
 
 final class StaticallyKnownField[T, U](
@@ -21,6 +21,7 @@ abstract class PNDArray extends PType {
   assert(elementType.required, "elementType must be required")
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = throw new UnsupportedOperationException
+  override def codeOrdering2(modb: EmitModuleBuilder, other: PType): EmitCodeOrdering = throw new UnsupportedOperationException
 
   val shape: StaticallyKnownField[PTuple, Long]
   val strides: StaticallyKnownField[PTuple, Long]

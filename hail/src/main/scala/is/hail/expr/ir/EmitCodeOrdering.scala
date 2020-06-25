@@ -11,7 +11,7 @@ abstract class EmitCodeOrdering(
   val ptLhs: PType,
   val ptRhs: PType
 ) {
-  assert(ptLhs isOfType ptRhs)
+  require(ptLhs isOfType ptRhs)
   final val ordClass = emodb.genEmitClass[Unit](s"ecord_for_${ptLhs.asIdent}_AND_${ptRhs.asIdent}")
 
   def selectOrdering(
@@ -259,5 +259,245 @@ class ContainerEmitCodeOrdering(
     }
 
     lteq && (!eq || lhs.loadLength() <= rhs.loadLength)
+  }
+}
+
+class StructEmitCodeOrdering(
+  emodb: EmitModuleBuilder,
+  override val ptLhs: PBaseStruct,
+  override val ptRhs: PBaseStruct
+) extends EmitCodeOrdering(emodb, ptLhs, ptRhs) {
+  val fldOrds: Array[EmitCodeOrdering] = ptLhs.types.zip(ptRhs.types).map { case (ptfl, ptfr) =>
+    emodb.getCodeOrdering2(ptfl, ptfr)
+  }
+
+  val setup: (EmitCodeBuilder, PCode, PCode) => (PBaseStructValue, PBaseStructValue) = {
+    case (cb: EmitCodeBuilder, lhs: PBaseStructCode, rhs: PBaseStructCode) =>
+      lhs.memoize(cb, "structord_lhs") -> rhs.memoize(cb, "structord_rhs")
+  }
+
+  def emitCompare(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Int] = {
+    val (lhsv, rhsv) = setup(cb, lhs, rhs)
+
+    fldOrds.zipWithIndex.foreach { case (ord, i) =>
+      val lhs = EmitCode.fromI(cb.emb) { cb => lhsv.loadField(cb, i) }
+      val rhs = EmitCode.fromI(cb.emb) { cb => rhsv.loadField(cb, i) }
+      val cmp = cb.newLocal(s"cmp_fld_$i", ord.compare(cb, lhs, rhs))
+      cb.ifx(cmp.cne(0), {
+        cb._return(cmp)
+      })
+    }
+
+    const(0)
+  }
+
+  def emitEq(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] = {
+    val (lhsv, rhsv) = setup(cb, lhs, rhs)
+    val eq = cb.newLocal[Boolean]("eq", true)
+
+    fldOrds.zipWithIndex.foreach { case (ord, i) =>
+      val lhs = EmitCode.fromI(cb.emb) { cb => lhsv.loadField(cb, i) }
+      val rhs = EmitCode.fromI(cb.emb) { cb => rhsv.loadField(cb, i) }
+      cb.assign(eq, ord.equiv(cb, lhs, rhs))
+      cb.ifx(!eq, {
+        cb._return(eq)
+      })
+    }
+
+    eq
+  }
+
+  def emitGt(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] = {
+    val (lhsv, rhsv) = setup(cb, lhs, rhs)
+    val gt = cb.newLocal("gt", false)
+    val eq = cb.newLocal("eq", true)
+
+    fldOrds.zipWithIndex.foreach { case (ord, i) =>
+      val lhs = EmitCode.fromI(cb.emb) { cb => lhsv.loadField(cb, i) }
+      val rhs = EmitCode.fromI(cb.emb) { cb => rhsv.loadField(cb, i) }
+      cb.assign(gt, ord.gt(cb, lhs, rhs))
+      cb.assign(eq, !gt && ord.equiv(cb, lhs, rhs))
+
+      cb.ifx(!eq, cb._return(gt))
+    }
+
+    gt
+  }
+
+  def emitGtEq(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] = {
+    val (lhsv, rhsv) = setup(cb, lhs, rhs)
+    val gteq = cb.newLocal("gteq", true)
+    val eq = cb.newLocal("eq", true)
+
+    fldOrds.zipWithIndex.foreach { case (ord, i) =>
+      val lhs = EmitCode.fromI(cb.emb) { cb => lhsv.loadField(cb, i) }
+      val rhs = EmitCode.fromI(cb.emb) { cb => rhsv.loadField(cb, i) }
+      cb.assign(gteq, ord.gteq(cb, lhs, rhs))
+      cb.assign(eq, ord.equiv(cb, lhs, rhs))
+
+      cb.ifx(!eq, cb._return(gteq))
+    }
+
+    gteq
+  }
+
+  def emitLt(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] = {
+    val (lhsv, rhsv) = setup(cb, lhs, rhs)
+    val lt = cb.newLocal("lt", true)
+    val eq = cb.newLocal("eq", true)
+
+    fldOrds.zipWithIndex.foreach { case (ord, i) =>
+      val lhs = EmitCode.fromI(cb.emb) { cb => lhsv.loadField(cb, i) }
+      val rhs = EmitCode.fromI(cb.emb) { cb => rhsv.loadField(cb, i) }
+
+      cb.assign(lt, ord.lt(cb, lhs, rhs))
+      cb.assign(eq, !lt && ord.equiv(cb, lhs, rhs))
+
+      cb.ifx(!eq, cb._return(lt))
+    }
+
+    lt
+  }
+
+  def emitLtEq(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] = {
+    val (lhsv, rhsv) = setup(cb, lhs, rhs)
+    val lteq = cb.newLocal("lteq", true)
+    val eq = cb.newLocal("eq", true)
+
+    fldOrds.zipWithIndex.foreach { case (ord, i) =>
+      val lhs = EmitCode.fromI(cb.emb) { cb => lhsv.loadField(cb, i) }
+      val rhs = EmitCode.fromI(cb.emb) { cb => rhsv.loadField(cb, i) }
+      cb.assign(lteq, ord.lteq(cb, lhs, rhs))
+      cb.assign(eq, ord.equiv(cb, lhs, rhs))
+
+      cb.ifx(!eq, cb._return(lteq))
+    }
+
+    lteq
+  }
+}
+
+class IntervalEmitCodeOrdering(
+  emodb: EmitModuleBuilder,
+  override val ptLhs: PInterval,
+  override val ptRhs: PInterval
+) extends EmitCodeOrdering(emodb, ptLhs, ptRhs) {
+  val pointOrd = emodb.getCodeOrdering2(ptLhs.pointType, ptRhs.pointType)
+
+  val setup: (EmitCodeBuilder, PCode, PCode) => (PIntervalValue, PIntervalValue) = {
+    case (cb, lhs: PIntervalCode, rhs: PIntervalCode) =>
+      lhs.memoize(cb, "intervalord_lhs") -> rhs.memoize(cb, "intervalord_rhs")
+  }
+
+  def emitCompare(cb: EmitCodeBuilder, lhsc: PCode, rhsc: PCode): Code[Int] = {
+    val (lhs, rhs) = setup(cb, lhsc, rhsc)
+    val cmp = cb.newLocal("intervalord_cmp", 0)
+
+    val lstart = EmitCode.fromI(cb.emb)(lhs.loadStart(_))
+    val rstart = EmitCode.fromI(cb.emb)(rhs.loadStart(_))
+    cb.assign(cmp, pointOrd.compare(cb, lstart, rstart))
+    cb.ifx(cmp.cne(0), cb._return(cmp))
+
+    cb.ifx(lhs.includesStart().cne(rhs.includesStart()), {
+      cb._return(lhs.includesStart().mux(-1, 1))
+    })
+
+    val lend = EmitCode.fromI(cb.emb)(lhs.loadEnd(_))
+    val rend = EmitCode.fromI(cb.emb)(rhs.loadEnd(_))
+    cb.assign(cmp, pointOrd.compare(cb, lend, rend))
+    cb.ifx(cmp.cne(0), cb._return(cmp))
+
+    cb.ifx(lhs.includesEnd().cne(rhs.includesEnd()), {
+      cb._return(lhs.includesEnd().mux(-1, 1))
+    })
+
+    cmp // cmp is 0
+  }
+
+  def emitEq(cb: EmitCodeBuilder, lhsc: PCode, rhsc: PCode): Code[Boolean] = {
+    val (lhs, rhs) = setup(cb, lhsc, rhsc)
+
+    cb.ifx(lhs.includesStart().cne(rhs.includesStart()) ||
+      lhs.includesEnd().cne(rhs.includesEnd()), {
+        cb._return(false)
+      })
+
+    val lstart = EmitCode.fromI(cb.emb)(lhs.loadStart(_))
+    val rstart = EmitCode.fromI(cb.emb)(rhs.loadStart(_))
+
+    cb.ifx(!pointOrd.equiv(cb, lstart, rstart), cb._return(false))
+
+    val lend = EmitCode.fromI(cb.emb)(lhs.loadEnd(_))
+    val rend = EmitCode.fromI(cb.emb)(rhs.loadEnd(_))
+
+    cb.ifx(!pointOrd.equiv(cb, lend, rend), cb._return(false))
+
+    const(true)
+  }
+
+  def emitGt(cb: EmitCodeBuilder, lhsc: PCode, rhsc: PCode): Code[Boolean] = {
+    val (lhs, rhs) = setup(cb, lhsc, rhsc)
+    val lstart = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadStart(_)), "linterval_start")
+    val rstart = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadStart(_)), "rinterval_start")
+
+    cb.ifx(pointOrd.gt(cb, lstart, rstart), cb._return(true))
+    cb.ifx(!pointOrd.equiv(cb, lstart, rstart), cb._return(false))
+    cb.ifx(!lhs.includesStart() && rhs.includesStart(), cb._return(true))
+    cb.ifx(lhs.includesStart().cne(rhs.includesStart()), cb._return(false))
+
+    val lend = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadEnd(_)), "linterval_end")
+    val rend = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadEnd(_)), "rinterval_end")
+
+    cb.ifx(pointOrd.gt(cb, lend, rend), cb._return(true))
+    pointOrd.equiv(cb, lend, rend) && lhs.includesEnd() && !rhs.includesEnd()
+  }
+
+  def emitGtEq(cb: EmitCodeBuilder, lhsc: PCode, rhsc: PCode): Code[Boolean] = {
+    val (lhs, rhs) = setup(cb, lhsc, rhsc)
+    val lstart = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadStart(_)), "linterval_start")
+    val rstart = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadStart(_)), "rinterval_start")
+
+    cb.ifx(!pointOrd.gteq(cb, lstart, rstart), cb._return(false))
+    cb.ifx(!pointOrd.equiv(cb, lstart, rstart), cb._return(true))
+    cb.ifx(!lhs.includesStart() && rhs.includesStart(), cb._return(true))
+    cb.ifx(lhs.includesStart().cne(rhs.includesStart()), cb._return(false))
+
+    val lend = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadEnd(_)), "linterval_end")
+    val rend = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadEnd(_)), "rinterval_end")
+    cb.ifx(!pointOrd.gteq(cb, lend, rend), cb._return(false))
+    !pointOrd.equiv(cb, lend, rend) || lhs.includesEnd() || !rhs.includesEnd()
+  }
+
+  def emitLt(cb: EmitCodeBuilder, lhsc: PCode, rhsc: PCode): Code[Boolean] = {
+    val (lhs, rhs) = setup(cb, lhsc, rhsc)
+    val lstart = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadStart(_)), "linterval_start")
+    val rstart = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadStart(_)), "rinterval_start")
+
+    cb.ifx(pointOrd.lt(cb, lstart, rstart), cb._return(true))
+    cb.ifx(!pointOrd.equiv(cb, lstart, rstart), cb._return(false))
+    cb.ifx(lhs.includesStart() && !rhs.includesStart(), cb._return(true))
+    cb.ifx(lhs.includesStart().cne(rhs.includesStart()), cb._return(false))
+
+    val lend = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadEnd(_)), "linterval_end")
+    val rend = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadEnd(_)), "rinterval_end")
+
+    cb.ifx(pointOrd.lt(cb, lend, rend), cb._return(true))
+    pointOrd.equiv(cb, lend, rend) && !lhs.includesEnd() && rhs.includesEnd()
+  }
+
+  def emitLtEq(cb: EmitCodeBuilder, lhsc: PCode, rhsc: PCode): Code[Boolean] = {
+    val (lhs, rhs) = setup(cb, lhsc, rhsc)
+    val lstart = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadStart(_)), "linterval_start")
+    val rstart = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadStart(_)), "rinterval_start")
+
+    cb.ifx(!pointOrd.lteq(cb, lstart, rstart), cb._return(false))
+    cb.ifx(!pointOrd.equiv(cb, lstart, rstart), cb._return(true))
+    cb.ifx(lhs.includesStart() && !rhs.includesStart(), cb._return(true))
+    cb.ifx(lhs.includesStart().cne(rhs.includesStart()), cb._return(false))
+
+    val lend = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadEnd(_)), "linterval_end")
+    val rend = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadEnd(_)), "rinterval_end")
+    cb.ifx(!pointOrd.lteq(cb, lend, rend), cb._return(false))
+    !pointOrd.equiv(cb, lend, rend) || !lhs.includesEnd() || rhs.includesEnd()
   }
 }

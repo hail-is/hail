@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.Code
-import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.{EmitMethodBuilder, EmitModuleBuilder, SortOrder, StructEmitCodeOrdering}
 import is.hail.types.virtual.{Field, TStruct}
 
 trait PStruct extends PBaseStruct {
@@ -13,6 +13,9 @@ trait PStruct extends PBaseStruct {
     assert(so == null || so.size == types.size)
     CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb, so, missingFieldsEqual)
   }
+
+  override def codeOrdering2(modb: EmitModuleBuilder, other: PType): StructEmitCodeOrdering =
+    new StructEmitCodeOrdering(modb, this, other.asInstanceOf[PStruct])
 
   final def deleteField(key: String): PCanonicalStruct = {
     assert(fieldIdx.contains(key))
