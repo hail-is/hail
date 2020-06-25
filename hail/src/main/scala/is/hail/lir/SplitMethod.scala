@@ -1,7 +1,5 @@
 package is.hail.lir
 
-import java.util.Comparator
-
 import is.hail.asm4s._
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._
@@ -15,15 +13,14 @@ class SplitUnreachable() extends Exception()
 
 object SplitMethod {
   // FIXME
-  val TargetMethodSize: Int = 2000
+  val TargetMethodSize: Int = 50
 
   def apply(
     c: Classx[_],
     m: Method,
-    blocks: Array[Block],
     pst: PST
   ): Classx[_] = {
-    val split = new SplitMethod(c, m, blocks, pst)
+    val split = new SplitMethod(c, m, pst.blocks, pst)
     split.split()
     split.spillsClass
   }
@@ -204,12 +201,12 @@ class SplitMethod(
   }
 
   private def splitSlice(start: Int, end: Int): Unit = {
-    val Lstart = blocks(blockPartitions.find(pst.linearization(start)))
-    val Lend = blocks(blockPartitions.find(pst.linearization(end)))
+    val Lstart = blocks(blockPartitions.find(start))
+    val Lend = blocks(blockPartitions.find(end))
 
     val regionBlocks = mutable.Set[Block]()
     (start to end).foreach { i =>
-      val b = blockPartitions.find(pst.linearization(i))
+      val b = blockPartitions.find(i)
       val L = blocks(b)
       if (L != null) {
         blocks(b) = null
@@ -233,9 +230,9 @@ class SplitMethod(
       m.setEntry(newL)
 
     (start to end).foreach { i =>
-      blockPartitions.union(pst.linearization(start), pst.linearization(i))
+      blockPartitions.union(start, i)
     }
-    blocks(blockPartitions.find(pst.linearization(start))) = newL
+    blocks(blockPartitions.find(start)) = newL
 
     val returnTI = Lend.last match {
       case _: GotoX => UnitInfo
@@ -369,126 +366,95 @@ class SplitMethod(
         }
     }
 
-    blockSize(blockPartitions.find(pst.linearization(start))) = newL.approxByteCodeSize()
+    blockSize(blockPartitions.find(start)) = newL.approxByteCodeSize()
+  }
+
+  // utility  class
+  class SizedRange(val start: Int, val end: Int, val size: Int) {
+    override def toString: String = s"$start-$end/$size"
+  }
+
+  def splitSubregions(subr0: mutable.ArrayBuffer[SizedRange]): Int = {
+    var subr = subr0
+
+    var size = subr.iterator.map(_.size).sum
+
+    println(s"subr0 $size")
+    println(subr)
+
+    var changed = true
+    while (changed &&
+      size > SplitMethod.TargetMethodSize) {
+      println(s"subr $size")
+      println(subr)
+
+      changed = false
+
+      val coalescedsubr = new mutable.ArrayBuffer[SizedRange]()
+
+      var i = 0
+      while (i < subr.size) {
+        var s = subr(i).size
+        var j = i + 1
+        while (j < subr.size &&
+          subr(i).end == subr(j).start &&
+          (s + subr(j).size < SplitMethod.TargetMethodSize)) {
+          s += subr(j).size
+          j += 1
+        }
+        coalescedsubr += new SizedRange(subr(i).start, subr(j - 1).end, s)
+        i = j
+      }
+
+      val sortedsubr = coalescedsubr.sortBy(_.size)
+
+      val newsubr = mutable.ArrayBuffer[SizedRange]()
+
+      i = sortedsubr.length - 1
+      while (i >= 0) {
+        val ri = sortedsubr(i)
+        if (ri.size > 20 &&
+          size > SplitMethod.TargetMethodSize) {
+
+          size -= ri.size
+          splitSlice(ri.start, ri.end)
+          val s = blockSize(blockPartitions.find(ri.start))
+          assert(s < 20)
+          size += s
+
+          newsubr += new SizedRange(ri.start, ri.end, s)
+
+          changed = true
+        } else
+          newsubr += ri
+
+        i -= 1
+      }
+
+      subr = newsubr.sortBy(_.start)
+    }
+
+    size
   }
 
   def splitRegions(): Unit = {
-    // utility  class
-    class R(val start: Int, val end: Int, val size: Int) {
-      override def toString: String = s"$start-$end/$size"
-    }
-
-    def splitSubregions(subr0: mutable.ArrayBuffer[R]): Int = {
-      var subr = subr0
-
-      var size = subr.iterator.map(_.size).sum
-
-      var changed = true
-      while (changed &&
-        size > SplitMethod.TargetMethodSize) {
-
-        changed = false
-
-        val coalescedsubr = new mutable.ArrayBuffer[R]()
-
-        var i = 0
-        while (i < subr.size) {
-          var s = subr(i).size
-          var j = i + 1
-          while (j < subr.size &&
-            subr(i).end == subr(j).start &&
-            (s + subr(j).size < SplitMethod.TargetMethodSize)) {
-            s += subr(j).size
-            j += 1
-          }
-          coalescedsubr += new R(subr(i).start, subr(j - 1).end, s)
-          i = j
-        }
-
-        val sortedsubr = coalescedsubr.sortBy(_.size)
-
-        val newsubr = mutable.ArrayBuffer[R]()
-
-        i = sortedsubr.length - 1
-        while (i >= 0) {
-          val ri = sortedsubr(i)
-          if (ri.size > 20 &&
-            size > SplitMethod.TargetMethodSize) {
-
-            size -= ri.size
-            splitSlice(ri.start, ri.end)
-            val s = blockSize(blockPartitions.find(pst.linearization(ri.start)))
-            assert(s < 20)
-            size += s
-
-            newsubr += new R(ri.start, ri.end, s)
-
-            changed = true
-          } else
-            newsubr += ri
-
-          i -= 1
-        }
-
-        subr = newsubr.sortBy(_.start)
-      }
-
-      size
-    }
-
     val regionSize = new Array[Int](pst.nRegions)
-
-    def splitRegion(start: Int, end: Int, children: Array[Int]): Int = {
-      var subr = mutable.ArrayBuffer[R]()
-
-      var c = 0
-      var ci = 0
-      var child: Region = null
-      if (c < children.length) {
-        ci = children(c)
-        child = pst.regions(ci)
-      }
-
-      var j = start
-      var jincluded = false
-      while (j <= end) {
-        if (child != null && child.start == j) {
-          subr += new R(child.start, child.end, regionSize(ci))
-          j = child.end
-          jincluded = true
-          c += 1
-          if (c < children.length) {
-            ci = children(c)
-            child = pst.regions(ci)
-          } else
-            child = null
-        } else {
-          if (!jincluded)
-            subr += new R(j, j, blockSize(blockPartitions.find(pst.linearization(j))))
-          j += 1
-        }
-      }
-
-      splitSubregions(subr)
-    }
-
-    var i = pst.nRegions - 1
-    while (i >= 0) {
+    var i = 0
+    while (i < pst.nRegions) {
       val r = pst.regions(i)
-      regionSize(i) = splitRegion(r.start, r.end, r.children)
-      i -= 1
-    }
-
-    // split m itself
-    {
-      val mchildrenb = new ArrayBuilder[Int]()
-      var i = 0
-      while (i < pst.nRegions) {
-        if (pst.regions(i).parent == -1)
-          mchildrenb += i
-        i += 1
+      if (r.children.nonEmpty) {
+        val subr = mutable.ArrayBuffer[SizedRange]()
+        subr ++= r.children.iterator.map { ci =>
+          val cr = pst.regions(ci)
+          assert(ci < i)
+          new SizedRange(cr.start, cr.end, regionSize(ci))
+        }
+        regionSize(i) = splitSubregions(subr)
+      } else {
+        assert(r.start == r.end)
+        regionSize(i) = blockSize(blockPartitions.find(r.start))
       }
-      splitRegion(0, nBlocks - 1, mchildrenb.result())
+      i += 1
     }
   }
 

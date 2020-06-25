@@ -96,13 +96,18 @@ class Classx[C](val name: String, val superName: String) {
 
         val (blocks, blockIdx) = m.findAndIndexBlocks()
 
+        println("cfg1:")
         val cfg = CFG(m, blocks, blockIdx)
-        // cfg.dump()
+        cfg.dump()
 
-        val pst = PST(cfg)
-        // pst.dump()
+        val pst = PST(m, blocks, cfg)
+        val blockIdx2 = m.indexBlocks(pst.blocks)
+        val cfg2 = CFG(m, pst.blocks, blockIdx2)
+        println("cfg2:")
+        cfg2.dump()
+        pst.dump()
 
-        classes += SplitMethod(this, m, blocks, pst)
+        classes += SplitMethod(this, m, pst)
       }
     }
 
