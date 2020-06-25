@@ -4,15 +4,13 @@ import scala.collection.mutable
 
 object Liveness {
   def apply(
-    blocks: Array[Block],
-    blockIdx: Map[Block, Int],
-    locals: Array[Local],
-    localIdx: Map[Local, Int],
+    blocks: Blocks,
+    locals: Locals,
     cfg: CFG
   ): Liveness = {
-    val nBlocks = blocks.length
+    val nBlocks = blocks.nBlocks
 
-    val nLocals = locals.length
+    val nLocals = locals.nLocals
 
     val gen: Array[java.util.BitSet] = Array.fill(nBlocks)(new java.util.BitSet(nLocals))
     val kill: Array[java.util.BitSet] = Array.fill(nBlocks)(new java.util.BitSet(nLocals))
@@ -31,22 +29,16 @@ object Liveness {
         def visit(x: X): Unit = {
           x match {
             case x: StoreX =>
-              if (!x.l.isInstanceOf[Parameter]) {
-                val l = localIdx(x.l)
-                geni.clear(l)
-                killi.set(l)
-              }
+              val l = locals.index(x.l)
+              geni.clear(l)
+              killi.set(l)
             case x: LoadX =>
-              if (!x.l.isInstanceOf[Parameter]) {
-                val l = localIdx(x.l)
-                geni.set(l)
-              }
+              val l = locals.index(x.l)
+              geni.set(l)
             case x: IincX =>
-              if (!x.l.isInstanceOf[Parameter]) {
-                val l = localIdx(x.l)
-                geni.set(l)
-                killi.set(l)
-              }
+              val l = locals.index(x.l)
+              geni.set(l)
+              killi.set(l)
             case _ =>
           }
           x.children.foreach(visit)
