@@ -58,6 +58,7 @@ principals:
   kind: json
 - name: query-tests
   domain: query-tests
+  kind: json
 - name: shuffler
   domain: shuffler
   kind: json
