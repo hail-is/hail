@@ -11,6 +11,7 @@ public class Memory {
     private static final Unsafe unsafe;
 
     private static final TreeMap<Long, Long> blocks;
+    private static final Object blocksLock;
 
     public static void storeByte(byte[] mem, long off, byte b) {
         checkBytes(mem, off, 1);
@@ -207,7 +208,10 @@ public class Memory {
     }
 
     static void checkAddress(long addr, long size) {
-        Map.Entry<Long, Long> e = blocks.floorEntry(addr);
+        Map.Entry<Long, Long> e;
+        synchronized(blocksLock) {
+            e = blocks.floorEntry(addr);
+        }
         if (e == null) {
             throw new RuntimeException(String.format("invalid memory access: %08x/%08x: no block", addr, size));
         }
@@ -227,12 +231,17 @@ public class Memory {
         long addr = unsafe.allocateMemory(size + 16);
         unsafe.putLong(addr, HEADER);
         unsafe.putLong(addr + 8 + size, FOOTER);
-        blocks.put(addr + 8, size);
+        synchronized(blocksLock) {
+            blocks.put(addr + 8, size);
+        }
         return addr + 8;
     }
 
     public static void free(long a) {
-        Long blockSize = blocks.get(a);
+        Long blockSize;
+        synchronized(blocksLock) {
+            blockSize = blocks.get(a);
+        }
         if (blockSize == null)
             throw new RuntimeException("free invalid memory");
         if (unsafe.getLong(a - 8) != HEADER)
@@ -240,7 +249,9 @@ public class Memory {
         if (unsafe.getLong(a + blockSize) != FOOTER)
             throw new RuntimeException("corrupt block");
 
-        blocks.remove(a);
+        synchronized(blocksLock) {
+            blocks.remove(a);
+        }
         unsafe.freeMemory(a - 8);
     }
 
@@ -280,5 +291,6 @@ public class Memory {
         unsafe = t;
 
         blocks = new TreeMap<Long, Long>();
+        blocksLock = new Object();
     }
 }
