@@ -3,8 +3,9 @@ package is.hail.services
 import java.io.{File, FileInputStream}
 
 import is.hail.utils._
-import org.json4s.{DefaultFormats, Formats, JValue}
+import org.json4s._
 import org.json4s.jackson.JsonMethods
+import org.apache.http.client.methods._
 
 object DeployConfig {
   lazy val get: DeployConfig = fromConfigFile()
@@ -52,6 +53,9 @@ class DeployConfig(
   val defaultNamespace: String,
   val serviceNamespace: Map[String, String]) {
 
+  private[this] val requestor = new Requestor()
+  import requestor.request
+
   def scheme(baseScheme: String = "http"): String = {
     if (location == "external" || location == "k8s")
       baseScheme + "s"
@@ -91,5 +95,14 @@ class DeployConfig(
 
   def baseUrl(service: String, baseScheme: String = "http"): String = {
     s"${ scheme(baseScheme) }://${ domain(service) }${ basePath(service) }"
+  }
+
+  def ips(service: String): Seq[(String, Int)] = {
+    implicit val formats: Formats = DefaultFormats
+
+    val ns = getServiceNamespace(service)
+    val url = s"${baseUrl(service, ns)}/api/${ns}/${service}"
+    val addresses = request(new HttpGet(url)).asInstanceOf[JArray].children.asInstanceOf[List[JObject]]
+    addresses.map(x => ((x \ "address").extract[String], (x \ "port").extract[Int]))
   }
 }

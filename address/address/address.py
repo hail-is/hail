@@ -1,3 +1,4 @@
+from typing import List, DefaultDict, Generic, TypeVar, Dict, Tuple, Any, NamedTuple
 import time
 import secrets
 import logging
@@ -48,8 +49,8 @@ async def get_index(request, userdata):
             ['VALID_DURATION_IN_SECONDS', VALID_DURATION_IN_SECONDS]],
         'rows': [{'namespace': k[0],
                   'name': k[1],
-                  'addresses': ", ".join(cache.values[k].value['addresses']),
-                  'ports': ", ".join(cache.values[k].value['ports']),
+                  'addresses': ", ".join([x.value.ip for x in cache.values[k]]),
+                  'ports': ", ".join([x.value.port for x in cache.values[k]]),
                   'lifetime': time.time() - cache.values[k].expire_time,
                   'lock': k in cache.locks}
                  for k in keys]
@@ -71,24 +72,33 @@ async def get_name(request, userdata):
 VALID_DURATION_IN_SECONDS = 60
 
 
-class CacheEntry:
-    def __init__(self, value):
-        self.value = value
-        self.expire_time = time.time() + VALID_DURATION_IN_SECONDS
+T = TypeVar('T')
 
-class Cache:
-    def __init__(self, k8s_client):
-        self.values = dict()
-        self.locks = defaultdict(asyncio.Lock)
+
+class CacheEntry(Generic[T]):
+    def __init__(self, value: T):
+        self.value: T = value
+        self.expire_time: float = time.time() + VALID_DURATION_IN_SECONDS
+
+
+class AddressAndPort(NamedTuple):
+    address: str
+    port: int
+
+
+class Cache():
+    def __init__(self, k8s_client: kube.client.CoreV1Api):
+        self.values: Dict[Tuple[str, str], CacheEntry[List[AddressAndPort]]] = dict()
+        self.locks: DefaultDict[Tuple[str, str], asyncio.Lock] = defaultdict(asyncio.Lock)
         self.keys = sortedcontainers.SortedSet(
             key=lambda key: self.values[key].expire_time)
-        self.k8s_client = k8s_client
+        self.k8s_client: kube.client.CoreV1Api = k8s_client
 
-    async def get(self, name, namespace):
+    async def get(self, name: str, namespace: str):
         key = (namespace, name)
         if key in self.values:
             entry = self.values[key]
-            if entry.expire_time < time.time():
+            if entry.expire_time >= time.time():
                 log.info(f'hit cache for {key}')
                 return entry.values
             log.info(f'stale cache for {key}')
@@ -97,13 +107,13 @@ class Cache:
         async with lock:
             if key in self.values:
                 entry = self.values[key]
-                if entry.expire_time < time.time():
-                    return entry.values
+                if entry.expire_time >= time.time():
+                    return entry.value
 
             asyncio.ensure_future(self.maybe_remove_one_old_entry())
             k8s_endpoints = await self.k8s_client.read_namespaced_endpoints(
                 name, namespace)
-            endpoints = [{'address': ip.ip, 'port': port.port}
+            endpoints = [AddressAndPort(ip.ip, port.port)
                          for endpoint in k8s_endpoints.subsets
                          for port in endpoint.ports
                          for ip in endpoint.addresses]
@@ -115,7 +125,7 @@ class Cache:
     async def maybe_remove_one_old_entry(self):
         if len(self.keys) > 0:
             key = self.keys.pop()
-            if self.values[key].expire_time >= time.time():
+            if self.values[key].expire_time < time.time():
                 del self.values[key]
                 del self.locks[key]
             else:
