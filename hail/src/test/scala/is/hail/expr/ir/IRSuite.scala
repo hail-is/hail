@@ -3702,4 +3702,19 @@ class IRSuite extends HailSuite {
     assertNumDistinct(flatten(selfZip(stream, 2)), 10)
     assertNumDistinct(bindIR(ToArray(stream))(a => selfZip(ToStream(a), 2)), 5)
   }
+
+  @Test def testZipDoesntPruneLengthInfo(): Unit = {
+    for (behavior <- Array(ArrayZipBehavior.AssumeSameLength,
+      ArrayZipBehavior.AssertSameLength,
+      ArrayZipBehavior.TakeMinLength,
+      ArrayZipBehavior.ExtendNA)) {
+      val zip = StreamZip(
+        FastIndexedSeq(StreamRange(0, 10, 1), StreamRange(0, 10, 1)),
+        FastIndexedSeq("x", "y"),
+        makestruct("x" -> Str("foo"), "y" -> Str("bar")),
+        behavior)
+
+      assertEvalsTo(ToArray(zip), Array.fill(10)(Row("foo", "bar")).toFastIndexedSeq)
+    }
+  }
 }
