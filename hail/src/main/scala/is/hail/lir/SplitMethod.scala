@@ -18,9 +18,13 @@ object SplitMethod {
   def apply(
     c: Classx[_],
     m: Method,
+    blocks: Blocks,
+    locals: Locals,
+    cfg: CFG,
+    liveness: Liveness,
     pst: PST
   ): Classx[_] = {
-    val split = new SplitMethod(c, m, pst.blocks, pst)
+    val split = new SplitMethod(c, m, blocks, locals, cfg, liveness, pst)
     split.split()
     split.spillsClass
   }
@@ -30,9 +34,14 @@ class SplitMethod(
   c: Classx[_],
   m: Method,
   blocks: Blocks,
+  locals: Locals,
+  cfg: CFG,
+  liveness: Liveness,
   pst: PST
 ) {
   def nBlocks: Int = blocks.nBlocks
+
+  def nLocals: Int = locals.nLocals
 
   private val blockPartitions = new UnionFind(nBlocks)
   (0 until nBlocks).foreach { i => blockPartitions.makeSet(i) }
@@ -84,37 +93,39 @@ class SplitMethod(
       Type.getInternalName(tcls), "<init>", Type.getConstructorDescriptor(c), ti, FastIndexedSeq()))
   }
 
-  // index before creating spills
-  private val locals = m.findLocals(blocks)
-
   private val spills = m.newLocal("spills", spillsClass.ti)
 
-  private val paramFields = m.parameterTypeInfo.zipWithIndex.map { case (ti, i) =>
-    spillsClass.newField(genName("f", s"arg${ i + 1 }"), ti)
-  }
-
-  private val fields = locals.map { l =>
-    if (l.isInstanceOf[Parameter])
-      null
-    else
-      spillsClass.newField(genName("f", l.name), l.ti)
-  }
-
   private val splitMethods = mutable.ArrayBuffer[Method]()
+
+  private val localsToSpill = new java.util.BitSet(nLocals)
+
+  private val fields = new Array[Field](nLocals)
+
+  private def createSpillFields(): Unit = {
+    var i = 0
+    while (i < nLocals) {
+      val l = locals(i)
+      val spill = l match {
+        case p: Parameter =>
+          p.i != 0
+        case _ =>
+          localsToSpill.get(i)
+      }
+      if (spill)
+        fields(i) = spillsClass.newField(genName("f", l.name), l.ti)
+      i += 1
+    }
+  }
 
   // also fixes up null switch targets
   def spillLocals(method: Method): Unit = {
     def localField(l: Local): Field =
       l match {
         case p: Parameter =>
-          if (p.i == 0)
+          if (method eq m)
             null
-          else {
-            if (method eq m)
-              null
-            else
-              paramFields(p.i - 1)
-          }
+          else
+            fields(p.i)
         case _ =>
           locals.getIndex(l) match {
             case Some(i) =>
@@ -194,6 +205,7 @@ class SplitMethod(
   }
 
   def spillLocals(): Unit = {
+    createSpillFields()
     for (splitM <- splitMethods) {
       spillLocals(splitM)
     }
@@ -215,6 +227,11 @@ class SplitMethod(
         updatedBlocks(b) = null
         regionBlocks += L
       }
+    }
+
+    localsToSpill.or(liveness.liveIn(start))
+    for (s <- cfg.succ(end)) {
+      localsToSpill.or(liveness.liveIn(s))
     }
 
     // replacement block for region
@@ -478,8 +495,10 @@ class SplitMethod(
     // spill parameters
     var x: StmtX = null
     m.parameterTypeInfo.indices.foreach { i =>
+      val f = fields(i + 1)
+      assert(f != null)
       val putParam = putField(
-        paramFields(i),
+        f,
         load(spills),
         load(m.getParam(i + 1)))
       if (x != null)

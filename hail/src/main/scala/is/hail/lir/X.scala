@@ -95,18 +95,24 @@ class Classx[C](val name: String, val superName: String) {
         SplitLargeBlocks(m)
 
         val blocks = m.findBlocks()
+        val locals = m.findLocals(blocks)
 
-        println("cfg1:")
-        val cfg = CFG(m, blocks)
-        cfg.dump()
+        val pst = {
+          // this cfg is no longer valid after creating pst
+          val cfg = CFG(m, blocks)
+          println("cfg1:")
+          cfg.dump()
+          PST(m, blocks, cfg)
+        }
 
-        val pst = PST(m, blocks, cfg)
         val cfg2 = CFG(m, pst.blocks)
         println("cfg2:")
         cfg2.dump()
         pst.dump()
 
-        classes += SplitMethod(this, m, pst)
+        val liveness = Liveness(pst.blocks, locals, cfg2)
+
+        classes += SplitMethod(this, m, pst.blocks, locals, cfg2, liveness, pst)
       }
     }
 
