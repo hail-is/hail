@@ -13,7 +13,7 @@ check:
 
 .PHONY: build
 build:
-	make -C ../docker build
+	# make -C ../docker build
 	-docker pull $(ADDRESS_LATEST)
 	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
 	docker build -t address -f Dockerfile.out --cache-from address,$(ADDRESS_LATEST),service-base ..
@@ -29,4 +29,5 @@ push: build
 deploy: push
 	! [ -z $(NAMESPACE) ]  # set NAMESPACE
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"address_image":{"image":"$(ADDRESS_IMAGE)"},"default_ns":{"name":"$(NAMESPACE)"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
+	kubectl -n $(NAMESPACE) apply -f service-account.yaml
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
