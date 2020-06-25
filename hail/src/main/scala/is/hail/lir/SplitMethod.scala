@@ -160,12 +160,12 @@ class SplitMethod(c: Classx[_], m: Method) {
         val newLtrue = new Block()
         newLtrue.method = newM
         newLtrue.append(returnx(ldcInsn(0, BooleanInfo)))
-        x.Ltrue = newLtrue
+        x.setLtrue(newLtrue)
 
         val newLfalse = new Block()
         newLfalse.method = newM
         newLfalse.append(returnx(ldcInsn(0, BooleanInfo)))
-        x.Lfalse = newLfalse
+        x.setLfalse(newLfalse)
 
         b.append(
           ifx(IFNE, invokeNewM(), Ltrue, Lfalse))

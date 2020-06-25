@@ -39,16 +39,16 @@ package object lir {
   def ifx(op: Int, c: ValueX, Ltrue: Block, Lfalse: Block): ControlX = {
     val x = new IfX(op)
     setChildren(x, c)
-    x.Ltrue = Ltrue
-    x.Lfalse = Lfalse
+    x.setLtrue(Ltrue)
+    x.setLfalse(Lfalse)
     x
   }
 
   def ifx(op: Int, c1: ValueX, c2: ValueX, Ltrue: Block, Lfalse: Block): ControlX = {
     val x = new IfX(op)
     setChildren(x, c1, c2)
-    x.Ltrue = Ltrue
-    x.Lfalse = Lfalse
+    x.setLtrue(Ltrue)
+    x.setLfalse(Lfalse)
     x
   }
 
@@ -58,8 +58,8 @@ package object lir {
 
     val x = new SwitchX()
     setChildren(x, c)
-    x.Ldefault = Ldefault
-    x.Lcases = cases.toArray
+    x.setLdefault(Ldefault)
+    x.setLcases(cases)
     x
   }
 
@@ -67,7 +67,7 @@ package object lir {
     assert(L != null)
     val x = new GotoX
     x.setArity(0)
-    x.L = L
+    x.setL(L)
     x
   }
 
