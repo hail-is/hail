@@ -103,7 +103,7 @@ class Cache:
             asyncio.ensure_future(self.maybe_remove_one_old_entry())
             k8s_endpoints = await self.k8s_client.read_namespaced_endpoints(
                 name, namespace)
-            endpoints = [{'address': ip, 'port': port}
+            endpoints = [{'address': ip.ip, 'port': port.port}
                          for endpoint in k8s_endpoints.subsets
                          for port in endpoint.ports
                          for ip in endpoint.addresses]
