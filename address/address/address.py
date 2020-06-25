@@ -25,7 +25,7 @@ from collections import defaultdict
 
 uvloop.install()
 
-log = logging.getLogger('batch')
+log = logging.getLogger('address')
 
 routes = web.RouteTableDef()
 
@@ -62,7 +62,10 @@ async def get_index(request, userdata):
 async def get_name(request, userdata):
     namespace = request.match_info['namespace']
     name = request.match_info['name']
-    return web.json_response(request.app['cache'].get(name, namespace))
+    log.info(f'get {namespace} {name}')
+    result = await request.app['cache'].get(name, namespace)
+    log.info(f'result {result}')
+    return web.json_response(result)
 
 
 VALID_DURATION_IN_SECONDS = 60
@@ -89,7 +92,9 @@ class Cache:
                 log.info(f'hit cache for {key}')
                 return entry.values
             log.info(f'stale cache for {key}')
-        async with self.locks.get(key):
+        lock = self.locks[key]
+        log.info(f'lock {lock}')
+        async with lock:
             if key in self.values:
                 entry = self.values[key]
                 if entry.expire_time < time.time():
@@ -98,20 +103,23 @@ class Cache:
             asyncio.ensure_future(self.maybe_remove_one_old_entry())
             k8s_endpoints = await self.k8s_client.read_namespaced_endpoints(
                 name, namespace)
-            endpoints = [{'addresses': e.addresses, 'ports': e.ports}
-                         for e in k8s_endpoints.subsets]
+            endpoints = [{'addresses': [x.ip for x in endpoint.addresses],
+                          'ports': [x.port for x in endpoint.ports]}
+                         for subset in k8s_endpoints.subsets
+                         for endpoint in subset]
             self.values[key] = CacheEntry(endpoints)
             self.keys.add(key)
             log.info(f'fetched new value for {key}: {endpoints}')
             return endpoints
 
     async def maybe_remove_one_old_entry(self):
-        key = self.keys.pop()
-        if self.values[key].expire_time >= time.time():
-            del self.values[key]
-            del self.locks[key]
-        else:
-            self.keys.add(key)
+        if len(self.keys) > 0:
+            key = self.keys.pop()
+            if self.values[key].expire_time >= time.time():
+                del self.values[key]
+                del self.locks[key]
+            else:
+                self.keys.add(key)
 
 
 async def on_startup(app):

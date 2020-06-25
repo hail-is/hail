@@ -2095,6 +2095,13 @@ steps:
    dependsOn:
      - address_image
  - kind: deploy
+   name: deploy_address_sa
+   namespace:
+     valueFrom: default_ns.name
+   config: address/service-account.yaml
+   dependsOn:
+    - default_ns
+ - kind: deploy
    name: deploy_address
    namespace:
      valueFrom: default_ns.name
@@ -2129,9 +2136,9 @@ steps:
         valueFrom: default_ns.name
       mountPath: /ssl-config
    dependsOn:
-    # - create_deploy_config
+    - create_deploy_config
     - copy_files
     - default_ns
     - service_base_image
     - create_certs
-    # - deploy_address
+    - deploy_address
