@@ -1,4 +1,4 @@
-package is.hail.shuffler
+package is.hail.services.shuffler
 
 import is.hail.asm4s._
 import org.apache.log4j.Logger;
@@ -9,8 +9,8 @@ import is.hail.types.virtual._
 import is.hail.types.physical._
 import is.hail.types.encoded._
 import is.hail.expr.ir.ArrayZipBehavior._
-import is.hail.shuffler.server._
-import is.hail.shuffler.ShufflerTestUtils._
+import is.hail.services.shuffler.server._
+import is.hail.services.shuffler.ShufflerTestUtils._
 import is.hail.io._
 import is.hail.utils._
 import is.hail._

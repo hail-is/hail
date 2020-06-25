@@ -1,4 +1,4 @@
-package is.hail.shuffler
+package is.hail.services.shuffler
 
 import is.hail.annotations._
 import is.hail.types.virtual._
