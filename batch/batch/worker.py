@@ -220,6 +220,10 @@ class ContainerStepManager:
         self.timing['duration'] = finish_time - start_time
 
 
+def worker_fraction_in_1024ths(cpu_in_mcpu):
+    return 1024 * cpu_in_mcpu // (CORES * 1000)
+
+
 class Container:
     def __init__(self, job, name, spec):
         self.job = job
@@ -246,10 +250,11 @@ class Container:
         self.log = None
 
     def container_config(self):
+        weight = worker_fraction_in_1024ths(self.spec['cpu'])
         host_config = {
-            'CpuPeriod': 100000,
-            'CpuQuota': self.spec['cpu'] * 100,
-            'Memory': self.spec['memory']
+            'CpuShares': weight,
+            'Memory': self.spec['memory'],
+            'BlkioWeight': min(weight, 1000)
         }
         config = {
             "AttachStdin": False,
