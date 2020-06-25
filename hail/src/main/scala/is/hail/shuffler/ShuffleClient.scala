@@ -4,6 +4,7 @@ import java.net.Socket
 
 import is.hail._
 import is.hail.annotations._
+import is.hail.services.tls._
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.types.virtual._
@@ -15,27 +16,7 @@ import org.apache.log4j.Logger
 object ShuffleClient {
   private[this] val log = Logger.getLogger(getClass.getName())
 
-  lazy val sslContext = {
-    val keyStore = System.getenv("SHUFFLER_SSL_CLIENT_KEY_STORE")
-    val trustStore = System.getenv("SHUFFLER_SSL_CLIENT_TRUST_STORE")
-    if (keyStore == null && trustStore != null ||
-      trustStore == null && keyStore != null) {
-      fatal("you must specify both or neither of the hail context flags: " +
-        "shuffler_ssl_client_key_store and shuffler_ssl_client_trust_store")
-    }
-    if (keyStore == null) {
-      is.hail.shuffler.sslContext(
-        getClass.getResourceAsStream("/non-secret-key-and-trust-stores/client-keystore.p12"),
-        "hailhail",
-        "PKCS12",
-        getClass.getResourceAsStream("/non-secret-key-and-trust-stores/client-truststore.p12"),
-        "hailhail",
-        "JKS"
-      )
-    } else {
-      is.hail.shuffler.sslContext(keyStore, "", "PKCS12", trustStore, "", "PKCS12")
-    }
-  }
+  lazy val sslContext = getSSLContext
 
   def socket(): Socket = {
     var host = System.getenv("SHUFFLER_SSL_CLIENT_HOST")

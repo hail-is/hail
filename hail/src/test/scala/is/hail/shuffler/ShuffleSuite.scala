@@ -3,6 +3,7 @@ package is.hail.shuffler
 import is.hail.asm4s._
 import org.apache.log4j.Logger;
 import is.hail.annotations._
+import is.hail.services.tls._
 import is.hail.expr.ir._
 import is.hail.types.virtual._
 import is.hail.types.physical._
@@ -26,15 +27,7 @@ class ShuffleSuite extends HailSuite {
     array.map(new UnsafeRow(elementPType, null, _)).toArray
 
   @Test def testShuffle() {
-    var server = new ShuffleServer(sslContext(
-      "src/test/resources/non-secret-key-and-trust-stores/server-keystore.p12",
-      "hailhail",
-      "PKCS12",
-      "src/test/resources/non-secret-key-and-trust-stores/server-truststore.p12",
-      "hailhail",
-      "JKS"
-    ),
-      8080)
+    var server = new ShuffleServer(getSSLContext, 8080)
     server.serveInBackground()
     try {
       val rowPType = PCanonicalStruct("x" -> PInt32())
@@ -48,13 +41,7 @@ class ShuffleSuite extends HailSuite {
       val shuffleType = TShuffle(keyFields, rowType, rowEType, keyEType)
       using(new ShuffleClient(
         shuffleType,
-        sslContext(
-          "src/test/resources/non-secret-key-and-trust-stores/client-keystore.p12",
-          "hailhail",
-          "PKCS12",
-          "src/test/resources/non-secret-key-and-trust-stores/client-truststore.p12",
-          "hailhail",
-          "JKS"),
+        getSSLContext,
         "localhost",
         8080)) { c =>
         val rowDecodedPType = c.codecs.rowDecodedPType
@@ -135,15 +122,7 @@ class ShuffleSuite extends HailSuite {
   }
 
   @Test def testShuffleIR() {
-    var server = new ShuffleServer(sslContext(
-      "src/test/resources/non-secret-key-and-trust-stores/server-keystore.p12",
-      "hailhail",
-      "PKCS12",
-      "src/test/resources/non-secret-key-and-trust-stores/server-truststore.p12",
-      "hailhail",
-      "JKS"
-    ),
-      8080)
+    var server = new ShuffleServer(getSSLContext, 8080)
     server.serveInBackground()
     try {
       val rowPType = PCanonicalStruct("x" -> PInt32())
