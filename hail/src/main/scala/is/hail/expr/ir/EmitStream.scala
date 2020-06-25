@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.io._
-import is.hail.shuffler._
+import is.hail.services.shuffler._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl

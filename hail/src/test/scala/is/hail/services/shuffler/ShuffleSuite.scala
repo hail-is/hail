@@ -27,7 +27,7 @@ class ShuffleSuite extends HailSuite {
     array.map(new UnsafeRow(elementPType, null, _)).toArray
 
   @Test def testShuffle() {
-    var server = new ShuffleServer(getSSLContext, 8080)
+    var server = new ShuffleServer(sslContextFromFile("/ssl-config-server/ssl-config.json"), 8080)
     server.serveInBackground()
     try {
       val rowPType = PCanonicalStruct("x" -> PInt32())
@@ -122,7 +122,7 @@ class ShuffleSuite extends HailSuite {
   }
 
   @Test def testShuffleIR() {
-    var server = new ShuffleServer(getSSLContext, 8080)
+    var server = new ShuffleServer(sslContextFromFile("/ssl-config-server/ssl-config.json"), 8080)
     server.serveInBackground()
     try {
       val rowPType = PCanonicalStruct("x" -> PInt32())

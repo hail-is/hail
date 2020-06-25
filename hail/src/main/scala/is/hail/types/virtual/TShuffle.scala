@@ -6,7 +6,7 @@ import is.hail.check.Gen
 import is.hail.expr.ir.SortField
 import is.hail.types.physical._
 import is.hail.types.encoded._
-import is.hail.shuffler._
+import is.hail.services.shuffler._
 import is.hail.io._
 
 import scala.reflect.{ClassTag, _}

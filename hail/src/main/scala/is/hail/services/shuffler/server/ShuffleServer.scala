@@ -9,7 +9,7 @@ import is.hail.expr.ir._
 import is.hail.types.encoded._
 import is.hail.types.virtual._
 import is.hail.io._
-import is.hail.shuffler._
+import is.hail.services.shuffler._
 import is.hail.utils._
 import javax.net.ssl._
 import org.apache.log4j.Logger

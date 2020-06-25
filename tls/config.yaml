@@ -53,8 +53,11 @@ principals:
 - name: query
   domain: query
   kind: json
-- name: services-java-tests
-  domain: services-java-tests
+- name: services-java-client-tests
+  domain: services-java-client-tests
+  kind: json
+- name: services-java-server-tests
+  domain: localhost
   kind: json
 - name: query-tests
   domain: query-tests

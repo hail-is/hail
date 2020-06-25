@@ -1,4 +1,4 @@
-ypackage is.hail
+package is.hail.services
 
 import java.io._
 import java.net.Socket

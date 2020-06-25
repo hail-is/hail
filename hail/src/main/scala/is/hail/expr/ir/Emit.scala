@@ -14,7 +14,7 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
-import is.hail.shuffler._
+import is.hail.services.shuffler._
 import is.hail.{HailContext, lir}
 import is.hail.utils._
 import org.apache.log4j.Logger
