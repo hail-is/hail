@@ -11,6 +11,17 @@ class Region(
   // -1 means root, or parent not yet known
   var parent: Int = -1)
 
+object PSTResult {
+  def unapply(result: PSTResult): Option[(Blocks, CFG, PST)] =
+    Some((result.blocks, result.cfg, result.pst))
+}
+
+class PSTResult(
+  val blocks: Blocks,
+  val cfg: CFG,
+  val pst: PST
+)
+
 class PSTBuilder(
   m: Method,
   blocks: Blocks,
@@ -315,7 +326,7 @@ class PSTBuilder(
     }
   }
 
-  def result(): PST = {
+  def result(): PSTResult = {
     computeBackEdges()
     linearize()
     computeMaxTargetLE()
@@ -323,7 +334,7 @@ class PSTBuilder(
     findRegions(0, nBlocks - 1)
     val root = addRoot()
 
-    val newBlocks = new ArrayBuilder[Block]()
+    val newBlocksB = new ArrayBuilder[Block]()
     val newSplitBlock = new ArrayBuilder[Boolean]()
 
     // split blocks, compute new blocks
@@ -340,16 +351,16 @@ class PSTBuilder(
         last.remove()
         splitb.append(last)
         b.append(goto(splitb))
-        val newi = newBlocks.length
-        newBlocks += b
+        val newi = newBlocksB.length
+        newBlocksB += b
         newSplitBlock += true
-        newBlocks += splitb
+        newBlocksB += splitb
         newSplitBlock += false
         blockNewEndBlockIdx(i) = newi
         blockNewStartBlockIdx(i) = newi + 1
       } else {
-        val newi = newBlocks.length
-        newBlocks += b
+        val newi = newBlocksB.length
+        newBlocksB += b
         newSplitBlock += false
         blockNewEndBlockIdx(i) = newi
         blockNewStartBlockIdx(i) = newi
@@ -368,7 +379,7 @@ class PSTBuilder(
 
     // compute new regions, including singletons
     // update children
-    val newRegions = new ArrayBuilder[Region]()
+    val newRegionsB = new ArrayBuilder[Region]()
     val regionNewRegion = new Array[Int](regions.length)
     i = 0
     while (i < regions.length) {
@@ -402,53 +413,96 @@ class PSTBuilder(
             child = null
         } else {
           if (!jincluded) {
-            val k = newRegions.length
-            newRegions += new Region(j, j, new Array[Int](0))
+            val k = newRegionsB.length
+            newRegionsB += new Region(j, j, new Array[Int](0))
             newChildren += k
           }
           j += 1
         }
       }
 
-      val newi = newRegions.length
+      val newi = newRegionsB.length
       val newr = new Region(r.start, r.end, newChildren.result())
       for (ci <- newr.children)
-        newRegions(ci).parent = newi
-      newRegions += newr
+        newRegionsB(ci).parent = newi
+      newRegionsB += newr
       regionNewRegion(i) = newi
 
       i += 1
     }
 
-    new PST(
-      new Blocks(newBlocks.result()),
+    val newBlocks = new Blocks(newBlocksB.result())
+    val newRegions = newRegionsB.result()
+    val nNewRegions = newRegions.length
+    val newRoot = regionNewRegion(root)
+
+    val newCFG = CFG(m, newBlocks)
+
+    val loopRegion = new java.util.BitSet(nNewRegions)
+
+    // returns sources of backedges that end in region i
+    // but are not contained in region i
+    def findLoopRegions(i: Int): Array[Int] = {
+      val r = newRegions(i)
+      val backEdgeSourcesB = new ArrayBuilder[Int]()
+      if (r.children.nonEmpty) {
+        var c = 0
+        while (c < r.children.length) {
+          val ci = r.children(c)
+          val childBackEdgeSources = findLoopRegions(ci)
+          var j = 0
+          while (j < childBackEdgeSources.length) {
+            val s = childBackEdgeSources(j)
+            if (s <= r.end)
+              loopRegion.set(i)
+            else
+              backEdgeSourcesB += s
+            j += 1
+          }
+          c += 1
+        }
+      } else {
+        assert(r.start == r.end)
+        for (s <- newCFG.pred(r.start)) {
+          if (s == r.end)
+            loopRegion.set(i)
+          else if (s > r.end)
+            backEdgeSourcesB += s
+        }
+      }
+      backEdgeSourcesB.result()
+    }
+
+    findLoopRegions(newRoot)
+
+    val pst = new PST(
       newSplitBlock.result(),
-      newRegions.result(),
-      regionNewRegion(root))
+      newRegions,
+      loopRegion,
+      newRoot)
+    new PSTResult(newBlocks, newCFG, pst)
   }
 }
 
 object PST {
-  def apply(m: Method, blocks: Blocks, cfg: CFG): PST = {
+  def apply(m: Method, blocks: Blocks, cfg: CFG): PSTResult = {
     val pstb = new PSTBuilder(m, blocks, cfg)
     pstb.result()
   }
 }
 
 class  PST(
-  val blocks: Blocks,
   val splitBlock: Array[Boolean],
   val regions: Array[Region],
+  val loopRegion: java.util.BitSet,
   val root: Int
 ) {
-  assert(blocks.length == splitBlock.length)
-
-  def nBlocks: Int = blocks.length
+  def nBlocks: Int = splitBlock.length
 
   def nRegions: Int = regions.length
 
   def dump(): Unit = {
-    println(s"PST $nBlocks $nRegions:")
+    println(s"PST $nRegions:")
 
     def fmt(i: Int): String =
       s"${ if (i > 0 && splitBlock(i - 1)) "<" else "" }$i${ if (splitBlock(i)) ">" else "" }"

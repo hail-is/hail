@@ -89,24 +89,23 @@ class Classx[C](val name: String, val superName: String) {
     }
 
     for (m <- methods) {
-      if (m.name != "<init>" &&
-        m.approxByteCodeSize() > SplitMethod.TargetMethodSize) {
-
+      if (m.name != "<init>"
+        // && m.approxByteCodeSize() > SplitMethod.TargetMethodSize
+      ) {
         SplitLargeBlocks(m)
 
         val blocks = m.findBlocks()
         val locals = m.findLocals(blocks)
 
-        val pst = {
+        val PSTResult(blocks2, cfg2, pst) = {
           // this cfg is no longer valid after creating pst
           val cfg = CFG(m, blocks)
           PST(m, blocks, cfg)
         }
 
-        val cfg2 = CFG(m, pst.blocks)
-        val liveness = Liveness(pst.blocks, locals, cfg2)
+        val liveness = Liveness(blocks2, locals, cfg2)
 
-        classes += SplitMethod(this, m, pst.blocks, locals, cfg2, liveness, pst)
+        classes += SplitMethod(this, m, blocks2, locals, cfg2, liveness, pst)
 
         // clean up after SplitMethod
         SimplifyControl(m)
@@ -314,6 +313,10 @@ class Method private[lir] (
       x.children.foreach(visitX)
     }
 
+    if (spillsInit != null)
+      visitX(spillsInit)
+    if (spillsReturn != null)
+      visitX(spillsReturn)
     for (b <- blocks) {
       var x = b.first
       while (x != null) {

@@ -468,6 +468,10 @@ class SplitMethod(
         assert(r.start == r.end)
         regionSize(i) = blockSize(blockPartitions.find(r.start))
       }
+      if (pst.loopRegion.get(i) && i != pst.root) {
+        splitSlice(r.start, r.end)
+        regionSize(i) = blockSize(blockPartitions.find(r.start))
+      }
       i += 1
     }
   }
