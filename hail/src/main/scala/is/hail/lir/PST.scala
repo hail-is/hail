@@ -323,16 +323,6 @@ class PSTBuilder(
     findRegions(0, nBlocks - 1)
     val root = addRoot()
 
-    {
-      println("regions:")
-      var i = 0
-      while (i < regions.length) {
-        val r = regions(i)
-        println(s"  $i: ${ r.start } ${ r.end } [${ r.children.mkString(",") }] ${ r.parent }")
-        i += 1
-      }
-    }
-
     val newBlocks = new ArrayBuilder[Block]()
     val newSplitBlock = new ArrayBuilder[Boolean]()
 

@@ -100,16 +100,10 @@ class Classx[C](val name: String, val superName: String) {
         val pst = {
           // this cfg is no longer valid after creating pst
           val cfg = CFG(m, blocks)
-          println("cfg1:")
-          cfg.dump()
           PST(m, blocks, cfg)
         }
 
         val cfg2 = CFG(m, pst.blocks)
-        println("cfg2:")
-        cfg2.dump()
-        pst.dump()
-
         val liveness = Liveness(pst.blocks, locals, cfg2)
 
         classes += SplitMethod(this, m, pst.blocks, locals, cfg2, liveness, pst)
@@ -237,10 +231,12 @@ class Method private[lir] (
           if (L.method == null)
             L.method = this
           else {
+            /*
             if (L.method ne this) {
               println(s"${ L.method } $this")
               // println(b.stack.mkString("\n"))
             }
+             */
             assert(L.method eq this)
           }
 

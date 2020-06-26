@@ -12,8 +12,7 @@ class SplitReturn() extends Exception()
 class SplitUnreachable() extends Exception()
 
 object SplitMethod {
-  // FIXME
-  val TargetMethodSize: Int = 50
+  val TargetMethodSize: Int = 2000
 
   def apply(
     c: Classx[_],
@@ -399,14 +398,9 @@ class SplitMethod(
 
     var size = subr.iterator.map(_.size).sum
 
-    println(s"subr0 $size")
-    println(subr)
-
     var changed = true
     while (changed &&
       size > SplitMethod.TargetMethodSize) {
-      println(s"subr $size")
-      println(subr)
 
       changed = false
 
