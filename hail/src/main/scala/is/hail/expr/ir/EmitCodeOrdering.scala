@@ -278,11 +278,12 @@ class StructEmitCodeOrdering(
 
   def emitCompare(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Int] = {
     val (lhsv, rhsv) = setup(cb, lhs, rhs)
+    val cmp = cb.newLocal(s"struct_compare_result", 0)
 
     fldOrds.zipWithIndex.foreach { case (ord, i) =>
       val lhs = EmitCode.fromI(cb.emb) { cb => lhsv.loadField(cb, i) }
       val rhs = EmitCode.fromI(cb.emb) { cb => rhsv.loadField(cb, i) }
-      val cmp = cb.newLocal(s"cmp_fld_$i", ord.compare(cb, lhs, rhs))
+      cb.assign(cmp, ord.compare(cb, lhs, rhs))
       cb.ifx(cmp.cne(0), {
         cb._return(cmp)
       })
@@ -313,8 +314,11 @@ class StructEmitCodeOrdering(
     val eq = cb.newLocal("eq", true)
 
     fldOrds.zipWithIndex.foreach { case (ord, i) =>
-      val lhs = EmitCode.fromI(cb.emb) { cb => lhsv.loadField(cb, i) }
-      val rhs = EmitCode.fromI(cb.emb) { cb => rhsv.loadField(cb, i) }
+      val lhs = cb.memoize(EmitCode.fromI(cb.emb) { cb => lhsv.loadField(cb, i) },
+        s"fld_lhs_${i}_${ord.ptLhs.asIdent}")
+      val rhs = cb.memoize(EmitCode.fromI(cb.emb) { cb => rhsv.loadField(cb, i) },
+        s"fld_rhs_${i}_${ord.ptRhs.asIdent}")
+
       cb.assign(gt, ord.gt(cb, lhs, rhs))
       cb.assign(eq, !gt && ord.equiv(cb, lhs, rhs))
 
@@ -330,8 +334,11 @@ class StructEmitCodeOrdering(
     val eq = cb.newLocal("eq", true)
 
     fldOrds.zipWithIndex.foreach { case (ord, i) =>
-      val lhs = EmitCode.fromI(cb.emb) { cb => lhsv.loadField(cb, i) }
-      val rhs = EmitCode.fromI(cb.emb) { cb => rhsv.loadField(cb, i) }
+      val lhs = cb.memoize(EmitCode.fromI(cb.emb) { cb => lhsv.loadField(cb, i) },
+        s"fld_lhs_${i}_${ord.ptLhs.asIdent}")
+      val rhs = cb.memoize(EmitCode.fromI(cb.emb) { cb => rhsv.loadField(cb, i) },
+        s"fld_rhs_${i}_${ord.ptRhs.asIdent}")
+
       cb.assign(gteq, ord.gteq(cb, lhs, rhs))
       cb.assign(eq, ord.equiv(cb, lhs, rhs))
 
@@ -347,8 +354,10 @@ class StructEmitCodeOrdering(
     val eq = cb.newLocal("eq", true)
 
     fldOrds.zipWithIndex.foreach { case (ord, i) =>
-      val lhs = EmitCode.fromI(cb.emb) { cb => lhsv.loadField(cb, i) }
-      val rhs = EmitCode.fromI(cb.emb) { cb => rhsv.loadField(cb, i) }
+      val lhs = cb.memoize(EmitCode.fromI(cb.emb) { cb => lhsv.loadField(cb, i) },
+        s"fld_lhs_${i}_${ord.ptLhs.asIdent}")
+      val rhs = cb.memoize(EmitCode.fromI(cb.emb) { cb => rhsv.loadField(cb, i) },
+        s"fld_rhs_${i}_${ord.ptRhs.asIdent}")
 
       cb.assign(lt, ord.lt(cb, lhs, rhs))
       cb.assign(eq, !lt && ord.equiv(cb, lhs, rhs))
@@ -365,8 +374,11 @@ class StructEmitCodeOrdering(
     val eq = cb.newLocal("eq", true)
 
     fldOrds.zipWithIndex.foreach { case (ord, i) =>
-      val lhs = EmitCode.fromI(cb.emb) { cb => lhsv.loadField(cb, i) }
-      val rhs = EmitCode.fromI(cb.emb) { cb => rhsv.loadField(cb, i) }
+      val lhs = cb.memoize(EmitCode.fromI(cb.emb) { cb => lhsv.loadField(cb, i) },
+        s"fld_lhs_${i}_${ord.ptLhs.asIdent}")
+      val rhs = cb.memoize(EmitCode.fromI(cb.emb) { cb => rhsv.loadField(cb, i) },
+        s"fld_rhs_${i}_${ord.ptRhs.asIdent}")
+
       cb.assign(lteq, ord.lteq(cb, lhs, rhs))
       cb.assign(eq, ord.equiv(cb, lhs, rhs))
 
