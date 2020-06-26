@@ -353,7 +353,7 @@ class ServiceBackend(Backend):
         n_jobs_submitted = 0
         used_remote_tmpdir = False
 
-        job_to_client_job_mapping: Dict[Job, bc.Job] = {}
+        job_to_client_job_mapping: Dict['Job', bc.Job] = {}
         jobs_to_command = {}
         commands = []
 
