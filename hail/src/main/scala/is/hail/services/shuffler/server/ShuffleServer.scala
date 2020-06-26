@@ -9,6 +9,7 @@ import is.hail.expr.ir._
 import is.hail.types.encoded._
 import is.hail.types.virtual._
 import is.hail.io._
+import is.hail.services.tls._
 import is.hail.services.shuffler._
 import is.hail.utils._
 import javax.net.ssl._
@@ -208,39 +209,13 @@ class Shuffle (
 }
 
 object ShuffleServer {
-  def main(args: Array[String]): Unit = {
-    if (args.length != 7) {
-      System.err.println(
-        """USAGE: java -jar /path/to/hail.jar is.hail.shuffler.server.ShuffleServer \\
-          |            KEYSTORE KEYSTORE_PASSWORD KEYSTORE_TYPE \\
-          |            TRUSTSTORE TRUSTSTORE_PASSWORD TRUSTSTORE_TYPE \\
-          |            PORT""".stripMargin)
-      System.exit(1)
-    }
-
-    val Array(
-      keystore, keystorePassword, keystoreType,
-      truststore, truststorePassword, truststoreType,
-      port) = args
-
-    val server = new ShuffleServer(sslContext(
-      keystore,
-      keystorePassword,
-      keystoreType,
-      truststore,
-      truststorePassword,
-      truststoreType
-    ),
-      port.toInt)
-
-    using(server)(_.serve())
-  }
+  def main(args: Array[String]): Unit =
+    using(new ShuffleServer())(_.serve())
 }
 
-class ShuffleServer (
-  ssl: SSLContext,
-  port: Int
-) extends AutoCloseable {
+class ShuffleServer () extends AutoCloseable {
+  val ssl = getSSLContext
+  val port = 443
   val log = Logger.getLogger(this.getClass.getName());
 
   val shuffles = new ConcurrentSkipListMap[Array[Byte], Shuffle](new SameLengthByteArrayComparator())
