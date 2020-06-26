@@ -26,7 +26,7 @@ spec:
            - "java"
            - "-cp"
            - "'/spark-2.4.0-bin-hadoop2.7/jars/*:/hail.jar'"
-           - "is.hail.services.shuffler.ShuffleServer"
+           - "is.hail.services.shuffler.server.ShuffleServer"
           env:
            - name: HAIL_DOMAIN
              value: "{{ global.domain }}"
