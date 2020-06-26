@@ -1,4 +1,4 @@
-package is.hail.shuffler
+package is.hail.services.shuffler
 
 import is.hail.asm4s._
 import org.apache.log4j.Logger;
@@ -8,8 +8,8 @@ import is.hail.types.virtual._
 import is.hail.types.physical._
 import is.hail.types.encoded._
 import is.hail.expr.ir.ArrayZipBehavior._
-import is.hail.shuffler.server._
-import is.hail.shuffler.ShufflerTestUtils._
+import is.hail.services.shuffler.server._
+import is.hail.services.shuffler.ShufflerTestUtils._
 import is.hail.io._
 import is.hail.utils._
 import is.hail._
@@ -46,17 +46,7 @@ class ShuffleSuite extends HailSuite {
       val rowEType = EType.defaultFromPType(rowPType).asInstanceOf[EBaseStruct]
       val keyEType = EType.defaultFromPType(keyPType).asInstanceOf[EBaseStruct]
       val shuffleType = TShuffle(keyFields, rowType, rowEType, keyEType)
-      using(new ShuffleClient(
-        shuffleType,
-        sslContext(
-          "src/test/resources/non-secret-key-and-trust-stores/client-keystore.p12",
-          "hailhail",
-          "PKCS12",
-          "src/test/resources/non-secret-key-and-trust-stores/client-truststore.p12",
-          "hailhail",
-          "JKS"),
-        "localhost",
-        8080)) { c =>
+      using(new ShuffleClient(shuffleType)) { c =>
         val rowDecodedPType = c.codecs.rowDecodedPType
 
         val values = new ArrayBuilder[Long]()

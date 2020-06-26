@@ -16,38 +16,18 @@ import org.apache.log4j.Logger
 object ShuffleClient {
   private[this] val log = Logger.getLogger(getClass.getName())
 
-  lazy val sslContext = {
-    val keyStore = System.getenv("SHUFFLER_SSL_CLIENT_KEY_STORE")
-    val trustStore = System.getenv("SHUFFLER_SSL_CLIENT_TRUST_STORE")
-    if (keyStore == null && trustStore != null ||
-      trustStore == null && keyStore != null) {
-      fatal("you must specify both or neither of the hail context flags: " +
-        "shuffler_ssl_client_key_store and shuffler_ssl_client_trust_store")
-    }
-    if (keyStore == null) {
-      is.hail.shuffler.sslContext(
-        getClass.getResourceAsStream("/non-secret-key-and-trust-stores/client-keystore.p12"),
-        "hailhail",
-        "PKCS12",
-        getClass.getResourceAsStream("/non-secret-key-and-trust-stores/client-truststore.p12"),
-        "hailhail",
-        "JKS"
-      )
-    } else {
-      is.hail.shuffler.sslContext(keyStore, "", "PKCS12", trustStore, "", "PKCS12")
-    }
-  }
+  lazy val sslContext = is.hail.services.shuffler.sslContext(
+    getClass.getResourceAsStream("/non-secret-key-and-trust-stores/client-keystore.p12"),
+    "hailhail",
+    "PKCS12",
+    getClass.getResourceAsStream("/non-secret-key-and-trust-stores/client-truststore.p12"),
+    "hailhail",
+    "JKS"
+  )
 
   def socket(): Socket = {
-    var host = System.getenv("SHUFFLER_SSL_CLIENT_HOST")
-    if (host == null) {
-      host = "localhost"
-    }
-    var portStr = System.getenv("SHUFFLER_SSL_CLIENT_PORT")
-    if (portStr == null) {
-      portStr = "8080"
-    }
-    val port = java.lang.Integer.valueOf(portStr)
+    val host = "localhost"
+    val port = 8080
     socket(host, port)
   }
 
