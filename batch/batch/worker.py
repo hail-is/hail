@@ -476,15 +476,19 @@ def populate_secret_host_path(host_path, secret_data):
                 f.write(base64.b64decode(data))
 
 
-async def add_gcsfuse_bucket(mount_path, bucket, key_file):
+async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
     os.makedirs(mount_path)
+    options = ['allow_other']
+    if read_only:
+        options.append('ro')
+
     delay = 0.1
     error = 0
     while True:
         try:
             return await check_shell(f'''
 /usr/bin/gcsfuse \
-    -o allow_other \
+    -o {",".join(options)} \
     --file-mode 770 \
     --dir-mode 770 \
     --key-file {key_file} \
@@ -683,7 +687,8 @@ class Job:
                         bucket = b['bucket']
                         await add_gcsfuse_bucket(mount_path=self.gcsfuse_path(bucket),
                                                  bucket=bucket,
-                                                 key_file=f'{self.gsa_key_file_path()}/key.json')
+                                                 key_file=f'{self.gsa_key_file_path()}/key.json',
+                                                 read_only=b['read_only'])
 
                 self.state = 'running'
 
