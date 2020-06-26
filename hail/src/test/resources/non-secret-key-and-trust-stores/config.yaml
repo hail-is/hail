@@ -1,7 +1,0 @@
-principals:
-- name: services-java-client-tests
-  domain: services-java-client-tests
-  kind: json
-- name: services-java-server-tests
-  domain: localhost
-  kind: json
