@@ -667,18 +667,11 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case BlockMatrixToValueApply(child, GetElement(_)) => // BlockMatrix elements are all required
       case BlockMatrixCollect(child) =>  // BlockMatrix elements are all required
       case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
-        assert(lookup(writer).required)
         requiredness.unionFrom(lookup(readers))
       case ShuffleWrite(id, rows) => // required
-        assert(lookup(id).required)
-        assert(lookup(rows).required)
       case ShufflePartitionBounds(id, nPartitions) =>
-        assert(lookup(id).required)
-        assert(lookup(nPartitions).required)
         coerce[RIterable](requiredness).elementType.fromPType(coerce[TShuffle](id.typ).keyDecodedPType)
       case ShuffleRead(id, keyRange) =>
-        assert(lookup(id).required)
-        assert(lookup(keyRange).required)
         coerce[RIterable](requiredness).elementType.fromPType(coerce[TShuffle](id.typ).rowDecodedPType)
     }
     requiredness.probeChangedAndReset()

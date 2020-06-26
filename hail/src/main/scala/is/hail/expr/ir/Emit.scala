@@ -1021,7 +1021,7 @@ class Emit[C](
         cb.append(socket.close())
         cb.append(log.info("put done"))
         // FIXME: server needs to send uuid for the successful partition
-        presentC(PCanonicalBinary(false).allocate(region, 0))
+        presentC(PCanonicalBinary(true).allocate(region, 0))
 
       case _ =>
         emitFallback(ir)
