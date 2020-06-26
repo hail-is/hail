@@ -1,5 +1,7 @@
 package is.hail.services.shuffler
 
+import java.io._
+
 import is.hail.asm4s._
 import org.apache.log4j.Logger;
 import is.hail.annotations._
@@ -27,7 +29,7 @@ class ShuffleSuite extends HailSuite {
     array.map(new UnsafeRow(elementPType, null, _)).toArray
 
   private[this] val serverSSLContext = {
-    if (!new File("/ssl-config-server/ssl-config.json").isFile) {
+    if (new File("/ssl-config-server/ssl-config.json").isFile) {
       sslContextFromFile("/ssl-config-server/ssl-config.json")
     } else {
       sslContextFromFile("src/test/resources/non-secret-key-and-trust-stores/ssl-config-server.json")
@@ -35,7 +37,7 @@ class ShuffleSuite extends HailSuite {
   }
 
   private[this] val clientSSLContext = {
-    if (!new File("/ssl-config/ssl-config.json").isFile) {
+    if (new File("/ssl-config-server/ssl-config.json").isFile) {
       sslContextFromFile("/ssl-config/ssl-config.json")
     } else {
       sslContextFromFile("src/test/resources/non-secret-key-and-trust-stores/ssl-config.json")
