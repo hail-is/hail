@@ -1,6 +1,5 @@
 package is.hail
 
-import is.hail.services.ClientResponseException
 import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
 

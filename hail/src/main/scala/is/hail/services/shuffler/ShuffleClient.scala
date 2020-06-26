@@ -154,15 +154,12 @@ class ShuffleClient (
 
   val codecs = new ShuffleCodecSpec(ctx, shuffleType, rowEncodingPType, keyEncodingPType)
 
-  private[this] var s: Socket = null
-  private[this] var in: InputBuffer = null
-  private[this] var out: OutputBuffer = null
+  private[this] val s = ShuffleClient.socket()
+  private[this] val in = shuffleBufferSpec.buildInputBuffer(s.getInputStream())
+  private[this] val out = shuffleBufferSpec.buildOutputBuffer(s.getOutputStream())
 
   private[this] def startOperation(op: Byte) = {
     assert(op != Wire.EOS)
-    s = ShuffleClient.socket()
-    in = shuffleBufferSpec.buildInputBuffer(s.getInputStream())
-    out = shuffleBufferSpec.buildOutputBuffer(s.getOutputStream())
     out.writeByte(op)
     if (op != Wire.START) {
       assert(uuid != null)
