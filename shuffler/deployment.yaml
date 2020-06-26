@@ -23,9 +23,10 @@ spec:
         - name: shuffler
           image: "{{ shuffler_image.image }}"
           command:
-           - /bin/bash
-           - -c
-           - "./start-shuffler.sh"
+           - "java"
+           - "-cp"
+           - "'/spark-2.4.0-bin-hadoop2.7/jars/*:/hail.jar'"
+           - "is.hail.services.shuffler.ShuffleServer"
           env:
            - name: HAIL_DOMAIN
              value: "{{ global.domain }}"

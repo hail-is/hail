@@ -8,5 +8,5 @@ from hailtop.utils import request_retry_transient_errors
 async def test_connect_to_address_on_pod_ip():
     async with ssl_client_session(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-        ips = await get_deploy_config().ips('address')
-        await request_retry_transient_errors(session, 'GET', f'https://{ips[0]}/')
+        address = await get_deploy_config().address('address')
+        await request_retry_transient_errors(session, 'GET', f'https://{address}/')

@@ -6,7 +6,6 @@ RUN apt-get update && \
   && rm -rf /var/lib/apt/lists/* && \
   sed -i 's/^RANDFILE/#RANDFILE/' /etc/ssl/openssl.cnf
 
-COPY start-shuffler.sh /
 COPY hail.jar /
 
 EXPOSE 5000
