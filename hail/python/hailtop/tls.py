@@ -13,10 +13,6 @@ server_ssl_context = None
 client_ssl_context = None
 
 
-SSL_CONFIG_KEYS = ('cert', 'key', 'key_store', 'outgoing_trust', 'outgoing_trust_store',
-                   'incoming_trust', 'incoming_trust_store')
-
-
 class NoSSLConfigFound(Exception):
     pass
 
@@ -85,9 +81,9 @@ def ssl_requests_client_session(*args, **kwargs):
 
 
 def check_ssl_config(ssl_config):
-    for key in SSL_CONFIG_KEYS:
+    for key in ('cert', 'key', 'outgoing_trust', 'incoming_trust'):
         assert ssl_config.get(key) is not None, key
-    for key in SSL_CONFIG_KEYS:
+    for key in ('cert', 'key', 'outgoing_trust', 'incoming_trust'):
         if not os.path.isfile(ssl_config[key]):
             raise ValueError(f'specified {key}, {ssl_config[key]} does not exist')
     log.info(f'using tls and verifying client and server certificates')
