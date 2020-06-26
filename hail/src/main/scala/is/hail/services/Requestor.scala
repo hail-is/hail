@@ -16,6 +16,15 @@ import org.json4s.jackson.JsonMethods
 
 import scala.util.Random
 
+class ClientResponseException(
+  val status: Int,
+  message: String,
+  cause: Throwable
+) extends Exception(message, cause) {
+  def this(statusCode: Int) = this(statusCode, null, null)
+
+  def this(statusCode: Int, message: String) = this(statusCode, message, null)
+}
 
 object Requestor {
   lazy val log: Logger = LogManager.getLogger("BatchClient")
@@ -27,7 +36,6 @@ object Requestor {
       .build()
   }
 }
-
 
 class Requestor(
   tokens: Tokens

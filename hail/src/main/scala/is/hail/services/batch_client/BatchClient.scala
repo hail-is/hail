@@ -23,16 +23,6 @@ class NoBodyException(message: String, cause: Throwable) extends Exception(messa
   def this(message: String) = this(message, null)
 }
 
-class ClientResponseException(
-  val status: Int,
-  message: String,
-  cause: Throwable
-) extends Exception(message, cause) {
-  def this(statusCode: Int) = this(statusCode, null, null)
-
-  def this(statusCode: Int, message: String) = this(statusCode, message, null)
-}
-
 object BatchClient {
   lazy val log: Logger = LogManager.getLogger("BatchClient")
 

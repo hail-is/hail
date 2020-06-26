@@ -1,4 +1,5 @@
 import aiohttp
+import random
 import os
 import json
 import logging
@@ -108,13 +109,19 @@ class DeployConfig:
 
         return root_app
 
-    async def ips(self, service):
+    async def addresses(self, service):
         namespace = self.service_ns(service)
         async with ssl_client_session(
                 raise_for_status=True,
                 timeout=aiohttp.ClientTimeout(total=5)) as session:
             return json.loads(await session.get(
                 self.url('address', f'/api/{namespace}/{service}')))
+
+    async def address(self, service):
+        service_addresses = self.addresses(service)
+        n = len(service_addresses)
+        assert n > 0
+        return service_addresses[random.randrange(0, n)]
 
 
 deploy_config = None

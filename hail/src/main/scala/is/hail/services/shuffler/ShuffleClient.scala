@@ -18,23 +18,17 @@ import org.apache.log4j.Logger
 object ShuffleClient {
   private[this] val log = Logger.getLogger(getClass.getName())
 
-  lazy val sslContext = is.hail.services.shuffler.sslContext(
-    getClass.getResourceAsStream("/non-secret-key-and-trust-stores/client-keystore.p12"),
-    "hailhail",
-    "PKCS12",
-    getClass.getResourceAsStream("/non-secret-key-and-trust-stores/client-truststore.p12"),
-    "hailhail",
-    "JKS"
-  )
-
-  def socket(): Socket = {
-    val host = "localhost"
-    val port = 8080
-    socket(host, port)
+  if (DeployConfig.get.location != "gce") {
+    throw new IllegalArgumentException("Shuffler only works within GCE.")
   }
 
+  val (host, port) = DeployConfig.get.address("shuffler")
+
+  def socket(): Socket = socket(host, port)
+
   def socket(host: String, port: Int): Socket = {
-    val s = sslContext.getSocketFactory().createSocket(host, port)
+    val (host, port) = DeployConfig.get.address("shuffler")
+    val s = getSSLContext.getSocketFactory().createSocket(host, port)
     log.info(s"connected to ${host}:${port} (socket())")
     s
   }
@@ -160,12 +154,15 @@ class ShuffleClient (
 
   val codecs = new ShuffleCodecSpec(ctx, shuffleType, rowEncodingPType, keyEncodingPType)
 
-  private[this] val s = ShuffleClient.socket()
-  private[this] val in = shuffleBufferSpec.buildInputBuffer(s.getInputStream())
-  private[this] val out = shuffleBufferSpec.buildOutputBuffer(s.getOutputStream())
+  private[this] var s: Socket = null
+  private[this] var in: InputBuffer = null
+  private[this] var out: OutputBuffer = null
 
   private[this] def startOperation(op: Byte) = {
     assert(op != Wire.EOS)
+    s = ShuffleClient.socket()
+    in = shuffleBufferSpec.buildInputBuffer(s.getInputStream())
+    out = shuffleBufferSpec.buildOutputBuffer(s.getOutputStream())
     out.writeByte(op)
     if (op != Wire.START) {
       assert(uuid != null)
@@ -193,8 +190,8 @@ class ShuffleClient (
   def startPut(): Unit = {
     log.info(s"put")
     startOperation(Wire.PUT)
-    out.flush()
     encoder = codecs.makeRowEncoder(out)
+    out.flush()
   }
 
   def put(values: Array[Long]): Unit = {
