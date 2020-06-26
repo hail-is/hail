@@ -207,28 +207,6 @@ class Shuffle (
   }
 }
 
-object ShuffleServer {
-  def main(args: Array[String]): Unit = {
-    if (args.length != 5) {
-      System.err.println(
-        "USAGE: java -jar /path/to/hail.jar is.hail.shuffler.server.ShuffleServer KEYSTORE KEYSTORE_PASSWORD TRUSTSTORE TRUSTSTORE_PASSWORD PORT")
-      System.exit(1)
-    }
-
-    val server = new ShuffleServer(sslContext(
-      args(0),
-      args(1),
-      "PKCS12",
-      args(2),
-      args(3),
-      "PKCS12"
-    ),
-      args(2).toInt)
-
-    using(server)(_.serve())
-  }
-}
-
 class ShuffleServer (
   ssl: SSLContext,
   port: Int
