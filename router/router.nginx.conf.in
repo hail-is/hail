@@ -248,18 +248,6 @@ server {
 }
 
 server {
-    server_name shuffler.*;
-
-    location / {
-        proxy_pass https://shuffler/;
-        include /etc/nginx/proxy.conf;
-    }
-
-    listen 443 ssl;
-    listen [::]:443 ssl;
-}
-
-server {
     server_name blog.*;
     client_max_body_size 8m;
 
