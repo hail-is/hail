@@ -1412,14 +1412,10 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /deploy-config
-    - name: ssl-config-services-java-client-tests
+    - name: ssl-config-services-java-tests
       namespace:
         valueFrom: default_ns.name
       mountPath: /ssl-config
-    - name: ssl-config-services-java-server-tests
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /ssl-config-server
    dependsOn:
     - default_ns
     - batch_pods_ns
