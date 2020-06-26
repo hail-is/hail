@@ -1,3 +1,4 @@
+from typing import List, Tuple
 import aiohttp
 import random
 import os
@@ -109,7 +110,7 @@ class DeployConfig:
 
         return root_app
 
-    async def addresses(self, service):
+    async def addresses(self, service: str) -> List[Tuple[str, int]]:
         namespace = self.service_ns(service)
         async with ssl_client_session(
                 raise_for_status=True,
@@ -117,8 +118,8 @@ class DeployConfig:
             return json.loads(await session.get(
                 self.url('address', f'/api/{namespace}/{service}')))
 
-    async def address(self, service):
-        service_addresses = self.addresses(service)
+    async def address(self, service: str) -> Tuple[str, int]:
+        service_addresses = await self.addresses(service)
         n = len(service_addresses)
         assert n > 0
         return service_addresses[random.randrange(0, n)]

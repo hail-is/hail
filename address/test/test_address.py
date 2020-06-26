@@ -4,6 +4,7 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import ssl_client_session
 from hailtop.utils import request_retry_transient_errors
 
+
 @pytest.mark.asyncio
 async def test_connect_to_address_on_pod_ip():
     async with ssl_client_session(
