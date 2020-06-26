@@ -26,8 +26,24 @@ class ShuffleSuite extends HailSuite {
   private[this] def arrayOfUnsafeRow(elementPType: PStruct, array: Array[Long]): Array[UnsafeRow] =
     array.map(new UnsafeRow(elementPType, null, _)).toArray
 
+  private[this] val serverSSLContext = {
+    if (!new File("/ssl-config-server/ssl-config.json").isFile) {
+      sslContextFromFile("/ssl-config-server/ssl-config.json")
+    } else {
+      sslContextFromFile("src/test/resources/non-secret-key-and-trust-stores/ssl-config-server.json")
+    }
+  }
+
+  private[this] val clientSSLContext = {
+    if (!new File("/ssl-config/ssl-config.json").isFile) {
+      sslContextFromFile("/ssl-config/ssl-config.json")
+    } else {
+      sslContextFromFile("src/test/resources/non-secret-key-and-trust-stores/ssl-config.json")
+    }
+  }
+
   @Test def testShuffle() {
-    var server = new ShuffleServer(sslContextFromFile("/ssl-config-server/ssl-config.json"), 8080)
+    var server = new ShuffleServer(serverSSLContext, 8080)
     server.serveInBackground()
     try {
       val rowPType = PCanonicalStruct("x" -> PInt32())
@@ -41,7 +57,7 @@ class ShuffleSuite extends HailSuite {
       val shuffleType = TShuffle(keyFields, rowType, rowEType, keyEType)
       using(new ShuffleClient(
         shuffleType,
-        getSSLContext,
+        clientSSLContext,
         "localhost",
         8080)) { c =>
         val rowDecodedPType = c.codecs.rowDecodedPType
@@ -122,7 +138,7 @@ class ShuffleSuite extends HailSuite {
   }
 
   @Test def testShuffleIR() {
-    var server = new ShuffleServer(sslContextFromFile("/ssl-config-server/ssl-config.json"), 8080)
+    var server = new ShuffleServer(serverSSLContext, 8080)
     server.serveInBackground()
     try {
       val rowPType = PCanonicalStruct("x" -> PInt32())
