@@ -4,7 +4,6 @@ import yaml
 import shutil
 import subprocess as sp
 import tempfile
-import os
 
 parser = argparse.ArgumentParser(prog='create_certs.py',
                                  description='create hail certs')
@@ -12,41 +11,13 @@ parser.add_argument('namespace', type=str, help='kubernetes namespace')
 parser.add_argument('config_file', type=str, help='YAML format config file')
 parser.add_argument('root_key_file', type=str, help='the root key file')
 parser.add_argument('root_cert_file', type=str, help='the root cert file')
-parser.add_argument('--create-k8s-secrets', dest="create_k8s_secrets", help='do not create the k8s secrets', action='store_true')
-parser.add_argument('--no-create-k8s-secrets', dest="create_k8s_secrets", help='do not create the k8s secrets', action='store_false')
-parser.add_argument('--root-path', type=str, help='root path for secret files; a python format string with one variable in scope: principal')
-parser.set_defaults(create_k8s_secrets=True, root_path='/ssl-config')
 
 args = parser.parse_args()
 namespace = args.namespace
 with open(args.config_file) as f:
     arg_config = yaml.safe_load(f)
-root_key_file = os.path.abspath(args.root_key_file)
-root_cert_file = os.path.abspath(args.root_cert_file)
-create_k8s_secrets = args.create_k8s_secrets
-_root_path = args.root_path.rstrip('/')
-
-
-def root_path(principal):
-    return _root_path.format(principal=principal)
-
-
-class WorkingDirectoryContext:
-    def __init__(self, path):
-        self.path = path
-        self.oldpath = None
-
-    def __enter__(self):
-        self.oldpath = os.getcwd()
-        os.makedirs(self.path, exist_ok=True)
-        os.chdir(self.path)
-
-    def __exit__(self, exc_type, value, traceback):
-        os.chdir(self.oldpath)
-
-
-def cd(path):
-    return WorkingDirectoryContext(path)
+root_key_file = args.root_key_file
+root_cert_file = args.root_cert_file
 
 
 def echo_check_call(cmd):
@@ -55,14 +26,15 @@ def echo_check_call(cmd):
 
 
 def create_key_and_cert(p):
+    name = p['name']
     domain = p['domain']
     unmanaged = p.get('unmanaged', False)
     if unmanaged and namespace != 'default':
         return
-    key_file = f'key.pem'
-    csr_file = f'csr.csr'
-    cert_file = f'cert.pem'
-    key_store_file = f'key-store.p12'
+    key_file = f'{name}-key.pem'
+    csr_file = f'{name}-csr.csr'
+    cert_file = f'{name}-cert.pem'
+    key_store_file = f'{name}-key-store.p12'
     names = [
         domain,
         f'{domain}.{namespace}',
@@ -106,16 +78,16 @@ def create_key_and_cert(p):
         '-export',
         '-inkey', key_file,
         '-in', cert_file,
-        '-name', f'key-store',
+        '-name', f'{name}-key-store',
         '-out', key_store_file,
         '-passout', 'pass:dummypw'
     ])
     return {'key': key_file, 'cert': cert_file, 'key_store': key_store_file}
 
 
-def create_trust(trust_type):  # pylint: disable=unused-argument
-    trust_file = f'{trust_type}.pem'
-    trust_store_file = f'{trust_type}-store.jks'
+def create_trust(principal, trust_type):  # pylint: disable=unused-argument
+    trust_file = f'{principal}-{trust_type}.pem'
+    trust_store_file = f'{principal}-{trust_type}-store.jks'
     with open(trust_file, 'w') as out:
         # FIXME: mTLS, only trust certain principals
         with open(root_cert_file, 'r') as root_cert:
@@ -132,15 +104,15 @@ def create_trust(trust_type):  # pylint: disable=unused-argument
     return {'trust': trust_file, 'trust_store': trust_store_file}
 
 
-def create_json_config(root, incoming_trust, outgoing_trust, key, cert, key_store):
+def create_json_config(principal, incoming_trust, outgoing_trust, key, cert, key_store):
     principal_config = {
-        'outgoing_trust': f'{root}/{outgoing_trust["trust"]}',
-        'outgoing_trust_store': f'{root}/{outgoing_trust["trust_store"]}',
-        'incoming_trust': f'{root}/{incoming_trust["trust"]}',
-        'incoming_trust_store': f'{root}/{incoming_trust["trust_store"]}',
-        'key': f'{root}/{key}',
-        'cert': f'{root}/{cert}',
-        'key_store': f'{root}/{key_store}'
+        'outgoing_trust': f'/ssl-config/{outgoing_trust["trust"]}',
+        'outgoing_trust_store': f'/ssl-config/{outgoing_trust["trust_store"]}',
+        'incoming_trust': f'/ssl-config/{incoming_trust["trust"]}',
+        'incoming_trust_store': f'/ssl-config/{incoming_trust["trust_store"]}',
+        'key': f'/ssl-config/{key}',
+        'cert': f'/ssl-config/{cert}',
+        'key_store': f'/ssl-config/{key_store}'
     }
     config_file = 'ssl-config.json'
     with open(config_file, 'w') as out:
@@ -148,53 +120,50 @@ def create_json_config(root, incoming_trust, outgoing_trust, key, cert, key_stor
         return [config_file]
 
 
-def create_nginx_config(root, incoming_trust, outgoing_trust, key, cert):
+def create_nginx_config(principal, incoming_trust, outgoing_trust, key, cert):
     http_config_file = 'ssl-config-http.conf'
     proxy_config_file = 'ssl-config-proxy.conf'
     with open(proxy_config_file, 'w') as proxy, open(http_config_file, 'w') as http:
-        proxy.write(f'proxy_ssl_certificate         {root}/{cert};\n')
-        proxy.write(f'proxy_ssl_certificate_key     {root}/{key};\n')
-        proxy.write(f'proxy_ssl_trusted_certificate {root}/{outgoing_trust["trust"]};\n')
+        proxy.write(f'proxy_ssl_certificate         /ssl-config/{cert};\n')
+        proxy.write(f'proxy_ssl_certificate_key     /ssl-config/{key};\n')
+        proxy.write(f'proxy_ssl_trusted_certificate /ssl-config/{outgoing_trust["trust"]};\n')
         proxy.write('proxy_ssl_verify              on;\n')
         proxy.write('proxy_ssl_verify_depth        1;\n')
         proxy.write('proxy_ssl_session_reuse       on;\n')
 
-        http.write(f'ssl_certificate {root}/{cert};\n')
-        http.write(f'ssl_certificate_key {root}/{key};\n')
-        http.write(f'ssl_client_certificate {root}/{incoming_trust["trust"]};\n')
+        http.write(f'ssl_certificate /ssl-config/{cert};\n')
+        http.write(f'ssl_certificate_key /ssl-config/{key};\n')
+        http.write(f'ssl_client_certificate /ssl-config/{incoming_trust["trust"]};\n')
         http.write('ssl_verify_client optional;\n')
         # FIXME: mTLS
         # http.write('ssl_verify_client on;\n')
     return [http_config_file, proxy_config_file]
 
 
-def create_curl_config(root, incoming_trust, outgoing_trust, key, cert):
+def create_curl_config(principal, incoming_trust, outgoing_trust, key, cert):
     config_file = 'ssl-config.curlrc'
     with open(config_file, 'w') as out:
-        out.write(f'key       {root}/{key}\n')
-        out.write(f'cert      {root}/{cert}\n')
-        out.write(f'cacert    {root}/{outgoing_trust["trust"]}\n')
+        out.write(f'key       /ssl-config/{key}\n')
+        out.write(f'cert      /ssl-config/{cert}\n')
+        out.write(f'cacert    /ssl-config/{outgoing_trust["trust"]}\n')
     return [config_file]
 
 
-def create_config(root, incoming_trust, outgoing_trust, key, cert, key_store, kind):
+def create_config(principal, incoming_trust, outgoing_trust, key, cert, key_store, kind):
     if kind == 'json':
-        return create_json_config(root, incoming_trust, outgoing_trust, key, cert, key_store)
+        return create_json_config(principal, incoming_trust, outgoing_trust, key, cert, key_store)
     if kind == 'curl':
-        return create_curl_config(root, incoming_trust, outgoing_trust, key, cert)
+        return create_curl_config(principal, incoming_trust, outgoing_trust, key, cert)
     assert kind == 'nginx'
-    return create_nginx_config(root, incoming_trust, outgoing_trust, key, cert)
+    return create_nginx_config(principal, incoming_trust, outgoing_trust, key, cert)
 
 
 def create_principal(principal, domain, kind, key, cert, key_store, unmanaged):
     if unmanaged and namespace != 'default':
         return
-    root = root_path(principal)
-    incoming_trust = create_trust('incoming')
-    outgoing_trust = create_trust('outgoing')
-    configs = create_config(root, incoming_trust, outgoing_trust, key, cert, key_store, kind)
-    if not create_k8s_secrets:
-        return
+    incoming_trust = create_trust(principal, 'incoming')
+    outgoing_trust = create_trust(principal, 'outgoing')
+    configs = create_config(principal, incoming_trust, outgoing_trust, key, cert, key_store, kind)
     with tempfile.NamedTemporaryFile() as k8s_secret:
         sp.check_call(
             ['kubectl', 'create', 'secret', 'generic', f'ssl-config-{principal}',
@@ -214,17 +183,16 @@ def create_principal(principal, domain, kind, key, cert, key_store, unmanaged):
 
 assert 'principals' in arg_config, arg_config
 
-principal_by_name = dict()
-for p in arg_config['principals']:
-    name = p['name']
-    with cd(name):
-        principal_by_name[name] = {**p, **create_key_and_cert(p)}
+principal_by_name = {
+    p['name']: {**p,
+                **create_key_and_cert(p)}
+    for p in arg_config['principals']
+}
 for name, p in principal_by_name.items():
-    with cd(name):
-        create_principal(name,
-                         p['domain'],
-                         p['kind'],
-                         p['key'],
-                         p['cert'],
-                         p['key_store'],
-                         p.get('unmanaged', False))
+    create_principal(name,
+                     p['domain'],
+                     p['kind'],
+                     p['key'],
+                     p['cert'],
+                     p['key_store'],
+                     p.get('unmanaged', False))
