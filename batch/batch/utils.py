@@ -89,6 +89,10 @@ def parse_memory_in_bytes(memory_string):
     return None
 
 
+def parse_storage_in_bytes(storage_string):
+    return parse_memory_in_bytes(storage_string)
+
+
 def worker_memory_per_core_gb(worker_type):
     if worker_type == 'standard':
         m = 3.75
@@ -115,6 +119,29 @@ def cores_mcpu_to_memory_bytes(cores_in_mcpu, worker_type):
 
 def adjust_cores_for_memory_request(cores_in_mcpu, memory_in_bytes, worker_type):
     min_cores_mcpu = memory_bytes_to_cores_mcpu(memory_in_bytes, worker_type)
+    return max(cores_in_mcpu, min_cores_mcpu)
+
+
+def total_worker_storage():
+    # local ssd is 375Gi
+    # reserve 25Gi for images
+    return 375 - 25
+
+
+def worker_storage_per_core_bytes(worker_cores):
+    return (total_worker_storage() * 1024**3) // worker_cores
+
+
+def storage_bytes_to_cores_mcpu(storage_in_bytes, worker_cores):
+    return math.ceil((storage_in_bytes / worker_storage_per_core_bytes(worker_cores)) * 1000)
+
+
+def cores_mcpu_to_storage_bytes(cores_in_mcpu, worker_cores):
+    return int((cores_in_mcpu / 1000) * worker_storage_per_core_bytes(worker_cores))
+
+
+def adjust_cores_for_storage_request(cores_in_mcpu, storage_in_bytes, worker_cores):
+    min_cores_mcpu = storage_bytes_to_cores_mcpu(storage_in_bytes, worker_cores)
     return max(cores_in_mcpu, min_cores_mcpu)
 
 

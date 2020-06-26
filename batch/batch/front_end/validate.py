@@ -17,10 +17,11 @@ import re
 #   'output_files': [{"from": str, "to": str}],
 #   'parent_ids': [int],
 #   'port': int,
-#   'pvc_size': str,
+#   'pvc_size': str
 #   'resoures': {
 #     'memory': str,
-#     'cpu': str
+#     'cpu': str,
+#     'storage': str
 #   },
 #   'secrets': [{
 #     'namespace': str,
@@ -42,7 +43,7 @@ ENV_VAR_KEYS = {'name', 'value'}
 
 SECRET_KEYS = {'namespace', 'name', 'mount_path'}
 
-RESOURCES_KEYS = {'memory', 'cpu'}
+RESOURCES_KEYS = {'memory', 'cpu', 'storage'}
 
 FILE_KEYS = {'from', 'to'}
 
@@ -238,6 +239,7 @@ def validate_job(i, job):
         if not isinstance(port, int):
             raise ValidationError(f'jobs[{i}].port not int')
 
+    # pvc_size is deprecated in favor of resources[storage]
     if 'pvc_size' in job:
         pvc_size = job['pvc_size']
         if not isinstance(pvc_size, str):
@@ -266,6 +268,13 @@ def validate_job(i, job):
                 raise ValidationError(f'jobs[{i}].resources.cpu is not str')
             if not CPU_REGEX.fullmatch(cpu):
                 raise ValidationError(f'jobs[{i}].resources.cpu must match regex: {CPU_REGEXPAT}')
+
+        if 'storage' in resources:
+            storage = resources['storage']
+            if not isinstance(storage, str):
+                raise ValidationError(f'jobs[{i}].resources.storage is not str')
+            if not MEMORY_REGEX.fullmatch(storage):
+                raise ValidationError(f'jobs[{i}].resources.storage must match regex: {MEMORY_REGEXPAT}')
 
     if 'secrets' in job:
         secrets = job['secrets']

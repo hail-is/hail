@@ -184,6 +184,8 @@ spec:
            value: "0.1"
          - name: HAIL_BATCH_JOB_DEFAULT_MEMORY
            value: "375M"
+         - name: HAIL_BATCH_JOB_DEFAULT_STORAGE
+           value: "1G"
 {% endif %}
 {% if deploy %}
          - name: HAIL_BATCH_BUCKET_NAME
