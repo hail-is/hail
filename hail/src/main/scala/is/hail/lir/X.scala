@@ -107,6 +107,9 @@ class Classx[C](val name: String, val superName: String) {
         val liveness = Liveness(pst.blocks, locals, cfg2)
 
         classes += SplitMethod(this, m, pst.blocks, locals, cfg2, liveness, pst)
+
+        // clean up after SplitMethod
+        SimplifyControl(m)
       }
     }
 

@@ -12,7 +12,7 @@ class SplitReturn() extends Exception()
 class SplitUnreachable() extends Exception()
 
 object SplitMethod {
-  val TargetMethodSize: Int = 2000
+  val TargetMethodSize: Int = 500
 
   def apply(
     c: Classx[_],

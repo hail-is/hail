@@ -1385,7 +1385,7 @@ object EmitStream {
 
                 emitIR(bodyIR, env = bodyenv)
               case (_, bodyType: PCanonicalStream) =>
-                val xElt = mb.newEmitField(name, eltType)
+                val xElt = mb.newEmitLocal(name, eltType)
                 val bodyenv = env.bind(name -> xElt)
 
                 EmitCode(
@@ -1395,7 +1395,7 @@ object EmitStream {
                       .map(ss => PCanonicalStreamCode(bodyType, ss.getStream)),
                     mb))
               case _ =>
-                val xElt = mb.newEmitField(name, eltType)
+                val xElt = mb.newEmitLocal(name, eltType)
                 val bodyenv = env.bind(name -> xElt)
                 val bodyt = emitIR(bodyIR, env = bodyenv)
 
@@ -1413,7 +1413,7 @@ object EmitStream {
           optStream.map { ss =>
             val newStream = ss.getStream
               .map { elt =>
-                val xElt = mb.newEmitField(name, childEltType)
+                val xElt = mb.newEmitLocal(name, childEltType)
                 val condEnv = env.bind(name -> xElt)
                 val cond = emitIR(condIR, env = condEnv)
 
@@ -1474,7 +1474,7 @@ object EmitStream {
               case _ => types
             }
           }
-          val eltVars = (names, eltTypes).zipped.map(mb.newEmitField)
+          val eltVars = (names, eltTypes).zipped.map(mb.newEmitLocal)
 
           val optStreams = COption.lift(as.map(emitStream(_, env)))
 
@@ -1667,7 +1667,7 @@ object EmitStream {
           optOuter.map { outer =>
             val nested = outer.getStream.map[COption[Stream[EmitCode]]] { elt =>
               if (outerEltType.isRealizable) {
-                val xElt = mb.newEmitField(name, outerEltType)
+                val xElt = mb.newEmitLocal(name, outerEltType)
                 val innerEnv = env.bind(name -> xElt)
                 val optInner = emitStream(innerIR, innerEnv).map(_.getStream)
 
@@ -1685,7 +1685,7 @@ object EmitStream {
 
         case If(condIR, thn, els) =>
           val eltType = coerce[PStream](thn.pType).elementType
-          val xCond = mb.genFieldThisRef[Boolean]("stream_if_cond")
+          val xCond = mb.newLocal[Boolean]("stream_if_cond")
 
           val condT = COption.fromEmitCode(emitIR(condIR))
           val optLeftStream = emitStream(thn, env)
@@ -1726,7 +1726,7 @@ object EmitStream {
               emitStream(bodyIR, bodyEnv)
 
             case _ =>
-              val xValue = mb.newEmitField(name, valueType)
+              val xValue = mb.newEmitLocal(name, valueType)
               val bodyEnv = env.bind(name -> xValue)
               val valuet = emitIR(valueIR)
 
@@ -1742,9 +1742,9 @@ object EmitStream {
             val Lpush = CodeLabel()
             val hasPulled = mb.genFieldThisRef[Boolean]()
 
-            val xElt = mb.newEmitField(eltName, eltType)
-            val xAcc = mb.newEmitField(accName, accType)
-            val tmpAcc = mb.newEmitField(accName, accType)
+            val xElt = mb.newEmitLocal(eltName, eltType)
+            val xAcc = mb.newEmitLocal(accName, accType)
+            val tmpAcc = mb.newEmitLocal(accName, accType)
 
             val zero = emitIR(zeroIR).map(accType.copyFromPValue(mb, region, _))
             val bodyEnv = env.bind(accName -> tmpAcc, eltName -> xElt)
@@ -1777,8 +1777,8 @@ object EmitStream {
 
           val eltType = coerce[PStream](array.pType).elementType
 
-          val xElt = mb.newEmitField("aggscan_elt", eltType)
-          val xResult = mb.newEmitField("aggscan_result", result.pType)
+          val xElt = mb.newEmitLocal("aggscan_elt", eltType)
+          val xResult = mb.newEmitLocal("aggscan_result", result.pType)
 
           val bodyEnv = env.bind(name -> xElt)
           val cInit = emitVoidIR(init, container = Some(newContainer))
@@ -1808,8 +1808,8 @@ object EmitStream {
           assert(joinType == "left" || joinType == "outer")
           val lEltType = coerce[PStruct](coerce[PStream](leftIR.pType).elementType)
           val rEltType = coerce[PStruct](coerce[PStream](rightIR.pType).elementType)
-          val xLElt = mb.newEmitField("join_lelt", lEltType.orMissing(joinType == "left"))
-          val xRElt = mb.newEmitField("join_relt", rEltType.setRequired(false))
+          val xLElt = mb.newEmitLocal("join_lelt", lEltType.orMissing(joinType == "left"))
+          val xRElt = mb.newEmitLocal("join_relt", rEltType.setRequired(false))
           val newEnv = env.bind(leftName -> xLElt, rightName -> xRElt)
 
           val lKeyViewType = PSubsetStruct(lEltType, lKey: _*)

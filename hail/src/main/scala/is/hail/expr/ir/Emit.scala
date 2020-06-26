@@ -1365,7 +1365,7 @@ class Emit[C](
       case x@StreamFold2(a, acc, valueName, seq, res) =>
         val eltType = coerce[PStream](a.pType).elementType
 
-        val xElt = mb.newEmitField(valueName, eltType)
+        val xElt = mb.newEmitLocal(valueName, eltType)
         val names = acc.map(_._1)
         val accVars = (names, x.accPTypes).zipped.map(mb.newEmitLocal)
         val tmpAccVars = (names, x.accPTypes).zipped.map(mb.newEmitLocal)
@@ -2601,7 +2601,7 @@ class Emit[C](
 
         val sb = SetupBuilder(mb, childEmitter.setupShape)
         val outputShape = codeSlices.zipWithIndex.map { case ((start, stop, step), i) =>
-          sb.memoizeField(
+          sb.memoize(
             (step >= 0L && start <= stop).mux(
               const(1L) + ((stop - start) - 1L) / step,
               (step < 0L && start >= stop).mux(
@@ -2647,7 +2647,7 @@ class Emit[C](
           val m = mb.newLocal[Boolean](s"m_filter$i")
           val v = mb.newLocal[Long](s"v_filter$i")
 
-          val shapeVar = sb.memoizeField(Code(
+          val shapeVar = sb.memoize(Code(
               codeF.setup,
               m := codeF.m,
               m.mux(
@@ -2730,7 +2730,7 @@ object NDArrayEmitter {
 
     val shape = leftShape.zip(rightShape).zipWithIndex.map { case ((left, right), i) =>
       val notSameAndNotBroadcastable = !((left ceq right) || (left ceq 1L) || (right ceq 1L))
-      sb.memoizeField(
+      sb.memoize(
         notSameAndNotBroadcastable.mux(
           Code._fatal[Long]("Incompatible NDArray shapes"),
           (left > right).mux(left, right)),
