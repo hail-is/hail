@@ -20,6 +20,6 @@ python3 ../../../../../tls/create_certs.py \
         root-key.pem \
         root-cert.pem \
         --no-create-k8s-secrets \
-        --root-path=src/test/resources/non-secret-key-and-trust-stores
+        --root-path='src/test/resources/non-secret-key-and-trust-stores/{principal}'
 
 rm -rf root-cert.pem root-cert.srl root-key.pem  # not necessary after principal creation

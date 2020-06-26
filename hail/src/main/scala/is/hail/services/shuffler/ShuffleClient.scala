@@ -83,10 +83,7 @@ object ShuffleClient {
 }
 
 class ShuffleClient (
-  shuffleType: TShuffle,
-  ssl: SSLContext,
-  host: String,
-  port: Int
+  shuffleType: TShuffle
 ) extends AutoCloseable {
   private[this] val log = Logger.getLogger(getClass.getName())
   private[this] var uuid: Array[Byte] = null
@@ -94,7 +91,7 @@ class ShuffleClient (
 
   val codecs = new ShuffleCodecSpec(ctx, shuffleType)
 
-  private[this] val s = ShuffleClient.socket(host, port)
+  private[this] val s = ShuffleClient.socket()
   private[this] val in = shuffleBufferSpec.buildInputBuffer(s.getInputStream())
   private[this] val out = shuffleBufferSpec.buildOutputBuffer(s.getOutputStream())
 
