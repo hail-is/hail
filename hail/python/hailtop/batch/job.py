@@ -51,7 +51,7 @@ class Job:
     This class should never be created directly by the user. Use `Batch.new_job` instead.
     """
 
-    _counter = 0
+    _counter = 1
     _uid_prefix = "__JOB__"
     _regex_pattern = r"(?P<JOB>{}\d+)".format(_uid_prefix)
 
@@ -76,6 +76,7 @@ class Job:
         self._resources = {}  # dict of name to resource
         self._resources_inverse = {}  # dict of resource to name
         self._uid = Job._new_uid()
+        self._job_id = None
 
         self._inputs = set()
         self._internal_outputs = set()
@@ -86,7 +87,7 @@ class Job:
 
     def _get_resource(self, item):
         if item not in self._resources:
-            r = self._batch._new_job_resource_file(self)
+            r = self._batch._new_job_resource_file(self, value=item)
             self._resources[item] = r
             self._resources_inverse[r] = item
 
@@ -148,7 +149,7 @@ class Job:
             assert name not in self._resources
             if not isinstance(d, dict):
                 raise BatchException(f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
-            rg = self._batch._new_resource_group(self, d)
+            rg = self._batch._new_resource_group(self, d, root=name)
             self._resources[name] = rg
             _add_resource_to_set(self._valid, rg)
         return self
@@ -285,9 +286,11 @@ class Job:
             assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP']
             r_uid = match_obj.group()
             r = self._batch._resource_map.get(r_uid)
+
             if r is None:
                 raise BatchException(f"undefined resource '{r_uid}' in command '{command}'.\n"
                                      f"Hint: resources must be from the same batch as the current job.")
+
             if r._source != self:
                 self._add_inputs(r)
                 if r._source is not None:
