@@ -58,6 +58,7 @@ class DeployConfig:
 
     def domain(self, service):
         ns = self.service_ns(service)
+        log.info(f'{service}, {ns}')
         if self._location == 'k8s':
             return f'{service}.{ns}'
         if self._location == 'gce':
@@ -76,6 +77,7 @@ class DeployConfig:
         return f'/{ns}/{service}'
 
     def base_url(self, service, base_scheme='http'):
+        log.info(f'{service}: {self.domain(service)}')
         return f'{self.scheme(base_scheme)}://{self.domain(service)}{self.base_path(service)}'
 
     def url(self, service, path, base_scheme='http'):

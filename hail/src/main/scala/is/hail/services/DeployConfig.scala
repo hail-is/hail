@@ -55,8 +55,7 @@ class DeployConfig(
   val defaultNamespace: String,
   val serviceNamespace: Map[String, String]) {
 
-  private[this] val requestor = new Requestor()
-  import requestor.request
+  private[this] lazy val requestor = new Requestor()
 
   def scheme(baseScheme: String = "http"): String = {
     if (location == "external" || location == "k8s")
@@ -104,7 +103,7 @@ class DeployConfig(
 
     val ns = getServiceNamespace(service)
     val url = s"${baseUrl(service, ns)}/api/${ns}/${service}"
-    val addresses = request(new HttpGet(url)).asInstanceOf[JArray].children.asInstanceOf[List[JObject]]
+    val addresses = requestor.request(new HttpGet(url)).asInstanceOf[JArray].children.asInstanceOf[List[JObject]]
     addresses.map(x => ((x \ "address").extract[String], (x \ "port").extract[Int]))
   }
 
