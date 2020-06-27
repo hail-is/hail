@@ -90,7 +90,7 @@ class Classx[C](val name: String, val superName: String) {
 
     for (m <- methods) {
       if (m.name != "<init>"
-      // && m.approxByteCodeSize() > SplitMethod.TargetMethodSize
+      && m.approxByteCodeSize() > SplitMethod.TargetMethodSize
       ) {
         SplitLargeBlocks(m)
 
