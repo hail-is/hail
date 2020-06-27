@@ -90,7 +90,7 @@ class Classx[C](val name: String, val superName: String) {
 
     for (m <- methods) {
       if (m.name != "<init>"
-        // && m.approxByteCodeSize() > SplitMethod.TargetMethodSize
+      // && m.approxByteCodeSize() > SplitMethod.TargetMethodSize
       ) {
         SplitLargeBlocks(m)
 
@@ -201,10 +201,6 @@ class Method private[lir] (
 
   def entry: Block = _entry
 
-  var spillsInit: StmtX = _
-
-  var spillsReturn: StmtX = _
-
   def getParam(i: Int): Parameter = {
     new Parameter(this, i,
       if (i == 0 && !isStatic)
@@ -313,10 +309,6 @@ class Method private[lir] (
       x.children.foreach(visitX)
     }
 
-    if (spillsInit != null)
-      visitX(spillsInit)
-    if (spillsReturn != null)
-      visitX(spillsReturn)
     for (b <- blocks) {
       var x = b.first
       while (x != null) {
@@ -507,6 +499,14 @@ abstract class X {
       }
     }
     null
+  }
+
+  def containingMethod(): Method = {
+    val L = containingBlock()
+    if (L != null)
+      L.method
+    else
+      null
   }
 
   def approxByteCodeSize(): Int = {

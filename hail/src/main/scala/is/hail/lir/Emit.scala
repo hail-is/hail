@@ -182,30 +182,10 @@ object Emit {
 
     mn.instructions.add(start)
 
-    var catchLabel: LabelNode = null
-    if (m.spillsInit != null) {
-      val tryLabel = new LabelNode
-      catchLabel = new LabelNode
-
-      mn.tryCatchBlocks.add(
-        new TryCatchBlockNode(tryLabel, catchLabel, catchLabel, classOf[SplitReturn].getName.replace(".", "/")))
-
-      emitX(m.spillsInit, 0)
-      mn.instructions.add(tryLabel)
-    }
-
     emitBlock(m.entry)
     for (b <- blocks) {
       if (b ne m.entry)
         emitBlock(b)
-    }
-
-    if (m.spillsInit != null) {
-      mn.instructions.add(catchLabel)
-      if (maxStack < 1)
-        maxStack = 1
-      mn.instructions.add(new InsnNode(POP))
-      emitX(m.spillsReturn, 0)
     }
 
     mn.instructions.add(end)

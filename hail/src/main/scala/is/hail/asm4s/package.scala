@@ -23,7 +23,7 @@ package asm4s {
 
     override def equals(that: Any): Boolean = that match {
       case that: TypeInfo[_] =>
-        return desc == that.desc
+        desc == that.desc
       case _ => false
     }
 
