@@ -117,8 +117,11 @@ class DeployConfig:
         async with ssl_client_session(
                 raise_for_status=True,
                 timeout=aiohttp.ClientTimeout(total=5)) as session:
-            return json.loads(await session.get(
-                self.url('address', f'/api/{namespace}/{service}')))
+            url = self.url('address', f'/api/{namespace}/{service}')
+            log.info(url)
+            get = await session.get(url)
+            log.info(get)
+            return json.loads(get)
 
     async def address(self, service: str) -> Tuple[str, int]:
         service_addresses = await self.addresses(service)
