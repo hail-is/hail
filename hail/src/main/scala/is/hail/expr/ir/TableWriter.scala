@@ -224,26 +224,23 @@ case class RVDSpecWriter(path: String, spec: RVDSpecMaker) extends MetadataWrite
     cb: EmitCodeBuilder,
     region: Value[Region]): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
-    writeAnnotations.consume(cb, {
-      cb._fatal("write annotations can't be missing!")
-    }, { case pc : PIndexableCode =>
-      val a = pc.memoize(cb, "filePaths")
-      val partFiles = cb.newLocal[Array[String]]("partFiles")
-      val n = cb.newLocal[Int]("n", a.loadLength())
-      val i = cb.newLocal[Int]("i", 0)
-      cb.assign(partFiles, Code.newArray[String](n))
-      cb.whileLoop(i < n, {
-        a.loadElement(cb, i).consume(cb, {
-          cb._fatal("file name can't be missing!")
-        }, { case s: PStringCode =>
-          cb += partFiles.update(i, s.loadString())
-        })
-        cb.assign(i, i + 1)
+    val pc = writeAnnotations.handle(cb, cb._fatal("write annotations can't be missing!")).asInstanceOf[PIndexableCode]
+    val a = pc.memoize(cb, "filePaths")
+    val partFiles = cb.newLocal[Array[String]]("partFiles")
+    val n = cb.newLocal[Int]("n", a.loadLength())
+    val i = cb.newLocal[Int]("i", 0)
+    cb.assign(partFiles, Code.newArray[String](n))
+    cb.whileLoop(i < n, {
+      a.loadElement(cb, i).consume(cb, {
+        cb._fatal("file name can't be missing!")
+      }, { case s: PStringCode =>
+        cb += partFiles.update(i, s.loadString())
       })
-      cb += cb.emb.getObject(spec)
-        .invoke[Array[String], AbstractRVDSpec]("apply", partFiles)
-        .invoke[FS, String, Unit]("write", cb.emb.getFS, path)
+      cb.assign(i, i + 1)
     })
+    cb += cb.emb.getObject(spec)
+      .invoke[Array[String], AbstractRVDSpec]("apply", partFiles)
+      .invoke[FS, String, Unit]("write", cb.emb.getFS, path)
   }
 }
 
@@ -275,25 +272,21 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
     cb: EmitCodeBuilder,
     region: Value[Region]): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
-    writeAnnotations.consume(cb, {
-      cb._fatal("write annotations can't be missing!")
-    }, { case pc: PIndexableCode =>
+    val pc = writeAnnotations.handle(cb, cb._fatal("write annotations can't be missing!")).asInstanceOf[PIndexableCode]
+    val partCounts = cb.newLocal[Array[Long]]("partCounts")
+    val a = pc.memoize(cb, "writePartCounts")
 
-      val partCounts = cb.newLocal[Array[Long]]("partCounts")
-      val a = pc.memoize(cb, "writePartCounts")
-
-      val n = cb.newLocal[Int]("n", a.loadLength())
-      val i = cb.newLocal[Int]("i", 0)
-      cb.assign(partCounts, Code.newArray[Long](n))
-      cb.whileLoop(i < n, {
-        a.loadElement(cb, i).consume(cb, {
-          cb._fatal("part count can't be missing!")
-        }, { count => cb += partCounts.update(i, count.tcode[Long]) })
-        cb.assign(i, i + 1)
-      })
-      cb += cb.emb.getObject(new TableSpecHelper(path, rowRelPath, globalRelPath, refRelPath, typ, log))
-        .invoke[FS, Array[Long], Unit]("write", cb.emb.getFS, partCounts)
+    val n = cb.newLocal[Int]("n", a.loadLength())
+    val i = cb.newLocal[Int]("i", 0)
+    cb.assign(partCounts, Code.newArray[Long](n))
+    cb.whileLoop(i < n, {
+      a.loadElement(cb, i).consume(cb, {
+        cb._fatal("part count can't be missing!")
+      }, { count => cb += partCounts.update(i, count.tcode[Long]) })
+      cb.assign(i, i + 1)
     })
+    cb += cb.emb.getObject(new TableSpecHelper(path, rowRelPath, globalRelPath, refRelPath, typ, log))
+      .invoke[FS, Array[Long], Unit]("write", cb.emb.getFS, partCounts)
   }
 }
 
