@@ -121,6 +121,7 @@ class LocalTests(unittest.TestCase):
                                        in2=input_file2.name)
             j = b.new_job()
             j.command(f'cat {input.in1} {input.in2} > {j.ofile}')
+            j.command(f'cat {input}.in1 {input}.in2')
             b.write_output(j.ofile, output_file.name)
             b.run()
 
@@ -262,9 +263,7 @@ class LocalTests(unittest.TestCase):
     def test_add_extension_input_resource_file(self):
         input_file1 = '/tmp/data/example1.txt.bgz.foo'
         b = self.batch()
-        in1 = b.read_input(input_file1, extension='.txt.bgz.foo')
-        with self.assertRaises(Exception):
-            in1.add_extension('.baz')
+        in1 = b.read_input(input_file1)
         assert in1._value.endswith('.txt.bgz.foo')
 
     def test_file_name_space(self):
@@ -298,12 +297,13 @@ class BatchTests(unittest.TestCase):
     def setUp(self):
         self.backend = ServiceBackend()
 
-        bucket_name = get_user_config().get('batch', 'bucket')
+        self.bucket_name = get_user_config().get('batch', 'bucket')
 
-        self.gcs_input_dir = f'gs://{bucket_name}/batch-tests/resources'
+        self.gcs_input_dir = f'gs://{self.bucket_name}/batch-tests/resources'
 
         token = uuid.uuid4()
-        self.gcs_output_dir = f'gs://{bucket_name}/batch-tests/{token}'
+        self.gcs_output_path = f'/batch-tests/{token}'
+        self.gcs_output_dir = f'gs://{self.bucket_name}{self.gcs_output_path}'
 
         in_cluster_key_file = '/test-gsa-key/key.json'
         if os.path.exists(in_cluster_key_file):
@@ -312,7 +312,7 @@ class BatchTests(unittest.TestCase):
         else:
             credentials = None
         gcs_client = google.cloud.storage.Client(project='hail-vdc', credentials=credentials)
-        bucket = gcs_client.bucket(bucket_name)
+        bucket = gcs_client.bucket(self.bucket_name)
         if not bucket.blob('batch-tests/resources/hello.txt').exists():
             bucket.blob('batch-tests/resources/hello.txt').upload_from_string(
                 'hello world')
@@ -350,6 +350,7 @@ class BatchTests(unittest.TestCase):
         j = b.new_job()
         j.storage('0.25Gi')
         j.command(f'cat {input.foo}')
+        j.command(f'cat {input}.foo')
         assert b.run().status()['state'] == 'success'
 
     def test_single_task_output(self):
@@ -447,6 +448,31 @@ class BatchTests(unittest.TestCase):
         j.command(f'cat {input}')
         b.write_output(input, f'{self.gcs_output_dir}/hello.txt')
         assert b.run(verbose=True).status()['state'] == 'success'
+
+    def test_gcsfuse(self):
+        path = f'/{self.bucket_name}{self.gcs_output_path}'
+
+        b = self.batch()
+        head = b.new_job()
+        head.command(f'mkdir -p {path}; echo head > {path}/gcsfuse_test_1')
+        head.gcsfuse(self.bucket_name, f'/{self.bucket_name}', read_only=False)
+
+        tail = b.new_job()
+        tail.command(f'cat {path}/gcsfuse_test_1')
+        tail.gcsfuse(self.bucket_name, f'/{self.bucket_name}', read_only=True)
+        tail.depends_on(head)
+
+        assert b.run().status()['state'] == 'success'
+
+    def test_gcsfuse_read_only(self):
+        path = f'/{self.bucket_name}{self.gcs_output_path}'
+
+        b = self.batch()
+        j = b.new_job()
+        j.command(f'mkdir -p {path}; echo head > {path}/gcsfuse_test_1')
+        j.gcsfuse(self.bucket_name, f'/{self.bucket_name}', read_only=True)
+
+        assert b.run().status()['state'] == 'failure'
 
     def test_benchmark_lookalike_workflow(self):
         b = self.batch()

@@ -139,16 +139,10 @@ def clone_or_fetch_script(repo):
     return f"""
 { RETRY_FUNCTION_SCRIPT }
 
-function clone() {{ ( set -e
-    dir=$(mktemp -d)
-    git clone {shq(repo)} $dir
-    echo $?
-    (cd $dir && git status)  # verify the clone actually worked
-    echo $?
-    for x in $(ls -A $dir); do
-        mv -- "$dir/$x" ./
-    done
-) }}
+function clone() {{
+    rm -rf ./{{*,.*}}
+    git clone { shq(repo) } ./
+}}
 
 if [ ! -d .git ]; then
   time retry clone

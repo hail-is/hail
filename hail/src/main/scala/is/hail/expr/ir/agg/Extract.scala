@@ -31,9 +31,9 @@ object AggStateSig {
       case Min() | Max()  => TypedStateSig(seqPTypes.head.setRequired(false))
       case Count() => TypedStateSig(PInt64(true))
       case Take() => TakeStateSig(seqPTypes.head)
-      case TakeBy() =>
+      case TakeBy(reverse) =>
         val Seq(vt, kt) = seqPTypes
-        TakeByStateSig(vt, kt)
+        TakeByStateSig(vt, kt, reverse)
       case CallStats() => CallStatsStateSig()
       case PrevNonnull() => TypedStateSig(seqPTypes.head.setRequired(false))
       case CollectAsSet() => CollectAsSetStateSig(seqPTypes.head)
@@ -56,7 +56,7 @@ object AggStateSig {
     case TypedStateSig(pt) => new TypedRegionBackedAggState(pt, cb)
     case DownsampleStateSig(labelType) => new DownsampleState(cb, labelType)
     case TakeStateSig(pt) => new TakeRVAS(pt, PCanonicalArray(pt, required = true), cb)
-    case TakeByStateSig(vt, kt) => new TakeByRVAS(vt, kt, PCanonicalArray(vt, required = true), cb)
+    case TakeByStateSig(vt, kt, so) => new TakeByRVAS(vt, kt, PCanonicalArray(vt, required = true), cb, so)
     case CollectStateSig(pt) => new CollectAggState(pt, cb)
     case CollectAsSetStateSig(pt) => new AppendOnlySetState(cb, pt)
     case CallStatsStateSig() => new CallStatsState(cb)
@@ -70,7 +70,7 @@ sealed abstract class AggStateSig(val t: Seq[PType], val n: Option[Seq[AggStateS
 case class TypedStateSig(pt: PType) extends AggStateSig(Array(pt), None)
 case class DownsampleStateSig(labelType: PArray) extends AggStateSig(Array(labelType), None)
 case class TakeStateSig(pt: PType) extends AggStateSig(Array(pt), None)
-case class TakeByStateSig(vt: PType, kt: PType) extends AggStateSig(Array(vt, kt), None)
+case class TakeByStateSig(vt: PType, kt: PType, so: SortOrder) extends AggStateSig(Array(vt, kt), None)
 case class CollectStateSig(pt: PType) extends AggStateSig(Array(pt), None)
 case class CollectAsSetStateSig(pt: PType) extends AggStateSig(Array(pt), None)
 case class CallStatsStateSig() extends AggStateSig(Array[PType](), None)
@@ -257,7 +257,7 @@ object Extract {
     case AggSignature(Count(), _, _) => TInt64
     case AggSignature(Take(), _, Seq(t)) => TArray(t)
     case AggSignature(CallStats(), _, _) => CallStatsState.resultType.virtualType
-    case AggSignature(TakeBy(), _, Seq(value, key)) => TArray(value)
+    case AggSignature(TakeBy(_), _, Seq(value, key)) => TArray(value)
     case AggSignature(PrevNonnull(), _, Seq(t)) => t
     case AggSignature(CollectAsSet(), _, Seq(t)) => TSet(t)
     case AggSignature(Collect(), _, Seq(t)) => TArray(t)
@@ -275,7 +275,7 @@ object Extract {
     case PhysicalAggSig(PrevNonnull(), TypedStateSig(t)) => new PrevNonNullAggregator(t)
     case PhysicalAggSig(Count(), TypedStateSig(_)) => CountAggregator
     case PhysicalAggSig(Take(), TakeStateSig(t)) => new TakeAggregator(t)
-    case PhysicalAggSig(TakeBy(), TakeByStateSig(v, k)) => new TakeByAggregator(v, k)
+    case PhysicalAggSig(TakeBy(_), TakeByStateSig(v, k, _)) => new TakeByAggregator(v, k)
     case PhysicalAggSig(CallStats(), CallStatsStateSig()) => new CallStatsAggregator(PCanonicalCall()) // FIXME CallStatsAggregator shouldn't take type
     case PhysicalAggSig(Collect(), CollectStateSig(t)) => new CollectAggregator(t)
     case PhysicalAggSig(CollectAsSet(), CollectAsSetStateSig(t)) => new CollectAsSetAggregator(t)

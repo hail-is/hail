@@ -969,16 +969,21 @@ object PruneDeadFields {
         val valueTypes = names.zip(as).map { case (name, a) =>
           bodyEnv.eval.lookupOption(name).map(ab => unifySeq(coerce[TStream](a.typ).elementType, ab.result()))
         }
-        unifyEnvs(
-          as.zip(valueTypes).map { case (a, vtOption) =>
-            val at = coerce[TStream](a.typ)
-            if (behavior == ArrayZipBehavior.AssumeSameLength) {
-              vtOption.map { vt =>
-                memoizeValueIR(a, TStream(vt), memo)
-              }.getOrElse(BindingEnv.empty)
-            } else
-              memoizeValueIR(a, TStream(vtOption.getOrElse(minimal(at.elementType))), memo)
-          } ++ Array(bodyEnv.deleteEval(names)): _*)
+        if (behavior == ArrayZipBehavior.AssumeSameLength && valueTypes.forall(_.isEmpty)) {
+          unifyEnvs(memoizeValueIR(as.head, TStream(minimal(coerce[TStream](as.head.typ).elementType)), memo) +:
+            Array(bodyEnv.deleteEval(names)): _*)
+        } else {
+          unifyEnvs(
+            as.zip(valueTypes).map { case (a, vtOption) =>
+              val at = coerce[TStream](a.typ)
+              if (behavior == ArrayZipBehavior.AssumeSameLength) {
+                vtOption.map { vt =>
+                  memoizeValueIR(a, TStream(vt), memo)
+                }.getOrElse(BindingEnv.empty)
+              } else
+                memoizeValueIR(a, TStream(vtOption.getOrElse(minimal(at.elementType))), memo)
+            } ++ Array(bodyEnv.deleteEval(names)): _*)
+        }
       case StreamFilter(a, name, cond) =>
         val aType = a.typ.asInstanceOf[TStream]
         val bodyEnv = memoizeValueIR(cond, cond.typ, memo)

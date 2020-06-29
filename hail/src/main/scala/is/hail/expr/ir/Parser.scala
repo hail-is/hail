@@ -621,7 +621,7 @@ object IRParser {
       case "TakeByStateSig" =>
         val vt = ptype_expr(env)(it)
         val kt = ptype_expr(env)(it)
-        TakeByStateSig(vt, kt)
+        TakeByStateSig(vt, kt, Ascending)
       case "CollectStateSig" =>
         val pt = ptype_expr(env)(it)
         CollectStateSig(pt)

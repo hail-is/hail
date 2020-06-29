@@ -360,6 +360,15 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(joined, Row(expected.filter(pred).map(joinProjectF).toFastIndexedSeq, Row()))
   }
 
+  // Catches a bug in the partitioner created by the importer.
+  @Test def testTableJoinOfImport() {
+    val mt = importVCF(ctx, "src/test/resources/sample.vcf")
+    var t: TableIR = MatrixRowsTable(mt)
+    t = TableMapRows(t, SelectFields(Ref("row", t.typ.rowType), Seq("locus", "alleles")))
+    val join: TableIR = TableJoin(t, t, "inner", 2)
+    assertEvalsTo(TableCount(join), 346L)
+  }
+
   @Test def testTableKeyBy() {
     implicit val execStrats = ExecStrategy.interpretOnly
     val data = Array(Array("A", 1), Array("A", 2), Array("B", 1))

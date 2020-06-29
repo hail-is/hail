@@ -1,6 +1,6 @@
------
-Types
------
+--------------
+Types Overview
+--------------
 
 In Python, ``5`` is of type :obj:`int` while ``"hello"`` is of type :obj:`str`.
 Python is a dynamically-typed language, meaning that a function like:

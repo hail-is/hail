@@ -47,7 +47,7 @@ class SplitMethod(c: Classx[_], m: Method) {
   }
 
   def spillLocals(): Unit = {
-    val (locals, localIdx) = m.findAndIndexLocals(blocks)
+    val locals = m.findLocals(blocks)
 
     val fields = locals.map { l =>
       if (l.isInstanceOf[Parameter])
@@ -63,7 +63,7 @@ class SplitMethod(c: Classx[_], m: Method) {
             null
           else
             paramFields(p.i - 1)
-        case _ => fields(localIdx(l))
+        case _ => fields(locals.index(l))
       }
 
     def spill(x: X): Unit = {
@@ -160,12 +160,12 @@ class SplitMethod(c: Classx[_], m: Method) {
         val newLtrue = new Block()
         newLtrue.method = newM
         newLtrue.append(returnx(ldcInsn(0, BooleanInfo)))
-        x.Ltrue = newLtrue
+        x.setLtrue(newLtrue)
 
         val newLfalse = new Block()
         newLfalse.method = newM
         newLfalse.append(returnx(ldcInsn(0, BooleanInfo)))
-        x.Lfalse = newLfalse
+        x.setLfalse(newLfalse)
 
         b.append(
           ifx(IFNE, invokeNewM(), Ltrue, Lfalse))

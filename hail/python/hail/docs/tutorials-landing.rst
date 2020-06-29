@@ -15,7 +15,7 @@ but we recommend instead that you run them yourself with Jupyter by
 .. toctree::
     :maxdepth: 1
 
-        GWAS Tutorial <tutorials/01-genome-wide-association-study.ipynb>
+        Genome-Wide Association Study (GWAS) Tutorial <tutorials/01-genome-wide-association-study.ipynb>
         Table Tutorial <tutorials/03-tables.ipynb>
         Aggregation Tutorial <tutorials/04-aggregation.ipynb>
         Filtering and Annotation Tutorial <tutorials/05-filter-annotate.ipynb>
