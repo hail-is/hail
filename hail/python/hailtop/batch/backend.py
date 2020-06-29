@@ -17,7 +17,7 @@ from .resource import InputResourceFile, JobResourceFile, ResourceGroup  # type:
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .batch import Batch  # type: ignore
-    from .job import Job  # type: ignore
+    from .job import Job  # type: ignore  # noqa
 
 
 class Backend:
