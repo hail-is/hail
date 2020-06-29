@@ -846,7 +846,7 @@ object LowerTableIR {
                   aggs.seqPerElt
                 )
               )),
-              MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig) }),
+              MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
               aggs.states
             ))
         }) { case (collected, globals) =>
