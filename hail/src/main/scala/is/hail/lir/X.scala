@@ -10,6 +10,8 @@ import org.objectweb.asm.Opcodes._
 // FIXME move typeinfo stuff lir
 
 class Classx[C](val name: String, val superName: String) {
+  val ti: TypeInfo[C] = new ClassInfo[C](name)
+
   val methods: mutable.ArrayBuffer[Method] = new mutable.ArrayBuffer()
 
   val fields: mutable.ArrayBuffer[Field] = new mutable.ArrayBuffer()
@@ -97,7 +99,12 @@ class Classx[C](val name: String, val superName: String) {
      */
 
     for (m <- methods) {
-      InitializeLocals(m)
+      val blocks = m.findBlocks()
+      val locals = m.findLocals(blocks)
+      val cfg = CFG(m, blocks)
+      val liveness = Liveness(blocks, locals, cfg)
+
+      InitializeLocals(m, blocks, locals, liveness)
     }
 
     /*
@@ -155,6 +162,9 @@ class Method private[lir] (
   val name: String,
   val parameterTypeInfo: IndexedSeq[TypeInfo[_]],
   val returnTypeInfo: TypeInfo[_]) extends MethodRef {
+
+  def nParameters: Int = parameterTypeInfo.length + 1
+
   def owner: String = classx.name
 
   def desc = s"(${parameterTypeInfo.map(_.desc).mkString})${returnTypeInfo.desc}"
@@ -182,8 +192,8 @@ class Method private[lir] (
 
   def genLocal(baseName: String, ti: TypeInfo[_]): Local = newLocal(genName("l", baseName), ti)
 
-  def findBlocks(): IndexedSeq[Block] = {
-    val blocks = mutable.ArrayBuffer[Block]()
+  def findBlocks(): Blocks = {
+    val blocksb = new ArrayBuilder[Block]()
 
     val s = new mutable.Stack[Block]()
     val visited = mutable.Set[Block]()
@@ -194,7 +204,7 @@ class Method private[lir] (
       val L = s.pop()
       if (!visited.contains(L)) {
         if (L != null) {
-          blocks += L
+          blocksb += L
 
           var x = L.first
           while (x != null) {
@@ -216,6 +226,8 @@ class Method private[lir] (
       }
     }
 
+    val blocks = blocksb.result()
+
     // prune dead Block uses
     for (b <- blocks) {
       // don't traverse a set that's being modified
@@ -226,23 +238,28 @@ class Method private[lir] (
       }
     }
 
-    blocks
+    new Blocks(blocks)
   }
 
-  def findAndIndexBlocks(): (IndexedSeq[Block], Map[Block, Int]) = {
-    val blocks = findBlocks()
-    val blockIdx = blocks.zipWithIndex.toMap
-    (blocks, blockIdx)
-  }
+  def findLocals(blocks: Blocks): Locals = {
+    val localsb = new ArrayBuilder[Local]()
 
-  def findLocals(blocks: IndexedSeq[Block]): IndexedSeq[Local] = {
-    val locals = mutable.ArrayBuffer[Local]()
+    var i = 0
+    while (i < nParameters) {
+      localsb += (
+        if (i == 0)
+          new Parameter(this, 0, classx.ti)
+        else
+          new Parameter(this, i, parameterTypeInfo(i - 1)))
+      i += 1
+    }
+
     val visited: mutable.Set[Local] = mutable.Set()
 
     def visitLocal(l: Local): Unit = {
       if (!l.isInstanceOf[Parameter]) {
         if (!visited.contains(l)) {
-          locals += l
+          localsb += l
           visited += l
         }
       }
@@ -266,13 +283,7 @@ class Method private[lir] (
       }
     }
 
-    locals
-  }
-
-  def findAndIndexLocals(blocks: IndexedSeq[Block]): (IndexedSeq[Local], Map[Local, Int]) = {
-    val locals = findLocals(blocks)
-    val localIdx = locals.zipWithIndex.toMap
-    (locals, localIdx)
+    new Locals(localsb.result())
   }
 
   def removeDeadCode(): Unit = {

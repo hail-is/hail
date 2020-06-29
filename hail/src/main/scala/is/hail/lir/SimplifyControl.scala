@@ -97,7 +97,7 @@ class SimplifyControl(m: Method) {
   }
 
   def unify(): Unit = {
-    val (blocks, blockIdx) = m.findAndIndexBlocks()
+    val blocks = m.findBlocks()
 
     val u = new UnionFind(blocks.length)
     blocks.indices.foreach { i =>
@@ -108,8 +108,8 @@ class SimplifyControl(m: Method) {
       if (b.first != null &&
         b.first.isInstanceOf[GotoX]) {
         u.sameSet(
-          blockIdx(b),
-          blockIdx(b.first.asInstanceOf[GotoX].L))
+          blocks.index(b),
+          blocks.index(b.first.asInstanceOf[GotoX].L))
       }
     }
 
@@ -127,7 +127,7 @@ class SimplifyControl(m: Method) {
       var i = 0
       while (i < last.targetArity()) {
         last.setTarget(i,
-          rootFinalTarget(u.find(blockIdx(last.target(i)))))
+          rootFinalTarget(u.find(blocks.index(last.target(i)))))
         i += 1
       }
     }
