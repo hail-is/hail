@@ -265,6 +265,8 @@ class Aggregators2Suite extends HailSuite {
       Row(null, null, null, null, null, null, null, null)
     )
 
+    val rowsReversed = rows.take(rows.length - 3).reverse ++ rows.takeRight(3)
+
     val permutations = Array(
       rows, // sorted
       rows.reverse, // reversed
@@ -292,9 +294,9 @@ class Aggregators2Suite extends HailSuite {
       (TStruct("x" -> TInt32, "y" -> TInt64), GetField(_, "a"))
     )
 
-    def test(n: Int, data: IndexedSeq[Row], valueType: Type, valueF: IR => IR, resultF: Row => Any, keyType: Type, keyF: IR => IR): Unit = {
+    def test(n: Int, data: IndexedSeq[Row], valueType: Type, valueF: IR => IR, resultF: Row => Any, keyType: Type, keyF: IR => IR, so: SortOrder = Ascending): Unit = {
 
-      val aggSig = PhysicalAggSig(TakeBy(), TakeByStateSig(PType.canonical(valueType), PType.canonical(keyType)))
+      val aggSig = PhysicalAggSig(TakeBy(), TakeByStateSig(PType.canonical(valueType), PType.canonical(keyType), so))
       val seqOpArgs = Array.tabulate(rows.length) { i =>
         val ref = ArrayRef(Ref("rows", TArray(t)), i)
         FastIndexedSeq[IR](valueF(ref), keyF(ref))
@@ -303,16 +305,17 @@ class Aggregators2Suite extends HailSuite {
       assertAggEquals(aggSig,
         FastIndexedSeq(I32(n)),
         seqOpArgs,
-        expected = rows.take(n).map(resultF),
+        expected = (if (so == Descending) rowsReversed else rows).take(n).map(resultF),
         args = FastIndexedSeq(("rows", (TArray(t), data))))
     }
 
     // test counts and data input orderings
     for (
       n <- FastIndexedSeq(0, 1, 4, 100);
-        perm <- permutations
+        perm <- permutations;
+        so <- FastIndexedSeq(Ascending, Descending)
     ) {
-      test(n, perm, t, identity[IR], identity[Row], TInt32, GetField(_, "b"))
+      test(n, perm, t, identity[IR], identity[Row], TInt32, GetField(_, "b"), so)
     }
 
     // test key and value types
@@ -329,7 +332,7 @@ class Aggregators2Suite extends HailSuite {
     // test GC behavior by passing a large collection
     val rows2 = Array.tabulate(1200)(i => Row(i, i.toString)).toFastIndexedSeq
     val t2 = TStruct("a" -> TInt32, "b" -> TString)
-    val aggSig2 = PhysicalAggSig(TakeBy(), TakeByStateSig(PType.canonical(t2), PType.canonical(TInt32)))
+    val aggSig2 = PhysicalAggSig(TakeBy(), TakeByStateSig(PType.canonical(t2), PType.canonical(TInt32), Ascending))
     val seqOpArgs2 = Array.tabulate(rows2.length)(i => FastIndexedSeq[IR](
       ArrayRef(Ref("rows", TArray(t2)), i), GetField(ArrayRef(Ref("rows", TArray(t2)), i), "a")))
 

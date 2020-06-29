@@ -153,7 +153,7 @@ object LoweredTableReader {
       FastIndexedSeq(TInt32),
       FastIndexedSeq(keyType, keyType))
 
-    val maxkey = AggSignature(TakeBy(),
+    val maxkey = AggSignature(TakeBy(Descending),
       FastIndexedSeq(TInt32),
       FastIndexedSeq(keyType, keyType))
 

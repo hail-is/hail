@@ -12,8 +12,8 @@ object AggSignature {
       AggSignature(Collect(), FastSeq(), FastSeq(requestedType.asInstanceOf[TArray].elementType))
     case AggSignature(Take(), Seq(n), Seq(_)) =>
       AggSignature(Take(), FastSeq(n), FastSeq(requestedType.asInstanceOf[TArray].elementType))
-    case AggSignature(TakeBy(), Seq(n), Seq(_, k)) =>
-      AggSignature(TakeBy(), FastSeq(n), FastSeq(requestedType.asInstanceOf[TArray].elementType, k))
+    case AggSignature(TakeBy(reverse), Seq(n), Seq(_, k)) =>
+      AggSignature(TakeBy(reverse), FastSeq(n), FastSeq(requestedType.asInstanceOf[TArray].elementType, k))
     case AggSignature(PrevNonnull(), Seq(), Seq(_)) =>
       AggSignature(PrevNonnull(), FastSeq(), FastSeq(requestedType))
     case _ => agg
@@ -42,7 +42,7 @@ final case class Min() extends AggOp
 final case class Product() extends AggOp
 final case class Sum() extends AggOp
 final case class Take() extends AggOp
-final case class TakeBy() extends AggOp
+final case class TakeBy(so: SortOrder = Ascending) extends AggOp
 final case class Group() extends AggOp
 final case class AggElements() extends AggOp
 final case class AggElementsLengthCheck() extends AggOp
