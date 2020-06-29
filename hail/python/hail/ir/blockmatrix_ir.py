@@ -152,9 +152,8 @@ class BlockMatrixAgg(BlockMatrixIR):
         return self.out_index_expr == other.out_index_expr
 
     def _compute_type(self):
-        shape = [self.child.typ.shape[i] for i in self.out_index_expr]
+        shape = [tensor_shape_to_matrix_shape(self.child)[i] for i in self.out_index_expr]
         is_row_vector = self.out_index_expr == [1]
-
         self._type = tblockmatrix(self.child.typ.element_type,
                                   shape,
                                   is_row_vector,
@@ -400,6 +399,7 @@ def _serialize_list(xs):
 
 
 def _matrix_shape_to_tensor_shape(n_rows, n_cols):
+
     if n_rows == 1 and n_cols == 1:
         return [], False
     elif n_rows == 1:
