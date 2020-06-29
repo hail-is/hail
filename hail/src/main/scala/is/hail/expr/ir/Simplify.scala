@@ -157,7 +157,7 @@ object Simplify {
 
     case x@If(False(), _, altr) => altr
 
-    case If(c, cnsq, altr) if cnsq == altr =>
+    case If(c, cnsq, altr) if cnsq == altr && cnsq.typ != TVoid =>
       if (isDefinitelyDefined(c))
         cnsq
       else
