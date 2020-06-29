@@ -434,6 +434,7 @@ class ServiceBackend(Backend):
                                     pvc_size=job._storage,
                                     always_run=job._always_run,
                                     timeout=job._timeout,
+                                    gcsfuse=job._gcsfuse if len(job._gcsfuse) > 0 else None,
                                     env=env_vars)
 
             n_jobs_submitted += 1

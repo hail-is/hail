@@ -71,6 +71,7 @@ class Job:
         self._image = None
         self._always_run = False
         self._timeout = None
+        self._gcsfuse = []
         self._command = []
 
         self._resources = {}  # dict of name to resource
@@ -522,6 +523,49 @@ class Job:
             raise NotImplementedError("A ServiceBackend is required to use the 'timeout' option")
 
         self._timeout = timeout
+        return self
+
+    def gcsfuse(self, bucket, mount_point, read_only=True):
+        """
+        Add a bucket to mount with gcsfuse.
+
+        Notes
+        -----
+        Can only be used with the :class:`.ServiceBackend`. This method can
+        be called more than once.
+
+        Warning
+        -------
+        There are performance and cost implications of using `gcsfuse <https://cloud.google.com/storage/docs/gcs-fuse>`__.
+
+        Examples
+        --------
+
+        >>> b = Batch(backend=ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.gcsfuse('my-bucket', '/my-bucket')
+        ...   .command(f'cat /my-bucket/my-file'))
+
+        Parameters
+        ----------
+        bucket: :obj:`str`
+            Name of the google storage bucket to mount.
+        mount_point: :obj:`str`
+            The path at which the bucket should be mounted to in the Docker
+            container.
+        read_only: :obj:`bool`
+            If ``True``, mount the bucket in read-only mode.
+
+        Returns
+        -------
+        :class:`.Job`
+            Same job object set with a bucket to mount with gcsfuse.
+        """
+
+        if not isinstance(self._batch._backend, ServiceBackend):
+            raise NotImplementedError("A ServiceBackend is required to use the 'gcsfuse' option")
+
+        self._gcsfuse.append((bucket, mount_point, read_only))
         return self
 
     def _pretty(self):
