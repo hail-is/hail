@@ -177,6 +177,7 @@ class JobResourceFile(ResourceFile):
         """
         if self._has_extension:
             raise BatchException("Resource already has a file extension added.")
+        assert self._value is not None
         self._value += extension
         self._has_extension = True
         return self

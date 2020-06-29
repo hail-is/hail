@@ -3,7 +3,7 @@ import os
 import re
 from typing import Optional, Dict, Union, List, Any, Set
 
-from hailtop.utils import secret_alnum_string
+from hailtop.utils import secret_alnum_string  # type: ignore
 
 from .backend import Backend, LocalBackend  # type: ignore
 from .job import Job  # type: ignore
