@@ -627,7 +627,7 @@ class Aggregators2Suite extends HailSuite {
 
     val aggsig = PhysicalAggSig(CollectAsSet(), CollectAsSetStateSig(PCanonicalString()))
     val aggsigPrimitive = PhysicalAggSig(CollectAsSet(), CollectAsSetStateSig(PInt64()))
-    // assertAggEquals(aggsig, FastSeq(), elts, expected = expected, args = FastIndexedSeq(("rows", (arrayType, rows))), expectedInit = Some(Set()))
+    assertAggEquals(aggsig, FastSeq(), elts, expected = expected, args = FastIndexedSeq(("rows", (arrayType, rows))), expectedInit = Some(Set()))
     assertAggEquals(aggsigPrimitive, FastSeq(), eltsPrimitive, expected = expectedPrimitive, args = FastIndexedSeq(("rows", (arrayType, rows))), expectedInit = Some(Set()))
   }
 

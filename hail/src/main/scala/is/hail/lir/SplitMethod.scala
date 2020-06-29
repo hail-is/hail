@@ -448,7 +448,7 @@ class SplitMethod(
       blockSplitsReturn.set(b)
   }
 
-  // utility  class
+  // utility class
   class SizedRange(val start: Int, val end: Int, val size: Int) {
     override def toString: String = s"$start-$end/$size"
   }
@@ -471,8 +471,8 @@ class SplitMethod(
         var s = subr(i).size
         var j = i + 1
         while (j < subr.size &&
-          // FIXME
-          subr(i).end == subr(j).start &&
+          subr(j).start == subr(i).end + 1 &&
+          pst.splitBlock(subr(i).end) &&
           (s + subr(j).size < SplitMethod.TargetMethodSize)) {
           s += subr(j).size
           j += 1

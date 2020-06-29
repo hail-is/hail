@@ -1926,8 +1926,7 @@ class IRSuite extends HailSuite {
       ApplyComparisonOp(LT(TInt32), Ref("x", TInt32), I32(6)))), FastIndexedSeq(3))
   }
 
-  // @Test
-  def testArrayFlatMap() {
+  @Test def testArrayFlatMap() {
     val ta = TArray(TInt32)
     val ts = TStream(TInt32)
     val tsa = TStream(ta)

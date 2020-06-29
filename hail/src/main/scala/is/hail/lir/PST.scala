@@ -4,6 +4,53 @@ import is.hail.utils.ArrayBuilder
 
 import scala.collection.mutable
 
+// PST computes a non-standard variant of the Program Structure Tree (PST)
+// For the original definition, see:
+// Johnson, Pearson, Pingali, The program structure tree: computing control regions in linear time
+// https://dl.acm.org/doi/10.1145/773473.178258
+
+// Our PST is defined as follows:
+
+// A _region_ is a subset of nodes of the control flow graph
+// (and hence a subgraph of the control flow graph)
+// with two distinguished nodes (start, end) such that
+// all edges from outside the region into the region target start
+// and all edges from the region to the outside leave end.
+
+// Regions are the units of code which will be split out into
+// separate methods by SplitMethod.
+
+// A region is canonical if it cannot be split into two subregions.
+// A Program Structure Tree is the tree of canonical regions
+// organized by containment.  Two regions are either disjoint or
+// one is contained within the other.  The root of the PST is
+// the entire function.
+
+// The algorithm is organized as follows:
+//  - Perform a depth first search to determine the back edges.
+//    All other edges are forward edges.
+//  - The forward edges form a DAG, linearize the DAG placing
+//    children as close as possible to parents.
+//  - Walking forward to find the regions.  This is done walking
+//    forward along the nodes considering the forward edges, then
+//    verifying candidate regions are regions in light of back edges.
+//    This is done in a way that allows regions to overlap at start
+//    and end.  (Consider the stacked double diamond CFG coming from
+//    two sequential conditionals.)  This step does not include
+//    singleton regions (so the regions found still form a tree.)
+//  - Split shared blocks and reindex the blocks in linearized
+//    order, adding singleton regions.
+
+// A note on complexity. There probably a linear-time algorithm to compute
+// this without linearization, but I found this conceptually simple to
+// implement and it will be more than fast enough.  Most steps are linear,
+// except:
+//  - it is O(N log N) in the back edges (a minority of edges) because of
+//    the use of TreeSet when computing minTargetLE and maxSourceGE,
+// - and O(N^2) to identify seqential regions when checking regionStarts,
+//   although that is only non-trivial when the CFG is irreducible, which
+//   is relatively rare.
+
 class Region(
   var start: Int,
   var end: Int,
