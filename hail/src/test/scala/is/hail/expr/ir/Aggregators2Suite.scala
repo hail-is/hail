@@ -315,7 +315,6 @@ class Aggregators2Suite extends HailSuite {
         perm <- permutations;
         so <- FastIndexedSeq(Ascending, Descending)
     ) {
-      println(s"take $n, reverse=$so")
       test(n, perm, t, identity[IR], identity[Row], TInt32, GetField(_, "b"), so)
     }
 
