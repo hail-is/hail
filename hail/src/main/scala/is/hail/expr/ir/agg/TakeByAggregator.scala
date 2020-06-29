@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType, SortOrder, defaultValue, typeToTypeInfo}
 import is.hail.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
@@ -12,7 +12,7 @@ object TakeByRVAS {
   val END_SERIALIZATION: Int = 0x1324
 }
 
-class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArray, val kb: EmitClassBuilder[_]) extends AggregatorState {
+class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArray, val kb: EmitClassBuilder[_], so: SortOrder = Ascending) extends AggregatorState {
   private val r: Settable[Region] = kb.genFieldThisRef[Region]("takeby_region")
 
   val region: Value[Region] = r
@@ -47,7 +47,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   private val compareKey: ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[Int] = {
     val keyInfo = typeToTypeInfo(keyType.virtualType)
     val cmp = kb.genEmitMethod("compare", FastIndexedSeq[ParamType](BooleanInfo, keyInfo, BooleanInfo, keyInfo), IntInfo)
-    val ord = keyType.codeOrdering(cmp)
+    val ord = keyType.codeOrdering(cmp, so)
     val k1m = cmp.getCodeParam[Boolean](1)
     val k1 = cmp.getCodeParam(2)(keyInfo)
     val k2m = cmp.getCodeParam[Boolean](3)
@@ -55,7 +55,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
     cmp.emit(
       ord.compare((k1m, asm4s.coerce[ord.T](k1)), (k2m, asm4s.coerce[ord.T](k2)))
-    );
+    )
 
     def wrappedValue(missingBit: Code[Boolean], value: Code[_]): Code[_] = {
       missingBit.mux(defaultValue(keyType), value)
@@ -72,7 +72,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   private val compareIndexedKey: (Code[Long], Code[Long]) => Code[Int] = {
     val indexedkeyTypeTypeInfo = typeToTypeInfo(indexedKeyType.virtualType)
     val cmp = kb.genEmitMethod("take_by_compare", FastIndexedSeq[ParamType](indexedkeyTypeTypeInfo, indexedkeyTypeTypeInfo), IntInfo)
-    val ord = indexedKeyType.codeOrdering(cmp)
+    val ord = indexedKeyType.codeOrdering(cmp, indexedKeyType, Array(so, Ascending), true)
     val k1 = cmp.getCodeParam(1)(indexedkeyTypeTypeInfo)
     val k2 = cmp.getCodeParam(2)(indexedkeyTypeTypeInfo)
 
