@@ -13,6 +13,11 @@ from .batch import Batch
 from .backend import ServiceBackend
 from .google_storage import GCS
 
+if sys.version < (3, 7):
+    def create_task(coro, *, name=None):  # pylint: disable=unused-argument
+        asyncio.ensure_future(coro)
+    asyncio.create_task = create_task
+
 
 class BatchPoolExecutor(concurrent.futures.Executor):
     """An executor which executes python functions in the cloud.
@@ -115,32 +120,62 @@ class BatchPoolExecutor(concurrent.futures.Executor):
     def __enter__(self):
         return self
 
-    def map(self, fn, *iterables, timeout=None, chunksize=1):
+    def map(self,
+            fn: Callable,
+            *iterables,
+            timeout: Optional[Union[int, float]] = None,
+            chunksize: int = 1):
         """On cloud machines, call `fn` on every value of `iterables`.
 
-        The returned list contains values in the same order as `iterables`.
+        The returned generator contains values in the same order as `iterables`.
+
+        Examples
+        --------
+
+        Do nothing, but on the cloud:
+
+        >>> with BatchPoolExecutor() as bpe:
+        ...     list(bpe.map(lambda x: x, range(4)))
+        [0, 1, 2, 3]
+
+        Generate products of random matrices in the cloud:
+
+        >>> def random_product(seed):
+        ...     np.random.seed(seed)
+        ...     w = np.random.rand(2, 100)
+        ...     u = np.random.rand(100, 2)
+        ...     return w @ u
+        >>> with BatchPoolExecutor() as bpe:
+        ...     list(bpe.map(random_product, range(4)))
+        []
 
         Parameters
         ----------
         fn: Callable
             The function to execute.
         iterables: Any
-            Each value is provided as an argument to `fn`.
-        
-            A name for the executor. Executors produce many batches and each batch
-            will include this name as a prefix.
+            Each value is provided as an argument to individual invocations of
+            `fn`.
+        timeout: Optional[Union[int, float]]
+            This is roughly a timeout on how long we wait on each function
+            call. Specifically, each call to the returned generator's
+            :meth:`__next__` invokes :meth:`.BatchPoolFuture.result` with this
+            `timeout`.
         """
 
-        unapplied, *args = callable_and_args
         return BatchPoolExecutor.async_to_blocking(
-            self.async_map(callable, args))
+            self.async_map(fn, iterables, timeout=timeout, chunksize=chunksize))
 
-    async def async_map(self, unapplied: Callable, args):
+    async def async_map(self,
+                        fn: Callable,
+                        iterables: List[Any],
+                        timeout: Optional[Union[int, float]] = None,
+                        chunksize: int = 1):
         submissions = [
-            self.async_submit(unapplied, arg) for arg in args]
+            self.async_submit(fn, arg) for arg in args]
         futures = asyncio.gather(*submissions)
-        results = [future.async_result() for future in futures]
-        return asyncio.gather(*results)
+        tasks = [asyncio.create_task(future.async_result()) for future in futures]
+        return (task.result() for task in tasks)
 
     def submit(self, *callable_and_args, **kwargs):
         """
