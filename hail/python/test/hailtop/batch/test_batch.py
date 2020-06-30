@@ -292,6 +292,13 @@ class LocalTests(unittest.TestCase):
         t2.command(f'echo "hello" >> {j.foo.bed}')
         b.run()
 
+    def test_envvar(self):
+        b = self.batch()
+        j = b.new_job()
+        j.env('SOME_VARIABLE', '123abcdef')
+        j.command('[ $SOME_VARIABLE == "123abcdef" ]')
+        assert b.run().status()['state'] == 'success'
+
 
 class BatchTests(unittest.TestCase):
     def setUp(self):
@@ -496,3 +503,10 @@ class BatchTests(unittest.TestCase):
         b.write_output(combine.ofile, f'{self.gcs_output_dir}/pipeline_benchmark_test.txt')
         # too slow
         # assert b.run().status()['state'] == 'success'
+
+    def test_envvar(self):
+        b = self.batch()
+        j = b.new_job()
+        j.env('SOME_VARIABLE', '123abcdef')
+        j.command('[ $SOME_VARIABLE == "123abcdef" ]')
+        assert b.run().status()['state'] == 'success'

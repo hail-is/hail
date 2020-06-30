@@ -88,6 +88,10 @@ class BatchPoolExecutor(concurrent.futures.Executor):
         If ``True`` or unspecified, delete all temporary files in the cloud
         storage bucket when this executor fully shuts down. If Python crashes
         before the executor is shutdown, the files will not be deleted.
+    project: Optional[str]
+        If specified, the project to use when authenticating with Google
+        Storage. Google Storage is used to transfer serialized values between
+        this computer and the cloud machines that execute jobs.
     """
 
     def __init__(self, *,
@@ -96,7 +100,8 @@ class BatchPoolExecutor(concurrent.futures.Executor):
                  image: Optional[str] = None,
                  cpus_per_job: Optional[Union[int, str]] = None,
                  wait_on_exit: bool = True,
-                 cleanup_bucket: bool = True):
+                 cleanup_bucket: bool = True,
+                 project: Optional[str] = None):
         self.name = name or "BatchPoolExecutor-" + secret_alnum_string(4)
         print('secret created')
         self.backend = backend or ServiceBackend()
@@ -108,7 +113,8 @@ class BatchPoolExecutor(concurrent.futures.Executor):
         self.directory = f'gs://{bucket}/batch-pool-executor/{self.name}/'
         self.inputs = self.directory + 'inputs/'
         self.outputs = self.directory + 'outputs/'
-        self.gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor())
+        self.gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(),
+                       project=project)
         print('gcs created')
         self.futures: List[BatchPoolFuture] = []
         self.finished_future_count = 0
