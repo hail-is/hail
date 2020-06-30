@@ -55,7 +55,7 @@ def test_result_with_timeout():
 
 def test_map_chunksize():
     with BatchPoolExecutor() as bpe:
-        multiplication_table = bpe.map(lambda x, y: x * y, range(5), range(5), chunksize=5)
+        multiplication_table = list(bpe.map(lambda x, y: x * y, range(5), range(5), chunksize=5))
     assert multiplication_table == [
         0,  0,  0,  0,  0,
         0,  1,  2,  3,  4,
@@ -67,11 +67,16 @@ def test_map_chunksize():
 def test_map_timeout():
     with BatchPoolExecutor() as bpe:
         try:
-            bpe.map(lambda _: sleep_forever(), range(5), timeout=2)
+            list(bpe.map(lambda _: sleep_forever(), range(5), timeout=2))
         except asyncio.TimeoutError:
             pass
         else:
             assert False
+
+
+def test_map_error_without_wait_no_error():
+    with BatchPoolExecutor() as bpe:
+        bpe.map(lambda _: sleep_forever(), range(5), timeout=2)
 
 
 def test_exception_in_map():

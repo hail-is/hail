@@ -282,7 +282,7 @@ class BatchPoolExecutor(concurrent.futures.Executor):
         """
         unapplied, *args = callable_and_args
         return BatchPoolExecutor.async_to_blocking(
-            self.async_submit(unapplied, args, kwargs))
+            self.async_submit(unapplied, *args, **kwargs))
 
     async def async_submit(self, unapplied: Callable, *args, **kwargs):
         if self._shutdown:
@@ -301,6 +301,9 @@ class BatchPoolExecutor(concurrent.futures.Executor):
 
         pipe = BytesIO()
         dill.dump(functools.partial(unapplied, *args, **kwargs), pipe, recurse=True)
+        print(args)
+        print(kwargs)
+        print(functools.partial(unapplied, *args, **kwargs)())
         pipe.seek(0)
         pickledfun_gcs = self.inputs + f'{name}/pickledfun'
         await self.gcs.write_gs_file_from_file_like_object(pickledfun_gcs, pipe)
