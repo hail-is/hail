@@ -19,17 +19,17 @@ object Interpret {
     apply(tir, ctx, optimize = true)
 
   def apply(tir: TableIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val lowered = LoweringPipeline.legacyRelationalLowerer(ctx, tir, optimize).asInstanceOf[TableIR]
+    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR]
     lowered.execute(ctx)
   }
 
   def apply(mir: MatrixIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val lowered = LoweringPipeline.legacyRelationalLowerer(ctx, mir, optimize).asInstanceOf[TableIR]
+    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, mir).asInstanceOf[TableIR]
     lowered.execute(ctx)
   }
 
   def apply(bmir: BlockMatrixIR, ctx: ExecuteContext, optimize: Boolean): BlockMatrix = {
-    val lowered = LoweringPipeline.legacyRelationalLowerer(ctx, bmir, optimize).asInstanceOf[BlockMatrixIR]
+    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, bmir).asInstanceOf[BlockMatrixIR]
     lowered.execute(ctx)
   }
 
@@ -43,7 +43,7 @@ object Interpret {
   ): T = {
     val rwIR = env.m.foldLeft[IR](ir0) { case (acc, (k, (value, t))) => Let(k, Literal.coerce(t, value), acc) }
 
-    val lowered = LoweringPipeline.relationalLowerer.apply(ctx, rwIR, optimize).asInstanceOf[IR]
+    val lowered = LoweringPipeline.relationalLowerer(optimize).apply(ctx, rwIR).asInstanceOf[IR]
 
     val result = run(ctx, lowered, Env.empty[Any], args, Memo.empty).asInstanceOf[T]
 

@@ -269,7 +269,7 @@ class SparkBackend(
       case (false, true) => DArrayLowering.BMOnly
       case (false, false) => throw new LowererUnsupportedOperation("no lowering enabled")
     }
-    val ir = LoweringPipeline.darrayLowerer(typesToLower).apply(ctx, ir0, optimize).asInstanceOf[IR]
+    val ir = LoweringPipeline.darrayLowerer(true)(typesToLower).apply(ctx, ir0).asInstanceOf[IR]
 
     if (!Compilable(ir))
       throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")
