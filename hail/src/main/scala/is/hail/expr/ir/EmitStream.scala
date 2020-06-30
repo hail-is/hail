@@ -84,20 +84,26 @@ object COption {
       some(value)
   }
 
-  def lift[A](opts: IndexedSeq[COption[A]]): COption[IndexedSeq[A]] = new COption[IndexedSeq[A]] {
-    def apply(none: Code[Ctrl], some: IndexedSeq[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
-      val L = CodeLabel()
-      def nthOpt(i: Int, acc: IndexedSeq[A]): Code[Ctrl] =
-        if (i == 0)
-          opts(i)(Code(L, none), a => nthOpt(i+1, acc :+ a))
-        else if (i == opts.length - 1)
-          opts(i)(L.goto, a => some(acc :+ a))
-        else
-          opts(i)(L.goto, a => nthOpt(i+1, acc :+ a))
+  def lift[A](opts: IndexedSeq[COption[A]]): COption[IndexedSeq[A]] =
+    if (opts.length == 0)
+      COption.present(FastIndexedSeq())
+    else if (opts.length == 1)
+      opts.head.map(a => IndexedSeq(a))
+    else
+      new COption[IndexedSeq[A]] {
+        def apply(none: Code[Ctrl], some: IndexedSeq[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+          val L = CodeLabel()
+          def nthOpt(i: Int, acc: IndexedSeq[A]): Code[Ctrl] =
+            if (i == 0)
+              opts(i)(Code(L, none), a => nthOpt(i+1, acc :+ a))
+            else if (i == opts.length - 1)
+              opts(i)(L.goto, a => some(acc :+ a))
+            else
+              opts(i)(L.goto, a => nthOpt(i+1, acc :+ a))
 
-      nthOpt(0, FastIndexedSeq())
-    }
-  }
+          nthOpt(0, FastIndexedSeq())
+        }
+      }
 
   // Returns a COption value equivalent to 'left' when 'useLeft' is true,
   // otherwise returns a value equivalent to 'right'. In the case where neither
@@ -695,6 +701,96 @@ object Stream {
         pull = leftEOS.mux(LpullRight.goto, rightEOS.mux(LpullLeft.goto, (c <= 0).mux(LpullLeft.goto, LpullRight.goto))))
     }
   }
+
+  def kWayMerge[A: TypeInfo](
+    mb: EmitMethodBuilder[_],
+    streams: IndexedSeq[Stream[Code[A]]],
+    // compare two (idx, value) pairs, where 'value' is a value from the 'idx'th
+    // stream
+    lt: (Code[Int], Code[A], Code[Int], Code[A]) => Code[Boolean]
+  ): Stream[(Code[Int], Code[A])] = new Stream[(Code[Int], Code[A])] {
+    def apply(eos: Code[Ctrl], push: ((Code[Int], Code[A])) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(Code[Int], Code[A])] = {
+      // The algorithm maintains a tournament tree of comparisons between the
+      // current values of the k streams. The tournament tree is a complete
+      // binary tree with k leaves. The leaves of the tree are the streams,
+      // and each internal node represents the "contest" between the "winners"
+      // of the two subtrees, where the winner is the stream with the smaller
+      // current key. Each internal node stores the index of the stream which
+      // *lost* that contest.
+      // Each time we remove the overall winner, and replace that stream's
+      // leaf with its next value, we only need to rerun the contests on the
+      // path from that leaf to the root, comparing the new value with what
+      // previously lost that contest to the previous overall winner.
+      val k = streams.length
+      // The leaf nodes of the tournament tree, each of which holds a pointer
+      // to the current value of that stream.
+      val heads = mb.newLocal[Array[A]]("merge_heads")
+      // The internal nodes of the tournament tree, laid out in breadth-first
+      // order, each of which holds the index of the stream which lost that
+      // contest.
+      val bracket = mb.newLocal[Array[Int]]("merge_bracket")
+      // When updating the tournament tree, holds the winner of the subtree
+      // containing the updated leaf. Otherwise, holds the overall winner, i.e.
+      // the current least element.
+      val winner = mb.newLocal[Int]("merge_winner")
+      val i = mb.newLocal[Int]("merge_i")
+      val challenger = mb.newLocal[Int]("merge_challenger")
+
+      val runMatch = CodeLabel()
+      val LpullChild = CodeLabel()
+      val LloopEnd = CodeLabel()
+      val Leos = CodeLabel()
+      Code(Leos, eos)
+
+      val matchIdx = mb.newLocal[Int]("merge_match_idx")
+      // Compare 'winner' with value in 'matchIdx', loser goes in 'matchIdx',
+      // winner goes on to next round. A contestant '-1' beats everything
+      // (negative infinity), a contestant 'k' loses to everything
+      // (positive infinity), and values in between are indices into 'heads'.
+      Code(runMatch,
+        challenger := bracket(matchIdx),
+        (matchIdx.ceq(0) || challenger.ceq(-1)).orEmpty(LloopEnd.goto),
+        (challenger.cne(k) && (winner.ceq(k) || lt(challenger, heads(challenger), winner, heads(winner)))).orEmpty(Code(
+          bracket(matchIdx) = winner,
+          winner := challenger)),
+        matchIdx := matchIdx >>> 1,
+        runMatch.goto,
+
+        LloopEnd,
+        matchIdx.ceq(0).mux(
+          // 'winner' is smallest of all k heads. If 'winner' = k, all heads
+          // must be k, and all streams are exhausted.
+          winner.ceq(k).mux(
+            Leos.goto,
+            push((winner, heads(winner)))),
+          // We're still in the setup phase
+          Code(bracket(matchIdx) = winner, i += 1, winner := i, LpullChild.goto)))
+
+      val sources = streams.zipWithIndex.map { case (stream, idx) =>
+        stream(
+          eos = Code(winner := k, matchIdx := (idx + k) >>> 1, runMatch.goto),
+          push = elt => Code(heads(idx) = elt, matchIdx := (idx + k) >>> 1, runMatch.goto))
+      }
+
+      Code(LpullChild,
+        Code.switch(winner,
+          Leos.goto, // can only happen if k=0
+          sources.map(_.pull.asInstanceOf[Code[Unit]])))
+
+      Source[(Code[Int], Code[A])](
+        setup0 = Code(sources.map(_.setup0)),
+        close0 = Code(sources.map(_.close0)),
+        setup = Code(
+          Code(sources.map(_.setup)),
+          bracket := Code.newArray[Int](k),
+          heads := Code.newArray[A](k),
+          Code.forLoop(i := 0, i < k, i := i + 1, bracket(i) = -1),
+          i := 0,
+          winner := 0),
+        close = Code(Code(sources.map(_.close)), bracket := Code._null, heads := Code._null),
+        pull = LpullChild.goto)
+    }
+  }
 }
 
 object EmitStream {
@@ -801,7 +897,157 @@ object EmitStream {
     }
   }
 
-  def groupBy(mb: EmitMethodBuilder[_], region: Value[Region], stream: Stream[PCode], eltType: PStruct, key: Array[String]): Stream[Stream[PCode]] = new Stream[Stream[PCode]] {
+  def kWayZipJoin(
+    mb: EmitMethodBuilder[_],
+    region: Value[Region],
+    streams: IndexedSeq[Stream[PCode]],
+    eltType: PStruct,
+    resultType: PArray,
+    key: IndexedSeq[String]
+  ): Stream[PCode] = new Stream[PCode] {
+    def apply(eos: Code[Ctrl], push: PCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[PCode] = {
+      // The algorithm maintains a tournament tree of comparisons between the
+      // current values of the k streams. The tournament tree is a complete
+      // binary tree with k leaves. The leaves of the tree are the streams,
+      // and each internal node represents the "contest" between the "winners"
+      // of the two subtrees, where the winner is the stream with the smaller
+      // current key. Each internal node stores the index of the stream which
+      // *lost* that contest.
+      // Each time we remove the overall winner, and replace that stream's
+      // leaf with its next value, we only need to rerun the contests on the
+      // path from that leaf to the root, comparing the new value with what
+      // previously lost that contest to the previous overall winner.
+
+      val k = streams.length
+      // The leaf nodes of the tournament tree, each of which holds a pointer
+      // to the current value of that stream.
+      val heads = mb.newLocal[Array[Long]]("merge_heads")
+      // The internal nodes of the tournament tree, laid out in breadth-first
+      // order, each of which holds the index of the stream which lost that
+      // contest.
+      val bracket = mb.newLocal[Array[Int]]("merge_bracket")
+      // When updating the tournament tree, holds the winner of the subtree
+      // containing the updated leaf. Otherwise, holds the overall winner, i.e.
+      // the current least element.
+      val winner = mb.newLocal[Int]("merge_winner")
+      val result = mb.newLocal[Array[Long]]("merge_result")
+      val i = mb.newLocal[Int]("merge_i")
+
+      val keyType = eltType.selectFields(key)
+      val curKey = ctx.mb.newPLocal("st_grpby_curkey", keyType)
+
+      val keyViewType = PSubsetStruct(eltType, key: _*)
+      val lt: (Code[Long], Code[Long]) => Code[Boolean] = keyViewType
+        .codeOrdering(mb, keyViewType, missingFieldsEqual = false)
+        .asInstanceOf[CodeOrdering { type T = Long }]
+        .lteqNonnull
+      val hasKey: (Code[Long], Code[Long]) => Code[Boolean] = keyViewType
+        .codeOrdering(mb, keyType, missingFieldsEqual = false)
+        .asInstanceOf[CodeOrdering { type T = Long }]
+        .equivNonnull
+
+      val srvb = new StagedRegionValueBuilder(mb, resultType, region)
+
+      val runMatch = CodeLabel()
+      val LpullChild = CodeLabel()
+      val LloopEnd = CodeLabel()
+      val LaddToResult = CodeLabel()
+      val LstartNewKey = CodeLabel()
+      val Leos = CodeLabel()
+      val Lpush = CodeLabel()
+
+      Code(Leos, eos)
+
+      Code(Lpush,
+        srvb.start(k),
+        Code.forLoop(i := 0, i < k, i := i + 1,
+          Code(
+            result(i).ceq(0L).mux(
+              srvb.setMissing(),
+              srvb.addIRIntermediate(eltType)(result(i))),
+            srvb.advance())),
+        push(PCode(resultType, srvb.offset)))
+
+      Code(LstartNewKey,
+        Code.forLoop(i := 0, i < k, i := i + 1, result(i) = 0L),
+        curKey := keyType.copyFromPValue(mb, region, new PSubsetStructCode(keyViewType, heads(winner))),
+        LaddToResult.goto)
+
+      Code(LaddToResult,
+        result(winner) = heads(winner),
+        LpullChild.goto)
+
+      def inSetup: Code[Boolean] = result.isNull
+
+      val matchIdx = mb.newLocal[Int]("merge_match_idx")
+      val challenger = mb.newLocal[Int]("merge_challenger")
+      // Compare 'winner' with value in 'matchIdx', loser goes in 'matchIdx',
+      // winner goes on to next round. A contestant '-1' beats everything
+      // (negative infinity), a contestant 'k' loses to everything
+      // (positive infinity), and values in between are indices into 'heads'.
+      Code(runMatch,
+        challenger := bracket(matchIdx),
+        (matchIdx.ceq(0) || challenger.ceq(-1)).orEmpty(LloopEnd.goto),
+        (challenger.cne(k) && (winner.ceq(k) || lt(heads(challenger), heads(winner)))).orEmpty(Code(
+          bracket(matchIdx) = winner,
+          winner := challenger)),
+        matchIdx := matchIdx >>> 1,
+        runMatch.goto,
+
+        LloopEnd,
+        matchIdx.ceq(0).mux(
+          // 'winner' is smallest of all k heads. If 'winner' = k, all heads
+          // must be k, and all streams are exhausted.
+          inSetup.mux(
+            winner.ceq(k).mux(
+              Leos.goto,
+              Code(result := Code.newArray[Long](k), LstartNewKey.goto)),
+            (winner.cne(k) && hasKey(heads(winner), curKey.tcode[Long])).mux(
+              LaddToResult.goto,
+              Lpush.goto)),
+          // We're still in the setup phase
+          Code(bracket(matchIdx) = winner, i += 1, winner := i, LpullChild.goto)))
+
+      val sources = streams.zipWithIndex.map { case (stream, idx) =>
+        stream(
+          eos = Code(winner := k, matchIdx := (idx + k) >>> 1,  runMatch.goto),
+          push = elt => Code(
+            heads(idx) = eltType.copyFromPValue(mb, region, elt).tcode[Long],
+            matchIdx := (idx + k) >>> 1,
+            runMatch.goto))
+      }
+
+      Code(LpullChild,
+        Code.switch(winner,
+          Leos.goto, // can only happen if k=0
+          sources.map(_.pull.asInstanceOf[Code[Unit]])))
+
+      Source[PCode](
+        setup0 = Code(sources.map(_.setup0)),
+        close0 = Code(sources.map(_.close0)),
+        setup = Code(
+          Code(sources.map(_.setup)),
+          bracket := Code.newArray[Int](k),
+          heads := Code.newArray[Long](k),
+          result := Code._null,
+          Code.forLoop(i := 0, i < k, i := i + 1, bracket(i) = -1),
+          winner := 0),
+        close = Code(Code(sources.map(_.close)), bracket := Code._null, heads := Code._null),
+        pull = inSetup.mux(
+          Code(i := 0, LpullChild.goto),
+          winner.ceq(k).mux(
+            Leos.goto,
+            LstartNewKey.goto)))
+    }
+  }
+
+  def groupBy(
+    mb: EmitMethodBuilder[_],
+    region: Value[Region],
+    stream: Stream[PCode],
+    eltType: PStruct,
+    key: Array[String]
+  ): Stream[Stream[PCode]] = new Stream[Stream[PCode]] {
     def apply(outerEos: Code[Ctrl], outerPush: Stream[PCode] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[Stream[PCode]] = {
       val keyType = eltType.selectFields(key)
       val keyViewType = PSubsetStruct(eltType, key)
@@ -1348,6 +1594,42 @@ object EmitStream {
 
                 SizedStream(lenSetup, newStream, newLength)
             }
+          }
+
+        case x@StreamMultiMerge(as, key) =>
+          val eltType = x.pType.elementType.asInstanceOf[PStruct]
+
+          val keyViewType = PSubsetStruct(eltType, key: _*)
+          val ord = keyViewType
+            .codeOrdering(mb, keyViewType)
+            .asInstanceOf[CodeOrdering { type T = Long }]
+          def comp(li: Code[Int], lv: Code[Long], ri: Code[Int], rv: Code[Long]): Code[Boolean] =
+            Code.memoize(ord.compareNonnull(lv, rv), "stream_merge_comp") { c =>
+              c < 0 || (c.ceq(0) && li < ri)
+            }
+
+          COption.lift(as.map(emitStream(_, env))).map { sss =>
+            val streams = sss.map(_.stream.map { ec =>
+              eltType.copyFromPValue(mb, region, ec.get()).tcode[Long]
+            })
+            val merged = kWayMerge[Long](mb, streams, comp).map { case (i, elt) =>
+                EmitCode.present(PCode(eltType, elt))
+            }
+            SizedStream(
+              Code(sss.map(_.setup)),
+              merged,
+              sss.map(_.length).reduce(_.liftedZip(_).map {
+                case (l, r) => l + r
+              }))
+          }
+
+        case x@StreamZipJoin(as, key) =>
+          val eltType = x.pType.elementType.asInstanceOf[PArray].elementType.asInstanceOf[PStruct]
+
+          COption.lift(as.map(emitStream(_, env))).map { sss =>
+            val streams = sss.map(_.getStream.map(_.get()))
+            val zipped = kWayZipJoin(mb, region, streams, eltType, x.pType.elementType.asInstanceOf[PArray], key)
+            SizedStream.unsized(zipped.map(EmitCode.present))
           }
 
         case StreamFlatMap(outerIR, name, innerIR) =>

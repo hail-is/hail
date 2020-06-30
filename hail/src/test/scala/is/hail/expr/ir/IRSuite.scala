@@ -2322,6 +2322,113 @@ class IRSuite extends HailSuite {
                      joinType))
   }
 
+  @Test def testStreamZipJoin() {
+    def makeStream(a: Seq[Integer]): IR = {
+      MakeStream(
+        a.zipWithIndex.map { case (n, idx) =>
+          MakeStruct(FastSeq(
+            "k1" -> (if (n == null) NA(TInt32) else I32(n)),
+            "k2" -> Str("x"),
+            "idx" -> I32(idx)))},
+        TStream(TStruct("k1" -> TInt32, "k2" -> TString, "idx" -> TInt32)))
+    }
+
+    def zipJoin(as: IndexedSeq[Seq[Integer]], key: Int): IR = {
+      val streams = as.map(makeStream)
+      ToArray(StreamZipJoin(streams, FastIndexedSeq("k1", "k2").take(key)))
+    }
+
+    assertEvalsTo(
+      zipJoin(FastIndexedSeq(Array[Integer](0, 1, null), Array[Integer](1, 2, null)), 1),
+      FastIndexedSeq(
+        FastIndexedSeq(Row(0, "x", 0), null),
+        FastIndexedSeq(Row(1, "x", 1), Row(1, "x", 0)),
+        FastIndexedSeq(null, Row(2, "x", 1)),
+        FastIndexedSeq(Row(null, "x", 2), null),
+        FastIndexedSeq(null, Row(null, "x", 2))))
+
+    assertEvalsTo(
+      zipJoin(FastIndexedSeq(Array[Integer](0, 1), Array[Integer](1, 2), Array[Integer](0, 2)), 1),
+      FastIndexedSeq(
+        FastIndexedSeq(Row(0, "x", 0), null, Row(0, "x", 0)),
+        FastIndexedSeq(Row(1, "x", 1), Row(1, "x", 0), null),
+        FastIndexedSeq(null, Row(2, "x", 1), Row(2, "x", 1))))
+
+    assertEvalsTo(
+      zipJoin(FastIndexedSeq(Array[Integer](0, 1), Array[Integer](), Array[Integer](0, 2)), 1),
+      FastIndexedSeq(
+        FastIndexedSeq(Row(0, "x", 0), null, Row(0, "x", 0)),
+        FastIndexedSeq(Row(1, "x", 1), null, null),
+        FastIndexedSeq(null, null, Row(2, "x", 1))))
+
+    assertEvalsTo(
+      zipJoin(FastIndexedSeq(Array[Integer](), Array[Integer]()), 1),
+      FastIndexedSeq())
+
+    assertEvalsTo(
+      zipJoin(FastIndexedSeq(Array[Integer](0, 1)), 1),
+      FastIndexedSeq(
+        FastIndexedSeq(Row(0, "x", 0)),
+        FastIndexedSeq(Row(1, "x", 1))))
+  }
+
+  @Test def testStreamMultiMerge() {
+    def makeStream(a: Seq[Integer]): IR = {
+      MakeStream(
+        a.zipWithIndex.map { case (n, idx) =>
+          MakeStruct(FastSeq(
+            "k1" -> (if (n == null) NA(TInt32) else I32(n)),
+            "k2" -> Str("x"),
+            "idx" -> I32(idx)))},
+        TStream(TStruct("k1" -> TInt32, "k2" -> TString, "idx" -> TInt32)))
+    }
+
+    def merge(as: IndexedSeq[Seq[Integer]], key: Int): IR = {
+      val streams = as.map(makeStream)
+      ToArray(StreamMultiMerge(streams, FastIndexedSeq("k1", "k2").take(key)))
+    }
+
+    assertEvalsTo(
+      merge(FastIndexedSeq(Array[Integer](0, 1, null, null), Array[Integer](1, 2, null, null)), 1),
+      FastIndexedSeq(
+        Row(0, "x", 0),
+        Row(1, "x", 1),
+        Row(1, "x", 0),
+        Row(2, "x", 1),
+        Row(null, "x", 2),
+        Row(null, "x", 3),
+        Row(null, "x", 2),
+        Row(null, "x", 3)))
+
+    assertEvalsTo(
+      merge(FastIndexedSeq(Array[Integer](0, 1), Array[Integer](1, 2), Array[Integer](0, 2)), 1),
+      FastIndexedSeq(
+        Row(0, "x", 0),
+        Row(0, "x", 0),
+        Row(1, "x", 1),
+        Row(1, "x", 0),
+        Row(2, "x", 1),
+        Row(2, "x", 1)))
+
+    assertEvalsTo(
+      merge(FastIndexedSeq(Array[Integer](0, 1), Array[Integer](), Array[Integer](0, 2)), 1),
+      FastIndexedSeq(
+        Row(0, "x", 0),
+        Row(0, "x", 0),
+        Row(1, "x", 1),
+        Row(2, "x", 1)))
+
+    assertEvalsTo(
+      merge(FastIndexedSeq(Array[Integer](), Array[Integer]()), 1),
+      FastIndexedSeq())
+
+    assertEvalsTo(
+      merge(FastIndexedSeq(Array[Integer](0, 1)), 1),
+      FastIndexedSeq(
+        Row(0, "x", 0),
+        Row(1, "x", 1)))
+  }
+
   @Test def testJoinRightDistinct() {
     implicit val execStrats = ExecStrategy.javaOnly
 

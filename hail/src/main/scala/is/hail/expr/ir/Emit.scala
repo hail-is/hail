@@ -346,6 +346,9 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
       cb.goto(eci.Lmissing)
       eci
     }
+
+  def get(): PCode =
+    PCode(pv.pt, Code(setup, m.orEmpty(Code._fatal[Unit]("expected non-missing")), pv.code))
 }
 
 abstract class EmitSettable extends EmitValue {

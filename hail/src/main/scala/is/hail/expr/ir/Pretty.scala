@@ -274,6 +274,8 @@ object Pretty {
               case ArrayZipBehavior.ExtendNA => "ExtendNA"
               case ArrayZipBehavior.AssumeSameLength => "AssumeSameLength"
             }) + " " + prettyIdentifiers(names)
+            case StreamZipJoin(_, key) => prettyIdentifiers(key)
+            case StreamMultiMerge(_, key) => prettyIdentifiers(key)
             case StreamFilter(_, name, _) => prettyIdentifier(name)
             case StreamFlatMap(_, name, _) => prettyIdentifier(name)
             case StreamFold(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)

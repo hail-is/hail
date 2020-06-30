@@ -263,6 +263,14 @@ final case class StreamZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: 
   lazy val nameIdx: Map[String, Int] = names.zipWithIndex.toMap
   override def typ: TStream = coerce[TStream](super.typ)
 }
+final case class StreamMultiMerge(as: IndexedSeq[IR], key: IndexedSeq[String]) extends IR {
+  override def typ: TStream = coerce[TStream](super.typ)
+  override def pType: PStream = coerce[PStream](super.pType)
+}
+final case class StreamZipJoin(as: IndexedSeq[IR], key: IndexedSeq[String]) extends IR {
+  override def typ: TStream = coerce[TStream](super.typ)
+  override def pType: PStream = coerce[PStream](super.pType)
+}
 final case class StreamFilter(a: IR, name: String, cond: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
 }

@@ -116,6 +116,10 @@ object InferType {
         l.typ
       case StreamZip(as, _, body, _) =>
         TStream(body.typ)
+      case StreamZipJoin(as, _) =>
+        TStream(TArray(coerce[TStream](as.head.typ).elementType))
+      case StreamMultiMerge(as, _) =>
+        TStream(coerce[TStream](as.head.typ).elementType)
       case StreamFilter(a, name, cond) =>
         a.typ
       case StreamFlatMap(a, name, body) =>

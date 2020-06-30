@@ -161,6 +161,12 @@ object Copy {
       case StreamZip(_, names, _, behavior) =>
         assert(newChildren.length == names.length + 1)
         StreamZip(newChildren.init.asInstanceOf[IndexedSeq[IR]], names, newChildren(names.length).asInstanceOf[IR], behavior)
+      case StreamZipJoin(as, key) =>
+        assert(newChildren.length == as.length)
+        StreamZipJoin(newChildren.asInstanceOf[IndexedSeq[IR]], key)
+      case StreamMultiMerge(as, key) =>
+        assert(newChildren.length == as.length)
+        StreamMultiMerge(newChildren.asInstanceOf[IndexedSeq[IR]], key)
       case StreamFilter(_, name, _) =>
         assert(newChildren.length == 2)
         StreamFilter(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
