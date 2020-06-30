@@ -548,7 +548,9 @@ case class BlockMatrixAgg(
   assert(outIndexExpr.length < 2)
 
   override def typ: BlockMatrixType = {
-    val shape = outIndexExpr.map({ i: Int => child.typ.shape(i) }).toFastIndexedSeq
+    val matrixShape = BlockMatrixIR.tensorShapeToMatrixShape(child)
+    val matrixShapeArr = Array[Long](matrixShape._1, matrixShape._2)
+    val shape = outIndexExpr.map({ i: Int => matrixShapeArr(i) }).toFastIndexedSeq
     val isRowVector = outIndexExpr == FastIndexedSeq(1)
 
     val sparsity = if (child.typ.isSparse) {

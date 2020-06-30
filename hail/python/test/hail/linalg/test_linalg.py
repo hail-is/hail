@@ -1076,3 +1076,28 @@ class Tests(unittest.TestCase):
         sparse_bm = bm._sparsify_blocks(block_list).T
         sparse_np = sparsify_numpy(np_square, block_size, block_list).T
         assert np.array_equal(sparse_bm.to_numpy(), sparse_np)
+
+
+    @skip_unless_spark_backend()
+    def test_row_blockmatrix_sum(self):
+        
+        row = BlockMatrix.from_numpy(np.arange(10))
+        col = row.T
+
+        # Summing vertically along a column vector to get a single value
+        b = col.sum(axis=0)
+        assert b.to_numpy().shape == (1,1)
+
+        # Summing horizontally along a row vector to create a single value
+        d = row.sum(axis=1)
+        assert d.to_numpy().shape == (1,1)
+
+        # Summing vertically along a row vector to make sure nothing changes
+        e = row.sum(axis=0)
+        assert e.to_numpy().shape == (1, 10)
+
+        # Summing horizontally along a column vector to make sure nothing changes
+        f = col.sum(axis=1)
+        assert f.to_numpy().shape == (10, 1)
+
+
