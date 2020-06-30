@@ -9,7 +9,7 @@ Hail source code is stored in a monolithic repository (monorepo) on
 Github at hail-is/hail.  $HAIL will denote the repository root below.
 Hail is open source and developed in the open.
 
-Hail is written in Python, Java and Scala, and C/C++.
+Hail is written in Python, Java/Scala (both JVM langauges), and C/C++.
 
 Hail has two user-facing components: Hail Query and Hail Batch.  Both
 provide Python interfaces.  Hail Query is for distributed, out-of-core
@@ -198,11 +198,23 @@ Python services are implemented using Python asyncio,
 [aiohttp](https://docs.aiohttp.org/en/stable/) and Jinja2 for HTML
 templating.
 
+Some services rely on 3rd party services.  Those include:
+
+* ci and scorecard depend on Github
+
+* notebook and ci depend on K8s
+
+* batch depends on K8s and GCP
+
+* site depends (client-side) on Algolia for search
+
+Services store state in a managed MySQL Google CloudSQL instance.
+
 There is a collection of libraries to facilitate service development:
 
 * `hailtop.aiogoogle`: asyncio client libraries for Google services.
   There are currently libraries for GCE, GCR, IAM, Stackdriver Logging
-  and Google Storage (in progress).
+  and (in progress) Google Storage
 
 * `hailtop.config`: to manage user and deployment configuration
 
