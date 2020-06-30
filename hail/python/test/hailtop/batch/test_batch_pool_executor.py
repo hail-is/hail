@@ -1,3 +1,4 @@
+import asyncio
 import time
 from hailtop.batch import BatchPoolExecutor
 
@@ -19,14 +20,7 @@ def test_cancel_future():
         future = bpe.submit(sleep_forever)
         was_cancelled = future.cancel()
     assert was_cancelled
-
-
-def test_cancel_future_after_shutdown_no_wait():
-    bpe = BatchPoolExecutor()
-    future = bpe.submit(sleep_forever)
-    bpe.shutdown(wait=False)
-    was_cancelled = future.cancel()
-    assert was_cancelled
+    assert future.cancelled()
 
 
 def test_cancel_future_after_shutdown_no_wait():
@@ -38,15 +32,95 @@ def test_cancel_future_after_shutdown_no_wait():
     assert future.cancelled()
 
 
-def test_wait_with_timeout():
+def test_cancel_future_after_exit_no_wait_on_exit():
+    with BatchPoolExecutor(wait_on_exit=False) as bpe:
+        future = bpe.submit(sleep_forever)
+    was_cancelled = future.cancel()
+    assert was_cancelled
+    assert future.cancelled()
+
+
+def test_result_with_timeout():
     with BatchPoolExecutor() as bpe:
         future = bpe.submit(sleep_forever)
-        future.wait
-    was_cancelled = future.cancel()
-    assert was_cancelled
-    assert future.cancelled()
+        try:
+            future.result(timeout=2)
+        except asyncio.TimeoutError:
+            pass
+        else:
+            assert False
+        finally:
+            future.cancel()
+
+
+def test_map_chunksize():
+    with BatchPoolExecutor() as bpe:
+        multiplication_table = bpe.map(lambda x, y: x * y, range(5), range(5), chunksize=5)
+    assert multiplication_table == [
+        0,  0,  0,  0,  0,
+        0,  1,  2,  3,  4,
+        0,  2,  4,  6,  8,
+        0,  3,  6,  9, 12,
+        0,  4,  8, 12, 16]
+
+
+def test_map_timeout():
+    with BatchPoolExecutor() as bpe:
+        try:
+            bpe.map(lambda _: sleep_forever(), range(5), timeout=2)
+        except asyncio.TimeoutError:
+            pass
+        else:
+            assert False
+
+
+def test_exception_in_map():
+    with BatchPoolExecutor() as bpe:
+        try:
+            bpe.map(lambda _: raise_value_error(), range(5))
+        except ValueError as exc:
+            assert 'ValueError: dead' in exc.args[0]
+        else:
+            assert False
+
+
+def test_exception_in_result():
+    with BatchPoolExecutor() as bpe:
+        try:
+            future = bpe.submit(raise_value_error)
+            future.result()
+        except ValueError as exc:
+            assert 'ValueError: dead' in exc.args[0]
+        else:
+            assert False
+
+
+def test_exception_in_exception():
+    with BatchPoolExecutor() as bpe:
+        try:
+            future = bpe.submit(raise_value_error)
+            future.exception()
+        except ValueError as exc:
+            assert 'ValueError: dead' in exc.args[0]
+        else:
+            assert False
+
+
+def test_no_exception_when_shutdown():
+    with BatchPoolExecutor() as bpe:
+        future = bpe.submit(raise_value_error)
+    try:
+        future.exception()
+    except ValueError as exc:
+        assert 'ValueError: dead' in exc.args[0]
+    else:
+        assert False
 
 
 def sleep_forever():
     while True:
         time.sleep(3600)
+
+
+def raise_value_error():
+    raise ValueError('dead')

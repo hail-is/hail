@@ -81,7 +81,8 @@ class BatchPoolExecutor(concurrent.futures.Executor):
         instructing BLAS and LAPACK to limit core use.
     wait_on_exit: :obj:`bool`
         If ``True`` or unspecified, wait for all jobs to complete when exiting a
-        context. If ``False``, do not wait.
+        context. If ``False``, do not wait. This option has no effect if this
+        executor is not used with the ``with`` syntax.
     cleanup_bucket: :obj:`bool`
         If ``True`` or unspecified, delete all temporary files in the cloud
         storage bucket when this executor fully shuts down. If Python crashes
@@ -218,13 +219,9 @@ class BatchPoolExecutor(concurrent.futures.Executor):
         futures = await asyncio.gather(*submissions)
         tasks = [asyncio.create_task(future.async_result(timeout=timeout))
                  for future in futures]
-        return (await task for task in tasks)
 
-        submissions = [self.async_submit(fn, *arguments)
-                       for arguments in zip(*iterables)]
-        futures = await asyncio.gather(*submissions)
-        tasks = [asyncio.create_task(future.async_result(timeout=timeout))
-                 for future in futures]
+        # FIXME: probably need to clean up and cancel all tasks if anything
+        # times out
         if chunksize > 1:
             return (val
                     for task in tasks
