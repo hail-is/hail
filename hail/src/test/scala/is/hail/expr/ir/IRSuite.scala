@@ -2790,7 +2790,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testTableAggregate() {
-    implicit val execStrats = ExecStrategy.interpretOnly
+    implicit val execStrats = ExecStrategy.allRelational
 
     val table = TableRange(3, 2)
     val countSig = AggSignature(Count(), Seq(), Seq())

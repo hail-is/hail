@@ -233,7 +233,9 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
         val dest = mb.getCodeParam[Long](3)
         mb.emit(current.constructAtAddressFromValue(mb, dest, r, t, value, false))
       }
-      v => m.invokeCode[Unit](region, v, currentOffset)
+       (v: Code[_]) => {
+         assert(v.v != null)
+         m.invokeCode[Unit](region, v, currentOffset) }
   }
 
   def addWithDeepCopy(t: PType, v: Code[_]): Code[Unit] = {
