@@ -166,12 +166,11 @@ class LocalBackend(Backend):
             script += [x for r in job._mentioned for x in symlink_input_resource_group(r)]
 
             resource_defs = [r._declare(tmpdir) for r in job._mentioned]
-            env = '; '.join(f'export {k}={v}' for k, v in job._env.items())
-            if job._env:
-                env += '; '
+            env = [f'export {k}={v}' for k, v in job._env.items()]
 
             if job._image:
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
+                env = '; '.join() + '; ' if job._env else ''
                 cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
                 memory = f'-m {job._memory}' if job._memory else ''
                 cpu = f'--cpus={job._cpu}' if job._cpu else ''

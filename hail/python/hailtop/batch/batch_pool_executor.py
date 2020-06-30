@@ -224,16 +224,22 @@ class BatchPoolExecutor(concurrent.futures.Executor):
         submissions = [self.async_submit(fn, *arguments)
                        for arguments in zip(*iterables)]
         futures = await asyncio.gather(*submissions)
-        tasks = [asyncio.create_task(future._async_fetch_result())
-                 for future in futures]
+        fetching_tasks = [asyncio.create_task(future._async_fetch_result())
+                          for future in futures]
 
-        # FIXME: probably need to clean up and cancel all tasks if anything
-        # times out
+        async def async_result_or_cancel_all(future):
+            try:
+                return await future.async_result(timeout=timeout)
+            except Exception as exc:
+                for task in fetching_tasks:
+                    task.cancel()
+                raise exc
         if chunksize > 1:
             return (val
-                    for task in tasks
-                    for val in await asyncio.wait_for(task, timeout))
-        return (await asyncio.wait_for(task, timeout) for task in tasks)
+                    for future in futures
+                    for val in await async_result_or_cancel_all(future))
+        return (await async_result_or_cancel_all(future)
+                for future in futures)
 
     def submit(self, *callable_and_args, **kwargs):
         """Call `fn` on a cloud machine with all remaining arguments and keyword arguments.
@@ -383,6 +389,7 @@ class BatchPoolFuture:
         self.output_gcs = output_gcs
         self.value = NO_VALUE
         self._exception: Optional[BaseException] = None
+        self.fetch_lock = asyncio.Lock()
         executor._add_future(self)
 
     def cancel(self):
@@ -450,28 +457,30 @@ class BatchPoolFuture:
         BatchPoolExecutor.async_to_blocking(self._async_fetch_result(timeout))
 
     async def _async_fetch_result(self, timeout: Optional[Union[float, int]] = None):
-        if self.value != NO_VALUE:
-            return
-        try:
-            await asyncio.wait_for(self.batch._async_batch.wait(disable_progress_bar=True), timeout)
-        except asyncio.TimeoutError:
-            raise concurrent.futures.TimeoutError()
-        try:
-            value, traceback = dill.loads(
-                await self.executor.gcs.read_binary_gs_file(self.output_gcs))
-            if traceback is not None:
-                assert isinstance(value, BaseException)
+        async with self.fetch_lock:
+            if self.value != NO_VALUE:
+                return
+            try:
+                await asyncio.wait_for(self.batch._async_batch.wait(disable_progress_bar=True),
+                                       timeout)
+            except asyncio.TimeoutError:
+                raise concurrent.futures.TimeoutError()
+            try:
+                value, traceback = dill.loads(
+                    await self.executor.gcs.read_binary_gs_file(self.output_gcs))
+                if traceback is not None:
+                    assert isinstance(value, BaseException)
+                    self.value = None
+                    traceback = ''.join(traceback)
+                    self._exception = ValueError(
+                        f'submitted job failed:\n{traceback}')
+                else:
+                    self.value = value
+            except Exception as exc:
                 self.value = None
-                traceback = ''.join(traceback)
-                self._exception = ValueError(
-                    f'submitted job failed:\n{traceback}')
-            else:
-                self.value = value
-        except Exception as exc:
-            self.value = None
-            self._exception = exc
-        finally:
-            self.executor._finish_future()
+                self._exception = exc
+            finally:
+                self.executor._finish_future()
 
     def exception(self, timeout: Optional[Union[float, int]] = None):
         """Block until the job is complete and raise any exceptions.

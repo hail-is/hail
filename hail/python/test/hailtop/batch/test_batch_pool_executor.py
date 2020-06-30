@@ -33,7 +33,7 @@ def test_cancel_future_after_shutdown_no_wait():
 
 
 def test_cancel_future_after_exit_no_wait_on_exit():
-    with BatchPoolExecutor(wait_on_exit=False) as bpe:
+    with BatchPoolExecutor(project='hail-vdc', wait_on_exit=False) as bpe:
         future = bpe.submit(sleep_forever)
     was_cancelled = future.cancel()
     assert was_cancelled
