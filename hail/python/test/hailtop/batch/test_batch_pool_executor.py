@@ -54,8 +54,17 @@ def test_result_with_timeout():
 
 
 def test_map_chunksize():
+    row_args = [x
+                for row in range(5)
+                for x in [row, row, row, row, row]]
+    col_args = [x
+                for row in range(5)
+                for x in list(range(5))]
     with BatchPoolExecutor() as bpe:
-        multiplication_table = list(bpe.map(lambda x, y: x * y, range(5), range(5), chunksize=5))
+        multiplication_table = list(bpe.map(lambda x, y: x * y,
+                                            row_args,
+                                            col_args,
+                                            chunksize=5))
     assert multiplication_table == [
         0,  0,  0,  0,  0,
         0,  1,  2,  3,  4,
@@ -80,9 +89,12 @@ def test_map_error_without_wait_no_error():
 
 
 def test_exception_in_map():
+    def raise_value_error():
+        raise ValueError('dead')
     with BatchPoolExecutor() as bpe:
         try:
-            bpe.map(lambda _: raise_value_error(), range(5))
+            gen = bpe.map(lambda _: raise_value_error(), range(5))
+            next(gen)
         except ValueError as exc:
             assert 'ValueError: dead' in exc.args[0]
         else:
@@ -90,6 +102,8 @@ def test_exception_in_map():
 
 
 def test_exception_in_result():
+    def raise_value_error():
+        raise ValueError('dead')
     with BatchPoolExecutor() as bpe:
         try:
             future = bpe.submit(raise_value_error)
@@ -101,6 +115,8 @@ def test_exception_in_result():
 
 
 def test_exception_in_exception():
+    def raise_value_error():
+        raise ValueError('dead')
     with BatchPoolExecutor() as bpe:
         try:
             future = bpe.submit(raise_value_error)
@@ -112,6 +128,8 @@ def test_exception_in_exception():
 
 
 def test_no_exception_when_shutdown():
+    def raise_value_error():
+        raise ValueError('dead')
     with BatchPoolExecutor() as bpe:
         future = bpe.submit(raise_value_error)
     try:
@@ -125,7 +143,3 @@ def test_no_exception_when_shutdown():
 def sleep_forever():
     while True:
         time.sleep(3600)
-
-
-def raise_value_error():
-    raise ValueError('dead')

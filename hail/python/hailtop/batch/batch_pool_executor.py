@@ -8,6 +8,7 @@ import dill
 import functools
 
 from hailtop.utils import secret_alnum_string, partition
+import hailtop.batch_client.client as low_level_batch_client
 
 from .batch import Batch
 from .backend import ServiceBackend
@@ -217,7 +218,7 @@ class BatchPoolExecutor(concurrent.futures.Executor):
         submissions = [self.async_submit(fn, *arguments)
                        for arguments in zip(*iterables)]
         futures = await asyncio.gather(*submissions)
-        tasks = [asyncio.create_task(future.async_result(timeout=timeout))
+        tasks = [asyncio.create_task(future._async_fetch_result())
                  for future in futures]
 
         # FIXME: probably need to clean up and cancel all tasks if anything
@@ -225,8 +226,8 @@ class BatchPoolExecutor(concurrent.futures.Executor):
         if chunksize > 1:
             return (val
                     for task in tasks
-                    for val in await task)
-        return (await task for task in tasks)
+                    for val in await asyncio.wait_for(task, timeout))
+        return (await asyncio.wait_for(task, timeout) for task in tasks)
 
     def submit(self, *callable_and_args, **kwargs):
         """Call `fn` on a cloud machine with all remaining arguments and keyword arguments.
@@ -301,9 +302,6 @@ class BatchPoolExecutor(concurrent.futures.Executor):
 
         pipe = BytesIO()
         dill.dump(functools.partial(unapplied, *args, **kwargs), pipe, recurse=True)
-        print(args)
-        print(kwargs)
-        print(functools.partial(unapplied, *args, **kwargs)())
         pipe.seek(0)
         pickledfun_gcs = self.inputs + f'{name}/pickledfun'
         await self.gcs.write_gs_file_from_file_like_object(pickledfun_gcs, pipe)
@@ -370,12 +368,15 @@ CANCELLED = object()
 
 
 class BatchPoolFuture:
-    def __init__(self, executor, batch, output_gcs):
+    def __init__(self,
+                 executor: BatchPoolExecutor,
+                 batch: low_level_batch_client.Batch,
+                 output_gcs: str):
         self.executor = executor
         self.batch = batch
         self.output_gcs = output_gcs
         self.value = NO_VALUE
-        self._exception = None
+        self._exception: Optional[BaseException] = None
         executor._add_future(self)
 
     def cancel(self):
@@ -387,6 +388,7 @@ class BatchPoolFuture:
         if self.value == NO_VALUE:
             self.batch.cancel()
             self.value = CANCELLED
+            self.executor._finish_future()
             return True
         return False
 
@@ -410,6 +412,9 @@ class BatchPoolFuture:
     def result(self, timeout: Optional[Union[float, int]] = None):
         """Blocks until the job is complete.
 
+        If the job has been cancelled, this method rasies a
+        :class:`.concurrent.futures.CancelledError`.
+
         Parameters
         ----------
         timeout: Optional[Union[float, int]]
@@ -420,11 +425,16 @@ class BatchPoolFuture:
     async def async_result(self, timeout: Optional[Union[float, int]] = None):
         """Asynchronously wait until the job is complete.
 
+        If the job has been cancelled, this method rasies a
+        :class:`.concurrent.futures.CancelledError`.
+
         Parameters
         ----------
         timeout: Optional[Union[float, int]]
             Wait this long before raising a timeout error.
         """
+        if self.cancelled():
+            raise concurrent.futures.CancelledError()
         await self._async_fetch_result(timeout)
         if self._exception:
             raise self._exception
@@ -436,8 +446,6 @@ class BatchPoolFuture:
     async def _async_fetch_result(self, timeout: Optional[Union[float, int]] = None):
         if self.value != NO_VALUE:
             return
-        if self.cancelled():
-            raise concurrent.futures.CancelledError()
         try:
             await asyncio.wait_for(self.batch._async_batch.wait(disable_progress_bar=True), timeout)
         except asyncio.TimeoutError:
@@ -462,6 +470,8 @@ class BatchPoolFuture:
     def exception(self, timeout: Optional[Union[float, int]] = None):
         """Block until the job is complete and raise any exceptions.
         """
+        if self.cancelled():
+            raise concurrent.futures.CancelledError()
         self.result(timeout)
 
     def add_done_callback(self, fn):
