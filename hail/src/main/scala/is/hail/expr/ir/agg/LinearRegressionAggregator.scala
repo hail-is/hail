@@ -13,7 +13,8 @@ object LinearRegressionAggregator {
   val vector = PCanonicalArray(scalar, true)
   val stateType: PCanonicalTuple = PCanonicalTuple(true, vector, vector, PInt32(true))
 
-  def resultType: PCanonicalStruct = PCanonicalStruct(required = true, "xty" -> vector, "beta" -> vector, "diag_inv" -> vector, "beta0" -> vector)
+  private val optVector = vector.setRequired(false)
+  def resultType: PCanonicalStruct = PCanonicalStruct(required = true, "xty" -> optVector, "beta" -> optVector, "diag_inv" -> optVector, "beta0" -> optVector)
 
   def computeResult(region: Region, xtyPtr: Long, xtxPtr: Long, k0: Int): Long = {
     val xty = DenseVector(UnsafeRow.readArray(vector, null, xtyPtr)
