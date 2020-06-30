@@ -12,7 +12,7 @@ import hailtop.batch_client.client as low_level_batch_client
 
 from .batch import Batch
 from .backend import ServiceBackend
-from .google_storage import GCS
+from ..google_storage import GCS
 
 if sys.version_info < (3, 7):
     def create_task(coro, *, name=None):  # pylint: disable=unused-argument

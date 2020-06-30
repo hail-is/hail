@@ -23,14 +23,12 @@ class GCS:
         self.blocking_pool = blocking_pool
         # project=None doesn't mean default, it means no project:
         # https://github.com/googleapis/google-cloud-python/blob/master/storage/google/cloud/storage/client.py#L86
-        print(f'acquiring credentials')
         if project:
             self.gcs_client = google.cloud.storage.Client(
                 project=project, credentials=credentials)
         else:
             self.gcs_client = google.cloud.storage.Client(
                 credentials=credentials)
-        print(f'credentials acquired {project}')
         self._wrapped_write_gs_file_from_string = self._wrap_network_call(GCS._write_gs_file_from_string)
         self._wrapped_write_gs_file_from_file_like_object = self._wrap_network_call(GCS._write_gs_file_from_file_like_object)
         self._wrapped_read_gs_file = self._wrap_network_call(GCS._read_gs_file)

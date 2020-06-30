@@ -1,7 +1,8 @@
 import logging
 import asyncio
 
-from .google_storage import GCS
+from hailtop.google_storage import GCS
+
 from .spec_writer import SpecWriter
 
 log = logging.getLogger('logstore')
