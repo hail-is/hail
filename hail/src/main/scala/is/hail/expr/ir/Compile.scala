@@ -40,7 +40,7 @@ object Compile {
     ir = Subst(ir, BindingEnv(params
       .zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t), i)) => e.bind(n, In(i, t)) }))
-    ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR].noSharing
+    ir = LoweringPipeline.compileLowerer(optimize).apply(ctx, ir).asInstanceOf[IR].noSharing
 
     TypeCheck(ir, BindingEnv.empty)
     InferPType(ir)
@@ -101,7 +101,7 @@ object CompileWithAggregators2 {
     ir = Subst(ir, BindingEnv(params
       .zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t), i)) => e.bind(n, In(i, t)) }))
-    ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR].noSharing
+    ir = LoweringPipeline.compileLowerer(optimize).apply(ctx, ir).asInstanceOf[IR].noSharing
 
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](params.map { case (name, t) => name -> t.virtualType })))
 

@@ -74,7 +74,7 @@ class LocalBackend(
   def stop(): Unit = LocalBackend.stop()
 
   private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir0: IR, print: Option[PrintWriter] = None): (PTuple, Long) = {
-    val ir = LoweringPipeline.darrayLowerer(DArrayLowering.All).apply(ctx, ir0, optimize = true).asInstanceOf[IR]
+    val ir = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, ir0).asInstanceOf[IR]
 
     if (!Compilable(ir))
       throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")

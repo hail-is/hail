@@ -21,6 +21,12 @@ trait LoweringPass {
   protected def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR
 }
 
+case class OptimizePass(context: String) extends LoweringPass {
+  val before: IRState = AnyIR
+  val after: IRState = AnyIR
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = Optimize(ir, true, context, ctx)
+}
+
 case object LowerMatrixToTablePass extends LoweringPass {
   val before: IRState = AnyIR
   val after: IRState = MatrixLoweredToTable
