@@ -7,6 +7,8 @@ from hail.utils.java import info
 from hail.utils import new_temp_file
 
 
+@typecheck(path=str, reference_genome=nullable(reference_genome_type), skip_invalid_contigs=bool,
+           min_partitions=nullable(int), force_bgz=bool, force=bool)
 def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_partitions=None,
                force_bgz=False, force=False) -> hl.Table:
     """Import a GTF file.
@@ -160,7 +162,7 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_part
                          for x in attributes if x})
 
     if reference_genome:
-        if reference_genome == 'GRCh37':
+        if reference_genome.name == 'GRCh37':
             ht = ht.annotate(seqname=ht['seqname'].replace('^chr', ''))
         else:
             ht = ht.annotate(seqname=hl.case()
@@ -169,7 +171,7 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_part
                                        .when(ht['seqname'].startswith('chr'), ht['seqname'])
                                        .default('chr' + ht['seqname']))
         if skip_invalid_contigs:
-            valid_contigs = hl.literal(set(hl.get_reference(reference_genome).contigs))
+            valid_contigs = hl.literal(set(reference_genome.contigs))
             ht = ht.filter(valid_contigs.contains(ht['seqname']))
         ht = ht.transmute(interval=hl.locus_interval(ht['seqname'],
                                                      ht['start'],
@@ -253,7 +255,7 @@ def _load_gencode_gtf(gtf_file=None, reference_genome=None):
 
     Parameters
     ----------
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+    reference_genome : :class:`.ReferenceGenome`, optional
        Reference genome to use (passed along to import_gtf).
     gtf_file : :obj:`str`
        GTF file to load. If none is provided, but `reference_genome` is one of
