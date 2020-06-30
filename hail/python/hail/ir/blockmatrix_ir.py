@@ -399,7 +399,6 @@ def _serialize_list(xs):
 
 
 def _matrix_shape_to_tensor_shape(n_rows, n_cols):
-
     if n_rows == 1 and n_cols == 1:
         return [], False
     elif n_rows == 1:

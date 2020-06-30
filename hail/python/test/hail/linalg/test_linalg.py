@@ -1092,11 +1092,10 @@ class Tests(unittest.TestCase):
         d = row.sum(axis=1)
         assert d.to_numpy().shape == (1,1)
 
-        # # Summing vertically along a row vector to make sure nothing changes
+        # Summing vertically along a row vector to make sure nothing changes
         e = row.sum(axis=0)
         assert e.to_numpy().shape == (1, 10)
 
-        # FAILS
         # Summing horizontally along a column vector to make sure nothing changes
         f = col.sum(axis=1)
         assert f.to_numpy().shape == (10, 1)
