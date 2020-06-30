@@ -650,7 +650,7 @@ class Emit[C](
 
       case InitFromSerializedValue(i, value, sig) =>
         val AggContainer(aggs, sc, _) = container.get
-        assert(aggs(i) == sig.state)
+        assert(aggs(i) == sig)
 
         val v = emitI(value)
         v.consume(cb,

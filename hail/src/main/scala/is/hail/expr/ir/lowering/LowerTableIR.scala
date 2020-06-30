@@ -846,8 +846,8 @@ object LowerTableIR {
           letBindings = lc.letBindings ++ FastIndexedSeq((initStateRef.name, initState)),
           broadcastVals = lc.broadcastVals ++ FastIndexedSeq((initStateRef.name, initStateRef)))
 
-        val initFromSerializedStates = Begin(aggs.aggs.zipWithIndex.map { case (sig, i) =>
-          InitFromSerializedValue(i, GetTupleElement(initStateRef, i), sig )})
+        val initFromSerializedStates = Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
+          InitFromSerializedValue(i, GetTupleElement(initStateRef, i), agg.state )})
 
         lcWithInitBinding.mapCollectWithGlobals({ part: IR =>
           Let("global", lc.globals,
