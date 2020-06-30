@@ -602,7 +602,9 @@ object PartitionWriter {
 object MetadataWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
-      classOf[MetadataNativeWriter],
+      classOf[RVDSpecWriter],
+      classOf[TableSpecWriter],
+      classOf[RelationalWriter],
       classOf[RVDSpecMaker],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec])
