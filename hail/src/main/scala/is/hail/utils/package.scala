@@ -607,7 +607,7 @@ package object utils extends Logging
           r.close()
         } catch {
           case duringClose: Exception =>
-            duringClose.addSupressed(original)
+            duringClose.addSuppressed(original)
             throw duringClose
         }
     } finally {
