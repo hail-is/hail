@@ -48,13 +48,13 @@ class GCS:
         return await retry_transient_errors(self._wrapped_write_gs_file_from_string,
                                             self, uri, string, *args, **kwargs)
 
-    async def write_gs_file_from_file_like_object(self, uri, file, start=None, end=None, *args, **kwargs):
+    async def write_gs_file_from_file_like_object(self, uri, file, *args, start=None, end=None, **kwargs):
         return await retry_transient_errors(self._wrapped_write_gs_file_from_file_like_object,
-                                            self, uri, file, start, end, *args, **kwargs)
+                                            self, uri, file, *args, start=start, end=end, **kwargs)
 
-    async def write_gs_file_from_file(self, uri, file_name, start=None, end=None, *args, **kwargs):
+    async def write_gs_file_from_file(self, uri, file_name, *args, start=None, end=None, **kwargs):
         with open(file_name, 'r') as file:
-            await self.write_gs_file_from_file_like_object(uri, file, start, end, args, **kwargs)
+            await self.write_gs_file_from_file_like_object(uri, file, *args, start=start, end=end, **kwargs)
 
     async def read_gs_file(self, uri, *args, **kwargs):
         return await retry_transient_errors(self._wrapped_read_gs_file,

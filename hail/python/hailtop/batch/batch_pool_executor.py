@@ -410,7 +410,7 @@ class BatchPoolFuture:
         """
         return self.value == CANCELLED
 
-    def running(self):
+    def running(self):  # pylint: disable=no-self-use
         """Always returns False.
 
         This future can always be cancelled, so this function always returns False.

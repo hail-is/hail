@@ -61,7 +61,7 @@ def grouped(n, ls):
 
 
 def partition(k, ls):
-    if (k == 0):
+    if k == 0:
         assert not ls
         return []
 
@@ -77,7 +77,6 @@ def partition(k, ls):
         for part in parts:
             yield ls[start:start + part]
             start += part
-        return
     return generator()
 
 

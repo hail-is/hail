@@ -170,7 +170,7 @@ class LocalBackend(Backend):
 
             if job._image:
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
-                env = '; '.join() + '; ' if job._env else ''
+                env = '; '.join(env) + '; ' if env else ''
                 cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
                 memory = f'-m {job._memory}' if job._memory else ''
                 cpu = f'--cpus={job._cpu}' if job._cpu else ''
