@@ -223,4 +223,7 @@ class LocalBackend(
     // Use a local sort for the moment to enable larger pipelines to run
     LowerDistributedSort.localSort(ctx, stage, sortFields)
   }
+
+  def pyLoadReferencesFromDataset(path: String): String =
+    ReferenceGenome.fromHailDataset(fs, path)
 }

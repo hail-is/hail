@@ -279,7 +279,7 @@ class LocalBackend(Py4JBackend):
         self._hail_package.variant.ReferenceGenome.fromJSON(json.dumps(config))
 
     def load_references_from_dataset(self, path):
-        return json.loads(self._hail_package.variant.ReferenceGenome.fromHailDataset(self.fs._jfs, path))
+        return json.loads(self._jbackend.pyLoadReferencesFromDataset(path))
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         self._jbackend.pyFromFASTAFile(
