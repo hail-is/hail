@@ -67,6 +67,7 @@ object ComputeUsesAndDefs {
         case r: BaseRef =>
           val e = r match {
             case _: Ref => env.eval
+            case _: Recur => env.eval
             case _: RelationalRef => env.relational
           }
           e.lookupOption(r.name) match {

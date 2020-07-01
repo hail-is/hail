@@ -72,14 +72,16 @@ object AggBindings {
     def base: Option[Iterable[(String, Type)]] = parent.agg.map(_ => FastIndexedSeq())
 
     x match {
-      case AggLet(name, value, _, false) => if (i == 1) wrapped(FastIndexedSeq(name -> value.typ)) else base
-      case AggExplode(a, name, _, false) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
-      case AggArrayPerElement(a, elementName, _, _, _, false) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else base
+      case AggLet(name, value, _, false) => if (i == 1) wrapped(FastIndexedSeq(name -> value.typ)) else None
+      case AggFilter(_, _, false) => if (i == 0) None else base
+      case AggExplode(a, name, _, false) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else None
+      case AggArrayPerElement(a, elementName, _, _, _, false) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else None
       case StreamAgg(a, name, _) => if (i == 1) Some(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case TableAggregate(child, _) => if (i == 1) wrapped(child.typ.rowEnv.m) else throw new UnsupportedOperationException
       case MatrixAggregate(child, _) => if (i == 1) Some(child.typ.entryEnv.m) else throw new UnsupportedOperationException
       case RelationalLet(_, _, _) => None
       case CollectDistributedArray(_, _, _, _, _) if (i == 2) => None
+      case _: ApplyAggOp => None
       case _ => base
     }
   }
@@ -116,12 +118,14 @@ object ScanBindings {
     def base: Option[Iterable[(String, Type)]] = parent.scan.map(_ => FastIndexedSeq())
 
     x match {
-      case AggLet(name, value, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> value.typ)) else base
-      case AggExplode(a, name, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
-      case AggArrayPerElement(a, elementName, _, _, _, true) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else base
+      case AggLet(name, value, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> value.typ)) else None
+      case AggFilter(_, _, true) => if (i == 0) None else base
+      case AggExplode(a, name, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else None
+      case AggArrayPerElement(a, elementName, _, _, _, true) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else None
       case StreamAggScan(a, name, _) => if (i == 1) Some(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case RelationalLet(_, _, _) => None
       case CollectDistributedArray(_, _, _, _, _) if (i == 2) => None
+      case _: ApplyScanOp => None
       case _ => base
     }
   }
@@ -206,8 +210,8 @@ object NewBindings {
 object ChildEnvWithoutBindings {
   def apply[T](ir: BaseIR, i: Int, env: BindingEnv[T]): BindingEnv[T] = {
     ir match {
-      case StreamAgg(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = Some(env.eval), relational = env.relational) else env
-      case StreamAggScan(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, scan = Some(env.eval), relational = env.relational) else env
+      case StreamAgg(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = Some(env.eval), scan = env.scan.map(_ => Env.empty), relational = env.relational) else env
+      case StreamAggScan(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = env.agg.map(_ => Env.empty), scan = Some(env.eval), relational = env.relational) else env
       case CollectDistributedArray(_, _, _, _, _) => if (i == 2) BindingEnv(relational = env.relational) else env
       case MatrixAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
       case TableAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
