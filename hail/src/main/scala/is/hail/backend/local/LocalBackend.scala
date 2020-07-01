@@ -11,6 +11,8 @@ import is.hail.expr.ir.lowering._
 import is.hail.expr.ir._
 import is.hail.types.physical.{PTuple, PType, PVoid}
 import is.hail.types.virtual.TVoid
+import is.hail.types.physical.{PTuple, PType}
+import is.hail.types.virtual.{TVoid, Type}
 import is.hail.backend.{Backend, BackendContext, BroadcastValue}
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.utils._
@@ -220,9 +222,9 @@ class LocalBackend(
     }
   }
 
-  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField]): TableStage = {
+  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Seq[(String, Type)]): TableStage = {
     // Use a local sort for the moment to enable larger pipelines to run
-    LowerDistributedSort.localSort(ctx, stage, sortFields)
+    LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
   }
 
   def pyLoadReferencesFromDataset(path: String): String =

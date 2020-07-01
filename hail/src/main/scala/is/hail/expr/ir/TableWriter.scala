@@ -31,7 +31,7 @@ object TableWriter {
 abstract class TableWriter {
   def path: String
   def apply(ctx: ExecuteContext, mv: TableValue): Unit
-  def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR =
+  def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, bindings: Seq[(String, Type)]): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 }
 
@@ -42,7 +42,7 @@ case class TableNativeWriter(
   codecSpecJSONStr: String = null
 ) extends TableWriter {
 
-  override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR = {
+  override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, bindings: Seq[(String, Type)]): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
     val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(t.typ.rowType, r.rowType), t.typ.rowType, bufferSpec)
     val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(t.typ.globalType, r.globalType), t.typ.globalType, bufferSpec)
@@ -62,7 +62,7 @@ case class TableNativeWriter(
           "oldCtx" -> ctxElt,
           "writeCtx" -> pf))
       }
-    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals { (rows, ctxRef) =>
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(bindings) { (rows, ctxRef) =>
       val file = GetField(ctxRef, "writeCtx")
       WritePartition(rows, file + UUID4(), rowWriter)
     } { (parts, globals) =>
