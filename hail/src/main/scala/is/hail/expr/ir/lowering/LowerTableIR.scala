@@ -714,7 +714,7 @@ object LowerTableIR {
         lower(child).getNumPartitions()
 
       case TableWrite(child, writer) =>
-        writer.lower(ctx, lower(child), child, coerce[RTable](Requiredness.apply(child, ctx).lookup(child)))
+        writer.lower(ctx, lower(child), child, coerce[RTable](r.lookup(child)))
 
       case node if node.children.exists(_.isInstanceOf[TableIR]) =>
         throw new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(node) }")
