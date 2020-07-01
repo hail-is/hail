@@ -30,7 +30,7 @@ trait AggregatorState {
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit
 
   def deserializeFromBytes(cb: EmitCodeBuilder, t: PBinary, address: Code[Long]): Unit = {
-    val lazyBuffer = kb.getOrDefineLazyField[MemoryBufferWrapper](Code.newInstance[MemoryBufferWrapper](), (this, "buffer"))
+    val lazyBuffer = kb.getOrDefineLazyField[MemoryBufferWrapper](Code.newInstance[MemoryBufferWrapper](), (this, "bufferWrapper"))
     val addr = cb.newField[Long]("addr", address)
     cb += lazyBuffer.invoke[Long, Int, Unit]("clearAndSetFrom", t.bytesAddress(addr), t.loadLength(addr))
     val ib = cb.newLocal("aggstate_deser_from_bytes_ib", lazyBuffer.invoke[InputBuffer]("buffer"))
@@ -38,7 +38,7 @@ trait AggregatorState {
   }
 
   def serializeToRegion(cb: EmitCodeBuilder, t: PBinary, r: Code[Region]): Code[Long] = {
-    val lazyBuffer = kb.getOrDefineLazyField[MemoryWriterWrapper](Code.newInstance[MemoryWriterWrapper](), (this, "buffer"))
+    val lazyBuffer = kb.getOrDefineLazyField[MemoryWriterWrapper](Code.newInstance[MemoryWriterWrapper](), (this, "writerWrapper"))
     val addr = kb.genFieldThisRef[Long]("addr")
     cb += lazyBuffer.invoke[Unit]("clear")
     val ob = cb.newLocal("aggstate_ser_to_region_ob", lazyBuffer.invoke[OutputBuffer]("buffer"))

@@ -174,11 +174,20 @@ object Pretty {
           sb.append(i)
           sb += ' '
           prettyAggStateSignature(sig, depth + 2)
-        case CombOpValue(i, _, sig) =>
+        case InitFromSerializedValue(i, value, aggSig) =>
+          sb += ' '
+          sb.append(i)
+          sb += ' '
+          prettyAggStateSignature(aggSig, depth + 2)
+          sb += ' '
+          pretty(value, depth + 2)
+        case CombOpValue(i, value, sig) =>
           sb += ' '
           sb.append(i)
           sb += ' '
           prettyPhysicalAggSig(sig, depth + 2)
+          sb += ' '
+          pretty(value, depth + 2)
         case SerializeAggs(i, i2, spec, aggSigs) =>
           sb += ' '
           sb.append(i)

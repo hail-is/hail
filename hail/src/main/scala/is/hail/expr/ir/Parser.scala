@@ -1073,6 +1073,11 @@ object IRParser {
         val i = int32_literal(it)
         val sig = agg_state_signature(env.typEnv)(it)
         AggStateValue(i, sig)
+      case "InitFromSerializedValue" =>
+        val i = int32_literal(it)
+        val sig = agg_state_signature(env.typEnv)(it)
+        val value = ir_value_expr(env)(it)
+        InitFromSerializedValue(i, value, sig)
       case "CombOpValue" =>
         val i = int32_literal(it)
         val sig = p_agg_sig(env.typEnv)(it)

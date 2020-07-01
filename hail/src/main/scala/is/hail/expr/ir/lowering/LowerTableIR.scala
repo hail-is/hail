@@ -836,11 +836,24 @@ object LowerTableIR {
         val aggs = agg.Extract(query, resultUID, r, false)
         val lc = lower(child)
 
-        lc.mapCollectWithGlobals({ part: IR =>
+        val initState =  RunAgg(
+          aggs.init,
+          MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
+          aggs.states
+        )
+        val initStateRef = Ref(genUID(), initState.typ)
+        val lcWithInitBinding = lc.copy(
+          letBindings = lc.letBindings ++ FastIndexedSeq((initStateRef.name, initState)),
+          broadcastVals = lc.broadcastVals ++ FastIndexedSeq((initStateRef.name, initStateRef)))
+
+        val initFromSerializedStates = Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
+          InitFromSerializedValue(i, GetTupleElement(initStateRef, i), agg.state )})
+
+        lcWithInitBinding.mapCollectWithGlobals({ part: IR =>
           Let("global", lc.globals,
             RunAgg(
               Begin(FastIndexedSeq(
-                aggs.init,
+                initFromSerializedStates,
                 StreamFor(part,
                   "row",
                   aggs.seqPerElt
@@ -854,7 +867,7 @@ object LowerTableIR {
             globals,
             RunAgg(
               Begin(FastIndexedSeq(
-                aggs.init,
+                initFromSerializedStates,
                 forIR(ToStream(collected)) { state =>
                   Begin(aggs.aggs.zipWithIndex.map { case (sig, i) => CombOpValue(i, GetTupleElement(state, i), sig) })
                 }
