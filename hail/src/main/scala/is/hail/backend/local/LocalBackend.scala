@@ -9,7 +9,7 @@ import is.hail.annotations.{Region, SafeRow}
 import is.hail.expr.{JSONAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir._
-import is.hail.types.physical.{PTuple, PType}
+import is.hail.types.physical.{PTuple, PType, PVoid}
 import is.hail.types.virtual.TVoid
 import is.hail.backend.{Backend, BackendContext, BroadcastValue}
 import is.hail.io.fs.{FS, HadoopFS}
@@ -73,28 +73,41 @@ class LocalBackend(
 
   def stop(): Unit = LocalBackend.stop()
 
-  private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir0: IR, print: Option[PrintWriter] = None): (PTuple, Long) = {
+  private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir0: IR, print: Option[PrintWriter] = None): (PType, Long) = {
     val ir = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, ir0).asInstanceOf[IR]
 
     if (!Compilable(ir))
       throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")
 
-    assert(ir.typ != TVoid)
+    if (ir.typ == TVoid) {
+      val (pt, f) = ctx.timer.time("Compile") {
+        Compile[AsmFunction1RegionUnit](ctx,
+          FastIndexedSeq[(String, PType)](),
+          FastIndexedSeq(classInfo[Region]), UnitInfo,
+          ir,
+          print = print)
+      }
 
-    val (pt: PTuple, f) = ctx.timer.time("Compile") {
-      Compile[AsmFunction1RegionLong](ctx,
-        FastIndexedSeq[(String, PType)](),
-        FastIndexedSeq(classInfo[Region]), LongInfo,
-        MakeTuple.ordered(FastSeq(ir)),
-        print = print)
-    }
+      ctx.timer.time("Run") {
+        f(0, ctx.r).apply(ctx.r)
+        (pt, 0)
+      }
+    } else {
+      val (pt, f) = ctx.timer.time("Compile") {
+        Compile[AsmFunction1RegionLong](ctx,
+          FastIndexedSeq[(String, PType)](),
+          FastIndexedSeq(classInfo[Region]), LongInfo,
+          MakeTuple.ordered(FastSeq(ir)),
+          print = print)
+      }
 
-    ctx.timer.time("Run") {
-      (pt, f(0, ctx.r).apply(ctx.r))
+      ctx.timer.time("Run") {
+        (pt, f(0, ctx.r).apply(ctx.r))
+      }
     }
   }
 
-  private[this] def _execute(ctx: ExecuteContext, ir: IR): (PTuple, Long) = {
+  private[this] def _execute(ctx: ExecuteContext, ir: IR): (PType, Long) = {
     TypeCheck(ir)
     Validate(ir)
     _jvmLowerAndExecute(ctx, ir)
@@ -103,7 +116,12 @@ class LocalBackend(
   def execute(ir: IR): (Any, ExecutionTimer) =
     withExecuteContext() { ctx =>
       val (pt, a) = _execute(ctx, ir)
-      (SafeRow(pt, a).get(0), ctx.timer)
+      pt match {
+        case PVoid =>
+          (null, ctx.timer)
+        case pt: PTuple =>
+          (SafeRow(pt, a).get(0), ctx.timer)
+      }
     }
 
   def executeJSON(ir: IR): String = {
@@ -119,7 +137,8 @@ class LocalBackend(
   def encodeToBytes(ir: IR, bufferSpecString: String): (String, Array[Byte]) = {
     val bs = BufferSpec.parseOrDefault(bufferSpecString)
     withExecuteContext() { ctx =>
-      val (pt, a) = _execute(ctx, ir)
+      assert(ir.typ != TVoid)
+      val (pt: PTuple, a) = _execute(ctx, ir)
       assert(pt.size == 1)
       val elementType = pt.fields(0).typ
       val codec = TypedCodecSpec(
