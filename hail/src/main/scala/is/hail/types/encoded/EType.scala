@@ -348,18 +348,7 @@ object EType {
       }, required = r.required)
     case t: TNDArray =>
       val rndarray = r.asInstanceOf[RNDArray]
-      EBaseStruct(Array(
-        EField("shape",
-          EBaseStruct(Array.tabulate(t.nDims) { i =>
-            EField(s"$i", EInt64(true), i)
-          }), 0),
-        EField("strides",
-          EBaseStruct(Array.tabulate(t.nDims) { i =>
-            EField(s"$i", EInt64(true), i)
-          }), 1),
-        EField("data",
-          fromTypeAndAnalysis(TArray(t.elementType), RIterable(rndarray.elementType)), 2)),
-        required = rndarray.required)
+      ENDArray(fromTypeAndAnalysis(t.elementType, rndarray.elementType), t.nDims, rndarray.required)
   }
 
   def eTypeParser(it: TokenIterator): EType = {
