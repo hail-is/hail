@@ -46,6 +46,25 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
   def genEmitClass[C](baseName: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
     newEmitClass[C](genName("C", baseName))
+
+  private[this] var _staticFS: Settable[FS] = _
+
+  private[this] def initFS(): Unit =
+    if (_staticFS == null) {
+      val cls = genEmitClass[Unit]("FSContainer")
+      val fs = cls.newStaticField[FS]("filesystem")
+      _staticFS = new StaticFieldRef(fs)
+    }
+
+  def getFS: Value[FS] = {
+    initFS()
+    _staticFS
+  }
+
+  def setFS(cb: EmitCodeBuilder, fs: Code[FS]): Unit = {
+    initFS()
+    cb.ifx(_staticFS.isNull, cb.assign(_staticFS, fs))
+  }
 }
 
 trait WrappedEmitModuleBuilder {
@@ -70,6 +89,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   def className: String = ecb.className
 
   def newField[T: TypeInfo](name: String): Field[T] = ecb.newField[T](name)
+
+  def newStaticField[T: TypeInfo](name: String): StaticField[T] = ecb.newStaticField[T](name)
 
   def newStaticField[T: TypeInfo](name: String, init: Code[T]): StaticField[T] = ecb.newStaticField[T](name, init)
 
@@ -229,6 +250,8 @@ class EmitClassBuilder[C](
 
   def newField[T: TypeInfo](name: String): Field[T] = cb.newField[T](name)
 
+  def newStaticField[T: TypeInfo](name: String): StaticField[T] = cb.newStaticField[T](name)
+
   def newStaticField[T: TypeInfo](name: String, init: Code[T]): StaticField[T] = cb.newStaticField[T](name, init)
 
   def genField[T: TypeInfo](baseName: String): Field[T] = cb.genField(baseName)
@@ -318,7 +341,7 @@ class EmitClassBuilder[C](
     baos.toByteArray
   }
 
-  private[this] var _fsField: Settable[FS] = _
+  private[this] var _addFS: EmitMethodBuilder[_] = _
 
   private[this] var _objectsField: Settable[Array[AnyRef]] = _
   private[this] var _objects: ArrayBuilder[AnyRef] = _
@@ -421,15 +444,17 @@ class EmitClassBuilder[C](
   }
 
   def getFS: Code[FS] = {
-    if (_fsField == null) {
+    if (_addFS == null) {
       cb.addInterface(typeInfo[FunctionWithFS].iname)
-      _fsField = genFieldThisRef[FS]()
-      val mb = newEmitMethod("addFS", FastIndexedSeq[ParamType](typeInfo[FS]), typeInfo[Unit])
-      mb.emit(_fsField := mb.getCodeParam[FS](1))
+      _addFS = newEmitMethod("addFS", FastIndexedSeq[ParamType](typeInfo[FS]), typeInfo[Unit])
+      _addFS.emitWithBuilder { cb =>
+        emodb.setFS(cb, _addFS.getCodeParam[FS](1))
+        Code._empty
+      }
     }
 
-    assert(_fsField != null)
-    _fsField
+    assert(_addFS != null)
+    emodb.getFS
   }
 
   def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = {
@@ -674,7 +699,7 @@ class EmitClassBuilder[C](
       // if there are no literals, there might not be a HailContext
       null
 
-    val useFS = _fsField != null
+    val useFS = _addFS != null
     val localFS = if (useFS) ctx.fs else null
 
     val nSerializedAggs = _nSerialized
