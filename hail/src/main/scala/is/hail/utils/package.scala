@@ -605,6 +605,7 @@ package object utils extends Logging
         caught = true
         try {
           r.close()
+          throw original
         } catch {
           case duringClose: Exception =>
             duringClose.addSuppressed(original)
