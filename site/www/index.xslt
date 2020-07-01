@@ -19,8 +19,8 @@
                     <subtitle class="logo-subtitle">An open-source library for scalable genomic data exploration</subtitle>
                     <div style="display: flex;" id="hero-button-container">
                         <a class="button" href="#install">Install</a>
-                        <a class="button" href="/gethelp.html">Get Help</a>
                         <a class="button" href="#features">Features</a>
+                        <a class="button" href="/gethelp.html">Get Help</a>
                     </div>
                 </div>
 
