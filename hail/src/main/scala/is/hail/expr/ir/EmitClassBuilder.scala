@@ -71,6 +71,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def newField[T: TypeInfo](name: String): Field[T] = ecb.newField[T](name)
 
+  def newStaticField[T: TypeInfo](name: String, init: Code[T]): StaticField[T] = ecb.newStaticField[T](name, init)
+
   def genField[T: TypeInfo](baseName: String): Field[T] = ecb.genField(baseName)
 
   def genFieldThisRef[T: TypeInfo](name: String = null): ThisFieldRef[T] = ecb.genFieldThisRef[T](name)
@@ -226,6 +228,8 @@ class EmitClassBuilder[C](
   def className: String = cb.className
 
   def newField[T: TypeInfo](name: String): Field[T] = cb.newField[T](name)
+
+  def newStaticField[T: TypeInfo](name: String, init: Code[T]): StaticField[T] = cb.newStaticField[T](name, init)
 
   def genField[T: TypeInfo](baseName: String): Field[T] = cb.genField(baseName)
 

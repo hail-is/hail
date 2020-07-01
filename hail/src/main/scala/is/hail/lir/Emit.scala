@@ -202,7 +202,10 @@ object Emit {
       cn.interfaces.asInstanceOf[java.util.List[String]].add(intf)
 
     for (f <- c.fields) {
-      val fn = new FieldNode(ACC_PUBLIC, f.name, f.ti.desc, null, null)
+      val fn = f match {
+        case f: Field => new FieldNode(ACC_PUBLIC, f.name, f.ti.desc, null, null)
+        case f: StaticField => new FieldNode(ACC_PUBLIC | ACC_STATIC, f.name, f.ti.desc, null, null)
+      }
       cn.fields.asInstanceOf[java.util.List[FieldNode]].add(fn)
     }
 

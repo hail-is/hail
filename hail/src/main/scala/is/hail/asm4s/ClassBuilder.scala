@@ -33,6 +33,21 @@ class Field[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
   }
 }
 
+class StaticField[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
+  val ti: TypeInfo[T] = implicitly
+
+  val lf: lir.StaticField = classBuilder.lclass.newStaticField(name, typeInfo[T])
+
+  def get(): Code[T] = Code(lir.getStaticField(lf))
+
+  def put(v: Code[T]): Code[Unit] = {
+    v.end.append(lir.putStaticField(lf, v.v))
+    val newC = new VCode(v.start, v.end, null)
+    v.clear()
+    newC
+  }
+}
+
 class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializable {
   @transient @volatile var loaded: Boolean = false
 
@@ -134,7 +149,13 @@ trait WrappedClassBuilder[C] extends WrappedModuleBuilder {
 
   def emitInit(c: Code[Unit]): Unit = cb.emitInit(c)
 
+  def emitClinit(c: Code[Unit]): Unit = cb.emitClinit(c)
+
   def newField[T: TypeInfo](name: String): Field[T] = cb.newField[T](name)
+
+  def newStaticField[T: TypeInfo](name: String): StaticField[T] = cb.newStaticField[T](name)
+
+  def newStaticField[T: TypeInfo](name: String, init: Code[T]): StaticField[T] = cb.newStaticField[T](name, init)
 
   def genField[T: TypeInfo](baseName: String): Field[T] = cb.genField(baseName)
 
@@ -214,8 +235,22 @@ class ClassBuilder[C](
     new VCode(L, L, null)
   }
 
+  private var lClinit: lir.Method = _
+
+  var clinitBody: Option[Code[Unit]] = None
+
   def emitInit(c: Code[Unit]): Unit = {
     initBody = Code(initBody, c)
+  }
+
+  def emitClinit(c: Code[Unit]): Unit = {
+    clinitBody match {
+      case None =>
+        lClinit = lclass.newMethod("<clinit>", FastIndexedSeq(), UnitInfo, isStatic = true)
+        clinitBody = Some(c)
+      case Some(body) =>
+        clinitBody = Some(Code(body, c))
+    }
   }
 
   def addInterface(name: String): Unit = lclass.addInterface(name)
@@ -259,6 +294,14 @@ class ClassBuilder[C](
 
   def newField[T: TypeInfo](name: String): Field[T] = new Field[T](this, name)
 
+  def newStaticField[T: TypeInfo](name: String): StaticField[T] = new StaticField[T](this, name)
+
+  def newStaticField[T: TypeInfo](name: String, init: Code[T]): StaticField[T] = {
+    val f = new StaticField[T](this, name)
+    emitClinit(f.put(init))
+    f
+  }
+
   def genField[T: TypeInfo](baseName: String): Field[T] = newField(genName("f", baseName))
 
   private[this] val methodMemo: mutable.Map[Any, MethodBuilder[C]] = mutable.HashMap.empty
@@ -278,6 +321,16 @@ class ClassBuilder[C](
   def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
     assert(initBody.start != null)
     lInit.setEntry(initBody.start)
+
+    clinitBody match {
+      case None => // do nothing
+      case Some(body) =>
+        assert(body.start != null)
+        body.end.append(lir.returnx())
+        val nbody = new VCode(body.start, body.end, null)
+        body.clear()
+        lClinit.setEntry(nbody.start)
+    }
 
     lclass.asBytes(print)
   }

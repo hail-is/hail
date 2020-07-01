@@ -14,7 +14,7 @@ class Classx[C](val name: String, val superName: String) {
 
   val methods: mutable.ArrayBuffer[Method] = new mutable.ArrayBuffer()
 
-  val fields: mutable.ArrayBuffer[Field] = new mutable.ArrayBuffer()
+  val fields: mutable.ArrayBuffer[FieldRef] = new mutable.ArrayBuffer()
 
   val interfaces: mutable.ArrayBuffer[String] = new mutable.ArrayBuffer()
 
@@ -29,6 +29,12 @@ class Classx[C](val name: String, val superName: String) {
   }
 
   def genField(baseName: String, ti: TypeInfo[_]): Field = newField(genName("f", baseName), ti)
+
+  def newStaticField(name: String, ti: TypeInfo[_]): StaticField = {
+    val f = new StaticField(this, name, ti)
+    fields += f
+    f
+  }
 
   def newMethod(name: String,
     parameterTypeInfo: IndexedSeq[TypeInfo[_]],
@@ -136,6 +142,10 @@ abstract class FieldRef {
 }
 
 class Field private[lir] (classx: Classx[_], val name: String, val ti: TypeInfo[_]) extends FieldRef {
+  def owner: String = classx.name
+}
+
+class StaticField private[lir] (classx: Classx[_], val name: String, val ti: TypeInfo[_]) extends FieldRef {
   def owner: String = classx.name
 }
 
@@ -649,7 +659,7 @@ class SwitchX() extends ControlX {
       i += 1
     }
   }
-  
+
   def targetArity(): Int = 1 + _Lcases.length
 
   def target(i: Int): Block = {
