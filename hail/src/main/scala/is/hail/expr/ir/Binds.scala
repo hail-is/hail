@@ -78,6 +78,8 @@ object AggBindings {
       case StreamAgg(a, name, _) => if (i == 1) Some(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case TableAggregate(child, _) => if (i == 1) wrapped(child.typ.rowEnv.m) else throw new UnsupportedOperationException
       case MatrixAggregate(child, _) => if (i == 1) Some(child.typ.entryEnv.m) else throw new UnsupportedOperationException
+      case RelationalLet(_, _, _) => None
+      case CollectDistributedArray(_, _, _, _, _) if (i == 2) => None
       case _ => base
     }
   }
@@ -118,6 +120,8 @@ object ScanBindings {
       case AggExplode(a, name, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case AggArrayPerElement(a, elementName, _, _, _, true) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case StreamAggScan(a, name, _) => if (i == 1) Some(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
+      case RelationalLet(_, _, _) => None
+      case CollectDistributedArray(_, _, _, _, _) if (i == 2) => None
       case _ => base
     }
   }
@@ -140,44 +144,90 @@ object ScanBindings {
   }
 }
 
+object RelationalBindings {
+  private val empty: Array[(String, Type)] = Array()
+
+  def apply(x: IR, i: Int): Iterable[(String, Type)] = {
+    x match {
+      case RelationalLet(name, value, _) => if (i == 1) FastIndexedSeq(name -> value.typ) else empty
+      case _ => empty
+    }
+  }
+
+  def apply(x: TableIR, i: Int): Iterable[(String, Type)] = {
+    x match {
+      case RelationalLetTable(name, value, _) => if (i == 1) FastIndexedSeq(name -> value.typ) else empty
+      case _ => empty
+    }
+  }
+
+  def apply(x: MatrixIR, i: Int): Iterable[(String, Type)] =
+    x match {
+      case RelationalLetMatrixTable(name, value, _) => if (i == 1) FastIndexedSeq(name -> value.typ) else empty
+      case _ => empty
+    }
+
+  def apply(x: BlockMatrixIR, i: Int): Iterable[(String, Type)] = x match {
+    case RelationalLetBlockMatrix(name, value, _) => if (i == 1) FastIndexedSeq(name -> value.typ) else empty
+    case _ => empty
+  }
+}
+
 object NewBindings {
   def apply(x: IR, i: Int, parent: BindingEnv[_]): BindingEnv[Type] = {
     BindingEnv(Env.fromSeq(Bindings(x, i)),
       agg = AggBindings(x, i, parent).map(b => Env.fromSeq(b)),
-      scan = ScanBindings(x, i, parent).map(b => Env.fromSeq(b))
-    )
+      scan = ScanBindings(x, i, parent).map(b => Env.fromSeq(b)),
+      relational = Env.fromSeq(RelationalBindings(x, i)))
   }
 
   def apply(x: TableIR, i: Int): BindingEnv[Type] = {
     BindingEnv(Env.fromSeq(Bindings(x, i)),
       agg = AggBindings(x, i).map(b => Env.fromSeq(b)),
-      scan = ScanBindings(x, i).map(b => Env.fromSeq(b)))
+      scan = ScanBindings(x, i).map(b => Env.fromSeq(b)),
+      relational = Env.fromSeq(RelationalBindings(x, i)))
   }
 
   def apply(x: MatrixIR, i: Int): BindingEnv[Type] = {
     BindingEnv(Env.fromSeq(Bindings(x, i)),
       agg = AggBindings(x, i).map(b => Env.fromSeq(b)),
-      scan = ScanBindings(x, i).map(b => Env.fromSeq(b)))
+      scan = ScanBindings(x, i).map(b => Env.fromSeq(b)),
+      relational = Env.fromSeq(RelationalBindings(x, i)))
   }
 
   def apply(x: BlockMatrixIR, i: Int): BindingEnv[Type] = {
     BindingEnv(Env.fromSeq(Bindings(x, i)),
       agg = AggBindings(x, i).map(b => Env.fromSeq(b)),
-      scan = ScanBindings(x, i).map(b => Env.fromSeq(b)))
+      scan = ScanBindings(x, i).map(b => Env.fromSeq(b)),
+      relational = Env.fromSeq(RelationalBindings(x, i)))
   }
 }
 
 object ChildEnvWithoutBindings {
-  def apply[T](ir: IR, i: Int, env: BindingEnv[T]): BindingEnv[T] = {
+  def apply[T](ir: BaseIR, i: Int, env: BindingEnv[T]): BindingEnv[T] = {
     ir match {
-      case StreamAgg(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = Some(env.eval)) else env
-      case StreamAggScan(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, scan = Some(env.eval)) else env
-      case CollectDistributedArray(_, _, _, _, _) => if (i == 2) BindingEnv.empty else env
-      case MatrixAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty))
-      case TableAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty))
-      case RelationalLet(_, _, _) => if (i == 0) BindingEnv.empty else env
-      case LiftMeOut(_) => BindingEnv(Env.empty[T], env.agg.map(_ => Env.empty), env.scan.map(_ => Env.empty))
-      case _ => if (UsesAggEnv(ir, i)) env.promoteAgg else if (UsesScanEnv(ir, i)) env.promoteScan else env
+      case StreamAgg(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = Some(env.eval), relational = env.relational) else env
+      case StreamAggScan(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, scan = Some(env.eval), relational = env.relational) else env
+      case CollectDistributedArray(_, _, _, _, _) => if (i == 2) BindingEnv(relational = env.relational) else env
+      case MatrixAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
+      case TableAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
+      case RelationalLet(_, _, _) => if (i == 0) BindingEnv(relational = env.relational) else env.copy(agg = None, scan = None)
+      case LiftMeOut(_) => BindingEnv(Env.empty[T], env.agg.map(_ => Env.empty), env.scan.map(_ => Env.empty), relational = env.relational)
+      case tir: TableIR => BindingEnv(
+        agg = AggBindings(tir, i).map(_ => Env.empty),
+        scan = ScanBindings(tir, i).map(_ => Env.empty),
+        relational = env.relational)
+      case mir: MatrixIR =>
+        BindingEnv(
+          agg = AggBindings(mir, i).map(_ => Env.empty),
+          scan = ScanBindings(mir, i).map(_ => Env.empty),
+          relational = env.relational)
+      case bmir: BlockMatrixIR =>
+        BindingEnv(
+          agg = AggBindings(bmir, i).map(_ => Env.empty),
+          scan = ScanBindings(bmir, i).map(_ => Env.empty),
+          relational = env.relational)
+      case _: IR => if (UsesAggEnv(ir, i)) env.promoteAgg else if (UsesScanEnv(ir, i)) env.promoteScan else env
     }
   }
 }
