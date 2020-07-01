@@ -15,6 +15,7 @@ import is.hail.backend.{Backend, BackendContext, BroadcastValue}
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.utils._
 import is.hail.io.bgen.IndexBgen
+import is.hail.io.plink.LoadPlink
 import is.hail.variant.ReferenceGenome
 import org.apache.hadoop
 import org.json4s.DefaultFormats
@@ -226,4 +227,7 @@ class LocalBackend(
 
   def pyLoadReferencesFromDataset(path: String): String =
     ReferenceGenome.fromHailDataset(fs, path)
+
+  def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =
+    LoadPlink.importFamJSON(fs, path, isQuantPheno, delimiter, missingValue)
 }

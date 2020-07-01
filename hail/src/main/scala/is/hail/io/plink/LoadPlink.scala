@@ -1,6 +1,7 @@
 package is.hail.io.plink
 
 import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.types._
@@ -14,6 +15,7 @@ import is.hail.io.fs.{FS, Seekable}
 import is.hail.rvd.RVDPartitioner
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
+import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats, JValue}
 
 case class FamFileConfig(isQuantPheno: Boolean = false,
@@ -59,6 +61,16 @@ object LoadPlink {
 
   val numericRegex =
     """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
+
+  def importFamJSON(fs: FS, path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String = {
+    val ffConfig = FamFileConfig(isQuantPheno, delimiter, missingValue)
+    val (data, ptyp) = LoadPlink.parseFam(fs, path, ffConfig)
+    val jv = JSONAnnotationImpex.exportAnnotation(
+      Row(ptyp.virtualType.toString, data),
+      TStruct("type" -> TString, "data" -> TArray(ptyp.virtualType)))
+    JsonMethods.compact(jv)
+  }
+
 
   def parseFam(fs: FS, filename: String, ffConfig: FamFileConfig): (IndexedSeq[Row], PCanonicalStruct) = {
 

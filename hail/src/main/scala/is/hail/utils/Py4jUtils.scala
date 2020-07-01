@@ -3,13 +3,9 @@ package is.hail.utils
 import java.io.{InputStream, OutputStream}
 
 import is.hail.HailContext
-import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
-import is.hail.expr.ir.{ExecuteContext, TableIR, TableLiteral, TableValue}
-import is.hail.types.physical.PStruct
-import is.hail.types.virtual.{TArray, TString, TStruct, Type}
+import is.hail.expr.JSONAnnotationImpex
+import is.hail.types.virtual.Type
 import is.hail.io.fs.{FS, FileStatus}
-import is.hail.io.plink.{FamFileConfig, LoadPlink}
-import org.apache.spark.sql.{DataFrame, Row}
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
 
@@ -133,17 +129,6 @@ trait Py4jUtils {
 
   def makeJSON(t: Type, value: Any): String = {
     val jv = JSONAnnotationImpex.exportAnnotation(value, t)
-    JsonMethods.compact(jv)
-  }
-
-  def importFamJSON(fs: FS, path: String, isQuantPheno: Boolean = false,
-    delimiter: String = "\\t",
-    missingValue: String = "NA"): String = {
-    val ffConfig = FamFileConfig(isQuantPheno, delimiter, missingValue)
-    val (data, ptyp) = LoadPlink.parseFam(fs, path, ffConfig)
-    val jv = JSONAnnotationImpex.exportAnnotation(
-      Row(ptyp.virtualType.toString, data),
-      TStruct("type" -> TString, "data" -> TArray(ptyp.virtualType)))
     JsonMethods.compact(jv)
   }
 }

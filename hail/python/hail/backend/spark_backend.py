@@ -376,3 +376,6 @@ class SparkBackend(Py4JBackend):
 
     def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
         self._jbackend.pyIndexBgen(files, index_file_map, rg, contig_recoding, skip_invalid_loci)
+
+    def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
+        return json.loads(self._jbackend.pyImportFam(path, quant_pheno, delimiter, missing))
