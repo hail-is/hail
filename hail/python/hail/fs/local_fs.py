@@ -11,7 +11,7 @@ class LocalFS(FS):
     def __init__(self):
         pass
 
-    def open(self, path: str, mode: str = 'r'):
+    def open(self, path: str, mode: str = 'r', buffer_size: Int = 0):
         return open(path, mode)
 
     def copy(self, src: str, dest: str):
