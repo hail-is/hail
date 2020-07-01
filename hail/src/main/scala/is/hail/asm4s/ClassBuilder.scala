@@ -79,7 +79,8 @@ class ModuleBuilder() {
 
   def newClass[C](name: String)(implicit cti: TypeInfo[C]): ClassBuilder[C] = {
     val c = new ClassBuilder[C](this, name)
-    c.addInterface(cti.iname)
+    if (cti != UnitInfo)
+      c.addInterface(cti.iname)
     classes += c
     c
   }
