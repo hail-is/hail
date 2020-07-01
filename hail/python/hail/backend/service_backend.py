@@ -34,9 +34,9 @@ class ServiceBackend(Backend):
             bucket = get_user_config().get('batch', 'bucket', fallback=None)
         if bucket is None:
             raise ValueError(
-                f'the bucket parameter of ServiceBackend must be set '
-                f'or run `hailctl config set batch/bucket '
-                f'MY_BUCKET`')
+                'the bucket parameter of ServiceBackend must be set '
+                'or run `hailctl config set batch/bucket '
+                'MY_BUCKET`')
         self._bucket = bucket
 
         if not deploy_config:
