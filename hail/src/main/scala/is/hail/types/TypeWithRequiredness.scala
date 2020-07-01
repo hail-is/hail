@@ -14,6 +14,42 @@ object BaseTypeWithRequiredness {
       t.globalType.fields.map(f => f.name -> TypeWithRequiredness(f.typ)),
       t.key)
   }
+
+  def check(r: BaseTypeWithRequiredness, typ: BaseType): Unit = {
+    r match {
+      case r: RTable =>
+        val table = typ.asInstanceOf[TableType]
+        check(r.globalType, table.globalType)
+        check(r.rowType, table.rowType)
+        assert(r.key == table.key)
+      case _: RPrimitive => assert(RPrimitive.typeSupported(typ.asInstanceOf[Type]))
+      case r: RIterable =>
+        check(r.elementType, typ.asInstanceOf[TIterable])
+      case r: RNDArray =>
+        check(r.elementType, typ.asInstanceOf[TNDArray].elementType)
+      case r: RInterval =>
+        check(r.startType, typ.asInstanceOf[TInterval].pointType)
+        check(r.endType, typ.asInstanceOf[TInterval].pointType)
+      case r: RStruct =>
+        val struct = typ.asInstanceOf[TStruct]
+        (r.fields, struct.fields).zipped.map { case (rf, f) =>
+          assert(rf.name == f.name)
+          check(rf.typ, f.typ)
+        }
+      case r: RTuple =>
+        val tuple = typ.asInstanceOf[TTuple]
+        (r.fields, tuple.fields).zipped.map { case (rf, f) =>
+          assert(rf.index == f.index)
+          check(rf.typ, f.typ)
+        }
+      case r: RUnion =>
+        val union = typ.asInstanceOf[TUnion]
+        (r.cases, union.cases).zipped.map { case (rc, c) =>
+          assert(rc._1 == c.name)
+          check(rc._2, c.typ)
+        }
+    }
+  }
 }
 
 object TypeWithRequiredness {
@@ -165,8 +201,7 @@ sealed class RIterable(val elementType: TypeWithRequiredness, eltRequired: Boole
         elementType.children(i).unionWithIntersection(ts.map(t => coerce[RIterable](t).elementType.children(i)))
         i += 1
       }
-    }
-    else
+    } else
       elementType.unionWithIntersection(ts.map(t => coerce[RIterable](t).elementType))
   }
 
