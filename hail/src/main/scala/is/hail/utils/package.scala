@@ -597,10 +597,23 @@ package object utils extends Logging
   def optMatch[T, S](a: T)(pf: PartialFunction[T, S]): Option[S] = lift(pf)(a)
 
   def using[R <: AutoCloseable, T](r: R)(consume: (R) => T): T = {
+    var caught = false
     try {
       consume(r)
+    } catch {
+      case original: Exception =>
+        caught = true
+        try {
+          r.close()
+        } catch {
+          case duringClose: Exception =>
+            duringClose.addSupressed(original)
+            throw duringClose
+        }
     } finally {
-      r.close()
+      if (!caught) {
+        r.close()
+      }
     }
   }
 
