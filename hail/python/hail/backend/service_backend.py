@@ -241,7 +241,7 @@ class ServiceBackend(Backend):
         resp.raise_for_status()
         return resp.json()
 
-    def import_fam(path: str, quant_pheno: bool, delimiter: str, missing: str):
+    def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
         resp = retry_response_returning_functions(
             requests.post,
             f'{self.url}/import-fam',

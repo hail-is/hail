@@ -14,8 +14,6 @@ from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.ir.renderer import CSERenderer
-from hail.table import Table
-from hail.matrixtable import MatrixTable
 
 from .py4j_backend import Py4JBackend
 from ..hail_logging import Logger

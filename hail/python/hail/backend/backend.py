@@ -91,4 +91,3 @@ class Backend(abc.ABC):
 
     def unpersist_matrix_table(self, mt):
         return mt
-
