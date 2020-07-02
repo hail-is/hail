@@ -83,6 +83,15 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
     }
     _staticFS
   }
+
+  private[this] val rgMap: mutable.Map[ReferenceGenome, Value[ReferenceGenome]] =
+    mutable.Map[ReferenceGenome, Value[ReferenceGenome]]()
+
+  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = rgMap.getOrElseUpdate(rg, {
+    val cls = genEmitClass[Unit](s"RGContainer_${rg.name}")
+    val fld = cls.newStaticField("reference_genome", rg.codeSetup(ctx.localTmpdir, cls))
+    new StaticFieldRef(fld)
+  })
 }
 
 trait WrappedEmitModuleBuilder {
@@ -95,6 +104,8 @@ trait WrappedEmitModuleBuilder {
   def newEmitClass[C](name: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] = emodb.newEmitClass[C](name)
 
   def genEmitClass[C](baseName: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] = emodb.genEmitClass[C](baseName)
+
+  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = emodb.getReferenceGenome(rg)
 }
 
 trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
@@ -148,8 +159,6 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
     argTypes: IndexedSeq[TypeInfo[_]],
     args: IndexedSeq[Code[_]],
     size: Int = 32): Unit = ecb.wrapVoidsWithArgs(cb, x, suffix, argTypes, args, size)
-
-  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = ecb.getReferenceGenome(rg)
 
   def partitionRegion: Settable[Region] = ecb.partitionRegion
 
@@ -285,9 +294,6 @@ class EmitClassBuilder[C](
   def result(print: Option[PrintWriter] = None): () => C = cb.result(print)
 
   // EmitClassBuilder methods
-  private[this] val rgMap: mutable.Map[ReferenceGenome, Value[ReferenceGenome]] =
-    mutable.Map[ReferenceGenome, Value[ReferenceGenome]]()
-
   private[this] val typMap: mutable.Map[Type, Value[Type]] =
     mutable.Map[Type, Value[Type]]()
 
@@ -297,10 +303,6 @@ class EmitClassBuilder[C](
   private[this] val compareMap: mutable.Map[CompareMapKey, CodeOrdering.F[_]] =
     mutable.Map[CompareMapKey, CodeOrdering.F[_]]()
 
-  def numReferenceGenomes: Int = rgMap.size
-
-  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] =
-    rgMap.getOrElseUpdate(rg, genLazyFieldThisRef[ReferenceGenome](rg.codeSetup(ctx.localTmpdir, this)))
 
   def numTypes: Int = typMap.size
 
@@ -1145,22 +1147,11 @@ class DependentEmitFunctionBuilder[F](
 
   def newInstance(mb: EmitMethodBuilder[_]): Code[F] = dep_apply_method.newInstance(mb.mb)
 
-  // DependentEmitFunction methods
-  private[this] val rgMap: mutable.Map[ReferenceGenome, Value[ReferenceGenome]] =
-    mutable.Map[ReferenceGenome, Value[ReferenceGenome]]()
-
   private[this] val typMap: mutable.Map[Type, Value[Type]] =
     mutable.Map[Type, Value[Type]]()
 
   private[this] val literalsMap: mutable.Map[(PType, Any), PValue] =
     mutable.Map[(PType, Any), PValue]()
-
-  override def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] =
-    rgMap.getOrElseUpdate(rg, {
-      val fromParent = parentcb.getReferenceGenome(rg)
-      val field = newDepField[ReferenceGenome](fromParent)
-      field
-    })
 
   override def getType(t: Type): Code[Type] =
     typMap.getOrElseUpdate(t, {
