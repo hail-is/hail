@@ -373,7 +373,7 @@ object TestUtils {
               loweredExecute(x, env, args, agg)
           }
           if (t != TVoid) {
-            assert(t.typeCheck(res))
+            assert(t.typeCheck(res), s"\n  t=$t\n  result=$res\n  strategy=$strat")
             assert(t.valuesSimilar(res, expected), s"\n  result=$res\n  expect=$expected\n  strategy=$strat)")
           }
         } catch {

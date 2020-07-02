@@ -82,12 +82,12 @@ class PCanonicalIntervalSettable(
   def loadStart(cb: EmitCodeBuilder): IEmitCode =
     IEmitCode(cb,
       !(pt.startDefined(a)),
-      pt.pointType.load(pt.loadStart(a)))
+      pt.pointType.load(pt.startOffset(a)))
 
   def loadEnd(cb: EmitCodeBuilder): IEmitCode =
     IEmitCode(cb,
       !(pt.endDefined(a)),
-      pt.pointType.load(pt.loadEnd(a)))
+      pt.pointType.load(pt.endOffset(a)))
 
   def store(pc: PCode): Code[Unit] = {
     Code(

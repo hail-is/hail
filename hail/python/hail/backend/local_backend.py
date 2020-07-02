@@ -14,8 +14,6 @@ from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.ir.renderer import CSERenderer
-from hail.table import Table
-from hail.matrixtable import MatrixTable
 
 from .py4j_backend import Py4JBackend
 from ..hail_logging import Logger
@@ -259,18 +257,6 @@ class LocalBackend(Py4JBackend):
         jir = self._to_java_matrix_ir(mir)
         return tmatrix._from_java(jir.typ())
 
-    def persist_table(self, t, storage_level):
-        return Table._from_java(self._jbackend.pyPersistTable(storage_level, self._to_java_table_ir(t._tir)))
-
-    def unpersist_table(self, t):
-        return Table._from_java(self._to_java_table_ir(t._tir).pyUnpersist())
-
-    def persist_matrix_table(self, mt, storage_level):
-        return MatrixTable._from_java(self._jbackend.pyPersistMatrix(storage_level, self._to_java_matrix_ir(mt._mir)))
-
-    def unpersist_matrix_table(self, mt):
-        return MatrixTable._from_java(self._to_java_matrix_ir(mt._mir).pyUnpersist())
-
     def blockmatrix_type(self, bmir):
         jir = self._to_java_blockmatrix_ir(bmir)
         return tblockmatrix._from_java(jir.typ())
@@ -279,7 +265,7 @@ class LocalBackend(Py4JBackend):
         self._hail_package.variant.ReferenceGenome.fromJSON(json.dumps(config))
 
     def load_references_from_dataset(self, path):
-        return json.loads(self._hail_package.variant.ReferenceGenome.fromHailDataset(self.fs._jfs, path))
+        return json.loads(self._jbackend.pyLoadReferencesFromDataset(path))
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         self._jbackend.pyFromFASTAFile(
@@ -309,3 +295,6 @@ class LocalBackend(Py4JBackend):
 
     def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
         self._jbackend.pyIndexBgen(files, index_file_map, rg, contig_recoding, skip_invalid_loci)
+
+    def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
+        return json.loads(self._jbackend.pyImportFam(path, quant_pheno, delimiter, missing))

@@ -265,6 +265,8 @@ class Aggregators2Suite extends HailSuite {
       Row(null, null, null, null, null, null, null, null)
     )
 
+    val rowsReversed = rows.take(rows.length - 3).reverse ++ rows.takeRight(3)
+
     val permutations = Array(
       rows, // sorted
       rows.reverse, // reversed
@@ -292,9 +294,9 @@ class Aggregators2Suite extends HailSuite {
       (TStruct("x" -> TInt32, "y" -> TInt64), GetField(_, "a"))
     )
 
-    def test(n: Int, data: IndexedSeq[Row], valueType: Type, valueF: IR => IR, resultF: Row => Any, keyType: Type, keyF: IR => IR): Unit = {
+    def test(n: Int, data: IndexedSeq[Row], valueType: Type, valueF: IR => IR, resultF: Row => Any, keyType: Type, keyF: IR => IR, so: SortOrder = Ascending): Unit = {
 
-      val aggSig = PhysicalAggSig(TakeBy(), TakeByStateSig(PType.canonical(valueType), PType.canonical(keyType)))
+      val aggSig = PhysicalAggSig(TakeBy(), TakeByStateSig(PType.canonical(valueType), PType.canonical(keyType), so))
       val seqOpArgs = Array.tabulate(rows.length) { i =>
         val ref = ArrayRef(Ref("rows", TArray(t)), i)
         FastIndexedSeq[IR](valueF(ref), keyF(ref))
@@ -303,16 +305,17 @@ class Aggregators2Suite extends HailSuite {
       assertAggEquals(aggSig,
         FastIndexedSeq(I32(n)),
         seqOpArgs,
-        expected = rows.take(n).map(resultF),
+        expected = (if (so == Descending) rowsReversed else rows).take(n).map(resultF),
         args = FastIndexedSeq(("rows", (TArray(t), data))))
     }
 
     // test counts and data input orderings
     for (
       n <- FastIndexedSeq(0, 1, 4, 100);
-        perm <- permutations
+        perm <- permutations;
+        so <- FastIndexedSeq(Ascending, Descending)
     ) {
-      test(n, perm, t, identity[IR], identity[Row], TInt32, GetField(_, "b"))
+      test(n, perm, t, identity[IR], identity[Row], TInt32, GetField(_, "b"), so)
     }
 
     // test key and value types
@@ -329,7 +332,7 @@ class Aggregators2Suite extends HailSuite {
     // test GC behavior by passing a large collection
     val rows2 = Array.tabulate(1200)(i => Row(i, i.toString)).toFastIndexedSeq
     val t2 = TStruct("a" -> TInt32, "b" -> TString)
-    val aggSig2 = PhysicalAggSig(TakeBy(), TakeByStateSig(PType.canonical(t2), PType.canonical(TInt32)))
+    val aggSig2 = PhysicalAggSig(TakeBy(), TakeByStateSig(PType.canonical(t2), PType.canonical(TInt32), Ascending))
     val seqOpArgs2 = Array.tabulate(rows2.length)(i => FastIndexedSeq[IR](
       ArrayRef(Ref("rows", TArray(t2)), i), GetField(ArrayRef(Ref("rows", TArray(t2)), i), "a")))
 
@@ -465,7 +468,7 @@ class Aggregators2Suite extends HailSuite {
   }
 
   @Test def testArrayElementsAgg() {
-    val alState = ArrayLenAggSig(knownLength = false, Array(pnnAggSig, countAggSig, sumAggSig).map(FastSeq(_)))
+    val alState = ArrayLenAggSig(knownLength = false, FastSeq(pnnAggSig, countAggSig, sumAggSig))
 
     val value = FastIndexedSeq(
       FastIndexedSeq(Row("a", 0L), Row("b", 0L), Row("c", 0L), Row("f", 0L)),
@@ -502,9 +505,9 @@ class Aggregators2Suite extends HailSuite {
   }
 
   @Test def testNestedArrayElementsAgg() {
-    val alstate1 = ArrayLenAggSig(knownLength = false, Array(FastSeq(sumAggSig)))
-    val aestate1 = AggElementsAggSig(Array(FastSeq(sumAggSig)))
-    val alstate2 = ArrayLenAggSig(knownLength = false, Array(FastSeq[PhysicalAggSig](alstate1, aestate1)))
+    val alstate1 = ArrayLenAggSig(knownLength = false, FastSeq(sumAggSig))
+    val aestate1 = AggElementsAggSig(FastSeq(sumAggSig))
+    val alstate2 = ArrayLenAggSig(knownLength = false, FastSeq[PhysicalAggSig](alstate1))
 
     val init = InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
       InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
@@ -537,7 +540,7 @@ class Aggregators2Suite extends HailSuite {
       FastIndexedSeq(null, null, null, Row("f", 5L)))
 
     val take = PhysicalAggSig(Take(), TakeStateSig(PType.canonical(t)))
-    val alstate = ArrayLenAggSig(knownLength = false, Array(FastSeq(take)))
+    val alstate = ArrayLenAggSig(knownLength = false, FastSeq(take))
 
     val init = InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
       InitOp(0, FastIndexedSeq(I32(3)), take)
@@ -555,7 +558,7 @@ class Aggregators2Suite extends HailSuite {
   }
 
   @Test def testGroup() {
-    val group = GroupedAggSig(PCanonicalString(), Array(pnnAggSig, countAggSig, sumAggSig).map(FastSeq(_)))
+    val group = GroupedAggSig(PCanonicalString(), FastSeq(pnnAggSig, countAggSig, sumAggSig))
 
     val initOpArgs = FastIndexedSeq(Begin(FastIndexedSeq(
       InitOp(0, FastIndexedSeq(), pnnAggSig),
@@ -582,8 +585,8 @@ class Aggregators2Suite extends HailSuite {
 
   @Test def testNestedGroup() {
 
-    val group1 = GroupedAggSig(PCanonicalString(), Array(pnnAggSig, countAggSig, sumAggSig).map(FastSeq(_)))
-    val group2 = GroupedAggSig(PCanonicalString(), FastSeq(FastSeq[PhysicalAggSig](group1)))
+    val group1 = GroupedAggSig(PCanonicalString(), FastSeq(pnnAggSig, countAggSig, sumAggSig))
+    val group2 = GroupedAggSig(PCanonicalString(), FastSeq[PhysicalAggSig](group1))
 
     val initOpArgs = FastIndexedSeq(
       InitOp(0, FastIndexedSeq(

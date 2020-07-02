@@ -10,8 +10,6 @@ import is.hail.types.physical.PType
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
-import scala.reflect.{ClassTag, classTag}
-
 case class CodeCacheKey(aggSigs: IndexedSeq[AggStateSig], args: Seq[(String, PType)], body: IR)
 
 case class CodeCacheValue(typ: PType, f: (Int, Region) => Any)
@@ -42,7 +40,7 @@ object Compile {
     ir = Subst(ir, BindingEnv(params
       .zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t), i)) => e.bind(n, In(i, t)) }))
-    ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR].noSharing
+    ir = LoweringPipeline.compileLowerer(optimize).apply(ctx, ir).asInstanceOf[IR].noSharing
 
     TypeCheck(ir, BindingEnv.empty)
     InferPType(ir)
@@ -103,7 +101,7 @@ object CompileWithAggregators2 {
     ir = Subst(ir, BindingEnv(params
       .zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t), i)) => e.bind(n, In(i, t)) }))
-    ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR].noSharing
+    ir = LoweringPipeline.compileLowerer(optimize).apply(ctx, ir).asInstanceOf[IR].noSharing
 
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](params.map { case (name, t) => name -> t.virtualType })))
 

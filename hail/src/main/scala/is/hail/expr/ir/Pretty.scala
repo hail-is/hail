@@ -87,31 +87,22 @@ object Pretty {
           sb += ' '
           sb.append(t.toString)
           sb += '\n'
-          basePrettySeq(nested.map(_.toFastSeq), depth + 2, prettyPhysicalAggSigs)
+          prettyPhysicalAggSigs(nested, depth + 2)
         case ArrayLenAggSig(kl, nested) =>
           sb.append("ArrayLen")
           sb += ' '
           sb.append(prettyBooleanLiteral(kl))
           sb += '\n'
-          basePrettySeq(nested.map(_.toFastSeq), depth + 2, prettyPhysicalAggSigs)
+          prettyPhysicalAggSigs(nested, depth + 2)
         case AggElementsAggSig(nested) =>
           sb.append("AggElements")
           sb += '\n'
-          basePrettySeq(nested.map(_.toFastSeq), depth + 2, prettyPhysicalAggSigs)
+          prettyPhysicalAggSigs(nested, depth + 2)
         case PhysicalAggSig(op, state) =>
           sb.append(prettyClass(op))
           sb += '\n'
           prettyAggStateSignature(state, depth + 2)
       }
-      sb += ')'
-    }
-    def prettyAggSignature(aggSig: AggSignature, depth: Int): Unit = {
-      sb.append(" " * depth)
-      sb += '('
-      sb.append(prettyClass(aggSig.op))
-      sb += ' '
-      sb.append(aggSig.initOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))
-      sb.append(aggSig.seqOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))
       sb += ')'
     }
 
@@ -183,11 +174,20 @@ object Pretty {
           sb.append(i)
           sb += ' '
           prettyAggStateSignature(sig, depth + 2)
-        case CombOpValue(i, _, sig) =>
+        case InitFromSerializedValue(i, value, aggSig) =>
+          sb += ' '
+          sb.append(i)
+          sb += ' '
+          prettyAggStateSignature(aggSig, depth + 2)
+          sb += ' '
+          pretty(value, depth + 2)
+        case CombOpValue(i, value, sig) =>
           sb += ' '
           sb.append(i)
           sb += ' '
           prettyPhysicalAggSig(sig, depth + 2)
+          sb += ' '
+          pretty(value, depth + 2)
         case SerializeAggs(i, i2, spec, aggSigs) =>
           sb += ' '
           sb.append(i)

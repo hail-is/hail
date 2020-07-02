@@ -1542,3 +1542,15 @@ class Tests(unittest.TestCase):
         mt = mt.key_cols_by(col_id = hl.str(mt.col_idx))
         mt = mt.add_col_index()
         mt.show()
+
+    def test_filtered_entries_group_rows_by(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+        mt = mt.filter_entries(False)
+        mt = mt.group_rows_by(x=mt.row_idx // 10).aggregate(c=hl.agg.count())
+        assert mt.entries().collect() == [hl.Struct(x=0, col_idx=0, c=0)]
+
+    def test_filtered_entries_group_cols_by(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+        mt = mt.filter_entries(False)
+        mt = mt.group_cols_by(x=mt.col_idx // 10).aggregate(c=hl.agg.count())
+        assert mt.entries().collect() == [hl.Struct(row_idx=0, x=0, c=0)]

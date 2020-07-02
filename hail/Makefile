@@ -12,7 +12,7 @@ URL := $(shell git config --get remote.origin.url)
 SCALA_VERSION = 2.11.12
 SPARK_VERSION := 2.4.5
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 45
+HAIL_PATCH_VERSION := 47
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 
@@ -43,6 +43,7 @@ SHADOW_JAR := build/libs/hail-all-spark.jar
 SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
 PYTHON_JAR := python/hail/backend/hail-all-spark.jar
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
+EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
 
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
@@ -140,10 +141,8 @@ doctest: python/README.md $(PYTHON_JAR)
     --ignore=hail/docs/getting_started.rst \
     $(PYTEST_ARGS)"
 
-.PHONY: wheel
-wheel: $(WHEEL)
-
-$(WHEEL): $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) $(PYTHON_JAR)
+.PHONY: copy-py-files
+copy-py-files: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) $(PYTHON_JAR)
 	rm -rf build/deploy
 	mkdir -p build/deploy
 	mkdir -p build/deploy/src
@@ -156,7 +155,18 @@ $(WHEEL): $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) $(PYT
 	    --exclude 'test/' \
 	    --exclude '*.log' \
 	    python/ build/deploy/
+
+.PHONY: wheel
+wheel: $(WHEEL)
+
+$(WHEEL): copy-py-files
 	cd build/deploy; $(HAIL_PYTHON3) setup.py -q sdist bdist_wheel
+
+.PHONY: egg
+egg: $(EGG)
+
+$(EGG): copy-py-files
+	cd build/deploy; $(HAIL_PYTHON3) setup.py -q sdist bdist_egg
 
 # if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
 ifndef DEPLOY_REMOTE

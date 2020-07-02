@@ -16,6 +16,9 @@ class RVDPartitioner(
   val rangeBounds: Array[Interval],
   allowedOverlap: Int
 ) {
+  // expensive, for debugging
+  // assert(rangeBounds.forall(SafeRow.isSafe))
+
   override def toString: String =
     s"RVDPartitioner($kType, ${rangeBounds.mkString("[", ",\n", "]")})"
 
@@ -128,6 +131,14 @@ class RVDPartitioner(
   def extendKey(newKType: TStruct): RVDPartitioner = {
     require(kType isPrefixOf newKType)
     RVDPartitioner.generate(newKType, rangeBounds)
+  }
+
+  def extendKeySamePartitions(newKType: TStruct): RVDPartitioner = {
+    require(kType isPrefixOf newKType)
+    new RVDPartitioner(
+      newKType,
+      rangeBounds,
+      allowedOverlap)
   }
 
   // Operators (produce new partitioners)

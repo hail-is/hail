@@ -3,17 +3,17 @@ package is.hail.lir
 import scala.collection.mutable
 
 object CFG {
-  def apply(m: Method, blocks: IndexedSeq[Block], blockIdx: Map[Block, Int]): CFG = {
-    val nBlocks = blocks.length
+  def apply(m: Method, blocks: Blocks): CFG = {
+    val nBlocks = blocks.nBlocks
 
     val pred = Array.fill(nBlocks)(mutable.Set[Int]())
     val succ = Array.fill(nBlocks)(mutable.Set[Int]())
 
     for (b <- blocks) {
-      val i = blockIdx(b)
+      val i = blocks.index(b)
 
       def edgeTo(L: Block): Unit = {
-        val j = blockIdx(L)
+        val j = blocks.index(L)
         succ(i) += j
         pred(j) += i
       }

@@ -2790,7 +2790,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testTableAggregate() {
-    implicit val execStrats = ExecStrategy.interpretOnly
+    implicit val execStrats = ExecStrategy.allRelational
 
     val table = TableRange(3, 2)
     val countSig = AggSignature(Count(), Seq(), Seq())
@@ -2889,7 +2889,7 @@ class IRSuite extends HailSuite {
     val countSig = AggSignature(Count(), Seq(), Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, countSig)
 
-    val groupSignature = GroupedAggSig(PInt32(true), FastSeq(FastSeq(pSumSig)))
+    val groupSignature = GroupedAggSig(PInt32(true), FastSeq(pSumSig))
 
     val table = TableRange(100, 10)
 
@@ -2990,6 +2990,9 @@ class IRSuite extends HailSuite {
       ResultOp(0, FastIndexedSeq(pCollectSig)),
       SerializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
       DeserializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
+      CombOpValue(0, In(0, TBinary), pCollectSig),
+      AggStateValue(0, pCollectSig.state),
+      InitFromSerializedValue(0, In(0, TBinary), pCollectSig.state),
       Begin(FastIndexedSeq(Void())),
       MakeStruct(FastIndexedSeq("x" -> i)),
       SelectFields(s, FastIndexedSeq("x", "z")),
@@ -3032,15 +3035,7 @@ class IRSuite extends HailSuite {
         PartitionNativeWriter(TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default), "path", None, None)),
       WriteMetadata(
         NA(TStruct("global" -> TString, "partitions" -> TStruct("filePath" -> TString, "partitionCounts" -> TInt64))),
-        MetadataNativeWriter("path", overwrite = false,
-          RVDSpecMaker(
-            TypedCodecSpec(PType.canonical(TStruct("a" -> TInt32)), BufferSpec.default),
-            RVDPartitioner.unkeyed(1)),
-          RVDSpecMaker(
-            TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default),
-            new RVDPartitioner(TStruct("a" -> TInt32), Array[Interval](), 1)),
-          TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct()))
-      ),
+        RelationalWriter("path", overwrite = false, None)),
       ReadValue(Str("foo"), TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default), TStruct("foo" -> TInt32)),
       WriteValue(I32(1), Str("foo"), TypedCodecSpec(PInt32(), BufferSpec.default)),
       LiftMeOut(I32(1)),
@@ -3701,5 +3696,20 @@ class IRSuite extends HailSuite {
     assertNumDistinct(stream, 5)
     assertNumDistinct(flatten(selfZip(stream, 2)), 10)
     assertNumDistinct(bindIR(ToArray(stream))(a => selfZip(ToStream(a), 2)), 5)
+  }
+
+  @Test def testZipDoesntPruneLengthInfo(): Unit = {
+    for (behavior <- Array(ArrayZipBehavior.AssumeSameLength,
+      ArrayZipBehavior.AssertSameLength,
+      ArrayZipBehavior.TakeMinLength,
+      ArrayZipBehavior.ExtendNA)) {
+      val zip = StreamZip(
+        FastIndexedSeq(StreamRange(0, 10, 1), StreamRange(0, 10, 1)),
+        FastIndexedSeq("x", "y"),
+        makestruct("x" -> Str("foo"), "y" -> Str("bar")),
+        behavior)
+
+      assertEvalsTo(ToArray(zip), Array.fill(10)(Row("foo", "bar")).toFastIndexedSeq)
+    }
   }
 }

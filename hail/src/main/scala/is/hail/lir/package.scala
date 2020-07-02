@@ -58,8 +58,8 @@ package object lir {
 
     val x = new SwitchX()
     setChildren(x, c)
-    x.setDefault(Ldefault)
-    x.setCases(cases)
+    x.setLdefault(Ldefault)
+    x.setLcases(cases)
     x
   }
 
@@ -228,8 +228,20 @@ package object lir {
   }
 
   def newInstance(
-    ti: TypeInfo[_]
-  ): ValueX = new NewInstanceX(ti)
+    ti: TypeInfo[_],
+    owner: String, name: String, desc: String, returnTypeInfo: TypeInfo[_],
+    args: IndexedSeq[ValueX]
+  ): ValueX = {
+    val x = new NewInstanceX(ti, new MethodLit(owner, name, desc, isInterface = false, returnTypeInfo))
+    setChildren(x, args)
+    x
+  }
+
+  def newInstance(ti: TypeInfo[_], method: Method, args: IndexedSeq[ValueX]): ValueX = {
+    val x = new NewInstanceX(ti, method)
+    setChildren(x, args)
+    x
+  }
 
   def checkcast(iname: String): (ValueX) => ValueX = (c) => checkcast(iname, c)
 

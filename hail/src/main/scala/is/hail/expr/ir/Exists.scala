@@ -80,6 +80,7 @@ object ContainsAggIntermediate {
     case _: SerializeAggs => true
     case _: AggStateValue => true
     case _: CombOpValue => true
+    case _: InitFromSerializedValue => true
     case _ => false
   }) || root.children.exists {
     case child: IR => ContainsAggIntermediate(child)
@@ -89,7 +90,7 @@ object ContainsAggIntermediate {
 
 object AggIsCommutative {
   def apply(op: AggOp): Boolean = op match {
-    case Take() | Collect() | PrevNonnull() | TakeBy() => false
+    case Take() | Collect() | PrevNonnull() | TakeBy(_) => false
     case _ => true
   }
 }

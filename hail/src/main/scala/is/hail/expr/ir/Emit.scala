@@ -629,6 +629,38 @@ class Emit[C](
 
       case x@WriteMetadata(annotations, writer) =>
         writer.writeMetadata(emitI(annotations), cb, region)
+
+      case CombOpValue(i, value, aggSig) =>
+        val AggContainer(_, sc, _) = container.get
+        val rvAgg = agg.Extract.getAgg(aggSig)
+        val tempState = AggStateSig.getState(aggSig.state, mb.ecb)
+        val aggStateOffset = mb.genFieldThisRef[Long](s"combOpValue_${i}_state");
+
+        val v = emitI(value)
+        v.consume(cb,
+          cb._fatal("cannot combOp a missing value"),
+          { serializedValue =>
+            cb.assign(aggStateOffset, region.allocate(tempState.storageType.alignment, tempState.storageType.byteSize))
+            tempState.createState(cb)
+            cb += tempState.newState()
+            tempState.deserializeFromBytes(cb, serializedValue.pt.asInstanceOf[PBinary], serializedValue.code.asInstanceOf[Code[Long]])
+            rvAgg.combOp(cb, sc.states(i), tempState)
+          }
+        )
+
+      case InitFromSerializedValue(i, value, sig) =>
+        val AggContainer(aggs, sc, _) = container.get
+        assert(aggs(i) == sig)
+
+        val v = emitI(value)
+        v.consume(cb,
+          cb._fatal("cannot initialize aggs from a missing value"),
+          { serializedValue =>
+            cb += sc.newState(i)
+            sc.states(i).createState(cb)
+            sc.states(i).deserializeFromBytes(cb, serializedValue.pt.asInstanceOf[PBinary], serializedValue.code.asInstanceOf[Code[Long]])
+          }
+        )
     }
   }
 
@@ -685,13 +717,12 @@ class Emit[C](
         presentC(const(true))
       case False() =>
         presentC(const(false))
-      case Consume(value) => {
+      case Consume(value) =>
         emitI(value).map(cb){pc =>
           cb.memoizeField(pc, "consumed_field")
           // Ignore pc, just return a 1
           PCode(ir.pType, 1L)
         }
-      }
       case Cast(v, typ) =>
         val iec = emitI(v)
         val cast = Casts.get(v.typ, typ)
@@ -846,6 +877,10 @@ class Emit[C](
         val unified = impl.unify(Array.empty[Type], args.map(_.typ), rt)
         assert(unified)
         impl.applySeededI(seed, cb, EmitRegion(mb, region), pt, codeArgs: _*)
+
+      case AggStateValue(i, _) =>
+        val AggContainer(_, sc, _) = container.get
+        presentC(sc.states(i).serializeToRegion(cb, coerce[PBinary](pt), region))
 
       case _ =>
         emitFallback(ir)
@@ -1350,12 +1385,6 @@ class Emit[C](
         }
 
         COption.toEmitCode(resOpt, mb)
-
-      case x@CombOpValue(i, value, sig) =>
-        throw new NotImplementedError("CombOpValue emitter cannot be implemented until physical type passed across serialization boundary. See PR #8142")
-
-      case x@AggStateValue(i, _) =>
-        throw new NotImplementedError("AggStateValue emitter cannot be implemented until physical type passed across serialization boundary. See PR #8142")
 
       case x@MakeStruct(fields) =>
         val srvb = new StagedRegionValueBuilder(mb, x.pType)

@@ -34,9 +34,9 @@ class ServiceBackend(Backend):
             bucket = get_user_config().get('batch', 'bucket', fallback=None)
         if bucket is None:
             raise ValueError(
-                f'the bucket parameter of ServiceBackend must be set '
-                f'or run `hailctl config set batch/bucket '
-                f'MY_BUCKET`')
+                'the bucket parameter of ServiceBackend must be set '
+                'or run `hailctl config set batch/bucket '
+                'MY_BUCKET`')
         self._bucket = bucket
 
         if not deploy_config:
@@ -233,6 +233,23 @@ class ServiceBackend(Backend):
                 'rg': rg,
                 'contig_recoding': contig_recoding,
                 'skip_invalid_loci': skip_invalid_loci
+            },
+            headers=self.headers)
+        if resp.status_code == 400 or resp.status_code == 500:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
+        resp.raise_for_status()
+        return resp.json()
+
+    def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
+        resp = retry_response_returning_functions(
+            requests.post,
+            f'{self.url}/import-fam',
+            json={
+                'path': path,
+                'quant_pheno': quant_pheno,
+                'delimiter': delimiter,
+                'missing': missing
             },
             headers=self.headers)
         if resp.status_code == 400 or resp.status_code == 500:

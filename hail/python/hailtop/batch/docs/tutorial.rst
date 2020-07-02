@@ -423,8 +423,8 @@ you can reference a specific input file such as `bfile.fam`.
 Resource File Extensions
 ------------------------
 
-If your tool requires a specific extension for the input files to have such
-as the file is gzipped, then you'd need to create the resource group as follows:
+If your tool requires a specific extension for the input files in a resource group,
+then you'd need to create the resource group as follows:
 
 .. code-block:: python
 

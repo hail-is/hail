@@ -188,7 +188,6 @@ object TextMatrixReader {
   }
 
   def fromJValue(ctx: ExecuteContext, jv: JValue): TextMatrixReader = {
-    val backend = ctx.backend
     val fs = ctx.fs
 
     implicit val formats: Formats = DefaultFormats

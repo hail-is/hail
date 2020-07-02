@@ -2,7 +2,11 @@ import os.path
 from tempfile import TemporaryDirectory
 
 import hail as hl
-import hail.experimental.vcf_combiner.vcf_combiner as vc_all
+
+try:
+    import hail.experimental.vcf_combiner.vcf_combiner as vc_all
+except ImportError:
+    vc_all = None
 
 from .resources import empty_gvcf, single_gvcf, chr22_gvcfs
 from .utils import benchmark

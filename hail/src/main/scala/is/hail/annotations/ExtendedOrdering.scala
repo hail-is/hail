@@ -187,7 +187,8 @@ object ExtendedOrdering {
         val rx = x.asInstanceOf[Row]
         val ry = y.asInstanceOf[Row]
         val rLen = rx.length
-        assert(rLen == ry.length)
+        assert(rLen == fieldOrd.length)
+        assert(ry.length == fieldOrd.length)
 
         var i = 0
         while (i < rLen) {

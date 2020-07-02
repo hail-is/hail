@@ -3,15 +3,15 @@ package is.hail.lir
 import java.io.PrintWriter
 
 import scala.collection.mutable
-
 import is.hail.asm4s._
 import is.hail.utils._
-
 import org.objectweb.asm.Opcodes._
 
 // FIXME move typeinfo stuff lir
 
 class Classx[C](val name: String, val superName: String) {
+  val ti: TypeInfo[C] = new ClassInfo[C](name)
+
   val methods: mutable.ArrayBuffer[Method] = new mutable.ArrayBuffer()
 
   val fields: mutable.ArrayBuffer[Field] = new mutable.ArrayBuffer()
@@ -87,20 +87,40 @@ class Classx[C](val name: String, val superName: String) {
     }
 
     for (m <- methods) {
-      m.simplifyBlocks()
+      SimplifyControl(m)
     }
+
+    /*
+    for (m <- methods) {
+      if (m.approxByteCodeSize() > SplitMethod.TargetMethodSize)
+      if (m.name != "<init>")
+        SplitMethod(this, m)
+    }
+     */
 
     for (m <- methods) {
-      InitializeLocals(m)
+      val blocks = m.findBlocks()
+      val locals = m.findLocals(blocks)
+      val cfg = CFG(m, blocks)
+      val liveness = Liveness(blocks, locals, cfg)
+
+      InitializeLocals(m, blocks, locals, liveness)
     }
 
-    // println(Pretty(this))
+    /*
+    {
+      println(name)
+      for (m <- methods) {
+        println(s"  ${ m.name } ${ m.approxByteCodeSize() }")
+      }
+    }
+     */
 
+    // println(Pretty(this))
     Emit(this,
       print
       // Some(new PrintWriter(System.out))
     )
-
   }
 }
 
@@ -143,6 +163,9 @@ class Method private[lir] (
   val name: String,
   val parameterTypeInfo: IndexedSeq[TypeInfo[_]],
   val returnTypeInfo: TypeInfo[_]) extends MethodRef {
+
+  def nParameters: Int = parameterTypeInfo.length + 1
+
   def owner: String = classx.name
 
   def desc = s"(${parameterTypeInfo.map(_.desc).mkString})${returnTypeInfo.desc}"
@@ -170,8 +193,8 @@ class Method private[lir] (
 
   def genLocal(baseName: String, ti: TypeInfo[_]): Local = newLocal(genName("l", baseName), ti)
 
-  def findBlocks(): IndexedSeq[Block] = {
-    val blocks = mutable.ArrayBuffer[Block]()
+  def findBlocks(): Blocks = {
+    val blocksb = new ArrayBuilder[Block]()
 
     val s = new mutable.Stack[Block]()
     val visited = mutable.Set[Block]()
@@ -181,44 +204,65 @@ class Method private[lir] (
     while (s.nonEmpty) {
       val L = s.pop()
       if (!visited.contains(L)) {
-        blocks += L
+        if (L != null) {
+          blocksb += L
 
-        var x = L.first
-        while (x != null) {
-          x match {
-            case x: IfX =>
-              s.push(x.Ltrue)
-              s.push(x.Lfalse)
-            case x: GotoX =>
-              s.push(x.L)
-            case x: SwitchX =>
-              s.push(x.Ldefault)
-              x.Lcases.foreach(s.push)
-            case _ =>
+          var x = L.first
+          while (x != null) {
+            x match {
+              case x: IfX =>
+                s.push(x.Ltrue)
+                s.push(x.Lfalse)
+              case x: GotoX =>
+                s.push(x.L)
+              case x: SwitchX =>
+                s.push(x.Ldefault)
+                x.Lcases.foreach(s.push)
+              case _ =>
+            }
+            x = x.next
           }
-          x = x.next
+          visited += L
         }
-        visited += L
       }
     }
 
-    blocks
+    val blocks = blocksb.result()
+
+    // prune dead Block uses
+    for (b <- blocks) {
+      // don't traverse a set that's being modified
+      val uses2 = b.uses.toArray
+      for ((u, i) <- uses2) {
+        if (!visited(u.parent))
+          u.setTarget(i, null)
+      }
+    }
+
+    new Blocks(blocks)
   }
 
-  def findAndIndexBlocks(): (IndexedSeq[Block], Map[Block, Int]) = {
-    val blocks = findBlocks()
-    val blockIdx = blocks.zipWithIndex.toMap
-    (blocks, blockIdx)
-  }
+  def findLocals(blocks: Blocks): Locals = {
+    val localsb = new ArrayBuilder[Local]()
 
-  def findLocals(blocks: IndexedSeq[Block]): IndexedSeq[Local] = {
-    val locals = mutable.ArrayBuffer[Local]()
+    var i = 0
+    while (i < nParameters) {
+      localsb += (
+        if (i == 0)
+          new Parameter(this, 0, classx.ti)
+        else
+          new Parameter(this, i, parameterTypeInfo(i - 1)))
+      i += 1
+    }
+
     val visited: mutable.Set[Local] = mutable.Set()
 
     def visitLocal(l: Local): Unit = {
-      if (!visited.contains(l)) {
-        locals += l
-        visited += l
+      if (!l.isInstanceOf[Parameter]) {
+        if (!visited.contains(l)) {
+          localsb += l
+          visited += l
+        }
       }
     }
 
@@ -240,13 +284,7 @@ class Method private[lir] (
       }
     }
 
-    locals
-  }
-
-  def findAndIndexLocals(blocks: IndexedSeq[Block]): (IndexedSeq[Local], Map[Local, Int]) = {
-    val locals = findLocals(blocks)
-    val localIdx = locals.zipWithIndex.toMap
-    (locals, localIdx)
+    new Locals(localsb.result())
   }
 
   def removeDeadCode(): Unit = {
@@ -262,53 +300,13 @@ class Method private[lir] (
     }
   }
 
-  def simplifyBlocks(): Unit = {
-    @scala.annotation.tailrec
-    def finalTarget(b: Block): Block = {
-      if (b.first != null &&
-        b.first.isInstanceOf[GotoX]) {
-        finalTarget(b.first.asInstanceOf[GotoX].L)
-      } else
-        b
-    }
-
-    @scala.annotation.tailrec
-    def simplifyBlock(L: Block): Unit = {
-      L.last match {
-        case x: IfX =>
-          x.setLtrue(finalTarget(x.Ltrue))
-          x.setLfalse(finalTarget(x.Lfalse))
-
-          val M = x.Ltrue
-          if (x.Lfalse eq M) {
-            x.remove()
-            x.setLtrue(null)
-            x.setLfalse(null)
-            L.append(goto(M))
-          }
-
-        case x: GotoX =>
-          val M = x.L
-          if ((M ne L) && M.uses.size == 1 && (entry ne M)) {
-            x.remove()
-            x.setL(null)
-            while (M.first != null) {
-              val z = M.first
-              z.remove()
-              L.append(z)
-            }
-            simplifyBlock(L)
-          } else
-            x.setL(finalTarget(x.L))
-
-        case _ =>
-      }
-    }
-
+  def approxByteCodeSize(): Int = {
     val blocks = findBlocks()
-
-    for (ell <- blocks)
-      simplifyBlock(ell)
+    var size = 0
+    for (b <- blocks) {
+      size += b.approxByteCodeSize()
+    }
+    size
   }
 }
 
@@ -332,30 +330,27 @@ class Block {
 
   var method: Method = _
 
-  val uses: mutable.Set[ControlX] = mutable.Set()
-
   var first: StmtX = _
   var last: StmtX = _
 
+  val uses: mutable.Set[(ControlX, Int)] = mutable.Set[(ControlX, Int)]()
+
+  def addUse(x: ControlX, i: Int): Unit = {
+    val added = uses.add(x -> i)
+    assert(added)
+  }
+
+  def removeUse(x: ControlX, i: Int): Unit = {
+    val removed = uses.remove(x -> i)
+    assert(removed)
+  }
+
   def replace(L: Block): Unit = {
-    if (method != null && (method.entry eq this)) {
-      method.setEntry(L)
+    // don't traverse a set that's being modified
+    val uses2 = uses.toArray
+    for ((x, i) <- uses2) {
+      x.setTarget(i, L)
     }
-
-    while (uses.nonEmpty) {
-      val x = uses.head
-      x match {
-        case x: GotoX =>
-          assert(x.L eq this)
-          x.setL(L)
-        case x: IfX =>
-          if (x.Ltrue eq this)
-            x.setLtrue(L)
-          if (x.Lfalse eq this)
-            x.setLfalse(L)
-      }
-    }
-
     assert(uses.isEmpty)
   }
 
@@ -403,6 +398,17 @@ class Block {
   }
 
   override def toString: String = f"L${ System.identityHashCode(this) }%08x"
+
+  def approxByteCodeSize(): Int = {
+    var size = 1 // for the block
+    var x = first
+    while (x != null) {
+      size += x.approxByteCodeSize()
+      x = x.next
+    }
+    size
+  }
+
 }
 
 // X stands for eXpression
@@ -443,6 +449,18 @@ abstract class X {
     }
     children(i) = x
   }
+
+  def remove(): Unit
+
+  def approxByteCodeSize(): Int = {
+    var size = 0
+    def visit(x: X): Unit = {
+      size += 1
+      x.children.foreach(visit)
+    }
+    visit(this)
+    size
+  }
 }
 
 abstract class StmtX extends X {
@@ -466,92 +484,193 @@ abstract class StmtX extends X {
     next = null
     prev = null
   }
+
+  def replace(x: StmtX): Unit = {
+    assert(x.parent == null)
+    assert(parent != null)
+
+    x.next = next
+    x.prev = prev
+    x.parent = parent
+
+    if (parent.first == this)
+      parent.first = x
+    if (parent.last == this)
+      parent.last = x
+    if (next != null)
+      next.prev = x
+    if (prev != null)
+      prev.next = x
+
+    next = null
+    prev = null
+    parent = null
+  }
+
+  def insertBefore(x: StmtX): Unit = {
+    assert(parent != null)
+    assert(x.parent == null)
+
+    x.next = this
+    x.parent = parent
+    if (prev != null) {
+      x.prev = prev
+      prev.next = x
+    } else {
+      parent.first = x
+    }
+    prev = x
+  }
 }
 
-abstract class ControlX extends StmtX
+abstract class ControlX extends StmtX {
+  def targetArity(): Int
+
+  def target(i: Int): Block
+
+  def setTarget(i: Int, b: Block): Unit
+}
 
 abstract class ValueX extends X {
   var parent: X = _
 
   def ti: TypeInfo[_]
+
+  def remove(): Unit = {
+    var i = 0
+    while (parent.children(i) ne this)
+      i += 1
+    parent.setChild(i, null)
+    assert(parent == null)
+  }
+
+  def replace(x: ValueX): Unit = {
+    var i = 0
+    while (parent.children(i) ne this)
+      i += 1
+    parent.setChild(i, x)
+    assert(parent == null)
+  }
 }
 
 class GotoX extends ControlX {
-  var _L: Block = _
+  private var _L: Block = _
 
   def L: Block = _L
 
-  def setL(newL: Block): Unit = {
+  def setL(newL: Block): Unit = setTarget(0, newL)
+
+  def targetArity(): Int = 1
+
+  def target(i: Int): Block = {
+    assert(i == 0)
+    _L
+  }
+
+  def setTarget(i: Int, b: Block): Unit = {
+    assert(i == 0)
     if (_L != null)
-      _L.uses -= this
-    if (newL != null)
-      newL.uses += this
-    _L = newL
+      _L.removeUse(this, 0)
+    _L = b
+    if (b != null)
+      b.addUse(this, 0)
   }
 }
 
 class IfX(val op: Int) extends ControlX {
-  var _Ltrue: Block = _
+  private var _Ltrue: Block = _
+  private var _Lfalse: Block = _
 
   def Ltrue: Block = _Ltrue
 
-  def setLtrue(newLtrue: Block): Unit = {
-    removeUses()
-    _Ltrue = newLtrue
-    addUses()
-  }
-
-  var _Lfalse: Block = _
-
   def Lfalse: Block = _Lfalse
 
-  def setLfalse(newLfalse: Block): Unit = {
-    removeUses()
-    _Lfalse = newLfalse
-    addUses()
+  def setLtrue(newLtrue: Block): Unit = setTarget(0, newLtrue)
+
+  def setLfalse(newLfalse: Block): Unit = setTarget(1, newLfalse)
+
+  def targetArity(): Int = 2
+
+  def target(i: Int): Block = {
+    if (i == 0)
+      _Ltrue
+    else {
+      assert(i == 1)
+      _Lfalse
+    }
   }
 
-  private def removeUses(): Unit = {
-    if (_Ltrue != null)
-      _Ltrue.uses -= this
-    if (_Lfalse != null)
-      _Lfalse.uses -= this
-  }
-
-  private def addUses(): Unit = {
-    if (_Ltrue != null)
-      _Ltrue.uses += this
-    if (_Lfalse != null)
-      _Lfalse.uses += this
+  def setTarget(i: Int, b: Block): Unit = {
+    if (i == 0) {
+      if (_Ltrue != null)
+        _Ltrue.removeUse(this, 0)
+      _Ltrue = b
+      if (b != null)
+        b.addUse(this, 0)
+    } else {
+      assert(i == 1)
+      if (_Lfalse != null)
+        _Lfalse.removeUse(this, 1)
+      _Lfalse = b
+      if (b != null)
+        b.addUse(this, 1)
+    }
   }
 }
 
 class SwitchX() extends ControlX {
-  private[this] var _Ldefault: Block = _
+  private var _Ldefault: Block = _
 
-  private[this] var _Lcases: IndexedSeq[Block] = FastIndexedSeq()
+  private var _Lcases: Array[Block] = Array.empty[Block]
 
   def Ldefault: Block = _Ldefault
 
+  def setLdefault(newLdefault: Block): Unit = setTarget(0, newLdefault)
+
   def Lcases: IndexedSeq[Block] = _Lcases
 
-  def setDefault(newDefault: Block): Unit = {
-    if (_Ldefault != null)
-      _Ldefault.uses -= this
-    _Ldefault = newDefault
-    if (_Ldefault != null)
-      _Ldefault.uses += this
+  def setLcases(newLcases: IndexedSeq[Block]): Unit = {
+    var i = 0
+    while (i < _Lcases.length) {
+      val L = _Lcases(i)
+      if (L != null)
+        L.removeUse(this, i + 1)
+      _Lcases(i) = null
+      i += 1
+    }
+    _Lcases = newLcases.toArray
+    i = 0
+    while (i < _Lcases.length) {
+      val L = _Lcases(i)
+      if (L != null)
+        L.addUse(this, i + 1)
+      i += 1
+    }
+  }
+  
+  def targetArity(): Int = 1 + _Lcases.length
+
+  def target(i: Int): Block = {
+    if (i == 0)
+      Ldefault
+    else
+      _Lcases(i - 1)
   }
 
-  def setCases(newCases: IndexedSeq[Block]): Unit = {
-    _Lcases.foreach { c =>
-      if (c != null)
-        c.uses -= this
-    }
-    _Lcases = newCases
-    _Lcases.foreach { c =>
-      if (c != null)
-        c.uses += this
+  def setTarget(i: Int, b: Block): Unit = {
+    if (i == 0) {
+      if (_Ldefault != null)
+        _Ldefault.removeUse(this, 0)
+      _Ldefault = b
+      if (b != null)
+        b.addUse(this, 0)
+    } else {
+      val L = _Lcases(i - 1)
+      if (L != null)
+        L.removeUse(this, i)
+      _Lcases(i - 1) = b
+      if (b != null)
+        b.addUse(this, i)
     }
   }
 }
@@ -562,9 +681,21 @@ class PutFieldX(val op: Int, val f: FieldRef) extends StmtX
 
 class IincX(val l: Local, val i: Int) extends StmtX
 
-class ReturnX() extends ControlX
+class ReturnX() extends ControlX {
+  def targetArity(): Int = 0
 
-class ThrowX() extends ControlX
+  def target(i: Int): Block = throw new IndexOutOfBoundsException()
+
+  def setTarget(i: Int, b: Block): Unit = throw new IndexOutOfBoundsException()
+}
+
+class ThrowX() extends ControlX {
+  def targetArity(): Int = 0
+
+  def target(i: Int): Block = throw new IndexOutOfBoundsException()
+
+  def setTarget(i: Int, b: Block): Unit = throw new IndexOutOfBoundsException()
+}
 
 class StmtOpX(val op: Int) extends StmtX
 
@@ -635,6 +766,9 @@ class InsnX(val op: Int, _ti: TypeInfo[_]) extends ValueX {
       case I2D => DoubleInfo
       case L2D => DoubleInfo
       case F2D => DoubleInfo
+      // Boolean
+      case I2B => BooleanInfo
+
     }
   }
 }
@@ -651,7 +785,7 @@ class NewArrayX(val eti: TypeInfo[_]) extends ValueX {
   def ti: TypeInfo[_] = arrayInfo(eti)
 }
 
-class NewInstanceX(val ti: TypeInfo[_]) extends ValueX
+class NewInstanceX(val ti: TypeInfo[_], val ctor: MethodRef) extends ValueX
 
 class LdcX(val a: Any, val ti: TypeInfo[_]) extends ValueX {
   assert(

@@ -621,7 +621,7 @@ object IRParser {
       case "TakeByStateSig" =>
         val vt = ptype_expr(env)(it)
         val kt = ptype_expr(env)(it)
-        TakeByStateSig(vt, kt)
+        TakeByStateSig(vt, kt, Ascending)
       case "CollectStateSig" =>
         val pt = ptype_expr(env)(it)
         CollectStateSig(pt)
@@ -653,15 +653,15 @@ object IRParser {
     val sig = identifier(it) match {
       case "Grouped" =>
         val pt = ptype_expr(env)(it)
-        val nested = base_seq_parser(p_agg_sigs(env))(it)
-        GroupedAggSig(pt, nested.map(_.toFastSeq))
+        val nested = p_agg_sigs(env)(it)
+        GroupedAggSig(pt, nested)
       case "ArrayLen" =>
         val knownLength = boolean_literal(it)
-        val nested = base_seq_parser(p_agg_sigs(env))(it)
-        ArrayLenAggSig(knownLength, nested.map(_.toFastSeq))
+        val nested = p_agg_sigs(env)(it)
+        ArrayLenAggSig(knownLength, nested)
       case "AggElements" =>
-        val nested = base_seq_parser(p_agg_sigs(env))(it)
-        AggElementsAggSig(nested.map(_.toFastSeq))
+        val nested = p_agg_sigs(env)(it)
+        AggElementsAggSig(nested)
       case op =>
         val state = agg_state_signature(env)(it)
         PhysicalAggSig(AggOp.fromString(op), state)
@@ -1073,6 +1073,11 @@ object IRParser {
         val i = int32_literal(it)
         val sig = agg_state_signature(env.typEnv)(it)
         AggStateValue(i, sig)
+      case "InitFromSerializedValue" =>
+        val i = int32_literal(it)
+        val sig = agg_state_signature(env.typEnv)(it)
+        val value = ir_value_expr(env)(it)
+        InitFromSerializedValue(i, value, sig)
       case "CombOpValue" =>
         val i = int32_literal(it)
         val sig = p_agg_sig(env.typEnv)(it)

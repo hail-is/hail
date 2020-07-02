@@ -260,7 +260,7 @@ object GenericLines {
         val partScan = parts.scanLeft(0L)(_ + _)
         Iterator.range(0, fileNParts)
           .map { i =>
-            var start = partScan(i)
+            val start = partScan(i)
             var end = partScan(i + 1)
             if (codec != null)
               end = makeVirtualOffset(end, 0)

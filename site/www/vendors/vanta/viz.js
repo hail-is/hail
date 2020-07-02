@@ -19,6 +19,10 @@ function getBrightness(threeColor) {
   return (0.299 * threeColor.r) + (0.587 * threeColor.g) + (0.114 * threeColor.b);
 }
 
+function getPixelRatio() {
+  return (!window.devicePixelRatio || window.devicePixelRatio < 2) ? 2 : window.devicePixelRatio
+}
+
 /*pruned/extended _base.js + vanta.net.js, focused on performance improvement, drops cpu usage by 75%, reduces memory usage, and introduces hover effects*/
 class Viz {
   constructor(userOptions = {}) {
@@ -199,7 +203,7 @@ class Viz {
       }
       if (this.renderer) {
         this.renderer.setSize(this.el.offsetWidth, this.el.offsetHeight)
-        this.renderer.setPixelRatio(window.devicePixelRatio)
+        this.renderer.setPixelRatio(getPixelRatio())
       }
       this.animationLoop();
       this.resizeTimeout = null;
@@ -346,7 +350,7 @@ class Viz {
     }
 
     this.renderer.setSize(this.el.offsetWidth, this.el.offsetHeight)
-    this.renderer.setPixelRatio(window.devicePixelRatio)
+    this.renderer.setPixelRatio(getPixelRatio())
 
     this.camera = new THREE.PerspectiveCamera(25, this.el.offsetWidth / (this.el.offsetHeight), .01, 10000);
 

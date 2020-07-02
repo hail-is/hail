@@ -14,6 +14,7 @@ object Interpretable {
         _: CombOp |
         _: ResultOp |
         _: CombOpValue |
+        _: InitFromSerializedValue |
         _: AggStateValue |
         _: RunAgg |
         _: RunAggScan |

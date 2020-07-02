@@ -52,7 +52,6 @@ class ResourceFile(Resource, str):
         self._source = None
         self._output_paths = set()
         self._resource_group = None
-        self._has_extension = False
 
     def _get_path(self, directory):
         raise NotImplementedError
@@ -76,6 +75,71 @@ class ResourceFile(Resource, str):
 
     def _get_resource_group(self):
         return self._resource_group
+
+    def __str__(self):
+        return f'"{self._uid}"'  # pylint: disable=no-member
+
+    def __repr__(self):
+        return self._uid  # pylint: disable=no-member
+
+
+class InputResourceFile(ResourceFile):
+    """
+    Class representing a resource from an input file.
+
+    Examples
+    --------
+    `input` is an :class:`.InputResourceFile` of the batch `b`
+    and is used in job `j`:
+
+    >>> b = Batch()
+    >>> input = b.read_input('data/hello.txt')
+    >>> j = b.new_job(name='hello')
+    >>> j.command(f'cat {input}')
+    >>> b.run()
+    """
+
+    def __init__(self, value):
+        self._input_path = None
+        super().__init__(value)
+
+    def _add_input_path(self, path):
+        self._input_path = path
+        return self
+
+    def _get_path(self, directory):
+        assert self._value is not None
+        return directory + '/inputs/' + self._value
+
+
+class JobResourceFile(ResourceFile):
+    """
+    Class representing an intermediate file from a job.
+
+    Examples
+    --------
+    `j.ofile` is a :class:`.JobResourceFile` on the job`j`:
+
+    >>> b = Batch()
+    >>> j = b.new_job(name='hello-tmp')
+    >>> j.command(f'echo "hello world" > {j.ofile}')
+    >>> b.run()
+
+    Notes
+    -----
+    All :class:`.JobResourceFile` are temporary files and must be written
+    to a permanent location using :meth:`.Batch.write_output` if the output needs
+    to be saved.
+    """
+
+    def __init__(self, value):
+        super().__init__(value)
+        self._has_extension = False
+
+    def _get_path(self, directory):
+        assert self._source is not None
+        assert self._value is not None
+        return f'{directory}/{self._source._job_id}/{self._value}'
 
     def add_extension(self, extension):
         """
@@ -110,67 +174,6 @@ class ResourceFile(Resource, str):
         self._value += extension
         self._has_extension = True
         return self
-
-    def __str__(self):
-        return self._uid  # pylint: disable=no-member
-
-    def __repr__(self):
-        return self._uid  # pylint: disable=no-member
-
-
-class InputResourceFile(ResourceFile):
-    """
-    Class representing a resource from an input file.
-
-    Examples
-    --------
-    `input` is an :class:`.InputResourceFile` of the batch `b`
-    and is used in job `j`:
-
-    >>> b = Batch()
-    >>> input = b.read_input('data/hello.txt')
-    >>> j = b.new_job(name='hello')
-    >>> j.command(f'cat {input}')
-    >>> b.run()
-    """
-
-    def __init__(self, value):
-        self._input_path = None
-        super().__init__(value)
-
-    def _add_input_path(self, path):
-        self._input_path = path
-        return self
-
-    def _get_path(self, directory):
-        assert self._value is not None
-        return shq(directory + '/inputs/' + self._value)
-
-
-class JobResourceFile(ResourceFile):
-    """
-    Class representing an intermediate file from a job.
-
-    Examples
-    --------
-    `j.ofile` is a :class:`.JobResourceFile` on the job`j`:
-
-    >>> b = Batch()
-    >>> j = b.new_job(name='hello-tmp')
-    >>> j.command(f'echo "hello world" > {j.ofile}')
-    >>> b.run()
-
-    Notes
-    -----
-    All :class:`.JobResourceFile` are temporary files and must be written
-    to a permanent location using :meth:`.Batch.write_output` if the output needs
-    to be saved.
-    """
-
-    def _get_path(self, directory):
-        assert self._source is not None
-        assert self._value is not None
-        return shq(directory + '/' + self._source._uid + '/' + self._value)
 
 
 class ResourceGroup(Resource):
@@ -240,7 +243,7 @@ class ResourceGroup(Resource):
             resource_file._add_resource_group(self)
 
     def _get_path(self, directory):
-        subdir = self._source._uid if self._source else 'inputs'
+        subdir = str(self._source._job_id) if self._source else 'inputs'
         return directory + '/' + subdir + '/' + self._root
 
     def _add_output_path(self, path):
@@ -268,4 +271,4 @@ class ResourceGroup(Resource):
         return other + str(self._uid)
 
     def __str__(self):
-        return self._uid
+        return f'"{self._uid}"'

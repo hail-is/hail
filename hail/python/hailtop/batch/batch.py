@@ -1,8 +1,9 @@
 import os
 
 import re
-import uuid
 from typing import Optional, Dict, Union
+
+from hailtop.utils import secret_alnum_string
 
 from .backend import Backend, LocalBackend
 from .job import Job
@@ -158,34 +159,27 @@ class Batch:
         self._jobs.append(j)
         return j
 
-    def _tmp_file(self, prefix=None, suffix=None):
-        def _get_random_file():
-            file = '{}{}{}'.format(prefix if prefix else '',
-                                   uuid.uuid4().hex[:8],
-                                   suffix if suffix else '')
-            if file not in self._allocated_files:
-                self._allocated_files.add(file)
-                return file
-            return _get_random_file()
-
-        return _get_random_file()
-
     def _new_job_resource_file(self, source, value=None):
-        jrf = JobResourceFile(value if value else self._tmp_file())
+        if value is None:
+            value = secret_alnum_string(5)
+        jrf = JobResourceFile(value)
         jrf._add_source(source)
         self._resource_map[jrf._uid] = jrf  # pylint: disable=no-member
         return jrf
 
     def _new_input_resource_file(self, input_path, value=None):
-        irf = InputResourceFile(value if value else self._tmp_file())
+        if value is None:
+            value = f'{secret_alnum_string(5)}/{os.path.basename(input_path)}'
+        irf = InputResourceFile(value)
         irf._add_input_path(input_path)
         self._resource_map[irf._uid] = irf  # pylint: disable=no-member
         self._input_resources.add(irf)
         return irf
 
-    def _new_resource_group(self, source, mappings):
+    def _new_resource_group(self, source, mappings, root=None):
         assert isinstance(mappings, dict)
-        root = self._tmp_file()
+        if root is None:
+            root = secret_alnum_string(5)
         d = {}
         new_resource_map = {}
         for name, code in mappings.items():
@@ -200,7 +194,7 @@ class Batch:
         self._resource_map.update({rg._uid: rg})
         return rg
 
-    def read_input(self, path, extension=None):
+    def read_input(self, path):
         """
         Create a new input resource file object representing a single file.
 
@@ -228,8 +222,6 @@ class Batch:
         """
 
         irf = self._new_input_resource_file(path)
-        if extension is not None:
-            irf.add_extension(extension)
         return irf
 
     def read_input_group(self, **kwargs):
@@ -290,8 +282,9 @@ class Batch:
         :class:`.InputResourceFile`
         """
 
-        root = self._tmp_file()
-        new_resources = {name: self._new_input_resource_file(file, root + '.' + name) for name, file in kwargs.items()}
+        root = secret_alnum_string(5)
+        new_resources = {name: self._new_input_resource_file(file, value=f'{root}/{os.path.basename(file)}')
+                         for name, file in kwargs.items()}
         rg = ResourceGroup(None, root, **new_resources)
         self._resource_map.update({rg._uid: rg})
         return rg
@@ -411,9 +404,10 @@ class Batch:
 
         assert len(seen) == len(self._jobs)
 
-        job_index = {j: i for i, j in enumerate(ordered_jobs)}
+        job_index = {j: i for i, j in enumerate(ordered_jobs, start=1)}
         for j in ordered_jobs:
             i = job_index[j]
+            j._job_id = i
             for d in j._dependencies:
                 j = job_index[d]
                 if j >= i:

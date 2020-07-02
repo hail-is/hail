@@ -10,16 +10,17 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.20.0/themes/prism.min.css"></link>
     </xsl:template>
     <xsl:template match="body">
+    <span id='home'>
         <div id="hero">
             <div id="hero-background"></div>
             <div id="all-hero-content">
-                <div id="hero-content" class="wide">
+                <div id="hero-content">
                     <h1 id="logo-title">Powering genomic analysis, at every scale</h1>
                     <subtitle class="logo-subtitle">An open-source library for scalable genomic data exploration</subtitle>
                     <div style="display: flex;" id="hero-button-container">
                         <a class="button" href="#install">Install</a>
-                        <a class="button" href="/gethelp.html">Get Help</a>
                         <a class="button" href="#features">Features</a>
+                        <a class="button" href="/gethelp.html">Get Help</a>
                     </div>
                 </div>
 
@@ -49,7 +50,7 @@ show(p)
                 </div>
             </div>
         </div>
-        <div id="install" class="about dark">
+        <div id="install" class="about dark" style="z-index:1">
             <div class="header-wrap" style="justify-content: center;">
                 <h1>Install</h1>
             </div>
@@ -77,38 +78,31 @@ show(p)
                 <div class="about-content columns">
                     <section>
                         <h4>Simplified Analysis</h4>
-                        <p> Hail is an open-source Python library that simplifies genomic data analysis.
+                        <p>Hail is an open-source Python library that simplifies genomic data analysis.
                         It provides powerful, easy-to-use data science tools that can be used to interrogate even
                         biobank-scale genomic data (e.g UK Biobank, TopMed, FinnGen, and Biobank Japan).
                     </p>
                     </section>
                     <section>
                         <h4>Genomic Dataframes</h4>
-                        <p>
-                            Modern data science is driven by table-like data structures, often called dataframes (see
-                            <a href="https://pandas.pydata.org">Pandas</a>
-                            ).
-                    While convenient, they don't capture the structure of genetic data, which has row (variant) and
-                    column
-                    (genotype) groups.
-                    To remedy this, Hail introduces a distributed, dataframe-like structure called
-                            <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>
-                            .
+                        <p>Modern data science is driven by table-like data structures, often called dataframes (see <a href="https://pandas.pydata.org">Pandas</a>).
+                            While convenient, they don't capture the structure of genetic data, which has row (variant) and
+                            column
+                            (genotype) groups.
+                            To remedy this, Hail introduces a distributed, dataframe-like structure called
+                            <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>.
                         </p>
                     </section>
                     <section>
                         <h4>Input Unification</h4>
-                        <p>
-                            The
-                            <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">Hail
-                        MatrixTable</a>
-                            unifies a wide range of input formats (e.g. vcf, bgen, plink, tsv, gtf, bed
-                    files),
-                    and supports scalable queries, even on petabyte-size datasets.
-                    By leveraging MatrixTable, Hail provides an integrated, scalable analysis platform for science.
+                        <p>The <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">Hail
+                            MatrixTable</a> unifies a wide range of input formats (e.g. vcf, bgen, plink, tsv, gtf, bed files),
+                            and supports scalable queries, even on petabyte-size datasets.
+                            By leveraging MatrixTable, Hail provides an integrated, scalable analysis platform for science.
                         </p>
                     </section>
                 </div>
+                <a class="button" href="/tutorial.html" style='align-self:flex-end; margin-top:1rem;'>Learn More ></a>
             </div>
         </div>
         <div class="about dark">
@@ -177,19 +171,30 @@ show(p)
                 }
             ]]>
         </script>
-        <script src="/vendors/vanta/threeR115.min.js"></script>
+        <script src="/vendors/vanta/threeR115.min.js" async="true"></script>
         <script type="module" crossorigin="use-credentials"> <!-- https://github.com/hail-is/hail/pull/8928#issuecomment-639218007 -->
             <![CDATA[
-                import Viz from "/vendors/vanta/viz.min.js";
-                new Viz({
-                    el: "#hero-background",
-                    points: 10,
-                    maxDistance: 23,
-                    spacing: 20,
-                    backgroundColor: "#fff",
-                    color: "#283870",
-                });
+                function checkViz() {
+                    if(window.THREE) {
+                        import("/vendors/vanta/viz.min.js").then(module => {
+                            new module.default({
+                                el: "#hero-background",
+                                points: 10,
+                                maxDistance: 23,
+                                spacing: 20,
+                                backgroundColor: "#fff",
+                                color: "#283870",
+                            });
+                        })
+                        return;
+                    }
+
+                    setTimeout(checkViz, 16);
+                }
+
+                checkViz();
             ]]>
         </script>
+    </span>
     </xsl:template>
 </xsl:stylesheet>

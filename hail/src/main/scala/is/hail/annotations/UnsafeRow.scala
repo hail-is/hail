@@ -22,10 +22,10 @@ trait UnKryoSerializable extends KryoSerializable {
 }
 
 class UnsafeIndexedSeq(
-  var t: PContainer,
-  var region: Region, var aoff: Long) extends IndexedSeq[Annotation] with UnKryoSerializable {
+  val t: PContainer,
+  val region: Region, val aoff: Long) extends IndexedSeq[Annotation] with UnKryoSerializable {
 
-  var length: Int = t.loadLength(aoff)
+  val length: Int = t.loadLength(aoff)
 
   def apply(i: Int): Annotation = {
     if (i < 0 || i >= length)
@@ -99,7 +99,7 @@ object UnsafeRow {
   }
 }
 
-class UnsafeRow(var t: PBaseStruct,
+class UnsafeRow(val t: PBaseStruct,
   var region: Region, var offset: Long) extends Row with UnKryoSerializable {
 
   override def toString: String = {
@@ -234,6 +234,22 @@ object SafeRow {
 
   def read(t: PType, rv: RegionValue): Annotation =
     read(t, rv.offset)
+
+  def isSafe(a: Any): Boolean = {
+    a match {
+      case _: UnsafeRow => false
+      case _: UnsafeIndexedSeq => false
+
+      case r: Row =>
+        r.toSeq.forall(isSafe)
+      case a: IndexedSeq[_] =>
+        a.forall(isSafe)
+      case i: Interval =>
+        isSafe(i.start) && isSafe(i.end)
+
+      case _ => true
+    }
+  }
 }
 
 object SafeIndexedSeq {

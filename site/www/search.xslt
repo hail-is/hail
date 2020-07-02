@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+    <xsl:import href="template.xslt" />
+    <xsl:template match="h1[@id='hail']"></xsl:template>
+    <xsl:template name="page-title">Hail</xsl:template>
+    <xsl:template name="meta-description">
+        <meta name="description" content="Hail Search" />
+    </xsl:template>
+    <xsl:template name="header">
+    </xsl:template>
+    <xsl:template match="body">
+        <div id="hero" style='flex-direction:column'>
+            <div id='hits'></div>
+        </div>
+        <div id='pagination'></div>
+        <script src="https://cdn.jsdelivr.net/npm/instantsearch.js@2.8.1"></script>
+        <script src='https://cdnjs.cloudflare.com/ajax/libs/algoliasearch/4.2.0/algoliasearch-lite.umd.js'></script>
+        <script>
+            <xsl:text disable-output-escaping="yes" >
+            <![CDATA[
+            (function () {
+                const client = algoliasearch('BH4D9OD16A', 'd2dee24912091336c40033044c9bac58');
+
+                if (location.search) {
+                    const cachedSearchInput = document.getElementById("search")
+                    const searchTerms = new URLSearchParams(location.search.slice(1));
+
+                    if(searchTerms.get("query")) {
+                        cachedSearchInput.value = searchTerms.get("query");
+                    }
+                } else {
+                    cachedSearchInput.value = "";
+                }
+
+
+                // required for url querystring-based search on refresh
+                const renderSearchBox = (renderOptions, isFirstRender) => {};
+                const customSearchBox = instantsearch.connectors.connectSearchBox(renderSearchBox);
+
+                const search = instantsearch({
+                    indexName: 'hail_is',
+                    searchClient: client,
+                    routing: {
+                        router: instantsearch.routers.history({
+                            windowTitle({ category, query }) {
+                                const queryTitle = query ? `Results for "${query}"` : 'Search';
+                                return queryTitle;
+                            },
+
+                            createURL({ qsModule, routeState, location }) {
+                                const searchTerms = new URLSearchParams(location.search.slice(1));
+                                const query = decodeURIComponent(searchTerms.get("query"));
+
+                                const queryParameters = {};
+
+                                if (query) {
+                                    queryParameters.query = encodeURIComponent(query);
+                                }
+                                if (routeState.page !== 1) {
+                                    queryParameters.page = routeState.page;
+                                }
+
+                                const queryString = qsModule.stringify(queryParameters, {
+                                    addQueryPrefix: true,
+                                    arrayFormat: 'repeat'
+                                });
+
+                                return `/search.html${queryString}`;
+                            },
+
+                            parseURL({ qsModule, location }) {
+                                const searchTerms = new URLSearchParams(location.search.slice(1));
+                                const query = decodeURIComponent(searchTerms.get("query")).replace(/\./g, " ");
+                                const page = decodeURIComponent(searchTerms.get("page")) || 0;
+
+                                return { query, page };
+                            },
+                            routeToState(routeState) {
+                                const searchTerms = new URLSearchParams(location.search.slice(1));
+                                const query = decodeURIComponent(searchTerms.get("query")).replace(/\./g, " ");
+                                return {
+                                    instant_search: {
+                                        query: query,
+                                        page: routeState.page,
+                                    }
+                                };
+                            }
+                        }),
+                    }
+                });
+
+                const customHits = instantsearch.connectors.connectHits(
+                    (renderOptions, isFirstRender) => {
+                        const { results, widgetParams } = renderOptions;
+
+                        const { container } = widgetParams;
+
+                        if (!results) {
+                            return;
+                        }
+
+                        let html = "";
+                        if (results && results.query && !results.hits) {
+                            container.innerHTML = `<div>Searching for query "${results.query}".</div>`
+                            return;
+                        }
+
+                        const hits = results.hits;
+
+                        if (!hits) {
+                            container.innerHTML = `<div>No hits"</div>`;
+                            return;
+                        }
+
+                        const linearRes = [];
+                        for (hit of hits) {
+                            const urlParts = hit.url.split("/");
+                            let lastPart = urlParts[urlParts.length - 1];
+                            let idx = lastPart.indexOf("#");
+                            if (idx > -1) {
+                                lastPart = lastPart.substring(0, idx);
+                            }
+                            idx = lastPart.indexOf("?");
+                            if (idx > -1) {
+                                lastPart = lastPart.substring(0, idx);
+                            }
+
+                            const hierarchy = hit.hierarchy;
+
+                            let firstNonNull = null;
+
+                            const values = []
+                            for (const key of Object.keys(hierarchy)) {
+                                // mutates but we don't really care
+                                if (hit._highlightResult.hierarchy[key]) {
+                                    hierarchy[key] = hit._highlightResult.hierarchy[key].value;
+                                }
+
+                                if(hierarchy[key]) {
+                                    values.push(hierarchy[key]);
+                                }
+                            }
+
+                            let headerRes = ""
+
+                            if (values.length > 1) {
+                                headerRes += `<h5><b>${values[0]}</b>`;
+
+                                for (let i = 1; i < values.length; i++) {
+                                    if (i == values.length - 1) {
+                                        headerRes += `</h5><div class='search-hit small'>${values[i]}</div>`;
+                                        break
+                                    }
+
+                                    headerRes += '<span class="aa-suggestion-title-separator" aria-hidden="true"></span>' + values[i];
+                                }
+                            } else {
+                                headerRes = `<h5><b>${values[0]}</b></h5>`;
+                            }
+
+                            const key = lastPart + "_" + firstNonNull
+                            const content = hit._highlightResult.content ? hit._highlightResult.content.value : hit.content 
+                            linearRes.push(
+                                `<div class='search-result'>
+                                    <a href="${hit.url}" target="_blank">
+                                        <div class='url smaller'>${hit.url}</div>
+                                        <div class='search-hits'>${headerRes}</div>
+                                        ${content ? "<p class='small'>" + content + "</p>" : ""}
+                                    </a>
+                                </div>`
+                            );
+                        }
+
+                        for (val of linearRes) {
+                            html += val;
+                        }
+
+                        let foundString = "<div id='nhits' class='smaller'>";
+
+                        if(results.page > 0) {
+                            foundString += `Showing page <b>${results.page + 1}</b> of `
+                        } else {
+                            foundString += `Found `
+                        }
+
+                        foundString += `<b>${results.nbHits}</b> results (took ${results.processingTimeMS / 1000}s)</div>`
+
+                        container.innerHTML = foundString + html;
+                    }
+                );
+
+                search.addWidgets([
+                    customSearchBox({}),
+                    instantsearch.widgets.pagination({
+                        container: '#pagination',
+                    }),
+                    customHits({
+                        container: document.getElementById('hits')
+                    })
+                ]);
+
+                search.start()
+
+            })()
+         ]]>
+         </xsl:text>
+    </script>
+    <style>
+        .algolia-docsearch-suggestion--highlight {
+            color: #174d8c;
+            background: rgba(143, 187, 237, .1);
+            padding: .1em .05em;
+        }
+
+        .search-result {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            padding-bottom: 25px;
+            border-bottom: 1px solid #efefef;
+            width: 100%;
+        }
+
+        .search-result+.search-result {
+            margin-top: 25px;
+        }
+
+        .search-result>a {
+            text-decoration: none;
+        }
+
+        .search-result:last-child {
+            border-bottom: 0px;
+        }
+
+        .search-result h1 {
+            color: #a4a7ae;
+        }
+
+        .search-result h5,
+        .search-result h4 {
+            margin: 0px;
+        }
+
+        .search-result h5:last-child {
+            margin-bottom: 0px;
+        }
+
+        #hero {
+            margin-top: 0px;
+            padding-left: 0px;
+            height: 100%;
+            align-items: flex-start;
+        }
+
+        #hits {
+            margin-left: calc(66px + 1.7rem);
+            max-width: 75%;
+        }
+
+        #hits .small {
+            font-size: .875rem;
+        }
+
+        #hits .smaller {
+            font-size: .825rem;
+        }
+
+        #hits .aa-suggestion-title-separator:before {
+          content: "→";
+          margin-left: 5px;
+          margin-right: 5px;
+        }
+
+        .search-hit {
+            margin-top: 5px;
+        }
+
+        .search-result p {
+            font-weight: normal;
+            line-height: 1.58;
+        }
+
+        p:last-child {
+            margin-bottom: 0px;
+        }
+
+        .url {
+            font-weight: normal;
+            margin-bottom: 10px;
+        }
+
+        #pagination {
+            width: 100%
+        }
+
+        #pagination>* {
+            margin: auto;
+            display: flex;
+        }
+
+        #pagination ul {
+            margin-left: auto;
+            margin-right: auto;
+            padding: 0px;
+        }
+
+        .ais-pagination--item__disabled {
+            visibility: visible;
+            color: #efefef;
+        }
+
+        .ais-pagination--item {
+            display: inline-block;
+            padding: 3px;
+        }
+
+        li.ais-pagination--item.ais-pagination--item__page.ais-pagination--item__active>* {
+            text-decoration: none;
+            color: #283891;
+        }
+
+        .search-hits h5 b {
+            font-weight: bold;
+        }
+
+        #nhits {
+            color: #444;
+            margin: 0px 0px 50px 0px;
+        }
+
+        @media (max-width: 767px) {
+            #hits {
+                margin-left: 15px;
+                max-width: 100%;
+            }
+
+            #nhits {
+                margin: 12.5px 0px 25px 0px;
+            }
+        }
+    </style>
+    </xsl:template>
+</xsl:stylesheet>

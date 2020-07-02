@@ -48,20 +48,28 @@ if __name__ == '__main__':
     all_output = []
 
 
-    task_filter_regex = os.environ.get('BENCHMARK_REGEX')
-    if task_filter_regex:
-        task_filter = lambda t: re.match(task_filter_regex, t) is not None
+    task_filter_regex_include = os.environ.get('BENCHMARK_REGEX_INCLUDE')
+    task_filter_regex_exclude = os.environ.get('BENCHMARK_REGEX_EXCLUDE')
+
+    if task_filter_regex_include:
+        include = lambda t: re.match(task_filter_regex_include, t) is not None
     else:
-        task_filter = lambda t: True
+        include = lambda t: True
+
+    if task_filter_regex_exclude:
+        exclude = lambda t: re.match(task_filter_regex_exclude, t) is not None
+    else:
+        exclude = lambda t: False
 
 
     n_passed_filter = 0
     task_fs = []
     for benchmark in all_benchmarks:
-        if task_filter(benchmark.name):
-            n_passed_filter += 1
-            for replicate in range(N_REPLICATES):
-                task_fs.append((benchmark.name, replicate, benchmark.groups))
+        if include(benchmark.name):
+            if not exclude(benchmark.name):
+                n_passed_filter += 1
+                for replicate in range(N_REPLICATES):
+                    task_fs.append((benchmark.name, replicate, benchmark.groups))
 
     print(f'generating {n_passed_filter} * {N_REPLICATES} = {n_passed_filter * N_REPLICATES} individual benchmark tasks')
 

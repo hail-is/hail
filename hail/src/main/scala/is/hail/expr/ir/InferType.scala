@@ -43,6 +43,7 @@ object InferType {
         TTuple(aggSigs.map(_.resultType): _*)
       case AggStateValue(i, sig) => TBinary
       case _: CombOpValue => TVoid
+      case _: InitFromSerializedValue => TVoid
       case _: SerializeAggs => TVoid
       case _: DeserializeAggs => TVoid
       case _: Begin => TVoid

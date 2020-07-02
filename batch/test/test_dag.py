@@ -1,8 +1,6 @@
-import os
 import time
 import re
 import pytest
-import aiohttp
 from flask import Response
 from hailtop.config import get_user_config
 from hailtop.batch_client.client import BatchClient, Job
