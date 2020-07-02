@@ -212,6 +212,8 @@ object ChildEnvWithoutBindings {
     ir match {
       case StreamAgg(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = Some(env.eval), scan = env.scan.map(_ => Env.empty), relational = env.relational) else env
       case StreamAggScan(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = env.agg.map(_ => Env.empty), scan = Some(env.eval), relational = env.relational) else env
+      case ApplyAggOp(init, _, _) => if (i < init.length) env.copy(agg = None) else env.promoteAgg
+      case ApplyScanOp(init, _, _) => if (i < init.length) env.copy(scan = None) else env.promoteScan
       case CollectDistributedArray(_, _, _, _, _) => if (i == 2) BindingEnv(relational = env.relational) else env
       case MatrixAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
       case TableAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
