@@ -292,20 +292,24 @@ object InferPType {
         PCanonicalStream(result.pType, array.pType.required)
       case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
         val r = requiredness(node)
-        readers.pType.setRequired(r.required)
+        assert(r.required == readers.pType.required)
+        readers.pType
       case ShuffleWrite(id, rows) =>
         val r = requiredness(node)
-        PCanonicalBinary(r.required)
+        assert(r.required)
+        PCanonicalBinary(true)
       case ShufflePartitionBounds(id, nPartitions) =>
         val r = requiredness(node)
+        assert(r.required)
         PCanonicalStream(
           coerce[TShuffle](id.typ).keyDecodedPType,
-          r.required)
+          true)
       case ShuffleRead(id, keyRange) =>
         val r = requiredness(node)
+        assert(r.required)
         PCanonicalStream(
           coerce[TShuffle](id.typ).rowDecodedPType,
-          r.required)
+          true)
     }
     if (node.pType.virtualType != node.typ)
       throw new RuntimeException(s"pType.virtualType: ${node.pType.virtualType}, vType = ${node.typ}\n  ir=$node")
