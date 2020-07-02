@@ -13,7 +13,7 @@ import is.hail.expr.ir._
 import is.hail.types.physical.{PStruct, PTuple, PType}
 import is.hail.types.virtual.{TStruct, TVoid}
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
-import is.hail.io.fs.{FS, HadoopFS}
+import is.hail.io.fs.{HadoopFS}
 import is.hail.utils._
 import is.hail.io.bgen.IndexBgen
 import org.json4s.DefaultFormats
@@ -28,6 +28,7 @@ import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
 import java.io.PrintWriter
 
+import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.VCFsReader
 import is.hail.linalg.RowMatrix
 import is.hail.stats.LinearMixedModel
@@ -531,4 +532,7 @@ class SparkBackend(
     // Use a local sort for the moment to enable larger pipelines to run
     LowerDistributedSort.localSort(ctx, stage, sortFields)
   }
+
+  def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =
+    LoadPlink.importFamJSON(fs, path, isQuantPheno, delimiter, missingValue)
 }
