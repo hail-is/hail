@@ -41,27 +41,6 @@ object ShuffleClient {
     Code.invokeScalaObject0[Socket](ShuffleClient.getClass, "socket")
 
   def openConnection(
-    cb: CodeBuilderLike,
-    typ: TShuffle
-  ): (Value[Socket], Value[InputBuffer], Value[OutputBuffer], Value[Logger]) = {
-    val socket = cb.newLocal[Socket]("shuffleClientSocket", codeSocket())
-
-    val in = cb.newLocal[InputBuffer](
-      "shuffleClientInputBuffer",
-      typ.bufferSpec.buildCodeInputBuffer(socket.getInputStream()))
-
-    val out = cb.newLocal[OutputBuffer](
-      "shuffleClientOutputBuffer",
-      typ.bufferSpec.buildCodeOutputBuffer(socket.getOutputStream()))
-
-    val logger = cb.newLocal[Logger](
-      "shuffleClientLogger",
-      CodeLogger.getLogger[ShuffleClient]())
-
-    (socket, in, out, logger)
-  }
-
-  def openConnection(
     code: ArrayBuilder[Code[Unit]],
     mb: EmitMethodBuilder[_],
     typ: TShuffle
@@ -82,12 +61,61 @@ object ShuffleClient {
   }
 }
 
+object CodeShuffleClient {
+  def create(ecb: EmitClassBuilder, shuffleType: TShuffle): CodeShuffleClient =
+    new CodeShuffleClient(
+      Code.newInstance[ShuffleClient, TShuffle](ecb.getPType(shuffleType)))
+
+  def create(ecb: EmitClassBuilder, shuffleType: TShuffle, uuid: Array[Byte]): CodeShuffleClient =
+    new CodeShuffleClient(
+      Code.newInstance[ShuffleClient, TShuffle, Array[Byte]](ecb.getPType(shuffleType), uuid))
+}
+
+class ValueShuffleClient(
+  val code: Value[ShuffleClient]
+) extends AnyVal {
+  def start(): Code[Unit] =
+    code.invoke("start")
+
+  def startPut(): Code[Unit] =
+    code.invoke("startPut", values)
+
+  def put(values: Code[Array[Long]]): Unit =
+    code.invoke[Array[Long], Unit]("put", values)
+
+  def endPut(): Code[Unit] =
+    code.invoke("endPut", values)
+
+  def uuid: Code[Array[Byte]] = code.getField("uuid")
+
+  def get(
+    region: Code[Region],
+    start: Code[Long],
+    startInclusive: Code[Boolean],
+    end: Code[Long],
+    endInclusive: Code[Boolean]
+  ): Code[Array[Long]] =
+    code.invoke[Region, Long, Boolean, Long, Boolean, Array[Long]](
+      "get", region, start, startInclusive, end, endInclusive)
+
+  def partitionBounds(region: Code[Region], nPartitions: Code[Int]): Code[Array[Long]] =
+    code.invoke[Region, Int, Array[Long]]("partitionBounds", region, nPartitions)
+
+  def stop(): Code[Unit] =
+    code.invoke("stop")
+
+  def close(): Code[Unit] =
+    code.invoke("close")
+}
+
 class ShuffleClient (
-  shuffleType: TShuffle
+  shuffleType: TShuffle,
+  var uuid: Array[Byte]
 ) extends AutoCloseable {
   private[this] val log = Logger.getLogger(getClass.getName())
-  private[this] var uuid: Array[Byte] = null
   private[this] val ctx = new ExecuteContext("/tmp", "file:///tmp", null, null, Region(), new ExecutionTimer())
+
+  def this(shuffleType: TShuffle) = this(shuffleType, null)
 
   val codecs = new ShuffleCodecSpec(ctx, shuffleType)
 
@@ -117,12 +145,31 @@ class ShuffleClient (
     log.info(s"start done")
   }
 
-  def put(values: Array[Long]): Unit = {
+  private[this] var encoder: Encoder = null
+
+  def startPut(): Unit = {
     log.info(s"put")
     startOperation(Wire.PUT)
     out.flush()
-    val encoder = codecs.makeRowEncoder(out)
+    encoder = codecs.makeRowEncoder(out)
+  }
+
+  def put(values: Array[Long]): Unit = {
+    startPut()
     writeRegionValueArray(encoder, values)
+    endPut()
+  }
+
+  def putValue(value: Long): Unit = {
+    encoder.writeByte(1)
+    encoder.writeRegionValue(values(i))
+  }
+
+  def putValueDone(): Unit = {
+    encoder.writeByte(0)
+  }
+
+  def endPut(): Unit = {
     // fixme: server needs to send uuid for the successful partition
     out.flush()
     assert(in.readByte() == 0.toByte)
