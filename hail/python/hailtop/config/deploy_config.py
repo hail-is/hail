@@ -6,6 +6,7 @@ import json
 import logging
 from aiohttp import web
 from ..utils import first_extant_file
+from ..auth import service_auth_headers
 from ..tls import ssl_client_session
 
 log = logging.getLogger('gear')
@@ -77,7 +78,6 @@ class DeployConfig:
         return f'/{ns}/{service}'
 
     def base_url(self, service, base_scheme='http'):
-        log.info(f'{service}: {self.domain(service)}')
         return f'{self.scheme(base_scheme)}://{self.domain(service)}{self.base_path(service)}'
 
     def url(self, service, path, base_scheme='http'):
@@ -114,14 +114,14 @@ class DeployConfig:
 
     async def addresses(self, service: str) -> List[Tuple[str, int]]:
         namespace = self.service_ns(service)
+        headers = service_auth_headers(self, namespace)
         async with ssl_client_session(
                 raise_for_status=True,
-                timeout=aiohttp.ClientTimeout(total=5)) as session:
-            url = self.url('address', f'/api/{namespace}/{service}')
-            log.info(url)
-            get = await session.get(url)
-            log.info(get)
-            return json.loads(get)
+                timeout=aiohttp.ClientTimeout(total=5),
+                headres=headers) as session:
+            return json.loads(
+                await session.get(
+                    self.url('address', f'/api/{namespace}/{service}')))
 
     async def address(self, service: str) -> Tuple[str, int]:
         service_addresses = await self.addresses(service)
