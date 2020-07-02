@@ -174,17 +174,14 @@ case class SplitPartitionNativeWriter(
     mb: EmitMethodBuilder[_],
     region: Value[Region],
     stream: SizedStream): EmitCode = {
-    val enc1 = spec1.buildEmitEncoderF(eltType, mb.ecb, typeInfo[Long]) //(Value[Region], Value[T], Value[OutputBuffer]) => Code[Unit]
-    val enc2 = spec2.buildEmitEncoderF(eltType, mb.ecb, typeInfo[Long]) //(Value[Region], Value[T], Value[OutputBuffer]) => Code[Unit]
-
+    val enc1: (Value[Region], Value[Long], Value[OutputBuffer]) => Code[Unit] = spec1.buildEmitEncoderF(eltType, mb.ecb, typeInfo[Long])
+    val enc2: (Value[Region], Value[Long], Value[OutputBuffer]) => Code[Unit] = spec2.buildEmitEncoderF(eltType, mb.ecb, typeInfo[Long])
     val keyType = ifIndexed { index.get._2 }
     val iAnnotationType = +PCanonicalStruct("entries_offset" -> +PInt64())
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb, annotationType = iAnnotationType) }
 
     context.map { ctxCode: PCode =>
-      val ctx = mb.newLocal[Long]("ctx")
       val result = mb.newLocal[Long]("write_result")
-
       val filename1 = mb.newLocal[String]("filename1")
       val os1 = mb.newLocal[ByteTrackingOutputStream]("write_os1")
       val ob1 = mb.newLocal[OutputBuffer]("write_ob1")
@@ -196,38 +193,35 @@ case class SplitPartitionNativeWriter(
       def writeFile(codeRow: EmitCode): Code[Unit] = {
         val rowType = coerce[PStruct](codeRow.pt)
         EmitCodeBuilder.scopedVoid(mb) { cb =>
-          codeRow.toI(cb).consume(cb,
-            cb._fatal("row can't be missing"),
-            { pc =>
-              val row = pc.memoize(cb, "row")
-              if (hasIndex) {
-                val keyRVB = new StagedRegionValueBuilder(mb, keyType)
-                val aRVB = new StagedRegionValueBuilder(mb, iAnnotationType)
-                indexWriter.add(cb, {
-                  cb += keyRVB.start()
-                  keyType.fields.foreach { f =>
-                    cb += keyRVB.addIRIntermediate(f.typ)(Region.loadIRIntermediate(f.typ)(rowType.fieldOffset(coerce[Long](row.value), f.name)))
-                    cb += keyRVB.advance()
-                  }
-                  IEmitCode.present(cb, PCode(keyType, keyRVB.offset))
-                }, ob1.invoke[Long]("indexOffset"), {
-                  cb += aRVB.start()
-                  cb += aRVB.addLong(ob2.invoke[Long]("indexOffset"))
-                  IEmitCode.present(cb, PCode(iAnnotationType, aRVB.offset))
-                })
+          val pc = codeRow.toI(cb).handle(cb, cb._fatal("row can't be missing"))
+          val row = pc.memoize(cb, "row")
+          if (hasIndex) {
+            val keyRVB = new StagedRegionValueBuilder(mb, keyType)
+            val aRVB = new StagedRegionValueBuilder(mb, iAnnotationType)
+            indexWriter.add(cb, {
+              cb += keyRVB.start()
+              keyType.fields.foreach { f =>
+                cb += keyRVB.addIRIntermediate(f.typ)(Region.loadIRIntermediate(f.typ)(rowType.fieldOffset(coerce[Long](row.value), f.name)))
+                cb += keyRVB.advance()
               }
-              cb += ob1.writeByte(1.asInstanceOf[Byte])
-              cb += enc1(region, coerce[Long](row.value), ob1)
-              cb += ob2.writeByte(1.asInstanceOf[Byte])
-              cb += enc2(region, coerce[Long](row.value), ob2)
-              cb.assign(n, n + 1L)
+              IEmitCode.present(cb, PCode(keyType, keyRVB.offset))
+            }, ob1.invoke[Long]("indexOffset"), {
+              cb += aRVB.start()
+              cb += aRVB.addLong(ob2.invoke[Long]("indexOffset"))
+              IEmitCode.present(cb, PCode(iAnnotationType, aRVB.offset))
             })
+          }
+          cb += ob1.writeByte(1.asInstanceOf[Byte])
+          cb += enc1(region, coerce[Long](row.value), ob1)
+          cb += ob2.writeByte(1.asInstanceOf[Byte])
+          cb += enc2(region, coerce[Long](row.value), ob2)
+          cb.assign(n, n + 1L)
         }
       }
 
       PCode(pResultType, EmitCodeBuilder.scopedCode(mb) { cb: EmitCodeBuilder =>
-        cb.assign(ctx, ctxCode.tcode[Long])
-        cb.assign(filename1, pContextType.loadString(ctx))
+        val ctx = ctxCode.memoize(cb, "context")
+        cb.assign(filename1, pContextType.loadString(ctx.tcode[Long]))
         if (hasIndex) {
           val indexFile = cb.newLocal[String]("indexFile")
           cb.assign(indexFile, const(index.get._1).concat(filename1))
@@ -251,7 +245,7 @@ case class SplitPartitionNativeWriter(
         cb += os1.invoke[Unit]("close")
         cb += os2.invoke[Unit]("close")
         cb += Region.storeIRIntermediate(filenameType)(
-          pResultType.fieldOffset(result, "filePath"), ctx)
+          pResultType.fieldOffset(result, "filePath"), ctx.tcode[Long])
         cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
         result.get
       })
@@ -301,9 +295,8 @@ case class MatrixSpecWriter(path: String, typ: MatrixType, rowRelPath: String, g
       val i = cb.newLocal[Int]("i", 0)
       cb.assign(partCounts, Code.newArray[Long](n))
       cb.whileLoop(i < n, {
-        a.loadElement(cb, i).consume(cb, {
-          cb._fatal("part count can't be missing!")
-        }, { count => cb += partCounts.update(i, count.tcode[Long]) })
+        val count = a.loadElement(cb, i).handle(cb, cb._fatal("part count can't be missing!"))
+        cb += partCounts.update(i, count.tcode[Long])
         cb.assign(i, i + 1)
       })
       cb += cb.emb.getObject(new MatrixSpecHelper(path, rowRelPath, globalRelPath, colRelPath, entryRelPath, refRelPath, typ, log))
