@@ -389,7 +389,19 @@ case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: 
     val newGlobalFields = globalFields.zip(newChildren.drop(rowFields.length)).map { case ((n, _), r: TypeWithRequiredness) => n -> r }
     RTable(newRowFields, newGlobalFields, key)
   }
-  override def toString: String = {
-    s"RTable[\n  row:${ rowType.toString }\n  global:${ globalType.toString }]"
+
+  def asMatrixType(colField: String, entryField: String): RMatrix = {
+    val row = RStruct(rowFields.filter(_._1 != entryField))
+    val entry = coerce[RStruct](coerce[RIterable](field(entryField)).elementType)
+    val col = coerce[RStruct](coerce[RIterable](field(colField)).elementType)
+    val global = RStruct(globalFields.filter(_._1 != colField))
+    RMatrix(row, entry, col, global)
   }
+
+  override def toString: String =
+    s"RTable[\n  row:${ rowType.toString }\n  global:${ globalType.toString }]"
+}
+
+case class RMatrix(rowType: RStruct, entryType: RStruct, colType: RStruct, globalType: RStruct) {
+  val entriesRVType: RStruct = RStruct(Seq(MatrixType.entriesIdentifier -> RIterable(entryType)))
 }
