@@ -102,7 +102,7 @@ class DeployConfig(
     implicit val formats: Formats = DefaultFormats
 
     val ns = getServiceNamespace(service)
-    val url = s"${baseUrl(service, ns)}/api/${ns}/${service}"
+    val url = s"${baseUrl(service)}/api/${ns}/${service}"
     val addresses = requestor.request(new HttpGet(url)).asInstanceOf[JArray].children.asInstanceOf[List[JObject]]
     addresses.map(x => ((x \ "address").extract[String], (x \ "port").extract[Int]))
   }
