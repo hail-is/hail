@@ -47,7 +47,7 @@ class ETypeSuite extends HailSuite {
   }
 
   def encodeDecode(inPType: PType, eType: EType, outPType: PType, data: Annotation): Annotation = {
-    assert(inPType.virtualType == outPType.virtualType)
+    //assert(inPType.virtualType == outPType.virtualType)
 
     val fb = EmitFunctionBuilder[Long, OutputBuffer, Unit](ctx, "fb")
     val arg1 = fb.apply_method.getCodeParam[Long](1)
@@ -143,7 +143,9 @@ class ETypeSuite extends HailSuite {
       "a" -> pTypeInt2,
       "b" -> PInt32Optional
     )
-    val pOnlyReadB = PSubsetStruct(pStructContainingNDArray, "b")
+    val pOnlyReadB = PCanonicalStruct(true,
+      "b" -> PInt32Optional
+    )
     val eStructContainingNDArray = EBaseStruct(
       FastIndexedSeq(
         EField("a", ENDArrayColumnMajor(EInt32Required, 2, true), 0),
@@ -151,8 +153,9 @@ class ETypeSuite extends HailSuite {
       ),
       true)
 
-    val dataStruct = Row(eTypeInt2, 3)
+    val dataStruct = Row(dataInt2, 3)
 
-    println(encodeDecode(pStructContainingNDArray, eStructContainingNDArray, pOnlyReadB, dataStruct))
+    assert(encodeDecode(pStructContainingNDArray, eStructContainingNDArray, pOnlyReadB, dataStruct) ==
+      Row(3))
   }
 }

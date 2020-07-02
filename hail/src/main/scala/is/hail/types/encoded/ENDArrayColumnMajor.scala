@@ -80,7 +80,20 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
   }
 
   override def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
-    throw new UnsupportedOperationException("Can't skip in ENDArrayColumnMajor")
+    val totalNumElements = mb.newLocal[Long]()
+    val dataIdx = mb.newLocal[Int]()
+    val skip = elementType.buildSkip(mb)
+
+
+    Code(
+      totalNumElements := 1L,
+      Code((0 until nDims).map { _ =>
+        totalNumElements := totalNumElements * in.readLong()
+      }),
+      Code.forLoop(dataIdx := 0, dataIdx < totalNumElements.toI, dataIdx := dataIdx + 1,
+        skip(r, in)
+      )
+    )
   }
 
   def _decodedPType(requestedType: Type): PType = {
