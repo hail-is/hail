@@ -294,10 +294,10 @@ class EmitClassBuilder[C](
   def result(print: Option[PrintWriter] = None): () => C = cb.result(print)
 
   // EmitClassBuilder methods
-  private[this] val typMap: mutable.Map[Type, Value[Type]] =
-    mutable.Map[Type, Value[Type]]()
+  private[this] val typMap: mutable.Map[Type, Value[_ <: Type]] =
+    mutable.Map()
 
-  private[this] val pTypeMap: mutable.Map[PType, Value[PType]] = mutable.Map[PType, Value[PType]]()
+  private[this] val pTypeMap: mutable.Map[PType, Value[_ <: PType]] = mutable.Map()
 
   private[this] type CompareMapKey = (PType, PType, CodeOrdering.Op, SortOrder, Boolean)
   private[this] val compareMap: mutable.Map[CompareMapKey, CodeOrdering.F[_]] =
@@ -477,22 +477,24 @@ class EmitClassBuilder[C](
     Code.checkcast[T](toCodeArray(_objectsField).apply(i))
   }
 
-  def getPType(t: PType): Code[PType] = {
+  def getPType[T <: PType : TypeInfo](t: T): Code[T] = {
     val references = ReferenceGenome.getReferences(t.virtualType).toArray
     val setup = Code(Code(references.map(addReferenceGenome)),
-      Code.invokeScalaObject1[String, PType](
-        IRParser.getClass, "parsePType", t.toString))
+      Code.checkcast[T](
+        Code.invokeScalaObject1[String, PType](
+          IRParser.getClass, "parsePType", t.toString)))
     pTypeMap.getOrElseUpdate(t,
-      genLazyFieldThisRef[PType](setup))
+      genLazyFieldThisRef[T](setup)).get.asInstanceOf[Code[T]]
   }
 
-  def getType(t: Type): Code[Type] = {
+  def getType[T <: Type : TypeInfo](t: T): Code[T] = {
     val references = ReferenceGenome.getReferences(t).toArray
     val setup = Code(Code(references.map(addReferenceGenome)),
-      Code.invokeScalaObject1[String, Type](
-        IRParser.getClass, "parseType", t.parsableString()))
+      Code.checkcast[T](
+        Code.invokeScalaObject1[String, Type](
+          IRParser.getClass, "parseType", t.parsableString())))
     typMap.getOrElseUpdate(t,
-      genLazyFieldThisRef[Type](setup))
+      genLazyFieldThisRef[T](setup)).get.asInstanceOf[Code[T]]
   }
 
   def getCodeOrdering(

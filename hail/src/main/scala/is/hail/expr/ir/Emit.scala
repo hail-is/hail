@@ -918,7 +918,7 @@ class Emit[C](
         val shuffleType = x.shuffleType
         val shufflePType = x.shufflePType
 
-        val shuffle = CodeShuffleClient.create(ecb, shuffleType)
+        val shuffle = CodeShuffleClient.create(mb.ecb, shuffleType)
 
         cb.append(shuffle.start())
 
@@ -952,7 +952,7 @@ class Emit[C](
         })).asInstanceOf[PCanonicalShuffleCode]
         val uuid = _uuid.memoize(cb, "shuffleClientUUID")
         val uuidBytes = cb.newLocal[Array[Byte]]("shuffleClientUUIDBytes", uuid.loadBytes())
-        val shuffle = CodeShuffleClient.create(ecb, shuffleType, uuidBytes)
+        val shuffle = CodeShuffleClient.create(mb.ecb, shuffleType, uuidBytes)
         val storedRow = mb.newLocal[Long]("row")
         cb.append(shuffle.startPut())
         cb.append(emitStream(rowsIR).cases(mb)(

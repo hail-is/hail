@@ -39,73 +39,77 @@ object ShuffleClient {
 
   def codeSocket(): Code[Socket] =
     Code.invokeScalaObject0[Socket](ShuffleClient.getClass, "socket")
-
-  def openConnection(
-    code: ArrayBuilder[Code[Unit]],
-    mb: EmitMethodBuilder[_],
-    typ: TShuffle
-  ): (Value[Socket], Value[InputBuffer], Value[OutputBuffer], Value[Logger]) = {
-    val socket = mb.newLocal[Socket]("shuffleClientSocket")
-    code += (socket := codeSocket())
-
-    val in = mb.newLocal[InputBuffer]("shuffleClientInputBuffer")
-    code += (in := typ.bufferSpec.buildCodeInputBuffer(socket.getInputStream()))
-
-    val out = mb.newLocal[OutputBuffer]("shuffleClientOutputBuffer")
-    code += (out := typ.bufferSpec.buildCodeOutputBuffer(socket.getOutputStream()))
-
-    val log = mb.newLocal[Logger]("shuffleClientLogger")
-    code += (log := CodeLogger.getLogger[ShuffleClient]())
-
-    (socket, in, out, log)
-  }
 }
 
 object CodeShuffleClient {
-  def create(ecb: EmitClassBuilder, shuffleType: TShuffle): CodeShuffleClient =
-    new CodeShuffleClient(
-      Code.newInstance[ShuffleClient, TShuffle](ecb.getPType(shuffleType)))
+  def create(ecb: EmitClassBuilder[_], shuffleType: TShuffle): ValueShuffleClient =
+    new ValueShuffleClient(
+      ecb.genLazyFieldThisRef[ShuffleClient](
+        Code.newInstance[ShuffleClient, TShuffle](ecb.getType(shuffleType)),
+        "shuffleClient"))
 
-  def create(ecb: EmitClassBuilder, shuffleType: TShuffle, uuid: Array[Byte]): CodeShuffleClient =
-    new CodeShuffleClient(
-      Code.newInstance[ShuffleClient, TShuffle, Array[Byte]](ecb.getPType(shuffleType), uuid))
+  def create(ecb: EmitClassBuilder[_], shuffleType: TShuffle, uuid: Code[Array[Byte]]): ValueShuffleClient =
+    new ValueShuffleClient(
+      ecb.genLazyFieldThisRef[ShuffleClient](
+        Code.newInstance[ShuffleClient, TShuffle, Array[Byte]](ecb.getType(shuffleType), uuid),
+        "shuffleClient"))
 }
 
 class ValueShuffleClient(
   val code: Value[ShuffleClient]
 ) extends AnyVal {
   def start(): Code[Unit] =
-    code.invoke("start")
+    code.invoke[Unit]("start")
 
   def startPut(): Code[Unit] =
-    code.invoke("startPut", values)
+    code.invoke[Unit]("startPut")
 
-  def put(values: Code[Array[Long]]): Unit =
-    code.invoke[Array[Long], Unit]("put", values)
+  def putValue(value: Code[Long]): Code[Unit] =
+    code.invoke[Long, Unit]("putValue", value)
+
+  def putValueDone(): Code[Unit] =
+    code.invoke[Unit]("putValueDone")
 
   def endPut(): Code[Unit] =
-    code.invoke("endPut", values)
+    code.invoke[Unit]("endPut")
 
-  def uuid: Code[Array[Byte]] = code.getField("uuid")
+  def uuid: Code[Array[Byte]] = code.getField[Array[Byte]]("uuid")
 
-  def get(
-    region: Code[Region],
+  def startGet(
     start: Code[Long],
     startInclusive: Code[Boolean],
     end: Code[Long],
     endInclusive: Code[Boolean]
-  ): Code[Array[Long]] =
-    code.invoke[Region, Long, Boolean, Long, Boolean, Array[Long]](
-      "get", region, start, startInclusive, end, endInclusive)
+  ): Code[Unit] =
+    code.invoke[Long, Boolean, Long, Boolean, Unit](
+      "startGet", start, startInclusive, end, endInclusive)
 
-  def partitionBounds(region: Code[Region], nPartitions: Code[Int]): Code[Array[Long]] =
-    code.invoke[Region, Int, Array[Long]]("partitionBounds", region, nPartitions)
+  def getValue(region: Code[Region]): Code[Long] =
+    code.invoke[Region, Long]("getValue", region)
+
+  def getValueFinished(): Code[Boolean] =
+    code.invoke[Boolean]("getValueFinished")
+
+  def getDone(): Code[Unit] =
+    code.invoke[Unit]("getDone")
+
+  def startPartitionBounds(nPartitions: Code[Int]): Code[Unit] =
+    code.invoke[Int, Unit]("startPartitionBounds", nPartitions)
+
+  def partitionBoundsValue(region: Code[Region]): Code[Long] =
+    code.invoke[Region, Long]("partitionBoundsValue", region)
+
+  def partitionBoundsValueFinished(): Code[Boolean] =
+    code.invoke[Boolean]("partitionBoundsValueFinished")
+
+  def endPartitionBounds(): Code[Unit] =
+    code.invoke[Unit]("endPartitionBounds")
 
   def stop(): Code[Unit] =
-    code.invoke("stop")
+    code.invoke[Unit]("stop")
 
   def close(): Code[Unit] =
-    code.invoke("close")
+    code.invoke[Unit]("close")
 }
 
 class ShuffleClient (
@@ -162,7 +166,7 @@ class ShuffleClient (
 
   def putValue(value: Long): Unit = {
     encoder.writeByte(1)
-    encoder.writeRegionValue(values(i))
+    encoder.writeRegionValue(value)
   }
 
   def putValueDone(): Unit = {
@@ -176,17 +180,18 @@ class ShuffleClient (
     log.info(s"put done")
   }
 
-  def get(
-    region: Region,
+  private[this] var decoder: Decoder = null
+
+  def startGet(
     start: Long,
     startInclusive: Boolean,
     end: Long,
     endInclusive: Boolean
-  ): Array[Long] = {
+  ): Unit = {
     log.info(s"get ${Region.pretty(codecs.keyDecodedPType, start)} ${startInclusive} " +
       s"${Region.pretty(codecs.keyDecodedPType, end)} ${endInclusive}")
     val keyEncoder = codecs.makeKeyEncoder(out)
-    val decoder = codecs.makeRowDecoder(in)
+    decoder = codecs.makeRowDecoder(in)
     startOperation(Wire.GET)
     out.flush()
     keyEncoder.writeRegionValue(start)
@@ -195,21 +200,63 @@ class ShuffleClient (
     keyEncoder.writeByte(if (endInclusive) 1.toByte else 0.toByte)
     keyEncoder.flush()
     log.info(s"get receiving values")
+  }
+
+  def get(
+    region: Region,
+    start: Long,
+    startInclusive: Boolean,
+    end: Long,
+    endInclusive: Boolean
+  ): Array[Long] = {
+    startGet(start, startInclusive, end, endInclusive)
     val values = readRegionValueArray(region, decoder)
-    log.info(s"get done")
+    getDone()
     values
   }
 
-  def partitionBounds(region: Region, nPartitions: Int): Array[Long] = {
+  def getValue(region: Region): Long = {
+    decoder.readRegionValue(region)
+  }
+
+  def getValueFinished(): Boolean = {
+    decoder.readByte() == 0.toByte
+  }
+
+  def getDone(): Unit = {
+    log.info(s"get done")
+  }
+
+  private[this] var keyDecoder: Decoder = null
+
+  def startPartitionBounds(
+    nPartitions: Int
+  ): Unit = {
     log.info(s"partitionBounds")
-    val keyDecoder = codecs.makeKeyDecoder(in)
     startOperation(Wire.PARTITION_BOUNDS)
     out.writeInt(nPartitions)
     out.flush()
     log.info(s"partitionBounds receiving values")
+    keyDecoder = codecs.makeKeyDecoder(in)
+  }
+
+  def partitionBounds(region: Region, nPartitions: Int): Array[Long] = {
+    startPartitionBounds(nPartitions)
     val keys = readRegionValueArray(region, keyDecoder, nPartitions + 1)
-    log.info(s"partitionBounds done")
+    endPartitionBounds()
     keys
+  }
+
+  def partitionBoundsValue(region: Region): Long = {
+    keyDecoder.readRegionValue(region)
+  }
+
+  def partitionBoundsValueFinished(): Boolean = {
+    keyDecoder.readByte() == 0.toByte
+  }
+
+  def endPartitionBounds(): Unit = {
+    log.info(s"partitionBounds done")
   }
 
   def stop(): Unit = {
