@@ -349,7 +349,7 @@ object EType {
       }, required = r.required)
     case t: TNDArray =>
       val rndarray = r.asInstanceOf[RNDArray]
-      ENDArray(fromTypeAndAnalysis(t.elementType, rndarray.elementType), t.nDims, rndarray.required)
+      ENDArrayColumnMajor(fromTypeAndAnalysis(t.elementType, rndarray.elementType), t.nDims, rndarray.required)
   }
 
   def eTypeParser(it: TokenIterator): EType = {
