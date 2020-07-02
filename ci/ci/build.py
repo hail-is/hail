@@ -332,6 +332,7 @@ retry docker pull $FROM_IMAGE
 {pull_published_latest}
 DOCKER_BUILDKIT=1 docker build --memory="1.5g" --cpu-period=100000 --cpu-quota=100000 -t {shq(self.image)} \
   -f {rendered_dockerfile} \
+  --build-arg BUILDKIT_INLINE_CACHE=1 \
   --cache-from $FROM_IMAGE {cache_from_published_latest} \
   {context}
 {push_image}
