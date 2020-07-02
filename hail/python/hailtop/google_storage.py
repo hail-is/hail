@@ -25,11 +25,6 @@ class GCS:
         self.blocking_pool = blocking_pool
         # project=None doesn't mean default, it means no project:
         # https://github.com/googleapis/google-cloud-python/blob/master/storage/google/cloud/storage/client.py#L86
-        if credentials is None and os.path.exists('/gsa-key/key.json'):
-            with open('/gsa-key/key.json') as f:
-                key_data = json.load(f)
-                credentials = google.oauth2.service_account.Credentials.from_service_account_info(
-                    key_data)
         if project:
             self.gcs_client = google.cloud.storage.Client(
                 project=project, credentials=credentials)

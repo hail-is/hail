@@ -103,9 +103,7 @@ class BatchPoolExecutor(concurrent.futures.Executor):
                  cleanup_bucket: bool = True,
                  project: Optional[str] = None):
         self.name = name or "BatchPoolExecutor-" + secret_alnum_string(4)
-        print('secret created')
         self.backend = backend or ServiceBackend()
-        print('backend created')
         if not isinstance(self.backend, ServiceBackend):
             raise ValueError(f'BatchPoolExecutor is not compatible with {type(backend)}')
         self.batches: List[Batch] = []
@@ -115,7 +113,6 @@ class BatchPoolExecutor(concurrent.futures.Executor):
         self.outputs = self.directory + 'outputs/'
         self.gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(),
                        project=project)
-        print('gcs created')
         self.futures: List[BatchPoolFuture] = []
         self.finished_future_count = 0
         self._shutdown = False

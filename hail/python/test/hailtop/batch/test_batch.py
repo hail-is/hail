@@ -293,11 +293,14 @@ class LocalTests(unittest.TestCase):
         b.run()
 
     def test_envvar(self):
-        b = self.batch()
-        j = b.new_job()
-        j.env('SOME_VARIABLE', '123abcdef')
-        j.command('[ $SOME_VARIABLE = "123abcdef" ]')
-        assert b.run().status()['state'] == 'success'
+        with tempfile.NamedTemporaryFile('w') as output_file:
+            b = self.batch()
+            j = b.new_job()
+            j.env('SOME_VARIABLE', '123abcdef')
+            j.command(f'echo $SOME_VARIABLE > {j.ofile}')
+            b.write_output(j.ofile, output_file.name)
+            b.run()
+            assert self.read(output_file.name) == '123abcdef'
 
 
 class BatchTests(unittest.TestCase):
