@@ -55,13 +55,13 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
 
   override def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] = {
     val pnd = pt.asInstanceOf[PCanonicalNDArray]
-    val shapeVars = (0 until nDims).map(i => mb.newLocal[Long](s"shape_$i"))
-    val totalNumElements = mb.newLocal[Long]()
+    val shapeVars = (0 until nDims).map(i => mb.newLocal[Long](s"ndarray_decoder_shape_$i"))
+    val totalNumElements = mb.newLocal[Long]("ndarray_decoder_total_num_elements")
 
     val readElemF = elementType.buildInplaceDecoder(pnd.elementType, mb.ecb)
-    val dataAddress = mb.newLocal[Long]("data_addr")
+    val dataAddress = mb.newLocal[Long]("ndarray_decoder_data_addr")
 
-    val dataIdx = mb.newLocal[Int]()
+    val dataIdx = mb.newLocal[Int]("ndarray_decoder_data_idx")
 
     Code(
       totalNumElements := 1L,
@@ -79,10 +79,9 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
   }
 
   override def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
-    val totalNumElements = mb.newLocal[Long]()
-    val dataIdx = mb.newLocal[Int]()
+    val totalNumElements = mb.newLocal[Long]("ndarray_skipper_total_num_elements")
+    val dataIdx = mb.newLocal[Int]("ndarray_skipper_data_idx")
     val skip = elementType.buildSkip(mb)
-
 
     Code(
       totalNumElements := 1L,
