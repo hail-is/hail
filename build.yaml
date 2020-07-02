@@ -2084,6 +2084,10 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /ssl-config
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
    dependsOn:
     - create_deploy_config
     - copy_files
