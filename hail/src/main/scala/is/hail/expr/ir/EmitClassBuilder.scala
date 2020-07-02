@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import java.io._
+import java.util.Base64
 
 import is.hail.{HailContext, lir}
 import is.hail.annotations.{CodeOrdering, Region, RegionValue, RegionValueBuilder}
@@ -49,21 +50,38 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
   private[this] var _staticFS: Settable[FS] = _
 
-  private[this] def initFS(): Unit =
+  def getFS: Value[FS] = {
     if (_staticFS == null) {
+      val fsinfo = typeInfoFromClass(ctx.fs.getClass)
       val cls = genEmitClass[Unit]("FSContainer")
-      val fs = cls.newStaticField[FS]("filesystem")
+      val baos = new ByteArrayOutputStream()
+      val oos = new ObjectOutputStream(baos)
+      oos.writeObject(ctx.fs)
+
+      val fsbytes = baos.toByteArray()
+      val fsstring = Base64.getEncoder().encodeToString(fsbytes)
+
+      val chunkSize = (1 << 16) - 1
+      val nChunks = (fsstring.length() - 1) / chunkSize + 1
+      assert(nChunks > 0)
+
+      val chunks = Array.tabulate(nChunks){ i => fsstring.slice(i * chunkSize, (i + 1) * chunkSize) }
+      val stringAssembler =
+        chunks.tail.foldLeft[Code[String]](chunks.head) { (c, s) => c.invoke[String, String]("concat", s) }
+
+      val mb = cls.newStaticEmitMethod("init_filesystem", FastIndexedSeq(), typeInfo[FS])
+      mb.emitWithBuilder { cb =>
+        val b64 = Code.invokeStatic0[Base64, Base64.Decoder]("getDecoder")
+        val ba = b64.invoke[String, Array[Byte]]("decode", stringAssembler)
+        val bais = Code.newInstance[ByteArrayInputStream, Array[Byte]](ba)
+        val ois = cb.newLocal("ois", Code.newInstance[ObjectInputStream, InputStream](bais))
+        Code.checkcast(ois.invoke[Any]("readObject"))(fsinfo)
+      }
+      val fs = cls.newStaticField[FS]("filesystem", mb.invokeCode())
+
       _staticFS = new StaticFieldRef(fs)
     }
-
-  def getFS: Value[FS] = {
-    initFS()
     _staticFS
-  }
-
-  def setFS(cb: EmitCodeBuilder, fs: Code[FS]): Unit = {
-    initFS()
-    cb.ifx(_staticFS.isNull, cb.assign(_staticFS, fs))
   }
 }
 
@@ -341,8 +359,6 @@ class EmitClassBuilder[C](
     baos.toByteArray
   }
 
-  private[this] var _addFS: EmitMethodBuilder[_] = _
-
   private[this] var _objectsField: Settable[Array[AnyRef]] = _
   private[this] var _objects: ArrayBuilder[AnyRef] = _
 
@@ -443,19 +459,7 @@ class EmitClassBuilder[C](
     _mods += name -> mod
   }
 
-  def getFS: Code[FS] = {
-    if (_addFS == null) {
-      cb.addInterface(typeInfo[FunctionWithFS].iname)
-      _addFS = newEmitMethod("addFS", FastIndexedSeq[ParamType](typeInfo[FS]), typeInfo[Unit])
-      _addFS.emitWithBuilder { cb =>
-        emodb.setFS(cb, _addFS.getCodeParam[FS](1))
-        Code._empty
-      }
-    }
-
-    assert(_addFS != null)
-    emodb.getFS
-  }
+  def getFS: Code[FS] = emodb.getFS
 
   def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = {
     if (_objectsField == null) {
@@ -699,9 +703,6 @@ class EmitClassBuilder[C](
       // if there are no literals, there might not be a HailContext
       null
 
-    val useFS = _addFS != null
-    val localFS = if (useFS) ctx.fs else null
-
     val nSerializedAggs = _nSerialized
 
     val useBackend = _backendField != null
@@ -733,8 +734,6 @@ class EmitClassBuilder[C](
         }
         val f = theClass.newInstance().asInstanceOf[C]
         f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
-        if (useFS)
-          f.asInstanceOf[FunctionWithFS].addFS(localFS)
         if (useBackend)
           f.asInstanceOf[FunctionWithBackend].setBackend(backend)
         if (objects != null)
@@ -886,10 +885,6 @@ object EmitFunctionBuilder {
 
   def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, F: TypeInfo, G: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]] =
     EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]](ctx, baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
-}
-
-trait FunctionWithFS {
-  def addFS(fs: FS): Unit
 }
 
 trait FunctionWithObjects {
