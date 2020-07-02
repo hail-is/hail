@@ -788,4 +788,17 @@ class TableIRSuite extends HailSuite {
       (0 until 10).map(i => Row(i, "foo")),
       0 until 5))
   }
+
+  @Test def testIssue9016() {
+    val rows = mapIR(ToStream(MakeArray(makestruct("a" -> MakeTuple.ordered(FastSeq(I32(0), I32(1))))))) { row =>
+      If(IsNA(row),
+        NA(TStruct("a" -> TTuple(FastSeq(TupleField(1, TInt32))))),
+        makestruct("a" -> bindIR(GetField(row, "a")) { a =>
+          If(IsNA(a), NA(TTuple(FastSeq(TupleField(1, TInt32)))), MakeTuple(FastSeq(1 -> GetTupleElement(a, 1))))
+        }))
+    }
+    val table = TableParallelize(makestruct("rows" -> ToArray(rows), "global" -> makestruct()), None)
+    assertEvalsTo(TableCollect(table), Row(FastIndexedSeq(Row(Row(1))), Row()))
+
+  }
 }
