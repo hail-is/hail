@@ -74,11 +74,12 @@ object AggBindings {
     x match {
       case AggLet(name, value, _, false) => if (i == 1) wrapped(FastIndexedSeq(name -> value.typ)) else None
       case AggFilter(_, _, false) => if (i == 0) None else base
+      case AggGroupBy(_, _, false) => if (i == 0) None else base
       case AggExplode(a, name, _, false) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else None
-      case AggArrayPerElement(a, elementName, _, _, _, false) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else None
+      case AggArrayPerElement(a, elementName, _, _, _, false) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else if (i == 2) base else None
       case StreamAgg(a, name, _) => if (i == 1) Some(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
-      case TableAggregate(child, _) => if (i == 1) wrapped(child.typ.rowEnv.m) else throw new UnsupportedOperationException
-      case MatrixAggregate(child, _) => if (i == 1) Some(child.typ.entryEnv.m) else throw new UnsupportedOperationException
+      case TableAggregate(child, _) => if (i == 1) Some(child.typ.rowEnv.m) else None
+      case MatrixAggregate(child, _) => if (i == 1) Some(child.typ.entryEnv.m) else None
       case RelationalLet(_, _, _) => None
       case CollectDistributedArray(_, _, _, _, _) if (i == 2) => None
       case _: ApplyAggOp => None
@@ -120,9 +121,12 @@ object ScanBindings {
     x match {
       case AggLet(name, value, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> value.typ)) else None
       case AggFilter(_, _, true) => if (i == 0) None else base
+      case AggGroupBy(_, _, true) => if (i == 0) None else base
       case AggExplode(a, name, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else None
-      case AggArrayPerElement(a, elementName, _, _, _, true) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else None
+      case AggArrayPerElement(a, elementName, _, _, _, true) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else if (i == 2) base else None
       case StreamAggScan(a, name, _) => if (i == 1) Some(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
+      case TableAggregate(_, _) => None
+      case MatrixAggregate(_, _) => None
       case RelationalLet(_, _, _) => None
       case CollectDistributedArray(_, _, _, _, _) if (i == 2) => None
       case _: ApplyScanOp => None
@@ -138,8 +142,8 @@ object ScanBindings {
   }
 
   def apply(x: MatrixIR, i: Int): Option[Iterable[(String, Type)]] = x match {
-    case MatrixMapRows(child, _) => if (i == 1) Some(child.typ.rowEnv.m) else throw new UnsupportedOperationException
-    case MatrixMapCols(child, _, _) => if (i == 1) Some(child.typ.colEnv.m) else throw new UnsupportedOperationException
+    case MatrixMapRows(child, _) => if (i == 1) Some(child.typ.rowEnv.m) else None
+    case MatrixMapCols(child, _, _) => if (i == 1) Some(child.typ.colEnv.m) else None
     case _ => None
   }
 
@@ -215,8 +219,8 @@ object ChildEnvWithoutBindings {
       case ApplyAggOp(init, _, _) => if (i < init.length) env.copy(agg = None) else env.promoteAgg
       case ApplyScanOp(init, _, _) => if (i < init.length) env.copy(scan = None) else env.promoteScan
       case CollectDistributedArray(_, _, _, _, _) => if (i == 2) BindingEnv(relational = env.relational) else env
-      case MatrixAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
-      case TableAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
+      case MatrixAggregate(_, _) => if (i == 0) BindingEnv.empty else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
+      case TableAggregate(_, _) => if (i == 0) BindingEnv.empty else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
       case RelationalLet(_, _, _) => if (i == 0) BindingEnv(relational = env.relational) else env.copy(agg = None, scan = None)
       case LiftMeOut(_) => BindingEnv(Env.empty[T], env.agg.map(_ => Env.empty), env.scan.map(_ => Env.empty), relational = env.relational)
       case tir: TableIR => BindingEnv(
