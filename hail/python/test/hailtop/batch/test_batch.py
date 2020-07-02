@@ -296,7 +296,7 @@ class LocalTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job()
         j.env('SOME_VARIABLE', '123abcdef')
-        j.command('[ $SOME_VARIABLE == "123abcdef" ]')
+        j.command('[ $SOME_VARIABLE = "123abcdef" ]')
         assert b.run().status()['state'] == 'success'
 
 
@@ -508,5 +508,5 @@ class BatchTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job()
         j.env('SOME_VARIABLE', '123abcdef')
-        j.command('[ $SOME_VARIABLE == "123abcdef" ]')
+        j.command('[ $SOME_VARIABLE = "123abcdef" ]')
         assert b.run().status()['state'] == 'success'
