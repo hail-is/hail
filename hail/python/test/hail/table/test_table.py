@@ -1494,3 +1494,9 @@ def test_range_annotate_range():
     ht1 = hl.utils.range_table(10)
     ht2 = hl.utils.range_table(5).annotate(x = 1)
     ht1.annotate(x = ht2[ht1.idx].x)._force_count()
+
+def test_read_write_all_types():
+    ht = create_all_values_table()
+    tmp_file = new_temp_file()
+    ht.write(tmp_file)
+    assert hl.read_table(tmp_file)._same(ht)
