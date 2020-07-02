@@ -69,11 +69,9 @@ class Classx[C](val name: String, val superName: String) {
           if (l.method == null)
             l.method = m
           else {
-            /*
             if (l.method ne m) {
               println(s"$l ${l.method} $m\n  ${l.stack.mkString("  \n")}")
             }
-             */
             assert(l.method eq m)
           }
         }
@@ -329,7 +327,7 @@ class MethodLit(
 
 class Local(var method: Method, val name: String, val ti: TypeInfo[_]) {
   override def toString: String = f"t${ System.identityHashCode(this) }%08x/$name ${ ti.desc }"
-  // val stack = Thread.currentThread().getStackTrace
+  val stack = Thread.currentThread().getStackTrace
 }
 
 class Parameter(method: Method, val i: Int, ti: TypeInfo[_]) extends Local(method, null, ti) {
