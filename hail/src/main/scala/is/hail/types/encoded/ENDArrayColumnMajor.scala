@@ -58,7 +58,6 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     val shapeVars = (0 until nDims).map(i => mb.newLocal[Long](s"shape_$i"))
     val totalNumElements = mb.newLocal[Long]()
 
-    val arrayDecoder = EArray(elementType, true).buildDecoder(pnd.data.pType, mb.ecb)
     val readElemF = elementType.buildInplaceDecoder(pnd.elementType, mb.ecb)
     val dataAddress = mb.newLocal[Long]("data_addr")
 
