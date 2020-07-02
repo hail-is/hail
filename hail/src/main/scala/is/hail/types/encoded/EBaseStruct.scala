@@ -42,10 +42,12 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
   }
 
   override def _decodeCompatible(pt: PType): Boolean = {
-    if (!pt.isInstanceOf[PBaseStruct])
+    val pt2 = if (pt.isInstanceOf[PNDArray]) pt.asInstanceOf[PNDArray].representation else pt
+
+    if (!pt2.isInstanceOf[PBaseStruct])
       false
     else {
-      val ps = pt.asInstanceOf[PBaseStruct]
+      val ps = pt2.asInstanceOf[PBaseStruct]
       ps.required <= required &&
         ps.size <= size &&
         ps.fields.forall { f =>
@@ -199,7 +201,8 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     in: Value[InputBuffer]
   ): Code[Unit] = {
 
-    val t = pt.asInstanceOf[PBaseStruct]
+    val pt2 = if (pt.isInstanceOf[PNDArray]) pt.asInstanceOf[PNDArray].representation else pt
+    val t = pt2.asInstanceOf[PBaseStruct]
     val mbytes = mb.newLocal[Long]("mbytes")
 
     val readFields = coerce[Unit](Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
