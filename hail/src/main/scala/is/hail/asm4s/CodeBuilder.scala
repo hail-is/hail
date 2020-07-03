@@ -99,6 +99,26 @@ trait CodeBuilderLike {
 
   def whileLoop(c: Code[Boolean], emitBody: => Unit): Unit = whileLoop(c, _ => emitBody)
 
+  def forLoop(setup: => Unit, cond: Code[Boolean], incr: => Unit, emitBody: (CodeLabel) => Unit): Unit = {
+    val Lstart = CodeLabel()
+    val Lbody = CodeLabel()
+    val Lafter = CodeLabel()
+    val Lincr = CodeLabel()
+
+    setup
+    define(Lstart)
+    append(cond.mux(Lbody.goto, Lafter.goto))
+    define(Lbody)
+    emitBody(Lincr)
+    define(Lincr)
+    incr
+    goto(Lstart)
+    define(Lafter)
+  }
+
+  def forLoop(setup: => Unit, cond: Code[Boolean], incr: => Unit, emitBody: => Unit): Unit =
+    forLoop(setup, cond, incr, _ => emitBody)
+
   def newLocal[T](name: String)(implicit tti: TypeInfo[T]): LocalRef[T] = mb.newLocal[T](name)
 
   def newLocal[T](name: String, c: Code[T])(implicit tti: TypeInfo[T]): LocalRef[T] = {
