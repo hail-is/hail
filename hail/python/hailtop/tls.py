@@ -11,6 +11,7 @@ from urllib3.poolmanager import PoolManager
 log = logging.getLogger('hailtop.ssl')
 server_ssl_context = None
 client_ssl_context = None
+client_ssl_context_no_check_hostname = None
 
 
 class NoSSLConfigFound(Exception):
@@ -45,30 +46,43 @@ def get_server_ssl_context():
     return server_ssl_context
 
 
-def get_client_ssl_context():
+def create_client_ssl_context(check_hostname=True):
+    ssl_config = _get_ssl_config()
+    try:
+        ssl_context = ssl.create_default_context(
+            purpose=Purpose.SERVER_AUTH,
+            cafile=ssl_config['outgoing_trust'])
+        ssl_context.load_cert_chain(ssl_config['cert'],
+                                    keyfile=ssl_config['key'],
+                                    password=None)
+        ssl_context.verify_mode = ssl.CERT_REQUIRED
+        ssl_context.check_hostname = check_hostname
+        return ssl_context
+    except NoSSLConfigFound:
+        log.info('no ssl config file found, using sensible defaults')
+        return ssl.create_default_context(purpose=Purpose.SERVER_AUTH)
+
+
+def get_client_ssl_context(check_hostname=True):
     global client_ssl_context
-    if client_ssl_context is None:
-        try:
-            ssl_config = _get_ssl_config()
-            client_ssl_context = ssl.create_default_context(
-                purpose=Purpose.SERVER_AUTH,
-                cafile=ssl_config['outgoing_trust'])
-            client_ssl_context.load_cert_chain(ssl_config['cert'],
-                                               keyfile=ssl_config['key'],
-                                               password=None)
-            client_ssl_context.verify_mode = ssl.CERT_REQUIRED
-            client_ssl_context.check_hostname = True
-        except NoSSLConfigFound:
-            log.info(f'no ssl config file found, using sensible defaults')
-            client_ssl_context = ssl.create_default_context(purpose=Purpose.SERVER_AUTH)
-    return client_ssl_context
+    global client_ssl_context_no_check_hostname
+    if check_hostname:
+        if client_ssl_context is None:
+            client_ssl_context = create_client_ssl_context(check_hostname=True)
+        return client_ssl_context
+    if client_ssl_context_no_check_hostname is None:
+        client_ssl_context_no_check_hostname = create_client_ssl_context(
+            check_hostname=True)
+    return client_ssl_context_no_check_hostname
 
 
-def ssl_client_session(*args, **kwargs):
+def ssl_client_session(*args, check_hostname=True, **kwargs):
     assert 'connector' not in kwargs
     return aiohttp.ClientSession(
         *args, **kwargs,
-        connector=aiohttp.TCPConnector(ssl=get_client_ssl_context()))
+        connector=aiohttp.TCPConnector(
+            ssl=get_client_ssl_context(
+                check_hostname=check_hostname)))
 
 
 def ssl_requests_client_session(*args, **kwargs):
