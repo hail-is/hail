@@ -3470,6 +3470,18 @@ class NDArrayExpression(Expression):
     >>> nd = hl._nd.array([[1, 2], [3, 4]])
     """
 
+    def _data_array(self):
+        shape = self.shape
+        ndims = self.ndim
+
+        def f(i, *vars):
+            if i == ndims:
+                return self[vars]
+            else:
+                return hl.range(0, hl.int32(shape[i])).map(lambda idx: f(i + 1, *vars, idx))
+
+        return f(0)
+
     @property
     def ndim(self):
         """The number of dimensions of this ndarray.

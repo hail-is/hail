@@ -91,7 +91,7 @@ def create_all_values():
         mc=hl.null(hl.tcall),
         t=hl.tuple([hl.call(1, 2, phased=True), 'foo', hl.null(hl.tstr)]),
         mt=hl.null(hl.ttuple(hl.tlocus('GRCh37'), hl.tbool)),
-        nd=hl.nd.array(hl.range(0, 10)).reshape((2, 5))
+        nd=hl.nd.arange(0, 10).reshape((2, 5)),
     )
 
 def prefix_struct(s, prefix):

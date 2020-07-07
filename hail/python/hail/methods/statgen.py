@@ -514,13 +514,6 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         defined_array = hl.array([hl.is_defined(struct_root[field_name]) for field_name in field_names])
         return defined_array.all(lambda a: a)
 
-    def nd_to_array(mat):
-        if mat.ndim == 1:
-            return hl.range(hl.int32(mat.shape[0])).map(lambda i: mat[i])
-        elif mat.ndim == 2:
-            return hl.range(hl.int32(mat.shape[0])).map(lambda i:
-                                                        hl.range(hl.int32(mat.shape[1])).map(lambda j: (mat[i, j])))
-
     # Given a hail array, get the mean of the nonmissing entries and
     # return new array where the missing entries are the mean.
     def mean_impute(hl_array):
@@ -556,7 +549,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     ht = ht.annotate_globals(__yyp=dot_rows_with_themselves(ht.__y_nd.T) - dot_rows_with_themselves(ht.__Qty.T))
 
     sum_x_nd = ht[X_field_name].T @ hl.nd.ones((n,))
-    ht = ht.annotate(sum_x=nd_to_array(sum_x_nd))
+    ht = ht.annotate(sum_x=sum_x_nd._data_array)
     Qtx = cov_Qt @ ht[X_field_name]
     ytx = ht.__y_nd.T @ ht[X_field_name]
     xyp = ytx - (ht.__Qty.T @ Qtx)
