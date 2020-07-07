@@ -549,7 +549,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     ht = ht.annotate_globals(__yyp=dot_rows_with_themselves(ht.__y_nd.T) - dot_rows_with_themselves(ht.__Qty.T))
 
     sum_x_nd = ht[X_field_name].T @ hl.nd.ones((n,))
-    ht = ht.annotate(sum_x=sum_x_nd._data_array)
+    ht = ht.annotate(sum_x=sum_x_nd._data_array())
     Qtx = cov_Qt @ ht[X_field_name]
     ytx = ht.__y_nd.T @ ht[X_field_name]
     xyp = ytx - (ht.__Qty.T @ Qtx)
