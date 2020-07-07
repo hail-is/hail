@@ -260,7 +260,7 @@ def is_transient_error(e):
     if isinstance(e, asyncio.TimeoutError):
         return True
     if isinstance(e, aiohttp.client_exceptions.ClientConnectorError):
-        return is_transient_error(e.os_error)
+        return hasattr(e, 'os_error') and is_transient_error(e.os_error)
     if (isinstance(e, OSError)
             and (e.errno == errno.ETIMEDOUT
                  or e.errno == errno.ECONNREFUSED
