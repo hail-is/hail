@@ -17,4 +17,7 @@ async def test_connect_to_address_on_pod_ip():
             headers=service_auth_headers(deploy_config, 'address'),
             check_hostname=False) as session:
         address, port = await deploy_config.address('address')
-        await request_retry_transient_errors(session, 'GET', f'https://{address}:{port}/')
+        await request_retry_transient_errors(
+            session,
+            'GET',
+            f'https://{address}:{port}/{deploy_config.base_path("address")}')

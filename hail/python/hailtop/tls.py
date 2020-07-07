@@ -47,8 +47,8 @@ def get_server_ssl_context():
 
 
 def create_client_ssl_context(check_hostname=True):
-    ssl_config = _get_ssl_config()
     try:
+        ssl_config = _get_ssl_config()
         ssl_context = ssl.create_default_context(
             purpose=Purpose.SERVER_AUTH,
             cafile=ssl_config['outgoing_trust'])
@@ -63,7 +63,6 @@ def create_client_ssl_context(check_hostname=True):
         ssl_context = ssl.create_default_context(purpose=Purpose.SERVER_AUTH)
         ssl_context.check_hostname = check_hostname
         return ssl_context
-
 
 
 def get_client_ssl_context(check_hostname=True):
