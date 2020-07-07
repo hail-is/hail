@@ -221,8 +221,7 @@ class ShuffleServer () extends AutoCloseable {
   val shuffles = new ConcurrentSkipListMap[Array[Byte], Shuffle](new SameLengthByteArrayComparator())
 
   val ssf = ssl.getServerSocketFactory()
-  val ss = ssf.createServerSocket(port)
-  ss.asInstanceOf[SSLServerSocket].setNeedClientAuth(true)
+  val ss = ssf.createServerSocket(port).asInstanceOf[SSLServerSocket]
 
   val executor = Executors.newCachedThreadPool()
   var stopped = false
