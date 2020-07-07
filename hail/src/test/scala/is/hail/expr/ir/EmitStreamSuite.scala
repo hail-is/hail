@@ -232,12 +232,11 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testES2MultiZip() {
-    import scala.collection.IndexedSeq
     val f = compile3[Int, Int, Int, Unit] { (mb, n1, n2, n3) =>
       val s1 = checkedRange(0, n1, "s1", mb)
       val s2 = checkedRange(0, n2, "s2", mb)
       val s3 = checkedRange(0, n3, "s3", mb)
-      val z = Stream.multiZip(IndexedSeq(s1.stream, s2.stream, s3.stream)).asInstanceOf[Stream[IndexedSeq[Code[Int]]]]
+      val z = Stream.multiZip(IndexedSeq(s1.stream, s2.stream, s3.stream))
 
       Code(
         s1.init, s2.init, s3.init,
@@ -253,6 +252,37 @@ class EmitStreamSuite extends HailSuite {
     } {
       f(n1, n2, n3)
     }
+  }
+
+  @Test def testES2kWayMerge() {
+    def merge(k: Int) {
+      val f = compile1[Int, Unit] { (mb, _) =>
+        val ranges = Array.tabulate(k)(i => checkedRange(0 + i, 5 + i, s"s$i", mb, print = false))
+
+        val z = Stream.kWayMerge[Int](
+           mb, ranges.map(_.stream),
+           (li, lv, ri, rv) => Code.memoize(lv, "lv", rv, "rv") { (lv, rv) =>
+             lv < rv || (lv.ceq(rv) && li < ri)
+           })
+
+
+        Code(
+          Code(ranges.map(_.init)),
+          z.forEach(mb, { case (i, l) =>
+            log(const("(").concat(i.toS).concat(", ").concat(l.toS).concat(")"), enabled = false)
+          }),
+          Code(ranges.map(_.assertClosed(1))))
+      }
+      f(0)
+    }
+    for {
+      k <- 0 to 5
+    } {
+//      println(s"k = $k")
+      merge(k)
+//      println()
+    }
+
   }
 
   private def compileStream[F: TypeInfo, T](
