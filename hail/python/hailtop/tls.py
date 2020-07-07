@@ -60,7 +60,10 @@ def create_client_ssl_context(check_hostname=True):
         return ssl_context
     except NoSSLConfigFound:
         log.info('no ssl config file found, using sensible defaults')
-        return ssl.create_default_context(purpose=Purpose.SERVER_AUTH)
+        ssl_context = ssl.create_default_context(purpose=Purpose.SERVER_AUTH)
+        ssl_context.check_hostname = check_hostname
+        return ssl_context
+
 
 
 def get_client_ssl_context(check_hostname=True):
@@ -72,7 +75,7 @@ def get_client_ssl_context(check_hostname=True):
         return client_ssl_context
     if client_ssl_context_no_check_hostname is None:
         client_ssl_context_no_check_hostname = create_client_ssl_context(
-            check_hostname=True)
+            check_hostname=False)
     return client_ssl_context_no_check_hostname
 
 
