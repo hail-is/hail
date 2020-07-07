@@ -50,7 +50,7 @@ async def get_index(request, userdata):
 
 
 @routes.get('/api/{namespace}/{name}')
-@rest_authenticated_users_only()
+@rest_authenticated_users_only
 async def get_name(request, userdata):
     namespace = request.match_info['namespace']
     name = request.match_info['name']

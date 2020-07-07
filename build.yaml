@@ -1470,6 +1470,7 @@ steps:
     - build_hail
     - deploy_batch
     - deploy_shuffler
+    - deploy_address
  - kind: runImage
    name: test_batch
    image:
