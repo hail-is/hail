@@ -18,4 +18,3 @@ AUTHORIZED_USERS = {
     'annamiraotoole',
     'Dania-Abuhijleh'
 }
-
