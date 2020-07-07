@@ -1,24 +1,14 @@
-from typing import List, DefaultDict, Generic, TypeVar, Dict, Tuple, Any, NamedTuple
+from typing import List, DefaultDict, Generic, TypeVar, Dict, Tuple, NamedTuple
 import time
-import secrets
 import logging
-import json
-import copy
-from functools import wraps
 import concurrent
 import asyncio
 from aiohttp import web
-import aiohttp_session
-import kubernetes_asyncio as kube
-import google.oauth2.service_account
-from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
-    check_csrf_token, transaction, AccessLogger
+from gear import (setup_aiohttp_session, web_authenticated_developers_only,
+                  web_authenticated_users_only, AccessLogger)
 from hailtop.config import get_deploy_config
-from hailtop.utils import time_msecs, RateLimit
 from hailtop.tls import get_server_ssl_context
-from hailtop import aiogoogle
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
-    set_message
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 import uvloop
 import sortedcontainers
 from collections import defaultdict
