@@ -12,6 +12,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 import uvloop
 import sortedcontainers
 from collections import defaultdict
+import kubernetes_asyncio as kube
 
 
 uvloop.install()
