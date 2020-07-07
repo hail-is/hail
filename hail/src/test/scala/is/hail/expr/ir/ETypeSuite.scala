@@ -47,8 +47,6 @@ class ETypeSuite extends HailSuite {
   }
 
   def encodeDecode(inPType: PType, eType: EType, outPType: PType, data: Annotation): Annotation = {
-    //assert(inPType.virtualType == outPType.virtualType)
-
     val fb = EmitFunctionBuilder[Long, OutputBuffer, Unit](ctx, "fb")
     val arg1 = fb.apply_method.getCodeParam[Long](1)
     val arg2 = fb.apply_method.getCodeParam[OutputBuffer](2)
