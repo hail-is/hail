@@ -119,9 +119,10 @@ class DeployConfig:
                 raise_for_status=True,
                 timeout=aiohttp.ClientTimeout(total=5),
                 headers=headers) as session:
-            return json.loads(
-                await session.get(
-                    self.url('address', f'/api/{namespace}/{service}')))
+            async with await session.get(
+                    self.url('address', f'/api/{namespace}/{service}')) as resp:
+                dicts = await resp.json()
+                return [(d['address'], d['port']) for d in dicts]
 
     async def address(self, service: str) -> Tuple[str, int]:
         service_addresses = await self.addresses(service)
