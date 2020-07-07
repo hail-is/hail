@@ -328,14 +328,47 @@ object BlockMatrix {
     using(fs.create(prefix + "/_SUCCESS"))(out => ())
   }
 
+  def writeBlockMatrices2(
+    ctx: ExecuteContext,
+    bms: IndexedSeq[BlockMatrix],
+    prefix: String,
+    overwrite: Boolean,
+    forceRowMajor: Boolean,
+    stageLocally: Boolean
+  ): Unit = {
+    val fs = ctx.fs
+
+    // Plan:
+    // 1. Map all the BlockMatrices to RDDs
+    // 2. join all the RDDs. Need a function of the form:
+    // rddIndex, partitionIndex, T => U
+    // Let T = ((Int, Int), BDM[Double])
+    // Let U = ???
+    // Problem: Need an interface that allows me to pick the filenames I'm writing to dynamically.
+
+    val rdds = bms.map(bm => bm.blocks)
+    val first = rdds(0)
+    val nPartitions = rdds.map(_.getNumPartitions).sum
+    val numDigits = digitsNeeded(nPartitions)
+
+    val ordd = new OriginUnionRDD[((Int, Int), BDM[Double]), (Int, String)](
+      first.sparkContext,
+      rdds,
+      ???
+    )
+
+    val joinedRDD: RDD[_] = ???
+    val (partFiles, partitionCounts) = joinedRDD.writePartitions(ctx, ???, ???, ???)
+  }
+
   def writeBlockMatrices(
+    fs: FS,
     bms: IndexedSeq[BlockMatrix],
     prefix: String,
     overwrite: Boolean,
     forceRowMajor: Boolean
   ): Unit = {
 
-    val fs = HailContext.sFS
     def blockMatrixURI(matrixIdx: Int): String = prefix + "_" + matrixIdx
 
     bms.zipWithIndex.foreach{ case (bm, bIdx) => {
@@ -365,7 +398,7 @@ object BlockMatrix {
     }
 
     val rdds = bms.map(bm => bm.blocks)
-    val blockMatrixMetadataFields = bms.map(bm => (bm.blockSize, bm.nRows, bm.nCols, bm.gp.maybeBlocks))
+    val blockMatrixMetadataFields = bms.map(bm => (bm.blockSize, bm.nRows, bm.nCols, bm.gp.partitionIndexToBlockIndex))
     val first = rdds(0)
     val nPartitions = rdds.map(_.getNumPartitions).sum
     val numDigits = digitsNeeded(nPartitions)
@@ -375,7 +408,7 @@ object BlockMatrix {
       val pathToBlockMatrixRDD = blockMatrixURI(rddIndex)
       val partFileName = partFile(numDigits, partitionIndex, TaskContext.get())
       val finalFilename = pathToBlockMatrixRDD + "/parts/" + partFileName
-      val os = fs.unsafeWriter(finalFilename)
+      val os = fs.create(finalFilename)
       writeBlock(it, os)
 
       Iterator.single((rddIndex, partFileName))

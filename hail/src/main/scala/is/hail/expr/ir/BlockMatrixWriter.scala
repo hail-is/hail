@@ -88,7 +88,7 @@ case class BlockMatrixNativeMultiWriter(
   overwrite: Boolean,
   forceRowMajor: Boolean) extends BlockMatrixMultiWriter {
 
-  def apply(bms: IndexedSeq[BlockMatrix]): Unit = {
-    BlockMatrix.writeBlockMatrices(bms, prefix, overwrite, forceRowMajor)
+  def apply(fs: FS, bms: IndexedSeq[BlockMatrix]): Unit = {
+    BlockMatrix.writeBlockMatrices(fs, bms, prefix, overwrite, forceRowMajor)
   }
 }
