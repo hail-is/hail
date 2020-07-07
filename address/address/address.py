@@ -59,7 +59,7 @@ async def get_index(request, userdata):
 
 
 @routes.get('/api/{namespace}/{name}')
-@web_authenticated_developers_only()
+@web_authenticated_users_only()
 async def get_name(request, userdata):
     namespace = request.match_info['namespace']
     name = request.match_info['name']
