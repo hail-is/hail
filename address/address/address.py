@@ -55,9 +55,8 @@ async def get_name(request, userdata):
     namespace = request.match_info['namespace']
     name = request.match_info['name']
     log.info(f'get {namespace} {name}')
-    result = await request.app['cache'].get(name, namespace)
-    log.info(f'result {result}')
-    return web.json_response(result)
+    addresses = await request.app['cache'].get(name, namespace)
+    return web.json_response([address.to_dict() for address in addresses])
 
 
 VALID_DURATION_IN_SECONDS = 60
@@ -75,6 +74,9 @@ class CacheEntry(Generic[T]):
 class AddressAndPort(NamedTuple):
     address: str
     port: int
+
+    def to_dict(self):
+        return {'address': self.address, 'port': self.port}
 
 
 class Cache():
