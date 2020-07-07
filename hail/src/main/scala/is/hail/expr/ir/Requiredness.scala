@@ -486,6 +486,14 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamZip(as, names, body, behavior) =>
         requiredness.union(as.forall(lookup(_).required))
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(body))
+      case StreamZipJoin(as, _) =>
+        requiredness.union(as.forall(lookup(_).required))
+        val eltType = coerce[RIterable](coerce[RIterable](requiredness).elementType).elementType
+        eltType.unionFrom(as.map(lookup(_).asInstanceOf[RIterable].elementType))
+        eltType.union(false)
+      case StreamMultiMerge(as, _) =>
+        requiredness.union(as.forall(lookup(_).required))
+        coerce[RIterable](requiredness).elementType.unionFrom(as.map(a => coerce[RIterable](lookup(a)).elementType))
       case StreamFilter(a, name, cond) =>
         requiredness.unionFrom(lookup(a))
       case StreamFlatMap(a, name, body) =>

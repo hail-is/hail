@@ -170,6 +170,25 @@ object InferPType {
         PCanonicalStream(getCompatiblePType(Seq(leftEltType, rightEltType), r.elementType), r.required)
       case StreamZip(as, names, body, behavior) =>
         PCanonicalStream(body.pType, requiredness(node).required)
+      case StreamZipJoin(as, _) =>
+        val r = requiredness(node).asInstanceOf[RIterable]
+        val rEltType = r.elementType.asInstanceOf[RIterable]
+        val eltTypes = as.map(_.pType.asInstanceOf[PStream].elementType)
+        assert(eltTypes.forall(_.required))
+        assert(rEltType.required)
+        PCanonicalStream(
+          PCanonicalArray(
+            getCompatiblePType(eltTypes, rEltType.elementType).setRequired(rEltType.elementType.required),
+            required = rEltType.required),
+          r.required)
+      case StreamMultiMerge(as, _) =>
+        val r = coerce[RIterable](requiredness(node))
+        val eltTypes = as.map(_.pType.asInstanceOf[PStream].elementType)
+        assert(eltTypes.forall(_.required))
+        assert(r.elementType.required)
+        PCanonicalStream(
+          getCompatiblePType(as.map(_.pType.asInstanceOf[PStream].elementType), r.elementType),
+          r.required)
       case StreamFilter(a, name, cond) => a.pType
       case StreamFlatMap(a, name, body) =>
         PCanonicalStream(coerce[PIterable](body.pType).elementType, requiredness(node).required)
