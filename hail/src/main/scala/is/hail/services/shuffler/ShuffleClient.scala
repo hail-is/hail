@@ -28,6 +28,7 @@ object ShuffleClient {
 
   def socket(host: String, port: Int): Socket = {
     val (host, port) = DeployConfig.get.address("shuffler")
+    log.info(s"attempting to connect to ${host}:${port}")
     val s = getSSLContext.getSocketFactory().createSocket(host, port)
     log.info(s"connected to ${host}:${port} (socket())")
     s
