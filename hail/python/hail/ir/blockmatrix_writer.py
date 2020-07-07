@@ -162,7 +162,7 @@ class BlockMatrixPersistWriter(BlockMatrixWriter):
 
 
 class BlockMatrixNativeMultiWriter(BlockMatrixMultiWriter):
-    @typecheck_method(prefix=str, overwrite=bool, force_row_major=bool)
+    @typecheck_method(prefix=str, overwrite=bool, force_row_major=bool, stage_locally=bool)
     def __init__(self, prefix, overwrite, force_row_major, stage_locally):
         self.prefix = prefix
         self.overwrite = overwrite

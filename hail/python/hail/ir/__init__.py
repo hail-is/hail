@@ -59,7 +59,7 @@ from .table_writer import TableWriter, TableNativeWriter, TableTextWriter
 from .blockmatrix_writer import BlockMatrixWriter, BlockMatrixNativeWriter, \
     BlockMatrixBinaryWriter, BlockMatrixRectanglesWriter, \
     BlockMatrixMultiWriter, BlockMatrixBinaryMultiWriter, \
-    BlockMatrixTextMultiWriter, BlockMatrixPersistWriter
+    BlockMatrixTextMultiWriter, BlockMatrixPersistWriter, BlockMatrixNativeMultiWriter
 from .renderer import Renderable, RenderableStr, ParensRenderer, \
     RenderableQueue, RQStack, Renderer, PlainRenderer, CSERenderer
 

@@ -44,7 +44,7 @@ def export_block_matrices(bms: List[BlockMatrix], prefix: str, overwrite: bool =
     Env.backend().execute(BlockMatrixMultiWrite([bm._bmir for bm in bms], writer))
 
 
-@typecheck(bms=sequenceof(BlockMatrix), path_prefix=str, overwrite=bool, force_row_major=bool)
+@typecheck(bms=sequenceof(BlockMatrix), path_prefix=str, overwrite=bool, force_row_major=bool, stage_locally=bool)
 def write_block_matrices(bms: List[BlockMatrix], path_prefix: str, overwrite: bool = False, force_row_major: bool = False, stage_locally: bool = False):
     """Writes a sequence of block matrices to disk in the same format as BlockMatrix.write.
 
@@ -62,5 +62,5 @@ def write_block_matrices(bms: List[BlockMatrix], path_prefix: str, overwrite: bo
         If ``True``, major output will be written to temporary local storage
         before being copied to ``output``.
     """
-    writer = BlockMatrixNativeMultiWriter(path_prefix, overwrite, force_row_major)
+    writer = BlockMatrixNativeMultiWriter(path_prefix, overwrite, force_row_major, stage_locally)
     Env.backend().execute(BlockMatrixMultiWrite([bm._bmir for bm in bms], writer))
