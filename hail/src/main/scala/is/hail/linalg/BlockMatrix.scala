@@ -425,14 +425,14 @@ object BlockMatrix {
     grouped.foreach{ case (rddIndex, numberedPartFiles) =>
       val partFiles = numberedPartFiles.map{case (_, partFileName) => partFileName}
 
-      fs.writeDataFile(blockMatrixURI(rddIndex) + metadataRelativePath) { os =>
+      using(new DataOutputStream(fs.create(blockMatrixURI(rddIndex) + metadataRelativePath))) { os =>
         implicit val formats = defaultJSONFormats
         val (blockSize, nRows, nCols, maybeBlocks) = blockMatrixMetadataFields(rddIndex)
         jackson.Serialization.write(
           BlockMatrixMetadata(blockSize, nRows, nCols, maybeBlocks, partFiles), os)
       }
 
-      fs.writeTextFile(blockMatrixURI(rddIndex) + "/_SUCCESS")(out => ())
+      using(fs.create(blockMatrixURI(rddIndex) + "/_SUCCESS"))(out => ())
     }
 
     log.info("Wrote block matrices to disk")
