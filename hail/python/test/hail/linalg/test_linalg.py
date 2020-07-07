@@ -4,7 +4,6 @@ from hail.linalg import BlockMatrix
 from hail.utils import new_temp_file, new_local_temp_dir, local_path_uri, FatalError
 from ..helpers import *
 import numpy as np
-import tempfile
 import math
 from hail.expr.expressions import ExpressionException
 
@@ -456,6 +455,36 @@ class Tests(unittest.TestCase):
                                                          [13.0, 15.0, 17.0],
                                                          [14.0, 16.0, 18.0]]))
         self._assert_eq(square.sum(axis=0).T + square.sum(axis=1), np.array([[18.0], [30.0], [42.0]]))
+
+    def test_tree_matmul(self):
+        nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        m = BlockMatrix.from_numpy(nm, block_size=2)
+        nrow = np.array([[7.0, 8.0, 9.0]])
+        row = BlockMatrix.from_numpy(nrow, block_size=2)
+
+        self._assert_eq(m.tree_matmul(m.T, 2, new_temp_file()), nm @ nm.T)
+        self._assert_eq(m.tree_matmul(nm.T, 2, new_temp_file()), nm @ nm.T)
+        self._assert_eq(row.tree_matmul(row.T, 2, new_temp_file()), nrow @ nrow.T)
+        self._assert_eq(row.tree_matmul(nrow.T, 2, new_temp_file()), nrow @ nrow.T)
+
+        self._assert_eq(m.T.tree_matmul(m, 2, new_temp_file()), nm.T @ nm)
+        self._assert_eq(m.T.tree_matmul(nm, 2, new_temp_file()), nm.T @ nm)
+        self._assert_eq(row.T.tree_matmul(row, 2, new_temp_file()), nrow.T @ nrow)
+        self._assert_eq(row.T.tree_matmul(nrow, 2, new_temp_file()), nrow.T @ nrow)
+
+        # Variety of block sizes and splits
+        fifty_by_sixty = np.arange(50 * 60).reshape((50, 60))
+        block_sizes = [7, 10]
+        split_sizes = [2, 9]
+        for block_size in block_sizes:
+            print(f"Handling block_size = {block_size}")
+            bm = BlockMatrix.from_numpy(fifty_by_sixty, block_size)
+            bmt = BlockMatrix.from_numpy(fifty_by_sixty.T, block_size)
+            for split_size in split_sizes:
+                print(f"Handling split_size = {split_size}")
+                self._assert_eq(bm.tree_matmul(bmt, split_size, new_temp_file()), fifty_by_sixty @ fifty_by_sixty.T)
+                self._assert_eq(bmt.tree_matmul(bm, split_size, new_temp_file()), fifty_by_sixty.T @ fifty_by_sixty)
+
 
     def test_fill(self):
         nd = np.ones((3, 5))
