@@ -4,15 +4,15 @@ import logging
 import concurrent
 import asyncio
 from aiohttp import web
+import kubernetes_asyncio as kube
 from gear import (setup_aiohttp_session, web_authenticated_developers_only,
-                  web_authenticated_users_only, AccessLogger)
+                  rest_authenticated_users_only, AccessLogger)
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_server_ssl_context
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 import uvloop
 import sortedcontainers
 from collections import defaultdict
-import kubernetes_asyncio as kube
 
 
 uvloop.install()
@@ -50,7 +50,7 @@ async def get_index(request, userdata):
 
 
 @routes.get('/api/{namespace}/{name}')
-@web_authenticated_users_only()
+@rest_authenticated_users_only()
 async def get_name(request, userdata):
     namespace = request.match_info['namespace']
     name = request.match_info['name']
