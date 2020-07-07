@@ -27,7 +27,7 @@ class ClientResponseException(
 }
 
 object Requestor {
-  lazy val log: Logger = LogManager.getLogger("BatchClient")
+  lazy val log: Logger = LogManager.getLogger("Requestor")
 
   private val httpClient: CloseableHttpClient = {
     log.info("creating HttpClient")

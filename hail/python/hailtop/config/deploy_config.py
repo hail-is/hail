@@ -118,7 +118,7 @@ class DeployConfig:
         async with ssl_client_session(
                 raise_for_status=True,
                 timeout=aiohttp.ClientTimeout(total=5),
-                headres=headers) as session:
+                headers=headers) as session:
             return json.loads(
                 await session.get(
                     self.url('address', f'/api/{namespace}/{service}')))
