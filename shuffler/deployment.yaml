@@ -50,11 +50,11 @@ spec:
             limits:
               memory: "3.75G"
               cpu: "1"
-          readinessProbe:
-            tcpSocket:
-              port: 443
-            initialDelaySeconds: 5
-            periodSeconds: 5
+          # readinessProbe:
+          #   tcpSocket:
+          #     port: 443
+          #   initialDelaySeconds: 5
+          #   periodSeconds: 5
       volumes:
        - name: deploy-config
          secret:
