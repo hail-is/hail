@@ -741,6 +741,8 @@ object LowerTableIR {
           val lValueFields = left.typ.rowType.fieldNames.filter(f => !lKeyFields.contains(f))
           val rKeyFields = right.typ.key.take(joinKey)
           val rValueFields = right.typ.rowType.fieldNames.filter(f => !rKeyFields.contains(f))
+          val lReq = r.lookup(left).asInstanceOf[RTable]
+          val rReq = r.lookup(right).asInstanceOf[RTable]
 
           loweredLeft.orderedJoin(
             loweredRight, joinKey, joinType,
@@ -753,7 +755,10 @@ object LowerTableIR {
             (lEltRef, rEltRef) => {
             MakeStruct(
               (lKeyFields, rKeyFields).zipped.map { (lKey, rKey) =>
-                lKey -> Coalesce(FastSeq(GetField(lEltRef, lKey), GetField(rEltRef, rKey)))
+                if (joinType == "outer" && lReq.field(lKey).required && rReq.field(rKey).required)
+                  lKey -> Coalesce(FastSeq(GetField(lEltRef, lKey), GetField(rEltRef, rKey), Die("TableJoin expected non-missing key", left.typ.rowType.fieldType(lKey))))
+                else
+                  lKey -> Coalesce(FastSeq(GetField(lEltRef, lKey), GetField(rEltRef, rKey)))
               }
                 ++ lValueFields.map(f => f -> GetField(lEltRef, f))
                 ++ rValueFields.map(f => f -> GetField(rEltRef, f)))
