@@ -2053,7 +2053,7 @@ steps:
     - default_ns
     - service_base_image
     # - create_certs
-    - deploy_address
+    # - deploy_address
  - kind: runImage
    name: test_hail_services_java
    image:
@@ -2090,5 +2090,5 @@ steps:
     - hail_run_image
     - build_hail
     # - deploy_batch
-    - deploy_shuffler
-    - deploy_address
+    # - deploy_shuffler
+    # - deploy_address
