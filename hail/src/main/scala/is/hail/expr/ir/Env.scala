@@ -19,16 +19,17 @@ object BindingEnv {
 case class BindingEnv[V](
   eval: Env[V] = Env.empty[V],
   agg: Option[Env[V]] = None,
-  scan: Option[Env[V]] = None
+  scan: Option[Env[V]] = None,
+  relational: Env[V] = Env.empty[V]
 ) {
-  def allEmpty: Boolean = eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty)
+  def allEmpty: Boolean = eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty) && relational.isEmpty
 
   def promoteAgg: BindingEnv[V] = {
-    BindingEnv(agg.get, scan = scan)
+    BindingEnv(agg.get, scan = scan, relational = relational)
   }
 
   def promoteScan: BindingEnv[V] = {
-    BindingEnv(scan.get, agg = agg)
+    BindingEnv(scan.get, agg = agg, relational = relational)
   }
 
   def bindEval(name: String, v: V): BindingEnv[V] =
@@ -54,13 +55,16 @@ case class BindingEnv[V](
   def bindScan(bindings: (String, V)*): BindingEnv[V] =
     copy(scan = Some(scan.get.bindIterable(bindings)))
 
+  def bindRelational(name: String, v: V): BindingEnv[V] = copy(relational = relational.bind(name, v))
+
   def scanOrEmpty: Env[V] = scan.getOrElse(Env.empty)
 
   def pretty(valuePrinter: V => String = _.toString): String = {
     s"""BindingEnv:
        |  Eval:${ eval.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }" }.mkString("") }
        |  Agg: ${ agg.map(_.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }" }.mkString("")).getOrElse("None") }
-       |  Scan: ${ scan.map(_.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }" }.mkString("")).getOrElse("None") }""".stripMargin
+       |  Scan: ${ scan.map(_.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }" }.mkString("")).getOrElse("None") }
+       |  Relational: ${ relational.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }" }.mkString("") }""".stripMargin
   }
 
   def merge(newBindings: BindingEnv[V]): BindingEnv[V] = {
@@ -75,8 +79,8 @@ case class BindingEnv[V](
     else {
       copy(eval = eval.bindIterable(newBindings.eval.m),
         agg = agg.map(a => a.bindIterable(newBindings.agg.get.m)),
-        scan = scan.map(a => a.bindIterable(newBindings.scan.get.m))
-      )
+        scan = scan.map(a => a.bindIterable(newBindings.scan.get.m)),
+        relational = relational.bindIterable(newBindings.relational.m))
     }
   }
 
@@ -90,20 +94,20 @@ case class BindingEnv[V](
     else {
       copy(eval = eval.delete(newBindings.eval.m.keys),
         agg = agg.map(a => a.delete(newBindings.agg.get.m.keys)),
-        scan = scan.map(a => a.delete(newBindings.scan.get.m.keys))
-      )
+        scan = scan.map(a => a.delete(newBindings.scan.get.m.keys)),
+        relational = relational.delete(newBindings.relational.m.keys))
     }
   }
 
   def mapValues[T](f: V => T): BindingEnv[T] = {
-    copy[T](eval = eval.mapValues(f), agg = agg.map(_.mapValues(f)), scan = scan.map(_.mapValues(f)))
+    copy[T](eval = eval.mapValues(f), agg = agg.map(_.mapValues(f)), scan = scan.map(_.mapValues(f)), relational = relational.mapValues(f))
   }
 
   def mapValuesWithKey[T](f: (Env.K, V) => T): BindingEnv[T] = {
-    copy[T](eval = eval.mapValuesWithKey(f), agg = agg.map(_.mapValuesWithKey(f)), scan = scan.map(_.mapValuesWithKey(f)))
+    copy[T](eval = eval.mapValuesWithKey(f), agg = agg.map(_.mapValuesWithKey(f)), scan = scan.map(_.mapValuesWithKey(f)), relational = relational.mapValuesWithKey(f))
   }
 
-  def dropBindings[T]: BindingEnv[T] = copy(eval = Env.empty, agg = agg.map(_ => Env.empty), scan = scan.map(_ => Env.empty))
+  def dropBindings[T]: BindingEnv[T] = copy(eval = Env.empty, agg = agg.map(_ => Env.empty), scan = scan.map(_ => Env.empty), relational = Env.empty)
 }
 
 class Env[V] private(val m: Map[Env.K, V]) {
