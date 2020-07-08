@@ -571,8 +571,8 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     res = ht.key_by()
     key_fields = [key_field for key_field in ht.key]
     key_dict = {key_field: res.grouped_fields[key_field] for key_field in key_fields}
-    linreg_fields_dict = {"sum_x": res.sum_x, "y_transpose_x": nd_to_array(res.__ytx.T), "beta": nd_to_array(res.__b.T),
-                          "standard_error": nd_to_array(res.__se.T), "t_stat": nd_to_array(res.__t.T), "p_value": nd_to_array(res.__p.T)}
+    linreg_fields_dict = {"sum_x": res.sum_x, "y_transpose_x": res.__ytx.T._data_array(), "beta": res.__b.T._data_array(),
+                          "standard_error": res.__se.T._data_array(), "t_stat": res.__t.T._data_array(), "p_value": res.__p.T._data_array()}
     combined_dict = {**key_dict, **linreg_fields_dict}
     res = zip_to_struct(res, "all_zipped", **combined_dict)
 
