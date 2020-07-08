@@ -18,6 +18,6 @@ On a recent Debian-like system, the following should suffice:
        g++ \
        python3.6 python3-pip \
        libopenblas-base liblapack3
-   python3 -m pip install hail
+   python3.6 -m pip install hail
 
 `Now let's take Hail for a spin! <try.rst>`__
