@@ -10,12 +10,11 @@ import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.io.fs.FS
 import is.hail.io.index.StagedIndexWriter
 import is.hail.types.virtual._
-
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, OutputBuffer, TypedCodecSpec}
 import is.hail.rvd.{AbstractRVDSpec, IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.{RTable, TableType}
 import is.hail.types.encoded.EType
-import is.hail.types.physical.{PArray, PCanonicalString, PCanonicalStruct, PCode, PInt64, PStream, PString, PStruct, PType}
+import is.hail.types.physical.{PArray, PCanonicalString, PCanonicalStruct, PCode, PIndexableCode, PInt64, PStream, PString, PStringCode, PStruct, PType}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.ReferenceGenome
@@ -53,10 +52,6 @@ case class TableNativeWriter(
     val pKey: PStruct = coerce[PStruct](rowSpec.decodedPType(partitioner.kType))
     val rowWriter = PartitionNativeWriter(rowSpec, s"$path/rows/parts/", Some(s"$path/index/parts/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
     val globalWriter = PartitionNativeWriter(globalSpec, s"$path/globals/parts/", None, None)
-    val metadataWriter = MetadataNativeWriter(path, overwrite,
-      RVDSpecMaker(rowSpec, partitioner, IndexSpec.emptyAnnotation("../index", coerce[PStruct](pKey))),
-      RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)),
-      t.typ)
 
     ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
@@ -71,13 +66,19 @@ case class TableNativeWriter(
       val file = GetField(ctxRef, "writeCtx")
       WritePartition(rows, file + UUID4(), rowWriter)
     } { (parts, globals) =>
-      val writeGlobals = WritePartition(
-        MakeStream(FastSeq(globals), TStream(globals.typ)),
+      val writeGlobals = WritePartition(MakeStream(FastSeq(globals), TStream(globals.typ)),
         Str(partFile(1, 0)), globalWriter)
 
-      WriteMetadata(makestruct(
-        "global" -> GetField(writeGlobals, "filePath"),
-        "partitions" -> parts), metadataWriter)
+      RelationalWriter.scoped(path, overwrite, Some(t.typ))(
+        bindIR(parts) { fileAndCount =>
+          Begin(FastIndexedSeq(
+            WriteMetadata(MakeArray(GetField(writeGlobals, "filePath")),
+              RVDSpecWriter(s"$path/globals", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)))),
+            WriteMetadata(ToArray(mapIR(ToStream(fileAndCount)) { fc => GetField(fc, "filePath") }),
+              RVDSpecWriter(s"$path/rows", RVDSpecMaker(rowSpec, partitioner, IndexSpec.emptyAnnotation("../index", coerce[PStruct](pKey))))),
+            WriteMetadata(ToArray(mapIR(ToStream(fileAndCount)) { fc => GetField(fc, "partitionCounts") }),
+              TableSpecWriter(path, t.typ, "rows", "globals", "references", log = true))))
+        })
     }
   }
 
@@ -221,56 +222,87 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
   }
 }
 
-class NativeTableMetadata(path: String, typ: TableType, rowsSpec: RVDSpecMaker, globalSpec: RVDSpecMaker) {
-  val globalsPath = s"$path/globals"
-  val rowsPath = s"$path/rows"
+case class RVDSpecWriter(path: String, spec: RVDSpecMaker) extends MetadataWriter {
+  def annotationType: Type = TArray(TString)
+  def writeMetadata(
+    writeAnnotations: => IEmitCode,
+    cb: EmitCodeBuilder,
+    region: Value[Region]): Unit = {
+    cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
+    val pc = writeAnnotations.handle(cb, cb._fatal("write annotations can't be missing!")).asInstanceOf[PIndexableCode]
+    val a = pc.memoize(cb, "filePaths")
+    val partFiles = cb.newLocal[Array[String]]("partFiles")
+    val n = cb.newLocal[Int]("n", a.loadLength())
+    val i = cb.newLocal[Int]("i", 0)
+    cb.assign(partFiles, Code.newArray[String](n))
+    cb.whileLoop(i < n, {
+      a.loadElement(cb, i).consume(cb, {
+        cb._fatal("file name can't be missing!")
+      }, { case s: PStringCode =>
+        cb += partFiles.update(i, s.loadString())
+      })
+      cb.assign(i, i + 1)
+    })
+    cb += cb.emb.getObject(spec)
+      .invoke[Array[String], AbstractRVDSpec]("apply", partFiles)
+      .invoke[FS, String, Unit]("write", cb.emb.getFS, path)
+  }
+}
 
-  def write(fs: FS, globalPath: String, partFiles: Array[String], partitionCounts: Array[Long]): Unit = {
-    // globalMetadata
-    globalSpec(Array(globalPath)).write(fs, globalsPath)
-
-    // rowMetadata
-    rowsSpec(partFiles).write(fs, rowsPath)
-
-    val referencesPath = path + "/references"
-    fs.mkDir(referencesPath)
-    ReferenceGenome.exportReferences(fs, referencesPath, typ.rowType)
-    ReferenceGenome.exportReferences(fs, referencesPath, typ.globalType)
-
+class TableSpecHelper(path: String, rowRelPath: String, globalRelPath: String, refRelPath: String, typ: TableType, log: Boolean) {
+  def write(fs: FS, partCounts: Array[Long]): Unit = {
     val spec = TableSpecParameters(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
-      "references",
+      refRelPath,
       typ,
-      Map("globals" -> RVDComponentSpec("globals"),
-        "rows" -> RVDComponentSpec("rows"),
-        "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
+      Map("globals" -> RVDComponentSpec(globalRelPath),
+        "rows" -> RVDComponentSpec(rowRelPath),
+        "partition_counts" -> PartitionCountsComponentSpec(partCounts)))
+
     spec.write(fs, path)
 
-    writeNativeFileReadMe(fs, path)
-
-    using(fs.create(path + "/_SUCCESS"))(_ => ())
-
-    val nRows = partitionCounts.sum
-    info(s"wrote table with $nRows ${ plural(nRows, "row") } " +
-      s"in ${ partitionCounts.length } ${ plural(partitionCounts.length, "partition") } " +
+    val nRows = partCounts.sum
+    if (log) info(s"wrote table with $nRows ${ plural(nRows, "row") } " +
+      s"in ${ partCounts.length } ${ plural(partCounts.length, "partition") } " +
       s"to $path")
   }
 }
 
-case class MetadataNativeWriter(
-  path: String,
-  overwrite: Boolean,
-  rowsSpec: RVDSpecMaker,
-  globalsSpec: RVDSpecMaker,
-  typ: TableType) extends MetadataWriter {
-  def annotationType: Type = TStruct(
-    "global" -> TString,
-    "partitions" -> TArray(TStruct(
-      "filePath" -> TString,
-      "partitionCounts" -> TInt64)))
+case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, globalRelPath: String, refRelPath: String, log: Boolean) extends MetadataWriter {
+  def annotationType: Type = TArray(TInt64)
 
-  val metadata = new NativeTableMetadata(path, typ, rowsSpec, globalsSpec)
+  def writeMetadata(
+    writeAnnotations: => IEmitCode,
+    cb: EmitCodeBuilder,
+    region: Value[Region]): Unit = {
+    cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
+    val pc = writeAnnotations.handle(cb, cb._fatal("write annotations can't be missing!")).asInstanceOf[PIndexableCode]
+    val partCounts = cb.newLocal[Array[Long]]("partCounts")
+    val a = pc.memoize(cb, "writePartCounts")
+
+    val n = cb.newLocal[Int]("n", a.loadLength())
+    val i = cb.newLocal[Int]("i", 0)
+    cb.assign(partCounts, Code.newArray[Long](n))
+    cb.whileLoop(i < n, {
+      a.loadElement(cb, i).consume(cb, {
+        cb._fatal("part count can't be missing!")
+      }, { count => cb += partCounts.update(i, count.tcode[Long]) })
+      cb.assign(i, i + 1)
+    })
+    cb += cb.emb.getObject(new TableSpecHelper(path, rowRelPath, globalRelPath, refRelPath, typ, log))
+      .invoke[FS, Array[Long], Unit]("write", cb.emb.getFS, partCounts)
+  }
+}
+
+object RelationalWriter {
+  def scoped(path: String, overwrite: Boolean, refs: Option[TableType])(write: IR): IR = WriteMetadata(
+    write, RelationalWriter(path, overwrite, refs.map(typ => "references" -> (ReferenceGenome.getReferences(typ.rowType) ++ ReferenceGenome.getReferences(typ.globalType)))))
+}
+
+case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[(String, Set[ReferenceGenome])]) extends MetadataWriter {
+  def annotationType: Type = TVoid
+
   def writeMetadata(
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
@@ -279,47 +311,19 @@ case class MetadataNativeWriter(
       cb += cb.emb.getFS.invoke[String, Boolean, Unit]("delete", path, true)
     else
       cb.ifx(cb.emb.getFS.invoke[String, Boolean]("exists", path), cb._fatal(s"file already exists: $path"))
-
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
-    cb += cb.emb.getFS.invoke[String, Unit]("mkDir", s"$path/globals")
-    cb += cb.emb.getFS.invoke[String, Unit]("mkDir", s"$path/rows")
 
-    writeAnnotations.consume(cb,
-      { cb._fatal("write annotations can't be missing!") },
-      { pc =>
-        val v = pc.memoize(cb, "write_annotations")
-        val aType = coerce[PStruct](v.pt)
-        val partType = coerce[PArray](aType.fieldType("partitions"))
-        val eltType = coerce[PStruct](partType.elementType)
+    maybeRefs.foreach { case (refRelPath, refs) =>
+      cb += cb.emb.getFS.invoke[String, Unit]("mkDir", s"$path/$refRelPath")
+      refs.foreach { rg =>
+        cb += Code.invokeScalaObject3[FS, String, ReferenceGenome, Unit](ReferenceGenome.getClass, "writeReference", cb.emb.getFS, path, cb.emb.getReferenceGenome(rg))
+      }
+    }
 
-        // global: (filename, pcount)
-        // row: Array[(filename, pcount)]
+    writeAnnotations.consume(cb, {}, { pc => cb += pc.tcode[Unit] })
 
-        val globalFile = cb.newLocal[String]("global_file")
-        val partFiles = cb.newLocal[Array[String]]("partFiles")
-        val partCounts = cb.newLocal[Array[Long]]("partCounts")
-
-        val aoff = cb.newLocal[Long]("aoff")
-        val eltOff = cb.newLocal[Long]("eltOff")
-        val n = cb.newLocal[Int]("n")
-        val i = cb.newLocal[Int]("i")
-
-        cb.assign(globalFile, coerce[PString](aType.fieldType("global"))
-          .loadString(aType.loadField(coerce[Long](v.value), "global")))
-
-        cb.assign(aoff, aType.loadField(coerce[Long](v.value), "partitions"))
-        cb.assign(i, 0)
-        cb.assign(n, partType.loadLength(aoff))
-        cb.assign(partFiles, Code.newArray[String](n))
-        cb.assign(partCounts, Code.newArray[Long](n))
-        cb.whileLoop(i < n, {
-          cb.assign(eltOff, partType.loadElement(aoff, n, i))
-          cb += partFiles.update(i, coerce[PString](eltType.fieldType("filePath")).loadString(eltType.loadField(eltOff, "filePath")))
-          cb += partCounts.update(i, Region.loadLong(eltType.fieldOffset(eltOff, "partitionCounts")))
-          cb.assign(i, i + 1)
-        })
-        cb += cb.emb.getObject(metadata).invoke[FS, String, Array[String], Array[Long], Unit]("write", cb.emb.getFS, globalFile, partFiles, partCounts)
-      })
+    cb += Code.invokeScalaObject2[FS, String, Unit](Class.forName("is.hail.utils.package$"), "writeNativeFileReadMe", cb.emb.getFS, path)
+    cb += cb.emb.create(s"$path/_SUCCESS").invoke[Unit]("close")
   }
 }
 

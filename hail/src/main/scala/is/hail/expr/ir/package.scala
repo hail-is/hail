@@ -136,6 +136,11 @@ package object ir {
     If(a < b, a, b)
   }
 
+  def forIR(stream: IR)(f: Ref => IR): IR = {
+    val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
+    StreamFor(stream, ref.name, f(ref))
+  }
+
   def mapIR(stream: IR)(f: Ref => IR): IR = {
     val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
     StreamMap(stream, ref.name, f(ref))

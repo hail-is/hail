@@ -14,7 +14,7 @@ class Classx[C](val name: String, val superName: String) {
 
   val methods: mutable.ArrayBuffer[Method] = new mutable.ArrayBuffer()
 
-  val fields: mutable.ArrayBuffer[Field] = new mutable.ArrayBuffer()
+  val fields: mutable.ArrayBuffer[FieldRef] = new mutable.ArrayBuffer()
 
   val interfaces: mutable.ArrayBuffer[String] = new mutable.ArrayBuffer()
 
@@ -30,10 +30,17 @@ class Classx[C](val name: String, val superName: String) {
 
   def genField(baseName: String, ti: TypeInfo[_]): Field = newField(genName("f", baseName), ti)
 
+  def newStaticField(name: String, ti: TypeInfo[_]): StaticField = {
+    val f = new StaticField(this, name, ti)
+    fields += f
+    f
+  }
+
   def newMethod(name: String,
     parameterTypeInfo: IndexedSeq[TypeInfo[_]],
-    returnTypeInfo: TypeInfo[_]): Method = {
-    val method = new Method(this, name, parameterTypeInfo, returnTypeInfo)
+    returnTypeInfo: TypeInfo[_],
+    isStatic: Boolean = false): Method = {
+    val method = new Method(this, name, parameterTypeInfo, returnTypeInfo, isStatic)
     methods += method
     method
   }
@@ -116,6 +123,7 @@ class Classx[C](val name: String, val superName: String) {
     }
      */
 
+    // println(Pretty(this))
     Emit(this,
       print
       // Some(new PrintWriter(System.out))
@@ -134,6 +142,10 @@ abstract class FieldRef {
 }
 
 class Field private[lir] (classx: Classx[_], val name: String, val ti: TypeInfo[_]) extends FieldRef {
+  def owner: String = classx.name
+}
+
+class StaticField private[lir] (classx: Classx[_], val name: String, val ti: TypeInfo[_]) extends FieldRef {
   def owner: String = classx.name
 }
 
@@ -161,9 +173,10 @@ class Method private[lir] (
   val classx: Classx[_],
   val name: String,
   val parameterTypeInfo: IndexedSeq[TypeInfo[_]],
-  val returnTypeInfo: TypeInfo[_]) extends MethodRef {
+  val returnTypeInfo: TypeInfo[_],
+  val isStatic: Boolean) extends MethodRef {
 
-  def nParameters: Int = parameterTypeInfo.length + 1
+  def nParameters: Int = parameterTypeInfo.length + (!isStatic).toInt
 
   def owner: String = classx.name
 
@@ -181,10 +194,10 @@ class Method private[lir] (
 
   def getParam(i: Int): Parameter = {
     new Parameter(this, i,
-      if (i == 0)
+      if (i == 0 && !isStatic)
         new ClassInfo(classx.name)
       else
-        parameterTypeInfo(i - 1))
+        parameterTypeInfo(i - (!isStatic).toInt))
   }
 
   def newLocal(name: String, ti: TypeInfo[_]): Local =
@@ -247,10 +260,10 @@ class Method private[lir] (
     var i = 0
     while (i < nParameters) {
       localsb += (
-        if (i == 0)
+        if (i == 0 && !isStatic)
           new Parameter(this, 0, classx.ti)
         else
-          new Parameter(this, i, parameterTypeInfo(i - 1)))
+          new Parameter(this, i, parameterTypeInfo(i - (!isStatic).toInt)))
       i += 1
     }
 
@@ -646,7 +659,7 @@ class SwitchX() extends ControlX {
       i += 1
     }
   }
-  
+
   def targetArity(): Int = 1 + _Lcases.length
 
   def target(i: Int): Block = {

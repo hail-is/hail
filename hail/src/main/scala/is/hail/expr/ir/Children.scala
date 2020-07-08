@@ -98,7 +98,11 @@ object Children {
     case StreamMerge(l, r, _) =>
       Array(l, r)
     case StreamZip(as, names, body, _) =>
-      as ++ Array(body)
+      as :+ body
+    case StreamZipJoin(as, _) =>
+      as
+    case StreamMultiMerge(as, _) =>
+      as
     case StreamFilter(a, name, cond) =>
       Array(a, cond)
     case StreamFlatMap(a, name, body) =>
@@ -160,6 +164,7 @@ object Children {
     case _: AggStateValue => none
     case _: CombOp => none
     case CombOpValue(_, value, _) => Array(value)
+    case InitFromSerializedValue(_, value, _) => Array(value)
     case SerializeAggs(_, _, _, _) => none
     case DeserializeAggs(_, _, _, _) => none
     case Begin(xs) =>

@@ -25,7 +25,7 @@ object CompileAndEvaluate {
     ir0: IR,
     optimize: Boolean = true
   ): Either[Unit, (PTuple, Long)] = {
-    val ir = LoweringPipeline.relationalLowerer.apply(ctx, ir0, optimize).asInstanceOf[IR]
+    val ir = LoweringPipeline.relationalLowerer(optimize).apply(ctx, ir0).asInstanceOf[IR]
 
     if (ir.typ == TVoid)
       // void is not really supported by IR utilities

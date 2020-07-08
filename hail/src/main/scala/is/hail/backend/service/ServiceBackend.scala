@@ -279,7 +279,7 @@ class ServiceBackend() extends Backend {
         ctx.backendContext = new ServiceBackendContext(username, sessionID, billingProject, bucket)
 
         var x = IRParser.parse_value_ir(ctx, code)
-        x = LoweringPipeline.darrayLowerer(DArrayLowering.All).apply(ctx, x, optimize = true)
+        x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, x)
           .asInstanceOf[IR]
         val (pt, f) = Compile[AsmFunction1RegionLong](ctx,
           FastIndexedSeq[(String, PType)](),

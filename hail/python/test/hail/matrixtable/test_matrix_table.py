@@ -1554,3 +1554,9 @@ class Tests(unittest.TestCase):
         mt = mt.filter_entries(False)
         mt = mt.group_cols_by(x=mt.col_idx // 10).aggregate(c=hl.agg.count())
         assert mt.entries().collect() == [hl.Struct(row_idx=0, x=0, c=0)]
+
+def test_read_write_all_types():
+    mt = create_all_values_matrix_table()
+    tmp_file = new_temp_file()
+    mt.write(tmp_file)
+    assert hl.read_matrix_table(tmp_file)._same(mt)

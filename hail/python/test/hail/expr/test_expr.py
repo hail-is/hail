@@ -1019,6 +1019,15 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(r.multiple_p_value, 0.56671386)
         self.assertAlmostEqual(r.n, 5)
 
+    def test_linreg_no_data(self):
+        ht = hl.utils.range_table(1).filter(False)
+        r = ht.aggregate(hl.agg.linreg(ht.idx, 0))
+        for k, v in r.items():
+            if k == 'n':
+                assert v == 0
+            else:
+                assert v is None, k
+
     def test_aggregator_downsample(self):
         xs = [2, 6, 4, 9, 1, 8, 5, 10, 3, 7]
         ys = [2, 6, 4, 9, 1, 8, 5, 10, 3, 7]

@@ -161,6 +161,12 @@ object Copy {
       case StreamZip(_, names, _, behavior) =>
         assert(newChildren.length == names.length + 1)
         StreamZip(newChildren.init.asInstanceOf[IndexedSeq[IR]], names, newChildren(names.length).asInstanceOf[IR], behavior)
+      case StreamZipJoin(as, key) =>
+        assert(newChildren.length == as.length)
+        StreamZipJoin(newChildren.asInstanceOf[IndexedSeq[IR]], key)
+      case StreamMultiMerge(as, key) =>
+        assert(newChildren.length == as.length)
+        StreamMultiMerge(newChildren.asInstanceOf[IndexedSeq[IR]], key)
       case StreamFilter(_, name, _) =>
         assert(newChildren.length == 2)
         StreamFilter(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
@@ -239,6 +245,9 @@ object Copy {
       case CombOpValue(i, _, aggSig) =>
         assert(newChildren.length == 1)
         CombOpValue(i, newChildren(0).asInstanceOf[IR], aggSig)
+      case InitFromSerializedValue(i, _, aggSig) =>
+        assert(newChildren.length == 1)
+        InitFromSerializedValue(i, newChildren(0).asInstanceOf[IR], aggSig)
       case SerializeAggs(startIdx, serIdx, spec, aggSigs) => SerializeAggs(startIdx, serIdx, spec, aggSigs)
       case DeserializeAggs(startIdx, serIdx, spec, aggSigs) => DeserializeAggs(startIdx, serIdx, spec, aggSigs)
       case Begin(_) =>

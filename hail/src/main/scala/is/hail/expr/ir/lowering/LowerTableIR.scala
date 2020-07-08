@@ -4,7 +4,7 @@ import is.hail.expr.ir._
 import is.hail.types.virtual._
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner}
-import is.hail.types.{RTable, TableType}
+import is.hail.types.{BaseTypeWithRequiredness, RTable, TableType, TypeWithRequiredness}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -831,11 +831,60 @@ object LowerTableIR {
       case TableCollect(child) =>
         lower(child).collectWithGlobals()
 
+      case TableAggregate(child, query) =>
+        val resultUID = genUID()
+        val aggs = agg.Extract(query, resultUID, r, false)
+        val lc = lower(child)
+
+        val initState =  RunAgg(
+          aggs.init,
+          MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
+          aggs.states
+        )
+        val initStateRef = Ref(genUID(), initState.typ)
+        val lcWithInitBinding = lc.copy(
+          letBindings = lc.letBindings ++ FastIndexedSeq((initStateRef.name, initState)),
+          broadcastVals = lc.broadcastVals ++ FastIndexedSeq((initStateRef.name, initStateRef)))
+
+        val initFromSerializedStates = Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
+          InitFromSerializedValue(i, GetTupleElement(initStateRef, i), agg.state )})
+
+        lcWithInitBinding.mapCollectWithGlobals({ part: IR =>
+          Let("global", lc.globals,
+            RunAgg(
+              Begin(FastIndexedSeq(
+                initFromSerializedStates,
+                StreamFor(part,
+                  "row",
+                  aggs.seqPerElt
+                )
+              )),
+              MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
+              aggs.states
+            ))
+        }) { case (collected, globals) =>
+          Let("global",
+            globals,
+            RunAgg(
+              Begin(FastIndexedSeq(
+                initFromSerializedStates,
+                forIR(ToStream(collected)) { state =>
+                  Begin(aggs.aggs.zipWithIndex.map { case (sig, i) => CombOpValue(i, GetTupleElement(state, i), sig) })
+                }
+              )),
+              Let(
+                resultUID,
+                ResultOp(0, aggs.aggs),
+                aggs.postAggIR),
+              aggs.states
+            ))
+        }
+
       case TableToValueApply(child, NPartitionsTable()) =>
         lower(child).getNumPartitions()
 
       case TableWrite(child, writer) =>
-        writer.lower(ctx, lower(child), child, coerce[RTable](Requiredness.apply(child, ctx).lookup(child)))
+        writer.lower(ctx, lower(child), child, coerce[RTable](r.lookup(child)))
 
       case node if node.children.exists(_.isInstanceOf[TableIR]) =>
         throw new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(node) }")

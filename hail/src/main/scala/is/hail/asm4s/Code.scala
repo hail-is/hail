@@ -1133,6 +1133,14 @@ class ThisFieldRef[T: TypeInfo](cb: ClassBuilder[_], f: Field[T]) extends Settab
   def store(rhs: Code[T]): Code[Unit] = f.put(cb._this, rhs)
 }
 
+class StaticFieldRef[T: TypeInfo](f: StaticField[T]) extends Settable[T] {
+  def name: String = f.name
+
+  def get: Code[T] = f.get()
+
+  def store(rhs: Code[T]): Code[Unit] = f.put(rhs)
+}
+
 class LocalRef[T](val l: lir.Local) extends Settable[T] {
   def get: Code[T] = Code(lir.load(l))
 

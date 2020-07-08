@@ -1,16 +1,13 @@
 package is.hail.expr.ir.agg
 
-import is.hail.HailContext
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.asm4s._
 import is.hail.expr.ir
 import is.hail.expr.ir._
-import is.hail.expr.ir.lowering.LoweringPipeline
+import is.hail.io.BufferSpec
 import is.hail.types.TypeWithRequiredness
 import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.io.BufferSpec
-import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -154,19 +151,25 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
   }
 
   def combOpFSerialized(ctx: ExecuteContext, spec: BufferSpec): (Array[Byte], Array[Byte]) => Array[Byte] = {
-    val deserialize = this.deserialize(ctx, spec)
-    val serialize = this.serialize(ctx, spec)
-    val combOp = this.combOpF(ctx, spec)
+    val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
+      states ++ states,
+      FastIndexedSeq(),
+      FastIndexedSeq(classInfo[Region]), UnitInfo,
+      Begin(FastSeq(
+        ir.DeserializeAggs(0, 0, spec, states),
+        ir.DeserializeAggs(nAggs, 1, spec, states),
+        Begin(aggs.zipWithIndex.map { case (sig, i) => CombOp(i, i + nAggs, sig) }),
+        SerializeAggs(0, 0, spec, states)
+      )))
 
-    { (c1: Array[Byte], c2: Array[Byte]) =>
-      Region.smallScoped { r1 =>
-        Region.smallScoped { r2 =>
-          val rv1 = RegionValue(r1, deserialize(r1, c1))
-          val rv2 = RegionValue(r2, deserialize(r2, c2))
-          val resRV = combOp(rv1, rv2)
-          val res = serialize(resRV.region, resRV.offset)
-          res
-        }
+    { (bytes1: Array[Byte], bytes2: Array[Byte]) =>
+      Region.smallScoped { r =>
+        val f2 = f(0, r)
+        f2.newAggState(r)
+        f2.setSerializedAgg(0, bytes1)
+        f2.setSerializedAgg(1, bytes2)
+        f2(r)
+        f2.getSerializedAgg(0)
       }
     }
   }
@@ -208,6 +211,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
       }
 
       leftAggState.store(cb)
+      rightAggState.store(cb)
       leftAggOff
     })
 

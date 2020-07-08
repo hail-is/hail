@@ -25,7 +25,7 @@ package object experimental {
       val root = uniroot(f, lower, upper, tol)
       val rounder = 1d / (precision / 100d)
       var max_af = math.round(root.getOrElse(0.0) * rounder) / rounder
-      while (findMaxAC(max_af, an) < ac) {
+      while (findMaxAC(max_af, an, ci) < ac) {
         max_af += precision
       }
       max_af - precision

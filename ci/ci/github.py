@@ -150,7 +150,7 @@ if [ ! -d .git ]; then
   git config user.email ci@hail.is
   git config user.name ci
 else
-  git reset --merge
+  git reset --hard
   time retry git fetch -q origin
 fi
 """

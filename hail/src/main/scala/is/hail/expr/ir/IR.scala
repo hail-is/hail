@@ -263,6 +263,14 @@ final case class StreamZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: 
   lazy val nameIdx: Map[String, Int] = names.zipWithIndex.toMap
   override def typ: TStream = coerce[TStream](super.typ)
 }
+final case class StreamMultiMerge(as: IndexedSeq[IR], key: IndexedSeq[String]) extends IR {
+  override def typ: TStream = coerce[TStream](super.typ)
+  override def pType: PStream = coerce[PStream](super.pType)
+}
+final case class StreamZipJoin(as: IndexedSeq[IR], key: IndexedSeq[String]) extends IR {
+  override def typ: TStream = coerce[TStream](super.typ)
+  override def pType: PStream = coerce[PStream](super.pType)
+}
 final case class StreamFilter(a: IR, name: String, cond: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
 }
@@ -430,6 +438,7 @@ final case class CombOp(i1: Int, i2: Int, aggSig: PhysicalAggSig) extends IR
 final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[PhysicalAggSig]) extends IR
 final case class CombOpValue(i: Int, value: IR, aggSig: PhysicalAggSig) extends IR
 final case class AggStateValue(i: Int, aggSig: AggStateSig) extends IR
+final case class InitFromSerializedValue(i: Int, value: IR, aggSig: AggStateSig) extends IR
 
 final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSig]) extends IR
 final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSig]) extends IR
@@ -602,7 +611,9 @@ object PartitionWriter {
 object MetadataWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
-      classOf[MetadataNativeWriter],
+      classOf[RVDSpecWriter],
+      classOf[TableSpecWriter],
+      classOf[RelationalWriter],
       classOf[RVDSpecMaker],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec])

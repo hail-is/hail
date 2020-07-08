@@ -290,6 +290,18 @@ object TypeCheck {
         assert(as.length == names.length)
         assert(x.typ.elementType == body.typ)
         assert(as.forall(_.typ.isInstanceOf[TStream]))
+      case x@StreamZipJoin(as, key) =>
+        val streamType = coerce[TStream](as.head.typ)
+        assert(as.forall(_.typ == streamType))
+        val eltType = coerce[TStruct](streamType.elementType)
+        assert(x.typ.elementType == TArray(eltType))
+        assert(key.forall(eltType.hasField))
+      case x@StreamMultiMerge(as, key) =>
+        val streamType = coerce[TStream](as.head.typ)
+        assert(as.forall(_.typ == streamType))
+        val eltType = coerce[TStruct](streamType.elementType)
+        assert(x.typ.elementType == eltType)
+        assert(key.forall(eltType.hasField))
       case x@StreamFilter(a, name, cond) =>
         assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)
         assert(cond.typ == TBoolean)
@@ -355,6 +367,7 @@ object TypeCheck {
       case _: ResultOp =>
       case AggStateValue(i, sig) =>
       case CombOpValue(i, value, sig) => assert(value.typ == TBinary)
+      case InitFromSerializedValue(i, value, sig) => assert(value.typ == TBinary)
       case _: SerializeAggs =>
       case _: DeserializeAggs =>
       case x@Begin(xs) =>

@@ -174,6 +174,9 @@ package object lir {
   def getStaticField(owner: String, name: String, ti: TypeInfo[_]): ValueX =
     new GetFieldX(GETSTATIC, new FieldLit(owner, name, ti))
 
+  def getStaticField(lf: StaticField): ValueX =
+    new GetFieldX(GETSTATIC, lf)
+
   def getField(owner: String, name: String, ti: TypeInfo[_], obj: ValueX): ValueX = {
     val x = new GetFieldX(GETFIELD, new FieldLit(owner, name, ti))
     setChildren(x, obj)
@@ -196,6 +199,12 @@ package object lir {
 
   def putStaticField(owner: String, name: String, ti: TypeInfo[_], v: ValueX): StmtX = {
     val x = new PutFieldX(PUTSTATIC, new FieldLit(owner, name, ti))
+    setChildren(x, v)
+    x
+  }
+
+  def putStaticField(lf: StaticField, v: ValueX): StmtX = {
+    val x = new PutFieldX(PUTSTATIC, lf)
     setChildren(x, v)
     x
   }

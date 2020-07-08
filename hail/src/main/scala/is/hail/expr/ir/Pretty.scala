@@ -174,11 +174,20 @@ object Pretty {
           sb.append(i)
           sb += ' '
           prettyAggStateSignature(sig, depth + 2)
-        case CombOpValue(i, _, sig) =>
+        case InitFromSerializedValue(i, value, aggSig) =>
+          sb += ' '
+          sb.append(i)
+          sb += ' '
+          prettyAggStateSignature(aggSig, depth + 2)
+          sb += ' '
+          pretty(value, depth + 2)
+        case CombOpValue(i, value, sig) =>
           sb += ' '
           sb.append(i)
           sb += ' '
           prettyPhysicalAggSig(sig, depth + 2)
+          sb += ' '
+          pretty(value, depth + 2)
         case SerializeAggs(i, i2, spec, aggSigs) =>
           sb += ' '
           sb.append(i)
@@ -274,6 +283,8 @@ object Pretty {
               case ArrayZipBehavior.ExtendNA => "ExtendNA"
               case ArrayZipBehavior.AssumeSameLength => "AssumeSameLength"
             }) + " " + prettyIdentifiers(names)
+            case StreamZipJoin(_, key) => prettyIdentifiers(key)
+            case StreamMultiMerge(_, key) => prettyIdentifiers(key)
             case StreamFilter(_, name, _) => prettyIdentifier(name)
             case StreamFlatMap(_, name, _) => prettyIdentifier(name)
             case StreamFold(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)

@@ -773,4 +773,32 @@ class TableIRSuite extends HailSuite {
       Row(FastIndexedSeq(Row(0, 120L), Row(1, 112L), Row(2, 98L), Row(3, 80L), Row(4, 60L), Row(5, 40L), Row(6, 22L), Row(7, 8L)), Row())
     )
   }
+
+  @Test def testTableAggregateCollectAndTake(): Unit = {
+    implicit val execStrats = ExecStrategy.allRelational
+    var tir: TableIR = TableRange(10, 3)
+    tir = TableMapRows(tir, InsertFields(Ref("row", tir.typ.rowType), FastSeq("aStr" -> Str("foo"))))
+    val x = TableAggregate(tir,
+      MakeTuple.ordered(FastSeq(
+        ApplyAggOp(Collect())(Ref("row", tir.typ.rowType)),
+        ApplyAggOp(Take(), I32(5))(GetField(Ref("row", tir.typ.rowType), "idx"))
+      )))
+
+    assertEvalsTo(x, Row(
+      (0 until 10).map(i => Row(i, "foo")),
+      0 until 5))
+  }
+
+  @Test def testIssue9016() {
+    val rows = mapIR(ToStream(MakeArray(makestruct("a" -> MakeTuple.ordered(FastSeq(I32(0), I32(1))))))) { row =>
+      If(IsNA(row),
+        NA(TStruct("a" -> TTuple(FastSeq(TupleField(1, TInt32))))),
+        makestruct("a" -> bindIR(GetField(row, "a")) { a =>
+          If(IsNA(a), NA(TTuple(FastSeq(TupleField(1, TInt32)))), MakeTuple(FastSeq(1 -> GetTupleElement(a, 1))))
+        }))
+    }
+    val table = TableParallelize(makestruct("rows" -> ToArray(rows), "global" -> makestruct()), None)
+    assertEvalsTo(TableCollect(table), Row(FastIndexedSeq(Row(Row(1))), Row()))
+
+  }
 }

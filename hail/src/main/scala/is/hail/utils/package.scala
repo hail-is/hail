@@ -597,10 +597,30 @@ package object utils extends Logging
   def optMatch[T, S](a: T)(pf: PartialFunction[T, S]): Option[S] = lift(pf)(a)
 
   def using[R <: AutoCloseable, T](r: R)(consume: (R) => T): T = {
+    var caught = false
     try {
       consume(r)
+    } catch {
+      case original: Exception =>
+        caught = true
+        try {
+          r.close()
+          throw original
+        } catch {
+          case duringClose: Exception =>
+            if (original == duringClose) {
+              log.info(s"""The exact same exception object, ${original}, was thrown by both
+                          |the consumer and the close method. I will throw the original.""".stripMargin)
+              throw original
+            } else {
+              duringClose.addSuppressed(original)
+              throw duringClose
+            }
+        }
     } finally {
-      r.close()
+      if (!caught) {
+        r.close()
+      }
     }
   }
 
