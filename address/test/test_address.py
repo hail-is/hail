@@ -20,4 +20,4 @@ async def test_connect_to_address_on_pod_ip():
         await request_retry_transient_errors(
             session,
             'GET',
-            f'https://{address}:{port}/{deploy_config.base_path("address")}')
+            f'https://{address}:{port}{deploy_config.base_path("address")}/dking/address')
