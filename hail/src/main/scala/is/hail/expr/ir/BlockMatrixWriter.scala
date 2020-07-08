@@ -59,15 +59,15 @@ case class BlockMatrixRectanglesWriter(
 }
 
 abstract class BlockMatrixMultiWriter {
-  def apply(fs: FS, bms: IndexedSeq[BlockMatrix]): Unit
+  def apply(ctx: ExecuteContext, bms: IndexedSeq[BlockMatrix]): Unit
 }
 
 case class BlockMatrixBinaryMultiWriter(
   prefix: String,
   overwrite: Boolean) extends BlockMatrixMultiWriter {
 
-  def apply(fs: FS, bms: IndexedSeq[BlockMatrix]): Unit =
-    BlockMatrix.binaryWriteBlockMatrices(fs, bms, prefix, overwrite)
+  def apply(ctx: ExecuteContext, bms: IndexedSeq[BlockMatrix]): Unit =
+    BlockMatrix.binaryWriteBlockMatrices(ctx.fs, bms, prefix, overwrite)
 }
 
 case class BlockMatrixTextMultiWriter(
@@ -79,8 +79,8 @@ case class BlockMatrixTextMultiWriter(
   compression: Option[String],
   customFilenames: Option[Array[String]]) extends BlockMatrixMultiWriter {
 
-  def apply(fs: FS, bms: IndexedSeq[BlockMatrix]): Unit =
-    BlockMatrix.exportBlockMatrices(fs, bms, prefix, overwrite, delimiter, header, addIndex, compression, customFilenames)
+  def apply(ctx: ExecuteContext, bms: IndexedSeq[BlockMatrix]): Unit =
+    BlockMatrix.exportBlockMatrices(ctx.fs, bms, prefix, overwrite, delimiter, header, addIndex, compression, customFilenames)
 }
 
 case class BlockMatrixNativeMultiWriter(
@@ -88,7 +88,7 @@ case class BlockMatrixNativeMultiWriter(
   overwrite: Boolean,
   forceRowMajor: Boolean) extends BlockMatrixMultiWriter {
 
-  def apply(fs: FS, bms: IndexedSeq[BlockMatrix]): Unit = {
-    BlockMatrix.writeBlockMatrices(fs, bms, prefix, overwrite, forceRowMajor)
+  def apply(ctx: ExecuteContext, bms: IndexedSeq[BlockMatrix]): Unit = {
+    BlockMatrix.writeBlockMatrices(ctx, bms, prefix, overwrite, forceRowMajor)
   }
 }

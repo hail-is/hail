@@ -342,7 +342,7 @@ object BlockMatrix {
   }
 
   def writeBlockMatrices(
-     fs: FS,
+     ctx: ExecuteContext,
      bms: IndexedSeq[BlockMatrix],
      prefix: String,
      overwrite: Boolean,
@@ -350,6 +350,8 @@ object BlockMatrix {
    ): Unit = {
 
     def blockMatrixURI(matrixIdx: Int): String = prefix + "_" + matrixIdx
+    val fs = ctx.fs
+    val tmpdir = ctx.localTmpdir
 
     bms.zipWithIndex.foreach { case (bm, bIdx) =>
       val uri = blockMatrixURI(bIdx)
@@ -397,7 +399,7 @@ object BlockMatrix {
       val trueIt = it(ctx)
       val rootPath = blockMatrixURI(rddIndex)
       val fileName = partFile(numDigits, partIndex, TaskContext.get)
-      val nameAndCountIt = RichContextRDD.writeParts(ctx, rootPath, fileName, null, (_) => null, false, fs, "/tmp/foo", trueIt, writeBlock)
+      val nameAndCountIt = RichContextRDD.writeParts(ctx, rootPath, fileName, null, (_) => null, false, fs, tmpdir, trueIt, writeBlock)
       nameAndCountIt.map { case (name, count) => (name, rddIndex) }
     }
 
