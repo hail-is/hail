@@ -1439,7 +1439,7 @@ def test_join_distinct_preserves_count():
 
 def test_write_table_containing_ndarray():
     t = hl.utils.range_table(5)
-    t = t.annotate(n = hl._nd.arange(t.idx))
+    t = t.annotate(n = hl.nd.arange(t.idx))
     f = new_temp_file(extension='ht')
     t.write(f)
     t2 = hl.read_table(f)
