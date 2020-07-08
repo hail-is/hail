@@ -413,7 +413,9 @@ final class TabixLineIterator(
       val curOff = getVirtualOffset
       if (i < 0 || curOff == 0 || !TbiOrd.less64(curOff, offsets(i)._2)) { // jump to next chunk
 
-        if (i >= 0) assert(curOff == offsets(i)._2)
+        if (i >= 0 && curOff != offsets(i)._2)
+          throw new RuntimeException(s"error reading tabix-indexed file $filePath: " +
+            s"i=$i, curOff=$curOff, expected=${ offsets(i)._2 }")
 
         if (i == offsets.length - 1) {
           isEof = true
