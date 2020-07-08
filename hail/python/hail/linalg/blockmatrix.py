@@ -1437,8 +1437,6 @@ class BlockMatrix(object):
         start_col = start_bcol * self.block_size
         stop_col = (stop_bcol - 1) * self.block_size + (self._last_col_block_width if stop_bcol == self._n_block_cols else self.block_size)
 
-        print(f"{block_row_range}, {block_col_range} -> {(start_row, stop_row)}, {(start_col, stop_col)}")
-
         return self[start_row:stop_row, start_col:stop_col]
 
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type))
