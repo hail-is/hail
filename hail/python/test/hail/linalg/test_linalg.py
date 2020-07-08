@@ -4,6 +4,7 @@ from hail.linalg import BlockMatrix
 from hail.utils import new_temp_file, new_local_temp_dir, local_path_uri, FatalError
 from ..helpers import *
 import numpy as np
+import tempfile
 import math
 from hail.expr.expressions import ExpressionException
 
