@@ -71,9 +71,8 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     this(er.mb, rowType, er.region, null)
   }
 
-  //private val ftype = typ.fundamentalType
   private val stype = typ match {
-    case t: PNDArray => t.representation
+    case t: PNDArray => t.representation.fundamentalType
     case t => t.fundamentalType
   }
 
