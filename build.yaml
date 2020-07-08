@@ -2048,12 +2048,12 @@ steps:
       mountPath: /user-tokens
    dependsOn:
     - batch_pods_ns
-    # - create_deploy_config
+    - create_deploy_config
     - copy_files
     - default_ns
     - service_base_image
-    # - create_certs
-    # - deploy_address
+    - create_certs
+    - deploy_address
  - kind: runImage
    name: test_hail_services_java
    image:
@@ -2086,9 +2086,9 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
-    # - create_certs
+    - create_certs
     - hail_run_image
     - build_hail
-    # - deploy_batch
-    # - deploy_shuffler
-    # - deploy_address
+    - deploy_batch
+    - deploy_shuffler
+    - deploy_address
