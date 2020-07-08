@@ -18,16 +18,19 @@ import org.apache.log4j.Logger
 object ShuffleClient {
   private[this] val log = Logger.getLogger(getClass.getName())
 
-  if (DeployConfig.get.location != "gce") {
-    throw new IllegalArgumentException("Shuffler only works within GCE.")
+  val (host, port) = if (DeployConfig.get.location == "gce") {
+    DeployConfig.get.address("shuffler")
+  } else if (DeployConfig.get.location == "external") {
+    log.info(s"running a local test")
+    ("localhost", 5000)
+  } else {
+    assert(DeployConfig.get.location == "k8s")
+    throw new IllegalArgumentException("Shuffler does not work inside k8s.")
   }
-
-  val (host, port) = DeployConfig.get.address("shuffler")
 
   def socket(): Socket = socket(host, port)
 
   def socket(host: String, port: Int): Socket = {
-    val (host, port) = DeployConfig.get.address("shuffler")
     log.info(s"attempting to connect to ${host}:${port}")
     val s = getSSLContext.getSocketFactory().createSocket(host, port)
     log.info(s"connected to ${host}:${port} (socket())")
@@ -188,8 +191,8 @@ class ShuffleClient (
   def startPut(): Unit = {
     log.info(s"put")
     startOperation(Wire.PUT)
-    encoder = codecs.makeRowEncoder(out)
     out.flush()
+    encoder = codecs.makeRowEncoder(out)
   }
 
   def put(values: Array[Long]): Unit = {

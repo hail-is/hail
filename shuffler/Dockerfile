@@ -8,4 +8,6 @@ RUN apt-get update && \
 
 COPY hail.jar /
 
-EXPOSE 5000
+EXPOSE 443
+ENTRYPOINT ["java"]
+CMD ["-cp", "/spark-2.4.0-bin-hadoop2.7/jars/*:/hail.jar", "is.hail.services.shuffler.server.ShuffleServer"]

@@ -26,5 +26,13 @@ push: build
 
 .PHONY: deploy
 deploy: push
+	! [ -z $(NAMESPACE) ]  # set NAMESPACE
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"shuffler_image":{"image":"$(SHUFFLER_IMAGE)"},"default_ns":{"name":"default"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)","k8s_server_url":"$(KUBERNETES_SERVER_URL)"}}' deployment.yaml deployment.yaml.out
-	kubectl -n dking apply -f deployment.yaml.out
+	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
+
+.PHONY: testlocal
+testlocal: build
+	docker run -p 5000:443 -v $(pwd)/ssl-config-shuffler:/ssl-config -v $(pwd)/deploy-config:/deploy-config shuffler & \
+    PID=$$! && \
+    (cd ../hail && ./gradlew test --tests '*ShuffleSuite*') && \
+    kill -9 $PID
