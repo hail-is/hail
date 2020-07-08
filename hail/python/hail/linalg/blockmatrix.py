@@ -534,7 +534,7 @@ class BlockMatrix(object):
         return self.shape[1]
 
     @property
-    def _n_block_rows(self): 
+    def _n_block_rows(self):
         return (self.n_rows + self.block_size - 1) // self.block_size
 
     @property
@@ -1456,7 +1456,7 @@ class BlockMatrix(object):
 
         if self.n_cols != b.n_rows:
             raise ValueError(f'incompatible shapes for matrix multiplication: {self.shape} and {b.shape}')
-        
+
         return BlockMatrix(BlockMatrixDot(self._bmir, b._bmir))
 
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type), split_on_inner=int, path_prefix=str)
@@ -1489,7 +1489,7 @@ class BlockMatrix(object):
             split_points = list(range(0, self._n_block_cols, inner_brange_size)) + [self._n_block_cols]
             inner_ranges = list(zip(split_points[:-1], split_points[1:]))
             blocks_to_multiply = [(self._select_blocks((0, self._n_block_rows), (start, stop)),
-                                b._select_blocks((start, stop), (0, b._n_block_cols))) for start, stop in inner_ranges]
+                                   b._select_blocks((start, stop), (0, b._n_block_cols))) for start, stop in inner_ranges]
 
             intermediate_multiply_exprs = [b1 @ b2 for b1, b2 in blocks_to_multiply]
 
@@ -1497,7 +1497,7 @@ class BlockMatrix(object):
             read_intermediates = [BlockMatrix.read(f"{path_prefix}_{i}") for i in range(0, len(intermediate_multiply_exprs))]
 
             return sum(read_intermediates)
-        
+
         return BlockMatrix(BlockMatrixDot(self._bmir, b._bmir))
 
     @typecheck_method(x=numeric)

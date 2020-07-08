@@ -179,7 +179,7 @@ class BlockMatrixNativeMultiWriter(BlockMatrixMultiWriter):
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixNativeMultiWriter) and \
-               self.prefix == other.prefix and \
-               self.overwrite == other.overwrite and \
-               self.force_row_major == other.force_row_major and \
-               self.stage_locally == other.stage_locally
+            self.prefix == other.prefix and \
+            self.overwrite == other.overwrite and \
+            self.force_row_major == other.force_row_major and \
+            self.stage_locally == other.stage_locally

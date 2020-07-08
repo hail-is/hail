@@ -114,6 +114,7 @@ __all__ = [
     'BlockMatrixBinaryWriter',
     'BlockMatrixRectanglesWriter',
     'BlockMatrixMultiWriter',
+    'BlockMatrixNativeMultiWriter',
     'BlockMatrixBinaryMultiWriter',
     'BlockMatrixTextMultiWriter',
     'BlockMatrixPersistWriter',
