@@ -23,6 +23,8 @@ object Pretty {
 
   def prettyTypes(x: Seq[Type]): String = x.map(typ => typ.parsableString()).mkString("(", " ", ")")
 
+  def prettySortFields(x: Seq[SortField]): String = x.map(typ => typ.parsableString()).mkString("(", " ", ")")
+
   def prettyBooleanLiteral(b: Boolean): String =
     if (b) "True" else "False"
 
@@ -396,8 +398,7 @@ object Pretty {
             case TableExplode(_, path) => prettyStrings(path)
             case TableParallelize(_, nPartitions) =>
                 prettyIntOpt(nPartitions)
-            case TableOrderBy(_, sortFields) => prettyIdentifiers(sortFields.map(sf =>
-              (if (sf.sortOrder == Ascending) "A" else "D") + sf.field))
+            case TableOrderBy(_, sortFields) => prettySortFields(sortFields)
             case CastMatrixToTable(_, entriesFieldName, colsFieldName) =>
               s"${ prettyStringLiteral(entriesFieldName) } ${ prettyStringLiteral(colsFieldName) }"
             case CastTableToMatrix(_, entriesFieldName, colsFieldName, colKey) =>
