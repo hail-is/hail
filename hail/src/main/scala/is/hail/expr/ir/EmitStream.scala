@@ -1870,7 +1870,8 @@ object EmitStream {
                 val endt = intervalPhysicalType.loadEnd(keyRange)
                 val endInclusivet = intervalPhysicalType.includesEnd(keyRange)
 
-                val shuffle = CodeShuffleClient.create(mb.ecb, shuffleType, uuid.loadBytes())
+                val shuffleLocal = mb.newLocal[ShuffleClient]("shuffleClient")
+                val shuffle = new ValueShuffleClient(shuffleLocal)
 
                 val stream = unfold[EmitCode](
                   { (_, k) =>
@@ -1880,8 +1881,13 @@ object EmitStream {
                         EmitCode.present(
                           shuffleType.rowDecodedPType, shuffle.getValue(region))))
                   },
-                  setup = Some(
-                    shuffle.startGet(startt, startInclusivet, endt, endInclusivet)),
+                  setup = Some(Code(
+                    shuffleLocal := CodeShuffleClient.create(
+                      mb.ecb.getType(shuffleType),
+                      uuid.loadBytes(),
+                      Code._null,
+                      mb.ecb.getPType(keyPType)),
+                    shuffle.startGet(startt, startInclusivet, endt, endInclusivet))),
                   close = Some(Code(
                     shuffle.getDone(),
                     shuffle.close())))
@@ -1902,7 +1908,8 @@ object EmitStream {
               val code = new ArrayBuilder[Code[Unit]]()
               val uuidLocal = mb.newLocal[Long]("shuffleUUID")
               val uuid = new PCanonicalShuffleSettable(idt.pt.asInstanceOf[PCanonicalShuffle], uuidLocal)
-              val shuffle = CodeShuffleClient.create(mb.ecb, shuffleType, uuid.loadBytes())
+              val shuffleLocal = mb.newLocal[ShuffleClient]("shuffleClient")
+              val shuffle = new ValueShuffleClient(shuffleLocal)
               val stream = unfold[EmitCode](
                 { (_, k) =>
                   k(
@@ -1913,6 +1920,7 @@ object EmitStream {
                 },
                 setup = Some(Code(
                   uuidLocal := idt.tcode[Long],
+                  shuffleLocal := CodeShuffleClient.create(mb.ecb.getType(shuffleType), uuid.loadBytes()),
                   shuffle.startPartitionBounds(nPartitionst.codeTuple()(0).asInstanceOf[Code[Int]]))),
                 close = Some(Code(
                   shuffle.endPartitionBounds(),

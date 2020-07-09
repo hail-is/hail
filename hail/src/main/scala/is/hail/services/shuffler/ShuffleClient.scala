@@ -4,10 +4,12 @@ import java.net.Socket
 
 import is.hail._
 import is.hail.annotations._
-import is.hail.services.tls._
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.types.virtual._
+import is.hail.types.physical._
+import is.hail.services._
+import is.hail.services.tls._
 import is.hail.io._
 import is.hail.utils._
 import javax.net.ssl._
@@ -42,17 +44,40 @@ object ShuffleClient {
 }
 
 object CodeShuffleClient {
-  def create(ecb: EmitClassBuilder[_], shuffleType: TShuffle): ValueShuffleClient =
+  def createValue(cb: CodeBuilderLike, shuffleType: Code[TShuffle]): ValueShuffleClient =
     new ValueShuffleClient(
-      ecb.genLazyFieldThisRef[ShuffleClient](
-        Code.newInstance[ShuffleClient, TShuffle](ecb.getType(shuffleType)),
-        "shuffleClient"))
+      cb.newField[ShuffleClient]("shuffleClient", create(shuffleType)))
 
-  def create(ecb: EmitClassBuilder[_], shuffleType: TShuffle, uuid: Code[Array[Byte]]): ValueShuffleClient =
+  def createValue(cb: CodeBuilderLike, shuffleType: Code[TShuffle], uuid: Code[Array[Byte]]): ValueShuffleClient =
     new ValueShuffleClient(
-      ecb.genLazyFieldThisRef[ShuffleClient](
-        Code.newInstance[ShuffleClient, TShuffle, Array[Byte]](ecb.getType(shuffleType), uuid),
-        "shuffleClient"))
+      cb.newField[ShuffleClient]("shuffleClient", create(shuffleType, uuid)))
+
+  def createValue(
+    cb: CodeBuilderLike,
+    shuffleType: Code[TShuffle],
+    uuid: Code[Array[Byte]],
+    rowEncodingPType: Code[PType],
+    keyEncodingPType: Code[PType]
+  ): ValueShuffleClient =
+    new ValueShuffleClient(
+      cb.newField[ShuffleClient](
+        "shuffleClient",
+        create(shuffleType, uuid, rowEncodingPType, keyEncodingPType)))
+
+  def create(shuffleType: Code[TShuffle]): Code[ShuffleClient] =
+    Code.newInstance[ShuffleClient, TShuffle](shuffleType)
+
+  def create(shuffleType: Code[TShuffle], uuid: Code[Array[Byte]]): Code[ShuffleClient] =
+    Code.newInstance[ShuffleClient, TShuffle, Array[Byte]](shuffleType, uuid)
+
+  def create(
+    shuffleType: Code[TShuffle],
+    uuid: Code[Array[Byte]],
+    rowEncodingPType: Code[PType],
+    keyEncodingPType: Code[PType]
+  ): Code[ShuffleClient] =
+    Code.newInstance[ShuffleClient, TShuffle, Array[Byte], PType, PType](
+      shuffleType, uuid, rowEncodingPType, keyEncodingPType)
 }
 
 class ValueShuffleClient(
@@ -73,7 +98,8 @@ class ValueShuffleClient(
   def endPut(): Code[Unit] =
     code.invoke[Unit]("endPut")
 
-  def uuid: Code[Array[Byte]] = code.getField[Array[Byte]]("uuid")
+  def uuid: Code[Array[Byte]] =
+    code.invoke[Array[Byte]]("uuid")
 
   def startGet(
     start: Code[Long],
@@ -114,20 +140,32 @@ class ValueShuffleClient(
 
 class ShuffleClient (
   shuffleType: TShuffle,
-  var uuid: Array[Byte]
+  var uuid: Array[Byte],
+  rowEncodingPType: Option[PType],
+  keyEncodingPType: Option[PType]
 ) extends AutoCloseable {
   private[this] val log = Logger.getLogger(getClass.getName())
   private[this] val ctx = new ExecuteContext("/tmp", "file:///tmp", null, null, Region(), new ExecutionTimer())
 
-  def this(shuffleType: TShuffle) = this(shuffleType, null)
+  def this(shuffleType: TShuffle) = this(shuffleType, null, None, None)
 
-  val codecs = new ShuffleCodecSpec(ctx, shuffleType)
+  def this(shuffleType: TShuffle, rowEncodingPType: PType, keyEncodingPType: PType) =
+    this(shuffleType, null, Option(rowEncodingPType), Option(keyEncodingPType))
+
+  def this(shuffleType: TShuffle, uuid: Array[Byte], rowEncodingPType: PType, keyEncodingPType: PType) =
+    this(shuffleType, uuid, Option(rowEncodingPType), Option(keyEncodingPType))
+
+  def this(shuffleType: TShuffle, uuid: Array[Byte]) =
+    this(shuffleType, uuid, None, None)
+
+  val codecs = new ShuffleCodecSpec(ctx, shuffleType, rowEncodingPType, keyEncodingPType)
 
   private[this] val s = ShuffleClient.socket()
   private[this] val in = shuffleBufferSpec.buildInputBuffer(s.getInputStream())
   private[this] val out = shuffleBufferSpec.buildOutputBuffer(s.getOutputStream())
 
-  private[this] def startOperation(op: Byte): Unit = {
+  private[this] def startOperation(op: Byte) = {
+    assert(op != Wire.EOS)
     out.writeByte(op)
     if (op != Wire.START) {
       assert(uuid != null)
@@ -137,11 +175,12 @@ class ShuffleClient (
   }
 
   def start(): Unit = {
-    log.info(s"start")
     startOperation(Wire.START)
+    log.info(s"start")
     Wire.writeTStruct(out, shuffleType.rowType)
     Wire.writeEBaseStruct(out, shuffleType.rowEType)
     Wire.writeSortFieldArray(out, shuffleType.keyFields)
+    log.info(s"using ${shuffleType.keyEType}")
     Wire.writeEBaseStruct(out, shuffleType.keyEType)
     out.flush()
     uuid = Wire.readByteArray(in)
@@ -175,7 +214,7 @@ class ShuffleClient (
 
   def endPut(): Unit = {
     // fixme: server needs to send uuid for the successful partition
-    out.flush()
+    encoder.flush()
     assert(in.readByte() == 0.toByte)
     log.info(s"put done")
   }
@@ -188,12 +227,11 @@ class ShuffleClient (
     end: Long,
     endInclusive: Boolean
   ): Unit = {
-    log.info(s"get ${Region.pretty(codecs.keyDecodedPType, start)} ${startInclusive} " +
-      s"${Region.pretty(codecs.keyDecodedPType, end)} ${endInclusive}")
+    log.info(s"get ${Region.pretty(codecs.keyEncodingPType, start)} ${startInclusive} " +
+      s"${Region.pretty(codecs.keyEncodingPType, end)} ${endInclusive}")
     val keyEncoder = codecs.makeKeyEncoder(out)
     decoder = codecs.makeRowDecoder(in)
     startOperation(Wire.GET)
-    out.flush()
     keyEncoder.writeRegionValue(start)
     keyEncoder.writeByte(if (startInclusive) 1.toByte else 0.toByte)
     keyEncoder.writeRegionValue(end)
@@ -260,25 +298,17 @@ class ShuffleClient (
   }
 
   def stop(): Unit = {
-    log.info(s"stop")
-    out.writeByte(Wire.STOP)
-    Wire.writeByteArray(out, uuid)
+    startOperation(Wire.STOP)
     out.flush()
+    log.info(s"stop")
     assert(in.readByte() == 0.toByte)
     log.info(s"stop done")
   }
 
   def close(): Unit = {
-    try {
-      try {
-        out.writeByte(Wire.EOS)
-        out.flush()
-        assert(in.readByte() == Wire.EOS)
-      } finally {
-        s.close()
-      }
-    } finally {
-      ctx.close()
-    }
+    out.writeByte(Wire.EOS)
+    out.flush()
+    assert(in.readByte() == Wire.EOS)
+    using(s) { _ => using(ctx) { _ => () } }  // close both with proper exception suppression notices
   }
 }
