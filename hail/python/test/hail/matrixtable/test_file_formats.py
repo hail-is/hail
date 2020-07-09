@@ -40,6 +40,17 @@ class Tests(unittest.TestCase):
     def test_backward_compatability(self):
         import os
 
+        def backward_compatible_same(current, old):
+            if isinstance(current, hl.Table):
+                current = current.select_globals(*old.globals)
+                current = current.select(*old.row_value)
+            else:
+                current = current.select_globals(*old.globals)
+                current = current.select_rows(*old.row_value)
+                current = current.select_cols(*old.col_value)
+                current = current.select_entries(*old.entry)
+            return current._same(old)
+
         all_values_table, all_values_matrix_table = create_all_values_datasets()
 
         resource_dir = resource('backward_compatability')
@@ -52,7 +63,7 @@ class Tests(unittest.TestCase):
             f = os.path.join(table_dir, '{}.ht'.format(i))
             while os.path.exists(f):
                 ds = hl.read_table(f)
-                assert ds._same(all_values_table)
+                assert backward_compatible_same(all_values_table, ds)
                 i += 1
                 f = os.path.join(table_dir, '{}.ht'.format(i))
                 n += 1
@@ -62,7 +73,7 @@ class Tests(unittest.TestCase):
             f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
             while os.path.exists(f):
                 ds = hl.read_matrix_table(f)
-                assert ds._same(all_values_matrix_table)
+                assert backward_compatible_same(all_values_matrix_table, ds)
                 i += 1
                 f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
                 n += 1

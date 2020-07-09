@@ -15,5 +15,6 @@ AUTHORIZED_USERS = {
     'johnc1231',
     'nawatts',
     'mkveerapen',
-    'annamiraotoole'
+    'annamiraotoole',
+    'Dania-Abuhijleh'
 }

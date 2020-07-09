@@ -33,6 +33,21 @@ class Field[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
   }
 }
 
+class StaticField[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
+  val ti: TypeInfo[T] = implicitly
+
+  val lf: lir.StaticField = classBuilder.lclass.newStaticField(name, typeInfo[T])
+
+  def get(): Code[T] = Code(lir.getStaticField(lf))
+
+  def put(v: Code[T]): Code[Unit] = {
+    v.end.append(lir.putStaticField(lf, v.v))
+    val newC = new VCode(v.start, v.end, null)
+    v.clear()
+    newC
+  }
+}
+
 class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializable {
   @transient @volatile var loaded: Boolean = false
 
@@ -79,7 +94,8 @@ class ModuleBuilder() {
 
   def newClass[C](name: String)(implicit cti: TypeInfo[C]): ClassBuilder[C] = {
     val c = new ClassBuilder[C](this, name)
-    c.addInterface(cti.iname)
+    if (cti != UnitInfo)
+      c.addInterface(cti.iname)
     classes += c
     c
   }
@@ -133,7 +149,13 @@ trait WrappedClassBuilder[C] extends WrappedModuleBuilder {
 
   def emitInit(c: Code[Unit]): Unit = cb.emitInit(c)
 
+  def emitClinit(c: Code[Unit]): Unit = cb.emitClinit(c)
+
   def newField[T: TypeInfo](name: String): Field[T] = cb.newField[T](name)
+
+  def newStaticField[T: TypeInfo](name: String): StaticField[T] = cb.newStaticField[T](name)
+
+  def newStaticField[T: TypeInfo](name: String, init: Code[T]): StaticField[T] = cb.newStaticField[T](name, init)
 
   def genField[T: TypeInfo](baseName: String): Field[T] = cb.genField(baseName)
 
@@ -152,6 +174,9 @@ trait WrappedClassBuilder[C] extends WrappedModuleBuilder {
     maybeGenericParameterTypeInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
     maybeGenericReturnTypeInfo: MaybeGenericTypeInfo[_]): MethodBuilder[C] =
     cb.newMethod(name, maybeGenericParameterTypeInfo, maybeGenericReturnTypeInfo)
+
+  def newStaticMethod(name: String, parameterTypeInfo: IndexedSeq[TypeInfo[_]], returnTypeInfo: TypeInfo[_]): MethodBuilder[C] =
+    cb.newStaticMethod(name, parameterTypeInfo, returnTypeInfo)
 
   def getOrGenMethod(
     baseName: String, key: Any, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]
@@ -176,6 +201,9 @@ trait WrappedClassBuilder[C] extends WrappedModuleBuilder {
   def genMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, R: TypeInfo](baseName: String): MethodBuilder[C] = cb.genMethod[A1, A2, A3, A4, R](baseName)
 
   def genMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, A5: TypeInfo, R: TypeInfo](baseName: String): MethodBuilder[C] = cb.genMethod[A1, A2, A3, A4, A5, R](baseName)
+
+  def genStaticMethod(name: String, parameterTypeInfo: IndexedSeq[TypeInfo[_]], returnTypeInfo: TypeInfo[_]): MethodBuilder[C] =
+    cb.genStaticMethod(name, parameterTypeInfo, returnTypeInfo)
 }
 
 class ClassBuilder[C](
@@ -207,8 +235,22 @@ class ClassBuilder[C](
     new VCode(L, L, null)
   }
 
+  private var lClinit: lir.Method = _
+
+  var clinitBody: Option[Code[Unit]] = None
+
   def emitInit(c: Code[Unit]): Unit = {
     initBody = Code(initBody, c)
+  }
+
+  def emitClinit(c: Code[Unit]): Unit = {
+    clinitBody match {
+      case None =>
+        lClinit = lclass.newMethod("<clinit>", FastIndexedSeq(), UnitInfo, isStatic = true)
+        clinitBody = Some(c)
+      case Some(body) =>
+        clinitBody = Some(Code(body, c))
+    }
   }
 
   def addInterface(name: String): Unit = lclass.addInterface(name)
@@ -237,6 +279,12 @@ class ClassBuilder[C](
     m
   }
 
+  def newStaticMethod(name: String, parameterTypeInfo: IndexedSeq[TypeInfo[_]], returnTypeInfo: TypeInfo[_]): MethodBuilder[C] = {
+    val mb = new MethodBuilder[C](this, name, parameterTypeInfo, returnTypeInfo, isStatic = true)
+    methods.append(mb)
+    mb
+  }
+
   def genDependentFunction[A1 : TypeInfo, R : TypeInfo](baseName: String): DependentFunctionBuilder[AsmFunction1[A1, R]] = {
     val depCB = modb.genClass[AsmFunction1[A1, R]](baseName)
     val apply = depCB.newMethod("apply", Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
@@ -245,6 +293,14 @@ class ClassBuilder[C](
   }
 
   def newField[T: TypeInfo](name: String): Field[T] = new Field[T](this, name)
+
+  def newStaticField[T: TypeInfo](name: String): StaticField[T] = new StaticField[T](this, name)
+
+  def newStaticField[T: TypeInfo](name: String, init: Code[T]): StaticField[T] = {
+    val f = new StaticField[T](this, name)
+    emitClinit(f.put(init))
+    f
+  }
 
   def genField[T: TypeInfo](baseName: String): Field[T] = newField(genName("f", baseName))
 
@@ -265,6 +321,16 @@ class ClassBuilder[C](
   def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
     assert(initBody.start != null)
     lInit.setEntry(initBody.start)
+
+    clinitBody match {
+      case None => // do nothing
+      case Some(body) =>
+        assert(body.start != null)
+        body.end.append(lir.returnx())
+        val nbody = new VCode(body.start, body.end, null)
+        body.clear()
+        lClinit.setEntry(nbody.start)
+    }
 
     lclass.asBytes(print)
   }
@@ -330,6 +396,9 @@ class ClassBuilder[C](
 
   def genMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, A5: TypeInfo, R: TypeInfo](baseName: String): MethodBuilder[C] =
     genMethod(baseName, FastIndexedSeq[TypeInfo[_]](typeInfo[A1], typeInfo[A2], typeInfo[A3], typeInfo[A4], typeInfo[A5]), typeInfo[R])
+
+  def genStaticMethod(baseName: String, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder[C] =
+    newStaticMethod(genName("sm", baseName), argsInfo, returnInfo)
 }
 
 object FunctionBuilder {
@@ -394,14 +463,15 @@ trait WrappedMethodBuilder[C] extends WrappedClassBuilder[C] {
 class MethodBuilder[C](
   val cb: ClassBuilder[C], _mname: String,
   val parameterTypeInfo: IndexedSeq[TypeInfo[_]],
-  val returnTypeInfo: TypeInfo[_]
+  val returnTypeInfo: TypeInfo[_],
+  val isStatic: Boolean = false
 ) extends WrappedClassBuilder[C] {
   val methodName: String = _mname.substring(0, scala.math.min(_mname.length, 65535))
 
   if (methodName != "<init>" && !isJavaIdentifier(methodName))
     throw new IllegalArgumentException(s"Illegal method name, not Java identifier: $methodName")
 
-  val lmethod: lir.Method = cb.lclass.newMethod(methodName, parameterTypeInfo, returnTypeInfo)
+  val lmethod: lir.Method = cb.lclass.newMethod(methodName, parameterTypeInfo, returnTypeInfo, isStatic)
 
   val localBuilder: SettableBuilder = new SettableBuilder {
     def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] = newLocal[T](name)
@@ -412,10 +482,13 @@ class MethodBuilder[C](
 
   def getArg[T: TypeInfo](i: Int): LocalRef[T] = {
     val ti = implicitly[TypeInfo[T]]
-    if (i == 0)
+
+    if (i == 0 && !isStatic)
       assert(ti == cb.ti, s"$ti != ${ cb.ti }")
-    else
-      assert(ti == parameterTypeInfo(i - 1), s"$ti != ${ parameterTypeInfo(i - 1) }")
+    else {
+      val static = (!isStatic).toInt
+      assert(ti == parameterTypeInfo(i - static), s"$ti != ${ parameterTypeInfo(i - static) }")
+    }
     new LocalRef(lmethod.getParam(i))
   }
 
@@ -450,14 +523,22 @@ class MethodBuilder[C](
   def invoke[T](args: Code[_]*): Code[T] = {
     val (start, end, argvs) = Code.sequenceValues(args.toFastIndexedSeq)
     if (returnTypeInfo eq UnitInfo) {
-      end.append(
-        lir.methodStmt(INVOKEVIRTUAL, lmethod,
-          lir.load(new lir.Parameter(null, 0, cb.ti)) +: argvs))
+      if (isStatic) {
+        end.append(lir.methodStmt(INVOKESTATIC, lmethod, argvs))
+      } else {
+        end.append(
+          lir.methodStmt(INVOKEVIRTUAL, lmethod,
+            lir.load(new lir.Parameter(null, 0, cb.ti)) +: argvs))
+      }
       new VCode(start, end, null)
     } else {
-      new VCode(start, end,
+      val value = if (isStatic) {
+        lir.methodInsn(INVOKESTATIC, lmethod, argvs)
+      } else {
         lir.methodInsn(INVOKEVIRTUAL, lmethod,
-          lir.load(new lir.Parameter(null, 0, cb.ti)) +: argvs))
+          lir.load(new lir.Parameter(null, 0, cb.ti)) +: argvs)
+      }
+      new VCode(start, end, value)
     }
   }
 }

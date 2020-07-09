@@ -22,6 +22,16 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.49
+
+Released 2020-07-08
+
+### Bug fixes
+
+- (hail#9058) Fixed memory leak affecting `Table.aggregate`, `MatrixTable.annotate_cols` aggregations, and `hl.sample_qc`.
+
+---
+
 ## Version 0.2.48
 
 Released 2020-07-07

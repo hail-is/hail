@@ -1,16 +1,13 @@
 package is.hail.expr.ir.agg
 
-import is.hail.HailContext
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.asm4s._
 import is.hail.expr.ir
 import is.hail.expr.ir._
-import is.hail.expr.ir.lowering.LoweringPipeline
+import is.hail.io.BufferSpec
 import is.hail.types.TypeWithRequiredness
 import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.io.BufferSpec
-import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -214,6 +211,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
       }
 
       leftAggState.store(cb)
+      rightAggState.store(cb)
       leftAggOff
     })
 

@@ -9,7 +9,7 @@ from hail.expr.expressions import Expression, StructExpression, \
     construct_reference, to_expr, construct_expr, extract_refs_by_indices, \
     ExpressionException, TupleExpression, unify_all, NumericExpression, \
     StringExpression, CallExpression, CollectionExpression, DictExpression, \
-    IntervalExpression, LocusExpression
+    IntervalExpression, LocusExpression, NDArrayExpression
 from hail.expr.types import hail_type, tstruct, types_match, tarray, tset
 from hail.expr.table_type import ttable
 import hail.ir as ir
@@ -2589,6 +2589,8 @@ class Table(ExprContainer):
             elif isinstance(e, CallExpression):
                 return hl.struct(alleles=hl.map(lambda i: e[i], hl.range(0, e.ploidy)),
                                  phased=e.phased)
+            elif isinstance(e, NDArrayExpression):
+                return hl.struct(shape=e.shape, data=_expand(e._data_array()))
             else:
                 assert isinstance(e, (NumericExpression, BooleanExpression, StringExpression))
                 return e
