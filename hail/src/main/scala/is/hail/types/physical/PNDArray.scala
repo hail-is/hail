@@ -54,7 +54,11 @@ abstract class PNDArray extends PType {
 abstract class PNDArrayValue extends PValue {
   def apply(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Value[_]
 
+  override def pt: PNDArray = ???
+
   def outOfBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Boolean]
+
+  def sameShape(other: PNDArrayValue, mb: EmitMethodBuilder[_]): Code[Boolean]
 }
 
 abstract class PNDArrayCode extends PCode {

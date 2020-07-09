@@ -231,7 +231,7 @@ object PCanonicalNDArraySettable {
   }
 }
 
-class PCanonicalNDArraySettable(val pt: PCanonicalNDArray, val a: Settable[Long]) extends PNDArrayValue with PSettable {
+class PCanonicalNDArraySettable(override val pt: PCanonicalNDArray, val a: Settable[Long]) extends PNDArrayValue with PSettable {
   //FIXME: Rewrite apply to not require a methodBuilder, meaning also rewrite loadElementToIRIntermediate
   def apply(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Value[_] = {
     assert(indices.size == pt.nDims)
@@ -248,6 +248,13 @@ class PCanonicalNDArraySettable(val pt: PCanonicalNDArray, val a: Settable[Long]
 
   override def outOfBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Boolean] = {
     pt.outOfBounds(indices, a, mb)
+  }
+
+  override def sameShape(other: PNDArrayValue, mb: EmitMethodBuilder[_]): Code[Boolean] = {
+    val comparator = this.pt.shape.pType.codeOrdering(mb, other.pt)
+    val thisShape = this.pt.shape.load(this.a).asInstanceOf[Code[comparator.T]]
+    val otherShape = other.pt.shape.load(other.value.asInstanceOf[Value[Long]]).asInstanceOf[Code[comparator.T]]
+    comparator.equiv((true, thisShape), (true, otherShape), false)
   }
 }
 
