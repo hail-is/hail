@@ -273,15 +273,16 @@ object BlockMatrix {
   }
 
   def exportBlockMatrices(
-                           fs: FS,
-                           bms: IndexedSeq[BlockMatrix],
-                           prefix: String,
-                           overwrite: Boolean,
-                           delimiter: String,
-                           header: Option[String],
-                           addIndex: Boolean,
-                           compression: Option[String],
-                           customFilenames: Option[Array[String]]): Unit = {
+    fs: FS,
+    bms: IndexedSeq[BlockMatrix],
+    prefix: String,
+    overwrite: Boolean,
+    delimiter: String,
+    header: Option[String],
+    addIndex: Boolean,
+    compression: Option[String],
+    customFilenames: Option[Array[String]]
+  ): Unit = {
 
     if (overwrite)
       fs.delete(prefix, recursive = true)
