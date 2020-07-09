@@ -229,7 +229,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addTableBinding(child)
       case x@ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
         if (refMap.contains(name)) {
-          refMap(name).foreach { u => defs.bind(u, Array(req)) }
+          refMap(name).foreach { u => defs.bind(u, Array(BaseTypeWithRequiredness(x.shuffleType))) }
         }
       case _ => fatal(Pretty(node))
     }
