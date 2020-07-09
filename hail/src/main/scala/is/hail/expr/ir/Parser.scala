@@ -519,20 +519,13 @@ object IRParser {
     typ
   }
 
-  def sort_fields(it: TokenIterator): Array[SortField] = {
-    punctuation(it, "(")
-    val sortFields = repsepUntil(it, sort_field, PunctuationToken(" "), PunctuationToken(")"))
-    punctuation(it, ")")
-    sortFields
-  }
+  def sort_fields(it: TokenIterator): Array[SortField] =
+    base_seq_parser(sort_field)(it)
 
   def sort_field(it: TokenIterator): SortField = {
-    assert("SortField" == identifier(it))
-    punctuation(it, "(")
-    val field = string_literal(it)
-    punctuation(it, ",")
-    val sortOrder = SortOrder.parse(string_literal(it))
-    punctuation(it, ")")
+    val sortField = identifier(it)
+    val field = sortField.substring(1)
+    val sortOrder = SortOrder.parse(sortField.substring(0, 1))
     SortField(field, sortOrder)
   }
 
@@ -1789,7 +1782,7 @@ object IRParser {
 
   def parseType(code: String): Type = parseType(code, TypeParserEnvironment.default)
 
-  def parseSortField(code: String): SortField = parseSortField(code)
+  def parseSortField(code: String): SortField = parse(code, sort_field)
 
   def parsePType(code: String): PType = parsePType(code, TypeParserEnvironment.default)
 
