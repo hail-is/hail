@@ -42,6 +42,8 @@ class RegionValueBuilder(var region: Region) {
           offsetstk.top + t.byteOffsets(i)
         case t: PArray =>
           elementsOffsetstk.top + i * t.elementByteSize
+        case t: PNDArray =>
+          t.representation.fieldOffset(offsetstk.top, i)
       }
     }
   }
@@ -56,6 +58,9 @@ class RegionValueBuilder(var region: Region) {
           t.types(i)
         case t: PArray =>
           t.elementType
+        case t: PNDArray =>
+          val i = indexstk.top
+          t.representation.types(i)
       }
     }
   }
@@ -193,8 +198,7 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def startNDArray(init: Boolean = true, setMissing: Boolean = false) {
-    val tempT = currentType()
-    val t = tempT.asInstanceOf[PNDArray].representation.asInstanceOf[PBaseStruct]
+    val t = currentType().asInstanceOf[PNDArray]
     if (typestk.isEmpty)
       allocateRoot()
 
@@ -204,15 +208,15 @@ class RegionValueBuilder(var region: Region) {
     indexstk.push(0)
 
     if (init)
-      t.initialize(off, setMissing)
+      t.representation.initialize(off, setMissing)
   }
 
   def endNDArray() {
-    val t = typestk.top.asInstanceOf[PBaseStruct]
+    val t = typestk.top.asInstanceOf[PNDArray]
     typestk.pop()
     offsetstk.pop()
     val last = indexstk.pop()
-    assert(last == t.size)
+    assert(last == t.representation.size)
 
     advance()
   }
@@ -238,6 +242,10 @@ class RegionValueBuilder(var region: Region) {
         if (t.elementType.required)
           fatal(s"cannot set missing field for required type ${ t.elementType }")
         t.setElementMissing(offsetstk.top, i)
+      case t: PNDArray =>
+        if (t.representation.fieldRequired(i))
+          fatal(s"cannot set missing field for required type ${ t.representation.types(i) }")
+        t.representation.setFieldMissing(offsetstk.top, i)
     }
     advance()
   }
@@ -249,6 +257,8 @@ class RegionValueBuilder(var region: Region) {
         t.setFieldPresent(offsetstk.top, i)
       case t: PArray =>
         t.setElementPresent(offsetstk.top, i)
+      case t: PNDArray =>
+        t.representation.setFieldPresent(offsetstk.top, i)
     }
   }
 
