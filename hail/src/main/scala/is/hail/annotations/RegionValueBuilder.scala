@@ -535,13 +535,7 @@ class RegionValueBuilder(var region: Region) {
           addBoolean(i.includesEnd)
           endStruct()
         case t: TNDArray => {
-          val cur = currentType().asInstanceOf[PNDArray]
-          a match {
-            case ur: UnsafeRow if cur.representation == ur.t =>
-              addUnsafeRow(cur, ur)
-            case r: Row =>
-              addRow(t, r)
-          }
+          addRow(t, a.asInstanceOf[Row])
         }
       }
   }
