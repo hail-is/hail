@@ -1,8 +1,7 @@
 package is.hail.annotations
 
-import is.hail.expr.ir._
 import is.hail.asm4s
-import is.hail.asm4s._
+import is.hail.asm4s.{Code, coerce}
 import is.hail.types.physical._
 import is.hail.utils._
 
@@ -301,13 +300,6 @@ object Region {
     visit(t, off, v)
     v.result()
   }
-
-  def pretty(ecb: EmitClassBuilder[_], pType: PType, off: Code[Long]): Code[String] =
-    Code.invokeScalaObject2[PType, Long, String](
-      Region.getClass,
-      "pretty",
-      ecb.getPType(pType),
-      off)
 
   def visit(t: PType, off: Long, v: ValueVisitor) {
     t match {
