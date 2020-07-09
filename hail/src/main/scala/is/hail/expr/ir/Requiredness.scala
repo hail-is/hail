@@ -96,14 +96,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
 
   def addBindingRelations(node: BaseIR): Unit = {
     val refMap = usesAndDefs.uses(node).toArray.groupBy(_.t.name).mapValues(_.asInstanceOf[Array[RefEquality[BaseIR]]])
-    def addDeflessBinding(name: String, d: IR, req: BaseTypeWithRequiredness): Unit = {
-      if (refMap.contains(name)) {
-        val uses = refMap(name)
-        uses.foreach { u => defs.bind(u, Array(req)) }
-        dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses
-      }
-    }
-
     def addElementBinding(name: String, d: IR, makeOptional: Boolean = false): Unit = {
       if (refMap.contains(name)) {
         val uses = refMap(name)
@@ -236,7 +228,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case TableAggregateByKey(child, expr) =>
         addTableBinding(child)
       case x@ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
-        addDeflessBinding(name, x, BaseTypeWithRequiredness(x.shuffleType))
+        if (refMap.contains(name)) {
+          refMap(name).foreach { u => defs.bind(u, Array(req)) }
+        }
       case _ => fatal(Pretty(node))
     }
   }
