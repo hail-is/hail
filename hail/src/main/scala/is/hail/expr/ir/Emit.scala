@@ -244,21 +244,6 @@ case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
     IEmitCode(Lmissing, ec2.Lpresent, ec2.pc)
   }
 
-  def withCleanup(cb: EmitCodeBuilder)(emitCleanup: CodeBuilder => Unit): IEmitCode = {
-    val cleanupMethod = cb.mb.genMethod("cleanup", FastIndexedSeq(), UnitInfo)
-    cleanupMethod.emit(CodeBuilder.scopedVoid(cleanupMethod)(emitCleanup))
-    val Lpresent2 = CodeLabel()
-    cb.define(Lpresent)
-    val result = pc.memoize(cb, "valueBeforeCleanup")
-    cb += cleanupMethod.invoke()
-    cb.goto(Lpresent2)
-    val Lmissing2 = CodeLabel()
-    cb.define(Lmissing)
-    cb += cleanupMethod.invoke()
-    cb.goto(Lmissing2)
-    IEmitCode(Lmissing2, Lpresent2, result)
-  }
-
   def handle(cb: EmitCodeBuilder, ifMissing: => Unit): PCode = {
     cb.define(Lmissing)
     ifMissing
@@ -940,10 +925,10 @@ class Emit[C](
         // just store it so the writer gets run
         successfulShuffleIds.memoize(cb, "shuffleSuccessfulShuffleIds")
 
-        emitI(readersIR, env = shuffleEnv).withCleanup(cb) { cb =>
-          cb.append(shuffle.stop())
-          cb.append(shuffle.close())
-        }
+        val shuffleReaders = emitI(readersIR, env = shuffleEnv).memoize(cb, "shuffleReaders")
+        cb.append(shuffle.stop())
+        cb.append(shuffle.close())
+        shuffleReaders
 
       case ShuffleWrite(idIR, rowsIR) =>
         val shuffleType = coerce[TShuffle](idIR.typ)
