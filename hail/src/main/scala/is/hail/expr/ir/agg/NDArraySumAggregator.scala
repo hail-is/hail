@@ -46,13 +46,35 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
 
   override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
     // Need to:
-    // 1. Check the shapes match and the strides match.
+    // 1. Check the shapes match.
     // 2. If they match, add.
     val leftCode = PCode(ndTyp, state.off).asInstanceOf[PNDArrayCode]
     val rightCode = PCode(ndTyp, other.off).asInstanceOf[PNDArrayCode]
     val leftValue = cb.memoize(leftCode, "left_pndarraycode").asInstanceOf[PNDArrayValue]
     val rightValue = cb.memoize(rightCode, "right_pndarraycode").asInstanceOf[PNDArrayValue]
+    val sameShape = leftValue.sameShape(rightValue, cb.emb)
 
+    //val innerMethod = mb.genEmitMethod("ndaLoop", mb.emitParamTypes, UnitInfo)
+
+    val idxVars = Array.tabulate(ndTyp.nDims) { _ => cb.emb.genFieldThisRef[Long]() }
+    //val storeElement = innerMethod.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType.virtualType))
+    val temp = cb.emb.newLocal[Long]()
+
+    val body = Region.storeIRIntermediate(ndTyp.elementType)(???, ???)
+
+    val columnMajorLoops = idxVars.zipWithIndex.foldLeft(body) { case (innerLoops, (dimVar, dimIdx)) =>
+      Code(
+        dimVar := 0L,
+        Code.whileLoop(dimVar < ???,
+          innerLoops,
+          dimVar := dimVar + 1L
+        )
+      )
+    }
+//    innerMethod.emit(columnMajorLoops)
+//    EmitCodeBuilder.scopedVoid(mb) { cb => // ugh.
+//      cb.invokeVoid(innerMethod, mb.getParamsList(): _*)
+//    }
 
     ???
   }
