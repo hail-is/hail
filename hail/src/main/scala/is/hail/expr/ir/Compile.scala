@@ -76,7 +76,7 @@ object Compile {
   }
 }
 
-object CompileWithAggregators2 {
+object CompileWithAggregators {
   private[this] val codeCache: Cache[CodeCacheKey, CodeCacheValue] = new Cache(50)
 
   def apply[F: TypeInfo](
