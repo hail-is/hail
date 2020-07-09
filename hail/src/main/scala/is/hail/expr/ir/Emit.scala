@@ -943,22 +943,16 @@ class Emit[C](
       case ShuffleWrite(idIR, rowsIR) =>
         val shuffleType = coerce[TShuffle](idIR.typ)
         val rowsPType = coerce[PStream](rowsIR.pType)
-        // if (rowsPType.elementType != shuffleType.keyDecodedPType) {
-        //   throw new AssertionError(
-        //     s"${rowsPType.elementType} != ${shuffleType.keyDecodedPType}")
-        // }
-        val _uuid = (emitI(idIR).handle(cb, {
-          cb._fatal("shuffle ID must be non-missing")
-        })).asInstanceOf[PCanonicalShuffleCode]
-        val uuid = _uuid.memoize(cb, "shuffleClientUUID")
-        val uuidBytes = cb.newLocal[Array[Byte]]("shuffleClientUUIDBytes", uuid.loadBytes())
+        val uuid = emitI(idIR).consume(cb,
+          { cb._fatal("shuffle ID must be non-missing") },
+          { (code: PCanonicalShuffleCode) =>
+            code.memoize(cb, "shuffleClientUUID") })
         val shuffle = CodeShuffleClient.createValue(
           cb,
           mb.ecb.getType(shuffleType),
-          uuidBytes.load(),
+          uuid.loadBytes(),
           mb.ecb.getPType(rowsPType.elementType),
           Code._null)
-        val storedRow = mb.newLocal[Long]("row")
         cb.append(shuffle.startPut())
         cb.append(emitStream(rowsIR).cases(mb)(
           Code._assert(false, "rows stream was missing in shuffle write"),
@@ -968,10 +962,7 @@ class Emit[C](
                 row.setup,
                 row.m.mux(
                   Code._assert(false, "cannot handle empty rows in shuffle put"),
-                  Code(
-                    // FIXME: do not need to store
-                    storedRow := row.value[Long],
-                    shuffle.putValue(storedRow))))
+                  shuffle.putValue(row.value[Long])))
             })
           }))
         cb.append(shuffle.putValueDone())
