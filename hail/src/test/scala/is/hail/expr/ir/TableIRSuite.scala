@@ -966,6 +966,25 @@ class TableIRSuite extends HailSuite {
       0 until 5))
   }
 
+  @Test def testTableScanCollect(): Unit = {
+    implicit val execStrats = ExecStrategy.allRelational
+    var tir: TableIR = TableRange(5, 3)
+    tir = TableMapRows(tir,
+      InsertFields(Ref("row", tir.typ.rowType),
+      FastSeq("scans" -> MakeTuple.ordered(FastSeq(ApplyScanOp(Count())(), ApplyScanOp(Collect())(GetField(Ref("row", tir.typ.rowType), "idx")))))))
+    val x = TableAggregate(tir,
+        ApplyAggOp(Collect())(Ref("row", tir.typ.rowType))
+      )
+
+    assertEvalsTo(x, FastIndexedSeq(
+      Row(0, Row(0L, FastIndexedSeq())),
+      Row(1, Row(1L, FastIndexedSeq(0))),
+      Row(2, Row(2L, FastIndexedSeq(0,1))),
+      Row(3, Row(3L, FastIndexedSeq(0,1,2))),
+      Row(4, Row(4L, FastIndexedSeq(0,1,2,3)))
+    ))
+  }
+
   @Test def testIssue9016() {
     val rows = mapIR(ToStream(MakeArray(makestruct("a" -> MakeTuple.ordered(FastSeq(I32(0), I32(1))))))) { row =>
       If(IsNA(row),

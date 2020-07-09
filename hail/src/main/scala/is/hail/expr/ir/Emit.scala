@@ -594,8 +594,8 @@ class Emit[C](
         v.consume(cb,
           cb._fatal("cannot initialize aggs from a missing value"),
           { serializedValue =>
-            cb += sc.newState(i)
             sc.states(i).createState(cb)
+            cb += sc.newState(i)
             sc.states(i).deserializeFromBytes(cb, serializedValue.pt.asInstanceOf[PBinary], serializedValue.code.asInstanceOf[Code[Long]])
           }
         )
