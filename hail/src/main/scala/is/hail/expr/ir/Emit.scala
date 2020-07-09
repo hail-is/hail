@@ -251,14 +251,15 @@ case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
     pc
   }
 
-  def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (PCode) => Unit): Unit = {
+  def consume[T](cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (PCode) => T): T = {
     val Lafter = CodeLabel()
     cb.define(Lmissing)
     ifMissing
     if (cb.isOpenEnded) cb.goto(Lafter)
     cb.define(Lpresent)
-    ifPresent(pc)
+    val ret = ifPresent(pc)
     cb.define(Lafter)
+    ret
   }
 
   def pt: PType = pc.pt
@@ -925,10 +926,19 @@ class Emit[C](
         // just store it so the writer gets run
         successfulShuffleIds.memoize(cb, "shuffleSuccessfulShuffleIds")
 
-        val shuffleReaders = emitI(readersIR, env = shuffleEnv).memoize(cb, "shuffleReaders")
+        val isMissing = cb.newLocal[Boolean]("shuffleWithIsMissing")
+
+        val shuffleReaders = emitI(readersIR, env = shuffleEnv).consume(cb,
+          { isMissing := True },
+          { value =>
+            isMissing := False
+            isMissing.memoize(cb, "shuffleReaders")
+          })
+
         cb.append(shuffle.stop())
         cb.append(shuffle.close())
-        shuffleReaders
+
+        IEmitCode(cb, isMissing, shuffleReaders)
 
       case ShuffleWrite(idIR, rowsIR) =>
         val shuffleType = coerce[TShuffle](idIR.typ)
