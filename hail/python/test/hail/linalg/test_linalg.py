@@ -463,15 +463,15 @@ class Tests(unittest.TestCase):
         nrow = np.array([[7.0, 8.0, 9.0]])
         row = BlockMatrix.from_numpy(nrow, block_size=2)
 
-        self._assert_eq(m.tree_matmul(m.T, 2, new_temp_file()), nm @ nm.T)
-        self._assert_eq(m.tree_matmul(nm.T, 2, new_temp_file()), nm @ nm.T)
-        self._assert_eq(row.tree_matmul(row.T, 2, new_temp_file()), nrow @ nrow.T)
-        self._assert_eq(row.tree_matmul(nrow.T, 2, new_temp_file()), nrow @ nrow.T)
+        self._assert_eq(m.tree_matmul(m.T, 2), nm @ nm.T)
+        self._assert_eq(m.tree_matmul(nm.T, 2), nm @ nm.T)
+        self._assert_eq(row.tree_matmul(row.T, 2), nrow @ nrow.T)
+        self._assert_eq(row.tree_matmul(nrow.T, 2), nrow @ nrow.T)
 
-        self._assert_eq(m.T.tree_matmul(m, 2, new_temp_file()), nm.T @ nm)
-        self._assert_eq(m.T.tree_matmul(nm, 2, new_temp_file()), nm.T @ nm)
-        self._assert_eq(row.T.tree_matmul(row, 2, new_temp_file()), nrow.T @ nrow)
-        self._assert_eq(row.T.tree_matmul(nrow, 2, new_temp_file()), nrow.T @ nrow)
+        self._assert_eq(m.T.tree_matmul(m, 2), nm.T @ nm)
+        self._assert_eq(m.T.tree_matmul(nm, 2), nm.T @ nm)
+        self._assert_eq(row.T.tree_matmul(row, 2), nrow.T @ nrow)
+        self._assert_eq(row.T.tree_matmul(nrow, 2), nrow.T @ nrow)
 
         # Variety of block sizes and splits
         fifty_by_sixty = np.arange(50 * 60).reshape((50, 60))
@@ -483,8 +483,8 @@ class Tests(unittest.TestCase):
             bmt = BlockMatrix.from_numpy(fifty_by_sixty.T, block_size)
             for split_size in split_sizes:
                 print(f"Handling split_size = {split_size}")
-                self._assert_eq(bm.tree_matmul(bmt, split_size, new_temp_file()), fifty_by_sixty @ fifty_by_sixty.T)
-                self._assert_eq(bmt.tree_matmul(bm, split_size, new_temp_file()), fifty_by_sixty.T @ fifty_by_sixty)
+                self._assert_eq(bm.tree_matmul(bmt, split_size), fifty_by_sixty @ fifty_by_sixty.T)
+                self._assert_eq(bmt.tree_matmul(bm, split_size), fifty_by_sixty.T @ fifty_by_sixty)
 
 
     def test_fill(self):

@@ -1459,12 +1459,13 @@ class BlockMatrix(object):
 
         return BlockMatrix(BlockMatrixDot(self._bmir, b._bmir))
 
-    @typecheck_method(b=oneof(np.ndarray, block_matrix_type), split_on_inner=int, path_prefix=str)
-    def tree_matmul(self, b, split_on_inner, path_prefix):
-        """Matrix multiplication in situations with large inner dimension. This function splits a single matrix
-        multiplication into `split_on_inner` smaller matrix multiplications, does the smaller multiplications,
-        checkpoints them with names defined by `file_name_prefix`, and adds them together. This is useful in cases when
-        the multiplication of two large matrices results in a much smaller matrix.
+    @typecheck_method(b=oneof(np.ndarray, block_matrix_type), split_on_inner=int, path_prefix=nullable(str))
+    def tree_matmul(self, b, split_on_inner, path_prefix=None):
+        """Matrix multiplication in situations with large inner dimension.
+
+        This function splits a single matrix multiplication into `split_on_inner` smaller matrix multiplications,
+        does the smaller multiplications, checkpoints them with names defined by `file_name_prefix`, and adds them
+        together. This is useful in cases when the multiplication of two large matrices results in a much smaller matrix.
 
         Parameters
         ----------
@@ -1472,7 +1473,7 @@ class BlockMatrix(object):
         split_on_inner: :obj:`int`
             The number of smaller multiplications to do.
         path_prefix: :obj:`str`
-            The prefix of the path to write the block matrices to.
+            The prefix of the path to write the block matrices to. If unspecified, writes to a tmpdir.
 
         Returns
         -------
@@ -1483,6 +1484,9 @@ class BlockMatrix(object):
 
         if self.n_cols != b.n_rows:
             raise ValueError(f'incompatible shapes for matrix multiplication: {self.shape} and {b.shape}')
+
+        if path_prefix is None:
+            path_prefix = new_temp_file("tree_matmul_tmp")
 
         if split_on_inner != 1:
             inner_brange_size = int(math.ceil(self._n_block_cols / split_on_inner))
