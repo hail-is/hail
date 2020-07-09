@@ -99,9 +99,7 @@ object BlockMatrix {
         override val partitioner = Some(gp)
 
         protected def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(pi =>
-          new Partition {
-            def index: Int = pi
-          })
+          new Partition { def index: Int = pi } )
 
         def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] =
           Iterator.single(piBlock(gp, split.index))
@@ -194,7 +192,7 @@ object BlockMatrix {
   }
 
   private[linalg] def block(bm: BlockMatrix, parts: Array[Partition], gp: GridPartitioner, context: TaskContext,
-                            i: Int, j: Int): Option[BDM[Double]] = {
+    i: Int, j: Int): Option[BDM[Double]] = {
     val pi = gp.coordinatesPart(i, j)
     if (pi >= 0) {
       val it = bm.blocks.iterator(parts(pi), context)
@@ -215,34 +213,22 @@ object BlockMatrix {
 
     implicit class Shim(l: M) {
       def +(r: M): M = l.add(r)
-
       def -(r: M): M = l.sub(r)
-
       def *(r: M): M = l.mul(r)
-
       def /(r: M): M = l.div(r)
-
       def +(r: Double): M = l.scalarAdd(r)
-
       def -(r: Double): M = l.scalarSub(r)
-
       def *(r: Double): M = l.scalarMul(r)
-
       def /(r: Double): M = l.scalarDiv(r)
-
       def T: M = l.transpose()
     }
 
     implicit class ScalarShim(l: Double) {
       def +(r: M): M = r.scalarAdd(l)
-
       def -(r: M): M = r.reverseScalarSub(l)
-
       def *(r: M): M = r.scalarMul(l)
-
       def /(r: M): M = r.reverseScalarDiv(l)
     }
-
   }
 
   def collectMatrices(bms: IndexedSeq[BlockMatrix]): RDD[BDM[Double]] = new CollectMatricesRDD(bms)
