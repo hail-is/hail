@@ -16,6 +16,7 @@ object SortOrder {
     if (b == 0.toByte) Ascending
     else if (b == 1.toByte) Descending
     else throw new RuntimeException(s"invalid sort order: $b")
+
   def parse(s: String): SortOrder = s match {
     case "A" => Ascending
     case "D" => Descending
