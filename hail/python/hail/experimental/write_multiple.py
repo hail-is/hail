@@ -45,7 +45,8 @@ def export_block_matrices(bms: List[BlockMatrix], prefix: str, overwrite: bool =
 
 
 @typecheck(bms=sequenceof(BlockMatrix), path_prefix=str, overwrite=bool, force_row_major=bool, stage_locally=bool)
-def write_block_matrices(bms: List[BlockMatrix], path_prefix: str, overwrite: bool = False, force_row_major: bool = False, stage_locally: bool = False):
+def write_block_matrices(bms: List[BlockMatrix], path_prefix: str, overwrite: bool = False,
+                         force_row_major: bool = False, stage_locally: bool = False):
     """Writes a sequence of block matrices to disk in the same format as BlockMatrix.write.
 
     :param bms: :obj:`list` of :class:`BlockMatrix`

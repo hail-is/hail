@@ -475,16 +475,15 @@ class Tests(unittest.TestCase):
 
         # Variety of block sizes and splits
         fifty_by_sixty = np.arange(50 * 60).reshape((50, 60))
+        sixty_by_twenty_five = np.arange(60 * 25).reshape((60, 25))
         block_sizes = [7, 10]
         split_sizes = [2, 9]
         for block_size in block_sizes:
-            print(f"Handling block_size = {block_size}")
-            bm = BlockMatrix.from_numpy(fifty_by_sixty, block_size)
-            bmt = BlockMatrix.from_numpy(fifty_by_sixty.T, block_size)
+            bm_fifty_by_sixty = BlockMatrix.from_numpy(fifty_by_sixty, block_size)
+            bm_sixty_by_twenty_five = BlockMatrix.from_numpy(sixty_by_twenty_five, block_size)
             for split_size in split_sizes:
-                print(f"Handling split_size = {split_size}")
-                self._assert_eq(bm.tree_matmul(bmt, split_size), fifty_by_sixty @ fifty_by_sixty.T)
-                self._assert_eq(bmt.tree_matmul(bm, split_size), fifty_by_sixty.T @ fifty_by_sixty)
+                self._assert_eq(bm_fifty_by_sixty.tree_matmul(bm_fifty_by_sixty.T, split_size), fifty_by_sixty @ fifty_by_sixty.T)
+                self._assert_eq(bm_fifty_by_sixty.tree_matmul(bm_sixty_by_twenty_five, split_size), fifty_by_sixty @ sixty_by_twenty_five)
 
 
     def test_fill(self):
