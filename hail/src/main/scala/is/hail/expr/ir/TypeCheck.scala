@@ -466,6 +466,7 @@ object TypeCheck {
       case LiftMeOut(_) =>
       case x@ShuffleWith(_, _, _, _, _, writer, readers) =>
         assert(writer.typ == TArray(TBinary))
+        assert(readers.typ.isRealizable)
         assert(x.typ == readers.typ)
       case ShuffleWrite(id, rows) =>
         val shuffleType = coerce[TShuffle](id.typ)
