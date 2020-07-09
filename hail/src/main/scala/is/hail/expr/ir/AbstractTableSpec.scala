@@ -16,21 +16,37 @@ object SortOrder {
     if (b == 0.toByte) Ascending
     else if (b == 1.toByte) Descending
     else throw new RuntimeException(s"invalid sort order: $b")
+  def parse(s: String): SortOrder = s match {
+    case "Ascending" => Ascending
+    case "Descending" => Descending
+  }
 }
 
 sealed abstract class SortOrder {
   def serialize: Byte
+  def parsableString(): String
 }
 
 case object Ascending extends SortOrder {
   def serialize: Byte = 0.toByte
+  def parsableString(): String = "Ascending"
 }
 
 case object Descending extends SortOrder {
   def serialize: Byte = 1.toByte
+  def parsableString(): String = "Descending"
 }
 
-case class SortField(field: String, sortOrder: SortOrder)
+object SortField {
+  def parse(s: String): SortField =
+    IRParser.parseSortField(s)
+}
+
+case class SortField(field: String, sortOrder: SortOrder) {
+  def parsableString(): String = (
+    s"""SortField("${StringEscapeUtils.escapeString(field)}",""" +
+      s""""${StringEscapeUtils.escapeString(sortOrder.parsableString())}")""")
+}
 
 abstract class AbstractTableSpec extends RelationalSpec {
   def references_rel_path: String
