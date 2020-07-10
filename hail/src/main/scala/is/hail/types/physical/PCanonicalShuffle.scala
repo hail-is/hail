@@ -32,7 +32,7 @@ object PCanonicalShuffleSettable {
     new PCanonicalShuffleSettable(pt, sb.newSettable[Long](s"${ name }_shuffle"))
 
   def fromArrayBytes(cb: EmitCodeBuilder, region: Value[Region], pt: PCanonicalShuffle, bytes: Code[Array[Byte]]) = {
-    val off = cb.newLocal[Long](
+    val off = cb.newField[Long](
       "PCanonicalShuffleSettableOff",
       pt.representation.allocate(region, Wire.ID_SIZE))
     cb.append(pt.representation.store(off, bytes))
