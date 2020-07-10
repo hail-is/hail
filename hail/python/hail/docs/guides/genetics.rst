@@ -325,7 +325,7 @@ Using Variants (SNPs) as Covariates
 :**code**:
 
     Create a sample annotation from the genotype dosage for each variant of
-    interest by combining the filter an collect aggregators:
+    interest by combining the filter and collect aggregators:
 
     >>> mt_annot = mt.annotate_cols(
     ...     snp1 = hl.agg.filter(hl.parse_variant('20:13714384:A:C') == mt.row_key,
