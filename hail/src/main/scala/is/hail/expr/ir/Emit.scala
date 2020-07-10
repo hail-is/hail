@@ -908,16 +908,10 @@ class Emit[C](
 
         cb.append(shuffle.start())
 
-        val uuidBytes = cb.newLocal[Array[Byte]](
-          "shuffleClientUUIDBytes",
-          shuffle.uuid)
+        val uuid = PCanonicalShuffleSettable.fromArrayBytes(
+          mb.ecb, shufflePType, shuffle.uuid())
 
-        val uuidRV = new PCanonicalShuffleCode(
-          shufflePType, shufflePType.representation.allocate(region, Wire.ID_SIZE)
-        ).memoizeField(cb, name)
-        cb.append(shufflePType.representation.store(uuidRV.get.tcode[Long], uuidBytes))
-
-        val shuffleEnv = env.bind(name -> mb.newPresentEmitSettable(shufflePType, uuidRV))
+        val shuffleEnv = env.bind(name -> mb.newPresentEmitSettable(shufflePType, uuid))
 
         val successfulShuffleIds: PValue = emitI(writerIR, env = shuffleEnv).consume(cb,
           { cb._fatal("shuffle ID must be non-missing") },

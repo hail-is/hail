@@ -98,7 +98,7 @@ class ValueShuffleClient(
   def endPut(): Code[Unit] =
     code.invoke[Unit]("endPut")
 
-  def uuid: Code[Array[Byte]] =
+  def uuid(): Code[Array[Byte]] =
     code.invoke[Array[Byte]]("uuid")
 
   def startGet(

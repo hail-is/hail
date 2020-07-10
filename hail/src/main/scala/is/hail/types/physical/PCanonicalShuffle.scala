@@ -29,6 +29,14 @@ final case class PCanonicalShuffle(
 object PCanonicalShuffleSettable {
   def apply(sb: SettableBuilder, pt: PCanonicalShuffle, name: String): PCanonicalShuffleSettable =
     new PCanonicalShuffleSettable(pt, sb.newSettable[Long](s"${ name }_shuffle"))
+
+  def fromArrayBytes(cb: EmitCodeBuilder, pt: PCanonicalShuffle, bytes: Code[Array[Byte]]) = {
+    val off = cb.newLocal[Long](
+      "PCanonicalShuffleSettableOff",
+      shufflePType.representation.allocate(region, Wire.ID_SIZE))
+    cb.append(pt.representation.store(off, bytes))
+    PCanonicalShuffleSettable(pt, off)
+  }
 }
 
 class PCanonicalShuffleSettable(val pt: PCanonicalShuffle, shuffle: Settable[Long]) extends PShuffleValue with PSettable {
