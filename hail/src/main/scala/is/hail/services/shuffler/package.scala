@@ -104,8 +104,4 @@ package object shuffler {
 
   def uuidToString(uuid: Code[Array[Byte]]): Code[String] =
     Code.invokeScalaObject1[Array[Byte], String](getClass, "uuidToString", uuid)
-
-  implicit def toLoggerValue(code: Value[Logger]): LoggerValue = new LoggerValue(code)
-
-  implicit def toSocketValue(code: Value[Socket]): SocketValue = new SocketValue(code)
 }
