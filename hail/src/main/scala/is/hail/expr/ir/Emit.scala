@@ -911,7 +911,7 @@ class Emit[C](
         val uuid = PCanonicalShuffleSettable.fromArrayBytes(
           mb.ecb, shufflePType, shuffle.uuid())
 
-        val shuffleEnv = env.bind(name -> mb.newPresentEmitSettable(shufflePType, uuid))
+        val shuffleEnv = env.bind(name -> uuid)
 
         val successfulShuffleIds: PValue = emitI(writerIR, env = shuffleEnv).consume(cb,
           { cb._fatal("shuffle ID must be non-missing") },
