@@ -3271,28 +3271,23 @@ class Table(ExprContainer):
         left_value = Env.get_uid()
         left = self
         left = left.select_globals(**{left_global_value: left.globals})
-        left = left.select(**{left_value: left._row})
+        left = left.group_by(*left.key).aggregate(_left_rows = hl.agg.collect(left.row))
 
         right_global_value = Env.get_uid()
         right_value = Env.get_uid()
         right = other
         right = right.select_globals(**{right_global_value: right.globals})
-        right = right.select(**{right_value: right._row})
+        right = right.group_by(*right.key).aggregate(_right_rows = hl.agg.collect(right.row))
 
-        left_index_uid = Env.get_uid()
-        right_index_uid = Env.get_uid()
-        t = left.add_index(left_index_uid).key_by(left_index_uid).join(
-            right.add_index(right_index_uid).key_by(right_index_uid),
-            how='outer'
-        )
+        t = left.join(right, how='outer')
 
         if not hl.eval(_values_similar(t[left_global_value], t[right_global_value], tolerance, absolute)):
             g = hl.eval(t.globals)
             print(f'Table._same: globals differ: {g[left_global_value]}, {g[right_global_value]}')
             return False
 
-        if not t.all(hl.is_defined(t[left_value]) & hl.is_defined(t[right_value]) &
-                                   _values_similar(t[left_value], t[right_value], tolerance, absolute)):
+        if not t.all(hl.is_defined(t._left_rows) & hl.is_defined(t._right_rows) &
+                                   _values_similar(t['_left_rows'], t['_right_rows'], tolerance, absolute)):
             print('Table._same: rows differ:')
             t = t.filter(~ _values_similar(t[left_value], t[right_value], tolerance, absolute))
             bad_rows = t.take(10)
