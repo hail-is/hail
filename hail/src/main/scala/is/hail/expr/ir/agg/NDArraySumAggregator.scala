@@ -1,9 +1,9 @@
 package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
-import is.hail.asm4s.Code
+import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IR}
-import is.hail.types.physical.{PBoolean, PCanonicalTuple, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PType}
+import is.hail.types.physical.{PBaseStructCode, PBoolean, PCanonicalTuple, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PType}
 
 object NDArraySumAggregator {
 }
@@ -24,6 +24,10 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
 
   def isInitialized(state: State): Code[Boolean] = {
     Region.loadBoolean(stateType.fieldOffset(state.off, 0))
+  }
+
+  def ndArrayPointer(state: State): Code[Long] = {
+    Region.loadLong(stateType.fieldOffset(state.off, 1))
   }
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
@@ -48,35 +52,34 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
     // Need to:
     // 1. Check the shapes match.
     // 2. If they match, add.
-    val leftCode = PCode(ndTyp, state.off).asInstanceOf[PNDArrayCode]
-    val rightCode = PCode(ndTyp, other.off).asInstanceOf[PNDArrayCode]
-    val leftValue = cb.memoize(leftCode, "left_pndarraycode").asInstanceOf[PNDArrayValue]
-    val rightValue = cb.memoize(rightCode, "right_pndarraycode").asInstanceOf[PNDArrayValue]
-    val sameShape = leftValue.sameShape(rightValue, cb.emb)
+    val leftValue = PCode(ndTyp, state.off).asBaseStruct.memoize(cb, "left_state_ndarray_sum_agg")
+    val rightValue = PCode(ndTyp, other.off).asBaseStruct.memoize(cb, "right_state_ndarray_sum_agg")
+    val leftNdValue = leftValue.loadField(cb, 1).pc.asNDArray.memoize(cb, "left_ndarray_sum_agg")
+    val rightNdValue = rightValue.loadField(cb, 1).pc.asNDArray.memoize(cb, "right_ndarray_sum_agg")
 
-    //val innerMethod = mb.genEmitMethod("ndaLoop", mb.emitParamTypes, UnitInfo)
+    val sameShape = leftNdValue.sameShape(rightNdValue, cb.emb)
 
     val idxVars = Array.tabulate(ndTyp.nDims) { _ => cb.emb.genFieldThisRef[Long]() }
-    //val storeElement = innerMethod.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType.virtualType))
-    val temp = cb.emb.newLocal[Long]()
 
-    val body = Region.storeIRIntermediate(ndTyp.elementType)(???, ???)
+    val body = ndTyp.mutateElement(idxVars, leftNdValue.value.asInstanceOf[Value[Long]], ???, cb.emb)
+
+    val leftNdShape = PCode.apply(ndTyp.shape.pType, ndTyp.shape.load(leftNdValue.value.asInstanceOf[Value[Long]])).asBaseStruct.memoize(cb, "left_nd_shape")
 
     val columnMajorLoops = idxVars.zipWithIndex.foldLeft(body) { case (innerLoops, (dimVar, dimIdx)) =>
       Code(
         dimVar := 0L,
-        Code.whileLoop(dimVar < ???,
+        Code.whileLoop(dimVar < leftNdShape(dimIdx),
           innerLoops,
           dimVar := dimVar + 1L
         )
       )
     }
-//    innerMethod.emit(columnMajorLoops)
-//    EmitCodeBuilder.scopedVoid(mb) { cb => // ugh.
-//      cb.invokeVoid(innerMethod, mb.getParamsList(): _*)
-//    }
 
-    ???
+    cb.ifx(sameShape,
+      columnMajorLoops,
+      Code._fatal("Can't sum ndarrays of different shapes.")
+    )
+
   }
 
   override protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = ???
