@@ -114,6 +114,10 @@ trait Implicits {
 
   implicit def toRichContextRDDRow(x: ContextRDD[Row]): RichContextRDDRow = new RichContextRDDRow(x)
 
+  implicit def valueToRichCodeInputBuffer(in: Value[InputBuffer]): RichCodeInputBuffer = new RichCodeInputBuffer(in)
+
+  implicit def valueToRichCodeOutputBuffer(out: Value[OutputBuffer]): RichCodeOutputBuffer = new RichCodeOutputBuffer(out)
+
   implicit def toRichCodeArray[T](cs: IndexedSeq[Code[T]]): RichCodeIndexedSeq[T] = new RichCodeIndexedSeq[T](cs)
 
   implicit def valueToRichCodeArray[T](cs: IndexedSeq[Value[T]]): RichCodeIndexedSeq[T] = new RichCodeIndexedSeq[T](cs.map(_.get))
