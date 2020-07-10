@@ -1,5 +1,6 @@
 package is.hail.types.physical
 
+import is.hail.services.shuffler.Wire
 import is.hail.types.virtual._
 import is.hail.annotations._
 import is.hail.asm4s._
@@ -30,12 +31,12 @@ object PCanonicalShuffleSettable {
   def apply(sb: SettableBuilder, pt: PCanonicalShuffle, name: String): PCanonicalShuffleSettable =
     new PCanonicalShuffleSettable(pt, sb.newSettable[Long](s"${ name }_shuffle"))
 
-  def fromArrayBytes(cb: EmitCodeBuilder, pt: PCanonicalShuffle, bytes: Code[Array[Byte]]) = {
+  def fromArrayBytes(cb: EmitCodeBuilder, region: Value[Region], pt: PCanonicalShuffle, bytes: Code[Array[Byte]]) = {
     val off = cb.newLocal[Long](
       "PCanonicalShuffleSettableOff",
-      shufflePType.representation.allocate(region, Wire.ID_SIZE))
+      pt.representation.allocate(region, Wire.ID_SIZE))
     cb.append(pt.representation.store(off, bytes))
-    PCanonicalShuffleSettable(pt, off)
+    new PCanonicalShuffleSettable(pt, off)
   }
 }
 

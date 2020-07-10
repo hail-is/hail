@@ -909,9 +909,9 @@ class Emit[C](
         cb.append(shuffle.start())
 
         val uuid = PCanonicalShuffleSettable.fromArrayBytes(
-          mb.ecb, shufflePType, shuffle.uuid())
+          cb, region, shufflePType, shuffle.uuid())
 
-        val shuffleEnv = env.bind(name -> uuid)
+        val shuffleEnv = env.bind(name -> mb.newPresentEmitSettable(uuid.pt, uuid))
 
         val successfulShuffleIds: PValue = emitI(writerIR, env = shuffleEnv).consume(cb,
           { cb._fatal("shuffle ID must be non-missing") },
@@ -937,7 +937,7 @@ class Emit[C](
         val rowsPType = coerce[PStream](rowsIR.pType)
         val uuid = emitI(idIR).consume(cb,
           { cb._fatal("shuffle ID must be non-missing") },
-          { (code: PCanonicalShuffleCode) =>
+          { case (code: PCanonicalShuffleCode) =>
             code.memoize(cb, "shuffleClientUUID") })
         val shuffle = CodeShuffleClient.createValue(
           cb,
