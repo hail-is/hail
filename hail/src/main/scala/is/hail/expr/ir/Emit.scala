@@ -919,12 +919,10 @@ class Emit[C](
 
         val shuffleEnv = env.bind(name -> mb.newPresentEmitSettable(shufflePType, uuidRV))
 
-        val successfulShuffleIds: PCode = emitI(writerIR, env = shuffleEnv).handle(cb, {
-          cb._fatal("shuffle ID must be non-missing")
-        })
-
-        // just store it so the writer gets run
-        successfulShuffleIds.memoize(cb, "shuffleSuccessfulShuffleIds")
+        val successfulShuffleIds: PValue = emitI(writerIR, env = shuffleEnv).consume(cb,
+          { cb._fatal("shuffle ID must be non-missing") },
+          // just store it so the writer gets run
+          { code => code.memoize(cb, "shuffleSuccessfulShuffleIds") })
 
         val isMissing = cb.newLocal[Boolean]("shuffleWithIsMissing")
 
