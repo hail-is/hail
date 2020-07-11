@@ -842,13 +842,13 @@ object Interpret {
         } else {
           val spec = BufferSpec.defaultUncompressed
 
-          val (_, initOp) = CompileWithAggregators2[AsmFunction2RegionLongUnit](ctx,
+          val (_, initOp) = CompileWithAggregators[AsmFunction2RegionLongUnit](ctx,
             extracted.states,
             IndexedSeq(("global", value.globals.t)),
             IndexedSeq(classInfo[Region], LongInfo), UnitInfo,
             extracted.init)
 
-          val (_, partitionOpSeq) = CompileWithAggregators2[AsmFunction3RegionLongLongUnit](ctx,
+          val (_, partitionOpSeq) = CompileWithAggregators[AsmFunction3RegionLongLongUnit](ctx,
             extracted.states,
             FastIndexedSeq(("global", value.globals.t),
               ("row", value.rvd.rowPType)),
@@ -927,7 +927,7 @@ object Interpret {
           val rv = value.rvd.combine[WrappedByteArray, RegionValue](
             mkZero, itF, read, write, combOpF, isCommutative, useTreeAggregate)
 
-          val (rTyp: PTuple, f) = CompileWithAggregators2[AsmFunction2RegionLongLong](
+          val (rTyp: PTuple, f) = CompileWithAggregators[AsmFunction2RegionLongLong](
             ctx,
             extracted.states,
             FastIndexedSeq(("global", value.globals.t)),

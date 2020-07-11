@@ -34,7 +34,7 @@ class Aggregators2Suite extends HailSuite {
     val argRef = Ref(genUID(), argT.virtualType)
     val spec = BufferSpec.defaultUncompressed
 
-    val (_, combAndDuplicate) = CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
+    val (_, combAndDuplicate) = CompileWithAggregators[AsmFunction1RegionUnit](ctx,
       Array.fill(nPartitions)(aggSig.state),
       FastIndexedSeq(),
       FastIndexedSeq(classInfo[Region]), UnitInfo,
@@ -44,7 +44,7 @@ class Aggregators2Suite extends HailSuite {
           SerializeAggs(0, 0, spec, Array(aggSig.state)) :+
           DeserializeAggs(1, 0, spec, Array(aggSig.state))))
 
-    val (rt: PTuple, resF) = CompileWithAggregators2[AsmFunction1RegionLong](ctx,
+    val (rt: PTuple, resF) = CompileWithAggregators[AsmFunction1RegionLong](ctx,
       Array.fill(nPartitions)(aggSig.state),
       FastIndexedSeq(),
       FastIndexedSeq(classInfo[Region]), LongInfo,
@@ -59,7 +59,7 @@ class Aggregators2Suite extends HailSuite {
       val argOff = ScalaToRegionValue(region, argT, argVs)
 
       def withArgs(foo: IR) = {
-        CompileWithAggregators2[AsmFunction2RegionLongUnit](ctx,
+        CompileWithAggregators[AsmFunction2RegionLongUnit](ctx,
           Array(aggSig.state),
           FastIndexedSeq((argRef.name, argT)),
           FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
@@ -69,7 +69,7 @@ class Aggregators2Suite extends HailSuite {
       }
 
       val serialize = SerializeAggs(0, 0, spec, Array(aggSig.state))
-      val (_, writeF) = CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
+      val (_, writeF) = CompileWithAggregators[AsmFunction1RegionUnit](ctx,
         Array(aggSig.state),
         FastIndexedSeq(),
         FastIndexedSeq(classInfo[Region]), UnitInfo,
@@ -78,7 +78,7 @@ class Aggregators2Suite extends HailSuite {
       val initF = withArgs(initOp)
 
       expectedInit.foreach { v =>
-        val (rt: PBaseStruct, resOneF) = CompileWithAggregators2[AsmFunction1RegionLong](ctx,
+        val (rt: PBaseStruct, resOneF) = CompileWithAggregators[AsmFunction1RegionLong](ctx,
           Array(aggSig.state),
           FastIndexedSeq(),
           FastIndexedSeq(classInfo[Region]), LongInfo,

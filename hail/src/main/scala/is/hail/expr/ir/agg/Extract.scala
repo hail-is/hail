@@ -120,7 +120,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
   def eltOp(ctx: ExecuteContext): IR = seqPerElt
 
   def deserialize(ctx: ExecuteContext, spec: BufferSpec): ((Region, Array[Byte]) => Long) = {
-    val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
+    val (_, f) = ir.CompileWithAggregators[AsmFunction1RegionUnit](ctx,
       states,
       FastIndexedSeq(),
       FastIndexedSeq(classInfo[Region]), UnitInfo,
@@ -136,7 +136,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
   }
 
   def serialize(ctx: ExecuteContext, spec: BufferSpec): (Region, Long) => Array[Byte] = {
-    val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
+    val (_, f) = ir.CompileWithAggregators[AsmFunction1RegionUnit](ctx,
       states,
       FastIndexedSeq(),
       FastIndexedSeq(classInfo[Region]), UnitInfo,
@@ -151,7 +151,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
   }
 
   def combOpFSerialized(ctx: ExecuteContext, spec: BufferSpec): (Array[Byte], Array[Byte]) => Array[Byte] = {
-    val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
+    val (_, f) = ir.CompileWithAggregators[AsmFunction1RegionUnit](ctx,
       states ++ states,
       FastIndexedSeq(),
       FastIndexedSeq(classInfo[Region]), UnitInfo,
