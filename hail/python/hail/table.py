@@ -3271,13 +3271,13 @@ class Table(ExprContainer):
         left_value = Env.get_uid()
         left = self
         left = left.select_globals(**{left_global_value: left.globals})
-        left = left.group_by(*left.key).aggregate(_left_rows = hl.agg.collect(left.row))
+        left = left.group_by(*left.key).aggregate(**{left_value: hl.agg.collect(left.row_value)})
 
         right_global_value = Env.get_uid()
         right_value = Env.get_uid()
         right = other
         right = right.select_globals(**{right_global_value: right.globals})
-        right = right.group_by(*right.key).aggregate(_right_rows = hl.agg.collect(right.row))
+        right = right.group_by(*right.key).aggregate(**{right_value: hl.agg.collect(right.row_value)})
 
         t = left.join(right, how='outer')
 
@@ -3286,8 +3286,8 @@ class Table(ExprContainer):
             print(f'Table._same: globals differ: {g[left_global_value]}, {g[right_global_value]}')
             return False
 
-        if not t.all(hl.is_defined(t._left_rows) & hl.is_defined(t._right_rows) &
-                                   _values_similar(t['_left_rows'], t['_right_rows'], tolerance, absolute)):
+        if not t.all(hl.is_defined(t[left_value]) & hl.is_defined(t[right_value]) &
+                     _values_similar(t[left_value], t[right_value], tolerance, absolute)):
             print('Table._same: rows differ:')
             t = t.filter(~ _values_similar(t[left_value], t[right_value], tolerance, absolute))
             bad_rows = t.take(10)
