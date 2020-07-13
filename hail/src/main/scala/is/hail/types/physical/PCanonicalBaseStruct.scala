@@ -192,7 +192,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
         addrVar := addr,
         stagedInitialize(addrVar, setMissing = true),
         Code(fields.zip(srcStruct.fields).map { case (dest, src) =>
-          assert(dest.typ.required <= src.typ.required)
+          assert(dest.typ.required <= src.typ.required, s"${dest.typ} <- ${src.typ}\n  src: $srcPType\n  dst: $this")
           val idx = dest.index
           assert(idx == src.index)
           srcStruct.isFieldDefined(srcAddrVar, idx).orEmpty(Code(
