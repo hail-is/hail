@@ -224,13 +224,12 @@ class DNDArray:
         # FIXME: use ndarray sum / fma
         def block_product(left, right):
             product = left @ right
+            n_rows = product.shape[0]
+            n_cols = product.shape[1]
             return hl.struct(
                 shape=product.shape,
-                block=hl.rbind(
-                    product.shape[0],
-                    product.shape[1],
-                    lambda n_rows, n_cols: hl.range(hl.int(n_rows * n_cols)).map(
-                        lambda absolute: product[absolute % n_rows, absolute // n_rows])))
+                block=hl.range(hl.int(n_rows * n_cols)).map(
+                    lambda absolute: product[absolute % n_rows, absolute // n_rows]))
 
         def block_aggregate(prod):
             shape = prod.shape
