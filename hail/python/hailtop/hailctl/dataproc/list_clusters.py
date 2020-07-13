@@ -1,5 +1,5 @@
-from subprocess import check_call
+from . import gcloud
 
 
 def main(args, pass_through_args):  # pylint: disable=unused-argument
-    check_call(['gcloud', 'dataproc', 'clusters', 'list'] + pass_through_args)
+    gcloud.run(['dataproc', 'clusters', 'list'] + pass_through_args)
