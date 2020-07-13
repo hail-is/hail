@@ -1800,7 +1800,7 @@ steps:
          --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
          --format="table[no-heading](zone.basename(), name)" \
          --project {{ global.project }} \
-       | xargs -n2 -r sh -c 'gcloud -q compute instances delete --zone "$1" --project {{ global.project }} "$2" || true'
+       | xargs -n2 -r sh -c 'gcloud -q compute instances delete --zone "$1" --project {{ global.project }} "$2" || true' argv0
    secrets:
     - name: test-gsa-key
       namespace:
