@@ -1336,7 +1336,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     val valueFields = rvdType.valueType.fields.map(f => (f.name, f.typ))
     val localNewRowType = PCanonicalStruct(required = true,
       keyFields ++ Array((fieldName, PCanonicalArray(
-        PCanonicalStruct(required = false, valueFields: _*)))): _*)
+        PCanonicalStruct(required = false, valueFields: _*), required = true))): _*)
     val localDataLength = children.length
     val rvMerger = { (ctx: RVDContext, it: Iterator[ArrayBuilder[(RegionValue, Int)]]) =>
       val rvb = new RegionValueBuilder()
