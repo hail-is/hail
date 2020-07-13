@@ -247,9 +247,8 @@ class DNDArray:
                       add_as_an_aggregator: Callable[[Expression], Expression]
     ) -> 'DNDArray':
         def block_product(left, right):
-            n_rows = left.shape[0]
-            n_inner = left.shape[1]
-            n_cols = right.shape[1]
+            n_rows, n_inner = left.shape
+            _, n_cols = right.shape
 
             def compute_element(absolute):
                 row = absolute % n_rows
