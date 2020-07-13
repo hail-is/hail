@@ -193,7 +193,7 @@ class LocalBackend(Backend):
             print(script)
         else:
             try:
-                sp.check_output(script, shell=True)
+                sp.check_call(script, shell=True)
             except sp.CalledProcessError as e:
                 print(e)
                 print(e.output)
