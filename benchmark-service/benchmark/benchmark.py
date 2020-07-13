@@ -13,8 +13,14 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 aiohttp_jinja2.setup(
-    app, loader=jinja2.FileSystemLoader(os.path.join(os.getcwd(), "templates"))
-)
+    app, loader=jinja2.ChoiceLoader([
+        jinja2.PackageLoader('benchmark', 'templates')
+    ]))
+
+
+@router.get("/healthcheck")
+async def healthcheck() -> web.Response:
+    return web.Response()
 
 
 @router.get('/{username}')
@@ -30,7 +36,6 @@ async def greet_user(request: web.Request) -> web.Response:
 
 
 @router.get("/")
-@aiohttp_jinja2.template("index.html")
 async def index(request: web.Request) -> Dict[str, Any]:
     context = {
         'current_date': 'July 10, 2020'
@@ -44,10 +49,10 @@ async def init_app() -> web.Application:
     app = web.Application()
     app.add_routes(router)
     aiohttp_jinja2.setup(
-        app, loader=jinja2.FileSystemLoader(str(Path(__file__).parent / "templates"))
-    )
-
+        app, loader=jinja2.ChoiceLoader([
+            jinja2.PackageLoader('benchmark', 'templates')
+        ]))
     return app
 
 
-web.run_app(init_app())
+web.run_app(init_app(), port=5000)
