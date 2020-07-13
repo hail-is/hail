@@ -224,8 +224,7 @@ class DNDArray:
         # FIXME: use ndarray sum / fma
         def block_product(left, right):
             product = left @ right
-            n_rows = product.shape[0]
-            n_cols = product.shape[1]
+            n_rows, n_cols = product.shape
             return hl.struct(
                 shape=product.shape,
                 block=hl.range(hl.int(n_rows * n_cols)).map(
