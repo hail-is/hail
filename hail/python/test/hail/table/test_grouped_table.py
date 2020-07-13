@@ -8,8 +8,7 @@ tearDownModule = stopTestHailContext
 
 
 class GroupedTableTests(unittest.TestCase):
-    def \
-            test_aggregate_by(self):
+    def test_aggregate_by(self):
         ht = hl.utils.range_table(4)
         ht = ht.annotate(foo=0, group=ht.idx < 2, bar='hello').annotate_globals(glob=5)
         grouped = ht.group_by(ht.group)
