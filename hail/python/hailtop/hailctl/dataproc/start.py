@@ -354,5 +354,14 @@ def main(args, pass_through_args):
         print("Starting cluster '{}'...".format(args.name))
         gcloud.run(cmd[1:])
 
-        if args.master_tags:
-            gcloud.run(['compute', 'instances', 'add-tags', args.name + '-m', '--tags', args.master_tags])
+    if args.master_tags:
+        add_tags_command = ['compute', 'instances', 'add-tags', args.name + '-m', '--tags', args.master_tags]
+
+        if args.project:
+            add_tags_command.append(f"--project={args.project}")
+        if args.zone:
+            add_tags_command.append(f"--zone={args.zone}")
+
+        print('gcloud ' + ' '.join(add_tags_command))
+        if not args.dry_run:
+            gcloud.run(add_tags_command)
