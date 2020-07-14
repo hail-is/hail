@@ -3161,10 +3161,10 @@ class IRSuite extends HailSuite {
             Ref("id", shuffleType),
             MakeArray(MakeStruct(Seq(("foo", I32(0)))))),
           Let(
-            "garbage"
-              ShufflePartitionBounds(
-                Ref("id", shuffleType),
-                I32(1)),
+            "garbage",
+            ShufflePartitionBounds(
+              Ref("id", shuffleType),
+              I32(1)),
             ShuffleRead(
               Ref("id", shuffleType),
               ApplySpecial("Interval",
