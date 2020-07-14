@@ -1816,6 +1816,7 @@ steps:
     - test_batch
     - test_ci
     - test_hailtop_batch
+    - test_query
  - kind: runImage
    name: test_dataproc
    image:
