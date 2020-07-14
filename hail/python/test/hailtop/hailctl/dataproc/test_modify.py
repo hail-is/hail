@@ -1,0 +1,150 @@
+import pytest
+
+from hailtop.hailctl.dataproc import cli
+
+
+def test_stop(gcloud_run):
+    cli.main(["modify", "test-cluster", "--num-workers=2"])
+    assert gcloud_run.call_args[0][0][:3] == ["dataproc", "clusters", "update"]
+
+
+def test_beta(gcloud_run):
+    cli.main(["--beta", "modify", "test-cluster", "--num-workers=2"])
+    assert gcloud_run.call_args[0][0][:4] == ["beta", "dataproc", "clusters", "update"]
+
+
+def test_cluster_name_required(capsys, gcloud_run):
+    with pytest.raises(SystemExit):
+        cli.main(["modify"])
+
+    assert "arguments are required: name" in capsys.readouterr().err
+    assert gcloud_run.call_count == 0
+
+
+def test_cluster_project(gcloud_run):
+    cli.main(["modify", "--project=foo", "test-cluster", "--num-workers=2"])
+    assert "--project=foo" in gcloud_run.call_args[0][0]
+
+
+def test_cluster_region(gcloud_run):
+    cli.main(["modify", "--region=europe-north1", "test-cluster", "--num-workers=2"])
+    assert "--region=europe-north1" in gcloud_run.call_args[0][0]
+
+
+def test_modify_dry_run(gcloud_run):
+    cli.main(["modify", "test-cluster", "--num-workers=2", "--dry-run"])
+    assert gcloud_run.call_count == 0
+
+
+@pytest.mark.parametrize("workers_arg", [
+    "--num-workers=2",
+    "--n-workers=2",
+    "-w=2",
+])
+def test_modify_workers(gcloud_run, workers_arg):
+    cli.main(["modify", "test-cluster", workers_arg])
+    assert "--num-workers=2" in gcloud_run.call_args[0][0]
+
+
+@pytest.mark.parametrize("workers_arg", [
+    "--num-preemptible-workers=2",
+    "--n-pre-workers=2",
+    "-p=2",
+])
+def test_modify_preemptible_workers(gcloud_run, workers_arg):
+    cli.main(["modify", "test-cluster", workers_arg])
+    assert "--num-preemptible-workers=2" in gcloud_run.call_args[0][0]
+
+
+def test_modify_max_idle(gcloud_run):
+    cli.main(["modify", "test-cluster", "--max-idle=1h"])
+    assert "--max-idle=1h" in gcloud_run.call_args[0][0]
+
+
+@pytest.mark.parametrize("workers_arg", [
+    "--num-workers=2",
+    "--num-preemptible-workers=2",
+])
+def test_graceful_decommission_timeout(gcloud_run, workers_arg):
+    cli.main(["modify", "test-cluster", workers_arg, "--graceful-decommission-timeout=1h"])
+    assert workers_arg in gcloud_run.call_args[0][0]
+    assert "--graceful-decommission-timeout=1h" in gcloud_run.call_args[0][0]
+
+
+def test_graceful_decommission_timeout_no_resize(gcloud_run):
+    with pytest.raises(SystemExit):
+        cli.main(["modify", "test-cluster", "--graceful-decommission-timeout=1h"])
+        assert gcloud_run.call_count == 0
+
+
+def test_modify_wheel_remote_wheel(gcloud_run):
+    cli.main(["modify", "test-cluster", "--wheel=gs://some-bucket/hail.whl"])
+    assert gcloud_run.call_count == 1
+    gcloud_args = gcloud_run.call_args[0][0]
+    assert gcloud_args[:3] == ["compute", "ssh", "test-cluster-m"]
+
+    remote_command = gcloud_args[gcloud_args.index("--") + 1]
+    assert remote_command == ("sudo gsutil cp gs://some-bucket/hail.whl /tmp/ && " +
+        "sudo /opt/conda/default/bin/pip uninstall -y hail && " +
+        "sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/hail.whl")
+
+
+def test_modify_wheel_local_wheel(gcloud_run):
+    cli.main(["modify", "test-cluster", "--wheel=./local-hail.whl"])
+    assert gcloud_run.call_count == 2
+
+    copy_gcloud_args = gcloud_run.call_args_list[0][0][0]
+    assert copy_gcloud_args[:2] == ["compute", "scp"]
+    assert copy_gcloud_args[-2:] == ["./local-hail.whl", "test-cluster-m:/tmp/"]
+
+    install_gcloud_args = gcloud_run.call_args_list[1][0][0]
+    assert install_gcloud_args[:3] == ["compute", "ssh", "test-cluster-m"]
+
+    remote_command = install_gcloud_args[install_gcloud_args.index("--") + 1]
+    assert remote_command == ("sudo /opt/conda/default/bin/pip uninstall -y hail && " +
+        "sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/local-hail.whl")
+
+
+@pytest.mark.parametrize("wheel_arg", [
+    "--wheel=gs://some-bucket/hail.whl",
+    "--wheel=./hail.whl",
+])
+def test_modify_wheel_zone(gcloud_run, gcloud_config, wheel_arg):
+    gcloud_config["compute/zone"] = "us-central1-b"
+
+    cli.main(["modify", "test-cluster", wheel_arg, "--zone=us-east1-d"])
+    for call_args in gcloud_run.call_args_list:
+        assert "--zone=us-east1-d" in call_args[0][0]
+
+
+@pytest.mark.parametrize("wheel_arg", [
+    "--wheel=gs://some-bucket/hail.whl",
+    "--wheel=./hail.whl",
+])
+def test_modify_wheel_default_zone(gcloud_run, gcloud_config, wheel_arg):
+    gcloud_config["compute/zone"] = "us-central1-b"
+
+    cli.main(["modify", "test-cluster", wheel_arg])
+    for call_args in gcloud_run.call_args_list:
+        assert "--zone=us-central1-b" in call_args[0][0]
+
+
+@pytest.mark.parametrize("wheel_arg", [
+    "--wheel=gs://some-bucket/hail.whl",
+    "--wheel=./hail.whl",
+])
+def test_modify_wheel_zone_required(gcloud_run, gcloud_config, wheel_arg):
+    gcloud_config["compute/zone"] = None
+
+    with pytest.raises(Exception):
+        cli.main(["modify", "test-cluster", wheel_arg])
+        assert gcloud_run.call_count == 0
+
+
+@pytest.mark.parametrize("wheel_arg", [
+    "--wheel=gs://some-bucket/hail.whl",
+    "--wheel=./hail.whl",
+])
+def test_modify_wheel_dry_run(gcloud_run, wheel_arg):
+    cli.main(["modify", "test-cluster", wheel_arg, "--dry-run"])
+    assert gcloud_run.call_count == 0
