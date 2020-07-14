@@ -374,7 +374,7 @@ class Container:
             self.overlay_path = merged_overlay_path[:-7].replace(LOCAL_SSD_MOUNT, '/host')
             os.makedirs(f'{self.overlay_path}/', exist_ok=True)
 
-            with Flock('/xfsquota/projects'):
+            async with Flock('/xfsquota/projects', pool=worker.pool):
                 with open('/xfsquota/projects', 'a') as f:
                     f.write(f'{self.job.project_id}:{self.overlay_path}\n')
 
@@ -435,7 +435,7 @@ class Container:
     async def delete_container(self):
         if self.overlay_path:
             path = self.overlay_path.replace('/', r'\/')
-            with Flock('/xfsquota/projects'):
+            async with Flock('/xfsquota/projects', pool=worker.pool):
                 await check_shell(f"sed -i '/:{path}/d' /xfsquota/projects")
 
         if self.container:
@@ -712,12 +712,15 @@ class Job:
                 self.state = 'initializing'
 
                 os.makedirs(f'{self.scratch}/')
-                await check_shell(f'''
-python3 -m batch.worker.flock /xfsquota/projid -c "echo \"{self.project_name}:{self.project_id}\" >> /xfsquota/projid"
-''')
-                await check_shell(f'''
-python3 -m batch.worker.flock /xfsquota/projects -c "echo \"{self.project_id}:{self.scratch}\" >> /xfsquota/projects"
-''')
+
+                async with Flock('/xfsquota/projid', pool=worker.pool):
+                    with open('/xfsquota/projid', 'a') as f:
+                        f.write(f'{self.project_name}:{self.project_id}\n')
+
+                async with Flock('/xfsquota/projects', pool=worker.pool):
+                    with open('/xfsquota/projects', 'a') as f:
+                        f.write(f'{self.project_id}:{self.scratch}\n')
+
                 await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/')
                 await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={self.storage_in_bytes} bhard={self.storage_in_bytes} {self.project_name}" /host/')
 
@@ -789,8 +792,12 @@ python3 -m batch.worker.flock /xfsquota/projects -c "echo \"{self.project_id}:{s
                             log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
 
                     await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
-                    await check_shell(f'''python3 -m batch.worker.flock /xfsquota/projid -c "sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid"''')
-                    await check_shell(f'''python3 -m batch.worker.flock /xfsquota/projects -c "sed -i '/{self.project_id}:/d' /xfsquota/projects"''')
+
+                    async with Flock('/xfsquota/projid', pool=worker.pool):
+                        await check_shell(f"sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
+
+                    async with Flock('/xfsquota/projects', pool=worker.pool):
+                        await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
 
                     shutil.rmtree(self.scratch, ignore_errors=True)
                 except Exception:

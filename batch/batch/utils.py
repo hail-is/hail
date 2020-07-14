@@ -7,6 +7,10 @@ from .front_end.validate import CPU_REGEX, MEMORY_REGEX
 log = logging.getLogger('utils')
 
 
+def round_up_division(numerator, denominator):
+    return (numerator + denominator - 1) // denominator
+
+
 def coalesce(x, default):
     if x is not None:
         return x
@@ -133,11 +137,11 @@ def worker_storage_per_core_bytes(worker_cores):
 
 
 def storage_bytes_to_cores_mcpu(storage_in_bytes, worker_cores):
-    return math.ceil((storage_in_bytes / worker_storage_per_core_bytes(worker_cores)) * 1000)
+    return 1000 * round_up_division(storage_in_bytes, worker_storage_per_core_bytes(worker_cores))
 
 
 def cores_mcpu_to_storage_bytes(cores_in_mcpu, worker_cores):
-    return int((cores_in_mcpu / 1000) * worker_storage_per_core_bytes(worker_cores))
+    return (cores_in_mcpu * worker_storage_per_core_bytes(worker_cores)) // 1000
 
 
 def adjust_cores_for_storage_request(cores_in_mcpu, storage_in_bytes, worker_cores):

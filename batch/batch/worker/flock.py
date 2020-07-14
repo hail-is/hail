@@ -1,8 +1,9 @@
 import fcntl
 import os
 import argparse
-import asyncio
 import subprocess as sp
+
+from hailtop.utils import blocking_to_async
 
 
 class Flock:
@@ -41,11 +42,11 @@ class Flock:
 
     async def __aenter__(self):
         assert self.pool
-        return await asyncio.get_event_loop().run_in_executor(self.pool, self.__enter__)
+        return await blocking_to_async(self.pool, self.__enter__)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         assert self.pool
-        return await asyncio.get_event_loop().run_in_executor(self.pool, self.__exit__, exc_type, exc_val, exc_tb)
+        return await blocking_to_async(self.pool, self.__exit__, exc_type, exc_val, exc_tb)
 
 
 if __name__ == '__main__':
