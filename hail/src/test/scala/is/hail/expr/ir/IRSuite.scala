@@ -11,6 +11,7 @@ import is.hail.expr.ir.functions._
 import is.hail.types.TableType
 import is.hail.types.physical._
 import is.hail.types.virtual._
+import is.hail.types.encoded._
 import is.hail.expr.Nat
 import is.hail.expr.ir.agg.{CallStatsStateSig, CollectStateSig, GroupedAggSig, PhysicalAggSig, TypedStateSig}
 import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
@@ -3159,16 +3160,17 @@ class IRSuite extends HailSuite {
           ShuffleWrite(
             Ref("id", shuffleType),
             MakeArray(MakeStruct(Seq(("foo", I32(0)))))),
-          ShufflePartitionBounds(
-            Ref("id", shuffleType),
-            I32(1)),
-          ShuffleRead(
-            Ref("id", shuffleType),
-            ApplySpecial("Interval",
-              Seq(),
-              Seq(I32(0), I32(5), True(), False()),
-              TInterval(TInt32))
-          ))
+          Let(
+            "garbage"
+              ShufflePartitionBounds(
+                Ref("id", shuffleType),
+                I32(1)),
+            ShuffleRead(
+              Ref("id", shuffleType),
+              ApplySpecial("Interval",
+                Seq(),
+                Seq(I32(0), I32(5), True(), False()),
+                TInterval(TInt32)))))
       }
       )
     irs.map(x => Array(x))
