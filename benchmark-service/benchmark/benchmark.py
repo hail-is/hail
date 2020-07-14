@@ -8,24 +8,8 @@ from aiohttp import web
 import logging
 
 
-app = web.Application()
 router = web.RouteTableDef()
 logging.basicConfig(level=logging.DEBUG)
-
-
-async def init_app() -> web.Application:
-    app.add_routes(router)
-    aiohttp_jinja2.setup(
-        app, loader=jinja2.ChoiceLoader([
-            jinja2.PackageLoader('benchmark', 'templates')
-        ]))
-    return app
-
-
-aiohttp_jinja2.setup(
-    app, loader=jinja2.ChoiceLoader([
-        jinja2.PackageLoader('benchmark')
-    ]))
 
 
 @router.get('/healthcheck')
@@ -53,6 +37,16 @@ async def index(request: web.Request) -> Dict[str, Any]:
     response = aiohttp_jinja2.render_template('index.html', request,
                                               context=context)
     return response
+
+
+async def init_app() -> web.Application:
+    app = web.Application()
+    app.add_routes(router)
+    aiohttp_jinja2.setup(
+        app, loader=jinja2.ChoiceLoader([
+            jinja2.PackageLoader('benchmark', 'templates')
+        ]))
+    return app
 
 
 web.run_app(init_app(), port=5000)
