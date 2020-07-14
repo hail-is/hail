@@ -44,8 +44,8 @@ object InferPType {
       val requiredness = Requiredness.apply(ir, usesAndDefs, null, env) // Value IR inference doesn't need context
       requiredness.states.m.foreach { case (ir, types) =>
         ir.t match {
-          case x: StreamFold => x.accPTypes = types.map(r => r.canonicalPType(x.zero.typ))
-          case x: StreamScan => x.accPTypes = types.map(r => r.canonicalPType(x.zero.typ))
+          case x: StreamFold => x.accPTypes = types.map(r => r.canonicalPType(x.zero.typ)).toArray
+          case x: StreamScan => x.accPTypes = types.map(r => r.canonicalPType(x.zero.typ)).toArray
           case x: StreamFold2 =>
             x.accPTypes = x.accum.zip(types).map { case ((_, arg), r) => r.canonicalPType(arg.typ) }.toArray
           case x: TailLoop =>
@@ -71,6 +71,23 @@ object InferPType {
     case StreamMap(a, `name`, _) => coerce[PStream](a.pType).elementType
     case x@StreamZip(as, _, _, _) =>
       coerce[PStream](as(x.nameIdx(name)).pType).elementType.setRequired(r.required)
+    case StreamZipJoin(as, key, `name`, _, joinF) =>
+      assert(r.required)
+      getCompatiblePType(as.map { a =>
+        PCanonicalStruct(true, key.map { k =>
+          k -> coerce[PStruct](coerce[PStream](a.pType).elementType).fieldType(k)
+        }: _*)
+      }, r).setRequired(true)
+    case x@StreamZipJoin(as, key, _, `name`, joinF) =>
+      assert(r.required)
+      assert(!r.asInstanceOf[RIterable].elementType.required)
+      x.getOrComputeCurValsType {
+        PCanonicalArray(
+          getCompatiblePType(
+            as.map(a => coerce[PStruct](coerce[PStream](a.pType).elementType)),
+            r.asInstanceOf[RIterable].elementType).setRequired(false),
+          required = true)
+      }
     case StreamFilter(a, `name`, _) => coerce[PStream](a.pType).elementType
     case StreamFlatMap(a, `name`, _) => coerce[PStream](a.pType).elementType
     case StreamFor(a, `name`, _) => coerce[PStream](a.pType).elementType
@@ -170,17 +187,12 @@ object InferPType {
         PCanonicalStream(getCompatiblePType(Seq(leftEltType, rightEltType), r.elementType), r.required)
       case StreamZip(as, names, body, behavior) =>
         PCanonicalStream(body.pType, requiredness(node).required)
-      case StreamZipJoin(as, _) =>
+      case StreamZipJoin(as, _, curKey, curVals, joinF) =>
         val r = requiredness(node).asInstanceOf[RIterable]
-        val rEltType = r.elementType.asInstanceOf[RIterable]
+        val rEltType = joinF.pType
         val eltTypes = as.map(_.pType.asInstanceOf[PStream].elementType)
         assert(eltTypes.forall(_.required))
-        assert(rEltType.required)
-        PCanonicalStream(
-          PCanonicalArray(
-            getCompatiblePType(eltTypes, rEltType.elementType).setRequired(rEltType.elementType.required),
-            required = rEltType.required),
-          r.required)
+        PCanonicalStream(rEltType, r.required)
       case StreamMultiMerge(as, _) =>
         val r = coerce[RIterable](requiredness(node))
         val eltTypes = as.map(_.pType.asInstanceOf[PStream].elementType)

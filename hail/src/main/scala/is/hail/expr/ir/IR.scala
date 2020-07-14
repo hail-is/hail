@@ -267,9 +267,18 @@ final case class StreamMultiMerge(as: IndexedSeq[IR], key: IndexedSeq[String]) e
   override def typ: TStream = coerce[TStream](super.typ)
   override def pType: PStream = coerce[PStream](super.pType)
 }
-final case class StreamZipJoin(as: IndexedSeq[IR], key: IndexedSeq[String]) extends IR {
+final case class StreamZipJoin(as: IndexedSeq[IR], key: IndexedSeq[String], curKey: String, curVals: String, joinF: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
   override def pType: PStream = coerce[PStream](super.pType)
+  private var _curValsType: PArray = null
+  def getOrComputeCurValsType(valsType: => PType): PArray = {
+    if (_curValsType == null) _curValsType = valsType.asInstanceOf[PArray]
+    _curValsType
+  }
+  def curValsType: PArray = {
+    assert(_curValsType != null)
+    _curValsType
+  }
 }
 final case class StreamFilter(a: IR, name: String, cond: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)

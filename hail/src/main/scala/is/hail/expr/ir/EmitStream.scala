@@ -901,11 +901,10 @@ object EmitStream {
     mb: EmitMethodBuilder[_],
     region: Value[Region],
     streams: IndexedSeq[Stream[PCode]],
-    eltType: PStruct,
     resultType: PArray,
     key: IndexedSeq[String]
-  ): Stream[PCode] = new Stream[PCode] {
-    def apply(eos: Code[Ctrl], push: PCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[PCode] = {
+  ): Stream[(PCode, PCode)] = new Stream[(PCode, PCode)] {
+    def apply(eos: Code[Ctrl], push: ((PCode, PCode)) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(PCode, PCode)] = {
       // The algorithm maintains a tournament tree of comparisons between the
       // current values of the k streams. The tournament tree is a complete
       // binary tree with k leaves. The leaves of the tree are the streams,
@@ -933,6 +932,7 @@ object EmitStream {
       val result = mb.newLocal[Array[Long]]("merge_result")
       val i = mb.newLocal[Int]("merge_i")
 
+      val eltType = resultType.elementType.asInstanceOf[PStruct]
       val keyType = eltType.selectFields(key)
       val curKey = ctx.mb.newPLocal("st_grpby_curkey", keyType)
 
@@ -966,7 +966,7 @@ object EmitStream {
               srvb.setMissing(),
               srvb.addIRIntermediate(eltType)(result(i))),
             srvb.advance())),
-        push(PCode(resultType, srvb.offset)))
+        push((curKey, PCode(resultType, srvb.offset))))
 
       Code(LstartNewKey,
         Code.forLoop(i := 0, i < k, i := i + 1, result(i) = 0L),
@@ -1022,7 +1022,7 @@ object EmitStream {
           Leos.goto, // can only happen if k=0
           sources.map(_.pull.asInstanceOf[Code[Unit]])))
 
-      Source[PCode](
+      Source[(PCode, PCode)](
         setup0 = Code(sources.map(_.setup0)),
         close0 = Code(sources.map(_.close0)),
         setup = Code(
@@ -1623,13 +1623,31 @@ object EmitStream {
               }))
           }
 
-        case x@StreamZipJoin(as, key) =>
-          val eltType = x.pType.elementType.asInstanceOf[PArray].elementType.asInstanceOf[PStruct]
+        case x@StreamZipJoin(as, key, curKey, curVals, joinIR) =>
+          val curValsType = x.curValsType
+          val eltType = curValsType.elementType.setRequired(true).asInstanceOf[PStruct]
+          val keyType = eltType.selectFields(key)
+
+          def joinF: ((PCode, PCode)) => EmitCode = { case (k, vs) =>
+            val xKey = mb.newPresentEmitField("zipjoin_key", keyType)
+            val xElts = mb.newPresentEmitField("zipjoin_elts", curValsType)
+            val newEnv = env.bind(curKey -> xKey, curVals -> xElts)
+            val joint = joinIR.pType match {
+              case streamType: PCanonicalStream => COption.toEmitCode(
+                emitStream(joinIR, newEnv)
+                  .map(ss => PCanonicalStreamCode(streamType, ss.getStream)),
+                mb)
+              case _ =>
+                emitIR(joinIR, newEnv)
+            }
+
+            EmitCode(Code(xKey := k, xElts := vs), joint)
+          }
 
           COption.lift(as.map(emitStream(_, env))).map { sss =>
             val streams = sss.map(_.getStream.map(_.get()))
-            val zipped = kWayZipJoin(mb, region, streams, eltType, x.pType.elementType.asInstanceOf[PArray], key)
-            SizedStream.unsized(zipped.map(EmitCode.present))
+            val zipped = kWayZipJoin(mb, region, streams, curValsType, key)
+            SizedStream.unsized(zipped.map(joinF))
           }
 
         case StreamFlatMap(outerIR, name, innerIR) =>

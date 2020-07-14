@@ -2323,43 +2323,53 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testStreamZipJoin() {
+    def eltType = TStruct("k1" -> TInt32, "k2" -> TString, "idx" -> TInt32)
     def makeStream(a: Seq[Integer]): IR = {
-      MakeStream(
-        a.zipWithIndex.map { case (n, idx) =>
-          MakeStruct(FastSeq(
-            "k1" -> (if (n == null) NA(TInt32) else I32(n)),
-            "k2" -> Str("x"),
-            "idx" -> I32(idx)))},
-        TStream(TStruct("k1" -> TInt32, "k2" -> TString, "idx" -> TInt32)))
+      if (a == null)
+        NA(TStream(eltType))
+      else
+        MakeStream(
+          a.zipWithIndex.map { case (n, idx) =>
+            MakeStruct(FastSeq(
+              "k1" -> (if (n == null) NA(TInt32) else I32(n)),
+              "k2" -> Str("x"),
+              "idx" -> I32(idx)))},
+          TStream(eltType))
     }
 
     def zipJoin(as: IndexedSeq[Seq[Integer]], key: Int): IR = {
       val streams = as.map(makeStream)
-      ToArray(StreamZipJoin(streams, FastIndexedSeq("k1", "k2").take(key)))
+      val keyRef = Ref(genUID(), TStruct(FastIndexedSeq("k1", "k2").take(key).map(k => k -> eltType.fieldType(k)): _*))
+      val valsRef = Ref(genUID(), TArray(eltType))
+      ToArray(StreamZipJoin(streams, FastIndexedSeq("k1", "k2").take(key), keyRef.name, valsRef.name, InsertFields(keyRef, FastSeq("vals" -> valsRef))))
     }
+
+    assertEvalsTo(
+      zipJoin(FastIndexedSeq(Array[Integer](0, 1, null), null), 1),
+      null)
 
     assertEvalsTo(
       zipJoin(FastIndexedSeq(Array[Integer](0, 1, null), Array[Integer](1, 2, null)), 1),
       FastIndexedSeq(
-        FastIndexedSeq(Row(0, "x", 0), null),
-        FastIndexedSeq(Row(1, "x", 1), Row(1, "x", 0)),
-        FastIndexedSeq(null, Row(2, "x", 1)),
-        FastIndexedSeq(Row(null, "x", 2), null),
-        FastIndexedSeq(null, Row(null, "x", 2))))
+        Row(0, FastIndexedSeq(Row(0, "x", 0), null)),
+        Row(1, FastIndexedSeq(Row(1, "x", 1), Row(1, "x", 0))),
+        Row(2, FastIndexedSeq(null, Row(2, "x", 1))),
+        Row(null, FastIndexedSeq(Row(null, "x", 2), null)),
+        Row(null, FastIndexedSeq(null, Row(null, "x", 2)))))
 
     assertEvalsTo(
       zipJoin(FastIndexedSeq(Array[Integer](0, 1), Array[Integer](1, 2), Array[Integer](0, 2)), 1),
       FastIndexedSeq(
-        FastIndexedSeq(Row(0, "x", 0), null, Row(0, "x", 0)),
-        FastIndexedSeq(Row(1, "x", 1), Row(1, "x", 0), null),
-        FastIndexedSeq(null, Row(2, "x", 1), Row(2, "x", 1))))
+        Row(0, FastIndexedSeq(Row(0, "x", 0), null, Row(0, "x", 0))),
+        Row(1, FastIndexedSeq(Row(1, "x", 1), Row(1, "x", 0), null)),
+        Row(2, FastIndexedSeq(null, Row(2, "x", 1), Row(2, "x", 1)))))
 
     assertEvalsTo(
       zipJoin(FastIndexedSeq(Array[Integer](0, 1), Array[Integer](), Array[Integer](0, 2)), 1),
       FastIndexedSeq(
-        FastIndexedSeq(Row(0, "x", 0), null, Row(0, "x", 0)),
-        FastIndexedSeq(Row(1, "x", 1), null, null),
-        FastIndexedSeq(null, null, Row(2, "x", 1))))
+        Row(0, FastIndexedSeq(Row(0, "x", 0), null, Row(0, "x", 0))),
+        Row(1, FastIndexedSeq(Row(1, "x", 1), null, null)),
+        Row(2, FastIndexedSeq(null, null, Row(2, "x", 1)))))
 
     assertEvalsTo(
       zipJoin(FastIndexedSeq(Array[Integer](), Array[Integer]()), 1),
@@ -2368,25 +2378,33 @@ class IRSuite extends HailSuite {
     assertEvalsTo(
       zipJoin(FastIndexedSeq(Array[Integer](0, 1)), 1),
       FastIndexedSeq(
-        FastIndexedSeq(Row(0, "x", 0)),
-        FastIndexedSeq(Row(1, "x", 1))))
+        Row(0, FastIndexedSeq(Row(0, "x", 0))),
+        Row(1, FastIndexedSeq(Row(1, "x", 1)))))
   }
 
   @Test def testStreamMultiMerge() {
+    def eltType = TStruct("k1" -> TInt32, "k2" -> TString, "idx" -> TInt32)
     def makeStream(a: Seq[Integer]): IR = {
-      MakeStream(
-        a.zipWithIndex.map { case (n, idx) =>
-          MakeStruct(FastSeq(
-            "k1" -> (if (n == null) NA(TInt32) else I32(n)),
-            "k2" -> Str("x"),
-            "idx" -> I32(idx)))},
-        TStream(TStruct("k1" -> TInt32, "k2" -> TString, "idx" -> TInt32)))
+      if (a == null)
+        NA(TStream(eltType))
+      else
+        MakeStream(
+          a.zipWithIndex.map { case (n, idx) =>
+            MakeStruct(FastSeq(
+              "k1" -> (if (n == null) NA(TInt32) else I32(n)),
+              "k2" -> Str("x"),
+              "idx" -> I32(idx)))},
+          TStream(eltType))
     }
 
     def merge(as: IndexedSeq[Seq[Integer]], key: Int): IR = {
       val streams = as.map(makeStream)
       ToArray(StreamMultiMerge(streams, FastIndexedSeq("k1", "k2").take(key)))
     }
+
+    assertEvalsTo(
+      merge(FastIndexedSeq(Array[Integer](0, 1, null, null), null), 1),
+      null)
 
     assertEvalsTo(
       merge(FastIndexedSeq(Array[Integer](0, 1, null, null), Array[Integer](1, 2, null, null)), 1),

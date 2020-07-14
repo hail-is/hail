@@ -112,6 +112,10 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
       case StreamZip(as, names, body, behavior) =>
         val newNames = names.map(_ => gen())
         StreamZip(as.map(normalize(_)), newNames, normalize(body, env.bindEval(names.zip(newNames): _*)), behavior)
+      case StreamZipJoin(as, key, curKey, curVals, joinF) =>
+        val newCurKey = gen()
+        val newCurVals = gen()
+        StreamZipJoin(as.map(normalize(_)), key, newCurKey, newCurVals, normalize(joinF, env.bindEval(curKey -> newCurKey, curVals -> newCurVals)))
       case StreamFilter(a, name, body) =>
         val newName = gen()
         StreamFilter(normalize(a), newName, normalize(body, env.bindEval(name, newName)))
