@@ -1428,6 +1428,7 @@ steps:
    image:
      valueFrom: batch_image.image
    script: |
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
@@ -1451,6 +1452,10 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /ssl-config
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
    dependsOn:
     - create_deploy_config
     - create_accounts
