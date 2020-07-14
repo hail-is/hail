@@ -764,6 +764,56 @@ object LowerTableIR {
                 ++ rValueFields.map(f => f -> GetField(rEltRef, f)))
           })
 
+        case x@TableUnion(children) =>
+          val lowered = children.map(lower)
+          val keyType = x.typ.keyType
+          val newPartitioner = RVDPartitioner.generate(keyType, lowered.flatMap(_.partitioner.rangeBounds))
+          val repartitioned = lowered.map(_.repartitionNoShuffle(newPartitioner))
+
+          TableStage(
+            repartitioned.flatMap(_.letBindings),
+            repartitioned.flatMap(_.broadcastVals),
+            repartitioned.head.globals,
+            newPartitioner,
+            zipIR(repartitioned.map(_.contexts), ArrayZipBehavior.AssumeSameLength) { ctxRefs =>
+              MakeTuple.ordered(ctxRefs)
+            },
+            ctxRef =>
+              StreamMultiMerge(repartitioned.indices.map(i => repartitioned(i).partition(GetTupleElement(ctxRef, i))), keyType.fieldNames)
+          )
+
+        case x@TableMultiWayZipJoin(children, fieldName, globalName) =>
+          val lowered = children.map(lower)
+          val keyType = x.typ.keyType
+          val newPartitioner = RVDPartitioner.generate(keyType, lowered.flatMap(_.partitioner.rangeBounds))
+          val repartitioned = lowered.map(_.repartitionNoShuffle(newPartitioner))
+          val newGlobals = MakeStruct(FastSeq(
+            globalName -> MakeArray(lowered.map(_.globals), TArray(lowered.head.globalType))))
+          val globalsRef = Ref(genUID(), newGlobals.typ)
+
+          val keyRef = Ref(genUID(), keyType)
+          val valsRef = Ref(genUID(), TArray(children.head.typ.rowType))
+          val projectedVals = ToArray(mapIR(ToStream(valsRef)) { elt =>
+            SelectFields(elt, children.head.typ.valueType.fieldNames)
+          })
+
+          TableStage(
+            repartitioned.flatMap(_.letBindings) :+ globalsRef.name -> newGlobals,
+            repartitioned.flatMap(_.broadcastVals) :+ globalsRef.name -> globalsRef,
+            globalsRef,
+            newPartitioner,
+            zipIR(repartitioned.map(_.contexts), ArrayZipBehavior.AssumeSameLength) { ctxRefs =>
+              MakeTuple.ordered(ctxRefs)
+            },
+            ctxRef =>
+              StreamZipJoin(
+                repartitioned.indices.map(i => repartitioned(i).partition(GetTupleElement(ctxRef, i))),
+                keyType.fieldNames,
+                keyRef.name,
+                valsRef.name,
+                InsertFields(keyRef, FastSeq(fieldName -> projectedVals)))
+            )
+
         case TableOrderBy(child, sortFields) =>
           val loweredChild = lower(child)
           if (TableOrderBy.isAlreadyOrdered(sortFields, loweredChild.partitioner.kType.fieldNames))

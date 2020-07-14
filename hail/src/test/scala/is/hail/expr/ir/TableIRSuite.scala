@@ -227,7 +227,99 @@ class TableIRSuite extends HailSuite {
     (41, 2, 1)
   ).map(Row.fromTuple)
 
-  val expected = Array(
+  val expectedUnion = Array(
+    (3, 1, -1),
+    (3, 2, -1),
+    (6, 1, 1),
+    (6, 2, 1),
+    (11, 1, -1),
+    (11, 2, -1),
+    (16, 1, -1),
+    (16, 2, -1),
+    (17, 1, -1),
+    (17, 1, 1),
+    (17, 2, -1),
+    (17, 2, 1),
+    (18, 1, 1),
+    (18, 2, 1),
+    (21, 1, 1),
+    (21, 2, 1),
+    (22, 1, -1),
+    (22, 1, 1),
+    (22, 2, -1),
+    (22, 2, 1),
+    (23, 1, -1),
+    (23, 2, -1),
+    (26, 1, -1),
+    (26, 2, -1),
+    (27, 1, -1),
+    (27, 1, 1),
+    (27, 2, -1),
+    (27, 2, 1),
+    (28, 1, 1),
+    (28, 2, 1),
+    (31, 1, 1),
+    (31, 2, 1),
+    (32, 1, -1),
+    (32, 1, 1),
+    (32, 2, -1),
+    (32, 2, 1),
+    (33, 1, -1),
+    (33, 2, -1),
+    (36, 1, -1),
+    (36, 2, -1),
+    (37, 1, -1),
+    (37, 1, 1),
+    (37, 2, -1),
+    (37, 2, 1),
+    (38, 1, 1),
+    (38, 2, 1),
+    (41, 1, 1),
+    (41, 2, 1)
+  ).map(Row.fromTuple)
+
+  val expectedZipJoin = Array(
+    (3, 1, FastIndexedSeq(Row(-1), null)),
+    (3, 2, FastIndexedSeq(Row(-1), null)),
+    (6, 1, FastIndexedSeq(null, Row(1))),
+    (6, 2, FastIndexedSeq(null, Row(1))),
+    (11, 1, FastIndexedSeq(Row(-1), null)),
+    (11, 2, FastIndexedSeq(Row(-1), null)),
+    (16, 1, FastIndexedSeq(Row(-1), null)),
+    (16, 2, FastIndexedSeq(Row(-1), null)),
+    (17, 1, FastIndexedSeq(Row(-1), Row(1))),
+    (17, 2, FastIndexedSeq(Row(-1), Row(1))),
+    (18, 1, FastIndexedSeq(null, Row(1))),
+    (18, 2, FastIndexedSeq(null, Row(1))),
+    (21, 1, FastIndexedSeq(null, Row(1))),
+    (21, 2, FastIndexedSeq(null, Row(1))),
+    (22, 1, FastIndexedSeq(Row(-1), Row(1))),
+    (22, 2, FastIndexedSeq(Row(-1), Row(1))),
+    (23, 1, FastIndexedSeq(Row(-1), null)),
+    (23, 2, FastIndexedSeq(Row(-1), null)),
+    (26, 1, FastIndexedSeq(Row(-1), null)),
+    (26, 2, FastIndexedSeq(Row(-1), null)),
+    (27, 1, FastIndexedSeq(Row(-1), Row(1))),
+    (27, 2, FastIndexedSeq(Row(-1), Row(1))),
+    (28, 1, FastIndexedSeq(null, Row(1))),
+    (28, 2, FastIndexedSeq(null, Row(1))),
+    (31, 1, FastIndexedSeq(null, Row(1))),
+    (31, 2, FastIndexedSeq(null, Row(1))),
+    (32, 1, FastIndexedSeq(Row(-1), Row(1))),
+    (32, 2, FastIndexedSeq(Row(-1), Row(1))),
+    (33, 1, FastIndexedSeq(Row(-1), null)),
+    (33, 2, FastIndexedSeq(Row(-1), null)),
+    (36, 1, FastIndexedSeq(Row(-1), null)),
+    (36, 2, FastIndexedSeq(Row(-1), null)),
+    (37, 1, FastIndexedSeq(Row(-1), Row(1))),
+    (37, 2, FastIndexedSeq(Row(-1), Row(1))),
+    (38, 1, FastIndexedSeq(null, Row(1))),
+    (38, 2, FastIndexedSeq(null, Row(1))),
+    (41, 1, FastIndexedSeq(null, Row(1))),
+    (41, 2, FastIndexedSeq(null, Row(1)))
+    ).map(Row.fromTuple)
+
+  val expectedOuterJoin = Array(
     (3, 1, -1, null, null),
     (3, 2, -1, null, null),
     (6, null, null, 1, 1),
@@ -278,30 +370,6 @@ class TableIRSuite extends HailSuite {
     (41, null, null, 2, 1)
   ).map(Row.fromTuple)
 
-  val leftPartitioners = Array(
-    FastIndexedSeq(
-      Interval(Row(0, 0), Row(4, 1), true, false),
-      Interval(Row(10, -1), Row(19, 1), true, false),
-      Interval(Row(20, 0), Row(24, 0), true, true),
-      Interval(Row(25, 0), Row(39, 0), true, true))
-    //    FastIndexedSeq(
-    //      Interval(Row(0, 0), Row(10), true, false),
-    //      Interval(Row(10), Row(44, 0), true, true)),
-    //    FastIndexedSeq(Interval(Row(), Row(), true, true))
-  ).map(new RVDPartitioner(kType, _))
-
-  val rightPartitioners = Array(
-    FastIndexedSeq(
-      Interval(Row(5, 0), Row(9, 1), true, false),
-      Interval(Row(15, -1), Row(29, 1), true, false),
-      Interval(Row(30, 0), Row(34, 0), true, true),
-      Interval(Row(35, 0), Row(44, 0), true, true))
-    //    FastIndexedSeq(
-    //      Interval(Row(0, 0), Row(10), true, false),
-    //      Interval(Row(10), Row(44, 0), true, true)),
-    //    FastIndexedSeq(Interval(Row(), Row(), true, true))
-  ).map(new RVDPartitioner(kType, _))
-
   val joinTypes = Array(
     ("outer", (row: Row) => true),
     ("left", (row: Row) => !row.isNullAt(1)),
@@ -344,7 +412,7 @@ class TableIRSuite extends HailSuite {
         Literal(
           TStruct("rows" -> TArray(rightType), "global" -> TStruct.empty),
           Row(rightData.map(rightProjectF.asInstanceOf[Row => Row]), Row())),
-        Some(1)),
+        Some(rParts)),
       if (!rightProject.contains(1)) FastIndexedSeq("A", "B") else FastIndexedSeq("A"))
 
     val (_, joinProjectF) = joinedType.filter(f => !leftProject.contains(f.index) && !rightProject.contains(f.index - 2))
@@ -360,7 +428,61 @@ class TableIRSuite extends HailSuite {
           Map.empty),
         joinType, 1))
 
-    assertEvalsTo(joined, Row(expected.filter(pred).map(joinProjectF).toFastIndexedSeq, Row()))
+    assertEvalsTo(joined, Row(expectedOuterJoin.filter(pred).map(joinProjectF).toFastIndexedSeq, Row()))
+  }
+
+  @DataProvider(name = "union")
+  def unionData(): Array[Array[Any]] =
+    for {
+      lParts <- Array[Integer](1, 2, 3)
+      rParts <- Array[Integer](1, 2, 3)
+    } yield Array[Any](lParts, rParts)
+
+  @Test(dataProvider = "union")
+  def testTableUnion(lParts: Int, rParts: Int) {
+    val left = TableKeyBy(
+      TableParallelize(
+        Literal(
+          TStruct("rows" -> TArray(rowType), "global" -> TStruct.empty),
+          Row(leftData, Row())),
+        Some(lParts)),
+      FastIndexedSeq("A", "B"))
+
+    val right = TableKeyBy(
+      TableParallelize(
+        Literal(
+          TStruct("rows" -> TArray(rowType), "global" -> TStruct.empty),
+          Row(rightData, Row())),
+        Some(rParts)),
+      FastIndexedSeq("A", "B"))
+
+    val merged = collect(TableUnion(FastIndexedSeq(left, right)))
+
+    assertEvalsTo(merged, Row(expectedUnion.toFastIndexedSeq, Row()))
+  }
+
+  @Test(dataProvider = "union")
+  def testTableMultiWayZipJoin(lParts: Int, rParts: Int) {
+    implicit val execStrats = Set(ExecStrategy.LoweredJVMCompile)
+    val left = TableKeyBy(
+      TableParallelize(
+        Literal(
+          TStruct("rows" -> TArray(rowType), "global" -> TStruct.empty),
+          Row(leftData, Row())),
+        Some(lParts)),
+      FastIndexedSeq("A", "B"))
+
+    val right = TableKeyBy(
+      TableParallelize(
+        Literal(
+          TStruct("rows" -> TArray(rowType), "global" -> TStruct.empty),
+          Row(rightData, Row())),
+        Some(rParts)),
+      FastIndexedSeq("A", "B"))
+
+    val merged = collect(TableMultiWayZipJoin(FastIndexedSeq(left, right), "row", "global"))
+
+    assertEvalsTo(merged, Row(expectedZipJoin.toFastIndexedSeq, Row(FastIndexedSeq(Row(), Row()))))
   }
 
   // Catches a bug in the partitioner created by the importer.

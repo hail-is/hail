@@ -181,6 +181,11 @@ package object ir {
     StreamZip(FastSeq(s1, s2), FastSeq(r1.name, r2.name), f(r1, r2), behavior)
   }
 
+  def zipIR(ss: IndexedSeq[IR], behavior: ArrayZipBehavior.ArrayZipBehavior)(f: IndexedSeq[Ref] => IR): IR = {
+    val refs = ss.map(s => Ref(genUID(), coerce[TStream](s.typ).elementType))
+    StreamZip(ss, refs.map(_.name), f(refs), behavior)
+  }
+
   def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields)
 
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)

@@ -99,8 +99,8 @@ object Children {
       Array(l, r)
     case StreamZip(as, names, body, _) =>
       as :+ body
-    case StreamZipJoin(as, _) =>
-      as
+    case StreamZipJoin(as, _, _, _, joinF) =>
+      as :+ joinF
     case StreamMultiMerge(as, _) =>
       as
     case StreamFilter(a, name, cond) =>

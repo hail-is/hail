@@ -478,89 +478,97 @@ object Interpret {
         }
       case StreamMultiMerge(as, key) =>
         val streams = as.map(interpret(_, env, args).asInstanceOf[IndexedSeq[Row]])
-        val k = as.length
-        val tournament = Array.fill[Int](k)(-1)
-        val structType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
-        val (kType, getKey) = structType.select(key)
-        val heads = Array.fill[Int](k)(-1)
-        val ordering = kType.ordering.toOrdering.on[Row](getKey)
+        if (streams.contains(null))
+          null
+        else {
+          val k = as.length
+          val tournament = Array.fill[Int](k)(-1)
+          val structType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
+          val (kType, getKey) = structType.select(key)
+          val heads = Array.fill[Int](k)(-1)
+          val ordering = kType.ordering.toOrdering.on[Row](getKey)
 
-        def get(i: Int): Row = streams(i)(heads(i))
-        def lt(li: Int, lv: Row, ri: Int, rv: Row): Boolean = {
-          val c = ordering.compare(lv, rv)
-          c < 0 || (c == 0 && li < ri)
-        }
-
-        def advance(i: Int) {
-          heads(i) += 1
-          var winner = if (heads(i) < streams(i).length) i else k
-          var j = (i + k) / 2
-          while (j != 0 && tournament(j) != -1) {
-            val challenger = tournament(j)
-            if (challenger != k && (winner == k || lt(j, get(challenger), i, get(winner)))) {
-              tournament(j) = winner
-              winner = challenger
-            }
-            j = j / 2
+          def get(i: Int): Row = streams(i)(heads(i))
+          def lt(li: Int, lv: Row, ri: Int, rv: Row): Boolean = {
+            val c = ordering.compare(lv, rv)
+            c < 0 || (c == 0 && li < ri)
           }
-          tournament(j) = winner
-        }
 
-        for (i <- 0 until k) { advance(i) }
+          def advance(i: Int) {
+            heads(i) += 1
+            var winner = if (heads(i) < streams(i).length) i else k
+            var j = (i + k) / 2
+            while (j != 0 && tournament(j) != -1) {
+              val challenger = tournament(j)
+              if (challenger != k && (winner == k || lt(j, get(challenger), i, get(winner)))) {
+                tournament(j) = winner
+                winner = challenger
+              }
+              j = j / 2
+            }
+            tournament(j) = winner
+          }
 
-        val builder = new ArrayBuilder[Row]()
-        while (tournament(0) != k) {
-          val i = tournament(0)
-          val elt = streams(i)(heads(i))
-          advance(i)
-          builder += elt
+          for (i <- 0 until k) { advance(i) }
+
+          val builder = new ArrayBuilder[Row]()
+          while (tournament(0) != k) {
+            val i = tournament(0)
+            val elt = streams(i)(heads(i))
+            advance(i)
+            builder += elt
+          }
+          builder.result().toFastIndexedSeq
         }
-        builder.result().toFastIndexedSeq
-      case StreamZipJoin(as, key) =>
+      case StreamZipJoin(as, key, curKeyName, curValsName, joinF) =>
         val streams = as.map(interpret(_, env, args).asInstanceOf[IndexedSeq[Row]])
-        val k = as.length
-        val tournament = Array.fill[Int](k)(-1)
-        val structType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
-        val (kType, getKey) = structType.select(key)
-        val heads = Array.fill[Int](k)(-1)
-        val ordering = kType.ordering.toOrdering.on[Row](getKey)
-        val hasKey = TBaseStruct.getJoinOrdering(kType.types).equivNonnull _
+        if (streams.contains(null))
+          null
+        else {
+          val k = as.length
+          val tournament = Array.fill[Int](k)(-1)
+          val structType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
+          val (kType, getKey) = structType.select(key)
+          val heads = Array.fill[Int](k)(-1)
+          val ordering = kType.ordering.toOrdering.on[Row](getKey)
+          val hasKey = TBaseStruct.getJoinOrdering(kType.types).equivNonnull _
 
-        def get(i: Int): Row = streams(i)(heads(i))
+          def get(i: Int): Row = streams(i)(heads(i))
 
-        def advance(i: Int) {
-          heads(i) += 1
-          var winner = if (heads(i) < streams(i).length) i else k
-          var j = (i + k) / 2
-          while (j != 0 && tournament(j) != -1) {
-            val challenger = tournament(j)
-            if (challenger != k && (winner == k || ordering.lteq(get(challenger), get(winner)))) {
-              tournament(j) = winner
-              winner = challenger
+          def advance(i: Int) {
+            heads(i) += 1
+            var winner = if (heads(i) < streams(i).length) i else k
+            var j = (i + k) / 2
+            while (j != 0 && tournament(j) != -1) {
+              val challenger = tournament(j)
+              if (challenger != k && (winner == k || ordering.lteq(get(challenger), get(winner)))) {
+                tournament(j) = winner
+                winner = challenger
+              }
+              j = j / 2
             }
-            j = j / 2
+            tournament(j) = winner
           }
-          tournament(j) = winner
-        }
 
-        for (i <- 0 until k) { advance(i) }
+          for (i <- 0 until k) { advance(i) }
 
-        val builder = new ArrayBuilder[IndexedSeq[Row]]()
-        while (tournament(0) != k) {
-          val i = tournament(0)
-          val elt = Array.fill[Row](k)(null)
-          elt(i) = streams(i)(heads(i))
-          val curKey = getKey(elt(i))
-          advance(i)
-          var j = tournament(0)
-          while (j != k && hasKey(getKey(get(j)), curKey)) {
-            elt(j) = streams(j)(heads(j))
-            advance(j)
-            j = tournament(0)
+          val builder = new ArrayBuilder[Any]()
+          while (tournament(0) != k) {
+            val i = tournament(0)
+            val elt = Array.fill[Row](k)(null)
+            elt(i) = streams(i)(heads(i))
+            val curKey = getKey(elt(i))
+            advance(i)
+            var j = tournament(0)
+            while (j != k && hasKey(getKey(get(j)), curKey)) {
+              elt(j) = streams(j)(heads(j))
+              advance(j)
+              j = tournament(0)
+            }
+            builder += interpret(joinF, env.bind(curKeyName -> curKey, curValsName -> elt.toFastIndexedSeq), args)
           }
-          builder += elt
+          builder.result().toFastIndexedSeq
         }
-        builder.result().toFastIndexedSeq
       case StreamFilter(a, name, cond) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)

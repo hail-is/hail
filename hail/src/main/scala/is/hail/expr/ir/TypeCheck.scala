@@ -290,12 +290,12 @@ object TypeCheck {
         assert(as.length == names.length)
         assert(x.typ.elementType == body.typ)
         assert(as.forall(_.typ.isInstanceOf[TStream]))
-      case x@StreamZipJoin(as, key) =>
+      case x@StreamZipJoin(as, key, curKey, curVals, joinF) =>
         val streamType = coerce[TStream](as.head.typ)
         assert(as.forall(_.typ == streamType))
         val eltType = coerce[TStruct](streamType.elementType)
-        assert(x.typ.elementType == TArray(eltType))
         assert(key.forall(eltType.hasField))
+        assert(x.typ.elementType == joinF.typ)
       case x@StreamMultiMerge(as, key) =>
         val streamType = coerce[TStream](as.head.typ)
         assert(as.forall(_.typ == streamType))
