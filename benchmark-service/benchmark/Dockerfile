@@ -2,7 +2,7 @@ FROM python:3.7-slim-stretch
 
 COPY benchmark-service/benchmark /benchmark-service/benchmark/
 
-COPY benchmark-service/setup.py benchmark-service/MANIFESTS.in  /benchmark-service/
+COPY benchmark-service/setup.py benchmark-service/MANIFEST.in  /benchmark-service/
 
 RUN pip install aiohttp aiohttp_jinja2
 
