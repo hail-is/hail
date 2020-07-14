@@ -18,17 +18,19 @@ import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
-from hailtop.utils import time_msecs, request_retry_transient_errors, RETRY_FUNCTION_SCRIPT, \
-    sleep_and_backoff, retry_all_errors, check_shell, CalledProcessError
+from hailtop.utils import (time_msecs, request_retry_transient_errors,
+                           RETRY_FUNCTION_SCRIPT, sleep_and_backoff, retry_all_errors, check_shell,
+                           CalledProcessError)
 from hailtop.tls import ssl_client_session
-
+from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
+                                        parse_memory_in_bytes)
 # import uvloop
 
 from hailtop.config import DeployConfig
 from gear import configure_logging
 
-from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes, \
-    adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes, adjust_cores_for_packability
+from .utils import (adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes,
+                    adjust_cores_for_packability)
 from .semaphore import FIFOWeightedSemaphore
 from .log_store import LogStore
 from .globals import HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION

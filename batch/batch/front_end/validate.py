@@ -51,12 +51,6 @@ GCSFUSE_KEYS = {'bucket', 'mount_path', 'read_only'}
 K8S_NAME_REGEXPAT = r'[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*'
 K8S_NAME_REGEX = re.compile(K8S_NAME_REGEXPAT)
 
-MEMORY_REGEXPAT = r'[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?'
-MEMORY_REGEX = re.compile(MEMORY_REGEXPAT)
-
-CPU_REGEXPAT = r'[+]?((?:[0-9]*[.])?[0-9]+)([m])?'
-CPU_REGEX = re.compile(CPU_REGEXPAT)
-
 
 class ValidationError(Exception):
     def __init__(self, reason):

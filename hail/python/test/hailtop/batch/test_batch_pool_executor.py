@@ -84,8 +84,8 @@ def test_map_timeout():
 
 
 def test_map_error_without_wait_no_error():
-    with BatchPoolExecutor(project='hail-vdc') as bpe:
-        bpe.map(lambda _: sleep_forever(), range(5), timeout=2)
+    with BatchPoolExecutor(project='hail-vdc', wait_on_exit=False) as bpe:
+        bpe.map(lambda _: time.sleep(10), range(5), timeout=2)
 
 
 def test_exception_in_map():
