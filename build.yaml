@@ -1798,9 +1798,9 @@ steps:
      set +e
      gcloud -q compute instances list \
          --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
-         --format="value(name)" \
+         --format="table[no-heading](zone.basename(), name)" \
          --project {{ global.project }} \
-       | xargs -r gcloud -q compute instances delete --zone {{ global.zone }} --project {{ global.project }} || true
+       | xargs -n2 -r sh -c 'gcloud -q compute instances delete --zone "$1" --project {{ global.project }} "$2" || true' argv0
    secrets:
     - name: test-gsa-key
       namespace:
@@ -1816,6 +1816,7 @@ steps:
     - test_batch
     - test_ci
     - test_hailtop_batch
+    - test_query
  - kind: runImage
    name: test_dataproc
    image:
