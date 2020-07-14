@@ -36,7 +36,7 @@ def chunk(fn):
     return chunkedfn
 
 
-class BatchPoolExecutor(concurrent.futures.Executor):
+class BatchPoolExecutor:
     """An executor which executes Python functions in the cloud.
 
     :class:`.ProcessPoolExecutor` and :class:`.ThreadPoolExecutor` enable the
