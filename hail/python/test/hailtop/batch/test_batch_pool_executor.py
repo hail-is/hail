@@ -127,7 +127,7 @@ def test_exception_in_exception():
             assert False
 
 
-def test_no_exception_when_shutdown():
+def test_no_exception_when_exiting_context():
     def raise_value_error():
         raise ValueError('dead')
     with BatchPoolExecutor(project='hail-vdc') as bpe:

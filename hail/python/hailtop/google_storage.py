@@ -1,3 +1,4 @@
+import os
 import logging
 from functools import wraps
 
@@ -23,6 +24,9 @@ class GCS:
         self.blocking_pool = blocking_pool
         # project=None doesn't mean default, it means no project:
         # https://github.com/googleapis/google-cloud-python/blob/master/storage/google/cloud/storage/client.py#L86
+        if credentials is None and 'HAIL_GSA_KEY_FILE' in os.environ:
+            credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+                os.environ['HAIL_GSA_KEY_FILE'])
         if project:
             self.gcs_client = google.cloud.storage.Client(
                 project=project, credentials=credentials)
