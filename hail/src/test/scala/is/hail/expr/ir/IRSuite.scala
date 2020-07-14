@@ -3147,7 +3147,29 @@ class IRSuite extends HailSuite {
       WriteValue(I32(1), Str("foo"), TypedCodecSpec(PInt32(), BufferSpec.default)),
       LiftMeOut(I32(1)),
       RelationalLet("x", I32(0), I32(0)),
-      TailLoop("y", IndexedSeq("x" -> I32(0)), Recur("y", FastSeq(I32(4)), TInt32))
+      TailLoop("y", IndexedSeq("x" -> I32(0)), Recur("y", FastSeq(I32(4)), TInt32)),
+      {
+        val keyFields = Array(SortField("foo", Ascending))
+        val rowType = TStruct("foo" -> TInt32)
+        val rowEType = EBaseStruct(IndexedSeq(EField("foo", EInt32Required, 0)))
+        val keyEType = EBaseStruct(IndexedSeq(EField("foo", EInt32Required, 0)))
+        val shuffleType = TShuffle(keyFields, rowType, rowEType, keyEType)
+        ShuffleWith(keyFields, rowType, rowEType, keyEType,
+          "id",
+          ShuffleWrite(
+            Ref("id", shuffleType),
+            MakeArray(MakeStruct(Seq(("foo", I32(0)))))),
+          ShufflePartitionBounds(
+            Ref("id", shuffleType),
+            I32(1)),
+          ShuffleRead(
+            Ref("id", shuffleType),
+            ApplySpecial("Interval",
+              Seq(),
+              Seq(I32(0), I32(5), True(), False()),
+              TInterval(TInt32))
+          ))
+      }
       )
     irs.map(x => Array(x))
   }
