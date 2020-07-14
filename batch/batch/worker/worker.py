@@ -36,6 +36,8 @@ from ..globals import HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION
 from ..batch_format_version import BatchFormatVersion
 from ..worker_config import WorkerConfig
 
+from .flock import Flock
+
 # uvloop.install()
 
 configure_logging()
@@ -372,9 +374,10 @@ class Container:
             self.overlay_path = merged_overlay_path[:-7].replace(LOCAL_SSD_MOUNT, '/host')
             os.makedirs(f'{self.overlay_path}/', exist_ok=True)
 
-            await check_shell(f'''
-python3 -m batch.worker.flock /xfsquota/projects -c "echo \"{self.job.project_id}:{self.overlay_path}\" >> /xfsquota/projects"
-''')
+            with Flock('/xfsquota/projects'):
+                with open('/xfsquota/projects', 'a') as f:
+                    f.write(f'{self.job.project_id}:{self.overlay_path}\n')
+
             await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.job.project_name}" /host/')
 
             async with self.step('starting'):
@@ -432,9 +435,8 @@ python3 -m batch.worker.flock /xfsquota/projects -c "echo \"{self.job.project_id
     async def delete_container(self):
         if self.overlay_path:
             path = self.overlay_path.replace('/', r'\/')
-            await check_shell(f'''
-python3 -m batch.worker.flock /xfsquota/projects -c "sed -i '/:{path}/d' /xfsquota/projects"
-''')
+            with Flock('/xfsquota/projects'):
+                await check_shell(f"sed -i '/:{path}/d' /xfsquota/projects")
 
         if self.container:
             try:
@@ -565,6 +567,12 @@ def copy_container(job, name, files, volume_mounts, cpu, memory):
 class Job:
     quota_project_id = 100
 
+    @staticmethod
+    def get_next_xfsquota_project_id():
+        project_id = Job.quota_project_id
+        Job.quota_project_id += 1
+        return project_id
+
     def secret_host_path(self, secret):
         return f'{self.scratch}/secrets/{secret["name"]}'
 
@@ -646,8 +654,7 @@ class Job:
         self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes)
 
         self.project_name = f'batch-{self.batch_id}-job-{self.job_id}'
-        self.project_id = Job.quota_project_id
-        Job.quota_project_id += 1
+        self.project_id = Job.get_next_xfsquota_project_id()
 
         # create containers
         containers = {}

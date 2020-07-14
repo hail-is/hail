@@ -122,14 +122,14 @@ def adjust_cores_for_memory_request(cores_in_mcpu, memory_in_bytes, worker_type)
     return max(cores_in_mcpu, min_cores_mcpu)
 
 
-def total_worker_storage():
+def total_worker_storage_gib():
     # local ssd is 375Gi
     # reserve 25Gi for images
     return 375 - 25
 
 
 def worker_storage_per_core_bytes(worker_cores):
-    return (total_worker_storage() * 1024**3) // worker_cores
+    return (total_worker_storage_gib() * 1024 ** 3) // worker_cores
 
 
 def storage_bytes_to_cores_mcpu(storage_in_bytes, worker_cores):
