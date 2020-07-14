@@ -32,7 +32,7 @@ from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
 
 from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_gb,
                      cost_from_msec_mcpu, adjust_cores_for_packability, coalesce,
-                     adjust_cores_for_storage_request, total_worker_storage)
+                     adjust_cores_for_storage_request, total_worker_storage_gib)
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
@@ -616,7 +616,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 if cores_mcpu > worker_cores * 1000:
                     total_memory_available = worker_memory_per_core_gb(worker_type) * worker_cores
-                    total_storage_available = total_worker_storage()
+                    total_storage_available = total_worker_storage_gib()
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
                         f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} storage={resources["storage"]}'
