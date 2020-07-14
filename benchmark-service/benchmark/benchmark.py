@@ -39,12 +39,12 @@ async def index(request: web.Request) -> Dict[str, Any]:
     return response
 
 
-async def init_app() -> web.Application:
+def init_app() -> web.Application:
     app = web.Application()
     app.add_routes(router)
     aiohttp_jinja2.setup(
         app, loader=jinja2.ChoiceLoader([
-            jinja2.PackageLoader('benchmark', 'templates')
+            jinja2.PackageLoader('benchmark')
         ]))
     return app
 
