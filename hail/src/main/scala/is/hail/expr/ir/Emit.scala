@@ -921,9 +921,9 @@ class Emit[C](
         val isMissing = cb.newLocal[Boolean]("shuffleWithIsMissing")
 
         val shuffleReaders = emitI(readersIR, env = shuffleEnv).consume(cb,
-          { cb.store(isMissing, const(true)) },
+          { cb.append(isMissing := const(true)) },
           { value =>
-            cb.store(isMissing, const(false))
+            cb.append(isMissing := const(false))
             value.memoize(cb, "shuffleReaders")
           })
 
