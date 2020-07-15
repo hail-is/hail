@@ -133,11 +133,11 @@ def total_worker_storage_gib():
 
 
 def worker_storage_per_core_bytes(worker_cores):
-    return (total_worker_storage_gib() * 1024 ** 3) // worker_cores
+    return (total_worker_storage_gib() * 1024**3) // worker_cores
 
 
 def storage_bytes_to_cores_mcpu(storage_in_bytes, worker_cores):
-    return 1000 * round_up_division(storage_in_bytes, worker_storage_per_core_bytes(worker_cores))
+    return round_up_division(storage_in_bytes * 1000, worker_storage_per_core_bytes(worker_cores))
 
 
 def cores_mcpu_to_storage_bytes(cores_in_mcpu, worker_cores):
