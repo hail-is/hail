@@ -38,7 +38,7 @@ class Flock:
     def __exit__(self, type, value, traceback):
         for fd in reversed(self.fds):
             fcntl.flock(fd, fcntl.LOCK_UN)
-            fd.close()
+            os.close(fd)
 
     async def __aenter__(self):
         assert self.pool
