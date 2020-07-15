@@ -1785,6 +1785,18 @@ def array_agg(f, array):
     return _agg_func.array_agg(array, f)
 
 
+@typecheck(expr=expr_str)
+def _impute_type(expr):
+    ret_type = hl.dtype('struct{anyNonMissing: bool,'
+                        'allDefined: bool,'
+                        'supportsBool: bool,'
+                        'supportsInt32: bool,'
+                        'supportsInt64: bool,'
+                        'supportsFloat64: bool}')
+
+    return _agg_func('ImputeType', [expr], ret_type, [])
+
+
 class ScanFunctions(object):
 
     def __init__(self, scope):
