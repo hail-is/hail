@@ -39,7 +39,6 @@ case class TextTableReaderParameters(
   separator: String,
   missing: Set[String],
   hasHeader: Boolean,
-  impute: Boolean,
   nPartitionsOpt: Option[Int],
   quoteStr: String,
   skipBlankLines: Boolean,
@@ -246,7 +245,7 @@ object TextTableReader {
   }
 
   def readMetadata(fs: FS, options: TextTableReaderParameters): TextTableReaderMetadata = {
-    val TextTableReaderParameters(files, _, _, separator, missing, hasHeader, impute, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ) = options
+    val TextTableReaderParameters(files, _, _, separator, missing, hasHeader, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ) = options
 
     val fileStatuses: Array[FileStatus] = {
       val status = fs.globAllStatuses(files)
@@ -291,65 +290,15 @@ object TextTableReader {
         duplicates.map { case (pre, post) => s"'$pre' -> '$post'" }.truncatable("\n  "))
     }
 
-    val sb = new StringBuilder
-    val categoryCounts = mutable.Map.empty[String, Int]
-
-    val namesAndTypes = {
-      if (impute) {
-        info("Reading table to impute column types")
-
-        sb.append("Finished type imputation")
-
-        val imputedTypes = imputeTypes(fs, fileStatuses, options, header, columns, separator, missing, quote)
-
-        columns.zip(imputedTypes).map { case (name, (imputedType, req)) =>
-          types.get(name) match {
-            case Some(t) =>
-              sb.append(s"\n  Loading column '$name' as type '$t' (user-specified)")
-              categoryCounts.updateValue(s"user-specified $t", 0, _ + 1)
-              (name, PType.canonical(t, req))
-            case None =>
-              imputedType match {
-                case Some(t) =>
-                  sb.append(s"\n  Loading column '$name' as type '$t' (imputed)")
-                  categoryCounts.updateValue(s"imputed $t", 0, _ + 1)
-                  (name, PType.canonical(t, req))
-                case None =>
-                  sb.append(s"\n  Loading column '$name' as type 'str' (no non-missing values for imputation)")
-                  categoryCounts.updateValue(s"str (no non-missing values for imputation)", 0, _ + 1)
-                  (name, PType.canonical(TString, req))
-              }
-          }
-        }
-      } else {
-        sb.append("Reading table with no type imputation\n")
-        columns.map { c =>
-          types.get(c) match {
-            case Some(t) =>
-              sb.append(s"  Loading column '$c' as type '$t' (user-specified)\n")
-              categoryCounts.updateValue(s"user-specified $t", 0, _ + 1)
-              (c, PType.canonical(t))
-            case None =>
-              sb.append(s"  Loading column '$c' as type 'str' (type not specified)\n")
-              categoryCounts.updateValue(s"str (type not specified)", 0, _ + 1)
-              (c, PType.canonical(TString))
-          }
+    val namesAndTypes =
+      columns.map { c =>
+        types.get(c) match {
+          case Some(t) =>
+            (c, PType.canonical(t))
+          case None =>
+            (c, PType.canonical(TString))
         }
       }
-    }
-
-    if (namesAndTypes.length < 50)
-      info(sb.result())
-    else {
-      val countStrs = categoryCounts.toArray
-        .sortBy { case (_, n) => -n }
-        .map { case (category, n) => s"\n  $n ${ plural(n, "field") }: $category" }
-        .mkString("")
-
-      info(s"Loading ${ namesAndTypes.length } fields. Counts by type:$countStrs")
-      log.info(sb.result())
-    }
-
     TextTableReaderMetadata(fileStatuses, header, PCanonicalStruct(true, namesAndTypes: _*))
   }
 

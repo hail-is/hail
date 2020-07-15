@@ -65,7 +65,7 @@ class TableNativeReader(TableReader):
 
 class TextTableReader(TableReader):
     def __init__(self, paths, min_partitions, types, comment,
-                 delimiter, missing, no_header, impute, quote,
+                 delimiter, missing, no_header, quote,
                  skip_blank_lines, force_bgz, filter, find_replace,
                  force_gz):
         self.config = {
@@ -75,7 +75,6 @@ class TextTableReader(TableReader):
             'separator': delimiter,
             'missing': missing,
             'hasHeader': not no_header,
-            'impute': impute,
             'nPartitionsOpt': min_partitions,
             'quoteStr': quote,
             'skipBlankLines': skip_blank_lines,

@@ -108,7 +108,7 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(P
 
   def combOp(cb: EmitCodeBuilder, other: ImputeTypeState): Unit = {
     setRepr(cb,
-      getAnyNonMissing && other.getAnyNonMissing,
+      getAnyNonMissing || other.getAnyNonMissing,
       getAllDefined && other.getAllDefined,
       getSupportsBool && other.getSupportsBool,
       getSupportsI32 && other.getSupportsI32,
