@@ -46,6 +46,7 @@ object SortField {
 
 case class SortField(field: String, sortOrder: SortOrder) {
   def parsableString(): String = sortOrder.parsableString() + field
+  override def toString(): String = parsableString()
 }
 
 abstract class AbstractTableSpec extends RelationalSpec {

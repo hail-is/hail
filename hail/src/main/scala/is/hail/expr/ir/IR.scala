@@ -711,7 +711,7 @@ class PrimitiveIR(val self: IR) extends AnyVal {
 }
 
 final case class ShuffleWith(
-  keyFields: Array[SortField],
+  keyFields: IndexedSeq[SortField],
   rowType: TStruct,
   rowEType: EBaseStruct,
   keyEType: EBaseStruct,

@@ -13,7 +13,7 @@ import is.hail.utils._
 import scala.reflect.{ClassTag, _}
 
 case class TShuffle (
-  keyFields: Array[SortField],
+  keyFields: IndexedSeq[SortField],
   rowType: TStruct,
   rowEType: EBaseStruct,
   keyEType: EBaseStruct

@@ -136,13 +136,13 @@ object Wire {
     readStringArray(new MemoryInputBuffer(mb))
   }
 
-  def writeSortFieldArray(out: Value[OutputBuffer], x: Array[SortField]): Code[Unit] = Code(
+  def writeSortFieldArray(out: Value[OutputBuffer], x: IndexedSeq[SortField]): Code[Unit] = Code(
     out.writeInt(x.length),
     Code(x.map(sf => Code(
       out.writeUTF(sf.field),
       out.writeByte(sf.sortOrder.serialize)))))
 
-  def writeSortFieldArray(out: OutputBuffer, x: Array[SortField]): Unit = {
+  def writeSortFieldArray(out: OutputBuffer, x: IndexedSeq[SortField]): Unit = {
     out.writeInt(x.length)
     x.foreach { sf =>
       out.writeUTF(sf.field)
@@ -150,7 +150,7 @@ object Wire {
     }
   }
 
-  def readSortFieldArray(in: InputBuffer): Array[SortField] = {
+  def readSortFieldArray(in: InputBuffer): IndexedSeq[SortField] = {
     val n = in.readInt()
     val a = new Array[SortField](n)
     var i = 0

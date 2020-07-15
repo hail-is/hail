@@ -3150,7 +3150,7 @@ class IRSuite extends HailSuite {
       RelationalLet("x", I32(0), I32(0)),
       TailLoop("y", IndexedSeq("x" -> I32(0)), Recur("y", FastSeq(I32(4)), TInt32)),
       {
-        val keyFields = Array(SortField("foo", Ascending))
+        val keyFields = FastIndexedSeq(SortField("foo", Ascending))
         val rowType = TStruct("foo" -> TInt32)
         val rowEType = EBaseStruct(FastIndexedSeq(EField("foo", EInt32Required, 0)))
         val keyEType = EBaseStruct(FastIndexedSeq(EField("foo", EInt32Required, 0)))
