@@ -3152,14 +3152,14 @@ class IRSuite extends HailSuite {
       {
         val keyFields = Array(SortField("foo", Ascending))
         val rowType = TStruct("foo" -> TInt32)
-        val rowEType = EBaseStruct(IndexedSeq(EField("foo", EInt32Required, 0)))
-        val keyEType = EBaseStruct(IndexedSeq(EField("foo", EInt32Required, 0)))
+        val rowEType = EBaseStruct(FastIndexedSeq(EField("foo", EInt32Required, 0)))
+        val keyEType = EBaseStruct(FastIndexedSeq(EField("foo", EInt32Required, 0)))
         val shuffleType = TShuffle(keyFields, rowType, rowEType, keyEType)
         ShuffleWith(keyFields, rowType, rowEType, keyEType,
           "id",
           ShuffleWrite(
             Ref("id", shuffleType),
-            MakeArray(MakeStruct(Seq(("foo", I32(0)))))),
+            MakeArray(MakeStruct(FastSeq(("foo", I32(0)))))),
           Let(
             "garbage",
             ShufflePartitionBounds(
@@ -3168,8 +3168,8 @@ class IRSuite extends HailSuite {
             ShuffleRead(
               Ref("id", shuffleType),
               ApplySpecial("Interval",
-                Seq(),
-                Seq(I32(0), I32(5), True(), False()),
+                FastSeq(),
+                FastSeq(I32(0), I32(5), True(), False()),
                 TInterval(TInt32)))))
       }
       )

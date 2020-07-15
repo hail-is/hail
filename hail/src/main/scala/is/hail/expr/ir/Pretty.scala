@@ -444,6 +444,8 @@ object Pretty {
             case ReadValue(_, spec, reqType) =>
               s"${ prettyStringLiteral(spec.toString) } ${ reqType.parsableString() }"
             case WriteValue(_, _, spec) => prettyStringLiteral(spec.toString)
+            case x@ShuffleWith(_, _, _, _, name, _, _) =>
+              s"${ x.shuffleType.parsableString() } ${ prettyIdentifier(name) }"
 
             case _ => ""
           }

@@ -1276,6 +1276,32 @@ object IRParser {
         WriteValue(value, path, spec)
       case "LiftMeOut" =>
         LiftMeOut(ir_value_expr(env)(it))
+      case "ReadPartition" =>
+        val rowType = coerce[TStruct](type_expr(env.typEnv)(it))
+        import PartitionReader.formats
+        val reader = JsonMethods.parse(string_literal(it)).extract[PartitionReader]
+        val context = ir_value_expr(env)(it)
+        ReadPartition(context, rowType, reader)
+      case "ShuffleWith" =>
+        val shuffleType = coerce[TShuffle](type_expr(env.typEnv)(it))
+        val name = identifier(it)
+        val writer = ir_value_expr(env + (name -> shuffleType))(it)
+        val readers = ir_value_expr(env + (name -> shuffleType))(it)
+        ShuffleWith(
+          shuffleType.keyFields, shuffleType.rowType, shuffleType.rowEType, shuffleType.keyEType,
+          name, writer, readers)
+      case "ShuffleWrite" =>
+        val id = ir_value_expr(env)(it)
+        val rows = ir_value_expr(env)(it)
+        ShuffleWrite(id, rows)
+      case "ShufflePartitionBounds" =>
+        val id = ir_value_expr(env)(it)
+        val nPartitions = ir_value_expr(env)(it)
+        ShufflePartitionBounds(id, nPartitions)
+      case "ShuffleRead" =>
+        val id = ir_value_expr(env)(it)
+        val keyRange = ir_value_expr(env)(it)
+        ShuffleRead(id, keyRange)
     }
   }
 
