@@ -387,16 +387,16 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
         self.gcs.shutdown(wait)
 
 
-class _NO_VALUE:
+class NoValue:
     pass
 
 
-class _CANCELLED:
+class Cancelled:
     pass
 
 
-NO_VALUE = _NO_VALUE()
-CANCELLED = _CANCELLED()
+NO_VALUE = NoValue()
+CANCELLED = Cancelled()
 
 
 class BatchPoolFuture:

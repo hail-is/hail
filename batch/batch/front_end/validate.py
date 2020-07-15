@@ -1,5 +1,8 @@
 import re
 
+from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
+                                        CPU_REGEX, CPU_REGEXPAT)
+
 # rough schema (without requiredness, value validation):
 # jobs_schema = [{
 #   'always_run': bool,

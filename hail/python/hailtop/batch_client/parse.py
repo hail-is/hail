@@ -2,13 +2,13 @@ from typing import Optional, Mapping
 import re
 import math
 
-MEMORY_REGEXPAT = r'[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?'
-MEMORY_REGEX = re.compile(MEMORY_REGEXPAT)
+MEMORY_REGEXPAT: str = r'[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?'
+MEMORY_REGEX: re.Pattern = re.compile(MEMORY_REGEXPAT)
 
-CPU_REGEXPAT = r'[+]?((?:[0-9]*[.])?[0-9]+)([m])?'
-CPU_REGEX = re.compile(CPU_REGEXPAT)
+CPU_REGEXPAT: str = r'[+]?((?:[0-9]*[.])?[0-9]+)([m])?'
+CPU_REGEX: re.Pattern = re.compile(CPU_REGEXPAT)
 
-IMAGE_REGEX = re.compile(r"(?:.+/)?([^:]+)(:(.+))?")
+IMAGE_REGEX: re.Pattern = re.compile(r"(?:.+/)?([^:]+)(:(.+))?")
 
 
 def parse_cpu_in_mcpu(cpu_string: str) -> Optional[int]:
