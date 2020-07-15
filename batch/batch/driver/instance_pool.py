@@ -294,8 +294,12 @@ sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/gcsfuse /gcsfuse
 
 sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/xfsquota/
 sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/xfsquota /xfsquota
+
 touch /xfsquota/projects
 touch /xfsquota/projid
+
+ln -s /xfsquota/projects /etc/projects
+ln -s /xfsquota/projid /etc/projid
 
 export HOME=/root
 
