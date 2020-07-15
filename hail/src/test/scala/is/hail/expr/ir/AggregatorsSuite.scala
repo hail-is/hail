@@ -788,4 +788,11 @@ class AggregatorsSuite extends HailSuite {
     assertEvalsTo(getAgg(10, 10, Some(1)), FastIndexedSeq(0L))
     assertEvalsTo(getAgg(10, 10, Some(GetField(Ref("global", TStruct("m" -> TInt32)), "m"))), Array.fill(10)(0L).toFastIndexedSeq)
   }
+
+  @Test def testImputeTypeSimple(): Unit = {
+    runAggregator(ImputeType(), TString, FastIndexedSeq(null), Row(false, false, true, true, true, true))
+    runAggregator(ImputeType(), TString, FastIndexedSeq("1231", "1234.5", null), Row(true, false, false, false, false, true))
+    runAggregator(ImputeType(), TString, FastIndexedSeq("1231", "123"), Row(true, true, false, true, true, true))
+    runAggregator(ImputeType(), TString, FastIndexedSeq("true", "false"), Row(true, true, true, false, false, false))
+  }
 }
