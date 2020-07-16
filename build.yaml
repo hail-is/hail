@@ -440,6 +440,11 @@ steps:
    dependsOn:
      - scorecard_image
  - kind: buildImage
+   name: benchmark_image
+   dockerFile: benchmark-service/Dockerfile
+   contextPath: .
+   publishAs: benchmark
+ - kind: buildImage
    name: auth_image
    dockerFile: auth/Dockerfile
    contextPath: .
@@ -1030,6 +1035,16 @@ steps:
    dependsOn:
     - default_ns
     - scorecard_image
+    - deploy_router
+    - create_certs
+ - kind: deploy
+   name: deploy_benchmark
+   namespace:
+     valueFrom: default_ns.name
+   config: benchmark-service/deployment.yaml
+   dependsOn:
+    - default_ns
+    - benchmark_image
     - deploy_router
     - create_certs
  - kind: runImage
