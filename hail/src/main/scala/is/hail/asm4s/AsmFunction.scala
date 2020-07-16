@@ -68,3 +68,6 @@ trait AsmFunction3RegionIteratorRegionValueBooleanLong {
   def apply(r: Region, a: Iterator[RegionValue], b: Boolean): Long
 }
 
+trait AsmFunction3RegionLongIteratorRegionBoolean {
+  def apply(r: Region, a: Long, b: Iterator[java.lang.Long]): Boolean
+}
