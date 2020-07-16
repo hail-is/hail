@@ -10,7 +10,7 @@ def gcloud_config(request):
         "account": "test@hail.is",
         "project": "hailctl-dataproc-tests",
         "dataproc/region": "us-central1",
-        "compute/zone": "use-central1-b",
+        "compute/zone": "us-central1-b",
     }
 
 

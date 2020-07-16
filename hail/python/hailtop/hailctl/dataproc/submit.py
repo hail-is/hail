@@ -1,7 +1,8 @@
-from subprocess import check_call
 import os
 import tempfile
 import zipfile
+
+from . import gcloud
 
 
 def init_parser(parser):
@@ -50,7 +51,6 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
 
     # pyspark submit command
     cmd = [
-        'gcloud',
         'dataproc',
         'jobs',
         'submit',
@@ -71,8 +71,8 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
 
     # print underlying gcloud command
     print('gcloud command:')
-    print(' '.join(cmd[:6]) + ' \\\n    ' + ' \\\n    '.join(cmd[6:]))
+    print('gcloud ' + ' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[6:]))
 
     # submit job
     if not args.dry_run:
-        check_call(cmd)
+        gcloud.run(cmd)
