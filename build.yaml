@@ -441,7 +441,7 @@ steps:
      - scorecard_image
  - kind: buildImage
    name: benchmark_image
-   dockerFile: benchmark/Dockerfile
+   dockerFile: benchmark-service/Dockerfile
    contextPath: .
    publishAs: benchmark
  - kind: buildImage
@@ -1041,7 +1041,7 @@ steps:
    name: deploy_benchmark
    namespace:
      valueFrom: default_ns.name
-   config: benchmark/deployment.yaml
+   config: benchmark-service/deployment.yaml
    scopes:
     - deploy
     - dev
