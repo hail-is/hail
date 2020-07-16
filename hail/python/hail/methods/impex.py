@@ -1528,7 +1528,7 @@ def import_table(paths,
         fields_to_guess = [f for f in ht.row if f not in types]
 
         hl.utils.info('Reading table to impute column types')
-        guessed = ht.aggregate(tuple([hl.agg._impute_type(ht[f]) for f in fields_to_guess]))
+        guessed = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg._impute_type(x), [ht[f] for f in fields_to_guess]))
 
         reasons = {f: 'user-supplied type' for f in types}
 
