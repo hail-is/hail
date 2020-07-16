@@ -1517,14 +1517,71 @@ def import_table(paths,
     missing = wrap_to_list(missing)
 
     tr = ir.TextTableReader(paths, min_partitions, types, comment,
-                            delimiter, missing, no_header, impute, quote,
+                            delimiter, missing, no_header, quote,
                             skip_blank_lines, force_bgz, filter, find_replace,
                             force)
-    t = Table(ir.TableRead(tr))
+    ht = Table(ir.TableRead(tr))
+
+    strs = []
+
+    if impute:
+        fields_to_guess = [f for f in ht.row if f not in types]
+
+        hl.utils.info('Reading table to impute column types')
+        guessed = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg._impute_type(x), [ht[f] for f in fields_to_guess]))
+
+        reasons = {f: 'user-supplied type' for f in types}
+
+        imputed_types = dict()
+        for field, s in zip(fields_to_guess, guessed):
+            if not s['anyNonMissing']:
+                imputed_types[field] = hl.tstr
+                reasons[field] = 'no non-missing observations'
+            else:
+                if s['supportsBool']:
+                    imputed_types[field] = hl.tbool
+                elif s['supportsInt32']:
+                    imputed_types[field] = hl.tint32
+                elif s['supportsInt64']:
+                    imputed_types[field] = hl.tint64
+                elif s['supportsFloat64']:
+                    imputed_types[field] = hl.tfloat64
+                else:
+                    imputed_types[field] = hl.tstr
+                reasons[field] = 'imputed'
+
+        strs.append('Finished type imputation')
+
+        all_types = dict(**types, **imputed_types)
+        for field in ht.row:
+            strs.append(f'  Loading field {field!r} as type {all_types[field]} ({reasons[field]})')
+
+        tr = ir.TextTableReader(paths, min_partitions, all_types, comment,
+                                delimiter, missing, no_header, quote,
+                                skip_blank_lines, force_bgz, filter, find_replace,
+                                force)
+        ht = Table(ir.TableRead(tr))
+
+    else:
+        strs.append('Reading table without type imputation')
+        for field in ht.row:
+            reason = 'user-supplied' if field in types else 'not specified'
+            t = types.get(field, hl.tstr)
+            strs.append(f'  Loading field {field!r} as type {t} ({reason})')
+
+    if len(ht.row) < 30:
+        hl.utils.info('\n'.join(strs))
+    else:
+        from collections import Counter
+        strs2 = [f'Loading {len(ht.row)} fields. Counts by type:']
+        for name, count in Counter(ht[f].dtype for f in ht.row).most_common():
+            strs2.append(f'  {name}: {count}')
+        hl.utils.info('\n'.join(strs))
+
     if key:
         key = wrap_to_list(key)
-        t = t.key_by(*key)
-    return t
+        ht = ht.key_by(*key)
+    return ht
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
