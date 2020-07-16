@@ -1042,9 +1042,6 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: benchmark-service/deployment.yaml
-   scopes:
-    - deploy
-    - dev
    dependsOn:
     - default_ns
     - benchmark_image
