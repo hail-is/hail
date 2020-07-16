@@ -1,0 +1,22 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: benchmark
+  labels:
+    app: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: benchmark
+  template:
+    metadata:
+      labels:
+        app: benchmark
+    spec:
+      containers:
+        - name: benchmark
+          image: {{ benchmark_image.image }}
+          ports:
+            - containerPort: 5000
