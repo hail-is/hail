@@ -1,6 +1,4 @@
-FROM python:3.7-slim-stretch
-
-RUN pip3 install aiohttp aiohttp_jinja2
+FROM {{ service_base_image.image }}
 
 COPY benchmark-service/benchmark /benchmark-service/benchmark/
 

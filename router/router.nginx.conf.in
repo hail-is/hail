@@ -31,12 +31,12 @@ server {
 
     location / {
     # NOTE: http vs https
-        proxy_pass http://benchmark/;
+        proxy_pass https://benchmark/;
         include /etc/nginx/proxy.conf;
     }
 
-    listen 80 ssl;
-    listen [::]:80 ssl;
+    listen 443 ssl;
+    listen [::]:443 ssl;
 }
 
 server {
