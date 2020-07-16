@@ -733,7 +733,7 @@ object LowerTableIR {
                 joiningOp, "left")
             })
 
-        case TableJoin(left, right, joinType, joinKey) if joinType != "zip" =>
+        case TableJoin(left, right, joinType, joinKey) =>
           val loweredLeft = lower(left)
           val loweredRight = lower(right)
 

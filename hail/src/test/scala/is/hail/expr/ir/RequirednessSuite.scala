@@ -388,14 +388,6 @@ class RequirednessSuite extends HailSuite {
         "c" -> rowType.fieldType("c").setRequired(optional)),
       globalType)
 
-    nodes += Array(
-      TableJoin(left, right, "zip", 1),
-      PCanonicalStruct(required,
-        "a" -> pnestedarray(required, optional, optional),
-        "b" -> rowType.fieldType("b").setRequired(optional),
-        "c" -> rowType.fieldType("c").setRequired(optional)),
-      globalType)
-
     val intervalTable = TableKeyBy(
       TableMapRows(table.deepCopy(), makestruct(
         "a" -> interval(nestedarray(required, required, optional), required),
