@@ -464,6 +464,21 @@ object TypeCheck {
       case x@WriteValue(value, pathPrefix, spec) =>
         assert(pathPrefix.typ == TString)
       case LiftMeOut(_) =>
+      case x@ShuffleWith(_, _, _, _, _, writer, readers) =>
+        assert(writer.typ == TArray(TBinary))
+        assert(readers.typ.isRealizable)
+        assert(x.typ == readers.typ)
+      case ShuffleWrite(id, rows) =>
+        val shuffleType = coerce[TShuffle](id.typ)
+        val rowsType = coerce[TStream](rows.typ)
+        assert(rowsType.elementType == shuffleType.rowType)
+      case ShufflePartitionBounds(id, nPartitions) =>
+        assert(id.typ.isInstanceOf[TShuffle])
+        assert(nPartitions.typ == TInt32)
+      case ShuffleRead(id, keyRange) =>
+        val shuffleType = coerce[TShuffle](id.typ)
+        val keyRangeType = coerce[TInterval](keyRange.typ)
+        assert(shuffleType.keyType == keyRangeType.pointType)
     }
   }
 }

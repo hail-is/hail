@@ -70,6 +70,11 @@ object HailContext {
       logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
       logProps.put("log4j.appender.logfile.layout.ConversionPattern", HailContext.logFormat)
 
+      logProps.put("log4j.logger.is.hail.shuffler.server", "INFO, AlwaysOnConsoleAppender")
+      logProps.put("log4j.appender.AlwaysOnConsoleAppender", "org.apache.log4j.ConsoleAppender")
+      logProps.put("log4j.appender.AlwaysOnConsoleAppender.layout", "org.apache.log4j.PatternLayout")
+      logProps.put("log4j.appender.AlwaysOnConsoleAppender.layout.ConversionPattern", HailContext.logFormat)
+
       LogManager.resetConfiguration()
       PropertyConfigurator.configure(logProps)
     }

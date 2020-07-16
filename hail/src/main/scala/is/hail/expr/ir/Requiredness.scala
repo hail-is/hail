@@ -234,7 +234,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case CollectDistributedArray(ctxs, globs, c, g, body) =>
         addElementBinding(c, ctxs)
         addBinding(g, globs)
-
       case TableAggregate(c, q) =>
         addTableBinding(c)
       case TableFilter(child, pred) =>
@@ -247,6 +246,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addTableBinding(child)
       case TableAggregateByKey(child, expr) =>
         addTableBinding(child)
+      case x@ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
+        if (refMap.contains(name)) {
+          refMap(name).foreach { u => defs.bind(u, Array(BaseTypeWithRequiredness(x.shuffleType))) }
+        }
       case _ => fatal(Pretty(node))
     }
   }
@@ -675,6 +678,13 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         coerce[RStruct](requiredness).field("global").unionFrom(lookup(c).globalType)
       case BlockMatrixToValueApply(child, GetElement(_)) => // BlockMatrix elements are all required
       case BlockMatrixCollect(child) =>  // BlockMatrix elements are all required
+      case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
+        requiredness.unionFrom(lookup(readers))
+      case ShuffleWrite(id, rows) => // required
+      case ShufflePartitionBounds(id, nPartitions) =>
+        coerce[RIterable](requiredness).elementType.fromPType(coerce[TShuffle](id.typ).keyDecodedPType)
+      case ShuffleRead(id, keyRange) =>
+        coerce[RIterable](requiredness).elementType.fromPType(coerce[TShuffle](id.typ).rowDecodedPType)
     }
     requiredness.probeChangedAndReset()
   }

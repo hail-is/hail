@@ -146,8 +146,13 @@ object PCanonicalBinary {
   def unapply(t: PBinary): Option[Boolean] = Option(t.required)
 }
 
+object PCanonicalBinarySettable {
+  def apply(sb: SettableBuilder, pt: PCanonicalBinary, name: String): PCanonicalBinarySettable =
+    new PCanonicalBinarySettable(pt, sb.newSettable[Long](name))
+}
+
 class PCanonicalBinarySettable(val pt: PCanonicalBinary, a: Settable[Long]) extends PBinaryValue with PSettable {
-  def get: PBinaryCode = new PCanonicalBinaryCode(pt, a)
+  def get: PCanonicalBinaryCode = new PCanonicalBinaryCode(pt, a)
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
@@ -170,7 +175,7 @@ class PCanonicalBinaryCode(val pt: PCanonicalBinary, val a: Code[Long]) extends 
   def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
 
   def memoize(cb: EmitCodeBuilder, sb: SettableBuilder, name: String): PCanonicalBinarySettable = {
-    val s = new PCanonicalBinarySettable(pt, sb.newSettable[Long](name))
+    val s = PCanonicalBinarySettable(sb, pt, name)
     cb.assign(s, this)
     s
   }

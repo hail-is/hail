@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.io._
+import java.net._
 
 import is.hail.annotations._
 import is.hail.asm4s.joinpoint.Ctrl
@@ -13,8 +14,10 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
+import is.hail.services.shuffler._
 import is.hail.{HailContext, lir}
 import is.hail.utils._
+import org.apache.log4j.Logger
 
 import scala.collection.mutable
 import scala.language.{existentials, postfixOps}
@@ -248,14 +251,15 @@ case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
     pc
   }
 
-  def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (PCode) => Unit): Unit = {
+  def consume[T](cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (PCode) => T): T = {
     val Lafter = CodeLabel()
     cb.define(Lmissing)
     ifMissing
     if (cb.isOpenEnded) cb.goto(Lafter)
     cb.define(Lpresent)
-    ifPresent(pc)
+    val ret = ifPresent(pc)
     cb.define(Lafter)
+    ret
   }
 
   def pt: PType = pc.pt
@@ -678,6 +682,9 @@ class Emit[C](
     def emitI(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
+    def emitStream(ir: IR): COption[EmitStream.SizedStream] =
+      EmitStream.emit(this, ir, mb, region, env, container)
+
     def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir: IR, mb, region, env, container, loopEnv)
 
@@ -884,6 +891,77 @@ class Emit[C](
       case AggStateValue(i, _) =>
         val AggContainer(_, sc, _) = container.get
         presentC(sc.states(i).serializeToRegion(cb, coerce[PBinary](pt), region))
+
+      case x@ShuffleWith(
+        keyFields,
+        rowType,
+        rowEType,
+        keyEType,
+        name,
+        writerIR,
+        readersIR
+      ) =>
+        val shuffleType = x.shuffleType
+        val shufflePType = x.shufflePType
+
+        val shuffle = CodeShuffleClient.createValue(cb, mb.ecb.getType(shuffleType))
+
+        cb.append(shuffle.start())
+
+        val uuid = PCanonicalShuffleSettable.fromArrayBytes(
+          cb, region, shufflePType, shuffle.uuid())
+
+        val shuffleEnv = env.bind(name -> mb.newPresentEmitSettable(uuid.pt, uuid))
+
+        val successfulShuffleIds: PValue = emitI(writerIR, env = shuffleEnv).consume(cb,
+          { cb._fatal("shuffle ID must be non-missing") },
+          // just store it so the writer gets run
+          { code => code.memoize(cb, "shuffleSuccessfulShuffleIds") })
+
+        val isMissing = cb.newLocal[Boolean]("shuffleWithIsMissing")
+
+        val shuffleReaders = emitI(readersIR, env = shuffleEnv).consume(cb,
+          { cb.append(isMissing := const(true)) },
+          { value =>
+            cb.append(isMissing := const(false))
+            value.memoize(cb, "shuffleReaders")
+          })
+
+        cb.append(shuffle.stop())
+        cb.append(shuffle.close())
+
+        IEmitCode(cb, isMissing, shuffleReaders)
+
+      case ShuffleWrite(idIR, rowsIR) =>
+        val shuffleType = coerce[TShuffle](idIR.typ)
+        val rowsPType = coerce[PStream](rowsIR.pType)
+        val uuid = emitI(idIR).consume(cb,
+          { cb._fatal("shuffle ID must be non-missing") },
+          { case (code: PCanonicalShuffleCode) =>
+            code.memoize(cb, "shuffleClientUUID") })
+        val shuffle = CodeShuffleClient.createValue(
+          cb,
+          mb.ecb.getType(shuffleType),
+          uuid.loadBytes(),
+          mb.ecb.getPType(rowsPType.elementType),
+          Code._null)
+        cb.append(shuffle.startPut())
+        cb.append(emitStream(rowsIR).cases(mb)(
+          Code._assert(false, "rows stream was missing in shuffle write"),
+          { case (rows: EmitStream.SizedStream) =>
+            rows.getStream.forEach(mb, { case (row: EmitCode) =>
+              Code(
+                row.setup,
+                row.m.mux(
+                  Code._assert(false, "cannot handle empty rows in shuffle put"),
+                  shuffle.putValue(row.value[Long])))
+            })
+          }))
+        cb.append(shuffle.putValueDone())
+        cb.append(shuffle.endPut())
+        cb.append(shuffle.close())
+        // FIXME: server needs to send uuid for the successful partition
+        presentC(PCanonicalBinary(true).allocate(region, 0))
 
       case _ =>
         emitFallback(ir)

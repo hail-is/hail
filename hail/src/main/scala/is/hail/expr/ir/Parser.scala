@@ -5,6 +5,7 @@ import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.types.physical._
 import is.hail.types.virtual._
+import is.hail.types.encoded._
 import is.hail.types.{MatrixType, TableType}
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
@@ -503,8 +504,29 @@ object IRParser {
         val cases = args.zipWithIndex.map { case ((id, t), i) => Case(id, t, i) }
         TUnion(cases)
       case "Void" => TVoid
+      case "Shuffle" =>
+        punctuation(it, "{")
+        val keyFields = sort_fields(it)
+        punctuation(it, ",")
+        val rowType = type_expr(env)(it).asInstanceOf[TStruct]
+        punctuation(it, ",")
+        val rowEType = EType.eTypeParser(it).asInstanceOf[EBaseStruct]
+        punctuation(it, ",")
+        val keyEType = EType.eTypeParser(it).asInstanceOf[EBaseStruct]
+        punctuation(it, "}")
+        TShuffle(keyFields, rowType, rowEType, keyEType)
     }
     typ
+  }
+
+  def sort_fields(it: TokenIterator): Array[SortField] =
+    base_seq_parser(sort_field)(it)
+
+  def sort_field(it: TokenIterator): SortField = {
+    val sortField = identifier(it)
+    val field = sortField.substring(1)
+    val sortOrder = SortOrder.parse(sortField.substring(0, 1))
+    SortField(field, sortOrder)
   }
 
   def keys(it: TokenIterator): Array[String] = {
@@ -1254,6 +1276,32 @@ object IRParser {
         WriteValue(value, path, spec)
       case "LiftMeOut" =>
         LiftMeOut(ir_value_expr(env)(it))
+      case "ReadPartition" =>
+        val rowType = coerce[TStruct](type_expr(env.typEnv)(it))
+        import PartitionReader.formats
+        val reader = JsonMethods.parse(string_literal(it)).extract[PartitionReader]
+        val context = ir_value_expr(env)(it)
+        ReadPartition(context, rowType, reader)
+      case "ShuffleWith" =>
+        val shuffleType = coerce[TShuffle](type_expr(env.typEnv)(it))
+        val name = identifier(it)
+        val writer = ir_value_expr(env + (name -> shuffleType))(it)
+        val readers = ir_value_expr(env + (name -> shuffleType))(it)
+        ShuffleWith(
+          shuffleType.keyFields, shuffleType.rowType, shuffleType.rowEType, shuffleType.keyEType,
+          name, writer, readers)
+      case "ShuffleWrite" =>
+        val id = ir_value_expr(env)(it)
+        val rows = ir_value_expr(env)(it)
+        ShuffleWrite(id, rows)
+      case "ShufflePartitionBounds" =>
+        val id = ir_value_expr(env)(it)
+        val nPartitions = ir_value_expr(env)(it)
+        ShufflePartitionBounds(id, nPartitions)
+      case "ShuffleRead" =>
+        val id = ir_value_expr(env)(it)
+        val keyRange = ir_value_expr(env)(it)
+        ShuffleRead(id, keyRange)
     }
   }
 
@@ -1376,13 +1424,9 @@ object IRParser {
         val children = table_ir_children(env)(it)
         TableUnion(children)
       case "TableOrderBy" =>
-        val ids = identifiers(it)
+        val sortFields = sort_fields(it)
         val child = table_ir(env)(it)
-        TableOrderBy(child, ids.map(i =>
-          if (i.charAt(0) == 'A')
-            SortField(i.substring(1), Ascending)
-          else
-            SortField(i.substring(1), Descending)))
+        TableOrderBy(child, sortFields)
       case "TableExplode" =>
         val path = string_literals(it)
         val child = table_ir(env)(it)
@@ -1763,6 +1807,8 @@ object IRParser {
   def parseMatrixType(code: String, env: TypeParserEnvironment): MatrixType = parse(code, matrix_type_expr(env))
 
   def parseType(code: String): Type = parseType(code, TypeParserEnvironment.default)
+
+  def parseSortField(code: String): SortField = parse(code, sort_field)
 
   def parsePType(code: String): PType = parsePType(code, TypeParserEnvironment.default)
 

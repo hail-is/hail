@@ -11,6 +11,7 @@ import is.hail.expr.ir.functions._
 import is.hail.types.TableType
 import is.hail.types.physical._
 import is.hail.types.virtual._
+import is.hail.types.encoded._
 import is.hail.expr.Nat
 import is.hail.expr.ir.agg.{CallStatsStateSig, CollectStateSig, GroupedAggSig, PhysicalAggSig, TypedStateSig}
 import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
@@ -3165,7 +3166,30 @@ class IRSuite extends HailSuite {
       WriteValue(I32(1), Str("foo"), TypedCodecSpec(PInt32(), BufferSpec.default)),
       LiftMeOut(I32(1)),
       RelationalLet("x", I32(0), I32(0)),
-      TailLoop("y", IndexedSeq("x" -> I32(0)), Recur("y", FastSeq(I32(4)), TInt32))
+      TailLoop("y", IndexedSeq("x" -> I32(0)), Recur("y", FastSeq(I32(4)), TInt32)),
+      {
+        val keyFields = FastIndexedSeq(SortField("foo", Ascending))
+        val rowType = TStruct("foo" -> TInt32)
+        val rowEType = EBaseStruct(FastIndexedSeq(EField("foo", EInt32Required, 0)))
+        val keyEType = EBaseStruct(FastIndexedSeq(EField("foo", EInt32Required, 0)))
+        val shuffleType = TShuffle(keyFields, rowType, rowEType, keyEType)
+        ShuffleWith(keyFields, rowType, rowEType, keyEType,
+          "id",
+          ShuffleWrite(
+            Ref("id", shuffleType),
+            MakeArray(MakeStruct(FastSeq(("foo", I32(0)))))),
+          Let(
+            "garbage",
+            ShufflePartitionBounds(
+              Ref("id", shuffleType),
+              I32(1)),
+            ShuffleRead(
+              Ref("id", shuffleType),
+              ApplySpecial("Interval",
+                FastSeq(),
+                FastSeq(I32(0), I32(5), True(), False()),
+                TInterval(TInt32)))))
+      }
       )
     irs.map(x => Array(x))
   }

@@ -3,6 +3,7 @@ package is.hail
 import java.io.OutputStreamWriter
 import java.nio.charset._
 
+import is.hail.asm4s._
 import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.io.fs.FS

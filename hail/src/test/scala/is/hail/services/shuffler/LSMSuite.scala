@@ -1,4 +1,4 @@
-package is.hail.shuffler
+package is.hail.services.shuffler
 
 import org.apache.log4j.Logger;
 import is.hail.annotations._
@@ -6,9 +6,10 @@ import is.hail.expr.ir._
 import is.hail.types.virtual._
 import is.hail.types.physical._
 import is.hail.types.encoded._
+import is.hail.services.shuffler.server._
+import is.hail.services.shuffler.ShufflerTestUtils._
 import is.hail.io.{ BufferSpec, TypedCodecSpec }
 import is.hail.testUtils._
-import is.hail.shuffler.ShuffleTestUtils._
 import is.hail.utils._
 import is.hail.{HailSuite, TestUtils}
 import org.scalatest.testng.TestNGSuite
@@ -25,19 +26,13 @@ class LSMSuite extends HailSuite {
     val nPartitions = 3
     ExecuteContext.scoped() { (ctx: ExecuteContext) =>
       val rowPType = structIntStringPType
-      val rowType = rowPType.virtualType
-      val key = Array("x")
-      val keyFields = key.map(x => SortField(x, Ascending))
-      val keyType = rowType.typeAfterSelectNames(key)
-      val keyPType = rowPType.selectFields(key)
       val rowEType = EType.defaultFromPType(rowPType).asInstanceOf[EBaseStruct]
+      val rowType = rowPType.virtualType
+      val key = Array(SortField("x", Ascending))
+      val keyType = rowType.typeAfterSelectNames(key.map(_.field))
+      val keyPType = PType.canonical(keyType)
       val keyEType = EType.defaultFromPType(keyPType).asInstanceOf[EBaseStruct]
-      val codecs = new ShuffleCodecSpec(
-        ctx,
-        keyFields,
-        rowType,
-        rowEType,
-        keyEType)
+      val codecs = new ShuffleCodecSpec(ctx, TShuffle(key, rowType, rowEType, keyEType))
       using(new LSM(ctx.createTmpPath("lsm"), codecs)) { lsm =>
         val shuffled = Array(4, 3, 1, 2, 0)
 
@@ -69,19 +64,13 @@ class LSMSuite extends HailSuite {
     val nPartitions = 7
     ExecuteContext.scoped() { (ctx: ExecuteContext) =>
       val rowPType = structIntStringPType
-      val rowType = rowPType.virtualType
-      val key = Array("x")
-      val keyFields = key.map(x => SortField(x, Ascending))
-      val keyType = rowType.typeAfterSelectNames(key)
-      val keyPType = rowPType.selectFields(key)
       val rowEType = EType.defaultFromPType(rowPType).asInstanceOf[EBaseStruct]
+      val rowType = rowPType.virtualType
+      val key = Array(SortField("x", Ascending))
+      val keyType = rowType.typeAfterSelectNames(key.map(_.field))
+      val keyPType = PType.canonical(keyType)
       val keyEType = EType.defaultFromPType(keyPType).asInstanceOf[EBaseStruct]
-      val codecs = new ShuffleCodecSpec(
-        ctx,
-        keyFields,
-        rowType,
-        rowEType,
-        keyEType)
+      val codecs = new ShuffleCodecSpec(ctx, TShuffle(key, rowType, rowEType, keyEType))
       using(new LSM(ctx.createTmpPath("lsm"), codecs)) { lsm =>
         val shuffled = Array(4, 3, 1, 2, 0)
 
@@ -109,31 +98,6 @@ class LSMSuite extends HailSuite {
         assert(partitionKeys(0).getInt(0) == 4)
         assert(partitionKeys(0).getInt(0) == 4)
       }
-    }
-  }
-
-  private[this] def assertStrictlyIncreasingPrefix(
-    ord: UnsafeOrdering,
-    values: Array[UnsafeRow],
-    prefixLength: Int
-  ): Unit = {
-    if (!(prefixLength <= values.length)) {
-      throw new AssertionError(s"$prefixLength <= ${values.length}")
-    }
-
-    if (values.length <= 1) {
-      return
-    }
-
-    var prev = values(0)
-    var i = 1
-    while (i < prefixLength) {
-      assert(ord.lt(prev.offset, values(i).offset),
-        s"""values are not strictly increasing on [0, $prefixLength). We saw
-           |${prev} and ${values(i)} at $i. Context: ${values.slice(i-3, i+3).toIndexedSeq}
-           |""".stripMargin)
-      prev = values(i)
-      i += 1
     }
   }
 
@@ -175,19 +139,13 @@ class LSMSuite extends HailSuite {
   def testPartitionKeys(nElements: Int, nPartitions: Int) {
     ExecuteContext.scoped() { (ctx: ExecuteContext) =>
       val rowPType = structIntStringPType
-      val rowType = rowPType.virtualType
-      val key = Array("x")
-      val keyFields = key.map(x => SortField(x, Ascending))
-      val keyType = rowType.typeAfterSelectNames(key)
-      val keyPType = rowPType.selectFields(key)
       val rowEType = EType.defaultFromPType(rowPType).asInstanceOf[EBaseStruct]
+      val rowType = rowPType.virtualType
+      val key = Array(SortField("x", Ascending))
+      val keyType = rowType.typeAfterSelectNames(key.map(_.field))
+      val keyPType = PType.canonical(keyType)
       val keyEType = EType.defaultFromPType(keyPType).asInstanceOf[EBaseStruct]
-      val codecs = new ShuffleCodecSpec(
-        ctx,
-        keyFields,
-        rowType,
-        rowEType,
-        keyEType)
+      val codecs = new ShuffleCodecSpec(ctx, TShuffle(key, rowType, rowEType, keyEType))
       using(new LSM(ctx.createTmpPath("lsm"), codecs)) { lsm =>
         val shuffled = Random.shuffle((0 until nElements).toIndexedSeq).toArray
 

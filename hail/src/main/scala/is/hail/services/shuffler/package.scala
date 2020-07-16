@@ -1,6 +1,7 @@
-package is.hail
+package is.hail.services
 
 import java.io._
+import java.net.Socket
 import java.security.KeyStore
 import java.util.Base64
 
@@ -9,7 +10,9 @@ import is.hail.asm4s._
 import is.hail.types.physical._
 import is.hail.io._
 import is.hail.utils._
+import org.apache.log4j.Logger
 import javax.net.ssl._;
+import scala.language.implicitConversions
 
 package object shuffler {
   val shuffleBufferSpec = BufferSpec.unblockedUncompressed
@@ -32,25 +35,29 @@ package object shuffler {
   def sslContext(
     keyStorePath: String,
     keyStorePassPhrase: String,
+    keyStoreType: String,
     trustStorePath: String,
-    trustStorePassPhrase: String
+    trustStorePassPhrase: String,
+    trustStoreType: String
   ): SSLContext = sslContext(
-    new FileInputStream(keyStorePath), keyStorePassPhrase,
-    new FileInputStream(trustStorePath), trustStorePassPhrase)
+    new FileInputStream(keyStorePath), keyStorePassPhrase, keyStoreType,
+    new FileInputStream(trustStorePath), trustStorePassPhrase, trustStoreType)
 
   def sslContext(
     keyStoreInputStream: InputStream,
     keyStorePassPhrase: String,
+    keyStoreType: String,
     trustStoreInputStream: InputStream,
-    trustStorePassPhrase: String
+    trustStorePassPhrase: String,
+    trustStoreType: String
   ): SSLContext = {
     val ctx = SSLContext.getInstance("TLS")
     val kmf = KeyManagerFactory.getInstance("SunX509")
-    val ks = KeyStore.getInstance("PKCS12")
+    val ks = KeyStore.getInstance(keyStoreType)
     ks.load(keyStoreInputStream, keyStorePassPhrase.toCharArray())
     kmf.init(ks, keyStorePassPhrase.toCharArray())
     val tmf = TrustManagerFactory.getInstance("SunX509")
-    val ts = KeyStore.getInstance("JKS")
+    val ts = KeyStore.getInstance(trustStoreType)
     ts.load(trustStoreInputStream, trustStorePassPhrase.toCharArray())
     tmf.init(ts)
     ctx.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null)

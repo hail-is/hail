@@ -38,6 +38,7 @@ package object ir {
     case TFloat64 => typeInfo[Double]
     case TBoolean => typeInfo[Boolean]
     case TBinary => typeInfo[Long]
+    case _: TShuffle => typeInfo[Long]
     case _: TArray => typeInfo[Long]
     case _: TBaseStruct => typeInfo[Long]
     case _: TStream => classInfo[Iterator[RegionValue]]
