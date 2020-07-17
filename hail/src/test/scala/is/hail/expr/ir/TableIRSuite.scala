@@ -72,6 +72,19 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(node, Row(Array.tabulate(10)(i => Row(i, i)).toFastIndexedSeq, Row()))
   }
 
+  @Test def testNestedRangeCollect() {
+    implicit val execStrats = ExecStrategy.allRelational
+
+    val r = TableRange(2, 2)
+    val tc = GetField(collect(r), "rows")
+    val m = TableMapRows(r, InsertFields(Ref("row", r.typ.rowType), FastIndexedSeq("collected" -> tc)))
+    assertEvalsTo(collect(m),
+      Row(FastIndexedSeq(
+        Row(0, FastIndexedSeq(Row(0), Row(1))),
+        Row(1, FastIndexedSeq(Row(0), Row(1)))
+    ), Row()))
+  }
+
   @Test def testRangeSum() {
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = TableRange(10, 2)

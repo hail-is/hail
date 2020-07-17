@@ -11,6 +11,7 @@ import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple, SortFi
 import is.hail.types.physical.{PBaseStruct, PType}
 import is.hail.io.fs.{FS, GoogleStorageFS}
 import is.hail.services.batch_client.BatchClient
+import is.hail.types.virtual.Type
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
 import org.apache.log4j.LogManager
@@ -297,8 +298,8 @@ class ServiceBackend() extends Backend {
     }
   }
 
-  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField]): TableStage = {
+  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Seq[(String, Type)]): TableStage = {
     // Use a local sort for the moment to enable larger pipelines to run
-    LowerDistributedSort.localSort(ctx, stage, sortFields)
+    LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
   }
 }

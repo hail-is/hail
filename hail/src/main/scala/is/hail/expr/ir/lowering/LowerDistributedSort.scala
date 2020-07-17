@@ -4,15 +4,15 @@ import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow, Unsaf
 import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, classInfo}
 import is.hail.expr.ir._
 import is.hail.types.physical.{PArray, PStruct, PTuple}
-import is.hail.types.virtual.TStruct
+import is.hail.types.virtual.{TStruct, Type}
 import is.hail.rvd.RVDPartitioner
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
 object LowerDistributedSort {
-  def localSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField]): TableStage = {
+  def localSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Seq[(String, Type)]): TableStage = {
     val numPartitions = stage.partitioner.numPartitions
-    val collected = stage.collectWithGlobals()
+    val collected = stage.collectWithGlobals(relationalLetsAbove)
 
     val (resultPType: PStruct, f) = ctx.timer.time("LowerDistributedSort.localSort.compile")(Compile[AsmFunction1RegionLong](ctx,
       FastIndexedSeq(),

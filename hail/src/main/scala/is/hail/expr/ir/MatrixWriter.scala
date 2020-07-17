@@ -40,15 +40,15 @@ case class WrappedMatrixWriter(writer: MatrixWriter,
   colKey: IndexedSeq[String]) extends TableWriter {
   def path: String = writer.path
   def apply(ctx: ExecuteContext, tv: TableValue): Unit = writer(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
-  override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR =
-    writer.lower(colsFieldName, entriesFieldName, colKey, ctx, ts, t, r)
+  override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, bindings: Seq[(String, Type)]): IR =
+    writer.lower(colsFieldName, entriesFieldName, colKey, ctx, ts, t, r, bindings)
 }
 
 abstract class MatrixWriter {
   def path: String
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit
   def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-    ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable): IR =
+    ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, bindings: Seq[(String, Type)]): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 }
 
@@ -62,7 +62,7 @@ case class MatrixNativeWriter(
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = mv.write(ctx, path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr)
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-    ctx: ExecuteContext, tablestage: TableStage, t: TableIR, r: RTable): IR = {
+    ctx: ExecuteContext, tablestage: TableStage, t: TableIR, r: RTable, bindings: Seq[(String, Type)]): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
     val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
     val rm = r.asMatrixType(colsFieldName, entriesFieldName)
@@ -101,7 +101,7 @@ case class MatrixNativeWriter(
       zip2(oldCtx, MakeStream(partFiles, TStream(TString)), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
         MakeStruct(FastSeq("oldCtx" -> ctxElt, "writeCtx" -> pf))
       }
-    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals { (rows, ctx) =>
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(bindings) { (rows, ctx) =>
       WritePartition(rows, GetField(ctx, "writeCtx") + UUID4(), rowWriter)
     } { (parts, globals) =>
       val writeEmpty = WritePartition(MakeStream(FastSeq(makestruct()), TStream(TStruct.empty)), Str(partFile(1, 0)), emptyWriter)
