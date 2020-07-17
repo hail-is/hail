@@ -829,7 +829,16 @@ class Emit[C](
                   })
               }
 
-              PCode(pt, xP.construct(shapeBuilder, xP.makeStridesBuilder(shapeTupleValue, isRowMajorCode.tcode[Boolean], mb), requiredData, mb))
+              def makeStridesBuilder(sourceShape: PBaseStructValue, isRowMajor: Code[Boolean], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+                def shapeCodeSeq1 = (0 until nDims).map(sourceShape[Long](_).get)
+
+                isRowMajor.mux(
+                  xP.makeRowMajorStridesBuilder(shapeCodeSeq1, mb)(srvb),
+                  xP.makeColumnMajorStridesBuilder(shapeCodeSeq1, mb)(srvb)
+                )
+              }
+
+              PCode(pt, xP.construct(shapeBuilder, makeStridesBuilder(shapeTupleValue, isRowMajorCode.tcode[Boolean], mb), requiredData, mb))
             }
           }
         }
