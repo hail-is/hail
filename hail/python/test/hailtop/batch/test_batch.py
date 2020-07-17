@@ -293,13 +293,6 @@ class LocalTests(unittest.TestCase):
         t2.command(f'echo "hello" >> {j.foo.bed}')
         b.run()
 
-    def test_requester_pays(self):
-        b = self.batch(requester_pays='hail-vdc')
-        input = b.read_input('gs://hail-services-requester-pays/hello')
-        j = b.new_job()
-        j.command(f'cat {input}')
-        assert b.run().status()['state'] == 'success'
-
 
 class BatchTests(unittest.TestCase):
     def setUp(self):
