@@ -2011,7 +2011,7 @@ class Emit[C](
         val IPIVaddr = mb.genFieldThisRef[Long]()
         val WORKaddr = mb.genFieldThisRef[Long]()
         val Aaddr = mb.genFieldThisRef[Long]()
-        val An = mb.newLocal[Int]() // same as array order
+        val An = mb.newLocal[Int]()
 
         val INFOdgetrf = mb.newLocal[Int]()
         val INFOdgetri = mb.newLocal[Int]()
