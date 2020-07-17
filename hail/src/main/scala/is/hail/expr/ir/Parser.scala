@@ -913,6 +913,9 @@ object IRParser {
         val mode = string_literal(it)
         val nd = ir_value_expr(env)(it)
         NDArrayQR(nd, mode)
+      case "NDArrayInv" =>
+        val nd = ir_value_expr(env)(it)
+        NDArrayInv(nd)
       case "ToSet" => ToSet(ir_value_expr(env)(it))
       case "ToDict" => ToDict(ir_value_expr(env)(it))
       case "ToArray" => ToArray(ir_value_expr(env)(it))

@@ -2245,6 +2245,14 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(matMulCube, IndexedSeq(0, 0, 0)), 30.0)
   }
 
+  @Test def testNDArrayInv() {
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
+    val matrixColMajor = makeNDArray(FastSeq(1.5, 2.0, 4.0, 5.0), FastSeq(2, 2), False())
+    val inv = NDArrayInv(matrixColMajor)
+    val expectedInv = FastSeq(FastSeq(-10.0, 4.0), FastSeq(8.0, -3.0))
+    assertNDEvals(inv, expectedInv)
+  }
+
   @Test def testNDArraySlice() {
     implicit val execStrats: Set[ExecStrategy] = Set()
 

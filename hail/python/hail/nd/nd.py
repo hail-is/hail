@@ -8,7 +8,7 @@ from hail.expr.expressions import (
     expr_int32, expr_int64, expr_tuple, expr_any, expr_array, expr_ndarray,
     Int64Expression, cast_expr, construct_expr)
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
-from hail.ir import NDArrayQR
+from hail.ir import NDArrayQR, NDArrayInv
 
 
 def array(input_array):
@@ -239,7 +239,8 @@ def qr(nd, mode="reduced"):
     - r: ndarray of float64
         The upper-triangular matrix R.
     - (h, tau): ndarrays of float64
-        The array h contains the Householder reflectors that generate q along with r. The tau array contains scaling factors for the reflectors
+        The array h contains the Householder reflectors that generate q along with r.
+        The tau array contains scaling factors for the reflectors
     """
 
     assert nd.ndim == 2, "QR decomposition requires 2 dimensional ndarray"
@@ -255,3 +256,22 @@ def qr(nd, mode="reduced"):
         return construct_expr(ir, tndarray(tfloat64, 2))
     elif mode in ["complete", "reduced"]:
         return construct_expr(ir, ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 2)))
+
+
+@typecheck(nd=expr_ndarray())
+def inv(nd):
+    """Performs a matrix inversion.
+
+    :param nd: A 2 dimensional ndarray, shape(M, N)
+
+    Returns
+    -------
+    - a: ndarray of float64
+        The inverted matrix
+    """
+
+    assert nd.ndim == 2, "Matrix inversion requires 2 dimensional ndarray"
+
+    float_nd = nd.map(lambda x: hl.float64(x))
+    ir = NDArrayInv(float_nd._ir)
+    return construct_expr(ir, tndarray(tfloat64, 2))

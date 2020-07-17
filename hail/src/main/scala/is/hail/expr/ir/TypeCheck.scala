@@ -233,6 +233,10 @@ object TypeCheck {
         val ndType = nd.typ.asInstanceOf[TNDArray]
         assert(ndType.elementType == TFloat64)
         assert(ndType.nDims == 2)
+      case x@NDArrayInv(nd) =>
+        val ndType = nd.typ.asInstanceOf[TNDArray]
+        assert(ndType.elementType == TFloat64)
+        assert(ndType.nDims == 2)
       case x@ArraySort(a, l, r, lessThan) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(lessThan.typ == TBoolean)

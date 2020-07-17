@@ -183,6 +183,8 @@ object InferType {
         } else {
           throw new NotImplementedError(s"Cannot infer type for mode $mode")
         }
+      case NDArrayInv(_) =>
+        TNDArray(TFloat64, Nat(2))
       case NDArrayWrite(_, _) => TVoid
       case AggFilter(_, aggIR, _) =>
         aggIR.typ
