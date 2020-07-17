@@ -733,7 +733,7 @@ abstract class UnseededMissingnessObliviousJVMFunction (
   override def getAsMethod[C](cb: EmitClassBuilder[C], rpt: PType, typeParameters: Seq[Type], args: PType*): EmitMethodBuilder[C] = {
     val unified = unify(typeParameters, args.map(_.virtualType), rpt.virtualType)
     assert(unified)
-    val argTIs = valueParameterTypes.toFastIndexedSeq.map(t => t.subst().ti)
+    val argTIs = args.toFastIndexedSeq.map(typeToTypeInfo)
     val methodbuilder = cb.genEmitMethod(name, (typeInfo[Region] +: argTIs).map(ti => ti: CodeParamType), typeToTypeInfo(rpt))
     methodbuilder.emit(apply(EmitRegion.default(methodbuilder),
       rpt,
