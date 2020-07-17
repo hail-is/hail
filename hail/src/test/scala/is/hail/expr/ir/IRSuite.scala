@@ -2210,7 +2210,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastIndexedSeq(1, 0)), 2.0)
   }
 
-  @Test def testNDArrayAgg() {
+  @Test(enabled = false) def testNDArrayAgg() {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val three = makeNDArrayRef(NDArrayAgg(scalarRowMajor, IndexedSeq.empty), IndexedSeq.empty)
