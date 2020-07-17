@@ -81,4 +81,3 @@ if __name__ == '__main__':
 
     for src, dest in args.files:
         copy(src, dest, args.user, args.io_path, args.cache_path)
-

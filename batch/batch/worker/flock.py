@@ -21,7 +21,7 @@ class Flock:
             self.path = self.path.rstrip('/') + '/'
 
     def __enter__(self):
-        dirname, filename = os.path.split(self.path)
+        dirname, _ = os.path.split(self.path)
 
         components = dirname.split('/')
         for i in range(2, len(components) + 1):
