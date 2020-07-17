@@ -239,7 +239,8 @@ def qr(nd, mode="reduced"):
     - r: ndarray of float64
         The upper-triangular matrix R.
     - (h, tau): ndarrays of float64
-        The array h contains the Householder reflectors that generate q along with r. The tau array contains scaling factors for the reflectors
+        The array h contains the Householder reflectors that generate q along with r.
+        The tau array contains scaling factors for the reflectors
     """
 
     assert nd.ndim == 2, "QR decomposition requires 2 dimensional ndarray"
@@ -255,6 +256,7 @@ def qr(nd, mode="reduced"):
         return construct_expr(ir, tndarray(tfloat64, 2))
     elif mode in ["complete", "reduced"]:
         return construct_expr(ir, ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 2)))
+
 
 @typecheck(nd=expr_ndarray())
 def inv(nd):

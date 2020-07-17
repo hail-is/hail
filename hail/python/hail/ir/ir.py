@@ -806,7 +806,8 @@ class NDArrayMatMul(IR):
 
         ndim = hail.linalg.utils.misc._ndarray_matmul_ndim(self.left.typ.ndim, self.right.typ.ndim)
         from hail.expr.expressions import unify_types
-        self._type = tndarray(unify_types(self.left.typ.element_type, self.right.typ.element_type), ndim)
+        self._type = tndarray(unify_types(self.left.typ.element_type,
+                                          self.right.typ.element_type), ndim)
 
 
 class NDArrayQR(IR):
@@ -835,6 +836,7 @@ class NDArrayQR(IR):
         else:
             raise ValueError("Cannot compute type for mode: " + self.mode)
 
+
 class NDArrayInv(IR):
     @typecheck_method(nd=IR)
     def __init__(self, nd):
@@ -848,6 +850,7 @@ class NDArrayInv(IR):
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
         self._type = tndarray(tfloat64, 2)
+
 
 class NDArrayWrite(IR):
     @typecheck_method(nd=IR, path=IR)
@@ -1773,7 +1776,8 @@ class InsertFields(IR):
     def render_children(self, r):
         return [
             self.old,
-            hail.ir.RenderableStr('None' if self.field_order is None else parsable_strings(self.field_order)),
+            hail.ir.RenderableStr(
+                'None' if self.field_order is None else parsable_strings(self.field_order)),
             *(InsertFields.IFRenderField(escape_id(f), x) for f, x in self.fields)
         ]
 
@@ -2515,7 +2519,8 @@ def subst(ir, env, agg_env):
         return AggArrayPerElement(_subst(ir.array, agg_env),
                                   ir.element_name,
                                   ir.index_name,
-                                  _subst(ir.agg_ir, delete(env, ir.index_name), delete(agg_env, ir.element_name)),
+                                  _subst(ir.agg_ir, delete(env, ir.index_name),
+                                         delete(agg_env, ir.element_name)),
                                   ir.is_scan)
     else:
         assert isinstance(ir, IR)
