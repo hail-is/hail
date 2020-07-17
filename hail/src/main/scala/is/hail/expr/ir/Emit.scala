@@ -829,7 +829,7 @@ class Emit[C](
                   })
               }
 
-              PCode(pt, xP.construct(shapeBuilder, xP.makeStridesBuilder(shapeTupleValue, isRowMajorCode.code.asInstanceOf[Code[Boolean]], mb), requiredData, mb))
+              PCode(pt, xP.construct(shapeBuilder, xP.makeStridesBuilder(shapeTupleValue, isRowMajorCode.tcode[Boolean], mb), requiredData, mb))
             }
           }
         }
