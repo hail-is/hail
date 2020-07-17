@@ -1049,30 +1049,6 @@ class RVD(
   ): RVD =
     keyBy(1).orderedLeftIntervalJoinDistinct(ctx, right.keyBy(1), joiner)
 
-  def orderedZipJoin(
-    right: RVD,
-    ctx: ExecuteContext
-  ): (RVDPartitioner, ContextRDD[JoinedRegionValue]) =
-    orderedZipJoin(right, typ.key.length, ctx)
-
-  def orderedZipJoin(
-    right: RVD,
-    joinKey: Int,
-    ctx: ExecuteContext
-  ): (RVDPartitioner, ContextRDD[JoinedRegionValue]) =
-    keyBy(joinKey).orderedZipJoin(right.keyBy(joinKey), ctx)
-
-  def orderedZipJoin(
-    right: RVD,
-    joinKey: Int,
-    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
-    joinedType: RVDType,
-    ctx: ExecuteContext
-  ): RVD = {
-    val (joinedPartitioner, jcrdd) = orderedZipJoin(right, joinKey, ctx)
-    RVD(joinedType, joinedPartitioner, jcrdd.cmapPartitions(joiner).toCRDDPtr)
-  }
-
   def orderedMerge(
     right: RVD,
     joinKey: Int,
@@ -1081,33 +1057,6 @@ class RVD(
     keyBy(joinKey).orderedMerge(right.keyBy(joinKey), ctx)
 
   // Zipping
-
-  def zip(
-    newTyp: RVDType,
-    that: RVD
-  )(zipper: (RVDContext, RegionValue, RegionValue) => RegionValue
-  ): RVD = RVD(
-    newTyp,
-    partitioner,
-    crdd.toCRDDRegionValue.czip(that.crdd.toCRDDRegionValue)(zipper).toCRDDPtr)
-
-  def zipPartitions(
-    newTyp: RVDType,
-    that: RVD
-  )(zipper: (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
-  ): RVD = RVD(
-    newTyp,
-    partitioner,
-    crdd.toCRDDRegionValue.czipPartitions(that.crdd.toCRDDRegionValue)(zipper).toCRDDPtr)
-
-  def zipPartitionsWithIndex(
-    newTyp: RVDType,
-    that: RVD
-  )(zipper: (Int, RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue]
-  ): RVD = RVD(
-    newTyp,
-    partitioner,
-    crdd.toCRDDRegionValue.czipPartitionsWithIndex(that.crdd.toCRDDRegionValue)(zipper).toCRDDPtr)
 
   // New key type must be prefix of left key type. 'joinKey' must be prefix of
   // both left key and right key. 'zipper' must take all output key values from
