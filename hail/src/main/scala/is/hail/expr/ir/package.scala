@@ -29,7 +29,7 @@ package object ir {
 
   def genSym(base: String): Sym = Sym.gen(base)
 
-  def typeToTypeInfo(t: PType): TypeInfo[_] = typeToTypeInfo(t)
+  def typeToTypeInfo(t: PType): TypeInfo[_] = t.ti
 
   def defaultValue(t: PType): Code[_] = defaultValue(typeToTypeInfo(t))
 
