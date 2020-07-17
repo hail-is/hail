@@ -831,7 +831,10 @@ class Emit[C](
                 })
             }
 
-            PCode(pt, xP.construct(shapeBuilder, xP.makeRowMajorStridesBuilder(shapeCodeSeq, mb), requiredData, mb))
+            rowMajorIR match {
+              case True() => PCode(pt, xP.construct(shapeBuilder, xP.makeRowMajorStridesBuilder(shapeCodeSeq, mb), requiredData, mb))
+              case False() => PCode(pt, xP.construct(shapeBuilder, xP.makeColumnMajorStridesBuilder(shapeCodeSeq, mb), requiredData, mb))
+            }
           }
         }
       case NDArrayRef(nd, idxs) =>
