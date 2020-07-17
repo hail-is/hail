@@ -1,12 +1,19 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{CodeOrdering, Region, RegionValue, StagedRegionValueBuilder}
+import is.hail.io._
+import is.hail.services.shuffler._
+import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
+import is.hail.types.virtual._
 import is.hail.types.physical._
-import is.hail.io.{AbstractTypedCodecSpec, InputBuffer}
+import is.hail.types.encoded._
 import is.hail.utils._
+import java.io.{ DataOutputStream, InputStream, OutputStream }
+import java.net.Socket
+import java.util.Base64
+import org.apache.log4j.Logger
 
 import scala.language.{existentials, higherKinds}
 import scala.reflect.ClassTag
@@ -901,11 +908,10 @@ object EmitStream {
     mb: EmitMethodBuilder[_],
     region: Value[Region],
     streams: IndexedSeq[Stream[PCode]],
-    eltType: PStruct,
     resultType: PArray,
     key: IndexedSeq[String]
-  ): Stream[PCode] = new Stream[PCode] {
-    def apply(eos: Code[Ctrl], push: PCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[PCode] = {
+  ): Stream[(PCode, PCode)] = new Stream[(PCode, PCode)] {
+    def apply(eos: Code[Ctrl], push: ((PCode, PCode)) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(PCode, PCode)] = {
       // The algorithm maintains a tournament tree of comparisons between the
       // current values of the k streams. The tournament tree is a complete
       // binary tree with k leaves. The leaves of the tree are the streams,
@@ -933,6 +939,7 @@ object EmitStream {
       val result = mb.newLocal[Array[Long]]("merge_result")
       val i = mb.newLocal[Int]("merge_i")
 
+      val eltType = resultType.elementType.asInstanceOf[PStruct]
       val keyType = eltType.selectFields(key)
       val curKey = ctx.mb.newPLocal("st_grpby_curkey", keyType)
 
@@ -966,7 +973,7 @@ object EmitStream {
               srvb.setMissing(),
               srvb.addIRIntermediate(eltType)(result(i))),
             srvb.advance())),
-        push(PCode(resultType, srvb.offset)))
+        push((curKey, PCode(resultType, srvb.offset))))
 
       Code(LstartNewKey,
         Code.forLoop(i := 0, i < k, i := i + 1, result(i) = 0L),
@@ -1022,7 +1029,7 @@ object EmitStream {
           Leos.goto, // can only happen if k=0
           sources.map(_.pull.asInstanceOf[Code[Unit]])))
 
-      Source[PCode](
+      Source[(PCode, PCode)](
         setup0 = Code(sources.map(_.setup0)),
         close0 = Code(sources.map(_.close0)),
         setup = Code(
@@ -1623,13 +1630,31 @@ object EmitStream {
               }))
           }
 
-        case x@StreamZipJoin(as, key) =>
-          val eltType = x.pType.elementType.asInstanceOf[PArray].elementType.asInstanceOf[PStruct]
+        case x@StreamZipJoin(as, key, curKey, curVals, joinIR) =>
+          val curValsType = x.curValsType
+          val eltType = curValsType.elementType.setRequired(true).asInstanceOf[PStruct]
+          val keyType = eltType.selectFields(key)
+
+          def joinF: ((PCode, PCode)) => EmitCode = { case (k, vs) =>
+            val xKey = mb.newPresentEmitField("zipjoin_key", keyType)
+            val xElts = mb.newPresentEmitField("zipjoin_elts", curValsType)
+            val newEnv = env.bind(curKey -> xKey, curVals -> xElts)
+            val joint = joinIR.pType match {
+              case streamType: PCanonicalStream => COption.toEmitCode(
+                emitStream(joinIR, newEnv)
+                  .map(ss => PCanonicalStreamCode(streamType, ss.getStream)),
+                mb)
+              case _ =>
+                emitIR(joinIR, newEnv)
+            }
+
+            EmitCode(Code(xKey := k, xElts := vs), joint)
+          }
 
           COption.lift(as.map(emitStream(_, env))).map { sss =>
             val streams = sss.map(_.getStream.map(_.get()))
-            val zipped = kWayZipJoin(mb, region, streams, eltType, x.pType.elementType.asInstanceOf[PArray], key)
-            SizedStream.unsized(zipped.map(EmitCode.present))
+            val zipped = kWayZipJoin(mb, region, streams, curValsType, key)
+            SizedStream.unsized(zipped.map(joinF))
           }
 
         case StreamFlatMap(outerIR, name, innerIR) =>
@@ -1829,6 +1854,98 @@ object EmitStream {
               SizedStream(leftSetup, newStream, if (joinType == "left") leftLen else None)
             }
           }
+
+        case x@ShuffleRead(idIR, keyRangeIR) =>
+          val shuffleType = coerce[TShuffle](idIR.typ)
+          assert(shuffleType.rowDecodedPType == coerce[PStream](x.pType).elementType)
+          val keyType = coerce[TInterval](keyRangeIR.typ).pointType
+          val keyPType = coerce[PInterval](keyRangeIR.pType).pointType
+          assert(keyType == shuffleType.keyType)
+          assert(keyPType == shuffleType.keyDecodedPType)
+
+          COption.fromEmitCode(emitIR(idIR)).doIfNone(
+            Code._fatal[Unit]("ShuffleRead cannot have null ID")
+          ).flatMap { case (idt: PCanonicalShuffleCode) =>
+            COption.fromEmitCode(emitIR(keyRangeIR)).doIfNone(
+              Code._fatal[Unit]("ShuffleRead cannot have null key range")
+            ).flatMap { case (keyRanget: PIntervalCode) =>
+              val intervalPhysicalType = keyRanget.pt
+
+              val uuidLocal = mb.newLocal[Long]("shuffleUUID")
+              val uuid = new PCanonicalShuffleSettable(idt.pt.asInstanceOf[PCanonicalShuffle], uuidLocal)
+              val keyRange = mb.newLocal[Long]("shuffleClientKeyRange")
+              COption(
+                Code(
+                  uuidLocal := idt.tcode[Long],
+                  keyRange := keyRanget.tcode[Long],
+                  !intervalPhysicalType.startDefined(keyRange) || !intervalPhysicalType.endDefined(keyRange)),
+                keyRange
+              ).doIfNone(
+                Code._fatal[Unit]("ShuffleRead cannot have null start or end points of key range")
+              ).map { (keyRange: LocalRef[Long]) =>
+                val startt = intervalPhysicalType.loadStart(keyRange)
+                val startInclusivet = intervalPhysicalType.includesStart(keyRange)
+                val endt = intervalPhysicalType.loadEnd(keyRange)
+                val endInclusivet = intervalPhysicalType.includesEnd(keyRange)
+
+                val shuffleLocal = mb.newLocal[ShuffleClient]("shuffleClient")
+                val shuffle = new ValueShuffleClient(shuffleLocal)
+
+                val stream = unfold[EmitCode](
+                  { (_, k) =>
+                    k(
+                      COption(
+                        shuffle.getValueFinished(),
+                        EmitCode.present(
+                          shuffleType.rowDecodedPType, shuffle.getValue(region))))
+                  },
+                  setup = Some(Code(
+                    shuffleLocal := CodeShuffleClient.create(
+                      mb.ecb.getType(shuffleType),
+                      uuid.loadBytes(),
+                      Code._null,
+                      mb.ecb.getPType(keyPType)),
+                    shuffle.startGet(startt, startInclusivet, endt, endInclusivet))),
+                  close = Some(Code(
+                    shuffle.getDone(),
+                    shuffle.close())))
+                SizedStream.unsized(stream)
+              }
+            }
+          }
+
+      case x@ShufflePartitionBounds(idIR, nPartitionsIR) =>
+          val shuffleType = coerce[TShuffle](idIR.typ)
+          assert(shuffleType.keyDecodedPType == coerce[PStream](x.pType).elementType)
+          COption.fromEmitCode(emitIR(idIR)).doIfNone(
+            Code._fatal[Unit]("ShufflePartitionBounds cannot have null ID")
+          ).flatMap { case (idt: PCanonicalShuffleCode) =>
+            COption.fromEmitCode(emitIR(nPartitionsIR)).doIfNone(
+              Code._fatal[Unit]("ShufflePartitionBounds cannot have null number of partitions")
+            ).map { case (nPartitionst: PPrimitiveCode) =>
+              val code = new ArrayBuilder[Code[Unit]]()
+              val uuidLocal = mb.newLocal[Long]("shuffleUUID")
+              val uuid = new PCanonicalShuffleSettable(idt.pt.asInstanceOf[PCanonicalShuffle], uuidLocal)
+              val shuffleLocal = mb.newLocal[ShuffleClient]("shuffleClient")
+              val shuffle = new ValueShuffleClient(shuffleLocal)
+              val stream = unfold[EmitCode](
+                { (_, k) =>
+                  k(
+                    COption(
+                      shuffle.partitionBoundsValueFinished(),
+                      EmitCode.present(
+                        shuffleType.keyDecodedPType, shuffle.partitionBoundsValue(region))))
+                },
+                setup = Some(Code(
+                  uuidLocal := idt.tcode[Long],
+                  shuffleLocal := CodeShuffleClient.create(mb.ecb.getType(shuffleType), uuid.loadBytes()),
+                  shuffle.startPartitionBounds(nPartitionst.codeTuple()(0).asInstanceOf[Code[Int]]))),
+                close = Some(Code(
+                  shuffle.endPartitionBounds(),
+                  shuffle.close())))
+              SizedStream.unsized(stream)
+          }
+        }
 
         case _ =>
           fatal(s"not a streamable IR: ${Pretty(streamIR)}")

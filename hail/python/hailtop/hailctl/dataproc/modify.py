@@ -1,8 +1,9 @@
 import os.path
 import sys
-import subprocess as sp
 import yaml
 import pkg_resources
+
+from . import gcloud
 
 
 def init_parser(parser):
@@ -39,32 +40,20 @@ def main(args, pass_through_args):
         modify_args.append('--max-idle={}'.format(args.max_idle))
 
     if modify_args:
-        cmd = ['gcloud',
-               'dataproc',
-               'clusters',
-               'update',
-               args.name] + modify_args
+        cmd = ['dataproc', 'clusters', 'update', args.name] + modify_args
 
         if args.beta:
-            cmd.insert(1, 'beta')
+            cmd.insert(0, 'beta')
 
         cmd.extend(pass_through_args)
 
         # print underlying gcloud command
-        print(' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[5:]))
+        print('gcloud ' + ' '.join(cmd[:4]) + ' \\\n    ' + ' \\\n    '.join(cmd[5:]))
 
         # Update cluster
         if not args.dry_run:
             print("Updating cluster '{}'...".format(args.name))
-            sp.check_call(cmd)
-
-    if args.zone:
-        zone = args.zone
-    else:
-        zone = sp.check_output(["gcloud", "config", "get-value", "compute/zone"], stderr=sp.DEVNULL).decode().strip()
-
-    if not zone:
-        raise RuntimeError("Could not determine compute zone. Use --zone argument to hailctl, or use `gcloud config set compute/zone <my-zone>` to set a default.")
+            gcloud.run(cmd)
 
     wheel = None
     if args.update_hail_version:
@@ -76,11 +65,14 @@ def main(args, pass_through_args):
         wheel = args.wheel
 
     if wheel is not None:
+        zone = args.zone if args.zone else gcloud.get_config("compute/zone")
+        if not zone:
+            raise RuntimeError("Could not determine compute zone. Use --zone argument to hailctl, or use `gcloud config set compute/zone <my-zone>` to set a default.")
+
         wheelfile = os.path.basename(wheel)
         cmds = []
         if wheel.startswith("gs://"):
             cmds.append([
-                'gcloud',
                 'compute',
                 'ssh',
                 '{}-m'.format(args.name),
@@ -93,7 +85,6 @@ def main(args, pass_through_args):
         else:
             cmds.extend([
                 [
-                    'gcloud',
                     'compute',
                     'scp',
                     '--zone={}'.format(zone),
@@ -101,7 +92,6 @@ def main(args, pass_through_args):
                     '{}-m:/tmp/'.format(args.name)
                 ],
                 [
-                    'gcloud',
                     'compute',
                     'ssh',
                     f'{args.name}-m',
@@ -113,9 +103,9 @@ def main(args, pass_through_args):
             ])
 
         for cmd in cmds:
-            print(cmd)
+            print('gcloud ' + ' '.join(cmd))
             if not args.dry_run:
-                sp.check_call(cmd)
+                gcloud.run(cmd)
 
     if not wheel and not modify_args and pass_through_args:
         sys.stderr.write('ERROR: found pass-through arguments but not known modification args.')

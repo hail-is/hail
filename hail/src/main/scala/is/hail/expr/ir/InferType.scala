@@ -117,8 +117,8 @@ object InferType {
         l.typ
       case StreamZip(as, _, body, _) =>
         TStream(body.typ)
-      case StreamZipJoin(as, _) =>
-        TStream(TArray(coerce[TStream](as.head.typ).elementType))
+      case StreamZipJoin(_, _, _, _, joinF) =>
+        TStream(joinF.typ)
       case StreamMultiMerge(as, _) =>
         TStream(coerce[TStream](as.head.typ).elementType)
       case StreamFilter(a, name, cond) =>
@@ -183,6 +183,8 @@ object InferType {
         } else {
           throw new NotImplementedError(s"Cannot infer type for mode $mode")
         }
+      case NDArrayInv(_) =>
+        TNDArray(TFloat64, Nat(2))
       case NDArrayWrite(_, _) => TVoid
       case AggFilter(_, aggIR, _) =>
         aggIR.typ
@@ -246,18 +248,14 @@ object InferType {
       case ReadValue(_, _, typ) => typ
       case WriteValue(value, pathPrefix, spec) => TString
       case LiftMeOut(child) => child.typ
-      case ShuffleStart(_, _, _, _) =>
+      case ShuffleWith(_, _, _, _, _, _, readers) =>
+        readers.typ
+      case ShuffleWrite(id, _) =>
         TBinary
-      case ShuffleWrite(id, partitionId, rows) =>
-        TBinary
-      case ShuffleWritingFinished(id, successfulPartitionIds) =>
-        TVoid
-      case ShuffleGetPartitionBounds(_, _, _, rowType, _) =>
-        TArray(rowType)
-      case ShuffleRead(id, keyRange, rowType, rowEType) =>
-        TStream(rowType)
-      case ShuffleDelete(id) =>
-        TVoid
+      case ShufflePartitionBounds(id, _) =>
+        TStream(coerce[TShuffle](id.typ).keyType)
+      case ShuffleRead(id, _) =>
+        TStream(coerce[TShuffle](id.typ).rowType)
     }
   }
 }

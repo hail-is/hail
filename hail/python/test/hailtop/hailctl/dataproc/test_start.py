@@ -128,3 +128,20 @@ def test_master_tags(gcloud_run):
     assert gcloud_run.call_count == 2
     assert gcloud_run.call_args_list[0][0][0][:4] == ["dataproc", "clusters", "create", "test-cluster"]
     assert gcloud_run.call_args_list[1][0][0] == ["compute", "instances", "add-tags", "test-cluster-m", "--tags", "foo"]
+
+
+def test_master_tags_project(gcloud_run):
+    cli.main(["start", "test-cluster", "--master-tags=foo", "--project=some-project"])
+    assert gcloud_run.call_count == 2
+    assert "--project=some-project" in gcloud_run.call_args_list[1][0][0]
+
+
+def test_master_tags_zone(gcloud_run):
+    cli.main(["start", "test-cluster", "--master-tags=foo", "--zone=us-east1-d"])
+    assert gcloud_run.call_count == 2
+    assert "--zone=us-east1-d" in gcloud_run.call_args_list[1][0][0]
+
+
+def test_master_tags_dry_run(gcloud_run):
+    cli.main(["start", "test-cluster", "--master-tags=foo", "--dry-run"])
+    assert gcloud_run.call_count == 0

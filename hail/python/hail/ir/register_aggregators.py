@@ -65,3 +65,11 @@ def register_aggregators():
     register_aggregator('LinearRegression', (dtype('int32'), dtype('int32'),), (dtype('float64'), dtype('array<float64>'),), linreg_aggregator_type)
 
     register_aggregator('PrevNonnull', (), (dtype('?in'),), dtype('?in'))
+
+    register_aggregator('ImputeType', (), (dtype('str'),),
+                        dtype('struct{anyNonMissing: bool,'
+                              'allDefined: bool,'
+                              'supportsBool: bool,'
+                              'supportsInt32: bool,'
+                              'supportsInt64: bool,'
+                              'supportsFloat64: bool}'))

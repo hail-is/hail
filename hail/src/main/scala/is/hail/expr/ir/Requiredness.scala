@@ -21,10 +21,10 @@ object Requiredness {
     apply(node, ComputeUsesAndDefs(node), ctx, Env.empty)
 }
 
-case class RequirednessAnalysis(r: Memo[BaseTypeWithRequiredness], states: Memo[Array[TypeWithRequiredness]]) {
+case class RequirednessAnalysis(r: Memo[BaseTypeWithRequiredness], states: Memo[IndexedSeq[TypeWithRequiredness]]) {
   def lookup(node: BaseIR): BaseTypeWithRequiredness = r.lookup(node)
   def apply(node: IR): TypeWithRequiredness = coerce[TypeWithRequiredness](lookup(node))
-  def getState(node: IR): Array[TypeWithRequiredness] = states(node)
+  def getState(node: IR): IndexedSeq[TypeWithRequiredness] = states(node)
 }
 
 class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
@@ -33,8 +33,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   private val dependents = Memo.empty[mutable.Set[RefEquality[BaseIR]]]
   private val q = mutable.Set[RefEquality[BaseIR]]()
 
-  private val defs = Memo.empty[Array[BaseTypeWithRequiredness]]
-  private val states = Memo.empty[Array[TypeWithRequiredness]]
+  private val defs = Memo.empty[IndexedSeq[BaseTypeWithRequiredness]]
+  private val states = Memo.empty[IndexedSeq[TypeWithRequiredness]]
 
   def result(): RequirednessAnalysis = RequirednessAnalysis(cache, states)
 
@@ -95,7 +95,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   }
 
   def addBindingRelations(node: BaseIR): Unit = {
-    val refMap = usesAndDefs.uses(node).toArray.groupBy(_.t.name).mapValues(_.asInstanceOf[Array[RefEquality[BaseIR]]])
+    val refMap: Map[String, IndexedSeq[RefEquality[BaseRef]]] =
+      usesAndDefs.uses(node).toFastIndexedSeq.groupBy(_.t.name)
     def addElementBinding(name: String, d: IR, makeOptional: Boolean = false): Unit = {
       if (refMap.contains(name)) {
         val uses = refMap(name)
@@ -126,7 +127,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         refMap("row").foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](lookup(table).rowType)) }
       if (refMap.contains("global"))
         refMap("global").foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](lookup(table).globalType)) }
-      val refs = refMap.getOrElse("row", Array()) ++ refMap.getOrElse("global", Array())
+      val refs = refMap.getOrElse("row", FastIndexedSeq()) ++ refMap.getOrElse("global", FastIndexedSeq())
       dependents.getOrElseUpdate(table, mutable.Set[RefEquality[BaseIR]]()) ++= refs
     }
     node match {
@@ -162,6 +163,24 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           addElementBinding(names(i), as(i),
             makeOptional = behavior == ArrayZipBehavior.ExtendNA)
           i += 1
+        }
+      case StreamZipJoin(as, key, curKey, curVals, _) =>
+        val aEltTypes = as.map(a => coerce[RStruct](coerce[RIterable](lookup(a)).elementType))
+        if (refMap.contains(curKey)) {
+          val uses = refMap(curKey)
+          val keyTypes = aEltTypes.map(t => RStruct(key.map(k => k -> t.fieldType(k))))
+          uses.foreach { u => defs.bind(u, keyTypes) }
+          as.foreach { a => dependents.getOrElseUpdate(a, mutable.Set[RefEquality[BaseIR]]()) ++= uses }
+        }
+        if (refMap.contains(curVals)) {
+          val uses = refMap(curVals)
+          val valTypes = aEltTypes.map { t =>
+            val optional = t.copy(t.children)
+            optional.union(false)
+            RIterable(optional)
+          }
+          uses.foreach { u => defs.bind(u, valTypes) }
+          as.foreach { a => dependents.getOrElseUpdate(a, mutable.Set[RefEquality[BaseIR]]()) ++= uses }
         }
       case StreamFilter(a, name, cond) => addElementBinding(name, a)
       case StreamFlatMap(a, name, body) => addElementBinding(name, a)
@@ -215,7 +234,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case CollectDistributedArray(ctxs, globs, c, g, body) =>
         addElementBinding(c, ctxs)
         addBinding(g, globs)
-
       case TableAggregate(c, q) =>
         addTableBinding(c)
       case TableFilter(child, pred) =>
@@ -228,6 +246,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addTableBinding(child)
       case TableAggregateByKey(child, expr) =>
         addTableBinding(child)
+      case x@ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
+        if (refMap.contains(name)) {
+          refMap(name).foreach { u => defs.bind(u, Array(BaseTypeWithRequiredness(x.shuffleType))) }
+        }
       case _ => fatal(Pretty(node))
     }
   }
@@ -307,14 +329,14 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.unionValues(leftReq)
         requiredness.unionValues(rightReq)
 
-        if (joinType == "outer" || joinType == "zip" || joinType == "left") {
+        if (joinType == "outer" || joinType == "left") {
           requiredness.key.zip(leftReq.key).foreach { case (k, rk) =>
             requiredness.field(k).unionFrom(leftReq.field(rk))
           }
           rightReq.valueFields.foreach(n => requiredness.field(n).union(r = false))
         }
 
-        if (joinType == "outer" || joinType == "zip" || joinType == "right") {
+        if (joinType == "outer" || joinType == "right") {
           requiredness.key.zip(rightReq.key).foreach { case (k, rk) =>
             requiredness.field(k).unionFrom(rightReq.field(rk))
           }
@@ -486,11 +508,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamZip(as, names, body, behavior) =>
         requiredness.union(as.forall(lookup(_).required))
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(body))
-      case StreamZipJoin(as, _) =>
+      case StreamZipJoin(as, _, curKey, curVals, joinF) =>
         requiredness.union(as.forall(lookup(_).required))
-        val eltType = coerce[RIterable](coerce[RIterable](requiredness).elementType).elementType
-        eltType.unionFrom(as.map(lookup(_).asInstanceOf[RIterable].elementType))
-        eltType.union(false)
+        val eltType = coerce[RIterable](requiredness).elementType
+        eltType.unionFrom(lookup(joinF))
       case StreamMultiMerge(as, _) =>
         requiredness.union(as.forall(lookup(_).required))
         coerce[RIterable](requiredness).elementType.unionFrom(as.map(a => coerce[RIterable](lookup(a)).elementType))
@@ -578,7 +599,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case NDArrayMatMul(l, r) =>
         requiredness.unionFrom(lookup(l))
         requiredness.union(lookup(r).required)
-      case NDArrayQR(nd, mode) => requiredness.fromPType(NDArrayQR.pTypes(mode))
+      case NDArrayQR(_, mode) => requiredness.fromPType(NDArrayQR.pTypes(mode))
+      case NDArrayInv(_) => requiredness.fromPType(NDArrayInv.pType)
       case MakeStruct(fields) =>
         fields.foreach { case (n, f) =>
           coerce[RStruct](requiredness).field(n).unionFrom(lookup(f))
@@ -657,6 +679,13 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         coerce[RStruct](requiredness).field("global").unionFrom(lookup(c).globalType)
       case BlockMatrixToValueApply(child, GetElement(_)) => // BlockMatrix elements are all required
       case BlockMatrixCollect(child) =>  // BlockMatrix elements are all required
+      case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
+        requiredness.unionFrom(lookup(readers))
+      case ShuffleWrite(id, rows) => // required
+      case ShufflePartitionBounds(id, nPartitions) =>
+        coerce[RIterable](requiredness).elementType.fromPType(coerce[TShuffle](id.typ).keyDecodedPType)
+      case ShuffleRead(id, keyRange) =>
+        coerce[RIterable](requiredness).elementType.fromPType(coerce[TShuffle](id.typ).rowDecodedPType)
     }
     requiredness.probeChangedAndReset()
   }

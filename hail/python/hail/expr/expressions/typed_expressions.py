@@ -1763,7 +1763,8 @@ class TupleExpression(Expression, Sequence):
                                      self[i]
                                      for i in range(len(self))[item.start:item.stop:item.step]]))
         if not 0 <= item < len(self):
-            raise IndexError("Out of bounds index. Tuple length is {}.".format(len(self)))
+            raise IndexError("Out of bounds index, {}. Tuple length is {}.".format(
+                item, len(self)))
         return construct_expr(ir.GetTupleElement(self._ir, item), self.dtype.types[item], self._indices)
 
     def __len__(self):

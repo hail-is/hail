@@ -1,10 +1,11 @@
-package is.hail.shuffler
+package is.hail.services.shuffler
 
 import java.util.Comparator
 
 class SameLengthByteArrayComparator extends Comparator[Array[Byte]] {
   def compare(l: Array[Byte], r: Array[Byte]): Int = {
-    assert(l.length == r.length)
+    if (l.length != r.length)
+      throw new AssertionError(s"${l.length} ${r.length}")
     val length = l.length
     var i = 0
     while (i < length) {

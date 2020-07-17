@@ -40,6 +40,7 @@ object AggStateSig {
       case Downsample() =>
         val Seq(_, _, labelType: PArray) = seqPTypes
         DownsampleStateSig(labelType)
+      case ImputeType() => ImputeTypeStateSig()
       case _ => throw new UnsupportedExtraction(op.toString)
     }
   }
@@ -58,6 +59,7 @@ object AggStateSig {
     case CollectAsSetStateSig(pt) => new AppendOnlySetState(cb, pt)
     case CallStatsStateSig() => new CallStatsState(cb)
     case ApproxCDFStateSig() => new ApproxCDFState(cb)
+    case ImputeTypeStateSig() => new ImputeTypeState(cb)
     case ArrayAggStateSig(nested) => new ArrayElementState(cb, StateTuple(nested.map(sig => AggStateSig.getState(sig, cb)).toArray))
     case GroupedStateSig(kt, nested) => new DictState(cb, kt, StateTuple(nested.map(sig => AggStateSig.getState(sig, cb)).toArray))
   }
@@ -71,6 +73,7 @@ case class TakeByStateSig(vt: PType, kt: PType, so: SortOrder) extends AggStateS
 case class CollectStateSig(pt: PType) extends AggStateSig(Array(pt), None)
 case class CollectAsSetStateSig(pt: PType) extends AggStateSig(Array(pt), None)
 case class CallStatsStateSig() extends AggStateSig(Array[PType](), None)
+case class ImputeTypeStateSig() extends AggStateSig(Array[PType](), None)
 case class ArrayAggStateSig(nested: Seq[AggStateSig]) extends AggStateSig(Array[PType](), Some(nested))
 case class GroupedStateSig(kt: PType, nested: Seq[AggStateSig]) extends AggStateSig(Array(kt), Some(nested))
 case class ApproxCDFStateSig() extends AggStateSig(Array[PType](), None)
@@ -265,6 +268,7 @@ object Extract {
     case AggSignature(PrevNonnull(), _, Seq(t)) => t
     case AggSignature(CollectAsSet(), _, Seq(t)) => TSet(t)
     case AggSignature(Collect(), _, Seq(t)) => TArray(t)
+    case AggSignature(ImputeType(), _, _) => ImputeTypeState.resultType.virtualType
     case AggSignature(LinearRegression(), _, _) =>
       LinearRegressionAggregator.resultType.virtualType
     case AggSignature(ApproxCDF(), _, _) => QuantilesAggregator.resultType.virtualType
@@ -286,6 +290,7 @@ object Extract {
     case PhysicalAggSig(LinearRegression(), TypedStateSig(_)) => new LinearRegressionAggregator(PFloat64(), PCanonicalArray(PFloat64())) // FIXME LinRegAggregator shouldn't take type
     case PhysicalAggSig(ApproxCDF(), ApproxCDFStateSig()) => new ApproxCDFAggregator
     case PhysicalAggSig(Downsample(), DownsampleStateSig(labelType)) => new DownsampleAggregator(labelType)
+    case PhysicalAggSig(ImputeType(), ImputeTypeStateSig()) => new ImputeTypeAggregator(PCanonicalString())
     case ArrayLenAggSig(knownLength, nested) => //FIXME nested things shouldn't need to know state
       new ArrayElementLengthCheckAggregator(nested.map(getAgg).toArray, knownLength)
     case AggElementsAggSig(nested) =>

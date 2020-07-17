@@ -440,6 +440,11 @@ steps:
    dependsOn:
      - scorecard_image
  - kind: buildImage
+   name: benchmark_image
+   dockerFile: benchmark-service/Dockerfile
+   contextPath: .
+   publishAs: benchmark
+ - kind: buildImage
    name: auth_image
    dockerFile: auth/Dockerfile
    contextPath: .
@@ -1032,6 +1037,16 @@ steps:
     - scorecard_image
     - deploy_router
     - create_certs
+ - kind: deploy
+   name: deploy_benchmark
+   namespace:
+     valueFrom: default_ns.name
+   config: benchmark-service/deployment.yaml
+   dependsOn:
+    - default_ns
+    - benchmark_image
+    - deploy_router
+    - create_certs
  - kind: runImage
    name: create_dummy_oauth2_client_secret
    image:
@@ -1397,8 +1412,12 @@ steps:
    script: |
      set -ex
      cd /io
+     mkdir -p src/test
+     tar xzf resources.tar.gz -C src/test
      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-services.xml
    inputs:
+    - from: /resources.tar.gz
+      to: /io/resources.tar.gz
     - from: /hail-test.jar
       to: /io/hail-test.jar
     - from: /testng-services.xml
@@ -1798,9 +1817,9 @@ steps:
      set +e
      gcloud -q compute instances list \
          --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
-         --format="value(name)" \
+         --format="table[no-heading](zone.basename(), name)" \
          --project {{ global.project }} \
-       | xargs -r gcloud -q compute instances delete --zone {{ global.zone }} --project {{ global.project }} || true
+       | xargs -n2 -r sh -c 'gcloud -q compute instances delete --zone "$1" --project {{ global.project }} "$2" || true' argv0
    secrets:
     - name: test-gsa-key
       namespace:
@@ -1816,6 +1835,7 @@ steps:
     - test_batch
     - test_ci
     - test_hailtop_batch
+    - test_query
  - kind: runImage
    name: test_dataproc
    image:

@@ -1,7 +1,5 @@
-package is.hail.shuffler
+package is.hail.services.shuffler
 
-import java.util._
-import java.util.function._
 import java.io._
 import java.util._
 import java.util.function._

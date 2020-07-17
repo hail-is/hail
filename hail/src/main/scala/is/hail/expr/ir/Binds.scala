@@ -17,6 +17,13 @@ object Bindings {
         name -> TTuple(TTuple(args.map(_._2.typ): _*), body.typ) else empty
     case StreamMap(a, name, _) => if (i == 1) Array(name -> coerce[TStream](a.typ).elementType) else empty
     case StreamZip(as, names, _, _) => if (i == as.length) names.zip(as.map(a => coerce[TStream](a.typ).elementType)) else empty
+    case StreamZipJoin(as, key, curKey, curVals, _) =>
+      val eltType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
+      if (i == as.length)
+        Array(curKey -> eltType.typeAfterSelectNames(key),
+              curVals -> TArray(eltType))
+      else
+        empty
     case StreamFor(a, name, _) => if (i == 1) Array(name -> coerce[TStream](a.typ).elementType) else empty
     case StreamFlatMap(a, name, _) => if (i == 1) Array(name -> coerce[TStream](a.typ).elementType) else empty
     case StreamFilter(a, name, _) => if (i == 1) Array(name -> coerce[TStream](a.typ).elementType) else empty
@@ -55,6 +62,8 @@ object Bindings {
     case MatrixAggregateRowsByKey(child, _, _) => if (i == 1) child.typ.colEnv.m else if (i == 2) child.typ.globalEnv.m else empty
     case BlockMatrixMap(_, eltName, _, _) => if (i == 1) Array(eltName -> TFloat64) else empty
     case BlockMatrixMap2(_, _, lName, rName, _, _) => if (i == 2) Array(lName -> TFloat64, rName -> TFloat64) else empty
+    case x@ShuffleWith(_, _, _, _, name, _, _) =>
+      if (i == 0 || i == 1) Array(name -> x.shuffleType) else empty
     case _ => empty
   }
 }

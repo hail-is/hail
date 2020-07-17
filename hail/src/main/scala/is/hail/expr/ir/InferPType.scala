@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.types.physical._
-import is.hail.types.virtual.{TNDArray, TVoid}
+import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.HailContext
 import is.hail.types.{RDict, RIterable, TypeWithRequiredness}
@@ -44,8 +44,8 @@ object InferPType {
       val requiredness = Requiredness.apply(ir, usesAndDefs, null, env) // Value IR inference doesn't need context
       requiredness.states.m.foreach { case (ir, types) =>
         ir.t match {
-          case x: StreamFold => x.accPTypes = types.map(r => r.canonicalPType(x.zero.typ))
-          case x: StreamScan => x.accPTypes = types.map(r => r.canonicalPType(x.zero.typ))
+          case x: StreamFold => x.accPTypes = types.map(r => r.canonicalPType(x.zero.typ)).toArray
+          case x: StreamScan => x.accPTypes = types.map(r => r.canonicalPType(x.zero.typ)).toArray
           case x: StreamFold2 =>
             x.accPTypes = x.accum.zip(types).map { case ((_, arg), r) => r.canonicalPType(arg.typ) }.toArray
           case x: TailLoop =>
@@ -71,6 +71,23 @@ object InferPType {
     case StreamMap(a, `name`, _) => coerce[PStream](a.pType).elementType
     case x@StreamZip(as, _, _, _) =>
       coerce[PStream](as(x.nameIdx(name)).pType).elementType.setRequired(r.required)
+    case StreamZipJoin(as, key, `name`, _, joinF) =>
+      assert(r.required)
+      getCompatiblePType(as.map { a =>
+        PCanonicalStruct(true, key.map { k =>
+          k -> coerce[PStruct](coerce[PStream](a.pType).elementType).fieldType(k)
+        }: _*)
+      }, r).setRequired(true)
+    case x@StreamZipJoin(as, key, _, `name`, joinF) =>
+      assert(r.required)
+      assert(!r.asInstanceOf[RIterable].elementType.required)
+      x.getOrComputeCurValsType {
+        PCanonicalArray(
+          getCompatiblePType(
+            as.map(a => coerce[PStruct](coerce[PStream](a.pType).elementType)),
+            r.asInstanceOf[RIterable].elementType).setRequired(false),
+          required = true)
+      }
     case StreamFilter(a, `name`, _) => coerce[PStream](a.pType).elementType
     case StreamFlatMap(a, `name`, _) => coerce[PStream](a.pType).elementType
     case StreamFor(a, `name`, _) => coerce[PStream](a.pType).elementType
@@ -90,6 +107,7 @@ object InferPType {
     case NDArrayMap2(_, right, _, `name`, _) => coerce[PNDArray](right.pType).elementType
     case x@CollectDistributedArray(_, _, `name`, _, _) => x.decodedContextPType
     case x@CollectDistributedArray(_, _, _, `name`, _) => x.decodedGlobalPType
+    case x@ShuffleWith(_, _, _, _, `name`, _, _) => x.shufflePType
     case _ => throw new RuntimeException(s"$name not found in definition \n${ Pretty(defNode) }")
   }
 
@@ -106,7 +124,7 @@ object InferPType {
            | _: Cast | _: NA | _: Die | _: IsNA | _: ArrayZeros | _: ArrayLen | _: StreamLen
            | _: LowerBoundOnOrderedCollection | _: ApplyBinaryPrimOp
            | _: ApplyUnaryPrimOp | _: ApplyComparisonOp | _: WriteValue
-           | _: NDArrayAgg | _: ShuffleWrite | _: ShuffleStart | _: AggStateValue | _: CombOpValue | _: InitFromSerializedValue =>
+           | _: NDArrayAgg | _: ShuffleWrite | _: AggStateValue | _: CombOpValue | _: InitFromSerializedValue =>
         requiredness(node).canonicalPType(node.typ)
       case CastRename(v, typ) => v.pType.deepRename(typ)
       case x: BaseRef if usesAndDefs.free.contains(RefEquality(x)) =>
@@ -170,17 +188,12 @@ object InferPType {
         PCanonicalStream(getCompatiblePType(Seq(leftEltType, rightEltType), r.elementType), r.required)
       case StreamZip(as, names, body, behavior) =>
         PCanonicalStream(body.pType, requiredness(node).required)
-      case StreamZipJoin(as, _) =>
+      case StreamZipJoin(as, _, curKey, curVals, joinF) =>
         val r = requiredness(node).asInstanceOf[RIterable]
-        val rEltType = r.elementType.asInstanceOf[RIterable]
+        val rEltType = joinF.pType
         val eltTypes = as.map(_.pType.asInstanceOf[PStream].elementType)
         assert(eltTypes.forall(_.required))
-        assert(rEltType.required)
-        PCanonicalStream(
-          PCanonicalArray(
-            getCompatiblePType(eltTypes, rEltType.elementType).setRequired(rEltType.elementType.required),
-            required = rEltType.required),
-          r.required)
+        PCanonicalStream(rEltType, r.required)
       case StreamMultiMerge(as, _) =>
         val r = coerce[RIterable](requiredness(node))
         val eltTypes = as.map(_.pType.asInstanceOf[PStream].elementType)
@@ -229,7 +242,8 @@ object InferPType {
         val lTyp = coerce[PNDArray](l.pType)
         val rTyp = coerce[PNDArray](r.pType)
         PCanonicalNDArray(lTyp.elementType, TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims), requiredness(node).required)
-      case NDArrayQR(nd, mode) => NDArrayQR.pTypes(mode)
+      case NDArrayQR(_, mode) => NDArrayQR.pTypes(mode)
+      case NDArrayInv(_) => NDArrayInv.pType
       case MakeStruct(fields) =>
         PCanonicalStruct(requiredness(node).required,
           fields.map { case (name, a) => (name, a.pType) }: _ *)
@@ -289,13 +303,26 @@ object InferPType {
       case x@RunAgg(body, result, signature) => result.pType
       case x@RunAggScan(array, name, init, seq, result, signature) =>
         PCanonicalStream(result.pType, array.pType.required)
-      case ShuffleGetPartitionBounds(_, _, keyFields, rowType, keyEType) =>
-        val keyPType = keyEType.decodedPType(rowType.typeAfterSelectNames(keyFields.map(_.field)))
-        PCanonicalArray(keyPType, requiredness(node).required)
-      case ShuffleRead(_, _, rowType, rowEType) =>
-        val rowPType = rowEType.decodedPType(rowType)
-        PCanonicalStream(rowPType, requiredness(node).required)
-      case _ => throw new RuntimeException(s"unsupported node:\n${Pretty(node)}")
+      case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
+        val r = requiredness(node)
+        assert(r.required == readers.pType.required)
+        readers.pType
+      case ShuffleWrite(id, rows) =>
+        val r = requiredness(node)
+        assert(r.required)
+        PCanonicalBinary(true)
+      case ShufflePartitionBounds(id, nPartitions) =>
+        val r = requiredness(node)
+        assert(r.required)
+        PCanonicalStream(
+          coerce[TShuffle](id.typ).keyDecodedPType,
+          true)
+      case ShuffleRead(id, keyRange) =>
+        val r = requiredness(node)
+        assert(r.required)
+        PCanonicalStream(
+          coerce[TShuffle](id.typ).rowDecodedPType,
+          true)
     }
     if (node.pType.virtualType != node.typ)
       throw new RuntimeException(s"pType.virtualType: ${node.pType.virtualType}, vType = ${node.typ}\n  ir=$node")

@@ -448,7 +448,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends Partition
       val stream = Stream.unfold[Code[Long]](
         (_, k) =>
           Code(
-            hasNext := xRowBuf.load().readByte().toZ,
+            hasNext := xRowBuf.readByte().toZ,
             hasNext.orEmpty(next := dec(region,xRowBuf)),
             k(COption(!hasNext, next))))
         .map(
@@ -1039,8 +1039,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   require(joinType == "inner" ||
     joinType == "left" ||
     joinType == "right" ||
-    joinType == "outer" ||
-    joinType == "zip")
+    joinType == "outer")
 
   val children: IndexedSeq[BaseIR] = Array(left, right)
 
@@ -1123,7 +1122,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
         })
         val lValueTypeFields = castFieldRequiredeness(leftRVDType.valueType, false)
         (keyTypeFields, lValueTypeFields, noIndex(rightRVDType.valueType.fields))
-      case "outer" | "zip" =>
+      case "outer" =>
         val keyTypeFields = unionFieldPTypes(leftRVDType.kType, rightRVDType.kType)
         val lValueTypeFields = castFieldRequiredeness(leftRVDType.valueType, false)
         val rValueTypeFields = castFieldRequiredeness(rightRVDType.valueType, false)
@@ -1174,26 +1173,15 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       }
     }
 
-    val joinedRVD = if (joinType == "zip") {
-      val leftRVD = leftTV.rvd
-      val rightRVD = rightTV.rvd
-      leftRVD.orderedZipJoin(
-        rightRVD,
-        joinKey,
-        rvMerger,
-        RVDType(newRowPType, newKey),
-        ctx)
-    } else {
-      val leftRVD = leftTV.rvd
-      val rightRVD = rightTV.rvd
-      leftRVD.orderedJoin(
-        rightRVD,
-        joinKey,
-        joinType,
-        rvMerger,
-        RVDType(newRowPType, newKey),
-        ctx)
-    }
+    val leftRVD = leftTV.rvd
+    val rightRVD = rightTV.rvd
+    val joinedRVD = leftRVD.orderedJoin(
+      rightRVD,
+      joinKey,
+      joinType,
+      rvMerger,
+      RVDType(newRowPType, newKey),
+      ctx)
 
     TableValue(ctx, typ, newGlobals, joinedRVD)
   }
@@ -1336,7 +1324,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     val valueFields = rvdType.valueType.fields.map(f => (f.name, f.typ))
     val localNewRowType = PCanonicalStruct(required = true,
       keyFields ++ Array((fieldName, PCanonicalArray(
-        PCanonicalStruct(required = false, valueFields: _*)))): _*)
+        PCanonicalStruct(required = false, valueFields: _*), required = true))): _*)
     val localDataLength = children.length
     val rvMerger = { (ctx: RVDContext, it: Iterator[ArrayBuilder[(RegionValue, Int)]]) =>
       val rvb = new RegionValueBuilder()

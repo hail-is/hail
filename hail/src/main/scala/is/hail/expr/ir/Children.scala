@@ -99,8 +99,8 @@ object Children {
       Array(l, r)
     case StreamZip(as, names, body, _) =>
       as :+ body
-    case StreamZipJoin(as, _) =>
-      as
+    case StreamZipJoin(as, _, _, _, joinF) =>
+      as :+ joinF
     case StreamMultiMerge(as, _) =>
       as
     case StreamFilter(a, name, cond) =>
@@ -142,6 +142,8 @@ object Children {
     case NDArrayMatMul(l, r) =>
       Array(l, r)
     case NDArrayQR(nd, _) =>
+      Array(nd)
+    case NDArrayInv(nd) =>
       Array(nd)
     case NDArrayWrite(nd, path) =>
       Array(nd, path)
@@ -218,5 +220,13 @@ object Children {
     case ReadValue(path, _, _) => Array(path)
     case WriteValue(value, pathPrefix, spec) => Array(value, pathPrefix)
     case LiftMeOut(child) => Array(child)
+    case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
+      Array(writer, readers)
+    case ShuffleWrite(id, rows) =>
+      Array(id, rows)
+    case ShufflePartitionBounds(id, nPartitions) =>
+      Array(id, nPartitions)
+    case ShuffleRead(id, keyRange) =>
+      Array(id, keyRange)
   }
 }
