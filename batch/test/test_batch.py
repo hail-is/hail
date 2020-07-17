@@ -545,13 +545,3 @@ echo $HAIL_BATCH_WORKER_IP
             assert e.status == 400
         else:
             assert False, f'should receive a 400 Bad Request {batch.id}'
-
-    def test_requester_pays(self):
-        batch = self.client.create_batch()
-        j = batch.create_job('ubuntu:18.04',
-                             command=['/bin/sh', '-c', 'cat /io/hello'],
-                             input_files=[(f'gs://hail-services-requester-pays/hello', '/io/')])
-        batch = batch.submit()
-        batch.wait()
-        assert j._get_exit_code(j.status(), 'main') == 0, j._status
-        assert j.log()['main'] == 'hello\n', j.status()
