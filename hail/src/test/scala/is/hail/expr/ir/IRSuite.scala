@@ -2251,8 +2251,8 @@ class IRSuite extends HailSuite {
 
   @Test def testNDArrayInv() {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
-    val matrixColMajor = makeNDArray(FastSeq(1.5, 2.0, 4.0, 5.0), FastSeq(2, 2), False())
-    val inv = NDArrayInv(matrixColMajor)
+    val matrixRowMajor = makeNDArray(FastSeq(1.5, 2.0, 4.0, 5.0), FastSeq(2, 2), True())
+    val inv = NDArrayInv(matrixRowMajor)
     val expectedInv = FastSeq(FastSeq(-10.0, 4.0), FastSeq(8.0, -3.0))
     assertNDEvals(inv, expectedInv)
   }
