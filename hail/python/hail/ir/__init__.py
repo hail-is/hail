@@ -9,7 +9,7 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     TailLoop, Recur, ApplyBinaryPrimOp, ApplyUnaryPrimOp, ApplyComparisonOp, \
     MakeArray, ArrayRef, ArrayLen, ArrayZeros, StreamRange, MakeNDArray, \
     NDArrayShape, NDArrayReshape, NDArrayMap, NDArrayRef, NDArraySlice, \
-    NDArrayReindex, NDArrayAgg, NDArrayMatMul, NDArrayQR, NDArrayWrite, \
+    NDArrayReindex, NDArrayAgg, NDArrayMatMul, NDArrayQR, NDArrayInv, NDArrayWrite, \
     ArraySort, ToSet, ToDict, ToArray, CastToArray, ToStream, \
     LowerBoundOnOrderedCollection, GroupByKey, StreamMap, StreamZip, \
     StreamFilter, StreamFlatMap, StreamFold, StreamScan, \
@@ -154,6 +154,7 @@ __all__ = [
     'NDArrayAgg',
     'NDArrayMatMul',
     'NDArrayQR',
+    'NDArrayInv',
     'NDArrayWrite',
     'ArraySort',
     'ToSet',

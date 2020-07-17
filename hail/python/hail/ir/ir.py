@@ -835,6 +835,19 @@ class NDArrayQR(IR):
         else:
             raise ValueError("Cannot compute type for mode: " + self.mode)
 
+class NDArrayInv(IR):
+    @typecheck_method(nd=IR)
+    def __init__(self, nd):
+        super().__init__(nd)
+        self.nd = nd
+
+    @typecheck_method(nd=IR)
+    def copy(self):
+        return NDArrayInv(self.nd)
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self._type = tndarray(tfloat64, 2)
 
 class NDArrayWrite(IR):
     @typecheck_method(nd=IR, path=IR)

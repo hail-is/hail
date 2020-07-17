@@ -1,5 +1,6 @@
 import pytest
 
+from hail.nd import inv
 from hail.linalg import BlockMatrix
 from hail.utils import new_temp_file, new_local_temp_dir, local_path_uri, FatalError
 from ..helpers import *
@@ -999,6 +1000,11 @@ class Tests(unittest.TestCase):
         s = x.svd(compute_uv=False, complexity_bound=0)
         assert np.all(s >= 0)
 
+    def test_inv(self):
+        c = np.random.randn(5, 5)
+        d = np.linalg.inv(c)
+        dhail = hl.eval(hl.nd.inv(c))
+        assert np.allclose(dhail, d)
 
     @skip_unless_spark_backend()
     def test_filtering(self):
