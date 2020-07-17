@@ -31,7 +31,7 @@ package object ir {
 
   def typeToTypeInfo(t: PType): TypeInfo[_] = typeToTypeInfo(t)
 
-  def defaultValue(t: PType): Code[_] = defaultValue(t)
+  def defaultValue(t: PType): Code[_] = defaultValue(typeToTypeInfo(t))
 
   def defaultValue(ti: TypeInfo[_]): Code[_] = ti match {
     case UnitInfo => Code._empty
