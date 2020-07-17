@@ -2039,7 +2039,7 @@ class IRSuite extends HailSuite {
     val threeTensorColMajor = makeNDArray((0 until 30).map(_.toDouble), FastSeq(2, 3, 5), False())
     val sevenRowMajor = makeNDArrayRef(threeTensorRowMajor, FastSeq(0, 1, 2))
     val sevenColMajor = makeNDArrayRef(threeTensorColMajor, FastSeq(1, 0, 1))
-    // np.arange(0, 30).reshape((2, 3, 5), order="C")[0, 1, 2]
+    // np.arange(0, 30).reshape((2, 3, 5), order="C")[0,1,2]
     assertEvalsTo(sevenRowMajor, 7.0)
     // np.arange(0, 30).reshape((2, 3, 5), order="F")[1,0,1]
     assertEvalsTo(sevenColMajor, 7.0)
