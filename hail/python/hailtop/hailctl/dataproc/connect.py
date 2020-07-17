@@ -24,7 +24,7 @@ def get_chrome_path():
     if system == 'Darwin':
         return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 
-    elif system == 'Linux':
+    if system == 'Linux':
         for c in ['chromium', 'chromium-browser']:
             chrome = shutil.which(c)
             if chrome:
@@ -32,7 +32,7 @@ def get_chrome_path():
 
         raise EnvironmentError("cannot find 'chromium' or 'chromium-browser' on path")
 
-    elif system == 'Windows':
+    if system == 'Windows':
         return '/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe'
 
     raise ValueError(f"unsupported system: {system}, set environment variable HAILCTL_CHROME to a chrome executable")
