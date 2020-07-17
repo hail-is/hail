@@ -551,7 +551,7 @@ echo $HAIL_BATCH_WORKER_IP
         j = batch.create_job('ubuntu:18.04',
                              command=['/bin/sh', '-c', 'cat /io/hello'],
                              input_files=[(f'gs://hail-services-requester-pays/hello', '/io/')])
-        batch.submit()
+        batch = batch.submit()
         batch.wait()
         assert j._get_exit_code(j.status(), 'main') == 0, j._status
         assert j.log()['main'] == 'hello\n', j.status()
