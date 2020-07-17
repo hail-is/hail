@@ -1039,8 +1039,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   require(joinType == "inner" ||
     joinType == "left" ||
     joinType == "right" ||
-    joinType == "outer" ||
-    joinType == "zip")
+    joinType == "outer")
 
   val children: IndexedSeq[BaseIR] = Array(left, right)
 
@@ -1123,7 +1122,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
         })
         val lValueTypeFields = castFieldRequiredeness(leftRVDType.valueType, false)
         (keyTypeFields, lValueTypeFields, noIndex(rightRVDType.valueType.fields))
-      case "outer" | "zip" =>
+      case "outer" =>
         val keyTypeFields = unionFieldPTypes(leftRVDType.kType, rightRVDType.kType)
         val lValueTypeFields = castFieldRequiredeness(leftRVDType.valueType, false)
         val rValueTypeFields = castFieldRequiredeness(rightRVDType.valueType, false)
@@ -1174,26 +1173,15 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       }
     }
 
-    val joinedRVD = if (joinType == "zip") {
-      val leftRVD = leftTV.rvd
-      val rightRVD = rightTV.rvd
-      leftRVD.orderedZipJoin(
-        rightRVD,
-        joinKey,
-        rvMerger,
-        RVDType(newRowPType, newKey),
-        ctx)
-    } else {
-      val leftRVD = leftTV.rvd
-      val rightRVD = rightTV.rvd
-      leftRVD.orderedJoin(
-        rightRVD,
-        joinKey,
-        joinType,
-        rvMerger,
-        RVDType(newRowPType, newKey),
-        ctx)
-    }
+    val leftRVD = leftTV.rvd
+    val rightRVD = rightTV.rvd
+    val joinedRVD = leftRVD.orderedJoin(
+      rightRVD,
+      joinKey,
+      joinType,
+      rvMerger,
+      RVDType(newRowPType, newKey),
+      ctx)
 
     TableValue(ctx, typ, newGlobals, joinedRVD)
   }

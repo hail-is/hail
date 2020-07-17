@@ -329,14 +329,14 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.unionValues(leftReq)
         requiredness.unionValues(rightReq)
 
-        if (joinType == "outer" || joinType == "zip" || joinType == "left") {
+        if (joinType == "outer" || joinType == "left") {
           requiredness.key.zip(leftReq.key).foreach { case (k, rk) =>
             requiredness.field(k).unionFrom(leftReq.field(rk))
           }
           rightReq.valueFields.foreach(n => requiredness.field(n).union(r = false))
         }
 
-        if (joinType == "outer" || joinType == "zip" || joinType == "right") {
+        if (joinType == "outer" || joinType == "right") {
           requiredness.key.zip(rightReq.key).foreach { case (k, rk) =>
             requiredness.field(k).unionFrom(rightReq.field(rk))
           }

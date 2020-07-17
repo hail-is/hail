@@ -2441,10 +2441,6 @@ class Table(ExprContainer):
 
         return Table(ir.TableJoin(self._tir, right._tir, how, len(self.key)))
 
-    def _zip_join(self, right):
-        assert self.key.dtype == right.key.dtype
-        return Table(ir.TableJoin(self._tir, right._tir, 'zip', len(self.key)))
-
     @typecheck_method(expr=BooleanExpression)
     def all(self, expr):
         """Evaluate whether a boolean expression is true for all rows.
