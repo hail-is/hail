@@ -806,7 +806,7 @@ class Emit[C](
         val dataPType = xP.data.pType
         val nDims = shapePType.size
 
-        // val rowMajort = emit(rowMajorIR) // XXX Unused?
+        assert(rowMajorIR == True() || rowMajorIR == False())
         emitI(shapeIR).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
           emitI(dataIR).map(cb) { case dataCode: PIndexableCode =>
             val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
