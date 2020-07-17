@@ -599,7 +599,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case NDArrayMatMul(l, r) =>
         requiredness.unionFrom(lookup(l))
         requiredness.union(lookup(r).required)
-      case NDArrayQR(nd, mode) => requiredness.fromPType(NDArrayQR.pTypes(mode))
+      case NDArrayQR(_, mode) => requiredness.fromPType(NDArrayQR.pTypes(mode))
+      case NDArrayInv(_) => requiredness.fromPType(NDArrayInv.pType)
       case MakeStruct(fields) =>
         fields.foreach { case (n, f) =>
           coerce[RStruct](requiredness).field(n).unionFrom(lookup(f))
