@@ -2025,7 +2025,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayRef() {
-    implicit val execStrats: Set[ExecStrategy] = Set()
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     assertEvalsTo(makeNDArrayRef(scalarRowMajor, FastSeq()), 3.0)
     assertEvalsTo(makeNDArrayRef(scalarColMajor, FastSeq()), 3.0)
@@ -2039,7 +2039,9 @@ class IRSuite extends HailSuite {
     val threeTensorColMajor = makeNDArray((0 until 30).map(_.toDouble), FastSeq(2, 3, 5), False())
     val sevenRowMajor = makeNDArrayRef(threeTensorRowMajor, FastSeq(0, 1, 2))
     val sevenColMajor = makeNDArrayRef(threeTensorColMajor, FastSeq(1, 0, 1))
+    // np.arange(0, 30).reshape((2, 3, 5), order="C")[0,1,2]
     assertEvalsTo(sevenRowMajor, 7.0)
+    // np.arange(0, 30).reshape((2, 3, 5), order="F")[1,0,1]
     assertEvalsTo(sevenColMajor, 7.0)
 
     val cubeRowMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), True())
@@ -2051,7 +2053,8 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayReshape() {
-    implicit val execStrats: Set[ExecStrategy] = Set()
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
+
     val v = NDArrayReshape(matrixRowMajor, MakeTuple.ordered(Seq(I64(4))))
     val mat2 = NDArrayReshape(v, MakeTuple.ordered(Seq(I64(2), I64(2))))
 
@@ -2063,6 +2066,7 @@ class IRSuite extends HailSuite {
 
   @Test def testNDArrayConcat() {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
+
     def nds(ndData: (IndexedSeq[Int], Long, Long)*): IR = {
       MakeArray(ndData.map { case (values, nRows, nCols) =>
         if (values == null) NA(TNDArray(TInt32, Nat(2))) else
@@ -2112,7 +2116,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayMap() {
-    implicit val execStrats: Set[ExecStrategy] = Set()
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val data = 0 until 10
     val shape = FastSeq(2L, 5L)
@@ -2138,7 +2142,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayMap2() {
-    implicit val execStrats: Set[ExecStrategy] = Set()
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val shape = MakeTuple.ordered(FastSeq(2L, 2L).map(I64))
     val numbers = MakeNDArray(MakeArray((0 until 4).map { i => F64(i.toDouble) }, TArray(TFloat64)), shape, True())
@@ -2153,7 +2157,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayReindex() {
-    implicit val execStrats: Set[ExecStrategy] = Set()
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val transpose = NDArrayReindex(matrixRowMajor, FastIndexedSeq(1, 0))
     val identity = NDArrayReindex(matrixRowMajor, FastIndexedSeq(0, 1))
@@ -2176,7 +2180,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayBroadcasting() {
-    implicit val execStrats: Set[ExecStrategy] = Set()
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val scalarWithMatrix = NDArrayMap2(
       NDArrayReindex(scalarRowMajor, FastIndexedSeq(1, 0)),
@@ -2206,8 +2210,8 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastIndexedSeq(1, 0)), 2.0)
   }
 
-  @Test def testNDArrayAgg() {
-    implicit val execStrats: Set[ExecStrategy] = Set()
+  @Test(enabled = false) def testNDArrayAgg() {
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val three = makeNDArrayRef(NDArrayAgg(scalarRowMajor, IndexedSeq.empty), IndexedSeq.empty)
     assertEvalsTo(three, 3.0)
@@ -2225,7 +2229,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayMatMul() {
-    implicit val execStrats: Set[ExecStrategy] = Set()
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val dotProduct = NDArrayMatMul(vectorRowMajor, vectorRowMajor)
     val zero = makeNDArrayRef(dotProduct, IndexedSeq())
@@ -2247,14 +2251,14 @@ class IRSuite extends HailSuite {
 
   @Test def testNDArrayInv() {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
-    val matrixColMajor = makeNDArray(FastSeq(1.5, 2.0, 4.0, 5.0), FastSeq(2, 2), False())
-    val inv = NDArrayInv(matrixColMajor)
+    val matrixRowMajor = makeNDArray(FastSeq(1.5, 2.0, 4.0, 5.0), FastSeq(2, 2), True())
+    val inv = NDArrayInv(matrixRowMajor)
     val expectedInv = FastSeq(FastSeq(-10.0, 4.0), FastSeq(8.0, -3.0))
     assertNDEvals(inv, expectedInv)
   }
 
   @Test def testNDArraySlice() {
-    implicit val execStrats: Set[ExecStrategy] = Set()
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val rightCol = NDArraySlice(matrixRowMajor, MakeTuple.ordered(Seq(MakeTuple.ordered(Seq(I64(0), I64(2), I64(1))), I64(1))))
     assertEvalsTo(NDArrayShape(rightCol), Row(2L))
