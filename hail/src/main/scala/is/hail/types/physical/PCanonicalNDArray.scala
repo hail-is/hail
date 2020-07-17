@@ -67,7 +67,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     ))
   }
 
-  def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+  def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb => _makeColumnMajorStridesBuilder(sourceShapeArray, mb, srvb) }
+
+  private def _makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_], srvb: StagedRegionValueBuilder): Code[Unit] = {
     val runningProduct = mb.newLocal[Long]()
     val tempShapeStorage = mb.newLocal[Long]()
     Code(
@@ -84,7 +86,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+  def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb => _makeRowMajorStridesBuilder(sourceShapeArray, mb, srvb) }
+
+  private def _makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_], srvb: StagedRegionValueBuilder): Code[Unit] = {
     val runningProduct = mb.newLocal[Long]()
     val tempShapeStorage = mb.newLocal[Long]()
     val computedStrides = (0 until nDims).map(_ => mb.genFieldThisRef[Long]())
@@ -104,6 +108,15 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
           srvb.advance()
         )
       )
+    )
+  }
+
+  def makeStridesBuilder(sourceShape: PBaseStructValue, isRowMajor: Code[Boolean], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+    val shapeCodeSeq1 = (0 until nDims).map(sourceShape[Long](_).get)
+    val shapeCodeSeq2 = (0 until nDims).map(sourceShape[Long](_).get)
+    isRowMajor.mux(
+      _makeRowMajorStridesBuilder(shapeCodeSeq1, mb, srvb),
+      _makeColumnMajorStridesBuilder(shapeCodeSeq2, mb, srvb)
     )
   }
 

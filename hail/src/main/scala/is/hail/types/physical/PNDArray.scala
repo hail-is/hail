@@ -40,6 +40,8 @@ abstract class PNDArray extends PType {
 
   def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit]
 
+  def makeStridesBuilder(sourceShapeArray: PBaseStructValue, isRowMajor: Code[Boolean], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit]
+
   def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_]
 
   def outOfBounds(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Boolean]

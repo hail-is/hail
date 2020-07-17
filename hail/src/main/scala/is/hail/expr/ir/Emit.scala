@@ -806,34 +806,30 @@ class Emit[C](
         val dataPType = xP.data.pType
         val nDims = shapePType.size
 
-        assert(rowMajorIR == True() || rowMajorIR == False())
-        emitI(shapeIR).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
-          emitI(dataIR).map(cb) { case dataCode: PIndexableCode =>
-            val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
-            val dataValue = dataCode.memoize(cb, "make_ndarray_data")
-            val dataPtr = dataValue.get.tcode[Long]
-            val requiredData = dataPType.checkedConvertFrom(mb, region, dataPtr, coerce[PArray](dataContainer), "NDArray cannot have missing data")
+        emitI(rowMajorIR).flatMap(cb) { case isRowMajorCode: PPrimitiveCode =>
+          emitI(shapeIR).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
+            emitI(dataIR).map(cb) { case dataCode: PIndexableCode =>
+              val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
+              val dataValue = dataCode.memoize(cb, "make_ndarray_data")
+              val dataPtr = dataValue.get.tcode[Long]
+              val requiredData = dataPType.checkedConvertFrom(mb, region, dataPtr, coerce[PArray](dataContainer), "NDArray cannot have missing data")
 
-            (0 until nDims).foreach { index =>
-              cb.ifx(shapeTupleValue.isFieldMissing(index),
-                cb.append(Code._fatal[Unit](s"shape missing at index $index")))
-            }
+              (0 until nDims).foreach { index =>
+                cb.ifx(shapeTupleValue.isFieldMissing(index),
+                  cb.append(Code._fatal[Unit](s"shape missing at index $index")))
+              }
 
-            val shapeCodeSeq = (0 until nDims).map(shapeTupleValue[Long](_).get)
+              def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
+                Code(
+                  srvb.start(),
+                  Code.foreach(0 until nDims) { index =>
+                    Code(
+                      srvb.addLong(shapeTupleValue(index)),
+                      srvb.advance())
+                  })
+              }
 
-            def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
-              Code(
-                srvb.start(),
-                Code.foreach(0 until nDims) { index =>
-                  Code(
-                    srvb.addLong(shapeTupleValue(index)),
-                    srvb.advance())
-                })
-            }
-
-            rowMajorIR match {
-              case True() => PCode(pt, xP.construct(shapeBuilder, xP.makeRowMajorStridesBuilder(shapeCodeSeq, mb), requiredData, mb))
-              case False() => PCode(pt, xP.construct(shapeBuilder, xP.makeColumnMajorStridesBuilder(shapeCodeSeq, mb), requiredData, mb))
+              PCode(pt, xP.construct(shapeBuilder, xP.makeStridesBuilder(shapeTupleValue, isRowMajorCode.code.asInstanceOf[Code[Boolean]], mb), requiredData, mb))
             }
           }
         }
