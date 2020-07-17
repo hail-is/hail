@@ -18,6 +18,7 @@ import re
 #   'parent_ids': [int],
 #   'port': int,
 #   'pvc_size': str,
+#   'requester_pays': str,
 #   'resoures': {
 #     'memory': str,
 #     'cpu': str
@@ -35,7 +36,7 @@ import re
 # }]
 
 JOB_KEYS = {
-    'always_run', 'attributes', 'command', 'env', 'gcsfuse', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'resources', 'secrets', 'service_account', 'timeout'
+    'always_run', 'attributes', 'command', 'env', 'gcsfuse', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'requester_pays', 'resources', 'secrets', 'service_account', 'timeout'
 }
 
 ENV_VAR_KEYS = {'name', 'value'}
@@ -244,6 +245,11 @@ def validate_job(i, job):
             raise ValidationError(f'jobs[{i}].pvc_size not str')
         if not MEMORY_REGEX.fullmatch(pvc_size):
             raise ValidationError(f'jobs[{i}].pvc_size must match regex: {MEMORY_REGEXPAT}')
+
+    if 'requester_pays' in job:
+        requester_pays = job['requester_pays']
+        if not isinstance(requester_pays, str):
+            raise ValidationError(f'jobs[{i}].requester_pays not str')
 
     if 'resources' in job:
         resources = job['resources']

@@ -101,13 +101,18 @@ class LocalBackend(Backend):
         copied_input_resource_files = set()
         os.makedirs(tmpdir + '/inputs/', exist_ok=True)
 
+        if batch.requester_pays:
+            requester_pays = f'-u {batch.requester_pays}'
+        else:
+            requester_pays = ''
+
         def copy_input(job, r):
             if isinstance(r, InputResourceFile):
                 if r not in copied_input_resource_files:
                     copied_input_resource_files.add(r)
 
                     if r._input_path.startswith('gs://'):
-                        return [f'gsutil cp {shq(r._input_path)} {shq(r._get_path(tmpdir))}']
+                        return [f'gsutil {requester_pays} cp {shq(r._input_path)} {shq(r._get_path(tmpdir))}']
 
                     absolute_input_path = os.path.realpath(r._input_path)
 
@@ -132,7 +137,7 @@ class LocalBackend(Backend):
                     directory = os.path.dirname(dest)
                     os.makedirs(directory, exist_ok=True)
                     return 'cp'
-                return 'gsutil cp'
+                return f'gsutil {requester_pays} cp'
 
             if isinstance(r, InputResourceFile):
                 return [f'{_cp(dest)} {shq(r._input_path)} {shq(dest)}'
@@ -435,7 +440,8 @@ class ServiceBackend(Backend):
                                     always_run=job._always_run,
                                     timeout=job._timeout,
                                     gcsfuse=job._gcsfuse if len(job._gcsfuse) > 0 else None,
-                                    env=env_vars)
+                                    env=env_vars,
+                                    requester_pays=batch.requester_pays)
 
             n_jobs_submitted += 1
 

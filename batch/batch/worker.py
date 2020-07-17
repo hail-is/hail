@@ -504,18 +504,24 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
         delay = await sleep_and_backoff(delay)
 
 
-def copy_command(src, dst):
+def copy_command(src, dst, requester_pays=None):
     if not dst.startswith('gs://'):
         mkdirs = f'mkdir -p {shq(os.path.dirname(dst))} && '
     else:
         mkdirs = ''
-    return f'{mkdirs}retry gsutil -m cp -R {shq(src)} {shq(dst)}'
+
+    if requester_pays:
+        requester_pays = f'-u {requester_pays}'
+    else:
+        requester_pays = ''
+
+    return f'{mkdirs}retry gsutil {requester_pays} -m cp -R {shq(src)} {shq(dst)}'
 
 
-def copy(files):
+def copy(files, requester_pays):
     assert files
 
-    copies = ' && '.join([copy_command(f['from'], f['to']) for f in files])
+    copies = ' && '.join([copy_command(f['from'], f['to'], requester_pays) for f in files])
     return f'''
 set -ex
 
@@ -527,8 +533,8 @@ retry gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
 '''
 
 
-def copy_container(job, name, files, volume_mounts, cpu, memory):
-    sh_expression = copy(files)
+def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays):
+    sh_expression = copy(files, requester_pays)
     copy_spec = {
         'image': 'google/cloud-sdk:269.0.0-alpine',
         'name': name,
@@ -579,6 +585,8 @@ class Job:
         copy_volume_mounts = []
         main_volume_mounts = []
 
+        requester_pays = job_spec.get('requester_pays')
+
         if job_spec.get('mount_docker_socket'):
             main_volume_mounts.append('/var/run/docker.sock:/var/run/docker.sock')
 
@@ -625,7 +633,7 @@ class Job:
         if input_files:
             containers['input'] = copy_container(
                 self, 'input', input_files, copy_volume_mounts,
-                self.cpu_in_mcpu, self.memory_in_bytes)
+                self.cpu_in_mcpu, self.memory_in_bytes, requester_pays)
 
         # main container
         main_spec = {
@@ -648,7 +656,7 @@ class Job:
         if output_files:
             containers['output'] = copy_container(
                 self, 'output', output_files, copy_volume_mounts,
-                self.cpu_in_mcpu, self.memory_in_bytes)
+                self.cpu_in_mcpu, self.memory_in_bytes, requester_pays)
 
         self.containers = containers
 
