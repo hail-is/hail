@@ -1157,8 +1157,8 @@ class Emit[C](
             codeR.setup,
             lm := codeL.m,
             rm := codeR.m,
-            f((lm, lm.mux(defaultValue(l.typ), codeL.v)),
-              (rm, rm.mux(defaultValue(r.typ), codeR.v)))))
+            f((lm, lm.mux(defaultValue(l.pType), codeL.v)),
+              (rm, rm.mux(defaultValue(r.pType), codeR.v)))))
         }
 
       case x@MakeArray(args, _) =>
@@ -1627,7 +1627,7 @@ class Emit[C](
               funcMB
           }
         val codeArgs = args.map(emit(_))
-        val vars = args.map { a => coerce[Any](mb.newLocal()(typeToTypeInfo(a.typ))) }
+        val vars = args.map { a => coerce[Any](mb.newLocal()(typeToTypeInfo(a.pType))) }
         val ins = vars.zip(codeArgs.map(_.v)).map { case (l, i) => l := i }
         val value = Code(Code(ins), meth.invokeCode[Any](
           ((mb.getCodeParam[Region](1): Param) +: vars.map(_.get: Param)): _*))
@@ -1727,7 +1727,7 @@ class Emit[C](
 
         val numericElementType = coerce[PNumeric](lPType.elementType)
 
-        val eVti = typeToTypeInfo(numericElementType.virtualType)
+        val eVti = typeToTypeInfo(numericElementType)
 
         val isMissing = lT.m || rT.m
 
@@ -2971,7 +2971,7 @@ abstract class NDArrayEmitter[C](
     val innerMethod = mb.genEmitMethod("ndaLoop", mb.emitParamTypes, UnitInfo)
 
     val idxVars = Array.tabulate(nDims) { _ => mb.genFieldThisRef[Long]() }.toFastIndexedSeq
-    val storeElement = innerMethod.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType.virtualType))
+    val storeElement = innerMethod.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType))
 
     val body =
       Code(

@@ -6,12 +6,11 @@ import is.hail.annotations.RegionValue
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.types.{coerce => tycoerce, _}
-import is.hail.types.physical.PType
+import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
 
 import scala.language.implicitConversions
-
 import java.util.UUID
 
 package object ir {
@@ -29,26 +28,22 @@ package object ir {
 
   def genSym(base: String): Sym = Sym.gen(base)
 
-  def typeToTypeInfo(t: PType): TypeInfo[_] = typeToTypeInfo(t.virtualType)
-
-  def typeToTypeInfo(t: Type): TypeInfo[_] = t.fundamentalType match {
-    case TInt32 => typeInfo[Int]
-    case TInt64 => typeInfo[Long]
-    case TFloat32 => typeInfo[Float]
-    case TFloat64 => typeInfo[Double]
-    case TBoolean => typeInfo[Boolean]
-    case TBinary => typeInfo[Long]
-    case _: TShuffle => typeInfo[Long]
-    case _: TArray => typeInfo[Long]
-    case _: TBaseStruct => typeInfo[Long]
-    case _: TStream => classInfo[Iterator[RegionValue]]
-    case TVoid => typeInfo[Unit]
+  def typeToTypeInfo(t: PType): TypeInfo[_] = t.fundamentalType match {
+    case _: PInt32 => typeInfo[Int]
+    case _: PInt64 => typeInfo[Long]
+    case _: PFloat32 => typeInfo[Float]
+    case _: PFloat64 => typeInfo[Double]
+    case _: PBoolean => typeInfo[Boolean]
+    case PVoid => typeInfo[Unit]
+    case _: PBinary => typeInfo[Long]
+    case _: PStream => classInfo[Iterator[RegionValue]]
+    case _: PBaseStruct => typeInfo[Long]
+    case _: PNDArray => typeInfo[Long]
+    case _: PContainer => typeInfo[Long]
     case _ => throw new RuntimeException(s"unsupported type found, $t")
   }
 
-  def defaultValue(t: PType): Code[_] = defaultValue(t.virtualType)
-
-  def defaultValue(t: Type): Code[_] = defaultValue(typeToTypeInfo(t))
+  def defaultValue(t: PType): Code[_] = defaultValue(typeToTypeInfo(t))
 
   def defaultValue(ti: TypeInfo[_]): Code[_] = ti match {
     case UnitInfo => Code._empty
