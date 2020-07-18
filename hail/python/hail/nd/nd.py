@@ -2,13 +2,14 @@ from functools import reduce
 
 import hail as hl
 from hail.expr.functions import _ndarray
-from hail.expr.types import HailType, tfloat64, ttuple, tndarray
-from hail.typecheck import typecheck, nullable, oneof, tupleof
+from hail.expr.functions import array as aarray
+from hail.expr.types import HailType, tfloat64, ttuple, tndarray, tarray
+from hail.typecheck import typecheck, nullable, oneof, tupleof, sequenceof
 from hail.expr.expressions import (
     expr_int32, expr_int64, expr_tuple, expr_any, expr_array, expr_ndarray,
     Int64Expression, cast_expr, construct_expr)
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
-from hail.ir import NDArrayQR, NDArrayInv
+from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat, MakeArray
 
 
 def array(input_array):
@@ -275,3 +276,49 @@ def inv(nd):
     float_nd = nd.map(lambda x: hl.float64(x))
     ir = NDArrayInv(float_nd._ir)
     return construct_expr(ir, tndarray(tfloat64, 2))
+
+
+@typecheck(nds=sequenceof(expr_ndarray()), axis=int)
+def concatenate(nds, axis):
+    """Join a sequence of arrays along an existing axis.
+
+    Examples
+    --------
+
+    >>> x = hl.nd.array([[1., 2.], [2., 3.]])
+    >>> y = hl.nd.array([[3.], [2.]])
+    >>> res = hl.nd.concatenate([x, y], axis=0)
+    >>> hl.eval(res)
+    array([1, 2, 3, 4], dtype=int32)
+
+    >>> hl.eval(hl.nd.array([[1, 2, 3], [4, 5, 6]]))
+    array([[1, 2, 3],
+       [4, 5, 6]], dtype=int32)
+
+    >>> hl.eval(hl.nd.array(np.identity(3)))
+    array([[1., 0., 0.],
+       [0., 1., 0.],
+       [0., 0., 1.]])
+
+    Parameters
+    ----------
+    :param nds: a1, a2, …sequence of array_like
+        The arrays must have the same shape, except in the dimension corresponding to axis (the first, by default).
+        Note: unlike Numpy, the numerical element type of each array_like must match.
+    :param axis: int, optional
+        The axis along which the arrays will be joined.
+        If axis is None, arrays are flattened before use. Default is 0.
+
+    Returns
+    -------
+    - res: ndarray
+        The concatenated array
+    """
+    head_ndim = nds[0].ndim
+    for nd in nds:
+        assert(nd.ndim == head_ndim)
+
+    makearr = aarray(nds)
+    concat_ir = NDArrayConcat(makearr._ir, axis)
+
+    return construct_expr(concat_ir, concat_ir.typ)
