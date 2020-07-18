@@ -285,20 +285,12 @@ def concatenate(nds, axis):
     Examples
     --------
 
-    >>> x = hl.nd.array([[1., 2.], [2., 3.]])
-    >>> y = hl.nd.array([[3.], [2.]])
-    >>> res = hl.nd.concatenate([x, y], axis=0)
+    >>> x = hl.nd.array([[1., 2.], [3., 4.]])
+    >>> y = hl.nd.array([[5.], [6.]])
+    >>> res = hl.nd.concatenate([x, y], axis=1)
     >>> hl.eval(res)
-    array([1, 2, 3, 4], dtype=int32)
-
-    >>> hl.eval(hl.nd.array([[1, 2, 3], [4, 5, 6]]))
-    array([[1, 2, 3],
-       [4, 5, 6]], dtype=int32)
-
-    >>> hl.eval(hl.nd.array(np.identity(3)))
-    array([[1., 0., 0.],
-       [0., 1., 0.],
-       [0., 0., 1.]])
+    array([[1., 2., 5.],
+           [3., 4., 6.]])
 
     Parameters
     ----------
