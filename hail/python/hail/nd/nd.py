@@ -3,13 +3,13 @@ from functools import reduce
 import hail as hl
 from hail.expr.functions import _ndarray
 from hail.expr.functions import array as aarray
-from hail.expr.types import HailType, tfloat64, ttuple, tndarray, tarray
+from hail.expr.types import HailType, tfloat64, ttuple, tndarray
 from hail.typecheck import typecheck, nullable, oneof, tupleof, sequenceof
 from hail.expr.expressions import (
     expr_int32, expr_int64, expr_tuple, expr_any, expr_array, expr_ndarray,
     Int64Expression, cast_expr, construct_expr)
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
-from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat, MakeArray
+from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat
 
 
 def array(input_array):
