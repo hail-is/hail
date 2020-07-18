@@ -35,6 +35,7 @@ package object ir {
     case _: PFloat64 => typeInfo[Double]
     case _: PBoolean => typeInfo[Boolean]
     case PVoid => typeInfo[Unit]
+    case _: PBinary => typeInfo[Long]
     case _: PStream => classInfo[Iterator[RegionValue]]
     case _: PBaseStruct => typeInfo[Long]
     case _: PNDArray => typeInfo[Long]
