@@ -279,7 +279,7 @@ def inv(nd):
 
 
 @typecheck(nds=sequenceof(expr_ndarray()), axis=int)
-def concatenate(nds, axis):
+def concatenate(nds, axis=0):
     """Join a sequence of arrays along an existing axis.
 
     Examples
