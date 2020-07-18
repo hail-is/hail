@@ -298,8 +298,8 @@ def concatenate(nds, axis=0):
         The arrays must have the same shape, except in the dimension corresponding to axis (the first, by default).
         Note: unlike Numpy, the numerical element type of each array_like must match.
     :param axis: int, optional
-        The axis along which the arrays will be joined.
-        If axis is None, arrays are flattened before use. Default is 0.
+        The axis along which the arrays will be joined. Default is 0.
+        Note: unlike Numpy, if provided, axis cannot be None.
 
     Returns
     -------
