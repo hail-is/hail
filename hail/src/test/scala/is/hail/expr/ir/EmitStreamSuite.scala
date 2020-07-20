@@ -355,16 +355,15 @@ class EmitStreamSuite extends HailSuite {
       TypeCheck(ir)
       EmitStream.emit(new Emit(ctx, fb.ecb), ir, mb, region, Env.empty, None)
     }
-    val L = CodeLabel()
     val len = mb.newLocal[Int]()
     implicit val emitStreamCtx = EmitStreamContext(mb)
     fb.emit(Code(
       optStream.setup,
       optStream.m.mux(
-        Code(len := 0, L.goto),
+        len := 0,
         {
           val EmitStream.SizedStream(setup, _, length) = optStream.pv.asStream.getStream(mb.getCodeParam[Region](1))
-          Code(setup, len := length.getOrElse(-1), L.goto)
+          Code(setup, len := length.getOrElse(-1))
         }),
       len))
     val f = fb.resultWithIndex()
