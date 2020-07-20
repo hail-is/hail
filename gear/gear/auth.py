@@ -4,7 +4,6 @@ import urllib.parse
 import aiohttp
 from aiohttp import web
 import aiohttp_session
-import json
 from hailtop.config import get_deploy_config
 from hailtop.utils import request_retry_transient_errors
 from hailtop.tls import ssl_client_session
