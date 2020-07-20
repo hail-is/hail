@@ -130,15 +130,19 @@ steps:
      valueFrom: create_certs_image.image
    script: |
      openssl req -new -x509 -subj /CN=hail-root -nodes -newkey rsa:4096 -keyout hail-root-key.pem -out hail-root-cert.pem
-     kubectl create secret generic -n {{ default_ns.name }} ssl-config-hail-root \
-             --from-file=hail-root-key.pem \
-             --from-file=hail-root-cert.pem
+     until kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root
+     do
+         kubectl create secret generic -n {{ default_ns.name }} ssl-config-hail-root \
+                 --from-file=hail-root-key.pem \
+                 --from-file=hail-root-cert.pem
+     done
    serviceAccount:
      name: admin
      namespace:
        valueFrom: default_ns.name
    scopes:
     - test
+    - dev
    dependsOn:
     - default_ns
     - create_certs_image
