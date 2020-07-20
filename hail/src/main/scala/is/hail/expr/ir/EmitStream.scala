@@ -866,7 +866,7 @@ object EmitStream {
             i := i + 1,
             srvb.advance()),
           srvb.offset)
-        aTyp.load(ptr)
+        PCode(aTyp, ptr)
 
       case Some(len) =>
         val ptr = Code.sequence1(FastIndexedSeq(
