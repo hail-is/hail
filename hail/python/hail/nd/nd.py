@@ -338,7 +338,8 @@ def eye(N, M=None, dtype=hl.tfloat64):
 
     See Also
     --------
-    diag : Gets the diagonal of a 2 dimensional NDArray
+    :func:`.identity`
+    :func:`.diagonal`
 
     Examples
     --------
@@ -362,3 +363,35 @@ def eye(N, M=None, dtype=hl.tfloat64):
                           hl.literal(1, dtype),
                           hl.literal(0, dtype))
     )).reshape((n_row, n_col))
+
+
+@typecheck(N=expr_numeric, dtype=HailType)
+def identity(N, dtype=hl.tfloat64):
+    """
+    Constructs a 2-D :class:`.NDArrayExpression` representing the identity array.
+    The identity array is a square array with ones on
+    the main diagonal.
+    Parameters
+    ----------
+    n : :class:`.NumericExpression` or Python number
+      Number of rows and columns in the output.
+    dtype : numeric :class:`.HailType`, optional
+      Element type of the returned array. Defaults to :py:data:`.tfloat64`
+
+    Returns
+    -------
+    out : :class:`.NDArrayExpression`
+        `n` x `n` ndarray with its main diagonal set to one, and all other elements 0.
+
+    See Also
+    --------
+    :func:`.eye`
+
+    Examples
+    --------
+    >>> hl.eval(hl.nd.identity(3))
+    array([[1., 0., 0.],
+           [0., 1., 0.],
+           [0., 0., 1.]])
+    """
+    return eye(N, dtype=dtype)

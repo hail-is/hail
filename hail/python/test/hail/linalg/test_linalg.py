@@ -1024,6 +1024,10 @@ class Tests(unittest.TestCase):
             for y in range(13):
                 assert(np.allclose(hl.eval(hl.nd.eye(i,y)), np.eye(i,y)))
 
+    def test_identity(self):
+        for i in range(13):
+            assert(np.allclose(hl.eval(hl.nd.identity(i)), np.identity(i)))
+
     @skip_unless_spark_backend()
     def test_filtering(self):
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
