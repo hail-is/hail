@@ -1,9 +1,8 @@
 import os.path
 import sys
-import yaml
-import pkg_resources
 
 from . import gcloud
+from .deploy_metadata import get_deploy_metadata
 
 
 def init_parser(parser):
@@ -57,10 +56,8 @@ def main(args, pass_through_args):
 
     wheel = None
     if args.update_hail_version:
-        assert pkg_resources.resource_exists('hailtop.hailctl', "deploy.yaml")
-        updated_wheel = yaml.safe_load(
-            pkg_resources.resource_stream('hailtop.hailctl', "deploy.yaml"))['dataproc']['wheel']
-        wheel = updated_wheel
+        deploy_metadata = get_deploy_metadata()
+        wheel = deploy_metadata["wheel"]
     else:
         wheel = args.wheel
 

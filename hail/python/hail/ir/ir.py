@@ -843,13 +843,36 @@ class NDArrayInv(IR):
         super().__init__(nd)
         self.nd = nd
 
-    @typecheck_method(nd=IR)
     def copy(self):
         return NDArrayInv(self.nd)
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
         self._type = tndarray(tfloat64, 2)
+
+
+class NDArrayConcat(IR):
+    @typecheck_method(nds=IR, axis=int)
+    def __init__(self, nds, axis):
+        super().__init__(nds)
+        self.nds = nds
+        self.axis = axis
+
+    def copy(self):
+        return NDArrayConcat(self.nds, self.axis)
+
+    def head_str(self):
+        return self.axis
+
+    def _eq(self, other):
+        return other.nds == self.nds and \
+            other.axis == self.axis
+
+    def _compute_type(self, env, agg_env):
+        for a in self.nds.args:
+            a._compute_type(env, agg_env)
+
+        self._type = self.nds.typ.element_type
 
 
 class NDArrayWrite(IR):

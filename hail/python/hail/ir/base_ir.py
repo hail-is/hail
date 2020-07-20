@@ -28,6 +28,7 @@ class BaseIR(Renderable):
 
     def render_head(self, r: Renderer):
         head_str = self.head_str()
+
         if head_str != '':
             head_str = f' {head_str}'
         trailing_space = ''

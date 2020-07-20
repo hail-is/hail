@@ -59,6 +59,7 @@ object LoweringPipeline {
       OptimizePass("darrayLowerer, initial IR"),
       LowerMatrixToTablePass,
       OptimizePass("darrayLowerer, after LowerMatrixToTable"),
+      LiftRelationalValuesToRelationalLets,
       LowerToDistributedArrayPass(DArrayLowering.All),
       OptimizePass("darrayLowerer, after LowerToCDA")
     ),
@@ -66,6 +67,7 @@ object LoweringPipeline {
       OptimizePass("darrayLowerer, initial IR"),
       LowerMatrixToTablePass,
       OptimizePass("darrayLowerer, after LowerMatrixToTable"),
+      LiftRelationalValuesToRelationalLets,
       LowerToDistributedArrayPass(DArrayLowering.TableOnly),
       OptimizePass("darrayLowerer, after LowerToCDA")
     ),
@@ -73,6 +75,7 @@ object LoweringPipeline {
       OptimizePass("darrayLowerer, initial IR"),
       LowerMatrixToTablePass,
       OptimizePass("darrayLowerer, after LowerMatrixToTable"),
+      LiftRelationalValuesToRelationalLets,
       LowerToDistributedArrayPass(DArrayLowering.BMOnly),
       OptimizePass("darrayLowerer, after LowerToCDA")
     ))

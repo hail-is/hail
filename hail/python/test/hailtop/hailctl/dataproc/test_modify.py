@@ -148,3 +148,27 @@ def test_modify_wheel_zone_required(gcloud_run, gcloud_config, wheel_arg):
 def test_modify_wheel_dry_run(gcloud_run, wheel_arg):
     cli.main(["modify", "test-cluster", wheel_arg, "--dry-run"])
     assert gcloud_run.call_count == 0
+
+
+def test_wheel_and_update_hail_version_mutually_exclusive(gcloud_run, capsys):
+    with pytest.raises(SystemExit):
+        cli.main(["modify", "test-cluster", "--wheel=./hail.whl", "--update-hail-version"])
+
+    assert gcloud_run.call_count == 0
+    assert "argument --update-hail-version: not allowed with argument --wheel" in capsys.readouterr().err
+
+
+def test_update_hail_version(gcloud_run, monkeypatch, deploy_metadata):
+    monkeypatch.setattr("hailtop.hailctl.dataproc.modify.get_deploy_metadata", lambda: deploy_metadata)
+
+    cli.main(["modify", "test-cluster", "--update-hail-version"])
+    assert gcloud_run.call_count == 1
+    gcloud_args = gcloud_run.call_args[0][0]
+    assert gcloud_args[:3] == ["compute", "ssh", "test-cluster-m"]
+
+    remote_command = gcloud_args[gcloud_args.index("--") + 1]
+    assert remote_command == (
+        "sudo gsutil cp gs://hail-common/hailctl/dataproc/test-version/hail-test-version-py3-none-any.whl /tmp/ && " +
+        "sudo /opt/conda/default/bin/pip uninstall -y hail && " +
+        "sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/hail-test-version-py3-none-any.whl"
+    )

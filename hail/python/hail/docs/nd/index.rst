@@ -21,6 +21,8 @@ This is a recently added, experimental module. We would love to hear what use ca
     zeros
     ones
     qr
+    inv
+    concatenate
 
 .. autofunction:: array
 .. autofunction:: arange
@@ -28,4 +30,6 @@ This is a recently added, experimental module. We would love to hear what use ca
 .. autofunction:: zeros
 .. autofunction:: ones
 .. autofunction:: qr
+.. autofunction:: inv
+.. autofunction:: concatenate
 

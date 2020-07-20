@@ -151,28 +151,29 @@ class TableStage(
       globals = globalsRef)
   }
 
-  def mapCollect(f: IR => IR): IR = {
-    mapCollectWithGlobals(f) { (parts, globals) => parts }
+  def mapCollect(bindings: Seq[(String, Type)])(f: IR => IR): IR = {
+    mapCollectWithGlobals(bindings)(f) { (parts, globals) => parts }
   }
 
-  def mapCollectWithGlobals(mapF: IR => IR)(body: (IR, IR) => IR): IR =
-    mapCollectWithContextsAndGlobals((part, ctx) => mapF(part))(body)
+  def mapCollectWithGlobals(bindings: Seq[(String, Type)])(mapF: IR => IR)(body: (IR, IR) => IR): IR =
+    mapCollectWithContextsAndGlobals(bindings)((part, ctx) => mapF(part))(body)
 
-  def mapCollectWithContextsAndGlobals(mapF: (IR, Ref) => IR)(body: (IR, IR) => IR): IR = {
-    val broadcastRefs = MakeStruct(broadcastVals)
+  def mapCollectWithContextsAndGlobals(bindings: Seq[(String, Type)])(mapF: (IR, Ref) => IR)(body: (IR, IR) => IR): IR = {
+    val allBroadcastVals = broadcastVals ++ bindings.map { case (name, t) => (name, Ref(name, t))}
+    val broadcastRefs = MakeStruct(allBroadcastVals)
     val glob = Ref(genUID(), broadcastRefs.typ)
 
     val cda = CollectDistributedArray(
       contexts, broadcastRefs,
       ctxRefName, glob.name,
-      broadcastVals.foldLeft(mapF(partitionIR, Ref(ctxRefName, ctxType))) { case (accum, (name, _)) =>
+      allBroadcastVals.foldLeft(mapF(partitionIR, Ref(ctxRefName, ctxType))) { case (accum, (name, _)) =>
         Let(name, GetField(glob, name), accum)
       })
 
     wrapInBindings(body(cda, globals))
   }
 
-  def collectWithGlobals(): IR = mapCollectWithGlobals(ToArray) { (parts, globals) =>
+  def collectWithGlobals(bindings: Seq[(String, Type)]): IR = mapCollectWithGlobals(bindings)(ToArray) { (parts, globals) =>
     MakeStruct(FastSeq(
       "rows" -> ToArray(flatMapIR(ToStream(parts))(ToStream)),
       "global" -> globals))
@@ -334,8 +335,8 @@ class TableStage(
 }
 
 object LowerTableIR {
-  def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis): IR = {
-    def lowerIR(ir: IR) = LowerToCDA.lower(ir, typesToLower, ctx, r)
+  def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Seq[(String, Type)]): IR = {
+    def lowerIR(ir: IR) = LowerToCDA.lower(ir, typesToLower, ctx, r, relationalLetsAbove)
 
     def lower(tir: TableIR): TableStage = {
       if (typesToLower == DArrayLowering.BMOnly)
@@ -471,7 +472,7 @@ object LowerTableIR {
           }
 
           val sortFields = newKeyType.fieldNames.map(fieldName => SortField(fieldName, Ascending)).toIndexedSeq
-          val shuffled = ctx.backend.lowerDistributedSort(ctx, withNewKeyFields, sortFields)
+          val shuffled = ctx.backend.lowerDistributedSort(ctx, withNewKeyFields, sortFields, relationalLetsAbove)
           val repartitioned = shuffled.repartitionNoShuffle(shuffled.partitioner.strictify)
 
           repartitioned.mapPartition { partition =>
@@ -524,7 +525,7 @@ object LowerTableIR {
               partitionSizeArrayFunc,
               FastIndexedSeq(howManyPartsToTry.name -> 4),
               bindIR(loweredChild.mapContexts(_ => StreamTake(ToStream(childContexts), howManyPartsToTry)){ ctx: IR => ctx }
-                                 .mapCollect(StreamLen)) { counts =>
+                                 .mapCollect(relationalLetsAbove)(StreamLen)) { counts =>
                 If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (ArrayLen(childContexts) <= ArrayLen(counts)),
                   counts,
                   Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry * 4), TArray(TInt32)))
@@ -595,7 +596,7 @@ object LowerTableIR {
               bindIR(
                 loweredChild
                   .mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTry, 0))){ ctx: IR => ctx }
-                  .mapCollect(StreamLen)
+                  .mapCollect(relationalLetsAbove)(StreamLen)
               ) { counts =>
                 If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (totalNumPartitions <= ArrayLen(counts)),
                   counts,
@@ -703,7 +704,7 @@ object LowerTableIR {
               .extendKeyPreservesPartitioning(newKey)
           else {
             val sorted = ctx.backend.lowerDistributedSort(
-              ctx, loweredChild, newKey.map(k => SortField(k, Ascending)))
+              ctx, loweredChild, newKey.map(k => SortField(k, Ascending)), relationalLetsAbove)
             assert(sorted.kType.fieldNames.sameElements(newKey))
             sorted
           }
@@ -819,7 +820,7 @@ object LowerTableIR {
           if (TableOrderBy.isAlreadyOrdered(sortFields, loweredChild.partitioner.kType.fieldNames))
             loweredChild.changePartitionerNoRepartition(RVDPartitioner.unkeyed(loweredChild.partitioner.numPartitions))
           else
-            ctx.backend.lowerDistributedSort(ctx, loweredChild, sortFields)
+            ctx.backend.lowerDistributedSort(ctx, loweredChild, sortFields, relationalLetsAbove)
 
         case TableExplode(child, path) =>
           lower(child).mapPartition { rows =>
@@ -873,18 +874,18 @@ object LowerTableIR {
       case TableCount(tableIR) =>
         val stage = lower(tableIR)
         invoke("sum", TInt64,
-          stage.mapCollect(rows => Cast(StreamLen(rows), TInt64)))
+          stage.mapCollect(relationalLetsAbove)(rows => Cast(StreamLen(rows), TInt64)))
 
       case TableToValueApply(child, ForceCountTable()) =>
         val stage = lower(child)
         invoke("sum", TInt64,
-          stage.mapCollect(rows => Cast(StreamLen(mapIR(rows)(row => Consume(row))), TInt64))          )
+          stage.mapCollect(relationalLetsAbove)(rows => Cast(StreamLen(mapIR(rows)(row => Consume(row))), TInt64))          )
 
       case TableGetGlobals(child) =>
         lower(child).getGlobals()
 
       case TableCollect(child) =>
-        lower(child).collectWithGlobals()
+        lower(child).collectWithGlobals(relationalLetsAbove)
 
       case TableAggregate(child, query) =>
         val resultUID = genUID()
@@ -904,7 +905,7 @@ object LowerTableIR {
         val initFromSerializedStates = Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
           InitFromSerializedValue(i, GetTupleElement(initStateRef, i), agg.state )})
 
-        lcWithInitBinding.mapCollectWithGlobals({ part: IR =>
+        lcWithInitBinding.mapCollectWithGlobals(relationalLetsAbove)({ part: IR =>
           Let("global", lc.globals,
             RunAgg(
               Begin(FastIndexedSeq(
@@ -939,7 +940,7 @@ object LowerTableIR {
         lower(child).getNumPartitions()
 
       case TableWrite(child, writer) =>
-        writer.lower(ctx, lower(child), child, coerce[RTable](r.lookup(child)))
+        writer.lower(ctx, lower(child), child, coerce[RTable](r.lookup(child)), relationalLetsAbove)
 
       case node if node.children.exists(_.isInstanceOf[TableIR]) =>
         throw new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(node) }")

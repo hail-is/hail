@@ -48,7 +48,7 @@ trait AbstractTypedCodecSpec extends Spec {
 
   def buildEmitDecoderF[T](requestedType: Type, cb: EmitClassBuilder[_], ti: TypeInfo[T]): (PType, StagedDecoderF[T]) = {
     val (ptype, dec) = buildEmitDecoderF[T](requestedType, cb)
-    assert(ti == typeToTypeInfo(requestedType))
+    assert(ti == typeToTypeInfo(ptype))
     ptype -> dec
   }
 

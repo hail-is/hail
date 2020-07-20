@@ -11,7 +11,7 @@ import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir._
 import is.hail.types.physical.{PStruct, PTuple, PType}
-import is.hail.types.virtual.{TStruct, TVoid}
+import is.hail.types.virtual.{TStruct, TVoid, Type}
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
 import is.hail.io.fs.{HadoopFS}
 import is.hail.utils._
@@ -528,9 +528,9 @@ class SparkBackend(
     }
   }
 
-  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField]): TableStage = {
+  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Seq[(String, Type)]): TableStage = {
     // Use a local sort for the moment to enable larger pipelines to run
-    LowerDistributedSort.localSort(ctx, stage, sortFields)
+    LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
   }
 
   def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =

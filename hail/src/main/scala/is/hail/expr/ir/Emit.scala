@@ -806,32 +806,40 @@ class Emit[C](
         val dataPType = xP.data.pType
         val nDims = shapePType.size
 
-        // val rowMajort = emit(rowMajorIR) // XXX Unused?
-        emitI(shapeIR).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
-          emitI(dataIR).map(cb) { case dataCode: PIndexableCode =>
-            val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
-            val dataValue = dataCode.memoize(cb, "make_ndarray_data")
-            val dataPtr = dataValue.get.tcode[Long]
-            val requiredData = dataPType.checkedConvertFrom(mb, region, dataPtr, coerce[PArray](dataContainer), "NDArray cannot have missing data")
+        emitI(rowMajorIR).flatMap(cb) { case isRowMajorCode: PPrimitiveCode =>
+          emitI(shapeIR).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
+            emitI(dataIR).map(cb) { case dataCode: PIndexableCode =>
+              val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
+              val dataValue = dataCode.memoize(cb, "make_ndarray_data")
+              val dataPtr = dataValue.get.tcode[Long]
+              val requiredData = dataPType.checkedConvertFrom(mb, region, dataPtr, coerce[PArray](dataContainer), "NDArray cannot have missing data")
 
-            (0 until nDims).foreach { index =>
-              cb.ifx(shapeTupleValue.isFieldMissing(index),
-                cb.append(Code._fatal[Unit](s"shape missing at index $index")))
+              (0 until nDims).foreach { index =>
+                cb.ifx(shapeTupleValue.isFieldMissing(index),
+                  cb.append(Code._fatal[Unit](s"shape missing at index $index")))
+              }
+
+              def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
+                Code(
+                  srvb.start(),
+                  Code.foreach(0 until nDims) { index =>
+                    Code(
+                      srvb.addLong(shapeTupleValue(index)),
+                      srvb.advance())
+                  })
+              }
+
+              def makeStridesBuilder(sourceShape: PBaseStructValue, isRowMajor: Code[Boolean], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+                def shapeCodeSeq1 = (0 until nDims).map(sourceShape[Long](_).get)
+
+                isRowMajor.mux(
+                  xP.makeRowMajorStridesBuilder(shapeCodeSeq1, mb)(srvb),
+                  xP.makeColumnMajorStridesBuilder(shapeCodeSeq1, mb)(srvb)
+                )
+              }
+
+              PCode(pt, xP.construct(shapeBuilder, makeStridesBuilder(shapeTupleValue, isRowMajorCode.tcode[Boolean], mb), requiredData, mb))
             }
-
-            val shapeCodeSeq = (0 until nDims).map(shapeTupleValue[Long](_).get)
-
-            def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
-              Code(
-                srvb.start(),
-                Code.foreach(0 until nDims) { index =>
-                  Code(
-                    srvb.addLong(shapeTupleValue(index)),
-                    srvb.advance())
-                })
-            }
-
-            PCode(pt, xP.construct(shapeBuilder, xP.makeRowMajorStridesBuilder(shapeCodeSeq, mb), requiredData, mb))
           }
         }
       case NDArrayRef(nd, idxs) =>
@@ -1149,8 +1157,8 @@ class Emit[C](
             codeR.setup,
             lm := codeL.m,
             rm := codeR.m,
-            f((lm, lm.mux(defaultValue(l.typ), codeL.v)),
-              (rm, rm.mux(defaultValue(r.typ), codeR.v)))))
+            f((lm, lm.mux(defaultValue(l.pType), codeL.v)),
+              (rm, rm.mux(defaultValue(r.pType), codeR.v)))))
         }
 
       case x@MakeArray(args, _) =>
@@ -1619,7 +1627,7 @@ class Emit[C](
               funcMB
           }
         val codeArgs = args.map(emit(_))
-        val vars = args.map { a => coerce[Any](mb.newLocal()(typeToTypeInfo(a.typ))) }
+        val vars = args.map { a => coerce[Any](mb.newLocal()(typeToTypeInfo(a.pType))) }
         val ins = vars.zip(codeArgs.map(_.v)).map { case (l, i) => l := i }
         val value = Code(Code(ins), meth.invokeCode[Any](
           ((mb.getCodeParam[Region](1): Param) +: vars.map(_.get: Param)): _*))
@@ -1719,7 +1727,7 @@ class Emit[C](
 
         val numericElementType = coerce[PNumeric](lPType.elementType)
 
-        val eVti = typeToTypeInfo(numericElementType.virtualType)
+        val eVti = typeToTypeInfo(numericElementType)
 
         val isMissing = lT.m || rT.m
 
@@ -2963,7 +2971,7 @@ abstract class NDArrayEmitter[C](
     val innerMethod = mb.genEmitMethod("ndaLoop", mb.emitParamTypes, UnitInfo)
 
     val idxVars = Array.tabulate(nDims) { _ => mb.genFieldThisRef[Long]() }.toFastIndexedSeq
-    val storeElement = innerMethod.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType.virtualType))
+    val storeElement = innerMethod.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType))
 
     val body =
       Code(
