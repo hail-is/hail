@@ -146,6 +146,52 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(collect(node), Row(expected, Row(4)))
   }
 
+  @Test def testFilterIntervals() {
+    implicit val execStrats = ExecStrategy.allRelational
+
+
+    def assertFilterIntervals(intervals: IndexedSeq[Interval], keep: Boolean, expected: IndexedSeq[Int]): Unit = {
+      var t: TableIR = TableRange(10, 5)
+      t = TableFilterIntervals(t, intervals.map(i => Interval(Row(i.start), Row(i.end), i.includesStart, i.includesEnd)), keep)
+      assertEvalsTo(GetField(collect(t), "rows"), expected.map(Row(_)))
+    }
+
+    assertFilterIntervals(
+      FastIndexedSeq(Interval(0, 5, true, false)),
+      true,
+      FastIndexedSeq(0, 1, 2, 3, 4))
+
+    assertFilterIntervals(
+      FastIndexedSeq(Interval(0, 5, true, false)),
+      false,
+      FastIndexedSeq(5, 6, 7, 8, 9))
+
+    assertFilterIntervals(
+      FastIndexedSeq(),
+      true,
+      FastIndexedSeq())
+
+    assertFilterIntervals(
+      FastIndexedSeq(),
+      false,
+      FastIndexedSeq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
+
+    assertFilterIntervals(
+      FastIndexedSeq(),
+      true,
+      FastIndexedSeq())
+
+    assertFilterIntervals(
+      FastIndexedSeq(Interval(0, 5, true, false), Interval(1, 6, false, true), Interval(8, 9, true, false)),
+      false,
+      FastIndexedSeq(7, 9))
+
+    assertFilterIntervals(
+      FastIndexedSeq(Interval(0, 5, true, false), Interval(1, 6, false, true), Interval(8, 9, true, false)),
+      true,
+      FastIndexedSeq(0, 1, 2, 3, 4, 5, 6, 8))
+  }
+
   @Test def testTableMapWithLiterals() {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
