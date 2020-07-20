@@ -1,7 +1,10 @@
 package is.hail.types.encoded
+import java.util.UUID
+
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, typeToTypeInfo}
+import is.hail.expr.ir.functions.StringFunctions
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, EmitRegion, typeToTypeInfo}
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PCanonicalNDArraySettable, PNDArrayValue, PType}
 import is.hail.types.virtual.{TNDArray, Type}
@@ -23,9 +26,12 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
   }
 
   override def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
+    val uuid = UUID.randomUUID().toString
     val pnd = pt.asInstanceOf[PCanonicalNDArray]
     assert(pnd.elementType.required)
     val ndarray = coerce[Long](v)
+
+    val firstShape = mb.newLocal[Long]("first_shape")
 
     val writeShapes = (0 until nDims).map(i => out.writeLong(pnd.loadShape(ndarray, i)))
     // Note, encoded strides is in terms of indices into ndarray, not bytes.
@@ -35,7 +41,12 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
 
     val idxVars = (0 until nDims).map(_ => mb.newLocal[Long]())
 
-    val loadAndWrite = writeElemF(pnd.loadElementToIRIntermediate(idxVars, ndarray, mb), out)
+    val loadAndWrite = {
+      Code(
+        Code._println(const(s"$uuid: ENDArrayColumnMajor element write out. firstShape = ").concat(firstShape.toS)),
+        writeElemF(pnd.loadElementToIRIntermediate(idxVars, ndarray, mb), out)
+      )
+    }
 
     val columnMajorLoops = idxVars.zipWithIndex.foldLeft(loadAndWrite) { case (innerLoops, (dimVar, dimIdx)) =>
       Code(
@@ -47,10 +58,21 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
       )
     }
 
-    EmitCodeBuilder.scopedVoid(mb){cb =>
-      cb.append(Code(writeShapes))
-      cb.append(columnMajorLoops)
-    }
+    Code(
+      firstShape := pnd.loadShape(ndarray, 0),
+      Code(writeShapes),
+      Code._println(const(s"$uuid: Starting columnMajorLoops. firstShape = ").concat(firstShape.toS)),
+      columnMajorLoops,
+      Code._println(const(s"$uuid: Finishing columnMajorLoops. firstShape = ").concat(firstShape.toS))
+    )
+
+//    EmitCodeBuilder.scopedVoid(mb){cb =>
+//      cb.append(firstShape := pnd.loadShape(ndarray, 0))
+//      cb.append(Code(writeShapes))
+//      cb.append(Code._println(const(s"$uuid: Starting columnMajorLoops. firstShape = ").concat(firstShape.toS)))
+//      cb.append(columnMajorLoops)
+//      cb.append(Code._println(const(s"$uuid: Finishing columnMajorLoops. firstShape = ").concat(firstShape.toS)))
+//    }
   }
 
   override def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] = {
@@ -69,11 +91,16 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
         shapeVar := in.readLong(),
         totalNumElements := totalNumElements * shapeVar
       ))),
+      Code._println(const("Reading, shapeVars(0) = ").concat(shapeVars(0).toS).concat(", totalNumElmenets = ").concat(totalNumElements.toS)),
       dataAddress := pnd.data.pType.allocate(region, totalNumElements.toI),
       pnd.data.pType.stagedInitialize(dataAddress, totalNumElements.toI),
       Code.forLoop(dataIdx := 0, dataIdx < totalNumElements.toI, dataIdx := dataIdx + 1,
         readElemF(region, pnd.data.pType.elementOffset(dataAddress, totalNumElements.toI, dataIdx), in)
       ),
+      {
+        val er = EmitRegion(mb, region)
+        Code._println(StringFunctions.boxArg(er, pnd.data.pType)(dataAddress))
+      },
       pnd.construct(pnd.makeShapeBuilder(shapeVars), pnd.makeColumnMajorStridesBuilder(shapeVars, mb), dataAddress, mb)
     )
   }

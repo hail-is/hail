@@ -3,6 +3,7 @@ package is.hail.types.virtual
 import is.hail.annotations.{Annotation, ExtendedOrdering, UnsafeIndexedSeq}
 import is.hail.expr.{Nat, NatBase}
 import is.hail.types.physical.PNDArray
+import is.hail.utils
 import org.apache.spark.sql.Row
 
 import scala.reflect.{ClassTag, classTag}
@@ -97,6 +98,12 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
   def _typeCheck(a: Any): Boolean = representation._typeCheck(a)
 
   override def mkOrdering(missingEqual: Boolean): ExtendedOrdering = null
+
+  override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {
+    val equal = a1 == a2
+    is.hail.utils.warn(s"TNDArray.valuesSimilar returning $equal: ${a1.toString} vs ${a2.toString}")
+    equal
+  }
 
   lazy val shapeType: TTuple = TTuple(Array.fill(nDims)(TInt64): _*)
 

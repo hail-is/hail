@@ -132,6 +132,7 @@ object UtilFunctions extends RegistryFunctions {
         assert(lT.virtualType == rT.virtualType, s"\n  lt=${lT.virtualType}\n  rt=${rT.virtualType}")
         val lb = boxArg(er, lT)(l)
         val rb = boxArg(er, rT)(r)
+        warn(s"Running valuesSimilar on ${lT.virtualType}")
         er.mb.getType(lT.virtualType).invoke[Any, Any, Double, Boolean, Boolean]("valuesSimilar", lb, rb, tolerance, absolute)
     }
 

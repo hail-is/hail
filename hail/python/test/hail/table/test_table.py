@@ -1438,11 +1438,13 @@ def test_join_distinct_preserves_count():
     assert keys_2 == left_pos
 
 def test_write_table_containing_ndarray():
-    t = hl.utils.range_table(5)
+    t = hl.utils.range_table(2)
     t = t.annotate(n = hl.nd.arange(t.idx))
     f = new_temp_file(extension='ht')
     t.write(f)
     t2 = hl.read_table(f)
+    t.show()
+    t2.show()
     assert t._same(t2)
 
 def test_group_within_partitions():
