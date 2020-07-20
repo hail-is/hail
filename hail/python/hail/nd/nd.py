@@ -343,13 +343,13 @@ def eye(N, M=None, dtype=hl.tfloat64):
 
     Examples
     --------
-    >>> hl.eval(hl.nd.eye(2, dtype=hl.tint32))
-    array([[1, 0],
-           [0, 1]], dtype=int32)
     >>> hl.eval(hl.nd.eye(3))
     array([[1., 0., 0.],
            [0., 1., 0.],
            [0., 0., 1.]])
+    >>> hl.eval(hl.nd.eye(2, 5, dtype=hl.tint32))
+    array([[1, 0, 0, 0, 0],
+           [0, 1, 0, 0, 0]], dtype=int32)
     """
 
     n_row = hl.int32(N)
