@@ -161,13 +161,13 @@ class BatchPoolExecutor:
 
         Do nothing, but on the cloud:
 
-        >>> with BatchPoolExecutor() as bpe:  # doctest: +SKIP_OUTPUT_CHECK
+        >>> with BatchPoolExecutor() as bpe:  # doctest: +SKIP
         ...     list(bpe.map(lambda x: x, range(4)))
         [0, 1, 2, 3]
 
         Call a function with two parameters, on the cloud:
 
-        >>> with BatchPoolExecutor() as bpe:  # doctest: +SKIP_OUTPUT_CHECK
+        >>> with BatchPoolExecutor() as bpe:  # doctest: +SKIP
         ...     list(bpe.map(lambda x, y: x + y,
         ...                  ["white", "cat", "best"],
         ...                  ["house", "dog", "friend"]))
@@ -180,7 +180,7 @@ class BatchPoolExecutor:
         ...     w = np.random.rand(1, 100)
         ...     u = np.random.rand(100, 1)
         ...     return float(w @ u)
-        >>> with BatchPoolExecutor() as bpe:  # doctest: +SKIP_OUTPUT_CHECK
+        >>> with BatchPoolExecutor() as bpe:  # doctest: +SKIP
         ...     list(bpe.map(random_product, range(4)))
         [24.440006386777277, 23.325755364428026, 23.920184804993806, 25.47912882125101]
 
@@ -270,7 +270,7 @@ class BatchPoolExecutor:
 
         Do nothing, but on the cloud:
 
-        >>> with BatchPoolExecutor() as bpe:  # doctest: +SKIP_OUTPUT_CHECK
+        >>> with BatchPoolExecutor() as bpe:  # doctest: +SKIP
         ...     future = bpe.submit(lambda x: x, 4)
         ...     future.result()
         4
@@ -278,7 +278,7 @@ class BatchPoolExecutor:
         Call a function with two arguments and one keyword argument, on the
         cloud:
 
-        >>> with BatchPoolExecutor() as bpe:  # doctest: +SKIP_OUTPUT_CHECK
+        >>> with BatchPoolExecutor() as bpe:  # doctest: +SKIP
         ...     future = bpe.submit(lambda x, y, z: x + y + z,
         ...                         "poly", "ethyl", z="ene")
         "polyethylene"
@@ -290,7 +290,7 @@ class BatchPoolExecutor:
         ...     w = np.random.rand(1, 100)
         ...     u = np.random.rand(100, 1)
         ...     return float(w @ u)
-        >>> with BatchPoolExecutor() as bpe:  # doctest: +SKIP_OUTPUT_CHECK
+        >>> with BatchPoolExecutor() as bpe:  # doctest: +SKIP
         ...     future = bpe.submit(random_product, 1)
         ...     future.result()
         [23.325755364428026]
