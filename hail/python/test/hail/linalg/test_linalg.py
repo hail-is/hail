@@ -1020,9 +1020,9 @@ class Tests(unittest.TestCase):
         assert np.allclose(np_res, res)
 
     def test_eye(self):
-        assert(np.allclose(hl.eval(hl.nd.eye(4,4)), np.eye(4,4)))
-        assert(np.allclose(hl.eval(hl.nd.eye(1,4)), np.eye(1,4)))
-        assert(np.allclose(hl.eval(hl.nd.eye(7,4)), np.eye(7,4)))
+        for i in range(13):
+            for y in range(13):
+                assert(np.allclose(hl.eval(hl.nd.eye(i,y)), np.eye(i,y)))
 
     @skip_unless_spark_backend()
     def test_filtering(self):

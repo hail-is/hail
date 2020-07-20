@@ -329,7 +329,7 @@ def eye(N, M=None, dtype=hl.tfloat64):
     M : :class:`.NumericExpression` or Python number, optional
       Number of columns in the output. If None, defaults to `N`.
     dtype : numeric :class:`.HailType`, optional
-      Element type of the returned array
+      Element type of the returned array. Defaults to :py:data:`.tfloat64`
 
     Returns
     -------
@@ -342,13 +342,13 @@ def eye(N, M=None, dtype=hl.tfloat64):
 
     Examples
     --------
-    >>> np.nd.eye(2, dtype=hl.tint32)
+    >>> hl.eval(hl.nd.eye(2, dtype=hl.tint32))
     array([[1, 0],
-           [0, 1]])
-    >>> hl.nd.eye(3)
-    array([[ 1.,  0.,  0.],
-           [ 0.,  1.,  0.],
-           [ 0.,  0.,  1.]])
+           [0, 1]], dtype=int32)
+    >>> hl.eval(hl.nd.eye(3))
+    array([[1., 0., 0.],
+           [0., 1., 0.],
+           [0., 0., 1.]])
     """
 
     n_row = hl.int32(N)
@@ -357,12 +357,8 @@ def eye(N, M=None, dtype=hl.tfloat64):
     else:
         n_col = hl.int32(M)
 
-    shape_product = n_row * n_col
-    n_rows_sq = hl.cond(n_row <= n_col, n_row, n_col)
-    max_el_sq = n_rows_sq * n_rows_sq
-
-    return array(hl.range(hl.int32(shape_product)).map(
-        lambda i: hl.cond((i < max_el_sq) & ((i % n_rows_sq) == (i // n_rows_sq)),
+    return hl.nd.array(hl.range(0, hl.int32(n_row * n_col)).map(
+        lambda i: hl.cond((i // n_col) == (i - (i // n_col) * n_col),
                           hl.literal(1, dtype),
                           hl.literal(0, dtype))
     )).reshape((n_row, n_col))
