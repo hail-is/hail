@@ -66,15 +66,15 @@ class BatchPoolExecutor:
     Add ``3`` to ``6`` on a machine in the cloud and send the result back to
     this machine:
 
-    >>> with BatchPoolExecutor() as bpe:
+    >>> with BatchPoolExecutor() as bpe:  # doctest: +SKIP
     ...     future_nine = bpe.submit(lambda: 3 + 6)
-    >>> future_seven.result()
+    >>> future_nine.result()  # doctest: +SKIP
     9
 
     :meth:`.map` facilitates the common case of executing a function on many
     values in parallel:
 
-    >>> with BatchPoolExecutor() as bpe:
+    >>> with BatchPoolExecutor() as bpe:  # doctest: +SKIP
     ...     list(bpe.map(lambda x: x * 3, range(4)))
     [0, 3, 6, 9]
 
