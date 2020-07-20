@@ -238,6 +238,9 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
          m.invokeCode[Unit](region, v, currentOffset) }
   }
 
+  def addIRIntermediate(v: PCode): Code[Unit] =
+    addIRIntermediate(v.pt)(v.code)
+
   def addWithDeepCopy(t: PType, v: Code[_]): Code[Unit] = {
     if (!(t.fundamentalType isOfType currentPType()))
       throw new RuntimeException(s"Fundamental type doesn't match. current=${currentPType()}, t=${t.fundamentalType}, ftype=$ftype")

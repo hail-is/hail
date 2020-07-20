@@ -314,7 +314,7 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
 
   def value[T]: Code[T] = coerce[T](v)
 
-  def map(f: PCode => PCode): EmitCode = new EmitCode(setup, m, pv = f(pv))
+  def map(f: PCode => PCode): EmitCode = EmitCode(setup, m, pv = f(pv))
 
   def toI(cb: EmitCodeBuilder): IEmitCode = {
     val Lmissing = CodeLabel()
@@ -500,7 +500,7 @@ class Emit[C](
     def wrapToVoid(irs: Seq[IR], mb: EmitMethodBuilder[C] = mb, env: E = env, container: Option[AggContainer] = container): Code[Unit] =
       this.wrapToVoid(irs, mb, env, container)
 
-    def emitStream(ir: IR, mb: EmitMethodBuilder[C] = mb): COption[EmitStream.SizedStream] =
+    def emitStream(ir: IR, mb: EmitMethodBuilder[C] = mb): EmitCode =
       EmitStream.emit(this, ir, mb, region, env, container)
 
     def emitVoid(ir: IR, cb: EmitCodeBuilder = cb, mb: EmitMethodBuilder[C] = mb, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
@@ -523,10 +523,7 @@ class Emit[C](
 
       case Let(name, value, body) => value.pType match {
         case streamType: PCanonicalStream =>
-          val valuet = COption.toEmitCode(
-            emitStream(value)
-              .map(ss => PCanonicalStreamCode(streamType, ss.getStream)),
-            mb)
+          val valuet = emitStream(value)
           val bodyEnv = env.bind(name -> new EmitUnrealizableValue(streamType, valuet))
 
           emitVoid(body, env = bodyEnv)
@@ -554,9 +551,9 @@ class Emit[C](
           }
         }
 
-        cb += streamOpt.cases(mb)(
-          Code._empty,
-          _.getStream.forEach(mb, forBody))
+        streamOpt.toI(cb).consume(cb,
+          {},
+          { s => cb += s.asStream.getStream(region).getStream.forEach(mb, forBody) })
 
       case x@InitOp(i, args, sig) =>
         val AggContainer(aggs, sc, _) = container.get
@@ -682,7 +679,7 @@ class Emit[C](
     def emitI(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
-    def emitStream(ir: IR): COption[EmitStream.SizedStream] =
+    def emitStream(ir: IR): EmitCode =
       EmitStream.emit(this, ir, mb, region, env, container)
 
     def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
@@ -954,17 +951,16 @@ class Emit[C](
           mb.ecb.getPType(rowsPType.elementType),
           Code._null)
         cb.append(shuffle.startPut())
-        cb.append(emitStream(rowsIR).cases(mb)(
-          Code._assert(false, "rows stream was missing in shuffle write"),
-          { case (rows: EmitStream.SizedStream) =>
-            rows.getStream.forEach(mb, { case (row: EmitCode) =>
-              Code(
-                row.setup,
-                row.m.mux(
-                  Code._assert(false, "cannot handle empty rows in shuffle put"),
-                  shuffle.putValue(row.value[Long])))
-            })
-          }))
+        val rows = emitStream(rowsIR).toI(cb).handle(cb, {
+          cb._fatal("rows stream was missing in shuffle write")
+        }).asStream.getStream(region).getStream
+        cb.append(rows.forEach(mb, { row: EmitCode =>
+          Code(
+            row.setup,
+            row.m.mux(
+              Code._fatal[Unit]("cannot handle empty rows in shuffle put"),
+              shuffle.putValue(row.value[Long])))
+        }))
         cb.append(shuffle.putValueDone())
         cb.append(shuffle.endPut())
         cb.append(shuffle.close())
@@ -1043,7 +1039,7 @@ class Emit[C](
     def wrapToMethod(irs: Seq[IR], mb: EmitMethodBuilder[C] = mb, env: E = env, container: Option[AggContainer] = container)(useValues: (EmitMethodBuilder[C], PType, EmitCode) => Code[Unit]): Code[Unit] =
       this.wrapToMethod(irs, mb, env, container)(useValues)
 
-    def emitStream(ir: IR): COption[EmitStream.SizedStream] =
+    def emitStream(ir: IR): EmitCode =
       EmitStream.emit(this, ir, mb, region, env, container)
 
     def emitDeforestedNDArray(ir: IR): EmitCode =
@@ -1110,10 +1106,7 @@ class Emit[C](
 
       case Let(name, value, body) => value.pType match {
         case streamType: PCanonicalStream =>
-          val valuet = COption.toEmitCode(
-            emitStream(value)
-              .map(ss => PCanonicalStreamCode(streamType, ss.getStream)),
-            mb)
+          val valuet = emitStream(value)
           val bodyEnv = env.bind(name -> new EmitUnrealizableValue(streamType, valuet))
 
           emit(body, env = bodyEnv)
@@ -1232,22 +1225,22 @@ class Emit[C](
         }
 
         val optStream = emitStream(array)
-        val result = optStream.map { stream =>
+        optStream.map { stream =>
           PCode(pt, Code(
-            EmitStream.write(mb, stream, vab),
+            EmitStream.write(mb, stream.asStream, vab, region),
             sort,
             distinct,
             sorter.toRegion()))
         }
-
-        COption.toEmitCode(result, mb)
 
       case CastToArray(a) =>
         val et = emit(a)
         EmitCode(et.setup, et.m, PCode(pt, et.v))
 
       case ToArray(a) =>
-        EmitStream.toArray(mb, coerce[PArray](pt), emitStream(a))
+        emitStream(a).map { stream =>
+          EmitStream.toArray(mb, coerce[PArray](pt), stream.asStream, region)
+        }
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val typ: PContainer = coerce[PIterable](orderedCollection.pType).asPContainer
@@ -1326,10 +1319,9 @@ class Emit[C](
           isSameCode.m || isSameCode.value[Boolean]
         }
 
-        val optStream = emitStream(collection)
-        val result = optStream.map { stream =>
+        emitStream(collection).map { stream =>
           PCode(pt, Code(
-            EmitStream.write(mb, stream, eab),
+            EmitStream.write(mb, stream.asStream, eab, region),
             sorter.sort(sortF),
             sorter.pruneMissing,
             eab.size.ceq(0).mux(
@@ -1371,8 +1363,6 @@ class Emit[C](
                 srvb.offset))))
         }
 
-        COption.toEmitCode(result, mb)
-
       case ArrayZeros(length) =>
         val lengthTriplet = emit(length)
         val outputPType = coerce[PArray](ir.pType)
@@ -1389,28 +1379,33 @@ class Emit[C](
         EmitCode(lengthTriplet.setup, lengthTriplet.m, PCode(pt, result))
 
       case x@StreamLen(a) =>
-        val streamOpt = emitStream(a)
-        val lenOpt = streamOpt.map { ss =>
+        emitStream(a).map { ss =>
           val count = mb.newLocal[Int]("stream_length")
+          val xEltRegion = mb.newLocal[Region]()
+          val eltRegion: Value[Region] = xEltRegion
+          val SizedStream(setup, stream, length) = ss.asStream.getStream(eltRegion)
           val lenCode =
-            ss.length match {
-              case Some(len) => Code(ss.setup, len)
+            length match {
+              case Some(len) => Code(setup, len)
               case None =>
                 Code(
                   count := 0,
-                  ss.getStream.forEach(mb, _ => count := count + 1),
+                  setup,
+                  xEltRegion := Region.stagedCreate(Region.REGULAR),
+                  stream.forEach(mb, _ => Code(count := count + 1, eltRegion.clear())),
+                  eltRegion.invalidate(),
+                  xEltRegion := Code._null,
                   count.get
                 )
             }
           PCode(x.pType, lenCode)
         }
-        COption.toEmitCode(lenOpt, mb)
 
       case x@StreamFold(a, zero, accumName, valueName, body) =>
         val eltType = coerce[PStream](a.pType).elementType
         val accType = x.accPType
 
-        val streamOpt = emitStream(a)
+        val streamOpt = COption.fromEmitCode(emitStream(a))
         val resOpt: COption[PCode] = streamOpt.flatMapCPS { (ss, _ctx, ret) =>
           implicit val c = _ctx
 
@@ -1432,7 +1427,7 @@ class Emit[C](
           def retTT(): Code[Ctrl] =
             ret(COption.fromEmitCode(xAcc.get))
 
-          ss.getStream
+          ss.asStream.getStream(region).getStream
             .fold(mb, xAcc := codeZ, foldBody, retTT())
         }
 
@@ -1452,7 +1447,7 @@ class Emit[C](
         val codeR = emit(res, env = resEnv)
         val typedCodeSeq = seq.map(ir => emit(ir, env = seqEnv))
 
-        val streamOpt = emitStream(a)
+        val streamOpt = COption.fromEmitCode(emitStream(a))
          val resOpt = streamOpt.flatMapCPS[PCode] { (ss, _ctx, ret) =>
           implicit val c = _ctx
 
@@ -1466,7 +1461,7 @@ class Emit[C](
           def computeRes(): Code[Ctrl] =
               ret(COption.fromEmitCode(codeR))
 
-          ss.getStream
+          ss.asStream.getStream(region).getStream
             .fold(mb, Code(accVars.zip(acc).map { case (v, (name, x)) =>
               v := emit(x).castTo(mb, region, v.pt)
             }),
@@ -2210,7 +2205,7 @@ class Emit[C](
 
         val spark = parentCB.backend()
 
-        val optCtxStream = emitStream(contexts)
+        val optCtxStream = COption.fromEmitCode(emitStream(contexts))
         val globalsT = emit(globals)
 
         val cEnc = x.contextSpec.buildEmitEncoderF[Long](x.contextPTuple, parentCB)
@@ -2276,7 +2271,7 @@ class Emit[C](
           baos := Code.newInstance[ByteArrayOutputStream](),
           buf := x.contextSpec.buildCodeOutputBuffer(baos), // TODO: take a closer look at whether we need two codec buffers?
           ctxab := Code.newInstance[ByteArrayArrayBuilder, Int](16),
-          addContexts(ctxStream),
+          addContexts(ctxStream.asStream.getStream(region)),
           baos.invoke[Unit]("reset"),
           addGlobals,
           encRes := spark.invoke[BackendContext, String, Array[Array[Byte]], Array[Byte], Array[Array[Byte]]](
@@ -2330,8 +2325,8 @@ class Emit[C](
         val ctxCode = emit(ctx)
         val eltType = coerce[PStruct](coerce[PStream](stream.pType).elementType)
         COption.toEmitCode(
-          emitStream(stream).flatMap { s =>
-            COption.fromEmitCode(writer.consumeStream(ctxCode, eltType, mb, region, s))
+          COption.fromEmitCode(emitStream(stream)).flatMap { s =>
+            COption.fromEmitCode(writer.consumeStream(ctxCode, eltType, mb, region, s.asStream.getStream(region)))
           }, mb)
 
       case x@ReadValue(path, spec, requestedType) =>

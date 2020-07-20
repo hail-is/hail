@@ -1,6 +1,8 @@
 package is.hail.types.physical
 
-import is.hail.annotations.UnsafeOrdering
+import is.hail.annotations.{Region, UnsafeOrdering}
+import is.hail.asm4s.{Code, Value}
+import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.types.virtual.{TStream, Type}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitUnrealizableValue, Stream}
 
@@ -21,7 +23,7 @@ final case class PCanonicalStream(elementType: PType, required: Boolean = false)
   }
 
   override def defaultValue: PCanonicalStreamCode =
-    PCanonicalStreamCode(this, Stream.empty(EmitCode.missing(elementType)))
+    PCanonicalStreamCode(this, SizedStream(Code._empty, Stream.empty(EmitCode.missing(elementType)), Some(0)))
 
   override def deepRename(t: Type) = deepRenameStream(t.asInstanceOf[TStream])
 
@@ -31,7 +33,25 @@ final case class PCanonicalStream(elementType: PType, required: Boolean = false)
   def setRequired(required: Boolean): PCanonicalStream = if(required == this.required) this else this.copy(required = required)
 }
 
-final case class PCanonicalStreamCode(pt: PCanonicalStream, stream: Stream[EmitCode]) extends PStreamCode { self =>
+object PCanonicalStreamCode {
+  def apply(_pt: PCanonicalStream, stream: SizedStream): PCanonicalStreamCode = new PCanonicalStreamCode {
+    val pt = _pt
+
+    def getStream(eltRegion: Code[Region]): SizedStream =
+      stream
+  }
+
+  def apply(_pt: PCanonicalStream, stream: Value[Region] => SizedStream): PCanonicalStreamCode = new PCanonicalStreamCode {
+    val pt = _pt
+
+    def getStream(eltRegion: Code[Region]): SizedStream =
+      stream(eltRegion)
+  }
+}
+
+abstract class PCanonicalStreamCode extends PStreamCode { self =>
+  def getStream(eltRegion: Code[Region]): SizedStream
+
   def memoize(cb: EmitCodeBuilder, name: String): PValue = new PValue {
     val pt = self.pt
     var used: Boolean = false
