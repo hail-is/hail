@@ -7,7 +7,7 @@ from hail.expr.types import HailType, tfloat64, ttuple, tndarray
 from hail.typecheck import typecheck, nullable, oneof, tupleof, sequenceof
 from hail.expr.expressions import (
     expr_int32, expr_int64, expr_tuple, expr_any, expr_array, expr_ndarray,
-    Int64Expression, cast_expr, construct_expr)
+    expr_numeric, Int64Expression, cast_expr, construct_expr)
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
 from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat
 
@@ -314,3 +314,84 @@ def concatenate(nds, axis=0):
     concat_ir = NDArrayConcat(makearr._ir, axis)
 
     return construct_expr(concat_ir, concat_ir.typ)
+
+
+@typecheck(N=expr_numeric, M=nullable(expr_numeric), dtype=HailType)
+def eye(N, M=None, dtype=hl.tfloat64):
+    """
+    Construct a 2-D :class:`.NDArrayExpression` with ones on the *main* diagonal
+    and zeros elsewhere.
+
+    Parameters
+    ----------
+    N : :class:`.NumericExpression` or Python number
+      Number of rows in the output.
+    M : :class:`.NumericExpression` or Python number, optional
+      Number of columns in the output. If None, defaults to `N`.
+    dtype : numeric :class:`.HailType`, optional
+      Element type of the returned array. Defaults to :py:data:`.tfloat64`
+
+    Returns
+    -------
+    I : :class:`.NDArrayExpression` representing a Hail ndarray of shape (N,M)
+      An ndarray whose elements are equal to one on the main diagonal, zeroes elsewhere.
+
+    See Also
+    --------
+    :func:`.identity`
+    :func:`.diagonal`
+
+    Examples
+    --------
+    >>> hl.eval(hl.nd.eye(3))
+    array([[1., 0., 0.],
+           [0., 1., 0.],
+           [0., 0., 1.]])
+    >>> hl.eval(hl.nd.eye(2, 5, dtype=hl.tint32))
+    array([[1, 0, 0, 0, 0],
+           [0, 1, 0, 0, 0]], dtype=int32)
+    """
+
+    n_row = hl.int32(N)
+    if M is None:
+        n_col = n_row
+    else:
+        n_col = hl.int32(M)
+
+    return hl.nd.array(hl.range(0, n_row * n_col).map(
+        lambda i: hl.cond((i // n_col) == (i - (i // n_col) * n_col),
+                          hl.literal(1, dtype),
+                          hl.literal(0, dtype))
+    )).reshape((n_row, n_col))
+
+
+@typecheck(N=expr_numeric, dtype=HailType)
+def identity(N, dtype=hl.tfloat64):
+    """
+    Constructs a 2-D :class:`.NDArrayExpression` representing the identity array.
+    The identity array is a square array with ones on
+    the main diagonal.
+    Parameters
+    ----------
+    n : :class:`.NumericExpression` or Python number
+      Number of rows and columns in the output.
+    dtype : numeric :class:`.HailType`, optional
+      Element type of the returned array. Defaults to :py:data:`.tfloat64`
+
+    Returns
+    -------
+    out : :class:`.NDArrayExpression`
+        `n` x `n` ndarray with its main diagonal set to one, and all other elements 0.
+
+    See Also
+    --------
+    :func:`.eye`
+
+    Examples
+    --------
+    >>> hl.eval(hl.nd.identity(3))
+    array([[1., 0., 0.],
+           [0., 1., 0.],
+           [0., 0., 1.]])
+    """
+    return eye(N, dtype=dtype)
