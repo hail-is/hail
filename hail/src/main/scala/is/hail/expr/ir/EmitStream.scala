@@ -878,7 +878,7 @@ object EmitStream {
                 et.setup,
                 et.m.mux(
                   srvb.setMissing(),
-                  srvb.addIRIntermediate(et.pv.copyToRegion(mb, destRegion))),
+                  srvb.addIRIntermediate(et.pv, deepCopy = true)),
                 (eltRegion: Value[Region]).clear(),
                 srvb.advance()))
             }),
