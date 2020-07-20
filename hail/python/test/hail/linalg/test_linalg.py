@@ -1019,6 +1019,11 @@ class Tests(unittest.TestCase):
         res = hl.eval(hl.nd.concatenate([x, y]))
         assert np.allclose(np_res, res)
 
+    def test_eye(self):
+        assert(np.allclose(hl.eval(hl.nd.eye(4,4)), np.eye(4,4)))
+        assert(np.allclose(hl.eval(hl.nd.eye(1,4)), np.eye(1,4)))
+        assert(np.allclose(hl.eval(hl.nd.eye(7,4)), np.eye(7,4)))
+
     @skip_unless_spark_backend()
     def test_filtering(self):
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
