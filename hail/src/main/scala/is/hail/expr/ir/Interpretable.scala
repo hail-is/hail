@@ -5,7 +5,6 @@ import is.hail.types.virtual.{TNDArray, TStream}
 object Interpretable {
   def apply(ir: IR): Boolean = {
     !ir.typ.isInstanceOf[TNDArray] &&
-      !ir.typ.isInstanceOf[TStream] &&
     (ir match {
       case
         _: StreamMerge |

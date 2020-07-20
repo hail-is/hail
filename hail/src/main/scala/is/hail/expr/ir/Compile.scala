@@ -143,7 +143,7 @@ object CompileIterator {
     def loadAddress(): Long
   }
 
-  private trait TMPStepFunction extends AsmFunction3RegionLongIteratorRegionBoolean with StepFunctionBase
+  private trait TMPStepFunction extends AsmFunction3RegionLongIteratorJLongBoolean with StepFunctionBase
 
   private abstract class LongIteratorWrapper extends Iterator[java.lang.Long] {
     def step(): Boolean
@@ -182,8 +182,7 @@ object CompileIterator {
     val er = EmitRegion.default(stepF)
     val emitter = new Emit(ctx, stepFECB)
 
-    var ir = body
-    ir = LoweringPipeline.compileLowerer(true)(ctx, ir).asInstanceOf[IR].noSharing
+    val ir = LoweringPipeline.compileLowerer(true)(ctx, body).asInstanceOf[IR].noSharing
     TypeCheck(ir)
     InferPType(ir, Env.empty[PType])
     val returnType = ir.pType.asInstanceOf[PStream].elementType.asInstanceOf[PStruct].setRequired(true)
@@ -193,6 +192,7 @@ object CompileIterator {
     val elementAddress = stepF.genFieldThisRef[Long]("elementAddr")
 
     val didSetup = stepF.genFieldThisRef[Boolean]("didSetup")
+    stepF.cb.emitInit(didSetup := false)
 
     implicit val ecc: EmitStreamContext = EmitStreamContext(stepF)
     var source: Source[EmitCode] = null
@@ -200,8 +200,6 @@ object CompileIterator {
     val pullLabel = CodeLabel()
     val eosField = stepF.genFieldThisRef[Boolean]("eos")
     val eosLabel = CodeLabel()
-
-    optStream.addSetup(Code(elementAddress := 0L, eosField := false))
 
     val init = optStream.apply(Code._fatal[Unit]("bad stream"), { stream =>
 
@@ -219,6 +217,8 @@ object CompileIterator {
       Code(
         source.setup0,
         source.setup,
+        elementAddress := 0L,
+        eosField := false,
         didSetup := true,
         pullLabel,
         source.pull)
