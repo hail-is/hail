@@ -23,6 +23,9 @@ This is a recently added, experimental module. We would love to hear what use ca
     qr
     inv
     concatenate
+    vstack
+    eye
+    identity
 
 .. autofunction:: array
 .. autofunction:: arange
@@ -32,4 +35,7 @@ This is a recently added, experimental module. We would love to hear what use ca
 .. autofunction:: qr
 .. autofunction:: inv
 .. autofunction:: concatenate
+.. autofunction:: vstack
+.. autofunction:: eye
+.. autofunction:: identity
 
