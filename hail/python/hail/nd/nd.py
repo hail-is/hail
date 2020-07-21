@@ -372,8 +372,8 @@ def eye(N, M=None, dtype=hl.tfloat64):
 def identity(N, dtype=hl.tfloat64):
     """
     Constructs a 2-D :class:`.NDArrayExpression` representing the identity array.
-    The identity array is a square array with ones on
-    the main diagonal.
+    The identity array is a square array with ones on the main diagonal.
+
     Parameters
     ----------
     n : :class:`.NumericExpression` or Python number
@@ -404,10 +404,9 @@ def identity(N, dtype=hl.tfloat64):
 def vstack(arrs):
     """
     Stack arrays in sequence vertically (row wise).
-    This is equivalent to concatenation along the first axis after 1-D arrays
-    of shape `(N,)` have been reshaped to `(1,N)`.
+    1-D arrays of shape `(N,)`, will reshaped to `(1,N)` before concatenation.
+    For all other arrays, equivalent to  :func:`.concatenate` with axis=0.
 
-    The function :func:`.concatenate` provides more general stacking and concatenation operations.
     Parameters
     ----------
     arrs : sequence of :class:`.NDArrayExpression`
