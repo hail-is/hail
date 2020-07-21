@@ -523,7 +523,7 @@ object LowerTableIR {
           val nPartitions = part.numPartitions
 
 
-          val filterPartitioner = new RVDPartitioner(kt, Interval.union(intervals.toArray, ord.intervalEndpointOrdering), 0)
+          val filterPartitioner = new RVDPartitioner(kt, Interval.union(intervals.toArray, ord.intervalEndpointOrdering))
           val boundsType = TArray(RVDPartitioner.intervalIRRepresentation(kt))
           val filterIntervalsRef = Ref(genUID(), boundsType)
           val filterIntervals: IndexedSeq[Row] = filterPartitioner.rangeBounds.map { i =>
