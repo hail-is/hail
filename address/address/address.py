@@ -1,5 +1,6 @@
 from typing import List, DefaultDict, Generic, TypeVar, Dict, NamedTuple
 import time
+import os
 import logging
 import concurrent
 import asyncio
@@ -14,6 +15,8 @@ import uvloop
 import sortedcontainers
 from collections import defaultdict
 
+
+NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
 uvloop.install()
 
@@ -100,7 +103,7 @@ class Cache():
                     return entry.value
 
             asyncio.ensure_future(self.maybe_remove_one_old_entry())
-            k8s_endpoints = await self.k8s_client.read_namespaced_endpoints(key)
+            k8s_endpoints = await self.k8s_client.read_namespaced_endpoints(key, NAMESPACE)
             endpoints = [AddressAndPort(ip.ip, port.port)
                          for endpoint in k8s_endpoints.subsets
                          for port in endpoint.ports
