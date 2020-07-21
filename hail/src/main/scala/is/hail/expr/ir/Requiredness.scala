@@ -250,6 +250,13 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         if (refMap.contains(name)) {
           refMap(name).foreach { u => defs.bind(u, Array(BaseTypeWithRequiredness(x.shuffleType))) }
         }
+      case TableMapPartitions(child, globalName, partitionStreamName, body) =>
+        if (refMap.contains(globalName))
+          refMap(globalName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](lookup(child).globalType)) }
+        if (refMap.contains(partitionStreamName))
+          refMap(partitionStreamName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](RIterable(lookup(child).rowType))) }
+        val refs = refMap.getOrElse(globalName, FastIndexedSeq()) ++ refMap.getOrElse(partitionStreamName, FastIndexedSeq())
+        dependents.getOrElseUpdate(child, mutable.Set[RefEquality[BaseIR]]()) ++= refs
       case _ => fatal(Pretty(node))
     }
   }
@@ -390,6 +397,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val valueStruct = coerce[RStruct](coerce[RIterable](requiredness.field(name)).elementType)
         cReq.valueFields.foreach(n => valueStruct.field(n).unionFrom(cReq.field(n)))
         requiredness.unionGlobals(cReq.globalType)
+      case TableMapPartitions(child, globalName, partitionStreamName, body) =>
+        requiredness.unionRows(lookupAs[RIterable](body).elementType.asInstanceOf[RStruct])
+        requiredness.unionGlobals(lookup(child))
       case TableToTableApply(child, function) => requiredness.maximize() //FIXME: needs implementation
       case BlockMatrixToTableApply(child, _, function) => requiredness.maximize() //FIXME: needs implementation
       case BlockMatrixToTable(child) => //all required

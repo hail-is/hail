@@ -337,6 +337,10 @@ object Code {
     newC
   }
 
+  def _printlns(cs: Code[String]*): Code[Unit] = {
+    _println(cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
+  }
+
   def _println(c: Code[AnyRef]): Code[Unit] = {
     Code(
       Code.invokeScalaObject1[AnyRef, Unit](scala.Console.getClass, "println", c),

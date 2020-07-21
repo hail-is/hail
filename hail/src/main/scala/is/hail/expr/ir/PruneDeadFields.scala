@@ -411,6 +411,20 @@ object PruneDeadFields {
           rowType = unify(child.typ.rowType, requestedType.rowType, selectKey(child.typ.rowType, child.typ.key)),
           globalType = requestedType.globalType)
         memoizeTableIR(child, dep, memo)
+      case TableMapPartitions(child, gName, pName, body) =>
+        val reqRowsType = TStream(requestedType.rowType)
+        val bodyDep = memoizeValueIR(body, reqRowsType, memo)
+        val depGlobalType = unifySeq(child.typ.globalType,
+          bodyDep.eval.lookupOption(gName).map(_.result()).getOrElse(Array()))
+        val depRowType = unifySeq(child.typ.rowType,
+          bodyDep.eval.lookupOption(pName)
+            .map(_.result().map(_.asInstanceOf[TStream].elementType))
+            .getOrElse(Array()))
+        val dep = TableType(
+          key = requestedType.key,
+          rowType = depRowType.asInstanceOf[TStruct],
+          globalType = depGlobalType.asInstanceOf[TStruct])
+        memoizeTableIR(child, dep, memo)
       case TableMapRows(child, newRow) =>
         val rowDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
         val dep = TableType(
@@ -1413,6 +1427,12 @@ object PruneDeadFields {
         val child2 = rebuild(child, memo)
         val pred2 = rebuildIR(pred, BindingEnv(child2.typ.rowEnv), memo)
         TableFilter(child2, pred2)
+      case TableMapPartitions(child, gName, pName, body) =>
+        val child2 = rebuild(child, memo)
+        val body2 = rebuildIR(body, BindingEnv(Env(
+          gName -> child2.typ.globalType,
+          pName -> TStream(child2.typ.rowType))), memo)
+        TableMapPartitions(child2, gName, pName, body2)
       case TableMapRows(child, newRow) =>
         val child2 = rebuild(child, memo)
         val newRow2 = rebuildIR(newRow, BindingEnv(child2.typ.rowEnv, scan = Some(child2.typ.rowEnv)), memo)

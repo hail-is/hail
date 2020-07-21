@@ -937,6 +937,79 @@ class TableIRSuite extends HailSuite {
     }
     val table = TableParallelize(makestruct("rows" -> ToArray(rows), "global" -> makestruct()), None)
     assertEvalsTo(TableCollect(table), Row(FastIndexedSeq(Row(Row(1))), Row()))
+  }
 
+  @Test def testTableMapPartitions() {
+    implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
+
+    val table =
+      TableKeyBy(
+        TableMapGlobals(
+          TableRange(20, nPartitions = 4),
+          MakeStruct(Seq("greeting" -> Str("Hello")))),
+        IndexedSeq(), false)
+
+    val rowType = TStruct("idx" -> TInt32)
+    val part = Ref("part", TStream(rowType))
+    val row = Ref("row", rowType)
+    val acc = Ref("acc", rowType)
+
+    assertEvalsTo(
+      collect(
+        TableMapPartitions(table, "g", "part",
+          StreamMap(
+            part,
+            "row2",
+            InsertFields(Ref("row2", rowType), FastSeq("str" -> Str("foo")))))
+      ),
+      Row(IndexedSeq.tabulate(20) { i =>
+        Row(i, "foo")
+      }, Row("Hello")))
+
+    assertEvalsTo(
+      collect(
+        TableMapPartitions(table, "g", "part",
+          StreamFilter(
+            part,
+            "row2",
+            GetField(Ref("row2", rowType), "idx") > 0))
+      ),
+      Row(IndexedSeq.tabulate(20) { i =>
+        Row(i)
+      }.filter(_.getAs[Int](0) > 0), Row("Hello")))
+
+    assertEvalsTo(
+      collect(
+        TableMapPartitions(table, "g", "part",
+          StreamFlatMap(
+            part,
+            "row2",
+            mapIR(StreamRange(0, 3, 1)) { i =>
+              MakeStruct(Seq("str" -> Str("Hello"), "i" -> i))
+            }
+          ))),
+      Row((0 until 20).flatMap(i => (0 until 3).map(j => Row("Hello", j))), Row("Hello")))
+
+    assertEvalsTo(
+      collect(
+        TableMapPartitions(table, "g", "part",
+          // replace every row in partition with the first row
+          StreamFilter(
+            StreamScan(part,
+              NA(rowType),
+              "acc", "row",
+              If(IsNA(acc), row, acc)),
+            "row",
+            !IsNA(row)))
+      ),
+      Row(IndexedSeq.tabulate(20) { i =>
+        // 0,1,2,3,4,5,6,7,8,9,... ==>
+        // 0,0,0,0,0,5,5,5,5,5,...
+        Row((i / 5) * 5)
+      }, Row("Hello")))
+
+    interceptAssertion("must iterate over the partition exactly once") {
+      collect(TableMapPartitions(table, "g", "part", StreamFlatMap(StreamRange(0, 2, 1), "_", part)))
+    }
   }
 }

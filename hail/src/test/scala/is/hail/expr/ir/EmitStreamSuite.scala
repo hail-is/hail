@@ -327,14 +327,13 @@ class EmitStreamSuite extends HailSuite {
   }
 
   private def compileStreamWithIter(ir: IR, streamType: PStream): Iterator[Any] => IndexedSeq[Any] = {
-    type F = AsmFunction3RegionIteratorRegionValueBooleanLong
+    type F = AsmFunction3RegionIteratorJLongBooleanLong
     compileStream[F, Iterator[Any]](ir, IndexedSeq(streamType)) { (f: F, r: Region, it: Iterator[Any]) =>
       val rv = RegionValue(r)
-      val rvi = new Iterator[RegionValue] {
+      val rvi = new Iterator[java.lang.Long] {
         def hasNext: Boolean = it.hasNext
-        def next(): RegionValue = {
-          rv.setOffset(ScalaToRegionValue(r, streamType.elementType, it.next()))
-          rv
+        def next(): java.lang.Long = {
+          ScalaToRegionValue(r, streamType.elementType, it.next())
         }
       }
       f(r, rvi, it == null)
@@ -695,6 +694,26 @@ class EmitStreamSuite extends HailSuite {
       val input = rvb.end()
 
       assert(SafeRow.read(pt, f(0, r)(r, input)) == Row(null))
+    }
+  }
+
+  @Test def testMultiplicity() {
+    val target = Ref("target", TStream(TInt32))
+    val i = Ref("i", TInt32)
+    for ((ir, v) <- Seq(
+      StreamRange(0, 10, 1) -> 0,
+      target -> 1,
+      Let("x", True(), target) -> 1,
+      StreamMap(target, "i", i) -> 1,
+      StreamMap(StreamMap(target, "i", i), "i", i * i) -> 1,
+      StreamFilter(target, "i", StreamFold(StreamRange(0, i, 1), 0, "a", "i", i)) -> 1,
+      StreamFilter(StreamRange(0, 5, 1), "i", StreamFold(target, 0, "a", "i", i)) -> 2,
+      StreamFlatMap(target, "i", StreamRange(0, i, 1)) -> 1,
+      StreamFlatMap(StreamRange(0, 5, 1), "i", target) -> 2,
+      StreamScan(StreamMap(target, "i", i), 0, "a", "i", i) -> 1,
+      StreamScan(StreamScan(target, 0, "a", "i", i), 0, "a", "i", i) -> 1
+    )) {
+      assert(EmitStream.multiplicity(ir, "target") == v, Pretty(ir))
     }
   }
 }
