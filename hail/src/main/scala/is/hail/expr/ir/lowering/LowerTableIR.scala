@@ -551,13 +551,13 @@ object LowerTableIR {
           } else {
             // keep = False
             val (newRangeBounds, includedIndices, startAndEndInterval) = part.rangeBounds.zipWithIndex.flatMap { case (interval, i) =>
-              val lb = filterPartitioner.lowerBoundInterval(interval)
-              val ub = filterPartitioner.upperBoundInterval(interval)
-              if ((lb until ub).map(filterPartitioner.rangeBounds).exists { filterInterval =>
+              val lowerBound = filterPartitioner.lowerBoundInterval(interval)
+              val upperBound = filterPartitioner.upperBoundInterval(interval)
+              if ((lowerBound until upperBound).map(filterPartitioner.rangeBounds).exists { filterInterval =>
                 iord.compareNonnull(filterInterval.left, interval.left) <= 0 && iord.compareNonnull(filterInterval.right, interval.right) >= 0
               })
                 None
-              else Some((interval, i, (filterPartitioner.lowerBoundInterval(interval).min(nPartitions), filterPartitioner.upperBoundInterval(interval).min(nPartitions))))
+              else Some((interval, i, (lowerBound.min(nPartitions), upperBound.min(nPartitions))))
             }.unzip3
 
             val f: (IR, IR) => IR = {
@@ -573,11 +573,11 @@ object LowerTableIR {
             (newRangeBounds, includedIndices, startAndEndInterval, f)
           }
 
-          val newPart = new RVDPartitioner(kt, newRangeBounds, part.allowedOverlap)
+          val newPart = new RVDPartitioner(kt, newRangeBounds)
 
           TableStage(
-            letBindings = loweredChild.letBindings ++ FastIndexedSeq((filterIntervalsRef.name, Literal(boundsType, filterIntervals))),
-            broadcastVals = loweredChild.broadcastVals ++ FastIndexedSeq((filterIntervalsRef.name, filterIntervalsRef)),
+            letBindings = loweredChild.letBindings,
+            broadcastVals = loweredChild.broadcastVals ++ FastIndexedSeq((filterIntervalsRef.name, Literal(boundsType, filterIntervals))),
             loweredChild.globals,
             newPart,
             contexts = bindIRs(

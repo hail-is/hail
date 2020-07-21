@@ -14,7 +14,7 @@ class RVDPartitioner(
   // rangeBounds: Array[Interval[kType]]
   // rangeBounds is interval containing all keys within a partition
   val rangeBounds: Array[Interval],
-  val allowedOverlap: Int
+  allowedOverlap: Int
 ) {
   // expensive, for debugging
   // assert(rangeBounds.forall(SafeRow.isSafe))
