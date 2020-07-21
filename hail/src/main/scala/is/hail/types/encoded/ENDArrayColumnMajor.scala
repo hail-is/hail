@@ -42,10 +42,10 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     val idxVars = (0 until nDims).map(_ => mb.newLocal[Long]())
 
     val loadAndWrite = {
-      Code(
-        Code._println(const(s"$uuid: ENDArrayColumnMajor element write out. firstShape = ").concat(firstShape.toS)),
+      //Code(
+        //Code._println(const(s"$uuid: ENDArrayColumnMajor element write out. firstShape = ").concat(firstShape.toS)),
         writeElemF(pnd.loadElementToIRIntermediate(idxVars, ndarray, mb), out)
-      )
+      //)
     }
 
     val columnMajorLoops = idxVars.zipWithIndex.foldLeft(loadAndWrite) { case (innerLoops, (dimVar, dimIdx)) =>
@@ -61,9 +61,9 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     Code(
       firstShape := pnd.loadShape(ndarray, 0),
       Code(writeShapes),
-      Code._println(const(s"$uuid: Starting columnMajorLoops. firstShape = ").concat(firstShape.toS)),
-      columnMajorLoops,
-      Code._println(const(s"$uuid: Finishing columnMajorLoops. firstShape = ").concat(firstShape.toS))
+      //Code._println(const(s"$uuid: Starting columnMajorLoops. firstShape = ").concat(firstShape.toS)),
+      columnMajorLoops
+      //Code._println(const(s"$uuid: Finishing columnMajorLoops. firstShape = ").concat(firstShape.toS))
     )
 
 //    EmitCodeBuilder.scopedVoid(mb){cb =>
@@ -85,13 +85,15 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
 
     val dataIdx = mb.newLocal[Int]("ndarray_decoder_data_idx")
 
+    val answer = mb.newLocal[Long]("answer_nd_decode")
+
     Code(
       totalNumElements := 1L,
       Code(shapeVars.map(shapeVar => Code(
         shapeVar := in.readLong(),
         totalNumElements := totalNumElements * shapeVar
       ))),
-      Code._println(const("Reading, shapeVars(0) = ").concat(shapeVars(0).toS).concat(", totalNumElmenets = ").concat(totalNumElements.toS)),
+      //Code._println(const("Reading, shapeVars(0) = ").concat(shapeVars(0).toS).concat(", totalNumElmenets = ").concat(totalNumElements.toS)),
       dataAddress := pnd.data.pType.allocate(region, totalNumElements.toI),
       pnd.data.pType.stagedInitialize(dataAddress, totalNumElements.toI),
       Code.forLoop(dataIdx := 0, dataIdx < totalNumElements.toI, dataIdx := dataIdx + 1,
@@ -101,7 +103,12 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
         val er = EmitRegion(mb, region)
         Code._println(StringFunctions.boxArg(er, pnd.data.pType)(dataAddress))
       },
-      pnd.construct(pnd.makeShapeBuilder(shapeVars), pnd.makeColumnMajorStridesBuilder(shapeVars, mb), dataAddress, mb)
+      answer := pnd.construct(pnd.makeShapeBuilder(shapeVars), pnd.makeColumnMajorStridesBuilder(shapeVars, mb), dataAddress, mb),
+      {
+        val er = EmitRegion(mb, region)
+        Code._println(StringFunctions.boxArg(er, pnd)(answer))
+      },
+      answer
     )
   }
 

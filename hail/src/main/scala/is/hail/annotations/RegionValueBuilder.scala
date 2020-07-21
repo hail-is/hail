@@ -337,6 +337,7 @@ class RegionValueBuilder(var region: Region) {
 
   def addRow(t: TNDArray, r: Row): Unit = {
     assert(r != null)
+    println("addRow " + r.toString())
     startNDArray()
     var i = 0
     while (i < t.representation.size) {
@@ -450,6 +451,7 @@ class RegionValueBuilder(var region: Region) {
 
   def addUnsafeRow(t: PNDArray, ur: UnsafeRow) {
     assert(t.representation == ur.t)
+    assert(false)
     addRegionValue(t.representation, ur.region, ur.offset)
   }
 

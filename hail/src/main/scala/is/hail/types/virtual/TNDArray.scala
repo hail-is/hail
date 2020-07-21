@@ -101,7 +101,8 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {
     val equal = a1 == a2
-    is.hail.utils.warn(s"TNDArray.valuesSimilar returning $equal: ${a1.toString} vs ${a2.toString}")
+    is.hail.utils.warn(s"Stack Trace for valuesSimilar = \n${Thread.currentThread().getStackTrace.mkString("\n")}")
+    is.hail.utils.warn(s"TNDArray.valuesSimilar returning $equal: ${a1.toString} vs ${a2.toString}. a1.type = ${a1.getClass.toString}")
     equal
   }
 

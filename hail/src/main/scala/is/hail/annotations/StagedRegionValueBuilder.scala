@@ -11,11 +11,14 @@ import is.hail.utils._
 object StagedRegionValueBuilder {
   def deepCopy(cb: EmitClassBuilder[_], region: Code[Region], typ: PType, value: Code[_], dest: Code[Long]): Code[Unit] = {
     val t = typ match {
-      case t: PNDArray => t.representation
+      case t: PNDArray => {
+        assert(false, "Deep copying ndarray")
+        t.representation.fundamentalType
+      }
       case t => t.fundamentalType
     }
     val valueTI = ir.typeToTypeInfo(t)
-    val mb = cb.getOrGenEmitMethod("deepCopy", ("deepCopy", typ),
+    val mb = cb.getOrGenEmitMethod("deepCopy", ("deepCopy", t),
       FastIndexedSeq[ParamType](classInfo[Region], valueTI, LongInfo), UnitInfo) { mb =>
       val r = mb.getCodeParam[Region](1)
       val value = mb.getCodeParam(2)(valueTI)
@@ -27,7 +30,7 @@ object StagedRegionValueBuilder {
 
   def deepCopyFromOffset(cb: EmitClassBuilder[_], region: Code[Region], typ: PType, value: Code[Long]): Code[Long] = {
     val t = typ match {
-      case t: PNDArray => t.representation
+      case t: PNDArray => t.representation.fundamentalType
       case t => t.fundamentalType
     }
     val mb = cb.getOrGenEmitMethod("deepCopyFromOffset", ("deepCopyFromOffset", typ),
@@ -47,6 +50,11 @@ object StagedRegionValueBuilder {
 }
 
 class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: PType, var region: Value[Region], val pOffset: Value[Long]) {
+
+  val myOrigin = Thread.currentThread().getStackTrace
+  log.info(s"SRVB of type $typ created by: \n ${myOrigin.mkString("\n")}")
+
+
   def this(mb: EmitMethodBuilder[_], typ: PType, parent: StagedRegionValueBuilder) = {
     this(mb, typ, parent.region, parent.currentOffset)
   }
@@ -85,7 +93,7 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     case t: PArray =>
       elementsOffset = mb.genFieldThisRef[Long]("srvb_array_addr")
       idx = mb.genFieldThisRef[Int]("srvb_array_idx")
-    case t: PNDArray => elementsOffset - mb.genFieldThisRef[Long]("srvb_ndarray_struct_addr")
+    case t: PNDArray => elementsOffset = mb.genFieldThisRef[Long]("srvb_ndarray_struct_addr")
     case _ =>
   }
 
@@ -154,7 +162,10 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     ftype match {
       case t: PArray => t.setElementMissing(startOffset, idx)
       case t: PCanonicalBaseStruct => t.setFieldMissing(startOffset, staticIdx)
-      case t: PNDArray => t.representation.setFieldMissing(startOffset, staticIdx)
+      case t: PNDArray => {
+        assert(false)
+        t.representation.setFieldMissing(startOffset, staticIdx)
+      }
     }
   }
 
@@ -163,8 +174,11 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
       case t: PArray => t.elementType
       case t: PCanonicalBaseStruct =>
         t.types(staticIdx)
-      case t: PNDArray =>
+      case t: PNDArray => {
+        assert(false)
         t.representation.types(staticIdx)
+      }
+
       case t => t
     }
   }
@@ -274,6 +288,7 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
           elementsOffset := elementsOffset + (t.byteOffsets(staticIdx) - t.byteOffsets(staticIdx - 1))
         else _empty
       case t: PNDArray =>
+        assert(false)
         staticIdx += 1
         if (staticIdx < t.representation.size)
           elementsOffset := elementsOffset + (t.representation.fieldOffset(startOffset, staticIdx) - t.representation.fieldOffset(startOffset, staticIdx - 1))
