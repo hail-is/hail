@@ -93,7 +93,7 @@ compileScala {
 project.ext {
     cachedBreezeVersion = null
     
-    sparkVersion = System.getProperty("spark.version", "2.4.5")
+    sparkVersion = System.getProperty("spark.version", "3.0.0")
     scalaVersion = System.getProperty("scala.version", "2.11.12")
     scalaMajorVersion = (scalaVersion =~ /^\d+.\d+/)[0]
 }
