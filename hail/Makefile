@@ -9,7 +9,7 @@ REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
-SCALA_VERSION = 2.11.12
+SCALA_VERSION = 2.12.0
 SPARK_VERSION := 3.0.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
 HAIL_PATCH_VERSION := 49
