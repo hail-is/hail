@@ -278,7 +278,7 @@ def inv(nd):
     return construct_expr(ir, tndarray(tfloat64, 2))
 
 
-@typecheck(nds=sequenceof(expr_ndarray()), axis=int)
+@typecheck(nds=oneof(sequenceof(expr_ndarray()), tupleof(expr_ndarray())), axis=int)
 def concatenate(nds, axis=0):
     """Join a sequence of arrays along an existing axis.
 
@@ -287,10 +287,13 @@ def concatenate(nds, axis=0):
 
     >>> x = hl.nd.array([[1., 2.], [3., 4.]])
     >>> y = hl.nd.array([[5.], [6.]])
-    >>> res = hl.nd.concatenate([x, y], axis=1)
-    >>> hl.eval(res)
+    >>> hl.eval(hl.nd.concatenate([x, y], axis=1))
     array([[1., 2., 5.],
            [3., 4., 6.]])
+    >>> x = hl.nd.array([1., 2.])
+    >>> y = hl.nd.array([3., 4.])
+    >>> hl.eval(hl.nd.concatenate((x, y), axis=0))
+    array([1., 2., 3., 4.])
 
     Parameters
     ----------
@@ -369,8 +372,8 @@ def eye(N, M=None, dtype=hl.tfloat64):
 def identity(N, dtype=hl.tfloat64):
     """
     Constructs a 2-D :class:`.NDArrayExpression` representing the identity array.
-    The identity array is a square array with ones on
-    the main diagonal.
+    The identity array is a square array with ones on the main diagonal.
+
     Parameters
     ----------
     n : :class:`.NumericExpression` or Python number
@@ -395,3 +398,51 @@ def identity(N, dtype=hl.tfloat64):
            [0., 0., 1.]])
     """
     return eye(N, dtype=dtype)
+
+
+@typecheck(arrs=oneof(sequenceof(expr_ndarray()), tupleof(expr_ndarray())))
+def vstack(arrs):
+    """
+    Stack arrays in sequence vertically (row wise).
+    1-D arrays of shape `(N,)`, will reshaped to `(1,N)` before concatenation.
+    For all other arrays, equivalent to  :func:`.concatenate` with axis=0.
+
+    Parameters
+    ----------
+    arrs : sequence of :class:`.NDArrayExpression`
+        The arrays must have the same shape along all but the first axis.
+        1-D arrays must have the same length.
+
+    Returns
+    -------
+    stacked : :class:`.NDArrayExpression`
+        The array formed by stacking the given arrays, will be at least 2-D.
+
+    See Also
+    --------
+    :func:`.concatenate` : Join a sequence of arrays along an existing axis.
+
+    Examples
+    --------
+    >>> a = hl.nd.array([1, 2, 3])
+    >>> b = hl.nd.array([2, 3, 4])
+    >>> hl.eval(hl.nd.vstack((a,b)))
+    array([[1, 2, 3],
+           [2, 3, 4]], dtype=int32)
+    >>> a = hl.nd.array([[1], [2], [3]])
+    >>> b = hl.nd.array([[2], [3], [4]])
+    >>> hl.eval(hl.nd.vstack((a,b)))
+    array([[1],
+           [2],
+           [3],
+           [2],
+           [3],
+           [4]], dtype=int32)
+    """
+
+    if arrs[0].ndim == 1:
+        arrays = [x._broadcast(2) for x in arrs]
+    else:
+        arrays = arrs
+
+    return concatenate(arrays, 0)

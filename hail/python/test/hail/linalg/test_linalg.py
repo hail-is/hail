@@ -1011,22 +1011,42 @@ class Tests(unittest.TestCase):
         np_res = np.concatenate([x, y], axis=1)
 
         res = hl.eval(hl.nd.concatenate([x, y], axis=1))
-        assert np.allclose(np_res, res)
+        assert np.array_equal(np_res, res)
 
         x = np.array([[1], [3]])
         y = np.array([[5], [6]])
-        np_res = np.concatenate([x, y])
-        res = hl.eval(hl.nd.concatenate([x, y]))
-        assert np.allclose(np_res, res)
+
+        seq = [x, y]
+        np_res = np.concatenate(seq)
+        res = hl.eval(hl.nd.concatenate(seq))
+        assert np.array_equal(np_res, res)
+
+        seq = (x, y)
+        np_res = np.concatenate(seq)
+        res = hl.eval(hl.nd.concatenate(seq))
+        assert np.array_equal(np_res, res)
+
+    def test_vstack(self):
+        a = np.array([1, 2, 3])
+        b = np.array([2, 3, 4])
+
+        seq = (a,b)
+        assert(np.array_equal(hl.eval(hl.nd.vstack(seq)), np.vstack(seq)))
+
+        a = np.array([[1], [2], [3]])
+        b = np.array([[2], [3], [4]])
+        seq = (a,b)
+        assert(np.array_equal(hl.eval(hl.nd.vstack(seq)), np.vstack(seq)))
+
 
     def test_eye(self):
         for i in range(13):
             for y in range(13):
-                assert(np.allclose(hl.eval(hl.nd.eye(i,y)), np.eye(i,y)))
+                assert(np.array_equal(hl.eval(hl.nd.eye(i,y)), np.eye(i,y)))
 
     def test_identity(self):
         for i in range(13):
-            assert(np.allclose(hl.eval(hl.nd.identity(i)), np.identity(i)))
+            assert(np.array_equal(hl.eval(hl.nd.identity(i)), np.identity(i)))
 
     @skip_unless_spark_backend()
     def test_filtering(self):
