@@ -359,7 +359,7 @@ def eye(N, M=None, dtype=hl.tfloat64):
         n_col = hl.int32(M)
 
     return hl.nd.array(hl.range(0, n_row * n_col).map(
-        lambda i: hl.cond((i // n_col) == (i - (i // n_col) * n_col),
+        lambda i: hl.cond((i // n_col) == (i % n_col),
                           hl.literal(1, dtype),
                           hl.literal(0, dtype))
     )).reshape((n_row, n_col))
