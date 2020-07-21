@@ -12,7 +12,7 @@ from hailtop.config import get_deploy_config, get_user_config  # type: ignore
 import hailtop.batch_client.client as bc  # type: ignore
 from hailtop.batch_client.client import BatchClient  # type: ignore
 
-from .resource import InputResourceFile, JobResourceFile, ResourceGroup  # type: ignore
+from .resource import InputResourceFile, JobResourceFile, ResourceGroup
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -190,20 +190,19 @@ class LocalBackend(Backend):
 
             if job._image:
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
-                env = '; '.join(env) + '; ' if env else ''
+                joined_env = '; '.join(env) + '; ' if env else ''
                 cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
                 memory = f'-m {job._memory}' if job._memory else ''
                 cpu = f'--cpus={job._cpu}' if job._cpu else ''
 
-                lines += [f"docker run "
-                          f"{self._extra_docker_run_flags} "
-                          f"-v {tmpdir}:{tmpdir} "
-                          f"-w {tmpdir} "
-                          f"{memory} "
-                          f"{cpu} "
-                          f"{job._image} /bin/bash "
-                          f"-c {shq(env + defs + cmd)}",
-                          '\n']
+                lines.append(f"docker run "
+                             f"{self._extra_docker_run_flags} "
+                             f"-v {tmpdir}:{tmpdir} "
+                             f"-w {tmpdir} "
+                             f"{memory} "
+                             f"{cpu} "
+                             f"{job._image} /bin/bash "
+                             f"-c {shq(joined_env + defs + cmd)}")
             else:
                 lines += env
                 lines += resource_defs
@@ -446,7 +445,7 @@ class ServiceBackend(Backend):
 
             parents = [job_to_client_job_mapping[j] for j in job._dependencies]
 
-            attributes = copy.deepcopy(job.attributes)
+            attributes = copy.deepcopy(job.attributes) if job.attributes else dict()
             if job.name:
                 attributes['name'] = job.name
 

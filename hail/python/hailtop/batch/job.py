@@ -2,13 +2,13 @@ from __future__ import annotations
 import re
 from typing import Union, Optional, Dict, List, Set, Tuple
 
-from .backend import ServiceBackend  # type: ignore
-from .resource import ResourceFile, ResourceGroup, JobResourceFile, Resource  # type: ignore
-from .utils import BatchException  # type: ignore
+from .backend import ServiceBackend
+from .resource import ResourceFile, ResourceGroup, JobResourceFile, Resource
+from .utils import BatchException
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .batch import Batch  # type: ignore
+    from .batch import Batch
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
@@ -86,7 +86,7 @@ class Job:
         self._resources: Dict[str, Resource] = {}
         self._resources_inverse: Dict[Resource, str] = {}
         self._uid = Job._new_uid()
-        self._job_id = None
+        self._job_id: Optional[int] = None
 
         self._inputs: Set[Resource] = set()
         self._internal_outputs: Set[Resource] = set()
@@ -95,7 +95,7 @@ class Job:
         self._valid: Set[Resource] = set()  # resources declared in the appropriate place
         self._dependencies: Set[Job] = set()
 
-    def _get_resource(self, item: str) -> JobResourceFile:
+    def _get_resource(self, item: str) -> Resource:
         if item not in self._resources:
             r = self._batch._new_job_resource_file(self, value=item)
             self._resources[item] = r
@@ -103,10 +103,10 @@ class Job:
 
         return self._resources[item]
 
-    def __getitem__(self, item: str) -> JobResourceFile:
+    def __getitem__(self, item: str) -> Resource:
         return self._get_resource(item)
 
-    def __getattr__(self, item: str) -> JobResourceFile:
+    def __getattr__(self, item: str) -> Resource:
         return self._get_resource(item)
 
     def _add_internal_outputs(self, resource: Resource) -> None:

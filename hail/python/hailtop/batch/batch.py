@@ -5,10 +5,10 @@ from typing import Optional, Dict, Union, List, Any, Set
 
 from hailtop.utils import secret_alnum_string  # type: ignore
 
-from .backend import Backend, LocalBackend  # type: ignore
-from .job import Job  # type: ignore
-from .resource import Resource, InputResourceFile, JobResourceFile, ResourceGroup  # type: ignore
-from .utils import BatchException  # type: ignore
+from .backend import Backend, LocalBackend
+from .job import Job
+from .resource import Resource, InputResourceFile, JobResourceFile, ResourceGroup
+from .utils import BatchException
 
 
 class Batch:
@@ -108,10 +108,7 @@ class Batch:
         self._default_storage = default_storage
         self._default_timeout = default_timeout
 
-        if backend:
-            self._backend = backend
-        else:
-            self._backend = LocalBackend()
+        self._backend = backend if backend else LocalBackend()
 
     def new_job(self,
                 name: Optional[str] = None,
@@ -164,8 +161,7 @@ class Batch:
     def _new_job_resource_file(self, source, value=None):
         if value is None:
             value = secret_alnum_string(5)
-        jrf = JobResourceFile(value)
-        jrf._add_source(source)
+        jrf = JobResourceFile(value, source)
         self._resource_map[jrf._uid] = jrf  # pylint: disable=no-member
         return jrf
 
@@ -367,7 +363,7 @@ class Batch:
             dry_run: bool = False,
             verbose: bool = False,
             delete_scratch_on_exit: bool = True,
-            **backend_kwargs: Any) -> None:
+            **backend_kwargs: Any):
         """
         Execute a batch.
 
@@ -415,8 +411,7 @@ class Batch:
             i = job_index[j]
             j._job_id = i
             for d in j._dependencies:
-                j = job_index[d]
-                if j >= i:
+                if job_index[d] >= i:
                     raise BatchException("cycle detected in dependency graph")
 
         self._jobs = ordered_jobs
