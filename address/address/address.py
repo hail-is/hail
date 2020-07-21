@@ -25,14 +25,14 @@ deploy_config = get_deploy_config()
 
 
 @routes.get('/healthcheck')
-async def get_healthcheck(request):  # pylint: disable=W0613
+async def get_healthcheck(request):  # pylint: disable=unused-argument
     return web.Response()
 
 
 @routes.get('/')
 @routes.get('')
 @web_authenticated_developers_only()
-async def get_index(request, userdata):
+async def get_index(request, userdata):  # pylint: disable=unused-argument
     cache = request.app['cache']
     keys = sorted(list(cache.keys))
     page_context = {
@@ -51,7 +51,7 @@ async def get_index(request, userdata):
 
 @routes.get('/api/{namespace}/{name}')
 @rest_authenticated_users_only
-async def get_name(request, userdata):
+async def get_name(request, userdata):  # pylint: disable=unused-argument
     namespace = request.match_info['namespace']
     name = request.match_info['name']
     log.info(f'get {namespace} {name}')
@@ -62,7 +62,7 @@ async def get_name(request, userdata):
 VALID_DURATION_IN_SECONDS = 60
 
 
-T = TypeVar('T')
+T = TypeVar('T')  # pylint: disable=invalid-name
 
 
 class CacheEntry(Generic[T]):
