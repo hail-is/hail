@@ -407,7 +407,7 @@ def vstack(arrs):
     This is equivalent to concatenation along the first axis after 1-D arrays
     of shape `(N,)` have been reshaped to `(1,N)`.
 
-    The functions :func:`.concatenate` provides more general stacking and concatenation operations.
+    The function :func:`.concatenate` provides more general stacking and concatenation operations.
     Parameters
     ----------
     arrs : sequence of :class:`.NDArrayExpression`
