@@ -1,4 +1,4 @@
-from typing import List, DefaultDict, Generic, TypeVar, Dict, Tuple, NamedTuple
+from typing import List, DefaultDict, Generic, TypeVar, Dict, NamedTuple
 import time
 import logging
 import concurrent
@@ -38,8 +38,7 @@ async def get_index(request, userdata):  # pylint: disable=unused-argument
     page_context = {
         'attributes': [
             ['VALID_DURATION_IN_SECONDS', VALID_DURATION_IN_SECONDS]],
-        'rows': [{'namespace': k[0],
-                  'name': k[1],
+        'rows': [{'name': k,
                   'addresses': ", ".join([x.ip for x in cache.entries[k].value]),
                   'ports': ", ".join([x.port for x in cache.entries[k].value]),
                   'lifetime': time.time() - cache.entries[k].expire_time,
@@ -49,13 +48,12 @@ async def get_index(request, userdata):  # pylint: disable=unused-argument
     return await render_template('address', request, userdata, 'index.html', page_context)
 
 
-@routes.get('/api/{namespace}/{name}')
+@routes.get('/api/{name}')
 @rest_authenticated_users_only
 async def get_name(request, userdata):  # pylint: disable=unused-argument
-    namespace = request.match_info['namespace']
     name = request.match_info['name']
-    log.info(f'get {namespace} {name}')
-    addresses = await request.app['cache'].get(name, namespace)
+    log.info(f'get {name}')
+    addresses = await request.app['cache'].get(name)
     return web.json_response([address.to_dict() for address in addresses])
 
 
@@ -81,14 +79,13 @@ class AddressAndPort(NamedTuple):
 
 class Cache():
     def __init__(self, k8s_client: kube.client.CoreV1Api):
-        self.entries: Dict[Tuple[str, str], CacheEntry[List[AddressAndPort]]] = dict()
-        self.locks: DefaultDict[Tuple[str, str], asyncio.Lock] = defaultdict(asyncio.Lock)
+        self.entries: Dict[str, CacheEntry[List[AddressAndPort]]] = dict()
+        self.locks: DefaultDict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
         self.keys = sortedcontainers.SortedSet(
             key=lambda key: self.entries[key].expire_time)
         self.k8s_client: kube.client.CoreV1Api = k8s_client
 
-    async def get(self, name: str, namespace: str):
-        key = (namespace, name)
+    async def get(self, key: str):
         if key in self.entries:
             entry = self.entries[key]
             if entry.expire_time >= time.time():
@@ -96,7 +93,6 @@ class Cache():
                 return entry.value
             log.info(f'stale cache for {key}')
         lock = self.locks[key]
-        log.info(f'lock {lock}')
         async with lock:
             if key in self.entries:
                 entry = self.entries[key]
@@ -104,8 +100,7 @@ class Cache():
                     return entry.value
 
             asyncio.ensure_future(self.maybe_remove_one_old_entry())
-            k8s_endpoints = await self.k8s_client.read_namespaced_endpoints(
-                name, namespace)
+            k8s_endpoints = await self.k8s_client.read_namespaced_endpoints(key)
             endpoints = [AddressAndPort(ip.ip, port.port)
                          for endpoint in k8s_endpoints.subsets
                          for port in endpoint.ports
