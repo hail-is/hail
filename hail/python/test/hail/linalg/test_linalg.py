@@ -1015,9 +1015,29 @@ class Tests(unittest.TestCase):
 
         x = np.array([[1], [3]])
         y = np.array([[5], [6]])
-        np_res = np.concatenate([x, y])
-        res = hl.eval(hl.nd.concatenate([x, y]))
-        assert np.allclose(np_res, res)
+
+        seq = [x, y]
+        np_res = np.concatenate(seq)
+        res = hl.eval(hl.nd.concatenate(seq))
+        assert np.all(np_res, res)
+
+        seq = (x, y)
+        np_res = np.concatenate(seq)
+        res = hl.eval(hl.nd.concatenate(seq))
+        assert np.all(np_res, res)
+
+    def test_vstack(self):
+        a = np.array([1, 2, 3])
+        b = np.array([2, 3, 4])
+
+        seq = (a,b)
+        assert(np.all(hl.eval(hl.nd.vstack(seq)), np.vstack(seq)))
+
+        a = np.array([[1], [2], [3]])
+        b = np.array([[2], [3], [4]])
+        seq = (a,b)
+        assert(np.all(hl.eval(hl.nd.vstack(seq)), np.vstack(seq)))
+
 
     def test_eye(self):
         for i in range(13):
