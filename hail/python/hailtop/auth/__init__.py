@@ -1,4 +1,4 @@
-import sql_config
+from . import sql_config
 from .tokens import get_tokens
 from .auth import (
     async_get_userinfo, get_userinfo, namespace_auth_headers,
