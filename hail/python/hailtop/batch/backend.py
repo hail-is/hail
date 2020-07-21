@@ -16,8 +16,8 @@ from .resource import InputResourceFile, JobResourceFile, ResourceGroup  # type:
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .batch import Batch  # type: ignore
-    from .job import Job  # type: ignore  # noqa
+    from .batch import Batch  # pylint: disable=cyclic-import
+    from .job import Job  # pylint: disable=cyclic-import
 
 
 class Backend:
@@ -220,7 +220,7 @@ class LocalBackend(Backend):
                 raise
             finally:
                 if delete_scratch_on_exit:
-                    sp.run(f'rm -rf {tmpdir}', shell=True)
+                    sp.run(f'rm -rf {tmpdir}', shell=True, check=False)
 
         print('Batch completed successfully!')
 
@@ -270,18 +270,18 @@ class ServiceBackend(Backend):
             billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:
             raise ValueError(
-                f'the billing_project parameter of ServiceBackend must be set '
-                f'or run `hailctl config set batch/billing_project '
-                f'MY_BILLING_PROJECT`')
+                'the billing_project parameter of ServiceBackend must be set '
+                'or run `hailctl config set batch/billing_project '
+                'MY_BILLING_PROJECT`')
         self._batch_client = BatchClient(billing_project)
 
         if bucket is None:
             bucket = get_user_config().get('batch', 'bucket', fallback=None)
         if bucket is None:
             raise ValueError(
-                f'the bucket parameter of ServiceBackend must be set '
-                f'or run `hailctl config set batch/bucket '
-                f'MY_BUCKET`')
+                'the bucket parameter of ServiceBackend must be set '
+                'or run `hailctl config set batch/bucket '
+                'MY_BUCKET`')
         self._bucket_name = bucket
 
     def close(self):

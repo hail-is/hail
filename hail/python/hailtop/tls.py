@@ -59,7 +59,7 @@ def get_client_ssl_context():
             client_ssl_context.verify_mode = ssl.CERT_REQUIRED
             client_ssl_context.check_hostname = True
         except NoSSLConfigFound:
-            log.info(f'no ssl config file found, using sensible defaults')
+            log.info('no ssl config file found, using sensible defaults')
             client_ssl_context = ssl.create_default_context(purpose=Purpose.SERVER_AUTH)
     return client_ssl_context
 
@@ -86,7 +86,7 @@ def check_ssl_config(ssl_config):
     for key in ('cert', 'key', 'outgoing_trust', 'incoming_trust'):
         if not os.path.isfile(ssl_config[key]):
             raise ValueError(f'specified {key}, {ssl_config[key]} does not exist')
-    log.info(f'using tls and verifying client and server certificates')
+    log.info('using tls and verifying client and server certificates')
 
 
 class TLSAdapter(HTTPAdapter):

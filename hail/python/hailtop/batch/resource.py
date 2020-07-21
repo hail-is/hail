@@ -63,7 +63,7 @@ class ResourceFile(Resource, str):
         raise NotImplementedError
 
     def _add_source(self, source: 'Job') -> ResourceFile:
-        from .job import Job  # pylint: disable=cyclic-import
+        from .job import Job  # pylint: disable=cyclic-import,import-outside-toplevel
         assert isinstance(source, Job)
         self._source = source
         return self

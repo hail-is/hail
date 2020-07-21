@@ -1,3 +1,4 @@
+import platform
 import subprocess as sp
 import os
 
@@ -65,7 +66,6 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
             stderr=sp.STDOUT
         )
 
-        import platform
         system = platform.system()
 
         chrome = os.environ.get('HAILCTL_CHROME')

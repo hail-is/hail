@@ -314,7 +314,7 @@ class Job:
             self._mentioned.add(r)
             return f"${{{r_uid}}}"
 
-        from .batch import Batch  # pylint: disable=cyclic-import
+        from .batch import Batch  # pylint: disable=cyclic-import,import-outside-toplevel
 
         subst_command = re.sub(f"({ResourceFile._regex_pattern})|({ResourceGroup._regex_pattern})"
                                f"|({Job._regex_pattern})|({Batch._regex_pattern})",
