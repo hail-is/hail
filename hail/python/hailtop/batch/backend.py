@@ -166,10 +166,12 @@ class LocalBackend(Backend):
             script += [x for r in job._mentioned for x in symlink_input_resource_group(r)]
 
             resource_defs = [r._declare(tmpdir) for r in job._mentioned]
+            env = [f'export {k}={v}' for k, v in job._env.items()]
 
             if job._image:
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
-                cmd = " && ".join(job._command)
+                env = '; '.join(env) + '; ' if env else ''
+                cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
                 memory = f'-m {job._memory}' if job._memory else ''
                 cpu = f'--cpus={job._cpu}' if job._cpu else ''
 
@@ -180,8 +182,10 @@ class LocalBackend(Backend):
                            f"{memory} "
                            f"{cpu} "
                            f"{job._image} /bin/bash "
-                           f"-c {shq(defs + cmd)}"]
+                           f"-c {shq(env + defs + cmd)}",
+                           '\n']
             else:
+                script += env
                 script += resource_defs
                 script += job._command
 
@@ -392,7 +396,9 @@ class ServiceBackend(Backend):
 
             symlinks = [x for r in job._mentioned for x in symlink_input_resource_group(r)]
 
-            env_vars = {r._uid: r._get_path(local_tmpdir) for r in job._mentioned}
+            env_vars = {
+                **job._env,
+                **{r._uid: r._get_path(local_tmpdir) for r in job._mentioned}}
 
             if job._image is None:
                 if verbose:
@@ -401,11 +407,12 @@ class ServiceBackend(Backend):
             make_local_tmpdir = f'mkdir -p {local_tmpdir}/{job._job_id}'
             job_command = [cmd.strip() for cmd in job._command]
 
+            prepared_job_command = (f'{{\n{x}\n}}' for x in job_command)
             cmd = f'''
 {bash_flags}
 {make_local_tmpdir}
 {"; ".join(symlinks)}
-{" && ".join(job_command)}
+{" && ".join(prepared_job_command)}
 '''
 
             if dry_run:

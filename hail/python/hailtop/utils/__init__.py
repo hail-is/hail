@@ -7,7 +7,7 @@ from .utils import (
     retry_long_running, run_if_changed, LoggingTimer,
     WaitableSharedPool, RETRY_FUNCTION_SCRIPT, sync_retry_transient_errors,
     retry_response_returning_functions, first_extant_file, secret_alnum_string,
-    flatten)
+    flatten, partition)
 from .process import CalledProcessError, check_shell, check_shell_output
 from .tqdm import tqdm, TQDM_DEFAULT_DISABLE
 from .rates import (
@@ -53,5 +53,6 @@ __all__ = [
     'rate_cpu_hour_to_mcpu_msec',
     'rate_instance_hour_to_fraction_msec',
     'RateLimit',
-    'RateLimiter'
+    'RateLimiter',
+    'partition'
 ]
