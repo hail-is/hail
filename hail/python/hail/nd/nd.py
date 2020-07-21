@@ -429,16 +429,16 @@ def vstack(arrs):
     >>> b = hl.nd.array([2, 3, 4])
     >>> hl.eval(hl.nd.vstack((a,b)))
     array([[1, 2, 3],
-           [2, 3, 4]])
+           [2, 3, 4]], dtype=int32)
     >>> a = hl.nd.array([[1], [2], [3]])
     >>> b = hl.nd.array([[2], [3], [4]])
     >>> hl.eval(hl.nd.vstack((a,b)))
     array([[1],
-           [2],
-           [3],
-           [2],
-           [3],
-           [4]])
+          [2],
+          [3],
+          [2],
+          [3],
+          [4]], dtype=int32)
     """
 
     if arrs[0].ndim == 1:
