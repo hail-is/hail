@@ -1,15 +1,23 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{CodeOrdering, Region, RegionValue, StagedRegionValueBuilder}
+import is.hail.io._
+import is.hail.services.shuffler._
+import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
+import is.hail.types.virtual._
 import is.hail.types.physical._
-import is.hail.io.{AbstractTypedCodecSpec, InputBuffer}
+import is.hail.types.encoded._
+import is.hail.types.physical._
+import is.hail.types.virtual.TStream
 import is.hail.utils._
+import java.io.{ DataOutputStream, InputStream, OutputStream }
+import java.net.Socket
+import java.util.Base64
+import org.apache.log4j.Logger
 
 import scala.language.{existentials, higherKinds}
-import scala.reflect.ClassTag
 
 case class EmitStreamContext(mb: EmitMethodBuilder[_])
 
@@ -84,20 +92,26 @@ object COption {
       some(value)
   }
 
-  def lift[A](opts: IndexedSeq[COption[A]]): COption[IndexedSeq[A]] = new COption[IndexedSeq[A]] {
-    def apply(none: Code[Ctrl], some: IndexedSeq[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
-      val L = CodeLabel()
-      def nthOpt(i: Int, acc: IndexedSeq[A]): Code[Ctrl] =
-        if (i == 0)
-          opts(i)(Code(L, none), a => nthOpt(i+1, acc :+ a))
-        else if (i == opts.length - 1)
-          opts(i)(L.goto, a => some(acc :+ a))
-        else
-          opts(i)(L.goto, a => nthOpt(i+1, acc :+ a))
+  def lift[A](opts: IndexedSeq[COption[A]]): COption[IndexedSeq[A]] =
+    if (opts.length == 0)
+      COption.present(FastIndexedSeq())
+    else if (opts.length == 1)
+      opts.head.map(a => IndexedSeq(a))
+    else
+      new COption[IndexedSeq[A]] {
+        def apply(none: Code[Ctrl], some: IndexedSeq[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+          val L = CodeLabel()
+          def nthOpt(i: Int, acc: IndexedSeq[A]): Code[Ctrl] =
+            if (i == 0)
+              opts(i)(Code(L, none), a => nthOpt(i+1, acc :+ a))
+            else if (i == opts.length - 1)
+              opts(i)(L.goto, a => some(acc :+ a))
+            else
+              opts(i)(L.goto, a => nthOpt(i+1, acc :+ a))
 
-      nthOpt(0, FastIndexedSeq())
-    }
-  }
+          nthOpt(0, FastIndexedSeq())
+        }
+      }
 
   // Returns a COption value equivalent to 'left' when 'useLeft' is true,
   // otherwise returns a value equivalent to 'right'. In the case where neither
@@ -215,9 +229,9 @@ abstract class Stream[+A] { self =>
 
   def grouped(size: Code[Int]): Stream[Stream[A]] = new Stream[Stream[A]] {
     def apply(outerEos: Code[Ctrl], outerPush: Stream[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[Stream[A]] = {
-      val xCounter = ctx.mb.newLocal[Int]("st_grp_ctr")
-      val xInOuter = ctx.mb.newLocal[Boolean]("st_grp_io")
-      val xSize = ctx.mb.newLocal[Int]("st_grp_sz")
+      val xCounter = ctx.mb.genFieldThisRef[Int]("st_grp_ctr")
+      val xInOuter = ctx.mb.genFieldThisRef[Boolean]("st_grp_io")
+      val xSize = ctx.mb.genFieldThisRef[Int]("st_grp_sz")
       val LchildPull = CodeLabel()
       val LouterPush = CodeLabel()
 
@@ -308,8 +322,8 @@ object Stream {
   }
 
   def iota(mb: EmitMethodBuilder[_], start: Code[Int], step: Code[Int]): Stream[Code[Int]] = {
-    val lstep = mb.newLocal[Int]("sr_lstep")
-    val cur = mb.newLocal[Int]("sr_cur")
+    val lstep = mb.genFieldThisRef[Int]("sr_lstep")
+    val cur = mb.genFieldThisRef[Int]("sr_cur")
 
     unfold[Code[Int]](
       f = {
@@ -321,8 +335,8 @@ object Stream {
   }
 
   def iotaL(mb: EmitMethodBuilder[_], start: Code[Long], step: Code[Int]): Stream[Code[Long]] = {
-    val lstep = mb.newLocal[Int]("sr_lstep")
-    val cur = mb.newLocal[Long]("sr_cur")
+    val lstep = mb.genFieldThisRef[Int]("sr_lstep")
+    val cur = mb.genFieldThisRef[Long]("sr_cur")
 
     unfold[Code[Long]](
       f = {
@@ -364,13 +378,13 @@ object Stream {
   implicit class StreamStream[A](val outer: Stream[Stream[A]]) extends AnyVal {
     def flatten: Stream[A] = new Stream[A] {
       def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
-        val closing = ctx.mb.newLocal[Boolean]("sfm_closing")
+        val closing = ctx.mb.genFieldThisRef[Boolean]("sfm_closing")
         val LouterPull = CodeLabel()
         var innerSource: Source[A] = null
         val LinnerPull = CodeLabel()
         val LinnerEos = CodeLabel()
         val LcloseOuter = CodeLabel()
-        val inInnerStream = ctx.mb.newLocal[Boolean]("sfm_in_innner")
+        val inInnerStream = ctx.mb.genFieldThisRef[Boolean]("sfm_in_innner")
         val outerSource = outer(
           eos = eos,
           push = inner => {
@@ -470,11 +484,11 @@ object Stream {
     comp: (EmitValue, EmitValue) => Code[Int]
   ): Stream[(EmitCode, EmitCode)] = new Stream[(EmitCode, EmitCode)] {
     def apply(eos: Code[Ctrl], push: ((EmitCode, EmitCode)) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(EmitCode, EmitCode)] = {
-      val pulledRight = mb.newLocal[Boolean]()
-      val rightEOS = mb.newLocal[Boolean]()
-      val lx = mb.newEmitLocal(lElemType) // last value received from left
-      val rx = mb.newEmitLocal(rElemType) // last value received from right
-      val rxOut = mb.newEmitLocal(rElemType.setRequired(false)) // right value to push (may be missing while rx is not)
+      val pulledRight = mb.genFieldThisRef[Boolean]()
+      val rightEOS = mb.genFieldThisRef[Boolean]()
+      val lx = mb.newEmitField(lElemType) // last value received from left
+      val rx = mb.newEmitField(rElemType) // last value received from right
+      val rxOut = mb.newEmitField(rElemType.setRequired(false)) // right value to push (may be missing while rx is not)
 
       var rightSource: Source[EmitCode] = null
       val leftSource = left(
@@ -485,7 +499,7 @@ object Stream {
           val Lcompare = CodeLabel()
 
           val compareCode = Code(Lcompare, {
-            val c = mb.newLocal[Int]()
+            val c = mb.genFieldThisRef[Int]()
             Code(
               c := comp(lx, rx),
               (c > 0).mux(
@@ -523,13 +537,13 @@ object Stream {
     comp: (EmitValue, EmitValue) => Code[Int]
   ): Stream[EmitCode] = new Stream[EmitCode] {
     def apply(eos: Code[Ctrl], push: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] = {
-      val pulledRight = mb.newLocal[Boolean]()
-      val rightEOS = mb.newLocal[Boolean]()
-      val leftEOS = mb.newLocal[Boolean]()
-      val lx = mb.newEmitLocal(lElemType) // last value received from left
-      val rx = mb.newEmitLocal(rElemType) // last value received from right
-      val outx = mb.newEmitLocal(outElemType) // value to push
-      val c = mb.newLocal[Int]()
+      val pulledRight = mb.genFieldThisRef[Boolean]()
+      val rightEOS = mb.genFieldThisRef[Boolean]()
+      val leftEOS = mb.genFieldThisRef[Boolean]()
+      val lx = mb.newEmitField(lElemType) // last value received from left
+      val rx = mb.newEmitField(rElemType) // last value received from right
+      val outx = mb.newEmitField(outElemType) // value to push
+      val c = mb.genFieldThisRef[Int]()
 
       // Invariants:
       // * 'pulledRight' is false until after the first pull from 'left',
@@ -611,14 +625,14 @@ object Stream {
     comp: (EmitValue, EmitValue) => Code[Int]
   ): Stream[(EmitCode, EmitCode)] = new Stream[(EmitCode, EmitCode)] {
     def apply(eos: Code[Ctrl], push: ((EmitCode, EmitCode)) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(EmitCode, EmitCode)] = {
-      val pulledRight = mb.newLocal[Boolean]()
-      val rightEOS = mb.newLocal[Boolean]()
-      val leftEOS = mb.newLocal[Boolean]()
-      val lx = mb.newEmitLocal(lElemType) // last value received from left
-      val rx = mb.newEmitLocal(rElemType) // last value received from right
-      val lOutMissing = mb.newLocal[Boolean]("ojrd_lom")
-      val rOutMissing = mb.newLocal[Boolean]("ojrd_rom")
-      val c = mb.newLocal[Int]()
+      val pulledRight = mb.genFieldThisRef[Boolean]()
+      val rightEOS = mb.genFieldThisRef[Boolean]()
+      val leftEOS = mb.genFieldThisRef[Boolean]()
+      val lx = mb.newEmitField(lElemType) // last value received from left
+      val rx = mb.newEmitField(rElemType) // last value received from right
+      val lOutMissing = mb.genFieldThisRef[Boolean]("ojrd_lom")
+      val rOutMissing = mb.genFieldThisRef[Boolean]("ojrd_rom")
+      val c = mb.genFieldThisRef[Int]()
 
       val Leos = CodeLabel()
       Code(Leos, eos)
@@ -695,6 +709,96 @@ object Stream {
         pull = leftEOS.mux(LpullRight.goto, rightEOS.mux(LpullLeft.goto, (c <= 0).mux(LpullLeft.goto, LpullRight.goto))))
     }
   }
+
+  def kWayMerge[A: TypeInfo](
+    mb: EmitMethodBuilder[_],
+    streams: IndexedSeq[Stream[Code[A]]],
+    // compare two (idx, value) pairs, where 'value' is a value from the 'idx'th
+    // stream
+    lt: (Code[Int], Code[A], Code[Int], Code[A]) => Code[Boolean]
+  ): Stream[(Code[Int], Code[A])] = new Stream[(Code[Int], Code[A])] {
+    def apply(eos: Code[Ctrl], push: ((Code[Int], Code[A])) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(Code[Int], Code[A])] = {
+      // The algorithm maintains a tournament tree of comparisons between the
+      // current values of the k streams. The tournament tree is a complete
+      // binary tree with k leaves. The leaves of the tree are the streams,
+      // and each internal node represents the "contest" between the "winners"
+      // of the two subtrees, where the winner is the stream with the smaller
+      // current key. Each internal node stores the index of the stream which
+      // *lost* that contest.
+      // Each time we remove the overall winner, and replace that stream's
+      // leaf with its next value, we only need to rerun the contests on the
+      // path from that leaf to the root, comparing the new value with what
+      // previously lost that contest to the previous overall winner.
+      val k = streams.length
+      // The leaf nodes of the tournament tree, each of which holds a pointer
+      // to the current value of that stream.
+      val heads = mb.genFieldThisRef[Array[A]]("merge_heads")
+      // The internal nodes of the tournament tree, laid out in breadth-first
+      // order, each of which holds the index of the stream which lost that
+      // contest.
+      val bracket = mb.genFieldThisRef[Array[Int]]("merge_bracket")
+      // When updating the tournament tree, holds the winner of the subtree
+      // containing the updated leaf. Otherwise, holds the overall winner, i.e.
+      // the current least element.
+      val winner = mb.genFieldThisRef[Int]("merge_winner")
+      val i = mb.genFieldThisRef[Int]("merge_i")
+      val challenger = mb.genFieldThisRef[Int]("merge_challenger")
+
+      val runMatch = CodeLabel()
+      val LpullChild = CodeLabel()
+      val LloopEnd = CodeLabel()
+      val Leos = CodeLabel()
+      Code(Leos, eos)
+
+      val matchIdx = mb.genFieldThisRef[Int]("merge_match_idx")
+      // Compare 'winner' with value in 'matchIdx', loser goes in 'matchIdx',
+      // winner goes on to next round. A contestant '-1' beats everything
+      // (negative infinity), a contestant 'k' loses to everything
+      // (positive infinity), and values in between are indices into 'heads'.
+      Code(runMatch,
+        challenger := bracket(matchIdx),
+        (matchIdx.ceq(0) || challenger.ceq(-1)).orEmpty(LloopEnd.goto),
+        (challenger.cne(k) && (winner.ceq(k) || lt(challenger, heads(challenger), winner, heads(winner)))).orEmpty(Code(
+          bracket(matchIdx) = winner,
+          winner := challenger)),
+        matchIdx := matchIdx >>> 1,
+        runMatch.goto,
+
+        LloopEnd,
+        matchIdx.ceq(0).mux(
+          // 'winner' is smallest of all k heads. If 'winner' = k, all heads
+          // must be k, and all streams are exhausted.
+          winner.ceq(k).mux(
+            Leos.goto,
+            push((winner, heads(winner)))),
+          // We're still in the setup phase
+          Code(bracket(matchIdx) = winner, i := i + 1, winner := i, LpullChild.goto)))
+
+      val sources = streams.zipWithIndex.map { case (stream, idx) =>
+        stream(
+          eos = Code(winner := k, matchIdx := (idx + k) >>> 1, runMatch.goto),
+          push = elt => Code(heads(idx) = elt, matchIdx := (idx + k) >>> 1, runMatch.goto))
+      }
+
+      Code(LpullChild,
+        Code.switch(winner,
+          Leos.goto, // can only happen if k=0
+          sources.map(_.pull.asInstanceOf[Code[Unit]])))
+
+      Source[(Code[Int], Code[A])](
+        setup0 = Code(sources.map(_.setup0)),
+        close0 = Code(sources.map(_.close0)),
+        setup = Code(
+          Code(sources.map(_.setup)),
+          bracket := Code.newArray[Int](k),
+          heads := Code.newArray[A](k),
+          Code.forLoop(i := 0, i < k, i := i + 1, bracket(i) = -1),
+          i := 0,
+          winner := 0),
+        close = Code(Code(sources.map(_.close)), bracket := Code._null, heads := Code._null),
+        pull = LpullChild.goto)
+    }
+  }
 }
 
 object EmitStream {
@@ -717,8 +821,8 @@ object EmitStream {
     val result = optStream.map { ss =>
       ss.length match {
         case None =>
-          val xLen = mb.newLocal[Int]("sta_len")
-          val i = mb.newLocal[Int]("sta_i")
+          val xLen = mb.genFieldThisRef[Int]("sta_len")
+          val i = mb.genFieldThisRef[Int]("sta_i")
           val vab = new StagedArrayBuilder(aTyp.elementType, mb, 0)
           PCode(aTyp, Code(
             write(mb, ss, vab),
@@ -752,8 +856,8 @@ object EmitStream {
 
   def sequence(mb: EmitMethodBuilder[_], elemPType: PType, elements: IndexedSeq[EmitCode]): Stream[EmitCode] = new Stream[EmitCode] {
     def apply(eos: Code[Ctrl], push: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] = {
-      val i = mb.newLocal[Int]()
-      val t = mb.newEmitLocal("ss_t", elemPType)
+      val i = mb.genFieldThisRef[Int]()
+      val t = mb.newEmitField("ss_t", elemPType)
       val Leos = CodeLabel()
       val Lpush = CodeLabel()
 
@@ -766,7 +870,7 @@ object EmitStream {
           Code(
             Code.switch(i, Leos.goto, elements.map(elem => Code(t := elem, Lpush.goto))),
             Lpush,
-            i += 1,
+            i := i + 1,
             push(t)),
           Code(Leos, eos)))
     }
@@ -784,9 +888,9 @@ object EmitStream {
 
   def mux(mb: EmitMethodBuilder[_], eltType: PType, cond: Code[Boolean], left: Stream[EmitCode], right: Stream[EmitCode]): Stream[EmitCode] = new Stream[EmitCode] {
     def apply(eos: Code[Ctrl], push: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] = {
-      val b = mb.newLocal[Boolean]()
+      val b = mb.genFieldThisRef[Boolean]()
       val Leos = CodeLabel()
-      val elt = mb.newEmitLocal("stream_mux_elt", eltType)
+      val elt = mb.newEmitField("stream_mux_elt", eltType)
       val Lpush = CodeLabel()
 
       val l = left(Code(Leos, eos), (a) => Code(elt := a, Lpush, push(elt)))
@@ -801,17 +905,167 @@ object EmitStream {
     }
   }
 
-  def groupBy(mb: EmitMethodBuilder[_], region: Value[Region], stream: Stream[PCode], eltType: PStruct, key: Array[String]): Stream[Stream[PCode]] = new Stream[Stream[PCode]] {
+  def kWayZipJoin(
+    mb: EmitMethodBuilder[_],
+    region: Value[Region],
+    streams: IndexedSeq[Stream[PCode]],
+    resultType: PArray,
+    key: IndexedSeq[String]
+  ): Stream[(PCode, PCode)] = new Stream[(PCode, PCode)] {
+    def apply(eos: Code[Ctrl], push: ((PCode, PCode)) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(PCode, PCode)] = {
+      // The algorithm maintains a tournament tree of comparisons between the
+      // current values of the k streams. The tournament tree is a complete
+      // binary tree with k leaves. The leaves of the tree are the streams,
+      // and each internal node represents the "contest" between the "winners"
+      // of the two subtrees, where the winner is the stream with the smaller
+      // current key. Each internal node stores the index of the stream which
+      // *lost* that contest.
+      // Each time we remove the overall winner, and replace that stream's
+      // leaf with its next value, we only need to rerun the contests on the
+      // path from that leaf to the root, comparing the new value with what
+      // previously lost that contest to the previous overall winner.
+
+      val k = streams.length
+      // The leaf nodes of the tournament tree, each of which holds a pointer
+      // to the current value of that stream.
+      val heads = mb.genFieldThisRef[Array[Long]]("merge_heads")
+      // The internal nodes of the tournament tree, laid out in breadth-first
+      // order, each of which holds the index of the stream which lost that
+      // contest.
+      val bracket = mb.genFieldThisRef[Array[Int]]("merge_bracket")
+      // When updating the tournament tree, holds the winner of the subtree
+      // containing the updated leaf. Otherwise, holds the overall winner, i.e.
+      // the current least element.
+      val winner = mb.genFieldThisRef[Int]("merge_winner")
+      val result = mb.genFieldThisRef[Array[Long]]("merge_result")
+      val i = mb.genFieldThisRef[Int]("merge_i")
+
+      val eltType = resultType.elementType.asInstanceOf[PStruct]
+      val keyType = eltType.selectFields(key)
+      val curKey = ctx.mb.newPField("st_grpby_curkey", keyType)
+
+      val keyViewType = PSubsetStruct(eltType, key: _*)
+      val lt: (Code[Long], Code[Long]) => Code[Boolean] = keyViewType
+        .codeOrdering(mb, keyViewType, missingFieldsEqual = false)
+        .asInstanceOf[CodeOrdering { type T = Long }]
+        .lteqNonnull
+      val hasKey: (Code[Long], Code[Long]) => Code[Boolean] = keyViewType
+        .codeOrdering(mb, keyType, missingFieldsEqual = false)
+        .asInstanceOf[CodeOrdering { type T = Long }]
+        .equivNonnull
+
+      val srvb = new StagedRegionValueBuilder(mb, resultType, region)
+
+      val runMatch = CodeLabel()
+      val LpullChild = CodeLabel()
+      val LloopEnd = CodeLabel()
+      val LaddToResult = CodeLabel()
+      val LstartNewKey = CodeLabel()
+      val Leos = CodeLabel()
+      val Lpush = CodeLabel()
+
+      Code(Leos, eos)
+
+      Code(Lpush,
+        srvb.start(k),
+        Code.forLoop(i := 0, i < k, i := i + 1,
+          Code(
+            result(i).ceq(0L).mux(
+              srvb.setMissing(),
+              srvb.addIRIntermediate(eltType)(result(i))),
+            srvb.advance())),
+        push((curKey, PCode(resultType, srvb.offset))))
+
+      Code(LstartNewKey,
+        Code.forLoop(i := 0, i < k, i := i + 1, result(i) = 0L),
+        curKey := keyType.copyFromPValue(mb, region, new PSubsetStructCode(keyViewType, heads(winner))),
+        LaddToResult.goto)
+
+      Code(LaddToResult,
+        result(winner) = heads(winner),
+        LpullChild.goto)
+
+      def inSetup: Code[Boolean] = result.isNull
+
+      val matchIdx = mb.genFieldThisRef[Int]("merge_match_idx")
+      val challenger = mb.genFieldThisRef[Int]("merge_challenger")
+      // Compare 'winner' with value in 'matchIdx', loser goes in 'matchIdx',
+      // winner goes on to next round. A contestant '-1' beats everything
+      // (negative infinity), a contestant 'k' loses to everything
+      // (positive infinity), and values in between are indices into 'heads'.
+      Code(runMatch,
+        challenger := bracket(matchIdx),
+        (matchIdx.ceq(0) || challenger.ceq(-1)).orEmpty(LloopEnd.goto),
+        (challenger.cne(k) && (winner.ceq(k) || lt(heads(challenger), heads(winner)))).orEmpty(Code(
+          bracket(matchIdx) = winner,
+          winner := challenger)),
+        matchIdx := matchIdx >>> 1,
+        runMatch.goto,
+
+        LloopEnd,
+        matchIdx.ceq(0).mux(
+          // 'winner' is smallest of all k heads. If 'winner' = k, all heads
+          // must be k, and all streams are exhausted.
+          inSetup.mux(
+            winner.ceq(k).mux(
+              Leos.goto,
+              Code(result := Code.newArray[Long](k), LstartNewKey.goto)),
+            (winner.cne(k) && hasKey(heads(winner), curKey.tcode[Long])).mux(
+              LaddToResult.goto,
+              Lpush.goto)),
+          // We're still in the setup phase
+          Code(bracket(matchIdx) = winner, i := i + 1, winner := i, LpullChild.goto)))
+
+      val sources = streams.zipWithIndex.map { case (stream, idx) =>
+        stream(
+          eos = Code(winner := k, matchIdx := (idx + k) >>> 1,  runMatch.goto),
+          push = elt => Code(
+            heads(idx) = eltType.copyFromPValue(mb, region, elt).tcode[Long],
+            matchIdx := (idx + k) >>> 1,
+            runMatch.goto))
+      }
+
+      Code(LpullChild,
+        Code.switch(winner,
+          Leos.goto, // can only happen if k=0
+          sources.map(_.pull.asInstanceOf[Code[Unit]])))
+
+      Source[(PCode, PCode)](
+        setup0 = Code(sources.map(_.setup0)),
+        close0 = Code(sources.map(_.close0)),
+        setup = Code(
+          Code(sources.map(_.setup)),
+          bracket := Code.newArray[Int](k),
+          heads := Code.newArray[Long](k),
+          result := Code._null,
+          Code.forLoop(i := 0, i < k, i := i + 1, bracket(i) = -1),
+          winner := 0),
+        close = Code(Code(sources.map(_.close)), bracket := Code._null, heads := Code._null),
+        pull = inSetup.mux(
+          Code(i := 0, LpullChild.goto),
+          winner.ceq(k).mux(
+            Leos.goto,
+            LstartNewKey.goto)))
+    }
+  }
+
+  def groupBy(
+    mb: EmitMethodBuilder[_],
+    region: Value[Region],
+    stream: Stream[PCode],
+    eltType: PStruct,
+    key: Array[String]
+  ): Stream[Stream[PCode]] = new Stream[Stream[PCode]] {
     def apply(outerEos: Code[Ctrl], outerPush: Stream[PCode] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[Stream[PCode]] = {
       val keyType = eltType.selectFields(key)
       val keyViewType = PSubsetStruct(eltType, key)
       val ordering = keyType.codeOrdering(mb, keyViewType, missingFieldsEqual = false).asInstanceOf[CodeOrdering { type T = Long }]
 
-      val xCurKey = ctx.mb.newPLocal("st_grpby_curkey", keyType)
-      val xCurElt = ctx.mb.newPLocal("st_grpby_curelt", eltType)
-      val xInOuter = ctx.mb.newLocal[Boolean]("st_grpby_io")
-      val xEOS = ctx.mb.newLocal[Boolean]("st_grpby_eos")
-      val xNextGrpReady = ctx.mb.newLocal[Boolean]("st_grpby_ngr")
+      val xCurKey = ctx.mb.newPField("st_grpby_curkey", keyType)
+      val xCurElt = ctx.mb.newPField("st_grpby_curelt", eltType)
+      val xInOuter = ctx.mb.genFieldThisRef[Boolean]("st_grpby_io")
+      val xEOS = ctx.mb.genFieldThisRef[Boolean]("st_grpby_eos")
+      val xNextGrpReady = ctx.mb.genFieldThisRef[Boolean]("st_grpby_ngr")
 
       val LchildPull = CodeLabel()
       val LouterPush = CodeLabel()
@@ -890,8 +1144,8 @@ object EmitStream {
 
   def extendNA(mb: EmitMethodBuilder[_], eltType: PType, stream: Stream[EmitCode]): Stream[COption[EmitCode]] = new Stream[COption[EmitCode]] {
     def apply(eos: Code[Ctrl], push: COption[EmitCode] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[COption[EmitCode]] = {
-      val atEnd = mb.newLocal[Boolean]()
-      val x = mb.newEmitLocal(eltType)
+      val atEnd = mb.genFieldThisRef[Boolean]()
+      val x = mb.newEmitField(eltType)
       val Lpush = CodeLabel()
       val source = stream(Code(atEnd := true, Lpush.goto), a => Code(x := a, Lpush, push(COption(atEnd.get, x.get))))
       Source[COption[EmitCode]](
@@ -954,7 +1208,7 @@ object EmitStream {
           val start = mb.genFieldThisRef[Int]("sr_start")
           val stop = mb.genFieldThisRef[Int]("sr_stop")
           val llen = mb.genFieldThisRef[Long]("sr_llen")
-          val len = mb.newLocal[Int]("sr_len")
+          val len = mb.genFieldThisRef[Int]("sr_len")
 
           val startt = emitIR(startIR)
           val stopt = emitIR(stopIR)
@@ -994,8 +1248,8 @@ object EmitStream {
               containerAddr.asIndexable.memoize(cb, "ts_a")
             }
 
-            val len = mb.newLocal[Int]("ts_len")
-            val i = mb.newLocal[Int]("ts_i")
+            val len = mb.genFieldThisRef[Int]("ts_len")
+            val i = mb.genFieldThisRef[Int]("ts_i")
             val newStream = new Stream[EmitCode] {
               def apply(eos: Code[Ctrl], push: (EmitCode) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] =
                 new Source[EmitCode](
@@ -1004,7 +1258,7 @@ object EmitStream {
                   close = Code._empty,
                   close0 = Code._empty,
                   pull = (i < len).mux(
-                    Code(i += 1,
+                    Code(i := i + 1,
                       push(
                         EmitCode.fromI(mb) { cb =>
                           a.loadElement(cb, i - 1)
@@ -1031,19 +1285,19 @@ object EmitStream {
           reader.emitStream(context, rowType, emitter, mb, region, env, container)
 
         case In(n, PCanonicalStream(eltType, _)) =>
-          val xIter = mb.newLocal[Iterator[RegionValue]]()
-          val hasNext = mb.newLocal[Boolean]()
-          val next = mb.newLocal[RegionValue]()
+          val xIter = mb.genFieldThisRef[Iterator[java.lang.Long]]("streamInIterator")
+          val hasNext = mb.genFieldThisRef[Boolean]("streamInHasNext")
+          val next = mb.genFieldThisRef[Long]("streamInNext")
 
           // this, Region, ...
           mb.getStreamEmitParam(2 + n).map { iter =>
-            val stream = unfold[Code[RegionValue]](
+            val stream = unfold[Code[Long]](
               (_, k) => Code(
                 hasNext := xIter.load().hasNext,
-                hasNext.orEmpty(next := xIter.load().next()),
+                hasNext.orEmpty(next := xIter.load().next().invoke[Long]("longValue")),
                 k(COption(!hasNext, next)))
             ).map(
-              rv => EmitCode.present(eltType, Region.loadIRIntermediate(eltType)(rv.invoke[Long]("getOffset"))),
+              rv => EmitCode.present(eltType, Region.loadIRIntermediate(eltType)(rv)),
               setup0 = None,
               setup = Some(xIter := iter)
             )
@@ -1054,7 +1308,7 @@ object EmitStream {
         case StreamTake(a, num) =>
           val optStream = emitStream(a, env)
           val optN = COption.fromEmitCode(emitIR(num))
-          val xN = mb.newLocal[Int]("st_n")
+          val xN = mb.genFieldThisRef[Int]("st_n")
           optStream.flatMap { case SizedStream(setup, stream, len) =>
             optN.map { n =>
               val newStream = zip(stream, range(mb, 0, 1, xN))
@@ -1069,7 +1323,7 @@ object EmitStream {
         case StreamDrop(a, num) =>
           val optStream = emitStream(a, env)
           val optN = COption.fromEmitCode(emitIR(num))
-          val xN = mb.newLocal[Int]("st_n")
+          val xN = mb.genFieldThisRef[Int]("st_n")
           optStream.flatMap { case SizedStream(setup, stream, len) =>
             optN.map { n =>
               val newStream =
@@ -1087,7 +1341,7 @@ object EmitStream {
           val innerType = coerce[PCanonicalStream](coerce[PStream](x.pType).elementType)
           val optStream = emitStream(a, env)
           val optSize = COption.fromEmitCode(emitIR(size))
-          val xS = mb.newLocal[Int]("st_n")
+          val xS = mb.genFieldThisRef[Int]("st_n")
           optStream.flatMap { case SizedStream(setup, stream, len) =>
             optSize.map { s =>
               val newStream = stream.grouped(xS).map(inner => EmitCode(Code._empty, false, PCanonicalStreamCode(innerType, inner)))
@@ -1258,8 +1512,8 @@ object EmitStream {
                 // zip to an infinite stream, where the COption is missing when all streams are EOS
                 val flagged: Stream[COption[EmitCode]] = multiZip(extended)
                   .mapCPS { (_, elts, k) =>
-                    val allEOS = mb.newLocal[Boolean]("zip_stream_all_eos")
-                    val anyEOS = mb.newLocal[Boolean]("zip_stream_any_eos")
+                    val allEOS = mb.genFieldThisRef[Boolean]("zip_stream_all_eos")
+                    val anyEOS = mb.genFieldThisRef[Boolean]("zip_stream_any_eos")
                     // convert COption[TypedTriplet[_]] to TypedTriplet[_]
                     // where COption encodes if the stream has ended; update
                     // allEOS and anyEOS
@@ -1290,8 +1544,8 @@ object EmitStream {
                 val newLength = lengths.flatten match {
                   case Seq() => None
                   case ls =>
-                    val len = mb.newLocal[Int]("zip_asl_len")
-                    val lenTemp = mb.newLocal[Int]("zip_asl_len_temp")
+                    val len = mb.genFieldThisRef[Int]("zip_asl_len")
+                    val lenTemp = mb.genFieldThisRef[Int]("zip_asl_len_temp")
                     Some(Code(
                       len := ls.head,
                       ls.tail.foldLeft(Code._empty) { (acc, l) =>
@@ -1315,7 +1569,7 @@ object EmitStream {
                 // zip to an infinite stream, where the COption is missing when all streams are EOS
                 val flagged: Stream[COption[EmitCode]] = multiZip(extended)
                   .mapCPS { (_, elts, k) =>
-                    val allEOS = mb.newLocal[Boolean]()
+                    val allEOS = mb.genFieldThisRef[Boolean]()
                     // convert COption[TypedTriplet[_]] to TypedTriplet[_]
                     // where COption encodes if the stream has ended; update
                     // allEOS and anyEOS
@@ -1348,6 +1602,60 @@ object EmitStream {
 
                 SizedStream(lenSetup, newStream, newLength)
             }
+          }
+
+        case x@StreamMultiMerge(as, key) =>
+          val eltType = x.pType.elementType.asInstanceOf[PStruct]
+
+          val keyViewType = PSubsetStruct(eltType, key: _*)
+          val ord = keyViewType
+            .codeOrdering(mb, keyViewType)
+            .asInstanceOf[CodeOrdering { type T = Long }]
+          def comp(li: Code[Int], lv: Code[Long], ri: Code[Int], rv: Code[Long]): Code[Boolean] =
+            Code.memoize(ord.compareNonnull(lv, rv), "stream_merge_comp") { c =>
+              c < 0 || (c.ceq(0) && li < ri)
+            }
+
+          COption.lift(as.map(emitStream(_, env))).map { sss =>
+            val streams = sss.map(_.stream.map { ec =>
+              eltType.copyFromPValue(mb, region, ec.get()).tcode[Long]
+            })
+            val merged = kWayMerge[Long](mb, streams, comp).map { case (i, elt) =>
+                EmitCode.present(PCode(eltType, elt))
+            }
+            SizedStream(
+              Code(sss.map(_.setup)),
+              merged,
+              sss.map(_.length).reduce(_.liftedZip(_).map {
+                case (l, r) => l + r
+              }))
+          }
+
+        case x@StreamZipJoin(as, key, curKey, curVals, joinIR) =>
+          val curValsType = x.curValsType
+          val eltType = curValsType.elementType.setRequired(true).asInstanceOf[PStruct]
+          val keyType = eltType.selectFields(key)
+
+          def joinF: ((PCode, PCode)) => EmitCode = { case (k, vs) =>
+            val xKey = mb.newPresentEmitField("zipjoin_key", keyType)
+            val xElts = mb.newPresentEmitField("zipjoin_elts", curValsType)
+            val newEnv = env.bind(curKey -> xKey, curVals -> xElts)
+            val joint = joinIR.pType match {
+              case streamType: PCanonicalStream => COption.toEmitCode(
+                emitStream(joinIR, newEnv)
+                  .map(ss => PCanonicalStreamCode(streamType, ss.getStream)),
+                mb)
+              case _ =>
+                emitIR(joinIR, newEnv)
+            }
+
+            EmitCode(Code(xKey := k, xElts := vs), joint)
+          }
+
+          COption.lift(as.map(emitStream(_, env))).map { sss =>
+            val streams = sss.map(_.getStream.map(_.get()))
+            val zipped = kWayZipJoin(mb, region, streams, curValsType, key)
+            SizedStream.unsized(zipped.map(joinF))
           }
 
         case StreamFlatMap(outerIR, name, innerIR) =>
@@ -1431,7 +1739,7 @@ object EmitStream {
           val streamOpt = emitStream(childIR, env)
           streamOpt.map { case SizedStream(setup, stream, len) =>
             val Lpush = CodeLabel()
-            val hasPulled = mb.newLocal[Boolean]()
+            val hasPulled = mb.genFieldThisRef[Boolean]()
 
             val xElt = mb.newEmitField(eltName, eltType)
             val xAcc = mb.newEmitField(accName, accType)
@@ -1548,6 +1856,98 @@ object EmitStream {
             }
           }
 
+        case x@ShuffleRead(idIR, keyRangeIR) =>
+          val shuffleType = coerce[TShuffle](idIR.typ)
+          assert(shuffleType.rowDecodedPType == coerce[PStream](x.pType).elementType)
+          val keyType = coerce[TInterval](keyRangeIR.typ).pointType
+          val keyPType = coerce[PInterval](keyRangeIR.pType).pointType
+          assert(keyType == shuffleType.keyType)
+          assert(keyPType == shuffleType.keyDecodedPType)
+
+          COption.fromEmitCode(emitIR(idIR)).doIfNone(
+            Code._fatal[Unit]("ShuffleRead cannot have null ID")
+          ).flatMap { case (idt: PCanonicalShuffleCode) =>
+            COption.fromEmitCode(emitIR(keyRangeIR)).doIfNone(
+              Code._fatal[Unit]("ShuffleRead cannot have null key range")
+            ).flatMap { case (keyRanget: PIntervalCode) =>
+              val intervalPhysicalType = keyRanget.pt
+
+              val uuidLocal = mb.newLocal[Long]("shuffleUUID")
+              val uuid = new PCanonicalShuffleSettable(idt.pt.asInstanceOf[PCanonicalShuffle], uuidLocal)
+              val keyRange = mb.newLocal[Long]("shuffleClientKeyRange")
+              COption(
+                Code(
+                  uuidLocal := idt.tcode[Long],
+                  keyRange := keyRanget.tcode[Long],
+                  !intervalPhysicalType.startDefined(keyRange) || !intervalPhysicalType.endDefined(keyRange)),
+                keyRange
+              ).doIfNone(
+                Code._fatal[Unit]("ShuffleRead cannot have null start or end points of key range")
+              ).map { (keyRange: LocalRef[Long]) =>
+                val startt = intervalPhysicalType.loadStart(keyRange)
+                val startInclusivet = intervalPhysicalType.includesStart(keyRange)
+                val endt = intervalPhysicalType.loadEnd(keyRange)
+                val endInclusivet = intervalPhysicalType.includesEnd(keyRange)
+
+                val shuffleLocal = mb.newLocal[ShuffleClient]("shuffleClient")
+                val shuffle = new ValueShuffleClient(shuffleLocal)
+
+                val stream = unfold[EmitCode](
+                  { (_, k) =>
+                    k(
+                      COption(
+                        shuffle.getValueFinished(),
+                        EmitCode.present(
+                          shuffleType.rowDecodedPType, shuffle.getValue(region))))
+                  },
+                  setup = Some(Code(
+                    shuffleLocal := CodeShuffleClient.create(
+                      mb.ecb.getType(shuffleType),
+                      uuid.loadBytes(),
+                      Code._null,
+                      mb.ecb.getPType(keyPType)),
+                    shuffle.startGet(startt, startInclusivet, endt, endInclusivet))),
+                  close = Some(Code(
+                    shuffle.getDone(),
+                    shuffle.close())))
+                SizedStream.unsized(stream)
+              }
+            }
+          }
+
+      case x@ShufflePartitionBounds(idIR, nPartitionsIR) =>
+          val shuffleType = coerce[TShuffle](idIR.typ)
+          assert(shuffleType.keyDecodedPType == coerce[PStream](x.pType).elementType)
+          COption.fromEmitCode(emitIR(idIR)).doIfNone(
+            Code._fatal[Unit]("ShufflePartitionBounds cannot have null ID")
+          ).flatMap { case (idt: PCanonicalShuffleCode) =>
+            COption.fromEmitCode(emitIR(nPartitionsIR)).doIfNone(
+              Code._fatal[Unit]("ShufflePartitionBounds cannot have null number of partitions")
+            ).map { case (nPartitionst: PPrimitiveCode) =>
+              val code = new ArrayBuilder[Code[Unit]]()
+              val uuidLocal = mb.newLocal[Long]("shuffleUUID")
+              val uuid = new PCanonicalShuffleSettable(idt.pt.asInstanceOf[PCanonicalShuffle], uuidLocal)
+              val shuffleLocal = mb.newLocal[ShuffleClient]("shuffleClient")
+              val shuffle = new ValueShuffleClient(shuffleLocal)
+              val stream = unfold[EmitCode](
+                { (_, k) =>
+                  k(
+                    COption(
+                      shuffle.partitionBoundsValueFinished(),
+                      EmitCode.present(
+                        shuffleType.keyDecodedPType, shuffle.partitionBoundsValue(region))))
+                },
+                setup = Some(Code(
+                  uuidLocal := idt.tcode[Long],
+                  shuffleLocal := CodeShuffleClient.create(mb.ecb.getType(shuffleType), uuid.loadBytes()),
+                  shuffle.startPartitionBounds(nPartitionst.codeTuple()(0).asInstanceOf[Code[Int]]))),
+                close = Some(Code(
+                  shuffle.endPartitionBounds(),
+                  shuffle.close())))
+              SizedStream.unsized(stream)
+          }
+        }
+
         case _ =>
           fatal(s"not a streamable IR: ${Pretty(streamIR)}")
       }
@@ -1555,4 +1955,32 @@ object EmitStream {
 
     emitStream(streamIR0, env0)
   }
+
+  private[ir] def multiplicity(root: IR, refName: String): Int = {
+    var uses = 0
+    def traverse(ir: BaseIR, mult: Int): Unit = ir match {
+      case Ref(name, _) => if (refName == name) uses += mult
+      case Let(_, v, b) => traverse(v, 2); traverse(b, mult)
+      case StreamMap(a, _, b) => traverse(a, mult); traverse(b, 2)
+      case StreamFilter(a, _, b) => traverse(a, mult); traverse(b, 2)
+      case StreamFlatMap(a, _, b) => traverse(a, mult); traverse(b, 2)
+      case StreamJoinRightDistinct(l, r, _, _, _, c, j, _) =>
+        traverse(l, mult); traverse(r, mult); traverse(j, 2)
+      case StreamScan(a, z, _, _, b) =>
+        traverse(a, mult); traverse(z, 2); traverse(b, 2)
+      case StreamRange(a, b, c) =>
+        traverse(a, mult); traverse(b, mult); traverse(c, mult)
+      case RunAggScan(a, _, i, s, r, _) =>
+        traverse(a, mult); traverse(i, 2); traverse(s, 2); traverse(r, 2)
+      case MakeStream(irs, _) => irs.foreach(traverse(_, mult))
+      case ir: IR if !ir.typ.isInstanceOf[TStream] =>
+        Children(ir).foreach(traverse(_, 2))
+    }
+    traverse(root, 1)
+    uses min 2
+  }
+
+  def isIterationLinear(ir: IR, refName: String): Boolean =
+    multiplicity(ir, refName) <= 1
+
 }

@@ -23,9 +23,10 @@ object Emit {
 
       val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
       cn.accept(cw)
-      cw.toByteArray
+      val b = cw.toByteArray
       //       This next line should always be commented out!
-      //      CheckClassAdapter.verify(new ClassReader(bytes), false, new PrintWriter(sw1))
+//      CheckClassAdapter.verify(new ClassReader(b), false, new PrintWriter(System.err))
+      b
     } catch {
       case e: Exception =>
         val trace = new TraceClassVisitor(new PrintWriter(System.err))
@@ -43,8 +44,9 @@ object Emit {
 
   def emit(cn: ClassNode, m: Method): Unit = {
     val blocks = m.findBlocks()
+    val static = if (m.isStatic) ACC_STATIC else 0
 
-    val mn = new MethodNode(ACC_PUBLIC, m.name, m.desc, null, null)
+    val mn = new MethodNode(ACC_PUBLIC | static, m.name, m.desc, null, null)
     cn.methods.asInstanceOf[java.util.List[MethodNode]].add(mn)
 
     val labelNodes = blocks.map(L => L -> new LabelNode).toMap
@@ -55,14 +57,14 @@ object Emit {
     val end = new LabelNode
 
     var n = 0
-    val parameterIndex = new Array[Int](m.parameterTypeInfo.length + 1)
+    val parameterIndex = new Array[Int](m.parameterTypeInfo.length + (!m.isStatic).toInt)
     var i = 0
     while (i < parameterIndex.length) {
       parameterIndex(i) = n
-      if (i == 0)
+      if (i == 0 && !m.isStatic)
         n += 1 // this
       else
-        n += m.parameterTypeInfo(i - 1).slots
+        n += m.parameterTypeInfo(i - (!m.isStatic).toInt).slots
       i += 1
     }
 
@@ -201,7 +203,10 @@ object Emit {
       cn.interfaces.asInstanceOf[java.util.List[String]].add(intf)
 
     for (f <- c.fields) {
-      val fn = new FieldNode(ACC_PUBLIC, f.name, f.ti.desc, null, null)
+      val fn = f match {
+        case f: Field => new FieldNode(ACC_PUBLIC, f.name, f.ti.desc, null, null)
+        case f: StaticField => new FieldNode(ACC_PUBLIC | ACC_STATIC, f.name, f.ti.desc, null, null)
+      }
       cn.fields.asInstanceOf[java.util.List[FieldNode]].add(fn)
     }
 

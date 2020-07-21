@@ -1763,7 +1763,8 @@ class TupleExpression(Expression, Sequence):
                                      self[i]
                                      for i in range(len(self))[item.start:item.stop:item.step]]))
         if not 0 <= item < len(self):
-            raise IndexError("Out of bounds index. Tuple length is {}.".format(len(self)))
+            raise IndexError("Out of bounds index, {}. Tuple length is {}.".format(
+                item, len(self)))
         return construct_expr(ir.GetTupleElement(self._ir, item), self.dtype.types[item], self._indices)
 
     def __len__(self):
@@ -3467,8 +3468,20 @@ class IntervalExpression(Expression):
 class NDArrayExpression(Expression):
     """Expression of type :class:`.tndarray`.
 
-    >>> nd = hl._nd.array([[1, 2], [3, 4]])
+    >>> nd = hl.nd.array([[1, 2], [3, 4]])
     """
+
+    def _data_array(self):
+        shape = self.shape
+        ndims = self.ndim
+
+        def f(i, *vars):
+            if i == ndims:
+                return self[vars]
+            else:
+                return hl.range(0, hl.int32(shape[i])).map(lambda idx: f(i + 1, *vars, idx))
+
+        return f(0)
 
     @property
     def ndim(self):
@@ -3598,7 +3611,7 @@ class NDArrayExpression(Expression):
         Examples
         --------
 
-        >>> v = hl._nd.array([1, 2, 3, 4]) # doctest: +SKIP
+        >>> v = hl.nd.array([1, 2, 3, 4]) # doctest: +SKIP
         >>> m = v.reshape((2, 2)) # doctest: +SKIP
 
         Returns
@@ -3679,14 +3692,14 @@ class NDArrayNumericExpression(NDArrayExpression):
 
     def _bin_op_numeric(self, name, other, ret_type_f=None):
         if isinstance(other, list) or isinstance(other, np.ndarray):
-            other = hl._nd.array(other)
+            other = hl.nd.array(other)
 
         self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
         return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric(name, other_broadcast, ret_type_f)
 
     def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
         if isinstance(other, list) or isinstance(other, np.ndarray):
-            other = hl._nd.array(other)
+            other = hl.nd.array(other)
 
         self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
         return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric_reverse(name, other_broadcast, ret_type_f)
@@ -3791,7 +3804,7 @@ class NDArrayNumericExpression(NDArrayExpression):
 
     def __rmatmul__(self, other):
         if not isinstance(other, NDArrayNumericExpression):
-            other = hl._nd.array(other)
+            other = hl.nd.array(other)
         return other.__matmul__(self)
 
     def __matmul__(self, other):
@@ -3819,7 +3832,7 @@ class NDArrayNumericExpression(NDArrayExpression):
         :class:`.NDArrayNumericExpression` or :class:`.NumericExpression`
         """
         if not isinstance(other, NDArrayNumericExpression):
-            other = hl._nd.array(other)
+            other = hl.nd.array(other)
 
         if self.ndim == 0 or other.ndim == 0:
             raise ValueError('MatMul must be between objects of 1 dimension or more. Try * instead')

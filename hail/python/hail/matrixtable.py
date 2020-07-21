@@ -1307,12 +1307,12 @@ class MatrixTable(ExprContainer):
                 if e in all_field_exprs:
                     fields_to_drop.add(all_field_exprs[e])
                 else:
-                    raise ExpressionException("method 'drop' expects string field names or top-level field expressions"
+                    raise ExpressionException("Method 'drop' expects string field names or top-level field expressions"
                                               " (e.g. 'foo', matrix.foo, or matrix['foo'])")
             else:
                 assert isinstance(e, str)
                 if e not in self._fields:
-                    raise IndexError("matrix has no field '{}'".format(e))
+                    raise IndexError("MatrixTable has no field '{}'".format(e))
                 fields_to_drop.add(e)
 
         m = self

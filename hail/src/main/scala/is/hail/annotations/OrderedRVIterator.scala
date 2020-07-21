@@ -39,16 +39,6 @@ case class OrderedRVIterator(
       this.t.kComp(other.t).compare
     )
 
-  def zipJoin(other: OrderedRVIterator): FlipbookIterator[JoinedRegionValue] =
-    iterator.toFlipbookIterator.orderedZipJoin(
-      other.iterator.toFlipbookIterator,
-      leftDefault = null,
-      rightDefault = null,
-      RVDType.selectUnsafeOrdering(
-        t.rowType, t.kFieldIdx, other.t.rowType, other.t.kFieldIdx)
-        .compare
-    )
-
   def leftJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] =
     iterator.toFlipbookIterator.leftJoinDistinct(
       other.iterator.toFlipbookIterator,

@@ -1,4 +1,4 @@
-from subprocess import check_call
+from . import gcloud
 
 
 def init_parser(parser):
@@ -12,14 +12,14 @@ def init_parser(parser):
 def main(args, pass_through_args):
     print("Stopping cluster '{}'...".format(args.name))
 
-    cmd = ['gcloud', 'dataproc', 'clusters', 'delete', '--quiet', args.name]
+    cmd = ['dataproc', 'clusters', 'delete', '--quiet', args.name]
     if args.asink:
         cmd.append('--async')
 
     cmd.extend(pass_through_args)
 
     # print underlying gcloud command
-    print(' '.join(cmd[:6]) + ' \\\n    ' + ' \\\n    '.join(cmd[6:]))
+    print('gcloud ' + ' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[6:]))
 
     if not args.dry_run:
-        check_call(cmd)
+        gcloud.run(cmd)

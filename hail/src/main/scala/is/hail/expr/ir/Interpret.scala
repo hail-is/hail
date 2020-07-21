@@ -19,17 +19,17 @@ object Interpret {
     apply(tir, ctx, optimize = true)
 
   def apply(tir: TableIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val lowered = LoweringPipeline.legacyRelationalLowerer(ctx, tir, optimize).asInstanceOf[TableIR]
+    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR]
     lowered.execute(ctx)
   }
 
   def apply(mir: MatrixIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val lowered = LoweringPipeline.legacyRelationalLowerer(ctx, mir, optimize).asInstanceOf[TableIR]
+    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, mir).asInstanceOf[TableIR]
     lowered.execute(ctx)
   }
 
   def apply(bmir: BlockMatrixIR, ctx: ExecuteContext, optimize: Boolean): BlockMatrix = {
-    val lowered = LoweringPipeline.legacyRelationalLowerer(ctx, bmir, optimize).asInstanceOf[BlockMatrixIR]
+    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, bmir).asInstanceOf[BlockMatrixIR]
     lowered.execute(ctx)
   }
 
@@ -43,7 +43,7 @@ object Interpret {
   ): T = {
     val rwIR = env.m.foldLeft[IR](ir0) { case (acc, (k, (value, t))) => Let(k, Literal.coerce(t, value), acc) }
 
-    val lowered = LoweringPipeline.relationalLowerer.apply(ctx, rwIR, optimize).asInstanceOf[IR]
+    val lowered = LoweringPipeline.relationalLowerer(optimize).apply(ctx, rwIR).asInstanceOf[IR]
 
     val result = run(ctx, lowered, Env.empty[Any], args, Memo.empty).asInstanceOf[T]
 
@@ -476,6 +476,99 @@ object Interpret {
             interpret(body, e, args)
           }
         }
+      case StreamMultiMerge(as, key) =>
+        val streams = as.map(interpret(_, env, args).asInstanceOf[IndexedSeq[Row]])
+        if (streams.contains(null))
+          null
+        else {
+          val k = as.length
+          val tournament = Array.fill[Int](k)(-1)
+          val structType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
+          val (kType, getKey) = structType.select(key)
+          val heads = Array.fill[Int](k)(-1)
+          val ordering = kType.ordering.toOrdering.on[Row](getKey)
+
+          def get(i: Int): Row = streams(i)(heads(i))
+          def lt(li: Int, lv: Row, ri: Int, rv: Row): Boolean = {
+            val c = ordering.compare(lv, rv)
+            c < 0 || (c == 0 && li < ri)
+          }
+
+          def advance(i: Int) {
+            heads(i) += 1
+            var winner = if (heads(i) < streams(i).length) i else k
+            var j = (i + k) / 2
+            while (j != 0 && tournament(j) != -1) {
+              val challenger = tournament(j)
+              if (challenger != k && (winner == k || lt(j, get(challenger), i, get(winner)))) {
+                tournament(j) = winner
+                winner = challenger
+              }
+              j = j / 2
+            }
+            tournament(j) = winner
+          }
+
+          for (i <- 0 until k) { advance(i) }
+
+          val builder = new ArrayBuilder[Row]()
+          while (tournament(0) != k) {
+            val i = tournament(0)
+            val elt = streams(i)(heads(i))
+            advance(i)
+            builder += elt
+          }
+          builder.result().toFastIndexedSeq
+        }
+      case StreamZipJoin(as, key, curKeyName, curValsName, joinF) =>
+        val streams = as.map(interpret(_, env, args).asInstanceOf[IndexedSeq[Row]])
+        if (streams.contains(null))
+          null
+        else {
+          val k = as.length
+          val tournament = Array.fill[Int](k)(-1)
+          val structType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
+          val (kType, getKey) = structType.select(key)
+          val heads = Array.fill[Int](k)(-1)
+          val ordering = kType.ordering.toOrdering.on[Row](getKey)
+          val hasKey = TBaseStruct.getJoinOrdering(kType.types).equivNonnull _
+
+          def get(i: Int): Row = streams(i)(heads(i))
+
+          def advance(i: Int) {
+            heads(i) += 1
+            var winner = if (heads(i) < streams(i).length) i else k
+            var j = (i + k) / 2
+            while (j != 0 && tournament(j) != -1) {
+              val challenger = tournament(j)
+              if (challenger != k && (winner == k || ordering.lteq(get(challenger), get(winner)))) {
+                tournament(j) = winner
+                winner = challenger
+              }
+              j = j / 2
+            }
+            tournament(j) = winner
+          }
+
+          for (i <- 0 until k) { advance(i) }
+
+          val builder = new ArrayBuilder[Any]()
+          while (tournament(0) != k) {
+            val i = tournament(0)
+            val elt = Array.fill[Row](k)(null)
+            elt(i) = streams(i)(heads(i))
+            val curKey = getKey(elt(i))
+            advance(i)
+            var j = tournament(0)
+            while (j != k && hasKey(getKey(get(j)), curKey)) {
+              elt(j) = streams(j)(heads(j))
+              advance(j)
+              j = tournament(0)
+            }
+            builder += interpret(joinF, env.bind(curKeyName -> curKey, curValsName -> elt.toFastIndexedSeq), args)
+          }
+          builder.result().toFastIndexedSeq
+        }
       case StreamFilter(a, name, cond) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
@@ -757,13 +850,13 @@ object Interpret {
         } else {
           val spec = BufferSpec.defaultUncompressed
 
-          val (_, initOp) = CompileWithAggregators2[AsmFunction2RegionLongUnit](ctx,
+          val (_, initOp) = CompileWithAggregators[AsmFunction2RegionLongUnit](ctx,
             extracted.states,
             IndexedSeq(("global", value.globals.t)),
             IndexedSeq(classInfo[Region], LongInfo), UnitInfo,
             extracted.init)
 
-          val (_, partitionOpSeq) = CompileWithAggregators2[AsmFunction3RegionLongLongUnit](ctx,
+          val (_, partitionOpSeq) = CompileWithAggregators[AsmFunction3RegionLongLongUnit](ctx,
             extracted.states,
             FastIndexedSeq(("global", value.globals.t),
               ("row", value.rvd.rowPType)),
@@ -842,7 +935,7 @@ object Interpret {
           val rv = value.rvd.combine[WrappedByteArray, RegionValue](
             mkZero, itF, read, write, combOpF, isCommutative, useTreeAggregate)
 
-          val (rTyp: PTuple, f) = CompileWithAggregators2[AsmFunction2RegionLongLong](
+          val (rTyp: PTuple, f) = CompileWithAggregators[AsmFunction2RegionLongLong](
             ctx,
             extracted.states,
             FastIndexedSeq(("global", value.globals.t)),

@@ -1,11 +1,11 @@
 package is.hail.expr.ir
 
-import is.hail.types.virtual.TNDArray
+import is.hail.types.virtual.{TNDArray, TStream}
 
 object Interpretable {
   def apply(ir: IR): Boolean = {
     !ir.typ.isInstanceOf[TNDArray] &&
-      (ir match {
+    (ir match {
       case
         _: StreamMerge |
         _: RunAgg |
@@ -14,6 +14,7 @@ object Interpretable {
         _: CombOp |
         _: ResultOp |
         _: CombOpValue |
+        _: InitFromSerializedValue |
         _: AggStateValue |
         _: RunAgg |
         _: RunAggScan |
@@ -39,7 +40,11 @@ object Interpretable {
         _: WriteMetadata |
         _: ReadValue |
         _: WriteValue |
-        _: NDArrayWrite => false
+        _: NDArrayWrite |
+        _: ShuffleWith |
+        _: ShuffleWrite |
+        _: ShufflePartitionBounds |
+        _: ShuffleRead => false
       case x: ApplyIR =>
         !Exists(x.body, {
           case n: IR => !Interpretable(n)

@@ -9,7 +9,7 @@ The cloud has a reputation for easily burning lots of money. You don't want to b
 spent ten thousand dollars one night without thinking about it. Luckily, it's easy to not be that person!
 
 Always start small. For Hail, this means using a two worker Spark cluster and experimenting on a small 
-fraction of the data. For genetic data, make sure your scripts work on chromosome 22 (the smallest one) before
+fraction of the data. For genetic data, make sure your scripts work on chromosome 22 (the 2nd smallest autosomal chromosome) before
 you try running on the entire genome! If you have a matrix table you can limit to chromosome 22 with ``filter_rows``.
 Hail will make sure not to load data for other chromosomes.
 

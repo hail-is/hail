@@ -76,6 +76,10 @@ class Backend(abc.ABC):
     def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
         pass
 
+    @abc.abstractmethod
+    def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
+        pass
+
     def persist_table(self, t, storage_level):
         return t
 

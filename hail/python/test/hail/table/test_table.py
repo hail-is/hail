@@ -1383,7 +1383,7 @@ def test_can_process_wide_tables():
     for w in widths:
         print(f'working on width {w}')
         path = resource(f'width_scale_tests/{w}.tsv')
-        ht = hl.import_table(path, impute=True)
+        ht = hl.import_table(path, impute=False)
         out_path = new_temp_file(extension='ht')
         ht.write(out_path)
         ht = hl.read_table(out_path)
@@ -1439,7 +1439,7 @@ def test_join_distinct_preserves_count():
 
 def test_write_table_containing_ndarray():
     t = hl.utils.range_table(5)
-    t = t.annotate(n = hl._nd.arange(t.idx))
+    t = t.annotate(n = hl.nd.arange(t.idx))
     f = new_temp_file(extension='ht')
     t.write(f)
     t2 = hl.read_table(f)
@@ -1494,3 +1494,9 @@ def test_range_annotate_range():
     ht1 = hl.utils.range_table(10)
     ht2 = hl.utils.range_table(5).annotate(x = 1)
     ht1.annotate(x = ht2[ht1.idx].x)._force_count()
+
+def test_read_write_all_types():
+    ht = create_all_values_table()
+    tmp_file = new_temp_file()
+    ht.write(tmp_file)
+    assert hl.read_table(tmp_file)._same(ht)

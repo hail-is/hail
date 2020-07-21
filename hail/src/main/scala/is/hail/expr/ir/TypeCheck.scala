@@ -233,6 +233,10 @@ object TypeCheck {
         val ndType = nd.typ.asInstanceOf[TNDArray]
         assert(ndType.elementType == TFloat64)
         assert(ndType.nDims == 2)
+      case x@NDArrayInv(nd) =>
+        val ndType = nd.typ.asInstanceOf[TNDArray]
+        assert(ndType.elementType == TFloat64)
+        assert(ndType.nDims == 2)
       case x@ArraySort(a, l, r, lessThan) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(lessThan.typ == TBoolean)
@@ -290,6 +294,18 @@ object TypeCheck {
         assert(as.length == names.length)
         assert(x.typ.elementType == body.typ)
         assert(as.forall(_.typ.isInstanceOf[TStream]))
+      case x@StreamZipJoin(as, key, curKey, curVals, joinF) =>
+        val streamType = coerce[TStream](as.head.typ)
+        assert(as.forall(_.typ == streamType))
+        val eltType = coerce[TStruct](streamType.elementType)
+        assert(key.forall(eltType.hasField))
+        assert(x.typ.elementType == joinF.typ)
+      case x@StreamMultiMerge(as, key) =>
+        val streamType = coerce[TStream](as.head.typ)
+        assert(as.forall(_.typ == streamType))
+        val eltType = coerce[TStruct](streamType.elementType)
+        assert(x.typ.elementType == eltType)
+        assert(key.forall(eltType.hasField))
       case x@StreamFilter(a, name, cond) =>
         assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)
         assert(cond.typ == TBoolean)
@@ -355,6 +371,7 @@ object TypeCheck {
       case _: ResultOp =>
       case AggStateValue(i, sig) =>
       case CombOpValue(i, value, sig) => assert(value.typ == TBinary)
+      case InitFromSerializedValue(i, value, sig) => assert(value.typ == TBinary)
       case _: SerializeAggs =>
       case _: DeserializeAggs =>
       case x@Begin(xs) =>
@@ -451,6 +468,21 @@ object TypeCheck {
       case x@WriteValue(value, pathPrefix, spec) =>
         assert(pathPrefix.typ == TString)
       case LiftMeOut(_) =>
+      case x@ShuffleWith(_, _, _, _, _, writer, readers) =>
+        assert(writer.typ == TArray(TBinary))
+        assert(readers.typ.isRealizable)
+        assert(x.typ == readers.typ)
+      case ShuffleWrite(id, rows) =>
+        val shuffleType = coerce[TShuffle](id.typ)
+        val rowsType = coerce[TStream](rows.typ)
+        assert(rowsType.elementType == shuffleType.rowType)
+      case ShufflePartitionBounds(id, nPartitions) =>
+        assert(id.typ.isInstanceOf[TShuffle])
+        assert(nPartitions.typ == TInt32)
+      case ShuffleRead(id, keyRange) =>
+        val shuffleType = coerce[TShuffle](id.typ)
+        val keyRangeType = coerce[TInterval](keyRange.typ)
+        assert(shuffleType.keyType == keyRangeType.pointType)
     }
   }
 }

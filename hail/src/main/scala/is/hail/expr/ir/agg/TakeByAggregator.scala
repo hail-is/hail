@@ -45,7 +45,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     )
 
   private val compareKey: ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[Int] = {
-    val keyInfo = typeToTypeInfo(keyType.virtualType)
+    val keyInfo = typeToTypeInfo(keyType)
     val cmp = kb.genEmitMethod("compare", FastIndexedSeq[ParamType](BooleanInfo, keyInfo, BooleanInfo, keyInfo), IntInfo)
     val ord = keyType.codeOrdering(cmp, so)
     val k1m = cmp.getCodeParam[Boolean](1)
@@ -70,7 +70,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   }
 
   private val compareIndexedKey: (Code[Long], Code[Long]) => Code[Int] = {
-    val indexedkeyTypeTypeInfo = typeToTypeInfo(indexedKeyType.virtualType)
+    val indexedkeyTypeTypeInfo = typeToTypeInfo(indexedKeyType)
     val cmp = kb.genEmitMethod("take_by_compare", FastIndexedSeq[ParamType](indexedkeyTypeTypeInfo, indexedkeyTypeTypeInfo), IntInfo)
     val ord = indexedKeyType.codeOrdering(cmp, indexedKeyType, Array(so, Ascending), true)
     val k1 = cmp.getCodeParam(1)(indexedkeyTypeTypeInfo)

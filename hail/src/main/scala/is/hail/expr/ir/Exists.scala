@@ -80,6 +80,7 @@ object ContainsAggIntermediate {
     case _: SerializeAggs => true
     case _: AggStateValue => true
     case _: CombOpValue => true
+    case _: InitFromSerializedValue => true
     case _ => false
   }) || root.children.exists {
     case child: IR => ContainsAggIntermediate(child)

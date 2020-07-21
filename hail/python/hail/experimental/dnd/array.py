@@ -1,9 +1,10 @@
 import json
 import numpy as np
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Callable
 
 from hail.utils.java import Env
 from hail.utils import range_table, new_temp_file
+from hail.expr import Expression
 from hail import nd
 from hail.matrixtable import MatrixTable
 from hail.table import Table
@@ -11,8 +12,8 @@ from hail.table import Table
 import hail as hl
 
 
-def array(mt: MatrixTable, entrc_field: str, *, block_size=None) -> 'DNDArray':
-    return DNDArray.from_matrix_table(mt, entrc_field, block_size=block_size)
+def array(mt: MatrixTable, entry_field: str, *, block_size=None) -> 'DNDArray':
+    return DNDArray.from_matrix_table(mt, entry_field, block_size=block_size)
 
 
 def read(fname: str) -> 'DNDArray':
@@ -166,7 +167,11 @@ class DNDArray:
         m = m._key_by_assert_sorted(self.c_field, self.r_field)
         return DNDArray(m)
 
-    def __matmul__(self, right: 'DNDArray') -> 'DNDArray':
+    def _block_inner_product(self,
+                             right: 'DNDArray',
+                             block_product: Callable[[Expression, Expression], Expression],
+                             block_aggregate: Callable[[Expression], Expression]
+                             ) -> 'DNDArray':
         left = self
         assert left.block_size == right.block_size
         assert left.n_cols == right.n_rows
@@ -192,17 +197,8 @@ class DNDArray:
         o = o.annotate(left=left.m[o.r, o.k].block)
         o = o._key_by_assert_sorted('k', 'c', 'r')
         o = o.annotate(right=right.m[o.k, o.c].block)
-        o = o.annotate(product=o.left @ o.right)
 
-        # FIXME: use ndarray sum / fma
-        def ndarray_to_array(ndarray):
-            return hl.rbind(
-                ndarray.shape[0],
-                ndarray.shape[1],
-                lambda n_rows, n_cols: hl.range(hl.int(n_rows * n_cols)).map(
-                    lambda absolute: o.product[absolute % n_rows, absolute // n_rows]))
-        o = o.annotate(shape=o.product.shape,
-                       product=ndarray_to_array(o.product))
+        o = o.annotate(product=block_product(o.left, o.right))
         o = o._key_by_assert_sorted('r', 'c', 'k')
         o = o._key_by_assert_sorted('r', 'c')
 
@@ -212,10 +208,7 @@ class DNDArray:
 
         o = Table(ir.TableAggregateByKey(
             o._tir,
-            hl.struct(
-                shape=hl.agg.take(o.shape, 1)[0],
-                block=hl.agg.array_sum(o.product))._ir))
-        o = o.annotate(block=hl.nd.from_column_major(o.block, o.shape))
+            hl.struct(block=block_aggregate(o.product))._ir))
         o = o.select('block')
         o = o.select_globals(
             r_field='r',
@@ -226,6 +219,56 @@ class DNDArray:
             n_block_cols=n_block_cols,
             block_size=block_size)
         return DNDArray(o)
+
+    def __matmul__(self, right: 'DNDArray') -> 'DNDArray':
+        # FIXME: use ndarray sum / fma
+        def block_product(left, right):
+            product = left @ right
+            n_rows, n_cols = product.shape
+            return hl.struct(
+                shape=product.shape,
+                block=hl.range(hl.int(n_rows * n_cols)).map(
+                    lambda absolute: product[absolute % n_rows, absolute // n_rows]))
+
+        def block_aggregate(prod):
+            shape = prod.shape
+            block = prod.block
+            return hl.nd.from_column_major(
+                hl.agg.array_sum(block),
+                hl.agg.take(shape, 1)[0])
+
+        return self._block_inner_product(right, block_product, block_aggregate)
+
+    def inner_product(self,
+                      right: 'DNDArray',
+                      multiply: Callable[[Expression, Expression], Expression],
+                      add: Callable[[Expression, Expression], Expression],
+                      zero: Expression,
+                      add_as_an_aggregator: Callable[[Expression], Expression]
+                      ) -> 'DNDArray':
+        def block_product(left, right):
+            n_rows, n_inner = left.shape
+            _, n_cols = right.shape
+
+            def compute_element(absolute):
+                row = absolute % n_rows
+                col = absolute // n_rows
+                return hl.range(hl.int(n_inner)).map(
+                    lambda inner: multiply(left[row, inner], right[inner, col])
+                ).fold(add, zero)
+
+            return hl.struct(
+                shape=(left.shape[0], right.shape[1]),
+                block=hl.range(hl.int(n_rows * n_cols)).map(compute_element))
+
+        def block_aggregate(prod):
+            shape = prod.shape
+            block = prod.block
+            return hl.nd.from_column_major(
+                hl.agg.array_agg(add_as_an_aggregator, block),
+                hl.agg.take(shape, 1)[0])
+
+        return self._block_inner_product(right, block_product, block_aggregate)
 
     def write(self, *args, **kwargs) -> 'DNDArray':
         return self.m.write(*args, **kwargs)

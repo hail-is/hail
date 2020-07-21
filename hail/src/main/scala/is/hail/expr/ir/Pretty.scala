@@ -23,6 +23,8 @@ object Pretty {
 
   def prettyTypes(x: Seq[Type]): String = x.map(typ => typ.parsableString()).mkString("(", " ", ")")
 
+  def prettySortFields(x: Seq[SortField]): String = x.map(typ => typ.parsableString()).mkString("(", " ", ")")
+
   def prettyBooleanLiteral(b: Boolean): String =
     if (b) "True" else "False"
 
@@ -174,11 +176,20 @@ object Pretty {
           sb.append(i)
           sb += ' '
           prettyAggStateSignature(sig, depth + 2)
-        case CombOpValue(i, _, sig) =>
+        case InitFromSerializedValue(i, value, aggSig) =>
+          sb += ' '
+          sb.append(i)
+          sb += ' '
+          prettyAggStateSignature(aggSig, depth + 2)
+          sb += ' '
+          pretty(value, depth + 2)
+        case CombOpValue(i, value, sig) =>
           sb += ' '
           sb.append(i)
           sb += ' '
           prettyPhysicalAggSig(sig, depth + 2)
+          sb += ' '
+          pretty(value, depth + 2)
         case SerializeAggs(i, i2, spec, aggSigs) =>
           sb += ' '
           sb.append(i)
@@ -274,6 +285,9 @@ object Pretty {
               case ArrayZipBehavior.ExtendNA => "ExtendNA"
               case ArrayZipBehavior.AssumeSameLength => "AssumeSameLength"
             }) + " " + prettyIdentifiers(names)
+            case StreamZipJoin(_, key, curKey, curVals, _) =>
+              s"${prettyIdentifiers(key)} ${prettyIdentifier(curKey)} ${prettyIdentifier(curVals)}"
+            case StreamMultiMerge(_, key) => prettyIdentifiers(key)
             case StreamFilter(_, name, _) => prettyIdentifier(name)
             case StreamFlatMap(_, name, _) => prettyIdentifier(name)
             case StreamFold(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
@@ -385,8 +399,7 @@ object Pretty {
             case TableExplode(_, path) => prettyStrings(path)
             case TableParallelize(_, nPartitions) =>
                 prettyIntOpt(nPartitions)
-            case TableOrderBy(_, sortFields) => prettyIdentifiers(sortFields.map(sf =>
-              (if (sf.sortOrder == Ascending) "A" else "D") + sf.field))
+            case TableOrderBy(_, sortFields) => prettySortFields(sortFields)
             case CastMatrixToTable(_, entriesFieldName, colsFieldName) =>
               s"${ prettyStringLiteral(entriesFieldName) } ${ prettyStringLiteral(colsFieldName) }"
             case CastTableToMatrix(_, entriesFieldName, colsFieldName, colKey) =>
@@ -432,6 +445,8 @@ object Pretty {
             case ReadValue(_, spec, reqType) =>
               s"${ prettyStringLiteral(spec.toString) } ${ reqType.parsableString() }"
             case WriteValue(_, _, spec) => prettyStringLiteral(spec.toString)
+            case x@ShuffleWith(_, _, _, _, name, _, _) =>
+              s"${ x.shuffleType.parsableString() } ${ prettyIdentifier(name) }"
 
             case _ => ""
           }

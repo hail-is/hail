@@ -8,6 +8,7 @@ async-timeout==3.0.1
 asyncinit==0.2.4
 Authlib==0.11
 decorator==4.4.0
+dill>=0.3.1.1,<0.4
 flake8==3.7.8
 Flask-Cors==3.0.8
 Flask-Sockets==0.2.1

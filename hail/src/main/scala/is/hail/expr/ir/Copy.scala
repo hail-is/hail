@@ -111,6 +111,9 @@ object Copy {
       case NDArrayQR(_, mode) =>
         assert(newChildren.length == 1)
         NDArrayQR(newChildren(0).asInstanceOf[IR], mode)
+      case NDArrayInv(_) =>
+        assert(newChildren.length == 1)
+        NDArrayInv(newChildren(0).asInstanceOf[IR])
       case NDArrayWrite(_, _) =>
         assert(newChildren.length == 2)
         NDArrayWrite(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
@@ -161,6 +164,12 @@ object Copy {
       case StreamZip(_, names, _, behavior) =>
         assert(newChildren.length == names.length + 1)
         StreamZip(newChildren.init.asInstanceOf[IndexedSeq[IR]], names, newChildren(names.length).asInstanceOf[IR], behavior)
+      case StreamZipJoin(as, key, curKey, curVals, _) =>
+        assert(newChildren.length == as.length + 1)
+        StreamZipJoin(newChildren.init.asInstanceOf[IndexedSeq[IR]], key, curKey, curVals, newChildren(as.length).asInstanceOf[IR])
+      case StreamMultiMerge(as, key) =>
+        assert(newChildren.length == as.length)
+        StreamMultiMerge(newChildren.asInstanceOf[IndexedSeq[IR]], key)
       case StreamFilter(_, name, _) =>
         assert(newChildren.length == 2)
         StreamFilter(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
@@ -239,6 +248,9 @@ object Copy {
       case CombOpValue(i, _, aggSig) =>
         assert(newChildren.length == 1)
         CombOpValue(i, newChildren(0).asInstanceOf[IR], aggSig)
+      case InitFromSerializedValue(i, _, aggSig) =>
+        assert(newChildren.length == 1)
+        InitFromSerializedValue(i, newChildren(0).asInstanceOf[IR], aggSig)
       case SerializeAggs(startIdx, serIdx, spec, aggSigs) => SerializeAggs(startIdx, serIdx, spec, aggSigs)
       case DeserializeAggs(startIdx, serIdx, spec, aggSigs) => DeserializeAggs(startIdx, serIdx, spec, aggSigs)
       case Begin(_) =>
@@ -348,6 +360,22 @@ object Copy {
         WriteValue(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], spec)
       case LiftMeOut(_) =>
         LiftMeOut(newChildren(0).asInstanceOf[IR])
+      case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, _, _) =>
+        assert(newChildren.length == 2)
+        ShuffleWith(keyFields, rowType, rowEType, keyEType, name,
+          newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
+      case ShuffleWrite(_, _) =>
+        assert(newChildren.length == 2)
+        ShuffleWrite(
+          newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
+      case ShufflePartitionBounds(_, _) =>
+        assert(newChildren.length == 2)
+        ShufflePartitionBounds(
+          newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
+      case ShuffleRead(_, _) =>
+        assert(newChildren.length == 2)
+        ShuffleRead(
+          newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
     }
   }
 }

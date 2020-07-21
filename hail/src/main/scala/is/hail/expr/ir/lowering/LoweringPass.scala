@@ -21,6 +21,12 @@ trait LoweringPass {
   protected def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR
 }
 
+case class OptimizePass(context: String) extends LoweringPass {
+  val before: IRState = AnyIR
+  val after: IRState = AnyIR
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = Optimize(ir, true, context, ctx)
+}
+
 case object LowerMatrixToTablePass extends LoweringPass {
   val before: IRState = AnyIR
   val after: IRState = MatrixLoweredToTable
@@ -31,6 +37,16 @@ case object LowerMatrixToTablePass extends LoweringPass {
     case x: TableIR => LowerMatrixIR(x)
     case x: MatrixIR => LowerMatrixIR(x)
     case x: BlockMatrixIR => LowerMatrixIR(x)
+  }
+}
+
+case object LiftRelationalValuesToRelationalLets extends LoweringPass {
+  val before: IRState = MatrixLoweredToTable
+  val after: IRState = MatrixLoweredToTable
+  val context: String = "LiftRelationalValuesToRelationalLets"
+
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = ir match {
+    case x: IR => LiftRelationalValues(x)
   }
 }
 

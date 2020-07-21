@@ -232,12 +232,11 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testES2MultiZip() {
-    import scala.collection.IndexedSeq
     val f = compile3[Int, Int, Int, Unit] { (mb, n1, n2, n3) =>
       val s1 = checkedRange(0, n1, "s1", mb)
       val s2 = checkedRange(0, n2, "s2", mb)
       val s3 = checkedRange(0, n3, "s3", mb)
-      val z = Stream.multiZip(IndexedSeq(s1.stream, s2.stream, s3.stream)).asInstanceOf[Stream[IndexedSeq[Code[Int]]]]
+      val z = Stream.multiZip(IndexedSeq(s1.stream, s2.stream, s3.stream))
 
       Code(
         s1.init, s2.init, s3.init,
@@ -253,6 +252,37 @@ class EmitStreamSuite extends HailSuite {
     } {
       f(n1, n2, n3)
     }
+  }
+
+  @Test def testES2kWayMerge() {
+    def merge(k: Int) {
+      val f = compile1[Int, Unit] { (mb, _) =>
+        val ranges = Array.tabulate(k)(i => checkedRange(0 + i, 5 + i, s"s$i", mb, print = false))
+
+        val z = Stream.kWayMerge[Int](
+           mb, ranges.map(_.stream),
+           (li, lv, ri, rv) => Code.memoize(lv, "lv", rv, "rv") { (lv, rv) =>
+             lv < rv || (lv.ceq(rv) && li < ri)
+           })
+
+
+        Code(
+          Code(ranges.map(_.init)),
+          z.forEach(mb, { case (i, l) =>
+            log(const("(").concat(i.toS).concat(", ").concat(l.toS).concat(")"), enabled = false)
+          }),
+          Code(ranges.map(_.assertClosed(1))))
+      }
+      f(0)
+    }
+    for {
+      k <- 0 to 5
+    } {
+//      println(s"k = $k")
+      merge(k)
+//      println()
+    }
+
   }
 
   private def compileStream[F: TypeInfo, T](
@@ -297,14 +327,13 @@ class EmitStreamSuite extends HailSuite {
   }
 
   private def compileStreamWithIter(ir: IR, streamType: PStream): Iterator[Any] => IndexedSeq[Any] = {
-    type F = AsmFunction3RegionIteratorRegionValueBooleanLong
+    type F = AsmFunction3RegionIteratorJLongBooleanLong
     compileStream[F, Iterator[Any]](ir, IndexedSeq(streamType)) { (f: F, r: Region, it: Iterator[Any]) =>
       val rv = RegionValue(r)
-      val rvi = new Iterator[RegionValue] {
+      val rvi = new Iterator[java.lang.Long] {
         def hasNext: Boolean = it.hasNext
-        def next(): RegionValue = {
-          rv.setOffset(ScalaToRegionValue(r, streamType.elementType, it.next()))
-          rv
+        def next(): java.lang.Long = {
+          ScalaToRegionValue(r, streamType.elementType, it.next())
         }
       }
       f(r, rvi, it == null)
@@ -535,7 +564,7 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testEmitAggScan() {
     def assertAggScan(ir: IR, inType: Type, tests: (Any, Any)*): Unit = {
-      val aggregate = compileStream(LoweringPipeline.compileLowerer.apply(ctx, ir, false).asInstanceOf[IR],
+      val aggregate = compileStream(LoweringPipeline.compileLowerer(false).apply(ctx, ir).asInstanceOf[IR],
         PType.canonical(inType))
       for ((inp, expected) <- tests)
         assert(aggregate(inp) == expected, Pretty(ir))
@@ -665,6 +694,26 @@ class EmitStreamSuite extends HailSuite {
       val input = rvb.end()
 
       assert(SafeRow.read(pt, f(0, r)(r, input)) == Row(null))
+    }
+  }
+
+  @Test def testMultiplicity() {
+    val target = Ref("target", TStream(TInt32))
+    val i = Ref("i", TInt32)
+    for ((ir, v) <- Seq(
+      StreamRange(0, 10, 1) -> 0,
+      target -> 1,
+      Let("x", True(), target) -> 1,
+      StreamMap(target, "i", i) -> 1,
+      StreamMap(StreamMap(target, "i", i), "i", i * i) -> 1,
+      StreamFilter(target, "i", StreamFold(StreamRange(0, i, 1), 0, "a", "i", i)) -> 1,
+      StreamFilter(StreamRange(0, 5, 1), "i", StreamFold(target, 0, "a", "i", i)) -> 2,
+      StreamFlatMap(target, "i", StreamRange(0, i, 1)) -> 1,
+      StreamFlatMap(StreamRange(0, 5, 1), "i", target) -> 2,
+      StreamScan(StreamMap(target, "i", i), 0, "a", "i", i) -> 1,
+      StreamScan(StreamScan(target, 0, "a", "i", i), 0, "a", "i", i) -> 1
+    )) {
+      assert(EmitStream.multiplicity(ir, "target") == v, Pretty(ir))
     }
   }
 }

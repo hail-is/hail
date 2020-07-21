@@ -22,11 +22,34 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.49
+
+Released 2020-07-08
+
+### Bug fixes
+
+- (hail#9058) Fixed memory leak affecting `Table.aggregate`, `MatrixTable.annotate_cols` aggregations, and `hl.sample_qc`.
+
+---
+
+## Version 0.2.48
+
+Released 2020-07-07
+
+### Bug fixes
+
+- (hail#9029) Fix crash when using `hl.agg.linreg` with no aggregated data records.
+- (hail#9028) Fixed memory leak affecting `Table.annotate` with scans, `hl.experimental.densify`, and `Table.group_by` / `aggregate`.
+- (hail#8978) Fixed aggregation behavior of `MatrixTable.{group_rows_by, group_cols_by}` to skip filtered entries.
+
+---
+
 ## Version 0.2.47
 
 Released 2020-06-23
 
 ### Bug fixes
+
 - (hail#9009) Fix memory leak when counting per-partition. This caused excessive memory use in `BlockMatrix.write_from_entry_expr`, and likely in many other places.
 - (hail#9006) Fix memory leak in `hl.export_bgen`. 
 - (hail#9001) Fix double close error that showed up on Azure Cloud. 

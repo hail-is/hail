@@ -231,7 +231,7 @@ object StringFunctions extends RegistryFunctions {
         out.isNull)
       val value =
         out.ifNull(
-          defaultValue(TArray(TString)),
+          defaultValue(rt),
           Code(
             len := out.invoke[Int]("size"),
             srvb.start(len),

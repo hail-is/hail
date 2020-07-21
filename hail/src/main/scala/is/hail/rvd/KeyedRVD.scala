@@ -153,29 +153,6 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     }
   }
 
-  def orderedZipJoin(
-    right: KeyedRVD,
-    ctx: ExecuteContext
-  ): (RVDPartitioner, ContextRDD[JoinedRegionValue]) = {
-    checkJoinCompatability(right)
-    val ranges = this.rvd.partitioner.coarsenedRangeBounds(key) ++
-      right.rvd.partitioner.coarsenedRangeBounds(key)
-    val newPartitioner = RVDPartitioner.generate(virtType.key, kType, ranges)
-
-    val repartitionedLeft = this.rvd.repartition(ctx, newPartitioner)
-    val repartitionedRight = right.rvd.repartition(ctx, newPartitioner)
-
-    val leftType = this.virtType
-    val rightType = right.virtType
-    val jcrdd = repartitionedLeft.crdd.toCRDDRegionValue.czipPartitions(repartitionedRight.crdd.toCRDDRegionValue)
-      { (ctx, leftIt, rightIt) =>
-        OrderedRVIterator(leftType, leftIt, ctx)
-          .zipJoin(OrderedRVIterator(rightType, rightIt, ctx))
-      }
-
-    (newPartitioner, jcrdd)
-  }
-
   def orderedMerge(
     right: KeyedRVD,
     ctx: ExecuteContext

@@ -273,6 +273,8 @@ object JSONAnnotationImpex {
       case (JArray(a), TSet(elementType)) =>
         a.iterator.map(jv2 => imp(jv2, elementType, parent + "[element]")).toSet[Any]
 
+      case (j, t: TNDArray) => importAnnotation(j, t.representation)
+
       case _ =>
         warnOnce(s"Can't convert JSON value $jv to type $t at $parent.", parent)
         null
@@ -294,6 +296,7 @@ object TableAnnotationImpex {
         case TString => a.asInstanceOf[String]
         case t: TContainer => JsonMethods.compact(t.toJSON(a))
         case t: TBaseStruct => JsonMethods.compact(t.toJSON(a))
+        case t: TNDArray => JsonMethods.compact(t.toJSON(a))
         case TInterval(TLocus(_)) =>
           val i = a.asInstanceOf[Interval]
           val bounds = if (i.start.asInstanceOf[Locus].contig == i.end.asInstanceOf[Locus].contig)
@@ -326,6 +329,7 @@ object TableAnnotationImpex {
       case t: TSet => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TDict => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TBaseStruct => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
+      case t: TNDArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
     }
   }
 }

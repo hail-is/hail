@@ -130,15 +130,19 @@ steps:
      valueFrom: create_certs_image.image
    script: |
      openssl req -new -x509 -subj /CN=hail-root -nodes -newkey rsa:4096 -keyout hail-root-key.pem -out hail-root-cert.pem
-     kubectl create secret generic -n {{ default_ns.name }} ssl-config-hail-root \
-             --from-file=hail-root-key.pem \
-             --from-file=hail-root-cert.pem
+     until kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root
+     do
+         kubectl create secret generic -n {{ default_ns.name }} ssl-config-hail-root \
+                 --from-file=hail-root-key.pem \
+                 --from-file=hail-root-cert.pem
+     done
    serviceAccount:
      name: admin
      namespace:
        valueFrom: default_ns.name
    scopes:
     - test
+    - dev
    dependsOn:
     - default_ns
     - create_certs_image
@@ -439,6 +443,11 @@ steps:
      python3 -m pylint --rcfile pylintrc scorecard
    dependsOn:
      - scorecard_image
+ - kind: buildImage
+   name: benchmark_image
+   dockerFile: benchmark-service/Dockerfile
+   contextPath: .
+   publishAs: benchmark
  - kind: buildImage
    name: auth_image
    dockerFile: auth/Dockerfile
@@ -1033,6 +1042,16 @@ steps:
     - scorecard_image
     - deploy_router
     - create_certs
+ - kind: deploy
+   name: deploy_benchmark
+   namespace:
+     valueFrom: default_ns.name
+   config: benchmark-service/deployment.yaml
+   dependsOn:
+    - default_ns
+    - benchmark_image
+    - deploy_router
+    - create_certs
  - kind: runImage
    name: create_dummy_oauth2_client_secret
    image:
@@ -1398,8 +1417,12 @@ steps:
    script: |
      set -ex
      cd /io
+     mkdir -p src/test
+     tar xzf resources.tar.gz -C src/test
      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-services.xml
    inputs:
+    - from: /resources.tar.gz
+      to: /io/resources.tar.gz
     - from: /hail-test.jar
       to: /io/hail-test.jar
     - from: /testng-services.xml
@@ -1429,6 +1452,7 @@ steps:
    image:
      valueFrom: batch_image.image
    script: |
+     export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
@@ -1452,6 +1476,10 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /ssl-config
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
    dependsOn:
     - create_deploy_config
     - create_accounts
@@ -1584,6 +1612,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
+     export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/test/hailtop/batch/
@@ -1622,6 +1651,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
+     export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      cd /io/hailtop/hailtop/batch
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
@@ -1639,6 +1669,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
    dependsOn:
     - create_deploy_config
     - create_accounts
@@ -1799,9 +1833,9 @@ steps:
      set +e
      gcloud -q compute instances list \
          --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
-         --format="value(name)" \
+         --format="table[no-heading](zone.basename(), name)" \
          --project {{ global.project }} \
-       | xargs -r gcloud -q compute instances delete --zone {{ global.zone }} --project {{ global.project }} || true
+       | xargs -n2 -r sh -c 'gcloud -q compute instances delete --zone "$1" --project {{ global.project }} "$2" || true' argv0
    secrets:
     - name: test-gsa-key
       namespace:
@@ -1817,6 +1851,7 @@ steps:
     - test_batch
     - test_ci
     - test_hailtop_batch
+    - test_query
  - kind: runImage
    name: test_dataproc
    image:

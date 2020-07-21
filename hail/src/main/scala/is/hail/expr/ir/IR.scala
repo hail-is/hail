@@ -263,6 +263,23 @@ final case class StreamZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: 
   lazy val nameIdx: Map[String, Int] = names.zipWithIndex.toMap
   override def typ: TStream = coerce[TStream](super.typ)
 }
+final case class StreamMultiMerge(as: IndexedSeq[IR], key: IndexedSeq[String]) extends IR {
+  override def typ: TStream = coerce[TStream](super.typ)
+  override def pType: PStream = coerce[PStream](super.pType)
+}
+final case class StreamZipJoin(as: IndexedSeq[IR], key: IndexedSeq[String], curKey: String, curVals: String, joinF: IR) extends IR {
+  override def typ: TStream = coerce[TStream](super.typ)
+  override def pType: PStream = coerce[PStream](super.pType)
+  private var _curValsType: PArray = null
+  def getOrComputeCurValsType(valsType: => PType): PArray = {
+    if (_curValsType == null) _curValsType = valsType.asInstanceOf[PArray]
+    _curValsType
+  }
+  def curValsType: PArray = {
+    assert(_curValsType != null)
+    _curValsType
+  }
+}
 final case class StreamFilter(a: IR, name: String, cond: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
 }
@@ -386,7 +403,13 @@ object NDArrayQR {
     "complete" -> PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 2)))
 }
 
+object NDArrayInv {
+  val pType = PCanonicalNDArray(PFloat64Required, 2)
+}
+
 final case class NDArrayQR(nd: IR, mode: String) extends IR
+
+final case class NDArrayInv(nd: IR) extends IR
 
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 
@@ -430,6 +453,7 @@ final case class CombOp(i1: Int, i2: Int, aggSig: PhysicalAggSig) extends IR
 final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[PhysicalAggSig]) extends IR
 final case class CombOpValue(i: Int, value: IR, aggSig: PhysicalAggSig) extends IR
 final case class AggStateValue(i: Int, aggSig: AggStateSig) extends IR
+final case class InitFromSerializedValue(i: Int, value: IR, aggSig: AggStateSig) extends IR
 
 final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSig]) extends IR
 final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSig]) extends IR
@@ -602,7 +626,9 @@ object PartitionWriter {
 object MetadataWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
-      classOf[MetadataNativeWriter],
+      classOf[RVDSpecWriter],
+      classOf[TableSpecWriter],
+      classOf[RelationalWriter],
       classOf[RVDSpecMaker],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec])
@@ -699,39 +725,30 @@ class PrimitiveIR(val self: IR) extends AnyVal {
   def >=(other: IR): IR = ApplyComparisonOp(GTEQ(self.typ, other.typ), self, other)
 }
 
-final case class ShuffleStart(
-  keyFields: Array[SortField],
+final case class ShuffleWith(
+  keyFields: IndexedSeq[SortField],
   rowType: TStruct,
   rowEType: EBaseStruct,
-  keyEType: EBaseStruct
-) extends IR
+  keyEType: EBaseStruct,
+  name: String,
+  writer: IR,
+  readers: IR
+) extends IR {
+  val shuffleType = TShuffle(keyFields, rowType, rowEType, keyEType)
+  val shufflePType = PCanonicalShuffle(shuffleType, true)
+}
 
 final case class ShuffleWrite(
   id: IR,
-  partitionId: IR,
   rows: IR
 ) extends IR
 
-final case class ShuffleWritingFinished(
+final case class ShufflePartitionBounds(
   id: IR,
-  successfulPartitionIds: IR
-) extends IR
-
-final case class ShuffleGetPartitionBounds(
-  id: IR,
-  nPartitions: IR,
-  keyFields: Array[SortField],
-  rowType: TStruct,
-  keyEType: EBaseStruct
+  nPartitions: IR
 ) extends IR
 
 final case class ShuffleRead(
   id: IR,
-  keyRange: IR,
-  rowType: TStruct,
-  rowEType: EBaseStruct
-) extends IR
-
-final case class ShuffleDelete(
-  id: IR
+  keyRange: IR
 ) extends IR

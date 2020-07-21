@@ -9,7 +9,7 @@ from hail.expr.expressions import Expression, StructExpression, \
     construct_reference, to_expr, construct_expr, extract_refs_by_indices, \
     ExpressionException, TupleExpression, unify_all, NumericExpression, \
     StringExpression, CallExpression, CollectionExpression, DictExpression, \
-    IntervalExpression, LocusExpression
+    IntervalExpression, LocusExpression, NDArrayExpression
 from hail.expr.types import hail_type, tstruct, types_match, tarray, tset
 from hail.expr.table_type import ttable
 import hail.ir as ir
@@ -2441,10 +2441,6 @@ class Table(ExprContainer):
 
         return Table(ir.TableJoin(self._tir, right._tir, how, len(self.key)))
 
-    def _zip_join(self, right):
-        assert self.key.dtype == right.key.dtype
-        return Table(ir.TableJoin(self._tir, right._tir, 'zip', len(self.key)))
-
     @typecheck_method(expr=BooleanExpression)
     def all(self, expr):
         """Evaluate whether a boolean expression is true for all rows.
@@ -2589,6 +2585,8 @@ class Table(ExprContainer):
             elif isinstance(e, CallExpression):
                 return hl.struct(alleles=hl.map(lambda i: e[i], hl.range(0, e.ploidy)),
                                  phased=e.phased)
+            elif isinstance(e, NDArrayExpression):
+                return hl.struct(shape=e.shape, data=_expand(e._data_array()))
             else:
                 assert isinstance(e, (NumericExpression, BooleanExpression, StringExpression))
                 return e
@@ -3269,22 +3267,23 @@ class Table(ExprContainer):
         left_value = Env.get_uid()
         left = self
         left = left.select_globals(**{left_global_value: left.globals})
-        left = left.select(**{left_value: left._row})
+        left = left.group_by(_key=left.key).aggregate(**{left_value: hl.agg.collect(left.row_value)})
 
         right_global_value = Env.get_uid()
         right_value = Env.get_uid()
         right = other
         right = right.select_globals(**{right_global_value: right.globals})
-        right = right.select(**{right_value: right._row})
+        right = right.group_by(_key=right.key).aggregate(**{right_value: hl.agg.collect(right.row_value)})
 
-        t = left._zip_join(right)
+        t = left.join(right, how='outer')
 
         if not hl.eval(_values_similar(t[left_global_value], t[right_global_value], tolerance, absolute)):
             g = hl.eval(t.globals)
             print(f'Table._same: globals differ: {g[left_global_value]}, {g[right_global_value]}')
             return False
 
-        if not t.all(_values_similar(t[left_value], t[right_value], tolerance, absolute)):
+        if not t.all(hl.is_defined(t[left_value]) & hl.is_defined(t[right_value])
+                     & _values_similar(t[left_value], t[right_value], tolerance, absolute)):
             print('Table._same: rows differ:')
             t = t.filter(~ _values_similar(t[left_value], t[right_value], tolerance, absolute))
             bad_rows = t.take(10)

@@ -178,7 +178,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
           }
         }
       }
-      ob2.load().flush()
+      ob2.flush()
     }
 
     fb.resultWithIndex()(0, region)

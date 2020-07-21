@@ -45,9 +45,9 @@ final case class EBlockMatrixNDArray(elementType: EType, override val required: 
     Code(
       r := pnd.loadShape(ndarray, 0),
       c := pnd.loadShape(ndarray, 1),
-      out.get.writeInt(r.toI),
-      out.get.writeInt(c.toI),
-      out.get.writeBoolean(true),
+      out.writeInt(r.toI),
+      out.writeInt(c.toI),
+      out.writeBoolean(true),
       Code.forLoop(i := 0L, i < r, i := i + 1L,
         Code.forLoop(j := 0L, j < c, j := j + 1L,
           writeElemF(pnd.loadElementToIRIntermediate(FastIndexedSeq(i, j), ndarray, mb),

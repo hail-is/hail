@@ -117,6 +117,7 @@ object PType {
       case TFloat64 => PFloat64(required)
       case TBoolean => PBoolean(required)
       case TBinary => PCanonicalBinary(required)
+      case t: TShuffle => PCanonicalShuffle(t, required)
       case TString => PCanonicalString(required)
       case TCall => PCanonicalCall(required)
       case t: TLocus => PCanonicalLocus(t.rg, required)

@@ -1,10 +1,9 @@
 import re
-import subprocess as sp
-import sys
 
 import pkg_resources
 import yaml
 
+from . import gcloud
 from .cluster_config import ClusterConfig
 
 DEFAULT_PROPERTIES = {
@@ -248,7 +247,7 @@ def main(args, pass_through_args):
             conf.extend_flag("properties", {"spark:spark.hadoop.fs.gs.requester.pays.buckets": ",".join(requester_pays_bucket_sources)})
 
         # Need to pick requester pays project.
-        requester_pays_project = args.project if args.project else sp.check_output(['gcloud', 'config', 'get-value', 'project']).decode().strip()
+        requester_pays_project = args.project if args.project else gcloud.get_config("project")
 
         conf.extend_flag("properties", {"spark:spark.hadoop.fs.gs.requester.pays.mode": requester_pays_mode,
                                         "spark:spark.hadoop.fs.gs.requester.pays.project.id": requester_pays_project})
@@ -257,10 +256,7 @@ def main(args, pass_through_args):
     if args.region:
         project_region = args.region
     else:
-        try:
-            project_region = sp.check_output(['gcloud', 'config', 'get-value', 'dataproc/region'], stderr=sp.DEVNULL).decode().strip()
-        except sp.CalledProcessError:
-            project_region = None
+        project_region = gcloud.get_config("dataproc/region")
 
     if not project_region:
         raise RuntimeError("Could not determine dataproc region. Use --region argument to hailctl, or use `gcloud config set dataproc/region <my-region>` to set a default.")
@@ -330,11 +326,9 @@ def main(args, pass_through_args):
     if args.bucket:
         conf.flags['bucket'] = args.bucket
 
-    try:
-        label = sp.check_output(['gcloud', 'config', 'get-value', 'account'])
-        conf.flags['labels'] = 'creator=' + re.sub(r'[^0-9a-z_\-]', '_', label.decode().strip().lower())[:63]
-    except sp.CalledProcessError as e:
-        sys.stderr.write("Warning: could not run 'gcloud config get-value account': " + e.output.decode() + "\n")
+    account = gcloud.get_config("account")
+    if account:
+        conf.flags['labels'] = 'creator=' + re.sub(r'[^0-9a-z_\-]', '_', account.lower())[:63]
 
     # rewrite metadata and properties to escape them
     conf.flags['metadata'] = '^|||^' + '|||'.join(f'{k}={v}' for k, v in conf.flags['metadata'].items())
@@ -358,9 +352,16 @@ def main(args, pass_through_args):
     # spin up cluster
     if not args.dry_run:
         print("Starting cluster '{}'...".format(args.name))
-        sp.check_call(cmd)
+        gcloud.run(cmd[1:])
 
-        if args.master_tags:
-            sp.check_call([
-                'gcloud', 'compute', 'instances', 'add-tags', args.name + '-m', '--tags',
-                args.master_tags])
+    if args.master_tags:
+        add_tags_command = ['compute', 'instances', 'add-tags', args.name + '-m', '--tags', args.master_tags]
+
+        if args.project:
+            add_tags_command.append(f"--project={args.project}")
+        if args.zone:
+            add_tags_command.append(f"--zone={args.zone}")
+
+        print('gcloud ' + ' '.join(add_tags_command))
+        if not args.dry_run:
+            gcloud.run(add_tags_command)

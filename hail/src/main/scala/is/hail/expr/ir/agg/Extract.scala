@@ -1,16 +1,13 @@
 package is.hail.expr.ir.agg
 
-import is.hail.HailContext
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.asm4s._
 import is.hail.expr.ir
 import is.hail.expr.ir._
-import is.hail.expr.ir.lowering.LoweringPipeline
+import is.hail.io.BufferSpec
 import is.hail.types.TypeWithRequiredness
 import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.io.BufferSpec
-import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -43,6 +40,7 @@ object AggStateSig {
       case Downsample() =>
         val Seq(_, _, labelType: PArray) = seqPTypes
         DownsampleStateSig(labelType)
+      case ImputeType() => ImputeTypeStateSig()
       case _ => throw new UnsupportedExtraction(op.toString)
     }
   }
@@ -61,6 +59,7 @@ object AggStateSig {
     case CollectAsSetStateSig(pt) => new AppendOnlySetState(cb, pt)
     case CallStatsStateSig() => new CallStatsState(cb)
     case ApproxCDFStateSig() => new ApproxCDFState(cb)
+    case ImputeTypeStateSig() => new ImputeTypeState(cb)
     case ArrayAggStateSig(nested) => new ArrayElementState(cb, StateTuple(nested.map(sig => AggStateSig.getState(sig, cb)).toArray))
     case GroupedStateSig(kt, nested) => new DictState(cb, kt, StateTuple(nested.map(sig => AggStateSig.getState(sig, cb)).toArray))
   }
@@ -74,6 +73,7 @@ case class TakeByStateSig(vt: PType, kt: PType, so: SortOrder) extends AggStateS
 case class CollectStateSig(pt: PType) extends AggStateSig(Array(pt), None)
 case class CollectAsSetStateSig(pt: PType) extends AggStateSig(Array(pt), None)
 case class CallStatsStateSig() extends AggStateSig(Array[PType](), None)
+case class ImputeTypeStateSig() extends AggStateSig(Array[PType](), None)
 case class ArrayAggStateSig(nested: Seq[AggStateSig]) extends AggStateSig(Array[PType](), Some(nested))
 case class GroupedStateSig(kt: PType, nested: Seq[AggStateSig]) extends AggStateSig(Array(kt), Some(nested))
 case class ApproxCDFStateSig() extends AggStateSig(Array[PType](), None)
@@ -123,7 +123,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
   def eltOp(ctx: ExecuteContext): IR = seqPerElt
 
   def deserialize(ctx: ExecuteContext, spec: BufferSpec): ((Region, Array[Byte]) => Long) = {
-    val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
+    val (_, f) = ir.CompileWithAggregators[AsmFunction1RegionUnit](ctx,
       states,
       FastIndexedSeq(),
       FastIndexedSeq(classInfo[Region]), UnitInfo,
@@ -139,7 +139,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
   }
 
   def serialize(ctx: ExecuteContext, spec: BufferSpec): (Region, Long) => Array[Byte] = {
-    val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
+    val (_, f) = ir.CompileWithAggregators[AsmFunction1RegionUnit](ctx,
       states,
       FastIndexedSeq(),
       FastIndexedSeq(classInfo[Region]), UnitInfo,
@@ -154,19 +154,25 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
   }
 
   def combOpFSerialized(ctx: ExecuteContext, spec: BufferSpec): (Array[Byte], Array[Byte]) => Array[Byte] = {
-    val deserialize = this.deserialize(ctx, spec)
-    val serialize = this.serialize(ctx, spec)
-    val combOp = this.combOpF(ctx, spec)
+    val (_, f) = ir.CompileWithAggregators[AsmFunction1RegionUnit](ctx,
+      states ++ states,
+      FastIndexedSeq(),
+      FastIndexedSeq(classInfo[Region]), UnitInfo,
+      Begin(FastSeq(
+        ir.DeserializeAggs(0, 0, spec, states),
+        ir.DeserializeAggs(nAggs, 1, spec, states),
+        Begin(aggs.zipWithIndex.map { case (sig, i) => CombOp(i, i + nAggs, sig) }),
+        SerializeAggs(0, 0, spec, states)
+      )))
 
-    { (c1: Array[Byte], c2: Array[Byte]) =>
-      Region.smallScoped { r1 =>
-        Region.smallScoped { r2 =>
-          val rv1 = RegionValue(r1, deserialize(r1, c1))
-          val rv2 = RegionValue(r2, deserialize(r2, c2))
-          val resRV = combOp(rv1, rv2)
-          val res = serialize(resRV.region, resRV.offset)
-          res
-        }
+    { (bytes1: Array[Byte], bytes2: Array[Byte]) =>
+      Region.smallScoped { r =>
+        val f2 = f(0, r)
+        f2.newAggState(r)
+        f2.setSerializedAgg(0, bytes1)
+        f2.setSerializedAgg(1, bytes2)
+        f2(r)
+        f2.getSerializedAgg(0)
       }
     }
   }
@@ -208,6 +214,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
       }
 
       leftAggState.store(cb)
+      rightAggState.store(cb)
       leftAggOff
     })
 
@@ -261,6 +268,7 @@ object Extract {
     case AggSignature(PrevNonnull(), _, Seq(t)) => t
     case AggSignature(CollectAsSet(), _, Seq(t)) => TSet(t)
     case AggSignature(Collect(), _, Seq(t)) => TArray(t)
+    case AggSignature(ImputeType(), _, _) => ImputeTypeState.resultType.virtualType
     case AggSignature(LinearRegression(), _, _) =>
       LinearRegressionAggregator.resultType.virtualType
     case AggSignature(ApproxCDF(), _, _) => QuantilesAggregator.resultType.virtualType
@@ -282,6 +290,7 @@ object Extract {
     case PhysicalAggSig(LinearRegression(), TypedStateSig(_)) => new LinearRegressionAggregator(PFloat64(), PCanonicalArray(PFloat64())) // FIXME LinRegAggregator shouldn't take type
     case PhysicalAggSig(ApproxCDF(), ApproxCDFStateSig()) => new ApproxCDFAggregator
     case PhysicalAggSig(Downsample(), DownsampleStateSig(labelType)) => new DownsampleAggregator(labelType)
+    case PhysicalAggSig(ImputeType(), ImputeTypeStateSig()) => new ImputeTypeAggregator(PCanonicalString())
     case ArrayLenAggSig(knownLength, nested) => //FIXME nested things shouldn't need to know state
       new ArrayElementLengthCheckAggregator(nested.map(getAgg).toArray, knownLength)
     case AggElementsAggSig(nested) =>

@@ -186,10 +186,12 @@ class LocalBackend(Backend):
             lines += [x for r in job._mentioned for x in symlink_input_resource_group(r)]
 
             resource_defs = [r._declare(tmpdir) for r in job._mentioned]
+            env = [f'export {k}={v}' for k, v in job._env.items()]
 
             if job._image:
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
-                cmd = " && ".join(job._command)
+                env = '; '.join(env) + '; ' if env else ''
+                cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
                 memory = f'-m {job._memory}' if job._memory else ''
                 cpu = f'--cpus={job._cpu}' if job._cpu else ''
 
@@ -200,8 +202,10 @@ class LocalBackend(Backend):
                           f"{memory} "
                           f"{cpu} "
                           f"{job._image} /bin/bash "
-                          f"-c {shq(defs + cmd)}"]
+                          f"-c {shq(env + defs + cmd)}",
+                          '\n']
             else:
+                lines += env
                 lines += resource_defs
                 lines += job._command
 
@@ -213,7 +217,7 @@ class LocalBackend(Backend):
             print(lines)
         else:
             try:
-                sp.check_output(script, shell=True)
+                sp.check_call(script, shell=True)
             except sp.CalledProcessError as e:
                 print(e)
                 print(e.output)
@@ -417,7 +421,9 @@ class ServiceBackend(Backend):
 
             symlinks = [x for r in job._mentioned for x in symlink_input_resource_group(r)]
 
-            env_vars = {r._uid: r._get_path(local_tmpdir) for r in job._mentioned}
+            env_vars = {
+                **job._env,
+                **{r._uid: r._get_path(local_tmpdir) for r in job._mentioned}}
 
             if job._image is None:
                 if verbose:
@@ -426,11 +432,12 @@ class ServiceBackend(Backend):
             make_local_tmpdir = f'mkdir -p {local_tmpdir}/{job._job_id}'
             job_command = [cmd.strip() for cmd in job._command]
 
+            prepared_job_command = (f'{{\n{x}\n}}' for x in job_command)
             cmd = f'''
 {bash_flags}
 {make_local_tmpdir}
 {"; ".join(symlinks)}
-{" && ".join(job_command)}
+{" && ".join(prepared_job_command)}
 '''
 
             if dry_run:
@@ -459,6 +466,7 @@ class ServiceBackend(Backend):
                                     pvc_size=job._storage,
                                     always_run=job._always_run,
                                     timeout=job._timeout,
+                                    gcsfuse=job._gcsfuse if len(job._gcsfuse) > 0 else None,
                                     env=env_vars)
 
             n_jobs_submitted += 1

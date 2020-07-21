@@ -999,6 +999,54 @@ class Tests(unittest.TestCase):
         s = x.svd(compute_uv=False, complexity_bound=0)
         assert np.all(s >= 0)
 
+    def test_inv(self):
+        c = np.random.randn(5, 5)
+        d = np.linalg.inv(c)
+        dhail = hl.eval(hl.nd.inv(c))
+        assert np.allclose(dhail, d)
+
+    def test_concatenate(self):
+        x = np.array([[1., 2.], [3., 4.]])
+        y = np.array([[5.], [6.]])
+        np_res = np.concatenate([x, y], axis=1)
+
+        res = hl.eval(hl.nd.concatenate([x, y], axis=1))
+        assert np.array_equal(np_res, res)
+
+        x = np.array([[1], [3]])
+        y = np.array([[5], [6]])
+
+        seq = [x, y]
+        np_res = np.concatenate(seq)
+        res = hl.eval(hl.nd.concatenate(seq))
+        assert np.array_equal(np_res, res)
+
+        seq = (x, y)
+        np_res = np.concatenate(seq)
+        res = hl.eval(hl.nd.concatenate(seq))
+        assert np.array_equal(np_res, res)
+
+    def test_vstack(self):
+        a = np.array([1, 2, 3])
+        b = np.array([2, 3, 4])
+
+        seq = (a,b)
+        assert(np.array_equal(hl.eval(hl.nd.vstack(seq)), np.vstack(seq)))
+
+        a = np.array([[1], [2], [3]])
+        b = np.array([[2], [3], [4]])
+        seq = (a,b)
+        assert(np.array_equal(hl.eval(hl.nd.vstack(seq)), np.vstack(seq)))
+
+
+    def test_eye(self):
+        for i in range(13):
+            for y in range(13):
+                assert(np.array_equal(hl.eval(hl.nd.eye(i,y)), np.eye(i,y)))
+
+    def test_identity(self):
+        for i in range(13):
+            assert(np.array_equal(hl.eval(hl.nd.identity(i)), np.identity(i)))
 
     @skip_unless_spark_backend()
     def test_filtering(self):
@@ -1076,3 +1124,28 @@ class Tests(unittest.TestCase):
         sparse_bm = bm._sparsify_blocks(block_list).T
         sparse_np = sparsify_numpy(np_square, block_size, block_list).T
         assert np.array_equal(sparse_bm.to_numpy(), sparse_np)
+
+
+    @skip_unless_spark_backend()
+    def test_row_blockmatrix_sum(self):
+        
+        row = BlockMatrix.from_numpy(np.arange(10))
+        col = row.T
+
+        # Summing vertically along a column vector to get a single value
+        b = col.sum(axis=0)
+        assert b.to_numpy().shape == (1,1)
+
+        # Summing horizontally along a row vector to create a single value
+        d = row.sum(axis=1)
+        assert d.to_numpy().shape == (1,1)
+
+        # Summing vertically along a row vector to make sure nothing changes
+        e = row.sum(axis=0)
+        assert e.to_numpy().shape == (1, 10)
+
+        # Summing horizontally along a column vector to make sure nothing changes
+        f = col.sum(axis=1)
+        assert f.to_numpy().shape == (10, 1)
+
+

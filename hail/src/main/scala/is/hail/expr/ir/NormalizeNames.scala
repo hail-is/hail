@@ -112,6 +112,10 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
       case StreamZip(as, names, body, behavior) =>
         val newNames = names.map(_ => gen())
         StreamZip(as.map(normalize(_)), newNames, normalize(body, env.bindEval(names.zip(newNames): _*)), behavior)
+      case StreamZipJoin(as, key, curKey, curVals, joinF) =>
+        val newCurKey = gen()
+        val newCurVals = gen()
+        StreamZipJoin(as.map(normalize(_)), key, newCurKey, newCurVals, normalize(joinF, env.bindEval(curKey -> newCurKey, curVals -> newCurVals)))
       case StreamFilter(a, name, body) =>
         val newName = gen()
         StreamFilter(normalize(a), newName, normalize(body, env.bindEval(name, newName)))
@@ -216,6 +220,11 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         CollectDistributedArray(normalize(ctxs), normalize(globals), newC, newG, normalize(body, BindingEnv.eval(cname -> newC, gname -> newG)))
       case RelationalLet(name, value, body) =>
         RelationalLet(name, normalize(value, BindingEnv.empty), normalize(body))
+      case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
+        val newName = gen()
+        ShuffleWith(keyFields, rowType, rowEType, keyEType, newName,
+          normalize(writer, env.copy(eval = env.eval.bind(name, newName))),
+          normalize(readers, env.copy(eval = env.eval.bind(name, newName))))
       case _ =>
         Copy(ir, ir.children.map {
           case child: IR => normalize(child)

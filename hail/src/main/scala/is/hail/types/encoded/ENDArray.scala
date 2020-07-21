@@ -27,9 +27,9 @@ case class ENDArray(elementType: EType, nDims: Int, required: Boolean = false) e
     assert(pnd.elementType.required)
     val ndarray = coerce[Long](v)
 
-    val writeShapes = (0 until nDims).map(i => out.get.writeLong(pnd.loadShape(ndarray, i)))
+    val writeShapes = (0 until nDims).map(i => out.writeLong(pnd.loadShape(ndarray, i)))
     // Note, encoded strides is in terms of indices into ndarray, not bytes.
-    val writeStrides = (0 until nDims).map(i => out.get.writeLong(pnd.loadStride(ndarray, i) / pnd.elementType.byteSize))
+    val writeStrides = (0 until nDims).map(i => out.writeLong(pnd.loadStride(ndarray, i) / pnd.elementType.byteSize))
 
     val dataArrayType = EArray(elementType, required)
     val writeData = dataArrayType.buildEncoder(pnd.data.pType, mb.ecb)

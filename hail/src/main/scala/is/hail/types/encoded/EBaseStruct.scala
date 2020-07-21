@@ -141,7 +141,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
           j += 1
         }
         if (k > 0) {
-          methodC = Code(methodC, currentMB.getCodeParam[OutputBuffer](2).load().writeByte(b.toB))
+          methodC = Code(methodC, currentMB.getCodeParam[OutputBuffer](2).writeByte(b.toB))
           n += 1
         }
       }
