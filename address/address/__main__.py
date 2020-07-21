@@ -2,10 +2,6 @@ from gear import configure_logging
 # configure logging before importing anything else
 configure_logging()
 
+from .address import run  # noqa: E402
 
-def main():
-    from .address import run
-    run()
-
-
-main()
+run()
