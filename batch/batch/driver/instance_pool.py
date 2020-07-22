@@ -275,7 +275,7 @@ sudo mkfs.xfs -m reflink=1 /dev/$LOCAL_SSD_NAME
 sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME
 sudo mount -o prjquota /dev/$LOCAL_SSD_NAME /mnt/disks/$LOCAL_SSD_NAME
 sudo chmod a+w /mnt/disks/$LOCAL_SSD_NAME
-XFS_DEVICE=$(xfs_info /mnt/test_xfs | head -n 1 | awk '{ print $1 }' | awk  'BEGIN { FS = "=" }; { print $2 }')
+XFS_DEVICE=$(xfs_info /mnt/disks/$LOCAL_SSD_NAME | head -n 1 | awk '{ print $1 }' | awk  'BEGIN { FS = "=" }; { print $2 }')
 
 # reconfigure docker to use local SSD
 sudo service docker stop
