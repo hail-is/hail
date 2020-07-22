@@ -145,7 +145,7 @@ class BatchBuilder:
                    port=None, resources=None, secrets=None,
                    service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False, pvc_size=None,
-                   timeout=None, gcsfuse=None):
+                   timeout=None, gcsfuse=None, requester_pays_project=None):
         if parents:
             parents = [parent._async_job for parent in parents]
 
@@ -155,7 +155,8 @@ class BatchBuilder:
             service_account=service_account,
             attributes=attributes, parents=parents,
             input_files=input_files, output_files=output_files, always_run=always_run,
-            pvc_size=pvc_size, timeout=timeout, gcsfuse=gcsfuse)
+            pvc_size=pvc_size, timeout=timeout, gcsfuse=gcsfuse,
+            requester_pays_project=requester_pays_project)
 
         return Job.from_async_job(async_job)
 
