@@ -7,7 +7,6 @@ import uuid
 import google.oauth2.service_account
 import google.cloud.storage
 
-from hailtop.config import get_user_config
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
 from hailtop.batch.utils import arg_max
 from hailtop.utils import grouped
@@ -15,9 +14,9 @@ from hailtop.config import get_user_config
 
 
 class LocalTests(unittest.TestCase):
-    def batch(self, requester_pays=None):
+    def batch(self, requester_pays_project=None):
         return Batch(backend=LocalBackend(),
-                     requester_pays=requester_pays)
+                     requester_pays_project=requester_pays_project)
 
     def read(self, file):
         with open(file, 'r') as f:
@@ -327,11 +326,11 @@ class BatchTests(unittest.TestCase):
     def tearDown(self):
         self.backend.close()
 
-    def batch(self, requester_pays=None):
+    def batch(self, requester_pays_project=None):
         return Batch(backend=self.backend,
                      default_image='google/cloud-sdk:237.0.0-alpine',
                      attributes={'foo': 'a', 'bar': 'b'},
-                     requester_pays=requester_pays)
+                     requester_pays_project=requester_pays_project)
 
     def test_single_task_no_io(self):
         b = self.batch()
@@ -477,7 +476,7 @@ class BatchTests(unittest.TestCase):
         assert b.run().status()['state'] == 'failure'
 
     def test_requester_pays(self):
-        b = self.batch(requester_pays='hail-vdc')
+        b = self.batch(requester_pays_project='hail-vdc')
         input = b.read_input('gs://hail-services-requester-pays/hello')
         j = b.new_job()
         j.command(f'cat {input}')

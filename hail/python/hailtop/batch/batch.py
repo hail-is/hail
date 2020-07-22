@@ -50,7 +50,7 @@ class Batch:
     attributes: :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Key-value pairs of additional attributes. 'name' is not a valid keyword.
         Use the name argument instead.
-    requester_pays: :obj:`str`, optional
+    requester_pays_project: :obj:`str`, optional
         The name of the Google project to be billed when accessing requester pays buckets.
     default_image: :obj:`str`, optional
         Docker image to use by default if not specified by a job.
@@ -85,7 +85,7 @@ class Batch:
                  name: Optional[str] = None,
                  backend: Optional[Backend] = None,
                  attributes: Optional[Dict[str, str]] = None,
-                 requester_pays: Optional[str] = None,
+                 requester_pays_project: Optional[str] = None,
                  default_image: Optional[str] = None,
                  default_memory: Optional[str] = None,
                  default_cpu: Optional[str] = None,
@@ -105,7 +105,7 @@ class Batch:
             raise BatchException("'name' is not a valid attribute. Use the name argument instead.")
         self.attributes = attributes
 
-        self.requester_pays = requester_pays
+        self.requester_pays_project = requester_pays_project
 
         self._default_image = default_image
         self._default_memory = default_memory
