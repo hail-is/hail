@@ -45,7 +45,7 @@ class ResourceFile(Resource, str):
         cls._counter += 1
         return uid
 
-    def __new__(cls, value):  # pylint: disable=W0613
+    def __new__(cls, *args, **kwargs):  # pylint: disable=W0613
         uid = ResourceFile._new_uid()
         r = str.__new__(cls, uid)
         r._uid = uid
