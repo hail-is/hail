@@ -27,7 +27,6 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.annotation.meta.param
 import scala.annotation.switch
-import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.language.implicitConversions
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue}
