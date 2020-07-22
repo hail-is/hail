@@ -2254,7 +2254,7 @@ class BlockMatrixMultiWrite(IR):
         self.writer = writer
 
     def copy(self, *block_matrices):
-        return BlockMatrixWrite(block_matrices, self.writer)
+        return BlockMatrixMultiWrite(block_matrices, self.writer)
 
     def head_str(self):
         return f'"{self.writer.render()}"'

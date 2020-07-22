@@ -11,6 +11,8 @@ from hail.expr.expressions import (
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
 from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat
 
+tsequenceof_nd = oneof(sequenceof(expr_ndarray()), tupleof(expr_ndarray()))
+
 
 def array(input_array):
     """Construct an :class:`.NDArrayExpression`
@@ -278,7 +280,7 @@ def inv(nd):
     return construct_expr(ir, tndarray(tfloat64, 2))
 
 
-@typecheck(nds=oneof(sequenceof(expr_ndarray()), tupleof(expr_ndarray())), axis=int)
+@typecheck(nds=tsequenceof_nd, axis=int)
 def concatenate(nds, axis=0):
     """Join a sequence of arrays along an existing axis.
 
@@ -400,7 +402,7 @@ def identity(N, dtype=hl.tfloat64):
     return eye(N, dtype=dtype)
 
 
-@typecheck(arrs=oneof(sequenceof(expr_ndarray()), tupleof(expr_ndarray())))
+@typecheck(arrs=tsequenceof_nd)
 def vstack(arrs):
     """
     Stack arrays in sequence vertically (row wise).
@@ -446,3 +448,51 @@ def vstack(arrs):
         arrays = arrs
 
     return concatenate(arrays, 0)
+
+
+@typecheck(arrs=tsequenceof_nd)
+def hstack(arrs):
+    """
+    Stack arrays in sequence horizontally (column wise).
+    Equivalent to concatenation along the second axis, except for 1-D
+    arrays where it concatenates along the first axis.
+
+    This function makes most sense for arrays with up to 3 dimensions.
+    :func:`.concatenate` provides more general stacking and concatenation operations.
+
+    Parameters
+    ----------
+    tup : sequence of :class:`.NDArrayExpression`
+        The arrays must have the same shape along all but the second axis,
+        except 1-D arrays which can be any length.
+
+    Returns
+    -------
+    stacked : :class:`.NDArrayExpression`
+        The array formed by stacking the given arrays.
+
+    See Also
+    --------
+    :func:`.concatenate`
+    :func:`.vstack`
+
+    Examples
+    --------
+    >>> a = hl.nd.array([1,2,3])
+    >>> b = hl.nd.array([2,3,4])
+    >>> hl.eval(hl.nd.hstack((a,b)))
+    array([1, 2, 3, 2, 3, 4], dtype=int32)
+    >>> a = hl.nd.array([[1],[2],[3]])
+    >>> b = hl.nd.array([[2],[3],[4]])
+    >>> hl.eval(hl.nd.hstack((a,b)))
+    array([[1, 2],
+           [2, 3],
+           [3, 4]], dtype=int32)
+    """
+
+    if arrs[0].ndim == 1:
+        axis = 0
+    else:
+        axis = 1
+
+    return concatenate(arrs, axis)
