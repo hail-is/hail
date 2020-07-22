@@ -1232,9 +1232,9 @@ object LoadVCF {
       .getHeaderValue
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
-    val filterAttrs: VCFAttributes = header.asScala
+    val filterAttrs: VCFAttributes = header
       .getFilterLines
-      .toList
+      .toList.asScala
       // (ID, description)
       .map(line => (line.getID, Map("Description" -> line.getDescription)))
       .toMap
