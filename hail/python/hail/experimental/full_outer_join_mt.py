@@ -23,8 +23,8 @@ def full_outer_join_mt(left: hl.MatrixTable, right: hl.MatrixTable) -> hl.Matrix
     >>> mt1 = hl.balding_nichols_model(1, 2, 3)
     >>> mt2 = hl.balding_nichols_model(1, 2, 3)
     >>> mt2 = mt2.key_rows_by(locus=hl.locus(mt2.locus.contig,
-                                             mt2.locus.position+2),
-                              alleles=mt2.alleles)
+    ...                                      mt2.locus.position+2),
+    ...                       alleles=mt2.alleles)
     >>> mt2 = mt2.key_cols_by(sample_idx=mt2.sample_idx+2)
     >>> mt1.show()
     +---------------+------------+------+------+
