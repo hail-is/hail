@@ -1028,6 +1028,32 @@ class Tests(unittest.TestCase):
         s = x.svd(compute_uv=False, complexity_bound=0)
         assert np.all(s >= 0)
 
+    def test_ndarray(self):
+        a1 = hl.eval(hl.nd.array((1,2,3)))
+        a2 = hl.eval(hl.nd.array([1,2,3]))
+        an1 = np.array((1,2,3))
+        an2 = np.array([1,2,3])
+
+        assert(np.array_equal(a1, a2) and np.array_equal(a2, an2))
+
+        a1 = hl.eval(hl.nd.array(((1), (2), (3))))
+        a2 = hl.eval(hl.nd.array(([1], [2], [3])))
+        a3 = hl.eval(hl.nd.array([[1], [2], [3]]))
+
+        an1 = np.array(((1), (2), (3)))
+        an2 = np.array(([1], [2], [3]))
+        an3 = np.array([[1], [2], [3]])
+
+        assert(np.array_equal(a1, an1) and np.array_equal(a2, an2) and np.array_equal(a3, an3))
+
+        a1 = hl.eval(hl.nd.array(((1,2),(2,5),(3,8))))
+        a2 = hl.eval(hl.nd.array([[1,2],[2,5],[3,8]]))
+
+        an1 = np.array(((1,2),(2,5),(3,8)))
+        an2 = np.array([[1,2],[2,5],[3,8]])
+
+        assert(np.array_equal(a1, an1) and np.array_equal(a2, an2))
+
     def test_inv(self):
         c = np.random.randn(5, 5)
         d = np.linalg.inv(c)
@@ -1067,7 +1093,6 @@ class Tests(unittest.TestCase):
         seq = (a,b)
         assert(np.array_equal(hl.eval(hl.nd.vstack(seq)), np.vstack(seq)))
 
-
     def test_hstack(self):
         a = np.array([1,2,3])
         b = np.array([2,3,4])
@@ -1076,7 +1101,6 @@ class Tests(unittest.TestCase):
         a = np.array([[1],[2],[3]])
         b = np.array([[2],[3],[4]])
         assert(np.array_equal(hl.eval(hl.nd.hstack((a,b))), np.hstack((a,b))))
-
 
     def test_eye(self):
         for i in range(13):
