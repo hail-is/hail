@@ -339,7 +339,7 @@ class GenericLinesRDD(
 
   def compute(split: Partition, context: TaskContext): Iterator[GenericLine] = {
     val it = body(split.asInstanceOf[GenericLinesRDDPartition].context)
-    TaskContext.get.addTaskCompletionListener { _ =>
+    TaskContext.get.addTaskCompletionListener[Unit] { _ =>
       it.close()
     }
     it
