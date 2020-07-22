@@ -1068,6 +1068,16 @@ class Tests(unittest.TestCase):
         assert(np.array_equal(hl.eval(hl.nd.vstack(seq)), np.vstack(seq)))
 
 
+    def test_hstack(self):
+        a = np.array([1,2,3])
+        b = np.array([2,3,4])
+        assert(np.array_equal(hl.eval(hl.nd.hstack((a,b))), np.hstack((a,b))))
+
+        a = np.array([[1],[2],[3]])
+        b = np.array([[2],[3],[4]])
+        assert(np.array_equal(hl.eval(hl.nd.hstack((a,b))), np.hstack((a,b))))
+
+
     def test_eye(self):
         for i in range(13):
             for y in range(13):
