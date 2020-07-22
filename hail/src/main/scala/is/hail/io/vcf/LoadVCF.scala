@@ -1237,6 +1237,7 @@ object LoadVCF {
       // (ID, description)
       .map(line => (line.getID, Map("Description" -> line.getDescription)))
       .toMap
+      .asScala
 
     val infoHeader = header.getInfoHeaderLines
     val (infoSignature, infoAttrs, infoFlagFields) = headerSignature(infoHeader, callFields, TFloat64)
