@@ -491,18 +491,10 @@ abstract class StagedRegion {
   def allocate(a: Code[Long], n: Code[Long]): Code[Long]
 
   def createChildRegion(cb: CodeBuilder): StagedOwnedRegion
-
-//  def takeOwnershipOf(other: Code[RegionMemory]): Code[Unit]
-//
-//  def shareOwnershipOf(other: Code[RegionMemory]): Code[Unit]
 }
 
 abstract class StagedOwnedRegion extends StagedRegion {
   def free(): Code[Unit]
-
-//  def moveTo(dest: StagedRegion): Code[Unit]
-
-//  def shareWith(dest: StagedRegion): Code[Unit]
 
   def giveToParent(): Code[Unit]
 
@@ -527,21 +519,8 @@ class RealStagedRegion(r: Settable[RegionMemory], parent: Value[RegionMemory]) e
   def shareWithParent(): Code[Unit] =
     parent.invoke("addReferenceTo", r)
 
-//  def takeOwnershipOf(other: Code[RegionMemory]): Code[Unit] =
-//    r.invoke("takeOwnershipOf", other)
-//
-//  def shareOwnershipOf(other: Code[RegionMemory]): Code[Unit] =
-//    r.invoke("addReferenceTo", other)
-
   def free(): Code[Unit] =
     Code(r.invoke("release"), r := Code._null)
-
-//  def moveTo(dest: StagedRegion): Code[Unit] = Code(
-//    dest.takeOwnershipOf(r),
-//    r := Code._null)
-//
-//  def shareWith(dest: StagedRegion): Code[Unit] =
-//    dest.shareOwnershipOf(r)
 }
 
 class DummyStagedRegion(r: RealStagedRegion) extends StagedOwnedRegion {
@@ -555,18 +534,7 @@ class DummyStagedRegion(r: RealStagedRegion) extends StagedOwnedRegion {
 
   def shareWithParent(): Code[Unit] = Code._empty
 
-//  def takeOwnershipOf(other: Code[RegionMemory]): Code[Unit] = r.takeOwnershipOf(other)
-//
-//  def shareOwnershipOf(other: Code[RegionMemory]): Code[Unit] = r.shareOwnershipOf(other)
-
   def free(): Code[Unit] = Code._empty
-
-//  def moveTo(dest: StagedRegion): Code[Unit] = Code(
-//    dest.takeOwnershipOf(r),
-//    r := Code._null)
-//
-//  def shareWith(dest: StagedRegion): Code[Unit] =
-//    dest.shareOwnershipOf(r)
 }
 
 abstract class StagedRegionPool {
