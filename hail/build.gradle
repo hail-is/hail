@@ -80,7 +80,7 @@ compileScala {
         "-unchecked",
         "-Xlint:-infer-any",
         "-Xlint:-unsound-match",
-    //    "-Xlint:-unused"
+        "-Xlint:-unused"
     ]
 
     scalaCompileOptions.forkOptions.with {
