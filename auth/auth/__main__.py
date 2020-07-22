@@ -3,9 +3,6 @@ from gear import configure_logging
 configure_logging()
 
 
-def main():
-    from .auth import run
-    run()
+from .auth import run  # noqa: E402 pylint: disable=wrong-import-position
 
-
-main()
+run()
