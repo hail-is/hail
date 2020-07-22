@@ -1,11 +1,16 @@
 #!/bin/bash
 
+curl -sSO https://dl.google.com/cloudagents/add-logging-agent-repo.sh
+bash add-logging-agent-repo.sh
+
 apt-get update
 
 apt-get install -y \
     apt-transport-https \
     ca-certificates \
     curl \
+    google-fluentd \
+    google-fluentd-catch-all-config-structured \
     jq \
     software-properties-common
 
@@ -34,5 +39,7 @@ docker-credential-gcr configure-docker
 
 docker pull ubuntu:18.04
 docker pull google/cloud-sdk:269.0.0-alpine
+
+service google-fluentd start
 
 shutdown -h now
