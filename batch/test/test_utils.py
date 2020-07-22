@@ -1,4 +1,5 @@
-from batch.utils import adjust_cores_for_packability, parse_memory_in_bytes
+from hailtop.batch_client.parse import parse_memory_in_bytes
+from batch.utils import adjust_cores_for_packability
 
 
 def test_packability():

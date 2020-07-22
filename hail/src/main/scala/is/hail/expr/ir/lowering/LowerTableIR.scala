@@ -1,10 +1,10 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.expr.ir._
-import is.hail.types.virtual._
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
-import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner}
-import is.hail.types.{BaseTypeWithRequiredness, RTable, TableType, TypeWithRequiredness}
+import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
+import is.hail.types.virtual._
+import is.hail.types.{RTable, TableType}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -513,6 +513,96 @@ object LowerTableIR {
             Let("global", loweredChild.globals,
                 StreamFilter(rows, "row", cond))
           }
+
+        case TableFilterIntervals(child, intervals, keep) =>
+          val loweredChild = lower(child)
+          val part = loweredChild.partitioner
+          val kt = child.typ.keyType
+          val ord = PartitionBoundOrdering(kt)
+          val iord = ord.intervalEndpointOrdering
+          val nPartitions = part.numPartitions
+
+
+          val filterPartitioner = new RVDPartitioner(kt, Interval.union(intervals.toArray, ord.intervalEndpointOrdering))
+          val boundsType = TArray(RVDPartitioner.intervalIRRepresentation(kt))
+          val filterIntervalsRef = Ref(genUID(), boundsType)
+          val filterIntervals: IndexedSeq[Row] = filterPartitioner.rangeBounds.map { i =>
+            RVDPartitioner.intervalToIRRepresentation(i, kt.size)
+          }
+
+          val (newRangeBounds, includedIndices, startAndEndInterval, f) = if (keep) {
+            val (newRangeBounds, includedIndices, startAndEndInterval) = part.rangeBounds.zipWithIndex.flatMap { case (interval, i) =>
+              if (filterPartitioner.overlaps(interval)) {
+                Some((interval, i, (filterPartitioner.lowerBoundInterval(interval).min(nPartitions), filterPartitioner.upperBoundInterval(interval).min(nPartitions))))
+              } else None
+            }.unzip3
+
+            val f: (IR, IR) => IR = {
+              case (partitionIntervals, key) =>
+                // FIXME: don't do a linear scan over intervals. Fine at first to get the plumbing right
+                foldIR(ToStream(partitionIntervals), False()) { case (acc, elt) =>
+                  acc || invoke("partitionIntervalContains",
+                    TBoolean,
+                    elt,
+                    key)
+                }
+            }
+            (newRangeBounds, includedIndices, startAndEndInterval, f)
+          } else {
+            // keep = False
+            val (newRangeBounds, includedIndices, startAndEndInterval) = part.rangeBounds.zipWithIndex.flatMap { case (interval, i) =>
+              val lowerBound = filterPartitioner.lowerBoundInterval(interval)
+              val upperBound = filterPartitioner.upperBoundInterval(interval)
+              if ((lowerBound until upperBound).map(filterPartitioner.rangeBounds).exists { filterInterval =>
+                iord.compareNonnull(filterInterval.left, interval.left) <= 0 && iord.compareNonnull(filterInterval.right, interval.right) >= 0
+              })
+                None
+              else Some((interval, i, (lowerBound.min(nPartitions), upperBound.min(nPartitions))))
+            }.unzip3
+
+            val f: (IR, IR) => IR = {
+              case (partitionIntervals, key) =>
+                // FIXME: don't do a linear scan over intervals. Fine at first to get the plumbing right
+                foldIR(ToStream(partitionIntervals), True()) { case (acc, elt) =>
+                  acc && !invoke("partitionIntervalContains",
+                    TBoolean,
+                    elt,
+                    key)
+                }
+            }
+            (newRangeBounds, includedIndices, startAndEndInterval, f)
+          }
+
+          val newPart = new RVDPartitioner(kt, newRangeBounds)
+
+          TableStage(
+            letBindings = loweredChild.letBindings,
+            broadcastVals = loweredChild.broadcastVals ++ FastIndexedSeq((filterIntervalsRef.name, Literal(boundsType, filterIntervals))),
+            loweredChild.globals,
+            newPart,
+            contexts = bindIRs(
+              ToArray(loweredChild.contexts),
+              Literal(TArray(TTuple(TInt32, TInt32)), startAndEndInterval.map { case (start, end) => Row(start, end) }.toFastIndexedSeq)
+            ) { case Seq(prevContexts, bounds) =>
+              zip2(ToStream(Literal(TArray(TInt32), includedIndices.toFastIndexedSeq)), ToStream(bounds), ArrayZipBehavior.AssumeSameLength) { (idx, bound) =>
+                MakeStruct(FastSeq(("prevContext", ArrayRef(prevContexts, idx)), ("bounds", bound)))
+              }
+            },
+            { (part: Ref) =>
+              val oldPart = loweredChild.partition(GetField(part, "prevContext"))
+              bindIR(GetField(part, "bounds")) { bounds =>
+                bindIRs(GetTupleElement(bounds, 0), GetTupleElement(bounds, 1)) { case Seq(startIntervalIdx, endIntervalIdx) =>
+                  bindIR(ToArray(mapIR(rangeIR(startIntervalIdx, endIntervalIdx)) { i => ArrayRef(filterIntervalsRef, i) })) { partitionIntervals =>
+                    filterIR(oldPart) { row =>
+                      bindIR(SelectFields(row, child.typ.key)) { key =>
+                        f(partitionIntervals, key)
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          )
 
         case TableHead(child, targetNumRows) =>
           val loweredChild = lower(child)
