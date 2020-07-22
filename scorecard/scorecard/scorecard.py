@@ -10,7 +10,8 @@ import humanize
 import logging
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
-from gear import setup_aiohttp_session, web_maybe_authenticated_user, AccessLogger
+from hailtop.hail_logging import AccessLogger
+from gear import setup_aiohttp_session, web_maybe_authenticated_user
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
 log = logging.getLogger('scorecard')

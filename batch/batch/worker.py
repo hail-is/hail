@@ -27,7 +27,7 @@ from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
 # import uvloop
 
 from hailtop.config import DeployConfig
-from gear import configure_logging
+from hailtop.hail_logging import configure_logging
 
 from .utils import (adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes,
                     adjust_cores_for_packability)
