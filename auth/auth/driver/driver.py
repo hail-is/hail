@@ -9,7 +9,7 @@ import asyncio
 import aiohttp
 import kubernetes_asyncio as kube
 from hailtop.utils import time_msecs
-from hailtop.utils.sql_config import create_secret_data_from_config
+from hailtop.auth.sql_config import create_secret_data_from_config
 from hailtop import aiogoogle
 from gear import create_session, Database
 
