@@ -1233,6 +1233,7 @@ object LoadVCF {
 
     val filterAttrs: VCFAttributes = header
       .getFilterLines
+      .asScala
       .toList
       // (ID, description)
       .map(line => (line.getID, Map("Description" -> line.getDescription)))
