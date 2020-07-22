@@ -79,7 +79,8 @@ compileScala {
         "-deprecation",
         "-unchecked",
         "-Xlint:-infer-any",
-        "-Xlint:-unsound-match"
+        "-Xlint:-unsound-match",
+        "-Xlint:-unused"
     ]
 
     scalaCompileOptions.forkOptions.with {
