@@ -36,7 +36,6 @@ class BlockMatrixIRSuite extends HailSuite {
   }
 
   @Test def testBlockMatrixWriteRead() {
-    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
     val tempPath = ctx.createTmpPath("test-blockmatrix-write-read", "bm")
     Interpret[Unit](ctx, BlockMatrixWrite(ones,
       BlockMatrixNativeWriter(tempPath, false, false, false)))
@@ -45,7 +44,6 @@ class BlockMatrixIRSuite extends HailSuite {
   }
 
   @Test def testBlockMatrixMap() {
-    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
     val sqrtIR = BlockMatrixMap(ones, "element", Apply("sqrt", FastIndexedSeq(), FastIndexedSeq(Ref("element", TFloat64)), TFloat64), false)
     val negIR = BlockMatrixMap(ones, "element", ApplyUnaryPrimOp(Negate(), Ref("element", TFloat64)), false)
     val logIR = BlockMatrixMap(ones, "element", Apply("log", FastIndexedSeq(), FastIndexedSeq(Ref("element", TFloat64)), TFloat64), true)
@@ -55,6 +53,18 @@ class BlockMatrixIRSuite extends HailSuite {
     assertBMEvalsTo(negIR, BDM.fill[Double](3, 3)(-1))
     assertBMEvalsTo(logIR, BDM.fill[Double](3, 3)(0))
     assertBMEvalsTo(absIR, BDM.fill[Double](3, 3)(1))
+  }
+
+  @Test def testBlockMatrixMap2() {
+    val onesAddOnes = makeMap2(ones, ones, Add(), UnionBlocks)
+    val onesSubOnes = makeMap2(ones, ones, Subtract(), UnionBlocks)
+    val onesMulOnes = makeMap2(ones, ones, Multiply(), IntersectionBlocks)
+    val onesDivOnes = makeMap2(ones, ones, FloatingPointDivide(), NeedsDense)
+
+    assertBMEvalsTo(onesAddOnes, BDM.fill[Double](3, 3)(1.0 + 1.0))
+    assertBMEvalsTo(onesSubOnes, BDM.fill[Double](3, 3)(1.0 - 1.0))
+    assertBMEvalsTo(onesMulOnes, BDM.fill[Double](3, 3)(1.0 * 1.0))
+    assertBMEvalsTo(onesDivOnes, BDM.fill[Double](3, 3)(1.0 / 1.0))
   }
 
   @Test def testBlockMatrixBroadcastValue_Scalars() {
