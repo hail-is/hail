@@ -22,7 +22,6 @@ import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext, TaskContex
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
-import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
