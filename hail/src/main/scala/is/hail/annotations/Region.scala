@@ -88,8 +88,8 @@ object Region {
   }
 
   def loadBit(byteOff: Long, bitOff: Long): Boolean = {
-    val b = byteOff + (bitOff >> 3)
-    (loadByte(b) & (1 << (bitOff & 7))) != 0
+    val b = byteOff.toInt + (bitOff.toInt >> 3)
+    (loadByte(b) & (1 << (bitOff.toInt & 7))) != 0
   }
 
   def setBit(byteOff: Long, bitOff: Long) {
