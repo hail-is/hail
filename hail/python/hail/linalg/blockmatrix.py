@@ -1460,7 +1460,7 @@ class BlockMatrix(object):
         return BlockMatrix(BlockMatrixDot(self._bmir, b._bmir))
 
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type), split_on_inner=int, path_prefix=nullable(str))
-    def tree_matmul(self, b, split_on_inner, path_prefix=None):
+    def tree_matmul(self, b, splits, path_prefix=None):
         """Matrix multiplication in situations with large inner dimension.
 
         This function splits a single matrix multiplication into `split_on_inner` smaller matrix multiplications,
@@ -1470,7 +1470,7 @@ class BlockMatrix(object):
         Parameters
         ----------
         b: :class:`numpy.ndarray` or :class:`BlockMatrix`
-        split_on_inner: :obj:`int`
+        splits: :obj:`int`
             The number of smaller multiplications to do.
         path_prefix: :obj:`str`
             The prefix of the path to write the block matrices to. If unspecified, writes to a tmpdir.
@@ -1488,8 +1488,8 @@ class BlockMatrix(object):
         if path_prefix is None:
             path_prefix = new_temp_file("tree_matmul_tmp")
 
-        if split_on_inner != 1:
-            inner_brange_size = int(math.ceil(self._n_block_cols / split_on_inner))
+        if splits != 1:
+            inner_brange_size = int(math.ceil(self._n_block_cols / splits))
             split_points = list(range(0, self._n_block_cols, inner_brange_size)) + [self._n_block_cols]
             inner_ranges = list(zip(split_points[:-1], split_points[1:]))
             blocks_to_multiply = [(self._select_blocks((0, self._n_block_rows), (start, stop)),
