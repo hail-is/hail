@@ -1208,7 +1208,7 @@ object LoadVCF {
     floatType: TNumeric,
     arrayElementsRequired: Boolean = false
   ): (PStruct, VCFAttributes, Set[String]) = {
-    val (fields, attrs, flags) = lines
+    val (fields, attrs, flags) = lines.asScala
       .map { line => headerField(line, callFields, floatType, arrayElementsRequired) }
       .unzip3
 
