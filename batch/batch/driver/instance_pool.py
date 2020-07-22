@@ -275,6 +275,7 @@ sudo mkfs.xfs -m reflink=1 /dev/$LOCAL_SSD_NAME
 sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME
 sudo mount -o prjquota /dev/$LOCAL_SSD_NAME /mnt/disks/$LOCAL_SSD_NAME
 sudo chmod a+w /mnt/disks/$LOCAL_SSD_NAME
+XFS_DEVICE=$(xfs_info /mnt/test_xfs | head -n 1 | awk '{ print $1 }' | awk  'BEGIN { FS = "=" }; { print $2 }')
 
 # reconfigure docker to use local SSD
 sudo service docker stop
@@ -347,7 +348,9 @@ docker run \
     --mount type=bind,source=/mnt/disks/$LOCAL_SSD_NAME,target=/host \
     -p 5000:5000 \
     --device /dev/fuse \
-    --privileged \
+    --device $XFS_DEVICE \
+    --cap-add SYS_ADMIN \
+    --security-opt apparmor:unconfined \
     $BATCH_WORKER_IMAGE \
     python3 -u -m batch.worker.worker >worker.log 2>&1
 
