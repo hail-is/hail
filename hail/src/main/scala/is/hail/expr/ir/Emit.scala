@@ -541,19 +541,26 @@ class Emit[C](
         val eltType = a.pType.asInstanceOf[PStream].elementType
         val streamOpt = emitStream(a)
 
+        val eltRegion = mb.newLocal[Region]()
+
         def forBody(elt: EmitCode): Code[Unit] = {
           val xElt = mb.newEmitField(valueName, eltType)
-          val bodyEnv = env.bind(
-            (valueName, xElt))
+          val bodyEnv = env.bind(valueName -> xElt)
           EmitCodeBuilder.scopedVoid(mb) { cb =>
             cb.assign(xElt, elt)
             emitVoid(body, cb, env = bodyEnv)
+            cb += eltRegion.clear()
           }
         }
 
         streamOpt.toI(cb).consume(cb,
           {},
-          { s => cb += s.asStream.getStream(region).getStream.forEach(mb, forBody) })
+          { s =>
+            cb.assign(eltRegion, Region.stagedCreate(Region.REGULAR))
+            cb += s.asStream.getStream(eltRegion).getStream.forEach(mb, forBody)
+            cb += eltRegion.invalidate()
+            cb.assign(eltRegion, Code._null)
+          })
 
       case x@InitOp(i, args, sig) =>
         val AggContainer(aggs, sc, _) = container.get

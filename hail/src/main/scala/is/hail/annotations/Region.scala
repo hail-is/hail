@@ -1,7 +1,7 @@
 package is.hail.annotations
 
 import is.hail.asm4s
-import is.hail.asm4s.{Code, coerce}
+import is.hail.asm4s.{Code, CodeBuilder, MethodBuilder, Settable, Value, coerce}
 import is.hail.types.physical._
 import is.hail.utils._
 
@@ -483,4 +483,92 @@ object RegionUtils {
 
   def logRegionStats(header: String, region: Code[Region]): Code[Unit] =
     Code.invokeScalaObject2[String, Region, Unit](RegionUtils.getClass, "logRegionStats", header, region)
+}
+
+abstract class StagedRegion {
+  def allocate(n: Code[Long]): Code[Long]
+
+  def allocate(a: Code[Long], n: Code[Long]): Code[Long]
+
+  def createChildRegion(cb: CodeBuilder): StagedOwnedRegion
+
+//  def takeOwnershipOf(other: Code[RegionMemory]): Code[Unit]
+//
+//  def shareOwnershipOf(other: Code[RegionMemory]): Code[Unit]
+}
+
+abstract class StagedOwnedRegion extends StagedRegion {
+  def free(): Code[Unit]
+
+//  def moveTo(dest: StagedRegion): Code[Unit]
+
+//  def shareWith(dest: StagedRegion): Code[Unit]
+
+  def giveToParent(): Code[Unit]
+
+  def shareWithParent(): Code[Unit]
+}
+
+class RealStagedRegion(r: Settable[RegionMemory], parent: Value[RegionMemory]) extends StagedOwnedRegion {
+  def allocate(n: Code[Long]): Code[Long] =
+    r.invoke("allocate", n)
+
+  def allocate(alignment: Code[Long], n: Code[Long]): Code[Long] =
+    r.invoke("allocate", alignment, n)
+
+  def createChildRegion(cb: CodeBuilder): StagedOwnedRegion = {
+    val newR = cb.newLocal[RegionMemory]("staged_region_child", r.invoke("getNewMemory"))
+    new RealStagedRegion(newR, r)
+  }
+
+  def giveToParent(): Code[Unit] =
+    parent.invoke("takeOwnershipOf", r)
+
+  def shareWithParent(): Code[Unit] =
+    parent.invoke("addReferenceTo", r)
+
+//  def takeOwnershipOf(other: Code[RegionMemory]): Code[Unit] =
+//    r.invoke("takeOwnershipOf", other)
+//
+//  def shareOwnershipOf(other: Code[RegionMemory]): Code[Unit] =
+//    r.invoke("addReferenceTo", other)
+
+  def free(): Code[Unit] =
+    Code(r.invoke("release"), r := Code._null)
+
+//  def moveTo(dest: StagedRegion): Code[Unit] = Code(
+//    dest.takeOwnershipOf(r),
+//    r := Code._null)
+//
+//  def shareWith(dest: StagedRegion): Code[Unit] =
+//    dest.shareOwnershipOf(r)
+}
+
+class DummyStagedRegion(r: RealStagedRegion) extends StagedOwnedRegion {
+  def allocate(n: Code[Long]): Code[Long] = r.allocate(n)
+
+  def allocate(alignment: Code[Long], n: Code[Long]): Code[Long] = r.allocate(alignment, n)
+
+  def createChildRegion(cb: CodeBuilder): StagedOwnedRegion = this
+
+  def giveToParent(): Code[Unit] = Code._empty
+
+  def shareWithParent(): Code[Unit] = Code._empty
+
+//  def takeOwnershipOf(other: Code[RegionMemory]): Code[Unit] = r.takeOwnershipOf(other)
+//
+//  def shareOwnershipOf(other: Code[RegionMemory]): Code[Unit] = r.shareOwnershipOf(other)
+
+  def free(): Code[Unit] = Code._empty
+
+//  def moveTo(dest: StagedRegion): Code[Unit] = Code(
+//    dest.takeOwnershipOf(r),
+//    r := Code._null)
+//
+//  def shareWith(dest: StagedRegion): Code[Unit] =
+//    dest.shareOwnershipOf(r)
+}
+
+abstract class StagedRegionPool {
+  def getRegion(): Code[Region]
 }
