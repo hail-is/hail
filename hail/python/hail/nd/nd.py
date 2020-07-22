@@ -37,7 +37,7 @@ def array(input_array):
 
     Parameters
     ----------
-    input_array : :class:`.ArrayExpression` or numpy ndarray or nested python lists
+    input_array : :class:`.ArrayExpression`, numpy ndarray, or nested python lists/tuples
 
     Returns
     -------

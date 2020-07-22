@@ -4117,7 +4117,7 @@ def _ndarray(collection, row_major=None):
     :class:`.NDArrayExpression`
     """
     def list_shape(x):
-        if isinstance(x, list):
+        if isinstance(x, list) or isinstance(x, builtins.tuple):
             dim_len = builtins.len(x)
             if dim_len != 0:
                 first, rest = x[0], x[1:]
@@ -4135,7 +4135,7 @@ def _ndarray(collection, row_major=None):
     def deep_flatten(es):
         result = []
         for e in es:
-            if isinstance(e, list):
+            if isinstance(e, list) or isinstance(e, builtins.tuple):
                 result.extend(deep_flatten(e))
             else:
                 result.append(e)
@@ -4184,7 +4184,7 @@ def _ndarray(collection, row_major=None):
     else:
         if isinstance(collection, np.ndarray):
             return hl.literal(collection)
-        elif isinstance(collection, list):
+        elif isinstance(collection, list) or isinstance(collection, builtins.tuple):
             shape = list_shape(collection)
             data = deep_flatten(collection)
         else:
