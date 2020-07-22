@@ -137,7 +137,20 @@ class BlockMatrixIRSuite extends HailSuite {
     val read = ReadValue(Str(path), spec, typ)
     assertNDEvals(read, expected)
     assertNDEvals(ReadValue(
-      WriteValue(read, Str(ctx.createTmpPath("read-blockmatrix-ir", "hv")), spec),
+      WriteValue(read, Str(ctx.createTmpPath("read-blockmatrix-ir", "hv")) + UUID4(), spec),
       spec, typ), expected)
+  }
+
+  @Test def readWriteBlockMatrix() {
+    val original = "src/test/resources/blockmatrix_example/0"
+    val expected = BlockMatrix.read(ctx.fs, original).toBreezeMatrix()
+
+    val path = ctx.createTmpPath("read-blockmatrix-ir", "bm")
+
+    assertEvalsTo(BlockMatrixWrite(
+      BlockMatrixRead(BlockMatrixNativeReader(ctx.fs, original)),
+      BlockMatrixNativeWriter(path, overwrite = true, forceRowMajor = false, stageLocally = false)), ())
+
+    assertBMEvalsTo(BlockMatrixRead(BlockMatrixNativeReader(ctx.fs, path)), expected)
   }
 }

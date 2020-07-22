@@ -437,7 +437,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends Partition
     def emitIR(ir: IR, env: Emit.E = env, region: Value[Region] = region, container: Option[AggContainer] = container): EmitCode =
       emitter.emitWithRegion(ir, mb, region, env, container)
 
-    val (eltType, dec) = spec.buildEmitDecoderF[Long](requestedType, mb.ecb)
+    val (eltType, dec) = spec.buildTypedEmitDecoderF[Long](requestedType, mb.ecb)
 
     COption.fromEmitCode(emitIR(context)).map { path =>
       val pathString = path.asString.loadString()
