@@ -1230,6 +1230,7 @@ object LoadVCF {
     val header = codec.readHeader(new BufferedLineIterator(lines.iterator.buffered))
       .getHeaderValue
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
+      .asScala
 
     val filterAttrs: VCFAttributes = header
       .getFilterLines
@@ -1237,7 +1238,7 @@ object LoadVCF {
       // (ID, description)
       .map(line => (line.getID, Map("Description" -> line.getDescription)))
       .toMap
-      .asScala
+      
 
     val infoHeader = header.getInfoHeaderLines
     val (infoSignature, infoAttrs, infoFlagFields) = headerSignature(infoHeader, callFields, TFloat64)
