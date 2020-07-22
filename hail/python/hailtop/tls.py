@@ -76,6 +76,12 @@ def in_cluster_ssl_client_session(*args, **kwargs) -> aiohttp.ClientSession:
     return aiohttp.ClientSession(*args, **kwargs)
 
 
+def get_context_specific_ssl_client_session(*args, **kwargs) -> aiohttp.ClientSession:
+    assert 'connector' not in kwargs
+    kwargs['connector'] = aiohttp.TCPConnector(ssl=get_context_specific_client_ssl_context())
+    return aiohttp.ClientSession(*args, **kwargs)
+
+
 def in_cluster_ssl_requests_client_session() -> requests.Session:
     session = requests.Session()
     ssl_config = _get_ssl_config()
