@@ -1,8 +1,9 @@
 import os
 
 import itertools
-import numpy as np
+import math
 import re
+import numpy as np
 import scipy.linalg as spla
 
 import hail as hl
@@ -21,7 +22,7 @@ from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativ
 from hail.ir import ExportType
 from hail.table import Table
 from hail.typecheck import typecheck, typecheck_method, nullable, oneof, \
-    sliceof, sequenceof, lazy, enumeration, numeric, tupleof, func_spec
+    sliceof, sequenceof, lazy, enumeration, numeric, tupleof, func_spec, sized_tupleof
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env
 
@@ -533,6 +534,14 @@ class BlockMatrix(object):
         return self.shape[1]
 
     @property
+    def _n_block_rows(self):
+        return (self.n_rows + self.block_size - 1) // self.block_size
+
+    @property
+    def _n_block_cols(self):
+        return (self.n_cols + self.block_size - 1) // self.block_size
+
+    @property
     def shape(self):
         """Shape of matrix.
 
@@ -552,6 +561,16 @@ class BlockMatrix(object):
         :obj:`int`
         """
         return self._bmir.typ.block_size
+
+    @property
+    def _last_col_block_width(self):
+        remainder = self.n_cols % self.block_size
+        return remainder if remainder != 0 else self.block_size
+
+    @property
+    def _last_row_block_height(self):
+        remainder = self.n_rows % self.block_size
+        return remainder if remainder != 0 else self.block_size
 
     @typecheck_method(path=str,
                       overwrite=bool,
@@ -1407,6 +1426,19 @@ class BlockMatrix(object):
     def __rtruediv__(self, b):
         return self._apply_map2(BlockMatrix._binary_op('/'), b, sparsity_strategy="NeedsDense", reverse=True)
 
+    @typecheck_method(block_row_range=sized_tupleof(int, int), block_col_range=sized_tupleof(int, int))
+    def _select_blocks(self, block_row_range, block_col_range):
+        start_brow, stop_brow = block_row_range
+        start_bcol, stop_bcol = block_col_range
+
+        start_row = start_brow * self.block_size
+        stop_row = (stop_brow - 1) * self.block_size + (self._last_row_block_height if stop_brow == self._n_block_rows else self.block_size)
+
+        start_col = start_bcol * self.block_size
+        stop_col = (stop_bcol - 1) * self.block_size + (self._last_col_block_width if stop_bcol == self._n_block_cols else self.block_size)
+
+        return self[start_row:stop_row, start_col:stop_col]
+
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type))
     def __matmul__(self, b):
         """Matrix multiplication: a @ b.
@@ -1424,6 +1456,51 @@ class BlockMatrix(object):
 
         if self.n_cols != b.n_rows:
             raise ValueError(f'incompatible shapes for matrix multiplication: {self.shape} and {b.shape}')
+
+        return BlockMatrix(BlockMatrixDot(self._bmir, b._bmir))
+
+    @typecheck_method(b=oneof(np.ndarray, block_matrix_type), splits=int, path_prefix=nullable(str))
+    def tree_matmul(self, b, *, splits, path_prefix=None):
+        """Matrix multiplication in situations with large inner dimension.
+
+        This function splits a single matrix multiplication into `split_on_inner` smaller matrix multiplications,
+        does the smaller multiplications, checkpoints them with names defined by `file_name_prefix`, and adds them
+        together. This is useful in cases when the multiplication of two large matrices results in a much smaller matrix.
+
+        Parameters
+        ----------
+        b: :class:`numpy.ndarray` or :class:`BlockMatrix`
+        splits: :obj:`int` (keyword only argument)
+            The number of smaller multiplications to do.
+        path_prefix: :obj:`str` (keyword only argument)
+            The prefix of the path to write the block matrices to. If unspecified, writes to a tmpdir.
+
+        Returns
+        -------
+        :class:`.BlockMatrix`
+        """
+        if isinstance(b, np.ndarray):
+            b = BlockMatrix(_to_bmir(b, self.block_size))
+
+        if self.n_cols != b.n_rows:
+            raise ValueError(f'incompatible shapes for matrix multiplication: {self.shape} and {b.shape}')
+
+        if path_prefix is None:
+            path_prefix = new_temp_file("tree_matmul_tmp")
+
+        if splits != 1:
+            inner_brange_size = int(math.ceil(self._n_block_cols / splits))
+            split_points = list(range(0, self._n_block_cols, inner_brange_size)) + [self._n_block_cols]
+            inner_ranges = list(zip(split_points[:-1], split_points[1:]))
+            blocks_to_multiply = [(self._select_blocks((0, self._n_block_rows), (start, stop)),
+                                   b._select_blocks((start, stop), (0, b._n_block_cols))) for start, stop in inner_ranges]
+
+            intermediate_multiply_exprs = [b1 @ b2 for b1, b2 in blocks_to_multiply]
+
+            hl.experimental.write_block_matrices(intermediate_multiply_exprs, path_prefix)
+            read_intermediates = [BlockMatrix.read(f"{path_prefix}_{i}") for i in range(0, len(intermediate_multiply_exprs))]
+
+            return sum(read_intermediates)
 
         return BlockMatrix(BlockMatrixDot(self._bmir, b._bmir))
 
@@ -2062,12 +2139,12 @@ class BlockMatrix(object):
             If true, export elements as raw bytes in row major order.
         """
         def rows_in_block(block_row):
-            if block_row == n_block_rows - 1:
+            if block_row == self._n_block_rows - 1:
                 return self.n_rows - block_row * self.block_size
             return self.block_size
 
         def cols_in_block(block_col):
-            if block_col == n_block_cols - 1:
+            if block_col == self._n_block_cols - 1:
                 return self.n_cols - block_col * self.block_size
             return self.block_size
 
@@ -2079,9 +2156,7 @@ class BlockMatrix(object):
 
             return [start_row, end_row, start_col, end_col]
 
-        n_block_rows = (self.n_rows + self.block_size - 1) // self.block_size
-        n_block_cols = (self.n_cols + self.block_size - 1) // self.block_size
-        block_indices = itertools.product(range(n_block_rows), range(n_block_cols))
+        block_indices = itertools.product(range(self._n_block_rows), range(self._n_block_cols))
         rectangles = [bounds(block_row, block_col) for (block_row, block_col) in block_indices]
 
         self.export_rectangles(path_out, rectangles, delimiter, binary)

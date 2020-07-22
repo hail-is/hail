@@ -218,6 +218,16 @@ class SimplifySuite extends HailSuite {
     }
   }
 
+  @Test def testNestedFilterIntervals() {
+    var tir: TableIR = TableRange(10, 5)
+    def r = Ref("row", tir.typ.rowType)
+    tir = TableMapRows(tir, InsertFields(r,  FastSeq("idx2" -> GetField(r, "idx"))))
+    tir = TableKeyBy(tir, FastIndexedSeq("idx", "idx2"))
+    tir = TableFilterIntervals(tir, FastIndexedSeq(Interval(Row(0), Row(1), true, false)), false)
+    tir = TableFilterIntervals(tir, FastIndexedSeq(Interval(Row(8), Row(10), true, false)), false)
+    assert(Simplify(tir).asInstanceOf[TableFilterIntervals].intervals == FastIndexedSeq(Interval(Row(0), Row(1), true, false), Interval(Row(8), Row(10), true, false)))
+  }
+
   @Test(enabled = false) def testFilterIntervalsKeyByToFilter() {
     var t: TableIR = TableRange(100, 10)
     t = TableMapRows(t, InsertFields(Ref("row", t.typ.rowType), FastSeq(("x", I32(1) - GetField(Ref("row", t.typ.rowType), "idx")))))
