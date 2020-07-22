@@ -425,7 +425,7 @@ class SparkBackend(
     filter: String,
     find: String,
     replace: String,
-    externalSampleIds: java.util.List[java.util.List[String]],
+    externalSampleIds: java.util.List[java.util.List[String]].asScala,
     externalHeader: String
   ): String = {
     withExecuteContext() { ctx =>
