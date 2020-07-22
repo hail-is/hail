@@ -1459,7 +1459,7 @@ class BlockMatrix(object):
 
         return BlockMatrix(BlockMatrixDot(self._bmir, b._bmir))
 
-    @typecheck_method(b=oneof(np.ndarray, block_matrix_type), split_on_inner=int, path_prefix=nullable(str))
+    @typecheck_method(b=oneof(np.ndarray, block_matrix_type), splits=int, path_prefix=nullable(str))
     def tree_matmul(self, b, *, splits, path_prefix=None):
         """Matrix multiplication in situations with large inner dimension.
 
