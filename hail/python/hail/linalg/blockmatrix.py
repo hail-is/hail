@@ -1460,7 +1460,7 @@ class BlockMatrix(object):
         return BlockMatrix(BlockMatrixDot(self._bmir, b._bmir))
 
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type), split_on_inner=int, path_prefix=nullable(str))
-    def tree_matmul(self, b, splits, path_prefix=None):
+    def tree_matmul(self, b, *, splits, path_prefix=None):
         """Matrix multiplication in situations with large inner dimension.
 
         This function splits a single matrix multiplication into `split_on_inner` smaller matrix multiplications,
@@ -1470,9 +1470,9 @@ class BlockMatrix(object):
         Parameters
         ----------
         b: :class:`numpy.ndarray` or :class:`BlockMatrix`
-        splits: :obj:`int`
+        splits: :obj:`int` (keyword only argument)
             The number of smaller multiplications to do.
-        path_prefix: :obj:`str`
+        path_prefix: :obj:`str` (keyword only argument)
             The prefix of the path to write the block matrices to. If unspecified, writes to a tmpdir.
 
         Returns

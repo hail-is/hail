@@ -463,15 +463,15 @@ class Tests(unittest.TestCase):
         nrow = np.array([[7.0, 8.0, 9.0]])
         row = BlockMatrix.from_numpy(nrow, block_size=2)
 
-        self._assert_eq(m.tree_matmul(m.T, 2), nm @ nm.T)
-        self._assert_eq(m.tree_matmul(nm.T, 2), nm @ nm.T)
-        self._assert_eq(row.tree_matmul(row.T, 2), nrow @ nrow.T)
-        self._assert_eq(row.tree_matmul(nrow.T, 2), nrow @ nrow.T)
+        self._assert_eq(m.tree_matmul(m.T, splits=2), nm @ nm.T)
+        self._assert_eq(m.tree_matmul(nm.T, splits=2), nm @ nm.T)
+        self._assert_eq(row.tree_matmul(row.T, splits=2), nrow @ nrow.T)
+        self._assert_eq(row.tree_matmul(nrow.T, splits=2), nrow @ nrow.T)
 
-        self._assert_eq(m.T.tree_matmul(m, 2), nm.T @ nm)
-        self._assert_eq(m.T.tree_matmul(nm, 2), nm.T @ nm)
-        self._assert_eq(row.T.tree_matmul(row, 2), nrow.T @ nrow)
-        self._assert_eq(row.T.tree_matmul(nrow, 2), nrow.T @ nrow)
+        self._assert_eq(m.T.tree_matmul(m, splits=2), nm.T @ nm)
+        self._assert_eq(m.T.tree_matmul(nm, splits=2), nm.T @ nm)
+        self._assert_eq(row.T.tree_matmul(row, splits=2), nrow.T @ nrow)
+        self._assert_eq(row.T.tree_matmul(nrow, splits=2), nrow.T @ nrow)
 
         # Variety of block sizes and splits
         fifty_by_sixty = np.arange(50 * 60).reshape((50, 60))
@@ -482,8 +482,8 @@ class Tests(unittest.TestCase):
             bm_fifty_by_sixty = BlockMatrix.from_numpy(fifty_by_sixty, block_size)
             bm_sixty_by_twenty_five = BlockMatrix.from_numpy(sixty_by_twenty_five, block_size)
             for split_size in split_sizes:
-                self._assert_eq(bm_fifty_by_sixty.tree_matmul(bm_fifty_by_sixty.T, split_size), fifty_by_sixty @ fifty_by_sixty.T)
-                self._assert_eq(bm_fifty_by_sixty.tree_matmul(bm_sixty_by_twenty_five, split_size), fifty_by_sixty @ sixty_by_twenty_five)
+                self._assert_eq(bm_fifty_by_sixty.tree_matmul(bm_fifty_by_sixty.T, splits=split_size), fifty_by_sixty @ fifty_by_sixty.T)
+                self._assert_eq(bm_fifty_by_sixty.tree_matmul(bm_sixty_by_twenty_five, splits=split_size), fifty_by_sixty @ sixty_by_twenty_five)
 
 
     def test_fill(self):
