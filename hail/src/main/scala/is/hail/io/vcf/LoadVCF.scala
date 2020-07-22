@@ -1230,7 +1230,6 @@ object LoadVCF {
     val header = codec.readHeader(new BufferedLineIterator(lines.iterator.buffered))
       .getHeaderValue
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
-      .asScala
 
     val filterAttrs: VCFAttributes = header
       .getFilterLines
