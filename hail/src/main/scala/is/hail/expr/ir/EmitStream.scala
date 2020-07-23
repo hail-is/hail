@@ -12,9 +12,10 @@ import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual.TStream
 import is.hail.utils._
-import java.io.{ DataOutputStream, InputStream, OutputStream }
+import java.io.{DataOutputStream, InputStream, OutputStream}
 import java.net.Socket
 import java.util.Base64
+
 import org.apache.log4j.Logger
 
 import scala.language.{existentials, higherKinds}
@@ -1973,6 +1974,22 @@ object EmitStream {
       case RunAggScan(a, _, i, s, r, _) =>
         traverse(a, mult); traverse(i, 2); traverse(s, 2); traverse(r, 2)
       case MakeStream(irs, _) => irs.foreach(traverse(_, mult))
+      case StreamTake(s, i) =>
+        traverse(s, mult); traverse(i, mult)
+      case StreamDrop(s, i) =>
+        traverse(s, mult); traverse(i, mult)
+      case StreamGrouped(s, i) =>
+        traverse(s, mult); traverse(i, mult)
+      case StreamGroupByKey(s, k) =>
+        traverse(s, mult)
+      case StreamMerge(l, r, _) =>
+        traverse(l, mult); traverse(r, mult)
+      case StreamMultiMerge(as, _) =>
+        as.foreach(traverse(_, mult))
+      case StreamZipJoin(as, _, _, _, f) =>
+        as.foreach(traverse(_, mult)); traverse(f, 2)
+      case StreamZip(as, _, body, _) =>
+        as.foreach(traverse(_, mult)); traverse(body, 2)
       case ir: IR if !ir.typ.isInstanceOf[TStream] =>
         Children(ir).foreach(traverse(_, 2))
     }

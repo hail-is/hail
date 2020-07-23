@@ -1407,7 +1407,6 @@ case class TableMapPartitions(child: TableIR,
   body: IR
 ) extends TableIR {
   assert(body.typ.isInstanceOf[TStream], s"${ body.typ }")
-  assert(EmitStream.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
   lazy val typ = child.typ.copy(
     rowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct])
 
