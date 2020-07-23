@@ -36,6 +36,7 @@ class BlockMatrixIRSuite extends HailSuite {
   }
 
   @Test def testBlockMatrixWriteRead() {
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
     val tempPath = ctx.createTmpPath("test-blockmatrix-write-read", "bm")
     Interpret[Unit](ctx, BlockMatrixWrite(ones,
       BlockMatrixNativeWriter(tempPath, false, false, false)))
