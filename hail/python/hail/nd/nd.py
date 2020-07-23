@@ -11,10 +11,12 @@ from hail.expr.expressions import (
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
 from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat
 
-tsequenceof_nd = oneof(sequenceof(expr_ndarray()), tupleof(expr_ndarray()))
+tsequenceof_nd = oneof(sequenceof(expr_ndarray()), tupleof(expr_ndarray()),
+                       expr_array(expr_ndarray()))
+shape_type = oneof(expr_int64, tupleof(expr_int64), expr_tuple())
 
 
-def array(input_array):
+def array(input_array, dtype=None):
     """Construct an :class:`.NDArrayExpression`
 
     Examples
@@ -38,16 +40,15 @@ def array(input_array):
     Parameters
     ----------
     input_array : :class:`.ArrayExpression`, numpy ndarray, or nested python lists/tuples
+    dtype : :class:`.HailType`
+        Desired hail type.  Default: `float64`.
 
     Returns
     -------
     :class:`.NDArrayExpression`
         An ndarray based on the input array.
     """
-    return _ndarray(input_array)
-
-
-shape_type = oneof(expr_int64, tupleof(expr_int64), expr_tuple())
+    return _ndarray(input_array, dtype=dtype)
 
 
 @typecheck(a=expr_array(), shape=shape_type)

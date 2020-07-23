@@ -15,7 +15,7 @@ from hail.expr.expressions import Expression, ArrayExpression, SetExpression, \
     expr_array, expr_any, expr_struct, expr_int32, expr_int64, expr_float32, \
     expr_float64, expr_oneof, expr_bool, expr_tuple, expr_dict, expr_str, \
     expr_set, expr_call, expr_locus, expr_interval, expr_ndarray, \
-    expr_numeric
+    expr_numeric, cast_expr
 from hail.expr.types import HailType, hail_type, tint32, tint64, tfloat32, \
     tfloat64, tstr, tbool, tarray, tset, tdict, tstruct, tlocus, tinterval, \
     tcall, ttuple, tndarray, \
@@ -4103,7 +4103,7 @@ def empty_array(t: Union[HailType, builtins.str]) -> ArrayExpression:
     return construct_expr(a, array_t)
 
 
-def _ndarray(collection, row_major=None):
+def _ndarray(collection, row_major=None, dtype=None):
     """Construct a Hail ndarray from either a flat Hail array, a `NumPy` ndarray or python value/nested lists.
 
     Parameters
@@ -4161,7 +4161,7 @@ def _ndarray(collection, row_major=None):
         elif isinstance(collection, ArrayExpression):
             recursive_type = collection.dtype
             ndim = 0
-            while isinstance(recursive_type, tarray):
+            while isinstance(recursive_type, tarray) or isinstance(recursive_type, tndarray):
                 recursive_type = recursive_type._element_type
                 ndim += 1
 
@@ -4195,7 +4195,9 @@ def _ndarray(collection, row_major=None):
         data_expr = hl.array(data) if data else hl.empty_array("float64")
         ndim = builtins.len(shape)
 
+    data_expr = data_expr.map(lambda value: cast_expr(value, dtype))
     ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(True)._ir)
+
     return construct_expr(ndir, tndarray(data_expr.dtype.element_type, ndim))
 
 
