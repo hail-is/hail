@@ -659,7 +659,8 @@ steps:
      export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs
      export TESTNG_SPLITS=5
      export TESTNG_SPLIT_INDEX=0
-     python3 generate-splits.py
+     python3 resources/generate-splits.py
+     cat testng-splits.xml.out
      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits.xml.out
    inputs:
     - from: /resources.tar.gz
@@ -698,7 +699,8 @@ steps:
      export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs
      export TESTNG_SPLITS=5
      export TESTNG_SPLIT_INDEX=1
-     python3 generate-splits.py
+     python3 resources/generate-splits.py
+     cat testng-splits.xml.out
      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-build.xml.out
    inputs:
     - from: /resources.tar.gz
@@ -737,7 +739,8 @@ steps:
      export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs
      export TESTNG_SPLITS=5
      export TESTNG_SPLIT_INDEX=2
-     python3 generate-splits.py
+     python3 resources/generate-splits.py
+     cat testng-splits.xml.out
      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-build.xml.out
    inputs:
     - from: /resources.tar.gz
@@ -776,7 +779,8 @@ steps:
      export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs
      export TESTNG_SPLITS=5
      export TESTNG_SPLIT_INDEX=3
-     python3 generate-splits.py
+     python3 resources/generate-splits.py
+     cat testng-splits.xml.out
      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-build.xml.out
    inputs:
     - from: /resources.tar.gz
@@ -815,7 +819,8 @@ steps:
      export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs
      export TESTNG_SPLITS=5
      export TESTNG_SPLIT_INDEX=4
-     python3 generate-splits.py
+     python3 resources/generate-splits.py
+     cat testng-splits.xml.out
      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-build.xml.out
    inputs:
     - from: /resources.tar.gz
