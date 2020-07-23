@@ -293,12 +293,11 @@ async def unschedule_job(app, record):
                     and e.status == 404):  # pylint: disable=no-member
                 await instance.mark_healthy()
                 break
+            await instance.incr_failed_request_count()
+            if is_transient_error(e):
+                pass
             else:
-                await instance.incr_failed_request_count()
-                if is_transient_error(e):
-                    pass
-                else:
-                    raise
+                raise
         delay = await sleep_and_backoff(delay)
 
     log.info(f'unschedule job {id}, attempt {attempt_id}: called delete job')

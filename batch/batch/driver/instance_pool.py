@@ -244,7 +244,7 @@ SET standing_worker_cores = %s, max_instances = %s, pool_size = %s;
             'metadata': {
                 'items': [{
                     'key': 'startup-script',
-                    'value': f'''
+                    'value': '''
 #!/bin/bash
 set -x
 
@@ -429,7 +429,7 @@ gsutil -m cp run.log worker.log /var/log/syslog dockerd.log  gs://$WORKER_LOGS_B
     async def handle_event(self, event):
         payload = event.get('jsonPayload')
         if payload is None:
-            log.warning(f'event has no payload')
+            log.warning('event has no payload')
             return
 
         timestamp = dateutil.parser.isoparse(event['timestamp']).timestamp() * 1000
@@ -475,7 +475,7 @@ gsutil -m cp run.log worker.log /var/log/syslog dockerd.log  gs://$WORKER_LOGS_B
             log.warning(f'unknown event subtype {event_subtype}')
 
     async def event_loop(self):
-        log.info(f'starting event loop')
+        log.info('starting event loop')
         while True:
             try:
                 row = await self.db.select_and_fetchone('SELECT * FROM `gevents_mark`;')
@@ -515,7 +515,7 @@ AND timestamp >= "{mark}"
             await asyncio.sleep(15)
 
     async def control_loop(self):
-        log.info(f'starting control loop')
+        log.info('starting control loop')
         while True:
             try:
                 ready_cores = await self.db.select_and_fetchone(
@@ -598,7 +598,7 @@ FROM ready_cores;
         await instance.update_timestamp()
 
     async def instance_monitoring_loop(self):
-        log.info(f'starting instance monitoring loop')
+        log.info('starting instance monitoring loop')
 
         while True:
             try:
