@@ -746,6 +746,8 @@ class Emit[C](
         val m = cb.newLocal[Boolean]("isna")
         emitI(v).consume(cb, cb.assign(m, const(true)), { _ => cb.assign(m, const(false)) })
         presentC(m)
+      case ApplyUnaryPrimOp(op, x) =>
+        emitI(x).map(cb)(pc => PCode(pt, UnaryOp.emit(op, x.typ, pc.code)))
 
       case x@ArrayRef(a, i, s) =>
         val errorTransformer: Code[String] => Code[String] = s match {
@@ -1139,9 +1141,6 @@ class Emit[C](
         val codeL = emit(l)
         val codeR = emit(r)
         strict(pt, BinaryOp.emit(op, l.typ, r.typ, codeL.v, codeR.v), codeL, codeR)
-      case ApplyUnaryPrimOp(op, x) =>
-        val v = emit(x)
-        strict(pt, UnaryOp.emit(op, x.typ, v.v), v)
       case ApplyComparisonOp(op, l, r) =>
         val f = op.codeOrdering(mb, l.pType, r.pType)
         val codeL = emit(l)
