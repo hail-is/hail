@@ -28,7 +28,7 @@ sp.run("find src/test \\( -name \"*.scala\" -o -name \"*.java\" \\) -type f > cl
 n_splits = int(os.environ['TESTNG_SPLITS'])
 
 with open('classes', 'r') as f:
-    classes = [x.rstrip('.scala\n').rstrip('.java\n').lstrip('src/test/').replace('/', '.')
+    classes = [x.lstrip('src/test/scala/').rstrip('.scala\n').rstrip('.java\n').replace('/', '.')
                for x in f.readlines()]
 
 random.shuffle(classes, lambda: 0.0)
