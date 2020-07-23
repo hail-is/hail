@@ -8,7 +8,7 @@ import asyncio
 import shutil
 from shlex import quote as shq
 from hailtop.utils import check_shell, check_shell_output
-from hailtop.utils.sql_config import create_secret_data_from_config
+from hailtop.auth.sql_config import create_secret_data_from_config
 from gear import Database
 
 assert len(sys.argv) == 2
