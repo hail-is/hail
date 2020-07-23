@@ -746,6 +746,10 @@ class Emit[C](
         val m = cb.newLocal[Boolean]("isna")
         emitI(v).consume(cb, cb.assign(m, const(true)), { _ => cb.assign(m, const(false)) })
         presentC(m)
+      case ApplyBinaryPrimOp(op, l, r) =>
+        emitI(l).flatMap(cb) { pcL =>
+          emitI(r).map(cb)(pcR => PCode(pt, BinaryOp.emit(op, l.typ, r.typ, pcL.code, pcR.code)))
+        }
       case ApplyUnaryPrimOp(op, x) =>
         emitI(x).map(cb)(pc => PCode(pt, UnaryOp.emit(op, x.typ, pc.code)))
 
@@ -1137,10 +1141,6 @@ class Emit[C](
           throw new RuntimeException(s"PValue type did not match inferred ptype:\n name: $name\n  pv: ${ ev.pt }\n  ir: $pt")
         ev.get
 
-      case ApplyBinaryPrimOp(op, l, r) =>
-        val codeL = emit(l)
-        val codeR = emit(r)
-        strict(pt, BinaryOp.emit(op, l.typ, r.typ, codeL.v, codeR.v), codeL, codeR)
       case ApplyComparisonOp(op, l, r) =>
         val f = op.codeOrdering(mb, l.pType, r.pType)
         val codeL = emit(l)
