@@ -1,7 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering}
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.types.virtual.{TStream, Type}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, Stream}
@@ -37,20 +37,20 @@ object PCanonicalStreamCode {
   def apply(_pt: PCanonicalStream, stream: SizedStream): PCanonicalStreamCode = new PCanonicalStreamCode {
     val pt = _pt
 
-    def getStream(eltRegion: Code[Region]): SizedStream =
+    def getStream(eltRegion: Value[Region]): SizedStream =
       stream
   }
 
-  def apply(_pt: PCanonicalStream, stream: Code[Region] => SizedStream): PCanonicalStreamCode = new PCanonicalStreamCode {
+  def apply(_pt: PCanonicalStream, stream: Value[Region] => SizedStream): PCanonicalStreamCode = new PCanonicalStreamCode {
     val pt = _pt
 
-    def getStream(eltRegion: Code[Region]): SizedStream =
+    def getStream(eltRegion: Value[Region]): SizedStream =
       stream(eltRegion)
   }
 }
 
 abstract class PCanonicalStreamCode extends PStreamCode { self =>
-  def getStream(eltRegion: Code[Region]): SizedStream
+  def getStream(eltRegion: Value[Region]): SizedStream
 
   def memoize(cb: EmitCodeBuilder, name: String): PValue = new PValue {
     val pt = self.pt

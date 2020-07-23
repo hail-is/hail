@@ -549,7 +549,7 @@ class Emit[C](
           EmitCodeBuilder.scopedVoid(mb) { cb =>
             cb.assign(xElt, elt)
             emitVoid(body, cb, env = bodyEnv)
-            cb += eltRegion.clear()
+            cb += (eltRegion: Value[Region]).clear()
           }
         }
 

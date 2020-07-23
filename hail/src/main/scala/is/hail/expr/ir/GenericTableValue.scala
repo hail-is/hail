@@ -31,14 +31,14 @@ class PartitionIteratorLongReader(
     mb: EmitMethodBuilder[C],
     region: Value[Region],
     env: Emit.E,
-    container: Option[AggContainer]): COption[SizedStream] = {
+    container: Option[AggContainer]): COption[Value[Region] => SizedStream] = {
 
     def emitIR(ir: IR, env: Emit.E = env, region: Value[Region] = region, container: Option[AggContainer] = container): EmitCode =
       emitter.emitWithRegion(ir, mb, region, env, container)
 
     val eltPType = bodyPType(requestedType)
 
-    COption.fromEmitCode(emitIR(context)).map { contextPC =>
+    COption.fromEmitCode(emitIR(context)).map { contextPC => eltRegion =>
       // FIXME SafeRow.read can only handle address values
       assert(contextPC.pt.isInstanceOf[PStruct])
 

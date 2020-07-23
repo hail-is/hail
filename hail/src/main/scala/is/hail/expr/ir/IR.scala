@@ -654,7 +654,7 @@ abstract class PartitionReader {
     mb: EmitMethodBuilder[C],
     region: Value[Region],
     env0: Emit.E,
-    container: Option[AggContainer]): COption[SizedStream]
+    container: Option[AggContainer]): COption[Value[Region] => SizedStream]
 
   def toJValue: JValue
 }
