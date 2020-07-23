@@ -21,6 +21,11 @@ This is a recently added, experimental module. We would love to hear what use ca
     zeros
     ones
     qr
+    inv
+    concatenate
+    vstack
+    eye
+    identity
 
 .. autofunction:: array
 .. autofunction:: arange
@@ -28,4 +33,9 @@ This is a recently added, experimental module. We would love to hear what use ca
 .. autofunction:: zeros
 .. autofunction:: ones
 .. autofunction:: qr
+.. autofunction:: inv
+.. autofunction:: concatenate
+.. autofunction:: vstack
+.. autofunction:: eye
+.. autofunction:: identity
 

@@ -2,13 +2,16 @@ from functools import reduce
 
 import hail as hl
 from hail.expr.functions import _ndarray
+from hail.expr.functions import array as aarray
 from hail.expr.types import HailType, tfloat64, ttuple, tndarray
-from hail.typecheck import typecheck, nullable, oneof, tupleof
+from hail.typecheck import typecheck, nullable, oneof, tupleof, sequenceof
 from hail.expr.expressions import (
     expr_int32, expr_int64, expr_tuple, expr_any, expr_array, expr_ndarray,
-    Int64Expression, cast_expr, construct_expr)
+    expr_numeric, Int64Expression, cast_expr, construct_expr)
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
-from hail.ir import NDArrayQR
+from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat
+
+tsequenceof_nd = oneof(sequenceof(expr_ndarray()), tupleof(expr_ndarray()))
 
 
 def array(input_array):
@@ -34,7 +37,7 @@ def array(input_array):
 
     Parameters
     ----------
-    input_array : :class:`.ArrayExpression` or numpy ndarray or nested python lists
+    input_array : :class:`.ArrayExpression`, numpy ndarray, or nested python lists/tuples
 
     Returns
     -------
@@ -239,7 +242,8 @@ def qr(nd, mode="reduced"):
     - r: ndarray of float64
         The upper-triangular matrix R.
     - (h, tau): ndarrays of float64
-        The array h contains the Householder reflectors that generate q along with r. The tau array contains scaling factors for the reflectors
+        The array h contains the Householder reflectors that generate q along with r.
+        The tau array contains scaling factors for the reflectors
     """
 
     assert nd.ndim == 2, "QR decomposition requires 2 dimensional ndarray"
@@ -255,3 +259,240 @@ def qr(nd, mode="reduced"):
         return construct_expr(ir, tndarray(tfloat64, 2))
     elif mode in ["complete", "reduced"]:
         return construct_expr(ir, ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 2)))
+
+
+@typecheck(nd=expr_ndarray())
+def inv(nd):
+    """Performs a matrix inversion.
+
+    :param nd: A 2 dimensional ndarray, shape(M, N)
+
+    Returns
+    -------
+    - a: ndarray of float64
+        The inverted matrix
+    """
+
+    assert nd.ndim == 2, "Matrix inversion requires 2 dimensional ndarray"
+
+    float_nd = nd.map(lambda x: hl.float64(x))
+    ir = NDArrayInv(float_nd._ir)
+    return construct_expr(ir, tndarray(tfloat64, 2))
+
+
+@typecheck(nds=tsequenceof_nd, axis=int)
+def concatenate(nds, axis=0):
+    """Join a sequence of arrays along an existing axis.
+
+    Examples
+    --------
+
+    >>> x = hl.nd.array([[1., 2.], [3., 4.]])
+    >>> y = hl.nd.array([[5.], [6.]])
+    >>> hl.eval(hl.nd.concatenate([x, y], axis=1))
+    array([[1., 2., 5.],
+           [3., 4., 6.]])
+    >>> x = hl.nd.array([1., 2.])
+    >>> y = hl.nd.array([3., 4.])
+    >>> hl.eval(hl.nd.concatenate((x, y), axis=0))
+    array([1., 2., 3., 4.])
+
+    Parameters
+    ----------
+    :param nds: a1, a2, …sequence of array_like
+        The arrays must have the same shape, except in the dimension corresponding to axis (the first, by default).
+        Note: unlike Numpy, the numerical element type of each array_like must match.
+    :param axis: int, optional
+        The axis along which the arrays will be joined. Default is 0.
+        Note: unlike Numpy, if provided, axis cannot be None.
+
+    Returns
+    -------
+    - res: ndarray
+        The concatenated array
+    """
+    head_ndim = nds[0].ndim
+    for nd in nds:
+        assert(nd.ndim == head_ndim)
+
+    makearr = aarray(nds)
+    concat_ir = NDArrayConcat(makearr._ir, axis)
+
+    return construct_expr(concat_ir, concat_ir.typ)
+
+
+@typecheck(N=expr_numeric, M=nullable(expr_numeric), dtype=HailType)
+def eye(N, M=None, dtype=hl.tfloat64):
+    """
+    Construct a 2-D :class:`.NDArrayExpression` with ones on the *main* diagonal
+    and zeros elsewhere.
+
+    Parameters
+    ----------
+    N : :class:`.NumericExpression` or Python number
+      Number of rows in the output.
+    M : :class:`.NumericExpression` or Python number, optional
+      Number of columns in the output. If None, defaults to `N`.
+    dtype : numeric :class:`.HailType`, optional
+      Element type of the returned array. Defaults to :py:data:`.tfloat64`
+
+    Returns
+    -------
+    I : :class:`.NDArrayExpression` representing a Hail ndarray of shape (N,M)
+      An ndarray whose elements are equal to one on the main diagonal, zeroes elsewhere.
+
+    See Also
+    --------
+    :func:`.identity`
+    :func:`.diagonal`
+
+    Examples
+    --------
+    >>> hl.eval(hl.nd.eye(3))
+    array([[1., 0., 0.],
+           [0., 1., 0.],
+           [0., 0., 1.]])
+    >>> hl.eval(hl.nd.eye(2, 5, dtype=hl.tint32))
+    array([[1, 0, 0, 0, 0],
+           [0, 1, 0, 0, 0]], dtype=int32)
+    """
+
+    n_row = hl.int32(N)
+    if M is None:
+        n_col = n_row
+    else:
+        n_col = hl.int32(M)
+
+    return hl.nd.array(hl.range(0, n_row * n_col).map(
+        lambda i: hl.cond((i // n_col) == (i % n_col),
+                          hl.literal(1, dtype),
+                          hl.literal(0, dtype))
+    )).reshape((n_row, n_col))
+
+
+@typecheck(N=expr_numeric, dtype=HailType)
+def identity(N, dtype=hl.tfloat64):
+    """
+    Constructs a 2-D :class:`.NDArrayExpression` representing the identity array.
+    The identity array is a square array with ones on the main diagonal.
+
+    Parameters
+    ----------
+    n : :class:`.NumericExpression` or Python number
+      Number of rows and columns in the output.
+    dtype : numeric :class:`.HailType`, optional
+      Element type of the returned array. Defaults to :py:data:`.tfloat64`
+
+    Returns
+    -------
+    out : :class:`.NDArrayExpression`
+        `n` x `n` ndarray with its main diagonal set to one, and all other elements 0.
+
+    See Also
+    --------
+    :func:`.eye`
+
+    Examples
+    --------
+    >>> hl.eval(hl.nd.identity(3))
+    array([[1., 0., 0.],
+           [0., 1., 0.],
+           [0., 0., 1.]])
+    """
+    return eye(N, dtype=dtype)
+
+
+@typecheck(arrs=tsequenceof_nd)
+def vstack(arrs):
+    """
+    Stack arrays in sequence vertically (row wise).
+    1-D arrays of shape `(N,)`, will reshaped to `(1,N)` before concatenation.
+    For all other arrays, equivalent to  :func:`.concatenate` with axis=0.
+
+    Parameters
+    ----------
+    arrs : sequence of :class:`.NDArrayExpression`
+        The arrays must have the same shape along all but the first axis.
+        1-D arrays must have the same length.
+
+    Returns
+    -------
+    stacked : :class:`.NDArrayExpression`
+        The array formed by stacking the given arrays, will be at least 2-D.
+
+    See Also
+    --------
+    :func:`.concatenate` : Join a sequence of arrays along an existing axis.
+
+    Examples
+    --------
+    >>> a = hl.nd.array([1, 2, 3])
+    >>> b = hl.nd.array([2, 3, 4])
+    >>> hl.eval(hl.nd.vstack((a,b)))
+    array([[1, 2, 3],
+           [2, 3, 4]], dtype=int32)
+    >>> a = hl.nd.array([[1], [2], [3]])
+    >>> b = hl.nd.array([[2], [3], [4]])
+    >>> hl.eval(hl.nd.vstack((a,b)))
+    array([[1],
+           [2],
+           [3],
+           [2],
+           [3],
+           [4]], dtype=int32)
+    """
+
+    if arrs[0].ndim == 1:
+        arrays = [x._broadcast(2) for x in arrs]
+    else:
+        arrays = arrs
+
+    return concatenate(arrays, 0)
+
+
+@typecheck(arrs=tsequenceof_nd)
+def hstack(arrs):
+    """
+    Stack arrays in sequence horizontally (column wise).
+    Equivalent to concatenation along the second axis, except for 1-D
+    arrays where it concatenates along the first axis.
+
+    This function makes most sense for arrays with up to 3 dimensions.
+    :func:`.concatenate` provides more general stacking and concatenation operations.
+
+    Parameters
+    ----------
+    tup : sequence of :class:`.NDArrayExpression`
+        The arrays must have the same shape along all but the second axis,
+        except 1-D arrays which can be any length.
+
+    Returns
+    -------
+    stacked : :class:`.NDArrayExpression`
+        The array formed by stacking the given arrays.
+
+    See Also
+    --------
+    :func:`.concatenate`
+    :func:`.vstack`
+
+    Examples
+    --------
+    >>> a = hl.nd.array([1,2,3])
+    >>> b = hl.nd.array([2,3,4])
+    >>> hl.eval(hl.nd.hstack((a,b)))
+    array([1, 2, 3, 2, 3, 4], dtype=int32)
+    >>> a = hl.nd.array([[1],[2],[3]])
+    >>> b = hl.nd.array([[2],[3],[4]])
+    >>> hl.eval(hl.nd.hstack((a,b)))
+    array([[1, 2],
+           [2, 3],
+           [3, 4]], dtype=int32)
+    """
+
+    if arrs[0].ndim == 1:
+        axis = 0
+    else:
+        axis = 1
+
+    return concatenate(arrs, axis)

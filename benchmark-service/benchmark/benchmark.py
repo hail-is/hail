@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 @router.get('/healthcheck')
-async def healthcheck() -> web.Response:
+async def healthcheck(request: web.Request) -> web.Response:
     return web.Response()
 
 

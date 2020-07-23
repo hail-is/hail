@@ -60,6 +60,26 @@ def grouped(n, ls):
         yield group
 
 
+def partition(k, ls):
+    if k == 0:
+        assert not ls
+        return []
+
+    assert ls
+    assert k > 0
+    n = len(ls)
+    parts = [(n - i + k - 1) // k for i in range(k)]
+    assert sum(parts) == n
+    assert max(parts) - min(parts) <= 1
+
+    def generator():
+        start = 0
+        for part in parts:
+            yield ls[start:start + part]
+            start += part
+    return generator()
+
+
 def unzip(lst):
     a = []
     b = []

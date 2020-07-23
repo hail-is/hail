@@ -77,8 +77,10 @@ def test_ndarray_slice():
         (rect_prism[:, :, 1:4:2], np_rect_prism[:, :, 1:4:2]),
         (rect_prism[:, 2, 1:4:2], np_rect_prism[:, 2, 1:4:2]),
         (rect_prism[0, 2, 1:4:2], np_rect_prism[0, 2, 1:4:2]),
-        (rect_prism[0, :, 1:4:2] + rect_prism[:, :1, 1:4:2], np_rect_prism[0, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
-        (rect_prism[0:, :, 1:4:2] + rect_prism[:, :1, 1:4:2], np_rect_prism[0:, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
+        (rect_prism[0, :, 1:4:2] + rect_prism[:, :1, 1:4:2],
+         np_rect_prism[0, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
+        (rect_prism[0:, :, 1:4:2] + rect_prism[:, :1, 1:4:2],
+         np_rect_prism[0:, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
         (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2]),
         (rect_prism[0, 0, -3:-1], np_rect_prism[0, 0, -3:-1]),
         (flat[15:5:-1], np_flat[15:5:-1]),
@@ -137,7 +139,8 @@ def test_ndarray_eval():
     assert np.array_equal(hl.eval(hl.nd.array(hl.int64(4))), np.array(4))
 
     # Testing from nested hail arrays
-    assert np.array_equal(hl.eval(hl.nd.array(hl.array([hl.array(x) for x in data_list]))), np.arange(9).reshape((3, 3)) + 1)
+    assert np.array_equal(
+        hl.eval(hl.nd.array(hl.array([hl.array(x) for x in data_list]))), np.arange(9).reshape((3, 3)) + 1)
 
     # Testing missing data
     assert hl.eval(hl.nd.array(hl.null(hl.tarray(hl.tint32)))) is None
@@ -227,7 +230,8 @@ def test_ndarray_reshape():
     )
 
     assert hl.eval(hl.null(hl.tndarray(hl.tfloat, 2)).reshape((4, 5))) is None
-    assert hl.eval(hl.nd.array(hl.range(20)).reshape(hl.null(hl.ttuple(hl.tint64, hl.tint64)))) is None
+    assert hl.eval(hl.nd.array(hl.range(20)).reshape(
+        hl.null(hl.ttuple(hl.tint64, hl.tint64)))) is None
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.literal(np_cube).reshape((-1, -1)))
@@ -376,11 +380,13 @@ def test_ndarray_map2():
     assert hl.eval(missing + present) is None
     assert hl.eval(present + missing) is None
 
+
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
 def test_ndarray_to_numpy():
     nd = np.array([[1, 2, 3], [4, 5, 6]])
     np.array_equal(hl.nd.array(nd).to_numpy(), nd)
+
 
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
@@ -401,6 +407,7 @@ def test_ndarray_save():
 
             assert expected.dtype == actual.dtype, f'expected: {expected.dtype}, actual: {actual.dtype}'
             assert np.array_equal(expected, actual)
+
 
 @skip_unless_spark_backend()
 @run_with_cxx_compile()
@@ -510,9 +517,12 @@ def test_ndarray_matmul():
         (zero_by_four.transpose() @ zero_by_four, np_zero_by_four.transpose() @ np_zero_by_four)
     )
 
-    assert hl.eval(hl.null(hl.tndarray(hl.tfloat64, 2)) @ hl.null(hl.tndarray(hl.tfloat64, 2))) is None
-    assert hl.eval(hl.null(hl.tndarray(hl.tint64, 2)) @ hl.nd.array(np.arange(10).reshape(5, 2))) is None
-    assert hl.eval(hl.nd.array(np.arange(10).reshape(5, 2)) @ hl.null(hl.tndarray(hl.tint64, 2))) is None
+    assert hl.eval(hl.null(hl.tndarray(hl.tfloat64, 2)) @
+                   hl.null(hl.tndarray(hl.tfloat64, 2))) is None
+    assert hl.eval(hl.null(hl.tndarray(hl.tint64, 2)) @
+                   hl.nd.array(np.arange(10).reshape(5, 2))) is None
+    assert hl.eval(hl.nd.array(np.arange(10).reshape(5, 2)) @
+                   hl.null(hl.tndarray(hl.tint64, 2))) is None
 
     assert np.array_equal(hl.eval(ones_int32 @ ones_float64), np_ones_int32 @ np_ones_float64)
 
@@ -552,6 +562,7 @@ def test_ndarray_full():
     assert hl.eval(hl.nd.ones(3, dtype=hl.tint64)).dtype, np.int64
     assert hl.eval(hl.nd.full((5, 6, 7), hl.int32(3), dtype=hl.tfloat64)).dtype, np.float64
 
+
 @skip_unless_spark_backend()
 def test_ndarray_arange():
     assert_ndarrays_eq(
@@ -566,11 +577,13 @@ def test_ndarray_arange():
 
 
 def test_ndarray_mixed():
-    assert hl.eval(hl.null(hl.tndarray(hl.tint64, 2)).map(lambda x: x * x).reshape((4, 5)).T) is None
+    assert hl.eval(hl.null(hl.tndarray(hl.tint64, 2)).map(
+        lambda x: x * x).reshape((4, 5)).T) is None
     assert hl.eval(
         (hl.nd.zeros((5, 10)).map(lambda x: x - 2) +
          hl.nd.ones((5, 10)).map(lambda x: x + 5)).reshape(hl.null(hl.ttuple(hl.tint64, hl.tint64))).T.reshape((10, 5))) is None
-    assert hl.eval(hl.or_missing(False, hl.nd.array(np.arange(10)).reshape((5,2)).map(lambda x: x * 2)).map(lambda y: y * 2)) is None
+    assert hl.eval(hl.or_missing(False, hl.nd.array(np.arange(10)).reshape(
+        (5, 2)).map(lambda x: x * 2)).map(lambda y: y * 2)) is None
 
 
 def test_ndarray_show():
@@ -582,8 +595,10 @@ def test_ndarray_show():
 
 def test_ndarray_diagonal():
     assert np.array_equal(hl.eval(hl.nd.diagonal(hl.nd.array([[1, 2], [3, 4]]))), np.array([1, 4]))
-    assert np.array_equal(hl.eval(hl.nd.diagonal(hl.nd.array([[1, 2, 3], [4, 5, 6]]))), np.array([1, 5]))
-    assert np.array_equal(hl.eval(hl.nd.diagonal(hl.nd.array([[1, 2], [3, 4], [5, 6]]))), np.array([1, 4]))
+    assert np.array_equal(hl.eval(hl.nd.diagonal(
+        hl.nd.array([[1, 2, 3], [4, 5, 6]]))), np.array([1, 5]))
+    assert np.array_equal(hl.eval(hl.nd.diagonal(
+        hl.nd.array([[1, 2], [3, 4], [5, 6]]))), np.array([1, 4]))
 
     with pytest.raises(AssertionError) as exc:
         hl.nd.diagonal(hl.nd.array([1, 2]))
@@ -606,7 +621,8 @@ def test_ndarray_qr():
             assert np.allclose(ndarray_tau[:rank], np_ndarray_tau[:rank])
 
     def assert_r_equivalence(hl_ndarray, np_ndarray):
-        assert np.allclose(hl.eval(hl.nd.qr(hl_ndarray, mode="r")), np.linalg.qr(np_ndarray, mode="r"))
+        assert np.allclose(hl.eval(hl.nd.qr(hl_ndarray, mode="r")),
+                           np.linalg.qr(np_ndarray, mode="r"))
 
     def assert_reduced_equivalence(hl_ndarray, np_ndarray):
         q, r = hl.eval(hl.nd.qr(hl_ndarray, mode="reduced"))
@@ -737,3 +753,93 @@ def test_ndarrays_transmute_ops():
     u = u.annotate(x=hl.nd.array([u.idx]), y=hl.nd.array([u.idx]))
     u = u.transmute(xxx=u.x @ u.y)
     assert u.xxx.collect() == [x * x for x in range(10)]
+
+
+def test_ndarray():
+    a1 = hl.eval(hl.nd.array((1, 2, 3)))
+    a2 = hl.eval(hl.nd.array([1, 2, 3]))
+    an1 = np.array((1, 2, 3))
+    an2 = np.array([1, 2, 3])
+
+    assert(np.array_equal(a1, a2) and np.array_equal(a2, an2))
+
+    a1 = hl.eval(hl.nd.array(((1), (2), (3))))
+    a2 = hl.eval(hl.nd.array(([1], [2], [3])))
+    a3 = hl.eval(hl.nd.array([[1], [2], [3]]))
+
+    an1 = np.array(((1), (2), (3)))
+    an2 = np.array(([1], [2], [3]))
+    an3 = np.array([[1], [2], [3]])
+
+    assert(np.array_equal(a1, an1) and np.array_equal(a2, an2) and np.array_equal(a3, an3))
+
+    a1 = hl.eval(hl.nd.array(((1, 2), (2, 5), (3, 8))))
+    a2 = hl.eval(hl.nd.array([[1, 2], [2, 5], [3, 8]]))
+
+    an1 = np.array(((1, 2), (2, 5), (3, 8)))
+    an2 = np.array([[1, 2], [2, 5], [3, 8]])
+
+    assert(np.array_equal(a1, an1) and np.array_equal(a2, an2))
+
+
+def test_inv():
+    c = np.random.randn(5, 5)
+    d = np.linalg.inv(c)
+    dhail = hl.eval(hl.nd.inv(c))
+    assert np.allclose(dhail, d)
+
+
+def test_concatenate():
+    x = np.array([[1., 2.], [3., 4.]])
+    y = np.array([[5.], [6.]])
+    np_res = np.concatenate([x, y], axis=1)
+
+    res = hl.eval(hl.nd.concatenate([x, y], axis=1))
+    assert np.array_equal(np_res, res)
+
+    x = np.array([[1], [3]])
+    y = np.array([[5], [6]])
+
+    seq = [x, y]
+    np_res = np.concatenate(seq)
+    res = hl.eval(hl.nd.concatenate(seq))
+    assert np.array_equal(np_res, res)
+
+    seq = (x, y)
+    np_res = np.concatenate(seq)
+    res = hl.eval(hl.nd.concatenate(seq))
+    assert np.array_equal(np_res, res)
+
+
+def test_vstack():
+    a = np.array([1, 2, 3])
+    b = np.array([2, 3, 4])
+
+    seq = (a, b)
+    assert(np.array_equal(hl.eval(hl.nd.vstack(seq)), np.vstack(seq)))
+
+    a = np.array([[1], [2], [3]])
+    b = np.array([[2], [3], [4]])
+    seq = (a, b)
+    assert(np.array_equal(hl.eval(hl.nd.vstack(seq)), np.vstack(seq)))
+
+
+def test_hstack():
+    a = np.array([1, 2, 3])
+    b = np.array([2, 3, 4])
+    assert(np.array_equal(hl.eval(hl.nd.hstack((a, b))), np.hstack((a, b))))
+
+    a = np.array([[1], [2], [3]])
+    b = np.array([[2], [3], [4]])
+    assert(np.array_equal(hl.eval(hl.nd.hstack((a, b))), np.hstack((a, b))))
+
+
+def test_eye():
+    for i in range(13):
+        for y in range(13):
+            assert(np.array_equal(hl.eval(hl.nd.eye(i, y)), np.eye(i, y)))
+
+
+def test_identity():
+    for i in range(13):
+        assert(np.array_equal(hl.eval(hl.nd.identity(i)), np.identity(i)))

@@ -403,7 +403,13 @@ object NDArrayQR {
     "complete" -> PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 2)))
 }
 
+object NDArrayInv {
+  val pType = PCanonicalNDArray(PFloat64Required, 2)
+}
+
 final case class NDArrayQR(nd: IR, mode: String) extends IR
+
+final case class NDArrayInv(nd: IR) extends IR
 
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 

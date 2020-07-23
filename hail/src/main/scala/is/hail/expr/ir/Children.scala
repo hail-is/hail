@@ -143,6 +143,8 @@ object Children {
       Array(l, r)
     case NDArrayQR(nd, _) =>
       Array(nd)
+    case NDArrayInv(nd) =>
+      Array(nd)
     case NDArrayWrite(nd, path) =>
       Array(nd, path)
     case AggFilter(cond, aggIR, _) =>

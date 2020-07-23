@@ -2,8 +2,8 @@ package is.hail.linalg
 
 import java.lang.reflect.Method
 
-import com.sun.jna.{FunctionMapper, Library, Native, NativeLibrary, Pointer}
-import com.sun.jna.ptr.{DoubleByReference, IntByReference}
+import com.sun.jna.{FunctionMapper, Library, Native, NativeLibrary}
+import com.sun.jna.ptr.IntByReference
 
 import scala.util.{Failure, Success, Try}
 import is.hail.utils._
@@ -14,6 +14,8 @@ class UnderscoreFunctionMapper extends FunctionMapper {
   }
 }
 
+// ALL LAPACK C function args must be passed by address, not value
+// see: https://software.intel.com/content/www/us/en/develop/documentation/mkl-linux-developer-guide/top/language-specific-usage-options/mixed-language-programming-with-the-intel-math-kernel-library/calling-lapack-blas-and-cblas-routines-from-c-c-language-environments.html
 object LAPACK {
   lazy val libraryInstance = {
     val standard = Native.loadLibrary("lapack", classOf[LAPACKLibrary]).asInstanceOf[LAPACKLibrary]
@@ -57,6 +59,26 @@ object LAPACK {
     infoInt.getValue()
   }
 
+  def dgetrf(M: Int, N: Int, A: Long, LDA: Int, IPIV: Long): Int = {
+    val Mref = new IntByReference(M)
+    val Nref= new IntByReference(N)
+    val LDAref = new IntByReference(LDA)
+    val INFOref = new IntByReference(1)
+
+    libraryInstance.dgetrf(Mref, Nref, A, LDAref, IPIV, INFOref)
+    INFOref.getValue()
+  }
+
+  def dgetri(N: Int, A: Long, LDA: Int, IPIV: Long, WORK: Long, LWORK: Int): Int = {
+    val Nref = new IntByReference(N)
+    val LDAref = new IntByReference(LDA)
+    val LWORKref = new IntByReference(LWORK)
+    val INFOref = new IntByReference(1)
+
+    libraryInstance.dgetri(Nref, A, LDAref, IPIV, WORK, LWORKref, INFOref)
+    INFOref.getValue()
+  }
+
   private def versionTest(libInstance: LAPACKLibrary): Try[String] = {
     val major = new IntByReference()
     val minor = new IntByReference()
@@ -71,6 +93,8 @@ object LAPACK {
 
 trait LAPACKLibrary extends Library {
   def dgeqrf(M: IntByReference, N: IntByReference, A: Long, LDA: IntByReference, TAU: Long, WORK: Long, LWORK: IntByReference, INFO: IntByReference)
-  def dorgqr(M: IntByReference, N: IntByReference, K: IntByReference, A: Long, LDA: IntByReference, TAU: Long, WORK: Long, LWORK: IntByReference, Info: IntByReference)
+  def dorgqr(M: IntByReference, N: IntByReference, K: IntByReference, A: Long, LDA: IntByReference, TAU: Long, WORK: Long, LWORK: IntByReference, INFO: IntByReference)
+  def dgetrf(M: IntByReference, N: IntByReference, A: Long, LDA: IntByReference, IPIV: Long, INFO: IntByReference)
+  def dgetri(N: IntByReference, A: Long, LDA: IntByReference, IPIV: Long, WORK: Long, LWORK: IntByReference, INFO: IntByReference)
   def ilaver(MAJOR: IntByReference, MINOR: IntByReference, PATCH: IntByReference)
 }

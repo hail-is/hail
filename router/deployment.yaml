@@ -30,6 +30,20 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  name: benchmark
+  labels:
+    app: benchmark
+spec:
+  ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 5000
+  selector:
+    app: benchmark
+---
+apiVersion: v1
+kind: Service
+metadata:
   name: batch
   labels:
     app: batch

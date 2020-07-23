@@ -806,32 +806,40 @@ class Emit[C](
         val dataPType = xP.data.pType
         val nDims = shapePType.size
 
-        // val rowMajort = emit(rowMajorIR) // XXX Unused?
-        emitI(shapeIR).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
-          emitI(dataIR).map(cb) { case dataCode: PIndexableCode =>
-            val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
-            val dataValue = dataCode.memoize(cb, "make_ndarray_data")
-            val dataPtr = dataValue.get.tcode[Long]
-            val requiredData = dataPType.checkedConvertFrom(mb, region, dataPtr, coerce[PArray](dataContainer), "NDArray cannot have missing data")
+        emitI(rowMajorIR).flatMap(cb) { case isRowMajorCode: PPrimitiveCode =>
+          emitI(shapeIR).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
+            emitI(dataIR).map(cb) { case dataCode: PIndexableCode =>
+              val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
+              val dataValue = dataCode.memoize(cb, "make_ndarray_data")
+              val dataPtr = dataValue.get.tcode[Long]
+              val requiredData = dataPType.checkedConvertFrom(mb, region, dataPtr, coerce[PArray](dataContainer), "NDArray cannot have missing data")
 
-            (0 until nDims).foreach { index =>
-              cb.ifx(shapeTupleValue.isFieldMissing(index),
-                cb.append(Code._fatal[Unit](s"shape missing at index $index")))
+              (0 until nDims).foreach { index =>
+                cb.ifx(shapeTupleValue.isFieldMissing(index),
+                  cb.append(Code._fatal[Unit](s"shape missing at index $index")))
+              }
+
+              def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
+                Code(
+                  srvb.start(),
+                  Code.foreach(0 until nDims) { index =>
+                    Code(
+                      srvb.addLong(shapeTupleValue(index)),
+                      srvb.advance())
+                  })
+              }
+
+              def makeStridesBuilder(sourceShape: PBaseStructValue, isRowMajor: Code[Boolean], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+                def shapeCodeSeq1 = (0 until nDims).map(sourceShape[Long](_).get)
+
+                isRowMajor.mux(
+                  xP.makeRowMajorStridesBuilder(shapeCodeSeq1, mb)(srvb),
+                  xP.makeColumnMajorStridesBuilder(shapeCodeSeq1, mb)(srvb)
+                )
+              }
+
+              PCode(pt, xP.construct(shapeBuilder, makeStridesBuilder(shapeTupleValue, isRowMajorCode.tcode[Boolean], mb), requiredData, mb))
             }
-
-            val shapeCodeSeq = (0 until nDims).map(shapeTupleValue[Long](_).get)
-
-            def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
-              Code(
-                srvb.start(),
-                Code.foreach(0 until nDims) { index =>
-                  Code(
-                    srvb.addLong(shapeTupleValue(index)),
-                    srvb.advance())
-                })
-            }
-
-            PCode(pt, xP.construct(shapeBuilder, xP.makeRowMajorStridesBuilder(shapeCodeSeq, mb), requiredData, mb))
           }
         }
       case NDArrayRef(nd, idxs) =>
@@ -1149,8 +1157,8 @@ class Emit[C](
             codeR.setup,
             lm := codeL.m,
             rm := codeR.m,
-            f((lm, lm.mux(defaultValue(l.typ), codeL.v)),
-              (rm, rm.mux(defaultValue(r.typ), codeR.v)))))
+            f((lm, lm.mux(defaultValue(l.pType), codeL.v)),
+              (rm, rm.mux(defaultValue(r.pType), codeR.v)))))
         }
 
       case x@MakeArray(args, _) =>
@@ -1619,7 +1627,7 @@ class Emit[C](
               funcMB
           }
         val codeArgs = args.map(emit(_))
-        val vars = args.map { a => coerce[Any](mb.newLocal()(typeToTypeInfo(a.typ))) }
+        val vars = args.map { a => coerce[Any](mb.newLocal()(typeToTypeInfo(a.pType))) }
         val ins = vars.zip(codeArgs.map(_.v)).map { case (l, i) => l := i }
         val value = Code(Code(ins), meth.invokeCode[Any](
           ((mb.getCodeParam[Region](1): Param) +: vars.map(_.get: Param)): _*))
@@ -1719,7 +1727,7 @@ class Emit[C](
 
         val numericElementType = coerce[PNumeric](lPType.elementType)
 
-        val eVti = typeToTypeInfo(numericElementType.virtualType)
+        val eVti = typeToTypeInfo(numericElementType)
 
         val isMissing = lT.m || rT.m
 
@@ -2064,6 +2072,81 @@ class Emit[C](
           }
         }
         EmitCode(ndt.setup, ndt.m, PCode(pt, result))
+
+      case NDArrayInv(nd) =>
+        // Based on https://github.com/numpy/numpy/blob/v1.19.0/numpy/linalg/linalg.py#L477-L547
+        val ndt = emitNDArrayStandardStrides(nd)
+        val ndAddress = mb.genFieldThisRef[Long]()
+        val ndPType = nd.pType.asInstanceOf[PCanonicalNDArray]
+
+        val shapeAddress: Value[Long] = new Value[Long] {
+          def get: Code[Long] = ndPType.shape.load(ndAddress)
+        }
+        val shapeTuple = new CodePTuple(ndPType.shape.pType, shapeAddress)
+        val shapeArray = (0 until ndPType.shape.pType.nFields).map(shapeTuple[Long](_))
+
+        assert(shapeArray.length == 2)
+
+        val M = shapeArray(0)
+        val N = shapeArray(1)
+        val LDA = M
+
+        val dataAddress = ndPType.data.load(ndAddress)
+
+        val IPIVptype = PCanonicalArray(PInt32Required, true)
+        val IPIVaddr = mb.genFieldThisRef[Long]()
+        val WORKaddr = mb.genFieldThisRef[Long]()
+        val Aaddr = mb.genFieldThisRef[Long]()
+        val An = mb.newLocal[Int]()
+
+        val INFOdgetrf = mb.newLocal[Int]()
+        val INFOdgetri = mb.newLocal[Int]()
+        val INFOerror = (fun: String, info: LocalRef[Int]) => (info cne 0)
+          .orEmpty(Code._fatal[Unit](const(s"LAPACK error ${fun}. Error code = ").concat(info.toS)))
+
+        val computeLU = Code(FastIndexedSeq(
+          ndAddress := ndt.value[Long],
+          (N cne M).orEmpty(Code._fatal[Unit](const("Can only invert square matrix"))),
+          An := (M * N).toI,
+
+          Aaddr := ndPType.data.pType.allocate(region, An),
+          ndPType.data.pType.stagedInitialize(Aaddr, An),
+          Region.copyFrom(ndPType.data.pType.firstElementOffset(dataAddress, An),
+            ndPType.data.pType.firstElementOffset(Aaddr, An), An.toL * 8L),
+
+          IPIVaddr := IPIVptype.allocate(region, N.toI),
+          IPIVptype.stagedInitialize(IPIVaddr, N.toI),
+
+          INFOdgetrf := Code.invokeScalaObject5[Int, Int, Long, Int, Long, Int](LAPACK.getClass, "dgetrf",
+            M.toI,
+            N.toI,
+            ndPType.data.pType.firstElementOffset(Aaddr, An.toI),
+            LDA.toI,
+            IPIVptype.firstElementOffset(IPIVaddr, N.toI)
+          ),
+          INFOerror("dgetrf", INFOdgetrf),
+
+          WORKaddr := Code.invokeStatic1[Memory, Long, Long]("malloc", An.toL * 8L),
+
+          INFOdgetri := Code.invokeScalaObject6[Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgetri",
+            N.toI,
+            ndPType.data.pType.firstElementOffset(Aaddr, An.toI),
+            LDA.toI,
+            IPIVptype.firstElementOffset(IPIVaddr, N.toI),
+            WORKaddr,
+            N.toI
+          ),
+          INFOerror("dgetri", INFOdgetri)
+        ))
+
+        val shapeBuilder = ndPType.makeShapeBuilder(shapeArray.map(_.get))
+        val stridesBuilder = ndPType.makeColumnMajorStridesBuilder(shapeArray.map(_.get), mb)
+
+        val res = Code(
+          computeLU,
+          ndPType.construct(shapeBuilder, stridesBuilder, Aaddr, mb)
+        )
+        EmitCode(ndt.setup, ndt.m, PCode(ndPType, res))
 
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
@@ -2888,7 +2971,7 @@ abstract class NDArrayEmitter[C](
     val innerMethod = mb.genEmitMethod("ndaLoop", mb.emitParamTypes, UnitInfo)
 
     val idxVars = Array.tabulate(nDims) { _ => mb.genFieldThisRef[Long]() }.toFastIndexedSeq
-    val storeElement = innerMethod.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType.virtualType))
+    val storeElement = innerMethod.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType))
 
     val body =
       Code(

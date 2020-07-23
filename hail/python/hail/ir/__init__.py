@@ -9,7 +9,7 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     TailLoop, Recur, ApplyBinaryPrimOp, ApplyUnaryPrimOp, ApplyComparisonOp, \
     MakeArray, ArrayRef, ArrayLen, ArrayZeros, StreamRange, MakeNDArray, \
     NDArrayShape, NDArrayReshape, NDArrayMap, NDArrayRef, NDArraySlice, \
-    NDArrayReindex, NDArrayAgg, NDArrayMatMul, NDArrayQR, NDArrayWrite, \
+    NDArrayReindex, NDArrayAgg, NDArrayMatMul, NDArrayQR, NDArrayInv, NDArrayConcat, NDArrayWrite, \
     ArraySort, ToSet, ToDict, ToArray, CastToArray, ToStream, \
     LowerBoundOnOrderedCollection, GroupByKey, StreamMap, StreamZip, \
     StreamFilter, StreamFlatMap, StreamFold, StreamScan, \
@@ -59,7 +59,7 @@ from .table_writer import TableWriter, TableNativeWriter, TableTextWriter
 from .blockmatrix_writer import BlockMatrixWriter, BlockMatrixNativeWriter, \
     BlockMatrixBinaryWriter, BlockMatrixRectanglesWriter, \
     BlockMatrixMultiWriter, BlockMatrixBinaryMultiWriter, \
-    BlockMatrixTextMultiWriter, BlockMatrixPersistWriter
+    BlockMatrixTextMultiWriter, BlockMatrixPersistWriter, BlockMatrixNativeMultiWriter
 from .renderer import Renderable, RenderableStr, ParensRenderer, \
     RenderableQueue, RQStack, Renderer, PlainRenderer, CSERenderer
 
@@ -114,6 +114,7 @@ __all__ = [
     'BlockMatrixBinaryWriter',
     'BlockMatrixRectanglesWriter',
     'BlockMatrixMultiWriter',
+    'BlockMatrixNativeMultiWriter',
     'BlockMatrixBinaryMultiWriter',
     'BlockMatrixTextMultiWriter',
     'BlockMatrixPersistWriter',
@@ -154,6 +155,8 @@ __all__ = [
     'NDArrayAgg',
     'NDArrayMatMul',
     'NDArrayQR',
+    'NDArrayInv',
+    'NDArrayConcat',
     'NDArrayWrite',
     'ArraySort',
     'ToSet',

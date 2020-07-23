@@ -27,6 +27,19 @@ server {
 }
 
 server {
+    server_name benchmark.*;
+
+    location / {
+    # NOTE: http vs https
+        proxy_pass http://benchmark/;
+        include /etc/nginx/proxy.conf;
+    }
+
+    listen 80 ssl;
+    listen [::]:80 ssl;
+}
+
+server {
     server_name ci.*;
 
     location ~ /(test-ci-[a-z0-9]+)/(.*) {
