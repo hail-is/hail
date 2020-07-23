@@ -1990,6 +1990,10 @@ object EmitStream {
         as.foreach(traverse(_, mult)); traverse(f, 2)
       case StreamZip(as, _, body, _) =>
         as.foreach(traverse(_, mult)); traverse(body, 2)
+      case ToStream(a) =>
+        traverse(a, mult)
+      case ToArray(a) =>
+        traverse(a, mult)
       case ir: IR if !ir.typ.isInstanceOf[TStream] =>
         Children(ir).foreach(traverse(_, 2))
     }
