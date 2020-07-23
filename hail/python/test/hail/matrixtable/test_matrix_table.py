@@ -1448,9 +1448,28 @@ class Tests(unittest.TestCase):
                               an_agg = hl.agg.sum(mt.row_idx * mt.col_idx))
         mt.cols()._force_count()
 
-    def test_show(self):
+    def test_show_runs(self):
         mt = self.get_mt()
         mt.show()
+
+    def test_show_header(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+        mt = mt.annotate_entries(x=1)
+        mt = mt.key_cols_by(col_idx=mt.col_idx + 10)
+
+        def assert_res(x):
+            expect = ('+---------+-------+\n'
+                      '| row_idx |  10.x |\n'
+                      '+---------+-------+\n'
+                      '|   int32 | int32 |\n'
+                      '+---------+-------+\n'
+                      '|       0 |     1 |\n'
+                      '+---------+-------+\n')
+            s = str(x)
+            assert s == expect
+
+        mt.show(handler=assert_res)
+
 
     def test_partitioned_write(self):
         mt = hl.utils.range_matrix_table(40, 3, 5)
