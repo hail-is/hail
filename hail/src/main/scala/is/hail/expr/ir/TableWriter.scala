@@ -181,11 +181,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
                   IEmitCode.present(cb, PCode(keyType, keyRVB.offset))
                 },
                   ob.invoke[Long]("indexOffset"),
-                  {
-                    val pcs = PCanonicalStruct(true)
-                    IEmitCode.present(cb, PCode(pcs, pcs.allocate(region)))
-                  }
-                )
+                  IEmitCode.present(cb, PCode(+PCanonicalStruct(), 0L)))
               }
               cb += ob.writeByte(1.asInstanceOf[Byte])
               cb += enc(region, coerce[Long](row.value), ob)
