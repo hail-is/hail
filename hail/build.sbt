@@ -1,4 +1,4 @@
-lazy val sparkVersion = "2.4.0"
+lazy val sparkVersion = "3.0.0"
 lazy val si = sparkVersion match {
   case "2.4.2" => SparkInfo("0.10.7", "0.13.2")
   case "2.4.1" => SparkInfo("0.10.7", "0.13.2")
