@@ -21,6 +21,7 @@ from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
 #   'parent_ids': [int],
 #   'port': int,
 #   'pvc_size': str,
+#   'requester_pays_project': str,
 #   'resoures': {
 #     'memory': str,
 #     'cpu': str
@@ -38,7 +39,7 @@ from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
 # }]
 
 JOB_KEYS = {
-    'always_run', 'attributes', 'command', 'env', 'gcsfuse', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'resources', 'secrets', 'service_account', 'timeout'
+    'always_run', 'attributes', 'command', 'env', 'gcsfuse', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'requester_pays_project', 'resources', 'secrets', 'service_account', 'timeout'
 }
 
 ENV_VAR_KEYS = {'name', 'value'}
@@ -241,6 +242,11 @@ def validate_job(i, job):
             raise ValidationError(f'jobs[{i}].pvc_size not str')
         if not MEMORY_REGEX.fullmatch(pvc_size):
             raise ValidationError(f'jobs[{i}].pvc_size must match regex: {MEMORY_REGEXPAT}')
+
+    if 'requester_pays_project' in job:
+        requester_pays_project = job['requester_pays_project']
+        if not isinstance(requester_pays_project, str):
+            raise ValidationError(f'jobs[{i}].requester_pays_project not str')
 
     if 'resources' in job:
         resources = job['resources']
