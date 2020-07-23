@@ -752,6 +752,19 @@ class Emit[C](
         }
       case ApplyUnaryPrimOp(op, x) =>
         emitI(x).map(cb)(pc => PCode(pt, UnaryOp.emit(op, x.typ, pc.code)))
+      case ApplyComparisonOp(op, l, r) =>
+        val f = op.codeOrdering(mb, l.pType, r.pType)
+        if (op.strict) {
+          emitI(l).flatMap(cb)(l => emitI(r).map(cb)(r => PCode(pt, f((false, l.code), (false, r.code)))))
+        } else {
+          val lm = cb.newLocal[Boolean]("lm", false)
+          val rm = cb.newLocal[Boolean]("rm", false)
+          val lc = emitI(l).handle(cb, cb.assign(lm, true))
+          val rc = emitI(r).handle(cb, cb.assign(rm, true))
+          presentC(
+            f((lm, lm.mux(defaultValue(l.pType), lc.code)),
+              (rm, rm.mux(defaultValue(r.pType), rc.code))))
+        }
 
       case x@ArrayRef(a, i, s) =>
         val errorTransformer: Code[String] => Code[String] = s match {
@@ -1140,25 +1153,6 @@ class Emit[C](
         if (ev.pt != pt)
           throw new RuntimeException(s"PValue type did not match inferred ptype:\n name: $name\n  pv: ${ ev.pt }\n  ir: $pt")
         ev.get
-
-      case ApplyComparisonOp(op, l, r) =>
-        val f = op.codeOrdering(mb, l.pType, r.pType)
-        val codeL = emit(l)
-        val codeR = emit(r)
-        if (op.strict) {
-          strict(pt, f((false, codeL.v), (false, codeR.v)),
-            codeL, codeR)
-        } else {
-          val lm = mb.newLocal[Boolean]()
-          val rm = mb.newLocal[Boolean]()
-          present(pt, Code(
-            codeL.setup,
-            codeR.setup,
-            lm := codeL.m,
-            rm := codeR.m,
-            f((lm, lm.mux(defaultValue(l.pType), codeL.v)),
-              (rm, rm.mux(defaultValue(r.pType), codeR.v)))))
-        }
 
       case x@MakeArray(args, _) =>
         val pType = x.pType.asInstanceOf[PArray]
