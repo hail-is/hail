@@ -5,7 +5,7 @@ import sys
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
-from hailtop.tls import get_context_specific_client_ssl_context
+from hailtop.tls import get_context_specific_ssl_client_session
 
 
 def init_parser(parser):
