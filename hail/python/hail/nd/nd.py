@@ -16,7 +16,6 @@ tsequenceof_nd = oneof(sequenceof(expr_ndarray()), tupleof(expr_ndarray()),
 shape_type = oneof(expr_int64, tupleof(expr_int64), expr_tuple())
 
 
-@typecheck(dtype=nullable(HailType))
 def array(input_array, dtype=None):
     """Construct an :class:`.NDArrayExpression`
 
