@@ -746,6 +746,25 @@ class Emit[C](
         val m = cb.newLocal[Boolean]("isna")
         emitI(v).consume(cb, cb.assign(m, const(true)), { _ => cb.assign(m, const(false)) })
         presentC(m)
+      case ApplyBinaryPrimOp(op, l, r) =>
+        emitI(l).flatMap(cb) { pcL =>
+          emitI(r).map(cb)(pcR => PCode(pt, BinaryOp.emit(op, l.typ, r.typ, pcL.code, pcR.code)))
+        }
+      case ApplyUnaryPrimOp(op, x) =>
+        emitI(x).map(cb)(pc => PCode(pt, UnaryOp.emit(op, x.typ, pc.code)))
+      case ApplyComparisonOp(op, l, r) =>
+        val f = op.codeOrdering(mb, l.pType, r.pType)
+        if (op.strict) {
+          emitI(l).flatMap(cb)(l => emitI(r).map(cb)(r => PCode(pt, f((false, l.code), (false, r.code)))))
+        } else {
+          val lm = cb.newLocal[Boolean]("lm", false)
+          val rm = cb.newLocal[Boolean]("rm", false)
+          val lc = emitI(l).handle(cb, cb.assign(lm, true))
+          val rc = emitI(r).handle(cb, cb.assign(rm, true))
+          presentC(
+            f((lm, lm.mux(defaultValue(l.pType), lc.code)),
+              (rm, rm.mux(defaultValue(r.pType), rc.code))))
+        }
 
       case x@ArrayRef(a, i, s) =>
         val errorTransformer: Code[String] => Code[String] = s match {
@@ -1154,32 +1173,6 @@ class Emit[C](
         if (ev.pt != pt)
           throw new RuntimeException(s"PValue type did not match inferred ptype:\n name: $name\n  pv: ${ ev.pt }\n  ir: $pt")
         ev.get
-
-      case ApplyBinaryPrimOp(op, l, r) =>
-        val codeL = emit(l)
-        val codeR = emit(r)
-        strict(pt, BinaryOp.emit(op, l.typ, r.typ, codeL.v, codeR.v), codeL, codeR)
-      case ApplyUnaryPrimOp(op, x) =>
-        val v = emit(x)
-        strict(pt, UnaryOp.emit(op, x.typ, v.v), v)
-      case ApplyComparisonOp(op, l, r) =>
-        val f = op.codeOrdering(mb, l.pType, r.pType)
-        val codeL = emit(l)
-        val codeR = emit(r)
-        if (op.strict) {
-          strict(pt, f((false, codeL.v), (false, codeR.v)),
-            codeL, codeR)
-        } else {
-          val lm = mb.newLocal[Boolean]()
-          val rm = mb.newLocal[Boolean]()
-          present(pt, Code(
-            codeL.setup,
-            codeR.setup,
-            lm := codeL.m,
-            rm := codeR.m,
-            f((lm, lm.mux(defaultValue(l.pType), codeL.v)),
-              (rm, rm.mux(defaultValue(r.pType), codeR.v)))))
-        }
 
       case x@MakeArray(args, _) =>
         val pType = x.pType.asInstanceOf[PArray]
