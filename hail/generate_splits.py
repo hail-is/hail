@@ -38,6 +38,6 @@ splits = partition(n_splits, classes)
 with open('testng-splits.xml', 'r') as f:
     template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
 
-for split, split_index in enumerate(splits):
+for split_index, split in enumerate(splits):
     with open(f'testng-splits-{split_index}.xml', 'w') as f:
         f.write(template.render(split_index=split_index, names=split))
