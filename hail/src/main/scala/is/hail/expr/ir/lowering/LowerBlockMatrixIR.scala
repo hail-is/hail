@@ -43,6 +43,33 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
     val collect = CollectDistributedArray(ctxs, bcVals, ctxRef.name, bcRef.name, wrappedBody)
     globalVals.foldRight[IR](collect) { case ((f, v), accum) => Let(f, v, accum) }
   }
+
+  def addGlobals(newGlobals: (String, IR)*): BlockMatrixStage = {
+    val outer = this
+    new BlockMatrixStage(globalVals ++ newGlobals, ctxType) {
+      def blockContext(idx: (Int, Int)): IR = outer.blockContext(idx)
+      def blockBody(ctxRef: Ref): IR = outer.blockBody(ctxRef)
+    }
+  }
+
+  def addContext(newTyp: Type)(newCtx: ((Int, Int)) => IR): BlockMatrixStage = {
+    val outer = this
+    val newCtxType = TStruct("old" -> ctxType, "new" -> newTyp)
+    new BlockMatrixStage(globalVals, newCtxType) {
+      def blockContext(idx: (Int, Int)): IR =
+        makestruct("old" -> outer.blockContext(idx), "new" -> newCtx(idx))
+
+      def blockBody(ctxRef: Ref): IR = bindIR(GetField(ctxRef, "old"))(outer.blockBody)
+    }
+  }
+  def mapBody(f: (IR, IR) => IR): BlockMatrixStage = {
+    val outer = this
+    new BlockMatrixStage(globalVals, outer.ctxType) {
+      def blockContext(idx: (Int, Int)): IR = outer.blockContext(idx)
+
+      def blockBody(ctxRef: Ref): IR = f(ctxRef, outer.blockBody(ctxRef))
+    }
+  }
 }
 
 object LowerBlockMatrixIR {
@@ -64,8 +91,22 @@ object LowerBlockMatrixIR {
     def lowerNonEmpty(bmir: BlockMatrixIR): BlockMatrixStage = bmir match {
       case BlockMatrixRead(reader) => unimplemented(bmir)
       case x: BlockMatrixLiteral => unimplemented(bmir)
-      case BlockMatrixMap(child, eltName, f, needsDense) => unimplemented(bmir)
-      case BlockMatrixMap2(left, right, lname, rname, f, sparsityStrategy) => unimplemented(bmir)
+      case BlockMatrixMap(child, eltName, f, _) =>
+        lower(child).mapBody { (_, body) =>
+          NDArrayMap(body, eltName, f)
+        }
+      case BlockMatrixMap2(left, right, lname, rname, f, sparsityStrategy) =>
+        if (left.typ.blockSize != right.typ.blockSize)
+          throw new LowererUnsupportedOperation(s"Can't lower BlockMatrixMap2 with mismatched block sizes: ${ left.typ.blockSize } vs ${ right.typ.blockSize }")
+
+        val loweredLeft = lower(left)
+        val loweredRight = lower(right)
+        loweredLeft
+          .addGlobals(loweredRight.globalVals: _*)
+          .addContext(loweredRight.ctxType)(loweredRight.blockContext).mapBody { (ctx, leftBody) =>
+          NDArrayMap2(leftBody, bindIR(GetField(ctx, "new"))(loweredRight.blockBody), lname, rname, f)
+        }
+
       case BlockMatrixBroadcast(child, inIndexExpr, shape, blockSize) => unimplemented(bmir)
       case BlockMatrixAgg(child, outIndexExpr) => unimplemented(bmir)
       case BlockMatrixFilter(child, keep) => unimplemented(bmir)
