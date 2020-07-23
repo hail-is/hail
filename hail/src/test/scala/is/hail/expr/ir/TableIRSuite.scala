@@ -1054,8 +1054,7 @@ class TableIRSuite extends HailSuite {
         Row((i / 5) * 5)
       }, Row("Hello")))
 
-    interceptAssertion("must iterate over the partition exactly once") {
-      collect(TableMapPartitions(table, "g", "part", StreamFlatMap(StreamRange(0, 2, 1), "_", part)))
-    }
+    val e = intercept[HailException](TypeCheck(collect(TableMapPartitions(table, "g", "part", StreamFlatMap(StreamRange(0, 2, 1), "_", part)))))
+    assert("must iterate over the partition exactly once".r.findFirstIn(e.getCause.getMessage).isDefined)
   }
 }
