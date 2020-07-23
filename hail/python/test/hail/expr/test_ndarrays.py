@@ -782,6 +782,25 @@ def test_ndarray():
     assert(np.array_equal(a1, an1) and np.array_equal(a2, an2))
 
 
+def test_cast():
+    def testequal(a, hdtype, ndtype):
+        ah = hl.eval(hl.nd.array(a, dtype=hdtype))
+        an = np.array(a, dtype=ndtype)
+
+        assert(ah.dtype == an.dtype)
+
+    def test(a):
+        testequal(a, hl.tfloat64, np.float64)
+        testequal(a, hl.tfloat32, np.float32)
+        testequal(a, hl.tint32, np.int32)
+        testequal(a, hl.tint64, np.int64)
+
+    test([1, 2, 3])
+    test([1, 2, 3.])
+    test([1., 2., 3.])
+    test([[1, 2], [3, 4]])
+
+
 def test_inv():
     c = np.random.randn(5, 5)
     d = np.linalg.inv(c)
