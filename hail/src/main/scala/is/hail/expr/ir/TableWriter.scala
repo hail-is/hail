@@ -149,7 +149,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
     mb: EmitMethodBuilder[_],
     region: Value[Region],
     stream: SizedStream): EmitCode = {
-    val enc = spec.buildEmitEncoderF(eltType, mb.ecb, typeInfo[Long]) //(Value[Region], Value[T], Value[OutputBuffer]) => Code[Unit]
+    val enc = spec.buildEmitEncoder(eltType, mb.ecb)
 
     val keyType = ifIndexed { index.get._2 }
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb) }
@@ -184,7 +184,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
                   IEmitCode.present(cb, PCode(+PCanonicalStruct(), 0L)))
               }
               cb += ob.writeByte(1.asInstanceOf[Byte])
-              cb += enc(region, coerce[Long](row.value), ob)
+              cb += enc(region, row, ob)
               cb.assign(n, n + 1L)
             })
           }

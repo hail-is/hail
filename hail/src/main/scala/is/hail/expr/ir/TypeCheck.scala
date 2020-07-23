@@ -465,8 +465,8 @@ object TypeCheck {
       case x@ReadValue(path, spec, requestedType) =>
         assert(path.typ == TString)
         assert(spec.encodedType.decodedPType(requestedType).virtualType == requestedType)
-      case x@WriteValue(value, pathPrefix, spec) =>
-        assert(pathPrefix.typ == TString)
+      case x@WriteValue(value, path, spec) =>
+        assert(path.typ == TString)
       case LiftMeOut(_) =>
       case x@ShuffleWith(_, _, _, _, _, writer, readers) =>
         assert(writer.typ == TArray(TBinary))

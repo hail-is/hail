@@ -113,12 +113,12 @@ class TypedRegionBackedAggState(val typ: PType, val kb: EmitClassBuilder[_]) ext
     cb += Code(newState(off), StagedRegionValueBuilder.deepCopy(kb, region, storageType, src, off))
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
-    val enc = TypedCodecSpec(storageType, codec).buildEmitEncoderF[Long](storageType, kb)
+    val enc = TypedCodecSpec(storageType, codec).buildTypedEmitEncoderF[Long](storageType, kb)
     (cb, ob: Value[OutputBuffer]) => cb += enc(region, off, ob)
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
-    val (t, dec) = TypedCodecSpec(storageType, codec).buildEmitDecoderF[Long](storageType.virtualType, kb)
+    val (t, dec) = TypedCodecSpec(storageType, codec).buildTypedEmitDecoderF[Long](storageType.virtualType, kb)
     val off2: Settable[Long] = kb.genFieldThisRef[Long]()
     (cb, ib: Value[InputBuffer]) => cb += Code(off2 := dec(region, ib), Region.copyFrom(off2, off, const(storageType.byteSize)))
   }

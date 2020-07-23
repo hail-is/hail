@@ -971,6 +971,26 @@ class Emit[C](
         // FIXME: server needs to send uuid for the successful partition
         presentC(PCanonicalBinary(true).allocate(region, 0))
 
+      case x@ReadValue(path, spec, requestedType) =>
+        emitI(path).map(cb) { pv =>
+          val ib = cb.newLocal[InputBuffer]("read_ib")
+          cb.assign(ib, spec.buildCodeInputBuffer(mb.open(pv.asString.loadString(), checkCodec = true)))
+          spec.buildEmitDecoder(requestedType, mb.ecb)(region, ib)
+        }
+
+      case WriteValue(value, path, spec) =>
+        emitI(path).flatMap(cb) { case p: PStringCode =>
+          val pv = p.memoize(cb, "write_path")
+          emitI(value).map(cb) { v =>
+            val ob = cb.newLocal[OutputBuffer]("write_ob")
+            cb.assign(ob, spec.buildCodeOutputBuffer(mb.create(pv.asString.loadString())))
+            val enc = spec.buildEmitEncoder(v.pt, cb.emb.ecb)
+            cb += enc(region, v.memoize(cb, "write_value"), ob)
+            cb += ob.invoke[Unit]("close")
+            pv
+          }
+        }
+
       case _ =>
         emitFallback(ir)
     }
@@ -2165,7 +2185,7 @@ class Emit[C](
           assert(cRetPtype == x.decodedContextPTuple)
           val (gRetPtype, gDec) = x.globalSpec.buildEmitDecoderF[Long](bodyFB.ecb)
           assert(gRetPtype == x.decodedGlobalPTuple)
-          val bEnc = x.bodySpec.buildEmitEncoderF[Long](x.bodyPTuple, bodyFB.ecb)
+          val bEnc = x.bodySpec.buildTypedEmitEncoderF[Long](x.bodyPTuple, bodyFB.ecb)
           val bOB = bodyFB.genFieldThisRef[OutputBuffer]()
 
           val env = Env[EmitValue](
@@ -2213,8 +2233,8 @@ class Emit[C](
         val optCtxStream = emitStream(contexts)
         val globalsT = emit(globals)
 
-        val cEnc = x.contextSpec.buildEmitEncoderF[Long](x.contextPTuple, parentCB)
-        val gEnc = x.globalSpec.buildEmitEncoderF[Long](x.globalPTuple, parentCB)
+        val cEnc = x.contextSpec.buildTypedEmitEncoderF[Long](x.contextPTuple, parentCB)
+        val gEnc = x.globalSpec.buildTypedEmitEncoderF[Long](x.globalPTuple, parentCB)
         val (bRetPType, bDec) = x.bodySpec.buildEmitDecoderF[Long](parentCB)
         assert(bRetPType == x.decodedBodyPTuple)
 
@@ -2333,50 +2353,6 @@ class Emit[C](
           emitStream(stream).flatMap { s =>
             COption.fromEmitCode(writer.consumeStream(ctxCode, eltType, mb, region, s))
           }, mb)
-
-      case x@ReadValue(path, spec, requestedType) =>
-        val p = emit(path)
-        val pathString = coerce[PString](path.pType).loadString(p.value[Long])
-        val rowBuf = spec.buildCodeInputBuffer(mb.open(pathString, true))
-        val (pt, dec) = spec.buildEmitDecoderF(requestedType, mb.ecb, typeToTypeInfo(x.pType))
-        EmitCode(p.setup, p.m, PCode(pt,
-          Code.memoize(rowBuf, "read_ib") { ib =>
-            dec(region, ib)
-          }))
-      case x@WriteValue(value, pathPrefix, spec) =>
-        val v = emit(value)
-        val p = emit(pathPrefix)
-        val m = mb.newLocal[Boolean]()
-        val pv = mb.newLocal[String]()
-        val rb = mb.newLocal[OutputBuffer]()
-
-        val taskCtx = Code.invokeScalaObject0[HailTaskContext](HailTaskContext.getClass, "get")
-        val vti = typeToTypeInfo(value.pType)
-
-        EmitCode(
-          Code(
-            p.setup, v.setup,
-            m := p.m || v.m,
-            m.mux(
-              Code(pv := Code._null[String], rb := Code._null[OutputBuffer]),
-              Code(
-                pv := coerce[PString](pathPrefix.pType).loadString(p.value[Long]),
-                Code.memoize(taskCtx, "write_val_task_ctx") { taskCtx =>
-                  (!taskCtx.isNull).orEmpty(
-                    pv := pv.concat("-").concat(taskCtx.invoke[String]("partSuffix")))
-                },
-                rb := spec.buildCodeOutputBuffer(mb.create(pv)),
-                vti match {
-                  case vti: TypeInfo[t] =>
-                    val enc = spec.buildEmitEncoderF(value.pType, mb.ecb, vti)
-                    Code.memoize(v.value[t], "write_value") { v =>
-                        enc(region, v, rb)
-                    }(vti)
-                },
-                rb.invoke[Unit]("close")
-              ))
-          ), m,
-          PCode(x.pType, coerce[PString](x.pType).allocateAndStoreString(mb, region, pv)))
       case x =>
         if (fallingBackFromEmitI) {
           fatal(s"ir is not defined in emit or emitI $x")

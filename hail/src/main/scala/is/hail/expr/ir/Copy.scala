@@ -355,7 +355,7 @@ object Copy {
       case ReadValue(path, spec, requestedType) =>
         assert(newChildren.length == 1)
         ReadValue(newChildren(0).asInstanceOf[IR], spec, requestedType)
-      case WriteValue(value, pathPrefix, spec) =>
+      case WriteValue(value, path, spec) =>
         assert(newChildren.length == 2)
         WriteValue(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], spec)
       case LiftMeOut(_) =>

@@ -3,7 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.expr.Nat
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.GetElement
-import is.hail.types.BlockMatrixSparsity
+import is.hail.types.{BlockMatrixSparsity, TypeWithRequiredness}
 import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 
@@ -18,9 +18,10 @@ case class EmptyBlockMatrixStage(eltType: Type) extends BlockMatrixStage(Array()
 
   def blockBody(ctxRef: Ref): IR = NA(TNDArray(eltType, Nat(2)))
 
-  override def collectBlocks(bindings: Seq[(String, Type)])(f: IR => IR, blocksToCollect: Array[(Int, Int)]): IR = {
+
+  override def collectBlocks(bindings: Seq[(String, Type)])(f: (IR, IR) => IR, blocksToCollect: Array[(Int, Int)]): IR = {
     assert(blocksToCollect.isEmpty)
-    MakeArray(FastSeq(), TArray(f(blockBody(Ref("x", ctxType))).typ))
+    MakeArray(FastSeq(), TArray(f(Ref("x", ctxType), blockBody(Ref("x", ctxType))).typ))
   }
 }
 
@@ -29,9 +30,9 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
 
   def blockBody(ctxRef: Ref): IR
 
-  def collectBlocks(bindings: Seq[(String, Type)])(f: IR => IR, blocksToCollect: Array[(Int, Int)]): IR = {
+  def collectBlocks(bindings: Seq[(String, Type)])(f: (IR, IR) => IR, blocksToCollect: Array[(Int, Int)]): IR = {
     val ctxRef = Ref(genUID(), ctxType)
-    val body = f(blockBody(ctxRef))
+    val body = f(ctxRef, blockBody(ctxRef))
     val ctxs = MakeStream(blocksToCollect.map(idx => blockContext(idx)), TStream(ctxRef.typ))
     val bodyFreeVars = FreeVariables(body, supportsAgg = false, supportsScan = false)
     val bcFields = globalVals.filter { case (f, _) => bodyFreeVars.eval.lookupOption(f).isDefined }
@@ -89,7 +90,7 @@ object LowerBlockMatrixIR {
     }
 
     def lowerNonEmpty(bmir: BlockMatrixIR): BlockMatrixStage = bmir match {
-      case BlockMatrixRead(reader) => unimplemented(bmir)
+      case BlockMatrixRead(reader) => reader.lower(ctx)
       case x: BlockMatrixLiteral => unimplemented(bmir)
       case BlockMatrixMap(child, eltName, f, _) =>
         lower(child).mapBody { (_, body) =>
@@ -168,7 +169,7 @@ object LowerBlockMatrixIR {
         val blocksRowMajor = Array.range(0, child.typ.nRowBlocks).flatMap { i =>
           Array.tabulate(child.typ.nColBlocks)(j => i -> j).filter(child.typ.hasBlock)
         }
-        val cda = bm.collectBlocks(relationalLetsAbove)(b => b, blocksRowMajor)
+        val cda = bm.collectBlocks(relationalLetsAbove)((_, b) => b, blocksRowMajor)
         val blockResults = Ref(genUID(), cda.typ)
 
         val rows = if (child.typ.isSparse) {
@@ -190,8 +191,22 @@ object LowerBlockMatrixIR {
           ToArray(StreamMap(StreamRange(0, child.typ.nRowBlocks, 1), i.name, NDArrayConcat(cols, 1)))
         }
         Let(blockResults.name, cda, NDArrayConcat(rows, 0))
-      case BlockMatrixToValueApply(child, GetElement(index)) => unimplemented(node)
-      case BlockMatrixWrite(child, writer) => unimplemented(node)
+      case BlockMatrixToValueApply(child, GetElement(IndexedSeq(i, j))) =>
+        val rowBlock = child.typ.getBlockIdx(i)
+        val colBlock = child.typ.getBlockIdx(j)
+
+        val iInBlock = i - rowBlock * child.typ.blockSize
+        val jInBlock = j - colBlock * child.typ.blockSize
+
+        val lowered = lower(child)
+
+        val elt = bindIR(lowered.blockContext(rowBlock -> colBlock)) { ctx =>
+          NDArrayRef(lowered.blockBody(ctx), FastIndexedSeq(I64(iInBlock), I64(jInBlock)))
+        }
+
+        lowered.globalVals.foldRight[IR](elt) { case ((f, v), accum) => Let(f, v, accum) }
+      case BlockMatrixWrite(child, writer) =>
+        writer.lower(ctx, lower(child), child, relationalLetsAbove, TypeWithRequiredness(child.typ.elementType)) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
       case BlockMatrixMultiWrite(blockMatrices, writer) => unimplemented(node)
       case node if node.children.exists(_.isInstanceOf[BlockMatrixIR]) =>
         throw new LowererUnsupportedOperation(s"IR nodes with BlockMatrixIR children need explicit rules: \n${ Pretty(node) }")
