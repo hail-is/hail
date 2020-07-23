@@ -1,4 +1,4 @@
-from gear import configure_logging
+from hailtop.hail_logging import configure_logging
 configure_logging()
 
 

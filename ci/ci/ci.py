@@ -13,11 +13,12 @@ from hailtop.utils import collect_agen, humanize_timedelta_msecs
 from hailtop.batch_client.aioclient import BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
-from gear import setup_aiohttp_session, \
-    rest_authenticated_developers_only, web_authenticated_developers_only, \
-    check_csrf_token, AccessLogger, create_database_pool
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
-    set_message
+from hailtop.hail_logging import AccessLogger
+from gear import (setup_aiohttp_session, rest_authenticated_developers_only,
+                  web_authenticated_developers_only, check_csrf_token,
+                  create_database_pool)
+from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
+                        render_template, set_message)
 
 from .environment import BUCKET
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch

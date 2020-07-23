@@ -10,8 +10,10 @@ import aiohttp_session
 import kubernetes_asyncio as kube
 import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
-from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
-    check_csrf_token, transaction, AccessLogger
+from gear import (Database, setup_aiohttp_session,
+                  web_authenticated_developers_only, check_csrf_token,
+                  transaction)
+from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
 from hailtop.utils import time_msecs, RateLimit
 from hailtop.tls import get_in_cluster_server_ssl_context

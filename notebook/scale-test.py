@@ -5,7 +5,7 @@ import asyncio
 import logging
 import aiohttp
 import numpy as np
-from gear import configure_logging
+from hailtop.hail_logging import configure_logging
 from hailtop.auth import service_auth_headers
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_context_specific_ssl_client_session

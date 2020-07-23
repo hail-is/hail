@@ -9,11 +9,12 @@ import google_auth_oauthlib.flow
 from hailtop.config import get_deploy_config
 from hailtop.utils import secret_alnum_string
 from hailtop.tls import get_in_cluster_server_ssl_context
+from hailtop.hail_logging import AccessLogger
 from gear import (
     setup_aiohttp_session,
     rest_authenticated_users_only, web_authenticated_developers_only,
     web_maybe_authenticated_user, web_authenticated_users_only, create_session,
-    check_csrf_token, transaction, Database, AccessLogger
+    check_csrf_token, transaction, Database
 )
 from web_common import (
     setup_aiohttp_jinja2, setup_common_static_routes, set_message,
