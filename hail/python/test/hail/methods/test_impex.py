@@ -337,19 +337,23 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(vcf2._same(filter1))
         self.assertEqual(len(parts), vcf2.n_partitions())
 
-    def test_vcf_parser_golden_master(self):
-        files = [(resource('ex.vcf'), 'GRCh37'),
-                 (resource('sample.vcf'), 'GRCh37'),
-                 (resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')]
-        for vcf_path, rg in files:
-            vcf = hl.import_vcf(
-                vcf_path,
-                reference_genome=rg,
-                array_elements_required=False,
-                force_bgz=True)
-            mt = hl.read_matrix_table(vcf_path + '.mt')
-            self.assertTrue(mt._same(vcf))
+    def test_vcf_parser_golden_master__ex_GRCh37(self):
+        self._test_vcf_parser_golden_master(resource('ex.vcf'), 'GRCh37')
 
+    def test_vcf_parser_golden_master__sample_GRCh37(self):
+        self._test_vcf_parser_golden_master(resource('sample.vcf'), 'GRCh37')
+
+    def test_vcf_parser_golden_master__gvcf_GRCh37(self):
+        self._test_vcf_parser_golden_master(resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')
+
+    def _test_vcf_parser_golden_master(self, vcf_path, rg):
+        vcf = hl.import_vcf(
+            vcf_path,
+            reference_genome=rg,
+            array_elements_required=False,
+            force_bgz=True)
+        mt = hl.read_matrix_table(vcf_path + '.mt')
+        self.assertTrue(mt._same(vcf))
 
     @skip_unless_spark_backend()
     def test_import_multiple_vcfs(self):
