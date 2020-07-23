@@ -432,7 +432,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends Partition
     mb: EmitMethodBuilder[C],
     region: Value[Region],
     env: Emit.E,
-    container: Option[AggContainer]): COption[Value[Region] => SizedStream] = {
+    container: Option[AggContainer]): COption[StagedRegion => SizedStream] = {
 
     def emitIR(ir: IR, env: Emit.E = env, region: Value[Region] = region, container: Option[AggContainer] = container): EmitCode =
       emitter.emitWithRegion(ir, mb, region, env, container)

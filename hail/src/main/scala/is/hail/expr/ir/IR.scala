@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Annotation, Region, UnsafeRow}
+import is.hail.annotations.{Annotation, Region, StagedRegion, UnsafeRow}
 import is.hail.asm4s.Value
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.EmitStream.SizedStream
@@ -654,7 +654,7 @@ abstract class PartitionReader {
     mb: EmitMethodBuilder[C],
     region: Value[Region],
     env0: Emit.E,
-    container: Option[AggContainer]): COption[Value[Region] => SizedStream]
+    container: Option[AggContainer]): COption[StagedRegion => SizedStream]
 
   def toJValue: JValue
 }

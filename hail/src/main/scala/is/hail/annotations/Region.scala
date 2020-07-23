@@ -2,6 +2,7 @@ package is.hail.annotations
 
 import is.hail.asm4s
 import is.hail.asm4s.{Code, CodeBuilder, MethodBuilder, Settable, Value, coerce}
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.types.physical._
 import is.hail.utils._
 
@@ -397,6 +398,10 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory.addReferenceTo(r.memory)
   }
 
+  def takeOwnershipOf(r: Region): Unit = {
+    memory.takeOwnershipOf(r.memory)
+  }
+
   def move(r: Region): Unit = {
     r.addReferenceTo(this)
     this.clear()
@@ -409,6 +414,9 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
       memory.release()
     memory = pool.getMemory(blockSize)
   }
+
+  def newRegionFromPool(): Region =
+    new Region(blockSize, pool, pool.getMemory(blockSize))
 
   def setNumParents(n: Int): Unit = {
     memory.setNumParents(n)
@@ -486,55 +494,65 @@ object RegionUtils {
 }
 
 abstract class StagedRegion {
-  def allocate(n: Code[Long]): Code[Long]
+  def code: Value[Region]
 
-  def allocate(a: Code[Long], n: Code[Long]): Code[Long]
-
-  def createChildRegion(cb: CodeBuilder): StagedOwnedRegion
+  def createChildRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion
 }
 
-abstract class StagedOwnedRegion extends StagedRegion {
+trait StagedOwnedRegion extends StagedRegion {
+  def allocateRegion(size: Int): Code[Unit]
+
   def free(): Code[Unit]
+
+  def clear(): Code[Unit]
 
   def giveToParent(): Code[Unit]
 
   def shareWithParent(): Code[Unit]
+
+  def copyToParent(mb: EmitMethodBuilder[_], value: PCode): PCode
 }
 
-class RealStagedRegion(r: Settable[RegionMemory], parent: Value[RegionMemory]) extends StagedOwnedRegion {
-  def allocate(n: Code[Long]): Code[Long] =
-    r.invoke("allocate", n)
+class RealStagedRegion(r: Value[Region]) extends StagedRegion {
+  def code: Value[Region] = r
 
-  def allocate(alignment: Code[Long], n: Code[Long]): Code[Long] =
-    r.invoke("allocate", alignment, n)
-
-  def createChildRegion(cb: CodeBuilder): StagedOwnedRegion = {
-    val newR = cb.newLocal[RegionMemory]("staged_region_child", r.invoke("getNewMemory"))
-    new RealStagedRegion(newR, r)
+  def createChildRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion = {
+    val newR = mb.newLocal[Region]("staged_region_child")
+    new RealStagedOwnedRegion(newR, r)
   }
-
-  def giveToParent(): Code[Unit] =
-    parent.invoke("takeOwnershipOf", r)
-
-  def shareWithParent(): Code[Unit] =
-    parent.invoke("addReferenceTo", r)
-
-  def free(): Code[Unit] =
-    Code(r.invoke("release"), r := Code._null)
 }
 
-class DummyStagedRegion(r: RealStagedRegion) extends StagedOwnedRegion {
-  def allocate(n: Code[Long]): Code[Long] = r.allocate(n)
+class RealStagedOwnedRegion(r: Settable[Region], parent: Value[Region]) extends RealStagedRegion(r) with StagedOwnedRegion {
+  def allocateRegion(size: Int): Code[Unit] = r := Region.stagedCreate(size)
 
-  def allocate(alignment: Code[Long], n: Code[Long]): Code[Long] = r.allocate(alignment, n)
+  def free(): Code[Unit] = Code(r.invalidate(), r := Code._null)
 
-  def createChildRegion(cb: CodeBuilder): StagedOwnedRegion = this
+  def clear(): Code[Unit] = (r: Value[Region]).clear()
+
+  def giveToParent(): Code[Unit] = parent.invoke("takeOwnershipOf", r)
+
+  def shareWithParent(): Code[Unit] = parent.invoke("addReferenceTo", r)
+
+  def copyToParent(mb: EmitMethodBuilder[_], value: PCode): PCode =
+    value.copyToRegion(mb, parent)
+}
+
+class DummyStagedRegion(r: Value[Region]) extends StagedOwnedRegion {
+  def code: Value[Region] = r
+
+  def createChildRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion = this
+
+  def allocateRegion(size: Int): Code[Unit] = Code._empty
+
+  def free(): Code[Unit] = Code._empty
+
+  def clear(): Code[Unit] = Code._empty
 
   def giveToParent(): Code[Unit] = Code._empty
 
   def shareWithParent(): Code[Unit] = Code._empty
 
-  def free(): Code[Unit] = Code._empty
+  def copyToParent(mb: EmitMethodBuilder[_], value: PCode): PCode = value
 }
 
 abstract class StagedRegionPool {

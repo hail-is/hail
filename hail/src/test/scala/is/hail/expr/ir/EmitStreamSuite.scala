@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, RegionValue, RegionValueBuilder, SafeRow, ScalaToRegionValue}
+import is.hail.annotations.{DummyStagedRegion, Region, RegionValue, RegionValueBuilder, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
 import is.hail.types.physical._
@@ -362,7 +362,7 @@ class EmitStreamSuite extends HailSuite {
       optStream.m.mux(
         len := 0,
         {
-          val EmitStream.SizedStream(setup, _, length) = optStream.pv.asStream.getStream(mb.getCodeParam[Region](1))
+          val EmitStream.SizedStream(setup, _, length) = optStream.pv.asStream.getStream(new DummyStagedRegion(mb.getCodeParam[Region](1)))
           Code(setup, len := length.getOrElse(-1))
         }),
       len))

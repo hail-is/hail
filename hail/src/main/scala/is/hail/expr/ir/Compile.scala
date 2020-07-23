@@ -179,7 +179,7 @@ object CompileIterator {
     val stepF = fb.apply_method
     val stepFECB = stepF.ecb
 
-    val er = EmitRegion.default(stepF)
+    val region = EmitRegion.default(stepF).region
     val emitter = new Emit(ctx, stepFECB)
 
     val ir = LoweringPipeline.compileLowerer(true)(ctx, body).asInstanceOf[IR].noSharing
@@ -187,7 +187,7 @@ object CompileIterator {
     InferPType(ir, Env.empty[PType])
     val returnType = ir.pType.asInstanceOf[PStream].elementType.asInstanceOf[PStruct].setRequired(true)
 
-    val optStream = EmitStream.emit(emitter, ir, stepF, er.region, Env.empty, None);
+    val optStream = EmitStream.emit(emitter, ir, stepF, region, Env.empty, None)
 
     val elementAddress = stepF.genFieldThisRef[Long]("elementAddr")
 
@@ -200,7 +200,7 @@ object CompileIterator {
     val eosField = stepF.genFieldThisRef[Boolean]("eos")
     val eosLabel = CodeLabel()
 
-    val source: Source[EmitCode] = optStream.pv.asStream.getStream(er.region).getStream.apply(
+    val source: Source[EmitCode] = optStream.pv.asStream.getStream(new DummyStagedRegion(region)).getStream.apply(
       eosLabel.goto,
       { element =>
         EmitCodeBuilder.scopedVoid(stepF) { cb =>

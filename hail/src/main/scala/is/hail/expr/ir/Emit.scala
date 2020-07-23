@@ -541,7 +541,7 @@ class Emit[C](
         val eltType = a.pType.asInstanceOf[PStream].elementType
         val streamOpt = emitStream(a)
 
-        val eltRegion = mb.newLocal[Region]()
+        val eltRegion = new RealStagedOwnedRegion(mb.newLocal[Region](), region)
 
         def forBody(elt: EmitCode): Code[Unit] = {
           val xElt = mb.newEmitField(valueName, eltType)
@@ -549,17 +549,16 @@ class Emit[C](
           EmitCodeBuilder.scopedVoid(mb) { cb =>
             cb.assign(xElt, elt)
             emitVoid(body, cb, env = bodyEnv)
-            cb += (eltRegion: Value[Region]).clear()
+            cb += eltRegion.clear()
           }
         }
 
         streamOpt.toI(cb).consume(cb,
           {},
           { s =>
-            cb.assign(eltRegion, Region.stagedCreate(Region.REGULAR))
+            cb += eltRegion.allocateRegion(Region.REGULAR)
             cb += s.asStream.getStream(eltRegion).getStream.forEach(mb, forBody)
-            cb += eltRegion.invalidate()
-            cb.assign(eltRegion, Code._null)
+            cb += eltRegion.free()
           })
 
       case x@InitOp(i, args, sig) =>
@@ -960,7 +959,7 @@ class Emit[C](
         cb.append(shuffle.startPut())
         val rows = emitStream(rowsIR).toI(cb).handle(cb, {
           cb._fatal("rows stream was missing in shuffle write")
-        }).asStream.getStream(region).getStream
+        }).asStream.getStream(new DummyStagedRegion(region)).getStream
         cb.append(rows.forEach(mb, { row: EmitCode =>
           Code(
             row.setup,
@@ -1388,8 +1387,7 @@ class Emit[C](
       case x@StreamLen(a) =>
         emitStream(a).map { ss =>
           val count = mb.newLocal[Int]("stream_length")
-          val xEltRegion = mb.newLocal[Region]()
-          val eltRegion: Value[Region] = xEltRegion
+          val eltRegion = new RealStagedRegion(region).createChildRegion(mb)
           val SizedStream(setup, stream, length) = ss.asStream.getStream(eltRegion)
           val lenCode =
             length match {
@@ -1398,10 +1396,9 @@ class Emit[C](
                 Code(
                   count := 0,
                   setup,
-                  xEltRegion := Region.stagedCreate(Region.REGULAR),
+                  eltRegion.allocateRegion(Region.REGULAR),
                   stream.forEach(mb, _ => Code(count := count + 1, eltRegion.clear())),
-                  eltRegion.invalidate(),
-                  xEltRegion := Code._null,
+                  eltRegion.free(),
                   count.get
                 )
             }
@@ -1434,7 +1431,7 @@ class Emit[C](
           def retTT(): Code[Ctrl] =
             ret(COption.fromEmitCode(xAcc.get))
 
-          ss.asStream.getStream(region).getStream
+          ss.asStream.getStream(new DummyStagedRegion(region)).getStream
             .fold(mb, xAcc := codeZ, foldBody, retTT())
         }
 
@@ -1468,7 +1465,7 @@ class Emit[C](
           def computeRes(): Code[Ctrl] =
               ret(COption.fromEmitCode(codeR))
 
-          ss.asStream.getStream(region).getStream
+          ss.asStream.getStream(new DummyStagedRegion(region)).getStream
             .fold(mb, Code(accVars.zip(acc).map { case (v, (name, x)) =>
               v := emit(x).castTo(mb, region, v.pt)
             }),
@@ -2278,7 +2275,7 @@ class Emit[C](
           baos := Code.newInstance[ByteArrayOutputStream](),
           buf := x.contextSpec.buildCodeOutputBuffer(baos), // TODO: take a closer look at whether we need two codec buffers?
           ctxab := Code.newInstance[ByteArrayArrayBuilder, Int](16),
-          addContexts(ctxStream.asStream.getStream(region)),
+          addContexts(ctxStream.asStream.getStream(new DummyStagedRegion(region))),
           baos.invoke[Unit]("reset"),
           addGlobals,
           encRes := spark.invoke[BackendContext, String, Array[Array[Byte]], Array[Byte], Array[Array[Byte]]](
@@ -2333,7 +2330,7 @@ class Emit[C](
         val eltType = coerce[PStruct](coerce[PStream](stream.pType).elementType)
         COption.toEmitCode(
           COption.fromEmitCode(emitStream(stream)).flatMap { s =>
-            COption.fromEmitCode(writer.consumeStream(ctxCode, eltType, mb, region, s.asStream.getStream(region)))
+            COption.fromEmitCode(writer.consumeStream(ctxCode, eltType, mb, region, s.asStream.getStream(new DummyStagedRegion(region))))
           }, mb)
 
       case x@ReadValue(path, spec, requestedType) =>
