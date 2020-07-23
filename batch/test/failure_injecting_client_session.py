@@ -1,14 +1,14 @@
 import aiohttp
 
 from hailtop.utils import async_to_blocking
-from hailtop.tls import ssl_client_session
+from hailtop.tls import in_cluster_ssl_client_session
 
 
 class FailureInjectingClientSession:
     def __init__(self, should_fail):
         self.should_fail = should_fail
-        self.real_session = ssl_client_session(raise_for_status=True,
-                                               timeout=aiohttp.ClientTimeout(total=60))
+        self.real_session = in_cluster_ssl_client_session(raise_for_status=True,
+                                                          timeout=aiohttp.ClientTimeout(total=60))
 
     def __enter__(self):
         return self
