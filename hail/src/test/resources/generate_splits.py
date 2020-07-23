@@ -5,7 +5,7 @@ import jinja2
 from hailtop.utils import partition
 
 sp.run("find -E src/test  -regex '.*(scala|java)' -type file | "
-       "sed -e -e 's:.scala$::' -e 's:/:.:g' > classes ",
+       "sed -e 's:src/test/::'-e 's:.scala$::' -e 's:/:.:g' > classes ",
        shell=True,
        check=True)
 
