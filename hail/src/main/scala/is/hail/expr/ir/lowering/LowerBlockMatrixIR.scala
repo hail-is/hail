@@ -91,6 +91,18 @@ object LowerBlockMatrixIR {
 
     def lowerNonEmpty(bmir: BlockMatrixIR): BlockMatrixStage = bmir match {
       case BlockMatrixRead(reader) => reader.lower(ctx)
+      case x@BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
+        val generator = invokeSeeded(if (gaussian) "rand_norm" else "rand_unif", seed, TFloat64, F64(0.0), F64(1.0))
+        new BlockMatrixStage(Array(), TTuple(TInt64, TInt64)) {
+          def blockContext(idx: (Int, Int)): IR = {
+            val (i, j) = x.typ.blockShape(idx._1, idx._2)
+            MakeTuple.ordered(FastSeq(i, j))
+          }
+          def blockBody(ctxRef: Ref): IR = {
+            val len = (GetTupleElement(ctxRef, 0) * GetTupleElement(ctxRef, 1)).toI
+            MakeNDArray(ToArray(mapIR(rangeIR(len))(_ => generator)), ctxRef, True())
+          }
+        }
       case x: BlockMatrixLiteral => unimplemented(bmir)
       case BlockMatrixMap(child, eltName, f, _) =>
         lower(child).mapBody { (_, body) =>

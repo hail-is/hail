@@ -125,6 +125,14 @@ class BlockMatrixIRSuite extends HailSuite {
     assertBMEvalsTo(BlockMatrixDot(toIR(m1), toIR(m2)), m1 * m2)
   }
 
+  @Test def testBlockMatrixRandom() {
+    val gaussian = BlockMatrixRandom(0, gaussian = true, shape = Array(5L, 6L), blockSize = 3)
+    val uniform = BlockMatrixRandom(0, gaussian = false, shape = Array(5L, 6L), blockSize = 3)
+
+    assertBMEvalsTo(BlockMatrixMap2(gaussian, gaussian, "l", "r", Ref("l", TFloat64) - Ref("r", TFloat64), NeedsDense), BDM.fill(5, 6)(0.0))
+    assertBMEvalsTo(BlockMatrixMap2(uniform, uniform, "l", "r", Ref("l", TFloat64) - Ref("r", TFloat64), NeedsDense), BDM.fill(5, 6)(0.0))
+  }
+
   @Test def readBlockMatrixIR() {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
     val etype = EBlockMatrixNDArray(EFloat64Required, required = true)
