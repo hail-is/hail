@@ -40,8 +40,7 @@ def array(input_array, dtype=None):
 
     Parameters
     ----------
-    input_array : :class:`.ArrayExpression`
-        numpy ndarray, or nested python lists/tuples
+    input_array : :class:`.ArrayExpression`, numpy ndarray, or nested python lists/tuples
     dtype : :class:`.HailType`
         Desired hail type.  Default: `float64`.
 
