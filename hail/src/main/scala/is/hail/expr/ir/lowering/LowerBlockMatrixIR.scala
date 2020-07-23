@@ -206,7 +206,7 @@ object LowerBlockMatrixIR {
 
         lowered.globalVals.foldRight[IR](elt) { case ((f, v), accum) => Let(f, v, accum) }
       case BlockMatrixWrite(child, writer) =>
-        writer.lower(ctx, lower(child), child, TypeWithRequiredness(child.typ.elementType)) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
+        writer.lower(ctx, lower(child), child, relationalLetsAbove, TypeWithRequiredness(child.typ.elementType)) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
       case BlockMatrixMultiWrite(blockMatrices, writer) => unimplemented(node)
       case node if node.children.exists(_.isInstanceOf[BlockMatrixIR]) =>
         throw new LowererUnsupportedOperation(s"IR nodes with BlockMatrixIR children need explicit rules: \n${ Pretty(node) }")
