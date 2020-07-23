@@ -9,6 +9,7 @@ import asyncio
 import aiohttp
 import kubernetes_asyncio as kube
 from hailtop.utils import time_msecs
+from hailtop.auth.sql_config import create_secret_data_from_config
 from hailtop import aiogoogle
 from gear import create_session, Database
 
@@ -199,26 +200,19 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
 ''')
         self.name = name
 
-    @staticmethod
-    def secret_data_from_config(config):
-        assert config.get('db') is not None
-        return {
-            'sql-config.json': json.dumps(config),
-            'sql-config.cnf': f'''
-[client]
-host={config['host']}
-user={config['user']}
-password="{config['password']}"
-database={config['db']}
-'''
-        }
-
     def secret_data(self):
         with open('/database-server-config/sql-config.json', 'r') as f:
             server_config = json.loads(f.read())
+        with open('/database-server-config/server-ca.pem', 'r') as f:
+            server_ca = f.read()
+        with open('/database-server-config/client-cert.pem', 'r') as f:
+            client_cert = f.read()
+        with open('/database-server-config/client-key.pem', 'r') as f:
+            client_key = f.read()
 
         if is_test_deployment:
-            return self.secret_data_from_config(server_config)
+            return create_secret_data_from_config(
+                server_config, server_ca, client_cert, client_key)
 
         assert self.name is not None
         assert self.password is not None
@@ -232,7 +226,8 @@ database={config['db']}
             'connection_name': server_config['connection_name'],
             'db': self.name
         }
-        return self.secret_data_from_config(config)
+        return create_secret_data_from_config(
+            config, server_ca, client_cert, client_key)
 
     async def _delete(self, name):
         if is_test_deployment:
