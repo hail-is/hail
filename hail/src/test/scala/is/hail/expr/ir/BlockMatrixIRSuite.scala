@@ -86,7 +86,6 @@ class BlockMatrixIRSuite extends HailSuite {
   }
 
   @Test def testBlockMatrixBroadcastValue_Vectors() {
-    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
     val vectorLiteral = MakeArray(Seq[F64](F64(1), F64(2), F64(3)), TArray(TFloat64))
 
     val broadcastRowVector = BlockMatrixBroadcast(ValueToBlockMatrix(vectorLiteral, Array[Long](1, 3),
