@@ -44,9 +44,9 @@ deploy: push
 	python3 ../ci/jinja2_render.py $(JINJA_ENVIRONMENT) deployment.yaml deployment.yaml.out
 	python3 ../ci/jinja2_render.py $(JINJA_ENVIRONMENT) service-account.yaml service-account.yaml.out
 	python3 ../ci/jinja2_render.py $(JINJA_ENVIRONMENT) service-account-batch-pods.yaml service-account-batch-pods.yaml.out
-	kubectl -n dking apply -f service-account.yaml.out
-	kubectl -n dking apply -f service-account-batch-pods.yaml.out
-	kubectl -n dking apply -f deployment.yaml.out
+	kubectl -n default apply -f service-account.yaml.out
+	kubectl -n default apply -f service-account-batch-pods.yaml.out
+	kubectl -n default apply -f deployment.yaml.out
 
 .PHONY: create-build-worker-image-instance
 create-build-worker-image-instance:
