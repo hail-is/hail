@@ -3,8 +3,11 @@ package is.hail.services
 import java.io.{File, FileInputStream}
 
 import is.hail.utils._
-import org.json4s.{DefaultFormats, Formats, JValue}
+import org.json4s._
 import org.json4s.jackson.JsonMethods
+import org.apache.http.client.methods._
+
+import scala.util.Random
 
 object DeployConfig {
   lazy val get: DeployConfig = fromConfigFile()
@@ -52,6 +55,8 @@ class DeployConfig(
   val defaultNamespace: String,
   val serviceNamespace: Map[String, String]) {
 
+  private[this] lazy val requester = new Requester()
+
   def scheme(baseScheme: String = "http"): String = {
     if (location == "external" || location == "k8s")
       baseScheme + "s"
@@ -91,5 +96,21 @@ class DeployConfig(
 
   def baseUrl(service: String, baseScheme: String = "http"): String = {
     s"${ scheme(baseScheme) }://${ domain(service) }${ basePath(service) }"
+  }
+
+  def addresses(service: String): Seq[(String, Int)] = {
+    implicit val formats: Formats = DefaultFormats
+
+    val addressBaseUrl = baseUrl("address")
+    val url = s"${addressBaseUrl}/api/${service}"
+    val addresses = requester.request(new HttpGet(url)).asInstanceOf[JArray].children.asInstanceOf[List[JObject]]
+    addresses.map(x => ((x \ "address").extract[String], (x \ "port").extract[Int]))
+  }
+
+  def address(service: String): (String, Int) = {
+    val serviceAddresses = addresses(service)
+    val n = serviceAddresses.length
+    assert(n > 0)
+    serviceAddresses(Random.nextInt(n))
   }
 }
