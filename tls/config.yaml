@@ -59,3 +59,6 @@ principals:
 - name: query-tests
   domain: query-tests
   kind: json
+- name: image-fetcher
+  domain: image-fetcher
+  kind: curl

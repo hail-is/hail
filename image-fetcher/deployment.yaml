@@ -32,6 +32,9 @@ spec:
            mountPath: /var/run/docker.sock
          - name: gcr-pull-key
            mountPath: /secrets
+         - name: ssl-config-image-fetcher
+           mountPath: /ssl-config
+           readOnly: true
       volumes:
        - name: deploy-config
          secret:
@@ -43,3 +46,7 @@ spec:
          secret:
            optional: False
            secretName: gcr-pull-key
+       - name: ssl-config-image-fetcher
+         secret:
+           optional: false
+           secretName: ssl-config-image-fetcher
