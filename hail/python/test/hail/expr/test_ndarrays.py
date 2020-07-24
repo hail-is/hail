@@ -95,7 +95,9 @@ def test_ndarray_slice():
         (flat[0:0:1], np_flat[0:0:1]),
         (flat[-4:-1:2], np_flat[-4:-1:2]),
         (mat[0:20, 0:17], np_mat[0:20, 0:17]),
-        (mat[0:20, 2:17], np_mat[0:20, 2:17])
+        (mat[0:20, 2:17], np_mat[0:20, 2:17]),
+        (mat[9:2:-1, 1:4], np_mat[9:2:-1, 1:4]),
+        (mat[9:-1:-1, 1:4], np_mat[9:-1:-1, 1:4])
     )
 
     assert hl.eval(flat[hl.null(hl.tint32):4:1]) is None
