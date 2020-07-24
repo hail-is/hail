@@ -2616,7 +2616,7 @@ class Emit[C](
           n := inputType.loadLength(inputArray),
           (n < 1).orEmpty(Code._fatal[Unit]("NDArrayConcat: can't concatenate 0 NDArrays")))
 
-        val (missingSetup: Code[Unit @unchecked], missing: Code[Boolean @unchecked], setupShape: Code[Unit @unchecked]) = (inputType.required, inputNDType.required) match {
+        val (missingSetup: Code[Unit@unchecked], missing: Code[Boolean@unchecked], setupShape: Code[Unit@unchecked]) = (inputType.required, inputNDType.required) match {
           case (true, true) => (Code._empty, false: Code[Boolean], Code(
             codeNDs.setup,
             codeNDs.m.orEmpty(Code._fatal[Unit]("NDArrayConcat: required NDArray can't be missing")),
@@ -2701,23 +2701,28 @@ class Emit[C](
         val slicesm = mb.genFieldThisRef[Boolean]("ndarr_slicem")
         val slices = new CodePTuple(coerce[PTuple](slicesIR.pType), slicesValueAddress)
 
-        val slicers = slices.withTypes.collect {
-          case (t: PTuple, slice) => new CodePTuple(t, coerce[Long](slice))
+        val slicersAndIndices = slices.withTypesAndIndices.collect {
+          case (t: PTuple, slice, i) => (new CodePTuple(t, coerce[Long](slice)), i)
         }
+
+        val slicers = slicersAndIndices.map(_._1)
 
         val missingSliceElements = slicers.map(_.missingnessPattern.reduce(_ || _)).fold(false: Code[Boolean])(_ || _)
         val anyMissingness = missingSliceElements || slices.missingnessPattern.fold(false: Code[Boolean])(_ || _)
 
-        val codeSlices = slicers.map(_.values[Long, Long, Long])
+        val codeSlicesAndIndices = slicersAndIndices.map{ case (slice, idx) => (slice.values[Long, Long, Long], idx)}
 
-        val sb = SetupBuilder(mb, childEmitter.setupShape)
-        val outputShape = codeSlices.zipWithIndex.map { case ((start, stop, step), i) =>
+        val (childShapeCachingCode, childShapeCached) = childEmitter.outputShape.cacheEntries(mb, LongInfo)
+
+        val sb = SetupBuilder(mb, Code(childEmitter.setupShape, childShapeCachingCode))
+
+        val outputShape = codeSlicesAndIndices.map { case ((start, stop, step), i) =>
           sb.memoizeField(
-            (step >= 0L && start <= stop).mux(
-              const(1L) + ((stop - start) - 1L) / step,
-              (step < 0L && start >= stop).mux(
-                (((stop - start) + 1L) / step) + 1L,
-                0L)),
+              (step >= 0L && start <= stop).mux(
+                const(1L) + ((stop - start) - 1L) / step,
+                (step < 0L && start >= stop).mux(
+                  (((stop - start) + 1L) / step) + 1L,
+                  0L)).min(childShapeCached(i)),
             s"nda_slice_shape$i")
         }
 
