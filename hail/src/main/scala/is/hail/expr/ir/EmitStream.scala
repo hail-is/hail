@@ -809,24 +809,19 @@ object EmitStream {
     mb: EmitMethodBuilder[_],
     pcStream: PCanonicalStreamCode,
     ab: StagedArrayBuilder,
-    destRegion: Value[Region],
-    allowSubregions: Boolean = false
+    destRegion: StagedRegion
   ): Code[Unit] = {
-    _write(mb, pcStream.stream, ab, destRegion, allowSubregions)
+    _write(mb, pcStream.stream, ab, destRegion)
   }
 
   private def _write(
     mb: EmitMethodBuilder[_],
     sstream: SizedStream,
     ab: StagedArrayBuilder,
-    destRegion: Value[Region],
-    allowSubregions: Boolean
+    destRegion: StagedRegion
   ): Code[Unit] = {
     val SizedStream(ssSetup, stream, optLen) = sstream
-    val eltRegion = if (allowSubregions)
-      new RealStagedOwnedRegion(mb.newLocal[Region](), destRegion)
-    else
-      new DummyStagedRegion(destRegion)
+    val eltRegion = destRegion.createChildRegion(mb)
     Code(FastSeq(
       eltRegion.allocateRegion(Region.REGULAR),
       ssSetup,
@@ -846,10 +841,9 @@ object EmitStream {
     mb: EmitMethodBuilder[_],
     aTyp: PArray,
     pcStream: PCanonicalStreamCode,
-    destRegion: Value[Region],
-    allowSubregions: Boolean = false
+    destRegion: StagedRegion
   ): PCode = {
-    val srvb = new StagedRegionValueBuilder(mb, aTyp, destRegion)
+    val srvb = new StagedRegionValueBuilder(mb, aTyp, destRegion.code)
     val ss = pcStream.stream
     ss.length match {
       case None =>
@@ -857,7 +851,7 @@ object EmitStream {
         val i = mb.newLocal[Int]("sta_i")
         val vab = new StagedArrayBuilder(aTyp.elementType, mb, 0)
         val ptr = Code(
-          _write(mb, ss, vab, destRegion, allowSubregions),
+          _write(mb, ss, vab, destRegion),
           xLen := vab.size,
           srvb.start(xLen),
           i := const(0),
@@ -871,10 +865,7 @@ object EmitStream {
         PCode(aTyp, ptr)
 
       case Some(len) =>
-        val eltRegion = if (allowSubregions)
-          new RealStagedOwnedRegion(mb.newLocal[Region](), destRegion)
-        else
-          new DummyStagedRegion(destRegion)
+        val eltRegion = destRegion.createChildRegion(mb)
         val ptr = Code.sequence1(FastIndexedSeq(
             eltRegion.allocateRegion(Region.REGULAR),
             ss.setup,
@@ -1201,7 +1192,7 @@ object EmitStream {
     emitter: Emit[C],
     streamIR0: IR,
     mb: EmitMethodBuilder[C],
-    outerRegion: Value[Region],
+    outerRegion: StagedRegion,
     env0: Emit.E,
     container: Option[AggContainer]
   ): EmitCode = {
@@ -1211,12 +1202,12 @@ object EmitStream {
       def emitStream(streamIR: IR, outerRegion: StagedRegion = outerRegion, env: Emit.E = env): COption[SizedStream] =
         _emitStream(streamIR, outerRegion, env)
 
-      def emitIR(ir: IR, env: Emit.E = env, region: Value[Region] = outerRegion.code, container: Option[AggContainer] = container): EmitCode =
+      def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = outerRegion, container: Option[AggContainer] = container): EmitCode =
         emitter.emitWithRegion(ir, mb, region, env, container)
 
       def emitVoidIR(ir: IR, env: Emit.E = env, container: Option[AggContainer] = container): Code[Unit] = {
         EmitCodeBuilder.scopedVoid(mb) { cb =>
-          emitter.emitVoid(cb, ir, mb, outerRegion.code, env, container, None)
+          emitter.emitVoid(cb, ir, mb, outerRegion, env, container, None)
         }
       }
 
@@ -1309,7 +1300,7 @@ object EmitStream {
           COption.present(SizedStream(Code._empty, eltRegion => stream, Some(elements.length)))
 
         case x@ReadPartition(context, rowType, reader) =>
-          reader.emitStream(context, rowType, emitter, mb, outerRegion.code, env, container)
+          reader.emitStream(context, rowType, emitter, mb, outerRegion, env, container)
 
         case In(n, PCanonicalStream(eltType, _)) =>
           val xIter = mb.genFieldThisRef[Iterator[java.lang.Long]]("streamInIterator")
@@ -1409,7 +1400,7 @@ object EmitStream {
               case (eltType: PCanonicalStream, _: PCanonicalStream) =>
                 val bodyenv = env.bind(name -> new EmitUnrealizableValue(eltType, eltt))
 
-                emit(emitter, bodyIR, mb, outerRegion.code, bodyenv, container)
+                emit(emitter, bodyIR, mb, outerRegion, bodyenv, container)
               case (eltType: PCanonicalStream, _) =>
                 val bodyenv = env.bind(name -> new EmitUnrealizableValue(eltType, eltt))
 
@@ -1420,7 +1411,7 @@ object EmitStream {
 
                 EmitCode(
                   xElt := eltt,
-                  emit(emitter, bodyIR, mb, outerRegion.code, bodyenv, container))
+                  emit(emitter, bodyIR, mb, outerRegion, bodyenv, container))
               case _ =>
                 val xElt = mb.newEmitField(name, eltType)
                 val bodyenv = env.bind(name -> xElt)
@@ -1670,7 +1661,7 @@ object EmitStream {
             val newEnv = env.bind(curKey -> xKey, curVals -> xElts)
             val joint = joinIR.pType match {
               case _: PCanonicalStream =>
-                emit(emitter, joinIR, mb, outerRegion.code, newEnv, container)
+                emit(emitter, joinIR, mb, outerRegion, newEnv, container)
               case _ =>
                 emitIR(joinIR, newEnv)
             }
@@ -1742,7 +1733,7 @@ object EmitStream {
 
           valueType match {
             case _: PCanonicalStream =>
-              val valuet = emit(emitter, valueIR, mb, outerRegion.code, env, container)
+              val valuet = emit(emitter, valueIR, mb, outerRegion, env, container)
               val bodyEnv = env.bind(name -> new EmitUnrealizableValue(valueType, valuet))
 
               emitStream(bodyIR, env = bodyEnv)
@@ -1847,7 +1838,7 @@ object EmitStream {
           def joinF: ((EmitCode, EmitCode)) => EmitCode = { case (lelt, relt) =>
             val joint = joinIR.pType match {
               case _: PCanonicalStream =>
-                emit(emitter, joinIR, mb, outerRegion.code, newEnv, container)
+                emit(emitter, joinIR, mb, outerRegion, newEnv, container)
               case _ =>
                 emitIR (joinIR, newEnv)
             }
@@ -1974,7 +1965,7 @@ object EmitStream {
     }
 
     COption.toEmitCode(
-      _emitStream(streamIR0, new DummyStagedRegion(outerRegion), env0).map { mkStream =>
+      _emitStream(streamIR0, outerRegion, env0).map { mkStream =>
         PCanonicalStreamCode(streamIR0.pType.asInstanceOf[PCanonicalStream], mkStream)
       }, mb)
   }

@@ -53,7 +53,7 @@ case class ENDArray(elementType: EType, nDims: Int, required: Boolean = false) e
       Code(shapeVars.map(shapeVar => shapeVar := in.readLong())),
       Code(strideVars.map(strideVar => strideVar := (in.readLong() * pnd.elementType.byteSize))),
       dataAddress := arrayDecoder(region, in),
-      pnd.construct(pnd.makeShapeBuilder(shapeVars), pnd.makeShapeBuilder(strideVars), dataAddress, mb)
+      pnd.construct(pnd.makeShapeBuilder(shapeVars), pnd.makeShapeBuilder(strideVars), dataAddress, mb, region)
     )
   }
 

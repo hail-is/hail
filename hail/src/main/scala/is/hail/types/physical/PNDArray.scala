@@ -48,7 +48,13 @@ abstract class PNDArray extends PType {
 
   def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): (Code[Unit], IndexedSeq[Value[Long]])
 
-  def construct(shapeBuilder: StagedRegionValueBuilder => Code[Unit], stridesBuilder: StagedRegionValueBuilder => Code[Unit], data: Code[Long], mb: EmitMethodBuilder[_]): Code[Long]
+  def construct(
+    shapeBuilder: StagedRegionValueBuilder => Code[Unit],
+    stridesBuilder: StagedRegionValueBuilder => Code[Unit],
+    data: Code[Long],
+    mb: EmitMethodBuilder[_],
+    region: Value[Region]
+  ): Code[Long]
 }
 
 abstract class PNDArrayValue extends PValue {

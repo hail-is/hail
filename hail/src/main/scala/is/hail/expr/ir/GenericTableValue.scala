@@ -29,11 +29,11 @@ class PartitionIteratorLongReader(
     requestedType: Type,
     emitter: Emit[C],
     mb: EmitMethodBuilder[C],
-    region: Value[Region],
+    region: StagedRegion,
     env: Emit.E,
     container: Option[AggContainer]): COption[SizedStream] = {
 
-    def emitIR(ir: IR, env: Emit.E = env, region: Value[Region] = region, container: Option[AggContainer] = container): EmitCode =
+    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = region, container: Option[AggContainer] = container): EmitCode =
       emitter.emitWithRegion(ir, mb, region, env, container)
 
     val eltPType = bodyPType(requestedType)
@@ -57,9 +57,9 @@ class PartitionIteratorLongReader(
             setup = Some(
               it := mb.getObject(body(requestedType))
                 .invoke[java.lang.Object, java.lang.Object, Iterator[java.lang.Long]]("apply",
-                  region,
+                  region.code,
                   Code.invokeScalaObject3[PType, Region, Long, java.lang.Object](UnsafeRow.getClass, "read",
-                    mb.getPType(contextPC.pt), region, contextPC.tcode[Long]))))
+                    mb.getPType(contextPC.pt), region.code, contextPC.tcode[Long]))))
           .map(rv => EmitCode.present(eltPType, Region.loadIRIntermediate(eltPType)(rv)))
       }
     }
