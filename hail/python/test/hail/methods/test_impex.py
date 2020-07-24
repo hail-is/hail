@@ -1699,7 +1699,7 @@ class ImportMatrixTableTests(unittest.TestCase):
          .x
          .export(path, header=False, delimiter=' '))
 
-        mt = hl.import_matrix_table('/tmp/foo.txt',
+        mt = hl.import_matrix_table(path,
                                     no_header=True,
                                     entry_type=hl.tint32,
                                     delimiter=' ',
