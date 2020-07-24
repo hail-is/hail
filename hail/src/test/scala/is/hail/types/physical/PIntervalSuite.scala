@@ -10,10 +10,10 @@ import org.testng.annotations.Test
 class PIntervalSuite extends PhysicalTestUtils {
   @Test def copyTests() {
     def runTests(deepCopy: Boolean, interpret: Boolean = false) {
+      println("HELLO2")
       copyTestExecutor(PCanonicalInterval(PInt64()), PCanonicalInterval(PInt64()),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
         deepCopy = deepCopy, interpret = interpret)
-
       copyTestExecutor(PCanonicalInterval(PInt64(true)), PCanonicalInterval(PInt64()),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
         deepCopy = deepCopy, interpret = interpret)
@@ -30,7 +30,10 @@ class PIntervalSuite extends PhysicalTestUtils {
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)), deepCopy = deepCopy, interpret = interpret)
     }
 
+  
     runTests(true)
+    println("HELLO")
+
     runTests(false)
 
     runTests(true, true)

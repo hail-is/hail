@@ -88,20 +88,20 @@ object Region {
   }
 
   def loadBit(byteOff: Long, bitOff: Long): Boolean = {
-    val b = byteOff.toInt + (bitOff.toInt >> 3)
-    (loadByte(b) & (1 << (bitOff.toInt & 7))) != 0
+    val b = byteOff + (bitOff >> 3)
+    (loadByte(b) & (1 << (bitOff & 7).toInt)) != 0
   }
 
   def setBit(byteOff: Long, bitOff: Long) {
-    val b = byteOff.toInt + (bitOff.toInt >> 3)
+    val b = byteOff + (bitOff >> 3)
     storeByte(b,
-      (loadByte(b) | (1 << (bitOff.toInt & 7))).toByte)
+      (loadByte(b) | (1 << (bitOff & 7).toInt)).toByte)
   }
 
   def clearBit(byteOff: Long, bitOff: Long) {
-    val b = byteOff.toInt + (bitOff.toInt >> 3)
+    val b = byteOff + (bitOff >> 3)
     storeByte(b,
-      (loadByte(b) & ~(1 << (bitOff.toInt & 7))).toByte)
+      (loadByte(b) & ~(1 << (bitOff & 7).toInt)).toByte)
   }
 
   def storeBit(byteOff: Long, bitOff: Long, b: Boolean) {

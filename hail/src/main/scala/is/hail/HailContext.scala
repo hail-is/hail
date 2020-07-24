@@ -150,7 +150,11 @@ object HailContext {
     // needs to be after `theContext` is set, since this creates broadcasts
     ReferenceGenome.addDefaultReferences()
 
+    info("the_conctext_over")
+
     theContext
+
+    
   }
 
   def stop(): Unit = synchronized {
