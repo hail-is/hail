@@ -3476,15 +3476,11 @@ class Table(ExprContainer):
 
     @typecheck_method(f=func_spec(1, expr_array(expr_struct())))
     def _map_partitions(self, f):
-        rows_uid = 'rows'
-        # rows_uid = Env.get_uid()
-        globals_uid = 'globals'
-        # globals_uid = Env.get_uid()
+        rows_uid = 'tmp_rows_' + Env.get_uid()
+        globals_uid = 'tmp_globals_' + Env.get_uid()
         expr = construct_expr(ir.ToArray(ir.Ref(rows_uid)), hl.tarray(self.row.dtype), self._row_indices)
         body = f(expr)
         result_t = body.dtype
-        # if not isinstance(result_t, hl.tarray) and isinstance(result_t.element_type, hl.tstruct):
-        #     raise ValueError(f'Table._map_partitions must return an array of structs, found {result_t}')
         if any(k not in result_t.element_type for k in self.key):
             raise ValueError(f'Table._map_partitions must preserve key fields')
 
