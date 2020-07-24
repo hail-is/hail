@@ -362,7 +362,7 @@ class EmitStreamSuite extends HailSuite {
       optStream.m.mux(
         len := 0,
         {
-          val EmitStream.SizedStream(setup, _, length) = optStream.pv.asStream.getStream(new DummyStagedRegion(mb.getCodeParam[Region](1)))
+          val EmitStream.SizedStream(setup, _, length) = optStream.pv.asStream.stream
           Code(setup, len := length.getOrElse(-1))
         }),
       len))

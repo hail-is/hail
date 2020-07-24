@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import java.io.OutputStream
 
-import is.hail.annotations.{Annotation, Region, StagedRegionValueBuilder}
+import is.hail.annotations.{Annotation, DummyStagedRegion, Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.EmitStream.SizedStream
@@ -234,7 +234,7 @@ case class SplitPartitionNativeWriter(
         cb.assign(ob1, spec1.buildCodeOutputBuffer(Code.checkcast[OutputStream](os1)))
         cb.assign(ob2, spec2.buildCodeOutputBuffer(Code.checkcast[OutputStream](os2)))
         cb.assign(n, 0L)
-        cb += stream.getStream.forEach(mb, writeFile)
+        cb += stream.getStream(new DummyStagedRegion(region)).forEach(mb, writeFile)
         cb += ob1.writeByte(0.asInstanceOf[Byte])
         cb += ob2.writeByte(0.asInstanceOf[Byte])
         cb.assign(result, pResultType.allocate(region))

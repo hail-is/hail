@@ -200,7 +200,7 @@ object CompileIterator {
     val eosField = stepF.genFieldThisRef[Boolean]("eos")
     val eosLabel = CodeLabel()
 
-    val source: Source[EmitCode] = optStream.pv.asStream.getStream(new DummyStagedRegion(region)).getStream.apply(
+    val source: Source[EmitCode] = optStream.pv.asStream.stream.getStream(new DummyStagedRegion(region)).apply(
       eosLabel.goto,
       { element =>
         EmitCodeBuilder.scopedVoid(stepF) { cb =>

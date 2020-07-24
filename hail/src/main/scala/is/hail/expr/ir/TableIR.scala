@@ -432,14 +432,14 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends Partition
     mb: EmitMethodBuilder[C],
     region: Value[Region],
     env: Emit.E,
-    container: Option[AggContainer]): COption[StagedRegion => SizedStream] = {
+    container: Option[AggContainer]): COption[SizedStream] = {
 
     def emitIR(ir: IR, env: Emit.E = env, region: Value[Region] = region, container: Option[AggContainer] = container): EmitCode =
       emitter.emitWithRegion(ir, mb, region, env, container)
 
     val (eltType, dec) = spec.buildEmitDecoderF[Long](requestedType, mb.ecb)
 
-    COption.fromEmitCode(emitIR(context)).map { path => eltRegion =>
+    COption.fromEmitCode(emitIR(context)).map { path =>
       val pathString = path.asString.loadString()
       val xRowBuf = mb.newLocal[InputBuffer]()
       val decRes = mb.newEmitLocal(PInt64Optional)
@@ -457,7 +457,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends Partition
           setup = Some(xRowBuf := spec
             .buildCodeInputBuffer(mb.open(pathString, true))))
 
-      SizedStream.unsized(stream)
+      SizedStream.unsized(eltRegion => stream)
     }
   }
 

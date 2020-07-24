@@ -557,7 +557,7 @@ class Emit[C](
           {},
           { s =>
             cb += eltRegion.allocateRegion(Region.REGULAR)
-            cb += s.asStream.getStream(eltRegion).getStream.forEach(mb, forBody)
+            cb += s.asStream.stream.getStream(eltRegion).forEach(mb, forBody)
             cb += eltRegion.free()
           })
 
@@ -959,7 +959,7 @@ class Emit[C](
         cb.append(shuffle.startPut())
         val rows = emitStream(rowsIR).toI(cb).handle(cb, {
           cb._fatal("rows stream was missing in shuffle write")
-        }).asStream.getStream(new DummyStagedRegion(region)).getStream
+        }).asStream.stream.getStream(new DummyStagedRegion(region))
         cb.append(rows.forEach(mb, { row: EmitCode =>
           Code(
             row.setup,
@@ -1388,7 +1388,7 @@ class Emit[C](
         emitStream(a).map { ss =>
           val count = mb.newLocal[Int]("stream_length")
           val eltRegion = new RealStagedRegion(region).createChildRegion(mb)
-          val SizedStream(setup, stream, length) = ss.asStream.getStream(eltRegion)
+          val SizedStream(setup, stream, length) = ss.asStream.stream
           val lenCode =
             length match {
               case Some(len) => Code(setup, len)
@@ -1397,7 +1397,7 @@ class Emit[C](
                   count := 0,
                   setup,
                   eltRegion.allocateRegion(Region.REGULAR),
-                  stream.forEach(mb, _ => Code(count := count + 1, eltRegion.clear())),
+                  stream(eltRegion).forEach(mb, _ => Code(count := count + 1, eltRegion.clear())),
                   eltRegion.free(),
                   count.get
                 )
@@ -1431,7 +1431,7 @@ class Emit[C](
           def retTT(): Code[Ctrl] =
             ret(COption.fromEmitCode(xAcc.get))
 
-          ss.asStream.getStream(new DummyStagedRegion(region)).getStream
+          ss.asStream.stream.getStream(new DummyStagedRegion(region))
             .fold(mb, xAcc := codeZ, foldBody, retTT())
         }
 
@@ -1465,7 +1465,7 @@ class Emit[C](
           def computeRes(): Code[Ctrl] =
               ret(COption.fromEmitCode(codeR))
 
-          ss.asStream.getStream(new DummyStagedRegion(region)).getStream
+          ss.asStream.stream.getStream(new DummyStagedRegion(region))
             .fold(mb, Code(accVars.zip(acc).map { case (v, (name, x)) =>
               v := emit(x).castTo(mb, region, v.pt)
             }),
@@ -2237,7 +2237,7 @@ class Emit[C](
           case SizedStream(setup, stream, len) => Code(
             setup,
             ctxab.invoke[Int, Unit]("ensureCapacity", len.getOrElse(16)),
-            stream.map(etToTuple(_, ctxType)).forEach(mb, { offset =>
+            stream(new DummyStagedRegion(region)).map(etToTuple(_, ctxType)).forEach(mb, { offset =>
               Code(
                 baos.invoke[Unit]("reset"),
                 Code.memoize(offset, "cda_add_contexts_addr") { offset =>
@@ -2275,7 +2275,7 @@ class Emit[C](
           baos := Code.newInstance[ByteArrayOutputStream](),
           buf := x.contextSpec.buildCodeOutputBuffer(baos), // TODO: take a closer look at whether we need two codec buffers?
           ctxab := Code.newInstance[ByteArrayArrayBuilder, Int](16),
-          addContexts(ctxStream.asStream.getStream(new DummyStagedRegion(region))),
+          addContexts(ctxStream.asStream.stream),
           baos.invoke[Unit]("reset"),
           addGlobals,
           encRes := spark.invoke[BackendContext, String, Array[Array[Byte]], Array[Byte], Array[Array[Byte]]](
@@ -2330,7 +2330,7 @@ class Emit[C](
         val eltType = coerce[PStruct](coerce[PStream](stream.pType).elementType)
         COption.toEmitCode(
           COption.fromEmitCode(emitStream(stream)).flatMap { s =>
-            COption.fromEmitCode(writer.consumeStream(ctxCode, eltType, mb, region, s.asStream.getStream(new DummyStagedRegion(region))))
+            COption.fromEmitCode(writer.consumeStream(ctxCode, eltType, mb, region, s.asStream.stream))
           }, mb)
 
       case x@ReadValue(path, spec, requestedType) =>
