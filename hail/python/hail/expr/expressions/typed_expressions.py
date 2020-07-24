@@ -3578,6 +3578,12 @@ class NDArrayExpression(Expression):
             raise ValueError(f'Must specify one index per dimension. '
                              f'Expected {self.ndim} dimensions but got {len(item)}')
 
+        def clamp(expr, min, max):
+            return (hl.case()
+                    .when(expr < min, min)
+                    .when(expr > max, max)
+                    .default(expr))
+
         n_sliced_dims = len([s for s in item if isinstance(s, slice)])
         if n_sliced_dims > 0:
             slices = []
@@ -3585,8 +3591,10 @@ class NDArrayExpression(Expression):
                 if isinstance(s, slice):
                     step = hl.case().when(s.step != 0, s.step).or_error("Slice step cannot be zero") if s.step is not None else to_expr(1, tint64)
                     start = hl.cond(s.start >= 0, s.start, self.shape[i] + s.start) if s.start is not None else hl.cond(step >= 0, to_expr(0, tint64), self.shape[i] - 1)
+                    clamped_start = clamp(start, 0, self.shape[i] - 1)
                     stop = hl.cond(s.stop >= 0, s.stop, self.shape[i] + s.stop) if s.stop is not None else hl.cond(step >= 0, self.shape[i], to_expr(-1, tint64))
-                    slices.append(hl.tuple((start, stop, step)))
+                    clamped_stop = clamp(stop, -1, self.shape[i])
+                    slices.append(hl.tuple((clamped_start, clamped_stop, step)))
                 else:
                     slices.append(s)
             return construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),

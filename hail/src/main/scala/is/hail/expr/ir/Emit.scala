@@ -2722,7 +2722,7 @@ class Emit[C](
                 const(1L) + ((stop - start) - 1L) / step,
                 (step < 0L && start >= stop).mux(
                   (((stop - start) + 1L) / step) + 1L,
-                  0L)).min(childShapeCached(i)),
+                  0L)),
             s"nda_slice_shape$i")
         }
 
