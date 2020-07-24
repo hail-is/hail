@@ -22,6 +22,23 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.50
+
+Released 2020-07-23
+
+### Bug fixes
+
+- (hail#9114) CHANGELOG: Fixed crash when using repeated calls to `hl.filter_intervals`.
+
+### New features
+
+- (hail#9101) Add `hl.nd.{concat, hstack, vstack}` to concatenate ndarrays.
+- (hail#9105) Add `hl.nd.{eye, identity}` to create identity matrix ndarrays.
+- (hail#9093) Add `hl.nd.inv` to invert ndarrays.
+- (hail#9063) Add `BlockMatrix.tree_matmul` to improve matrix multiply performance with a large inner dimension.
+
+---
+
 ## Version 0.2.49
 
 Released 2020-07-08
