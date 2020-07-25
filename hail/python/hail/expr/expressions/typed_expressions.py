@@ -3593,7 +3593,7 @@ class NDArrayExpression(Expression):
 
                     if s.start is not None:
                         start = hl.case() \
-                                .when(s.start >= dlen, s.start) \
+                                .when(s.start >= dlen, dlen) \
                                 .when(s.start >= 0, s.start) \
                                 .when((s.start + dlen) >= 0, dlen + s.start) \
                                 .default(0)
