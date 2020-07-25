@@ -3583,9 +3583,32 @@ class NDArrayExpression(Expression):
             slices = []
             for i, s in enumerate(item):
                 if isinstance(s, slice):
-                    step = hl.case().when(s.step != 0, s.step).or_error("Slice step cannot be zero") if s.step is not None else to_expr(1, tint64)
-                    start = hl.cond(s.start >= 0, s.start, self.shape[i] + s.start) if s.start is not None else hl.cond(step >= 0, to_expr(0, tint64), self.shape[i] - 1)
-                    stop = hl.cond(s.stop >= 0, s.stop, self.shape[i] + s.stop) if s.stop is not None else hl.cond(step >= 0, self.shape[i], to_expr(-1, tint64))
+                    dlen = self.shape[i]
+
+                    if s.step is not None:
+                        step = hl.case().when(s.step != 0, s.step) \
+                                        .or_error("Slice step cannot be zero")
+                    else:
+                        step = to_expr(1, tint64)
+
+                    if s.start is not None:
+                        start = hl.case() \
+                                .when(s.start >= dlen, s.start) \
+                                .when(s.start >= 0, s.start) \
+                                .when((s.start + dlen) >= 0, dlen + s.start) \
+                                .default(0)
+                    else:
+                        start = hl.cond(step >= 0, to_expr(0, tint64), dlen - 1)
+
+                    if s.stop is not None:
+                        stop = hl.case() \
+                               .when(s.stop >= dlen, dlen) \
+                               .when(s.stop >= 0, s.stop) \
+                               .when((s.stop + dlen) >= 0, dlen + s.stop) \
+                               .default(0)
+                    else:
+                        stop = hl.cond(step >= 0, dlen, to_expr(-1, tint64))
+
                     slices.append(hl.tuple((start, stop, step)))
                 else:
                     slices.append(s)

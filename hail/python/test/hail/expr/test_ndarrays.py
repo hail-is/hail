@@ -93,7 +93,11 @@ def test_ndarray_slice():
         (mat[::-1, :], np_mat[::-1, :]),
         (flat[4:1:-2], np_flat[4:1:-2]),
         (flat[0:0:1], np_flat[0:0:1]),
-        (flat[-4:-1:2], np_flat[-4:-1:2])
+        (flat[-4:-1:2], np_flat[-4:-1:2]),
+        (mat[0:20, 0:17], np_mat[0:20, 0:17]),
+        (mat[0:20, 2:17], np_mat[0:20, 2:17]),
+        (mat[9:2:-1, 1:4], np_mat[9:2:-1, 1:4]),
+        (mat[9:-1:-1, 1:4], np_mat[9:-1:-1, 1:4])
     )
 
     assert hl.eval(flat[hl.null(hl.tint32):4:1]) is None
@@ -105,6 +109,17 @@ def test_ndarray_slice():
     with pytest.raises(FatalError) as exc:
         hl.eval(flat[::0])
     assert "Slice step cannot be zero" in str(exc)
+
+
+def test_ndarray_transposed_slice():
+    a = hl.nd.array([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
+    np_a = np.array([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
+    aT = a.T
+    np_aT = np_a.T
+    assert_ndarrays_eq(
+        (a, np_a),
+        (aT[0:aT.shape[0], 0:5], np_aT[0:np_aT.shape[0], 0:5])
+    )
 
 
 def test_ndarray_eval():
@@ -584,6 +599,7 @@ def test_ndarray_mixed():
          hl.nd.ones((5, 10)).map(lambda x: x + 5)).reshape(hl.null(hl.ttuple(hl.tint64, hl.tint64))).T.reshape((10, 5))) is None
     assert hl.eval(hl.or_missing(False, hl.nd.array(np.arange(10)).reshape(
         (5, 2)).map(lambda x: x * 2)).map(lambda y: y * 2)) is None
+
 
 
 def test_ndarray_show():
