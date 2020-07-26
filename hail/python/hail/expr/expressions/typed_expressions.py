@@ -3579,6 +3579,7 @@ class NDArrayExpression(Expression):
                              f'Expected {self.ndim} dimensions but got {len(item)}')
 
         n_sliced_dims = len([s for s in item if isinstance(s, slice)])
+        print("n_sliced_dims are", n_sliced_dims)
         if n_sliced_dims > 0:
             slices = []
             for i, s in enumerate(item):
@@ -3591,23 +3592,26 @@ class NDArrayExpression(Expression):
                     else:
                         step = to_expr(1, tint64)
 
+                    max_bound = hl.if_else(step > 0, dlen, dlen - 1)
+                    default_start = hl.cond(step >= 0, to_expr(0, tint64), dlen - 1)
+                    default_stop = hl.cond(step >= 0, dlen, to_expr(-1, tint64))
                     if s.start is not None:
                         start = hl.case() \
-                                .when(s.start >= dlen, dlen) \
+                                .when(s.start >= dlen, max_bound) \
                                 .when(s.start >= 0, s.start) \
                                 .when((s.start + dlen) >= 0, dlen + s.start) \
-                                .default(0)
+                                .default(default_start)
                     else:
-                        start = hl.cond(step >= 0, to_expr(0, tint64), dlen - 1)
+                        start = default_start
 
                     if s.stop is not None:
                         stop = hl.case() \
-                               .when(s.stop >= dlen, dlen) \
+                               .when(s.stop >= dlen, max_bound) \
                                .when(s.stop >= 0, s.stop) \
                                .when((s.stop + dlen) >= 0, dlen + s.stop) \
-                               .default(0)
+                               .default(default_stop)
                     else:
-                        stop = hl.cond(step >= 0, dlen, to_expr(-1, tint64))
+                        stop = default_stop
 
                     slices.append(hl.tuple((start, stop, step)))
                 else:
