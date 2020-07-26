@@ -3598,10 +3598,10 @@ class NDArrayExpression(Expression):
                         # python treats start < -dlen as None when step < 0: [0,1][-3:0:-1]
                         # and 0 otherwise: [0,1][-3::1] == [0,1][0::1]
                         start = hl.case() \
-                                .when(s.start >= dlen, max_bound) \
-                                .when(s.start >= 0, s.start) \
-                                .when((s.start + dlen) >= 0, dlen + s.start) \
-                                .default(min_bound)
+                            .when(s.start >= dlen, max_bound) \
+                            .when(s.start >= 0, s.start) \
+                            .when((s.start + dlen) >= 0, dlen + s.start) \
+                            .default(min_bound)
                     else:
                         start = hl.cond(step >= 0, to_expr(0, tint64), dlen - 1)
 
@@ -3609,10 +3609,10 @@ class NDArrayExpression(Expression):
                         # python treats stop < -dlen as None when step < 0: [0,1][0:-3:-1] == [0,1][0::-1]
                         # and 0 otherwise: [0,1][:-3:1] == [0,1][:0:1]
                         stop = hl.case() \
-                               .when(s.stop >= dlen, max_bound) \
-                               .when(s.stop >= 0, s.stop) \
-                               .when((s.stop + dlen) >= 0, dlen + s.stop) \
-                               .default(min_bound)
+                            .when(s.stop >= dlen, max_bound) \
+                            .when(s.stop >= 0, s.stop) \
+                            .when((s.stop + dlen) >= 0, dlen + s.stop) \
+                            .default(min_bound)
                     else:
                         stop = hl.cond(step > 0, dlen, to_expr(-1, tint64))
 
