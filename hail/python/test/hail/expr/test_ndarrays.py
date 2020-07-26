@@ -16,7 +16,7 @@ def assert_ndarrays(asserter, exprs_and_expecteds):
 
     evaled_and_expected = zip(evaled_exprs, expecteds)
     for (idx, (evaled, expected)) in enumerate(evaled_and_expected):
-        assert asserter(evaled, expected), f"NDArray comparison {idx} failed"
+        assert asserter(evaled, expected), f"NDArray comparison {idx} failed, got: {evaled}, expected: {expected}"
 
 
 def assert_ndarrays_eq(*expr_and_expected):
@@ -69,6 +69,9 @@ def test_ndarray_slice():
     mat = hl.nd.array(np_mat)
     np_flat = np.arange(20)
     flat = hl.nd.array(np_flat)
+    a = [0, 1]
+    an = np.array(a)
+    ah = hl.nd.array(a)
 
     assert_ndarrays_eq(
         (rect_prism[:, :, :], np_rect_prism[:, :, :]),
@@ -81,8 +84,8 @@ def test_ndarray_slice():
          np_rect_prism[0, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
         (rect_prism[0:, :, 1:4:2] + rect_prism[:, :1, 1:4:2],
          np_rect_prism[0:, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
-        (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2]),
         (rect_prism[0, 0, -3:-1], np_rect_prism[0, 0, -3:-1]),
+
         (flat[15:5:-1], np_flat[15:5:-1]),
         (flat[::-1], np_flat[::-1]),
         (flat[::22], np_flat[::22]),
@@ -90,14 +93,44 @@ def test_ndarray_slice():
         (flat[15:5], np_flat[15:5]),
         (flat[3:12:-1], np_flat[3:12:-1]),
         (flat[12:3:1], np_flat[12:3:1]),
-        (mat[::-1, :], np_mat[::-1, :]),
         (flat[4:1:-2], np_flat[4:1:-2]),
         (flat[0:0:1], np_flat[0:0:1]),
         (flat[-4:-1:2], np_flat[-4:-1:2]),
+
+        (mat[::-1, :], np_mat[::-1, :]),
+        (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2]),
+        (mat[-1:4:1, 0], np_mat[-1:4:1, 0]),
+        (mat[-1:4:-1, 0], np_mat[-1:4:-1, 0]),
+        # out of bounds on start
+        (mat[9:2:-1, 1:4], np_mat[9:2:-1, 1:4]),
+        (mat[9:-1:-1, 1:4], np_mat[9:-1:-1, 1:4]),
+        (mat[-5::, 0], np_mat[-5::, 0]),
+        (mat[-5::-1, 0], np_mat[-5::-1, 0]),
+        (mat[-5:-1:-1, 0], np_mat[-5:-1:-1, 0]),
+        (mat[-5:-5:-1, 0], np_mat[-5:-5:-1, 0]),
+        (mat[4::, 0], np_mat[4::, 0]),
+        (mat[4:-1:, 0], np_mat[4:-1:, 0]),
+        (mat[4:-1:-1, 0], np_mat[4:-1:-1, 0]),
+        (mat[5::, 0], np_mat[5::, 0]),
+        (mat[5::-1, 0], np_mat[5::-1, 0]),
+        (mat[-5::-1, 0], np_mat[-5::-1, 0]),
+        (mat[-5::1, 0], np_mat[-5::1, 0]),
+        (mat[5:-1:-1, 0], np_mat[5:-1:-1, 0]),
+        (mat[5:-5:-1, 0], np_mat[5:-5:-1, 0]),
+        # out of bounds on stop
         (mat[0:20, 0:17], np_mat[0:20, 0:17]),
         (mat[0:20, 2:17], np_mat[0:20, 2:17]),
-        (mat[9:2:-1, 1:4], np_mat[9:2:-1, 1:4]),
-        (mat[9:-1:-1, 1:4], np_mat[9:-1:-1, 1:4])
+        (mat[:4, 0], np_mat[:4, 0]),
+        (mat[:4:-1, 0], np_mat[:4:-1, 0]),
+        (mat[:-5, 0], np_mat[:-5, 0]),
+        (mat[:-5:-1, 0], np_mat[:-5:-1, 0]),
+        (mat[0:-5, 0], np_mat[0:-5, 0]),
+        (mat[0:-5:-1, 0], np_mat[0:-5:-1, 0]),
+
+        (ah[:-3:1], an[:-3:1]),
+        (ah[:-3:-1], an[:-3:-1]),
+        (ah[-3::-1], an[-3::-1]),
+        (ah[-3::1], an[-3::1])
     )
 
     assert hl.eval(flat[hl.null(hl.tint32):4:1]) is None
