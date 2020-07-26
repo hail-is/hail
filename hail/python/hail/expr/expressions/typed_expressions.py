@@ -3593,25 +3593,23 @@ class NDArrayExpression(Expression):
                         step = to_expr(1, tint64)
 
                     max_bound = hl.if_else(step > 0, dlen, dlen - 1)
-                    default_start = hl.cond(step >= 0, to_expr(0, tint64), dlen - 1)
-                    default_stop = hl.cond(step >= 0, dlen, to_expr(-1, tint64))
                     if s.start is not None:
                         start = hl.case() \
                                 .when(s.start >= dlen, max_bound) \
                                 .when(s.start >= 0, s.start) \
                                 .when((s.start + dlen) >= 0, dlen + s.start) \
-                                .default(default_start)
+                                .default(max_bound)
                     else:
-                        start = default_start
+                        start = hl.cond(step >= 0, to_expr(0, tint64), dlen - 1)
 
                     if s.stop is not None:
                         stop = hl.case() \
                                .when(s.stop >= dlen, max_bound) \
                                .when(s.stop >= 0, s.stop) \
                                .when((s.stop + dlen) >= 0, dlen + s.stop) \
-                               .default(default_stop)
+                               .default(max_bound)
                     else:
-                        stop = default_stop
+                        stop = hl.cond(step >= 0, dlen, to_expr(-1, tint64))
 
                     slices.append(hl.tuple((start, stop, step)))
                 else:
