@@ -3609,7 +3609,7 @@ class NDArrayExpression(Expression):
                                .when(s.stop >= dlen, max_bound) \
                                .when(s.stop >= 0, s.stop) \
                                .when((s.stop + dlen) >= 0, dlen + s.stop) \
-                               .default(default_stop)
+                               .default(default_start)
                     else:
                         stop = default_stop
 
