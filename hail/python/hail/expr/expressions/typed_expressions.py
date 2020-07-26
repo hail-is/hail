@@ -3579,7 +3579,7 @@ class NDArrayExpression(Expression):
                              f'Expected {self.ndim} dimensions but got {len(item)}')
 
         n_sliced_dims = len([s for s in item if isinstance(s, slice)])
-        print("n_sliced_dims are", n_sliced_dims)
+
         if n_sliced_dims > 0:
             slices = []
             for i, s in enumerate(item):
