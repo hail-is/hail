@@ -291,7 +291,7 @@ class EmitStreamSuite extends HailSuite {
   )(call: (F, Region, T) => Long): T => IndexedSeq[Any] = {
     val fb = EmitFunctionBuilder[F](ctx, "F", (classInfo[Region]: ParamType) +: inputTypes.map(pt => EmitParamType(pt): ParamType), LongInfo)
     val mb = fb.apply_method
-    val region = StagedRegion(mb.getCodeParam[Region](1))
+    val region = StagedRegion(mb.getCodeParam[Region](1), allowSubregions = false)
     val ir = streamIR.deepCopy()
     InferPType(ir)
     val eltType = ir.pType.asInstanceOf[PStream].elementType
@@ -348,7 +348,7 @@ class EmitStreamSuite extends HailSuite {
   private def evalStreamLen(streamIR: IR): Option[Int] = {
     val fb = EmitFunctionBuilder[Region, Int](ctx, "eval_stream_len")
     val mb = fb.apply_method
-    val region = StagedRegion(mb.getCodeParam[Region](1))
+    val region = StagedRegion(mb.getCodeParam[Region](1), allowSubregions = false)
     val ir = streamIR.deepCopy()
     InferPType(ir)
     val optStream = ExecuteContext.scoped() { ctx =>

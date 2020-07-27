@@ -202,7 +202,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
         cb.assign(os, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename)))
         cb.assign(ob, spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)))
         cb.assign(n, 0L)
-        cb += stream.getStream(StagedRegion(region)).forEach(mb, writeFile)
+        cb += stream.getStream(StagedRegion(region, allowSubregions = false)).forEach(mb, writeFile)
         cb += ob.writeByte(0.asInstanceOf[Byte])
         cb.assign(result, pResultType.allocate(region))
         if (hasIndex)

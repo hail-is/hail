@@ -8,7 +8,7 @@ import is.hail.utils._
 abstract class StagedRegion {
   def code: Value[Region]
 
-  def createChildRegion(mb: EmitMethodBuilder[_], allowSubregions: Boolean = false): StagedOwnedRegion
+  def createChildRegion(mb: EmitMethodBuilder[_], allowSubregions: Boolean = true): StagedOwnedRegion
 }
 
 trait StagedOwnedRegion extends StagedRegion {
@@ -32,7 +32,7 @@ object StagedRegion {
   class RealStagedRegion(r: Value[Region]) extends StagedRegion {
     def code: Value[Region] = r
 
-    def createChildRegion(mb: EmitMethodBuilder[_], allowSubregions: Boolean = false): StagedOwnedRegion = {
+    def createChildRegion(mb: EmitMethodBuilder[_], allowSubregions: Boolean = true): StagedOwnedRegion = {
       if (allowSubregions) {
         val newR = mb.newLocal[Region]("staged_region_child")
         new RealStagedOwnedRegion(newR, r)
@@ -60,7 +60,7 @@ object StagedRegion {
   class DummyStagedRegion(r: Value[Region]) extends StagedOwnedRegion {
     def code: Value[Region] = r
 
-    def createChildRegion(mb: EmitMethodBuilder[_], allowSubregions: Boolean = false): StagedOwnedRegion =
+    def createChildRegion(mb: EmitMethodBuilder[_], allowSubregions: Boolean = true): StagedOwnedRegion =
       this
 
     def allocateRegion(size: Int): Code[Unit] = Code._empty

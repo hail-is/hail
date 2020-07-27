@@ -232,7 +232,7 @@ case class SplitPartitionNativeWriter(
         cb.assign(ob1, spec1.buildCodeOutputBuffer(Code.checkcast[OutputStream](os1)))
         cb.assign(ob2, spec2.buildCodeOutputBuffer(Code.checkcast[OutputStream](os2)))
         cb.assign(n, 0L)
-        cb += stream.getStream(StagedRegion(region)).forEach(mb, writeFile)
+        cb += stream.getStream(StagedRegion(region, allowSubregions = false)).forEach(mb, writeFile)
         cb += ob1.writeByte(0.asInstanceOf[Byte])
         cb += ob2.writeByte(0.asInstanceOf[Byte])
         cb.assign(result, pResultType.allocate(region))
