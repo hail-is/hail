@@ -254,6 +254,4 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     r.release()
     references.update(idx, null)
   }
-
-  def getNewMemory(): RegionMemory = pool.getMemory(blockSize)
 }

@@ -414,9 +414,6 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory = pool.getMemory(blockSize)
   }
 
-  def newRegionFromPool(): Region =
-    new Region(blockSize, pool, pool.getMemory(blockSize))
-
   def setNumParents(n: Int): Unit = {
     memory.setNumParents(n)
   }

@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import java.io.OutputStream
 
-import is.hail.annotations.{Annotation, Region, StagedRegion, StagedRegionValueBuilder}
+import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.EmitStream.SizedStream
@@ -14,14 +14,12 @@ import is.hail.io.gen.{ExportBGEN, ExportGen}
 import is.hail.io.index.StagedIndexWriter
 import is.hail.io.plink.ExportPlink
 import is.hail.io.vcf.ExportVCF
-import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner, RVDSpecMaker}
+import is.hail.rvd.{RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.{EBaseStruct, EType}
-import is.hail.types.physical.{PArray, PBaseStructCode, PCanonicalString, PCanonicalStruct, PCode, PIndexableCode, PIndexableValue, PInt64, PStream, PString, PStruct, PType}
+import is.hail.types.physical.{PBaseStructCode, PCanonicalString, PCanonicalStruct, PCode, PIndexableValue, PInt64, PStream, PStruct, PType}
 import is.hail.types.{MatrixType, RTable, TableType}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
-import is.hail.variant.ReferenceGenome
-import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 

@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import java.io.OutputStream
 
 import is.hail.GenericIndexedSeqSerializer
-import is.hail.annotations.{StagedRegion, Region, StagedRegionValueBuilder}
+import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
@@ -14,7 +14,7 @@ import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, OutputBuffer, TypedCodecS
 import is.hail.rvd.{AbstractRVDSpec, IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.{RTable, TableType}
 import is.hail.types.encoded.EType
-import is.hail.types.physical.{PArray, PCanonicalString, PCanonicalStruct, PCode, PIndexableCode, PInt64, PStream, PString, PStringCode, PStruct, PType}
+import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PCode, PIndexableCode, PInt64, PStream, PStringCode, PStruct, PType}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.ReferenceGenome

@@ -1,8 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.utils._
-import is.hail.annotations.{BroadcastRow, Region, StagedRegion, UnsafeRow}
-import is.hail.asm4s.{Code, Value}
+import is.hail.annotations.{BroadcastRow, Region, UnsafeRow}
+import is.hail.asm4s.Code
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.lowering.TableStage

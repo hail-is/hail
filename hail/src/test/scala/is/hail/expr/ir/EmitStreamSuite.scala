@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{StagedRegion, Region, RegionValue, RegionValueBuilder, SafeRow, ScalaToRegionValue}
+import is.hail.annotations.{Region, RegionValue, RegionValueBuilder, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
 import is.hail.types.physical._
