@@ -66,12 +66,11 @@ standard library's :class:`.concurrent.futures.Executor`. It facilitates
 executing arbitrary python functions in the cloud.
 
 .. autosummary::
-    :toctree: api/batch/
+    :toctree: api/batch_pool_executor/
     :nosignatures:
     :template: class.rst
 
-    batch.Batch
-    job.Job
+    batch_pool_executor.BatchPoolExecutor
 
 
 Backends
