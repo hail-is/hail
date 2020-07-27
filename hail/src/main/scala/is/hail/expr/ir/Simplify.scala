@@ -687,6 +687,8 @@ object Simplify {
     case MatrixColsTable(MatrixAggregateRowsByKey(child, _, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixKeyRowsBy(child, _, _)) => MatrixColsTable(child)
 
+    case TableRepartition(TableRange(nRows, _), nParts, _) => TableRange(nRows, nParts)
+
     case TableMapGlobals(TableMapGlobals(child, ng1), ng2) =>
       val uid = genUID()
       TableMapGlobals(child, Let(uid, ng1, Subst(ng2, BindingEnv(Env("global" -> Ref(uid, ng1.typ))))))
