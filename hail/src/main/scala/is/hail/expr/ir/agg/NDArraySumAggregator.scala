@@ -75,10 +75,10 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
       )
     }
 
-    cb.ifx(sameShape,
+    cb.append(sameShape.mux(
       columnMajorLoops,
-      Code._fatal("Can't sum ndarrays of different shapes.")
-    )
+      Code._fatal[Unit]("Can't sum ndarrays of different shapes.")
+    ))
 
   }
 
