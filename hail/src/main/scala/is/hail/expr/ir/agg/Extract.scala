@@ -273,6 +273,7 @@ object Extract {
       LinearRegressionAggregator.resultType.virtualType
     case AggSignature(ApproxCDF(), _, _) => QuantilesAggregator.resultType.virtualType
     case AggSignature(Downsample(), _, Seq(_, _, label)) => DownsampleAggregator.resultType
+    case AggSignature(NDArraySum(), _, Seq(t)) => t
     case _ => throw new UnsupportedExtraction(aggSig.toString)  }
 
   def getAgg(sig: PhysicalAggSig): StagedAggregator = sig match {

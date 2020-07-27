@@ -787,7 +787,7 @@ def ndarray_sum(expr) -> NDArrayNumericExpression:
     :param expr:
     :return:
     """
-    return _agg_func("NDArraySumAggregator", [expr], expr.dtype)
+    return _agg_func("NDArraySum", [expr], expr.dtype)
 
 
 @typecheck(expr=expr_float64)
