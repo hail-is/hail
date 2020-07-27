@@ -14,15 +14,15 @@ from hailtop.tls import get_server_ssl_context
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes
 
 
+configure_logging()
 router = web.RouteTableDef()
 logging.basicConfig(level=logging.DEBUG)
 deploy_config = get_deploy_config()
-#configure_logging()
 log = logging.getLogger('benchmark')
 
 
 @router.get('/healthcheck')
-async def healthcheck(request) -> web.Response:
+async def healthcheck(request: web.Request) -> web.Response:
     return web.Response()
 
 
@@ -39,6 +39,7 @@ async def greet_user(request: web.Request) -> web.Response:
 
 
 @router.get('/')
+@router.get('')
 @web_authenticated_developers_only(redirect=False)
 async def index(request: web.Request, userdata) -> Dict[str, Any]:
     context = {
@@ -54,14 +55,12 @@ def init_app() -> web.Application:
     setup_aiohttp_jinja2(app, 'benchmark')
     setup_aiohttp_session(app)
     setup_common_static_routes(router)
-    admin = web.Application()
     app.add_routes(router)
-    # admin.add_subapp('/dabuhijl/benchmark/', app)
     aiohttp_jinja2.setup(
         app, loader=jinja2.ChoiceLoader([
             jinja2.PackageLoader('benchmark')
         ]))
-    return admin
+    return app
 
 
 web.run_app(deploy_config.prefix_application(init_app(), 'benchmark'),

@@ -17,7 +17,7 @@ build:
 	make -C ../docker build
 	-docker pull $(BENCHMARK_LATEST)
 	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
-	docker build -f Dockerfile.out -t benchmark --cache-from benchmark,$(BENCHMARK_LATEST),base ..
+	docker build -f Dockerfile.out -t benchmark --cache-from benchmark,$(BENCHMARK_LATEST),service-base ..
 
 .PHONY: push
 push: build
@@ -31,6 +31,6 @@ deploy: push
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"default_ns":{"name":"default"},"batch_pods_ns":{"name":"batch-pods"}, "benchmark_image":{"image":"$(BENCHMARK_IMAGE)"},"benchmark_database":{"user_secret_name":"sql-benchmark-user-config"},"global":{"project":"$(PROJECT)","zone":"$(ZONE)","domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n default apply -f deployment.yaml.out
 
-.PHONY:
+.PHONY: clean
 clean:
 	rm -f Dockerfile.out deployment.yaml.out

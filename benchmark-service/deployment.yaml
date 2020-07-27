@@ -4,12 +4,8 @@ kind: Deployment
 metadata:
   name: benchmark
   labels:
-<<<<<<< HEAD
-    app: web
-=======
     app: benchmark
     hail.is/sha: "{{ code.sha }}"
->>>>>>> build.yaml changes
 spec:
   replicas: 1
   selector:
@@ -21,6 +17,11 @@ spec:
         app: benchmark
         hail.is/sha: "{{ code.sha }}"
     spec:
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       containers:
         - name: benchmark
           image: "{{ benchmark_image.image }}"
@@ -50,6 +51,11 @@ spec:
             - name: ssl-config-benchmark
               mountPath: /ssl-config
               readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
       volumes:
         - name: session-secret-key
           secret:
@@ -60,4 +66,3 @@ spec:
         - name: ssl-config-benchmark
           secret:
             secretName: ssl-config-benchmark
->>>>>>> build.yaml changes

@@ -30,7 +30,6 @@ server {
     server_name benchmark.*;
 
     location / {
-    # NOTE: http vs https
         proxy_pass https://benchmark/;
         include /etc/nginx/proxy.conf;
     }
