@@ -37,9 +37,15 @@ push: build
 	docker tag batch-worker $(BATCH_WORKER_IMAGE)
 	docker push $(BATCH_WORKER_IMAGE)
 
+JINJA_ENVIRONMENT := '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"batch_image":{"image":"$(BATCH_IMAGE)"},"batch_worker_image":{"image":"$(BATCH_WORKER_IMAGE)"},"default_ns":{"name":"default"},"batch_pods_ns":{"name":"batch-pods"},"batch_database":{"user_secret_name":"sql-batch-user-config"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)","k8s_server_url":"$(KUBERNETES_SERVER_URL)"}}'
+
 .PHONY: deploy
 deploy: push
-	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"batch_image":{"image":"$(BATCH_IMAGE)"},"batch_worker_image":{"image":"$(BATCH_WORKER_IMAGE)"},"default_ns":{"name":"default"},"batch_pods_ns":{"name":"batch-pods"},"batch_database":{"user_secret_name":"sql-batch-user-config"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)","k8s_server_url":"$(KUBERNETES_SERVER_URL)"}}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py $(JINJA_ENVIRONMENT) deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py $(JINJA_ENVIRONMENT) service-account.yaml service-account.yaml.out
+	python3 ../ci/jinja2_render.py $(JINJA_ENVIRONMENT) service-account-batch-pods.yaml service-account-batch-pods.yaml.out
+	kubectl -n default apply -f service-account.yaml.out
+	kubectl -n default apply -f service-account-batch-pods.yaml.out
 	kubectl -n default apply -f deployment.yaml.out
 
 .PHONY: create-build-worker-image-instance
