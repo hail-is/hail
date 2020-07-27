@@ -901,6 +901,11 @@ def test_hstack():
     b = np.array([[2], [3], [4]])
     assert(np.array_equal(hl.eval(hl.nd.hstack((a, b))), np.hstack((a, b))))
 
+    ht = hl.utils.range_table(10)
+    ht = ht.annotate(x=hl.nd.array([1, 2, 3]), y=hl.nd.array([4, 5, 6]))
+    ht = ht.annotate(stacked = hl.nd.hstack([ht.x, ht.y]))
+    assert np.array_equal(ht.collect()[0].stacked, np.array([1, 2, 3, 4, 5, 6]))
+
 
 def test_eye():
     for i in range(13):
