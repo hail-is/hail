@@ -1690,6 +1690,22 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt.x.export(path, header=False)
         assert hl.import_matrix_table(path, no_header=True)._force_count_rows() == 0
 
+    def test_import_row_id_multiple_partitions(self):
+        path = new_temp_file(extension='txt')
+        (hl.utils.range_matrix_table(50, 50)
+         .annotate_entries(x=1)
+         .key_rows_by()
+         .key_cols_by()
+         .x
+         .export(path, header=False, delimiter=' '))
+
+        mt = hl.import_matrix_table(path,
+                                    no_header=True,
+                                    entry_type=hl.tint32,
+                                    delimiter=' ',
+                                    min_partitions=10)
+        assert mt.row_id.collect() == list(range(50))
+
 
 class ImportTableTests(unittest.TestCase):
     def test_import_table_force_bgz(self):
