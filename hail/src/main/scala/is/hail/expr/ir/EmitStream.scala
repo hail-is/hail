@@ -1371,7 +1371,7 @@ object EmitStream {
                       false,
                       PCanonicalStreamCode(
                         innerType,
-                        SizedStream.unsized(innerEltRegino => inner)))
+                        SizedStream.unsized(innerEltRegion => inner)))
                   },
                 len.map(l => ((l.toL + xS.toL - 1L) / xS.toL).toI)) // rounding up integer division
             }
