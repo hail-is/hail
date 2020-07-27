@@ -496,7 +496,7 @@ object RegionUtils {
 abstract class StagedRegion {
   def code: Value[Region]
 
-  def createChildRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion
+  def createChildRegion(mb: EmitMethodBuilder[_], allowSubregions: Boolean = false): StagedOwnedRegion
 }
 
 trait StagedOwnedRegion extends StagedRegion {
@@ -513,46 +513,56 @@ trait StagedOwnedRegion extends StagedRegion {
   def copyToParent(mb: EmitMethodBuilder[_], value: PCode): PCode
 }
 
-class RealStagedRegion(r: Value[Region]) extends StagedRegion {
-  def code: Value[Region] = r
+object StagedRegion {
+  def apply(r: Value[Region], allowSubregions: Boolean = false): StagedRegion =
+    if (allowSubregions) new RealStagedRegion(r) else new DummyStagedRegion(r)
 
-  def createChildRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion = {
-    val newR = mb.newLocal[Region]("staged_region_child")
-    new RealStagedOwnedRegion(newR, r)
+  class RealStagedRegion(r: Value[Region]) extends StagedRegion {
+    def code: Value[Region] = r
+
+    def createChildRegion(mb: EmitMethodBuilder[_], allowSubregions: Boolean = false): StagedOwnedRegion = {
+      if (allowSubregions) {
+        val newR = mb.newLocal[Region]("staged_region_child")
+        new RealStagedOwnedRegion(newR, r)
+      } else {
+        new DummyStagedRegion(r)
+      }
+    }
   }
-}
 
-class RealStagedOwnedRegion(r: Settable[Region], parent: Value[Region]) extends RealStagedRegion(r) with StagedOwnedRegion {
-  def allocateRegion(size: Int): Code[Unit] = r := Region.stagedCreate(size)
+  class RealStagedOwnedRegion(r: Settable[Region], parent: Value[Region]) extends RealStagedRegion(r) with StagedOwnedRegion {
+    def allocateRegion(size: Int): Code[Unit] = r := Region.stagedCreate(size)
 
-  def free(): Code[Unit] = Code(r.invalidate(), r := Code._null)
+    def free(): Code[Unit] = Code(r.invalidate(), r := Code._null)
 
-  def clear(): Code[Unit] = (r: Value[Region]).clear()
+    def clear(): Code[Unit] = (r: Value[Region]).clear()
 
-  def giveToParent(): Code[Unit] = parent.invoke("takeOwnershipOf", r)
+    def giveToParent(): Code[Unit] = parent.invoke("takeOwnershipOf", r)
 
-  def shareWithParent(): Code[Unit] = parent.invoke("addReferenceTo", r)
+    def shareWithParent(): Code[Unit] = parent.invoke("addReferenceTo", r)
 
-  def copyToParent(mb: EmitMethodBuilder[_], value: PCode): PCode =
-    value.copyToRegion(mb, parent)
-}
+    def copyToParent(mb: EmitMethodBuilder[_], value: PCode): PCode =
+      value.copyToRegion(mb, parent)
+  }
 
-class DummyStagedRegion(r: Value[Region]) extends StagedOwnedRegion {
-  def code: Value[Region] = r
+  class DummyStagedRegion(r: Value[Region]) extends StagedOwnedRegion {
+    def code: Value[Region] = r
 
-  def createChildRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion = this
+    def createChildRegion(mb: EmitMethodBuilder[_], allowSubregions: Boolean = false): StagedOwnedRegion =
+      this
 
-  def allocateRegion(size: Int): Code[Unit] = Code._empty
+    def allocateRegion(size: Int): Code[Unit] = Code._empty
 
-  def free(): Code[Unit] = Code._empty
+    def free(): Code[Unit] = Code._empty
 
-  def clear(): Code[Unit] = Code._empty
+    def clear(): Code[Unit] = Code._empty
 
-  def giveToParent(): Code[Unit] = Code._empty
+    def giveToParent(): Code[Unit] = Code._empty
 
-  def shareWithParent(): Code[Unit] = Code._empty
+    def shareWithParent(): Code[Unit] = Code._empty
 
-  def copyToParent(mb: EmitMethodBuilder[_], value: PCode): PCode = value
+    def copyToParent(mb: EmitMethodBuilder[_], value: PCode): PCode = value
+  }
 }
 
 abstract class StagedRegionPool {

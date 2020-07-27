@@ -488,7 +488,7 @@ class Emit[C](
 
   private[ir] def emitVoid(cb: EmitCodeBuilder, ir: IR, mb: EmitMethodBuilder[C], env: E, container: Option[AggContainer], allowSubregions: Boolean = false): Unit = {
     val region = mb.getCodeParam[Region](1)
-    val sr = if (allowSubregions) new RealStagedRegion(region) else new DummyStagedRegion(region)
+    val sr = StagedRegion(region, allowSubregions)
     emitVoid(cb, ir, mb, sr, env, container, None)
   }
 
@@ -679,7 +679,7 @@ class Emit[C](
 
   private[ir] def emitI(ir: IR, cb: EmitCodeBuilder, env: E, container: Option[AggContainer], allowSubregions: Boolean = false): IEmitCode = {
     val region = cb.emb.getCodeParam[Region](1)
-    val sr = if (allowSubregions) new RealStagedRegion(region) else new DummyStagedRegion(region)
+    val sr = StagedRegion(region, allowSubregions)
     emitI(ir, cb, sr, env, container, None)
   }
 
@@ -965,7 +965,7 @@ class Emit[C](
         cb.append(shuffle.startPut())
         val rows = emitStream(rowsIR).toI(cb).handle(cb, {
           cb._fatal("rows stream was missing in shuffle write")
-        }).asStream.stream.getStream(new DummyStagedRegion(region.code))
+        }).asStream.stream.getStream(region.createChildRegion(mb))
         cb.append(rows.forEach(mb, { row: EmitCode =>
           Code(
             row.setup,
@@ -1019,7 +1019,7 @@ class Emit[C](
     **/
   private[ir] def emit(ir: IR, mb: EmitMethodBuilder[C], env: E, container: Option[AggContainer], allowSubregions: Boolean): EmitCode = {
     val region = mb.getCodeParam[Region](1)
-    val sr = if (allowSubregions) new RealStagedRegion(region) else new DummyStagedRegion(region)
+    val sr = StagedRegion(region, allowSubregions)
     emit(ir, mb, sr, env, container, None)
   }
 
@@ -1403,7 +1403,7 @@ class Emit[C](
       case x@StreamLen(a) =>
         emitStream(a).map { ss =>
           val count = mb.newLocal[Int]("stream_length")
-          val eltRegion = new RealStagedRegion(region.code).createChildRegion(mb)
+          val eltRegion = StagedRegion(region.code, allowSubregions = false).createChildRegion(mb)
           val SizedStream(setup, stream, length) = ss.asStream.stream
           val lenCode =
             length match {
@@ -1448,7 +1448,7 @@ class Emit[C](
           def retTT(): Code[Ctrl] =
             ret(COption.fromEmitCode(xAcc.get))
 
-          ss.asStream.stream.getStream(new DummyStagedRegion(region.code))
+          ss.asStream.stream.getStream(region.createChildRegion(mb))
             .fold(mb, xAcc := codeZ, foldBody, retTT())
         }
 
@@ -1482,7 +1482,7 @@ class Emit[C](
           def computeRes(): Code[Ctrl] =
               ret(COption.fromEmitCode(codeR))
 
-          ss.asStream.stream.getStream(new DummyStagedRegion(region.code))
+          ss.asStream.stream.getStream(region.createChildRegion(mb))
             .fold(mb, Code(accVars.zip(acc).map { case (v, (name, x)) =>
               v := emit(x).castTo(mb, region.code, v.pt)
             }),
@@ -2259,7 +2259,7 @@ class Emit[C](
           case SizedStream(setup, stream, len) => Code(
             setup,
             ctxab.invoke[Int, Unit]("ensureCapacity", len.getOrElse(16)),
-            stream(new DummyStagedRegion(region.code)).map(etToTuple(_, ctxType)).forEach(mb, { offset =>
+            stream(region.createChildRegion(mb)).map(etToTuple(_, ctxType)).forEach(mb, { offset =>
               Code(
                 baos.invoke[Unit]("reset"),
                 Code.memoize(offset, "cda_add_contexts_addr") { offset =>

@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import java.io.OutputStream
 
 import is.hail.GenericIndexedSeqSerializer
-import is.hail.annotations.{DummyStagedRegion, Region, StagedRegionValueBuilder}
+import is.hail.annotations.{StagedRegion, Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
@@ -206,7 +206,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
         cb.assign(os, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename)))
         cb.assign(ob, spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)))
         cb.assign(n, 0L)
-        cb += stream.getStream(new DummyStagedRegion(region)).forEach(mb, writeFile)
+        cb += stream.getStream(StagedRegion(region)).forEach(mb, writeFile)
         cb += ob.writeByte(0.asInstanceOf[Byte])
         cb.assign(result, pResultType.allocate(region))
         if (hasIndex)
