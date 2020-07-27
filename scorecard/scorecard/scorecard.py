@@ -181,7 +181,7 @@ async def get_pr_data(gh_client, fq_repo, repo_name, pr):
     state = 'NEEDS_REVIEW'
     for review in reversed(reviews):
         review_state = review['state']
-        if review_state == 'CHANGES_REQUESTED':
+        if review_state == 'CHANGES_REQUESTED':  # pylint: disable=no-else-break
             state = review_state
             break
         elif review_state == 'DISMISSED':

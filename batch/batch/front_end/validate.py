@@ -355,7 +355,7 @@ BATCH_KEYS = {
 
 def validate_batch(batch):
     if not isinstance(batch, dict):
-        raise ValidationError(f'batch not dict')
+        raise ValidationError('batch not dict')
 
     for k in batch:
         if k not in BATCH_KEYS:
@@ -364,12 +364,12 @@ def validate_batch(batch):
     attributes = batch.get('attributes')
     if attributes is not None:
         if not isinstance(attributes, dict):
-            raise ValidationError(f'batch.attributes is not dict')
+            raise ValidationError('batch.attributes is not dict')
         for k, v in attributes.items():
             if not isinstance(k, str):
-                raise ValidationError(f'batch.attributes has non-str key')
+                raise ValidationError('batch.attributes has non-str key')
             if not isinstance(v, str):
-                raise ValidationError(f'batch.attributes has non-str value')
+                raise ValidationError('batch.attributes has non-str value')
 
     if 'billing_project' not in batch:
         raise ValidationError('no required key billing_project in batch')
@@ -380,7 +380,7 @@ def validate_batch(batch):
     callback = batch.get('callback')
     if callback is not None:
         if not isinstance(callback, str):
-            raise ValidationError(f'batch.callback not str')
+            raise ValidationError('batch.callback not str')
 
     if 'n_jobs' not in batch:
         raise ValidationError('no required key n_jobs in batch')

@@ -434,11 +434,11 @@ async def _get_error(service, request, userdata):
                 service,
                 f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}'))
         set_message(session,
-                    f'Could not connect to Jupyter instance.  Please wait for Jupyter to be ready and try again.',
+                    'Could not connect to Jupyter instance.  Please wait for Jupyter to be ready and try again.',
                     'error')
     else:
         set_message(session,
-                    f'Jupyter instance not found.  Please launch a new instance.',
+                    'Jupyter instance not found.  Please launch a new instance.',
                     'error')
     return web.HTTPFound(deploy_config.external_url(service, '/notebook'))
 

@@ -1170,9 +1170,9 @@ async def _query_billing(request):
         return await parse_error(f"Invalid value for end '{end_query}'; must be in the format of MM/DD/YYYY.")
 
     if start > end:
-        return await parse_error(f'Invalid search; start must be earlier than end.')
+        return await parse_error('Invalid search; start must be earlier than end.')
 
-    sql = f'''
+    sql = '''
 SELECT
   billing_project,
   `user`,
@@ -1289,12 +1289,12 @@ WHERE billing_projects.name = %s;
             (billing_project, user, billing_project))
         if not row:
             set_message(session, f'No such billing project {billing_project}.', 'error')
-            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
         assert row['billing_project'] == billing_project
 
         if row['user'] is None:
             set_message(session, f'User {user} is not member of billing project {billing_project}.', 'info')
-            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
         await tx.just_execute(
             '''
@@ -1304,7 +1304,7 @@ WHERE billing_project = %s AND user = %s;
             (billing_project, user))
     await delete()  # pylint: disable=no-value-for-parameter
     set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+    return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
 @routes.post('/billing_projects/{billing_project}/users/add')
@@ -1333,11 +1333,11 @@ WHERE billing_projects.name = %s;
             (billing_project, user, billing_project))
         if row is None:
             set_message(session, f'No such billing project {billing_project}.', 'error')
-            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
         if row['user'] is not None:
             set_message(session, f'User {user} is already member of billing project {billing_project}.', 'info')
-            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
         await tx.execute_insertone(
             '''
@@ -1347,7 +1347,7 @@ VALUES (%s, %s);
             (billing_project, user))
     await insert()  # pylint: disable=no-value-for-parameter
     set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+    return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
 @routes.post('/billing_projects/create')
@@ -1372,7 +1372,7 @@ FOR UPDATE;
             (billing_project))
         if row is not None:
             set_message(session, f'Billing project {billing_project} already exists.', 'error')
-            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
         await tx.execute_insertone(
             '''
@@ -1382,13 +1382,13 @@ VALUES (%s);
             (billing_project,))
     await insert()  # pylint: disable=no-value-for-parameter
     set_message(session, f'Added billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+    return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
 @routes.get('')
 @routes.get('/')
 @web_authenticated_users_only()
-async def index(request, userdata):
+async def index(request, userdata):  # pylint: disable=unused-argument
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 
@@ -1398,7 +1398,7 @@ async def cancel_batch_loop_body(app):
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
         await request_retry_transient_errors(
             session, 'POST',
-            deploy_config.url('batch-driver', f'/api/v1alpha/batches/cancel'),
+            deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
             headers=app['driver_headers'])
 
     should_wait = True
@@ -1410,7 +1410,7 @@ async def delete_batch_loop_body(app):
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
         await request_retry_transient_errors(
             session, 'POST',
-            deploy_config.url('batch-driver', f'/api/v1alpha/batches/delete'),
+            deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
             headers=app['driver_headers'])
 
     should_wait = True
