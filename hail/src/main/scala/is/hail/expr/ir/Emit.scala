@@ -2438,11 +2438,11 @@ class Emit[C](
       PCode(pt, value))
   }
 
-  def deforestNDArray(x: IR, mb: EmitMethodBuilder[C], region: StagedRegion, env: E): EmitCode = {
+  def deforestNDArray(x0: IR, mb: EmitMethodBuilder[C], region: StagedRegion, env: E): EmitCode = {
     def emit(ir: IR, env: E = env): EmitCode =
       this.emitWithRegion(ir, mb, region, env, None)
 
-    def deforest(nd: IR): NDArrayEmitter[C] = {
+    def deforest(x: IR): NDArrayEmitter[C] = {
       val xType = coerce[PNDArray](x.pType)
       val nDims = xType.nDims
 
@@ -2826,7 +2826,7 @@ class Emit[C](
       }
     }
 
-    deforest(x).emit(mb, coerce[PNDArray](x.pType), region.code)
+    deforest(x0).emit(mb, coerce[PNDArray](x0.pType), region.code)
   }
 }
 
