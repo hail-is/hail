@@ -1,7 +1,14 @@
 import sys
 import argparse
+import re
 
 from hailtop.config import get_user_config, get_user_config_path
+
+validations = {
+    ('batch', 'bucket'): (lambda x: re.fullmatch(r'[^:/\s]+', x) is not None,
+                          'should be valid Google Bucket identifier, with no gs:// prefix'),
+    ('email',): (lambda x: re.fullmatch(r'.+@.+', x) is not None, 'should be valid email address')
+}
 
 
 def parser():
@@ -71,7 +78,7 @@ def main(args):
 Paramters must contain at most one slash separating the configuration section
 from the configuration parameter, for example: "batch/billing_project".
 
-Parameters may also have no slahes, indicating the parameter is a global
+Parameters may also have no slashes, indicating the parameter is a global
 parameter, for example: "email".
 
 A parameter with more than one slash is invalid, for example:
@@ -80,6 +87,10 @@ A parameter with more than one slash is invalid, for example:
         sys.exit(1)
 
     if args.module == 'set':
+        validation_func, msg = validations.get(tuple(path), (lambda x: True, ''))
+        if not validation_func(args.value):
+            print(f"Error: bad value {args.value!r} for parameter {args.parameter!r} {msg}", file=sys.stderr)
+            sys.exit(1)
         if section not in config:
             config[section] = dict()
         config[section][key] = args.value

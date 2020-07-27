@@ -5,7 +5,7 @@ import sys
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
-from hailtop.tls import ssl_client_session
+from hailtop.tls import get_context_specific_ssl_client_session
 
 
 def init_parser(parser):
@@ -27,7 +27,7 @@ class CIClient:
 
     async def __aenter__(self):
         headers = service_auth_headers(self._deploy_config, 'ci')
-        self._session = ssl_client_session(
+        self._session = get_context_specific_ssl_client_session(
             timeout=aiohttp.ClientTimeout(total=60), headers=headers)
         return self
 

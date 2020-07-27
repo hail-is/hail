@@ -8,7 +8,7 @@ import is.hail.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.utils._
 
-final case class EBlockMatrixNDArray(elementType: EType, override val required: Boolean = false) extends EType {
+final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean = false, override val required: Boolean = false) extends EType {
   type DecodedPType = PCanonicalNDArray
 
   def setRequired(newRequired: Boolean): EBlockMatrixNDArray = EBlockMatrixNDArray(elementType, newRequired)
@@ -47,11 +47,19 @@ final case class EBlockMatrixNDArray(elementType: EType, override val required: 
       c := pnd.loadShape(ndarray, 1),
       out.writeInt(r.toI),
       out.writeInt(c.toI),
-      out.writeBoolean(true),
-      Code.forLoop(i := 0L, i < r, i := i + 1L,
-        Code.forLoop(j := 0L, j < c, j := j + 1L,
-          writeElemF(pnd.loadElementToIRIntermediate(FastIndexedSeq(i, j), ndarray, mb),
-            out))))
+      out.writeBoolean(encodeRowMajor), {
+        if (encodeRowMajor) {
+          Code.forLoop(i := 0L, i < r, i := i + 1L,
+            Code.forLoop(j := 0L, j < c, j := j + 1L,
+              writeElemF(pnd.loadElementToIRIntermediate(FastIndexedSeq(i, j), ndarray, mb),
+                out)))
+        } else {
+          Code.forLoop(j := 0L, j < c, j := j + 1L,
+            Code.forLoop(i := 0L, i < r, i := i + 1L,
+              writeElemF(pnd.loadElementToIRIntermediate(FastIndexedSeq(i, j), ndarray, mb),
+                out)))
+        }
+      })
   }
 
   override def _buildDecoder(

@@ -119,7 +119,7 @@ GROUP BY user;
 
     async def bump_loop(self):
         while True:
-            log.info(f'bump loop')
+            log.info('bump loop')
             self.scheduler_state_changed.set()
             self.cancel_ready_state_changed.set()
             self.cancel_running_state_changed.set()
@@ -225,7 +225,7 @@ FROM (SELECT user,
   GROUP BY user) AS t
 WHERE n_cancelled_running_jobs > 0;
 ''',
-            timer_description=f'in cancel_cancelled_running_jobs: aggregate n_cancelled_running_jobs')
+            timer_description='in cancel_cancelled_running_jobs: aggregate n_cancelled_running_jobs')
         user_n_cancelled_running_jobs = {
             record['user']: record['n_cancelled_running_jobs'] async for record in records
         }

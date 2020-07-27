@@ -8,7 +8,7 @@ import traceback
 from hailtop.utils import (
     time_msecs, sleep_and_backoff, is_transient_error,
     time_msecs_str, humanize_timedelta_msecs)
-from hailtop.tls import ssl_client_session
+from hailtop.tls import in_cluster_ssl_client_session
 
 from .globals import complete_states, tasks, STATUS_FORMAT_VERSION
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
@@ -102,7 +102,7 @@ GROUP BY batches.id;
 
     if record['user'] == 'ci':
         # only jobs from CI may use batch's TLS identity
-        make_client_session = ssl_client_session
+        make_client_session = in_cluster_ssl_client_session
     else:
         make_client_session = aiohttp.ClientSession
     try:
@@ -293,12 +293,11 @@ async def unschedule_job(app, record):
                     and e.status == 404):  # pylint: disable=no-member
                 await instance.mark_healthy()
                 break
+            await instance.incr_failed_request_count()
+            if is_transient_error(e):
+                pass
             else:
-                await instance.incr_failed_request_count()
-                if is_transient_error(e):
-                    pass
-                else:
-                    raise
+                raise
         delay = await sleep_and_backoff(delay)
 
     log.info(f'unschedule job {id}, attempt {attempt_id}: called delete job')

@@ -4102,7 +4102,7 @@ class MatrixTable(ExprContainer):
 
     def _write_block_matrix(self, path, overwrite, entry_field, block_size):
         mt = self
-        mt = mt.select_entries(entry_field).select_cols().select_globals()
+        mt = mt._select_all(entry_exprs={entry_field: mt[entry_field]})
         Env.backend().execute(ir.MatrixToValueApply(
             mt._mir,
             {'name': 'MatrixWriteBlockMatrix',

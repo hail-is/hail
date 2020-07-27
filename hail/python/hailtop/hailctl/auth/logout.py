@@ -3,7 +3,7 @@ import aiohttp
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import get_tokens, service_auth_headers
-from hailtop.tls import ssl_client_session
+from hailtop.tls import get_context_specific_ssl_client_session
 
 
 def init_parser(parser):  # pylint: disable=unused-argument
@@ -20,7 +20,7 @@ async def async_main():
         return
 
     headers = service_auth_headers(deploy_config, 'auth')
-    async with ssl_client_session(
+    async with get_context_specific_ssl_client_session(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers) as session:
         async with session.post(deploy_config.url('auth', '/api/v1alpha/logout')):
             pass

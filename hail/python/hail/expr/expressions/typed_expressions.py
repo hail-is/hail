@@ -3579,13 +3579,43 @@ class NDArrayExpression(Expression):
                              f'Expected {self.ndim} dimensions but got {len(item)}')
 
         n_sliced_dims = len([s for s in item if isinstance(s, slice)])
+
         if n_sliced_dims > 0:
             slices = []
             for i, s in enumerate(item):
                 if isinstance(s, slice):
-                    step = hl.case().when(s.step != 0, s.step).or_error("Slice step cannot be zero") if s.step is not None else to_expr(1, tint64)
-                    start = hl.cond(s.start >= 0, s.start, self.shape[i] + s.start) if s.start is not None else hl.cond(step >= 0, to_expr(0, tint64), self.shape[i] - 1)
-                    stop = hl.cond(s.stop >= 0, s.stop, self.shape[i] + s.stop) if s.stop is not None else hl.cond(step >= 0, self.shape[i], to_expr(-1, tint64))
+                    dlen = self.shape[i]
+
+                    if s.step is not None:
+                        step = hl.case().when(s.step != 0, s.step) \
+                                        .or_error("Slice step cannot be zero")
+                    else:
+                        step = to_expr(1, tint64)
+
+                    max_bound = hl.cond(step > 0, dlen, dlen - 1)
+                    min_bound = hl.cond(step > 0, to_expr(0, tint64), to_expr(-1, tint64))
+                    if s.start is not None:
+                        # python treats start < -dlen as None when step < 0: [0,1][-3:0:-1]
+                        # and 0 otherwise: [0,1][-3::1] == [0,1][0::1]
+                        start = hl.case() \
+                            .when(s.start >= dlen, max_bound) \
+                            .when(s.start >= 0, s.start) \
+                            .when((s.start + dlen) >= 0, dlen + s.start) \
+                            .default(min_bound)
+                    else:
+                        start = hl.cond(step >= 0, to_expr(0, tint64), dlen - 1)
+
+                    if s.stop is not None:
+                        # python treats stop < -dlen as None when step < 0: [0,1][0:-3:-1] == [0,1][0::-1]
+                        # and 0 otherwise: [0,1][:-3:1] == [0,1][:0:1]
+                        stop = hl.case() \
+                            .when(s.stop >= dlen, max_bound) \
+                            .when(s.stop >= 0, s.stop) \
+                            .when((s.stop + dlen) >= 0, dlen + s.stop) \
+                            .default(min_bound)
+                    else:
+                        stop = hl.cond(step > 0, dlen, to_expr(-1, tint64))
+
                     slices.append(hl.tuple((start, stop, step)))
                 else:
                     slices.append(s)

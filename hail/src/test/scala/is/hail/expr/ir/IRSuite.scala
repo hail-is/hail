@@ -3253,6 +3253,7 @@ class IRSuite extends HailSuite {
           MakeStruct(FastIndexedSeq(
             "a" -> GetField(Ref("row", read.typ.rowType), "f32"),
             "b" -> F64(-2.11)))),
+        TableMapPartitions(TableKeyBy(read, FastIndexedSeq()), "g", "rs", StreamTake(Ref("rs", TStream(read.typ.rowType)), 1)),
         TableMapGlobals(read,
           MakeStruct(FastIndexedSeq(
             "foo" -> NA(TArray(TInt32))))),
@@ -3811,7 +3812,7 @@ class IRSuite extends HailSuite {
     val node = In(0, pt)
     val spec = TypedCodecSpec(pt, BufferSpec.defaultUncompressed)
     val prefix = ctx.createTmpPath("test-read-write-values")
-    val filename = WriteValue(node, Str(prefix), spec)
+    val filename = WriteValue(node, Str(prefix) + UUID4(), spec)
     for (v <- Array(value, null)) {
       assertEvalsTo(ReadValue(filename, spec, pt.virtualType), FastIndexedSeq(v -> pt.virtualType), v)
     }
@@ -3826,7 +3827,7 @@ class IRSuite extends HailSuite {
     val readArray = Let("files",
       CollectDistributedArray(StreamMap(StreamRange(0, 10, 1), "x", node), MakeStruct(FastSeq()),
         "ctx", "globals",
-        WriteValue(Ref("ctx", node.typ), Str(prefix), spec)),
+        WriteValue(Ref("ctx", node.typ), Str(prefix) + UUID4(), spec)),
       StreamMap(ToStream(Ref("files", TArray(TString))), "filename",
         ReadValue(Ref("filename", TString), spec, pt.virtualType)))
     for (v <- Array(value, null)) {

@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
+import is.hail.rvd.{PartitionBoundOrdering, RVDPartitionInfo}
 import is.hail.utils._
 
 object Simplify {
@@ -686,6 +687,8 @@ object Simplify {
     case MatrixColsTable(MatrixAggregateRowsByKey(child, _, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixKeyRowsBy(child, _, _)) => MatrixColsTable(child)
 
+    case TableRepartition(TableRange(nRows, _), nParts, _) => TableRange(nRows, nParts)
+
     case TableMapGlobals(TableMapGlobals(child, ng1), ng2) =>
       val uid = genUID()
       TableMapGlobals(child, Let(uid, ng1, Subst(ng2, BindingEnv(Env("global" -> Ref(uid, ng1.typ))))))
@@ -769,7 +772,7 @@ object Simplify {
     case TableFilterIntervals(TableAggregateByKey(child, expr), intervals, keep) =>
       TableAggregateByKey(TableFilterIntervals(child, intervals, keep), expr)
     case TableFilterIntervals(TableFilterIntervals(child, i1, keep1), i2, keep2) if keep1 == keep2 =>
-      val ord = child.typ.keyType.ordering.intervalEndpointOrdering
+      val ord = PartitionBoundOrdering(child.typ.keyType).intervalEndpointOrdering
       val intervals = if (keep1)
       // keep means intersect intervals
         Interval.intersection(i1.toArray[Interval], i2.toArray[Interval], ord)

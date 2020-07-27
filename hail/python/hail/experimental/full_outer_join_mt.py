@@ -10,6 +10,61 @@ def full_outer_join_mt(left: hl.MatrixTable, right: hl.MatrixTable) -> hl.Matrix
      - `left_col` / `right_col`: structs of column fields from left and right.
      - `left_entry` / `right_entry`: structs of entry fields from left and right.
 
+    Examples
+    --------
+
+    The following creates and joins two random datasets with disjoint sample ids
+    but non-disjoint variant sets. We use :func:`.or_else` to attempt to find a
+    non-missing genotype. If neither genotype is non-missing, then the genotype
+    is set to missing. In particular, note that Samples `2` and `3` have missing
+    genotypes for loci 1:1 and 1:2 because those loci are not present in `mt2`
+    and these samples are not present in `mt1`
+
+    >>> hl.set_global_seed(0)
+    >>> mt1 = hl.balding_nichols_model(1, 2, 3)
+    >>> mt2 = hl.balding_nichols_model(1, 2, 3)
+    >>> mt2 = mt2.key_rows_by(locus=hl.locus(mt2.locus.contig,
+    ...                                      mt2.locus.position+2),
+    ...                       alleles=mt2.alleles)
+    >>> mt2 = mt2.key_cols_by(sample_idx=mt2.sample_idx+2)
+    >>> mt1.show()
+    +---------------+------------+------+------+
+    | locus         | alleles    | 0.GT | 1.GT |
+    +---------------+------------+------+------+
+    | locus<GRCh37> | array<str> | call | call |
+    +---------------+------------+------+------+
+    | 1:1           | ["A","C"]  | 0/1  | 0/1  |
+    | 1:2           | ["A","C"]  | 1/1  | 1/1  |
+    | 1:3           | ["A","C"]  | 0/0  | 0/0  |
+    +---------------+------------+------+------+
+    <BLANKLINE>
+    >>> mt2.show()  # doctest: +SKIP_OUTPUT_CHECK
+    +---------------+------------+------+------+
+    | locus         | alleles    | 0.GT | 1.GT |
+    +---------------+------------+------+------+
+    | locus<GRCh37> | array<str> | call | call |
+    +---------------+------------+------+------+
+    | 1:3           | ["A","C"]  | 0/1  | 1/1  |
+    | 1:4           | ["A","C"]  | 0/1  | 0/1  |
+    | 1:5           | ["A","C"]  | 1/1  | 0/0  |
+    +---------------+------------+------+------+
+    <BLANKLINE>
+    >>> mt3 = hl.experimental.full_outer_join_mt(mt1, mt2)
+    >>> mt3 = mt3.select_entries(GT=hl.or_else(mt3.left_entry.GT, mt3.right_entry.GT))
+    >>> mt3.show()
+    +---------------+------------+------+------+------+------+
+    | locus         | alleles    | 0.GT | 1.GT | 2.GT | 3.GT |
+    +---------------+------------+------+------+------+------+
+    | locus<GRCh37> | array<str> | call | call | call | call |
+    +---------------+------------+------+------+------+------+
+    | 1:1           | ["A","C"]  | 0/1  | 0/1  | NA   | NA   |
+    | 1:2           | ["A","C"]  | 1/1  | 1/1  | NA   | NA   |
+    | 1:3           | ["A","C"]  | 0/0  | 0/0  | 0/1  | 1/1  |
+    | 1:4           | ["A","C"]  | NA   | NA   | 0/1  | 0/1  |
+    | 1:5           | ["A","C"]  | NA   | NA   | 1/1  | 0/0  |
+    +---------------+------------+------+------+------+------+
+    <BLANKLINE>
+
     Parameters
     ----------
     left : :class:`.MatrixTable`

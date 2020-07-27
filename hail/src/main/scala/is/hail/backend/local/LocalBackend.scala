@@ -27,7 +27,7 @@ import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
 import java.io.PrintWriter
 
-class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T]
+class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
 
 object LocalBackend {
   private var theLocalBackend: LocalBackend = _

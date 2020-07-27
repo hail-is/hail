@@ -3,6 +3,10 @@
 Change Log
 ==========
 
+**Version 0.2.50**
+
+- Add ``requester_pays_project`` as a new parameter on batches.
+
 **Version 0.2.43**
 
 - Add support for a user-specified, at-most-once HTTP POST callback when a Batch completes.
