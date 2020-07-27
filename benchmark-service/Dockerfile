@@ -9,6 +9,4 @@ RUN pip3 install --no-cache-dir /benchmark-service && \
 
 EXPOSE 5000
 
-ENTRYPOINT ["python3"]
-
-CMD ["-m", "benchmark.benchmark"]
+CMD ["python3", "-m", "benchmark.benchmark"]

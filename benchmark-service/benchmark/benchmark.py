@@ -1,17 +1,13 @@
-import os
-from pathlib import Path
-from typing import Any, AsyncIterator, Dict
-import asyncio
-import aiohttp
-import aiohttp_session
+from typing import Any, Dict
 import aiohttp_jinja2
-import jinja2
 from aiohttp import web
 import logging
-from gear import setup_aiohttp_session, web_authenticated_developers_only, rest_authenticated_developers_only, AccessLogger, configure_logging
+from gear import setup_aiohttp_session, web_authenticated_developers_only
 from hailtop.config import get_deploy_config
-from hailtop.tls import get_server_ssl_context
+from hailtop.tls import get_in_cluster_server_ssl_context
+from hailtop.hail_logging import AccessLogger, configure_logging
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes
+import json
 
 
 configure_logging()
@@ -22,7 +18,7 @@ log = logging.getLogger('benchmark')
 
 
 @router.get('/healthcheck')
-async def healthcheck(request: web.Request) -> web.Response:
+async def healthcheck(request: web.Request) -> web.Response:  # pylint: disable=unused-argument
     return web.Response()
 
 
@@ -41,7 +37,7 @@ async def greet_user(request: web.Request) -> web.Response:
 @router.get('/')
 @router.get('')
 @web_authenticated_developers_only(redirect=False)
-async def index(request: web.Request, userdata) -> Dict[str, Any]:
+async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: disable=unused-argument
     context = {
         'current_date': 'July 10, 2020'
     }
@@ -50,21 +46,21 @@ async def index(request: web.Request, userdata) -> Dict[str, Any]:
     return response
 
 
+with open('/Users/dabuhijl/hail/0.2.45-ac6815ee857c-master.json') as f:
+    data = json.load(f)
+print(data)
+
+
 def init_app() -> web.Application:
     app = web.Application()
     setup_aiohttp_jinja2(app, 'benchmark')
     setup_aiohttp_session(app)
+
     setup_common_static_routes(router)
     app.add_routes(router)
-    aiohttp_jinja2.setup(
-        app, loader=jinja2.ChoiceLoader([
-            jinja2.PackageLoader('benchmark')
-        ]))
-    return app
 
-
-web.run_app(deploy_config.prefix_application(init_app(), 'benchmark'),
-            host='0.0.0.0',
-            port=5000,
-            access_log_class=AccessLogger,
-            ssl_context=get_server_ssl_context())
+    web.run_app(deploy_config.prefix_application(init_app(), 'benchmark'),
+                host='0.0.0.0',
+                port=5000,
+                access_log_class=AccessLogger,
+                ssl_context=get_in_cluster_server_ssl_context())
