@@ -327,12 +327,17 @@ class BlockMatrixSuite extends HailSuite {
 
   @Test
   def diagonalTestTiny() {
-    val lm = toLM(3, 4, Array[Double](
+    val lm = toLM(4, 4, Array[Double](
       1, 2, 3, 4,
       5, 6, 7, 8,
-      9, 10, 11, 12))
+      9, 10, 11, 12,
+      13, 14, 15, 19))
+    println("LOOK-HERE-BISK")
+    println(lm)
     
     val m = toBM(lm, blockSize = 2)
+
+    println(m.diagonal().toSeq)
 
     assert(m.diagonal().toSeq == Seq(1, 6, 11))
     assert(m.T.diagonal().toSeq == Seq(1, 6, 11))
@@ -837,12 +842,19 @@ class BlockMatrixSuite extends HailSuite {
     val localBlocks = Array(lm(0 to 1, 0 to 1), lm(2 to 3, 0 to 1), lm(0 to 1, 2 to 3), lm(2 to 3, 2 to 3))
      
     for { keep <- keepArray } {
+      println("\n")
+      println("blocks to keep:")
+      println(keep.toSeq)
+
       val fbm = bm.filterBlocks(keep)
+      print(fbm.blocks.collect().toSeq)
       
       assert(fbm.blocks.count() == keep.length)
       assert(fbm.blocks.collect().forall { case ((i, j), block) =>
         block == localBlocks(fbm.gp.coordinatesBlock(i, j)) } )
     }
+
+    println("here")
     
     // test multiple block filters
     val bm13 = bm.filterBlocks(Array(1, 3)).cache()

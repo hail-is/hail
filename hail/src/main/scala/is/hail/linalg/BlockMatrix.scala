@@ -391,12 +391,19 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     
   // assumes subsetGP blocks are subset of gp blocks, as with subsetGP = gp.intersect(gp2)
   def subsetBlocks(subsetGP: GridPartitioner): BlockMatrix = {
+    println("subsetGP:")
+    println(subsetGP.toString())
     if (subsetGP.numPartitions == gp.numPartitions)
       this
     else {
       assert(subsetGP.partitionIndexToBlockIndex.isDefined)
+      println("Some(subsetGP).value:")
+      println(Some(subsetGP).value)
+      println("subsetGP partition map:")
+      println(subsetGP.partitionIndexToBlockIndex.get.map(gp.blockToPartition))
+
       new BlockMatrix(blocks.subsetPartitions(subsetGP.partitionIndexToBlockIndex.get.map(gp.blockToPartition), Some(subsetGP)),
-        blockSize, nRows, nCols)
+        blockSize = blockSize, nRows = nRows, nCols = nCols)
     }
   }
   
@@ -753,7 +760,6 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     
     val nDiagBlocks = math.min(gp.nBlockRows, gp.nBlockCols)
     val diagBlocks = Array.tabulate(nDiagBlocks)(i => gp.coordinatesBlock(i, i))
-    
     filterBlocks(diagBlocks).blocks
       .map { case ((i, j), lm) =>
         assert(i == j)
