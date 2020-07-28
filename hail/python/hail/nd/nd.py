@@ -441,8 +441,7 @@ def vstack(arrs):
            [3],
            [4]], dtype=int32)
     """
-    head_nd = arrs[0]
-    head_ndim = head_nd.ndim
+    head_ndim = arrs[0].ndim
 
     if head_ndim == 1:
         return concatenate(hl.map(lambda a: a._broadcast(2), arrs), 0)
@@ -489,8 +488,7 @@ def hstack(arrs):
            [2, 3],
            [3, 4]], dtype=int32)
     """
-    head_nd = arrs[0]
-    head_ndim = head_nd.ndim
+    head_ndim = arrs[0].ndim
 
     if head_ndim == 1:
         axis = 0
