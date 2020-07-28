@@ -908,7 +908,6 @@ object EmitStream {
     }
   }
 
-  // length is required to be a variable reference
   case class SizedStream(setup: Code[Unit], stream: StagedRegion => Stream[EmitCode], length: Option[Code[Int]]) {
     def getStream(eltRegion: StagedRegion): Stream[EmitCode] = stream(eltRegion).addSetup(setup)
   }
