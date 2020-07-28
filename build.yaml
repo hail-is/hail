@@ -448,6 +448,8 @@ steps:
    dockerFile: benchmark-service/Dockerfile
    contextPath: .
    publishAs: benchmark
+   dependsOn:
+     - service_base_image
  - kind: buildImage
    name: auth_image
    dockerFile: auth/Dockerfile
@@ -533,6 +535,16 @@ steps:
    publishAs: ci-utils
    dependsOn:
      - service_base_image
+ - kind: runImage
+   name: check_benchmark
+   image:
+     valueFrom: benchmark_image.image
+   script: |
+     set -ex
+     python3 -m flake8 benchmark
+     python3 -m pylint --rcfile pylintrc benchmark
+   dependsOn:
+     - benchmark_image
  - kind: runImage
    name: build_hail
    image:
@@ -1238,6 +1250,18 @@ steps:
     - auth_image
     - create_dummy_oauth2_client_secret
     - create_certs
+ - kind: deploy
+   name: deploy_benchmark
+   namespace:
+     valueFrom: default_ns.name
+   config: benchmark-service/deployment.yaml
+   dependsOn:
+    - default_ns
+    - benchmark_image
+    - deploy_router
+    - create_certs
+    - deploy_auth
+    - create_accounts
  - kind: runImage
    name: test_auth_copy_paste_login
    image:

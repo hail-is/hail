@@ -22,6 +22,7 @@ class Tokens(collections.abc.MutableMapping):
         if os.path.isfile(tokens_file):
             with open(tokens_file, 'r') as f:
                 self._tokens = json.loads(f.read())
+            log.info(f'tokens loaded from {tokens_file}')
         else:
             log.info(f'tokens file not found: {tokens_file}')
             self._tokens = {}
