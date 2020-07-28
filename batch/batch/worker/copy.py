@@ -10,11 +10,6 @@ from .flock import Flock
 GCS_PATH_REGEX = re.compile('gs://(?P<bucket>[^/]+)/(?P<path>.+)')
 
 
-def check_call(cmd):
-    print(cmd)
-    return sp.check_call(cmd, shell=True, stderr=sp.STDOUT)
-
-
 wildcards = ('*', '?', '[', ']', '{', '}')
 
 
@@ -31,7 +26,7 @@ def contains_wildcard(c):
     return False
 
 
-def copy(src, dst, user, io_path, cache_path, requester_pays_project):
+def copy(src, dst, user, io_host_path, cache_path, requester_pays_project):
     if contains_wildcard(src):
         raise NotImplementedError(f'glob wildcards are not allowed in file paths, got source {src}')
 
@@ -41,6 +36,9 @@ def copy(src, dst, user, io_path, cache_path, requester_pays_project):
     if not src.startswith('gs://'):
         raise NotImplementedError(f'cannot copy from sources that are not GCS paths, got source {src}')
 
+    if not dst.startswith('/io/'):
+        raise NotImplementedError(f'cannot copy to destinations that are not in /io/, got destination {dst}')
+
     if requester_pays_project:
         requester_pays_project = f'-u {requester_pays_project}'
     else:
@@ -48,9 +46,7 @@ def copy(src, dst, user, io_path, cache_path, requester_pays_project):
 
     cache_src = f'{cache_path}/{user}{src[4:]}'
     escaped_src = re.escape(os.path.basename(src))
-
-    if dst.startswith('/io'):
-        dst = f'/host{io_path}{dst[3:]}'
+    dst = f'/host{io_host_path}{dst[3:]}'
 
     match = GCS_PATH_REGEX.fullmatch(src)
     if not match:
@@ -63,6 +59,7 @@ def copy(src, dst, user, io_path, cache_path, requester_pays_project):
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         os.makedirs(os.path.dirname(cache_src), exist_ok=True)
         check_call(f'cp -p -R --reflink {shq(cache_src)} {shq(dst)} || true')
+        if src.endswith('/')
         check_call(f'''
 gsutil -q stat {shq(src)}
 if [ $? = 0 ]; then
@@ -79,11 +76,11 @@ fi
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--user', type=str, required=True)
-    parser.add_argument('--io-path', type=str, required=True)
+    parser.add_argument('--io-host-path', type=str, required=True)
     parser.add_argument('--cache-path', type=str, required=True)
     parser.add_argument('--requester-pays-project', type=str, required=False)
     parser.add_argument('-f', '--files', action='append', type=str, nargs=2, metavar=('src', 'dest'))
     args = parser.parse_args()
 
     for src, dest in args.files:
-        copy(src, dest, args.user, args.io_path, args.cache_path, args.requester_pays_project)
+        copy(src, dest, args.user, args.io_host_path, args.cache_path, args.requester_pays_project)

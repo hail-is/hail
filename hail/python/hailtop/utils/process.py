@@ -27,3 +27,8 @@ async def check_shell_output(script):
 async def check_shell(script):
     # discard output
     await check_shell_output(script)
+
+
+def blockingcheck_call(cmd):
+    print(cmd)
+    return sp.check_call(cmd, shell=True, stderr=sp.STDOUT)
