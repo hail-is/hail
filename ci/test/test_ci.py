@@ -6,7 +6,7 @@ import aiohttp
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
-from hailtop.tls import ssl_client_session
+from hailtop.tls import in_cluster_ssl_client_session
 import hailtop.utils as utils
 
 pytestmark = pytest.mark.asyncio
@@ -19,7 +19,7 @@ async def test_deploy():
     deploy_config = get_deploy_config()
     ci_deploy_status_url = deploy_config.url('ci', '/api/v1alpha/deploy_status')
     headers = service_auth_headers(deploy_config, 'ci')
-    async with ssl_client_session(
+    async with in_cluster_ssl_client_session(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60)) as session:
 

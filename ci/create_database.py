@@ -8,6 +8,7 @@ import asyncio
 import shutil
 from shlex import quote as shq
 from hailtop.utils import check_shell, check_shell_output
+from hailtop.auth.sql_config import create_secret_data_from_config
 from gear import Database
 
 assert len(sys.argv) == 2
@@ -22,39 +23,18 @@ def generate_token(size=12):
 
 
 async def write_user_config(namespace, database_name, user, config):
-    files = []
-
-    files.append('sql-config.json')
-    with open(f'sql-config.json', 'w') as f:
-        f.write(json.dumps(config))
-
-    files.append('sql-config.cnf')
-    with open(f'sql-config.cnf', 'w') as f:
-        f.write(f'''[client]
-host={config["host"]}
-user={config["user"]}
-password="{config["password"]}"
-database={config["db"]}
-''')
-        if config.get('ssl-ca') is not None:
-            f.write(f'ssl-ca={config["ssl-ca"]}\n')
-        if config.get('ssl-cert') is not None:
-            f.write(f'ssl-cert={config["ssl-cert"]}\n')
-        if config.get('ssl-key') is not None:
-            f.write(f'ssl-key={config["ssl-key"]}\n')
-        if config.get('ssl-mode') is not None:
-            f.write(f'ssl-mode={config["ssl-mode"]}\n')
-
-    if os.path.exists('/sql-config/server-ca.pem'):
-        files.append('server-ca.pem')
-        shutil.copy('/sql-config/server-ca.pem', 'server-ca.pem')
-    if os.path.exists('/sql-config/client-key.pem'):
-        files.append('client-key.pem')
-        shutil.copy('/sql-config/client-key.pem', 'client-key.pem')
-    if os.path.exists('/sql-config/client-cert.pem'):
-        files.append('client-cert.pem')
-        shutil.copy('/sql-config/client-cert.pem', 'client-cert.pem')
-
+    with open('/sql-config/server-ca.pem', 'r') as f:
+        server_ca = f.read()
+    with open('/sql-config/client-cert.pem', 'r') as f:
+        client_cert = f.read()
+    with open('/sql-config/client-key.pem', 'r') as f:
+        client_key = f.read()
+    secret = create_secret_data_from_config(
+        config, server_ca, client_cert, client_key)
+    files = secret.keys()
+    for fname, data in secret.items():
+        with open(os.path.basename(fname), 'w') as f:
+            f.write(data)
     secret_name = f'sql-{database_name}-{user}-config'
     print(f'creating secret {secret_name}')
     from_files = ' '.join(f'--from-file={f}' for f in files)

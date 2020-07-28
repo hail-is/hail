@@ -11,7 +11,7 @@ from asyncinit import asyncinit
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
 from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, TQDM_DEFAULT_DISABLE
-from hailtop.tls import ssl_client_session
+from hailtop.tls import get_context_specific_ssl_client_session
 
 from .globals import tasks, complete_states
 
@@ -371,7 +371,7 @@ class BatchBuilder:
                    port=None, resources=None, secrets=None,
                    service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False, pvc_size=None,
-                   timeout=None, gcsfuse=None):
+                   timeout=None, gcsfuse=None, requester_pays_project=None):
         if self._submitted:
             raise ValueError("cannot create a job in an already submitted batch")
 
@@ -438,6 +438,8 @@ class BatchBuilder:
         if gcsfuse:
             job_spec['gcsfuse'] = [{"bucket": bucket, "mount_path": mount_path, "read_only": read_only}
                                    for (bucket, mount_path, read_only) in gcsfuse]
+        if requester_pays_project:
+            job_spec['requester_pays_project'] = requester_pays_project
 
         self._job_specs.append(job_spec)
 
@@ -555,8 +557,9 @@ class BatchClient:
         self.url = deploy_config.base_url('batch')
 
         if session is None:
-            session = ssl_client_session(raise_for_status=True,
-                                         timeout=aiohttp.ClientTimeout(total=60))
+            session = get_context_specific_ssl_client_session(
+                raise_for_status=True,
+                timeout=aiohttp.ClientTimeout(total=60))
         self._session = session
 
         h = {}

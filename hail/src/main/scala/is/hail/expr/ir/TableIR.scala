@@ -437,7 +437,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends Partition
     def emitIR(ir: IR, env: Emit.E = env, region: Value[Region] = region, container: Option[AggContainer] = container): EmitCode =
       emitter.emitWithRegion(ir, mb, region, env, container)
 
-    val (eltType, dec) = spec.buildEmitDecoderF[Long](requestedType, mb.ecb)
+    val (eltType, dec) = spec.buildTypedEmitDecoderF[Long](requestedType, mb.ecb)
 
     COption.fromEmitCode(emitIR(context)).map { path =>
       val pathString = path.asString.loadString()
@@ -1407,7 +1407,6 @@ case class TableMapPartitions(child: TableIR,
   body: IR
 ) extends TableIR {
   assert(body.typ.isInstanceOf[TStream], s"${ body.typ }")
-  assert(EmitStream.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
   lazy val typ = child.typ.copy(
     rowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct])
 

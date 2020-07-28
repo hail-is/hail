@@ -199,6 +199,41 @@ class TableMapRows(TableIR):
         return self.child.typ.row_env(default_value) if i == 1 else {}
 
 
+class TableMapPartitions(TableIR):
+    def __init__(self, child, global_name, partition_stream_name, body):
+        super().__init__(child, body)
+        self.child = child
+        self.body = body
+        self.global_name = global_name
+        self.partition_stream_name = partition_stream_name
+
+    def _compute_type(self):
+        self.body._compute_type({self.global_name: self.child.typ.global_type,
+                                 self.partition_stream_name: hl.tstream(self.child.typ.row_type)},
+                                {})
+        assert isinstance(self.body.typ, hl.tstream) and isinstance(self.body.typ.element_type, hl.tstruct)
+        new_row_type = self.body.typ.element_type
+        for k in self.child.typ.row_key:
+            assert k in new_row_type
+        self._type = hl.ttable(self.child.typ.global_type,
+                               new_row_type,
+                               self.child.typ.row_key)
+
+    def renderable_bindings(self, i, default_value=None):
+        if i == 1:
+            return {self.global_name: self.child.typ.global_type if default_value is None else default_value,
+                    self.partition_stream_name: hl.tstream(
+                        self.child.typ.row_type) if default_value is None else default_value}
+        else:
+            return {}
+
+    def head_str(self):
+        return f'{escape_id(self.global_name)} {escape_id(self.partition_stream_name)}'
+
+    def _eq(self, other):
+        return self.global_name == other.global_name and self.partition_stream_name == other.partition_stream_name
+
+
 class TableRead(TableIR):
     def __init__(self, reader, drop_rows=False):
         super().__init__()

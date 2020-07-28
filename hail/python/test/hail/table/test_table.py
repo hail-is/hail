@@ -1500,3 +1500,17 @@ def test_read_write_all_types():
     tmp_file = new_temp_file()
     ht.write(tmp_file)
     assert hl.read_table(tmp_file)._same(ht)
+
+
+def test_map_partitions_flatmap():
+    ht = hl.utils.range_table(2)
+    ht2 = ht._map_partitions(lambda rows: rows.flatmap(lambda r: hl.range(2).map(lambda x: r.annotate(x=x))))
+    assert ht2.collect() == [hl.Struct(idx=0, x=0), hl.Struct(idx=0, x=1), hl.Struct(idx=1, x=0), hl.Struct(idx=1, x=1)]
+
+
+def test_map_partitions_errors():
+    ht = hl.utils.range_table(2)
+    with pytest.raises(TypeError, match='expected return type expression of type array<struct>'):
+        ht._map_partitions(lambda rows: 5)
+    with pytest.raises(ValueError, match='must preserve key fields'):
+        ht._map_partitions(lambda rows: rows.map(lambda r: r.drop('idx')))

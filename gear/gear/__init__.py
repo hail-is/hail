@@ -1,4 +1,3 @@
-from .logging import configure_logging, AccessLogger
 from .database import create_database_pool, Database, transaction
 from .session import setup_aiohttp_session
 from .auth import userdata_from_web_request, userdata_from_rest_request, \
@@ -8,7 +7,6 @@ from .csrf import new_csrf_token, check_csrf_token
 from .auth_utils import insert_user, create_session
 
 __all__ = [
-    'configure_logging',
     'create_database_pool',
     'Database',
     'setup_aiohttp_session',
@@ -23,6 +21,5 @@ __all__ = [
     'check_csrf_token',
     'insert_user',
     'create_session',
-    'transaction',
-    'AccessLogger'
+    'transaction'
 ]

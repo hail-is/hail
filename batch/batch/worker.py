@@ -21,13 +21,13 @@ import google.oauth2.service_account
 from hailtop.utils import (time_msecs, request_retry_transient_errors,
                            RETRY_FUNCTION_SCRIPT, sleep_and_backoff, retry_all_errors, check_shell,
                            CalledProcessError)
-from hailtop.tls import ssl_client_session
+from hailtop.tls import get_context_specific_ssl_client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
                                         parse_memory_in_bytes)
 # import uvloop
 
 from hailtop.config import DeployConfig
-from gear import configure_logging
+from hailtop.hail_logging import configure_logging
 
 from .utils import (adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes,
                     adjust_cores_for_packability)
@@ -506,18 +506,24 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
         delay = await sleep_and_backoff(delay)
 
 
-def copy_command(src, dst):
+def copy_command(src, dst, requester_pays_project=None):
     if not dst.startswith('gs://'):
         mkdirs = f'mkdir -p {shq(os.path.dirname(dst))} && '
     else:
         mkdirs = ''
-    return f'{mkdirs}retry gsutil -m cp -R {shq(src)} {shq(dst)}'
+
+    if requester_pays_project:
+        requester_pays_project = f'-u {requester_pays_project}'
+    else:
+        requester_pays_project = ''
+
+    return f'{mkdirs}retry gsutil {requester_pays_project} -m cp -R {shq(src)} {shq(dst)}'
 
 
-def copy(files):
+def copy(files, requester_pays_project):
     assert files
 
-    copies = ' && '.join([copy_command(f['from'], f['to']) for f in files])
+    copies = ' && '.join([copy_command(f['from'], f['to'], requester_pays_project) for f in files])
     return f'''
 set -ex
 
@@ -529,8 +535,8 @@ retry gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
 '''
 
 
-def copy_container(job, name, files, volume_mounts, cpu, memory):
-    sh_expression = copy(files)
+def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays_project):
+    sh_expression = copy(files, requester_pays_project)
     copy_spec = {
         'image': 'google/cloud-sdk:269.0.0-alpine',
         'name': name,
@@ -581,6 +587,8 @@ class Job:
         copy_volume_mounts = []
         main_volume_mounts = []
 
+        requester_pays_project = job_spec.get('requester_pays_project')
+
         if job_spec.get('mount_docker_socket'):
             main_volume_mounts.append('/var/run/docker.sock:/var/run/docker.sock')
 
@@ -627,7 +635,7 @@ class Job:
         if input_files:
             containers['input'] = copy_container(
                 self, 'input', input_files, copy_volume_mounts,
-                self.cpu_in_mcpu, self.memory_in_bytes)
+                self.cpu_in_mcpu, self.memory_in_bytes, requester_pays_project)
 
         # main container
         main_spec = {
@@ -650,7 +658,7 @@ class Job:
         if output_files:
             containers['output'] = copy_container(
                 self, 'output', output_files, copy_volume_mounts,
-                self.cpu_in_mcpu, self.memory_in_bytes)
+                self.cpu_in_mcpu, self.memory_in_bytes, requester_pays_project)
 
         self.containers = containers
 
@@ -936,7 +944,7 @@ class Worker:
                     idle_duration = time_msecs() - self.last_updated
                 log.info(f'idle {idle_duration} ms, exiting')
 
-                async with ssl_client_session(
+                async with get_context_specific_ssl_client_session(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     # Don't retry.  If it doesn't go through, the driver
                     # monitoring loops will recover.  If the driver is
@@ -990,7 +998,7 @@ class Worker:
         delay_secs = 0.1
         while True:
             try:
-                async with ssl_client_session(
+                async with get_context_specific_ssl_client_session(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                     await session.post(
                         deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
@@ -1045,7 +1053,7 @@ class Worker:
             'status': status
         }
 
-        async with ssl_client_session(
+        async with get_context_specific_ssl_client_session(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
             await request_retry_transient_errors(
                 session, 'POST',
@@ -1059,7 +1067,7 @@ class Worker:
             log.exception(f'error while posting {job} started')
 
     async def activate(self):
-        async with ssl_client_session(
+        async with get_context_specific_ssl_client_session(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             resp = await request_retry_transient_errors(
                 session, 'POST',
@@ -1099,5 +1107,5 @@ loop = asyncio.get_event_loop()
 loop.run_until_complete(async_main())
 loop.run_until_complete(loop.shutdown_asyncgens())
 loop.close()
-log.info(f'closed')
+log.info('closed')
 sys.exit(0)

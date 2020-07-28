@@ -7,7 +7,7 @@ from aiohttp import web
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import get_tokens, namespace_auth_headers
-from hailtop.tls import ssl_client_session
+from hailtop.tls import get_context_specific_ssl_client_session
 
 
 def init_parser(parser):
@@ -97,7 +97,7 @@ async def async_main(args):
     else:
         auth_ns = deploy_config.service_ns('auth')
     headers = namespace_auth_headers(deploy_config, auth_ns, authorize_target=False)
-    async with ssl_client_session(
+    async with get_context_specific_ssl_client_session(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers) as session:
         await auth_flow(deploy_config, auth_ns, session)
 
