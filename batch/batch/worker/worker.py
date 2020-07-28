@@ -298,9 +298,9 @@ class Container:
         if volume_mounts:
             host_config['Binds'] = volume_mounts
 
-        mounts = self.spec.get('mounts')
-        if mounts:
-            host_config['Mounts'] = mounts
+        # mounts = self.spec.get('mounts')
+        # if mounts:
+        #     host_config['Mounts'] = mounts
 
         if env:
             config['Env'] = env
@@ -692,14 +692,8 @@ class Job:
         containers = {}
 
         if input_files:
-            input_mounts = [{
-                'Source': LOCAL_SSD_MOUNT,
-                'Target': '/host',
-                'Type': 'bind',
-                'BindOptions': {
-                    'Propogation': 'shared'  # FIXME: look up if needed
-                }
-            }]
+            input_volume_mounts.append(f'{LOCAL_SSD_MOUNT}:/host')
+            input_mounts = None
             containers['input'] = copy_container(
                 self, 'input', input_files, input_volume_mounts, input_mounts,
                 self.cpu_in_mcpu, self.memory_in_bytes, requester_pays_project)
