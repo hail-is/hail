@@ -18,7 +18,7 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
 
   override def resultType: PType = ndTyp
 
-  override def initOpTypes: Seq[PType] = Array(ndTyp.shape.pType)
+  override def initOpTypes: Seq[PType] = Array[PType]()//Array(ndTyp.shape.pType)
 
   override def seqOpTypes: Seq[PType] = Array(ndTyp)
 
@@ -40,10 +40,10 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     // Check if the thing is initialized. If it is, then check shapes match. If they do, add ndarrays.
     val Array(nextNDCode) = seq
-    cb.ifx(isInitialized(state),
-      {
-        nextNDCode.toI(cb).consume[Unit](cb, {}, { case nextNDPCode: PNDArrayCode =>
-          val nextNDPValue = nextNDPCode.memoize(cb, "ndarray_sum_seqop_next")
+    nextNDCode.toI(cb).consume(cb, {}, {case nextNDPCode: PNDArrayCode =>
+      val nextNDPValue = nextNDPCode.memoize(cb, "ndarray_sum_seqop_next")
+      cb.ifx(isInitialized(state),
+        {
           val currentNDPValue = PCode(ndTyp, ndArrayPointer(state)).asNDArray.memoize(cb, "ndarray_sum_seqop_current")
 
           val sameShape = currentNDPValue.sameShape(nextNDPValue, cb.emb)
@@ -72,13 +72,14 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
             columnMajorLoops,
             Code._fatal[Unit]("Can't sum ndarrays of different shapes.")
           ))
-        })
-      },
-      {
-        // TODO Is this really safe, does it copy the initial array?
-        ndTyp.constructAtAddress(cb.emb, stateType.fieldOffset(state.off, 1), state.region, nextNDCode.pt, nextNDCode.value[Long], true)
-      }
-    )
+        },
+        {
+          // TODO Is this really safe, does it copy the initial array?
+          ndTyp.constructAtAddress(cb.emb, stateType.fieldOffset(state.off, 1), state.region, nextNDCode.pt, nextNDPValue.get.tcode[Long], true)
+        }
+      )
+    })
+
   }
 
   override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {

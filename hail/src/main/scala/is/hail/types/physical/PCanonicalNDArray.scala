@@ -255,7 +255,7 @@ class PCanonicalNDArraySettable(override val pt: PCanonicalNDArray, val a: Setta
   }
 
   override def sameShape(other: PNDArrayValue, mb: EmitMethodBuilder[_]): Code[Boolean] = {
-    val comparator = this.pt.shape.pType.codeOrdering(mb, other.pt)
+    val comparator = this.pt.shape.pType.codeOrdering(mb, other.pt.shape.pType)
     val thisShape = this.pt.shape.load(this.a).asInstanceOf[Code[comparator.T]]
     val otherShape = other.pt.shape.load(other.value.asInstanceOf[Value[Long]]).asInstanceOf[Code[comparator.T]]
     comparator.equiv((true, thisShape), (true, otherShape), false)
