@@ -20,7 +20,7 @@ from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
 from hailtop.utils import (time_msecs, request_retry_transient_errors,
                            RETRY_FUNCTION_SCRIPT, sleep_and_backoff, retry_all_errors, check_shell,
-                           CalledProcessError)
+                           CalledProcessError, check_shell_output)
 from hailtop.tls import get_context_specific_ssl_client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
                                         parse_memory_in_bytes)
@@ -29,13 +29,16 @@ from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
 from hailtop.config import DeployConfig
 from hailtop.hail_logging import configure_logging
 
-from .utils import (adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes,
-                    adjust_cores_for_packability)
-from .semaphore import FIFOWeightedSemaphore
-from .log_store import LogStore
-from .globals import HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION
-from .batch_format_version import BatchFormatVersion
-from .worker_config import WorkerConfig
+from ..utils import (adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes,
+                     adjust_cores_for_packability, adjust_cores_for_storage_request,
+                     cores_mcpu_to_storage_bytes)
+from ..semaphore import FIFOWeightedSemaphore
+from ..log_store import LogStore
+from ..globals import HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION
+from ..batch_format_version import BatchFormatVersion
+from ..worker_config import WorkerConfig
+
+from .flock import Flock
 
 # uvloop.install()
 
@@ -57,6 +60,7 @@ INSTANCE_ID = os.environ['INSTANCE_ID']
 PROJECT = os.environ['PROJECT']
 WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
+LOCAL_SSD_MOUNT = os.environ['LOCAL_SSD_MOUNT']
 
 log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
@@ -69,6 +73,7 @@ log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'PROJECT {PROJECT}')
 log.info(f'WORKER_CONFIG {WORKER_CONFIG}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
+log.info(f'LOCAL_SSD_MOUNT {LOCAL_SSD_MOUNT}')
 
 worker_config = WorkerConfig(WORKER_CONFIG)
 assert worker_config.cores == CORES
@@ -250,6 +255,7 @@ class Container:
         self.timing = {}
         self.container_status = None
         self.log = None
+        self.overlay_path = None
 
     def container_config(self):
         weight = worker_fraction_in_1024ths(self.spec['cpu'])
@@ -363,6 +369,19 @@ class Container:
                 self.container = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
                     create_container, config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
+            c = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(self.container.show)
+
+            merged_overlay_path = c['GraphDriver']['Data']['MergedDir']
+            assert merged_overlay_path.endswith('/merged')
+            self.overlay_path = merged_overlay_path[:-7].replace(LOCAL_SSD_MOUNT, '/host')
+            os.makedirs(f'{self.overlay_path}/', exist_ok=True)
+
+            async with Flock('/xfsquota/projects', pool=worker.pool):
+                with open('/xfsquota/projects', 'a') as f:
+                    f.write(f'{self.job.project_id}:{self.overlay_path}\n')
+
+            await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.job.project_name}" /host/')
+
             async with self.step('starting'):
                 await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
                     start_container, self.container)
@@ -416,6 +435,11 @@ class Container:
         return self.log
 
     async def delete_container(self):
+        if self.overlay_path:
+            path = self.overlay_path.replace('/', r'\/')
+            async with Flock('/xfsquota/projects', pool=worker.pool):
+                await check_shell(f"sed -i '/:{path}/d' /xfsquota/projects")
+
         if self.container:
             try:
                 log.info(f'{self}: deleting container')
@@ -549,6 +573,14 @@ def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays_
 
 
 class Job:
+    quota_project_id = 100
+
+    @staticmethod
+    def get_next_xfsquota_project_id():
+        project_id = Job.quota_project_id
+        Job.quota_project_id += 1
+        return project_id
+
     def secret_host_path(self, secret):
         return f'{self.scratch}/secrets/{secret["name"]}'
 
@@ -580,7 +612,6 @@ class Job:
         self.start_time = None
         self.end_time = None
 
-        pvc_size = job_spec.get('pvc_size')
         input_files = job_spec.get('input_files')
         output_files = job_spec.get('output_files')
 
@@ -592,7 +623,7 @@ class Job:
         if job_spec.get('mount_docker_socket'):
             main_volume_mounts.append('/var/run/docker.sock:/var/run/docker.sock')
 
-        self.mount_io = (pvc_size or input_files or output_files)
+        self.mount_io = (input_files or output_files)
         if self.mount_io:
             volume_mount = f'{self.io_host_path()}:/io'
             main_volume_mounts.append(volume_mount)
@@ -620,14 +651,20 @@ class Job:
 
         req_cpu_in_mcpu = parse_cpu_in_mcpu(job_spec['resources']['cpu'])
         req_memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
+        req_storage_in_bytes = parse_memory_in_bytes(job_spec['resources']['storage'])
 
         cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type)
+        cpu_in_mcpu = adjust_cores_for_storage_request(cpu_in_mcpu, req_storage_in_bytes, CORES)
         cpu_in_mcpu = adjust_cores_for_packability(cpu_in_mcpu)
 
         self.cpu_in_mcpu = cpu_in_mcpu
         self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu, worker_config.instance_type)
+        self.storage_in_bytes = cores_mcpu_to_storage_bytes(self.cpu_in_mcpu, CORES)
 
         self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes)
+
+        self.project_name = f'batch-{self.batch_id}-job-{self.job_id}'
+        self.project_id = Job.get_next_xfsquota_project_id()
 
         # create containers
         containers = {}
@@ -683,6 +720,19 @@ class Job:
 
                 log.info(f'{self}: initializing')
                 self.state = 'initializing'
+
+                os.makedirs(f'{self.scratch}/')
+
+                async with Flock('/xfsquota/projid', pool=worker.pool):
+                    with open('/xfsquota/projid', 'a') as f:
+                        f.write(f'{self.project_name}:{self.project_id}\n')
+
+                async with Flock('/xfsquota/projects', pool=worker.pool):
+                    with open('/xfsquota/projects', 'a') as f:
+                        f.write(f'{self.project_id}:{self.scratch}\n')
+
+                await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/')
+                await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={self.storage_in_bytes} bhard={self.storage_in_bytes} {self.project_name}" /host/')
 
                 if self.mount_io:
                     os.makedirs(self.io_host_path())
@@ -750,6 +800,15 @@ class Job:
                             mount_path = self.gcsfuse_path(bucket)
                             await check_shell(f'fusermount -u {mount_path}')
                             log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
+
+                    await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
+
+                    async with Flock('/xfsquota/projid', pool=worker.pool):
+                        await check_shell(f"sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
+
+                    async with Flock('/xfsquota/projects', pool=worker.pool):
+                        await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
+
                     shutil.rmtree(self.scratch, ignore_errors=True)
                 except Exception:
                     log.exception('while deleting volumes')

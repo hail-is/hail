@@ -271,10 +271,11 @@ kill -SIGHUP $(pidof dockerd)
 LOCAL_SSD_NAME=$(lsblk | grep '^nvme' | awk '{ print $1 }')
 
 # format local SSD
-sudo mkfs.ext4 -F /dev/$LOCAL_SSD_NAME
+sudo mkfs.xfs -m reflink=1 /dev/$LOCAL_SSD_NAME
 sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME
-sudo mount /dev/$LOCAL_SSD_NAME /mnt/disks/$LOCAL_SSD_NAME
+sudo mount -o prjquota /dev/$LOCAL_SSD_NAME /mnt/disks/$LOCAL_SSD_NAME
 sudo chmod a+w /mnt/disks/$LOCAL_SSD_NAME
+XFS_DEVICE=$(xfs_info /mnt/disks/$LOCAL_SSD_NAME | head -n 1 | awk '{ print $1 }' | awk  'BEGIN { FS = "=" }; { print $2 }')
 
 # reconfigure docker to use local SSD
 sudo service docker stop
@@ -291,6 +292,15 @@ sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/logs /logs
 
 sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/gcsfuse/
 sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/gcsfuse /gcsfuse
+
+sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/xfsquota/
+sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/xfsquota /xfsquota
+
+touch /xfsquota/projects
+touch /xfsquota/projid
+
+ln -s /xfsquota/projects /etc/projects
+ln -s /xfsquota/projid /etc/projid
 
 export HOME=/root
 
@@ -327,17 +337,22 @@ docker run \
     -e PROJECT=$PROJECT \
     -e WORKER_CONFIG=$WORKER_CONFIG \
     -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
+    -e LOCAL_SSD_MOUNT=/mnt/disks/$LOCAL_SSD_NAME \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /usr/bin/docker:/usr/bin/docker \
+    -v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
     -v /batch:/batch \
     -v /logs:/logs \
     -v /gcsfuse:/gcsfuse:shared \
+    -v /xfsquota:/xfsquota \
+    --mount type=bind,source=/mnt/disks/$LOCAL_SSD_NAME,target=/host \
     -p 5000:5000 \
     --device /dev/fuse \
+    --device $XFS_DEVICE \
     --cap-add SYS_ADMIN \
     --security-opt apparmor:unconfined \
     $BATCH_WORKER_IMAGE \
-    python3 -u -m batch.worker >worker.log 2>&1
+    python3 -u -m batch.worker.worker >worker.log 2>&1
 
 while true; do
   gcloud -q compute instances delete $NAME --zone=$ZONE

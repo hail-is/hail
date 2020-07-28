@@ -46,3 +46,7 @@ def parse_image_tag(image_string: str) -> Optional[str]:
     if match:
         return match.group(3)
     return None
+
+
+def parse_storage_in_bytes(storage_string):
+    return parse_memory_in_bytes(storage_string)

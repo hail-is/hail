@@ -4,6 +4,10 @@ import math
 log = logging.getLogger('utils')
 
 
+def round_up_division(numerator, denominator):
+    return (numerator + denominator - 1) // denominator
+
+
 def coalesce(x, default):
     if x is not None:
         return x
@@ -82,6 +86,29 @@ def cores_mcpu_to_memory_bytes(cores_in_mcpu, worker_type):
 
 def adjust_cores_for_memory_request(cores_in_mcpu, memory_in_bytes, worker_type):
     min_cores_mcpu = memory_bytes_to_cores_mcpu(memory_in_bytes, worker_type)
+    return max(cores_in_mcpu, min_cores_mcpu)
+
+
+def total_worker_storage_gib():
+    # local ssd is 375Gi
+    # reserve 25Gi for images
+    return 375 - 25
+
+
+def worker_storage_per_core_bytes(worker_cores):
+    return (total_worker_storage_gib() * 1024**3) // worker_cores
+
+
+def storage_bytes_to_cores_mcpu(storage_in_bytes, worker_cores):
+    return round_up_division(storage_in_bytes * 1000, worker_storage_per_core_bytes(worker_cores))
+
+
+def cores_mcpu_to_storage_bytes(cores_in_mcpu, worker_cores):
+    return (cores_in_mcpu * worker_storage_per_core_bytes(worker_cores)) // 1000
+
+
+def adjust_cores_for_storage_request(cores_in_mcpu, storage_in_bytes, worker_cores):
+    min_cores_mcpu = storage_bytes_to_cores_mcpu(storage_in_bytes, worker_cores)
     return max(cores_in_mcpu, min_cores_mcpu)
 
 

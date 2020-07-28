@@ -435,6 +435,8 @@ class ServiceBackend(Backend):
                 resources['cpu'] = job._cpu
             if job._memory:
                 resources['memory'] = job._memory
+            if job._storage:
+                resources['storage'] = job._storage
 
             j = bc_batch.create_job(image=job._image if job._image else default_image,
                                     command=['/bin/bash', '-c', cmd],
@@ -443,7 +445,6 @@ class ServiceBackend(Backend):
                                     resources=resources,
                                     input_files=inputs if len(inputs) > 0 else None,
                                     output_files=outputs if len(outputs) > 0 else None,
-                                    pvc_size=job._storage,
                                     always_run=job._always_run,
                                     timeout=job._timeout,
                                     gcsfuse=job._gcsfuse if len(job._gcsfuse) > 0 else None,
