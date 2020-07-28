@@ -17,7 +17,7 @@ from .resource import InputResourceFile, JobResourceFile, ResourceGroup
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .batch import Batch  # pylint: disable=cyclic-import
-    from .job import Job  # pylint: disable=cyclic-import
+    from .job import Job  # pylint: disable=cyclic-import # noqa: F401
 
 
 class Backend:

@@ -8,7 +8,7 @@ from .utils import BatchException
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .job import Job
+    from .job import Job  # pylint: disable=cyclic-import
 
 
 class Resource:

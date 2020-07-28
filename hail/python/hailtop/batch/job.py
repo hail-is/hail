@@ -3,7 +3,7 @@ import re
 from typing import Union, Optional, Dict, List, Set, Tuple
 
 from .backend import ServiceBackend
-from .resource import ResourceFile, ResourceGroup, JobResourceFile, Resource
+from .resource import ResourceFile, ResourceGroup, Resource
 from .utils import BatchException
 
 from typing import TYPE_CHECKING
