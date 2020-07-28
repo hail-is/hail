@@ -984,7 +984,7 @@ class Emit[C](
         cb.append(shuffle.startPut())
         val rows = emitStream(rowsIR).toI(cb).handle(cb, {
           cb._fatal("rows stream was missing in shuffle write")
-        }).asStream.stream.getStream(region.createChildRegion(mb, allowSubregions = false))
+        }).asStream.stream.getStream(region)
         cb.append(rows.forEach(mb, { row: EmitCode =>
           Code(
             row.setup,
@@ -1416,7 +1416,7 @@ class Emit[C](
       case x@StreamLen(a) =>
         emitStream(a).map { ss =>
           val count = mb.newLocal[Int]("stream_length")
-          val eltRegion = StagedRegion(region.code, allowSubregions = false).createChildRegion(mb)
+          val eltRegion = region.createChildRegion(mb)
           val SizedStream(setup, stream, length) = ss.asStream.stream
           val lenCode =
             length match {
@@ -1461,7 +1461,7 @@ class Emit[C](
           def retTT(): Code[Ctrl] =
             ret(COption.fromEmitCode(xAcc.get))
 
-          ss.asStream.stream.getStream(region.createChildRegion(mb, allowSubregions = false))
+          ss.asStream.stream.getStream(region)
             .fold(mb, xAcc := codeZ, foldBody, retTT())
         }
 
@@ -1495,7 +1495,7 @@ class Emit[C](
           def computeRes(): Code[Ctrl] =
               ret(COption.fromEmitCode(codeR))
 
-          ss.asStream.stream.getStream(region.createChildRegion(mb, allowSubregions = false))
+          ss.asStream.stream.getStream(region)
             .fold(mb, Code(accVars.zip(acc).map { case (v, (name, x)) =>
               v := emit(x).castTo(mb, region.code, v.pt)
             }),
@@ -2272,7 +2272,7 @@ class Emit[C](
           case SizedStream(setup, stream, len) => Code(
             setup,
             ctxab.invoke[Int, Unit]("ensureCapacity", len.getOrElse(16)),
-            stream(region.createChildRegion(mb, allowSubregions = false)).map(etToTuple(_, ctxType)).forEach(mb, { offset =>
+            stream(region).map(etToTuple(_, ctxType)).forEach(mb, { offset =>
               Code(
                 baos.invoke[Unit]("reset"),
                 Code.memoize(offset, "cda_add_contexts_addr") { offset =>
