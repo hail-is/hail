@@ -18,9 +18,9 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
 
   override def resultType: PType = ndTyp
 
-  override def initOpTypes: Seq[PType] = ???
+  override def initOpTypes: Seq[PType] = Array(ndTyp.shape.pType)
 
-  override def seqOpTypes: Seq[PType] = ???
+  override def seqOpTypes: Seq[PType] = Array(ndTyp)
 
   def isInitialized(state: State): Code[Boolean] = {
     Region.loadBoolean(stateType.fieldOffset(state.off, 0))
