@@ -314,8 +314,7 @@ def concatenate(nds, axis=0):
     """
     head_nd = nds[0]
     head_ndim = head_nd.ndim
-    for nd in nds:
-        assert(nd.ndim == head_ndim)
+    hl.case().when(hl.all(lambda a: a.ndim == head_ndim, nds), True).or_error("Mismatched ndim")
 
     makearr = aarray(nds)
     concat_ir = NDArrayConcat(makearr._ir, axis)
@@ -443,13 +442,15 @@ def vstack(arrs):
            [3],
            [4]], dtype=int32)
     """
-
-    if arrs[0].ndim == 1:
-        arrays = [x._broadcast(2) for x in arrs]
+    if isinstance(arrs, list):
+        ndim = arrs[0].dtype.ndim
     else:
-        arrays = arrs
+        ndim = arrs.dtype.element_type.ndim
 
-    return concatenate(arrays, 0)
+    if ndim == 1:
+        return concatenate(hl.map(lambda a: a._broadcast(2), arrs), 0)
+
+    return concatenate(arrs, 0)
 
 
 @typecheck(arrs=tsequenceof_nd)
@@ -492,7 +493,12 @@ def hstack(arrs):
            [3, 4]], dtype=int32)
     """
 
-    if arrs[0].ndim == 1:
+    if isinstance(arrs, list):
+        ndim = arrs[0].dtype.ndim
+    else:
+        ndim = arrs.dtype.element_type.ndim
+
+    if ndim == 1:
         axis = 0
     else:
         axis = 1
