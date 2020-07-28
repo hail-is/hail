@@ -869,8 +869,7 @@ class NDArrayConcat(IR):
             other.axis == self.axis
 
     def _compute_type(self, env, agg_env):
-        for a in self.nds.args:
-            a._compute_type(env, agg_env)
+        self.nds._compute_type(env, agg_env)
 
         self._type = self.nds.typ.element_type
 
