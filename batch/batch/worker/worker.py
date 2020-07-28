@@ -21,7 +21,7 @@ import google.oauth2.service_account
 from hailtop.utils import (time_msecs, request_retry_transient_errors,
                            RETRY_FUNCTION_SCRIPT, sleep_and_backoff, retry_all_errors, check_shell,
                            CalledProcessError, blocking_to_async, check_shell_output,
-                           retry_long_running)
+                           retry_long_running, run_if_changed)
 from hailtop.tls import get_context_specific_ssl_client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
                                         parse_memory_in_bytes)
@@ -900,12 +900,14 @@ class Job:
 class FileCache:
     def __init__(self, path, pool):
         self.path = path
-        self.cleanup = asyncio.Event()
+        self.cleanup_event = asyncio.Event()
         self.pool = pool
 
     async def async_init(self):
         asyncio.ensure_future(self.monitor_loop())
-        asyncio.ensure_future(self.cleanup_loop())
+        asyncio.ensure_future(retry_long_running(
+            'file_cache_cleanup_loop',
+            run_if_changed, self.cleanup_event, self.cleanup_loop))
 
     async def used_disk_space(self):
         usage = await blocking_to_async(self.pool, shutil.disk_usage, self.path)
@@ -918,26 +920,21 @@ class FileCache:
         while True:
             if await self.used_disk_space() > 0.9:
                 log.info('more than 90% used, cleaning up')
-                self.cleanup.set()
-                await asyncio.sleep(60)
-            else:
-                await asyncio.sleep(5)
+                self.cleanup_event.set()
+            await asyncio.sleep(5)
 
     async def cleanup_loop(self):
-        while True:
-            await self.cleanup.wait()
-            for root, _, files in os.walk(f'{self.path}/cache/'):
-                for file in files:
-                    if await self.used_disk_space() < 0.7:
-                        break
-
-                    file_path = f'{root}/{file}'
-                    try:
-                        async with Flock(file_path, pool=worker.pool, nonblock=True):
-                            await self.remove(file_path)
-                    except BlockingIOError:
-                        log.exception(f'could not remove in-use file {file_path}')
-            self.cleanup.clear()
+        for root, _, files in os.walk(f'{self.path}/cache/'):
+            for file in files:
+                if await self.used_disk_space() < 0.7:
+                    return True
+                file_path = f'{root}/{file}'
+                try:
+                    async with Flock(file_path, pool=worker.pool, nonblock=True):
+                        await self.remove(file_path)
+                except BlockingIOError:
+                    log.exception(f'could not remove in-use file {file_path}')
+        return True
 
 
 class Worker:

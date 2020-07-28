@@ -60,17 +60,27 @@ def copy(src, dst, user, io_host_path, cache_path, requester_pays_project):
     src_tail_dir = src_path.rstrip('/').split('/')[-1]
     rsync_dst = f'{dst.rstrip("/")}/{src_tail_dir}/'
 
+    rsync_file_cmd = f'''
+gsutil {requester_pays_project} -m -q rsync -x '(?!^{escaped_src}$)' {shq(os.path.dirname(src))} {shq(os.path.dirname(dst))}
+'''
+    rsync_dir_cmd = f'''
+mkdir -p {shq(rsync_dst)} && gsutil {requester_pays_project} -m -q rsync -r -d {shq(src)} {shq(rsync_dst)} || \
+rm -rf {shq(rsync_dst)} && gsutil {requester_pays_project} -m -q cp -r {shq(src)} {shq(dst)}
+'''
+
     with Flock(cache_src):
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         os.makedirs(os.path.dirname(cache_src), exist_ok=True)
         check_call(f'cp -p -R --reflink {shq(cache_src)} {shq(dst)} || true')
-        check_call(f'''
+        if src.endswith('/'):
+            check_call(rsync_dir_cmd)
+        else:
+            check_call(f'''
 gsutil -q stat {shq(src)}
 if [ $? = 0 ]; then
-  gsutil {requester_pays_project} -m -q rsync -x '(?!^{escaped_src}$)' {shq(os.path.dirname(src))} {shq(os.path.dirname(dst))};
+  {rsync_file_cmd};
 else
-  mkdir -p {shq(rsync_dst)} && gsutil {requester_pays_project} -m -q rsync -r -d {shq(src)} {shq(rsync_dst)} || \
-  rm -rf {shq(rsync_dst)} && gsutil {requester_pays_project} -m -q cp -r {shq(src)} {shq(dst)};
+  {rsync_dir_cmd};
 fi
 ''')
         check_call(f'rm -Rf {shq(cache_src)}')
