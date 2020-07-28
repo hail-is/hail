@@ -46,11 +46,6 @@ async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: di
     return response
 
 
-with open('/Users/dabuhijl/hail/0.2.45-ac6815ee857c-master.json') as f:
-    data = json.load(f)
-print(data)
-
-
 def init_app() -> web.Application:
     app = web.Application()
     setup_aiohttp_jinja2(app, 'benchmark')
