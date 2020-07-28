@@ -1965,8 +1965,8 @@ object EmitStream {
     }
 
     COption.toEmitCode(
-      _emitStream(streamIR0, outerRegion, env0).map { mkStream =>
-        PCanonicalStreamCode(streamIR0.pType.asInstanceOf[PCanonicalStream], mkStream)
+      _emitStream(streamIR0, outerRegion, env0).map { stream =>
+        PCanonicalStreamCode(streamIR0.pType.asInstanceOf[PCanonicalStream], stream)
       }, mb)
   }
 
