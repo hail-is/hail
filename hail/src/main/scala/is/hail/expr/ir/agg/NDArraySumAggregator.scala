@@ -31,6 +31,7 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
   }
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+    cb.append(Code._println("Trying to initOp"))
     cb.append(Code(
       state.off := stateType.allocate(state.region),
       Region.storeBoolean(stateType.fieldOffset(state.off, 0), false)
@@ -40,6 +41,7 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     // Check if the thing is initialized. If it is, then check shapes match. If they do, add ndarrays.
     val Array(nextNDCode) = seq
+    cb.append(Code._println("Trying to seqop"))
     nextNDCode.toI(cb).consume(cb, {}, {case nextNDPCode: PNDArrayCode =>
       val nextNDPValue = nextNDPCode.memoize(cb, "ndarray_sum_seqop_next")
       cb.ifx(isInitialized(state),
@@ -50,7 +52,8 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
         },
         {
           // TODO Is this really safe, does it copy the initial array?
-          ndTyp.constructAtAddress(cb.emb, stateType.fieldOffset(state.off, 1), state.region, nextNDCode.pt, nextNDPValue.get.tcode[Long], true)
+          cb.append(Code._println("Uninitialized, constructingAtAddress"))
+          cb.append(ndTyp.constructAtAddress(cb.emb, stateType.fieldOffset(state.off, 1), state.region, nextNDCode.pt, nextNDPValue.get.tcode[Long], true))
         }
       )
     })
@@ -61,12 +64,14 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
     // Need to:
     // 1. Check the shapes match.
     // 2. If they match, add.
+    cb.append(Code._println("Trying to combOp"))
     val leftValue = PCode(stateType, state.off).asBaseStruct.memoize(cb, "left_state_ndarray_sum_agg")
     val rightValue = PCode(stateType, other.off).asBaseStruct.memoize(cb, "right_state_ndarray_sum_agg")
     leftValue.loadField(cb, 1).consume(cb, {}, { case leftNdCode: PNDArrayCode =>
       val leftNdValue = leftNdCode.memoize(cb, "left_ndarray_sum_agg")
       rightValue.loadField(cb, 1).consume(cb, {}, { case rightNdCode: PNDArrayCode =>
         val rightNdValue = rightNdCode.memoize(cb, "right_ndarray_sum_agg")
+        cb.append(Code._println("combOp: About to addValues"))
         addValues(cb, leftNdValue, rightNdValue)
       })
     })

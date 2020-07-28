@@ -370,6 +370,7 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
   }
 
   def allocate(a: Long, n: Long): Long = {
+    assert(memory != null)
     memory.allocate(a, n)
   }
 
