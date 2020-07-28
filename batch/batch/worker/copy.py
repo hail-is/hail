@@ -31,7 +31,7 @@ def contains_wildcard(c):
     return False
 
 
-def copy(src, dst, user, io_path, cache_path):
+def copy(src, dst, user, io_path, cache_path, requester_pays_project):
     if contains_wildcard(src):
         raise NotImplementedError(f'glob wildcards are not allowed in file paths, got source {src}')
 
@@ -40,6 +40,11 @@ def copy(src, dst, user, io_path, cache_path):
 
     if not src.startswith('gs://'):
         raise NotImplementedError(f'cannot copy from sources that are not GCS paths, got source {src}')
+
+    if requester_pays_project:
+        requester_pays_project = f'-u {requester_pays_project}'
+    else:
+        requester_pays_project = ''
 
     cache_src = f'{cache_path}/{user}{src[4:]}'
     escaped_src = re.escape(os.path.basename(src))
@@ -61,10 +66,10 @@ def copy(src, dst, user, io_path, cache_path):
         check_call(f'''
 gsutil -q stat {shq(src)}
 if [ $? = 0 ]; then
-  gsutil -m -q rsync -x '(?!^{escaped_src}$)' {shq(os.path.dirname(src))} {shq(os.path.dirname(dst))};
+  gsutil {requester_pays_project} -m -q rsync -x '(?!^{escaped_src}$)' {shq(os.path.dirname(src))} {shq(os.path.dirname(dst))};
 else
-  mkdir -p {shq(rsync_dst)} && gsutil -m -q rsync -r -d {shq(src)} {shq(rsync_dst)} || \
-  rm -rf {shq(rsync_dst)} && gsutil -m -q cp -r {shq(src)} {shq(dst)};
+  mkdir -p {shq(rsync_dst)} && gsutil {requester_pays_project} -m -q rsync -r -d {shq(src)} {shq(rsync_dst)} || \
+  rm -rf {shq(rsync_dst)} && gsutil {requester_pays_project} -m -q cp -r {shq(src)} {shq(dst)};
 fi
 ''')
         check_call(f'rm -Rf {shq(cache_src)}')
@@ -76,8 +81,9 @@ if __name__ == '__main__':
     parser.add_argument('--user', type=str, required=True)
     parser.add_argument('--io-path', type=str, required=True)
     parser.add_argument('--cache-path', type=str, required=True)
+    parser.add_argument('--requester-pays-project', type=str, required=False)
     parser.add_argument('-f', '--files', action='append', type=str, nargs=2, metavar=('src', 'dest'))
     args = parser.parse_args()
 
     for src, dest in args.files:
-        copy(src, dest, args.user, args.io_path, args.cache_path)
+        copy(src, dest, args.user, args.io_path, args.cache_path, args.requester_pays_project)
