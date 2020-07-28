@@ -640,6 +640,7 @@ class Expression(object):
         return self._type
 
     def __len__(self):
+        import pdb; pdb.set_trace()
         raise TypeError("'Expression' objects have no static length: use 'hl.len' for the length of collections")
 
     def __hash__(self):

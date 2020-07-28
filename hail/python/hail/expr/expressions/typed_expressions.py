@@ -472,6 +472,12 @@ class ArrayExpression(CollectionExpression):
                 filt_stack.append(candidate)
             return self._method("indexArray", self.dtype.element_type, item, '\n'.join(filt_stack))
 
+
+    @typecheck_method(item=expr_any)
+    def __contains__(self, item):
+        return self.contains(item)
+
+
     @typecheck_method(item=expr_any)
     def contains(self, item):
         """Returns a boolean indicating whether `item` is found in the array.
