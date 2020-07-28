@@ -865,46 +865,76 @@ def test_concatenate():
     res = hl.eval(hl.nd.concatenate([x, y], axis=1))
     assert np.array_equal(np_res, res)
 
+    res = hl.eval(hl.nd.concatenate(hl.array([x, y]), axis=1))
+    assert np.array_equal(np_res, res)
+
     x = np.array([[1], [3]])
     y = np.array([[5], [6]])
 
     seq = [x, y]
+    seq2 = hl.array(seq)
     np_res = np.concatenate(seq)
     res = hl.eval(hl.nd.concatenate(seq))
     assert np.array_equal(np_res, res)
 
+    res = hl.eval(hl.nd.concatenate(seq2))
+    assert np.array_equal(np_res, res)
+
     seq = (x, y)
+    seq2 = hl.array([x, y])
     np_res = np.concatenate(seq)
     res = hl.eval(hl.nd.concatenate(seq))
+    assert np.array_equal(np_res, res)
+
+    res = hl.eval(hl.nd.concatenate(seq2))
     assert np.array_equal(np_res, res)
 
 
 def test_vstack():
+    ht = hl.utils.range_table(10)
+
+    def assert_table(a, b):
+        ht2 = ht.annotate(x=hl.nd.array(a), y=hl.nd.array(b))
+        ht2 = ht2.annotate(stacked=hl.nd.vstack([ht2.x, ht2.y]))
+        assert np.array_equal(ht2.collect()[0].stacked, np.vstack([a, b]))
+
     a = np.array([1, 2, 3])
     b = np.array([2, 3, 4])
 
     seq = (a, b)
+    seq2 = hl.array([a, b])
     assert(np.array_equal(hl.eval(hl.nd.vstack(seq)), np.vstack(seq)))
+    assert(np.array_equal(hl.eval(hl.nd.vstack(seq2)), np.vstack(seq)))
+    assert_table(a, b)
 
     a = np.array([[1], [2], [3]])
     b = np.array([[2], [3], [4]])
     seq = (a, b)
+    seq2 = hl.array([a, b])
     assert(np.array_equal(hl.eval(hl.nd.vstack(seq)), np.vstack(seq)))
+    assert(np.array_equal(hl.eval(hl.nd.vstack(seq2)), np.vstack(seq)))
+    assert_table(a, b)
 
 
 def test_hstack():
+    ht = hl.utils.range_table(10)
+
+    def assert_table(a, b):
+        ht2 = ht.annotate(x=hl.nd.array(a), y=hl.nd.array(b))
+        ht2 = ht2.annotate(stacked=hl.nd.hstack([ht2.x, ht2.y]))
+        assert np.array_equal(ht2.collect()[0].stacked, np.hstack([a, b]))
+
     a = np.array([1, 2, 3])
     b = np.array([2, 3, 4])
     assert(np.array_equal(hl.eval(hl.nd.hstack((a, b))), np.hstack((a, b))))
+    assert(np.array_equal(hl.eval(hl.nd.hstack(hl.array([a, b]))), np.hstack((a, b))))
+    assert_table(a, b)
 
     a = np.array([[1], [2], [3]])
     b = np.array([[2], [3], [4]])
     assert(np.array_equal(hl.eval(hl.nd.hstack((a, b))), np.hstack((a, b))))
-
-    ht = hl.utils.range_table(10)
-    ht = ht.annotate(x=hl.nd.array([1, 2, 3]), y=hl.nd.array([4, 5, 6]))
-    ht = ht.annotate(stacked = hl.nd.hstack([ht.x, ht.y]))
-    assert np.array_equal(ht.collect()[0].stacked, np.array([1, 2, 3, 4, 5, 6]))
+    assert(np.array_equal(hl.eval(hl.nd.hstack(hl.array([a, b]))), np.hstack((a, b))))
+    assert_table(a, b)
 
 
 def test_eye():
