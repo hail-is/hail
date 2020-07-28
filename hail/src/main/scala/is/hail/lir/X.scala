@@ -352,7 +352,7 @@ class Parameter(method: Method, val i: Int, ti: TypeInfo[_]) extends Local(metho
 
 class Block {
   // for debugging
-  // val stack = Thread.currentThread().getStackTrace
+   val stack = Thread.currentThread().getStackTrace
 
   var method: Method = _
 

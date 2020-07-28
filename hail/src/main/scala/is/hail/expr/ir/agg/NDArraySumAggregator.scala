@@ -46,32 +46,7 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
         {
           val currentNDPValue = PCode(ndTyp, ndArrayPointer(state)).asNDArray.memoize(cb, "ndarray_sum_seqop_current")
 
-          val sameShape = currentNDPValue.sameShape(nextNDPValue, cb.emb)
-
-          val idxVars = Array.tabulate(ndTyp.nDims) { _ => cb.emb.genFieldThisRef[Long]() }
-
-          val body = ndTyp.mutateElement(
-            idxVars,
-            currentNDPValue.value.asInstanceOf[Value[Long]],
-            ndTyp.loadElementToIRIntermediate(idxVars, nextNDPValue.value.asInstanceOf[Value[Long]], cb.emb),
-            cb.emb
-          )
-
-          val currentNDShape= PCode.apply(ndTyp.shape.pType, ndTyp.shape.load(currentNDPValue.value.asInstanceOf[Value[Long]])).asBaseStruct.memoize(cb, "left_nd_shape")
-
-          val columnMajorLoops = idxVars.zipWithIndex.foldLeft(body) { case (innerLoops, (dimVar, dimIdx)) =>
-            Code(
-              dimVar := 0L,
-              Code.whileLoop(dimVar < currentNDShape(dimIdx),
-                innerLoops,
-                dimVar := dimVar + 1L
-              )
-            )
-          }
-          cb.append(sameShape.mux(
-            columnMajorLoops,
-            Code._fatal[Unit]("Can't sum ndarrays of different shapes.")
-          ))
+          addValues(cb, currentNDPValue, nextNDPValue)
         },
         {
           // TODO Is this really safe, does it copy the initial array?
@@ -91,6 +66,11 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
     val leftNdValue = leftValue.loadField(cb, 1).pc.asNDArray.memoize(cb, "left_ndarray_sum_agg")
     val rightNdValue = rightValue.loadField(cb, 1).pc.asNDArray.memoize(cb, "right_ndarray_sum_agg")
 
+    addValues(cb, leftNdValue, rightNdValue)
+
+  }
+
+  private def addValues(cb: EmitCodeBuilder, leftNdValue: PNDArrayValue, rightNdValue: PNDArrayValue): Unit = {
     val sameShape = leftNdValue.sameShape(rightNdValue, cb.emb)
 
     val idxVars = Array.tabulate(ndTyp.nDims) { _ => cb.emb.genFieldThisRef[Long]() }
@@ -118,7 +98,6 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
       columnMajorLoops,
       Code._fatal[Unit]("Can't sum ndarrays of different shapes.")
     ))
-
   }
 
   override protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = ???
