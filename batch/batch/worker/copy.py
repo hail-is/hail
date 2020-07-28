@@ -1,8 +1,9 @@
 import os
 import re
 import argparse
-import subprocess as sp
 from shlex import quote as shq
+
+from hailtop.utils import sync_check_shell
 
 from .flock import Flock
 
@@ -24,6 +25,10 @@ def contains_wildcard(c):
             return True
         i += 1
     return False
+
+
+def check_call(script):
+    return sync_check_shell(script, echo=True)
 
 
 def copy(src, dst, user, io_host_path, cache_path, requester_pays_project):
@@ -59,7 +64,6 @@ def copy(src, dst, user, io_host_path, cache_path, requester_pays_project):
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         os.makedirs(os.path.dirname(cache_src), exist_ok=True)
         check_call(f'cp -p -R --reflink {shq(cache_src)} {shq(dst)} || true')
-        if src.endswith('/')
         check_call(f'''
 gsutil -q stat {shq(src)}
 if [ $? = 0 ]; then
