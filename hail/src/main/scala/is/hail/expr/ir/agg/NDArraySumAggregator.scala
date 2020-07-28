@@ -39,21 +39,54 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
 
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     // Check if the thing is initialized. If it is, then check shapes match. If they do, add ndarrays.
-    val Array(nextNDArray) = seq
-    isInitialized(state).mux(
-      ???,
-      // TODO Is this really safe, does it copy the initial array?
-      ndTyp.constructAtAddress(cb.emb, stateType.fieldOffset(state.off, 1), state.region, nextNDArray.pt, nextNDArray.value[Long], true)
+    val Array(nextNDCode) = seq
+    cb.ifx(isInitialized(state),
+      {
+        nextNDCode.toI(cb).consume[Unit](cb, {}, { case nextNDPCode: PNDArrayCode =>
+          val nextNDPValue = nextNDPCode.memoize(cb, "ndarray_sum_seqop_next")
+          val currentNDPValue = PCode(ndTyp, ndArrayPointer(state)).asNDArray.memoize(cb, "ndarray_sum_seqop_current")
+
+          val sameShape = currentNDPValue.sameShape(nextNDPValue, cb.emb)
+
+          val idxVars = Array.tabulate(ndTyp.nDims) { _ => cb.emb.genFieldThisRef[Long]() }
+
+          val body = ndTyp.mutateElement(
+            idxVars,
+            currentNDPValue.value.asInstanceOf[Value[Long]],
+            ndTyp.loadElementToIRIntermediate(idxVars, nextNDPValue.value.asInstanceOf[Value[Long]], cb.emb),
+            cb.emb
+          )
+
+          val currentNDShape= PCode.apply(ndTyp.shape.pType, ndTyp.shape.load(currentNDPValue.value.asInstanceOf[Value[Long]])).asBaseStruct.memoize(cb, "left_nd_shape")
+
+          val columnMajorLoops = idxVars.zipWithIndex.foldLeft(body) { case (innerLoops, (dimVar, dimIdx)) =>
+            Code(
+              dimVar := 0L,
+              Code.whileLoop(dimVar < currentNDShape(dimIdx),
+                innerLoops,
+                dimVar := dimVar + 1L
+              )
+            )
+          }
+          cb.append(sameShape.mux(
+            columnMajorLoops,
+            Code._fatal[Unit]("Can't sum ndarrays of different shapes.")
+          ))
+        })
+      },
+      {
+        // TODO Is this really safe, does it copy the initial array?
+        ndTyp.constructAtAddress(cb.emb, stateType.fieldOffset(state.off, 1), state.region, nextNDCode.pt, nextNDCode.value[Long], true)
+      }
     )
-    ???
   }
 
   override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
     // Need to:
     // 1. Check the shapes match.
     // 2. If they match, add.
-    val leftValue = PCode(ndTyp, state.off).asBaseStruct.memoize(cb, "left_state_ndarray_sum_agg")
-    val rightValue = PCode(ndTyp, other.off).asBaseStruct.memoize(cb, "right_state_ndarray_sum_agg")
+    val leftValue = PCode(stateType, state.off).asBaseStruct.memoize(cb, "left_state_ndarray_sum_agg")
+    val rightValue = PCode(stateType, other.off).asBaseStruct.memoize(cb, "right_state_ndarray_sum_agg")
     val leftNdValue = leftValue.loadField(cb, 1).pc.asNDArray.memoize(cb, "left_ndarray_sum_agg")
     val rightNdValue = rightValue.loadField(cb, 1).pc.asNDArray.memoize(cb, "right_ndarray_sum_agg")
 
@@ -61,7 +94,12 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
 
     val idxVars = Array.tabulate(ndTyp.nDims) { _ => cb.emb.genFieldThisRef[Long]() }
 
-    val body = ndTyp.mutateElement(idxVars, leftNdValue.value.asInstanceOf[Value[Long]], ???, cb.emb)
+    val body = ndTyp.mutateElement(
+      idxVars,
+      leftNdValue.value.asInstanceOf[Value[Long]],
+      ndTyp.loadElementToIRIntermediate(idxVars, rightNdValue.value.asInstanceOf[Value[Long]], cb.emb),
+      cb.emb
+    )
 
     val leftNdShape = PCode.apply(ndTyp.shape.pType, ndTyp.shape.load(leftNdValue.value.asInstanceOf[Value[Long]])).asBaseStruct.memoize(cb, "left_nd_shape")
 
