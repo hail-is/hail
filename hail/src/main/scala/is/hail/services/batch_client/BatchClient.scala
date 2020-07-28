@@ -38,14 +38,14 @@ class BatchClient(
   deployConfig: DeployConfig,
   requester: Requester
 ) {
-  def this() = this(DeployConfig.get, new Requester())
+  def this() = this(DeployConfig.get, new Requester("batch"))
 
-  def this(deployConfig: DeployConfig) = this(deployConfig, new Requester())
+  def this(deployConfig: DeployConfig) = this(deployConfig, new Requester("batch"))
 
-  def this(tokens: Tokens) = this(DeployConfig.get, new Requester(tokens))
+  def this(tokens: Tokens) = this(DeployConfig.get, new Requester(tokens, "batch"))
 
   def this(deployConfig: DeployConfig, tokens: Tokens) =
-    this(deployConfig, new Requester(tokens))
+    this(deployConfig, new Requester(tokens, "batch"))
 
   import BatchClient._
   import requester.request

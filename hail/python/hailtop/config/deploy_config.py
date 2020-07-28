@@ -119,7 +119,7 @@ class DeployConfig:
                 timeout=aiohttp.ClientTimeout(total=5),
                 headers=headers) as session:
             async with await session.get(
-                    self.url('address', f'/api/{namespace}/{service}')) as resp:
+                    self.url('address', f'/api/{service}')) as resp:
                 dicts = await resp.json()
                 return [(d['address'], d['port']) for d in dicts]
 

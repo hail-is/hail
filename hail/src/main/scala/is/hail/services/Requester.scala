@@ -38,9 +38,10 @@ object Requester {
 }
 
 class Requester(
-  tokens: Tokens
+  tokens: Tokens,
+  val service: String
 ) {
-  def this() = this(Tokens.get)
+  def this(service: String) = this(Tokens.get, service)
 
   import Requester._
 
@@ -50,7 +51,7 @@ class Requester(
     if (body != null)
       req.asInstanceOf[HttpEntityEnclosingRequest].setEntity(body)
 
-    tokens.addServiceAuthHeaders("batch", req)
+    tokens.addServiceAuthHeaders(service, req)
 
     retryTransientErrors {
       using(httpClient.execute(req)) { resp =>
