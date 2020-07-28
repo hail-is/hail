@@ -1347,70 +1347,52 @@ class Emit[C](
         val eltType = coerce[PStream](a.pType).elementType
         val accType = x.accPType
 
-        val streamOpt = COption.fromEmitCode(emitStream(a))
-        val resOpt: COption[PCode] = streamOpt.flatMapCPS { (ss, _ctx, ret) =>
-          implicit val c = _ctx
-
-          val xAcc = mb.newEmitField(accumName, accType)
-          val tmpAcc = mb.newEmitField(accumName, accType)
-
-          def foldBody(elt: EmitCode): Code[Unit] = {
+        EmitCode.fromI(mb) { cb =>
+          val streamOpt = emitStream(a).toI(cb)
+          streamOpt.flatMap(cb) { stream =>
+            val xAcc = mb.newEmitField(accumName, accType)
             val xElt = mb.newEmitField(valueName, eltType)
-            val bodyenv = env.bind(accumName -> xAcc, valueName -> xElt)
 
-            val codeB = emit(body, env = bodyenv)
-            Code(xElt := elt,
-              tmpAcc := codeB.map(_.castTo(mb, region.code, accType)),
-              xAcc := tmpAcc
-            )
+            cb.assign(xAcc, emit(zero).castTo(mb, region.code, accType))
+            cb += stream.asStream.stream.getStream(region).forEach(mb, { elt => Code(
+              xElt := elt,
+              xAcc := emit(body, env = env.bind(accumName -> xAcc, valueName -> xElt))
+                .castTo(mb, region.code, accType))
+            })
+
+            xAcc.toI(cb)
           }
-
-          val codeZ = emit(zero).map(_.castTo(mb, region.code, accType))
-          def retTT(): Code[Ctrl] =
-            ret(COption.fromEmitCode(xAcc.get))
-
-          ss.asStream.stream.getStream(region)
-            .fold(mb, xAcc := codeZ, foldBody, retTT())
         }
-
-        COption.toEmitCode(resOpt, mb)
 
       case x@StreamFold2(a, acc, valueName, seq, res) =>
         val eltType = coerce[PStream](a.pType).elementType
-
         val xElt = mb.newEmitField(valueName, eltType)
         val names = acc.map(_._1)
-        val accVars = (names, x.accPTypes).zipped.map(mb.newEmitField)
-        val tmpAccVars = (names, x.accPTypes).zipped.map(mb.newEmitField)
+        val accTypes = x.accPTypes
+        val accVars = (names, accTypes).zipped.map(mb.newEmitField)
 
         val resEnv = env.bind(names.zip(accVars): _*)
         val seqEnv = resEnv.bind(valueName, xElt)
 
-        val codeR = emit(res, env = resEnv)
-        val typedCodeSeq = seq.map(ir => emit(ir, env = seqEnv))
+        EmitCode.fromI(mb) { cb =>
+          val streamOpt = emitStream(a).toI(cb)
+          streamOpt.flatMap(cb) { stream =>
+            (accVars, acc, accTypes).zipped.foreach { case (xAcc, (_, x), typ) =>
+              cb.assign(xAcc, emit(x).castTo(mb, region.code, typ))
+            }
+            cb += stream.asStream.stream.getStream(region).forEach(mb, { elt => Code(
+              xElt := elt,
+              accVars := seq
+                .map(emit(_, env = seqEnv))
+                .zip(accTypes)
+                .map { case (acc, typ) =>
+                  acc.castTo(mb, region.code, typ)
+                }
+            )})
 
-        val streamOpt = COption.fromEmitCode(emitStream(a))
-         val resOpt = streamOpt.flatMapCPS[PCode] { (ss, _ctx, ret) =>
-          implicit val c = _ctx
-
-          def foldBody(elt: EmitCode): Code[Unit] =
-            Code(xElt := elt,
-              Code(tmpAccVars.zip(typedCodeSeq).map { case (v, x) =>
-                v := x.castTo(mb, region.code, v.pt)
-              }),
-              accVars := tmpAccVars.load())
-
-          def computeRes(): Code[Ctrl] =
-              ret(COption.fromEmitCode(codeR))
-
-          ss.asStream.stream.getStream(region)
-            .fold(mb, Code(accVars.zip(acc).map { case (v, (name, x)) =>
-              v := emit(x).castTo(mb, region.code, v.pt)
-            }),
-              foldBody, computeRes())
+            emit(res, env = resEnv).toI(cb)
+          }
         }
-
-        COption.toEmitCode(resOpt, mb)
 
       case x@MakeStruct(fields) =>
         val srvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
