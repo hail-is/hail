@@ -22,6 +22,18 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.51
+
+Released 2020-07-28
+
+### Bug fixes
+
+- (hail#9161) Fix bug that prevented concatenating ndarrays that are fields of a table.
+- (hail#9152) Fix bounds in NDArray slicing.
+- (hail#9161) Fix bugs calculating *row_id* in `hl.import_matrix_table`.
+
+---
+
 ## Version 0.2.50
 
 Released 2020-07-23
