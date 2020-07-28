@@ -63,10 +63,13 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
     // 2. If they match, add.
     val leftValue = PCode(stateType, state.off).asBaseStruct.memoize(cb, "left_state_ndarray_sum_agg")
     val rightValue = PCode(stateType, other.off).asBaseStruct.memoize(cb, "right_state_ndarray_sum_agg")
-    val leftNdValue = leftValue.loadField(cb, 1).pc.asNDArray.memoize(cb, "left_ndarray_sum_agg")
-    val rightNdValue = rightValue.loadField(cb, 1).pc.asNDArray.memoize(cb, "right_ndarray_sum_agg")
-
-    addValues(cb, leftNdValue, rightNdValue)
+    leftValue.loadField(cb, 1).consume(cb, {}, { case leftNdCode: PNDArrayCode =>
+      val leftNdValue = leftNdCode.memoize(cb, "left_ndarray_sum_agg")
+      rightValue.loadField(cb, 1).consume(cb, {}, { case rightNdCode: PNDArrayCode =>
+        val rightNdValue = rightNdCode.memoize(cb, "right_ndarray_sum_agg")
+        addValues(cb, leftNdValue, rightNdValue)
+      })
+    })
 
   }
 
