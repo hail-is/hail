@@ -65,7 +65,8 @@ class Test(unittest.TestCase):
         builder = self.client.create_batch()
         resources = {
             'cpu': '100m',
-            'memory': '375M'
+            'memory': '375M',
+            'storage': '1Gi'
         }
         # two jobs so the batch msec_mcpu computation is non-trivial
         builder.create_job('ubuntu:18.04', ['echo', 'foo'], resources=resources)
