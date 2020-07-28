@@ -475,7 +475,8 @@ class ArrayExpression(CollectionExpression):
 
     @typecheck_method(item=expr_any)
     def __contains__(self, item):
-        return self.contains(item)
+        raise TypeError("Cannot use `in` operator on hail `ArrayExpression`s. Use the `contains` method instead."
+                        "`names.contains('Charlie')` instead of `'Charlie' in names`")
 
 
     @typecheck_method(item=expr_any)
@@ -1276,6 +1277,11 @@ class DictExpression(Expression):
                             "    dict key type:  '{}'\n"
                             "    type of 'item': '{}'".format(self.dtype.key_type, item.dtype))
         return self._index(self.dtype.value_type, self._kc.coerce(item))
+
+    @typecheck_method(item=expr_any)
+    def __contains__(self, item):
+        raise TypeError("Cannot use `in` operator on hail `SetExpression`s. Use the `contains` method instead."
+                        "`names.contains('Charlie')` instead of `'Charlie' in names`")
 
     @typecheck_method(item=expr_any)
     def contains(self, item):
