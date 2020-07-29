@@ -540,14 +540,7 @@ def input_copy_command(user, src, dst, io_path, requester_pays_project=None):
         requester_pays_project = f'--requester-pays-project {requester_pays_project}'
     else:
         requester_pays_project = ''
-    return f'''
-retry python3 -m batch.worker.copy \
-  --io-host-path {shq(io_path)} \
-  --cache-path /host/cache \
-  {requester_pays_project} \
-  --user {user} \
-  -f {shq(src)} {shq(dst)}
-'''
+    return f'retry python3 -m batch.worker.copy --io-host-path {shq(io_path)} --cache-path /host/cache {requester_pays_project} --user {user} -f {shq(src)} {shq(dst)}'
 
 
 def output_copy_command(src, dst, requester_pays_project=None):
