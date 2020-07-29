@@ -83,8 +83,11 @@ def init_app() -> web.Application:
     setup_common_static_routes(router)
     app.add_routes(router)
 
-    web.run_app(deploy_config.prefix_application(init_app(), 'benchmark'),
-                host='0.0.0.0',
-                port=5000,
-                access_log_class=AccessLogger,
-                ssl_context=get_in_cluster_server_ssl_context())
+    return app
+
+
+web.run_app(deploy_config.prefix_application(init_app(), 'benchmark'),
+            host='0.0.0.0',
+            port=5000,
+            access_log_class=AccessLogger,
+            ssl_context=get_in_cluster_server_ssl_context())
