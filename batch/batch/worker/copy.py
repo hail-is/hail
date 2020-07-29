@@ -76,11 +76,11 @@ rm -rf {shq(rsync_dst)} && gsutil {requester_pays_project} -m -q cp -r {shq(src)
             check_call(rsync_dir_cmd)
         else:
             check_call(f'''
-gsutil -q stat {shq(src)}
+gsutil {requester_pays_project} -q stat {shq(src)}
 if [ $? = 0 ]; then
-  {rsync_file_cmd};
+  {rsync_file_cmd}
 else
-  {rsync_dir_cmd};
+  {rsync_dir_cmd}
 fi
 ''')
         check_call(f'rm -Rf {shq(cache_src)}')

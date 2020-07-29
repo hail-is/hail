@@ -536,11 +536,15 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
 
 
 def input_copy_command(user, src, dst, io_path, requester_pays_project=None):
+    if requester_pays_project:
+        requester_pays_project = f'--requester-pays-project {requester_pays_project}'
+    else:
+        requester_pays_project = ''
     return f'''
 retry python3 -m batch.worker.copy \
   --io-host-path {shq(io_path)} \
   --cache-path /host/cache \
-  --requester-pays-project {requester_pays_project} \
+  {requester_pays_project} \
   --user {user} \
   -f {shq(src)} {shq(dst)}
 '''
