@@ -337,19 +337,23 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(vcf2._same(filter1))
         self.assertEqual(len(parts), vcf2.n_partitions())
 
-    def test_vcf_parser_golden_master(self):
-        files = [(resource('ex.vcf'), 'GRCh37'),
-                 (resource('sample.vcf'), 'GRCh37'),
-                 (resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')]
-        for vcf_path, rg in files:
-            vcf = hl.import_vcf(
-                vcf_path,
-                reference_genome=rg,
-                array_elements_required=False,
-                force_bgz=True)
-            mt = hl.read_matrix_table(vcf_path + '.mt')
-            self.assertTrue(mt._same(vcf))
+    def test_vcf_parser_golden_master__ex_GRCh37(self):
+        self._test_vcf_parser_golden_master(resource('ex.vcf'), 'GRCh37')
 
+    def test_vcf_parser_golden_master__sample_GRCh37(self):
+        self._test_vcf_parser_golden_master(resource('sample.vcf'), 'GRCh37')
+
+    def test_vcf_parser_golden_master__gvcf_GRCh37(self):
+        self._test_vcf_parser_golden_master(resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')
+
+    def _test_vcf_parser_golden_master(self, vcf_path, rg):
+        vcf = hl.import_vcf(
+            vcf_path,
+            reference_genome=rg,
+            array_elements_required=False,
+            force_bgz=True)
+        mt = hl.read_matrix_table(vcf_path + '.mt')
+        self.assertTrue(mt._same(vcf))
 
     @skip_unless_spark_backend()
     def test_import_multiple_vcfs(self):
@@ -1685,6 +1689,22 @@ class ImportMatrixTableTests(unittest.TestCase):
 
         mt.x.export(path, header=False)
         assert hl.import_matrix_table(path, no_header=True)._force_count_rows() == 0
+
+    def test_import_row_id_multiple_partitions(self):
+        path = new_temp_file(extension='txt')
+        (hl.utils.range_matrix_table(50, 50)
+         .annotate_entries(x=1)
+         .key_rows_by()
+         .key_cols_by()
+         .x
+         .export(path, header=False, delimiter=' '))
+
+        mt = hl.import_matrix_table(path,
+                                    no_header=True,
+                                    entry_type=hl.tint32,
+                                    delimiter=' ',
+                                    min_partitions=10)
+        assert mt.row_id.collect() == list(range(50))
 
 
 class ImportTableTests(unittest.TestCase):

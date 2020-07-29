@@ -4,9 +4,9 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, Output
 
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.asm4s.{Code, TypeInfo, Value}
-import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, ExecuteContext, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, ExecuteContext, typeToTypeInfo}
 import is.hail.types.encoded.EType
-import is.hail.types.physical.PType
+import is.hail.types.physical.{PCode, PType, PValue}
 import is.hail.types.virtual.Type
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
@@ -42,19 +42,26 @@ trait AbstractTypedCodecSpec extends Spec {
 
   def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer]
 
-  def buildEmitDecoderF[T](requestedType: Type, cb: EmitClassBuilder[_]): (PType, StagedDecoderF[T])
+  def buildTypedEmitDecoderF[T](requestedType: Type, cb: EmitClassBuilder[_]): (PType, StagedDecoderF[T])
 
-  def buildEmitEncoderF[T](t: PType, cb: EmitClassBuilder[_]): StagedEncoderF[T]
+  def buildTypedEmitEncoderF[T](t: PType, cb: EmitClassBuilder[_]): StagedEncoderF[T]
 
-  def buildEmitDecoderF[T](requestedType: Type, cb: EmitClassBuilder[_], ti: TypeInfo[T]): (PType, StagedDecoderF[T]) = {
-    val (ptype, dec) = buildEmitDecoderF[T](requestedType, cb)
-    assert(ti == typeToTypeInfo(ptype))
-    ptype -> dec
+  def buildEmitDecoder(requestedType: Type, cb: EmitClassBuilder[_]): (Value[Region], Value[InputBuffer]) => PCode = {
+    def typedBuilder[T](ti: TypeInfo[T]): (Value[Region], Value[InputBuffer]) => PCode = {
+      val (ptype, dec) = buildTypedEmitDecoderF[T](requestedType, cb);
+      { (r: Value[Region], ib: Value[InputBuffer]) => PCode(ptype, dec(r, ib)) }
+    }
+    typedBuilder(typeToTypeInfo(decodedPType(requestedType)))
   }
 
-  def buildEmitEncoderF[T](t: PType, cb: EmitClassBuilder[_], ti: TypeInfo[T]): StagedEncoderF[T] = {
-    assert(ti == typeToTypeInfo(t))
-    buildEmitEncoderF[T](t, cb)
+  def buildEmitEncoder(t: PType, cb: EmitClassBuilder[_]): (Value[Region], PValue, Value[OutputBuffer]) => Code[Unit] = {
+    def typedBuilder[T](ti: TypeInfo[T]): (Value[Region], PValue, Value[OutputBuffer]) => Code[Unit] = {
+      val enc = buildTypedEmitEncoderF[T](t, cb);
+      { (r: Value[Region], v: PValue, ob: Value[OutputBuffer]) =>
+        enc(r, v.value.asInstanceOf[Value[T]], ob)
+      }
+    }
+    typedBuilder(typeToTypeInfo(t))
   }
 
   // FIXME: is there a better place for this to live?

@@ -689,7 +689,7 @@ final case class WritePartition(value: IR, writeCtx: IR, writer: PartitionWriter
 final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) extends IR
 
 final case class ReadValue(path: IR, spec: AbstractTypedCodecSpec, requestedType: Type) extends IR
-final case class WriteValue(value: IR, pathPrefix: IR, spec: AbstractTypedCodecSpec) extends IR
+final case class WriteValue(value: IR, path: IR, spec: AbstractTypedCodecSpec) extends IR
 
 final case class UnpersistBlockMatrix(child: BlockMatrixIR) extends IR
 

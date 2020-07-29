@@ -16,7 +16,7 @@ def assert_ndarrays(asserter, exprs_and_expecteds):
 
     evaled_and_expected = zip(evaled_exprs, expecteds)
     for (idx, (evaled, expected)) in enumerate(evaled_and_expected):
-        assert asserter(evaled, expected), f"NDArray comparison {idx} failed"
+        assert asserter(evaled, expected), f"NDArray comparison {idx} failed, got: {evaled}, expected: {expected}"
 
 
 def assert_ndarrays_eq(*expr_and_expected):
@@ -69,6 +69,9 @@ def test_ndarray_slice():
     mat = hl.nd.array(np_mat)
     np_flat = np.arange(20)
     flat = hl.nd.array(np_flat)
+    a = [0, 1]
+    an = np.array(a)
+    ah = hl.nd.array(a)
 
     assert_ndarrays_eq(
         (rect_prism[:, :, :], np_rect_prism[:, :, :]),
@@ -81,8 +84,8 @@ def test_ndarray_slice():
          np_rect_prism[0, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
         (rect_prism[0:, :, 1:4:2] + rect_prism[:, :1, 1:4:2],
          np_rect_prism[0:, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
-        (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2]),
         (rect_prism[0, 0, -3:-1], np_rect_prism[0, 0, -3:-1]),
+
         (flat[15:5:-1], np_flat[15:5:-1]),
         (flat[::-1], np_flat[::-1]),
         (flat[::22], np_flat[::22]),
@@ -90,10 +93,44 @@ def test_ndarray_slice():
         (flat[15:5], np_flat[15:5]),
         (flat[3:12:-1], np_flat[3:12:-1]),
         (flat[12:3:1], np_flat[12:3:1]),
-        (mat[::-1, :], np_mat[::-1, :]),
         (flat[4:1:-2], np_flat[4:1:-2]),
         (flat[0:0:1], np_flat[0:0:1]),
-        (flat[-4:-1:2], np_flat[-4:-1:2])
+        (flat[-4:-1:2], np_flat[-4:-1:2]),
+
+        (mat[::-1, :], np_mat[::-1, :]),
+        (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2]),
+        (mat[-1:4:1, 0], np_mat[-1:4:1, 0]),
+        (mat[-1:4:-1, 0], np_mat[-1:4:-1, 0]),
+        # out of bounds on start
+        (mat[9:2:-1, 1:4], np_mat[9:2:-1, 1:4]),
+        (mat[9:-1:-1, 1:4], np_mat[9:-1:-1, 1:4]),
+        (mat[-5::, 0], np_mat[-5::, 0]),
+        (mat[-5::-1, 0], np_mat[-5::-1, 0]),
+        (mat[-5:-1:-1, 0], np_mat[-5:-1:-1, 0]),
+        (mat[-5:-5:-1, 0], np_mat[-5:-5:-1, 0]),
+        (mat[4::, 0], np_mat[4::, 0]),
+        (mat[4:-1:, 0], np_mat[4:-1:, 0]),
+        (mat[4:-1:-1, 0], np_mat[4:-1:-1, 0]),
+        (mat[5::, 0], np_mat[5::, 0]),
+        (mat[5::-1, 0], np_mat[5::-1, 0]),
+        (mat[-5::-1, 0], np_mat[-5::-1, 0]),
+        (mat[-5::1, 0], np_mat[-5::1, 0]),
+        (mat[5:-1:-1, 0], np_mat[5:-1:-1, 0]),
+        (mat[5:-5:-1, 0], np_mat[5:-5:-1, 0]),
+        # out of bounds on stop
+        (mat[0:20, 0:17], np_mat[0:20, 0:17]),
+        (mat[0:20, 2:17], np_mat[0:20, 2:17]),
+        (mat[:4, 0], np_mat[:4, 0]),
+        (mat[:4:-1, 0], np_mat[:4:-1, 0]),
+        (mat[:-5, 0], np_mat[:-5, 0]),
+        (mat[:-5:-1, 0], np_mat[:-5:-1, 0]),
+        (mat[0:-5, 0], np_mat[0:-5, 0]),
+        (mat[0:-5:-1, 0], np_mat[0:-5:-1, 0]),
+
+        (ah[:-3:1], an[:-3:1]),
+        (ah[:-3:-1], an[:-3:-1]),
+        (ah[-3::-1], an[-3::-1]),
+        (ah[-3::1], an[-3::1])
     )
 
     assert hl.eval(flat[hl.null(hl.tint32):4:1]) is None
@@ -105,6 +142,17 @@ def test_ndarray_slice():
     with pytest.raises(FatalError) as exc:
         hl.eval(flat[::0])
     assert "Slice step cannot be zero" in str(exc)
+
+
+def test_ndarray_transposed_slice():
+    a = hl.nd.array([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
+    np_a = np.array([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
+    aT = a.T
+    np_aT = np_a.T
+    assert_ndarrays_eq(
+        (a, np_a),
+        (aT[0:aT.shape[0], 0:5], np_aT[0:np_aT.shape[0], 0:5])
+    )
 
 
 def test_ndarray_eval():
@@ -586,6 +634,7 @@ def test_ndarray_mixed():
         (5, 2)).map(lambda x: x * 2)).map(lambda y: y * 2)) is None
 
 
+
 def test_ndarray_show():
     hl.nd.array(3).show()
     hl.nd.arange(6).show()
@@ -782,6 +831,25 @@ def test_ndarray():
     assert(np.array_equal(a1, an1) and np.array_equal(a2, an2))
 
 
+def test_cast():
+    def testequal(a, hdtype, ndtype):
+        ah = hl.eval(hl.nd.array(a, dtype=hdtype))
+        an = np.array(a, dtype=ndtype)
+
+        assert(ah.dtype == an.dtype)
+
+    def test(a):
+        testequal(a, hl.tfloat64, np.float64)
+        testequal(a, hl.tfloat32, np.float32)
+        testequal(a, hl.tint32, np.int32)
+        testequal(a, hl.tint64, np.int64)
+
+    test([1, 2, 3])
+    test([1, 2, 3.])
+    test([1., 2., 3.])
+    test([[1, 2], [3, 4]])
+
+
 def test_inv():
     c = np.random.randn(5, 5)
     d = np.linalg.inv(c)
@@ -832,6 +900,11 @@ def test_hstack():
     a = np.array([[1], [2], [3]])
     b = np.array([[2], [3], [4]])
     assert(np.array_equal(hl.eval(hl.nd.hstack((a, b))), np.hstack((a, b))))
+
+    ht = hl.utils.range_table(10)
+    ht = ht.annotate(x=hl.nd.array([1, 2, 3]), y=hl.nd.array([4, 5, 6]))
+    ht = ht.annotate(stacked = hl.nd.hstack([ht.x, ht.y]))
+    assert np.array_equal(ht.collect()[0].stacked, np.array([1, 2, 3, 4, 5, 6]))
 
 
 def test_eye():

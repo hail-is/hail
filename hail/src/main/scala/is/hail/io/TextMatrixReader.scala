@@ -240,24 +240,26 @@ object TextMatrixReader {
     val partitionPaths = lines.contexts.map(a => a.asInstanceOf[Row].getAs[String](1)).toArray
 
     val headerPartitions = mutable.Set[Int]()
-    val firstPartitions = new Array[Int](linesRDD.getNumPartitions)
+    val partitionLineIndexWithinFile = new Array[Long](linesRDD.getNumPartitions)
 
-    var firstPart = 0
+    var indexWithinFile = 0L
     var i = 0
     var prevPartitionPath: String = null
     while (i < linesRDD.getNumPartitions) {
-      val count = linesPartitionCounts(i)
-      val partPath = partitionPaths(i)
-      if (count > 0) {
+      if (linesPartitionCounts(i) > 0) {
+        val partPath = partitionPaths(i)
         if (prevPartitionPath == null
           || prevPartitionPath != partPath) {
-          linesPartitionCounts(i) -= 1
           prevPartitionPath = partPath
-          firstPart = i
-          headerPartitions += i
+          indexWithinFile = 0
+          if (opts.hasHeader) {
+            linesPartitionCounts(i) -= 1
+            headerPartitions += i
+          }
         }
       }
-      firstPartitions(i) = firstPart
+      partitionLineIndexWithinFile(i) = indexWithinFile
+      indexWithinFile += linesPartitionCounts(i)
       i += 1
     }
 
@@ -272,7 +274,7 @@ object TextMatrixReader {
       rowKey = Array().toFastIndexedSeq,
       entryType = entryType)
 
-    new TextMatrixReader(params, opts, lines, separator, rowFieldType, fullMatrixType,  headerInfo, headerPartitions, linesPartitionCounts, partitionPaths, firstPartitions)
+    new TextMatrixReader(params, opts, lines, separator, rowFieldType, fullMatrixType, headerInfo, headerPartitions, linesPartitionCounts, partitionLineIndexWithinFile, partitionPaths)
   }
 }
 
@@ -300,8 +302,8 @@ class TextMatrixReader(
   headerInfo: TextMatrixHeaderInfo,
   headerPartitions: mutable.Set[Int],
   _partitionCounts: Array[Long],
-  partitionPaths: Array[String],
-  firstPartitions: Array[Int]
+  partitionLineIndexWithinFile: Array[Long],
+  partitionPaths: Array[String]
 ) extends MatrixHybridReader {
   def pathsUsed: Seq[String] = params.paths
 
@@ -326,6 +328,8 @@ class TextMatrixReader(
       val requestedPType = bodyPType(requestedType)
       val localOpts = opts
 
+      val partitionRowIdxGlobal = (0 until _partitionCounts.length - 1).scanLeft(0L) { case (acc, i) => acc + _partitionCounts(i)}.toArray
+
       val compiledLineParser = new CompiledLineParser(ctx,
         rowFieldType,
         requestedPType,
@@ -335,7 +339,8 @@ class TextMatrixReader(
         headerPartitions,
         _partitionCounts,
         partitionPaths,
-        firstPartitions,
+        partitionRowIdxGlobal,
+        partitionLineIndexWithinFile,
         params.hasHeader)
 
       { (region: Region, context: Any) =>
@@ -401,7 +406,8 @@ class CompiledLineParser(
   headerPartitions: mutable.Set[Int],
   partitionCounts: Array[Long],
   partitionPaths: Array[String],
-  firstPartitions: Array[Int],
+  partitionRowIndexGlobal: Array[Long],
+  partitionRowIndexFile: Array[Long],
   hasHeader: Boolean
 ) extends ((Int, Region, Iterator[GenericLine]) => Iterator[Long]) with Serializable {
   assert(!missingValue.contains(separator))
@@ -662,7 +668,10 @@ class CompiledLineParser(
       it.next()
 
     val parse = loadParserOnWorker()
-    var index = partitionCounts(partition) - partitionCounts(firstPartitions(partition))
+    val fileLineIndex = partitionRowIndexFile(partition)
+    val globalLineIndex = partitionRowIndexGlobal(partition)
+
+    var idxWithinPartition = 0L
     it.map { line =>
       val x = line.toString
       try {
@@ -670,23 +679,23 @@ class CompiledLineParser(
           parse(
             r,
             filename,
-            index,
+            globalLineIndex + idxWithinPartition,
             x)
-        index += 1
+        idxWithinPartition += 1
         res
       } catch {
         case e: MatrixParseError =>
           fatal(
-          s"""""Error parse line $index:${e.posStart}-${e.posEnd}:
+            s"""""Error parse line ${ fileLineIndex + idxWithinPartition }:${ e.posStart }-${ e.posEnd }:
                |    File: $filename
                |    Line:
                |        ${ x.truncate }""".stripMargin,
-          e)
+            e)
         case e: Exception => fatal(
-          s"""""Error parse line $index:
-               |    File: $filename
-               |    Line:
-               |        ${ x.truncate }""".stripMargin,
+          s"""""Error parse line ${ fileLineIndex + idxWithinPartition }:
+             |    File: $filename
+             |    Line:
+             |        ${ x.truncate }""".stripMargin,
           e)
       }
     }

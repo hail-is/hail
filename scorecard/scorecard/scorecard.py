@@ -9,8 +9,9 @@ import random
 import humanize
 import logging
 from hailtop.config import get_deploy_config
-from hailtop.tls import get_server_ssl_context
-from gear import setup_aiohttp_session, web_maybe_authenticated_user, AccessLogger
+from hailtop.tls import get_in_cluster_server_ssl_context
+from hailtop.hail_logging import AccessLogger
+from gear import setup_aiohttp_session, web_maybe_authenticated_user
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
 log = logging.getLogger('scorecard')
@@ -299,4 +300,4 @@ def run():
                 host='0.0.0.0',
                 port=5000,
                 access_log_class=AccessLogger,
-                ssl_context=get_server_ssl_context())
+                ssl_context=get_in_cluster_server_ssl_context())

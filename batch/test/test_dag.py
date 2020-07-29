@@ -196,7 +196,7 @@ def test_input_dependency_directory(client):
                             command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
                             output_files=[('/io/test/', f'gs://{bucket_name}')])
     tail = batch.create_job('ubuntu:18.04',
-                            command=['/bin/sh', '-c', 'cat /io/test/data1 ; cat /io/test/data2'],
+                            command=['/bin/sh', '-c', 'cat /io/test/data1; cat /io/test/data2'],
                             input_files=[(f'gs://{bucket_name}/test', '/io/')],
                             parents=[head])
     batch.submit()

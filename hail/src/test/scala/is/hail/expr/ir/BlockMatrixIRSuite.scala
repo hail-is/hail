@@ -45,7 +45,6 @@ class BlockMatrixIRSuite extends HailSuite {
   }
 
   @Test def testBlockMatrixMap() {
-    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
     val sqrtIR = BlockMatrixMap(ones, "element", Apply("sqrt", FastIndexedSeq(), FastIndexedSeq(Ref("element", TFloat64)), TFloat64), false)
     val negIR = BlockMatrixMap(ones, "element", ApplyUnaryPrimOp(Negate(), Ref("element", TFloat64)), false)
     val logIR = BlockMatrixMap(ones, "element", Apply("log", FastIndexedSeq(), FastIndexedSeq(Ref("element", TFloat64)), TFloat64), true)
@@ -55,6 +54,18 @@ class BlockMatrixIRSuite extends HailSuite {
     assertBMEvalsTo(negIR, BDM.fill[Double](3, 3)(-1))
     assertBMEvalsTo(logIR, BDM.fill[Double](3, 3)(0))
     assertBMEvalsTo(absIR, BDM.fill[Double](3, 3)(1))
+  }
+
+  @Test def testBlockMatrixMap2() {
+    val onesAddOnes = makeMap2(ones, ones, Add(), UnionBlocks)
+    val onesSubOnes = makeMap2(ones, ones, Subtract(), UnionBlocks)
+    val onesMulOnes = makeMap2(ones, ones, Multiply(), IntersectionBlocks)
+    val onesDivOnes = makeMap2(ones, ones, FloatingPointDivide(), NeedsDense)
+
+    assertBMEvalsTo(onesAddOnes, BDM.fill[Double](3, 3)(1.0 + 1.0))
+    assertBMEvalsTo(onesSubOnes, BDM.fill[Double](3, 3)(1.0 - 1.0))
+    assertBMEvalsTo(onesMulOnes, BDM.fill[Double](3, 3)(1.0 * 1.0))
+    assertBMEvalsTo(onesDivOnes, BDM.fill[Double](3, 3)(1.0 / 1.0))
   }
 
   @Test def testBlockMatrixBroadcastValue_Scalars() {
@@ -114,6 +125,14 @@ class BlockMatrixIRSuite extends HailSuite {
     assertBMEvalsTo(BlockMatrixDot(toIR(m1), toIR(m2)), m1 * m2)
   }
 
+  @Test def testBlockMatrixRandom() {
+    val gaussian = BlockMatrixRandom(0, gaussian = true, shape = Array(5L, 6L), blockSize = 3)
+    val uniform = BlockMatrixRandom(0, gaussian = false, shape = Array(5L, 6L), blockSize = 3)
+
+    assertBMEvalsTo(BlockMatrixMap2(gaussian, gaussian, "l", "r", Ref("l", TFloat64) - Ref("r", TFloat64), NeedsDense), BDM.fill(5, 6)(0.0))
+    assertBMEvalsTo(BlockMatrixMap2(uniform, uniform, "l", "r", Ref("l", TFloat64) - Ref("r", TFloat64), NeedsDense), BDM.fill(5, 6)(0.0))
+  }
+
   @Test def readBlockMatrixIR() {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
     val etype = EBlockMatrixNDArray(EFloat64Required, required = true)
@@ -126,7 +145,20 @@ class BlockMatrixIRSuite extends HailSuite {
     val read = ReadValue(Str(path), spec, typ)
     assertNDEvals(read, expected)
     assertNDEvals(ReadValue(
-      WriteValue(read, Str(ctx.createTmpPath("read-blockmatrix-ir", "hv")), spec),
+      WriteValue(read, Str(ctx.createTmpPath("read-blockmatrix-ir", "hv")) + UUID4(), spec),
       spec, typ), expected)
+  }
+
+  @Test def readWriteBlockMatrix() {
+    val original = "src/test/resources/blockmatrix_example/0"
+    val expected = BlockMatrix.read(ctx.fs, original).toBreezeMatrix()
+
+    val path = ctx.createTmpPath("read-blockmatrix-ir", "bm")
+
+    assertEvalsTo(BlockMatrixWrite(
+      BlockMatrixRead(BlockMatrixNativeReader(ctx.fs, original)),
+      BlockMatrixNativeWriter(path, overwrite = true, forceRowMajor = false, stageLocally = false)), ())
+
+    assertBMEvalsTo(BlockMatrixRead(BlockMatrixNativeReader(ctx.fs, path)), expected)
   }
 }

@@ -246,7 +246,7 @@ object InferType {
       case WritePartition(value, writeCtx, writer) => writer.returnType
       case _: WriteMetadata => TVoid
       case ReadValue(_, _, typ) => typ
-      case WriteValue(value, pathPrefix, spec) => TString
+      case WriteValue(value, path, spec) => TString
       case LiftMeOut(child) => child.typ
       case ShuffleWith(_, _, _, _, _, _, readers) =>
         readers.typ

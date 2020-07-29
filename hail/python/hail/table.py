@@ -9,13 +9,13 @@ from hail.expr.expressions import Expression, StructExpression, \
     construct_reference, to_expr, construct_expr, extract_refs_by_indices, \
     ExpressionException, TupleExpression, unify_all, NumericExpression, \
     StringExpression, CallExpression, CollectionExpression, DictExpression, \
-    IntervalExpression, LocusExpression, NDArrayExpression
+    IntervalExpression, LocusExpression, NDArrayExpression, expr_array
 from hail.expr.types import hail_type, tstruct, types_match, tarray, tset
 from hail.expr.table_type import ttable
 import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, dictof, anytype, \
     anyfunc, nullable, sequenceof, oneof, numeric, lazy, enumeration, \
-    table_key_type
+    table_key_type, func_spec
 from hail.utils.placement_tree import PlacementTree
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import wrap_to_tuple, storage_level, plural, \
@@ -3473,6 +3473,19 @@ class Table(ExprContainer):
 
     def _group_within_partitions(self, name, n):
         return Table(ir.TableGroupWithinPartitions(self._tir, name, n))
+
+    @typecheck_method(f=func_spec(1, expr_array(expr_struct())))
+    def _map_partitions(self, f):
+        rows_uid = 'tmp_rows_' + Env.get_uid()
+        globals_uid = 'tmp_globals_' + Env.get_uid()
+        expr = construct_expr(ir.ToArray(ir.Ref(rows_uid)), hl.tarray(self.row.dtype), self._row_indices)
+        body = f(expr)
+        result_t = body.dtype
+        if any(k not in result_t.element_type for k in self.key):
+            raise ValueError(f'Table._map_partitions must preserve key fields')
+
+        body_ir = ir.Let('global', ir.Ref(globals_uid), ir.ToStream(body._ir))
+        return Table(ir.TableMapPartitions(self._tir, globals_uid, rows_uid, body_ir))
 
 
 table_type.set(Table)

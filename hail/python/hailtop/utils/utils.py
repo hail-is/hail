@@ -20,7 +20,7 @@ log = logging.getLogger('hailtop.utils')
 RETRY_FUNCTION_SCRIPT = """function retry() {
     "$@" ||
         (sleep 2 && "$@") ||
-        (sleep 5 && "$@")
+        (sleep 5 && "$@");
 }"""
 
 

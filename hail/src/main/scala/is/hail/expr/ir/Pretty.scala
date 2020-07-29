@@ -397,6 +397,7 @@ object Pretty {
             case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
               prettyIntOpt(nPartitions) + " " + bufferSize.toString
             case TableExplode(_, path) => prettyStrings(path)
+            case TableMapPartitions(_, g, p, _) => s"${ prettyIdentifier(g) } ${ prettyIdentifier(p) }"
             case TableParallelize(_, nPartitions) =>
                 prettyIntOpt(nPartitions)
             case TableOrderBy(_, sortFields) => prettySortFields(sortFields)

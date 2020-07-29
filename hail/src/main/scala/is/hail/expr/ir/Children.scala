@@ -218,7 +218,7 @@ object Children {
     case WritePartition(stream, ctx, _) => Array(stream, ctx)
     case WriteMetadata(writeAnnotations, _) => Array(writeAnnotations)
     case ReadValue(path, _, _) => Array(path)
-    case WriteValue(value, pathPrefix, spec) => Array(value, pathPrefix)
+    case WriteValue(value, path, spec) => Array(value, path)
     case LiftMeOut(child) => Array(child)
     case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
       Array(writer, readers)

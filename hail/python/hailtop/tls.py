@@ -1,3 +1,4 @@
+from typing import Dict
 import aiohttp
 import logging
 import json
@@ -6,7 +7,7 @@ import ssl
 from ssl import Purpose
 import requests
 from requests.adapters import HTTPAdapter
-from urllib3.poolmanager import PoolManager
+from urllib3.poolmanager import PoolManager  # type: ignore
 
 log = logging.getLogger('hailtop.ssl')
 server_ssl_context = None
@@ -18,7 +19,7 @@ class NoSSLConfigFound(Exception):
     pass
 
 
-def _get_ssl_config():
+def _get_ssl_config() -> Dict[str, str]:
     config_file = os.environ.get('HAIL_SSL_CONFIG_FILE', '/ssl-config/ssl-config.json')
     if os.path.isfile(config_file):
         log.info(f'ssl config file found at {config_file}')
@@ -29,7 +30,7 @@ def _get_ssl_config():
     raise NoSSLConfigFound(f'no ssl config found at {config_file}')
 
 
-def get_server_ssl_context():
+def get_in_cluster_server_ssl_context() -> ssl.SSLContext:
     global server_ssl_context
     if server_ssl_context is None:
         ssl_config = _get_ssl_config()
@@ -46,49 +47,44 @@ def get_server_ssl_context():
     return server_ssl_context
 
 
-def create_client_ssl_context(check_hostname=True):
-    try:
+def get_in_cluster_client_ssl_context() -> ssl.SSLContext:
+    global client_ssl_context
+    if client_ssl_context is None:
         ssl_config = _get_ssl_config()
-        ssl_context = ssl.create_default_context(
+        client_ssl_context = ssl.create_default_context(
             purpose=Purpose.SERVER_AUTH,
             cafile=ssl_config['outgoing_trust'])
-        ssl_context.load_cert_chain(ssl_config['cert'],
-                                    keyfile=ssl_config['key'],
-                                    password=None)
-        ssl_context.verify_mode = ssl.CERT_REQUIRED
-        ssl_context.check_hostname = check_hostname
-        return ssl_context
+        client_ssl_context.load_cert_chain(ssl_config['cert'],
+                                           keyfile=ssl_config['key'],
+                                           password=None)
+        client_ssl_context.verify_mode = ssl.CERT_REQUIRED
+        client_ssl_context.check_hostname = True
+    return client_ssl_context
+
+
+def get_context_specific_client_ssl_context() -> ssl.SSLContext:
+    try:
+        return get_in_cluster_client_ssl_context()
     except NoSSLConfigFound:
-        log.info('no ssl config file found, using sensible defaults')
-        ssl_context = ssl.create_default_context(purpose=Purpose.SERVER_AUTH)
-        ssl_context.check_hostname = check_hostname
-        return ssl_context
+        log.info('no ssl config file found, using external configuration. This '
+                 'context cannot connect directly to services inside the cluster.')
+        return ssl.create_default_context(purpose=Purpose.SERVER_AUTH)
 
 
-def get_client_ssl_context(check_hostname=True):
-    global client_ssl_context
-    global client_ssl_context_no_check_hostname
-    if check_hostname:
-        if client_ssl_context is None:
-            client_ssl_context = create_client_ssl_context(check_hostname=True)
-        return client_ssl_context
-    if client_ssl_context_no_check_hostname is None:
-        client_ssl_context_no_check_hostname = create_client_ssl_context(
-            check_hostname=False)
-    return client_ssl_context_no_check_hostname
-
-
-def ssl_client_session(*args, check_hostname=True, **kwargs):
+def in_cluster_ssl_client_session(*args, **kwargs) -> aiohttp.ClientSession:
     assert 'connector' not in kwargs
-    return aiohttp.ClientSession(
-        *args, **kwargs,
-        connector=aiohttp.TCPConnector(
-            ssl=get_client_ssl_context(
-                check_hostname=check_hostname)))
+    kwargs['connector'] = aiohttp.TCPConnector(ssl=get_in_cluster_client_ssl_context())
+    return aiohttp.ClientSession(*args, **kwargs)
 
 
-def ssl_requests_client_session(*args, **kwargs):
-    session = requests.Session(*args, **kwargs)
+def get_context_specific_ssl_client_session(*args, **kwargs) -> aiohttp.ClientSession:
+    assert 'connector' not in kwargs
+    kwargs['connector'] = aiohttp.TCPConnector(ssl=get_context_specific_client_ssl_context())
+    return aiohttp.ClientSession(*args, **kwargs)
+
+
+def in_cluster_ssl_requests_client_session() -> requests.Session:
+    session = requests.Session()
     ssl_config = _get_ssl_config()
     session.mount('https://', TLSAdapter(ssl_config['cert'],
                                          ssl_config['key'],
@@ -96,13 +92,13 @@ def ssl_requests_client_session(*args, **kwargs):
     return session
 
 
-def check_ssl_config(ssl_config):
+def check_ssl_config(ssl_config: Dict[str, str]):
     for key in ('cert', 'key', 'outgoing_trust', 'incoming_trust'):
         assert ssl_config.get(key) is not None, key
     for key in ('cert', 'key', 'outgoing_trust', 'incoming_trust'):
         if not os.path.isfile(ssl_config[key]):
             raise ValueError(f'specified {key}, {ssl_config[key]} does not exist')
-    log.info(f'using tls and verifying client and server certificates')
+    log.info('using tls and verifying client and server certificates')
 
 
 class TLSAdapter(HTTPAdapter):
