@@ -17,7 +17,7 @@ deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
 
-file_path = '/Users/dabuhijl/hail/0.2.45-ac6815ee857c-master.json'
+file_path = '/0.2.45-ac6815ee857c-master.json'
 with open(file_path) as f:
     pre_data = json.load(f)
 print(json.dumps(pre_data, indent=4, sort_keys=True))
