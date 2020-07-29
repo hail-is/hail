@@ -334,12 +334,8 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
     IEmitCode(Lmissing, Lpresent, pv)
   }
 
-  def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType): EmitCode = {
-    EmitCode(
-      setup,
-      m,
-      pv.castTo(mb, region, destType))
-  }
+  def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType, deepCopy: Boolean = false): EmitCode =
+    EmitCode(setup, m, pv.castTo(mb, region, destType, deepCopy))
 
   def codeTuple(): IndexedSeq[Code[_]] = {
     val tc = pv.codeTuple()
@@ -601,7 +597,7 @@ class Emit[C](
   ): IEmitCode = {
     val mb: EmitMethodBuilder[C] = cb.emb.asInstanceOf[EmitMethodBuilder[C]]
 
-    def emitI(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+    def emitI(ir: IR, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
     def emitStream(ir: IR): IEmitCode =
@@ -844,43 +840,79 @@ class Emit[C](
       case x@StreamFold(a, zero, accumName, valueName, body) =>
         val eltType = coerce[PStream](a.pType).elementType
         val accType = x.accPType
+        val eltRegion = region.createChildRegion(mb)
+        val tmpRegion = region.createChildRegion(mb)
 
         val streamOpt = emitStream(a)
         streamOpt.flatMap(cb) { stream =>
           val xAcc = mb.newEmitField(accumName, accType)
           val xElt = mb.newEmitField(valueName, eltType)
 
-          cb.assign(xAcc, emitI(zero).map(cb)(_.castTo(mb, region.code, accType)))
-          stream.asStream.stream.getStream(region).forEachI(cb, { elt =>
+          cb += eltRegion.allocateRegion(Region.REGULAR)
+          cb += tmpRegion.allocateRegion(Region.REGULAR)
+          cb.assign(xAcc, emitI(zero, eltRegion).map(cb)(_.castTo(mb, eltRegion.code, accType)))
+
+          stream.asStream.stream.getStream(eltRegion).forEachI(cb, { elt =>
+            // pre- and post-condition: 'xAcc' contains current accumulator,
+            // whose heap memory is contained in 'eltRegion'. 'tmpRegion' is
+            // empty.
             cb.assign(xElt, elt)
-            cb.assign(xAcc, emitI(body, env = env.bind(accumName -> xAcc, valueName -> xElt))
-              .map(cb)(_.castTo(mb, region.code, accType)))
+            cb.assign(xAcc, emitI(body, eltRegion, env.bind(accumName -> xAcc, valueName -> xElt))
+              .map(cb)(eltRegion.copyToSibling(mb, _, tmpRegion, accType)))
+            cb += eltRegion.clear()
+            cb += StagedRegion.swap(mb, eltRegion, tmpRegion)
           })
+
+          cb += tmpRegion.free()
+          cb.assign(xAcc, xAcc.map(eltRegion.copyToParent(mb, _)))
+          cb += eltRegion.free()
 
           xAcc.toI(cb)
         }
 
       case x@StreamFold2(a, acc, valueName, seq, res) =>
         val eltType = coerce[PStream](a.pType).elementType
+
         val xElt = mb.newEmitField(valueName, eltType)
         val names = acc.map(_._1)
         val accTypes = x.accPTypes
         val accVars = (names, accTypes).zipped.map(mb.newEmitField)
+        val tmpAccVars = (names, accTypes).zipped.map(mb.newEmitField)
+
+        val eltRegion = region.createChildRegion(mb)
+        val tmpRegion = region.createChildRegion(mb)
 
         val resEnv = env.bind(names.zip(accVars): _*)
         val seqEnv = resEnv.bind(valueName, xElt)
 
         val streamOpt = emitStream(a)
         streamOpt.flatMap(cb) { stream =>
-          (accVars, acc, accTypes).zipped.foreach { case (xAcc, (_, x), typ) =>
-            cb.assign(xAcc, emitI(x).map(cb)(_.castTo(mb, region.code, typ)))
+          cb += eltRegion.allocateRegion(Region.REGULAR)
+          cb += tmpRegion.allocateRegion(Region.REGULAR)
+
+          (accVars, acc).zipped.foreach { case (xAcc, (_, x)) =>
+            cb.assign(xAcc, emitI(x, eltRegion).map(cb)(_.castTo(mb, eltRegion.code, xAcc.pt)))
           }
-          stream.asStream.stream.getStream(region).forEachI(cb, { elt =>
+          stream.asStream.stream.getStream(eltRegion).forEachI(cb, { elt =>
+            // pre- and post-condition: 'accVars' contain current accumulators,
+            // all of whose heap memory is contained in 'eltRegion'. 'tmpRegion'
+            // is empty.
             cb.assign(xElt, elt)
-            (accVars, seq).zipped.foreach { (accVar, ir) =>
-              cb.assign(accVar, emitI(ir, env = seqEnv).map(cb)(_.castTo(mb, region.code, accVar.pt)))
+            (tmpAccVars, seq).zipped.foreach { (accVar, ir) =>
+              // FIXME: needs to be simultaneous assignment
+              cb.assign(accVar,
+                emitI(ir, eltRegion, env = seqEnv)
+                  .map(cb)(eltRegion.copyToSibling(mb, _, tmpRegion, accVar.pt)))
             }
+            (accVars, tmpAccVars).zipped.foreach { (v, tmp) => cb.assign(v, tmp) }
+            cb += eltRegion.clear()
+            StagedRegion.swap(mb, eltRegion, tmpRegion)
           })
+          cb += tmpRegion.free()
+          accVars.foreach { xAcc =>
+            cb.assign(xAcc, xAcc.map(eltRegion.copyToParent(mb, _)))
+          }
+          cb += eltRegion.free()
 
           emitI(res, env = resEnv)
         }
@@ -1035,7 +1067,7 @@ class Emit[C](
     fallingBackFromEmitI: Boolean = false
   ): EmitCode = {
 
-    def emit(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
+    def emit(ir: IR, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
       this.emit(ir, mb, region, env, container, loopEnv)
 
     def emitInMethod(ir: IR, mb: EmitMethodBuilder[C]): EmitCode =

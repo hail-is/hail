@@ -70,8 +70,8 @@ abstract class PCode { self =>
       destType.copyFromTypeAndStackValue(mb, region, pt, code, deepCopy))
   }
 
-  def copyToRegion(mb: EmitMethodBuilder[_], region: Value[Region]): PCode =
-    castTo(mb, region, pt, deepCopy = true)
+  def copyToRegion(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType = pt): PCode =
+    castTo(mb, region, destType, deepCopy = true)
 
   // this is necessary because Scala doesn't infer the return type of
   // PIndexableCode.memoize if PCode.memoize has a default implementation
