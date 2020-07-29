@@ -21,7 +21,7 @@ def contains_wildcard(c):
         if i < n - 1 and c[i] == '\\' and c[i + 1] in wildcards:
             i += 2
             continue
-        elif c[i] in wildcards:
+        if c[i] in wildcards:
             return True
         i += 1
     return False
