@@ -9,7 +9,6 @@ import is.hail.expr.ir._
 import is.hail.types.encoded._
 import is.hail.types.virtual._
 import is.hail.io._
-import is.hail.services.tls._
 import is.hail.services.shuffler._
 import is.hail.utils._
 import javax.net.ssl._
@@ -199,9 +198,8 @@ class Shuffle (
 
     val keyEncoder = codecs.makeKeyEncoder(out)
 
+    log.info(s"partitionBounds ${nPartitions}")
     val keys = store.partitionKeys(nPartitions)
-    val prettyKeys = keys.map(x => Region.pretty(shuffleType.keyDecodedPType, x)).mkString("[",",","]")
-    log.info(s"partitionBounds ${nPartitions} ${prettyKeys}")
     assert((nPartitions == 0 && keys.length == 0) ||
       keys.length == nPartitions + 1)
     writeRegionValueArray(keyEncoder, keys)
@@ -209,20 +207,17 @@ class Shuffle (
   }
 }
 
-object ShuffleServer {
-  def main(args: Array[String]): Unit =
-    using(new ShuffleServer())(_.serve())
-}
-
-class ShuffleServer () extends AutoCloseable {
-  val ssl = getSSLContext
-  val port = 443
+class ShuffleServer (
+  ssl: SSLContext,
+  port: Int
+) extends AutoCloseable {
   val log = Logger.getLogger(this.getClass.getName());
 
   val shuffles = new ConcurrentSkipListMap[Array[Byte], Shuffle](new SameLengthByteArrayComparator())
 
   val ssf = ssl.getServerSocketFactory()
-  val ss = ssf.createServerSocket(port).asInstanceOf[SSLServerSocket]
+  val ss = ssf.createServerSocket(port)
+  ss.asInstanceOf[SSLServerSocket].setNeedClientAuth(true)
 
   val executor = Executors.newCachedThreadPool()
   var stopped = false
