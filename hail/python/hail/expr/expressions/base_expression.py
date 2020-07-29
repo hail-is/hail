@@ -644,7 +644,7 @@ class Expression(object):
 
     def __contains__(self, item):
         class_name = type(self).__name__
-        raise TypeError(f"`{class_name} objects don't support the `in` operator.")
+        raise TypeError(f"`{class_name}` objects don't support the `in` operator.")
 
     def __hash__(self):
         return super(Expression, self).__hash__()
