@@ -183,6 +183,13 @@ abstract class Stream[+A] { self =>
   def forEach(mb: EmitMethodBuilder[_], f: A => Code[Unit]): Code[Unit] =
     mapCPS[Unit]((_, a, k) => Code(f(a), k(()))).run(mb)
 
+  def forEachI(cb: EmitCodeBuilder, f: A => Unit): Unit = {
+    val savedCode = cb.code
+    cb.code = Code._empty
+    val streamCode = forEach(cb.emb, a => { f(a); cb.code })
+    cb.code = Code(savedCode, streamCode)
+  }
+
   def run(mb: EmitMethodBuilder[_]): Code[Unit] = {
     implicit val ctx = EmitStreamContext(mb)
     val Leos = CodeLabel()

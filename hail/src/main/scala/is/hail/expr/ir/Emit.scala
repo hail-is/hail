@@ -604,8 +604,8 @@ class Emit[C](
     def emitI(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
-    def emitStream(ir: IR): EmitCode =
-      EmitStream.emit(this, ir, mb, region, env, container)
+    def emitStream(ir: IR): IEmitCode =
+      EmitStream.emit(this, ir, mb, region, env, container).toI(cb)
 
     def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir: IR, mb, region, env, container, loopEnv)
@@ -841,6 +841,50 @@ class Emit[C](
         val AggContainer(_, sc, _) = container.get
         presentC(sc.states(i).serializeToRegion(cb, coerce[PBinary](pt), region.code))
 
+      case x@StreamFold(a, zero, accumName, valueName, body) =>
+        val eltType = coerce[PStream](a.pType).elementType
+        val accType = x.accPType
+
+        val streamOpt = emitStream(a)
+        streamOpt.flatMap(cb) { stream =>
+          val xAcc = mb.newEmitField(accumName, accType)
+          val xElt = mb.newEmitField(valueName, eltType)
+
+          cb.assign(xAcc, emitI(zero).map(cb)(_.castTo(mb, region.code, accType)))
+          stream.asStream.stream.getStream(region).forEachI(cb, { elt =>
+            cb.assign(xElt, elt)
+            cb.assign(xAcc, emitI(body, env = env.bind(accumName -> xAcc, valueName -> xElt))
+              .map(cb)(_.castTo(mb, region.code, accType)))
+          })
+
+          xAcc.toI(cb)
+        }
+
+      case x@StreamFold2(a, acc, valueName, seq, res) =>
+        val eltType = coerce[PStream](a.pType).elementType
+        val xElt = mb.newEmitField(valueName, eltType)
+        val names = acc.map(_._1)
+        val accTypes = x.accPTypes
+        val accVars = (names, accTypes).zipped.map(mb.newEmitField)
+
+        val resEnv = env.bind(names.zip(accVars): _*)
+        val seqEnv = resEnv.bind(valueName, xElt)
+
+        val streamOpt = emitStream(a)
+        streamOpt.flatMap(cb) { stream =>
+          (accVars, acc, accTypes).zipped.foreach { case (xAcc, (_, x), typ) =>
+            cb.assign(xAcc, emitI(x).map(cb)(_.castTo(mb, region.code, typ)))
+          }
+          stream.asStream.stream.getStream(region).forEachI(cb, { elt =>
+            cb.assign(xElt, elt)
+            (accVars, seq).zipped.foreach { (accVar, ir) =>
+              cb.assign(accVar, emitI(ir, env = seqEnv).map(cb)(_.castTo(mb, region.code, accVar.pt)))
+            }
+          })
+
+          emitI(res, env = resEnv)
+        }
+
       case x@ShuffleWith(
         keyFields,
         rowType,
@@ -895,7 +939,7 @@ class Emit[C](
           mb.ecb.getPType(rowsPType.elementType),
           Code._null)
         cb.append(shuffle.startPut())
-        val rows = emitStream(rowsIR).toI(cb).handle(cb, {
+        val rows = emitStream(rowsIR).handle(cb, {
           cb._fatal("rows stream was missing in shuffle write")
         }).asStream.stream.getStream(region)
         cb.append(rows.forEach(mb, { row: EmitCode =>
@@ -1343,57 +1387,6 @@ class Emit[C](
                 )
             }
           PCode(x.pType, lenCode)
-        }
-
-      case x@StreamFold(a, zero, accumName, valueName, body) =>
-        val eltType = coerce[PStream](a.pType).elementType
-        val accType = x.accPType
-
-        EmitCode.fromI(mb) { cb =>
-          val streamOpt = emitStream(a).toI(cb)
-          streamOpt.flatMap(cb) { stream =>
-            val xAcc = mb.newEmitField(accumName, accType)
-            val xElt = mb.newEmitField(valueName, eltType)
-
-            cb.assign(xAcc, emit(zero).castTo(mb, region.code, accType))
-            cb += stream.asStream.stream.getStream(region).forEach(mb, { elt => Code(
-              xElt := elt,
-              xAcc := emit(body, env = env.bind(accumName -> xAcc, valueName -> xElt))
-                .castTo(mb, region.code, accType))
-            })
-
-            xAcc.toI(cb)
-          }
-        }
-
-      case x@StreamFold2(a, acc, valueName, seq, res) =>
-        val eltType = coerce[PStream](a.pType).elementType
-        val xElt = mb.newEmitField(valueName, eltType)
-        val names = acc.map(_._1)
-        val accTypes = x.accPTypes
-        val accVars = (names, accTypes).zipped.map(mb.newEmitField)
-
-        val resEnv = env.bind(names.zip(accVars): _*)
-        val seqEnv = resEnv.bind(valueName, xElt)
-
-        EmitCode.fromI(mb) { cb =>
-          val streamOpt = emitStream(a).toI(cb)
-          streamOpt.flatMap(cb) { stream =>
-            (accVars, acc, accTypes).zipped.foreach { case (xAcc, (_, x), typ) =>
-              cb.assign(xAcc, emit(x).castTo(mb, region.code, typ))
-            }
-            cb += stream.asStream.stream.getStream(region).forEach(mb, { elt => Code(
-              xElt := elt,
-              accVars := seq
-                .map(emit(_, env = seqEnv))
-                .zip(accTypes)
-                .map { case (acc, typ) =>
-                  acc.castTo(mb, region.code, typ)
-                }
-            )})
-
-            emit(res, env = resEnv).toI(cb)
-          }
         }
 
       case x@MakeStruct(fields) =>
