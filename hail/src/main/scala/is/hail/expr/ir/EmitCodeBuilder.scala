@@ -53,6 +53,10 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     append(s := v)
   }
 
+  def assign(s: EmitSettable, v: IEmitCode): Unit = {
+    s.store(this, v)
+  }
+
   def memoize[T](pc: PCode, name: String): PValue = pc.memoize(this, name)
 
   def memoizeField[T](pc: PCode, name: String): PValue = {

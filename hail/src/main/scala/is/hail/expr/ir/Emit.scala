@@ -368,6 +368,8 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
 abstract class EmitSettable extends EmitValue {
   def store(ec: EmitCode): Code[Unit]
 
+  def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit
+
   def load(): EmitCode = get
 
   def :=(ec: EmitCode): Code[Unit] = store(ec)
