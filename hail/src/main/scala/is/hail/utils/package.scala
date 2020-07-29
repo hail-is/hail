@@ -128,8 +128,15 @@ package object utils extends Logging
 
   def triangle(n: Int): Int = (n * (n + 1)) / 2
 
-  def treeAggDepth(nPartitions: Int): Int =
-    (math.log(nPartitions) / math.log(HailContext.get.branchingFactor) + 0.5).toInt.max(1)
+  def treeAggDepth(nPartitions: Int, branchingFactor: Int): Int = {
+    require(nPartitions >= 0)
+    require(branchingFactor > 0)
+
+    if (nPartitions == 0)
+      return 1
+
+    math.ceil(math.log(nPartitions) / math.log(branchingFactor)).toInt
+  }
 
   def simpleAssert(p: Boolean) {
     if (!p) throw new AssertionError
