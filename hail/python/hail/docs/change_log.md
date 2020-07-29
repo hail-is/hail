@@ -22,6 +22,16 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.52
+
+Released 2020-07-29
+
+### Bug fixes
+
+- (hail#8944)(hail#9169) Fixed crash (error 134 or SIGSEGV) in `MatrixTable.annotate_cols`, `hl.sample_qc`, and more.
+
+---
+
 ## Version 0.2.51
 
 Released 2020-07-28
