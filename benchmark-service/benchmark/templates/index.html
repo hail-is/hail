@@ -1,8 +1,23 @@
-{% extends "base.html" %}
+{% extends "layout.html" %}
 {% block title %} Benchmark {% endblock %}
 
 {% block content %}
 <h1>Benchmark System</h1>
+
+<div class="attributes">
+    <div>SHA:
+        {% if benchmarks['sha'] is not none %}
+        {{ benchmarks['sha'] }}
+        {% else %}
+        unknown
+        {% endif %}
+    </div>
+    <div>Geometric Mean:
+        {% if benchmarks['geometric-mean'] is not none %}
+        {{ benchmarks['geometric-mean'] }}
+        {% endif %}
+    </div>
+</div>
 
 <table class="data-table">
     <thead>
