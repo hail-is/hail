@@ -1571,6 +1571,9 @@ class StructExpression(Mapping[str, Expression], Expression):
     def __iter__(self):
         return iter(self._fields)
 
+    def __contains__(self, item):
+        return item in self._fields
+
     def __hash__(self):
         return object.__hash__(self)
 

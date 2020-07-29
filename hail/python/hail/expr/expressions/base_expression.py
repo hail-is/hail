@@ -642,6 +642,10 @@ class Expression(object):
     def __len__(self):
         raise TypeError("'Expression' objects have no static length: use 'hl.len' for the length of collections")
 
+    def __contains__(self, item):
+        class_name = type(self).__name__
+        raise TypeError(f"`{class_name} objects don't support the `in` operator.")
+
     def __hash__(self):
         return super(Expression, self).__hash__()
 
