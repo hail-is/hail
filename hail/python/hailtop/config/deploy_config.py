@@ -6,7 +6,7 @@ import json
 import logging
 from aiohttp import web
 from ..utils import first_extant_file
-from ..tls import ssl_client_session
+from ..tls import get_context_specific_ssl_client_session
 
 log = logging.getLogger('deploy_config')
 
@@ -114,7 +114,7 @@ class DeployConfig:
         from ..auth import service_auth_headers  # pylint: disable=cyclic-import
         namespace = self.service_ns(service)
         headers = service_auth_headers(self, namespace)
-        async with ssl_client_session(
+        async with get_context_specific_ssl_client_session(
                 raise_for_status=True,
                 timeout=aiohttp.ClientTimeout(total=5),
                 headers=headers) as session:
