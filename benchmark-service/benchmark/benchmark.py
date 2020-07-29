@@ -20,7 +20,6 @@ log = logging.getLogger('benchmark')
 file_path = '/0.2.45-ac6815ee857c-master.json'
 with open(file_path) as f:
     pre_data = json.load(f)
-print(json.dumps(pre_data, indent=4, sort_keys=True))
 
 x = re.findall('.*/+(.*)-(.*)-(.*)?\.json', file_path)
 sha = x[0][1]
