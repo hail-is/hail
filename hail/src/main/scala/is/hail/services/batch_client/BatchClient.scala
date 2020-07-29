@@ -36,19 +36,19 @@ object BatchClient {
 
 class BatchClient(
   deployConfig: DeployConfig,
-  requestor: Requestor
+  requester: Requester
 ) {
-  def this() = this(DeployConfig.get, new Requestor())
+  def this() = this(DeployConfig.get, new Requester("batch"))
 
-  def this(deployConfig: DeployConfig) = this(deployConfig, new Requestor())
+  def this(deployConfig: DeployConfig) = this(deployConfig, new Requester("batch"))
 
-  def this(tokens: Tokens) = this(DeployConfig.get, new Requestor(tokens))
+  def this(tokens: Tokens) = this(DeployConfig.get, new Requester(tokens, "batch"))
 
   def this(deployConfig: DeployConfig, tokens: Tokens) =
-    this(deployConfig, new Requestor(tokens))
+    this(deployConfig, new Requester(tokens, "batch"))
 
   import BatchClient._
-  import requestor.request
+  import requester.request
 
   private[this] val baseUrl = deployConfig.baseUrl("batch")
 
