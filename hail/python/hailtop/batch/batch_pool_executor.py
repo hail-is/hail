@@ -379,8 +379,8 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
         """Allow temporary resources to be cleaned up.
 
         Until shutdown is called, some temporary cloud storage files will
-        persist. These files will after both shutdown has been called and all
-        outstanding jobs have completed.
+        persist. After shutdown has been called *and* all outstanding jobs have
+        completed, these files will be deleted.
 
         Parameters
         ----------

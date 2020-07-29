@@ -63,7 +63,7 @@ Batch Pool Executor
 
 A :class:`.BatchPoolExecutor` provides roughly the same interface as the Python
 standard library's :class:`.concurrent.futures.Executor`. It facilitates
-executing arbitrary python functions in the cloud.
+executing arbitrary Python functions in the cloud.
 
 .. autosummary::
     :toctree: api/batch_pool_executor/
