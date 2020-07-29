@@ -298,10 +298,6 @@ class Container:
         if volume_mounts:
             host_config['Binds'] = volume_mounts
 
-        # mounts = self.spec.get('mounts')
-        # if mounts:
-        #     host_config['Mounts'] = mounts
-
         if env:
             config['Env'] = env
 
@@ -576,7 +572,7 @@ retry gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
 '''
 
 
-def copy_container(job, name, files, volume_mounts, mounts, cpu, memory, requester_pays_project):
+def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays_project):
     sh_expression = copy(files, name, job.user, job.io_host_path(), requester_pays_project)
     copy_spec = {
         'image': BATCH_WORKER_IMAGE,
@@ -584,8 +580,7 @@ def copy_container(job, name, files, volume_mounts, mounts, cpu, memory, request
         'command': ['/bin/bash', '-c', sh_expression],
         'cpu': cpu,
         'memory': memory,
-        'volume_mounts': volume_mounts,
-        'mounts': mounts
+        'volume_mounts': volume_mounts
     }
     return Container(job, name, copy_spec)
 
@@ -699,7 +694,7 @@ class Job:
             input_volume_mounts.append(f'{LOCAL_SSD_MOUNT}:/host')
             input_mounts = None
             containers['input'] = copy_container(
-                self, 'input', input_files, input_volume_mounts, input_mounts,
+                self, 'input', input_files, input_volume_mounts,
                 self.cpu_in_mcpu, self.memory_in_bytes, requester_pays_project)
 
         # main container
@@ -721,9 +716,8 @@ class Job:
         containers['main'] = Container(self, 'main', main_spec)
 
         if output_files:
-            output_mounts = None
             containers['output'] = copy_container(
-                self, 'output', output_files, output_volume_mounts, output_mounts,
+                self, 'output', output_files, output_volume_mounts,
                 self.cpu_in_mcpu, self.memory_in_bytes, requester_pays_project)
 
         self.containers = containers
