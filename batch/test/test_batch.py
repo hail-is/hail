@@ -65,7 +65,8 @@ class Test(unittest.TestCase):
         builder = self.client.create_batch()
         resources = {
             'cpu': '100m',
-            'memory': '375M'
+            'memory': '375M',
+            'storage': '1Gi'
         }
         # two jobs so the batch msec_mcpu computation is non-trivial
         builder.create_job('ubuntu:18.04', ['echo', 'foo'], resources=resources)
@@ -120,20 +121,20 @@ class Test(unittest.TestCase):
 
     def test_invalid_resource_requests(self):
         builder = self.client.create_batch()
-        resources = {'cpu': '1', 'memory': '250Gi'}
+        resources = {'cpu': '1', 'memory': '250Gi', 'storage': '1Gi'}
         builder.create_job('ubuntu:18.04', ['true'], resources=resources)
         with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'resource requests.*unsatisfiable'):
             builder.submit()
 
         builder = self.client.create_batch()
-        resources = {'cpu': '0', 'memory': '1Gi'}
+        resources = {'cpu': '0', 'memory': '1Gi', 'storage': '1Gi'}
         builder.create_job('ubuntu:18.04', ['true'], resources=resources)
         with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'bad resource request.*cpu cannot be 0'):
             builder.submit()
 
     def test_out_of_memory(self):
         builder = self.client.create_batch()
-        resources = {'cpu': '0.1', 'memory': '10M'}
+        resources = {'cpu': '0.1', 'memory': '10M', 'storage': '1Gi'}
         j = builder.create_job('python:3.6-slim-stretch',
                                ['python', '-c', 'x = "a" * 1000**3'],
                                resources=resources)

@@ -56,7 +56,7 @@ def rest_authenticated_users_only(fun):
         if not userdata:
             web_userdata = await userdata_from_web_request(request)
             if web_userdata:
-                return web.HTTPUnauthorized(reason="provided WEB auth to REST endpoint")
+                return web.HTTPUnauthorized(reason="provided web auth to REST endpoint")
             raise web.HTTPUnauthorized()
         return await fun(request, userdata, *args, **kwargs)
     return wrapped
@@ -88,7 +88,7 @@ def web_authenticated_users_only(redirect=True):
             if not userdata:
                 rest_userdata = await userdata_from_rest_request(request)
                 if rest_userdata:
-                    return web.HTTPUnauthorized(reason="provided REST auth to WEB endpoint")
+                    return web.HTTPUnauthorized(reason="provided REST auth to web endpoint")
                 raise _web_unauthorized(request, redirect)
             return await fun(request, userdata, *args, **kwargs)
         return wrapped

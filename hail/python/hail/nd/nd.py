@@ -11,8 +11,7 @@ from hail.expr.expressions import (
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
 from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat
 
-tsequenceof_nd = oneof(sequenceof(expr_ndarray()), tupleof(expr_ndarray()),
-                       expr_array(expr_ndarray()))
+tsequenceof_nd = oneof(sequenceof(expr_ndarray()), expr_array(expr_ndarray()))
 shape_type = oneof(expr_int64, tupleof(expr_int64), expr_tuple())
 
 
@@ -314,8 +313,7 @@ def concatenate(nds, axis=0):
     """
     head_nd = nds[0]
     head_ndim = head_nd.ndim
-    for nd in nds:
-        assert(nd.ndim == head_ndim)
+    hl.case().when(hl.all(lambda a: a.ndim == head_ndim, nds), True).or_error("Mismatched ndim")
 
     makearr = aarray(nds)
     concat_ir = NDArrayConcat(makearr._ir, axis)
@@ -443,13 +441,12 @@ def vstack(arrs):
            [3],
            [4]], dtype=int32)
     """
+    head_ndim = arrs[0].ndim
 
-    if arrs[0].ndim == 1:
-        arrays = [x._broadcast(2) for x in arrs]
-    else:
-        arrays = arrs
+    if head_ndim == 1:
+        return concatenate(hl.map(lambda a: a._broadcast(2), arrs), 0)
 
-    return concatenate(arrays, 0)
+    return concatenate(arrs, 0)
 
 
 @typecheck(arrs=tsequenceof_nd)
@@ -491,8 +488,9 @@ def hstack(arrs):
            [2, 3],
            [3, 4]], dtype=int32)
     """
+    head_ndim = arrs[0].ndim
 
-    if arrs[0].ndim == 1:
+    if head_ndim == 1:
         axis = 0
     else:
         axis = 1

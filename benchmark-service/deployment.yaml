@@ -4,7 +4,8 @@ kind: Deployment
 metadata:
   name: benchmark
   labels:
-    app: web
+    app: benchmark
+    hail.is/sha: "{{ code.sha }}"
 spec:
   replicas: 1
   selector:
@@ -14,9 +15,54 @@ spec:
     metadata:
       labels:
         app: benchmark
+        hail.is/sha: "{{ code.sha }}"
     spec:
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       containers:
         - name: benchmark
-          image: {{ benchmark_image.image }}
+          image: "{{ benchmark_image.image }}"
+          env:
+          - name: HAIL_DOMAIN
+            value: "{{ global.domain }}"
+          - name: HAIL_DEPLOY_CONFIG_FILE
+            value: /deploy-config/deploy-config.json
+          - name: HAIL_SHA
+            value: "{{ code.sha }}"
           ports:
             - containerPort: 5000
+          resources:
+            requests:
+              memory: "250M"
+              cpu: "100m"
+            limits:
+              memory: "1G"
+              cpu: "1"
+          volumeMounts:
+            - name: session-secret-key
+              mountPath: /session-secret-key
+              readOnly: true
+            - name: deploy-config
+              mountPath: /deploy-config
+              readOnly: true
+            - name: ssl-config-benchmark
+              mountPath: /ssl-config
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: session-secret-key
+          secret:
+            secretName: session-secret-key
+        - name: deploy-config
+          secret:
+            secretName: deploy-config
+        - name: ssl-config-benchmark
+          secret:
+            secretName: ssl-config-benchmark
