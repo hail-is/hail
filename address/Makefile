@@ -13,7 +13,7 @@ check:
 
 .PHONY: build
 build:
-	# make -C ../docker build
+	make -C ../docker build
 	-docker pull $(ADDRESS_LATEST)
 	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
 	docker build -t address -f Dockerfile.out --cache-from address,$(ADDRESS_LATEST),service-base ..

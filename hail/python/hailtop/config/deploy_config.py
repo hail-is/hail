@@ -6,9 +6,9 @@ import json
 import logging
 from aiohttp import web
 from ..utils import first_extant_file
-from ..tls import ssl_client_session
+from ..tls import get_context_specific_ssl_client_session
 
-log = logging.getLogger('gear')
+log = logging.getLogger('deploy_config')
 
 
 class DeployConfig:
@@ -27,7 +27,7 @@ class DeployConfig:
             log.info(f'deploy config file found at {config_file}')
             with open(config_file, 'r') as f:
                 config = json.loads(f.read())
-            log.info(f'location: {config["location"]}')
+            log.info(f'deploy config location: {config["location"]}')
         else:
             log.info(f'deploy config file not found: {config_file}')
             config = {
@@ -58,7 +58,6 @@ class DeployConfig:
 
     def domain(self, service):
         ns = self.service_ns(service)
-        log.info(f'{service}, {ns}')
         if self._location == 'k8s':
             return f'{service}.{ns}'
         if self._location == 'gce':
@@ -115,12 +114,12 @@ class DeployConfig:
         from ..auth import service_auth_headers  # pylint: disable=cyclic-import
         namespace = self.service_ns(service)
         headers = service_auth_headers(self, namespace)
-        async with ssl_client_session(
+        async with get_context_specific_ssl_client_session(
                 raise_for_status=True,
                 timeout=aiohttp.ClientTimeout(total=5),
                 headers=headers) as session:
             async with await session.get(
-                    self.url('address', f'/api/{namespace}/{service}')) as resp:
+                    self.url('address', f'/api/{service}')) as resp:
                 dicts = await resp.json()
                 return [(d['address'], d['port']) for d in dicts]
 

@@ -82,7 +82,6 @@ class Tests(unittest.TestCase):
 
     def test_hadoop_copy_log(self):
         r = new_local_temp_file('log')
-        print(Env.hc()._log)
         hl.copy_log(r)
         stats = hl.hadoop_stat(r)
         self.assertTrue(stats['size_bytes'] > 0)
