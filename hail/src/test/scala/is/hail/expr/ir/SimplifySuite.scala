@@ -5,6 +5,7 @@ import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.TestUtils.IRAggCount
 import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, FastSeq, Interval}
+import is.hail.variant.Locus
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -226,6 +227,41 @@ class SimplifySuite extends HailSuite {
     tir = TableFilterIntervals(tir, FastIndexedSeq(Interval(Row(0), Row(1), true, false)), false)
     tir = TableFilterIntervals(tir, FastIndexedSeq(Interval(Row(8), Row(10), true, false)), false)
     assert(Simplify(tir).asInstanceOf[TableFilterIntervals].intervals == FastIndexedSeq(Interval(Row(0), Row(1), true, false), Interval(Row(8), Row(10), true, false)))
+  }
+
+  @Test def testSimplifyReadFilterIntervals() {
+    val src = "src/test/resources/sample-indexed-0.2.52.mt"
+
+    val mnr = MatrixNativeReader(fs, src, None)
+    val mr = MatrixRead(mnr.fullMatrixType, false, false, mnr)
+
+    val tnr = TableNativeReader(fs, TableNativeReaderParameters(src + "/rows", None))
+    val tr = TableRead(tnr.fullType, false, tnr)
+
+    val tzr = mr.lower().asInstanceOf[TableMapGlobals].child.asInstanceOf[TableRead]
+    val tzrr = tzr.tr.asInstanceOf[TableNativeZippedReader]
+
+    val intervals1 = FastIndexedSeq(Interval(Row(Locus("1", 100000)), Row(Locus("1", 200000)), true, false), Interval(Row(Locus("2", 100000)), Row(Locus("2", 200000)), true, false))
+    val intervals2 = FastIndexedSeq(Interval(Row(Locus("1", 150000)), Row(Locus("1", 250000)), true, false), Interval(Row(Locus("2", 150000)), Row(Locus("2", 250000)), true, false))
+    val intersection = FastIndexedSeq(Interval(Row(Locus("1", 150000)), Row(Locus("1", 200000)), true, false), Interval(Row(Locus("2", 150000)), Row(Locus("2", 200000)), true, false))
+    val tfi1 = TableFilterIntervals(tr, intervals1, true)
+    val exp1 = TableRead(tnr.fullType, false, TableNativeReader(fs, TableNativeReaderParameters(src + "/rows", Some(NativeReaderOptions(intervals1, tnr.fullType.keyType, true)))))
+
+    assert(Simplify(tfi1) == exp1)
+
+    val tfi2 = TableFilterIntervals(exp1, intervals2, true)
+    val exp2 = TableRead(tnr.fullType, false, TableNativeReader(fs, TableNativeReaderParameters(src + "/rows", Some(NativeReaderOptions(intersection, tnr.fullType.keyType, true)))))
+
+    assert(Simplify(tfi2) == exp2)
+
+    val ztfi1 = TableFilterIntervals(tzr, intervals1, true)
+    val zexp1 = TableRead(tzr.typ, false, tzrr.copy(options = Some(NativeReaderOptions(intervals1, tnr.fullType.keyType, true))))
+    assert(Simplify(ztfi1) == zexp1)
+
+    val ztfi2 = TableFilterIntervals(ztfi1, intervals2, true)
+    val zexp2 = TableRead(tzr.typ, false, tzrr.copy(options = Some(NativeReaderOptions(intersection, tnr.fullType.keyType, true))))
+
+    assert(Simplify(ztfi2) == zexp2)
   }
 
   @Test(enabled = false) def testFilterIntervalsKeyByToFilter() {
