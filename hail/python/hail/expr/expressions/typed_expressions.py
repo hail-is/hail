@@ -402,7 +402,7 @@ class CollectionExpression(Expression):
     def __contains__(self, element):
         class_name = type(self).__name__
         raise TypeError(f"Cannot use `in` operator on hail `{class_name}`s. Use the `contains` method instead."
-                         "`names.contains('Charlie')` instead of `'Charlie' in names`")
+                        "`names.contains('Charlie')` instead of `'Charlie' in names`")
 
 
 class ArrayExpression(CollectionExpression):
@@ -476,7 +476,6 @@ class ArrayExpression(CollectionExpression):
                     continue
                 filt_stack.append(candidate)
             return self._method("indexArray", self.dtype.element_type, item, '\n'.join(filt_stack))
-
 
     @typecheck_method(item=expr_any)
     def contains(self, item):
@@ -1276,7 +1275,6 @@ class DictExpression(Expression):
                             "    dict key type:  '{}'\n"
                             "    type of 'item': '{}'".format(self.dtype.key_type, item.dtype))
         return self._index(self.dtype.value_type, self._kc.coerce(item))
-
 
     @typecheck_method(item=expr_any)
     def contains(self, item):
