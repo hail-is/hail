@@ -993,10 +993,7 @@ class EmitMethodBuilder[C](
 
   def newPresentEmitLocal(pt: PType): PresentEmitSettable =
     newPresentEmitSettable(pt, newPLocal(pt))
-
-  def newPresentEmitLocal(name: String, pt: PType): PresentEmitSettable =
-    newPresentEmitSettable(pt, newPLocal(name, pt))
-
+  
   def newPresentEmitField(pt: PType): PresentEmitSettable =
     newPresentEmitSettable(pt, newPField(pt))
 
