@@ -4,9 +4,6 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 
 class RichCodeRegion(val region: Code[Region]) extends AnyVal {
-  def allocate(n: Code[Long]): Code[Long] =
-    region.invoke[Long, Long]("allocate", n)
-
   def allocate(alignment: Code[Long], n: Code[Long]): Code[Long] =
     region.invoke[Long, Long, Long]("allocate", alignment, n)
 
