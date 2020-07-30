@@ -63,6 +63,18 @@ async def greet_user(request: web.Request) -> web.Response:
     return response
 
 
+# @router.get('/name/{name}')
+# async def greet_user(request: web.Request) -> web.Response:
+#
+#     context = {
+#         'name': request.match_info.get('name', ''),
+#         'name_data': next((item for item in data if data['name'] == 'name'), None)
+#     }
+#     response = aiohttp_jinja2.render_template('user.html', request,
+#                                               context=context)
+#     return response
+
+
 @router.get('/')
 @router.get('')
 @web_authenticated_developers_only(redirect=False)
