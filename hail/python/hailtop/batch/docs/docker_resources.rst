@@ -78,7 +78,7 @@ More information can be found `here: <https://docs.docker.com/engine/reference/c
 .. code-block:: sh
     docker build -t gcr.io/<my-project>/<my-image>:<tag> -f Dockerfile .
 
-In this example we name the image `gcr.io/<my-project>/<my-image-name>:<tag>` so that it may be pushed to the Google Container Registry, in the next step.
+In this example we prepend the image name with `gcr.io/<my-project>/` so that it may be pushed to the Google Container Registry, in the next step.
 
 Pushing Images
 --------------
