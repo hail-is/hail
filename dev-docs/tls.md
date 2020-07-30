@@ -33,8 +33,9 @@ openssl req -x509 \
 
 Create a PKCS12 file. PKCS12 files are primarily useful for creating instances
 of a Java `KeyStore`. It is not possible to [elide a
-password](https://stackoverflow.com/questions/27497723/export-a-pkcs12-file-without-an-export-password)
-empty passwords are not recommended.
+password](https://stackoverflow.com/questions/27497723/export-a-pkcs12-file-without-an-export-password).
+Using the empty string as a password is not recommended because many tools do
+not properly support it.
 
 ```
 openssl pkcs12 -export \
@@ -79,7 +80,7 @@ certificate to a local file and inspect the start and end dates.
 ```
 kubectl get secrets ssl-config-hail-root -o json \
     | jq -r '.data["hail-root-cert.pem"]' \
-    | base64 -D \
+    | base64 --decode \
     > hail-root-cert.pem
 ```
 
@@ -90,7 +91,7 @@ trust file, but you should verify that. For example, download the
 ```
 kubectl get secrets ssl-config-router -o json \
     | jq -r '.data["router-incoming.pem"]' \
-    | base64 -D \
+    | base64 --decode \
     > hail-root-cert.pem
 ```
 
@@ -128,9 +129,9 @@ kubectl create secret generic \
 3. Update all the service certificates:
 
 ```
-python3 /PATH/TO/HAIL/tls/create_certs.py \
+python3 $HAIL_HOME/tls/create_certs.py \
         default \
-        /PATH/TO/HAIL/tls/config.yaml \
+        $HAIL_HOME/tls/config.yaml \
         hail-root-key.pem \
         hail-root-cert.pem
 ```
@@ -140,7 +141,7 @@ python3 /PATH/TO/HAIL/tls/create_certs.py \
 
 ```
 SERVICES_TO_RESTART=$(python3 -c 'import yaml
-x = yaml.safe_load(open("/PATH/TO/HAIL/tls/config.yaml"))["principals"]
+x = yaml.safe_load(open("$HAIL_HOME/tls/config.yaml"))["principals"]
 print(",".join(x["name"] for x in x))')
 ```
 
@@ -148,5 +149,5 @@ print(",".join(x["name"] for x in x))')
    deployments):
 
 ```
-gkubectl delete pods -l "app in ($SERVICES_TO_RESTART)"
+kubectl delete pods -l "app in ($SERVICES_TO_RESTART)"
 ```
