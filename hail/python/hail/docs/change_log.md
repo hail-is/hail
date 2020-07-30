@@ -31,7 +31,7 @@ Released 2020-07-30
 - (hail#9173) Use less confusing column key behavior in MT.show.
 - (hail#9172) Add a missing Python dependency to Hail: google-cloud-storage.
 - (hail#9170) Change Hail tree aggregate depth logic to correctly respect the
-  HailContext's branching factor.
+  branching factor set in `hl.init`.
 
 ---
 
