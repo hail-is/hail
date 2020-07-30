@@ -654,12 +654,17 @@ class Job:
         req_storage_in_bytes = parse_memory_in_bytes(job_spec['resources']['storage'])
 
         cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type)
-        cpu_in_mcpu = adjust_cores_for_storage_request(cpu_in_mcpu, req_storage_in_bytes, CORES)
+        if 'storage' in job_spec['resources']:
+            cpu_in_mcpu = adjust_cores_for_storage_request(cpu_in_mcpu, req_storage_in_bytes, CORES)
         cpu_in_mcpu = adjust_cores_for_packability(cpu_in_mcpu)
 
         self.cpu_in_mcpu = cpu_in_mcpu
         self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu, worker_config.instance_type)
-        self.storage_in_bytes = cores_mcpu_to_storage_bytes(self.cpu_in_mcpu, CORES)
+
+        if 'storage' in job_spec['resources']:
+            self.storage_in_bytes = cores_mcpu_to_storage_bytes(self.cpu_in_mcpu, CORES)
+        else:
+            self.storage_in_bytes = '350Gi'
 
         self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes)
 
