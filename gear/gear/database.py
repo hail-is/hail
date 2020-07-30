@@ -70,7 +70,7 @@ def check_sql_config(sql_config):
     for key in ('ssl-cert', 'ssl-key', 'ssl-ca'):
         if not os.path.isfile(sql_config[key]):
             raise ValueError(f'specified {key}, {sql_config[key]} does not exist')
-    log.info(f'using tls and verifying server certificates for MySQL')
+    log.info('using tls and verifying server certificates for MySQL')
 
 
 database_ssl_context = None

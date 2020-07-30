@@ -1471,6 +1471,12 @@ object IRParser {
             TArray(TInterval(child.typ.keyType)),
             padNulls = false).asInstanceOf[IndexedSeq[Interval]],
           keep)
+      case "TableMapPartitions" =>
+        val globalsName = identifier(it)
+        val partitionStreamName = identifier(it)
+        val child = table_ir(env)(it)
+        val body = ir_value_expr(env ++ Array((globalsName, child.typ.globalType), (partitionStreamName, TStream(child.typ.rowType))))(it)
+        TableMapPartitions(child, globalsName, partitionStreamName, body)
       case "RelationalLetTable" =>
         val name = identifier(it)
         val value = ir_value_expr(env)(it)

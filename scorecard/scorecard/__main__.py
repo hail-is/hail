@@ -1,11 +1,7 @@
-from gear import configure_logging
+from hailtop.hail_logging import configure_logging
 # configure logging before importing anything else
 configure_logging()
 
+from .scorecard import run  # noqa: E402 pylint: disable=wrong-import-position
 
-def main():
-    from .scorecard import run
-    run()
-
-
-main()
+run()

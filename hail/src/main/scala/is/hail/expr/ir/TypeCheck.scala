@@ -31,6 +31,11 @@ object TypeCheck {
       case TableMapRows(child, newRow) =>
         val newFieldSet = newRow.typ.asInstanceOf[TStruct].fieldNames.toSet
         assert(child.typ.key.forall(newFieldSet.contains))
+      case TableMapPartitions(child, globalName, partitionStreamName, body) =>
+        assert(EmitStream.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
+        val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
+        child.typ.key.foreach { k => if (!newRowType.hasField(k)) throw new RuntimeException(s"prev key: ${child.typ.key}, new row: ${newRowType}")}
+
       case _ =>
     }
 
@@ -465,8 +470,8 @@ object TypeCheck {
       case x@ReadValue(path, spec, requestedType) =>
         assert(path.typ == TString)
         assert(spec.encodedType.decodedPType(requestedType).virtualType == requestedType)
-      case x@WriteValue(value, pathPrefix, spec) =>
-        assert(pathPrefix.typ == TString)
+      case x@WriteValue(value, path, spec) =>
+        assert(path.typ == TString)
       case LiftMeOut(_) =>
       case x@ShuffleWith(_, _, _, _, _, writer, readers) =>
         assert(writer.typ == TArray(TBinary))

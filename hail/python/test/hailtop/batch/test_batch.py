@@ -7,7 +7,6 @@ import uuid
 import google.oauth2.service_account
 import google.cloud.storage
 
-from hailtop.config import get_user_config
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
 from hailtop.batch.utils import arg_max
 from hailtop.utils import grouped
@@ -15,8 +14,9 @@ from hailtop.config import get_user_config
 
 
 class LocalTests(unittest.TestCase):
-    def batch(self):
-        return Batch(backend=LocalBackend())
+    def batch(self, requester_pays_project=None):
+        return Batch(backend=LocalBackend(),
+                     requester_pays_project=requester_pays_project)
 
     def read(self, file):
         with open(file, 'r') as f:
@@ -292,6 +292,16 @@ class LocalTests(unittest.TestCase):
         t2.command(f'echo "hello" >> {j.foo.bed}')
         b.run()
 
+    def test_envvar(self):
+        with tempfile.NamedTemporaryFile('w') as output_file:
+            b = self.batch()
+            j = b.new_job()
+            j.env('SOME_VARIABLE', '123abcdef')
+            j.command(f'echo $SOME_VARIABLE > {j.ofile}')
+            b.write_output(j.ofile, output_file.name)
+            b.run()
+            assert self.read(output_file.name) == '123abcdef'
+
 
 class BatchTests(unittest.TestCase):
     def setUp(self):
@@ -326,10 +336,11 @@ class BatchTests(unittest.TestCase):
     def tearDown(self):
         self.backend.close()
 
-    def batch(self):
+    def batch(self, requester_pays_project=None):
         return Batch(backend=self.backend,
                      default_image='google/cloud-sdk:237.0.0-alpine',
-                     attributes={'foo': 'a', 'bar': 'b'})
+                     attributes={'foo': 'a', 'bar': 'b'},
+                     requester_pays_project=requester_pays_project)
 
     def test_single_task_no_io(self):
         b = self.batch()
@@ -474,6 +485,13 @@ class BatchTests(unittest.TestCase):
 
         assert b.run().status()['state'] == 'failure'
 
+    def test_requester_pays(self):
+        b = self.batch(requester_pays_project='hail-vdc')
+        input = b.read_input('gs://hail-services-requester-pays/hello')
+        j = b.new_job()
+        j.command(f'cat {input}')
+        assert b.run().status()['state'] == 'success'
+
     def test_benchmark_lookalike_workflow(self):
         b = self.batch()
 
@@ -496,3 +514,10 @@ class BatchTests(unittest.TestCase):
         b.write_output(combine.ofile, f'{self.gcs_output_dir}/pipeline_benchmark_test.txt')
         # too slow
         # assert b.run().status()['state'] == 'success'
+
+    def test_envvar(self):
+        b = self.batch()
+        j = b.new_job()
+        j.env('SOME_VARIABLE', '123abcdef')
+        j.command('[ $SOME_VARIABLE = "123abcdef" ]')
+        assert b.run().status()['state'] == 'success'

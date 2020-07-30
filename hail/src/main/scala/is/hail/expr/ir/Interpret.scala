@@ -820,7 +820,7 @@ object Interpret {
       case BlockMatrixWrite(child, writer) =>
         writer(ctx, child.execute(ctx))
       case BlockMatrixMultiWrite(blockMatrices, writer) =>
-        writer(ctx.fs, blockMatrices.map(_.execute(ctx)))
+        writer(ctx, blockMatrices.map(_.execute(ctx)))
       case UnpersistBlockMatrix(BlockMatrixRead(BlockMatrixPersistReader(id))) =>
         HailContext.sparkBackend("interpret UnpersistBlockMatrix").bmCache.unpersistBlockMatrix(id)
       case _: UnpersistBlockMatrix =>
@@ -928,7 +928,7 @@ object Interpret {
             val region = Region(Region.SMALL)
             val initF = initOp(0, region)
             initF.newAggState(region)
-            initF(region, globalsOffset)
+            initF(region, globalsBc.value.readRegionValue(region))
             RegionValue(region, initF.getAggOffset())
           }
 

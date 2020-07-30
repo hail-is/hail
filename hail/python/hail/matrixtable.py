@@ -1307,12 +1307,12 @@ class MatrixTable(ExprContainer):
                 if e in all_field_exprs:
                     fields_to_drop.add(all_field_exprs[e])
                 else:
-                    raise ExpressionException("method 'drop' expects string field names or top-level field expressions"
+                    raise ExpressionException("Method 'drop' expects string field names or top-level field expressions"
                                               " (e.g. 'foo', matrix.foo, or matrix['foo'])")
             else:
                 assert isinstance(e, str)
                 if e not in self._fields:
-                    raise IndexError("matrix has no field '{}'".format(e))
+                    raise IndexError("MatrixTable has no field '{}'".format(e))
                 fields_to_drop.add(e)
 
         m = self
@@ -2603,13 +2603,12 @@ class MatrixTable(ExprContainer):
         if len(t.key) > 0:
             t = t.order_by(*t.key)
         col_key_type = self.col_key.dtype
-        if len(col_key_type) == 1 and col_key_type[0] == hl.tstr:
-            col_key_field_name = list(col_key_type)[0]
-            cols = t.cols.collect()
-            entries = {cols[0][i][col_key_field_name]: t.entries[i]
+        if len(col_key_type) == 1 and col_key_type[0] in (hl.tstr, hl.tint32, hl.tint64):
+            cols = self.col_key[0].take(displayed_n_cols)
+            entries = {repr(cols[i]): t.entries[i]
                        for i in range(0, displayed_n_cols)}
         else:
-            entries = {str(i): t.entries[i] for i in range(0, displayed_n_cols)}
+            entries = {f'<col {i}>': t.entries[i] for i in range(0, displayed_n_cols)}
         t = t.select(
             **{f: t[f] for f in self.row_key},
             **{f: t[f] for f in self.row_value if include_row_fields},
@@ -4102,7 +4101,7 @@ class MatrixTable(ExprContainer):
 
     def _write_block_matrix(self, path, overwrite, entry_field, block_size):
         mt = self
-        mt = mt.select_entries(entry_field).select_cols().select_globals()
+        mt = mt._select_all(entry_exprs={entry_field: mt[entry_field]})
         Env.backend().execute(ir.MatrixToValueApply(
             mt._mir,
             {'name': 'MatrixWriteBlockMatrix',

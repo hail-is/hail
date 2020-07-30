@@ -6,7 +6,7 @@ from aiohttp import web
 import aiohttp_session
 from hailtop.config import get_deploy_config
 from hailtop.utils import request_retry_transient_errors
-from hailtop.tls import ssl_client_session
+from hailtop.tls import in_cluster_ssl_client_session
 
 log = logging.getLogger('gear.auth')
 
@@ -16,7 +16,7 @@ deploy_config = get_deploy_config()
 async def _userdata_from_session_id(session_id):
     headers = {'Authorization': f'Bearer {session_id}'}
     try:
-        async with ssl_client_session(
+        async with in_cluster_ssl_client_session(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
             resp = await request_retry_transient_errors(
                 session, 'GET', deploy_config.url('auth', '/api/v1alpha/userinfo'),
@@ -54,6 +54,9 @@ def rest_authenticated_users_only(fun):
     async def wrapped(request, *args, **kwargs):
         userdata = await userdata_from_rest_request(request)
         if not userdata:
+            web_userdata = await userdata_from_web_request(request)
+            if web_userdata:
+                return web.HTTPUnauthorized(reason="provided web auth to REST endpoint")
             raise web.HTTPUnauthorized()
         return await fun(request, userdata, *args, **kwargs)
     return wrapped
@@ -83,6 +86,9 @@ def web_authenticated_users_only(redirect=True):
         async def wrapped(request, *args, **kwargs):
             userdata = await userdata_from_web_request(request)
             if not userdata:
+                rest_userdata = await userdata_from_rest_request(request)
+                if rest_userdata:
+                    return web.HTTPUnauthorized(reason="provided REST auth to web endpoint")
                 raise _web_unauthorized(request, redirect)
             return await fun(request, userdata, *args, **kwargs)
         return wrapped

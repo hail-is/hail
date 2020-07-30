@@ -984,18 +984,21 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def getStreamEmitParam(emitIndex: Int): COption[Code[Iterator[RegionValue]]] = {
+  def getStreamEmitParam(emitIndex: Int): COption[Code[Iterator[java.lang.Long]]] = {
     assert(emitIndex != 0)
 
     val pt = emitParamTypes(emitIndex - 1).asInstanceOf[EmitParamType].pt
     assert(pt.isInstanceOf[PStream])
     val codeIndex = emitParamCodeIndex(emitIndex - 1)
 
-    new COption[Code[Iterator[RegionValue]]] {
-      def apply(none: Code[Ctrl], some: (Code[Iterator[RegionValue]]) => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
-        mb.getArg[Boolean](codeIndex + 1).mux(
-          none,
-          some(mb.getArg[Iterator[RegionValue]](codeIndex)))
+    new COption[Code[Iterator[java.lang.Long]]] {
+      def apply(none: Code[Ctrl], some: (Code[Iterator[java.lang.Long]]) => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+        if (pt.required)
+          some(mb.getArg[Iterator[java.lang.Long]](codeIndex))
+        else
+          mb.getArg[Boolean](codeIndex + 1).mux(
+            none,
+            some(mb.getArg[Iterator[java.lang.Long]](codeIndex)))
       }
     }
   }

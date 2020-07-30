@@ -746,6 +746,25 @@ class Emit[C](
         val m = cb.newLocal[Boolean]("isna")
         emitI(v).consume(cb, cb.assign(m, const(true)), { _ => cb.assign(m, const(false)) })
         presentC(m)
+      case ApplyBinaryPrimOp(op, l, r) =>
+        emitI(l).flatMap(cb) { pcL =>
+          emitI(r).map(cb)(pcR => PCode(pt, BinaryOp.emit(op, l.typ, r.typ, pcL.code, pcR.code)))
+        }
+      case ApplyUnaryPrimOp(op, x) =>
+        emitI(x).map(cb)(pc => PCode(pt, UnaryOp.emit(op, x.typ, pc.code)))
+      case ApplyComparisonOp(op, l, r) =>
+        val f = op.codeOrdering(mb, l.pType, r.pType)
+        if (op.strict) {
+          emitI(l).flatMap(cb)(l => emitI(r).map(cb)(r => PCode(pt, f((false, l.code), (false, r.code)))))
+        } else {
+          val lm = cb.newLocal[Boolean]("lm", false)
+          val rm = cb.newLocal[Boolean]("rm", false)
+          val lc = emitI(l).handle(cb, cb.assign(lm, true))
+          val rc = emitI(r).handle(cb, cb.assign(rm, true))
+          presentC(
+            f((lm, lm.mux(defaultValue(l.pType), lc.code)),
+              (rm, rm.mux(defaultValue(r.pType), rc.code))))
+        }
 
       case x@ArrayRef(a, i, s) =>
         val errorTransformer: Code[String] => Code[String] = s match {
@@ -971,6 +990,26 @@ class Emit[C](
         // FIXME: server needs to send uuid for the successful partition
         presentC(PCanonicalBinary(true).allocate(region, 0))
 
+      case x@ReadValue(path, spec, requestedType) =>
+        emitI(path).map(cb) { pv =>
+          val ib = cb.newLocal[InputBuffer]("read_ib")
+          cb.assign(ib, spec.buildCodeInputBuffer(mb.open(pv.asString.loadString(), checkCodec = true)))
+          spec.buildEmitDecoder(requestedType, mb.ecb)(region, ib)
+        }
+
+      case WriteValue(value, path, spec) =>
+        emitI(path).flatMap(cb) { case p: PStringCode =>
+          val pv = p.memoize(cb, "write_path")
+          emitI(value).map(cb) { v =>
+            val ob = cb.newLocal[OutputBuffer]("write_ob")
+            cb.assign(ob, spec.buildCodeOutputBuffer(mb.create(pv.asString.loadString())))
+            val enc = spec.buildEmitEncoder(v.pt, cb.emb.ecb)
+            cb += enc(region, v.memoize(cb, "write_value"), ob)
+            cb += ob.invoke[Unit]("close")
+            pv
+          }
+        }
+
       case _ =>
         emitFallback(ir)
     }
@@ -1134,32 +1173,6 @@ class Emit[C](
         if (ev.pt != pt)
           throw new RuntimeException(s"PValue type did not match inferred ptype:\n name: $name\n  pv: ${ ev.pt }\n  ir: $pt")
         ev.get
-
-      case ApplyBinaryPrimOp(op, l, r) =>
-        val codeL = emit(l)
-        val codeR = emit(r)
-        strict(pt, BinaryOp.emit(op, l.typ, r.typ, codeL.v, codeR.v), codeL, codeR)
-      case ApplyUnaryPrimOp(op, x) =>
-        val v = emit(x)
-        strict(pt, UnaryOp.emit(op, x.typ, v.v), v)
-      case ApplyComparisonOp(op, l, r) =>
-        val f = op.codeOrdering(mb, l.pType, r.pType)
-        val codeL = emit(l)
-        val codeR = emit(r)
-        if (op.strict) {
-          strict(pt, f((false, codeL.v), (false, codeR.v)),
-            codeL, codeR)
-        } else {
-          val lm = mb.newLocal[Boolean]()
-          val rm = mb.newLocal[Boolean]()
-          present(pt, Code(
-            codeL.setup,
-            codeR.setup,
-            lm := codeL.m,
-            rm := codeR.m,
-            f((lm, lm.mux(defaultValue(l.pType), codeL.v)),
-              (rm, rm.mux(defaultValue(r.pType), codeR.v)))))
-        }
 
       case x@MakeArray(args, _) =>
         val pType = x.pType.asInstanceOf[PArray]
@@ -2165,7 +2178,7 @@ class Emit[C](
           assert(cRetPtype == x.decodedContextPTuple)
           val (gRetPtype, gDec) = x.globalSpec.buildEmitDecoderF[Long](bodyFB.ecb)
           assert(gRetPtype == x.decodedGlobalPTuple)
-          val bEnc = x.bodySpec.buildEmitEncoderF[Long](x.bodyPTuple, bodyFB.ecb)
+          val bEnc = x.bodySpec.buildTypedEmitEncoderF[Long](x.bodyPTuple, bodyFB.ecb)
           val bOB = bodyFB.genFieldThisRef[OutputBuffer]()
 
           val env = Env[EmitValue](
@@ -2213,8 +2226,8 @@ class Emit[C](
         val optCtxStream = emitStream(contexts)
         val globalsT = emit(globals)
 
-        val cEnc = x.contextSpec.buildEmitEncoderF[Long](x.contextPTuple, parentCB)
-        val gEnc = x.globalSpec.buildEmitEncoderF[Long](x.globalPTuple, parentCB)
+        val cEnc = x.contextSpec.buildTypedEmitEncoderF[Long](x.contextPTuple, parentCB)
+        val gEnc = x.globalSpec.buildTypedEmitEncoderF[Long](x.globalPTuple, parentCB)
         val (bRetPType, bDec) = x.bodySpec.buildEmitDecoderF[Long](parentCB)
         assert(bRetPType == x.decodedBodyPTuple)
 
@@ -2333,50 +2346,6 @@ class Emit[C](
           emitStream(stream).flatMap { s =>
             COption.fromEmitCode(writer.consumeStream(ctxCode, eltType, mb, region, s))
           }, mb)
-
-      case x@ReadValue(path, spec, requestedType) =>
-        val p = emit(path)
-        val pathString = coerce[PString](path.pType).loadString(p.value[Long])
-        val rowBuf = spec.buildCodeInputBuffer(mb.open(pathString, true))
-        val (pt, dec) = spec.buildEmitDecoderF(requestedType, mb.ecb, typeToTypeInfo(x.pType))
-        EmitCode(p.setup, p.m, PCode(pt,
-          Code.memoize(rowBuf, "read_ib") { ib =>
-            dec(region, ib)
-          }))
-      case x@WriteValue(value, pathPrefix, spec) =>
-        val v = emit(value)
-        val p = emit(pathPrefix)
-        val m = mb.newLocal[Boolean]()
-        val pv = mb.newLocal[String]()
-        val rb = mb.newLocal[OutputBuffer]()
-
-        val taskCtx = Code.invokeScalaObject0[HailTaskContext](HailTaskContext.getClass, "get")
-        val vti = typeToTypeInfo(value.pType)
-
-        EmitCode(
-          Code(
-            p.setup, v.setup,
-            m := p.m || v.m,
-            m.mux(
-              Code(pv := Code._null[String], rb := Code._null[OutputBuffer]),
-              Code(
-                pv := coerce[PString](pathPrefix.pType).loadString(p.value[Long]),
-                Code.memoize(taskCtx, "write_val_task_ctx") { taskCtx =>
-                  (!taskCtx.isNull).orEmpty(
-                    pv := pv.concat("-").concat(taskCtx.invoke[String]("partSuffix")))
-                },
-                rb := spec.buildCodeOutputBuffer(mb.create(pv)),
-                vti match {
-                  case vti: TypeInfo[t] =>
-                    val enc = spec.buildEmitEncoderF(value.pType, mb.ecb, vti)
-                    Code.memoize(v.value[t], "write_value") { v =>
-                        enc(region, v, rb)
-                    }(vti)
-                },
-                rb.invoke[Unit]("close")
-              ))
-          ), m,
-          PCode(x.pType, coerce[PString](x.pType).allocateAndStoreString(mb, region, pv)))
       case x =>
         if (fallingBackFromEmitI) {
           fatal(s"ir is not defined in emit or emitI $x")

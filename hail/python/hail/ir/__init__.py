@@ -29,7 +29,7 @@ from .table_ir import MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, \
     TableTail, TableOrderBy, TableDistinct, RepartitionStrategy, \
     TableRepartition, CastMatrixToTable, TableRename, TableMultiWayZipJoin, \
     TableFilterIntervals, TableToTableApply, MatrixToTableApply, \
-    BlockMatrixToTableApply, BlockMatrixToTable, JavaTable
+    BlockMatrixToTableApply, BlockMatrixToTable, JavaTable, TableMapPartitions
 from .matrix_ir import MatrixAggregateRowsByKey, MatrixRead, MatrixFilterRows, \
     MatrixChooseCols, MatrixMapCols, MatrixUnionCols, MatrixMapEntries, \
     MatrixFilterEntries, MatrixKeyRowsBy, MatrixMapRows, MatrixMapGlobals, \
@@ -59,7 +59,7 @@ from .table_writer import TableWriter, TableNativeWriter, TableTextWriter
 from .blockmatrix_writer import BlockMatrixWriter, BlockMatrixNativeWriter, \
     BlockMatrixBinaryWriter, BlockMatrixRectanglesWriter, \
     BlockMatrixMultiWriter, BlockMatrixBinaryMultiWriter, \
-    BlockMatrixTextMultiWriter, BlockMatrixPersistWriter
+    BlockMatrixTextMultiWriter, BlockMatrixPersistWriter, BlockMatrixNativeMultiWriter
 from .renderer import Renderable, RenderableStr, ParensRenderer, \
     RenderableQueue, RQStack, Renderer, PlainRenderer, CSERenderer
 
@@ -114,6 +114,7 @@ __all__ = [
     'BlockMatrixBinaryWriter',
     'BlockMatrixRectanglesWriter',
     'BlockMatrixMultiWriter',
+    'BlockMatrixNativeMultiWriter',
     'BlockMatrixBinaryMultiWriter',
     'BlockMatrixTextMultiWriter',
     'BlockMatrixPersistWriter',
@@ -268,6 +269,7 @@ __all__ = [
     'TableExplode',
     'TableKeyBy',
     'TableMapRows',
+    'TableMapPartitions',
     'TableRead',
     'TableImport',
     'MatrixEntriesTable',

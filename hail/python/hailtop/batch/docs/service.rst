@@ -119,10 +119,10 @@ scheduled on this machine, then the cost per core hour is **$0.02774**.
 
 .. note::
 
-    The amount of CPU reserved for a job can be rounded up if the equivalent memory request
+    The amount of CPU reserved for a job can be rounded up if the equivalent memory and/or storage request
     requires a larger fraction of the worker. Currently, each 1 core requested
-    gets 3.75 GB of memory. Therefore, if a user requests 1 CPU and 7 GB of memory, the user
-    will get 2 cores for their job and will be billed for 2 cores.
+    gets 3.75 GB of memory and 21.875 GB of storage. Therefore, if a user requests 1 CPU and 7 GB of memory,
+    the user will get 2 cores for their job and will be billed for 2 cores.
 
 .. note::
 

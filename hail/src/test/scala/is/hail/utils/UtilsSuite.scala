@@ -188,4 +188,13 @@ class UtilsSuite extends HailSuite {
     test(12, 4)
     test(12, 5)
   }
+
+  @Test def testTreeAggDepth() {
+    assert(treeAggDepth(20, 20) == 1)
+    assert(treeAggDepth(20, 19) == 2)
+    assert(treeAggDepth(399, 20) == 2)
+    assert(treeAggDepth(400, 20) == 2)
+    assert(treeAggDepth(401, 20) == 3)
+    assert(treeAggDepth(0, 20) == 1)
+  }
 }

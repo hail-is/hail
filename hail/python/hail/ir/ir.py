@@ -869,8 +869,7 @@ class NDArrayConcat(IR):
             other.axis == self.axis
 
     def _compute_type(self, env, agg_env):
-        for a in self.nds.args:
-            a._compute_type(env, agg_env)
+        self.nds._compute_type(env, agg_env)
 
         self._type = self.nds.typ.element_type
 
@@ -2254,7 +2253,7 @@ class BlockMatrixMultiWrite(IR):
         self.writer = writer
 
     def copy(self, *block_matrices):
-        return BlockMatrixWrite(block_matrices, self.writer)
+        return BlockMatrixMultiWrite(block_matrices, self.writer)
 
     def head_str(self):
         return f'"{self.writer.render()}"'

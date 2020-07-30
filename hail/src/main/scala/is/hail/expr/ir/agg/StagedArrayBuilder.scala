@@ -57,7 +57,7 @@ class StagedArrayBuilder(eltType: PType, cb: EmitClassBuilder[_], region: Value[
 
   def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
     { ob: Value[OutputBuffer] =>
-      val enc = TypedCodecSpec(eltArray, codec).buildEmitEncoderF[Long](eltArray, cb)
+      val enc = TypedCodecSpec(eltArray, codec).buildTypedEmitEncoderF[Long](eltArray, cb)
 
       Code(
         ob.writeInt(size),

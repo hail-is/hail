@@ -691,15 +691,16 @@ class RVD(
     var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(serialize(itF(i, ctx, it))) }
 
     if (tree) {
-      val depth = treeAggDepth(getNumPartitions)
+      val depth = treeAggDepth(getNumPartitions, HailContext.get.branchingFactor)
       val scale = math.max(
         math.ceil(math.pow(getNumPartitions, 1.0 / depth)).toInt,
         2)
 
       var i = 0
-      while (i < depth - 1 && reduced.getNumPartitions > scale) {
+      while (reduced.getNumPartitions > scale) {
         val nParts = reduced.getNumPartitions
         val newNParts = nParts / scale
+        log.info(s"starting tree aggregate stage $i ($nParts => $newNParts partitions)")
         reduced = reduced
           .mapPartitionsWithIndex { (i, it) =>
             it.map(x => (itemPartition(i, nParts, newNParts), (i, x)))

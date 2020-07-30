@@ -1,10 +1,11 @@
-import re
 import logging
 import math
 
-from .front_end.validate import CPU_REGEX, MEMORY_REGEX
-
 log = logging.getLogger('utils')
+
+
+def round_up_division(numerator, denominator):
+    return (numerator + denominator - 1) // denominator
 
 
 def coalesce(x, default):
@@ -59,36 +60,6 @@ def cost_from_msec_mcpu(msec_mcpu):
     return (msec_mcpu * 0.001 * 0.001) * (total_cost_per_core_hour / 3600)
 
 
-def parse_cpu_in_mcpu(cpu_string):
-    match = CPU_REGEX.fullmatch(cpu_string)
-    if match:
-        number = float(match.group(1))
-        if match.group(2) == 'm':
-            number /= 1000
-        return int(number * 1000)
-    return None
-
-
-conv_factor = {
-    'K': 1000, 'Ki': 1024,
-    'M': 1000**2, 'Mi': 1024**2,
-    'G': 1000**3, 'Gi': 1024**3,
-    'T': 1000**4, 'Ti': 1024**4,
-    'P': 1000**5, 'Pi': 1024**5
-}
-
-
-def parse_memory_in_bytes(memory_string):
-    match = MEMORY_REGEX.fullmatch(memory_string)
-    if match:
-        number = float(match.group(1))
-        suffix = match.group(2)
-        if suffix:
-            return math.ceil(number * conv_factor[suffix])
-        return math.ceil(number)
-    return None
-
-
 def worker_memory_per_core_gb(worker_type):
     if worker_type == 'standard':
         m = 3.75
@@ -118,17 +89,30 @@ def adjust_cores_for_memory_request(cores_in_mcpu, memory_in_bytes, worker_type)
     return max(cores_in_mcpu, min_cores_mcpu)
 
 
+def total_worker_storage_gib():
+    # local ssd is 375Gi
+    # reserve 25Gi for images
+    return 375 - 25
+
+
+def worker_storage_per_core_bytes(worker_cores):
+    return (total_worker_storage_gib() * 1024**3) // worker_cores
+
+
+def storage_bytes_to_cores_mcpu(storage_in_bytes, worker_cores):
+    return round_up_division(storage_in_bytes * 1000, worker_storage_per_core_bytes(worker_cores))
+
+
+def cores_mcpu_to_storage_bytes(cores_in_mcpu, worker_cores):
+    return (cores_in_mcpu * worker_storage_per_core_bytes(worker_cores)) // 1000
+
+
+def adjust_cores_for_storage_request(cores_in_mcpu, storage_in_bytes, worker_cores):
+    min_cores_mcpu = storage_bytes_to_cores_mcpu(storage_in_bytes, worker_cores)
+    return max(cores_in_mcpu, min_cores_mcpu)
+
+
 def adjust_cores_for_packability(cores_in_mcpu):
     cores_in_mcpu = max(1, cores_in_mcpu)
     power = max(-2, math.ceil(math.log2(cores_in_mcpu / 1000)))
     return int(2**power * 1000)
-
-
-image_regex = re.compile(r"(?:.+/)?([^:]+)(:(.+))?")
-
-
-def parse_image_tag(image_string):
-    match = image_regex.fullmatch(image_string)
-    if match:
-        return match.group(3)
-    return None

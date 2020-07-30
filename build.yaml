@@ -130,15 +130,19 @@ steps:
      valueFrom: create_certs_image.image
    script: |
      openssl req -new -x509 -subj /CN=hail-root -nodes -newkey rsa:4096 -keyout hail-root-key.pem -out hail-root-cert.pem
-     kubectl create secret generic -n {{ default_ns.name }} ssl-config-hail-root \
-             --from-file=hail-root-key.pem \
-             --from-file=hail-root-cert.pem
+     until kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root
+     do
+         kubectl create secret generic -n {{ default_ns.name }} ssl-config-hail-root \
+                 --from-file=hail-root-key.pem \
+                 --from-file=hail-root-cert.pem
+     done
    serviceAccount:
      name: admin
      namespace:
        valueFrom: default_ns.name
    scopes:
     - test
+    - dev
    dependsOn:
     - default_ns
     - create_certs_image
@@ -444,6 +448,8 @@ steps:
    dockerFile: benchmark-service/Dockerfile
    contextPath: .
    publishAs: benchmark
+   dependsOn:
+     - service_base_image
  - kind: buildImage
    name: auth_image
    dockerFile: auth/Dockerfile
@@ -530,6 +536,16 @@ steps:
    dependsOn:
      - service_base_image
  - kind: runImage
+   name: check_benchmark
+   image:
+     valueFrom: benchmark_image.image
+   script: |
+     set -ex
+     python3 -m flake8 benchmark
+     python3 -m pylint --rcfile pylintrc benchmark
+   dependsOn:
+     - benchmark_image
+ - kind: runImage
    name: build_hail
    image:
      valueFrom: hail_build_image.image
@@ -553,6 +569,8 @@ steps:
      (cd ../site && time tar czf ../hail/www-src.tar.gz www)
      time tar czf cluster-tests.tar.gz python/cluster-tests
      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
+     time TESTNG_SPLITS=5 python3 generate_splits.py
+     time tar czf splits.tar.gz testng-splits-*.xml
    outputs:
      - from: /io/repo/hail/build/libs/hail-all-spark.jar
        to: /hail.jar
@@ -570,6 +588,8 @@ steps:
        to: /test.tar.gz
      - from: /io/repo/hail/resources.tar.gz
        to: /resources.tar.gz
+     - from: /io/repo/hail/splits.tar.gz
+       to: /splits.tar.gz
      - from: /io/repo/hail/data.tar.gz
        to: /data.tar.gz
      - from: /io/repo/hail/www-src.tar.gz
@@ -638,7 +658,7 @@ steps:
     - default_ns
     - hail_repl_image
  - kind: runImage
-   name: test_hail_java
+   name: test_hail_java_0
    image:
      valueFrom: hail_run_image.image
    resources:
@@ -649,16 +669,167 @@ steps:
      cd /io
      mkdir -p src/test
      tar xzf resources.tar.gz -C src/test
+     tar xzf splits.tar.gz
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
      gsutil -m cp -r src/test/resources/fs gs://hail-test-dmk9z/{{ token }}/test/resources/
-     HAIL_TEST_SKIP_R=1 HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-build.xml
+     export HAIL_TEST_SKIP_R=1
+     export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs
+     java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-0.xml
    inputs:
     - from: /resources.tar.gz
       to: /io/resources.tar.gz
     - from: /hail-test.jar
       to: /io/hail-test.jar
-    - from: /testng-build.xml
-      to: /io/testng-build.xml
+    - from: /splits.tar.gz
+      to: /io/splits.tar.gz
+   outputs:
+    - from: /io/test-output
+      to: /test-output
+   secrets:
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
+   dependsOn:
+    - batch_pods_ns
+    - hail_run_image
+    - build_hail
+ - kind: runImage
+   name: test_hail_java_1
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "2"
+   script: |
+     set -ex
+     cd /io
+     mkdir -p src/test
+     tar xzf resources.tar.gz -C src/test
+     tar xzf splits.tar.gz
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
+     gsutil -m cp -r src/test/resources/fs gs://hail-test-dmk9z/{{ token }}/test/resources/
+     export HAIL_TEST_SKIP_R=1
+     export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs
+     java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-1.xml
+   inputs:
+    - from: /resources.tar.gz
+      to: /io/resources.tar.gz
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
+    - from: /splits.tar.gz
+      to: /io/splits.tar.gz
+   outputs:
+    - from: /io/test-output
+      to: /test-output
+   secrets:
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
+   dependsOn:
+    - batch_pods_ns
+    - hail_run_image
+    - build_hail
+ - kind: runImage
+   name: test_hail_java_2
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "2"
+   script: |
+     set -ex
+     cd /io
+     mkdir -p src/test
+     tar xzf resources.tar.gz -C src/test
+     tar xzf splits.tar.gz
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
+     gsutil -m cp -r src/test/resources/fs gs://hail-test-dmk9z/{{ token }}/test/resources/
+     export HAIL_TEST_SKIP_R=1
+     export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs
+     java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-2.xml
+   inputs:
+    - from: /resources.tar.gz
+      to: /io/resources.tar.gz
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
+    - from: /splits.tar.gz
+      to: /io/splits.tar.gz
+   outputs:
+    - from: /io/test-output
+      to: /test-output
+   secrets:
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
+   dependsOn:
+    - batch_pods_ns
+    - hail_run_image
+    - build_hail
+ - kind: runImage
+   name: test_hail_java_3
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "2"
+   script: |
+     set -ex
+     cd /io
+     mkdir -p src/test
+     tar xzf resources.tar.gz -C src/test
+     tar xzf splits.tar.gz
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
+     gsutil -m cp -r src/test/resources/fs gs://hail-test-dmk9z/{{ token }}/test/resources/
+     export HAIL_TEST_SKIP_R=1
+     export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs
+     java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-3.xml
+   inputs:
+    - from: /resources.tar.gz
+      to: /io/resources.tar.gz
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
+    - from: /splits.tar.gz
+      to: /io/splits.tar.gz
+   outputs:
+    - from: /io/test-output
+      to: /test-output
+   secrets:
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
+   dependsOn:
+    - batch_pods_ns
+    - hail_run_image
+    - build_hail
+ - kind: runImage
+   name: test_hail_java_4
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "2"
+   script: |
+     set -ex
+     cd /io
+     mkdir -p src/test
+     tar xzf resources.tar.gz -C src/test
+     tar xzf splits.tar.gz
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
+     gsutil -m cp -r src/test/resources/fs gs://hail-test-dmk9z/{{ token }}/test/resources/
+     export HAIL_TEST_SKIP_R=1
+     export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs
+     java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-4.xml
+   inputs:
+    - from: /resources.tar.gz
+      to: /io/resources.tar.gz
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
+    - from: /splits.tar.gz
+      to: /io/splits.tar.gz
    outputs:
     - from: /io/test-output
       to: /test-output
@@ -693,6 +864,7 @@ steps:
      (cd hail/python && python3 -m flake8 --config ../../setup.cfg hail)
      python3 -m flake8 --config setup.cfg hailtop
      python3 -m pylint --rcfile pylintrc hailtop
+     (cd hailtop && mypy batch google_storage.py)
    dependsOn:
      - hail_base_image
  - kind: buildImage
@@ -1079,6 +1251,18 @@ steps:
     - auth_image
     - create_dummy_oauth2_client_secret
     - create_certs
+ - kind: deploy
+   name: deploy_benchmark
+   namespace:
+     valueFrom: default_ns.name
+   config: benchmark-service/deployment.yaml
+   dependsOn:
+    - default_ns
+    - benchmark_image
+    - deploy_router
+    - create_certs
+    - deploy_auth
+    - create_accounts
  - kind: runImage
    name: test_auth_copy_paste_login
    image:
@@ -1447,6 +1631,7 @@ steps:
    image:
      valueFrom: batch_image.image
    script: |
+     export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
@@ -1470,6 +1655,10 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /ssl-config
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
    dependsOn:
     - create_deploy_config
     - create_accounts
@@ -1602,6 +1791,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
+     export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/test/hailtop/batch/
@@ -1640,6 +1830,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
+     export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      cd /io/hailtop/hailtop/batch
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
@@ -1657,6 +1848,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
    dependsOn:
     - create_deploy_config
     - create_accounts

@@ -665,7 +665,7 @@ object ReferenceGenome {
     }
   }
 
-  private def writeReference(fs: is.hail.io.fs.FS, path: String, rg: ReferenceGenome) {
+  def writeReference(fs: is.hail.io.fs.FS, path: String, rg: ReferenceGenome) {
     val rgPath = path + "/" + rg.name + ".json.gz"
     if (!hailReferences.contains(rg.name) && !fs.exists(rgPath))
       rg.asInstanceOf[ReferenceGenome].write(fs, rgPath)

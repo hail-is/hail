@@ -437,7 +437,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends Partition
     def emitIR(ir: IR, env: Emit.E = env, region: Value[Region] = region, container: Option[AggContainer] = container): EmitCode =
       emitter.emitWithRegion(ir, mb, region, env, container)
 
-    val (eltType, dec) = spec.buildEmitDecoderF[Long](requestedType, mb.ecb)
+    val (eltType, dec) = spec.buildTypedEmitDecoderF[Long](requestedType, mb.ecb)
 
     COption.fromEmitCode(emitIR(context)).map { path =>
       val pathString = path.asString.loadString()
@@ -518,6 +518,8 @@ class TableNativeReader(
     case that: TableNativeReader => params == that.params
     case _ => false
   }
+
+  override def toString(): String = s"TableNativeReader(${params})"
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
     val globalsSpec = spec.globalsSpec
@@ -1398,6 +1400,59 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
       typ = typ,
       rvd = leftValue.rvd
         .orderedLeftJoinDistinctAndInsert(rightValue.rvd.truncateKey(joinKey), root))
+  }
+}
+
+case class TableMapPartitions(child: TableIR,
+  globalName: String,
+  partitionStreamName: String,
+  body: IR
+) extends TableIR {
+  assert(body.typ.isInstanceOf[TStream], s"${ body.typ }")
+  lazy val typ = child.typ.copy(
+    rowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct])
+
+  lazy val children: IndexedSeq[BaseIR] = Array(child, body)
+
+  val rowCountUpperBound: Option[Long] = None
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): TableMapPartitions = {
+    assert(newChildren.length == 2)
+    TableMapPartitions(newChildren(0).asInstanceOf[TableIR],
+      globalName, partitionStreamName, newChildren(1).asInstanceOf[IR])
+  }
+
+  protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
+    val tv = child.execute(ctx)
+    val rowPType = tv.rvd.rowPType
+    val globalPType = tv.globals.t
+
+    val partitionPType = PCanonicalStream(rowPType, true)
+    val (newRowPType: PStruct, makeIterator) = CompileIterator.forTableMapPartitions(
+      ctx,
+      globalPType, partitionPType,
+      Subst(body, BindingEnv(Env(
+        globalName -> In(0, globalPType),
+        partitionStreamName -> In(1, partitionPType)))))
+
+    val globalsOff = tv.globals.value.offset
+
+    val itF = { (idx: Int, consumerCtx: RVDContext, partition: (RVDContext) => Iterator[Long]) =>
+      val consumerRegion = consumerCtx.region
+      val producerRegion = consumerCtx.freshRegion()
+      val rvb = new RegionValueBuilder()
+      val newRegionValue = RegionValue()
+      val it = partition(consumerCtx)
+      makeIterator(idx, producerRegion,
+        globalsOff,
+        it.map(box)
+      ).map(l => l.longValue())
+    }
+
+    tv.copy(
+      typ = typ,
+      rvd = tv.rvd
+        .mapPartitionsWithContextAndIndex(RVDType(newRowPType, typ.key))(itF))
   }
 }
 

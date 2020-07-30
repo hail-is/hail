@@ -40,7 +40,7 @@ class PagedEntryIterator:
 
 class LoggingClient(BaseClient):
     def __init__(self, **kwargs):
-        super().__init__(f'https://logging.googleapis.com/v2', **kwargs)
+        super().__init__('https://logging.googleapis.com/v2', **kwargs)
 
     # docs:
     # https://cloud.google.com/logging/docs/reference/v2/rest

@@ -20,7 +20,7 @@ log = logging.getLogger('hailtop.utils')
 RETRY_FUNCTION_SCRIPT = """function retry() {
     "$@" ||
         (sleep 2 && "$@") ||
-        (sleep 5 && "$@")
+        (sleep 5 && "$@");
 }"""
 
 
@@ -58,6 +58,26 @@ def grouped(n, ls):
         group = ls[:n]
         ls = ls[n:]
         yield group
+
+
+def partition(k, ls):
+    if k == 0:
+        assert not ls
+        return []
+
+    assert ls
+    assert k > 0
+    n = len(ls)
+    parts = [(n - i + k - 1) // k for i in range(k)]
+    assert sum(parts) == n
+    assert max(parts) - min(parts) <= 1
+
+    def generator():
+        start = 0
+        for part in parts:
+            yield ls[start:start + part]
+            start += part
+    return generator()
 
 
 def unzip(lst):
@@ -156,7 +176,7 @@ class AsyncWorkerPool:
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
-                log.exception(f'worker pool caught exception')
+                log.exception('worker pool caught exception')
 
     async def call(self, f, *args, **kwargs):
         await self._queue.put((f, args, kwargs))

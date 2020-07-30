@@ -198,10 +198,6 @@ class LocalBackend(Py4JBackend):
         return self._jbackend.parse_table_ir(code, ref_map, ir_map)
 
     def _parse_matrix_ir(self, code, ref_map={}, ir_map={}):
-        print(type(code))
-        print(code)
-        print(ref_map)
-        print(ir_map)
         return self._jbackend.parse_matrix_ir(code, ref_map, ir_map)
 
     def _parse_blockmatrix_ir(self, code, ref_map={}, ir_map={}):

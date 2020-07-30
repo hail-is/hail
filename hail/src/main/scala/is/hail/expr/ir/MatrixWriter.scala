@@ -16,7 +16,7 @@ import is.hail.io.plink.ExportPlink
 import is.hail.io.vcf.ExportVCF
 import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.{EBaseStruct, EType}
-import is.hail.types.physical.{PArray, PBaseStructCode, PCanonicalString, PCanonicalStruct, PCode, PIndexableCode, PIndexableValue, PInt64, PStream, PString, PStruct, PType}
+import is.hail.types.physical.{PArray, PBaseStructCode, PCanonicalString, PCanonicalStruct, PCode, PIndexableCode, PIndexableValue, PInt64, PStream, PString, PStruct, PType, PValue}
 import is.hail.types.{MatrixType, RTable, TableType}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
@@ -174,8 +174,8 @@ case class SplitPartitionNativeWriter(
     mb: EmitMethodBuilder[_],
     region: Value[Region],
     stream: SizedStream): EmitCode = {
-    val enc1: (Value[Region], Value[Long], Value[OutputBuffer]) => Code[Unit] = spec1.buildEmitEncoderF(eltType, mb.ecb, typeInfo[Long])
-    val enc2: (Value[Region], Value[Long], Value[OutputBuffer]) => Code[Unit] = spec2.buildEmitEncoderF(eltType, mb.ecb, typeInfo[Long])
+    val enc1 = spec1.buildEmitEncoder(eltType, mb.ecb)
+    val enc2 = spec2.buildEmitEncoder(eltType, mb.ecb)
     val keyType = ifIndexed { index.get._2 }
     val iAnnotationType = +PCanonicalStruct("entries_offset" -> +PInt64())
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb, annotationType = iAnnotationType) }
@@ -212,9 +212,9 @@ case class SplitPartitionNativeWriter(
             })
           }
           cb += ob1.writeByte(1.asInstanceOf[Byte])
-          cb += enc1(region, coerce[Long](row.value), ob1)
+          cb += enc1(region, row, ob1)
           cb += ob2.writeByte(1.asInstanceOf[Byte])
-          cb += enc2(region, coerce[Long](row.value), ob2)
+          cb += enc2(region, row, ob2)
           cb.assign(n, n + 1L)
         }
       }

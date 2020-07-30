@@ -159,3 +159,27 @@ class BlockMatrixPersistWriter(BlockMatrixWriter):
         return isinstance(other, BlockMatrixPersistWriter) and \
             self.id == other.id and \
             self.storage_level == other.storage_level
+
+
+class BlockMatrixNativeMultiWriter(BlockMatrixMultiWriter):
+    @typecheck_method(prefix=str, overwrite=bool, force_row_major=bool, stage_locally=bool)
+    def __init__(self, prefix, overwrite, force_row_major, stage_locally):
+        self.prefix = prefix
+        self.overwrite = overwrite
+        self.force_row_major = force_row_major
+        self.stage_locally = stage_locally
+
+    def render(self):
+        writer = {'name': 'BlockMatrixNativeMultiWriter',
+                  'prefix': self.prefix,
+                  'overwrite': self.overwrite,
+                  'forceRowMajor': self.force_row_major,
+                  'stageLocally': self.stage_locally}
+        return escape_str(json.dumps(writer))
+
+    def __eq__(self, other):
+        return isinstance(other, BlockMatrixNativeMultiWriter) and \
+            self.prefix == other.prefix and \
+            self.overwrite == other.overwrite and \
+            self.force_row_major == other.force_row_major and \
+            self.stage_locally == other.stage_locally

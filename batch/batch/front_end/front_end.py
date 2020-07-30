@@ -14,27 +14,30 @@ from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 import google.oauth2.service_account
 import google.api_core.exceptions
-from hailtop.utils import time_msecs, time_msecs_str, humanize_timedelta_msecs, \
-    request_retry_transient_errors, run_if_changed, retry_long_running, \
-    LoggingTimer
+from hailtop.utils import (time_msecs, time_msecs_str, humanize_timedelta_msecs,
+                           request_retry_transient_errors, run_if_changed,
+                           retry_long_running, LoggingTimer)
+from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes,
+                                        parse_storage_in_bytes)
 from hailtop.config import get_deploy_config
-from hailtop.tls import get_server_ssl_context, ssl_client_session
-from gear import Database, setup_aiohttp_session, \
-    rest_authenticated_users_only, web_authenticated_users_only, \
-    web_authenticated_developers_only, check_csrf_token, transaction, \
-    AccessLogger
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
-    set_message
+from hailtop.tls import get_in_cluster_server_ssl_context, in_cluster_ssl_client_session
+from hailtop.hail_logging import AccessLogger
+from gear import (Database, setup_aiohttp_session,
+                  rest_authenticated_users_only, web_authenticated_users_only,
+                  web_authenticated_developers_only, check_csrf_token, transaction)
+from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
+                        render_template, set_message)
 
 # import uvloop
 
-from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_memory_request, \
-    worker_memory_per_core_gb, cost_from_msec_mcpu, adjust_cores_for_packability, coalesce
+from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_gb,
+                     cost_from_msec_mcpu, adjust_cores_for_packability, coalesce,
+                     adjust_cores_for_storage_request, total_worker_storage_gib)
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME, DEFAULT_NAMESPACE, \
-    WORKER_LOGS_BUCKET_NAME
+from ..batch_configuration import (BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME,
+                                   DEFAULT_NAMESPACE, WORKER_LOGS_BUCKET_NAME)
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
@@ -73,7 +76,8 @@ routes = web.RouteTableDef()
 deploy_config = get_deploy_config()
 
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
-BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75G')
+BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75Gi')
+BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '10Gi')
 
 
 @routes.get('/healthcheck')
@@ -589,9 +593,17 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     resources['cpu'] = BATCH_JOB_DEFAULT_CPU
                 if 'memory' not in resources:
                     resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
+                if 'storage' not in resources:
+                    # FIXME: pvc_size is deprecated
+                    pvc_size = spec.get('pvc_size')
+                    if pvc_size:
+                        resources['storage'] = pvc_size
+                    else:
+                        resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
 
                 req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
                 req_memory_bytes = parse_memory_in_bytes(resources['memory'])
+                req_storage_bytes = parse_storage_in_bytes(resources['storage'])
 
                 if req_cores_mcpu == 0:
                     raise web.HTTPBadRequest(
@@ -599,14 +611,16 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         f'cpu cannot be 0')
 
                 cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
+                cores_mcpu = adjust_cores_for_storage_request(cores_mcpu, req_storage_bytes, worker_cores)
                 cores_mcpu = adjust_cores_for_packability(cores_mcpu)
 
                 if cores_mcpu > worker_cores * 1000:
                     total_memory_available = worker_memory_per_core_gb(worker_type) * worker_cores
+                    total_storage_available = total_worker_storage_gib()
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
-                        f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} '
-                        f'maximum: cpu={worker_cores}, memory={total_memory_available}G')
+                        f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} storage={resources["storage"]}'
+                        f'maximum: cpu={worker_cores}, memory={total_memory_available}G, storage={total_storage_available}G')
 
                 secrets = spec.get('secrets')
                 if not secrets:
@@ -928,7 +942,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
         raise
 
-    async with ssl_client_session(
+    async with in_cluster_ssl_client_session(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
         await request_retry_transient_errors(
             session, 'PATCH',
@@ -1169,9 +1183,9 @@ async def _query_billing(request):
         return await parse_error(f"Invalid value for end '{end_query}'; must be in the format of MM/DD/YYYY.")
 
     if start > end:
-        return await parse_error(f'Invalid search; start must be earlier than end.')
+        return await parse_error('Invalid search; start must be earlier than end.')
 
-    sql = f'''
+    sql = '''
 SELECT
   billing_project,
   `user`,
@@ -1288,12 +1302,12 @@ WHERE billing_projects.name = %s;
             (billing_project, user, billing_project))
         if not row:
             set_message(session, f'No such billing project {billing_project}.', 'error')
-            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
         assert row['billing_project'] == billing_project
 
         if row['user'] is None:
             set_message(session, f'User {user} is not member of billing project {billing_project}.', 'info')
-            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
         await tx.just_execute(
             '''
@@ -1303,7 +1317,7 @@ WHERE billing_project = %s AND user = %s;
             (billing_project, user))
     await delete()  # pylint: disable=no-value-for-parameter
     set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+    return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
 @routes.post('/billing_projects/{billing_project}/users/add')
@@ -1332,11 +1346,11 @@ WHERE billing_projects.name = %s;
             (billing_project, user, billing_project))
         if row is None:
             set_message(session, f'No such billing project {billing_project}.', 'error')
-            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
         if row['user'] is not None:
             set_message(session, f'User {user} is already member of billing project {billing_project}.', 'info')
-            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
         await tx.execute_insertone(
             '''
@@ -1346,7 +1360,7 @@ VALUES (%s, %s);
             (billing_project, user))
     await insert()  # pylint: disable=no-value-for-parameter
     set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+    return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
 @routes.post('/billing_projects/create')
@@ -1371,7 +1385,7 @@ FOR UPDATE;
             (billing_project))
         if row is not None:
             set_message(session, f'Billing project {billing_project} already exists.', 'error')
-            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
         await tx.execute_insertone(
             '''
@@ -1381,23 +1395,23 @@ VALUES (%s);
             (billing_project,))
     await insert()  # pylint: disable=no-value-for-parameter
     set_message(session, f'Added billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+    return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
 @routes.get('')
 @routes.get('/')
 @web_authenticated_users_only()
-async def index(request, userdata):
+async def index(request, userdata):  # pylint: disable=unused-argument
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 
 
 async def cancel_batch_loop_body(app):
-    async with ssl_client_session(
+    async with in_cluster_ssl_client_session(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
         await request_retry_transient_errors(
             session, 'POST',
-            deploy_config.url('batch-driver', f'/api/v1alpha/batches/cancel'),
+            deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
             headers=app['driver_headers'])
 
     should_wait = True
@@ -1405,11 +1419,11 @@ async def cancel_batch_loop_body(app):
 
 
 async def delete_batch_loop_body(app):
-    async with ssl_client_session(
+    async with in_cluster_ssl_client_session(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
         await request_retry_transient_errors(
             session, 'POST',
-            deploy_config.url('batch-driver', f'/api/v1alpha/batches/delete'),
+            deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
             headers=app['driver_headers'])
 
     should_wait = True
@@ -1485,4 +1499,4 @@ def run():
                 host='0.0.0.0',
                 port=5000,
                 access_log_class=AccessLogger,
-                ssl_context=get_server_ssl_context())
+                ssl_context=get_in_cluster_server_ssl_context())

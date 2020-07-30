@@ -1,5 +1,8 @@
 import re
 
+from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
+                                        CPU_REGEX, CPU_REGEXPAT)
+
 # rough schema (without requiredness, value validation):
 # jobs_schema = [{
 #   'always_run': bool,
@@ -18,9 +21,11 @@ import re
 #   'parent_ids': [int],
 #   'port': int,
 #   'pvc_size': str,
+#   'requester_pays_project': str,
 #   'resoures': {
 #     'memory': str,
-#     'cpu': str
+#     'cpu': str,
+#     'storage': str
 #   },
 #   'secrets': [{
 #     'namespace': str,
@@ -35,14 +40,14 @@ import re
 # }]
 
 JOB_KEYS = {
-    'always_run', 'attributes', 'command', 'env', 'gcsfuse', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'resources', 'secrets', 'service_account', 'timeout'
+    'always_run', 'attributes', 'command', 'env', 'gcsfuse', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'requester_pays_project', 'resources', 'secrets', 'service_account', 'timeout'
 }
 
 ENV_VAR_KEYS = {'name', 'value'}
 
 SECRET_KEYS = {'namespace', 'name', 'mount_path'}
 
-RESOURCES_KEYS = {'memory', 'cpu'}
+RESOURCES_KEYS = {'memory', 'cpu', 'storage'}
 
 FILE_KEYS = {'from', 'to'}
 
@@ -50,12 +55,6 @@ GCSFUSE_KEYS = {'bucket', 'mount_path', 'read_only'}
 
 K8S_NAME_REGEXPAT = r'[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*'
 K8S_NAME_REGEX = re.compile(K8S_NAME_REGEXPAT)
-
-MEMORY_REGEXPAT = r'[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?'
-MEMORY_REGEX = re.compile(MEMORY_REGEXPAT)
-
-CPU_REGEXPAT = r'[+]?((?:[0-9]*[.])?[0-9]+)([m])?'
-CPU_REGEX = re.compile(CPU_REGEXPAT)
 
 
 class ValidationError(Exception):
@@ -238,12 +237,18 @@ def validate_job(i, job):
         if not isinstance(port, int):
             raise ValidationError(f'jobs[{i}].port not int')
 
+    # pvc_size is deprecated in favor of resources[storage]
     if 'pvc_size' in job:
         pvc_size = job['pvc_size']
         if not isinstance(pvc_size, str):
             raise ValidationError(f'jobs[{i}].pvc_size not str')
         if not MEMORY_REGEX.fullmatch(pvc_size):
             raise ValidationError(f'jobs[{i}].pvc_size must match regex: {MEMORY_REGEXPAT}')
+
+    if 'requester_pays_project' in job:
+        requester_pays_project = job['requester_pays_project']
+        if not isinstance(requester_pays_project, str):
+            raise ValidationError(f'jobs[{i}].requester_pays_project not str')
 
     if 'resources' in job:
         resources = job['resources']
@@ -266,6 +271,13 @@ def validate_job(i, job):
                 raise ValidationError(f'jobs[{i}].resources.cpu is not str')
             if not CPU_REGEX.fullmatch(cpu):
                 raise ValidationError(f'jobs[{i}].resources.cpu must match regex: {CPU_REGEXPAT}')
+
+        if 'storage' in resources:
+            storage = resources['storage']
+            if not isinstance(storage, str):
+                raise ValidationError(f'jobs[{i}].resources.storage is not str')
+            if not MEMORY_REGEX.fullmatch(storage):
+                raise ValidationError(f'jobs[{i}].resources.storage must match regex: {MEMORY_REGEXPAT}')
 
     if 'secrets' in job:
         secrets = job['secrets']
@@ -352,7 +364,7 @@ BATCH_KEYS = {
 
 def validate_batch(batch):
     if not isinstance(batch, dict):
-        raise ValidationError(f'batch not dict')
+        raise ValidationError('batch not dict')
 
     for k in batch:
         if k not in BATCH_KEYS:
@@ -361,12 +373,12 @@ def validate_batch(batch):
     attributes = batch.get('attributes')
     if attributes is not None:
         if not isinstance(attributes, dict):
-            raise ValidationError(f'batch.attributes is not dict')
+            raise ValidationError('batch.attributes is not dict')
         for k, v in attributes.items():
             if not isinstance(k, str):
-                raise ValidationError(f'batch.attributes has non-str key')
+                raise ValidationError('batch.attributes has non-str key')
             if not isinstance(v, str):
-                raise ValidationError(f'batch.attributes has non-str value')
+                raise ValidationError('batch.attributes has non-str value')
 
     if 'billing_project' not in batch:
         raise ValidationError('no required key billing_project in batch')
@@ -377,7 +389,7 @@ def validate_batch(batch):
     callback = batch.get('callback')
     if callback is not None:
         if not isinstance(callback, str):
-            raise ValidationError(f'batch.callback not str')
+            raise ValidationError('batch.callback not str')
 
     if 'n_jobs' not in batch:
         raise ValidationError('no required key n_jobs in batch')

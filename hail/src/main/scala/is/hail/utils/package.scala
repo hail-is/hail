@@ -128,8 +128,15 @@ package object utils extends Logging
 
   def triangle(n: Int): Int = (n * (n + 1)) / 2
 
-  def treeAggDepth(nPartitions: Int): Int =
-    (math.log(nPartitions) / math.log(HailContext.get.branchingFactor) + 0.5).toInt.max(1)
+  def treeAggDepth(nPartitions: Int, branchingFactor: Int): Int = {
+    require(nPartitions >= 0)
+    require(branchingFactor > 0)
+
+    if (nPartitions == 0)
+      return 1
+
+    math.ceil(math.log(nPartitions) / math.log(branchingFactor)).toInt
+  }
 
   def simpleAssert(p: Boolean) {
     if (!p) throw new AssertionError
@@ -553,10 +560,10 @@ package object utils extends Logging
       1 + digitsNeeded(i / 10)
   }
 
-  def partFile(d: Int, i: Int): String = {
+  def partFile(numDigits: Int, i: Int): String = {
     val is = i.toString
-    assert(is.length <= d)
-    "part-" + StringUtils.leftPad(is, d, "0")
+    assert(is.length <= numDigits)
+    "part-" + StringUtils.leftPad(is, numDigits, "0")
   }
 
   def partSuffix(ctx: TaskContext): String = {

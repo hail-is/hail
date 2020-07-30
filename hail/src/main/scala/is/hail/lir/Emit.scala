@@ -23,9 +23,10 @@ object Emit {
 
       val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
       cn.accept(cw)
-      cw.toByteArray
+      val b = cw.toByteArray
       //       This next line should always be commented out!
-      //      CheckClassAdapter.verify(new ClassReader(bytes), false, new PrintWriter(sw1))
+//      CheckClassAdapter.verify(new ClassReader(b), false, new PrintWriter(System.err))
+      b
     } catch {
       case e: Exception =>
         val trace = new TraceClassVisitor(new PrintWriter(System.err))
