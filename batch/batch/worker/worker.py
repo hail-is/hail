@@ -664,7 +664,7 @@ class Job:
         if 'storage' in job_spec['resources']:
             self.storage_in_bytes = cores_mcpu_to_storage_bytes(self.cpu_in_mcpu, CORES)
         else:
-            self.storage_in_bytes = '350Gi'
+            self.storage_in_bytes = parse_memory_in_bytes('350Gi')
 
         self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes)
 
