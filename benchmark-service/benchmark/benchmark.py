@@ -9,6 +9,7 @@ from hailtop.hail_logging import AccessLogger, configure_logging
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes
 import json
 import re
+from google.cloud import storage
 
 configure_logging()
 router = web.RouteTableDef()
@@ -17,11 +18,18 @@ deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
 
-file_path = '/0.2.45-ac6815ee857c-master.json'
-with open(file_path) as f:
-    pre_data = json.load(f)
+storage_client = storage.Client()
+bucket = storage_client.get_bucket('hail-benchmarks')
+blob = bucket.blob('0.2.20-3b2b439cabf9.json')
 
-x = re.findall('.*/+(.*)-(.*)-(.*)?\.json', file_path)
+blob_str = blob.download_as_string(client=None)
+pre_data = json.loads(blob_str)
+
+# file_path = '/0.2.45-ac6815ee857c-master.json'
+# with open(file_path) as f:
+#     pre_data = json.load(f)
+
+x = re.findall('.*/+(.*)-(.*)-(.*)?\.json', blob_str)  #was file_path
 sha = x[0][1]
 
 data = list()
