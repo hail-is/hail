@@ -170,7 +170,7 @@ case class SplitPartitionNativeWriter(
     context: EmitCode,
     eltType: PStruct,
     mb: EmitMethodBuilder[_],
-    region: Value[Region],
+    region: StagedRegion,
     stream: SizedStream): EmitCode = {
     val enc1 = spec1.buildEmitEncoder(eltType, mb.ecb)
     val enc2 = spec2.buildEmitEncoder(eltType, mb.ecb)
@@ -187,6 +187,7 @@ case class SplitPartitionNativeWriter(
       val os2 = mb.newLocal[ByteTrackingOutputStream]("write_os2")
       val ob2 = mb.newLocal[OutputBuffer]("write_ob2")
       val n = mb.newLocal[Long]("partition_count")
+      val eltRegion = region.createChildRegion(mb)
 
       def writeFile(codeRow: EmitCode): Code[Unit] = {
         val rowType = coerce[PStruct](codeRow.pt)
@@ -194,8 +195,8 @@ case class SplitPartitionNativeWriter(
           val pc = codeRow.toI(cb).handle(cb, cb._fatal("row can't be missing"))
           val row = pc.memoize(cb, "row")
           if (hasIndex) {
-            val keyRVB = new StagedRegionValueBuilder(mb, keyType, region)
-            val aRVB = new StagedRegionValueBuilder(mb, iAnnotationType, region)
+            val keyRVB = new StagedRegionValueBuilder(mb, keyType, eltRegion.code)
+            val aRVB = new StagedRegionValueBuilder(mb, iAnnotationType, eltRegion.code)
             indexWriter.add(cb, {
               cb += keyRVB.start()
               keyType.fields.foreach { f =>
@@ -210,9 +211,10 @@ case class SplitPartitionNativeWriter(
             })
           }
           cb += ob1.writeByte(1.asInstanceOf[Byte])
-          cb += enc1(region, row, ob1)
+          cb += enc1(eltRegion.code, row, ob1)
           cb += ob2.writeByte(1.asInstanceOf[Byte])
-          cb += enc2(region, row, ob2)
+          cb += enc2(eltRegion.code, row, ob2)
+          cb += eltRegion.clear()
           cb.assign(n, n + 1L)
         }
       }
@@ -232,10 +234,12 @@ case class SplitPartitionNativeWriter(
         cb.assign(ob1, spec1.buildCodeOutputBuffer(Code.checkcast[OutputStream](os1)))
         cb.assign(ob2, spec2.buildCodeOutputBuffer(Code.checkcast[OutputStream](os2)))
         cb.assign(n, 0L)
-        cb += stream.getStream(StagedRegion(region, allowSubregions = false)).forEach(mb, writeFile)
+        cb += eltRegion.allocateRegion(Region.REGULAR)
+        cb += stream.getStream(eltRegion).forEach(mb, writeFile)
+        cb += eltRegion.free()
         cb += ob1.writeByte(0.asInstanceOf[Byte])
         cb += ob2.writeByte(0.asInstanceOf[Byte])
-        cb.assign(result, pResultType.allocate(region))
+        cb.assign(result, pResultType.allocate(region.code))
         if (hasIndex)
           indexWriter.close(cb)
         cb += ob1.flush()

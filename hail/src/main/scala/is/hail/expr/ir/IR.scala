@@ -665,7 +665,7 @@ abstract class PartitionWriter {
     context: EmitCode,
     eltType: PStruct,
     mb: EmitMethodBuilder[_],
-    region: Value[Region],
+    region: StagedRegion,
     stream: SizedStream): EmitCode
 
   def ctxType: Type
