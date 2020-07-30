@@ -213,7 +213,7 @@ def main(args, pass_through_args):
     conf.extend_flag('image-version', IMAGE_VERSION)
 
     if not pkg_resources.resource_exists('hailtop.hailctl', "deploy.yaml"):
-        raise RuntimeError(f"package has no 'deploy.yaml' file")
+        raise RuntimeError("package has no 'deploy.yaml' file")
     deploy_metadata = yaml.safe_load(
         pkg_resources.resource_stream('hailtop.hailctl', "deploy.yaml"))['dataproc']
 
