@@ -2255,6 +2255,7 @@ steps:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
    dependsOn:
+    - create_accounts
     - batch_pods_ns
     - create_deploy_config
     - copy_files
