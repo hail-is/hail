@@ -194,8 +194,8 @@ case class SplitPartitionNativeWriter(
           val pc = codeRow.toI(cb).handle(cb, cb._fatal("row can't be missing"))
           val row = pc.memoize(cb, "row")
           if (hasIndex) {
-            val keyRVB = new StagedRegionValueBuilder(mb, keyType)
-            val aRVB = new StagedRegionValueBuilder(mb, iAnnotationType)
+            val keyRVB = new StagedRegionValueBuilder(mb, keyType, region)
+            val aRVB = new StagedRegionValueBuilder(mb, iAnnotationType, region)
             indexWriter.add(cb, {
               cb += keyRVB.start()
               keyType.fields.foreach { f =>

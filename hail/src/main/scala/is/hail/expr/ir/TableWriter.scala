@@ -171,7 +171,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
             { pc =>
               val row = pc.memoize(cb, "row")
               if (hasIndex) {
-                val keyRVB = new StagedRegionValueBuilder(mb, keyType)
+                val keyRVB = new StagedRegionValueBuilder(mb, keyType, region)
                 indexWriter.add(cb, {
                   cb += keyRVB.start()
                   keyType.fields.foreach { f =>
