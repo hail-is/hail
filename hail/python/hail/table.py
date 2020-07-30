@@ -2896,7 +2896,7 @@ class Table(ExprContainer):
         >>> dense_mt = coord_ht.to_matrix_table(row_key=['row_idx'], col_key=['col_idx'])
         >>> dense_mt.show()
         +---------+----------+----------+
-        | row_idx |      0.x |      1.x |
+        | row_idx |      1.x |      2.x |
         +---------+----------+----------+
         |   int32 |  float64 |  float64 |
         +---------+----------+----------+
