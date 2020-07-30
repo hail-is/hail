@@ -76,7 +76,7 @@ Use `-t` to name the image, and `-f` to specify the Dockerfile path.
 More information can be found `here: <https://docs.docker.com/engine/reference/commandline/build/>`__.
 
 .. code-block:: sh
-    docker build -t gcr.io/<my-project>/<my-image-name>:<tag> -f Dockerfile .
+    docker build -t gcr.io/<my-project>/<my-image>:<tag> -f Dockerfile .
 
 In this example we name the image `gcr.io/<my-project>/<my-image-name>:<tag>` so that it may be pushed to the Google Container Registry, in the next step.
 
