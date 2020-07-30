@@ -74,7 +74,7 @@ def get_in_cluster_no_hostname_checks_client_ssl_context() -> ssl.SSLContext:
             keyfile=ssl_config['key'],
             password=None)
         no_hostname_checks_client_ssl_context.verify_mode = ssl.CERT_REQUIRED
-        no_hostname_checks_client_ssl_context.check_hostname = True
+        no_hostname_checks_client_ssl_context.check_hostname = False
     return no_hostname_checks_client_ssl_context
 
 
