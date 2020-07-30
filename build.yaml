@@ -852,7 +852,7 @@ steps:
      (cd hail/python && python3 -m flake8 --config ../../setup.cfg hail)
      python3 -m flake8 --config setup.cfg hailtop
      python3 -m pylint --rcfile pylintrc hailtop
-     (cd hailtop/batch && mypy batch google_storage.py)
+     (cd hailtop && mypy batch google_storage.py)
    dependsOn:
      - hail_base_image
  - kind: buildImage
