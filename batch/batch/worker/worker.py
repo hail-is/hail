@@ -651,10 +651,11 @@ class Job:
 
         req_cpu_in_mcpu = parse_cpu_in_mcpu(job_spec['resources']['cpu'])
         req_memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
+        if 'storage' in job_spec['resources']:
+            req_storage_in_bytes = parse_memory_in_bytes(job_spec['resources']['storage'])
 
         cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type)
         if 'storage' in job_spec['resources']:
-            req_storage_in_bytes = parse_memory_in_bytes(job_spec['resources']['storage'])
             cpu_in_mcpu = adjust_cores_for_storage_request(cpu_in_mcpu, req_storage_in_bytes, CORES)
         cpu_in_mcpu = adjust_cores_for_packability(cpu_in_mcpu)
 
