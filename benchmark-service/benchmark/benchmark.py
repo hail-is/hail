@@ -43,7 +43,7 @@ geometric_mean = prod_of_means ** (1.0 / len(pre_data['benchmarks']))
 benchmarks = dict()
 benchmarks['sha'] = sha
 benchmarks['geometric_mean'] = geometric_mean
-benchmarks['data'] = data
+benchmarks['data'] = sorted(data, key=lambda i: i['name'])
 
 
 @router.get('/healthcheck')
