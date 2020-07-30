@@ -71,29 +71,23 @@ For more information about Dockerfiles and directives that can be used see the f
 Building Images
 ---------------
 
-To create a Docker image, we use a series of commands to build the image from a Dockerfile by specifying
-the context directory (in this case the current directory `.`). The `-f` option
-specifies what Dockerfile to read from. The `-t` option is the name of the image.
-More in depth information can be found `here <https://docs.docker.com/engine/reference/commandline/build/>`__.
+To create a Docker image, use `docker build <dir> -t <name> -f <dockerfile>`. <dir> specifies the context directory (typically `.`, for the current working directory).
+Use `-t` to name the image, and `-f` to specify the Dockerfile path.
+More information can be found `here: <https://docs.docker.com/engine/reference/commandline/build/>`__.
 
 .. code-block:: sh
+    docker build -t gcr.io/<my-project>/<my-image-name>:<tag> -f Dockerfile .
 
-    docker build -t <my-image> -f Dockerfile .
-
+In this example we name the image `gcr.io/<my-project>/<my-image-name>:<tag>` so that it may be pushed to the Google Container Registry, in the next step.
 
 Pushing Images
 --------------
 
-To use an image with Batch, you need to upload your image to a place where Batch can access it.
-You can store images inside the `Google Container Registry <https://cloud.google.com/container-registry/docs/>`__ in
-addition to Dockerhub. Below is an example of pushing the image to the Google Container Registry.
-It's good practice to specify a tag that is unique for your image. If you don't tag your image, the default is
-`latest`. For more information about pulling and pushing images for the Google Container Registry, see
+To use an image with Batch, you need to upload it somewhere Batch can read it: either the `Google Container Registry <https://cloud.google.com/container-registry/docs/>`__ or
+Dockerhub. Below is an example of pushing the image to the Google Container Registry. For more information about pulling and pushing images for the Google Container Registry, see
 `here <https://cloud.google.com/container-registry/docs/pushing-and-pulling>`__.
 
 .. code-block:: sh
-
-    docker tag <my-image> <tag>
     docker push gcr.io/<my-project>/<my-image>:<tag>
 
 
