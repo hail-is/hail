@@ -32,11 +32,11 @@ for d in pre_data['benchmarks']:
     stats['failed'] = d['failed']
     if not (d['failed']):
         prod_of_means *= d['mean']
-        stats['f-stat'] = d['f-stat']
-        stats['mean'] = d['mean']
-        stats['median'] = d['median']
-        stats['p-value'] = d['p-value']
-        stats['stdev'] = d['stdev']
+        stats['f-stat'] = round(d['f-stat'], 6)
+        stats['mean'] = round(d['mean'], 6)
+        stats['median'] = round(d['median'], 6)
+        stats['p-value'] = round(d['p-value'], 6)
+        stats['stdev'] = round(d['stdev'], 6)
     data.append(stats)
 geometric_mean = prod_of_means ** (1.0 / len(pre_data['benchmarks']))
 
