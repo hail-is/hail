@@ -1451,8 +1451,9 @@ class Emit[C](
 
             val codeB = emit(body, env = bodyenv)
             Code(xElt := elt,
-              tmpAcc := codeB.map(v => accType.copyFromPValue(mb,
-                                                              region.code, PCode(body.pType, codeB.v))),
+              tmpAcc := codeB.map { v =>
+                accType.copyFromPValue(mb, region.code, PCode(body.pType, codeB.v))
+              },
               xAcc := tmpAcc
             )
           }
