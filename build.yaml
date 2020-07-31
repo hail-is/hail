@@ -12,6 +12,7 @@ steps:
     - scorecard-github-access-token
     - zulip-config
     - benchmark-gsa-key
+    - billing-monitor-gsa-key
  - kind: deploy
    name: deploy_batch_sa
    namespace:
@@ -104,6 +105,8 @@ steps:
        to: /repo/batch/
      - from: /io/repo/notebook/sql
        to: /repo/notebook/
+     - from: /io/repo/monitoring/sql
+       to: /repo/monitoring/
      - from: /io/repo/hail/python/hailtop
        to: /repo/hailtop/
      - from: /io/repo/hail/python/test
@@ -451,6 +454,13 @@ steps:
    dockerFile: benchmark-service/Dockerfile
    contextPath: .
    publishAs: benchmark
+   dependsOn:
+     - service_base_image
+ - kind: buildImage
+   name: monitoring_image
+   dockerFile: monitoring/Dockerfile
+   contextPath: .
+   publishAs: monitoring
    dependsOn:
      - service_base_image
  - kind: buildImage
@@ -1331,6 +1341,78 @@ steps:
     - deploy_router
     - create_certs
     - deploy_auth
+    - create_accounts
+ - kind: runImage
+   name: check_monitoring
+   image:
+     valueFrom: monitoring_image.image
+   script: |
+     set -ex
+     python3 -m flake8 monitoring
+     python3 -m pylint --rcfile pylintrc monitoring
+   dependsOn:
+     - monitoring_image
+ - kind: runImage
+   name: delete_monitoring_tables
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-monitoring-tables.sql
+   inputs:
+    - from: /repo/monitoring/sql
+      to: /io/
+   secrets:
+    - name: database-server-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /sql-config
+   runIfRequested: true
+   scopes:
+    - dev
+   dependsOn:
+    - default_ns
+    - service_base_image
+    - copy_files
+ - kind: createDatabase
+   name: monitoring_database
+   databaseName: monitoring
+   migrations:
+    - name: initial
+      script: /io/sql/initial.sql
+   inputs:
+    - from: /repo/monitoring/sql
+      to: /io/
+   namespace:
+     valueFrom: default_ns.name
+   shutdowns:
+    - kind: Deployment
+      namespace:
+        valueFrom: default_ns.name
+      name: monitoring
+   dependsOn:
+    - default_ns
+    - copy_files
+    - delete_monitoring_tables
+ - kind: deploy
+   name: deploy_monitoring
+   namespace:
+     valueFrom: default_ns.name
+   config: monitoring/deployment.yaml
+   wait:
+    - kind: Service
+      name: monitoring
+      for: alive
+   scopes:
+    - deploy
+    - dev
+   dependsOn:
+    - default_ns
+    - monitoring_image
+    - monitoring_database
+    - deploy_auth
+    - deploy_router
+    - create_certs
     - create_accounts
  - kind: runImage
    name: test_auth_copy_paste_login

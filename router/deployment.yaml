@@ -44,6 +44,20 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  name: monitoring
+  labels:
+    app: monitoring
+spec:
+  ports:
+    - port: 443
+      protocol: TCP
+      targetPort: 5000
+  selector:
+    app: monitoring
+---
+apiVersion: v1
+kind: Service
+metadata:
   name: batch
   labels:
     app: batch

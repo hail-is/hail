@@ -4,7 +4,7 @@ from .utils import (
     bounded_gather, grouped, sleep_and_backoff, is_transient_error,
     request_retry_transient_errors, request_raise_transient_errors,
     collect_agen, retry_all_errors, retry_transient_errors,
-    retry_long_running, run_if_changed, LoggingTimer,
+    retry_long_running, run_if_changed, run_if_changed_idempotent, LoggingTimer,
     WaitableSharedPool, RETRY_FUNCTION_SCRIPT, sync_retry_transient_errors,
     retry_response_returning_functions, first_extant_file, secret_alnum_string,
     flatten, partition)
@@ -40,6 +40,7 @@ __all__ = [
     'retry_transient_errors',
     'retry_long_running',
     'run_if_changed',
+    'run_if_changed_idempotent',
     'LoggingTimer',
     'WaitableSharedPool',
     'request_retry_transient_errors',
