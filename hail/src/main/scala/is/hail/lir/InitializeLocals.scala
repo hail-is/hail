@@ -13,7 +13,7 @@ object InitializeLocals {
     var i = entryUsedIn.nextSetBit(0)
     while (i >= 0) {
       val l = locals(i)
-      if (!l.isInstanceOf[Parameter] && l.name != "spills") {
+      if (!l.isInstanceOf[Parameter]) {
         // println(s"  init $l ${l.ti}")
         m.entry.prepend(
           store(locals(i), defaultValue(l.ti)))

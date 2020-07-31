@@ -51,7 +51,7 @@ import scala.collection.mutable
 //   although that is only non-trivial when the CFG is irreducible, which
 //   is relatively rare.
 
-class Region(
+class PSTRegion(
   var start: Int,
   var end: Int,
   var children: Array[Int],
@@ -105,7 +105,7 @@ class PSTBuilder(
 
   private def computeBackEdges(): Unit = {
     // recursion will blow out the stack
-    val stack = mutable.Stack[(Int, Iterator[Int])]()
+    val stack = new ArrayBuilder[(Int, Iterator[Int])]()
     val onStack = mutable.Set[Int]()
     val visited = mutable.Set[Int]()
 
@@ -161,7 +161,7 @@ class PSTBuilder(
     var k = 0
 
     // recursion will blow out the stack
-    val stack = mutable.Stack[(Int, Iterator[Int])]()
+    val stack = new ArrayBuilder[(Int, Iterator[Int])]()
 
     def push(b: Int): Unit = {
       val i = k
@@ -253,7 +253,7 @@ class PSTBuilder(
 
   private val splitBlock = new java.util.BitSet(nBlocks)
 
-  private val regions: mutable.ArrayBuffer[Region] = mutable.ArrayBuffer[Region]()
+  private val regions: mutable.ArrayBuffer[PSTRegion] = mutable.ArrayBuffer[PSTRegion]()
 
   // regions with no parents
   private val frontier = new ArrayBuilder[Int]()
@@ -279,7 +279,7 @@ class PSTBuilder(
     if (frontier.nonEmpty && regions(frontier.last).end == start)
       splitBlock.set(start)
     frontier += ri
-    regions += new Region(start, end, children)
+    regions += new PSTRegion(start, end, children)
     ri
   }
 
@@ -302,7 +302,7 @@ class PSTBuilder(
         children(i) = c
         i += 1
       }
-      regions += new Region(0, nBlocks - 1, children)
+      regions += new PSTRegion(0, nBlocks - 1, children)
       frontier.clear()
       frontier += c
       c
@@ -426,7 +426,7 @@ class PSTBuilder(
 
     // compute new regions, including singletons
     // update children
-    val newRegionsB = new ArrayBuilder[Region]()
+    val newRegionsB = new ArrayBuilder[PSTRegion]()
     val regionNewRegion = new Array[Int](regions.length)
     i = 0
     while (i < regions.length) {
@@ -435,7 +435,7 @@ class PSTBuilder(
 
       var c = 0
       var ci = 0
-      var child: Region = null
+      var child: PSTRegion = null
       if (c < children.length) {
         ci = children(c)
         assert(ci < i)
@@ -461,7 +461,7 @@ class PSTBuilder(
         } else {
           if (!jincluded) {
             val k = newRegionsB.length
-            newRegionsB += new Region(j, j, new Array[Int](0))
+            newRegionsB += new PSTRegion(j, j, new Array[Int](0))
             newChildren += k
           }
           j += 1
@@ -469,7 +469,7 @@ class PSTBuilder(
       }
 
       val newi = newRegionsB.length
-      val newr = new Region(r.start, r.end, newChildren.result())
+      val newr = new PSTRegion(r.start, r.end, newChildren.result())
       for (ci <- newr.children)
         newRegionsB(ci).parent = newi
       newRegionsB += newr
@@ -538,9 +538,9 @@ object PST {
   }
 }
 
-class  PST(
+class PST(
   val splitBlock: Array[Boolean],
-  val regions: Array[Region],
+  val regions: Array[PSTRegion],
   val loopRegion: java.util.BitSet,
   val root: Int
 ) {

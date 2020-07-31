@@ -413,7 +413,7 @@ class SplitMethod(
             x.setLfalse(newLfalse)
           }
         }
-      case x: SwitchX => IntInfo
+      case x: SwitchX =>
         // FIXME potential for optimization like if
         val idx = x.children(0)
         idx.remove()

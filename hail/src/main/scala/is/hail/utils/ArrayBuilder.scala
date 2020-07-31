@@ -49,7 +49,9 @@ final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: Cla
       b = new Array[T](initialCapacity)
   }
 
-  def +=(x: T) {
+  def +=(x: T): Unit = push(x)
+
+  def push(x: T) {
     ensureCapacity(size_ + 1)
     b(size_) = x
     size_ += 1
@@ -78,6 +80,8 @@ final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: Cla
     assert(size_ > 0)
     b(size_ - 1)
   }
+
+  def top: T = last
 
   def pop(): T = {
     size_ -= 1
