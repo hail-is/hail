@@ -27,7 +27,6 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.annotation.meta.param
 import scala.annotation.switch
-import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.language.implicitConversions
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue}
@@ -45,16 +44,16 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
 }
 
 case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: PStruct, vaSignature: PStruct, genotypeSignature: PStruct,
-  filtersAttrs: VCFAttributes, infoAttrs: VCFAttributes, formatAttrs: VCFAttributes, infoFlagFields: Set[String])
+                         filtersAttrs: VCFAttributes, infoAttrs: VCFAttributes, formatAttrs: VCFAttributes, infoFlagFields: Set[String])
 
 class VCFParseError(val msg: String, val pos: Int) extends RuntimeException(msg)
 
 
 final class VCFLine(val line: String, arrayElementsRequired: Boolean,
-  val abs: MissingArrayBuilder[String],
-  val abi: MissingArrayBuilder[Int],
-  val abf: MissingArrayBuilder[Float],
-  val abd: MissingArrayBuilder[Double]) {
+                    val abs: MissingArrayBuilder[String],
+                    val abi: MissingArrayBuilder[Int],
+                    val abf: MissingArrayBuilder[Float],
+                    val abd: MissingArrayBuilder[Double]) {
   var pos: Int = 0
 
   def parseError(msg: String): Unit = throw new VCFParseError(msg, pos)
@@ -180,8 +179,8 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
   def infoFieldMissing(): Boolean = {
     pos < line.length &&
       (line(pos) == '.' &&
-       endInfoField(pos + 1) ||
-       endInfoField(pos))
+        endInfoField(pos + 1) ||
+        endInfoField(pos))
   }
 
   def formatFieldMissing(): Boolean = {
@@ -251,7 +250,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
     assert(abs.size == 0)
 
     // . means no alternate alleles
- if (fieldMissing()) {
+    if (fieldMissing()) {
       pos += 1 // .
       return
     }
@@ -329,13 +328,13 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
 
   // return false if it should be filtered
   def parseAddVariant(
-    rvb: RegionValueBuilder,
-    rg: Option[ReferenceGenome],
-    contigRecoding: Map[String, String],
-    hasLocus: Boolean,
-    hasAlleles: Boolean,
-    hasRSID: Boolean,
-    skipInvalidLoci: Boolean): Boolean = {
+                       rvb: RegionValueBuilder,
+                       rg: Option[ReferenceGenome],
+                       contigRecoding: Map[String, String],
+                       hasLocus: Boolean,
+                       hasAlleles: Boolean,
+                       hasRSID: Boolean,
+                       skipInvalidLoci: Boolean): Boolean = {
     assert(pos == 0)
 
     if (line.isEmpty || line(0) == '#')
@@ -1003,9 +1002,9 @@ object FormatParser {
 }
 
 final class FormatParser(
-  gType: TStruct,
-  formatFieldGIndex: Array[Int],
-  missingGIndices: Array[Int]) {
+                          gType: TStruct,
+                          formatFieldGIndex: Array[Int],
+                          missingGIndices: Array[Int]) {
 
   def parseAddField(l: VCFLine, rvb: RegionValueBuilder, i: Int) {
     // negative j values indicate field is pruned
@@ -1122,9 +1121,9 @@ object LoadVCF {
   }
 
   def globAllVCFs(arguments: Array[String],
-    fs: FS,
-    forceGZ: Boolean = false,
-    gzAsBGZ: Boolean = false): Array[FileStatus] = {
+                  fs: FS,
+                  forceGZ: Boolean = false,
+                  gzAsBGZ: Boolean = false): Array[FileStatus] = {
     val statuses = fs.globAllStatuses(arguments)
 
     if (statuses.isEmpty)
@@ -1146,7 +1145,7 @@ object LoadVCF {
       case TFloat64 => TFloat64
       case _ => fatal(
         s"""invalid floating point type:
-        |  expected ${TFloat32._toPretty} or ${TFloat64._toPretty}, got ${entryFloatTypeName}"""
+           |  expected ${TFloat32._toPretty} or ${TFloat64._toPretty}, got ${entryFloatTypeName}"""
       )
     }
   }
@@ -1168,11 +1167,11 @@ object LoadVCF {
   }
 
   def headerField(
-    line: VCFCompoundHeaderLine,
-    callFields: Set[String],
-    floatType: TNumeric,
-    arrayElementsRequired: Boolean = false
-  ): ((String, PType), (String, Map[String, String]), Boolean) = {
+                   line: VCFCompoundHeaderLine,
+                   callFields: Set[String],
+                   floatType: TNumeric,
+                   arrayElementsRequired: Boolean = false
+                 ): ((String, PType), (String, Map[String, String]), Boolean) = {
     val id = line.getID
     val isCall = id == "GT" || callFields.contains(id)
 
@@ -1203,12 +1202,12 @@ object LoadVCF {
   }
 
   def headerSignature[T <: VCFCompoundHeaderLine](
-    lines: java.util.Collection[T],
-    callFields: Set[String],
-    floatType: TNumeric,
-    arrayElementsRequired: Boolean = false
-  ): (PStruct, VCFAttributes, Set[String]) = {
-    val (fields, attrs, flags) = lines
+                                                   lines: java.util.Collection[T],
+                                                   callFields: Set[String],
+                                                   floatType: TNumeric,
+                                                   arrayElementsRequired: Boolean = false
+                                                 ): (PStruct, VCFAttributes, Set[String]) = {
+    val (fields, attrs, flags) = lines.asScala
       .map { line => headerField(line, callFields, floatType, arrayElementsRequired) }
       .unzip3
 
@@ -1220,11 +1219,11 @@ object LoadVCF {
   }
 
   def parseHeader(
-    callFields: Set[String],
-    floatType: TNumeric,
-    lines: Array[String],
-    arrayElementsRequired: Boolean = true
-  ): VCFHeaderInfo = {
+                   callFields: Set[String],
+                   floatType: TNumeric,
+                   lines: Array[String],
+                   arrayElementsRequired: Boolean = true
+                 ): VCFHeaderInfo = {
     val codec = new htsjdk.variant.vcf.VCFCodec()
     // Disable "repairing" of headers by htsjdk according to the VCF standard.
     codec.disableOnTheFlyModifications()
@@ -1234,10 +1233,12 @@ object LoadVCF {
 
     val filterAttrs: VCFAttributes = header
       .getFilterLines
+      .asScala
       .toList
       // (ID, description)
       .map(line => (line.getID, Map("Description" -> line.getDescription)))
       .toMap
+
 
     val infoHeader = header.getInfoHeaderLines
     val (infoSignature, infoAttrs, infoFlagFields) = headerSignature(infoHeader, callFields, TFloat64)
@@ -1271,23 +1272,23 @@ object LoadVCF {
   }
 
   def getHeaderLines[T](
-    fs: FS,
-    file: String,
-    filterAndReplace: TextInputFilterAndReplace): Array[String] = fs.readLines(file, filterAndReplace) { lines =>
-      lines
+                         fs: FS,
+                         file: String,
+                         filterAndReplace: TextInputFilterAndReplace): Array[String] = fs.readLines(file, filterAndReplace) { lines =>
+    lines
       .takeWhile { line => line.value(0) == '#' }
       .map(_.value)
       .toArray
   }
 
   def parseLine(
-    rgBc: Option[BroadcastValue[ReferenceGenome]],
-    contigRecoding: Map[String, String],
-    skipInvalidLoci: Boolean,
-    rowPType: PStruct,
-    rvb: RegionValueBuilder,
-    parseLineContext: ParseLineContext,
-    vcfLine: VCFLine): Boolean = {
+                 rgBc: Option[BroadcastValue[ReferenceGenome]],
+                 contigRecoding: Map[String, String],
+                 skipInvalidLoci: Boolean,
+                 rowPType: PStruct,
+                 rvb: RegionValueBuilder,
+                 parseLineContext: ParseLineContext,
+                 vcfLine: VCFLine): Boolean = {
     val hasLocus = rowPType.hasField("locus")
     val hasAlleles = rowPType.hasField("alleles")
     val hasRSID = rowPType.hasField("rsid")
@@ -1305,15 +1306,15 @@ object LoadVCF {
 
   // parses the Variant (key), and ID if necessary, leaves the rest to f
   def parseLines[C](
-    makeContext: () => C
-  )(f: (C, VCFLine, RegionValueBuilder) => Unit
-  )(lines: ContextRDD[WithContext[String]],
-    rowPType: PStruct,
-    rgBc: Option[BroadcastValue[ReferenceGenome]],
-    contigRecoding: Map[String, String],
-    arrayElementsRequired: Boolean,
-    skipInvalidLoci: Boolean
-  ): ContextRDD[Long] = {
+                     makeContext: () => C
+                   )(f: (C, VCFLine, RegionValueBuilder) => Unit
+                   )(lines: ContextRDD[WithContext[String]],
+                     rowPType: PStruct,
+                     rgBc: Option[BroadcastValue[ReferenceGenome]],
+                     contigRecoding: Map[String, String],
+                     arrayElementsRequired: Boolean,
+                     skipInvalidLoci: Boolean
+                   ): ContextRDD[Long] = {
     val hasRSID = rowPType.hasField("rsid")
     lines.cmapPartitions { (ctx, it) =>
       new Iterator[Long] {
@@ -1388,11 +1389,11 @@ object LoadVCF {
   }
 
   def parseLine(
-    c: ParseLineContext,
-    l: VCFLine,
-    rvb: RegionValueBuilder,
-    dropSamples: Boolean = false
-  ): Unit = {
+                 c: ParseLineContext,
+                 l: VCFLine,
+                 rvb: RegionValueBuilder,
+                 dropSamples: Boolean = false
+               ): Unit = {
     // QUAL
     if (c.hasQual) {
       val qstr = l.parseString()
@@ -1459,11 +1460,11 @@ object LoadVCF {
 case class PartitionedVCFPartition(index: Int, chrom: String, start: Int, end: Int) extends Partition
 
 class PartitionedVCFRDD(
-  fsBc: BroadcastValue[FS],
-  file: String,
-  @(transient@param) reverseContigMapping: Map[String, String],
-  @(transient@param) _partitions: Array[Partition]
-) extends RDD[String](SparkBackend.sparkContext("PartitionedVCFRDD"), Seq()) {
+                         fsBc: BroadcastValue[FS],
+                         file: String,
+                         @(transient@param) reverseContigMapping: Map[String, String],
+                         @(transient@param) _partitions: Array[Partition]
+                       ) extends RDD[String](SparkBackend.sparkContext("PartitionedVCFRDD"), Seq()) {
 
   val contigRemappingBc = sparkContext.broadcast(reverseContigMapping)
 
@@ -1485,7 +1486,7 @@ class PartitionedVCFRDD(
 
     // clean up
     val context = TaskContext.get
-    context.addTaskCompletionListener { (context: TaskContext) =>
+    context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
       lines.close()
     }
 
@@ -1521,21 +1522,21 @@ class PartitionedVCFRDD(
 
 object MatrixVCFReader {
   def apply(ctx: ExecuteContext,
-    files: Seq[String],
-    callFields: Set[String],
-    entryFloatTypeName: String,
-    headerFile: Option[String],
-    nPartitions: Option[Int],
-    blockSizeInMB: Option[Int],
-    minPartitions: Option[Int],
-    rg: Option[String],
-    contigRecoding: Map[String, String],
-    arrayElementsRequired: Boolean,
-    skipInvalidLoci: Boolean,
-    gzAsBGZ: Boolean,
-    forceGZ: Boolean,
-    filterAndReplace: TextInputFilterAndReplace,
-    partitionsJSON: String): MatrixVCFReader = {
+            files: Seq[String],
+            callFields: Set[String],
+            entryFloatTypeName: String,
+            headerFile: Option[String],
+            nPartitions: Option[Int],
+            blockSizeInMB: Option[Int],
+            minPartitions: Option[Int],
+            rg: Option[String],
+            contigRecoding: Map[String, String],
+            arrayElementsRequired: Boolean,
+            skipInvalidLoci: Boolean,
+            gzAsBGZ: Boolean,
+            forceGZ: Boolean,
+            filterAndReplace: TextInputFilterAndReplace,
+            partitionsJSON: String): MatrixVCFReader = {
     MatrixVCFReader(ctx, MatrixVCFReaderParameters(
       files, callFields, entryFloatTypeName, headerFile, nPartitions, blockSizeInMB, minPartitions, rg,
       contigRecoding, arrayElementsRequired, skipInvalidLoci, gzAsBGZ, forceGZ, filterAndReplace,
@@ -1651,31 +1652,31 @@ object MatrixVCFReader {
 }
 
 case class MatrixVCFReaderParameters(
-  files: Seq[String],
-  callFields: Set[String],
-  entryFloatTypeName: String,
-  headerFile: Option[String],
-  nPartitions: Option[Int],
-  blockSizeInMB: Option[Int],
-  minPartitions: Option[Int],
-  rg: Option[String],
-  contigRecoding: Map[String, String],
-  arrayElementsRequired: Boolean,
-  skipInvalidLoci: Boolean,
-  gzAsBGZ: Boolean,
-  forceGZ: Boolean,
-  filterAndReplace: TextInputFilterAndReplace,
-  partitionsJSON: String)
+                                      files: Seq[String],
+                                      callFields: Set[String],
+                                      entryFloatTypeName: String,
+                                      headerFile: Option[String],
+                                      nPartitions: Option[Int],
+                                      blockSizeInMB: Option[Int],
+                                      minPartitions: Option[Int],
+                                      rg: Option[String],
+                                      contigRecoding: Map[String, String],
+                                      arrayElementsRequired: Boolean,
+                                      skipInvalidLoci: Boolean,
+                                      gzAsBGZ: Boolean,
+                                      forceGZ: Boolean,
+                                      filterAndReplace: TextInputFilterAndReplace,
+                                      partitionsJSON: String)
 
 class MatrixVCFReader(
-  val params: MatrixVCFReaderParameters,
-  fileStatuses: IndexedSeq[FileStatus],
-  infoFlagFieldNames: Set[String],
-  referenceGenome: Option[ReferenceGenome],
-  val fullMatrixType: MatrixType,
-  fullRVDType: RVDType,
-  sampleIDs: Array[String]
-) extends MatrixHybridReader {
+                       val params: MatrixVCFReaderParameters,
+                       fileStatuses: IndexedSeq[FileStatus],
+                       infoFlagFieldNames: Set[String],
+                       referenceGenome: Option[ReferenceGenome],
+                       val fullMatrixType: MatrixType,
+                       fullRVDType: RVDType,
+                       sampleIDs: Array[String]
+                     ) extends MatrixHybridReader {
 
   def pathsUsed: Seq[String] = params.files
 
@@ -1783,20 +1784,20 @@ class MatrixVCFReader(
 }
 
 class VCFsReader(
-  ctx: ExecuteContext,
-  files: Array[String],
-  callFields: Set[String],
-  entryFloatTypeName: String,
-  rg: Option[String],
-  contigRecoding: Map[String, String],
-  arrayElementsRequired: Boolean,
-  skipInvalidLoci: Boolean,
-  gzAsBGZ: Boolean,
-  forceGZ: Boolean,
-  filterAndReplace: TextInputFilterAndReplace,
-  partitionsJSON: String, partitionsTypeStr: String,
-  externalSampleIds: Option[Array[Array[String]]],
-  externalHeader: Option[String]) {
+                  ctx: ExecuteContext,
+                  files: Array[String],
+                  callFields: Set[String],
+                  entryFloatTypeName: String,
+                  rg: Option[String],
+                  contigRecoding: Map[String, String],
+                  arrayElementsRequired: Boolean,
+                  skipInvalidLoci: Boolean,
+                  gzAsBGZ: Boolean,
+                  forceGZ: Boolean,
+                  filterAndReplace: TextInputFilterAndReplace,
+                  partitionsJSON: String, partitionsTypeStr: String,
+                  externalSampleIds: Option[Array[Array[String]]],
+                  externalHeader: Option[String]) {
 
   require(!(externalSampleIds.isEmpty ^ externalHeader.isEmpty))
 

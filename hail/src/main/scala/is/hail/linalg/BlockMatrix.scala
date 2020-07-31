@@ -117,7 +117,7 @@ object BlockMatrix {
       val iOffset = i * blockSize
       val jOffset = j * blockSize
 
-      HailContext.backend.broadcast(lm(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols).copy)
+      HailContext.backend.broadcast(lm(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols))
     }
 
     BlockMatrix(gp, (gp, pi) => (gp.blockCoordinates(pi), localBlocksBc(pi).value))

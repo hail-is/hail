@@ -442,7 +442,7 @@ class SparkBackend(
         forceGZ,
         TextInputFilterAndReplace(Option(find), Option(filter), Option(replace)),
         partitionsJSON, partitionsTypeStr,
-        Option(externalSampleIds).map(_.map(_.asScala.toArray).toArray),
+        Option(externalSampleIds).map(_.asScala.map(_.asScala.toArray).toArray),
         Option(externalHeader))
 
       val irs = reader.read(ctx)

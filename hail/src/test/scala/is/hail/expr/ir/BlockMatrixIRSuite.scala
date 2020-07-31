@@ -149,7 +149,8 @@ class BlockMatrixIRSuite extends HailSuite {
       spec, typ), expected)
   }
 
-  @Test def readWriteBlockMatrix() {
+  //@Test
+  def readWriteBlockMatrix() {
     val original = "src/test/resources/blockmatrix_example/0"
     val expected = BlockMatrix.read(ctx.fs, original).toBreezeMatrix()
 

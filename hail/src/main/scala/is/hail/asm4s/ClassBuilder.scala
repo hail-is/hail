@@ -355,7 +355,7 @@ class ClassBuilder[C](
           }
         }
 
-        theClass.newInstance().asInstanceOf[C]
+        theClass.getDeclaredConstructor().newInstance().asInstanceOf[C]
       }
     }
   }

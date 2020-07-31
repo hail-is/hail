@@ -19,6 +19,7 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.json4s._
 
 object MatrixIR {
@@ -57,10 +58,12 @@ abstract sealed class MatrixIR extends BaseIR {
 object MatrixLiteral {
   def apply(ctx: ExecuteContext, typ: MatrixType, rvd: RVD, globals: Row, colValues: IndexedSeq[Row]): MatrixLiteral = {
     val tt = typ.canonicalTableType
+    val rows = Seq(globals, Row(colValues))
+    val combinedRow = new GenericRow(rows.flatMap(_.toSeq).toArray)
     MatrixLiteral(typ,
       TableLiteral(
         TableValue(ctx, tt,
-          BroadcastRow(ctx, Row.merge(globals, Row(colValues)), typ.canonicalTableType.globalType),
+          BroadcastRow(ctx, combinedRow, typ.canonicalTableType.globalType),
           rvd)))
   }
 }

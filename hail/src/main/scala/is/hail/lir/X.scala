@@ -37,9 +37,9 @@ class Classx[C](val name: String, val superName: String) {
   }
 
   def newMethod(name: String,
-    parameterTypeInfo: IndexedSeq[TypeInfo[_]],
-    returnTypeInfo: TypeInfo[_],
-    isStatic: Boolean = false): Method = {
+                parameterTypeInfo: IndexedSeq[TypeInfo[_]],
+                returnTypeInfo: TypeInfo[_],
+                isStatic: Boolean = false): Method = {
     val method = new Method(this, name, parameterTypeInfo, returnTypeInfo, isStatic)
     methods += method
     method
@@ -150,9 +150,9 @@ class StaticField private[lir] (classx: Classx[_], val name: String, val ti: Typ
 }
 
 class FieldLit(
-  val owner: String,
-  val name: String,
-  val ti: TypeInfo[_]) extends FieldRef
+                val owner: String,
+                val name: String,
+                val ti: TypeInfo[_]) extends FieldRef
 
 abstract class MethodRef {
   def owner: String
@@ -170,11 +170,11 @@ abstract class MethodRef {
 }
 
 class Method private[lir] (
-  val classx: Classx[_],
-  val name: String,
-  val parameterTypeInfo: IndexedSeq[TypeInfo[_]],
-  val returnTypeInfo: TypeInfo[_],
-  val isStatic: Boolean) extends MethodRef {
+                            val classx: Classx[_],
+                            val name: String,
+                            val parameterTypeInfo: IndexedSeq[TypeInfo[_]],
+                            val returnTypeInfo: TypeInfo[_],
+                            val isStatic: Boolean) extends MethodRef {
 
   def nParameters: Int = parameterTypeInfo.length + (!isStatic).toInt
 
@@ -208,13 +208,14 @@ class Method private[lir] (
   def findBlocks(): Blocks = {
     val blocksb = new ArrayBuilder[Block]()
 
-    val s = new mutable.Stack[Block]()
+    var s = List[Block]()
     val visited = mutable.Set[Block]()
 
-    s.push(entry)
+    s = entry +: s
 
     while (s.nonEmpty) {
-      val L = s.pop()
+      val L = s.last
+      s = s.init
       if (!visited.contains(L)) {
         if (L != null) {
           blocksb += L
@@ -223,13 +224,15 @@ class Method private[lir] (
           while (x != null) {
             x match {
               case x: IfX =>
-                s.push(x.Ltrue)
-                s.push(x.Lfalse)
+                s = x.Ltrue +: s
+                s = x.Lfalse +: s
               case x: GotoX =>
-                s.push(x.L)
+                s = x.L +: s
               case x: SwitchX =>
-                s.push(x.Ldefault)
-                x.Lcases.foreach(s.push)
+                s = x.Ldefault +: s
+                for (term <- x.Lcases) {
+                  s = term +: s
+                }
               case _ =>
             }
             x = x.next
@@ -323,9 +326,9 @@ class Method private[lir] (
 }
 
 class MethodLit(
-  val owner: String, val name: String, val desc: String, val isInterface: Boolean,
-  val returnTypeInfo: TypeInfo[_]
-) extends MethodRef
+                 val owner: String, val name: String, val desc: String, val isInterface: Boolean,
+                 val returnTypeInfo: TypeInfo[_]
+               ) extends MethodRef
 
 class Local(var method: Method, val name: String, val ti: TypeInfo[_]) {
   override def toString: String = f"t${ System.identityHashCode(this) }%08x/$name ${ ti.desc }"

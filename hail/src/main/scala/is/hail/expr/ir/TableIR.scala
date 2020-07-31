@@ -22,6 +22,7 @@ import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.json4s.JsonAST.{JNothing, JString}
 import org.json4s.{DefaultFormats, Extraction, Formats, JObject, JValue, ShortTypeHints}
 
@@ -1082,9 +1083,11 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val leftTV = left.execute(ctx)
     val rightTV = right.execute(ctx)
+    val rows = Seq(leftTV.globals.javaValue, rightTV.globals.javaValue)
+    val combinedRow = new GenericRow(rows.flatMap(_.toSeq).toArray)
 
     val newGlobals = BroadcastRow(ctx,
-      Row.merge(leftTV.globals.javaValue, rightTV.globals.javaValue),
+      combinedRow,
       newGlobalType)
 
     val leftRVDType = leftTV.rvd.typ.copy(key = left.typ.key.take(joinKey))

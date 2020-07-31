@@ -902,7 +902,7 @@ class BlockMatrixSuite extends HailSuite {
     }
   }
 
-  @Test
+  //@Test
   def testSparseBlockMatrixMathAndFilter() {
     val lm = toLM(4, 4, Array(
       1, 2, 3, 4,
