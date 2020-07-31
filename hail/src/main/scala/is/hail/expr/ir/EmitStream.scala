@@ -1302,14 +1302,15 @@ object EmitStream {
               k(SizedStream(Code._empty, eltRegion => newStream, Some(len))))
           }
 
-        case x@MakeStream(elements, t) =>
+        case x@MakeStream(elements, _) =>
           val eltType = coerce[PStream](x.pType).elementType
-          val stream = sequence(mb, eltType, elements.toFastIndexedSeq.map { ir =>
-              val et = emitIR(ir)
-              EmitCode(et.setup, et.m, PCode(eltType, eltType.copyFromTypeAndStackValue(mb, outerRegion.code, ir.pType, et.value)))
-          })
+          val stream = (eltRegion: StagedRegion) =>
+            sequence(mb, eltType, elements.toFastIndexedSeq.map { ir =>
+              emitIR(ir, region = eltRegion)
+                .map(_.castTo(mb, eltRegion.code, eltType))
+            })
 
-          COption.present(SizedStream(Code._empty, eltRegion => stream, Some(elements.length)))
+          COption.present(SizedStream(Code._empty, stream, Some(elements.length)))
 
         case x@ReadPartition(context, rowType, reader) =>
           reader.emitStream(context, rowType, emitter, mb, outerRegion, env, container)
