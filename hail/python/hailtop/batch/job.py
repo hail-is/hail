@@ -143,11 +143,10 @@ class Job:
 
         Parameters
         ----------
-        mappings: :obj:`dict` of :obj:`str` to :obj:`dict` of :obj:`str` to :obj:`str`
-            Keywords are the name(s) of the resource group(s). The value is a dict
-            mapping the individual file identifier to a string expression representing
-            how to transform the resource group root name into a file. Use `{root}`
-            for the file root.
+        mappings: Keyword (named) arguments of value :obj:`dict` mapping file identifiers of :obj:`str` to file names of :obj:`str`.
+            Keywords (in the above example `tmp1`) are the name(s) of the resource group(s).
+            File names may contain arbitrary Python expressions, which will be evaluated by Python `eval`.
+            To use the keyword as the file name, use `{root}` (in the above example {root} will be replaced with `tmp1`).
 
         Returns
         -------
