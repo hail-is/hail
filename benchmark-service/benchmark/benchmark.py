@@ -87,6 +87,7 @@ async def show_name(request: web.Request) -> web.Response:
     # }
     plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     context = {
+        'name': request.match_info.get('name', ''),
         'plot': plot
     }
 
