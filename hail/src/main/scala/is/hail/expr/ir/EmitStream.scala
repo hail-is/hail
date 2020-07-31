@@ -1214,6 +1214,12 @@ object EmitStream {
       def emitStream(streamIR: IR, outerRegion: StagedRegion = outerRegion, env: Emit.E = env): COption[SizedStream] =
         _emitStream(streamIR, outerRegion, env)
 
+      def emitStreamToEmitCode(streamIR: IR, outerRegion: StagedRegion = outerRegion, env: Emit.E = env): EmitCode =
+        COption.toEmitCode(
+          _emitStream(streamIR, outerRegion, env).map { stream =>
+            PCanonicalStreamCode(streamIR.pType.asInstanceOf[PCanonicalStream], stream)
+          }, mb)
+
       def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = outerRegion, container: Option[AggContainer] = container): EmitCode =
         emitter.emitWithRegion(ir, mb, region, env, container)
 
@@ -1413,22 +1419,22 @@ object EmitStream {
               case (eltType: PCanonicalStream, _: PCanonicalStream) =>
                 val bodyenv = env.bind(name -> new EmitUnrealizableValue(eltType, eltt))
 
-                emit(emitter, bodyIR, mb, outerRegion, bodyenv, container)
+                emitStreamToEmitCode(bodyIR, outerRegion = eltRegion, env = bodyenv)
               case (eltType: PCanonicalStream, _) =>
                 val bodyenv = env.bind(name -> new EmitUnrealizableValue(eltType, eltt))
 
-                emitIR(bodyIR, env = bodyenv)
+                emitIR(bodyIR, region = eltRegion, env = bodyenv)
               case (_, _: PCanonicalStream) =>
                 val xElt = mb.newEmitField(name, eltType)
                 val bodyenv = env.bind(name -> xElt)
 
                 EmitCode(
                   xElt := eltt,
-                  emit(emitter, bodyIR, mb, outerRegion, bodyenv, container))
+                  emitStreamToEmitCode(bodyIR, outerRegion = eltRegion, env = bodyenv))
               case _ =>
                 val xElt = mb.newEmitField(name, eltType)
                 val bodyenv = env.bind(name -> xElt)
-                val bodyt = emitIR(bodyIR, env = bodyenv)
+                val bodyt = emitIR(bodyIR, region = eltRegion, env = bodyenv)
 
                 EmitCode(xElt := eltt, bodyt)
             }}
@@ -1442,27 +1448,38 @@ object EmitStream {
           val optStream = emitStream(childIR)
 
           optStream.map { ss =>
-            val newStream = ss.getStream(outerRegion)
-              .map { elt =>
-                val xElt = mb.newEmitField(name, childEltType)
-                val condEnv = env.bind(name -> xElt)
-                val cond = emitIR(condIR, env = condEnv)
+            val newStream = (eltRegion: StagedRegion) => {
+              val tmpRegion = eltRegion.createChildRegion(mb)
+              ss.getStream(tmpRegion)
+                .map (
+                  { elt =>
+                    val xElt = mb.newEmitField(name, childEltType)
+                    val cond = emitIR(condIR, env = env.bind(name -> xElt))
 
-                new COption[EmitCode] {
-                  def apply(none: Code[Ctrl], some: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
-                    Code(
-                      xElt := elt,
-                      cond.setup,
-                      (cond.m || !cond.value[Boolean]).mux(
-                        none,
-                        some(EmitCode(Code._empty, xElt.load.m, xElt.load.pv))
-                      )
-                    )
-                  }
-                }
-              }.flatten
+                    new COption[EmitCode] {
+                      def apply(none: Code[Ctrl], some: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+                        Code(
+                          xElt := elt,
+                          cond.setup,
+                          (cond.m || !cond.value[Boolean]).mux(
+                            Code(tmpRegion.clear(), none),
+                            some(EmitCode.fromI(mb) { cb =>
+                              xElt.toI(cb)
+                                .mapMissing(cb) { cb += tmpRegion.clear() }
+                                .map(cb) { pc =>
+                                  cb += tmpRegion.giveToParent()
+                                  pc
+                                }
+                            })))
+                      }
+                    }
+                  },
+                  setup0 = Some(tmpRegion.allocateRegion(Region.REGULAR)),
+                  close0 = Some(tmpRegion.free()))
+                .flatten
+            }
 
-            SizedStream.unsized(eltRegion => newStream)
+            SizedStream.unsized(newStream)
           }
 
         case x@StreamMerge(leftIR, rightIR, key) =>
