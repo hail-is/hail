@@ -10,6 +10,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes
 import json
 import re
 # from google.cloud import storage
+import plotly
 import plotly.express as px
 
 configure_logging()
@@ -76,12 +77,15 @@ async def greet_user(request: web.Request) -> web.Response:
 @router.get('/name/{name}')
 async def show_name(request: web.Request) -> web.Response:
 
+    name_data = next((item for item in data if item['name'] == str(request.match_info['name'])), None)
+    fig = px.scatter(x=[0, 1, 2, 3, 4], y=name_data['times'])
+
     context = {
         'name': request.match_info.get('name', ''),
-        'name_data': next((item for item in data if item['name'] == str(request.match_info['name'])), None)
+        'name_data': name_data,
+        'fig': json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     }
-    fig = px.scatter(x=[0, 1, 2, 3, 4], y=context['name_data']['times'])
-    fig.write_html('user.html')
+
     response = aiohttp_jinja2.render_template('user.html', request,
                                               context=context)
     return response
