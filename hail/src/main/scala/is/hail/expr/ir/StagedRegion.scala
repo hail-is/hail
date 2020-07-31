@@ -9,6 +9,9 @@ abstract class StagedRegion {
   def code: Value[Region]
 
   def createChildRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion
+
+  def createDummyChildRegion: StagedOwnedRegion =
+    new DummyStagedOwnedRegion(code, this)
 }
 
 trait StagedOwnedRegion extends StagedRegion {
