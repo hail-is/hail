@@ -80,16 +80,18 @@ async def show_name(request: web.Request) -> web.Response:
     name_data = next((item for item in data if item['name'] == str(request.match_info['name'])), None)
     fig = px.scatter(x=[0, 1, 2, 3, 4], y=name_data['times'])
 
+    # context = {
+    #     'name': request.match_info.get('name', ''),
+    #     'name_data': name_data,
+    #     'fig': json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    # }
+    plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     context = {
-        'name': request.match_info.get('name', ''),
-        'name_data': name_data,
-        'fig': json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+        'plot': plot
     }
 
-    plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-
     response = aiohttp_jinja2.render_template('user.html', request,
-                                              context=plot)
+                                              context=context)
     return response
 
 
