@@ -3,7 +3,8 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IR}
-import is.hail.types.physical.{PBaseStructCode, PBoolean, PCanonicalTuple, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PType}
+import is.hail.types.physical.{PBaseStructCode, PBoolean, PBooleanRequired, PCanonicalTuple, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PType}
+import is.hail.utils._
 
 object NDArraySumAggregator {
 }
@@ -14,7 +15,7 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
   // State needs:
   // 1. Initialized or not
   // 2. The ndarray itself.
-  val stateType = PCanonicalTuple(true, PBoolean(), ndTyp)
+  val stateType = PCanonicalTuple(true, PBooleanRequired, ndTyp)
 
   override def resultType: PType = ndTyp
 
@@ -32,10 +33,10 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     cb.append(Code._println("Trying to initOp"))
-    cb.append(Code(
-      state.off := stateType.allocate(state.region),
+    cb.append(
+      //state.off := stateType.allocate(state.region),
       Region.storeBoolean(stateType.fieldOffset(state.off, 0), false)
-    ))
+    )
   }
 
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
@@ -53,6 +54,8 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
         {
           // TODO Is this really safe, does it copy the initial array?
           cb.append(Code._println("Uninitialized, constructingAtAddress"))
+          cb.append(state.region.getNewRegion(Region.TINY))
+          cb.append(Region.storeBoolean(stateType.fieldOffset(state.off, 0), true))
           cb.append(ndTyp.constructAtAddress(cb.emb, stateType.fieldOffset(state.off, 1), state.region, nextNDCode.pt, nextNDPValue.get.tcode[Long], true))
         }
       )
@@ -61,21 +64,36 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
   }
 
   override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
-    // Need to:
-    // 1. Check the shapes match.
-    // 2. If they match, add.
+    // First up:
+    // If right is uninitialized, do nothing and keep the current state.
     cb.append(Code._println("Trying to combOp"))
-    val leftValue = PCode(stateType, state.off).asBaseStruct.memoize(cb, "left_state_ndarray_sum_agg")
-    val rightValue = PCode(stateType, other.off).asBaseStruct.memoize(cb, "right_state_ndarray_sum_agg")
-    leftValue.loadField(cb, 1).consume(cb, {}, { case leftNdCode: PNDArrayCode =>
-      val leftNdValue = leftNdCode.memoize(cb, "left_ndarray_sum_agg")
-      rightValue.loadField(cb, 1).consume(cb, {}, { case rightNdCode: PNDArrayCode =>
-        val rightNdValue = rightNdCode.memoize(cb, "right_ndarray_sum_agg")
-        cb.append(Code._println("combOp: About to addValues"))
-        addValues(cb, leftNdValue, rightNdValue)
+    cb.append(Code._println(const("Left value init field looks like: ").concat(Region.loadBoolean(state.off).toS)))
+    cb.ifx(!isInitialized(other), {
+      // Do nothing
+      cb.append(Code._println("combOp: other was not initialized, doing nothing"))
+    },
+    {
+      // Now what if left is not initialized?
+
+      cb.ifx(!isInitialized(state), {
+        ???
+      },
+      {
+        // Need to:
+        // 1. Check the shapes match.
+        // 2. If they match, add.
+        val leftValue = PCode(stateType, state.off).asBaseStruct.memoize(cb, "left_state_ndarray_sum_agg")
+        val rightValue = PCode(stateType, other.off).asBaseStruct.memoize(cb, "right_state_ndarray_sum_agg")
+        leftValue.loadField(cb, 1).consume(cb, {}, { case leftNdCode: PNDArrayCode =>
+          val leftNdValue = leftNdCode.memoize(cb, "left_ndarray_sum_agg")
+          rightValue.loadField(cb, 1).consume(cb, {}, { case rightNdCode: PNDArrayCode =>
+            val rightNdValue = rightNdCode.memoize(cb, "right_ndarray_sum_agg")
+            cb.append(Code._println("combOp: About to addValues"))
+            addValues(cb, leftNdValue, rightNdValue)
+          })
+        })
       })
     })
-
   }
 
   private def addValues(cb: EmitCodeBuilder, leftNdValue: PNDArrayValue, rightNdValue: PNDArrayValue): Unit = {
@@ -108,5 +126,8 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
     ))
   }
 
-  override protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = ???
+  override protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+    cb.append(Code._println("Trying to write resultOp"))
+    cb.append(srvb.addIRIntermediate(resultType)(ndArrayPointer(state)))
+  }
 }
