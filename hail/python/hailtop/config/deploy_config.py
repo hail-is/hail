@@ -5,7 +5,7 @@ import os
 import json
 import logging
 from aiohttp import web
-from ..utils import first_extant_file
+from ..utils import retry_transient_errors, first_extant_file
 from ..tls import get_context_specific_ssl_client_session
 
 log = logging.getLogger('deploy_config')
@@ -118,7 +118,8 @@ class DeployConfig:
                 raise_for_status=True,
                 timeout=aiohttp.ClientTimeout(total=5),
                 headers=headers) as session:
-            async with await session.get(
+            async with await retry_transient_errors(
+                    session.get,
                     self.url('address', f'/api/{service}')) as resp:
                 dicts = await resp.json()
                 return [(d['address'], d['port']) for d in dicts]

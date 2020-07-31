@@ -1,3 +1,4 @@
+from typing import Callable, TypeVar, Awaitable
 import os
 import errno
 import random
@@ -333,7 +334,10 @@ def retry_all_errors(msg=None, error_logging_interval=10):
     return _wrapper
 
 
-async def retry_transient_errors(f, *args, **kwargs):
+T = TypeVar('T')
+
+
+async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
     delay = 0.1
     errors = 0
     while True:
