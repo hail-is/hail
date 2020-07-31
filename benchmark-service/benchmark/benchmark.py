@@ -78,7 +78,7 @@ async def greet_user(request: web.Request) -> web.Response:
 async def show_name(request: web.Request) -> web.Response:
 
     name_data = next((item for item in data if item['name'] == str(request.match_info['name'])), None)
-    fig = px.scatter(x=[0, 1, 2, 3, 4], y=name_data['times'])
+    fig = px.scatter(x=[item for item in range(0, len(name_data['times']))], y=name_data['times'])
 
     # context = {
     #     'name': request.match_info.get('name', ''),
