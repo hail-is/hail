@@ -9,7 +9,8 @@ from hailtop.hail_logging import AccessLogger, configure_logging
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes
 import json
 import re
-from google.cloud import storage
+# from google.cloud import storage
+import plotly.express as px
 
 configure_logging()
 router = web.RouteTableDef()
@@ -18,18 +19,18 @@ deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
 
-storage_client = storage.Client()
-bucket = storage_client.get_bucket('hail-benchmarks')
-blob = bucket.blob('0.2.20-3b2b439cabf9.json')
+# storage_client = storage.Client()
+# bucket = storage_client.get_bucket('hail-benchmarks')
+# blob = bucket.blob('0.2.20-3b2b439cabf9.json')
+#
+# blob_str = blob.download_as_string(client=None)
+# pre_data = json.loads(blob_str)
 
-blob_str = blob.download_as_string(client=None)
-pre_data = json.loads(blob_str)
+file_path = '/0.2.45-ac6815ee857c-master.json'
+with open(file_path) as f:
+    pre_data = json.load(f)
 
-# file_path = '/0.2.45-ac6815ee857c-master.json'
-# with open(file_path) as f:
-#     pre_data = json.load(f)
-
-x = re.findall('.*/+(.*)-(.*)-(.*)?\.json', blob_str)  #was file_path
+x = re.findall('.*/+(.*)-(.*)-(.*)?\.json', file_path)  #was file_path
 sha = x[0][1]
 
 data = list()
@@ -45,6 +46,7 @@ for d in pre_data['benchmarks']:
         stats['median'] = round(d['median'], 6)
         stats['p-value'] = round(d['p-value'], 6)
         stats['stdev'] = round(d['stdev'], 6)
+        stats['times'] = d['times']
     data.append(stats)
 geometric_mean = prod_of_means ** (1.0 / len(pre_data['benchmarks']))
 
@@ -71,16 +73,18 @@ async def greet_user(request: web.Request) -> web.Response:
     return response
 
 
-# @router.get('/name/{name}')
-# async def greet_user(request: web.Request) -> web.Response:
-#
-#     context = {
-#         'name': request.match_info.get('name', ''),
-#         'name_data': next((item for item in data if data['name'] == 'name'), None)
-#     }
-#     response = aiohttp_jinja2.render_template('user.html', request,
-#                                               context=context)
-#     return response
+@router.get('/name/{name}')
+async def show_name(request: web.Request) -> web.Response:
+
+    context = {
+        'name': request.match_info.get('name', ''),
+        'name_data': next((item for item in data if data['name'] == 'name'), None)
+    }
+    fig = px.scatter(x=[0, 1, 2, 3, 4, 5], y=context['name_data']['times'])
+    fig.write_html('user.html')
+    response = aiohttp_jinja2.render_template('user.html', request,
+                                              context=context)
+    return response
 
 
 @router.get('/')
