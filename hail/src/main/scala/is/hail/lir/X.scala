@@ -120,14 +120,7 @@ class Classx[C](val name: String, val superName: String) {
 
       InitializeLocals(m, blocks, locals, liveness)
     }
-
-    {
-      println(name)
-      for (m <- methods) {
-        println(s"  ${ m.name } ${ m.approxByteCodeSize() }")
-      }
-    }
-
+    
     // println(Pretty(this))
     classes.iterator
       .map { c =>
