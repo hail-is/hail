@@ -89,7 +89,7 @@ async def show_name(request: web.Request) -> web.Response:
     plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
     response = aiohttp_jinja2.render_template('user.html', request,
-                                              plot=plot)
+                                              context=plot)
     return response
 
 
