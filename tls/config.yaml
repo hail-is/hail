@@ -74,3 +74,6 @@ principals:
 - name: address-tests
   domain: address-tests
   kind: json
+- name: monitoring
+  domain: monitoring
+  kind: json

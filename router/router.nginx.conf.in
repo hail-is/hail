@@ -39,6 +39,18 @@ server {
 }
 
 server {
+    server_name monitoring.*;
+
+    location / {
+        proxy_pass https://monitoring/;
+        include /etc/nginx/proxy.conf;
+    }
+
+    listen 443 ssl;
+    listen [::]:443 ssl;
+}
+
+server {
     server_name ci.*;
 
     location ~ /(test-ci-[a-z0-9]+)/(.*) {
