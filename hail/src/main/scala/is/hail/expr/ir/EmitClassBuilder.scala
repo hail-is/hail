@@ -988,12 +988,12 @@ class EmitMethodBuilder[C](
     def store(pv: PCode): Code[Unit] = ps := pv
   }
 
+  def newPresentEmitLocal(pt: PType): PresentEmitSettable =
+    newPresentEmitSettable(pt, newPLocal(pt))
+
   def newPresentEmitLocal(name: String, pt: PType): PresentEmitSettable =
     newPresentEmitSettable(pt, newPLocal(name, pt))
 
-  def newPresentEmitLocal(pt: PType): PresentEmitSettable =
-    newPresentEmitSettable(pt, newPLocal(pt))
-  
   def newPresentEmitField(pt: PType): PresentEmitSettable =
     newPresentEmitSettable(pt, newPField(pt))
 
