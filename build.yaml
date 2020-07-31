@@ -891,7 +891,7 @@ steps:
 
      exit $exit_status
    dependsOn:
-     - hail_base_image
+     - hail_pip_installed_python37_image
  - kind: runImage
    name: check_hail_python36
    image:
@@ -908,7 +908,7 @@ steps:
 
      exit $exit_status
    dependsOn:
-     - hail_base_image
+     - hail_pip_installed_python36_image
  - kind: buildImage
    name: notebook_image
    dockerFile: notebook/Dockerfile
