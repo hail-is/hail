@@ -35,9 +35,17 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
   if (!partitionIndexToBlockIndex.forall(bis => bis.isEmpty ||
     (bis.isIncreasing && bis.head >= 0 && bis.last < maxNBlocks &&
       bis.length < maxNBlocks))) // a block-sparse matrix cannot have all blocks present
-    throw new IllegalArgumentException(s"requirement failed: Sparse blocks sequence was ${partitionIndexToBlockIndex.toIndexedSeq}")
+  throw new IllegalArgumentException(s"requirement failed: Sparse blocks sequence was ${partitionIndexToBlockIndex.toIndexedSeq}")
 
-  val blockToPartitionMap = partitionIndexToBlockIndex.map(_.zipWithIndex.toMap.withDefaultValue(-1))
+  val blockToPartitionMap = {
+
+    val d = partitionIndexToBlockIndex.map(_.zipWithIndex.toMap.withDefaultValue(-1))
+    // (1, 3) -> (0: 1, 1: 3)
+    // (1: 0, 3: 1)
+    // println("blockToPartitionMap: " + d)
+    // println("\n")
+    d
+  }
 
   val lastBlockRowNRows: Int = indexBlockOffset(nRows - 1) + 1
   val lastBlockColNCols: Int = indexBlockOffset(nCols - 1) + 1
@@ -52,8 +60,11 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
 
   def nBlocks: Int = partitionIndexToBlockIndex.map(_.length).getOrElse(nBlockRows * nBlockCols)
 
-  def blockCoordinates(bi: Int): (Int, Int) = (blockBlockRow(bi), blockBlockCol(bi))
-
+  def blockCoordinates(bi: Int): (Int, Int) = {
+    val bb = (blockBlockRow(bi), blockBlockCol(bi))
+    // println("BLOCKCORDINATES: " +  bb.toString())
+    bb
+  }
   def coordinatesBlock(i: Int, j: Int): Int = {
     require(0 <= i && i < nBlockRows, s"Block row $i out of range [0, $nBlockRows).")
     require(0 <= j && j < nBlockCols, s"Block column $j out of range [0, $nBlockCols).")
@@ -61,6 +72,8 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
   }
 
   def intersect(that: GridPartitioner): GridPartitioner = {
+    // println("that pITBI: " + that.partitionIndexToBlockIndex)
+
     copy(partitionIndexToBlockIndex = (partitionIndexToBlockIndex, that.partitionIndexToBlockIndex) match {
       case (Some(bis), Some(bis2)) => Some(bis.filter(bis2.toSet))
       case (Some(bis), None) => Some(bis)
@@ -97,9 +110,20 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
       pi
   }
 
-  def blockToPartition(blockId: Int): Int = blockToPartitionMap match {
-    case Some(bpMap) => bpMap(blockId)
-    case None =>  blockId
+  // what is this for? seems fishy
+  def blockToPartition(blockId: Int): Int = {
+    // println("blockToPartitionMap: " + blockToPartitionMap.toString())
+    blockToPartitionMap match {
+      case Some(bpMap) => {
+        val x = bpMap(blockId)
+        //// println("bpMap(" + blockId + "): " + x)
+        x
+      }
+      case None =>  {
+        //// println("blockId: " + blockId)
+        blockId
+      }
+    }
   }
 
   def partCoordinates(pi: Int): (Int, Int) = blockCoordinates(partitionToBlock(pi))
@@ -162,14 +186,14 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
   //   all elements with lower <= jj - ii <= upper
   def bandBlocks(lower: Long, upper: Long): Array[Int] = {
     require(lower <= upper)
-    
+
     val lowerBlock = java.lang.Math.floorDiv(lower, blockSize).toInt
     val upperBlock = java.lang.Math.floorDiv(upper + blockSize - 1, blockSize).toInt
 
     (for { j <- 0 until nBlockCols
            i <- ((j - upperBlock) max 0) to
-                ((j - lowerBlock) min (nBlockRows - 1))
-    } yield (j * nBlockRows) + i).toArray
+             ((j - lowerBlock) min (nBlockRows - 1))
+           } yield (j * nBlockRows) + i).toArray
   }
 
   // returns increasing array of all blocks intersecting the rectangle
@@ -180,20 +204,20 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
     val stopBlockRow = java.lang.Math.floorDiv(r(1) - 1, blockSize).toInt + 1
     val startBlockCol = indexBlockIndex(r(2))
     val stopBlockCol = java.lang.Math.floorDiv(r(3) - 1, blockSize).toInt + 1
-    
+
     (for { j <- startBlockCol until stopBlockCol
            i <- startBlockRow until stopBlockRow
-    } yield (j * nBlockRows) + i).toArray
+           } yield (j * nBlockRows) + i).toArray
   }
 
   // returns increasing array of all blocks intersecting the union of rectangles
   // rectangles checked in Python
   def rectanglesBlocks(rectangles: Array[Array[Long]]): Array[Int] = {
-    val blocks = rectangles.foldLeft(mutable.Set[Int]())((s, r) => s ++= rectangleBlocks(r)).toArray    
+    val blocks = rectangles.foldLeft(mutable.Set[Int]())((s, r) => s ++= rectangleBlocks(r)).toArray
     scala.util.Sorting.quickSort(blocks)
     blocks
   }
-  
+
   // starts, stops checked in Python
   def rowIntervalsBlocks(starts: Array[Long], stops: Array[Long]): Array[Int] = {
     val rectangles = starts.grouped(blockSize).zip(stops.grouped(blockSize))
@@ -218,7 +242,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
         } else
           None
       }.toArray
-    
+
     rectanglesBlocks(rectangles)
   }
 }

@@ -327,17 +327,12 @@ class BlockMatrixSuite extends HailSuite {
 
   @Test
   def diagonalTestTiny() {
-    val lm = toLM(4, 4, Array[Double](
+    val lm = toLM(3, 4, Array[Double](
       1, 2, 3, 4,
       5, 6, 7, 8,
-      9, 10, 11, 12,
-      13, 14, 15, 19))
-    println("LOOK-HERE-BISK")
-    println(lm)
-    
-    val m = toBM(lm, blockSize = 2)
+      9, 10, 11, 12))
 
-    println(m.diagonal().toSeq)
+    val m = toBM(lm, blockSize = 2)
 
     assert(m.diagonal().toSeq == Seq(1, 6, 11))
     assert(m.T.diagonal().toSeq == Seq(1, 6, 11))
@@ -777,12 +772,12 @@ class BlockMatrixSuite extends HailSuite {
     val lm = new BDM[Double](2, 3, Array(0.0, 1.0, 4.0, 9.0, 16.0, 25.0))
     val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize = 2)
     val expected = new BDM[Double](2, 3, Array(0.0, 1.0, 2.0, 3.0, 4.0, 5.0))
-    
+
     TestUtils.assertMatrixEqualityDouble(bm.pow(0.0).toBreezeMatrix(), BDM.fill(2, 3)(1.0))
     TestUtils.assertMatrixEqualityDouble(bm.pow(0.5).toBreezeMatrix(), expected)
     TestUtils.assertMatrixEqualityDouble(bm.sqrt().toBreezeMatrix(), expected)
   }
-  
+
   def filteredEquals(bm1: BlockMatrix, bm2: BlockMatrix): Boolean =
     bm1.blocks.collect() sameElements bm2.blocks.collect()
 
@@ -822,14 +817,19 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def testFilterBlocks() {
+    def testFilterBlocks() {
     val lm = toLM(4, 4, Array(
       1, 2, 3, 4,
       5, 6, 7, 8,
       9, 10, 11, 12,
       13, 14, 15, 16))
-        
+
+    println("Initial L Matrix " + lm.data.toSeq)
     val bm = toBM(lm, blockSize = 2)
+    println("FBM1: " + (bm).toBreezeMatrix().data.toSeq)
+    println("FBM2: " + (bm + 2).toBreezeMatrix().data.toSeq)
+
+    println("Initial Block Matrix" + bm.blocks.collect().toSeq)
 
     val keepArray = Array(
       Array.empty[Int],
@@ -840,22 +840,22 @@ class BlockMatrixSuite extends HailSuite {
       Array(0, 1, 2, 3))
 
     val localBlocks = Array(lm(0 to 1, 0 to 1), lm(2 to 3, 0 to 1), lm(0 to 1, 2 to 3), lm(2 to 3, 2 to 3))
-     
+
     for { keep <- keepArray } {
-      println("\n")
-      println("blocks to keep:")
-      println(keep.toSeq)
+      // println("\n")
+      // println("blocks to keep:")
+
+
 
       val fbm = bm.filterBlocks(keep)
-      print(fbm.blocks.collect().toSeq)
-      
+
       assert(fbm.blocks.count() == keep.length)
       assert(fbm.blocks.collect().forall { case ((i, j), block) =>
         block == localBlocks(fbm.gp.coordinatesBlock(i, j)) } )
     }
 
     println("here")
-    
+
     // test multiple block filters
     val bm13 = bm.filterBlocks(Array(1, 3)).cache()
 
@@ -865,7 +865,7 @@ class BlockMatrixSuite extends HailSuite {
     assert(filteredEquals(bm.filterBlocks(Array(1)),
       bm.filterBlocks(Array(1, 2, 3)).filterBlocks(Array(0, 1, 2)).filterBlocks(Array(0, 1, 3))))
   }
-  
+
   @Test
   def testSparseBlockMatrixIO() {
     val lm = toLM(4, 4, Array(
@@ -873,7 +873,7 @@ class BlockMatrixSuite extends HailSuite {
       5, 6, 7, 8,
       9, 10, 11, 12,
       13, 14, 15, 16))
-    
+
     val bm = toBM(lm, blockSize = 2)
 
     val keepArray = Array(
@@ -883,7 +883,7 @@ class BlockMatrixSuite extends HailSuite {
       Array(2, 3),
       Array(1, 2, 3),
       Array(0, 1, 2, 3))
-    
+
     val lm_zero = BDM.zeros[Double](2, 2)
 
     def filterBlocks(keep: Array[Int]): BDM[Double] = {
@@ -900,14 +900,14 @@ class BlockMatrixSuite extends HailSuite {
     for { keep <- keepArray } {
       val fbm = bm.filterBlocks(keep)
       val flm = filterBlocks(keep)
-      
+
       assert(fbm.toBreezeMatrix() === flm)
 
       assert(flm === fbm.toIndexedRowMatrix().toHailBlockMatrix().toBreezeMatrix())
-      
+
       val fname = ctx.createTmpPath("test")
       fbm.write(ctx, fname, forceRowMajor = true)
-      
+
       assert(RowMatrix.readBlockMatrix(fs, fname, 3).toBreezeMatrix() === flm)
 
       assert(filteredEquals(fbm, BlockMatrix.read(fs, fname)))
@@ -922,8 +922,16 @@ class BlockMatrixSuite extends HailSuite {
       9, 10, 11, 12,
       13, 14, 15, 16))
 
+    println("BREAK 11 - 0")
+
+    println("NEW LM: " + lm.data.toSeq)
+
     val bm = toBM(lm, blockSize = 2)
-    
+
+    println("NEW BM: " + bm.blocks.collect().toSeq)
+
+    println("BREAK 12 - 0")
+
     val keepArray = Array(
       Array.empty[Int],
       Array(0),
@@ -933,10 +941,13 @@ class BlockMatrixSuite extends HailSuite {
       Array(0, 1, 2, 3)
     )
 
+    println("BREAK 13")
+
     val lm_zero = BDM.zeros[Double](2, 2)
 
-    def filterBlocks(keep: Array[Int]): BDM[Double] = {
-      val flm = lm.copy
+    println("BREAK 14")
+
+    def filterBlocks(flm: BDM[Double], keep: Array[Int]): BDM[Double] = {
       (0 to 3).diff(keep).foreach { i =>
         val r = 2 * (i % 2)
         val c = 2 * (i / 2)
@@ -944,44 +955,88 @@ class BlockMatrixSuite extends HailSuite {
       }
       flm
     }
-    
+
+
+
     val transposeBI = Array(0 -> 0, 1 -> 2, 2 -> 1, 3 -> 3).toMap
 
     val v = Array(1.0, 2.0, 3.0, 4.0)
-        
+
     // test transpose, diagonal, math ops, filter ops
     for { keep <- keepArray } {
       println(s"Test says keep block: ${keep.toIndexedSeq}")
+
+      val lm = toLM(4, 4, Array(
+        1, 2, 3, 4,
+        5, 6, 7, 8,
+        9, 10, 11, 12,
+        13, 14, 15, 16))
+
+      val bm = toBM(lm, blockSize = 2)
+
       val fbm = bm.filterBlocks(keep)
-      val flm = filterBlocks(keep)
+      println("FBM: " + fbm.blocks.collect().toSeq)
+      val flm = filterBlocks(lm, keep)
+
+      println("FBM2: " + (fbm + 2.0).toBreezeMatrix().data.toSeq)
+
+      println("BREAK 0")
 
       assert(filteredEquals(fbm.transpose().transpose(), fbm))
+
+      println("BREAK 2")
 
       assert(filteredEquals(
         fbm.transpose(), bm.transpose().filterBlocks(keep.map(transposeBI).sorted)))
 
+      println("BREAK 3")
+
       assert(fbm.diagonal() sameElements diag(fbm.toBreezeMatrix()).toArray)
+
+      println("BREAK 4")
 
       assert(filteredEquals(+fbm, +bm.filterBlocks(keep)))
       assert(filteredEquals(-fbm, -bm.filterBlocks(keep)))
 
+      println("BREAK 5 - - ")
+
+      println("ARG1: " + (fbm+fbm).blocks.collect().toSeq)
+      println("ARG2: " + (bm + bm).filterBlocks(keep).blocks.collect().toSeq)
+
       assert(filteredEquals(fbm + fbm, (bm + bm).filterBlocks(keep)))
+      println("BREAK 5.1")
       assert(filteredEquals(fbm - fbm, (bm - bm).filterBlocks(keep)))
+      println("BREAK 5.2")
       assert(filteredEquals(fbm * fbm, (bm * bm).filterBlocks(keep)))
+
+      println("BREAK 6")
 
       assert(filteredEquals(fbm.rowVectorMul(v), bm.rowVectorMul(v).filterBlocks(keep)))
       assert(filteredEquals(fbm.rowVectorDiv(v), bm.rowVectorDiv(v).filterBlocks(keep)))
 
+      println("BREAK 7")
+
       assert(filteredEquals(fbm.colVectorMul(v), bm.colVectorMul(v).filterBlocks(keep)))
       assert(filteredEquals(fbm.colVectorDiv(v), bm.colVectorDiv(v).filterBlocks(keep)))
+
+      println("BREAK 8")
 
       assert(filteredEquals(fbm * 2, (bm * 2).filterBlocks(keep)))
       assert(filteredEquals(fbm / 2, (bm / 2).filterBlocks(keep)))
 
+      println("BREAK 9")
+
       assert(filteredEquals(fbm.sqrt(), bm.sqrt().filterBlocks(keep)))
       assert(filteredEquals(fbm.pow(3), bm.pow(3).filterBlocks(keep)))
 
+      println("BREAK 1")
+
       assert(fbm.dot(fbm).toBreezeMatrix() === flm * flm)
+
+      println("BREAK 2")
+      println("ARG1.x: " + (fbm).toBreezeMatrix().data.toSeq)
+      println("ARG1: " + (fbm + 2.0).toBreezeMatrix().data.toSeq)
+      println("ARG2: " + (flm + 2.0).data.toSeq)
 
       // densifying ops
       assert((fbm + 2).toBreezeMatrix() === flm + 2.0)
@@ -989,76 +1044,103 @@ class BlockMatrixSuite extends HailSuite {
       assert((fbm - 2).toBreezeMatrix() === flm - 2.0)
       assert((2 - fbm).toBreezeMatrix() === 2.0 - flm)
 
+      println("BREAK 3")
+
       assert(fbm.rowVectorAdd(v).toBreezeMatrix() === flm(*, ::) + BDV(v))
       assert(fbm.rowVectorSub(v).toBreezeMatrix() === flm(*, ::) - BDV(v))
       assert(fbm.reverseRowVectorSub(v).toBreezeMatrix() === -(flm(*, ::) - BDV(v)))
 
+      println("BREAK 4")
+
       assert(fbm.colVectorAdd(v).toBreezeMatrix() === flm(::, *) + BDV(v))
       assert(fbm.colVectorSub(v).toBreezeMatrix() === flm(::, *) - BDV(v))
       assert(fbm.reverseColVectorSub(v).toBreezeMatrix() === -(flm(::, *) - BDV(v)))
-      
+
+      println("BREAK 5")
+
       // filter ops
       assert(fbm.filterRows(Array(1, 2)).toBreezeMatrix() === flm(1 to 2, ::))
+      println("BREAK 5.3")
       assert(fbm.filterCols(Array(1, 2)).toBreezeMatrix() === flm(::, 1 to 2))
+      println("BREAK 5.4")
       assert(fbm.filter(Array(1, 2), Array(1, 2)).toBreezeMatrix() === flm(1 to 2, 1 to 2))
+      println("BREAK 5.5")
     }
-    
+
     val bm0 = bm.filterBlocks(Array(0))
     val bm13 = bm.filterBlocks(Array(1, 3))
     val bm23 = bm.filterBlocks(Array(2, 3))
     val bm123 = bm.filterBlocks(Array(1, 2, 3))
-    
-    val lm0 = filterBlocks(Array(0))
-    val lm13 = filterBlocks(Array(1, 3))
-    val lm23 = filterBlocks(Array(2, 3))
-    val lm123 = filterBlocks(Array(1, 2, 3))
-    
+
+    val lms = Array.tabulate(4){i =>
+      toLM(4, 4, Array(
+        1, 2, 3, 4,
+        5, 6, 7, 8,
+        9, 10, 11, 12,
+        13, 14, 15, 16))
+    }
+
+    println("BREAK 6")
+    val lm0 = filterBlocks(lms(0), Array(0))
+    val lm13 = filterBlocks(lms(1), Array(1, 3))
+    val lm23 = filterBlocks(lms(2), Array(2, 3))
+    val lm123 = filterBlocks(lms(3), Array(1, 2, 3))
+
     // test +/- with mismatched blocks
     assert(filteredEquals(bm0 + bm13, bm.filterBlocks(Array(0, 1, 3))))
-    
+
+    println("BREAK 7")
+
+
     assert((bm0 + bm).toBreezeMatrix() === lm0 + lm)
     assert((bm + bm0).toBreezeMatrix() === lm + lm0)
     assert(
-      (bm0 + 2.0 * bm13 + 3.0 * bm23 + 5.0 * bm123).toBreezeMatrix() === 
+      (bm0 + 2.0 * bm13 + 3.0 * bm23 + 5.0 * bm123).toBreezeMatrix() ===
       lm0 + 2.0 * lm13 + 3.0 * lm23 + 5.0 * lm123)
     assert(
-      (bm123 + 2.0 * bm13 + 3.0 * bm23 + 5.0 * bm0).toBreezeMatrix() === 
+      (bm123 + 2.0 * bm13 + 3.0 * bm23 + 5.0 * bm0).toBreezeMatrix() ===
       lm123 + 2.0 * lm13 + 3.0 * lm23 + 5.0 * lm0)
 
-    
+    println("BREAK 8")
+
+
     assert((bm0 - bm).toBreezeMatrix() === lm0 - lm)
     assert((bm - bm0).toBreezeMatrix() === lm - lm0)
     assert(
-      (bm0 - 2.0 * bm13 - 3.0 * bm23 - 5.0 * bm123).toBreezeMatrix() === 
+      (bm0 - 2.0 * bm13 - 3.0 * bm23 - 5.0 * bm123).toBreezeMatrix() ===
       lm0 - 2.0 * lm13 - 3.0 * lm23 - 5.0 * lm123)
     assert(
-      (bm123 - 2.0 * bm13 - 3.0 * bm23 - 5.0 * bm0).toBreezeMatrix() === 
+      (bm123 - 2.0 * bm13 - 3.0 * bm23 - 5.0 * bm0).toBreezeMatrix() ===
       lm123 - 2.0 * lm13 - 3.0 * lm23 - 5.0 * lm0)
-    
+
+
+    println("BREAK 9")
+
+
     // test * with mismatched blocks
-    assert(filteredEquals(bm0 * bm13, bm.filterBlocks(Array.empty[Int])))    
+    assert(filteredEquals(bm0 * bm13, bm.filterBlocks(Array.empty[Int])))
     assert(filteredEquals(bm13 * bm23, (bm * bm).filterBlocks(Array(3))))
     assert(filteredEquals(bm13 * bm, (bm * bm).filterBlocks(Array(1, 3))))
     assert(filteredEquals(bm * bm13, (bm * bm).filterBlocks(Array(1, 3))))
 
     // test unsupported ops
     val notSupported: String = "not supported for block-sparse matrices"
-    
+
     val v0 = Array(0.0, Double.NaN, Double.PositiveInfinity, Double.NegativeInfinity)
-    
+
     TestUtils.interceptFatal(notSupported) { bm0 / bm0 }
     TestUtils.interceptFatal(notSupported) { bm0.reverseRowVectorDiv(v) }
     TestUtils.interceptFatal(notSupported) { bm0.reverseColVectorDiv(v) }
     TestUtils.interceptFatal(notSupported) { 1 / bm0 }
-    
+
     TestUtils.interceptFatal(notSupported) { bm0.rowVectorDiv(v0) }
     TestUtils.interceptFatal(notSupported) { bm0.colVectorDiv(v0) }
     TestUtils.interceptFatal("multiplication by scalar NaN") { bm0 * Double.NaN }
     TestUtils.interceptFatal("division by scalar 0.0") { bm0 / 0 }
-    
+
     TestUtils.interceptFatal(notSupported) { bm0.pow(-1)}
   }
-  
+
   @Test
   def testRealizeBlocks() {
     val lm = toLM(4, 4, Array(
@@ -1068,7 +1150,7 @@ class BlockMatrixSuite extends HailSuite {
       13, 14, 15, 16))
 
     val bm = toBM(lm, blockSize = 2)
-    
+
     val keepArray = Array(
       Array.empty[Int],
       Array(0),
@@ -1080,7 +1162,7 @@ class BlockMatrixSuite extends HailSuite {
     val lm_zero = BDM.zeros[Double](2, 2)
 
     def filterBlocks(keep: Array[Int]): BDM[Double] = {
-      val flm = lm.copy
+      val flm = lm
       (0 to 3).diff(keep).foreach { i =>
         val r = 2 * (i % 2)
         val c = 2 * (i / 2)
@@ -1088,17 +1170,17 @@ class BlockMatrixSuite extends HailSuite {
       }
       flm
     }
-    
+
     assert(filteredEquals(bm.densify(), bm))
     assert(filteredEquals(bm.realizeBlocks(None), bm))
 
     for { keep <- keepArray } {
       val fbm = bm.filterBlocks(keep)
       val flm = filterBlocks(keep)
-      
+
       assert(filteredEquals(fbm.densify(), toBM(flm, blockSize = 2)))
       assert(filteredEquals(fbm.realizeBlocks(Some(keep)), fbm))
-      
+
       val bis = (keep ++ Array(0, 2)).distinct.sorted
       assert(filteredEquals(fbm.realizeBlocks(Some(Array(0, 2))),
         toBM(flm, blockSize = 2).filterBlocks(bis)))

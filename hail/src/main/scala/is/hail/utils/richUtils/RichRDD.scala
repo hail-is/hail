@@ -16,7 +16,9 @@ import org.apache.spark.rdd.RDD
 import scala.reflect.ClassTag
 import scala.collection.mutable
 
-case class SubsetRDDPartition(index: Int, parentPartition: Partition) extends Partition
+case class SubsetRDDPartition(index: Int, parentPartition: Partition) extends Partition {
+  //println("Inside SUBSETRDDPARTITION: " + index + " - - - - -" + parentPartition.toString())
+}
 
 case class SupersetRDDPartition(index: Int, maybeParentPartition: Option[Partition]) extends Partition
 
@@ -133,6 +135,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     )
   }
 
+  // subsetPartitions( [1,3], subsetGp)
   def subsetPartitions(keep: IndexedSeq[Int], newPartitioner: Option[Partitioner] = None)(implicit ct: ClassTag[T]): RDD[T] = {
     require(keep.length <= r.partitions.length,
       s"tried to subset to more partitions than exist ${keep.toSeq} ${r.partitions.toSeq}")
@@ -140,32 +143,57 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       "values not sorted or not in range [0, number of partitions)")
     val parentPartitions = r.partitions
 
-    println("Parent Partitions")
+    //println("PARENT PARTITIONS: " + parentPartitions)
+    //println("\n")
+    //println("PARENT PARTITIONS (0): " + parentPartitions(0))
+    //println("\n")
 
-    parentPartitions.foreach { h =>
-      println(h.index.toString())
-    }
+    /*
+     println("keep: " + keep)
+     println("Parent Partitions")
 
+     parentPartitions.foreach { h =>
+       println(h.index.toString())
+     }
+     print("R: " + r.collect().toSeq)
+     */
 
-    new RDD[T](r.sparkContext, FastSeq(new NarrowDependency[T](r) {
-      def getParents(partitionId: Int): Seq[Int] = FastSeq(keep(partitionId))
+    val rdd = new RDD[T](r.sparkContext, FastSeq(new NarrowDependency[T](r) {
+      //println("r inside rdd function: " + r.collect().toSeq)
+      def getParents(partitionId: Int): Seq[Int] = {
+        // println("Partition ID: " + partitionId + " | | " + "Partition No: " + keep(partitionId))
+        // println("FASTSEQ: " + FastSeq(keep(partitionId)))
+        FastSeq(keep(partitionId))
+      }
     })) {
       def getPartitions: Array[Partition] = keep.indices.map { i =>
-        SubsetRDDPartition(i, parentPartitions(keep(i)))
+        // keep = [1, 3], parentPartitions = [0, 1, 2, 3]
+        // i = 0: keep(i) = 1 -> parentPart(1) -> 1
+        // i =1: keep(i) = 3 -> parentPart(3) -> 3
+        // println("Inside getPartitions")
+        val s = SubsetRDDPartition(i, parentPartitions(keep(i)))
+        // println("SubsetRDDPartition(" + i + ", parentPartitions(" + keep(i)  )
+        // println("parentPartitions(keep(i)) : " + parentPartitions(keep(i)))
+        // println("\n")
+        s
       }.toArray
+      // [SubsetRDDPart(0, 1), SubsetRDDPart(1, 3)
 
       def compute(split: Partition, context: TaskContext): Iterator[T] =
         r.compute(split.asInstanceOf[SubsetRDDPartition].parentPartition, context)
 
       @transient override val partitioner: Option[Partitioner] = newPartitioner
     }
+    //println("OUTPUT RDD: - - - " + rdd.collect().toSeq)
+    //println("\n")
+    rdd
   }
 
   def supersetPartitions(
-    oldToNewPI: IndexedSeq[Int],
-    newNPartitions: Int,
-    newPIPartition: Int => Iterator[T],
-    newPartitioner: Option[Partitioner] = None)(implicit ct: ClassTag[T]): RDD[T] = {
+                          oldToNewPI: IndexedSeq[Int],
+                          newNPartitions: Int,
+                          newPIPartition: Int => Iterator[T],
+                          newPartitioner: Option[Partitioner] = None)(implicit ct: ClassTag[T]): RDD[T] = {
 
     require(oldToNewPI.length == r.partitions.length)
     require(oldToNewPI.forall(pi => pi >= 0 && pi < newNPartitions))
@@ -201,12 +229,12 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   }
 
   def writePartitions(
-    ctx: ExecuteContext,
-    path: String,
-    stageLocally: Boolean,
-    write: (Iterator[T], OutputStream) => Long
-  )(implicit tct: ClassTag[T]
-  ): (Array[String], Array[Long]) =
+                       ctx: ExecuteContext,
+                       path: String,
+                       stageLocally: Boolean,
+                       write: (Iterator[T], OutputStream) => Long
+                     )(implicit tct: ClassTag[T]
+                     ): (Array[String], Array[Long]) =
     ContextRDD.weaken(r).writePartitions(ctx,
       path,
       null,

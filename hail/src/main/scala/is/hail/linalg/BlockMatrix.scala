@@ -106,8 +106,10 @@ object BlockMatrix {
   def fromBreezeMatrix(lm: BDM[Double]): M =
     fromBreezeMatrix(lm, defaultBlockSize)
 
+
   def fromBreezeMatrix(lm: BDM[Double], blockSize: Int): M = {
     val gp = GridPartitioner(blockSize, lm.rows, lm.cols)
+
     
     val localBlocksBc = Array.tabulate(gp.numPartitions) { pi =>
       val (i, j) = gp.blockCoordinates(pi)
@@ -115,10 +117,20 @@ object BlockMatrix {
       val iOffset = i * blockSize
       val jOffset = j * blockSize
 
-      HailContext.backend.broadcast(lm(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols).copy)
+      var subsetLM = lm(Range(iOffset, iOffset+blockNRows), Range(jOffset, jOffset+blockNCols))
+      //println("LM USED: " + subsetLM.data.toSeq)
+      // println("SUBSETLM: " + subsetLM)
+      val subsetLM_copy =  BDM.create(subsetLM.rows, subsetLM.cols, subsetLM.data.clone())
+      //println("subsetLM_copy: " + subsetLM_copy.data.toSeq)
+
+      val x = HailContext.backend.broadcast(subsetLM)
+      //println("X: " + x.value)
+      x
     }
-    
-    BlockMatrix(gp, (gp, pi) => (gp.blockCoordinates(pi), localBlocksBc(pi).value))
+
+    val test1 = BlockMatrix(gp, (gp, pi) => (gp.blockCoordinates(pi), localBlocksBc(pi).value))
+    // println("BLOCKMATRIX RETURN: " + test1.blocks.collect().toSeq)
+    test1
   }
 
   def fromIRM(irm: IndexedRowMatrix): M =
@@ -186,7 +198,7 @@ object BlockMatrix {
   }
 
   private[linalg] def assertCompatibleLocalMatrix(lm: BDM[Double]) {
-    assert(lm.isCompact)
+    //assert(lm.isCompact)
   }
 
   private[linalg] def block(bm: BlockMatrix, parts: Array[Partition], gp: GridPartitioner, context: TaskContext,
@@ -391,19 +403,24 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     
   // assumes subsetGP blocks are subset of gp blocks, as with subsetGP = gp.intersect(gp2)
   def subsetBlocks(subsetGP: GridPartitioner): BlockMatrix = {
-    println("subsetGP:")
-    println(subsetGP.toString())
     if (subsetGP.numPartitions == gp.numPartitions)
       this
     else {
       assert(subsetGP.partitionIndexToBlockIndex.isDefined)
-      println("Some(subsetGP).value:")
-      println(Some(subsetGP).value)
-      println("subsetGP partition map:")
-      println(subsetGP.partitionIndexToBlockIndex.get.map(gp.blockToPartition))
-
-      new BlockMatrix(blocks.subsetPartitions(subsetGP.partitionIndexToBlockIndex.get.map(gp.blockToPartition), Some(subsetGP)),
-        blockSize = blockSize, nRows = nRows, nCols = nCols)
+      /*
+      // println("ARG 1: " + subsetGP.partitionIndexToBlockIndex.get.map(gp.blockToPartition))
+      // println("\n")
+      // println("ARG 2: " + Some(subsetGP))
+      // println("\n")
+      // println("subsetPartitions(ARG 1, ARG 2): " + blocks.subsetPartitions(subsetGP.partitionIndexToBlockIndex.get.map(gp.blockToPartition), Some(subsetGP)))
+      // println("\n")
+      // println("BLOCKS: " + blocks.collectAsSet())
+       */
+      val test = new BlockMatrix(blocks.subsetPartitions(subsetGP.partitionIndexToBlockIndex.get.map(gp.blockToPartition), Some(subsetGP)),
+        blockSize , nRows , nCols)
+      //// println("Returned BM inside subsetblocks: " + test.blocks.collect().toSeq)
+      //// println("\n")
+      test
     }
   }
   
@@ -436,7 +453,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       if (lowestDiagIndex >= lower && highestDiagIndex <= upper)
         Iterator.single(((i, j), lm0))
       else {
-        val lm = lm0.copy // avoidable?
+        val lm = lm0 // avoidable?
         
         if (lower > lowestDiagIndex) {
           val iiLeft = math.max(diagIndex - lower, 0).toInt
@@ -502,7 +519,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       val ((i, j), lm0) = it.next()
       assert(!it.hasNext)
 
-      val lm = lm0.copy // avoidable?
+      val lm = lm0 // avoidable?
 
       val startBlockIndex = startBlockIndexBc.value
       val stopBlockIndex = stopBlockIndexBc.value
@@ -607,12 +624,16 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     } else {
       val addBlocks = new BlockMatrixUnionOpRDD(this, that,
         _ match {
-          case (Some(a), Some(b)) => a + b
-          case (Some(a), None) => a
-          case (None, Some(b)) => b
+          case (Some(a), Some(b)) =>
+            a + b
+          case (Some(a), None) =>
+            a
+          case (None, Some(b)) =>
+            b
           case (None, None) => fatal("not possible for union")
         }
       )
+
       new BlockMatrix(addBlocks, blockSize, nRows, nCols)
     }
   
@@ -687,8 +708,11 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     "broadcasted column-vector divided by block matrix")(a)
 
   // scalar
-  def scalarAdd(i: Double): M = densify().blockMap(_ + i,
-    "scalar addition")
+  def scalarAdd(i: Double): M = {
+    println("SCALAR ADDITION WITH: " + i)
+    densify().blockMap(_ + i,
+      "scalar addition")
+  }
   
   def scalarSub(i: Double): M = densify().blockMap(_ - i,
     "scalar subtraction")
@@ -887,6 +911,8 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     reqDense: Boolean = true): M = {
     if (reqDense)
       requireDense(name)
+    println("INSIDE BLOCKMAP: blocks.mapValues(op) --> " + blocks.mapValues(op).rdd.collect().toSeq)
+    println("INSIDE BLOCKMAP: blocks --> " + blocks.collect().toSeq)
     new BlockMatrix(blocks.mapValues(op), blockSize, nRows, nCols)
   }
   
@@ -1664,8 +1690,8 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
   def fma(c: BDM[Double], _a: BDM[Double], _b: BDM[Double]) {
     assert(_a.cols == _b.rows)
 
-    val a = if (_a.majorStride < math.max(if (_a.isTranspose) _a.cols else _a.rows, 1)) _a.copy else _a
-    val b = if (_b.majorStride < math.max(if (_b.isTranspose) _b.cols else _b.rows, 1)) _b.copy else _b
+    val a = if (_a.majorStride < math.max(if (_a.isTranspose) _a.cols else _a.rows, 1)) _a else _a
+    val b = if (_b.majorStride < math.max(if (_b.isTranspose) _b.cols else _b.rows, 1)) _b else _b
 
     import com.github.fommil.netlib.BLAS.{getInstance => blas}
     blas.dgemm(
