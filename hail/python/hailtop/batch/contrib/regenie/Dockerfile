@@ -1,3 +1,6 @@
+# Adapted by Hail Team from Regenie
+# Original attribution line:
+# License path: regenie/LICENSE
 # Thanks to Nathan Weeks for sharing this Dockerfile
 # minor edits were made
 # Filename: Dockerfile
