@@ -111,7 +111,7 @@ class DeployConfig:
         return root_app
 
     async def addresses(self, service: str) -> List[Tuple[str, int]]:
-        from ..auth import service_auth_headers  # pylint: disable=cyclic-import
+        from ..auth import service_auth_headers  # pylint: disable=cyclic-import,import-outside-toplevel
         namespace = self.service_ns(service)
         headers = service_auth_headers(self, namespace)
         async with get_context_specific_ssl_client_session(
