@@ -36,6 +36,13 @@ class Backend:
         """
         return
 
+    @abc.abstractmethod
+    def close(self):
+        """
+        Close a Hail Batch backend.
+        """
+        pass
+
 
 class LocalBackend(Backend):
     """
