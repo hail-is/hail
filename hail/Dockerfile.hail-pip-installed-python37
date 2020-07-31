@@ -1,0 +1,18 @@
+FROM ubuntu:18.04
+
+ENV LANG C.UTF-8
+
+RUN apt-get update && \
+  apt-get -y install \
+    openjdk-8-jdk-headless \
+    python3.7 python3-pip \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY hail/python/requirements.txt requirements.txt
+RUN pip install -U requirements.txt
+
+COPY wheel-container.tar wheel-container.tar
+RUN tar -xf wheel-container.tar && \
+    python3 -m pip install hail-*-py3-none-any.whl
+
+COPY pylintrc setup.cfg /
