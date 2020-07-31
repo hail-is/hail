@@ -254,7 +254,7 @@ nohup /bin/bash run.sh >run.log 2>&1 &
 '''
                 }, {
                     'key': 'run_script',
-                    'value': '''
+                    'value': r'''
 #!/bin/bash
 set -x
 
