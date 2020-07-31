@@ -78,7 +78,7 @@ async def show_name(request: web.Request) -> web.Response:
 
     context = {
         'name': request.match_info.get('name', ''),
-        'name_data': next((item for item in data if item['name'] == 'name'), None)
+        'name_data': next((item for item in data if item['name'] == str(request.match_info['name'])), None)
     }
     fig = px.scatter(x=[0, 1, 2, 3, 4, 5], y=context['name_data']['times'])
     fig.write_html('user.html')
