@@ -9,7 +9,7 @@ RUN apt-get update && \
   && rm -rf /var/lib/apt/lists/*
 
 COPY hail/python/requirements.txt requirements.txt
-RUN python3 -m pip install -U requirements.txt
+RUN python3 -m pip install -U -r requirements.txt
 
 COPY wheel-container.tar wheel-container.tar
 RUN tar -xf wheel-container.tar && \
