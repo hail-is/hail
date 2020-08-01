@@ -133,7 +133,8 @@ def get_input(batch, step_args: argparse.Namespace):
     return add
 
 
-def regenie(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_args: argparse.Namespace):
+def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace,
+                 step2_args: argparse.Namespace):
     j1 = batch.new_job(name='run-regenie')
     j1.image('akotlar/regenie:latest')
     j1.cpu(args.cores)
@@ -244,19 +245,7 @@ def regenie(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_args: 
     return j1, j2, s2pre
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--local', required=False, action="store_true")
-    parser.add_argument('--demo', required=False, action="store_true")
-    parser.add_argument('--out', required=True)
-    parser.add_argument('--cores', required=False, default=2)
-    parser.add_argument('--memory', required=False, default="7Gi")
-    parser.add_argument('--storage', required=False, default="1Gi")
-    parser.add_argument('--step1', required=False)
-    parser.add_argument('--step2', required=False)
-
-    args = parser.parse_args()
-
+def run_regenie(args):
     is_local = True if args.local or args.demo else False
 
     if is_local:
@@ -280,11 +269,27 @@ if __name__ == '__main__':
 
     batch = hb.Batch(backend=backend, name='regenie')
 
-    j1, j2, s2pre = regenie(batch, batch_args, step1_args, step2_args)
+    j1, j2, j2_out_key = prepare_jobs(batch, batch_args, step1_args, step2_args)
 
     # FIXME: this will never write to an output directory
-    batch.write_output(j2[s2pre], args.out)
+    batch.write_output(j2[j2_out_key], args.out)
     batch.run(**run_opts)
 
     if not is_local:
         backend.close()
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--local', required=False, action="store_true")
+    parser.add_argument('--demo', required=False, action="store_true")
+    parser.add_argument('--out', required=True)
+    parser.add_argument('--cores', required=False, default=2)
+    parser.add_argument('--memory', required=False, default="7Gi")
+    parser.add_argument('--storage', required=False, default="1Gi")
+    parser.add_argument('--step1', required=False)
+    parser.add_argument('--step2', required=False)
+
+    args = parser.parse_args()
+
+    run_regenie(args)
