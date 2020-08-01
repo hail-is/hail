@@ -7,8 +7,9 @@ from hail.utils import hadoop_exists as hexists
 from collections import namedtuple
 
 # TODO: force local_ssd, need to validate against mem
-BatchArgs = namedtuple("BatchArgs", ['cores', 'memory', 'storage', 'local_ssd'])
-input_file_args = ["bgen", "bed", "pgen", "sample", "keep", "extract", "exclude", "remove", "phenoFile", "covarFile"]
+BatchArgs = namedtuple("BatchArgs", ['cores', 'memory', 'storage'])
+input_file_args = ["bgen", "bed", "pgen", "sample", "keep", "extract", "exclude", "remove",
+                   "phenoFile", "covarFile"]
 
 from_underscore = {
     "force_impute": "force-impute",
@@ -248,22 +249,15 @@ if __name__ == '__main__':
     parser.add_argument('--local', required=False, action="store_true")
     parser.add_argument('--demo', required=False, action="store_true")
     parser.add_argument('--out', required=True)
-    parser.add_argument('--cores', required=False)
-    parser.add_argument('--memory', required=False)
-    parser.add_argument('--storage', required=False)
+    parser.add_argument('--cores', required=False, default=2)
+    parser.add_argument('--memory', required=False, default="7Gi")
+    parser.add_argument('--storage', required=False, default="1Gi")
     parser.add_argument('--step1', required=False)
     parser.add_argument('--step2', required=False)
 
     args = parser.parse_args()
 
     is_local = True if args.local or args.demo else False
-
-    cores = args.cores if args.cores else 2
-    storage = f"{args.storage}Gi" if args.storage else "1Gi"
-
-    coresMem = 3.75 * cores
-    memory = args.memory if args.memory else coresMem
-    memory = f"{memory}Gi"
 
     if is_local:
         backend = hb.LocalBackend()
@@ -282,7 +276,7 @@ if __name__ == '__main__':
         step1_args = read_args(args.step1)
         step2_args = read_args(args.step2)
 
-    batch_args = BatchArgs(cores=cores, memory=memory, storage=storage, local_ssd=False)
+    batch_args = BatchArgs(cores=args.cores, memory=args.memory, storage=args.storage)
 
     batch = hb.Batch(backend=backend, name='regenie')
 
@@ -292,4 +286,5 @@ if __name__ == '__main__':
     batch.write_output(j2[s2pre], args.out)
     batch.run(**run_opts)
 
-    backend.close()
+    if not is_local:
+        backend.close()
