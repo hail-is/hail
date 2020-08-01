@@ -22,7 +22,11 @@ Otherwise, we welcome you to add additional examples by [editing this page direc
 
 ## 2020
 
-* Muniz Carvalho, C., Wendt, F.R., Maihofer, A.X. et al. Dissecting the genetic association of C-reactive protein with PTSD, traumatic events, and social support. *Neuropsychopharmacol.* (2020). <https://doi.org/10.1038/s41386-020-0655-6> <https://www.nature.com/articles/s41386-020-0655-6#citeas>
+* Krissaane, I, et al. "Scalability and cost-effectiveness analysis of whole genome-wide association studies on Google Cloud Platform and Amazon Web Services", *Journal of the American Medical Informatics Association* (2020) ocaa068 <https://doi.org/10.1093/jamia/ocaa068> <https://academic.oup.com/jamia/article/doi/10.1093/jamia/ocaa068/5876972>
+
+* Karaca M, Atceken N, Karaca Ş, Civelek E, Şekerel BE, Polimanti R. "Phenotypic and Molecular Characterization of Risk Loci Associated With Asthma and Lung Function"   *Allergy Asthma Immunol Res.* (2020) 12(5):806-820.  <https://doi.org/10.4168/aair.2020.12.5.806> <https://e-aair.org/DOIx.php?id=10.4168/aair.2020.12.5.806>
+
+* Muniz Carvalho, C., Wendt, F.R., Maihofer, A.X. et al. "Dissecting the genetic association of C-reactive protein with PTSD, traumatic events, and social support" *Neuropsychopharmacol.* (2020). <https://doi.org/10.1038/s41386-020-0655-6> <https://www.nature.com/articles/s41386-020-0655-6#citeas>
 
 ## 2019
 
