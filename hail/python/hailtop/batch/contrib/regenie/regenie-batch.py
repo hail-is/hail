@@ -1,7 +1,5 @@
 import hailtop.batch as hb
-from yaml import load, dump
 import argparse
-import math
 from hail.utils import hadoop_open as hopen
 from hail.utils import hadoop_exists as hexists
 from collections import namedtuple
