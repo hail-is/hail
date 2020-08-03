@@ -7,18 +7,16 @@ import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitRegion, coerce}
 import is.hail.types.physical.{PBooleanRequired, PCanonicalTuple, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PNumeric, PType}
 import is.hail.utils._
 
-object NDArraySumAggregator {
-}
-
 class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
   override type State = TypedRegionBackedAggState
 
   // State needs:
   // 1. Initialized or not
   // 2. The ndarray itself.
-  val stateType = PCanonicalTuple(true, PBooleanRequired, ndTyp)
 
   override def resultType: PType = ndTyp
+
+  val stateType = PCanonicalTuple(true, PBooleanRequired, ndTyp)
 
   override def initOpTypes: Seq[PType] = Array[PType]()
 
@@ -33,8 +31,8 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
   }
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
-    cb.append(Code._println("Trying to initOp"))
     cb.append(Region.storeBoolean(stateType.fieldOffset(state.off, 0), false))
+    cb.append(stateType.setFieldMissing(state.off, 1))
   }
 
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
@@ -45,14 +43,13 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
       cb.ifx(isInitialized(state),
         {
           val currentNDPValue = PCode(ndTyp, ndArrayPointer(state)).asNDArray.memoize(cb, "ndarray_sum_seqop_current")
-
           addValues(cb, currentNDPValue, nextNDPValue)
         },
         {
-          // TODO Is this really safe, does it copy the initial array?
-          cb.append(Code._println("Uninitialized, constructingAtAddress"))
           cb.append(state.region.getNewRegion(Region.TINY))
           cb.append(Region.storeBoolean(stateType.fieldOffset(state.off, 0), true))
+          cb.append(stateType.setFieldPresent(state.off, 1))
+          // TODO Double check that this does a deep copy, it needs to since we mutate later.
           cb.append(ndTyp.constructAtAddress(cb.emb, stateType.fieldOffset(state.off, 1), state.region, nextNDCode.pt, nextNDPValue.get.tcode[Long], true))
         }
       )
@@ -61,15 +58,11 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
   }
 
   override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
-    cb.append(Code._println("Trying to combOp"))
-    cb.append(Code._println(const("Left value init field looks like: ").concat(Region.loadBoolean(state.off).toS)))
-    cb.append(Code._println(const("Right value init field looks like: ").concat(Region.loadBoolean(other.off).toS)))
     cb.ifx(!isInitialized(other), {
       // Do nothing
     },
     {
       cb.ifx(!isInitialized(state), {
-        cb.append(Code._println("combOp: state was not initialized, overwriting with other"))
         cb.append(state.storeNonmissing(other.off))
       },
       {
@@ -79,9 +72,6 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
           val leftNdValue = leftNdCode.memoize(cb, "left_ndarray_sum_agg")
           rightValue.loadField(cb, 1).consume(cb, {}, { case rightNdCode: PNDArrayCode =>
             val rightNdValue = rightNdCode.memoize(cb, "right_ndarray_sum_agg")
-            cb.append(Code._println("combOp: About to addValues"))
-            cb.append(Code._println(StringFunctions.boxArg(EmitRegion(cb.emb, state.region), stateType)(state.off)))
-            cb.append(Code._println(StringFunctions.boxArg(EmitRegion(cb.emb, other.region), stateType)(other.off)))
             addValues(cb, leftNdValue, rightNdValue)
           })
         })
@@ -126,22 +116,12 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
   }
 
   override protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
-    cb.append(Code._println("Trying to write resultOp"))
-    cb.append(Code._println(const("resultOp: State value init field looks like: ").concat(Region.loadBoolean(state.off).toS)))
     val t = state.get()
-    assert(resultType == state.typ.asInstanceOf[PCanonicalTuple].types(1))
     cb.append(t.setup)
     cb.append(
       isInitialized(state).mux(
-        Code(
-          Code._println(StringFunctions.boxArg(EmitRegion(cb.emb, state.region), stateType)(state.off)),
-          srvb.addWithDeepCopy(resultType, ndArrayPointer(state)),
-          Code._println("Updated SRVB")
-        ),
-        Code(
-          Code._println("Final result was missing"),
-          srvb.setMissing()
-        )
+        srvb.addWithDeepCopy(resultType, ndArrayPointer(state)),
+        srvb.setMissing()
     ))
   }
 }
