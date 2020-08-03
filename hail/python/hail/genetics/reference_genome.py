@@ -25,13 +25,17 @@ class ReferenceGenome(object):
     -----
     Hail comes with predefined reference genomes (case sensitive!):
 
-     - GRCh37
-     - GRCh38
-     - GRCm38
+     - GRCh37, Genome Reference Consortium Human Build 37
+     - GRCh38, Genome Reference Consortium Human Build 38
+     - GRCm38, Genome Reference Consortium Mouse Build 38
+     - CanFam3, Canis lupus familiaris (dog)
 
     You can access these reference genome objects using :func:`.get_reference`:
 
     >>> rg = hl.get_reference('GRCh37')
+    >>> rg = hl.get_reference('GRCh38')
+    >>> rg = hl.get_reference('GRCm38')
+    >>> rg = hl.get_reference('CanFam3')
 
     Note that constructing a new reference genome, either by using the class
     constructor or by using :meth:`.ReferenceGenome.read` will add the
