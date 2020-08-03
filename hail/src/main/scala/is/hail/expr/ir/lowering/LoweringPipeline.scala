@@ -1,6 +1,6 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.{BaseIR, ExecuteContext}
+import is.hail.expr.ir.{BaseIR, ExecuteContext, TypeCheck}
 import is.hail.utils._
 
 case class LoweringPipeline(lowerings: LoweringPass*) {
@@ -16,6 +16,12 @@ case class LoweringPipeline(lowerings: LoweringPass*) {
         case e: Throwable =>
           log.error(s"error while applying lowering '${ l.context }'")
           throw e
+      }
+      try {
+        TypeCheck(x)
+      } catch {
+        case e: Throwable =>
+          fatal(s"error after applying ${ l.context }", e)
       }
     }
 
@@ -61,7 +67,9 @@ object LoweringPipeline {
       OptimizePass("darrayLowerer, after LowerMatrixToTable"),
       LiftRelationalValuesToRelationalLets,
       LowerToDistributedArrayPass(DArrayLowering.All),
-      OptimizePass("darrayLowerer, after LowerToCDA")
+      OptimizePass("darrayLowerer, after LowerToCDA"),
+      OptimizePass("darrayLowerer, after LowerToCDA AGAIN"),
+      OptimizePass("darrayLowerer, after LowerToCDA AGAIN")
     ),
     DArrayLowering.TableOnly -> LoweringPipeline(
       OptimizePass("darrayLowerer, initial IR"),
