@@ -127,6 +127,7 @@ async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: di
 
 
 @router.post('/lookup')
+@web_authenticated_developers_only(redirect=False)
 async def lookup(request, userdata):  # pylint: disable=unused-argument
     data = await request.post()
     file = data['file']
