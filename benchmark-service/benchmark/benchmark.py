@@ -27,7 +27,7 @@ log = logging.getLogger('benchmark')
 # blob_str = blob.download_as_string(client=None)
 # pre_data = json.loads(blob_str)
 
-filepath = '/0.2.45-ac6815ee857c-master.json'
+filepath = 'gs://hail-benchmarks/tpoterba/0.2.45-ac6815ee857c-master.json' #'/0.2.45-ac6815ee857c-master.json'
 
 
 def get_benchmarks(file_path):
