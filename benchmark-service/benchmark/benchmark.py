@@ -36,7 +36,12 @@ def get_benchmarks(file_path):
     # get bucket with name
     bucket = storage_client.get_bucket('hail-benchmarks')
     # get bucket data as blob
-    blob = bucket.blob(file_path)
+    try:
+        blob = bucket.blob(file_path)
+    except Exception:
+        message = 'could not find file'
+        log.info('could not get blob: ' +  message, exc_info=True)
+        raise web.HTTPBadRequest(text=message)
     # convert to string
     json_data = blob.download_as_string()
     pre_data = json.loads(json_data)
