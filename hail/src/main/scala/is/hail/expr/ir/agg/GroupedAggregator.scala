@@ -1,7 +1,7 @@
 package is.hail.expr.ir.agg
 import is.hail.annotations.{CodeOrdering, Region, RegionUtils, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ParamType, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ParamType}
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
 import is.hail.io._
