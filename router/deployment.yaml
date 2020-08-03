@@ -35,7 +35,7 @@ metadata:
     app: benchmark
 spec:
   ports:
-    - port: 80
+    - port: 443
       protocol: TCP
       targetPort: 5000
   selector:
@@ -183,6 +183,21 @@ spec:
     targetPort: 5000
   selector:
     app: query
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: address
+  labels:
+    app: address
+spec:
+  ports:
+  - name: address
+    port: 443
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: address
 ---
 apiVersion: apps/v1
 kind: Deployment

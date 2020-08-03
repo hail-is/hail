@@ -519,6 +519,8 @@ class TableNativeReader(
     case _ => false
   }
 
+  override def toString(): String = s"TableNativeReader(${params})"
+
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
     val globalsSpec = spec.globalsSpec
     val globalsPath = spec.globalsComponent.absolutePath(params.path)

@@ -115,6 +115,8 @@ steps:
        to: /hail_pip_version
      - from: /io/repo/git_version
        to: /git_version
+     - from: /io/repo/address/test
+       to: /repo/address/test
    dependsOn:
      - base_image
  - kind: buildImage
@@ -448,6 +450,8 @@ steps:
    dockerFile: benchmark-service/Dockerfile
    contextPath: .
    publishAs: benchmark
+   dependsOn:
+     - service_base_image
  - kind: buildImage
    name: auth_image
    dockerFile: auth/Dockerfile
@@ -533,6 +537,16 @@ steps:
    publishAs: ci-utils
    dependsOn:
      - service_base_image
+ - kind: runImage
+   name: check_benchmark
+   image:
+     valueFrom: benchmark_image.image
+   script: |
+     set -ex
+     python3 -m flake8 benchmark
+     python3 -m pylint --rcfile pylintrc benchmark
+   dependsOn:
+     - benchmark_image
  - kind: runImage
    name: build_hail
    image:
@@ -852,6 +866,7 @@ steps:
      (cd hail/python && python3 -m flake8 --config ../../setup.cfg hail)
      python3 -m flake8 --config setup.cfg hailtop
      python3 -m pylint --rcfile pylintrc hailtop
+     (cd hailtop && mypy batch google_storage.py)
    dependsOn:
      - hail_base_image
  - kind: buildImage
@@ -1238,6 +1253,18 @@ steps:
     - auth_image
     - create_dummy_oauth2_client_secret
     - create_certs
+ - kind: deploy
+   name: deploy_benchmark
+   namespace:
+     valueFrom: default_ns.name
+   config: benchmark-service/deployment.yaml
+   dependsOn:
+    - default_ns
+    - benchmark_image
+    - deploy_router
+    - create_certs
+    - deploy_auth
+    - create_accounts
  - kind: runImage
    name: test_auth_copy_paste_login
    image:
@@ -2162,3 +2189,74 @@ steps:
      - genetics_public_image
    scopes:
     - dev
+ - kind: buildImage
+   name: address_image
+   dockerFile: address/Dockerfile
+   contextPath: .
+   publishAs: address
+   dependsOn:
+     - service_base_image
+ - kind: runImage
+   name: check_address
+   image:
+     valueFrom: address_image.image
+   script: |
+     set -ex
+     python3 -m flake8 address
+     python3 -m pylint --rcfile pylintrc address
+   dependsOn:
+     - address_image
+ - kind: deploy
+   name: deploy_address_sa
+   namespace:
+     valueFrom: default_ns.name
+   config: address/service-account.yaml
+   dependsOn:
+    - default_ns
+ - kind: deploy
+   name: deploy_address
+   namespace:
+     valueFrom: default_ns.name
+   config: address/deployment.yaml
+   wait:
+    - kind: Service
+      name: address
+      for: alive
+   dependsOn:
+    - default_ns
+    - deploy_router
+    - address_image
+    - create_certs
+ - kind: runImage
+   name: test_address
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" --log-cli-level=INFO -s -vv --instafail /io/test/
+   inputs:
+    - from: /repo/address/test
+      to: /io/
+   port: 5000
+   timeout: 1200
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: ssl-config-address-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+   dependsOn:
+    - create_accounts
+    - batch_pods_ns
+    - create_deploy_config
+    - copy_files
+    - default_ns
+    - service_base_image
+    - create_certs
+    - deploy_address

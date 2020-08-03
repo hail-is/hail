@@ -1576,7 +1576,7 @@ def import_table(paths,
         strs2 = [f'Loading {len(ht.row)} fields. Counts by type:']
         for name, count in Counter(ht[f].dtype for f in ht.row).most_common():
             strs2.append(f'  {name}: {count}')
-        hl.utils.info('\n'.join(strs))
+        hl.utils.info('\n'.join(strs2))
 
     if key:
         key = wrap_to_list(key)

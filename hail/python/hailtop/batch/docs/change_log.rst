@@ -3,6 +3,10 @@
 Change Log
 ==========
 
+**Version 0.2.53**
+
+- Implement and document ``BatchPoolExecutor``.
+
 **Version 0.2.50**
 
 - Add ``requester_pays_project`` as a new parameter on batches.

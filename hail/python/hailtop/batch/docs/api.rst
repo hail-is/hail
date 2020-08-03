@@ -58,6 +58,21 @@ share a common root, but each file has its own extension.
     resource.ResourceGroup
 
 
+Batch Pool Executor
+~~~~~~~~~~~~~~~~~~~
+
+A :class:`.BatchPoolExecutor` provides roughly the same interface as the Python
+standard library's :class:`.concurrent.futures.Executor`. It facilitates
+executing arbitrary Python functions in the cloud.
+
+.. autosummary::
+    :toctree: api/batch_pool_executor/
+    :nosignatures:
+    :template: class.rst
+
+    batch_pool_executor.BatchPoolExecutor
+
+
 Backends
 ~~~~~~~~
 

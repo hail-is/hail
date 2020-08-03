@@ -100,7 +100,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     val serializers = nested.states.map(_.serialize(codec));
     { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
       loadInit(cb)
-      nested.toCodeWithArgs(cb, "array_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+      nested.toCodeWithArgs(cb,
           FastIndexedSeq(ob),
           { (cb, i, _, args) =>
             val ob = cb.newLocal("aelca_ser_init_ob", coerce[OutputBuffer](args.head))
@@ -110,7 +110,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
       cb.assign(idx, 0)
       cb.whileLoop(idx < lenRef, {
         load(cb)
-        nested.toCodeWithArgs(cb, "array_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+        nested.toCodeWithArgs(cb,
             FastIndexedSeq(ob),
             { case (cb, i, _, args) =>
               val ob = cb.newLocal("aelca_ser_ob", coerce[OutputBuffer](args.head))
@@ -124,7 +124,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     val deserializers = nested.states.map(_.deserialize(codec));
     { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
-      init(cb, nested.toCodeWithArgs(cb, "array_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
+      init(cb, nested.toCodeWithArgs(cb,
         FastIndexedSeq(ib),
         { (cb, i, _, args) =>
           val ib = cb.newLocal("aelca_deser_init_ib", coerce[InputBuffer](args.head))
@@ -136,7 +136,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
         cb += typ.setFieldMissing(off, 1)
       }, {
         seq(cb, {
-          nested.toCodeWithArgs(cb, "array_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
+          nested.toCodeWithArgs(cb,
             FastIndexedSeq(ib),
             { (cb, i, _, args) =>
               val ib = cb.newLocal("aelca_deser_ib", coerce[InputBuffer](args.head))
@@ -222,7 +222,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
       other.load(cb)
       state.load(cb)
     }, {
-      state.nested.toCode(cb, "array_nested_comb", (cb, i, s) => nestedAggs(i).combOp(cb, s, other.nested(i)))
+      state.nested.toCode(cb, (cb, i, s) => nestedAggs(i).combOp(cb, s, other.nested(i)))
     })
   }
 
@@ -237,7 +237,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
                 cb += ssb.start()
                 cb.assign(state.idx, sab.arrayIdx)
                 state.load(cb)
-                state.nested.toCode(cb, "array_nested_result", { (cb, i, s) =>
+                state.nested.toCode(cb, { (cb, i, s) =>
                   nestedAggs(i).result(cb, s, ssb)
                   cb += ssb.advance()
                 })

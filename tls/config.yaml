@@ -62,3 +62,12 @@ principals:
 - name: image-fetcher
   domain: image-fetcher
   kind: curl
+- name: benchmark
+  domain: benchmark
+  kind: json
+- name: address
+  domain: address
+  kind: json
+- name: address-tests
+  domain: address-tests
+  kind: json

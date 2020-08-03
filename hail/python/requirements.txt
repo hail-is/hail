@@ -18,3 +18,4 @@ requests>=2.21.0,<2.21.1
 scipy>1.2,<1.4
 tabulate==0.8.3
 tqdm==4.42.1
+google-cloud-storage==1.25.*

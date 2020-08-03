@@ -175,10 +175,13 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     app_name : :obj:`str`
         Spark application name.
     master : :obj:`str`, optional
-        Spark master.
+        URL identifying the Spark leader (master) node or `local[N]` for local clusters.
     local : :obj:`str`
-       Local-mode master, used if `master` is not defined here or in the
-       Spark configuration.
+       Local-mode core limit indicator. Must either be `local[N]` where N is a
+       positive integer or `local[*]`. The latter indicates Spark should use all
+       cores available. `local[*]` does not respect most containerization CPU
+       limits. This option is only used if `master` is unset and `spark.master`
+       is not set in the Spark configuration.
     log : :obj:`str`
         Local path for Hail log file. Does not currently support distributed
         file systems like Google Storage, S3, or HDFS.

@@ -23,7 +23,7 @@ package asm4s {
 
     override def equals(that: Any): Boolean = that match {
       case that: TypeInfo[_] =>
-        return desc == that.desc
+        desc == that.desc
       case _ => false
     }
 
@@ -225,7 +225,7 @@ package object asm4s {
         try {
           loadClass(name)
         } catch {
-          case e: java.lang.ClassNotFoundException =>
+          case _: java.lang.ClassNotFoundException =>
             defineClass(name, b, 0, b.length)
         }
       }
