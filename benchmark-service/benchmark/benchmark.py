@@ -9,7 +9,7 @@ from hailtop.hail_logging import AccessLogger, configure_logging
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes
 import json
 import re
-# from google.cloud import storage
+from google.cloud import storage
 import plotly
 import plotly.express as px
 
@@ -27,34 +27,48 @@ log = logging.getLogger('benchmark')
 # blob_str = blob.download_as_string(client=None)
 # pre_data = json.loads(blob_str)
 
-file_path = '/0.2.45-ac6815ee857c-master.json'
-with open(file_path) as f:
-    pre_data = json.load(f)
+filepath = '/0.2.45-ac6815ee857c-master.json'
 
-x = re.findall('.*/+(.*)-(.*)-(.*)?\.json', file_path)  #was file_path
-sha = x[0][1]
 
-data = list()
-prod_of_means = 1
-for d in pre_data['benchmarks']:
-    stats = dict()
-    stats['name'] = d['name']
-    stats['failed'] = d['failed']
-    if not (d['failed']):
-        prod_of_means *= d['mean']
-        stats['f-stat'] = round(d['f-stat'], 6)
-        stats['mean'] = round(d['mean'], 6)
-        stats['median'] = round(d['median'], 6)
-        stats['p-value'] = round(d['p-value'], 6)
-        stats['stdev'] = round(d['stdev'], 6)
-        stats['times'] = d['times']
-    data.append(stats)
-geometric_mean = prod_of_means ** (1.0 / len(pre_data['benchmarks']))
+def get_benchmarks(file_path):
+    # create storage client
+    storage_client = storage.Client()
+    # get bucket with name
+    bucket = storage_client.get_bucket('hail-benchmarks')
+    # get bucket data as blob
+    blob = bucket.get_blob(file_path)
+    # convert to string
+    json_data = blob.download_as_string()
+    pre_data = json.load(json_data)
+    
+    # with open(file_path) as f:
+    #     pre_data = json.load(f)
 
-benchmarks = dict()
-benchmarks['sha'] = sha
-benchmarks['geometric_mean'] = geometric_mean
-benchmarks['data'] = sorted(data, key=lambda i: i['name'])
+    x = re.findall('.*/+(.*)-(.*)-(.*)?\.json', file_path)  #was file_path
+    sha = x[0][1]
+
+    data = list()
+    prod_of_means = 1
+    for d in pre_data['benchmarks']:
+        stats = dict()
+        stats['name'] = d['name']
+        stats['failed'] = d['failed']
+        if not (d['failed']):
+            prod_of_means *= d['mean']
+            stats['f-stat'] = round(d['f-stat'], 6)
+            stats['mean'] = round(d['mean'], 6)
+            stats['median'] = round(d['median'], 6)
+            stats['p-value'] = round(d['p-value'], 6)
+            stats['stdev'] = round(d['stdev'], 6)
+            stats['times'] = d['times']
+        data.append(stats)
+    geometric_mean = prod_of_means ** (1.0 / len(pre_data['benchmarks']))
+
+    benchmarks = dict()
+    benchmarks['sha'] = sha
+    benchmarks['geometric_mean'] = geometric_mean
+    benchmarks['data'] = sorted(data, key=lambda i: i['name'])
+    return benchmarks
 
 
 @router.get('/healthcheck')
@@ -103,15 +117,19 @@ async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: di
     context = {
         'current_date': 'July 10, 2020'
     }
+    benchmarks = get_benchmarks(filepath)
     response = aiohttp_jinja2.render_template('index.html', request,
                                               context=benchmarks)
     return response
+
 
 @router.post('/lookup')
 async def lookup(request, userdata):  # pylint: disable=unused-argument
     data = await request.post()
     file = data['file']
-   
+    benchmarks = get_benchmarks(file)
+    response = aiohttp_jinja2.render_template('index.html', request, context=benchmarks)
+    return response
 
 
 def init_app() -> web.Application:
