@@ -22,7 +22,7 @@ log = logging.getLogger('benchmark')
 
 # storage_client = storage.Client()
 # bucket = storage_client.get_bucket('hail-benchmarks')
-# blob = bucket.blob('0.2.20-3b2b439cabf9.json')
+# blob = bucket.get_blob('0.2.20-3b2b439cabf9.json')
 #
 # blob_str = blob.download_as_string(client=None)
 # pre_data = json.loads(blob_str)
@@ -106,6 +106,12 @@ async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: di
     response = aiohttp_jinja2.render_template('index.html', request,
                                               context=benchmarks)
     return response
+
+@router.post('/lookup')
+async def lookup(request, userdata):  # pylint: disable=unused-argument
+    data = await request.post()
+    file = data['file']
+   
 
 
 def init_app() -> web.Application:
