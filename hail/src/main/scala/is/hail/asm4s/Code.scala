@@ -452,7 +452,7 @@ object Code {
 }
 
 trait Code[+T] {
-   val stack = Thread.currentThread().getStackTrace
+  // val stack = Thread.currentThread().getStackTrace
 
   def start: lir.Block
 
