@@ -130,7 +130,7 @@ async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: di
 async def lookup(request, userdata):  # pylint: disable=unused-argument
     data = await request.post()
     file = data['file']
-    nonlocal filepath
+    global filepath
     filepath = file
     benchmarks = get_benchmarks(file)
     response = aiohttp_jinja2.render_template('index.html', request, context=benchmarks)
