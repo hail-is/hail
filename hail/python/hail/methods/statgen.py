@@ -1697,6 +1697,234 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
     return hl.eval(g.eigenvalues), scores, None if t is None else t.drop('eigenvalues', 'scores')
 
 
+@typecheck(entry_expr=expr_float64,
+           k=int,
+           compute_loadings=bool,
+           q_iterations=int,
+           oversampling_param=int,
+           block_size=int)
+def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=4):
+    r"""Run randomized principal component analysis approximation (PCA) 
+    on numeric columns derived from a matrix table.
+
+    Implements the Blanczos algorithm found by Rokhlin, Szlam, and Tygert.
+
+    Examples
+    --------
+
+    For a matrix table with variant rows, sample columns, and genotype entries,
+    compute the top 2 PC sample scores and eigenvalues of the matrix of 0s and
+    1s encoding missingness of genotype calls.
+
+    >>> eigenvalues, scores, _ = hl._blanczos_pca(hl.int(hl.is_defined(dataset.GT)),
+    ...                                 k=2)
+
+    Warning
+    -------
+      This method does **not** automatically mean-center or normalize each column.
+      If desired, such transformations should be incorporated in `entry_expr`.
+
+      Hail will return an error if `entry_expr` evaluates to missing, nan, or
+      infinity on any entry.
+
+    Notes
+    -----
+
+    PCA is run on the columns of the numeric matrix obtained by evaluating
+    `entry_expr` on each entry of the matrix table, or equivalently on the rows
+    of the **transposed** numeric matrix :math:`M` referenced below.
+
+    PCA computes the SVD
+
+    .. math::
+
+      M = USV^T
+
+    where columns of :math:`U` are left singular vectors (orthonormal in
+    :math:`\mathbb{R}^n`), columns of :math:`V` are right singular vectors
+    (orthonormal in :math:`\mathbb{R}^m`), and :math:`S=\mathrm{diag}(s_1, s_2,
+    \ldots)` with ordered singular values :math:`s_1 \ge s_2 \ge \cdots \ge 0`.
+    Typically one computes only the first :math:`k` singular vectors and values,
+    yielding the best rank :math:`k` approximation :math:`U_k S_k V_k^T` of
+    :math:`M`; the truncations :math:`U_k`, :math:`S_k` and :math:`V_k` are
+    :math:`n \times k`, :math:`k \times k` and :math:`m \times k`
+    respectively.
+
+    From the perspective of the rows of :math:`M` as samples (data points),
+    :math:`V_k` contains the loadings for the first :math:`k` PCs while
+    :math:`MV_k = U_k S_k` contains the first :math:`k` PC scores of each
+    sample. The loadings represent a new basis of features while the scores
+    represent the projected data on those features. The eigenvalues of the Gramian
+    :math:`MM^T` are the squares of the singular values :math:`s_1^2, s_2^2,
+    \ldots`, which represent the variances carried by the respective PCs. By
+    default, Hail only computes the loadings if the ``loadings`` parameter is
+    specified.
+
+    Scores are stored in a :class:`.Table` with the column key of the matrix
+    table as key and a field `scores` of type ``array<float64>`` containing
+    the principal component scores.
+
+    Loadings are stored in a :class:`.Table` with the row key of the matrix
+    table as key and a field `loadings` of type ``array<float64>`` containing
+    the principal component loadings.
+
+    The eigenvalues are returned in descending order, with scores and loadings
+    given the corresponding array order.
+
+    Parameters
+    ----------
+    entry_expr : :class:`.Expression`
+        Numeric expression for matrix entries.
+    k : :obj:`int`
+        Number of principal components.
+    compute_loadings : :obj:`bool`
+        If ``True``, compute row loadings.
+    q_iterations : :obj:`int`
+        Number of rounds of power iteration to amplify singular values.
+    oversampling_param : :obj:`int`
+        Amount of oversampling to use when approximating the singular values.
+        Usually a value `l` between `k <= l <= 2k`.
+
+    Returns
+    -------
+    (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
+        List of eigenvalues, table with column scores, table with row loadings.
+    """
+
+    check_entry_indexed('pca/entry_expr', entry_expr)
+
+    mt = matrix_table_source('pca/entry_expr', entry_expr)
+    
+    if entry_expr in mt._fields_inverse:
+        field = mt._fields_inverse[entry_expr]
+    else:
+        field = Env.get_uid()
+        mt = mt.select_entries(**{field: entry_expr})
+    mt = mt.select_cols().select_rows().select_globals()
+
+    # ht = mt.localize_entries("ent", "sample")
+    # ht = matrix_table_to_table_of_ndarrays(mt.field, block_size, tmp_path='/tmp/test_table.ht')
+    
+    # Format Distributed Table
+    # group rows of table into blocks
+    # ht = matrix_table_to_table_of_ndarrays(mt.field, block_size, tmp_path='/tmp/test_table.ht')
+    mt = mt.select_entries(x = mt[field])
+    ht = mt.localize_entries(entries_array_field_name='entries')
+    ht = ht.select(xs = ht.entries.map(lambda e: e['x']))
+    ht = ht.add_index()
+    A = ht.group_by(row_group_number = hl.int32(ht.idx // block_size)) \
+        .aggregate(ndarray = hl.nd.array(hl.agg.collect(ht.xs)))
+
+    # Set Parameters
+    # block_size = 4 # might want to make this a parameter or make some heurstic for it
+    q = q_iterations
+    l = k + oversampling_param
+    n = A.take(1)[0].ndarray.shape[1]
+
+    # Generate random matrix G
+    G = np.random.normal(0, 1, (n,l))
+
+
+    # Helper Functions
+
+    def block_product(left, right):
+        product = left @ right
+        n_rows, n_cols = product.shape
+        return hl.struct(
+            shape=product.shape,
+            block=hl.range(hl.int(n_rows * n_cols)).map(
+                lambda absolute: product[absolute % n_rows, absolute // n_rows]))
+
+    def block_aggregate(prod):
+        shape = prod.shape
+        block = prod.block
+        return hl.nd.from_column_major(
+            hl.agg.array_sum(block),
+            hl.agg.take(shape, 1)[0])
+
+    def matmul_rowblocked_nonblocked(A, B):
+        temp = A.annotate_globals(mat = B)
+        temp = temp.annotate(ndarray = temp.ndarray @ temp.mat)
+        temp = temp.select(temp.ndarray)
+        temp = temp.drop(temp.mat)
+        return temp
+
+    def matmul_colblocked_rowblocked(A, B):
+        temp = A.transmute(ndarray = block_product(A.ndarray.transpose(), B[A.row_group_number].ndarray))
+        result_arr_sum = temp.aggregate(block_aggregate(temp.ndarray))
+        return result_arr_sum
+
+    def computeNextH(A, H):
+        nextG = matmul_colblocked_rowblocked(A, H)
+        return matmul_rowblocked_nonblocked(A, nextG)
+
+    def ndarray_to_table(chunked_arr):
+        structs = [hl.struct(row_group_number = idx, ndarray = block)
+                   for idx, block in enumerate(chunked_arr)]
+        ht = hl.Table.parallelize(structs)
+        ht = ht.key_by('row_group_number')
+        return ht
+
+    def chunk_ndarray(a, group_size):
+        n_groups = a.shape[0] // group_size
+        groups = []
+        for i in range(a.shape[0] // group_size):
+            start = i * group_size
+            end = (i + 1) * group_size
+            groups.append(a[start:end, :])
+        return groups
+
+    def concatBlocked(A):
+        blocks = A.ndarray.collect()
+        big_mat = np.concatenate(blocks, axis=0)
+        return ndarray_to_table([big_mat])
+
+    def concatToNumpy(A):
+        blocks = A.ndarray.collect()
+        big_mat = np.concatenate(blocks, axis=0)
+        # block_shape = blocks[0].shape
+        # num_blocks = len(blocks)
+        # assert big_mat.shape == (num_blocks*block_shape[0], block_shape[1])
+        return big_mat
+
+
+    # Algorithm
+
+    assert l > k
+    #assert n <= m
+
+    Hi = matmul_rowblocked_nonblocked(A, G)
+    npH = concatToNumpy(Hi)
+    for j in range(0, q):
+        Hj = computeNextH(A, Hi)
+        npH = np.concatenate((npH, concatToNumpy(Hj)), axis=1)
+        Hi = Hj
+    #assert npH.shape == (m, (q+1)*l)
+
+    # perform QR decomposition on unblocked version of H
+    Q, R = np.linalg.qr(npH)
+    #assert Q.shape == (m, (q+1)*l)
+    
+    # block Q's rows into the same number of blocks that A has
+    num_blocks = A.count()
+    group_size_Q = Q.shape[0] // num_blocks
+    blocked_Q_table = ndarray_to_table(chunk_ndarray(Q, group_size_Q))
+    
+    T = matmul_colblocked_rowblocked(blocked_Q_table, A)
+    assert T.shape == ((q+1)*l, n)
+
+    U, S, W = np.linalg.svd(T, full_matrices=False)
+
+    V = matmul_rowblocked_nonblocked(blocked_Q_table, U)
+    arr_V = concatToNumpy(V)
+
+    truncV = arr_V[:,:k]
+    truncS = S[:k]
+    truncW = W[:k,:]
+
+    return truncV, truncS, truncW
+
+
 @typecheck(call_expr=expr_call,
            min_individual_maf=numeric,
            k=nullable(int),
