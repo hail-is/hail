@@ -946,3 +946,13 @@ def test_eye():
 def test_identity():
     for i in range(13):
         assert(np.array_equal(hl.eval(hl.nd.identity(i)), np.identity(i)))
+
+def test_agg_ndarray_sum():
+    just_ones = hl.utils.range_table(100).annotate(x=hl.nd.ones((2, 3)))
+    assert(np.array_equal(just_ones.aggregate(hl.agg.ndarray_sum(just_ones.x)), np.full((2, 3), 100)))
+
+    with pytest.raises(FatalError) as exc:
+        mismatched = hl.utils.range_table(5)
+        mismatched = mismatched.annotate(x=hl.nd.ones((mismatched.idx,)))
+        mismatched.aggregate(hl.agg.ndarray_sum(mismatched.x))
+    assert "Can't sum" in str(exc)

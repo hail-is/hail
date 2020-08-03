@@ -300,7 +300,7 @@ object Extract {
     case GroupedAggSig(k, nested) =>
       new GroupedAggregator(k, nested.map(getAgg).toArray)
     case PhysicalAggSig(NDArraySum(), TypedStateSig(pt: PTuple)) =>
-      new NDArraySumAggregator(pt.types(1).asInstanceOf[PNDArray], None)
+      new NDArraySumAggregator(pt.types(1).asInstanceOf[PNDArray])
   }
 
   def apply(ir: IR, resultName: String, r: RequirednessAnalysis, isScan: Boolean = false): Aggs = {

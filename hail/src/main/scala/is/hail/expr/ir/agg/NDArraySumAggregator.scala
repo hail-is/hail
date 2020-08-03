@@ -3,14 +3,14 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.StringFunctions
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitRegion, IR}
-import is.hail.types.physical.{PBaseStructCode, PBoolean, PBooleanRequired, PCanonicalTuple, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PType}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitRegion, coerce}
+import is.hail.types.physical.{PBooleanRequired, PCanonicalTuple, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PNumeric, PType}
 import is.hail.utils._
 
 object NDArraySumAggregator {
 }
 
-class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends StagedAggregator {
+class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
   override type State = TypedRegionBackedAggState
 
   // State needs:
@@ -20,7 +20,7 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
 
   override def resultType: PType = ndTyp
 
-  override def initOpTypes: Seq[PType] = Array[PType]()//Array(ndTyp.shape.pType)
+  override def initOpTypes: Seq[PType] = Array[PType]()
 
   override def seqOpTypes: Seq[PType] = Array(ndTyp)
 
@@ -34,14 +34,10 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     cb.append(Code._println("Trying to initOp"))
-    cb.append(
-      //state.off := stateType.allocate(state.region),
-      Region.storeBoolean(stateType.fieldOffset(state.off, 0), false)
-    )
+    cb.append(Region.storeBoolean(stateType.fieldOffset(state.off, 0), false))
   }
 
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
-    // Check if the thing is initialized. If it is, then check shapes match. If they do, add ndarrays.
     val Array(nextNDCode) = seq
     cb.append(Code._println("Trying to seqop"))
     nextNDCode.toI(cb).consume(cb, {}, {case nextNDPCode: PNDArrayCode =>
@@ -65,26 +61,18 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
   }
 
   override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
-    // First up:
-    // If right is uninitialized, do nothing and keep the current state.
     cb.append(Code._println("Trying to combOp"))
     cb.append(Code._println(const("Left value init field looks like: ").concat(Region.loadBoolean(state.off).toS)))
     cb.append(Code._println(const("Right value init field looks like: ").concat(Region.loadBoolean(other.off).toS)))
     cb.ifx(!isInitialized(other), {
       // Do nothing
-      cb.append(Code._println("combOp: other was not initialized, doing nothing"))
     },
     {
-      // Now what if left is not initialized?
-
       cb.ifx(!isInitialized(state), {
         cb.append(Code._println("combOp: state was not initialized, overwriting with other"))
         cb.append(state.storeNonmissing(other.off))
       },
       {
-        // Need to:
-        // 1. Check the shapes match.
-        // 2. If they match, add.)
         val leftValue = PCode(stateType, state.off).asBaseStruct.memoize(cb, "left_state_ndarray_sum_agg")
         val rightValue = PCode(stateType, other.off).asBaseStruct.memoize(cb, "right_state_ndarray_sum_agg")
         leftValue.loadField(cb, 1).consume(cb, {}, { case leftNdCode: PNDArrayCode =>
@@ -106,10 +94,16 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
 
     val idxVars = Array.tabulate(ndTyp.nDims) { _ => cb.emb.genFieldThisRef[Long]() }
 
+    def loadElement(ndValue: PNDArrayValue) = {
+      ndTyp.loadElementToIRIntermediate(idxVars, ndValue.value.asInstanceOf[Value[Long]], cb.emb)
+    }
+
+    val newElement = coerce[PNumeric](ndTyp.elementType).add(loadElement(leftNdValue), loadElement(rightNdValue))
+
     val body = ndTyp.mutateElement(
       idxVars,
       leftNdValue.value.asInstanceOf[Value[Long]],
-      ndTyp.loadElementToIRIntermediate(idxVars, rightNdValue.value.asInstanceOf[Value[Long]], cb.emb),
+      newElement,
       cb.emb
     )
 
@@ -126,10 +120,7 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
     }
 
     cb.append(sameShape.mux(
-      Code(
-        Code._println("addValues: Saw same shape"),
-        columnMajorLoops
-      ),
+      columnMajorLoops,
       Code._fatal[Unit]("Can't sum ndarrays of different shapes.")
     ))
   }
