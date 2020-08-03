@@ -12,6 +12,7 @@ import re
 from google.cloud import storage
 import plotly
 import plotly.express as px
+import urllib
 
 configure_logging()
 router = web.RouteTableDef()
@@ -20,6 +21,9 @@ deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
 
+# urllib.parse.unquote("https://www.googleapis.com/download/storage/v1/b/hail-benchmarks/o/gs%3A%2F%2Fhail-benchmarks%2Ftpoterba%2F0.2.45-ac6815ee857c-master.json?alt=media")
+# 'https://www.googleapis.com/download/storage/v1/b/hail-benchmarks/o/gs://hail-benchmarks/tpoterba/0.2.45-ac6815ee857c-master.json?alt=media'
+
 # storage_client = storage.Client()
 # bucket = storage_client.get_bucket('hail-benchmarks')
 # blob = bucket.get_blob('0.2.20-3b2b439cabf9.json')
@@ -27,7 +31,7 @@ log = logging.getLogger('benchmark')
 # blob_str = blob.download_as_string(client=None)
 # pre_data = json.loads(blob_str)
 
-filepath = 'gs://hail-benchmarks/tpoterba/0.2.45-ac6815ee857c-master.json' #'/0.2.45-ac6815ee857c-master.json'
+filepath = 'tpoterba/0.2.45-ac6815ee857c-master.json' #'/0.2.45-ac6815ee857c-master.json'
 
 
 def get_benchmarks(file_path):
