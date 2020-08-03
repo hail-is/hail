@@ -3,13 +3,37 @@ package is.hail.expr.ir.lowering
 import is.hail.expr.Nat
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.GetElement
-import is.hail.types.{BlockMatrixSparsity, TypeWithRequiredness}
+import is.hail.types.{BlockMatrixSparsity, BlockMatrixType, TypeWithRequiredness}
 import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 
 object BlockMatrixStage {
   def empty(eltType: Type): BlockMatrixStage =
     EmptyBlockMatrixStage(eltType)
+
+  def broadcastVector(vector: IR, typ: BlockMatrixType, asRowVector: Boolean): BlockMatrixStage = {
+    val v = Ref(genUID(), vector.typ)
+    new BlockMatrixStage(Array(v.name -> vector), TStruct("start" -> TInt32, "shape" -> TTuple(TInt32, TInt32))) {
+      def blockContext(idx: (Int, Int)): IR = {
+        val (i, j) = typ.blockShape(idx._1, idx._2)
+        val start = (if (asRowVector) idx._1 else idx._2) * typ.blockSize
+        makestruct("start" -> start, "shape" -> MakeTuple.ordered(FastSeq[IR](i.toInt, j.toInt)))
+      }
+
+      def blockBody(ctxRef: Ref): IR = {
+        bindIR(GetField(ctxRef, "shape")) { shape =>
+          val len = if (asRowVector) GetTupleElement(shape, 1) else GetTupleElement(shape, 0)
+          val nRep = if (asRowVector) GetTupleElement(shape, 0) else GetTupleElement(shape, 1)
+          val start = GetField(ctxRef, "start")
+          bindIR(NDArrayReshape(
+            NDArraySlice(v, MakeTuple.ordered(FastSeq(MakeTuple.ordered(FastSeq(start.toL, (start + len).toL, 1L))))),
+            MakeTuple.ordered(if (asRowVector) FastSeq[IR](1L, len.toL) else FastSeq[IR](len.toL, 1L)))) { sliced =>
+            NDArrayConcat(ToArray(mapIR(rangeIR(nRep))(_ => sliced)), if (asRowVector) 0 else 1)
+          }
+        }
+      }
+    }
+  }
 }
 
 case class EmptyBlockMatrixStage(eltType: Type) extends BlockMatrixStage(Array(), TInt32) {
@@ -17,7 +41,6 @@ case class EmptyBlockMatrixStage(eltType: Type) extends BlockMatrixStage(Array()
     throw new LowererUnsupportedOperation("empty stage has no block contexts!")
 
   def blockBody(ctxRef: Ref): IR = NA(TNDArray(eltType, Nat(2)))
-
 
   override def collectBlocks(bindings: Seq[(String, Type)])(f: (IR, IR) => IR, blocksToCollect: Array[(Int, Int)]): IR = {
     assert(blocksToCollect.isEmpty)
@@ -43,6 +66,34 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
     }
     val collect = CollectDistributedArray(ctxs, bcVals, ctxRef.name, bcRef.name, wrappedBody)
     globalVals.foldRight[IR](collect) { case ((f, v), accum) => Let(f, v, accum) }
+  }
+
+  def collectLocal(bindings: Seq[(String, Type)], typ: BlockMatrixType): IR = {
+    val blocksRowMajor = Array.range(0, typ.nRowBlocks).flatMap { i =>
+      Array.tabulate(typ.nColBlocks)(j => i -> j).filter(typ.hasBlock)
+    }
+    val cda = collectBlocks(bindings)((_, b) => b, blocksRowMajor)
+    val blockResults = Ref(genUID(), cda.typ)
+
+    val rows = if (typ.isSparse) {
+      val blockMap = blocksRowMajor.zipWithIndex.toMap
+      MakeArray(Array.tabulate[IR](typ.nRowBlocks) { i =>
+        NDArrayConcat(MakeArray(Array.tabulate[IR](typ.nColBlocks) { j =>
+          if (blockMap.contains(i -> j))
+            ArrayRef(blockResults, i * typ.nColBlocks + j)
+          else {
+            val (nRows, nCols) = typ.blockShape(i, j)
+            MakeNDArray.fill(zero(typ.elementType), FastIndexedSeq(nRows, nCols), True())
+          }
+        }, coerce[TArray](cda.typ)), 1)
+      }, coerce[TArray](cda.typ))
+    } else {
+      val i = Ref(genUID(), TInt32)
+      val j = Ref(genUID(), TInt32)
+      val cols = ToArray(StreamMap(StreamRange(0, typ.nColBlocks, 1), j.name, ArrayRef(blockResults, i * typ.nColBlocks + j)))
+      ToArray(StreamMap(StreamRange(0, typ.nRowBlocks, 1), i.name, NDArrayConcat(cols, 1)))
+    }
+    Let(blockResults.name, cda, NDArrayConcat(rows, 0))
   }
 
   def addGlobals(newGlobals: (String, IR)*): BlockMatrixStage = {
@@ -84,6 +135,11 @@ object LowerBlockMatrixIR {
     def lower(bmir: BlockMatrixIR): BlockMatrixStage = {
       if (!DArrayLowering.lowerBM(typesToLower))
         throw new LowererUnsupportedOperation("found BlockMatrixIR in lowering; lowering only TableIRs.")
+      bmir.children.foreach {
+        case c: BlockMatrixIR if c.typ.blockSize != bmir.typ.blockSize =>
+          throw new LowererUnsupportedOperation(s"Can't lower node with mismatched block sizes: ${ bmir.typ.blockSize } vs child ${ c.typ.blockSize }\n\n ${ Pretty(bmir) }")
+        case _ =>
+      }
       if (bmir.typ.nDefinedBlocks == 0)
         BlockMatrixStage.empty(bmir.typ.elementType)
       else lowerNonEmpty(bmir)
@@ -109,9 +165,6 @@ object LowerBlockMatrixIR {
           NDArrayMap(body, eltName, f)
         }
       case BlockMatrixMap2(left, right, lname, rname, f, sparsityStrategy) =>
-        if (left.typ.blockSize != right.typ.blockSize)
-          throw new LowererUnsupportedOperation(s"Can't lower BlockMatrixMap2 with mismatched block sizes: ${ left.typ.blockSize } vs ${ right.typ.blockSize }")
-
         val loweredLeft = lower(left)
         val loweredRight = lower(right)
         loweredLeft
@@ -120,7 +173,59 @@ object LowerBlockMatrixIR {
           NDArrayMap2(leftBody, bindIR(GetField(ctx, "new"))(loweredRight.blockBody), lname, rname, f)
         }
 
-      case BlockMatrixBroadcast(child, inIndexExpr, shape, blockSize) => unimplemented(bmir)
+      case x@BlockMatrixBroadcast(child, IndexedSeq(), _, _) =>
+        val lowered = lower(child)
+        val eltValue = lowered.globalVals.foldRight[IR](bindIR(lowered.blockContext(0 -> 0)) { ctx =>
+          NDArrayRef(lowered.blockBody(ctx), FastIndexedSeq(I64(0L), I64(0L)))
+        }) { case ((f, v), accum) => Let(f, v, accum) }
+
+        val elt = Ref(genUID(), eltValue.typ)
+        new BlockMatrixStage(Array(elt.name -> eltValue), TTuple(TInt64, TInt64)) {
+          def blockContext(idx: (Int, Int)): IR = {
+            val (i, j) = x.typ.blockShape(idx._1, idx._2)
+            MakeTuple.ordered(FastSeq(I64(i), I64(j)))
+          }
+          def blockBody(ctxRef: Ref): IR =
+            MakeNDArray(ToArray(mapIR(rangeIR(GetTupleElement(ctxRef, 0) * GetTupleElement(ctxRef, 1)))(_ => elt)),
+              ctxRef, True())
+        }
+      case x@BlockMatrixBroadcast(child, IndexedSeq(axis), _, _) =>
+        val len = child.typ.shape.max
+        val vector = NDArrayReshape(lower(child).collectLocal(relationalLetsAbove, child.typ), MakeTuple.ordered(FastSeq(I64(len))))
+        BlockMatrixStage.broadcastVector(vector, x.typ, asRowVector = axis == 1)
+
+      case x@BlockMatrixBroadcast(child, IndexedSeq(axis, axis2), _, _) if (axis == axis2) => // diagonal as row/col vector
+        val nBlocks = java.lang.Math.min(child.typ.nRowBlocks, child.typ.nColBlocks)
+        val idxs = Array.tabulate(nBlocks) { i => i -> i }
+        val getDiagonal = { (ctx: IR, block: IR) =>
+          bindIR(block)(b => ToArray(mapIR(rangeIR(GetField(ctx, "new")))(i => NDArrayRef(b, FastIndexedSeq(i, i)))))
+        }
+
+        val vector = bindIR(lower(child).collectBlocks(relationalLetsAbove)(getDiagonal, idxs.filter(child.typ.hasBlock))) { existing =>
+          var i = -1
+          val vectorBlocks = idxs.map { idx =>
+            if (child.typ.hasBlock(idx)) {
+              i += 1
+              ArrayRef(existing, i)
+            } else {
+              val (i, j) = child.typ.blockShape(idx._1, idx._2)
+              mapIR(rangeIR(java.lang.Math.min(i, j)))(_ => zero(x.typ.elementType))
+            }
+          }
+          MakeNDArray(ToArray(flatten(MakeStream(vectorBlocks, TStream(TStream(x.typ.elementType))))),
+            MakeTuple.ordered(FastSeq(I64(java.lang.Math.min(child.typ.nRows, child.typ.nCols)))), true)
+        }
+        BlockMatrixStage.broadcastVector(vector, x.typ, asRowVector = axis == 1)
+
+      case BlockMatrixBroadcast(child, IndexedSeq(1, 0), _, _) => //transpose
+        val lowered = lower(child)
+        new BlockMatrixStage(lowered.globalVals, lowered.ctxType) {
+          def blockContext(idx: (Int, Int)): IR = lowered.blockContext(idx.swap)
+          def blockBody(ctxRef: Ref): IR = NDArrayReindex(lowered.blockBody(ctxRef), FastIndexedSeq(1, 0))
+        }
+      case BlockMatrixBroadcast(child, IndexedSeq(0, 1), _, _) =>
+        lower(child)
+
       case BlockMatrixAgg(child, outIndexExpr) => unimplemented(bmir)
       case BlockMatrixFilter(child, keep) => unimplemented(bmir)
       case BlockMatrixSlice(child, slices) => unimplemented(bmir)
@@ -177,32 +282,7 @@ object LowerBlockMatrixIR {
 
     node match {
       case BlockMatrixCollect(child) =>
-        val bm = lower(child)
-        val blocksRowMajor = Array.range(0, child.typ.nRowBlocks).flatMap { i =>
-          Array.tabulate(child.typ.nColBlocks)(j => i -> j).filter(child.typ.hasBlock)
-        }
-        val cda = bm.collectBlocks(relationalLetsAbove)((_, b) => b, blocksRowMajor)
-        val blockResults = Ref(genUID(), cda.typ)
-
-        val rows = if (child.typ.isSparse) {
-          val blockMap = blocksRowMajor.zipWithIndex.toMap
-          MakeArray(Array.tabulate[IR](child.typ.nRowBlocks) { i =>
-            NDArrayConcat(MakeArray(Array.tabulate[IR](child.typ.nColBlocks) { j =>
-              if (blockMap.contains(i -> j))
-                ArrayRef(blockResults, i * child.typ.nColBlocks + j)
-              else {
-                val (nRows, nCols) = child.typ.blockShape(i, j)
-                MakeNDArray.fill(zero(child.typ.elementType), FastIndexedSeq(nRows, nCols), True())
-              }
-            }, coerce[TArray](cda.typ)), 1)
-          }, coerce[TArray](cda.typ))
-        } else {
-          val i = Ref(genUID(), TInt32)
-          val j = Ref(genUID(), TInt32)
-          val cols = ToArray(StreamMap(StreamRange(0, child.typ.nColBlocks, 1), j.name, ArrayRef(blockResults, i * child.typ.nColBlocks + j)))
-          ToArray(StreamMap(StreamRange(0, child.typ.nRowBlocks, 1), i.name, NDArrayConcat(cols, 1)))
-        }
-        Let(blockResults.name, cda, NDArrayConcat(rows, 0))
+        lower(child).collectLocal(relationalLetsAbove, child.typ)
       case BlockMatrixToValueApply(child, GetElement(IndexedSeq(i, j))) =>
         val rowBlock = child.typ.getBlockIdx(i)
         val colBlock = child.typ.getBlockIdx(j)
