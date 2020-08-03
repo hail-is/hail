@@ -63,4 +63,9 @@ trait PUnrealizableCode extends PCode {
     unsupported
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PValue = unsupported
+
+  override def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destPtype: PType): PCode = {
+    assert(destPtype == pt)
+    this
+  }
 }
