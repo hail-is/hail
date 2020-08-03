@@ -1225,6 +1225,52 @@ class Tests(unittest.TestCase):
         check(hail_scores, np_scores)
         check(hail_loadings, np_loadings)
 
+
+    def test_blanczos_against_numpy(self):
+        # dataset = hl.balding_nichols_model(3, 100, 1000)
+        # mt = dataset.transmute_entries(n_alt = hl.float64(dataset.GT.n_alt_alleles()))
+        # ht = mt.localize_entries("ent", "sample") 
+        # ht = ht.transmute(n_alt = hl.nd.array(mt.n_alt))
+        # rows = ht.n_alt.collect()
+        # np_matrix = np.asmatrix(np.concatenate(rows, axis=0))
+
+        # _, blanczos_vals, _ = _blanczos_pca(hl.int(hl.is_defined(dataset.GT)), k=10)
+        # _, np_vals, _ = np.linalg.svd(np_matrix, full_matrices=False)
+        # #_, np_vals, _ = pca(hl.int(hl.is_defined(dataset.GT)), k=10)
+        # #diff = blanczos_vals - np_vals
+        # print(blanczos_vals)
+        # #print(hail_vals)
+        # return True
+
+        mt = hl.import_vcf(resource('tiny_m.vcf'))
+        mt = mt.filter_rows(hl.len(mt.alleles) == 2)
+        mt = mt.annotate_rows(AC=hl.agg.sum(mt.GT.n_alt_alleles()),
+                              n_called=hl.agg.count_where(hl.is_defined(mt.GT)))
+        mt = mt.filter_rows((mt.AC > 0) & (mt.AC < 2 * mt.n_called)).persist()
+        n_rows = mt.count_rows()
+
+        def make_expr(mean):
+            return hl.cond(hl.is_defined(mt.GT),
+                           (mt.GT.n_alt_alleles() - mean) / hl.sqrt(mean * (2 - mean) * n_rows / 2),
+                           0)
+
+        hail_u, hail_s, hail_v = hl._blanczos_pca(hl.bind(make_expr, mt.AC / mt.n_called), k=3, compute_loadings=True)
+
+        g = np.pad(np.diag([1.0, 1, 2]), ((0, 1), (0, 0)), mode='constant')
+        g[1, 0] = 1.0 / 3
+        n = normalize(g)
+        np_u, np_s, np_v = np.linalg.svd(n, full_matrices=False)
+
+        # redundant from method above
+        def check(hail_array, np_array):
+            self.assertEqual(len(hail_array), len(np_array))
+            for i, (left, right) in enumerate(zip(hail_array, np_array)):
+                self.assertAlmostEqual(abs(left), abs(right),
+                                       msg=f'mismatch at index {i}: hl={left}, np={right}',
+                                       places=3)
+
+        check(hail_s, np_s)
+
     @skip_unless_spark_backend()
     def test_pc_relate_against_R_truth(self):
         mt = hl.import_vcf(resource('pc_relate_bn_input.vcf.bgz'))
