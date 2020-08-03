@@ -4,6 +4,11 @@
 {% block content %}
 <h1>Benchmark System</h1>
 
+<form action="/lookup" method="post">
+    <input type="text" name="file"></input>
+    <input type="submit" value="lookup"></input>
+</form>
+
 <div class="attributes">
     <div>SHA:
         {% if sha is not none %}
