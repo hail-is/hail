@@ -21,9 +21,6 @@ deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
 
-# urllib.parse.unquote("https://www.googleapis.com/download/storage/v1/b/hail-benchmarks/o/gs%3A%2F%2Fhail-benchmarks%2Ftpoterba%2F0.2.45-ac6815ee857c-master.json?alt=media")
-# 'https://www.googleapis.com/download/storage/v1/b/hail-benchmarks/o/gs://hail-benchmarks/tpoterba/0.2.45-ac6815ee857c-master.json?alt=media'
-
 # storage_client = storage.Client()
 # bucket = storage_client.get_bucket('hail-benchmarks')
 # blob = bucket.get_blob('0.2.20-3b2b439cabf9.json')
@@ -97,8 +94,8 @@ async def greet_user(request: web.Request) -> web.Response:
 
 @router.get('/name/{name}')
 async def show_name(request: web.Request) -> web.Response:
-
-    name_data = next((item for item in data if item['name'] == str(request.match_info['name'])), None)
+    benchmarks = get_benchmarks(filepath)
+    name_data = next((item for item in benchmarks['data'] if item['name'] == str(request.match_info['name'])), None)
     fig = px.scatter(x=[item for item in range(0, len(name_data['times']))], y=name_data['times'])
 
     # context = {
@@ -134,6 +131,8 @@ async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: di
 async def lookup(request, userdata):  # pylint: disable=unused-argument
     data = await request.post()
     file = data['file']
+    nonlocal filepath
+    filepath = file
     benchmarks = get_benchmarks(file)
     response = aiohttp_jinja2.render_template('index.html', request, context=benchmarks)
     return response
