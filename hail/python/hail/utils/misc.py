@@ -444,8 +444,10 @@ def get_select_exprs(caller, exprs, named_exprs, indices, base_struct):
 
 
 def check_annotate_exprs(caller, named_exprs, indices):
+    from hail.expr.expressions import analyze
     protected_key = set(indices.protected_key)
-    for k in named_exprs:
+    for k, v in named_exprs.items():
+        analyze(f'{caller}: field {k!r}', v, indices, broadcast=False)
         check_keys(caller, k, protected_key)
     check_collisions(caller, list(named_exprs), indices)
     return named_exprs

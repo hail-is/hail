@@ -1580,6 +1580,12 @@ class Tests(unittest.TestCase):
         with pytest.raises(hl.expr.ExpressionException, match='Found fields from 2 objects:'):
             mt.annotate_entries(x = mt.GT.n_alt_alleles() * mt2.af)
 
+    def test_invalid_field_ref_annotate(self):
+        mt = hl.balding_nichols_model(2, 5, 5)
+        mt2 = hl.balding_nichols_model(2, 5, 5)
+        with pytest.raises(hl.expr.ExpressionException, match='source mismatch'):
+            mt.annotate_entries(x = mt2.af)
+
 
 def test_read_write_all_types():
     mt = create_all_values_matrix_table()
