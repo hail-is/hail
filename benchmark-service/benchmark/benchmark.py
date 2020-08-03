@@ -12,7 +12,6 @@ import re
 from google.cloud import storage
 import plotly
 import plotly.express as px
-import urllib
 
 configure_logging()
 router = web.RouteTableDef()
@@ -28,7 +27,7 @@ log = logging.getLogger('benchmark')
 # blob_str = blob.download_as_string(client=None)
 # pre_data = json.loads(blob_str)
 
-filepath = 'tpoterba/0.2.45-ac6815ee857c-master.json' #'/0.2.45-ac6815ee857c-master.json'
+filepath = 'tpoterba/0.2.45-ac6815ee857c-master.json' #'/0.2.45-ac6815ee857c-master.json' test
 
 
 def get_benchmarks(file_path):
