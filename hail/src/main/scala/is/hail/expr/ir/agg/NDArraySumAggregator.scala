@@ -2,7 +2,8 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IR}
+import is.hail.expr.ir.functions.StringFunctions
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitRegion, IR}
 import is.hail.types.physical.{PBaseStructCode, PBoolean, PBooleanRequired, PCanonicalTuple, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PType}
 import is.hail.utils._
 
@@ -28,7 +29,7 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
   }
 
   def ndArrayPointer(state: State): Code[Long] = {
-    Region.loadLong(stateType.fieldOffset(state.off, 1))
+    stateType.loadField(state.off, 1)
   }
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
@@ -68,6 +69,7 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
     // If right is uninitialized, do nothing and keep the current state.
     cb.append(Code._println("Trying to combOp"))
     cb.append(Code._println(const("Left value init field looks like: ").concat(Region.loadBoolean(state.off).toS)))
+    cb.append(Code._println(const("Right value init field looks like: ").concat(Region.loadBoolean(other.off).toS)))
     cb.ifx(!isInitialized(other), {
       // Do nothing
       cb.append(Code._println("combOp: other was not initialized, doing nothing"))
@@ -76,7 +78,8 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
       // Now what if left is not initialized?
 
       cb.ifx(!isInitialized(state), {
-        ???
+        cb.append(Code._println("combOp: state was not initialized, overwriting with other"))
+        cb.append(state.storeNonmissing(other.off))
       },
       {
         // Need to:
@@ -128,6 +131,21 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
 
   override protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
     cb.append(Code._println("Trying to write resultOp"))
-    cb.append(srvb.addIRIntermediate(resultType)(ndArrayPointer(state)))
+    cb.append(Code._println(const("resultOp: State value init field looks like: ").concat(Region.loadBoolean(state.off).toS)))
+    val t = state.get()
+    assert(resultType == state.typ.asInstanceOf[PCanonicalTuple].types(1))
+    cb.append(t.setup)
+    cb.append(
+      isInitialized(state).mux(
+        Code(
+          Code._println(StringFunctions.boxArg(EmitRegion(cb.emb, state.region), stateType)(state.off)),
+          srvb.addWithDeepCopy(resultType, ndArrayPointer(state)),
+          Code._println("Updated SRVB")
+        ),
+        Code(
+          Code._println("Final result was missing"),
+          srvb.setMissing()
+        )
+    ))
   }
 }
