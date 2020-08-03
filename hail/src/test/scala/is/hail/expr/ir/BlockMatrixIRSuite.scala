@@ -118,6 +118,37 @@ class BlockMatrixIRSuite extends HailSuite {
     }
   }
 
+  @Test def testBlockMatrixFilter() {
+    val nRows = 5
+    val nCols = 8
+    val original = BDM.tabulate[Double](nRows, nCols)((i, j) => i * nCols + j)
+    val unfiltered = toIR(original, blockSize = 3)
+
+    val keepRows = Array(0L, 1L, 4L)
+    val keepCols = Array(0L, 2L, 7L)
+
+    assertBMEvalsTo(BlockMatrixFilter(unfiltered, Array(keepRows, Array())),
+      original(keepRows.map(_.toInt).toFastIndexedSeq, ::).toDenseMatrix)
+    assertBMEvalsTo(BlockMatrixFilter(unfiltered, Array(Array(), keepCols)),
+      original(::, keepCols.map(_.toInt).toFastIndexedSeq).toDenseMatrix)
+    assertBMEvalsTo(BlockMatrixFilter(unfiltered, Array(keepRows, keepCols)),
+      original(keepRows.map(_.toInt).toFastIndexedSeq, keepCols.map(_.toInt).toFastIndexedSeq).toDenseMatrix)
+  }
+
+  @Test def testBlockMatrixSlice() {
+    val nRows = 12
+    val nCols = 8
+    val original = BDM.tabulate[Double](nRows, nCols)((i, j) => i * nCols + j)
+    val unsliced = toIR(original, blockSize = 3)
+
+    val rowSlice = FastIndexedSeq(1L, 10L, 3L)
+    val colSlice = FastIndexedSeq(4L, 8L, 2L)
+    assertBMEvalsTo(BlockMatrixSlice(unsliced, FastIndexedSeq(rowSlice, colSlice)),
+      original(
+        Array.range(rowSlice(0).toInt, rowSlice(1).toInt, rowSlice(2).toInt).toFastIndexedSeq,
+        Array.range(colSlice(0).toInt, colSlice(1).toInt, colSlice(2).toInt).toFastIndexedSeq).toDenseMatrix)
+  }
+
   @Test def testBlockMatrixDot() {
     val m1 = BDM.tabulate[Double](5, 4)((i, j) => (i + 1) * j)
     val m2 = BDM.tabulate[Double](4, 6)((i, j) => (i + 5) * (j - 2))

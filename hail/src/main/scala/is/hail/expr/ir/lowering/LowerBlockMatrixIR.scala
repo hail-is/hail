@@ -5,7 +5,7 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.functions.GetElement
 import is.hail.types.{BlockMatrixSparsity, BlockMatrixType, TypeWithRequiredness}
 import is.hail.types.virtual._
-import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.utils._
 
 object BlockMatrixStage {
   def empty(eltType: Type): BlockMatrixStage =
@@ -122,6 +122,46 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
       def blockBody(ctxRef: Ref): IR = f(ctxRef, outer.blockBody(ctxRef))
     }
   }
+
+  def condenseBlocks(typ: BlockMatrixType, rowBlocks: Array[Array[Int]], colBlocks: Array[Array[Int]]): BlockMatrixStage = {
+    val outer = this
+    val ctxType = TArray(TArray(TTuple(TTuple(TInt64, TInt64), outer.ctxType)))
+    new BlockMatrixStage(outer.globalVals, ctxType) {
+      def blockContext(idx: (Int, Int)): IR = {
+        val i = idx._1
+        val j = idx._2
+        MakeArray(rowBlocks(i).map { ii =>
+          MakeArray(colBlocks(j).map { jj =>
+            val idx2 = ii -> jj
+            if (typ.hasBlock(idx2))
+              MakeTuple.ordered(FastSeq(NA(TTuple(TInt64, TInt64)), outer.blockContext(idx2)))
+            else {
+              val (nRows, nCols) = typ.blockShape(ii, jj)
+              MakeTuple.ordered(FastSeq(MakeTuple.ordered(FastSeq(nRows, nCols)), NA(outer.ctxType)))
+            }
+          }: _*)
+        }: _*)
+      }
+
+      def blockBody(ctxRef: Ref): IR = {
+        NDArrayConcat(ToArray(mapIR(ToStream(ctxRef)) { ctxRows =>
+          NDArrayConcat(ToArray(mapIR(ToStream(ctxRows)) { shapeOrCtx =>
+            bindIR(GetTupleElement(shapeOrCtx, 1)) { ctx =>
+              If(IsNA(ctx),
+                bindIR(GetTupleElement(shapeOrCtx, 0)) { shape =>
+                  MakeNDArray(
+                    ToArray(mapIR(
+                      rangeIR((GetTupleElement(shape, 0) * GetTupleElement(shape, 1)).toI)
+                    )(_ => zero(typ.elementType))),
+                    shape, False())
+                },
+                outer.blockBody(ctx))
+            }
+          }), 1)
+        }), 0)
+      }
+    }
+  }
 }
 
 object LowerBlockMatrixIR {
@@ -227,8 +267,50 @@ object LowerBlockMatrixIR {
         lower(child)
 
       case BlockMatrixAgg(child, outIndexExpr) => unimplemented(bmir)
-      case BlockMatrixFilter(child, keep) => unimplemented(bmir)
-      case BlockMatrixSlice(child, slices) => unimplemented(bmir)
+      case x@BlockMatrixFilter(child, keep) =>
+        val rowDependents = x.rowBlockDependents
+        val colDependents = x.colBlockDependents
+
+        lower(child).condenseBlocks(child.typ, rowDependents, colDependents)
+          .addContext(TStruct("rows" -> TArray(TInt64), "cols" -> TArray(TInt64))) { idx =>
+            val i = idx._1
+            val j = idx._2
+            val rowStartIdx = rowDependents(i).head.toLong * x.typ.blockSize
+            val colStartIdx = colDependents(j).head.toLong * x.typ.blockSize
+            val rows = if (keep(0).isEmpty) null else x.keepRowPartitioned(i).map(k => k - rowStartIdx).toFastIndexedSeq
+            val cols = if (keep(1).isEmpty) null else x.keepColPartitioned(j).map(k => k - colStartIdx).toFastIndexedSeq
+            makestruct("rows" -> Literal.coerce(TArray(TInt64), rows), "cols" -> Literal.coerce(TArray(TInt64), cols))
+          }.mapBody { (ctx, body) =>
+          bindIR(GetField(GetField(ctx, "new"), "rows")) { rows =>
+            bindIR(GetField(GetField(ctx, "new"), "cols")) { cols =>
+              NDArrayFilter(body, FastIndexedSeq(rows, cols))
+            }
+          }
+        }
+      case x@BlockMatrixSlice(child, IndexedSeq(IndexedSeq(rStart, rEnd, rStep), IndexedSeq(cStart, cEnd, cStep))) =>
+        val rowDependents = x.rowBlockDependents
+        val colDependents = x.colBlockDependents
+
+        lower(child).condenseBlocks(child.typ, rowDependents, colDependents)
+          .addContext(TTuple(TTuple(TInt64, TInt64, TInt64), TTuple(TInt64, TInt64, TInt64))) { idx =>
+            val i = idx._1
+            val j = idx._2
+            val rowStartIdx = rowDependents(i).head.toLong * x.typ.blockSize
+            val colStartIdx = colDependents(j).head.toLong * x.typ.blockSize
+
+            val rowEndIdx = java.lang.Math.min(child.typ.nRows, (rowDependents(i).last + 1L) * x.typ.blockSize)
+            val colEndIdx = java.lang.Math.min(child.typ.nCols, (colDependents(i).last + 1L) * x.typ.blockSize)
+            val rows = MakeTuple.ordered(FastSeq[IR](
+              if (rStart >= rowStartIdx) rStart - rowStartIdx else (rowStartIdx - rStart) % rStep,
+              java.lang.Math.min(rEnd, rowEndIdx) - rowStartIdx,
+              rStep))
+            val cols = MakeTuple.ordered(FastSeq[IR](
+              if (cStart >= colStartIdx) cStart - colStartIdx else (colStartIdx - cStart) % cStep,
+              java.lang.Math.min(cEnd, colEndIdx) - colStartIdx,
+              cStep))
+            MakeTuple.ordered(FastSeq(rows, cols))
+          }.mapBody { (ctx, body) => NDArraySlice(body, GetField(ctx, "new")) }
+
       case BlockMatrixDensify(child) => unimplemented(bmir)
       case BlockMatrixSparsify(child, sparsifier) => unimplemented(bmir)
       case RelationalLetBlockMatrix(name, value, body) => unimplemented(bmir)
