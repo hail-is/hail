@@ -334,7 +334,7 @@ def retry_all_errors(msg=None, error_logging_interval=10):
     return _wrapper
 
 
-T = TypeVar('T')
+T = TypeVar('T')  # pylint: disable=invalid-name
 
 
 async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
