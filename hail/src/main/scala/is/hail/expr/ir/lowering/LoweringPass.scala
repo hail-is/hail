@@ -21,7 +21,8 @@ trait LoweringPass {
   protected def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR
 }
 
-case class OptimizePass(context: String) extends LoweringPass {
+case class OptimizePass(_context: String) extends LoweringPass {
+  val context = s"optimize: ${_context}"
   val before: IRState = AnyIR
   val after: IRState = AnyIR
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = Optimize(ir, true, context, ctx)
