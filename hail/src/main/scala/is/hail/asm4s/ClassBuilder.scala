@@ -128,7 +128,7 @@ class ModuleBuilder() {
       classesBytes = new ClassesBytes(
         classes
           .iterator
-          .map(c => (c.className.replace("/", "."), c.classAsBytes(print)))
+          .flatMap(c => c.classBytes(print))
           .toArray)
 
     }
@@ -318,7 +318,7 @@ class ClassBuilder[C](
     }
   }
 
-  def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
+  def classBytes(print: Option[PrintWriter] = None): Array[(String, Array[Byte])] = {
     assert(initBody.start != null)
     lInit.setEntry(initBody.start)
 

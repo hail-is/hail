@@ -1,97 +1,212 @@
 package is.hail.lir
 
-import is.hail.asm4s.{BooleanInfo, IntInfo, TypeInfo, UnitInfo}
-import is.hail.utils.FastIndexedSeq
+import is.hail.asm4s._
+import is.hail.utils._
 import org.objectweb.asm.Opcodes._
+import org.objectweb.asm._
+
+import scala.collection.mutable
+
+class SplitUnreachable() extends Exception()
 
 object SplitMethod {
-  val TargetMethodSize: Int = 2000
+  val TargetMethodSize: Int = 500
 
-  def apply(c: Classx[_], m: Method): Unit = {
-    new SplitMethod(c, m).split()
+  def apply(
+    c: Classx[_],
+    m: Method,
+    blocks: Blocks,
+    locals: Locals,
+    cfg: CFG,
+    liveness: Liveness,
+    pst: PST
+  ): Classx[_] = {
+    val split = new SplitMethod(c, m, blocks, locals, cfg, liveness, pst)
+    split.split()
+    split.spillsClass
   }
 }
 
-class SplitMethod(c: Classx[_], m: Method) {
-  private val blocks = m.findBlocks()
+class SplitMethod(
+  c: Classx[_],
+  m: Method,
+  blocks: Blocks,
+  locals: Locals,
+  cfg: CFG,
+  liveness: Liveness,
+  pst: PST
+) {
+  def nBlocks: Int = blocks.nBlocks
 
-  private val paramFields = m.parameterTypeInfo.zipWithIndex.map { case (ti, i) =>
-    c.newField(genName("f", s"arg$i"), ti)
-  }
+  def nLocals: Int = locals.nLocals
 
-  def splitLargeStatements(): Unit = {
-    for (b <- blocks) {
-      def splitLargeStatement(c: StmtX): Unit = {
-        def visit(x: ValueX): Int = {
-          // FIXME this doesn't handle many moderate-sized children
-          val size = 1 + x.children.map(visit).sum
+  private val blockPartitions = new UnionFind(nBlocks)
+  (0 until nBlocks).foreach { i => blockPartitions.makeSet(i) }
 
-          if (size > SplitMethod.TargetMethodSize / 2) {
-            val l = m.newLocal("spill_large_expr", x.ti)
-            x.replace(load(l))
-            c.insertBefore(store(l, x))
-            1
-          } else
-            size
-        }
+  private var methodSize = 0
 
-        c.children.foreach(visit)
-      }
+  private val blockSize = new Array[Int](nBlocks)
 
-      var x = b.first
-      while (x != null) {
-        splitLargeStatement(x)
-        x = x.next
-      }
+  // compute methodSize and regionSize
+  private def computeBlockSizes(): Unit = {
+    var i = 0
+    while (i < nBlocks) {
+      val size = blocks(i).approxByteCodeSize()
+      blockSize(i) = size
+      methodSize += size
+      i += 1
     }
   }
 
-  def spillLocals(): Unit = {
-    val locals = m.findLocals(blocks)
+  private val spillsClass = new Classx(genName("C", s"${ m.name }Spills"), "java/lang/Object")
+  private val spillsCtor = {
+    val ctor = spillsClass.newMethod("<init>", FastIndexedSeq(), UnitInfo)
+    val L = new Block()
+    ctor.setEntry(L)
+    L.append(
+      methodStmt(INVOKESPECIAL,
+        "java/lang/Object",
+        "<init>",
+        "()V",
+        false,
+        UnitInfo,
+        FastIndexedSeq(load(ctor.getParam(0)))))
+    L.append(returnx())
+    ctor
+  }
 
-    val fields = locals.map { l =>
-      if (l.isInstanceOf[Parameter])
-        null
-      else
-        c.newField(genName("f", l.name), l.ti)
+  private var _spillReturned: Field = _
+
+  private var _spillReturnValue: Field = _
+
+  def spillReturned: Field = {
+    if (_spillReturned == null) {
+      _spillReturned = spillsClass.newField(genName("f", "spillReturned"), BooleanInfo)
+      if (m.returnTypeInfo != UnitInfo)
+        _spillReturnValue = spillsClass.newField(genName("f", "spillReturnValue"), m.returnTypeInfo)
     }
+    _spillReturned
+  }
 
+  def spillReturnValue: Field = {
+    // create
+    spillReturned
+    assert(_spillReturnValue != null)
+    _spillReturnValue
+  }
+
+  def throwUnreachable(): ControlX = {
+    val ti = classInfo[SplitUnreachable]
+    val tcls = classOf[SplitUnreachable]
+    val c = tcls.getDeclaredConstructor()
+    throwx(newInstance(ti,
+      Type.getInternalName(tcls), "<init>", Type.getConstructorDescriptor(c), ti, FastIndexedSeq()))
+  }
+
+  private val spills = m.newLocal("spills", spillsClass.ti)
+
+  private val splitMethods = mutable.ArrayBuffer[Method]()
+
+  private val localsToSpill = new java.util.BitSet(nLocals)
+
+  private val fields = new Array[Field](nLocals)
+
+  private val splitReturnCalls = mutable.Set[StmtX]()
+
+  private def createSpillFields(): Unit = {
+    var i = 0
+    while (i < nLocals) {
+      val l = locals(i)
+      val spill = l match {
+        case p: Parameter =>
+          p.i != 0
+        case _ =>
+          localsToSpill.get(i)
+      }
+      if (spill)
+        fields(i) = spillsClass.newField(genName("f", l.name), l.ti)
+      i += 1
+    }
+  }
+
+  // also fixes up null switch targets
+  def spillLocals(method: Method): Unit = {
     def localField(l: Local): Field =
       l match {
         case p: Parameter =>
-          if (p.i == 0)
+          if (method eq m)
             null
           else
-            paramFields(p.i - 1)
-        case _ => fields(locals.index(l))
+            fields(p.i)
+        case _ =>
+          locals.getIndex(l) match {
+            case Some(i) =>
+              fields(i)
+            case None =>
+              null
+          }
       }
+
+    def getSpills(): ValueX = {
+      if (method eq m)
+        load(spills)
+      else
+        load(new Parameter(method, 1, spillsClass.ti))
+    }
 
     def spill(x: X): Unit = {
       x.children.foreach(spill)
       x match {
         case x: LoadX =>
-          val f = localField(x.l)
-          if (f != null)
-            x.replace(getField(f, load(m.getParam(0))))
+          if ((method ne m) && (x.l eq spills)) {
+            x.l = new Parameter(method, 1, spillsClass.ti)
+          } else {
+            val f = localField(x.l)
+            if (f != null)
+              x.replace(getField(f, getSpills()))
+          }
         case x: IincX =>
+          assert(x.l ne spills)
           val f = localField(x.l)
-          assert(f != null)
-          x.replace(
-            putField(f, load(m.getParam(0)),
-              insn(IADD,
-                getField(f, load(m.getParam(0))),
-                ldcInsn(x.i, IntInfo))))
+          if (f != null) {
+            x.replace(
+              putField(f, getSpills(),
+                insn(IADD,
+                  getField(f, getSpills()),
+                  ldcInsn(x.i, IntInfo))))
+          }
         case x: StoreX =>
+          assert(x.l ne spills)
           val f = localField(x.l)
-          assert(f != null)
-          val v = x.children(0)
-          v.remove()
-          x.replace(putField(f, load(m.getParam(0)), v))
+          if (f != null) {
+            val v = x.children(0)
+            v.remove()
+            x.replace(putField(f, getSpills(), v))
+          }
         case _ =>
       }
     }
 
+    val blocks = method.findBlocks()
     for (b <- blocks) {
+      b.last match {
+        case x: SwitchX =>
+          var Lunreachable: Block = null
+          var i = 0
+          while (i < x.targetArity()) {
+            if (x.target(i) == null) {
+              if (Lunreachable == null) {
+                Lunreachable = new Block()
+                Lunreachable.method = method
+                Lunreachable.append(throwUnreachable())
+              }
+              x.setTarget(i, Lunreachable)
+            }
+            i += 1
+          }
+        case _ =>
+      }
+
       var x = b.first
       while (x != null) {
         val n = x.next
@@ -101,104 +216,347 @@ class SplitMethod(c: Classx[_], m: Method) {
     }
   }
 
-  def splitBlock(b: Block): Unit = {
-    val last = b.last
+  def spillLocals(): Unit = {
+    createSpillFields()
+    for (splitM <- splitMethods) {
+      spillLocals(splitM)
+    }
+    spillLocals(m)
+  }
 
-    val returnTI = last match {
+  def fixSplitReturnCalls(): Unit = {
+    for (s <- splitReturnCalls) {
+      val method = s.containingMethod()
+      assert(method != null)
+
+      def getSpills(): ValueX = {
+        if (method eq m)
+          load(spills)
+        else
+          load(new Parameter(method, 1, spillsClass.ti))
+      }
+
+      val Lafter = new Block()
+      Lafter.method = method
+      while (s.next!= null) {
+        val n = s.next
+        n.remove()
+        Lafter.append(n)
+      }
+      val Lreturn = new Block()
+      Lreturn.method = method
+      if (method.returnTypeInfo != UnitInfo) {
+        if (method eq m)
+          Lreturn.append(returnx(getField(spillReturnValue, getSpills())))
+        else
+          Lreturn.append(returnx(defaultValue(method.returnTypeInfo)))
+      } else
+        Lreturn.append(returnx())
+      s.insertAfter(
+        ifx(IFNE,
+          getField(spillReturned, getSpills()),
+          Lreturn,
+          Lafter))
+    }
+  }
+
+  // updated while we split
+  private val updatedBlocks = blocks.toArray
+
+  private val blockSplitsReturn = new java.util.BitSet(nBlocks)
+
+  private def splitSlice(start: Int, end: Int): Unit = {
+    val Lstart = updatedBlocks(blockPartitions.find(start))
+    val Lend = updatedBlocks(blockPartitions.find(end))
+
+    var splitsReturn: Boolean = false
+
+    val regionBlocks = mutable.Set[Block]()
+    (start to end).foreach { i =>
+      val b = blockPartitions.find(i)
+      if (blockSplitsReturn.get(b))
+        splitsReturn = true
+      val L = updatedBlocks(b)
+      if (L != null) {
+        updatedBlocks(b) = null
+        regionBlocks += L
+      }
+    }
+
+    localsToSpill.or(liveness.liveIn(start))
+    for (s <- cfg.succ(end)) {
+      localsToSpill.or(liveness.liveIn(s))
+    }
+
+    // replacement block for region
+    val newL = new Block()
+    newL.method = m
+
+    // don't iterate over set that's being modified
+    val uses2 = Lstart.uses.toArray
+    for ((x, i) <- uses2) {
+      val xL = x.containingBlock()
+      assert(xL != null)
+      if (!regionBlocks(xL))
+        x.setTarget(i, newL)
+    }
+    if (m.entry == Lstart)
+      m.setEntry(newL)
+
+    (start to end).foreach { i =>
+      blockPartitions.union(start, i)
+    }
+    updatedBlocks(blockPartitions.find(start)) = newL
+
+    val returnTI = Lend.last match {
       case _: GotoX => UnitInfo
-      case _: IfX => BooleanInfo
+      case x: IfX =>
+        if (!regionBlocks(x.Ltrue) && !regionBlocks(x.Lfalse))
+          BooleanInfo
+        else
+          UnitInfo
       case _: SwitchX => IntInfo
       case _: ReturnX => m.returnTypeInfo
       case _: ThrowX => UnitInfo
     }
 
-    var L = new Block()
-    var x = b.first
-    var size = 0
+    val splitM = c.newMethod(s"${ m.name }region${ start }_$end", FastIndexedSeq(spillsClass.ti), returnTI)
+    splitMethods += splitM
 
-    while (x != last) {
-      if (size > SplitMethod.TargetMethodSize) {
-        val newM = c.newMethod(genName("m", "wrapped"), FastIndexedSeq.empty[TypeInfo[_]], UnitInfo)
-        L.method = newM
-        newM.setEntry(L)
-        L.append(returnx())
+    splitM.setEntry(Lstart)
 
-        x.insertBefore(methodStmt(INVOKEVIRTUAL, newM, Array(load(m.getParam(0)))))
+    for (b <- regionBlocks) {
+      b.method = splitM
 
-        L = new Block()
-        size = 0
+      // handle split return statements
+      if (b ne Lend) {
+        b.last match {
+          case x: ReturnX =>
+            splitsReturn = true
+            x.remove()
+            b.append(putField(spillReturned, load(spills), ldcInsn(1, BooleanInfo)))
+            if (m.returnTypeInfo != UnitInfo) {
+              val v = x.children(0)
+              v.remove()
+              b.append(putField(spillReturnValue, load(spills), v))
+            }
+            if (returnTI != UnitInfo)
+              b.append(returnx(defaultValue(returnTI)))
+            else
+              b.append(returnx())
+          case _ =>
+        }
       }
-
-      size += x.approxByteCodeSize()
-      val n = x.next
-      x.remove()
-      L.append(x)
-      x = n
     }
 
-    val newM = c.newMethod(genName("m", "wrapped"), FastIndexedSeq.empty[TypeInfo[_]], returnTI)
-    L.method = newM
-    newM.setEntry(L)
+    var splitMReturnValue: ValueX = null
 
-    def invokeNewM(): ValueX =
-      methodInsn(INVOKEVIRTUAL, newM, Array(load(m.getParam(0))))
-
-    def invokeNewMStmt(): StmtX =
-      methodStmt(INVOKEVIRTUAL, newM, Array(load(m.getParam(0))))
-
-    last match {
-      case _: GotoX | _: ThrowX =>
-        L.append(returnx())
-        last.insertBefore(invokeNewMStmt())
-      case x: IfX =>
-        val Ltrue = x.Ltrue
-        val Lfalse = x.Lfalse
-
-        x.remove()
-        L.append(x)
-
-        val newLtrue = new Block()
-        newLtrue.method = newM
-        newLtrue.append(returnx(ldcInsn(0, BooleanInfo)))
-        x.setLtrue(newLtrue)
-
-        val newLfalse = new Block()
-        newLfalse.method = newM
-        newLfalse.append(returnx(ldcInsn(0, BooleanInfo)))
-        x.setLfalse(newLfalse)
-
-        b.append(
-          ifx(IFNE, invokeNewM(), Ltrue, Lfalse))
-      case x: SwitchX => IntInfo
-        val i = x.children(0)
-        x.setChild(0, invokeNewM())
-        L.append(returnx(i))
-      case _: ReturnX =>
-        if (returnTI eq UnitInfo) {
-          L.append(returnx())
-          last.insertBefore(invokeNewMStmt())
-        } else {
-          val c = x.children(0)
-          x.setChild(0, invokeNewM())
-          L.append(returnx(c))
+    {
+      if (returnTI == UnitInfo) {
+        val s = methodStmt(INVOKEVIRTUAL, splitM, Array(load(m.getParam(0)), load(spills)))
+        newL.append(s)
+        if (splitsReturn)
+          splitReturnCalls += s
+      } else {
+        splitMReturnValue = methodInsn(INVOKEVIRTUAL, splitM, Array(load(m.getParam(0)), load(spills)))
+        if (splitsReturn) {
+          val l = m.newLocal("splitMReturnValue", returnTI)
+          val s = store(l, splitMReturnValue)
+          newL.append(s)
+          splitReturnCalls += s
+          splitMReturnValue = load(l)
         }
+      }
+    }
+
+    Lend.last match {
+      case x: GotoX =>
+        if (regionBlocks(x.L))
+          newL.append(throwUnreachable())
+        else {
+          x.remove()
+          Lend.append(returnx())
+          newL.append(x)
+        }
+      case _: ThrowX =>
+        newL.append(throwUnreachable())
+      case x: IfX =>
+        if (regionBlocks(x.Ltrue)) {
+          if (regionBlocks(x.Lfalse))
+            newL.append(throwUnreachable())
+          else {
+            newL.append(goto(x.Lfalse))
+            val Lreturn = new Block()
+            Lreturn.method = splitM
+            Lreturn.append(returnx())
+            x.setLfalse(Lreturn)
+          }
+        } else {
+          if (regionBlocks(x.Lfalse)) {
+            newL.append(goto(x.Ltrue))
+            val Lreturn = new Block()
+            Lreturn.method = splitM
+            Lreturn.append(returnx())
+            x.setLtrue(Lreturn)
+          } else {
+            newL.append(
+              ifx(IFNE, splitMReturnValue, x.Ltrue, x.Lfalse))
+
+            val newLtrue = new Block()
+            newLtrue.method = splitM
+            newLtrue.append(returnx(ldcInsn(1, BooleanInfo)))
+            x.setLtrue(newLtrue)
+
+            val newLfalse = new Block()
+            newLfalse.method = splitM
+            newLfalse.append(returnx(ldcInsn(0, BooleanInfo)))
+            x.setLfalse(newLfalse)
+          }
+        }
+      case x: SwitchX =>
+        // FIXME potential for optimization like if
+        val idx = x.children(0)
+        idx.remove()
+        val lidx = splitM.newLocal("switch_index", IntInfo)
+        x.insertBefore(store(lidx, idx))
+        x.setChild(0, load(lidx))
+        val Lreturn = new Block()
+        Lreturn.method = splitM
+        Lreturn.append(returnx(load(lidx)))
+        val newSwitch = switch(splitMReturnValue, x.Ldefault, x.Lcases)
+        var i = 0
+        while (i < x.targetArity()) {
+          val L = x.target(i)
+          if (regionBlocks(L))
+            // null is replaced with throw new SplitUnreachable
+            newSwitch.setTarget(i, null)
+          else
+            x.setTarget(i, Lreturn)
+          i += 1
+        }
+        newL.append(newSwitch)
+      case _: ReturnX =>
+        if (m.returnTypeInfo == UnitInfo)
+          newL.append(returnx())
+        else
+          newL.append(returnx(splitMReturnValue))
+    }
+
+    val b = blockPartitions.find(start)
+    blockSize(b) = newL.approxByteCodeSize()
+    if (splitsReturn)
+      blockSplitsReturn.set(b)
+  }
+
+  // utility class
+  class SizedRange(val start: Int, val end: Int, val size: Int) {
+    override def toString: String = s"$start-$end/$size"
+  }
+
+  def splitSubregions(subr0: mutable.ArrayBuffer[SizedRange]): Int = {
+    var subr = subr0
+
+    var size = subr.iterator.map(_.size).sum
+
+    var changed = true
+    while (changed &&
+      size > SplitMethod.TargetMethodSize) {
+
+      changed = false
+
+      val coalescedsubr = new mutable.ArrayBuffer[SizedRange]()
+
+      var i = 0
+      while (i < subr.size) {
+        var s = subr(i).size
+        var j = i + 1
+        while (j < subr.size &&
+          subr(j).start == subr(i).end + 1 &&
+          pst.splitBlock(subr(i).end) &&
+          (s + subr(j).size < SplitMethod.TargetMethodSize)) {
+          s += subr(j).size
+          j += 1
+        }
+        coalescedsubr += new SizedRange(subr(i).start, subr(j - 1).end, s)
+        i = j
+      }
+
+      val sortedsubr = coalescedsubr.sortBy(_.size)
+
+      val newsubr = mutable.ArrayBuffer[SizedRange]()
+
+      i = sortedsubr.length - 1
+      while (i >= 0) {
+        val ri = sortedsubr(i)
+        if (ri.size > 20 &&
+          size > SplitMethod.TargetMethodSize) {
+
+          size -= ri.size
+          splitSlice(ri.start, ri.end)
+          val s = blockSize(blockPartitions.find(ri.start))
+          assert(s < 20)
+          size += s
+
+          newsubr += new SizedRange(ri.start, ri.end, s)
+
+          changed = true
+        } else
+          newsubr += ri
+
+        i -= 1
+      }
+
+      subr = newsubr.sortBy(_.start)
+    }
+
+    size
+  }
+
+  def splitRegions(): Unit = {
+    val regionSize = new Array[Int](pst.nRegions)
+    var i = 0
+    while (i < pst.nRegions) {
+      val r = pst.regions(i)
+      if (r.children.nonEmpty) {
+        val subr = mutable.ArrayBuffer[SizedRange]()
+        subr ++= r.children.iterator.map { ci =>
+          val cr = pst.regions(ci)
+          assert(ci < i)
+          new SizedRange(cr.start, cr.end, regionSize(ci))
+        }
+        regionSize(i) = splitSubregions(subr)
+      } else {
+        assert(r.start == r.end)
+        regionSize(i) = blockSize(blockPartitions.find(r.start))
+      }
+      /*
+      if (i != pst.root && pst.loopRegion.get(i)) {
+        splitSlice(r.start, r.end)
+        regionSize(i) = blockSize(blockPartitions.find(r.start))
+      }
+       */
+      i += 1
     }
   }
 
   def split(): Unit = {
-    splitLargeStatements()
+    computeBlockSizes()
+    splitRegions()
     spillLocals()
+    fixSplitReturnCalls()
 
-    for (b <- blocks) {
-      splitBlock(b)
-    }
-
-    // this can't get split
+    // spill parameters
+    var x: StmtX = store(spills, new NewInstanceX(spillsClass.ti, spillsCtor))
+    m.entry.prepend(x)
     m.parameterTypeInfo.indices.foreach { i =>
-      m.entry.prepend(putField(
-        paramFields(i),
-        load(m.getParam(0)),
-        load(m.getParam(i + 1))))
+      val f = fields(i + 1)
+      assert(f != null)
+      val putParam = putField(
+        f,
+        load(spills),
+        load(m.getParam(i + 1)))
+      x.insertAfter(putParam)
+      x = putParam
     }
   }
 }

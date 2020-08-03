@@ -45,22 +45,12 @@ class Classx[C](val name: String, val superName: String) {
     method
   }
 
-  def asBytes(print: Option[PrintWriter]): Array[Byte] = {
+  def asBytes(print: Option[PrintWriter]): Array[(String, Array[Byte])] = {
+    val classes = new mutable.ArrayBuffer[Classx[_]]()
+    classes += this
+
     for (m <- methods) {
       val blocks = m.findBlocks()
-      for (b <- blocks) {
-        if (b.method == null)
-          b.method = m
-        else {
-          /*
-        if (m.method ne this) {
-          println(s"${ b.method } $m")
-          println(b.stack.mkString("\n"))
-        }
-         */
-          assert(b.method eq m)
-        }
-      }
 
       val locals = m.findLocals(blocks)
       for (l <- locals) {
@@ -71,7 +61,8 @@ class Classx[C](val name: String, val superName: String) {
           else {
             /*
             if (l.method ne m) {
-              println(s"$l ${l.method} $m\n  ${l.stack.mkString("  \n")}")
+              // println(s"$l ${l.method} $m\n  ${l.stack.mkString("  \n")}")
+              println(s"$l ${l.method} $m")
             }
              */
             assert(l.method eq m)
@@ -97,13 +88,29 @@ class Classx[C](val name: String, val superName: String) {
       SimplifyControl(m)
     }
 
-    /*
     for (m <- methods) {
-      if (m.approxByteCodeSize() > SplitMethod.TargetMethodSize)
-      if (m.name != "<init>")
-        SplitMethod(this, m)
+      if (m.name != "<init>"
+      && m.approxByteCodeSize() > SplitMethod.TargetMethodSize
+      ) {
+        SplitLargeBlocks(m)
+
+        val blocks = m.findBlocks()
+        val locals = m.findLocals(blocks)
+
+        val PSTResult(blocks2, cfg2, pst) = {
+          // this cfg is no longer valid after creating pst
+          val cfg = CFG(m, blocks)
+          PST(m, blocks, cfg)
+        }
+
+        val liveness = Liveness(blocks2, locals, cfg2)
+
+        classes += SplitMethod(this, m, blocks2, locals, cfg2, liveness, pst)
+
+        // clean up after SplitMethod
+        SimplifyControl(m)
+      }
     }
-     */
 
     for (m <- methods) {
       val blocks = m.findBlocks()
@@ -113,21 +120,16 @@ class Classx[C](val name: String, val superName: String) {
 
       InitializeLocals(m, blocks, locals, liveness)
     }
-
-    /*
-    {
-      println(name)
-      for (m <- methods) {
-        println(s"  ${ m.name } ${ m.approxByteCodeSize() }")
-      }
-    }
-     */
-
+    
     // println(Pretty(this))
-    Emit(this,
-      print
-      // Some(new PrintWriter(System.out))
-    )
+    classes.iterator
+      .map { c =>
+      val bytes = Emit(c,
+        print
+        // Some(new PrintWriter(System.out))
+      )
+      (c.name.replace("/", "."), bytes)
+    }.toArray
   }
 }
 
@@ -184,7 +186,7 @@ class Method private[lir] (
 
   def isInterface: Boolean = false
 
-  var _entry: Block = _
+  private var _entry: Block = _
 
   def setEntry(newEntry: Block): Unit = {
     _entry = newEntry
@@ -212,11 +214,23 @@ class Method private[lir] (
     val visited = mutable.Set[Block]()
 
     s.push(entry)
-
+    
     while (s.nonEmpty) {
       val L = s.pop()
       if (!visited.contains(L)) {
         if (L != null) {
+          if (L.method == null)
+            L.method = this
+          else {
+            /*
+            if (L.method ne this) {
+              println(s"${ L.method } $this")
+              // println(b.stack.mkString("\n"))
+            }
+             */
+            assert(L.method eq this)
+          }
+
           blocksb += L
 
           var x = L.first
@@ -358,6 +372,9 @@ class Block {
   }
 
   def replace(L: Block): Unit = {
+    if (method.entry eq this)
+      method.setEntry(L)
+
     // don't traverse a set that's being modified
     val uses2 = uses.toArray
     for ((x, i) <- uses2) {
@@ -464,6 +481,27 @@ abstract class X {
 
   def remove(): Unit
 
+  def containingBlock(): Block = {
+    var x: X = this
+    while (x != null) {
+      x match {
+        case vx: ValueX =>
+          x = vx.parent
+        case sx: StmtX =>
+          return sx.parent
+      }
+    }
+    null
+  }
+
+  def containingMethod(): Method = {
+    val L = containingBlock()
+    if (L != null)
+      L.method
+    else
+      null
+  }
+
   def approxByteCodeSize(): Int = {
     var size = 0
     def visit(x: X): Unit = {
@@ -532,6 +570,21 @@ abstract class StmtX extends X {
       parent.first = x
     }
     prev = x
+  }
+
+  def insertAfter(x: StmtX): Unit = {
+    assert(parent != null)
+    assert(x.parent == null)
+
+    x.prev = this
+    x.parent = parent
+    if (next != null) {
+      x.next = next
+      next.prev = x
+    } else {
+      parent.last = x
+    }
+    next = x
   }
 }
 
@@ -650,7 +703,15 @@ class SwitchX() extends ControlX {
       _Lcases(i) = null
       i += 1
     }
-    _Lcases = newLcases.toArray
+
+    // don't allow sharing
+    _Lcases = new Array[Block](newLcases.length)
+    i = 0
+    while (i < _Lcases.length) {
+      _Lcases(i) = newLcases(i)
+      i += 1
+    }
+
     i = 0
     while (i < _Lcases.length) {
       val L = _Lcases(i)
@@ -664,7 +725,7 @@ class SwitchX() extends ControlX {
 
   def target(i: Int): Block = {
     if (i == 0)
-      Ldefault
+      _Ldefault
     else
       _Lcases(i - 1)
   }
@@ -687,11 +748,11 @@ class SwitchX() extends ControlX {
   }
 }
 
-class StoreX(val l: Local) extends StmtX
+class StoreX(var l: Local) extends StmtX
 
 class PutFieldX(val op: Int, val f: FieldRef) extends StmtX
 
-class IincX(val l: Local, val i: Int) extends StmtX
+class IincX(var l: Local, val i: Int) extends StmtX
 
 class ReturnX() extends ControlX {
   def targetArity(): Int = 0
@@ -742,6 +803,14 @@ class InsnX(val op: Int, _ti: TypeInfo[_]) extends ValueX {
       case IMUL => IntInfo
       case IDIV => IntInfo
       case IREM => IntInfo
+      case ISHL => IntInfo
+      case ISHR => IntInfo
+      case IUSHR => IntInfo
+      case LCMP => IntInfo
+      case FCMPL => IntInfo
+      case FCMPG => IntInfo
+      case DCMPL => IntInfo
+      case DCMPG => IntInfo
       case L2I => IntInfo
       case F2I => IntInfo
       case D2I => IntInfo
@@ -755,6 +824,9 @@ class InsnX(val op: Int, _ti: TypeInfo[_]) extends ValueX {
       case LAND => LongInfo
       case LOR => LongInfo
       case LXOR => LongInfo
+      case LSHL => LongInfo
+      case LSHR => LongInfo
+      case LUSHR => LongInfo
       case I2L => LongInfo
       case F2L => LongInfo
       case D2L => LongInfo
@@ -780,12 +852,11 @@ class InsnX(val op: Int, _ti: TypeInfo[_]) extends ValueX {
       case F2D => DoubleInfo
       // Boolean
       case I2B => BooleanInfo
-
     }
   }
 }
 
-class LoadX(val l: Local) extends ValueX {
+class LoadX(var l: Local) extends ValueX {
   def ti: TypeInfo[_] = l.ti
 }
 

@@ -45,6 +45,12 @@ object Pretty {
     b.result()
   }
 
+  def apply(L: Block): String = {
+    val b = new Builder(0)
+    fmt(L, b)
+    b.result()
+  }
+
   def apply(x: X): String = {
     val b = new Builder(0)
     fmt(x, b)

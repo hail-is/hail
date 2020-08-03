@@ -317,7 +317,6 @@ class Container:
                 return None
             raise
 
-        log.info(f'{self} container info {c}')
         cstate = c['State']
         status = {
             'state': cstate['Status'],
@@ -365,7 +364,7 @@ class Container:
 
             async with self.step('creating'):
                 config = self.container_config()
-                log.info(f'starting {self} config {config}')
+                log.info(f'starting {self}')
                 self.container = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
                     create_container, config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
@@ -395,7 +394,6 @@ class Container:
                     timed_out = True
 
             self.container_status = await self.get_container_status()
-            log.info(f'{self}: container status {self.container_status}')
 
             async with self.step('uploading_log'):
                 await worker.log_store.write_log_file(
@@ -651,7 +649,8 @@ class Job:
 
         req_cpu_in_mcpu = parse_cpu_in_mcpu(job_spec['resources']['cpu'])
         req_memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
-        req_storage_in_bytes = parse_memory_in_bytes(job_spec['resources']['storage'])
+        if 'storage' in job_spec['resources']:
+            req_storage_in_bytes = parse_memory_in_bytes(job_spec['resources']['storage'])
 
         cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type)
         if 'storage' in job_spec['resources']:
@@ -717,7 +716,7 @@ class Job:
         return (self.batch_id, self.job_id)
 
     async def run(self, worker):
-        async with worker.cpu_sem(self.cpu_in_mcpu, f'{self}'):
+        async with worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()
 
             try:
