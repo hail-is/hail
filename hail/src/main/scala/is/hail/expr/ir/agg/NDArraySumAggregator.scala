@@ -84,7 +84,7 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
       {
         // Need to:
         // 1. Check the shapes match.
-        // 2. If they match, add.
+        // 2. If they match, add.)
         val leftValue = PCode(stateType, state.off).asBaseStruct.memoize(cb, "left_state_ndarray_sum_agg")
         val rightValue = PCode(stateType, other.off).asBaseStruct.memoize(cb, "right_state_ndarray_sum_agg")
         leftValue.loadField(cb, 1).consume(cb, {}, { case leftNdCode: PNDArrayCode =>
@@ -92,6 +92,8 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
           rightValue.loadField(cb, 1).consume(cb, {}, { case rightNdCode: PNDArrayCode =>
             val rightNdValue = rightNdCode.memoize(cb, "right_ndarray_sum_agg")
             cb.append(Code._println("combOp: About to addValues"))
+            cb.append(Code._println(StringFunctions.boxArg(EmitRegion(cb.emb, state.region), stateType)(state.off)))
+            cb.append(Code._println(StringFunctions.boxArg(EmitRegion(cb.emb, other.region), stateType)(other.off)))
             addValues(cb, leftNdValue, rightNdValue)
           })
         })
@@ -124,7 +126,10 @@ class NDArraySumAggregator (ndTyp: PNDArray, knownShape: Option[IR]) extends Sta
     }
 
     cb.append(sameShape.mux(
-      columnMajorLoops,
+      Code(
+        Code._println("addValues: Saw same shape"),
+        columnMajorLoops
+      ),
       Code._fatal[Unit]("Can't sum ndarrays of different shapes.")
     ))
   }
