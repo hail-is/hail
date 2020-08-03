@@ -949,11 +949,18 @@ def test_identity():
 
 
 def test_agg_ndarray_sum():
-    just_ones = hl.utils.range_table(100).annotate(x=hl.nd.ones((2, 3)))
-    assert(np.array_equal(just_ones.aggregate(hl.agg.ndarray_sum(just_ones.x)), np.full((2, 3), 100)))
-
     no_values = hl.utils.range_table(0).annotate(x=hl.nd.arange(5))
-    assert(no_values.aggregate(hl.agg.ndarray_sum(no_values.x)) is None)
+    assert no_values.aggregate(hl.agg.ndarray_sum(no_values.x)) is None
+
+    increasing_0d = hl.utils.range_table(10)
+    increasing_0d = increasing_0d.annotate(x=hl.nd.array(increasing_0d.idx))
+    assert np.array_equal(increasing_0d.aggregate(hl.agg.ndarray_sum(increasing_0d.x)), np.array(45))
+
+    just_ones_1d = hl.utils.range_table(20).annotate(x=hl.nd.ones((7,)))
+    assert np.array_equal(just_ones_1d.aggregate(hl.agg.ndarray_sum(just_ones_1d.x)), np.full((7,), 20))
+
+    just_ones_2d = hl.utils.range_table(100).annotate(x=hl.nd.ones((2, 3)))
+    assert np.array_equal(just_ones_2d.aggregate(hl.agg.ndarray_sum(just_ones_2d.x)), np.full((2, 3), 100))
 
     with pytest.raises(FatalError) as exc:
         mismatched = hl.utils.range_table(5)

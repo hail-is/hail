@@ -37,7 +37,6 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
 
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(nextNDCode) = seq
-    cb.append(Code._println("Trying to seqop"))
     nextNDCode.toI(cb).consume(cb, {}, {case nextNDPCode: PNDArrayCode =>
       val nextNDPValue = nextNDPCode.memoize(cb, "ndarray_sum_seqop_next")
       cb.ifx(isInitialized(state),
