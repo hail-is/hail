@@ -83,6 +83,9 @@ def read_step_args(path_or_str):
             t = shlex.split(f.read())
             r = parser.parse_args(t)
 
+    if r.phenoCol or r.phenoColList or r.remove:
+        _error("Batch does not currently support --phenoCol, -phenoColList, or --remove")
+
     if r.step == 2:
         if r.pred:
             print("Batch will set --pred to the output prefix of --step 1.")
@@ -90,7 +93,6 @@ def read_step_args(path_or_str):
     return r
 
 
-# TODO: check --phenoCol, --phenoColList, --remove
 def get_phenos(step_args: argparse.Namespace):
     with hopen(step_args.phenoFile, "r") as f:
         return f.readline().strip().split(" ")[2:]
@@ -107,29 +109,17 @@ def get_input(batch, step_args: argparse.Namespace):
 
         if name == "bed":
             prefix = step_args.bed
-            inf = {}
-            inf["bed"] = f"{prefix}.bed"
-            inf["bim"] = f'{prefix}.bim'
-            inf["fam"] = f'{prefix}.fam'
-            add[name] = batch.read_input_group(**inf)
-            continue
-
-        if name == "pgen":
+            add[name] = batch.read_input_group(bed=f"{prefix}.bed", bim=f"{prefix}.bim", fam=f"{prefix}.fam")
+        elif name == "pgen":
             prefix = step_args.pgen
-            inf = {}
-            inf["pgen"] = f'{prefix}.pgen'
-            inf["pvar"] = f'{prefix}.pvar'
-            inf["psam"] = f'{prefix}.psam'
-            add[name] = batch.read_input_group(**inf)
-            continue
-
-        add[name] = batch.read_input(val)
+            add[name] = batch.read_input_group(pgen=f"{prefix}.pgen", pvar=f"{prefix}.pvar",psam=f"{prefix}.psam")
+        else:
+            add[name] = batch.read_input(val)
 
     return add
 
 
-def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace,
-                 step2_args: argparse.Namespace):
+def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_args: argparse.Namespace):
     j1 = batch.new_job(name='run-regenie')
     j1.image('akotlar/regenie:9e7074f695e2b96bbb5af9d95f112d674c3260cd')
     j1.cpu(args.cores)
@@ -141,44 +131,35 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace,
     phenos = get_phenos(step1_args)
     nphenos = len(phenos)
 
-    s1pre = step1_args.out
-    s1out = {"log": f"{s1pre}.log", "pred_list": f"{s1pre}_pred.list"}
+    step1_output_prefix = step1_args.out
+    s1out = {"log": f"{step1_output_prefix}.log", "pred_list": f"{step1_output_prefix}_pred.list"}
 
     for i in range(1, nphenos + 1):
-        s1out[f"{s1pre}_{i}"] = f"{s1pre}_{i}.loco"
+        s1out[f"{step1_output_prefix}_{i}"] = f"{step1_output_prefix}_{i}.loco"
 
     if step1_args.lowmem:
         for i in range(1, nphenos + 1):
             pfile = f"{step1_args.lowmem_prefix}_l0_Y{i}"
             s1out[pfile] = pfile
 
-    j1.declare_resource_group(**{s1pre: s1out})
+    j1.declare_resource_group(**{step1_output_prefix: s1out})
 
     cmd1 = ""
     for name, val in vars(step1_args).items():
-        if val is None or val is False:
+        if val is None or val is False or name == "step":
             continue
 
         if name in from_underscore:
             name = from_underscore[name]
 
-        # pred is not used in step 1 according to documentation
-        if name == "step":
-            continue
-
         if name in input_file_args:
             cmd1 += f" --{name} {in_step1[name]}"
-            continue
-
-        if name == "out":
-            cmd1 += f" --{name} {j1[s1pre]}"
-            continue
-
-        if isinstance(val, bool):
+        elif name == "out":
+            cmd1 += f" --{name} {j1[step1_output_prefix]}"
+        elif isinstance(val, bool):
             cmd1 += f" --{name}"
-            continue
-
-        cmd1 += f" --{name} \"{val}\""
+        else:
+            cmd1 += f" --{name} \"{val}\""
 
     cmd1 = f"--step 1{cmd1}"
 
@@ -193,53 +174,45 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace,
     j2.memory(args.memory)
     j2.storage(args.storage)
 
-    s2pre = step2_args.out
-    s2out = {"log": f"{s2pre}.log"}
+    step2_output_prefix = step2_args.out
+    s2out = {"log": f"{step2_output_prefix}.log"}
 
     if step2_args.split:
         for pheno in phenos:
-            out = f"{s2pre}_{pheno}.regenie"
+            out = f"{step2_output_prefix}_{pheno}.regenie"
             s2out[out] = out
 
     print(f"Regenie Step 2 output files: \n{s2out.values()}")
 
-    j2.declare_resource_group(**{s2pre: s2out})
+    j2.declare_resource_group(**{step2_output_prefix: s2out})
 
     in_step2 = get_input(batch, step2_args)
 
     cmd2 = ""
     for name, val in vars(step2_args).items():
-        if val is None or val is False:
+        if val is None or val is False or name == "step" or name == "pred":
             continue
 
         if name in from_underscore:
             name = from_underscore[name]
 
-        if name == "step":
-            continue
-
         if name in input_file_args:
             cmd2 += f" --{name} {in_step2[name]}"
-            continue
-
-        if name == "out":
-            cmd2 += f" --{name} {j2[s2pre]}"
-            continue
-
-        if isinstance(val, bool):
+        elif name == "out":
+            cmd2 += f" --{name} {j2[step1_output_prefix]}"
+        elif isinstance(val, bool):
             cmd2 += f" --{name}"
-            continue
-
-        cmd2 += f" --{name} \"{val}\""
+        else:
+            cmd2 += f" --{name} \"{val}\""
 
     if not step2_args.ignore_pred:
-        cmd2 += f" --pred {j1[s1pre]['pred_list']}"
+        cmd2 += f" --pred {j1[step1_output_prefix]['pred_list']}"
 
     cmd2 = f"--step 2{cmd2}"
 
     j2.command(f"regenie {cmd2}")
 
-    return j1, j2, s2pre
+    return j1, j2, step2_output_prefix
 
 
 def regenie(args):
