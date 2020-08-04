@@ -27,7 +27,7 @@ def _error(msg):
 
 
 def add_shared_args(parser: argparse.ArgumentParser):
-    # Batch knows in advance which step it is
+    # Batch knows in advance which step it is, so not required
     parser.add_argument('--step', required=False)
     parser.add_argument('--phenoFile', required=True)
 
@@ -72,8 +72,7 @@ def add_step1_args(parser: argparse.ArgumentParser):
 
 
 def add_step2_args(parser: argparse.ArgumentParser):
-    # pred not required because it directly uses the output of step 1,
-    # which batch knows in advance
+    # Batch knows the --output of step 1, so --pred is optional.
     parser.add_argument('--pred', required=False)
     parser.add_argument('--ignore-pred', required=False, action='store_true')
 
@@ -102,10 +101,6 @@ def read_step_args(path_or_str, step: int):
         with hopen(path_or_str, "r") as f:
             t = shlex.split(f.read())
             r = parser.parse_args(t)
-
-    if step == 2:
-        if r.pred:
-            print("Batch will set --pred to the output prefix of --step 1.")
 
     return r
 
@@ -231,7 +226,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
 
     cmd2 = []
     for name, val in vars(step2_args).items():
-        if val is None or val is False or name == "step" or name == "pred":
+        if val is None or val is False or name == "step":
             continue
 
         if name in from_underscore:
@@ -249,7 +244,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
         else:
             cmd2.append(f"--{name} {val}")
 
-    if not step2_args.ignore_pred:
+    if not step2_args.ignore_pred and step2_args.pred is None:
         cmd2.append(f"--pred {j1[step1_output_prefix]['pred_list']}")
 
     cmd2 = f"--step 2 {' '.join(cmd2)}"
