@@ -39,7 +39,7 @@ class LocalTests(unittest.TestCase):
     def test_regenie_1pheno(self):
         os.chdir(rdir)
         out_prefix = "batch"
-        args = br.parse_input_args(["--local", "--step1", "example/step1.txt", "--step2", "example/step2-phenos.txt", "--out", out_prefix])
+        args = br.parse_input_args(["--local", "--step1", "example/step1.txt", "--step2", "example/step2-phenoCol.txt", "--out", out_prefix])
         br.run(args)
 
         out_log = f"{out_prefix}.log"
@@ -52,5 +52,14 @@ class LocalTests(unittest.TestCase):
 
         os.remove(out_log)
         os.remove(out1)
+
+        args = br.parse_input_args(["--local", "--step1", "example/step1.txt", "--step2", "example/step2-phenoColList.txt", "--out", out_prefix])
+        br.run(args)
+
+        assert(len(self.read(out2)) > 0)
+        assert(not os.path.isfile(out1))
+
+        os.remove(out_log)
+        os.remove(out2)
 
         os.chdir(cwd)
