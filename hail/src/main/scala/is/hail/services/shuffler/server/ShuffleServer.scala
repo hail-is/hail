@@ -214,7 +214,7 @@ object ShuffleServer {
     using(new ShuffleServer())(_.serve())
 }
 
-class ShuffleServer () extends AutoCloseable {
+class ShuffleServer() extends AutoCloseable {
   val ssl = getSSLContext
   val port = 443
   val log = Logger.getLogger(this.getClass.getName());
