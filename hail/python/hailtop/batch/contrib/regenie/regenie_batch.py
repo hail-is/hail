@@ -189,8 +189,8 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace,
 
     if step2_args.split:
         for pheno in phenos:
-            pre = f"{s2pre}_{pheno}"
-            s2out[f"{pre}"] = f"{pre}.regenie"
+            out = f"{s2pre}_{pheno}.regenie"
+            s2out[out] = out
 
     j2.declare_resource_group(**{s2pre: s2out})
 
