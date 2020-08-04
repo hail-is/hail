@@ -477,7 +477,7 @@ class Job:
         Examples
         --------
 
-        >>> b = Batch(backend=ServiceBackend('test'))
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
         >>> j = b.new_job()
         >>> (j.always_run()
         ...   .command(f'echo "hello"'))
@@ -510,7 +510,7 @@ class Job:
         Examples
         --------
 
-        >>> b = Batch(backend=ServiceBackend('test'))
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
         >>> j = b.new_job()
         >>> (j.timeout(10)
         ...   .command(f'echo "hello"'))
@@ -548,7 +548,7 @@ class Job:
         Examples
         --------
 
-        >>> b = Batch(backend=ServiceBackend('test'))
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
         >>> j = b.new_job()
         >>> (j.gcsfuse('my-bucket', '/my-bucket')
         ...   .command(f'cat /my-bucket/my-file'))
