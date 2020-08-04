@@ -5,7 +5,7 @@ from hail.utils import hadoop_exists as hexists
 from collections import namedtuple
 import sys
 import shlex
-# TODO: force local_ssd, need to validate against mem
+
 BatchArgs = namedtuple("BatchArgs", ['cores', 'memory', 'storage'])
 input_file_args = ["bgen", "bed", "pgen", "sample", "keep", "extract", "exclude", "remove",
                    "phenoFile", "covarFile"]
@@ -119,7 +119,7 @@ def get_phenos(step_args: argparse.Namespace):
     if step_args.phenoColList is not None:
         for pheno in step_args.phenoColList.split(","):
             phenos_to_keep[pheno] = True
-    
+
     with hopen(step_args.phenoFile, "r") as f:
         phenos = f.readline().strip().split(" ")[2:]
 
@@ -145,10 +145,12 @@ def get_input(batch, step_args: argparse.Namespace):
 
         if name == "bed":
             prefix = step_args.bed
-            add[name] = batch.read_input_group(bed=f"{prefix}.bed", bim=f"{prefix}.bim", fam=f"{prefix}.fam")
+            add[name] = batch.read_input_group(
+                bed=f"{prefix}.bed", bim=f"{prefix}.bim", fam=f"{prefix}.fam")
         elif name == "pgen":
             prefix = step_args.pgen
-            add[name] = batch.read_input_group(pgen=f"{prefix}.pgen", pvar=f"{prefix}.pvar",psam=f"{prefix}.psam")
+            add[name] = batch.read_input_group(
+                pgen=f"{prefix}.pgen", pvar=f"{prefix}.pvar", psam=f"{prefix}.psam")
         else:
             add[name] = batch.read_input(val)
 
