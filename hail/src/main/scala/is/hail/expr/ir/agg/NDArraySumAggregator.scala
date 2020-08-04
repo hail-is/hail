@@ -48,7 +48,6 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
           cb.append(state.region.getNewRegion(Region.TINY))
           cb.append(Region.storeBoolean(stateType.fieldOffset(state.off, 0), true))
           cb.append(stateType.setFieldPresent(state.off, 1))
-          // TODO Double check that this does a deep copy, it needs to since we mutate later.
           cb.append(ndTyp.constructAtAddress(cb.emb, stateType.fieldOffset(state.off, 1), state.region, nextNDCode.pt, nextNDPValue.get.tcode[Long], true))
         }
       )
