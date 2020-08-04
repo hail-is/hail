@@ -4,7 +4,7 @@ RUN apt-get update && \
   apt-get -y install \
     openssl \
   && rm -rf /var/lib/apt/lists/* && \
-# https://github.com/openssl/openssl/issues/7754#issuecomment-444063355 \
+  # https://github.com/openssl/openssl/issues/7754#issuecomment-444063355 \
   sed -i 's/^RANDFILE/#RANDFILE/' /etc/ssl/openssl.cnf
 
 COPY hail.jar /
