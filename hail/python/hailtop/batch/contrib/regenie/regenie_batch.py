@@ -3,6 +3,7 @@ import argparse
 from hail.utils import hadoop_open as hopen
 from hail.utils import hadoop_exists as hexists
 from collections import namedtuple
+import sys
 
 # TODO: force local_ssd, need to validate against mem
 BatchArgs = namedtuple("BatchArgs", ['cores', 'memory', 'storage'])
@@ -16,7 +17,7 @@ from_underscore = {
 }
 
 
-def read_args(path_or_str):
+def read_step_args(path_or_str):
     import shlex
     parser = argparse.ArgumentParser()
 
@@ -26,9 +27,11 @@ def read_args(path_or_str):
     parser.add_argument('--phenoCol', required=False)
     parser.add_argument('--phenoColList', required=False)
 
-    parser.add_argument('--bed', required=False)
-    parser.add_argument('--bgen', required=False)
-    parser.add_argument('--pgen', required=False)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--bed', required=False)
+    group.add_argument('--bgen', required=False)
+    group.add_argument('--pgen', required=False)
+
     parser.add_argument('--sample', required=False)
     parser.add_argument('--extract', required=False)
     parser.add_argument('--exclude', required=False)
@@ -71,24 +74,9 @@ def read_args(path_or_str):
             t = shlex.split(f.read())
             r = parser.parse_args(t)
 
-    ninputs = sum(i is not None for i in [r.bed, r.bgen, r.pgen])
-    if ninputs == 0:
-        raise Exception("An input file is required. Please specify: --bed or --bgen or --pgen")
-
-    if ninputs > 1:
-        raise Exception(f"""More than one input file specified.
-                            Check that only one of --bed or --bgen or --pgen are specified for --step {r.step}
-                        """)
-
     if r.step == 2:
         if r.pred:
             print("--pred provided for --step 2, but Batch will constrain the --pred output prefix to that of --step 1.")
-
-        if r.extract or r.exclude:
-            raise Exception("--extract and --exclude only work with --step 1")
-
-    if r.lowmem and not r.lowmem_prefix:
-        raise Exception("When --lowmem provided, --lowmem-prefix required")
 
     return r
 
@@ -166,7 +154,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace,
             name = from_underscore[name]
 
         # pred is not used in step 1 according to documentation
-        if name == "step" or name == "pred":
+        if name == "step":
             continue
 
         if name in input_file_args:
@@ -216,7 +204,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace,
         if name in from_underscore:
             name = from_underscore[name]
 
-        if name == "step" or name == "pred":
+        if name == "step":
             continue
 
         if name in input_file_args:
@@ -243,7 +231,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace,
     return j1, j2, s2pre
 
 
-def run_regenie(args):
+def regenie(args):
     is_local = True if args.local or args.demo else False
 
     if is_local:
@@ -254,14 +242,17 @@ def run_regenie(args):
         run_opts = {"open": True, "wait": True}
 
     if args.demo:
-        step1_args = read_args("example/step1.txt")
-        step2_args = read_args("example/step2.txt")
+        if args.step1 or args.step2:
+            print("When --demo provided, --step1 and --step2 are ignored")
+
+        step1_args = read_step_args("example/step1.txt")
+        step2_args = read_step_args("example/step2.txt")
     else:
         if not(args.step1 and args.step2):
             raise Exception("When --demo not provided, --step1 and --step2 must be")
 
-        step1_args = read_args(args.step1)
-        step2_args = read_args(args.step2)
+        step1_args = read_step_args(args.step1)
+        step2_args = read_step_args(args.step2)
 
     batch_args = BatchArgs(cores=args.cores, memory=args.memory, storage=args.storage)
 
@@ -277,7 +268,7 @@ def run_regenie(args):
         backend.close()
 
 
-if __name__ == '__main__':
+def parse_input_args(args: list):
     parser = argparse.ArgumentParser()
     parser.add_argument('--local', required=False, action="store_true")
     parser.add_argument('--demo', required=False, action="store_true")
@@ -288,6 +279,9 @@ if __name__ == '__main__':
     parser.add_argument('--step1', required=False)
     parser.add_argument('--step2', required=False)
 
-    args = parser.parse_args()
+    return parser.parse_args(args)
 
-    run_regenie(args)
+
+if __name__ == '__main__':
+    args = parse_input_args(sys.argv[1:])
+    regenie(args)
