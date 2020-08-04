@@ -11,7 +11,7 @@ WORKDIR /src
 
 ADD http://code.enkre.net/bgen/tarball/release/v1.1.7 v1.1.7.tgz
 
-RUN apt update && apt install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
       g++ \
       make \
       python3 \
@@ -29,7 +29,7 @@ RUN make BGEN_PATH=/src/v1.1.7
 
 FROM ubuntu:16.04
 
-RUN apt update && apt install -y --no-install-recommends libgomp1 \
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
       && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /src/regenie/regenie /usr/local/bin

@@ -26,13 +26,12 @@ def _error(msg):
     sys.exit(1)
 
 
-def read_step_args(path_or_str):
-    parser = argparse.ArgumentParser()
-
+def add_shared_args(parser: argparse.ArgumentParser):
+    # Batch knows in advance which step it is
     parser.add_argument('--step', required=False)
     parser.add_argument('--phenoFile', required=True)
 
-    parser.add_argument('--phenoCol', required=False)
+    parser.add_argument('--phenoCol', required=False, action='append')
     parser.add_argument('--phenoColList', required=False)
 
     group = parser.add_mutually_exclusive_group(required=True)
@@ -41,13 +40,10 @@ def read_step_args(path_or_str):
     group.add_argument('--pgen', required=False)
 
     parser.add_argument('--sample', required=False)
-    parser.add_argument('--extract', required=False)
-    parser.add_argument('--exclude', required=False)
     parser.add_argument('--covarFile', required=False)
     parser.add_argument('--covarCol', required=False)
     parser.add_argument('--covarColList', required=False)
     parser.add_argument('--pThresh', required=False)
-    parser.add_argument('--pred', required=False)
     parser.add_argument('--remove', required=False)
     parser.add_argument('--bsize', required=False)
     parser.add_argument('--cv', required=False)
@@ -55,12 +51,10 @@ def read_step_args(path_or_str):
     parser.add_argument('--out', required=False)
 
     parser.add_argument('--loocv', required=False, action='store_true')
-    parser.add_argument('--force-impute', required=False, action='store_true')
     parser.add_argument('--bt', required=False, action='store_true')
     parser.add_argument('--1', '--cc12', required=False, action='store_true')
     parser.add_argument('--split', required=False, action='store_true')
     parser.add_argument('--strict', required=False, action='store_true')
-    parser.add_argument('--ignore-pred', required=False, action='store_true')
     parser.add_argument('--firth', required=False, action='store_true')
     parser.add_argument('--approx', required=False, action='store_true')
     parser.add_argument('--spa', required=False, action='store_true')
@@ -70,6 +64,34 @@ def read_step_args(path_or_str):
 
     parser.add_argument('--lowmem-prefix', required=False)
     parser.add_argument('--threads', required=False, default=2)
+
+
+def add_step1_args(parser: argparse.ArgumentParser):
+    parser.add_argument('--extract', required=False)
+    parser.add_argument('--exclude', required=False)
+
+
+def add_step2_args(parser: argparse.ArgumentParser):
+    # pred not required because it directly uses the output of step 1,
+    # which batch knows in advance
+    parser.add_argument('--pred', required=False)
+    parser.add_argument('--ignore-pred', required=False, action='store_true')
+
+    parser.add_argument('--force-impute', required=False, action='store_true')
+    parser.add_argument('--chr', required=False)
+
+
+def read_step_args(path_or_str, step: int):
+    parser = argparse.ArgumentParser()
+
+    add_shared_args(parser)
+
+    if step == 1:
+        add_step1_args(parser)
+    elif step == 2:
+        add_step2_args(parser)
+    else:
+        _error(f"Unknown step: {step}")
 
     if not hexists(path_or_str):
         print(f"Couldn't find a file named {path_or_str}, assuming this is an argument string")
@@ -82,10 +104,7 @@ def read_step_args(path_or_str):
             t = shlex.split(f.read())
             r = parser.parse_args(t)
 
-    if r.phenoCol or r.phenoColList or r.remove:
-        _error("Batch does not currently support --phenoCol, -phenoColList, or --remove")
-
-    if r.step == 2:
+    if step == 2:
         if r.pred:
             print("Batch will set --pred to the output prefix of --step 1.")
 
@@ -93,8 +112,27 @@ def read_step_args(path_or_str):
 
 
 def get_phenos(step_args: argparse.Namespace):
+    phenos_to_keep = {}
+    if step_args.phenoCol is not None and len(step_args.phenoCol):
+        for pheno in step_args.phenoCol:
+            phenos_to_keep[pheno] = True
+
+    if step_args.phenoColList is not None:
+        for pheno in step_args.phenoColList.split(","):
+            phenos_to_keep[pheno] = True
+    
     with hopen(step_args.phenoFile, "r") as f:
-        return f.readline().strip().split(" ")[2:]
+        phenos = f.readline().strip().split(" ")[2:]
+
+    if not phenos_to_keep:
+        return phenos
+
+    phenos_final = []
+    for pheno in phenos:
+        if pheno in phenos_to_keep:
+            phenos_final.append(pheno)
+
+    return phenos_final
 
 
 def get_input(batch, step_args: argparse.Namespace):
@@ -158,7 +196,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
         elif isinstance(val, bool):
             cmd1.append(f"--{name}")
         else:
-            cmd1.append(f"--{name} {shlex.quote(val)}")
+            cmd1.append(f"--{name} {val}")
 
     cmd1 = f"--step 1 {' '.join(cmd1)}"
 
@@ -202,7 +240,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
         elif isinstance(val, bool):
             cmd2.append(f"--{name}")
         else:
-            cmd2.append(f"--{name} {shlex.quote(val)}")
+            cmd2.append(f"--{name} {val}")
 
     if not step2_args.ignore_pred:
         cmd2.append(f"--pred {j1[step1_output_prefix]['pred_list']}")
@@ -227,14 +265,14 @@ def regenie(args):
         if args.step1 or args.step2:
             _warn("When --demo provided, --step1 and --step2 are ignored")
 
-        step1_args = read_step_args("example/step1.txt")
-        step2_args = read_step_args("example/step2.txt")
+        step1_args = read_step_args("example/step1.txt", 1)
+        step2_args = read_step_args("example/step2.txt", 2)
     else:
         if not(args.step1 and args.step2):
             _error("When --demo not provided, --step1 and --step2 must be")
 
-        step1_args = read_step_args(args.step1)
-        step2_args = read_step_args(args.step2)
+        step1_args = read_step_args(args.step1, 1)
+        step2_args = read_step_args(args.step2, 2)
 
     batch_args = BatchArgs(cores=args.cores, memory=args.memory, storage=args.storage)
 
