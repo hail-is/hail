@@ -88,7 +88,7 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
 
     val newElement = coerce[PNumeric](ndTyp.elementType).add(loadElement(leftNdValue), loadElement(rightNdValue))
 
-    val body = ndTyp.mutateElement(
+    val body = ndTyp.setElement(
       idxVars,
       leftNdValue.value.asInstanceOf[Value[Long]],
       newElement,
