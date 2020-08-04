@@ -2,6 +2,9 @@ import unittest
 from hailtop.batch.contrib import regenie as br
 import os
 
+cwd = os.getcwd()
+rdir = "hailtop/batch/contrib/regenie"
+
 
 class LocalTests(unittest.TestCase):
     def read(self, file):
@@ -13,7 +16,7 @@ class LocalTests(unittest.TestCase):
         assert self.read(file1).rstrip() == self.read(file2).rstrip()
 
     def test_regenie(self):
-        os.chdir("hailtop/batch/contrib/regenie")
+        os.chdir(rdir)
         out_prefix = "batch"
         args = br.parse_input_args(["--demo", "--out", out_prefix])
         br.regenie(args)
@@ -30,3 +33,25 @@ class LocalTests(unittest.TestCase):
         os.remove(out_log)
         os.remove(out1)
         os.remove(out2)
+
+        os.chdir(cwd)
+
+    def test_regenie_1pheno(self):
+        os.chdir(rdir)
+        out_prefix = "batch"
+        args = br.parse_input_args(["--local", "--step1", "example/step1.txt", "--step2", "example/step2-phenos.txt", "--out", out_prefix])
+        br.regenie(args)
+
+        out_log = f"{out_prefix}.log"
+        out1 = f"{out_prefix}.test_bin_out_firth_Y1.regenie"
+        out2 = f"{out_prefix}.test_bin_out_firth_Y2.regenie"
+        expected = "regenie/example/example.test_bin_out_firth_Y1.regenie"
+
+        assert(self.read(out1) == self.read(expected))
+        assert(not os.path.isfile(out2))
+
+        os.remove(out_log)
+        os.remove(out1)
+        os.remove(out2)
+
+        os.chdir(cwd)

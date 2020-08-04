@@ -195,6 +195,9 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
             cmd1.append(f"--{name} {j1[step1_output_prefix]}")
         elif isinstance(val, bool):
             cmd1.append(f"--{name}")
+        elif name == "phenoCol":
+            for pheno in val:
+                cmd1.append(f"--{name} {pheno}")
         else:
             cmd1.append(f"--{name} {val}")
 
@@ -239,6 +242,9 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
             cmd2.append(f"--{name} {j2[step2_output_prefix]}")
         elif isinstance(val, bool):
             cmd2.append(f"--{name}")
+        elif name == "phenoCol":
+            for pheno in val:
+                cmd2.append(f"--{name} {pheno}")
         else:
             cmd2.append(f"--{name} {val}")
 
