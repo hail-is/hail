@@ -52,6 +52,5 @@ class LocalTests(unittest.TestCase):
 
         os.remove(out_log)
         os.remove(out1)
-        os.remove(out2)
 
         os.chdir(cwd)
