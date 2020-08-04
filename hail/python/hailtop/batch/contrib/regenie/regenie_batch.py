@@ -4,7 +4,7 @@ from hail.utils import hadoop_open as hopen
 from hail.utils import hadoop_exists as hexists
 from collections import namedtuple
 import sys
-
+import shlex
 # TODO: force local_ssd, need to validate against mem
 BatchArgs = namedtuple("BatchArgs", ['cores', 'memory', 'storage'])
 input_file_args = ["bgen", "bed", "pgen", "sample", "keep", "extract", "exclude", "remove",
@@ -22,12 +22,11 @@ def _warn(msg):
 
 
 def _error(msg):
-    _warn(msg, file=sys.stderr)
+    _warn(msg)
     sys.exit(1)
 
 
 def read_step_args(path_or_str):
-    import shlex
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--step', required=False)
@@ -144,7 +143,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
 
     j1.declare_resource_group(**{step1_output_prefix: s1out})
 
-    cmd1 = ""
+    cmd1 = []
     for name, val in vars(step1_args).items():
         if val is None or val is False or name == "step":
             continue
@@ -153,15 +152,15 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
             name = from_underscore[name]
 
         if name in input_file_args:
-            cmd1 += f" --{name} {in_step1[name]}"
+            cmd1.append(f"--{name} {in_step1[name]}")
         elif name == "out":
-            cmd1 += f" --{name} {j1[step1_output_prefix]}"
+            cmd1.append(f"--{name} {j1[step1_output_prefix]}")
         elif isinstance(val, bool):
-            cmd1 += f" --{name}"
+            cmd1.append(f"--{name}")
         else:
-            cmd1 += f" --{name} \"{val}\""
+            cmd1.append(f"--{name} {shlex.quote(val)}")
 
-    cmd1 = f"--step 1{cmd1}"
+    cmd1 = f"--step 1 {' '.join(cmd1)}"
 
     j1.command(f"regenie {cmd1}")
 
@@ -188,7 +187,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
 
     in_step2 = get_input(batch, step2_args)
 
-    cmd2 = ""
+    cmd2 = []
     for name, val in vars(step2_args).items():
         if val is None or val is False or name == "step" or name == "pred":
             continue
@@ -197,18 +196,18 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
             name = from_underscore[name]
 
         if name in input_file_args:
-            cmd2 += f" --{name} {in_step2[name]}"
+            cmd2.append(f"--{name} {in_step2[name]}")
         elif name == "out":
-            cmd2 += f" --{name} {j2[step1_output_prefix]}"
+            cmd2.append(f"--{name} {j2[step1_output_prefix]}")
         elif isinstance(val, bool):
-            cmd2 += f" --{name}"
+            cmd2.append(f"--{name}")
         else:
-            cmd2 += f" --{name} \"{val}\""
+            cmd2.append(f"--{name} {shlex.quote(val)}")
 
     if not step2_args.ignore_pred:
-        cmd2 += f" --pred {j1[step1_output_prefix]['pred_list']}"
+        cmd2.append(f"--pred {j1[step1_output_prefix]['pred_list']}")
 
-    cmd2 = f"--step 2{cmd2}"
+    cmd2 = f"--step 2 {' '.join(cmd2)}"
 
     j2.command(f"regenie {cmd2}")
 
