@@ -38,11 +38,11 @@ def main(args):
     else:
         module = args[0]
         if module == 'deploy':
-            from .deploy import cli
+            from .deploy import cli  # pylint: disable=import-outside-toplevel
             args, _ = p.parse_known_args(args=args)
             cli.main(args)
         elif module == 'config':
-            from .config import cli
+            from .config import cli  # pylint: disable=import-outside-toplevel
             args, _ = p.parse_known_args(args=args)
             cli.main(args)
         elif module in ('-h', '--help', 'help'):

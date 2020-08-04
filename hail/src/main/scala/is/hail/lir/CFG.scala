@@ -31,9 +31,22 @@ object CFG {
       }
     }
 
-    new CFG(pred, succ)
+    new CFG(blocks.index(m.entry), pred, succ)
   }
 }
+
 class CFG(
+  val entry: Int,
   val pred: Array[mutable.Set[Int]],
-  val succ: Array[mutable.Set[Int]])
+  val succ: Array[mutable.Set[Int]]) {
+  def nBlocks: Int = succ.length
+
+  def dump(): Unit = {
+    println(s"CFG $nBlocks:")
+    var i = 0
+    while (i < nBlocks) {
+      println(s"  $i: ${ succ(i).mkString(",") }")
+      i += 1
+    }
+  }
+}

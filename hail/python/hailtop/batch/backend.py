@@ -6,13 +6,21 @@ import time
 import copy
 from shlex import quote as shq
 import webbrowser
-from hailtop.config import get_deploy_config, get_user_config
-from hailtop.batch_client.client import BatchClient
+from typing import Optional, Dict
+
+from hailtop.config import get_deploy_config, get_user_config  # type: ignore
+import hailtop.batch_client.client as bc  # type: ignore
+from hailtop.batch_client.client import BatchClient  # type: ignore
 
 from .resource import InputResourceFile, JobResourceFile, ResourceGroup
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .batch import Batch  # pylint: disable=cyclic-import
+    from .job import Job  # pylint: disable=cyclic-import # noqa: F401
 
-class Backend:
+
+class Backend(abc.ABC):
     """
     Abstract class for backends.
     """
@@ -53,7 +61,10 @@ class LocalBackend(Backend):
         variable `HAIL_BATCH_EXTRA_DOCKER_RUN_FLAGS`.
     """
 
-    def __init__(self, tmp_dir='/tmp/', gsa_key_file=None, extra_docker_run_flags=None):
+    def __init__(self,
+                 tmp_dir: str = '/tmp/',
+                 gsa_key_file: Optional[str] = None,
+                 extra_docker_run_flags: Optional[str] = None):
         self._tmp_dir = tmp_dir.rstrip('/')
 
         flags = ''
@@ -70,7 +81,12 @@ class LocalBackend(Backend):
 
         self._extra_docker_run_flags = flags
 
-    def _run(self, batch, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable=R0915
+    def _run(self,
+             batch: 'Batch',
+             dry_run: bool,
+             verbose: bool,
+             delete_scratch_on_exit: bool,
+             **backend_kwargs):  # pylint: disable=R0915
         """
         Execute a batch.
 
@@ -89,14 +105,18 @@ class LocalBackend(Backend):
         delete_scratch_on_exit: :obj:`bool`
             If `True`, delete temporary directories with intermediate files.
         """
+
+        if backend_kwargs:
+            raise ValueError(f'LocalBackend does not support any of these keywords: {backend_kwargs}')
+
         tmpdir = self._get_scratch_dir()
 
-        script = ['#!/bin/bash',
-                  'set -e' + 'x' if verbose else '',
-                  '\n',
-                  '# change cd to tmp directory',
-                  f"cd {tmpdir}",
-                  '\n']
+        lines = ['#!/bin/bash',
+                 'set -e' + 'x' if verbose else '',
+                 '\n',
+                 '# change cd to tmp directory',
+                 f"cd {tmpdir}",
+                 '\n']
 
         copied_input_resource_files = set()
         os.makedirs(tmpdir + '/inputs/', exist_ok=True)
@@ -158,48 +178,47 @@ class LocalBackend(Backend):
 
         write_inputs = [x for r in batch._input_resources for x in copy_external_output(r)]
         if write_inputs:
-            script += ["# Write input resources to output destinations"]
-            script += write_inputs
-            script += ['\n']
+            lines += ["# Write input resources to output destinations"]
+            lines += write_inputs
+            lines += ['\n']
 
         for job in batch._jobs:
             os.makedirs(f'{tmpdir}/{job._job_id}/', exist_ok=True)
 
-            script.append(f"# {job._job_id}: {job.name if job.name else ''}")
+            lines.append(f"# {job._job_id}: {job.name if job.name else ''}")
 
-            script += [x for r in job._inputs for x in copy_input(job, r)]
-            script += [x for r in job._mentioned for x in symlink_input_resource_group(r)]
+            lines += [x for r in job._inputs for x in copy_input(job, r)]
+            lines += [x for r in job._mentioned for x in symlink_input_resource_group(r)]
 
             resource_defs = [r._declare(tmpdir) for r in job._mentioned]
             env = [f'export {k}={v}' for k, v in job._env.items()]
 
             if job._image:
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
-                env = '; '.join(env) + '; ' if env else ''
+                joined_env = '; '.join(env) + '; ' if env else ''
                 cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
                 memory = f'-m {job._memory}' if job._memory else ''
                 cpu = f'--cpus={job._cpu}' if job._cpu else ''
 
-                script += [f"docker run "
-                           f"{self._extra_docker_run_flags} "
-                           f"-v {tmpdir}:{tmpdir} "
-                           f"-w {tmpdir} "
-                           f"{memory} "
-                           f"{cpu} "
-                           f"{job._image} /bin/bash "
-                           f"-c {shq(env + defs + cmd)}",
-                           '\n']
+                lines.append(f"docker run "
+                             f"{self._extra_docker_run_flags} "
+                             f"-v {tmpdir}:{tmpdir} "
+                             f"-w {tmpdir} "
+                             f"{memory} "
+                             f"{cpu} "
+                             f"{job._image} /bin/bash "
+                             f"-c {shq(joined_env + defs + cmd)}")
             else:
-                script += env
-                script += resource_defs
-                script += job._command
+                lines += env
+                lines += resource_defs
+                lines += job._command
 
-            script += [x for r in job._external_outputs for x in copy_external_output(r)]
-            script += ['\n']
+            lines += [x for r in job._external_outputs for x in copy_external_output(r)]
+            lines += ['\n']
 
-        script = "\n".join(script)
+        script = "\n".join(lines)
         if dry_run:
-            print(script)
+            print(lines)
         else:
             try:
                 sp.check_call(script, shell=True)
@@ -209,7 +228,7 @@ class LocalBackend(Backend):
                 raise
             finally:
                 if delete_scratch_on_exit:
-                    sp.run(f'rm -rf {tmpdir}', shell=True)
+                    sp.run(f'rm -rf {tmpdir}', shell=True, check=False)
 
         print('Batch completed successfully!')
 
@@ -259,18 +278,18 @@ class ServiceBackend(Backend):
             billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:
             raise ValueError(
-                f'the billing_project parameter of ServiceBackend must be set '
-                f'or run `hailctl config set batch/billing_project '
-                f'MY_BILLING_PROJECT`')
+                'the billing_project parameter of ServiceBackend must be set '
+                'or run `hailctl config set batch/billing_project '
+                'MY_BILLING_PROJECT`')
         self._batch_client = BatchClient(billing_project)
 
         if bucket is None:
             bucket = get_user_config().get('batch', 'bucket', fallback=None)
         if bucket is None:
             raise ValueError(
-                f'the bucket parameter of ServiceBackend must be set '
-                f'or run `hailctl config set batch/bucket '
-                f'MY_BUCKET`')
+                'the bucket parameter of ServiceBackend must be set '
+                'or run `hailctl config set batch/bucket '
+                'MY_BUCKET`')
         self._bucket_name = bucket
 
     def close(self):
@@ -285,14 +304,15 @@ class ServiceBackend(Backend):
         self._batch_client.close()
 
     def _run(self,
-             batch,
-             dry_run,
-             verbose,
-             delete_scratch_on_exit,
-             wait=True,
-             open=False,
-             disable_progress_bar=False,
-             callback=None):  # pylint: disable-msg=too-many-statements
+             batch: 'Batch',
+             dry_run: bool,
+             verbose: bool,
+             delete_scratch_on_exit: bool,
+             wait: bool = True,
+             open: bool = False,
+             disable_progress_bar: bool = False,
+             callback: Optional[str] = None,
+             **backend_kwargs):  # pylint: disable-msg=too-many-statements
         """Execute a batch.
 
         Warning
@@ -320,6 +340,10 @@ class ServiceBackend(Backend):
             If not `None`, a URL that will receive at most one POST request
             after the entire batch completes.
         """
+
+        if backend_kwargs:
+            raise ValueError(f'ServiceBackend does not support any of these keywords: {backend_kwargs}')
+
         build_dag_start = time.time()
 
         token = uuid.uuid4().hex[:6]
@@ -337,7 +361,7 @@ class ServiceBackend(Backend):
         n_jobs_submitted = 0
         used_remote_tmpdir = False
 
-        job_to_client_job_mapping = {}
+        job_to_client_job_mapping: Dict['Job', bc.Job] = {}
         jobs_to_command = {}
         commands = []
 
@@ -426,7 +450,7 @@ class ServiceBackend(Backend):
 
             parents = [job_to_client_job_mapping[j] for j in job._dependencies]
 
-            attributes = copy.deepcopy(job.attributes)
+            attributes = copy.deepcopy(job.attributes) if job.attributes else dict()
             if job.name:
                 attributes['name'] = job.name
 

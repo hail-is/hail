@@ -23,25 +23,8 @@ class NoBodyException(message: String, cause: Throwable) extends Exception(messa
   def this(message: String) = this(message, null)
 }
 
-class ClientResponseException(
-  val status: Int,
-  message: String,
-  cause: Throwable
-) extends Exception(message, cause) {
-  def this(statusCode: Int) = this(statusCode, null, null)
-
-  def this(statusCode: Int, message: String) = this(statusCode, message, null)
-}
-
 object BatchClient {
   lazy val log: Logger = LogManager.getLogger("BatchClient")
-
-  val httpClient: CloseableHttpClient = {
-    log.info("creating HttpClient")
-    HttpClients.custom()
-      .setSSLContext(tls.getSSLContext)
-      .build()
-  }
 
   def fromSessionID(sessionID: String): BatchClient = {
     val deployConfig = DeployConfig.get
@@ -53,54 +36,21 @@ object BatchClient {
 
 class BatchClient(
   deployConfig: DeployConfig,
-  tokens: Tokens
+  requester: Requester
 ) {
-  def this() = this(DeployConfig.get, Tokens.get)
+  def this() = this(DeployConfig.get, new Requester("batch"))
 
-  def this(deployConfig: DeployConfig) = this(deployConfig, Tokens.get)
+  def this(deployConfig: DeployConfig) = this(deployConfig, new Requester("batch"))
 
-  def this(tokens: Tokens) = this(DeployConfig.get, tokens)
+  def this(tokens: Tokens) = this(DeployConfig.get, new Requester(tokens, "batch"))
+
+  def this(deployConfig: DeployConfig, tokens: Tokens) =
+    this(deployConfig, new Requester(tokens, "batch"))
 
   import BatchClient._
+  import requester.request
 
   private[this] val baseUrl = deployConfig.baseUrl("batch")
-
-  private[this] def request(req: HttpUriRequest, body: HttpEntity = null): JValue = {
-    log.info(s"request ${ req.getMethod } ${ req.getURI }")
-
-    if (body != null)
-      req.asInstanceOf[HttpEntityEnclosingRequest].setEntity(body)
-
-    tokens.addServiceAuthHeaders("batch", req)
-
-    retryTransientErrors {
-      using(httpClient.execute(req)) { resp =>
-        val statusCode = resp.getStatusLine.getStatusCode
-        log.info(s"request ${ req.getMethod } ${ req.getURI } response $statusCode")
-        if (statusCode < 200 || statusCode >= 300) {
-          val entity = resp.getEntity
-          val message =
-            if (entity != null)
-              EntityUtils.toString(entity)
-            else
-              null
-          throw new ClientResponseException(statusCode, message)
-        }
-        val entity: HttpEntity = resp.getEntity
-        if (entity != null) {
-          using(entity.getContent) { content =>
-            val s = IOUtils.toByteArray(content)
-            if (s.isEmpty)
-              null
-            else
-              JsonMethods.parse(new String(s))
-
-          }
-        } else
-          null
-      }
-    }
-  }
 
   def get(path: String): JValue =
     request(new HttpGet(s"$baseUrl$path"))
@@ -194,7 +144,7 @@ class BatchClient(
         50)
       Thread.sleep(d)
     }
-    
+
     throw new AssertionError("unreachable")
   }
 
