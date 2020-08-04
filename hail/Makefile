@@ -30,6 +30,7 @@ PIP ?= $(HAIL_PYTHON3) -m pip
 JAR_SOURCES := $(shell git ls-files src/main)
 JAR_SOURCES += build.gradle
 JAR_TEST_SOURCES := $(shell git ls-files src/test)
+JAR_DEBUG_SOURCES := $(shell git ls-files src/debug)
 PY_FILES := $(shell git ls-files python)
 
 INIT_SCRIPTS := python/hailtop/hailctl/deploy.yaml
@@ -41,12 +42,20 @@ SCALA_BUILD_INFO := src/main/resources/build-info.properties
 
 SHADOW_JAR := build/libs/hail-all-spark.jar
 SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
+DEBUG_CLASSES := build/debug
 PYTHON_JAR := python/hail/backend/hail-all-spark.jar
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
 
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
+
+.PHONY: debugShadowJar
+debugShadowJar:
+	mkdir -p $(DEBUG_CLASSES) && \
+	for DEBUG_SOURCE in $(JAR_DEBUG_SOURCES); do \
+		echo "$(dirname $($$DEBUG_SOURCE))" ; \
+	done
 
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION)
 
