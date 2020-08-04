@@ -48,14 +48,18 @@ WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
 
 .PHONY: shadowJar
+ifdef HAIL_DEBUG_MODE
+shadowJar: debugShadowJar
+endif
 shadowJar: $(SHADOW_JAR)
 
 .PHONY: debugShadowJar
-debugShadowJar:
-	mkdir -p $(DEBUG_CLASSES) && \
-	for DEBUG_SOURCE in $(JAR_DEBUG_SOURCES); do \
-		echo "$(dirname $($$DEBUG_SOURCE))" ; \
-	done
+debugShadowJar: $(SHADOW_JAR)
+	mkdir -p build/debug/scala/is/hail/annotations/ && \
+	javac src/debug/scala/is/hail/annotations/Memory.java && \
+	mv src/debug/scala/is/hail/annotations/Memory.class build/debug/scala/is/hail/annotations && \
+	jar -uf $(SHADOW_JAR) -C build/debug/scala is/hail/annotations/Memory.class
+
 
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION)
 
@@ -111,8 +115,8 @@ python/hailtop/hailctl/hail_version: python/hail/hail_version
 python/README.md: ../README.md
 	cp ../README.md python/
 
-$(PYTHON_JAR): $(SHADOW_JAR)
-	cp -f $< $@
+$(PYTHON_JAR): shadowJar
+	cp -f $(SHADOW_JAR) $@
 
 .PHONY: pytest
 pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
