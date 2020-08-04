@@ -105,9 +105,9 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
         'plot': plot
     }
 
-    response = aiohttp_jinja2.render_template('user.html', request,
-                                              context=context)
-    return response
+    # response = aiohttp_jinja2.render_template('user.html', request,
+    #                                           context=context)
+    return await render_template('benchmark', request, userdata, 'user.html', context)
 
 
 @router.get('/')
