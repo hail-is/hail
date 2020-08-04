@@ -72,7 +72,7 @@ def add_step1_args(parser: argparse.ArgumentParser):
 
 
 def add_step2_args(parser: argparse.ArgumentParser):
-    # Batch knows the --output of step 1, so --pred is optional.
+    # Batch specifies private folders that regenie doesn't know, so --pred is ignored.
     parser.add_argument('--pred', required=False)
     parser.add_argument('--ignore-pred', required=False, action='store_true')
 
@@ -101,6 +101,10 @@ def read_step_args(path_or_str, step: int):
         with hopen(path_or_str, "r") as f:
             t = shlex.split(f.read())
             r = parser.parse_args(t)
+
+    if step == 2:
+        if r.pred:
+            print("Batch will set --pred to the output prefix of --step 1.")
 
     return r
 
@@ -226,7 +230,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
 
     cmd2 = []
     for name, val in vars(step2_args).items():
-        if val is None or val is False or name == "step":
+        if val is None or val is False or name == "step" or name == "pred":
             continue
 
         if name in from_underscore:
@@ -244,7 +248,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
         else:
             cmd2.append(f"--{name} {val}")
 
-    if not step2_args.ignore_pred and step2_args.pred is None:
+    if not step2_args.ignore_pred:
         cmd2.append(f"--pred {j1[step1_output_prefix]['pred_list']}")
 
     cmd2 = f"--step 2 {' '.join(cmd2)}"
@@ -282,7 +286,6 @@ def run(args):
 
     j1, j2, j2_out_key = prepare_jobs(batch, batch_args, step1_args, step2_args)
 
-    # FIXME: this will never write to an output directory
     batch.write_output(j2[j2_out_key], args.out)
     batch.run(**run_opts)
 
