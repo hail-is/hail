@@ -1,4 +1,4 @@
-import sys
+from __future__ import annotations  # noqa: F407 # pylint: disable=no-name-in-module
 import abc
 
 from shlex import quote as shq
@@ -9,10 +9,6 @@ from .utils import BatchException
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .job import Job  # pylint: disable=cyclic-import
-
-
-if sys.version_info >= (3, 7):
-    from __future__ import annotations  # noqa: F404, F407 # pylint: disable=E0611
 
 
 class Resource:

@@ -1,13 +1,9 @@
-import sys
+from __future__ import annotations  # noqa: F407 # pylint: disable=no-name-in-module
 import re
 from typing import Union, Optional, Dict, List, Set, Tuple
 
 from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
 from .utils import BatchException
-
-
-if sys.version_info >= (3, 7):
-    from __future__ import annotations  # noqa: F404, F407 # pylint: disable=E0611
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
