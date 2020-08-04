@@ -74,7 +74,7 @@ def main(args):
         section = path[0]
         key = path[1]
     else:
-        print(f'''
+        print('''
 Paramters must contain at most one slash separating the configuration section
 from the configuration parameter, for example: "batch/billing_project".
 

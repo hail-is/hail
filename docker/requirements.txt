@@ -21,8 +21,11 @@ google-cloud-storage==1.16.1
 humanize==0.5.1
 hurry.filesize==0.9
 Jinja2==2.10.1
+# keyrings.alt>3.1: https://bugs.launchpad.net/usd-importer/+bug/1794041/comments/6
+keyrings.alt>=3.1
 kubernetes-asyncio==9.1.0
 libsass==0.19.2
+mypy==0.780
 nest_asyncio==1.0.0
 parsimonious==0.8.1
 prometheus_async==19.2.0
@@ -30,9 +33,11 @@ prometheus_client==0.7.1
 pyjwt==1.7.1
 pylint==2.5.3
 PyMySQL==0.9.3
-pytest-instafail==0.4.1
 pytest==4.6.3
 pytest-asyncio==0.10.0
+pytest-html==1.20.0
+pytest-instafail==0.4.1
+pytest-xdist==1.28
 python-dateutil==2.8.1
 python-json-logger==0.1.11
 requests==2.22.0

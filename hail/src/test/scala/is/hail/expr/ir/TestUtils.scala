@@ -6,6 +6,14 @@ import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call
 
 object TestUtils {
+  def rangeKT: TableIR = TableKeyBy(TableRange(20, 4), FastIndexedSeq())
+
+  def collect(tir: TableIR): IR =
+    TableAggregate(tir, MakeStruct(FastSeq(
+      "rows" -> IRAggCollect(Ref("row", tir.typ.rowType)),
+      "global" -> Ref("global", tir.typ.globalType))))
+  def collectNoKey(tir: TableIR): IR = TableCollect(tir)
+
   def toIRInt(i: Integer): IR =
     if (i == null)
       NA(TInt32)

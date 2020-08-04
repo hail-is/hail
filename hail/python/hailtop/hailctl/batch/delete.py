@@ -1,3 +1,4 @@
+import sys
 from .batch_cli_utils import get_batch_if_exists
 
 
@@ -9,7 +10,7 @@ def main(args, pass_through_args, client):  # pylint: disable=unused-argument
     maybe_batch = get_batch_if_exists(client, args.batch_id)
     if maybe_batch is None:
         print(f"Batch with batch_id {args.batch_id} not found")
-        exit(1)
+        sys.exit(1)
 
     batch = maybe_batch
 

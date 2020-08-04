@@ -3,18 +3,18 @@ from types import TracebackType
 from io import BytesIO
 import asyncio
 import concurrent
-import dill
+import dill  # type: ignore
 import functools
 import sys
 import time
 
-from hailtop.utils import secret_alnum_string, partition
-import hailtop.batch_client.client as low_level_batch_client
-from hailtop.batch_client.parse import parse_cpu_in_mcpu
+from hailtop.utils import secret_alnum_string, partition  # type: ignore
+import hailtop.batch_client.client as low_level_batch_client  # type: ignore
+from hailtop.batch_client.parse import parse_cpu_in_mcpu  # type: ignore
 
 from .batch import Batch
 from .backend import ServiceBackend
-from ..google_storage import GCS
+from ..google_storage import GCS  # type: ignore
 
 if sys.version_info < (3, 7):
     def create_task(coro, *, name=None):  # pylint: disable=unused-argument
@@ -34,6 +34,10 @@ def chunk(fn):
     def chunkedfn(*args):
         return [fn(*arglist) for arglist in zip(*args)]
     return chunkedfn
+
+
+def async_to_blocking(coro):
+    return asyncio.get_event_loop().run_until_complete(coro)
 
 
 class BatchPoolExecutor:
@@ -138,10 +142,6 @@ class BatchPoolExecutor:
         self.cleanup_bucket = cleanup_bucket
         self.wait_on_exit = wait_on_exit
 
-    @staticmethod
-    def async_to_blocking(coro):
-        return asyncio.get_event_loop().run_until_complete(coro)
-
     def __enter__(self):
         return self
 
@@ -206,13 +206,13 @@ class BatchPoolExecutor:
             amount of meaningful work done per-container.
         """
 
-        agen = BatchPoolExecutor.async_to_blocking(
+        agen = async_to_blocking(
             self.async_map(fn, iterables, timeout=timeout, chunksize=chunksize))
 
         def generator_from_async_generator(aiter):
             try:
                 while True:
-                    yield BatchPoolExecutor.async_to_blocking(aiter.__anext__())
+                    yield async_to_blocking(aiter.__anext__())
             except StopAsyncIteration:
                 return
         return generator_from_async_generator(agen.__aiter__())
@@ -222,6 +222,7 @@ class BatchPoolExecutor:
                         iterables: Iterable[Iterable[Any]],
                         timeout: Optional[Union[int, float]] = None,
                         chunksize: int = 1):
+        """Aysncio compatible version of :meth:`.map`."""
         if chunksize > 1:
             list_per_argument = [list(x) for x in iterables]
             n = len(list_per_argument[0])
@@ -305,10 +306,12 @@ class BatchPoolExecutor:
             Keyword arguments for the function.
         """
         unapplied, *args = callable_and_args
-        return BatchPoolExecutor.async_to_blocking(
+        return async_to_blocking(
             self.async_submit(unapplied, *args, **kwargs))
 
     async def async_submit(self, unapplied: Callable, *args, **kwargs) -> 'BatchPoolFuture':
+        """Aysncio compatible version of :meth:`.submit`."""
+
         if self._shutdown:
             raise RuntimeError('BatchPoolExecutor has already been shutdown.')
 
@@ -373,8 +376,20 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
             self._cleanup(False)
 
     def shutdown(self, wait=True):
+        """Allow temporary resources to be cleaned up.
+
+        Until shutdown is called, some temporary cloud storage files will
+        persist. After shutdown has been called *and* all outstanding jobs have
+        completed, these files will be deleted.
+
+        Parameters
+        ----------
+        wait: :obj:`bool`
+            If true, wait for all jobs to complete before returning from this
+            method.
+        """
         if wait:
-            BatchPoolExecutor.async_to_blocking(
+            async_to_blocking(
                 asyncio.gather(*[f._async_fetch_result() for f in self.futures]))
         if self.finished_future_count == len(self.futures):
             self._cleanup(False)
@@ -382,7 +397,7 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
 
     def _cleanup(self, wait):
         if self.cleanup_bucket:
-            BatchPoolExecutor.async_to_blocking(
+            async_to_blocking(
                 self.gcs.delete_gs_files(self.directory))
         self.gcs.shutdown(wait)
 
@@ -453,7 +468,7 @@ class BatchPoolFuture:
         timeout: Optional[Union[float, int]]
             Wait this long before raising a timeout error.
         """
-        return BatchPoolExecutor.async_to_blocking(self.async_result(timeout))
+        return async_to_blocking(self.async_result(timeout))
 
     async def async_result(self, timeout: Optional[Union[float, int]] = None):
         """Asynchronously wait until the job is complete.
@@ -474,7 +489,7 @@ class BatchPoolFuture:
         return self.value
 
     def _fetch_result(self, timeout: Optional[Union[float, int]] = None):
-        BatchPoolExecutor.async_to_blocking(self._async_fetch_result(timeout))
+        async_to_blocking(self._async_fetch_result(timeout))
 
     async def _async_fetch_result(self, timeout: Optional[Union[float, int]] = None):
         try:

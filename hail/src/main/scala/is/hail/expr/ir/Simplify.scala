@@ -795,14 +795,14 @@ object Simplify {
 
     case TableFilterIntervals(TableRead(t, false, tr: TableNativeReader), intervals, true) if canRepartition
       && tr.spec.indexed
-      && tr.filterIntervals
+      && tr.params.options.forall(_.filterIntervals)
       && SemanticVersion(tr.spec.file_version) >= SemanticVersion(1, 3, 0) =>
       val newOpts = tr.params.options match {
         case None =>
           val pt = t.keyType
-          NativeReaderOptions(Interval.union(intervals.toArray, pt.ordering.intervalEndpointOrdering), pt, true)
+          NativeReaderOptions(Interval.union(intervals.toArray, PartitionBoundOrdering(pt).intervalEndpointOrdering), pt, true)
         case Some(NativeReaderOptions(preIntervals, intervalPointType, _)) =>
-          val iord = intervalPointType.ordering.intervalEndpointOrdering
+          val iord = PartitionBoundOrdering(intervalPointType).intervalEndpointOrdering
           NativeReaderOptions(
             Interval.intersection(Interval.union(preIntervals.toArray, iord), Interval.union(intervals.toArray, iord), iord),
             intervalPointType, true)
@@ -816,9 +816,9 @@ object Simplify {
       val newOpts = tr.options match {
         case None =>
           val pt = t.keyType
-          NativeReaderOptions(Interval.union(intervals.toArray, pt.ordering.intervalEndpointOrdering), pt, true)
+          NativeReaderOptions(Interval.union(intervals.toArray, PartitionBoundOrdering(pt).intervalEndpointOrdering), pt, true)
         case Some(NativeReaderOptions(preIntervals, intervalPointType, _)) =>
-          val iord = intervalPointType.ordering.intervalEndpointOrdering
+          val iord = PartitionBoundOrdering(intervalPointType).intervalEndpointOrdering
           NativeReaderOptions(
             Interval.intersection(Interval.union(preIntervals.toArray, iord), Interval.union(intervals.toArray, iord), iord),
             intervalPointType, true)

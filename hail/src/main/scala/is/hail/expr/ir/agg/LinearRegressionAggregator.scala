@@ -111,11 +111,10 @@ class LinearRegressionAggregator(yt: PFloat64, xt: PCanonicalArray) extends Stag
     }
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
-    val _initOpF = state.kb.wrapInEmitMethod[Int, Int, Unit]("linregInitOp", initOpF(state))
     val Array(kt, k0t) = init
     cb += (Code(kt.setup, kt.m) || Code(k0t.setup, k0t.m)).mux(
       Code._fatal[Unit]("linreg: init args may not be missing"),
-      _initOpF(coerce[Int](kt.v), coerce[Int](k0t.v)))
+      initOpF(state)(cb.emb, coerce[Int](kt.v), coerce[Int](k0t.v)))
   }
 
   def seqOpF(state: State)(mb: EmitMethodBuilder[_], y: Code[Double], x: Code[Long]): Code[Unit] = {
@@ -164,11 +163,10 @@ class LinearRegressionAggregator(yt: PFloat64, xt: PCanonicalArray) extends Stag
   }
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
-    val _seqOpF = state.kb.wrapInEmitMethod[Double, Long, Unit]("linregSeqOp", seqOpF(state))
     val Array(y, x) = seq
     cb += (Code(y.setup, y.m) || Code(x.setup, x.m)).mux(
       Code._empty,
-      _seqOpF(coerce[Double](y.v), coerce[Long](x.v)))
+      seqOpF(state)(cb.emb, coerce[Double](y.v), coerce[Long](x.v)))
   }
 
   def combOpF(state: State, other: State)(mb: EmitMethodBuilder[_]): Code[Unit] = {
@@ -208,7 +206,7 @@ class LinearRegressionAggregator(yt: PFloat64, xt: PCanonicalArray) extends Stag
   }
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
-    cb += state.kb.wrapInEmitMethod[Unit]("linregCombOp", combOpF(state, other))
+    cb += combOpF(state, other)(cb.emb)
   }
 
   protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
