@@ -1,4 +1,4 @@
-# Adapted by Hail Team from Regenie
+# Adapted by Hail Team from Regenie, edited to remove entrypoint
 # Original attribution line:
 # License path: regenie/LICENSE
 # Thanks to Nathan Weeks for sharing this Dockerfile

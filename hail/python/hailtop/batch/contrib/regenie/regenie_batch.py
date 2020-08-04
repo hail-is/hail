@@ -17,6 +17,15 @@ from_underscore = {
 }
 
 
+def _warn(msg):
+    print(msg, file=sys.stderr)
+
+
+def _error(msg):
+    _warn(msg, file=sys.stderr)
+    sys.exit(1)
+
+
 def read_step_args(path_or_str):
     import shlex
     parser = argparse.ArgumentParser()
@@ -61,7 +70,7 @@ def read_step_args(path_or_str):
     parser.add_argument('--lowmem', required=False, action='store_true')
 
     parser.add_argument('--lowmem-prefix', required=False)
-    parser.add_argument('--threads', required=False, default=1)
+    parser.add_argument('--threads', required=False, default=2)
 
     if not hexists(path_or_str):
         print(f"Couldn't find a file named {path_or_str}, assuming this is an argument string")
@@ -76,7 +85,7 @@ def read_step_args(path_or_str):
 
     if r.step == 2:
         if r.pred:
-            print("--pred provided for --step 2, but Batch will constrain the --pred output prefix to that of --step 1.")
+            print("Batch will set --pred to the output prefix of --step 1.")
 
     return r
 
@@ -122,7 +131,7 @@ def get_input(batch, step_args: argparse.Namespace):
 def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace,
                  step2_args: argparse.Namespace):
     j1 = batch.new_job(name='run-regenie')
-    j1.image('akotlar/regenie:latest')
+    j1.image('akotlar/regenie:9e7074f695e2b96bbb5af9d95f112d674c3260cd')
     j1.cpu(args.cores)
     j1.memory(args.memory)
     j1.storage(args.storage)
@@ -192,6 +201,8 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace,
             out = f"{s2pre}_{pheno}.regenie"
             s2out[out] = out
 
+    print(f"Regenie Step 2 output files: \n{s2out.values()}")
+
     j2.declare_resource_group(**{s2pre: s2out})
 
     in_step2 = get_input(batch, step2_args)
@@ -234,22 +245,21 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace,
 def regenie(args):
     is_local = True if args.local or args.demo else False
 
-    if is_local:
-        backend = hb.LocalBackend()
-        run_opts = {}
-    else:
-        backend = hb.ServiceBackend()
-        run_opts = {"open": True, "wait": True}
+    if not is_local:
+        _error("Currently only support LocalBackend (--local)")
+
+    backend = hb.LocalBackend()
+    run_opts = {}
 
     if args.demo:
         if args.step1 or args.step2:
-            print("When --demo provided, --step1 and --step2 are ignored")
+            _warn("When --demo provided, --step1 and --step2 are ignored")
 
         step1_args = read_step_args("example/step1.txt")
         step2_args = read_step_args("example/step2.txt")
     else:
         if not(args.step1 and args.step2):
-            raise Exception("When --demo not provided, --step1 and --step2 must be")
+            _error("When --demo not provided, --step1 and --step2 must be")
 
         step1_args = read_step_args(args.step1)
         step2_args = read_step_args(args.step2)
@@ -264,15 +274,13 @@ def regenie(args):
     batch.write_output(j2[j2_out_key], args.out)
     batch.run(**run_opts)
 
-    if not is_local:
-        backend.close()
-
 
 def parse_input_args(args: list):
     parser = argparse.ArgumentParser()
     parser.add_argument('--local', required=False, action="store_true")
     parser.add_argument('--demo', required=False, action="store_true")
     parser.add_argument('--out', required=True)
+    # FIXME: replace with per-step args
     parser.add_argument('--cores', required=False, default=2)
     parser.add_argument('--memory', required=False, default="7Gi")
     parser.add_argument('--storage', required=False, default="1Gi")
