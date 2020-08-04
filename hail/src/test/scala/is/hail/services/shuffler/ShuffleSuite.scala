@@ -25,8 +25,7 @@ class ShuffleSuite extends HailSuite {
   private[this] def arrayOfUnsafeRow(elementPType: PStruct, array: Array[Long]): Array[UnsafeRow] =
     array.map(new UnsafeRow(elementPType, null, _)).toArray
 
-  @Test
-  def testShuffle() {
+  @Test def testShuffle() {
     val rowPType = PCanonicalStruct("x" -> PInt32())
     val rowType = rowPType.virtualType.asInstanceOf[TStruct]
     val key = Array("x")
