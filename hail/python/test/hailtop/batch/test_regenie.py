@@ -1,9 +1,9 @@
 import unittest
-from hailtop.batch.contrib import regenie as br
+import hailtop.batch.genetics.regenie as br
 import os
 
 cwd = os.getcwd()
-rdir = "hailtop/batch/contrib/regenie"
+rdir = "hailtop/batch/genetics/regenie"
 
 
 class LocalTests(unittest.TestCase):
@@ -19,7 +19,7 @@ class LocalTests(unittest.TestCase):
         os.chdir(rdir)
         out_prefix = "batch"
         args = br.parse_input_args(["--demo", "--out", out_prefix])
-        br.regenie(args)
+        br.run(args)
 
         out_log = f"{out_prefix}.log"
         out1 = f"{out_prefix}.test_bin_out_firth_Y1.regenie"
@@ -40,7 +40,7 @@ class LocalTests(unittest.TestCase):
         os.chdir(rdir)
         out_prefix = "batch"
         args = br.parse_input_args(["--local", "--step1", "example/step1.txt", "--step2", "example/step2-phenos.txt", "--out", out_prefix])
-        br.regenie(args)
+        br.run(args)
 
         out_log = f"{out_prefix}.log"
         out1 = f"{out_prefix}.test_bin_out_firth_Y1.regenie"

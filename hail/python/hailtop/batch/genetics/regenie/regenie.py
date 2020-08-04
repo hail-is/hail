@@ -96,7 +96,6 @@ def read_step_args(path_or_str, step: int):
     if not hexists(path_or_str):
         print(f"Couldn't find a file named {path_or_str}, assuming this is an argument string")
         r = parser.parse_args(shlex.split(path_or_str))
-
     else:
         print(f"Found {path_or_str}, reading")
 
@@ -258,7 +257,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
     return j1, j2, step2_output_prefix
 
 
-def regenie(args):
+def run(args):
     is_local = True if args.local or args.demo else False
 
     if not is_local:
@@ -308,4 +307,4 @@ def parse_input_args(args: list):
 
 if __name__ == '__main__':
     args = parse_input_args(sys.argv[1:])
-    regenie(args)
+    run(args)
