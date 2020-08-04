@@ -102,7 +102,7 @@ __all__.extend(genetics.__all__)
 __all__.extend(methods.__all__)
 
 # don't overwrite builtins in `from hail import *`
-import builtins
+import builtins  # noqa: E402
 
 __all__.extend([x for x in expr.__all__ if not hasattr(builtins, x)])
 del builtins
@@ -112,7 +112,7 @@ ir.register_aggregators()
 
 __version__ = None  # set in hail.init()
 
-import warnings
+import warnings  # noqa: E402
 
 warnings.filterwarnings('once', append=True)
 del warnings
