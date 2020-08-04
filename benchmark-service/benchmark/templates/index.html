@@ -5,6 +5,7 @@
 <h1>Benchmark System</h1>
 
 <form action="{{ base_path }}/dabuhijl/benchmark/lookup" method="post">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
     <input type="text" name="file"></input>
     <input type="submit" value="lookup"></input>
 </form>
