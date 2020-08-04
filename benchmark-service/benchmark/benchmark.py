@@ -6,7 +6,8 @@ from gear import setup_aiohttp_session, web_authenticated_developers_only
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes
+from gear.gear import check_csrf_token
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 import json
 import re
 from google.cloud import storage
@@ -19,15 +20,13 @@ logging.basicConfig(level=logging.DEBUG)
 deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
+FILE_PATH_REGEX = '(?P<user>[^/]+)/)(?P<version>[^-]+)-)(?P<sha>[^-]+)-)(?P<tag>)?\.json'
+filepath = 'tpoterba/0.2.45-ac6815ee857c-master.json'
 
-# storage_client = storage.Client()
-# bucket = storage_client.get_bucket('hail-benchmarks')
-# blob = bucket.get_blob('0.2.20-3b2b439cabf9.json')
-#
-# blob_str = blob.download_as_string(client=None)
-# pre_data = json.loads(blob_str)
 
-filepath = 'tpoterba/0.2.45-ac6815ee857c-master.json' #'/0.2.45-ac6815ee857c-master.json' test
+def parse_file_path(name):
+    match = FILE_PATH_REGEX.fullmatch(name)
+    return match.groupdict()
 
 
 def get_benchmarks(file_path):
@@ -46,14 +45,11 @@ def get_benchmarks(file_path):
         log.info('could not get blob: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message)
 
-    # with open('file-to-download-to') as file_obj:
-    #     storage_client.download_blob_to_file(file_path, file_obj)
+    # x = re.findall('.*/+(.*)-(.*)-(.*)?\.json', file_path)
+    # sha = x[0][1]
 
-    # with open(file_path) as f:
-    #     pre_data = json.load(f)
-
-    x = re.findall('.*/+(.*)-(.*)-(.*)?\.json', file_path)  #was file_path
-    sha = x[0][1]
+    file_info = parse_file_path(file_path)
+    sha = file_info['sha']
 
     data = list()
     prod_of_means = 1
@@ -97,16 +93,12 @@ async def greet_user(request: web.Request) -> web.Response:
 
 
 @router.get('/name/{name}')
-async def show_name(request: web.Request) -> web.Response:
+@web_authenticated_developers_only(redirect=False)
+async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     benchmarks = get_benchmarks(filepath)
     name_data = next((item for item in benchmarks['data'] if item['name'] == str(request.match_info['name'])), None)
     fig = px.scatter(x=[item for item in range(0, len(name_data['times']))], y=name_data['times'])
 
-    # context = {
-    #     'name': request.match_info.get('name', ''),
-    #     'name_data': name_data,
-    #     'fig': json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-    # }
     plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     context = {
         'name': request.match_info.get('name', ''),
@@ -122,25 +114,20 @@ async def show_name(request: web.Request) -> web.Response:
 @router.get('')
 @web_authenticated_developers_only(redirect=False)
 async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: disable=unused-argument
-    context = {
-        'current_date': 'July 10, 2020'
-    }
-    benchmarks = get_benchmarks(filepath)
-    response = aiohttp_jinja2.render_template('index.html', request,
-                                              context=benchmarks)
-    return response
+    benchmarks_context = get_benchmarks(filepath)
+    return await render_template('benchmark', request, userdata, 'index.html', benchmarks_context)
 
 
 @router.post('/lookup')
+@check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def lookup(request, userdata):  # pylint: disable=unused-argument
     data = await request.post()
     file = data['file']
     global filepath
     filepath = file
-    benchmarks = get_benchmarks(file)
-    response = aiohttp_jinja2.render_template('index.html', request, context=benchmarks)
-    return response
+    benchmarks_context = get_benchmarks(file)
+    return await render_template('benchmark', request, userdata, 'index.html', benchmarks_context)
 
 
 def init_app() -> web.Application:
