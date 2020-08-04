@@ -199,9 +199,8 @@ class Shuffle (
 
     val keyEncoder = codecs.makeKeyEncoder(out)
 
+    log.info(s"partitionBounds ${nPartitions}")
     val keys = store.partitionKeys(nPartitions)
-    val prettyKeys = keys.map(x => Region.pretty(shuffleType.keyDecodedPType, x)).mkString("[",",","]")
-    log.info(s"partitionBounds ${nPartitions} ${prettyKeys}")
     assert((nPartitions == 0 && keys.length == 0) ||
       keys.length == nPartitions + 1)
     writeRegionValueArray(keyEncoder, keys)
