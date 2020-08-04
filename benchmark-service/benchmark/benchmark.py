@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.DEBUG)
 deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
-FILE_PATH_REGEX = re.compile('((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
+FILE_PATH_REGEX = re.compile(r'((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
 filepath = 'tpoterba/0.2.45-ac6815ee857c-master.json'
 
 
@@ -57,7 +57,7 @@ def get_benchmarks(file_path):
         stats = dict()
         stats['name'] = d['name']
         stats['failed'] = d['failed']
-        if not (d['failed']):
+        if not d['failed']:
             prod_of_means *= d['mean']
             stats['f-stat'] = round(d['f-stat'], 6)
             stats['mean'] = round(d['mean'], 6)
@@ -97,7 +97,8 @@ async def greet_user(request: web.Request) -> web.Response:
 async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     benchmarks = get_benchmarks(filepath)
     name_data = next((item for item in benchmarks['data'] if item['name'] == str(request.match_info['name'])), None)
-    fig = px.scatter(x=[item for item in range(0, len(name_data['times']))], y=name_data['times'])
+    fig = px.scatter(x=list(range(0, len(name_data['times']))), y=name_data['times'])
+    # [item for item in range(0, len(name_data['times']))]
 
     plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     context = {
