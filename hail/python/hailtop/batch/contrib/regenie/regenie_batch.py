@@ -236,7 +236,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
         if name in input_file_args:
             cmd2.append(f"--{name} {in_step2[name]}")
         elif name == "out":
-            cmd2.append(f"--{name} {j2[step1_output_prefix]}")
+            cmd2.append(f"--{name} {j2[step2_output_prefix]}")
         elif isinstance(val, bool):
             cmd2.append(f"--{name}")
         else:
