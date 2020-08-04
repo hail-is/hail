@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.DEBUG)
 deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
-FILE_PATH_REGEX = re.compile('(?P<user>[^/]+)/)(?P<version>[^-]+)-)(?P<sha>[^-]+)-)(?P<tag>)?\.json')
+FILE_PATH_REGEX = re.compile('((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+)-)(?P<tag>)?\.json')
 filepath = 'tpoterba/0.2.45-ac6815ee857c-master.json'
 
 
