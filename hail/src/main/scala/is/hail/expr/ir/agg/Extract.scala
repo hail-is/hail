@@ -41,7 +41,7 @@ object AggStateSig {
         val Seq(_, _, labelType: PArray) = seqPTypes
         DownsampleStateSig(labelType)
       case ImputeType() => ImputeTypeStateSig()
-      case NDArraySum() => TypedStateSig(PCanonicalTuple(true, PBooleanRequired, seqPTypes(0).setRequired(false)))
+      case NDArraySum() => TypedStateSig(PCanonicalTuple(true, seqPTypes(0).setRequired(false)))
       case _ => throw new UnsupportedExtraction(op.toString)
     }
   }
@@ -300,7 +300,7 @@ object Extract {
     case GroupedAggSig(k, nested) =>
       new GroupedAggregator(k, nested.map(getAgg).toArray)
     case PhysicalAggSig(NDArraySum(), TypedStateSig(pt: PTuple)) =>{
-      new NDArraySumAggregator(pt.types(1).asInstanceOf[PNDArray])
+      new NDArraySumAggregator(pt.types(0).asInstanceOf[PNDArray])
     }
   }
 

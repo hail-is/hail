@@ -16,23 +16,24 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
 
   override def resultType: PType = ndTyp
 
-  val stateType = PCanonicalTuple(true, PBooleanRequired, ndTyp)
+  val stateType = PCanonicalTuple(true, ndTyp)
 
   override def initOpTypes: Seq[PType] = Array[PType]()
 
   override def seqOpTypes: Seq[PType] = Array(ndTyp)
 
+  val ndarrayFieldNumber = 0
+
   def isInitialized(state: State): Code[Boolean] = {
-    Region.loadBoolean(stateType.fieldOffset(state.off, 0))
+    stateType.isFieldDefined(state.off, ndarrayFieldNumber)
   }
 
   def ndArrayPointer(state: State): Code[Long] = {
-    stateType.loadField(state.off, 1)
+    stateType.loadField(state.off, ndarrayFieldNumber)
   }
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
-    cb.append(Region.storeBoolean(stateType.fieldOffset(state.off, 0), false))
-    cb.append(stateType.setFieldMissing(state.off, 1))
+    cb.append(stateType.setFieldMissing(state.off, ndarrayFieldNumber))
   }
 
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
@@ -46,9 +47,15 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
         },
         {
           cb.append(state.region.getNewRegion(Region.TINY))
-          cb.append(Region.storeBoolean(stateType.fieldOffset(state.off, 0), true))
-          cb.append(stateType.setFieldPresent(state.off, 1))
-          cb.append(ndTyp.constructAtAddress(cb.emb, stateType.fieldOffset(state.off, 1), state.region, nextNDCode.pt, nextNDPValue.get.tcode[Long], true))
+          cb.append(stateType.setFieldPresent(state.off, ndarrayFieldNumber))
+          cb.append(ndTyp.constructAtAddress(
+            cb.emb,
+            stateType.fieldOffset(state.off, ndarrayFieldNumber),
+            state.region,
+            nextNDCode.pt,
+            nextNDPValue.get.tcode[Long],
+            true)
+          )
         }
       )
     })
@@ -66,9 +73,9 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
       {
         val leftValue = PCode(stateType, state.off).asBaseStruct.memoize(cb, "left_state_ndarray_sum_agg")
         val rightValue = PCode(stateType, other.off).asBaseStruct.memoize(cb, "right_state_ndarray_sum_agg")
-        leftValue.loadField(cb, 1).consume(cb, {}, { case leftNdCode: PNDArrayCode =>
+        leftValue.loadField(cb, ndarrayFieldNumber).consume(cb, {}, { case leftNdCode: PNDArrayCode =>
           val leftNdValue = leftNdCode.memoize(cb, "left_ndarray_sum_agg")
-          rightValue.loadField(cb, 1).consume(cb, {}, { case rightNdCode: PNDArrayCode =>
+          rightValue.loadField(cb, ndarrayFieldNumber).consume(cb, {}, { case rightNdCode: PNDArrayCode =>
             val rightNdValue = rightNdCode.memoize(cb, "right_ndarray_sum_agg")
             addValues(cb, leftNdValue, rightNdValue)
           })
