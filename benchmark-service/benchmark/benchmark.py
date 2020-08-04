@@ -6,8 +6,7 @@ from gear import setup_aiohttp_session, web_authenticated_developers_only
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
-from gear.gear import check_csrf_token
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, check_csrf_token
 import json
 import re
 from google.cloud import storage
