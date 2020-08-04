@@ -2,11 +2,12 @@ from typing import Any, Dict
 import aiohttp_jinja2
 from aiohttp import web
 import logging
-from gear import setup_aiohttp_session, web_authenticated_developers_only
+from gear import setup_aiohttp_session, web_authenticated_developers_only, check_csrf_token
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, check_csrf_token
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
+
 import json
 import re
 from google.cloud import storage
