@@ -1,9 +1,9 @@
 import os
 
 import re
-from typing import Optional, Dict, Union
+from typing import Optional, Dict, Union, List, Any, Set
 
-from hailtop.utils import secret_alnum_string
+from hailtop.utils import secret_alnum_string  # type: ignore
 
 from .backend import Backend, LocalBackend
 from .job import Job
@@ -91,10 +91,10 @@ class Batch:
                  default_cpu: Optional[str] = None,
                  default_storage: Optional[str] = None,
                  default_timeout: Optional[Union[float, int]] = None):
-        self._jobs = []
-        self._resource_map = {}
-        self._allocated_files = set()
-        self._input_resources = set()
+        self._jobs: List[Job] = []
+        self._resource_map: Dict[str, Resource] = {}
+        self._allocated_files: Set[str] = set()
+        self._input_resources: Set[InputResourceFile] = set()
         self._uid = Batch._get_uid()
 
         self.name = name
@@ -113,12 +113,11 @@ class Batch:
         self._default_storage = default_storage
         self._default_timeout = default_timeout
 
-        if backend:
-            self._backend = backend
-        else:
-            self._backend = LocalBackend()
+        self._backend = backend if backend else LocalBackend()
 
-    def new_job(self, name=None, attributes=None):
+    def new_job(self,
+                name: Optional[str] = None,
+                attributes: Optional[Dict[str, str]] = None) -> Job:
         """
         Initialize a new job object with default memory, docker image,
         and CPU settings (defined in :class:`.Batch`) upon batch creation.
@@ -167,8 +166,7 @@ class Batch:
     def _new_job_resource_file(self, source, value=None):
         if value is None:
             value = secret_alnum_string(5)
-        jrf = JobResourceFile(value)
-        jrf._add_source(source)
+        jrf = JobResourceFile(value, source)
         self._resource_map[jrf._uid] = jrf  # pylint: disable=no-member
         return jrf
 
@@ -199,7 +197,7 @@ class Batch:
         self._resource_map.update({rg._uid: rg})
         return rg
 
-    def read_input(self, path):
+    def read_input(self, path: str) -> InputResourceFile:
         """
         Create a new input resource file object representing a single file.
 
@@ -229,7 +227,7 @@ class Batch:
         irf = self._new_input_resource_file(path)
         return irf
 
-    def read_input_group(self, **kwargs):
+    def read_input_group(self, **kwargs: str) -> ResourceGroup:
         """
         Create a new resource group representing a mapping of identifier to
         input resource files.
@@ -284,7 +282,7 @@ class Batch:
 
         Returns
         -------
-        :class:`.InputResourceFile`
+        :class:`.ResourceGroup`
         """
 
         root = secret_alnum_string(5)
@@ -294,7 +292,7 @@ class Batch:
         self._resource_map.update({rg._uid: rg})
         return rg
 
-    def write_output(self, resource, dest):  # pylint: disable=R0201
+    def write_output(self, resource: Resource, dest: str) -> None:  # pylint: disable=R0201
         """
         Write resource file or resource file group to an output destination.
 
@@ -340,7 +338,7 @@ class Batch:
 
         resource._add_output_path(dest)
 
-    def select_jobs(self, pattern):
+    def select_jobs(self, pattern: str) -> List[Job]:
         """
         Select all jobs in the batch whose name matches `pattern`.
 
@@ -366,7 +364,11 @@ class Batch:
 
         return [job for job in self._jobs if job.name is not None and re.match(pattern, job.name) is not None]
 
-    def run(self, dry_run=False, verbose=False, delete_scratch_on_exit=True, **backend_kwargs):
+    def run(self,
+            dry_run: bool = False,
+            verbose: bool = False,
+            delete_scratch_on_exit: bool = True,
+            **backend_kwargs: Any):
         """
         Execute a batch.
 
@@ -414,8 +416,7 @@ class Batch:
             i = job_index[j]
             j._job_id = i
             for d in j._dependencies:
-                j = job_index[d]
-                if j >= i:
+                if job_index[d] >= i:
                     raise BatchException("cycle detected in dependency graph")
 
         self._jobs = ordered_jobs

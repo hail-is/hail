@@ -150,9 +150,7 @@ def init_app() -> web.Application:
 
     setup_common_static_routes(router)
     app.add_routes(router)
-
     return app
-
 
 web.run_app(deploy_config.prefix_application(init_app(), 'benchmark'),
             host='0.0.0.0',

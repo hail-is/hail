@@ -1,0 +1,35 @@
+{% extends "layout.html" %}
+{% block title %}Address Status{% endblock %}
+{% block content %}
+<h1>Status</h1>
+<div class="attributes">
+  {% for attr in attributes %}
+  <div>{{ attr[0] }}: {{ attr[1] }}</div>
+  {% endfor %}
+</div>
+<h1>Cache</h1>
+<table class="data-table" id="instances">
+  <thead>
+    <tr>
+      <th>Namespace</th>
+      <th>Name</th>
+      <th>Addresses</th>
+      <th>Ports</th>
+      <th>Lifetime (s)</th>
+      <th>Lock</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+        <td>{{ row["name"] }}</td>
+        <td>{{ row["addresses"] }}</td>
+        <td>{{ row["ports"] }}</td>
+        <td>{{ row["lifetime"] }}</td>
+        <td>{{ row["lock"] }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

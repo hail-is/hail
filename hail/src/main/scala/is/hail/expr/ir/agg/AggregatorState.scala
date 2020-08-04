@@ -204,25 +204,25 @@ case class StateTuple(states: Array[AggregatorState]) {
     states(i)
   }
 
-  def toCode(cb: EmitCodeBuilder, prefix: String, f: (EmitCodeBuilder, Int, AggregatorState) => Unit): Unit =
-    cb.emb.wrapVoids(cb,
-      Array.tabulate(nStates) { (i: Int) =>
-        (cb: EmitCodeBuilder) => f(cb, i, states(i))
-      },
-      prefix
-    )
+  def toCode(cb: EmitCodeBuilder, f: (EmitCodeBuilder, Int, AggregatorState) => Unit): Unit = {
+    (0 until nStates).foreach { i =>
+      f(cb, i, states(i))
+    }
+  }
 
-  def toCodeWithArgs(cb: EmitCodeBuilder, prefix: String, argTypes: IndexedSeq[TypeInfo[_]],
-    args: IndexedSeq[Code[_]], f: (EmitCodeBuilder, Int, AggregatorState, Seq[Code[_]]) => Unit
-  ): Unit =
-    cb.emb.ecb.wrapVoidsWithArgs(cb,
-      Array.tabulate(nStates) { (i: Int) => { (cb: EmitCodeBuilder, args: Seq[Code[_]]) =>
-        f(cb, i, states(i), args)
-      }},
-      prefix, argTypes, args)
+  def toCodeWithArgs(
+    cb: EmitCodeBuilder, args: IndexedSeq[Code[_]], f: (EmitCodeBuilder, Int, AggregatorState, Seq[Code[_]]) => Unit
+  ): Unit = {
+    val targs = args.zipWithIndex.map { case (arg, i) =>
+      cb.newLocalAny(s"astcwa_arg$i", arg)(arg.ti)
+    }
+    (0 until nStates).foreach { i =>
+      f(cb, i, states(i), targs.map(_.get))
+    }
+  }
 
   def createStates(cb: EmitCodeBuilder): Unit =
-    toCode(cb, "create_states", (cb, i, s) => s.createState(cb))
+    toCode(cb, (cb, i, s) => s.createState(cb))
 }
 
 class TupleAggregatorState(val kb: EmitClassBuilder[_], val states: StateTuple, val topRegion: Value[Region], val off: Value[Long], val rOff: Value[Int] = const(0)) {
@@ -239,16 +239,16 @@ class TupleAggregatorState(val kb: EmitClassBuilder[_], val states: StateTuple, 
 
   def newState(i: Int): Code[Unit] = states(i).newState(getStateOffset(i))
 
-  def newState(cb: EmitCodeBuilder): Unit = states.toCode(cb, "new_state", (cb, i, s) => cb += s.newState(getStateOffset(i)))
+  def newState(cb: EmitCodeBuilder): Unit = states.toCode(cb, (cb, i, s) => cb += s.newState(getStateOffset(i)))
 
   def load(cb: EmitCodeBuilder): Unit =
-    states.toCode(cb, "load", (cb, i, s) => cb += s.load(getRegion(i), getStateOffset(i)))
+    states.toCode(cb, (cb, i, s) => cb += s.load(getRegion(i), getStateOffset(i)))
 
   def store(cb: EmitCodeBuilder): Unit =
-    states.toCode(cb, "store", (cb, i, s) => cb += s.store(setRegion(i), getStateOffset(i)))
+    states.toCode(cb, (cb, i, s) => cb += s.store(setRegion(i), getStateOffset(i)))
 
   def copyFrom(cb: EmitCodeBuilder, statesOffset: Code[Long]): Unit = {
-    states.toCodeWithArgs(cb, "copy_from", Array[TypeInfo[_]](LongInfo),
+    states.toCodeWithArgs(cb,
       Array(statesOffset),
       { case (cb, i, s, Seq(o: Code[Long@unchecked])) => s.copyFrom(cb, storageType.loadField(o, i)) })
   }

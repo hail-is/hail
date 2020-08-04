@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: address
+  labels:
+    app: address
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: address
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: address
+        hail.is/sha: "{{ code.sha }}"
+        grafanak8sapp: "true"
+    spec:
+      serviceAccountName: address
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    - address
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: address
+        image: {{ address_image.image }}
+        command:
+         - python3
+         - -m
+         - address
+        ports:
+         - containerPort: 5000
+        resources:
+          requests:
+            memory: "250M"
+            cpu: "100m"
+          limits:
+            memory: "1G"
+            cpu: "1"
+        env:
+         - name: HAIL_DOMAIN
+           value: "{{ global.domain }}"
+         - name: HAIL_DEFAULT_NAMESPACE
+           value: "{{ default_ns.name }}"
+         - name: PROJECT
+           value: "{{ global.project }}"
+         - name: HAIL_SHA
+           value: "{{ code.sha }}"
+        volumeMounts:
+         - name: deploy-config
+           mountPath: /deploy-config
+           readOnly: true
+         - name: session-secret-key
+           mountPath: /session-secret-key
+           readOnly: true
+         - name: ssl-config-address
+           mountPath: /ssl-config
+           readOnly: true
+        readinessProbe:
+          tcpSocket:
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+       - name: deploy-config
+         secret:
+           secretName: deploy-config
+       - name: session-secret-key
+         secret:
+           optional: false
+           secretName: session-secret-key
+       - name: ssl-config-address
+         secret:
+           optional: false
+           secretName: ssl-config-address
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: address
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: address
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+   - type: Resource
+     resource:
+       name: cpu
+       targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: address
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: address

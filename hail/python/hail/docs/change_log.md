@@ -22,6 +22,29 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.53
+
+Released 2020-07-30
+
+### Bug fixes
+
+- (hail#9173) Use less confusing column key behavior in MT.show.
+- (hail#9172) Add a missing Python dependency to Hail: google-cloud-storage.
+- (hail#9170) Change Hail tree aggregate depth logic to correctly respect the
+  branching factor set in `hl.init`.
+
+---
+
+## Version 0.2.52
+
+Released 2020-07-29
+
+### Bug fixes
+
+- (hail#8944)(hail#9169) Fixed crash (error 134 or SIGSEGV) in `MatrixTable.annotate_cols`, `hl.sample_qc`, and more.
+
+---
+
 ## Version 0.2.51
 
 Released 2020-07-28
@@ -1107,4 +1130,4 @@ Released 2018-12-07
 
 We didn't start manually curating information about user-facing changes until version 0.2.4.
 
-The full commit history is available [here](https://github.com/hail-is/hail/commits/master).
+The full commit history is available [here](https://github.com/hail-is/hail/commits/main).

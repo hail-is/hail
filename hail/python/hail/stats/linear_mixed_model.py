@@ -247,7 +247,7 @@ class LinearMixedModel(object):
     likelihood ratio test:
 
     - :meth:`fit_alternatives_numpy` takes one or two ndarrays. It is a pure Python
-      method that evaluates alternatives serially on master.
+      method that evaluates alternatives serially on leader (master).
 
     - :meth:`fit_alternatives` takes one or two paths to block matrices. It
       evaluates alternatives in parallel on the workers.
@@ -752,7 +752,7 @@ class LinearMixedModel(object):
 
         Notes
         -----
-        This Python-only implementation runs serially on master. See
+        This Python-only implementation runs serially on leader (master). See
         the scalable implementation :meth:`fit_alternatives` for documentation
         of the returned table.
 
@@ -895,11 +895,11 @@ class LinearMixedModel(object):
 
         Notes
         -----
-        This method eigendecomposes :math:`K = P^T S P` on the master and
-        returns ``LinearMixedModel(p @ y, p @ x, s)`` and ``p``.
+        This method eigendecomposes :math:`K = P^T S P` on the leader (master)
+        and returns ``LinearMixedModel(p @ y, p @ x, s)`` and ``p``.
 
-        The performance of eigendecomposition depends critically on the
-        number of master cores and the NumPy / SciPy configuration, viewable
+        The performance of eigendecomposition depends critically on the number
+        of leader (master) cores and the NumPy / SciPy configuration, viewable
         with ``np.show_config()``. For Intel machines, we recommend installing
         the `MKL <https://anaconda.org/anaconda/mkl>`__ package for Anaconda.
 

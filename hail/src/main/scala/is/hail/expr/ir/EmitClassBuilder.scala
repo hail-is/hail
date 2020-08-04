@@ -150,16 +150,6 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   def addModule(name: String, mod: (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit =
     ecb.addModule(name, mod)
 
-  def wrapVoids(cb: EmitCodeBuilder, x: Seq[EmitCodeBuilder => Unit], prefix: String, size: Int = 32): Unit =
-    ecb.wrapVoids(cb, x, prefix, size)
-
-  def wrapVoidsWithArgs(cb: EmitCodeBuilder,
-    x: Seq[(EmitCodeBuilder, Seq[Code[_]]) => Unit],
-    suffix: String,
-    argTypes: IndexedSeq[TypeInfo[_]],
-    args: IndexedSeq[Code[_]],
-    size: Int = 32): Unit = ecb.wrapVoidsWithArgs(cb, x, suffix, argTypes, args, size)
-
   def partitionRegion: Settable[Region] = ecb.partitionRegion
 
   def addLiteral(v: Any, t: PType): PValue = ecb.addLiteral(v, t)
@@ -238,20 +228,6 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def genEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, A5: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
     ecb.genEmitMethod[A1, A2, A3, A4, A5, R](baseName)
-
-  def wrapInEmitMethod[R: TypeInfo](
-    baseName: String,
-    body: (EmitMethodBuilder[_]) => Code[R]): Code[R] = ecb.wrapInEmitMethod[R](baseName, body)
-
-  def wrapInEmitMethod[A: TypeInfo, R: TypeInfo](
-    baseName: String,
-    body: (EmitMethodBuilder[_], Code[A]) => Code[R]
-  ): Code[A] => Code[R] = ecb.wrapInEmitMethod[A, R](baseName, body)
-
-  def wrapInEmitMethod[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](
-    baseName: String,
-    body: (EmitMethodBuilder[_], Code[A1], Code[A2]) => Code[R]
-  ): (Code[A1], Code[A2]) => Code[R] = ecb.wrapInEmitMethod[A1, A2, R](baseName, body)
 
   def open(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
     getFS.invoke[String, Boolean, InputStream]("open", path, checkCodec)
@@ -562,44 +538,6 @@ class EmitClassBuilder[C](
   ): CodeOrdering.F[op.ReturnType] =
     getCodeOrdering(t, t, sortOrder, op, ignoreMissingness)
 
-  def wrapVoids(cb: EmitCodeBuilder, x: Seq[EmitCodeBuilder => Unit], prefix: String, size: Int = 32): Unit = {
-    x.grouped(size).zipWithIndex.foreach { case (codes, i) =>
-      val mb = genEmitMethod(prefix + s"_group$i", FastIndexedSeq(), CodeParamType(UnitInfo))
-      mb.emitWithBuilder { cb =>
-        codes.foreach { f =>
-          f(cb)
-        }
-        Code._empty
-      }
-      cb.invokeVoid(mb)
-    }
-  }
-
-  def wrapVoidsWithArgs(cb: EmitCodeBuilder,
-    x: Seq[(EmitCodeBuilder, Seq[Code[_]]) => Unit],
-    suffix: String,
-    argInfo: IndexedSeq[TypeInfo[_]],
-    args: IndexedSeq[Code[_]],
-    size: Int = 32
-  ): Unit = {
-    val argTmps: IndexedSeq[Settable[Any]] = argInfo.zipWithIndex.map { case (ti, i) =>
-      cb.newLocal(s"wvwa_arg$i")(ti).asInstanceOf[Settable[Any]]
-    }
-
-    argTmps.zip(args).foreach { case (t, arg) => cb.assignAny(t, arg) }
-    x.grouped(size).zipWithIndex.foreach { case (codes, i) =>
-      val mb = genEmitMethod(suffix + s"_group$i", argInfo.map(ai => CodeParamType(ai)), CodeParamType(UnitInfo))
-      val methodArgs = argInfo.zipWithIndex.map { case (ai, i) => mb.getCodeParam(i + 1)(ai) }
-      mb.emitWithBuilder { cb =>
-        codes.foreach { f =>
-          f(cb, methodArgs.map(_.get))
-        }
-        Code._empty
-      }
-      cb.invokeVoid(mb, argTmps.map(_.get: Param): _*)
-    }
-  }
-
   private def getCodeArgsInfo(argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): (IndexedSeq[TypeInfo[_]], TypeInfo[_]) = {
     val codeArgsInfo = argsInfo.flatMap {
       case CodeParamType(ti) => FastIndexedSeq(ti)
@@ -805,32 +743,6 @@ class EmitClassBuilder[C](
 
   def genStaticEmitMethod(baseName: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
     newStaticEmitMethod(genName("sm", baseName), argsInfo, returnInfo)
-
-  def wrapInEmitMethod[R: TypeInfo](
-    baseName: String,
-    body: (EmitMethodBuilder[_]) => Code[R]): Code[R] = {
-    val mb = genEmitMethod(baseName, FastIndexedSeq[ParamType](), typeInfo[R])
-    mb.emit(body(mb))
-    mb.invokeCode[R]()
-  }
-
-  def wrapInEmitMethod[A: TypeInfo, R: TypeInfo](
-    baseName: String,
-    body: (EmitMethodBuilder[_], Code[A]) => Code[R]
-  ): Code[A] => Code[R] = {
-    val mb = genEmitMethod(baseName, FastIndexedSeq[ParamType](typeInfo[A]), typeInfo[R])
-    mb.emit(body(mb, mb.getCodeParam[A](1)))
-    a => mb.invokeCode[R](a)
-  }
-
-  def wrapInEmitMethod[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](
-    baseName: String,
-    body: (EmitMethodBuilder[_], Code[A1], Code[A2]) => Code[R]
-  ): (Code[A1], Code[A2]) => Code[R] = {
-    val mb = genEmitMethod(baseName, FastIndexedSeq[ParamType](typeInfo[A1], typeInfo[A2]), typeInfo[R])
-    mb.emit(body(mb, mb.getCodeParam[A1](1), mb.getCodeParam[A2](2)))
-    (a1, a2) => mb.invokeCode[R](a1, a2)
-  }
 
   def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
     getFS.invoke[String, Boolean, InputStream]("unsafeReader", path, checkCodec)

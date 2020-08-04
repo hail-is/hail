@@ -176,7 +176,7 @@ class AsyncWorkerPool:
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
-                log.exception(f'worker pool caught exception')
+                log.exception('worker pool caught exception')
 
     async def call(self, f, *args, **kwargs):
         await self._queue.put((f, args, kwargs))
