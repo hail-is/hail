@@ -157,7 +157,7 @@ def make_input_resources(batch, step_args: argparse.Namespace):
 
 
 def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_args: argparse.Namespace):
-    j1 = batch.new_job(name='run-regenie')
+    j1 = batch.new_job(name='run-regenie-step1')
     j1.image('akotlar/regenie:9e7074f695e2b96bbb5af9d95f112d674c3260cd')
     j1.cpu(args.cores)
     j1.memory(args.memory)
@@ -208,8 +208,8 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
     phenos = get_phenos(step2_args)
     nphenos = len(phenos)
 
-    j2 = batch.new_job(name='run-regenie')
-    j2.image('akotlar/regenie:latest')
+    j2 = batch.new_job(name='run-regenie-step2')
+    j2.image('akotlar/regenie:9e7074f695e2b96bbb5af9d95f112d674c3260cd')
     j2.cpu(args.cores)
     j2.memory(args.memory)
     j2.storage(args.storage)
