@@ -56,7 +56,7 @@ and 10 preemptible, 8-core workers running for 2 hours is:
 
     2 * (2  * 8 * 0.0575 +  # non-preemptible workers
          10 * 8 * 0.02   +  # preemptible workers
-         1  * 8 * 0.0575)   # master node
+         1  * 8 * 0.0575)   # leader (master) node
 
 2.98 USD.
 

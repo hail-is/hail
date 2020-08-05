@@ -121,7 +121,7 @@ it sees a new PR, it creates a new batch that will test everything defined in
 the build.yaml file in the root of the repository. This will create a temporary
 namespace in kubernetes for your PR and deploy all the services into it. It will
 also run all the tests such as for query, batch, and ci after merging it with
-the latest version of master. You can view the progress of the build and the
+the latest version of main. You can view the progress of the build and the
 logs for your PR at [ci.hail.is](https://ci.hail.is).
 
 
@@ -154,10 +154,10 @@ review towards the bottom of the Conversation page.
 ## Merge / Deploy
 
 Once a PR has been approved, our continuous integration service (CI) will squash
-merge the commits in the PR into the master branch of the repository. This will
+merge the commits in the PR into the main branch of the repository. This will
 then trigger a deploy batch. The deploy batch will first deploy all of the new
 Docker images, redeploy the running services in the default namespace with the
-latest changes, and rerun all of the tests with the new version of master
+latest changes, and rerun all of the tests with the new version of main
 incorporating your changes.
 
 If this batch fails, a Zulip message will be sent to the entire team linking to

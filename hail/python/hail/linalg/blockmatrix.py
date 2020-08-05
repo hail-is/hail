@@ -2333,16 +2333,16 @@ class BlockMatrix(object):
 
         Warning
         -------
-        The first and third stages invoke distributed matrix
-        multiplication with parallelism bounded by the number of resulting
-        blocks, whereas the second stage is executed on the master node.
-        For matrices of large minimum dimension, it may be preferable to
-        run these stages separately.
+        The first and third stages invoke distributed matrix multiplication with
+        parallelism bounded by the number of resulting blocks, whereas the
+        second stage is executed on the leader (master) node.  For matrices of
+        large minimum dimension, it may be preferable to run these stages
+        separately.
 
-        The performance of the second stage depends critically on the number
-        of master cores and the NumPy / SciPy configuration, viewable
-        with ``np.show_config()``. For Intel machines, we recommend installing
-        the `MKL <https://anaconda.org/anaconda/mkl>`__ package for Anaconda.
+        The performance of the second stage depends critically on the number of
+        leader (master) cores and the NumPy / SciPy configuration, viewable with
+        ``np.show_config()``. For Intel machines, we recommend installing the
+        `MKL <https://anaconda.org/anaconda/mkl>`__ package for Anaconda.
 
         Consequently, the optimal value of `complexity_bound` is highly
         configuration-dependent.

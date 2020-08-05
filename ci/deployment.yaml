@@ -38,7 +38,7 @@ spec:
              value: /secrets/oauth-token/oauth-token
 {% if deploy %}
            - name: HAIL_WATCHED_BRANCHES
-             value: '[["hail-is/hail:master",true]]'
+             value: '[["hail-is/hail:main",true]]'
 {% else %}
            - name: HAIL_WATCHED_BRANCHES
              value: '[["hail-ci-test/ci-test-{{create_ci_test_repo.token}}:master", true]]'
