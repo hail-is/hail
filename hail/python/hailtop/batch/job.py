@@ -23,7 +23,7 @@ def _add_resource_to_set(resource_set, resource, include_rg=True):
             resource_set.add(resource_file)
 
 
-ENTRYPOINT_TYPE = Optional[Union[str, List[str]]]
+EntrypointType = Optional[Union[str, List[str]]]
 
 
 class Job:
@@ -81,7 +81,7 @@ class Job:
         self._gcsfuse: List[Tuple[str, str, bool]] = []
         self._env: Dict[str, str] = dict()
         self._command: List[str] = []
-        self._entrypoint: ENTRYPOINT_TYPE = None
+        self._entrypoint: EntrypointType = None
 
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
@@ -157,7 +157,8 @@ class Job:
         for name, d in mappings.items():
             assert name not in self._resources
             if not isinstance(d, dict):
-                raise BatchException(f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
+                raise BatchException(
+                    f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
             rg = self._batch._new_resource_group(self, d, root=name)
             self._resources[name] = rg
             _add_resource_to_set(self._valid, rg)
@@ -214,13 +215,22 @@ class Job:
     def env(self, variable: str, value: str):
         self._env[variable] = value
 
-    def entrypoint(self, arg: ENTRYPOINT_TYPE) -> Job:
+    def entrypoint(self, arg: EntrypointType) -> Job:
         """
         Set the docker container ENTRYPOINT
         See: https://docs.docker.com/engine/reference/commandline/run/
 
         Examples
         --------
+
+        Override an ENTRYPOINT that is hardcoded in a docker image
+
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> j.image('google/cloud-sdk:237.0.0-alpine)
+        >>> j.entrypoint('')
+        >>> j.command('echo hello')
+        >>> b.run()
 
         Specify "echo" as the ENTRYPOINT
 
@@ -231,19 +241,18 @@ class Job:
         >>> j.command('hello')
         >>> b.run()
 
-        Remove an ENTRYPOINT that is hardcoded in a docker image
 
-        >>> b = Batch()
-        >>> j = b.new_job()
-        >>> j.image('google/cloud-sdk:237.0.0-alpine)
-        >>> j.entrypoint('')
-        >>> j.command('echo hello')
-        >>> b.run()
 
         Notes
         -----
         This method only works with jobs that specify an image.
         This method can be called more than once, subsequent calls override previous ones.
+
+        If you set entrypoint to something other than `'', ['bash', '-c'], or `['sh', '-c']` job Resources will be unavailable.
+
+        Limitations:
+            LocalBackend: must use list form to pass executable argument ["/bin/bash", "-c"]
+            All backends: Job env variables are unavailable in entrypoint commands (Docker limitation).
 
         Parameters
         ----------
