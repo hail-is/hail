@@ -82,7 +82,9 @@ async def greet_user(request: web.Request) -> web.Response:
 @web_authenticated_developers_only(redirect=False)
 async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     benchmarks = get_benchmarks(default_filepath)
-    name_data = next((item for item in benchmarks['data'] if item['name'] == str(request.match_info['name'])), None)
+    name_data = next((item if item['name'] == str(request.match_info['name']) else NameError("name could not be found")
+                      for item in benchmarks['data']), None)
+    # next((item for item in benchmarks['data'] if item['name'] == str(request.match_info['name'])), None)
     fig = px.scatter(x=list(range(0, len(name_data['times']))), y=name_data['times'])
 
     plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
