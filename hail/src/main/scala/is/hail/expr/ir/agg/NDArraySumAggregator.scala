@@ -2,17 +2,12 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.functions.StringFunctions
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitRegion, coerce}
-import is.hail.types.physical.{PBooleanRequired, PCanonicalBaseStructSettable, PCanonicalTuple, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PNumeric, PType}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, coerce}
+import is.hail.types.physical.{PCanonicalBaseStructSettable, PCanonicalTuple, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PNumeric, PType}
 import is.hail.utils._
 
 class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
   override type State = TypedRegionBackedAggState
-
-  // State needs:
-  // 1. Initialized or not
-  // 2. The ndarray itself.
 
   override def resultType: PType = ndTyp
 
@@ -24,14 +19,6 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
 
   val ndarrayFieldNumber = 0
 
-  def isInitialized(state: State): Code[Boolean] = {
-    stateType.isFieldDefined(state.off, ndarrayFieldNumber)
-  }
-
-  def ndArrayPointer(state: State): Code[Long] = {
-    stateType.loadField(state.off, ndarrayFieldNumber)
-  }
-
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     cb.append(stateType.setFieldMissing(state.off, ndarrayFieldNumber))
   }
@@ -39,7 +26,7 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(nextNDCode) = seq
     nextNDCode.toI(cb).consume(cb, {}, {case nextNDPCode: PNDArrayCode =>
-      val nextNDPValue = nextNDPCode.memoize(cb, "ndarray_sum_seqop_next")
+      val nextNDPV = nextNDPCode.memoize(cb, "ndarray_sum_seqop_next")
       val statePV = new PCanonicalBaseStructSettable(stateType, state.off)
 
       statePV.loadField(cb, ndarrayFieldNumber).consume(cb,
@@ -51,13 +38,13 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
             stateType.fieldOffset(state.off, ndarrayFieldNumber),
             state.region,
             nextNDCode.pt,
-            nextNDPValue.get.tcode[Long],
+            nextNDPV.get.tcode[Long],
             true)
           )
         },
         { currentNDPCode =>
           val currentNDPValue = currentNDPCode.asNDArray.memoize(cb, "ndarray_sum_seqop_current")
-          addValues(cb, currentNDPValue, nextNDPValue)
+          addValues(cb, currentNDPValue, nextNDPV)
         }
       )
     })
@@ -65,23 +52,18 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
   }
 
   override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
-    cb.ifx(!isInitialized(other), {
-      // Do nothing
-    },
-    {
-      cb.ifx(!isInitialized(state), {
+    val rightPV = new PCanonicalBaseStructSettable(stateType, other.off)
+    rightPV.loadField(cb, ndarrayFieldNumber).consume(cb, {},
+    { rightNDPC =>
+      val leftPV = new PCanonicalBaseStructSettable(stateType, state.off)
+      leftPV.loadField(cb, ndarrayFieldNumber).consume(cb,
+      {
         cb.append(state.storeNonmissing(other.off))
       },
-      {
-        val leftValue = PCode(stateType, state.off).asBaseStruct.memoize(cb, "left_state_ndarray_sum_agg")
-        val rightValue = PCode(stateType, other.off).asBaseStruct.memoize(cb, "right_state_ndarray_sum_agg")
-        leftValue.loadField(cb, ndarrayFieldNumber).consume(cb, {}, { case leftNdCode: PNDArrayCode =>
-          val leftNdValue = leftNdCode.memoize(cb, "left_ndarray_sum_agg")
-          rightValue.loadField(cb, ndarrayFieldNumber).consume(cb, {}, { case rightNdCode: PNDArrayCode =>
-            val rightNdValue = rightNdCode.memoize(cb, "right_ndarray_sum_agg")
-            addValues(cb, leftNdValue, rightNdValue)
-          })
-        })
+      { leftNDPC =>
+          val leftNdValue = leftNDPC.asNDArray.memoize(cb, "left_ndarray_sum_agg")
+          val rightNdValue = rightNDPC.asNDArray.memoize(cb, "right_ndarray_sum_agg")
+          addValues(cb, leftNdValue, rightNdValue)
       })
     })
   }
@@ -126,8 +108,8 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
     val t = state.get()
     cb.append(t.setup)
     cb.append(
-      isInitialized(state).mux(
-        srvb.addWithDeepCopy(resultType, ndArrayPointer(state)),
+      stateType.isFieldDefined(state.off, ndarrayFieldNumber).mux(
+        srvb.addWithDeepCopy(resultType, stateType.loadField(state.off, ndarrayFieldNumber)),
         srvb.setMissing()
     ))
   }
