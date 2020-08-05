@@ -20,8 +20,8 @@ logging.basicConfig(level=logging.DEBUG)
 deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
-FILE_PATH_REGEX = re.compile(r'((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
-filepath = 'tpoterba/0.2.45-ac6815ee857c-master.json'
+FILE_PATH_REGEX = re.compile(r'gs://hail-benchmarks/((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
+default_filepath = 'gs://hail-benchmarks/tpoterba/0.2.45-ac6815ee857c-master.json'
 
 
 def parse_file_path(name):
@@ -29,14 +29,22 @@ def parse_file_path(name):
     return match.groupdict()
 
 
+def remove_prefix(text, prefix):
+    if text.startswith(prefix):
+        return text[len(prefix):]
+    return text
+
+
 def get_benchmarks(file_path):
+    shorter_file_path = remove_prefix(file_path, 'gs://hail-benchmarks/')
+
     # create storage client
     storage_client = storage.Client()
     # get bucket with name
     bucket = storage_client.get_bucket('hail-benchmarks')
     try:
         # get bucket data as blob
-        blob = bucket.blob(file_path)
+        blob = bucket.blob(shorter_file_path)
         # convert to string
         json_data = blob.download_as_string()
         pre_data = json.loads(json_data)
@@ -45,13 +53,10 @@ def get_benchmarks(file_path):
         log.info('could not get blob: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message)
 
-    # x = re.findall('.*/+(.*)-(.*)-(.*)?\.json', file_path)
-    # sha = x[0][1]
-
     file_info = parse_file_path(file_path)
     sha = file_info['sha']
 
-    data = list()
+    data = []
     prod_of_means = 1
     for d in pre_data['benchmarks']:
         stats = dict()
@@ -95,10 +100,9 @@ async def greet_user(request: web.Request) -> web.Response:
 @router.get('/name/{name}')
 @web_authenticated_developers_only(redirect=False)
 async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
-    benchmarks = get_benchmarks(filepath)
+    benchmarks = get_benchmarks(default_filepath)
     name_data = next((item for item in benchmarks['data'] if item['name'] == str(request.match_info['name'])), None)
     fig = px.scatter(x=list(range(0, len(name_data['times']))), y=name_data['times'])
-    # [item for item in range(0, len(name_data['times']))]
 
     plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     context = {
@@ -106,8 +110,6 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
         'plot': plot
     }
 
-    # response = aiohttp_jinja2.render_template('user.html', request,
-    #                                           context=context)
     return await render_template('benchmark', request, userdata, 'user.html', context)
 
 
@@ -115,7 +117,7 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 @router.get('')
 @web_authenticated_developers_only(redirect=False)
 async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: disable=unused-argument
-    benchmarks_context = get_benchmarks(filepath)
+    benchmarks_context = get_benchmarks(default_filepath)
     return await render_template('benchmark', request, userdata, 'index.html', benchmarks_context)
 
 
@@ -125,8 +127,8 @@ async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: di
 async def lookup(request, userdata):  # pylint: disable=unused-argument
     data = await request.post()
     file = data['file']
-    global filepath
-    filepath = file
+    global default_filepath
+    default_filepath = file
     benchmarks_context = get_benchmarks(file)
     return await render_template('benchmark', request, userdata, 'index.html', benchmarks_context)
 
