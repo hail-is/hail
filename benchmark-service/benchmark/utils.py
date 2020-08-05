@@ -7,7 +7,7 @@ class ReadGoogleStorage:
 
     FILE_PATH_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
 
-    def remove_prefix(text, prefix):
+    def remove_prefix(self, text, prefix):
         if text.startswith(prefix):
             return text[len(prefix):]
         return text
