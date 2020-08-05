@@ -83,13 +83,15 @@ async def greet_user(request: web.Request) -> web.Response:
 async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     benchmarks = get_benchmarks(default_filepath)
     name_data = next((item for item in benchmarks['data'] if item['name'] == str(request.match_info['name'])),
-                     NameError())
-        #next((item if item['name'] == str(request.match_info['name']) else NameError("name could not be found")
-                      #for item in benchmarks['data']), None)
-    # next((item for item in benchmarks['data'] if item['name'] == str(request.match_info['name'])), None)
-    fig = px.scatter(x=list(range(0, len(name_data['times']))), y=name_data['times'])
-
-    plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+                     None)
+    try:
+        fig = px.scatter(x=list(range(0, len(name_data['times']))), y=name_data['times'])
+        plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    except Exception:
+        message = 'could not find name'
+        log.info('name is of type NoneType: ' + message, exc_info=True)
+        raise web.HTTPBadRequest(text=message)
+    
     context = {
         'name': request.match_info.get('name', ''),
         'plot': plot
