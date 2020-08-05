@@ -203,10 +203,10 @@ class LocalBackend(Backend):
                 add_commands = ''
                 entrypoint = ''
                 if job._entrypoint is not None:
+                    assert "--entrypoint" not in self._extra_docker_run_flags
+
                     if isinstance(job._entrypoint, list):
-                        if job._entrypoint[0] is None:
-                            print("job entrypoint passed as list with None as first argument")
-                            raise
+                        assert job._entrypoint[0] is not None
 
                         non_empty_entrypoint = True
 
@@ -216,10 +216,6 @@ class LocalBackend(Backend):
                     else:
                         non_empty_entrypoint = bool(job._entrypoint)
                         entrypoint = f"--entrypoint {shq(job._entrypoint)}" if job._entrypoint is not None else ''
-
-                if job._entrypoint and "--entrypoint" in self._extra_docker_run_flags:
-                    print("entrypoint specified for job, as well as in self._extra_docker_run_flags")
-                    raise
 
                 cmd = shq(joined_env + defs + cmd)
                 if non_empty_entrypoint:
@@ -495,8 +491,8 @@ class ServiceBackend(Backend):
                 resources['storage'] = job._storage
 
             j = bc_batch.create_job(image=job._image if job._image else default_image,
-                                    entrypoint=job._entrypoint,
                                     command=['/bin/bash', '-c', cmd],
+                                    entrypoint=job._entrypoint,
                                     parents=parents,
                                     attributes=attributes,
                                     resources=resources,
