@@ -2,12 +2,16 @@ from google.cloud import storage
 import re
 
 
+def get_geometric_mean(prod_of_means, num_of_means):
+    return prod_of_means ** (1.0 / num_of_means)
+
+
 class ReadGoogleStorage:
     storage_client = storage.Client()
 
     FILE_PATH_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
 
-    def remove_prefix(self, text, prefix):
+    def remove_prefix(text, prefix):
         if text.startswith(prefix):
             return text[len(prefix):]
         return text
@@ -29,7 +33,3 @@ class ReadGoogleStorage:
         except Exception:
             raise
         return json_data
-
-        # Then we want a method that reads an arbitrary file from google storage and returns the data as a string.
-        # You'll probably want to write a parser that figures out the bucket and then the rest of the path
-        # from a file path.
