@@ -227,7 +227,7 @@ class Job:
 
         >>> b = Batch()
         >>> j = b.new_job()
-        >>> j.image('google/cloud-sdk:237.0.0-alpine)
+        >>> j.image('google/cloud-sdk:237.0.0-alpine')
         >>> j.entrypoint('')
         >>> j.command('echo hello')
         >>> b.run()
@@ -236,7 +236,7 @@ class Job:
 
         >>> b = Batch()
         >>> j = b.new_job()
-        >>> j.image('google/cloud-sdk:237.0.0-alpine)
+        >>> j.image('google/cloud-sdk:237.0.0-alpine')
         >>> j.entrypoint('echo')
         >>> j.command('hello')
         >>> b.run()
