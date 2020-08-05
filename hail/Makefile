@@ -22,15 +22,18 @@ $(eval $(call ENV_VAR,BRANCH))
 $(eval $(call ENV_VAR,URL))
 $(eval $(call ENV_VAR,SPARK_VERSION))
 $(eval $(call ENV_VAR,HAIL_PIP_VERSION))
+$(eval $(call ENV_VAR,HAIL_DEBUG_MODE))
 
 HAIL_PYTHON3 ?= python3
 PIP ?= $(HAIL_PYTHON3) -m pip
 
 # not perfect, not robust to simdpp changes, but probably fine
+BUILD_DEBUG_PREFIX := build/classes/scala/debug
 JAR_SOURCES := $(shell git ls-files src/main)
 JAR_SOURCES += build.gradle
 JAR_TEST_SOURCES := $(shell git ls-files src/test)
-JAR_DEBUG_SOURCES := $(shell git ls-files src/debug)
+JAR_DEBUG_SOURCES := src/debug/scala/is/hail/annotations/Memory.java
+JAR_DEBUG_CLASSES := $(addprefix $(BUILD_DEBUG_PREFIX)/, $(JAR_DEBUG_SOURCES:src/debug/scala/%.java=%.class))
 PY_FILES := $(shell git ls-files python)
 
 INIT_SCRIPTS := python/hailtop/hailctl/deploy.yaml
@@ -42,32 +45,26 @@ SCALA_BUILD_INFO := src/main/resources/build-info.properties
 
 SHADOW_JAR := build/libs/hail-all-spark.jar
 SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
-DEBUG_CLASSES := build/debug
 PYTHON_JAR := python/hail/backend/hail-all-spark.jar
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
 
-.PHONY: shadowJar
-ifdef HAIL_DEBUG_MODE
-shadowJar: debugShadowJar
-endif
-shadowJar: $(SHADOW_JAR)
-
-.PHONY: debugShadowJar
-debugShadowJar: $(SHADOW_JAR)
-	mkdir -p build/debug/scala/is/hail/annotations/ && \
-	javac src/debug/scala/is/hail/annotations/Memory.java && \
-	mv src/debug/scala/is/hail/annotations/Memory.class build/debug/scala/is/hail/annotations && \
-	jar -uf $(SHADOW_JAR) -C build/debug/scala is/hail/annotations/Memory.class
-
-
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION)
+
+.PHONY: shadowJar
+shadowJar: $(SHADOW_JAR)
 
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
 endif
-$(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES)
+ifdef HAIL_DEBUG_MODE
+$(SHADOW_JAR): $(JAR_DEBUG_CLASSES)
+endif
+$(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) env/HAIL_DEBUG_MODE
 	./gradlew shadowJar $(GRADLE_ARGS)
+ifdef HAIL_DEBUG_MODE
+	jar -uf $(SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
+endif
 
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_TEST_JAR): native-lib-prebuilt
@@ -83,6 +80,11 @@ jvm-test: native-lib-prebuilt
 endif
 jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
 	+./pgradle test $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
+
+# javac args from compileJava in build.gradle
+$(BUILD_DEBUG_PREFIX)/%.class: src/debug/scala/%.java
+	@mkdir -p $(BUILD_DEBUG_PREFIX)
+	javac -d $(BUILD_DEBUG_PREFIX) -Xlint:all -Werror -XDenableSunApiLintControl -Xlint:-sunapi $<
 
 src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH env/URL
 src/main/resources/build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION
