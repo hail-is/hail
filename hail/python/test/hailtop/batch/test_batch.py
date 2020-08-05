@@ -88,6 +88,52 @@ class LocalTests(unittest.TestCase):
 
             assert self.read(output_file.name) == msg
 
+    def test_single_job_with_entrypoint_no_image(self):
+        with tempfile.NamedTemporaryFile('w') as output_file:
+            msg = 'hello world'
+
+            b = self.batch()
+            j = b.new_job()
+            j.entrypoint('echo foobar')
+            j.command(f'echo "{msg}" > {j.ofile}')
+
+            b.write_output(j.ofile, output_file.name)
+            b.run()
+            out = self.read(output_file.name)
+
+            assert self.read(output_file.name) == msg
+
+    def test_single_job_with_entrypoint(self):
+        with tempfile.NamedTemporaryFile('w') as output_file:
+            msg = 'hello world'
+
+            b = self.batch()
+            j = b.new_job()
+            j.image('google/cloud-sdk:237.0.0-alpine')
+            j.entrypoint(['/bin/bash', '-c'])
+            j.command(f'echo "{msg}" > {j.ofile}')
+
+            b.write_output(j.ofile, output_file.name)
+            b.run()
+            out = self.read(output_file.name)
+
+            assert self.read(output_file.name) == msg
+
+        with tempfile.NamedTemporaryFile('w') as output_file:
+            msg = 'hello world2'
+
+            b = self.batch()
+            j = b.new_job()
+            j.image('google/cloud-sdk:237.0.0-alpine')
+            j.entrypoint('')
+            j.command(f'echo "{msg}" > {j.ofile}')
+
+            b.write_output(j.ofile, output_file.name)
+            b.run()
+            out = self.read(output_file.name)
+
+            assert self.read(output_file.name) == msg
+
     def test_single_job_w_input(self):
         with tempfile.NamedTemporaryFile('w') as input_file, \
                 tempfile.NamedTemporaryFile('w') as output_file:
@@ -520,4 +566,19 @@ class BatchTests(unittest.TestCase):
         j = b.new_job()
         j.env('SOME_VARIABLE', '123abcdef')
         j.command('[ $SOME_VARIABLE = "123abcdef" ]')
+        assert b.run().status()['state'] == 'success'
+
+    def test_single_job_with_entrypoint(self):
+        b = self.batch()
+        j = b.new_job()
+        j.image('google/cloud-sdk:237.0.0-alpine')
+        j.entrypoint(['/bin/bash', '-c'])
+        j.command(f'echo "hello" > {j.ofile}')
+        assert b.run().status()['state'] == 'success'
+
+        b = self.batch()
+        j = b.new_job()
+        j.image('google/cloud-sdk:237.0.0-alpine')
+        j.entrypoint('')
+        j.command(f'echo "hello2" > {j.ofile}')
         assert b.run().status()['state'] == 'success'

@@ -105,9 +105,9 @@ class LocalBackend(Backend):
         delete_scratch_on_exit: :obj:`bool`
             If `True`, delete temporary directories with intermediate files.
         """
-
         if backend_kwargs:
-            raise ValueError(f'LocalBackend does not support any of these keywords: {backend_kwargs}')
+            raise ValueError(
+                f'LocalBackend does not support any of these keywords: {backend_kwargs}')
 
         tmpdir = self._get_scratch_dir()
 
@@ -199,16 +199,47 @@ class LocalBackend(Backend):
                 cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
                 memory = f'-m {job._memory}' if job._memory else ''
                 cpu = f'--cpus={job._cpu}' if job._cpu else ''
+                non_empty_entrypoint = False
+                add_commands = ''
+                entrypoint = ''
+                if job._entrypoint is not None:
+                    if isinstance(job._entrypoint, list):
+                        if job._entrypoint[0] is None:
+                            print("job entrypoint passed as list with None as first argument")
+                            raise
+
+                        non_empty_entrypoint = True
+
+                        entrypoint = f"--entrypoint {shq(job._entrypoint[0])}"
+                        if len(job._entrypoint) > 1:
+                            add_commands = ' '.join(job._entrypoint[1:])
+                    else:
+                        non_empty_entrypoint = bool(job._entrypoint)
+                        entrypoint = f"--entrypoint {shq(job._entrypoint)}" if job._entrypoint is not None else ''
+
+                if job._entrypoint and "--entrypoint" in self._extra_docker_run_flags:
+                    print("entrypoint specified for job, as well as in self._extra_docker_run_flags")
+                    raise
+
+                cmd = shq(joined_env + defs + cmd)
+                if non_empty_entrypoint:
+                    cmd = f"{add_commands} {cmd}"
+                else:
+                    cmd = f"/bin/bash -c {cmd}"
 
                 lines.append(f"docker run "
+                             f"{entrypoint} "
                              f"{self._extra_docker_run_flags} "
                              f"-v {tmpdir}:{tmpdir} "
                              f"-w {tmpdir} "
                              f"{memory} "
                              f"{cpu} "
-                             f"{job._image} /bin/bash "
-                             f"-c {shq(joined_env + defs + cmd)}")
+                             f"{job._image} "
+                             f"{cmd}")
             else:
+                if job._entrypoint is not None:
+                    print("entrypoint specified for job that doesn't have image, ignoring")
+
                 lines += env
                 lines += resource_defs
                 lines += job._command
@@ -342,7 +373,8 @@ class ServiceBackend(Backend):
         """
 
         if backend_kwargs:
-            raise ValueError(f'ServiceBackend does not support any of these keywords: {backend_kwargs}')
+            raise ValueError(
+                f'ServiceBackend does not support any of these keywords: {backend_kwargs}')
 
         build_dag_start = time.time()
 
@@ -463,6 +495,7 @@ class ServiceBackend(Backend):
                 resources['storage'] = job._storage
 
             j = bc_batch.create_job(image=job._image if job._image else default_image,
+                                    entrypoint=job._entrypoint,
                                     command=['/bin/bash', '-c', cmd],
                                     parents=parents,
                                     attributes=attributes,
@@ -502,7 +535,8 @@ class ServiceBackend(Backend):
             n_jobs_submitted += 1
 
         if verbose:
-            print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
+            print(
+                f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
 
         submit_batch_start = time.time()
         bc_batch = bc_batch.submit(disable_progress_bar=disable_progress_bar)
@@ -510,7 +544,8 @@ class ServiceBackend(Backend):
         jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 
         if verbose:
-            print(f'Submitted batch {bc_batch.id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
+            print(
+                f'Submitted batch {bc_batch.id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
 

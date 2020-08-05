@@ -274,6 +274,11 @@ class Container:
             'Image': self.image
         }
 
+        entrypoint = self.get('entrypoint')
+
+        if entrypoint is not None:
+            config['Entrypoint'] = entrypoint
+
         env = self.spec.get('env', [])
 
         if self.port is not None:

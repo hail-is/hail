@@ -6,7 +6,7 @@ from .backend import ServiceBackend
 from .resource import ResourceFile, ResourceGroup, Resource
 from .utils import BatchException
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 if TYPE_CHECKING:
     from .batch import Batch
 
@@ -26,6 +26,9 @@ def _add_resource_to_set(resource_set, resource, include_rg=True):
     if rg is not None:
         for _, resource_file in rg._resources.items():
             resource_set.add(resource_file)
+
+
+ENTRYPOINT_TYPE = Optional[Union[str, List[str]]]
 
 
 class Job:
@@ -82,6 +85,7 @@ class Job:
         self._gcsfuse: List[Tuple[str, str, bool]] = []
         self._env: Dict[str, str] = dict()
         self._command: List[str] = []
+        self._entrypoint: ENTRYPOINT_TYPE = None
 
         self._resources: Dict[str, Resource] = {}
         self._resources_inverse: Dict[Resource, str] = {}
@@ -214,6 +218,49 @@ class Job:
 
     def env(self, variable: str, value: str):
         self._env[variable] = value
+
+    def entrypoint(self, arg: ENTRYPOINT_TYPE) -> Job:
+        """
+        Set the docker container ENTRYPOINT
+        See: https://docs.docker.com/engine/reference/commandline/run/
+
+        Examples
+        --------
+
+        Specify "echo" as the ENTRYPOINT
+
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> j.image('google/cloud-sdk:237.0.0-alpine)
+        >>> j.entrypoint('echo')
+        >>> j.command('hello')
+        >>> b.run()
+
+        Remove an ENTRYPOINT that is hardcoded in a docker image
+
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> j.image('google/cloud-sdk:237.0.0-alpine)
+        >>> j.entrypoint('')
+        >>> j.command('echo hello')
+        >>> b.run()
+
+        Notes
+        -----
+        This method only works with jobs that specify an image.
+        This method can be called more than once, subsequent calls override previous ones.
+
+        Parameters
+        ----------
+        command: :obj:`str` or :obj:`list` of :obj:`str`
+
+        Returns
+        -------
+        :class:`.Job`
+            Same job object with entrypoint appended.
+        """
+        self._entrypoint = arg
+        return self
 
     def command(self, command: str) -> Job:
         """

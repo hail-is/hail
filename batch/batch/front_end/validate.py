@@ -8,6 +8,7 @@ from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
 #   'always_run': bool,
 #   'attributes': {str: str},
 #   'command': [str],
+#   'entrypoint': str or list[str]
 #   'env': [{
 #     'name': str,
 #     'value': str
@@ -40,7 +41,7 @@ from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
 # }]
 
 JOB_KEYS = {
-    'always_run', 'attributes', 'command', 'env', 'gcsfuse', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'requester_pays_project', 'resources', 'secrets', 'service_account', 'timeout'
+    'always_run', 'attributes', 'command', 'entrypoint', 'env', 'gcsfuse', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'requester_pays_project', 'resources', 'secrets', 'service_account', 'timeout'
 }
 
 ENV_VAR_KEYS = {'name', 'value'}
@@ -101,6 +102,16 @@ def validate_job(i, job):
     for j, a in enumerate(command):
         if not isinstance(a, str):
             raise ValidationError(f'jobs[{i}].command[{j}] is not str')
+
+    if 'entrypoint' in job:
+        entrypoint = job['entrypoint']
+        if not isinstance(entrypoint, list) and not isinstance(entrypoint, str):
+            raise ValidationError(f'jobs[{i}].entrypoint is not list or str')
+
+        if isinstance(entrypoint, list):
+            for y in range(entrypoint):
+                if not isinstance(entrypoint[y], str):
+                    raise ValidationError(f'jobs[{i}].entrypoint contains non-string element in list at index {y}')
 
     if 'env' in job:
         env = job['env']
