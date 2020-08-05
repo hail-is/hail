@@ -962,6 +962,12 @@ def test_agg_ndarray_sum():
     just_ones_2d = hl.utils.range_table(100).annotate(x=hl.nd.ones((2, 3)))
     assert np.array_equal(just_ones_2d.aggregate(hl.agg.ndarray_sum(just_ones_2d.x)), np.full((2, 3), 100))
 
+    transposes = hl.utils.range_table(4).annotate(x=hl.nd.arange(16).reshape((4, 4)))
+    transposes = transposes.annotate(x = hl.if_else((transposes.idx % 2) == 0, transposes.x, transposes.x.T))
+    np_arange_4_by_4 = np.arange(16).reshape((4, 4))
+    transposes_result = (np_arange_4_by_4 * 2) + (np_arange_4_by_4.T * 2)
+    assert np.array_equal(transposes.aggregate(hl.agg.ndarray_sum(transposes.x)), transposes_result)
+
     with pytest.raises(FatalError) as exc:
         mismatched = hl.utils.range_table(5)
         mismatched = mismatched.annotate(x=hl.nd.ones((mismatched.idx,)))
