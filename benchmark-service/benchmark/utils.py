@@ -7,7 +7,8 @@ def get_geometric_mean(prod_of_means, num_of_means):
 
 
 class ReadGoogleStorage:
-    storage_client = storage.Client()
+    def __init__(self):
+        self.storage_client = storage.Client()
 
     FILE_PATH_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
 
@@ -24,13 +25,13 @@ class ReadGoogleStorage:
     def get_data_as_string(self, file_path):
         file_info = self.parse_file_path(file_path)
         bucket = self.storage_client.get_bucket(file_info['bucket'])
-        shorter_file_path = self.remove_prefix(file_path, 'gs://' + file_info['bucket'] + '/')
+        shorter_file_path = ReadGoogleStorage.remove_prefix(file_path, 'gs://' + file_info['bucket'] + '/')
 
         try:
             # get bucket data as blob
             blob = bucket.blob(shorter_file_path)
             # convert to string
-            json_data = blob.download_as_string()
+            data = blob.download_as_string()
         except Exception:
             raise NameError()
-        return json_data
+        return data
