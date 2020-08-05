@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
-import is.hail.annotations.{BroadcastRow, Memory}
+import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
