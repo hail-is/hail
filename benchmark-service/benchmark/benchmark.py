@@ -7,10 +7,9 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
-from benchmark.utils import ReadGoogleStorage
+from benchmark.utils import ReadGoogleStorage, get_geometric_mean
 import json
 import re
-from google.cloud import storage
 import plotly
 import plotly.express as px
 
@@ -24,37 +23,7 @@ FILE_PATH_REGEX = re.compile(r'gs://hail-benchmarks/((?P<user>[^/]+)/)((?P<versi
 default_filepath = 'gs://hail-benchmarks/tpoterba/0.2.45-ac6815ee857c-master.json'
 
 
-# def parse_file_path(name):
-#     match = FILE_PATH_REGEX.fullmatch(name)
-#     return match.groupdict()
-#
-#
-# def remove_prefix(text, prefix):
-#     if text.startswith(prefix):
-#         return text[len(prefix):]
-#     return text
-
-
 def get_benchmarks(file_path):
-#     shorter_file_path = remove_prefix(file_path, 'gs://hail-benchmarks/')
-#
-#     # create storage client
-#     storage_client = storage.Client()
-#     # get bucket with name
-#     bucket = storage_client.get_bucket('hail-benchmarks')
-#     try:
-#         # get bucket data as blob
-#         blob = bucket.blob(shorter_file_path)
-#         # convert to string
-#         json_data = blob.download_as_string()
-#         pre_data = json.loads(json_data)
-#     except Exception:
-#         message = 'could not find file'
-#         log.info('could not get blob: ' + message, exc_info=True)
-#         raise web.HTTPBadRequest(text=message)
-#
-#     file_info = parse_file_path(file_path)
-#     sha = file_info['sha']
 
     read_gs = ReadGoogleStorage()
     file_info = read_gs.parse_file_path(file_path)
@@ -82,7 +51,8 @@ def get_benchmarks(file_path):
             stats['stdev'] = round(d['stdev'], 6)
             stats['times'] = d['times']
         data.append(stats)
-    geometric_mean = prod_of_means ** (1.0 / len(pre_data['benchmarks']))
+    geometric_mean = get_geometric_mean(prod_of_means, len(pre_data['benchmarks']))
+        # prod_of_means ** (1.0 / len(pre_data['benchmarks']))
 
     benchmarks = dict()
     benchmarks['sha'] = sha
