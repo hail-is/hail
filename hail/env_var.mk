@@ -20,6 +20,12 @@ env/$(1):
 	$$(info $(1) is set to "$$($(1))" which is different from old value "$$(shell cat env/$(1) 2>/dev/null)")
 	@mkdir -p env
 	printf "$$($(1))" > $$@
+else ifeq (,$$(wildcard env/$(1)))
+.PHONY: env/$(1)
+env/$(1):
+	$$(info creating env/$(1) which does not exist)
+	@mkdir -p env
+	@touch $$@
 endif
 endef
 
