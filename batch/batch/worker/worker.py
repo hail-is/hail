@@ -274,7 +274,7 @@ class Container:
             'Image': self.image
         }
 
-        entrypoint = self.get('entrypoint')
+        entrypoint = self.spec.get('entrypoint')
 
         if entrypoint is not None:
             config['Entrypoint'] = entrypoint

@@ -27,7 +27,7 @@ class Resource:
         pass
 
     def _declare(self, directory: str) -> str:
-        return f"{shq(self._uid)}={shq(self._get_path(directory))}"  # pylint: disable=no-member
+        return f"{self._uid}={shq(self._get_path(directory))}"  # pylint: disable=no-member
 
 
 class ResourceFile(Resource, str):
