@@ -2594,7 +2594,9 @@ class Emit[C](
                 Code.whileLoop(concatAxisIdx >= inputNDType.dimensionLength(inputType.loadElement(inputArray, i), axis),
                   concatAxisIdx := concatAxisIdx - inputNDType.dimensionLength(inputType.loadElement(inputArray, i), axis),
                   i := i + 1),
-                (i > n).orEmpty(Code._fatal[Unit]("NDArrayConcat: trying to access element greater than length of concatenation axis")))
+                (i > n).orEmpty(Code._fatal[Unit](
+                  const("NDArrayConcat: trying to access element greater than length of concatenation axis: ")
+                    .concat(i.toS).concat(" > ").concat(n.toS))))
 
               val transformedIdxs = Array.tabulate(x.typ.nDims) { idx =>
                 if (idx == axis) concatAxisIdx else idxVars(idx)
@@ -2761,7 +2763,13 @@ object NDArrayEmitter {
       val notSameAndNotBroadcastable = !((left ceq right) || (left ceq 1L) || (right ceq 1L))
       sb.memoizeField(
         notSameAndNotBroadcastable.mux(
-          Code._fatal[Long]("Incompatible NDArray shapes"),
+          Code._fatal[Long](rightShape.foldLeft[Code[String]](
+            leftShape.foldLeft[Code[String]](
+              const("Incompatible NDArrayshapes: [ ")
+            )((accum, v) => accum.concat(v.toS).concat(" "))
+              .concat("] vs [ ")
+          )((accum, v) => accum.concat(v.toS).concat(" "))
+            .concat("]")),
           (left > right).mux(left, right)),
         s"unify_shapes2_shape$i")
     }

@@ -220,7 +220,7 @@ def table_aggregate_downsample_sparse():
 def table_aggregate_linreg(ht_path):
     ht = hl.read_table(ht_path)
     ht.aggregate(hl.agg.array_agg(lambda i: hl.agg.linreg(ht.i0 + i, [ht.i1, ht.i2, ht.i3, ht.i4]),
-        hl.range(75)))
+                                  hl.range(75)))
 
 
 @benchmark(args=many_strings_table.handle('ht'))
@@ -375,10 +375,19 @@ def group_by_take_rekey(path):
     ht = hl.read_matrix_table(path).localize_entries('e', 'c')
     ht.group_by(k=hl.int(ht.row_idx / 50)).aggregate(value=hl.agg.take(ht.row_value, 1))._force_count()
 
+
 @benchmark()
 def table_scan_sum_1k_partitions():
     ht = hl.utils.range_table(1000000, n_partitions=1000)
-    ht = ht.annotate(x = hl.scan.sum(ht.idx))
+    ht = ht.annotate(x=hl.scan.sum(ht.idx))
+    ht._force_count()
+
+
+@benchmark()
+def table_scan_prev_non_null():
+    ht = hl.utils.range_table(100000000, n_partitions=10)
+    ht = ht.annotate(x=hl.range(0, ht.idx % 25))
+    ht = ht.annotate(y=hl.scan._prev_nonnull(ht.row))
     ht._force_count()
 
 
