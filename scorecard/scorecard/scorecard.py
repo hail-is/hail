@@ -68,7 +68,7 @@ async def html_get_user(request, userdata):
         'user_data': user_data,
         'updated': updated,
     }
-    return await render_template('scorecard', request, userdata, 'name.html', page_context)
+    return await render_template('scorecard', request, userdata, 'user.html', page_context)
 
 
 def get_users():

@@ -19,20 +19,17 @@ logging.basicConfig(level=logging.DEBUG)
 deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
-FILE_PATH_REGEX = re.compile(r'gs://hail-benchmarks/((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
+BENCHMARK_FILE_REGEX = re.compile(r'gs://hail-benchmarks/((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
 default_filepath = 'gs://hail-benchmarks/tpoterba/0.2.45-ac6815ee857c-master.json'
 
 
 def get_benchmarks(file_path):
-
     read_gs = ReadGoogleStorage()
-    file_info = read_gs.parse_file_path(file_path)
-    sha = file_info['sha']
     try:
         json_data = read_gs.get_data_as_string(file_path)
         pre_data = json.loads(json_data)
     except Exception:
-        message = 'could not find file'
+        message = f'could not find file, {file_path}'
         log.info('could not get blob: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message)
 
@@ -52,8 +49,9 @@ def get_benchmarks(file_path):
             stats['times'] = d['times']
         data.append(stats)
     geometric_mean = get_geometric_mean(prod_of_means, len(pre_data['benchmarks']))
-        # prod_of_means ** (1.0 / len(pre_data['benchmarks']))
 
+    file_info = read_gs.parse_file_path(file_path)
+    sha = file_info['sha']
     benchmarks = dict()
     benchmarks['sha'] = sha
     benchmarks['geometric_mean'] = geometric_mean
@@ -64,18 +62,6 @@ def get_benchmarks(file_path):
 @router.get('/healthcheck')
 async def healthcheck(request: web.Request) -> web.Response:  # pylint: disable=unused-argument
     return web.Response()
-
-
-@router.get('/{username}')
-async def greet_user(request: web.Request) -> web.Response:
-
-    context = {
-        'username': request.match_info.get('username', ''),
-        'current_date': 'July 10, 2020'
-    }
-    response = aiohttp_jinja2.render_template('name.html', request,
-                                              context=context)
-    return response
 
 
 @router.get('/name/{name}')
@@ -114,9 +100,8 @@ async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: di
 async def lookup(request, userdata):  # pylint: disable=unused-argument
     data = await request.post()
     file = data['file']
-    # global default_filepath
-    # default_filepath = file
     benchmarks_context = get_benchmarks(file)
+    request.get(file, filepath=file)
     return await render_template('benchmark', request, userdata, 'index.html', benchmarks_context)
 
 
