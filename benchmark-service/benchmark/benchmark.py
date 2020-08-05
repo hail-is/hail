@@ -101,7 +101,8 @@ async def lookup(request, userdata):  # pylint: disable=unused-argument
     data = await request.post()
     file = data['file']
     benchmarks_context = get_benchmarks(file)
-    request.get(file, filepath=file)
+    params = {'filepath': file}
+    request.get(file, params=params)
     return await render_template('benchmark', request, userdata, 'index.html', benchmarks_context)
 
 
