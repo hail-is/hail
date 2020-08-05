@@ -946,3 +946,30 @@ def test_eye():
 def test_identity():
     for i in range(13):
         assert(np.array_equal(hl.eval(hl.nd.identity(i)), np.identity(i)))
+
+
+def test_agg_ndarray_sum():
+    no_values = hl.utils.range_table(0).annotate(x=hl.nd.arange(5))
+    assert no_values.aggregate(hl.agg.ndarray_sum(no_values.x)) is None
+
+    increasing_0d = hl.utils.range_table(10)
+    increasing_0d = increasing_0d.annotate(x=hl.nd.array(increasing_0d.idx))
+    assert np.array_equal(increasing_0d.aggregate(hl.agg.ndarray_sum(increasing_0d.x)), np.array(45))
+
+    just_ones_1d = hl.utils.range_table(20).annotate(x=hl.nd.ones((7,)))
+    assert np.array_equal(just_ones_1d.aggregate(hl.agg.ndarray_sum(just_ones_1d.x)), np.full((7,), 20))
+
+    just_ones_2d = hl.utils.range_table(100).annotate(x=hl.nd.ones((2, 3)))
+    assert np.array_equal(just_ones_2d.aggregate(hl.agg.ndarray_sum(just_ones_2d.x)), np.full((2, 3), 100))
+
+    transposes = hl.utils.range_table(4).annotate(x=hl.nd.arange(16).reshape((4, 4)))
+    transposes = transposes.annotate(x = hl.if_else((transposes.idx % 2) == 0, transposes.x, transposes.x.T))
+    np_arange_4_by_4 = np.arange(16).reshape((4, 4))
+    transposes_result = (np_arange_4_by_4 * 2) + (np_arange_4_by_4.T * 2)
+    assert np.array_equal(transposes.aggregate(hl.agg.ndarray_sum(transposes.x)), transposes_result)
+
+    with pytest.raises(FatalError) as exc:
+        mismatched = hl.utils.range_table(5)
+        mismatched = mismatched.annotate(x=hl.nd.ones((mismatched.idx,)))
+        mismatched.aggregate(hl.agg.ndarray_sum(mismatched.x))
+    assert "Can't sum" in str(exc)

@@ -40,6 +40,8 @@ abstract class PNDArray extends PType {
 
   def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit]
 
+  def setElement(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: Code[_], mb: EmitMethodBuilder[_]): Code[Unit]
+
   def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_]
 
   def outOfBounds(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Boolean]
@@ -54,7 +56,11 @@ abstract class PNDArray extends PType {
 abstract class PNDArrayValue extends PValue {
   def apply(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Value[_]
 
+  override def pt: PNDArray = ???
+
   def outOfBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Boolean]
+
+  def sameShape(other: PNDArrayValue, mb: EmitMethodBuilder[_]): Code[Boolean]
 }
 
 abstract class PNDArrayCode extends PCode {
