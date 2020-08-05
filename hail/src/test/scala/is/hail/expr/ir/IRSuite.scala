@@ -94,12 +94,6 @@ class IRSuite extends HailSuite {
     assert(node.pType == expected)
   }
 
-  @Test def testCheckedMemory() {
-    val a = Memory.malloc(17)
-    Memory.loadByte(a + 5)
-    Memory.loadByte(a + 17)
-  }
-
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
   }
