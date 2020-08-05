@@ -133,14 +133,14 @@ def get_phenos(step_args: argparse.Namespace):
     return phenos_final
 
 
-def get_input(batch, step_args: argparse.Namespace):
+def make_input_resources(batch, step_args: argparse.Namespace):
     add = {}
     for name, val in vars(step_args).items():
-        if name in from_underscore:
-            name = from_underscore[name]
-
         if name not in input_file_args or val is None:
             continue
+
+        if name in from_underscore:
+            name = from_underscore[name]
 
         if name == "bed":
             prefix = step_args.bed
@@ -163,7 +163,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
     j1.memory(args.memory)
     j1.storage(args.storage)
 
-    in_step1 = get_input(batch, step1_args)
+    in_step1 = make_input_resources(batch, step1_args)
 
     phenos = get_phenos(step1_args)
     nphenos = len(phenos)
@@ -226,7 +226,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
 
     j2.declare_resource_group(**{step2_output_prefix: s2out})
 
-    in_step2 = get_input(batch, step2_args)
+    in_step2 = make_input_resources(batch, step2_args)
 
     cmd2 = []
     for name, val in vars(step2_args).items():
