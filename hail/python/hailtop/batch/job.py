@@ -1,24 +1,19 @@
-from __future__ import annotations
+from __future__ import annotations  # noqa: F407 # pylint: disable=no-name-in-module
 import re
 from typing import Union, Optional, Dict, List, Set, Tuple
 
-from .backend import ServiceBackend
-from .resource import ResourceFile, ResourceGroup, Resource
+from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
 from .utils import BatchException
-
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from .batch import Batch
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
-    if isinstance(resource, ResourceGroup):
+    if isinstance(resource, _resource.ResourceGroup):
         rg = resource
         if include_rg:
             resource_set.add(resource)
     else:
         resource_set.add(resource)
-        if isinstance(resource, ResourceFile) and resource._has_resource_group():
+        if isinstance(resource, _resource.ResourceFile) and resource._has_resource_group():
             rg = resource._get_resource_group()
         else:
             rg = None
@@ -67,7 +62,8 @@ class Job:
         cls._counter += 1
         return uid
 
-    def __init__(self, batch: 'Batch',
+    def __init__(self,
+                 batch: batch.Batch,
                  name: Optional[str] = None,
                  attributes: Optional[Dict[str, str]] = None):
         self._batch = batch
@@ -83,19 +79,19 @@ class Job:
         self._env: Dict[str, str] = dict()
         self._command: List[str] = []
 
-        self._resources: Dict[str, Resource] = {}
-        self._resources_inverse: Dict[Resource, str] = {}
+        self._resources: Dict[str, _resource.Resource] = {}
+        self._resources_inverse: Dict[_resource.Resource, str] = {}
         self._uid = Job._new_uid()
         self._job_id: Optional[int] = None
 
-        self._inputs: Set[Resource] = set()
-        self._internal_outputs: Set[Resource] = set()
-        self._external_outputs: Set[Resource] = set()
-        self._mentioned: Set[Resource] = set()  # resources used in the command
-        self._valid: Set[Resource] = set()  # resources declared in the appropriate place
+        self._inputs: Set[_resource.Resource] = set()
+        self._internal_outputs: Set[_resource.Resource] = set()
+        self._external_outputs: Set[_resource.Resource] = set()
+        self._mentioned: Set[_resource.Resource] = set()  # resources used in the command
+        self._valid: Set[_resource.Resource] = set()  # resources declared in the appropriate place
         self._dependencies: Set[Job] = set()
 
-    def _get_resource(self, item: str) -> Resource:
+    def _get_resource(self, item: str) -> _resource.Resource:
         if item not in self._resources:
             r = self._batch._new_job_resource_file(self, value=item)
             self._resources[item] = r
@@ -103,16 +99,16 @@ class Job:
 
         return self._resources[item]
 
-    def __getitem__(self, item: str) -> Resource:
+    def __getitem__(self, item: str) -> _resource.Resource:
         return self._get_resource(item)
 
-    def __getattr__(self, item: str) -> Resource:
+    def __getattr__(self, item: str) -> _resource.Resource:
         return self._get_resource(item)
 
-    def _add_internal_outputs(self, resource: Resource) -> None:
+    def _add_internal_outputs(self, resource: _resource.Resource) -> None:
         _add_resource_to_set(self._internal_outputs, resource, include_rg=False)
 
-    def _add_inputs(self, resource: Resource) -> None:
+    def _add_inputs(self, resource: _resource.Resource) -> None:
         _add_resource_to_set(self._inputs, resource, include_rg=False)
 
     def declare_resource_group(self, **mappings: str) -> Job:
@@ -215,8 +211,7 @@ class Job:
         self._env[variable] = value
 
     def command(self, command: str) -> Job:
-        """
-        Set the job's command to execute.
+        """Set the job's command to execute.
 
         Examples
         --------
@@ -260,23 +255,23 @@ class Job:
 
         Notes
         -----
-        This method can be called more than once. It's behavior is to
-        append commands to run to the set of previously defined commands
-        rather than overriding an existing command.
+        This method can be called more than once. It's behavior is to append
+        commands to run to the set of previously defined commands rather than
+        overriding an existing command.
 
         To declare a resource file of type :class:`.JobResourceFile`, use either
         the get attribute syntax of `job.{identifier}` or the get item syntax of
         `job['identifier']`. If an object for that identifier doesn't exist,
-        then one will be created automatically (only allowed in the :meth:`.command`
-        method). The identifier name can be any valid Python identifier
-        such as `ofile5000`.
+        then one will be created automatically (only allowed in the
+        :meth:`.command` method). The identifier name can be any valid Python
+        identifier such as `ofile5000`.
 
-        All :class:`.JobResourceFile` are temporary files and must be written
-        to a permanent location using :func:`.Batch.write_output` if the output needs
-        to be saved.
+        All :class:`.JobResourceFile` are temporary files and must be written to
+        a permanent location using :func:`.batch.Batch.write_output` if the
+        output needs to be saved.
 
-        Only resources can be referred to in commands. Referencing a :class:`.Batch`
-        or :class:`.Job` will result in an error.
+        Only resources can be referred to in commands. Referencing a
+        :class:`.batch.Batch` or :class:`.Job` will result in an error.
 
         Parameters
         ----------
@@ -318,10 +313,11 @@ class Job:
             self._mentioned.add(r)
             return f"${{{r_uid}}}"
 
-        from .batch import Batch  # pylint: disable=cyclic-import,import-outside-toplevel
-
-        subst_command = re.sub(f"({ResourceFile._regex_pattern})|({ResourceGroup._regex_pattern})"
-                               f"|({Job._regex_pattern})|({Batch._regex_pattern})",
+        regexes = [_resource.ResourceFile._regex_pattern,
+                   _resource.ResourceGroup._regex_pattern,
+                   Job._regex_pattern,
+                   batch.Batch._regex_pattern]
+        subst_command = re.sub('(' + ')|('.join(regexes) + ')',
                                handler,
                                command)
         self._command.append(subst_command)
@@ -472,7 +468,7 @@ class Job:
 
         Notes
         -----
-        Can only be used with the :class:`.ServiceBackend`.
+        Can only be used with the :class:`.backend.ServiceBackend`.
 
         Warning
         -------
@@ -481,7 +477,7 @@ class Job:
         Examples
         --------
 
-        >>> b = Batch(backend=ServiceBackend('test'))
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
         >>> j = b.new_job()
         >>> (j.always_run()
         ...   .command(f'echo "hello"'))
@@ -497,7 +493,7 @@ class Job:
             Same job object set to always run.
         """
 
-        if not isinstance(self._batch._backend, ServiceBackend):
+        if not isinstance(self._batch._backend, backend.ServiceBackend):
             raise NotImplementedError("A ServiceBackend is required to use the 'always_run' option")
 
         self._always_run = always_run
@@ -509,12 +505,12 @@ class Job:
 
         Notes
         -----
-        Can only be used with the :class:`.ServiceBackend`.
+        Can only be used with the :class:`.backend.ServiceBackend`.
 
         Examples
         --------
 
-        >>> b = Batch(backend=ServiceBackend('test'))
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
         >>> j = b.new_job()
         >>> (j.timeout(10)
         ...   .command(f'echo "hello"'))
@@ -530,7 +526,7 @@ class Job:
             Same job object set with a timeout.
         """
 
-        if not isinstance(self._batch._backend, ServiceBackend):
+        if not isinstance(self._batch._backend, backend.ServiceBackend):
             raise NotImplementedError("A ServiceBackend is required to use the 'timeout' option")
 
         self._timeout = timeout
@@ -542,7 +538,7 @@ class Job:
 
         Notes
         -----
-        Can only be used with the :class:`.ServiceBackend`. This method can
+        Can only be used with the :class:`.backend.ServiceBackend`. This method can
         be called more than once.
 
         Warning
@@ -552,7 +548,7 @@ class Job:
         Examples
         --------
 
-        >>> b = Batch(backend=ServiceBackend('test'))
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
         >>> j = b.new_job()
         >>> (j.gcsfuse('my-bucket', '/my-bucket')
         ...   .command(f'cat /my-bucket/my-file'))
@@ -573,7 +569,7 @@ class Job:
             Same job object set with a bucket to mount with gcsfuse.
         """
 
-        if not isinstance(self._batch._backend, ServiceBackend):
+        if not isinstance(self._batch._backend, backend.ServiceBackend):
             raise NotImplementedError("A ServiceBackend is required to use the 'gcsfuse' option")
 
         self._gcsfuse.append((bucket, mount_point, read_only))

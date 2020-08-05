@@ -857,18 +857,60 @@ steps:
       to: /hail.jar
     - from: /hail.zip
       to: /hail.zip
- - kind: runImage
-   name: check_hail
-   image:
-     valueFrom: hail_base_image.image
-   script: |
-     set -ex
-     (cd hail/python && python3 -m flake8 --config ../../setup.cfg hail)
-     python3 -m flake8 --config setup.cfg hailtop
-     python3 -m pylint --rcfile pylintrc hailtop
-     (cd hailtop && mypy batch google_storage.py)
+ - kind: buildImage
+   name: hail_pip_installed_python37_image
+   dockerFile: hail/Dockerfile.hail-pip-installed-python37
+   contextPath: .
+   publishAs: hail-base
    dependsOn:
-     - hail_base_image
+    - build_hail
+   inputs:
+    - from: /wheel-container.tar
+      to: /wheel-container.tar
+ - kind: buildImage
+   name: hail_pip_installed_python36_image
+   dockerFile: hail/Dockerfile.hail-pip-installed-python36
+   contextPath: .
+   publishAs: hail-base
+   dependsOn:
+    - build_hail
+   inputs:
+    - from: /wheel-container.tar
+      to: /wheel-container.tar
+ - kind: runImage
+   name: check_hail_python37
+   image:
+     valueFrom: hail_pip_installed_python37_image.image
+   script: |
+     set -x
+     SITE_PACKAGES=$(pip3 show hail | grep Location | sed 's/Location: //')
+
+     exit_status=0
+
+     python3 -m flake8 --config setup.cfg $SITE_PACKAGES/hail $SITE_PACKAGES/hailtop || exit_status=$?
+     python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
+     (cd $SITE_PACKAGES/hailtop && mypy batch google_storage.py || exit_status=$?)
+
+     exit $exit_status
+   dependsOn:
+     - hail_pip_installed_python37_image
+ - kind: runImage
+   name: check_hail_python36
+   image:
+     valueFrom: hail_pip_installed_python36_image.image
+   script: |
+     set -x
+     SITE_PACKAGES=$(pip3 show hail | grep Location | sed 's/Location: //')
+
+     exit_status=0
+
+     python3 -m flake8 --config setup.cfg $SITE_PACKAGES/hail $SITE_PACKAGES/hailtop || exit_status=$?
+     python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
+     (cd $SITE_PACKAGES/hailtop && mypy batch google_storage.py || exit_status=$?)
+
+     exit $exit_status
+   dependsOn:
+     - hail_pip_installed_python36_image
  - kind: buildImage
    name: notebook_image
    dockerFile: notebook/Dockerfile

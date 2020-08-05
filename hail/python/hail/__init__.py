@@ -25,31 +25,32 @@ For help, visit either:
 To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 """
 
-from .table import Table, GroupedTable, asc, desc
-from .matrixtable import MatrixTable, GroupedMatrixTable
 # F403 'from .expr import *' used; unable to detect undefined names
 # F401 '.expr.*' imported but unused
-from .expr import *  # noqa: F401,F403
-from .genetics import *  # noqa: F401,F403
-from .methods import *  # noqa: F401,F403
-from . import expr
-from . import genetics
-from . import methods
-from . import stats
-from . import linalg
-from . import plot
-from . import experimental
-from . import ir
-from . import backend
-from . import nd
-from hail.expr import aggregators as agg
-from hail.utils import Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls, \
-    hadoop_stat, hadoop_exists, hadoop_is_file, hadoop_is_dir, copy_log
+# E402 module level import not at top of file
+from .table import Table, GroupedTable, asc, desc  # noqa: E402
+from .matrixtable import MatrixTable, GroupedMatrixTable  # noqa: E402
+from .expr import *  # noqa: F401,F403,E402
+from .genetics import *  # noqa: F401,F403,E402
+from .methods import *  # noqa: F401,F403,E402
+from . import expr  # noqa: E402
+from . import genetics  # noqa: E402
+from . import methods  # noqa: E402
+from . import stats  # noqa: E402
+from . import linalg  # noqa: E402
+from . import plot  # noqa: E402
+from . import experimental  # noqa: E402
+from . import ir  # noqa: E402
+from . import backend  # noqa: E402
+from . import nd  # noqa: E402
+from hail.expr import aggregators as agg  # noqa: E402
+from hail.utils import (Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls,  # noqa: E402
+                        hadoop_stat, hadoop_exists, hadoop_is_file,
+                        hadoop_is_dir, copy_log)
 
-from .context import init, stop, spark_context, default_reference, \
-    get_reference, set_global_seed, _set_flags, _get_flags, \
-    current_backend, debug_info, citation, cite_hail, cite_hail_bibtex, \
-    version
+from .context import (init, stop, spark_context, default_reference,  # noqa: E402
+                      get_reference, set_global_seed, _set_flags, _get_flags, current_backend,
+                      debug_info, citation, cite_hail, cite_hail_bibtex, version)
 
 scan = agg.aggregators.ScanFunctions({name: getattr(agg, name) for name in agg.__all__})
 
@@ -101,7 +102,7 @@ __all__.extend(genetics.__all__)
 __all__.extend(methods.__all__)
 
 # don't overwrite builtins in `from hail import *`
-import builtins
+import builtins  # noqa: E402
 
 __all__.extend([x for x in expr.__all__ if not hasattr(builtins, x)])
 del builtins
@@ -111,7 +112,7 @@ ir.register_aggregators()
 
 __version__ = None  # set in hail.init()
 
-import warnings
+import warnings  # noqa: E402
 
 warnings.filterwarnings('once', append=True)
 del warnings

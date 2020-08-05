@@ -3482,7 +3482,7 @@ class Table(ExprContainer):
         body = f(expr)
         result_t = body.dtype
         if any(k not in result_t.element_type for k in self.key):
-            raise ValueError(f'Table._map_partitions must preserve key fields')
+            raise ValueError('Table._map_partitions must preserve key fields')
 
         body_ir = ir.Let('global', ir.Ref(globals_uid), ir.ToStream(body._ir))
         return Table(ir.TableMapPartitions(self._tir, globals_uid, rows_uid, body_ir))
