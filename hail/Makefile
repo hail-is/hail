@@ -26,6 +26,13 @@ $(eval $(call ENV_VAR,HAIL_DEBUG_MODE))
 
 HAIL_PYTHON3 ?= python3
 PIP ?= $(HAIL_PYTHON3) -m pip
+ifdef JAVA_HOME
+JAVAC ?= $(JAVA_HOME)/bin/javac
+JAR ?= $(JAVA_HOME)/bin/jar
+else
+JAVAC ?= javac
+JAR ?= jar
+endif
 
 # not perfect, not robust to simdpp changes, but probably fine
 BUILD_DEBUG_PREFIX := build/classes/scala/debug
@@ -63,7 +70,7 @@ endif
 $(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) env/HAIL_DEBUG_MODE
 	./gradlew shadowJar $(GRADLE_ARGS)
 ifdef HAIL_DEBUG_MODE
-	jar -uf $(SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
+	$(JAR) -uf $(SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
 endif
 
 ifdef HAIL_COMPILE_NATIVES
@@ -84,7 +91,7 @@ jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
 # javac args from compileJava in build.gradle
 $(BUILD_DEBUG_PREFIX)/%.class: src/debug/scala/%.java
 	@mkdir -p $(BUILD_DEBUG_PREFIX)
-	javac -d $(BUILD_DEBUG_PREFIX) -Xlint:all -Werror -XDenableSunApiLintControl -Xlint:-sunapi $<
+	$(JAVAC) -d $(BUILD_DEBUG_PREFIX) -Xlint:all -Werror -XDenableSunApiLintControl -Xlint:-sunapi $<
 
 src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH env/URL
 src/main/resources/build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION
