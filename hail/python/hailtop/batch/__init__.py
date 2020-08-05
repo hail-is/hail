@@ -1,7 +1,6 @@
 import nest_asyncio  # type: ignore
 
 from .batch import Batch
-from .genetics import regenie
 from .batch_pool_executor import BatchPoolExecutor
 from .backend import LocalBackend, ServiceBackend
 from .utils import BatchException
