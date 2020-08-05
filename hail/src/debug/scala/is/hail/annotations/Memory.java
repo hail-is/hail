@@ -101,15 +101,19 @@ public class Memory {
     }
 
     public static void memcpy(long dst, byte[] src, long srcOff, long n) {
-        checkAddress(dst, n);
-        checkBytes(src, srcOff, n);
-        copyFromArray(dst, src, srcOff, n);
+        if (n > 0) {
+            checkAddress(dst, n);
+            checkBytes(src, srcOff, n);
+            copyFromArray(dst, src, srcOff, n);
+        }
     }
 
     public static void memcpy(byte[] dst, long dstOff, long src, long n) {
-        checkBytes(dst, dstOff, n);
-        checkAddress(src, n);
-        copyToArray(dst, dstOff, src, n);
+        if (n > 0) {
+            checkBytes(dst, dstOff, n);
+            checkAddress(src, n);
+            copyToArray(dst, dstOff, src, n);
+        }
     }
 
     public static void memset(long offset, long size, byte b) {
