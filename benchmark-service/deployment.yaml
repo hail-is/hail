@@ -51,11 +51,11 @@ spec:
             - name: ssl-config-benchmark
               mountPath: /ssl-config
               readOnly: true
-#          readinessProbe:
-#            tcpSocket:
-#              port: 5000
-#            initialDelaySeconds: 5
-#            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
       volumes:
         - name: session-secret-key
           secret:

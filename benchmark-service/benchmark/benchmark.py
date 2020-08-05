@@ -73,7 +73,7 @@ async def greet_user(request: web.Request) -> web.Response:
         'username': request.match_info.get('username', ''),
         'current_date': 'July 10, 2020'
     }
-    response = aiohttp_jinja2.render_template('user.html', request,
+    response = aiohttp_jinja2.render_template('name.html', request,
                                               context=context)
     return response
 
@@ -91,13 +91,13 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
         message = 'could not find name'
         log.info('name is of type NoneType: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message)
-    
+
     context = {
         'name': request.match_info.get('name', ''),
         'plot': plot
     }
 
-    return await render_template('benchmark', request, userdata, 'user.html', context)
+    return await render_template('benchmark', request, userdata, 'name.html', context)
 
 
 @router.get('/')
@@ -114,8 +114,8 @@ async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: di
 async def lookup(request, userdata):  # pylint: disable=unused-argument
     data = await request.post()
     file = data['file']
-    global default_filepath
-    default_filepath = file
+    # global default_filepath
+    # default_filepath = file
     benchmarks_context = get_benchmarks(file)
     return await render_template('benchmark', request, userdata, 'index.html', benchmarks_context)
 
