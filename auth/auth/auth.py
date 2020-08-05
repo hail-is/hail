@@ -111,7 +111,7 @@ async def callback(request):
 @routes.get('/user')
 @web_authenticated_users_only()
 async def user_page(request, userdata):
-    return await render_template('auth', request, userdata, 'user.html', {})
+    return await render_template('auth', request, userdata, 'name.html', {})
 
 
 async def create_copy_paste_token(db, session_id, max_age_secs=300):
