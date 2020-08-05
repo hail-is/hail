@@ -230,6 +230,8 @@ df = pd.DataFrame(columns=['M', 'N', 'block size', 'K', 'L', 'Q', 'time', 'C'])
 # references a dataframe df not passed into the function
 def loop(i, m, n, block_size, k, l, q):
 
+	#print('loop', i)
+
     try: 
         assert l > k
         assert n <= m
@@ -245,13 +247,14 @@ def loop(i, m, n, block_size, k, l, q):
         G = hl.nd.array(np.random.normal(0, 1, (n,l)))
         _, S, _, _, _, _, C, time_passed = hailBlanczos(table, G, m, n, k, l, q)
         df.loc[i] = [m, n, block_size, k, l, q, time_passed, C]
+        print(time_passed, 'seconds')
     except:
         print('failed during blanczos algorithm with ', (m, n))
         
     return
 
 
-for i in range(1, 100):
+for i in range(1, 50):
     
     randN = 100 * randint(1, 100) #100
     randM = 100 * randint(1, 500) #1000
@@ -262,6 +265,5 @@ for i in range(1, 100):
     
     loop(i, randM, randN, randBlockSize, randK, randL, randQ)
     
-    
-blanczos_data = df.to_csv('blanczos_data_BIG.csv')
+    df.to_csv('blanczos_data_BIG.csv')
 
