@@ -908,8 +908,11 @@ class Emit[C](
         cb.append(shuffle.putValueDone())
         cb.append(shuffle.endPut())
         cb.append(shuffle.close())
+        val resPType = pt.asInstanceOf[PCanonicalBinary]
         // FIXME: server needs to send uuid for the successful partition
-        presentC(PCanonicalBinary(true).allocate(region.code, 0))
+        val boff = cb.memoize(new PCanonicalBinaryCode(resPType, resPType.allocate(region.code, 0)), "shuffleWriteBOff")
+        cb += resPType.storeLength(boff.tcode[Long], 0)
+        presentPC(boff)
 
       case x@ReadValue(path, spec, requestedType) =>
         emitI(path).map(cb) { pv =>
