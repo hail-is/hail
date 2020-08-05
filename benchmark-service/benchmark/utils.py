@@ -32,5 +32,5 @@ class ReadGoogleStorage:
             # convert to string
             json_data = blob.download_as_string()
         except Exception:
-            raise
+            raise NameError()
         return json_data
