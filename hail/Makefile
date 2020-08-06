@@ -128,6 +128,7 @@ $(PYTHON_JAR): shadowJar
 	cp -f $(SHADOW_JAR) $@
 
 .PHONY: pytest
+pytest: PYTEST_TARGET ?= test/hail
 pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
 pytest: python/README.md $(PYTHON_JAR)
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
@@ -137,7 +138,7 @@ pytest: python/README.md $(PYTHON_JAR)
      -r A \
      --self-contained-html \
      --html=../build/reports/pytest.html \
-     test/hail \
+     $(PYTEST_TARGET) \
      $(PYTEST_ARGS)"
 
 .PHONY: doctest
