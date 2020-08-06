@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, Settable, Value}
 import is.hail.types.physical.PCode
 import is.hail.utils._
@@ -23,6 +23,8 @@ trait StagedOwnedRegion extends StagedRegion {
   def shareWithParent(): Code[Unit]
 
   def copyToParent(mb: EmitMethodBuilder[_], value: PCode): PCode
+
+  def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode): Code[Unit]
 }
 
 object StagedRegion {
@@ -52,6 +54,9 @@ class RealStagedOwnedRegion(r: Settable[Region], parent: Value[Region]) extends 
 
   def copyToParent(mb: EmitMethodBuilder[_], value: PCode): PCode =
     value.copyToRegion(mb, parent)
+
+  def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode): Code[Unit] =
+    srvb.addIRIntermediate(value, deepCopy = true)
 }
 
 class DummyStagedRegion(r: Value[Region]) extends StagedOwnedRegion {
@@ -71,4 +76,7 @@ class DummyStagedRegion(r: Value[Region]) extends StagedOwnedRegion {
   def shareWithParent(): Code[Unit] = Code._empty
 
   def copyToParent(mb: EmitMethodBuilder[_], value: PCode): PCode = value
+
+  def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode): Code[Unit] =
+    srvb.addIRIntermediate(value, deepCopy = false)
 }
