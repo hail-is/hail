@@ -3583,8 +3583,8 @@ class NDArrayExpression(Expression):
         if n_sliced_dims > 0:
             slices = []
             for i, s in enumerate(item):
+                dlen = self.shape[i]
                 if isinstance(s, slice):
-                    dlen = self.shape[i]
 
                     if s.step is not None:
                         step = hl.case().when(s.step != 0, s.step) \
@@ -3617,8 +3617,12 @@ class NDArrayExpression(Expression):
                         stop = hl.cond(step > 0, dlen, to_expr(-1, tint64))
 
                     slices.append(hl.tuple((start, stop, step)))
-                else:
-                    slices.append(s)
+                else:  # Not a slice, just an int index
+                    adjusted_index = hl.if_else(s < 0, s + dlen, s)
+                    checked_int = hl.case().when((adjusted_index < dlen) & (adjusted_index >= 0), adjusted_index).or_error(
+                        hl.str("Index ") + hl.str(s) + hl.str(f" is out of bounds for axis {i} with size ") + hl.str(dlen)
+                    )
+                    slices.append(checked_int)
             return construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),
                                   tndarray(self._type.element_type, n_sliced_dims),
                                   self._indices,
