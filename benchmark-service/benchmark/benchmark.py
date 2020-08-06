@@ -71,8 +71,6 @@ async def healthcheck(request: web.Request) -> web.Response:  # pylint: disable=
 @router.get('/name/{name}')
 @web_authenticated_developers_only(redirect=False)
 async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
-    # query = request.get('file')
-    # benchmarks = get_benchmarks(query)
     benchmarks = get_benchmarks(default_filepath)
     name_data = next((item for item in benchmarks['data'] if item['name'] == str(request.match_info['name'])),
                      None)
