@@ -1046,7 +1046,6 @@ class Tests(unittest.TestCase):
             bm.filter_rows([0]).filter_rows([3]).to_numpy()
         assert "index" in str(exc)
 
-
     @skip_unless_spark_backend()
     def test_sparsify_blocks(self):
         block_list = [1, 2]
