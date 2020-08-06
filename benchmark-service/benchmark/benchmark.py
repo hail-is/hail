@@ -74,7 +74,7 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
     name_data = next((item for item in benchmarks['data'] if item['name'] == str(request.match_info['name'])),
                      None)
 
-    def get_x_list(name_data):
+    def get_x_list():
         x_list = []
         i = 0
         for trial in name_data['trials']:
@@ -85,7 +85,7 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
         return x_list
 
     try:
-        fig = px.scatter(x=get_x_list(name_data), y=name_data['times'])  # list(range(0, len(name_data['times'])))
+        fig = px.scatter(x=get_x_list(), y=name_data['times'])  # list(range(0, len(name_data['times'])))
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     except Exception:
         message = 'could not find name'
@@ -118,7 +118,7 @@ async def lookup(request, userdata):  # pylint: disable=unused-argument
     params = {'filepath': file}
     # url = requests.Request.url
     # url = urllib.request.Request
-    url = urllib.request.Request.get_full_url()
+    url = urllib.request.Request.full_url
 
     requests.get(url, params=params)
     #request.get(url, params=params)
