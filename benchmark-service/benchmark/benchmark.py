@@ -50,6 +50,7 @@ def get_benchmarks(file_path):
             stats['p-value'] = round(d['p-value'], 6)
             stats['stdev'] = round(d['stdev'], 6)
             stats['times'] = d['times']
+            stats['trials'] = d['trials']
         data.append(stats)
     geometric_mean = get_geometric_mean(prod_of_means, len(pre_data['benchmarks']))
 
