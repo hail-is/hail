@@ -88,6 +88,7 @@ For example, we can build an image named gcr.io/<my-project>/<my-image> based on
 
     docker build -t gcr.io/<my-project>/<my-image>:<tag> -f Dockerfile .
 
+
 In this example we prepend the image name with `gcr.io/<my-project>/` so that it may be pushed to the Google Container Registry, in the next step.
 
 Pushing Images
