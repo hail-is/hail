@@ -484,7 +484,7 @@ steps:
    dependsOn:
      - service_base_image
  - kind: buildImage
-   name: batch_worker_imagef
+   name: batch_worker_image
    dockerFile: batch/Dockerfile.worker
    contextPath: .
    publishAs: batch-worker
