@@ -61,11 +61,14 @@ def chunk_ndarray(a, group_size):
     -------
 
     """
-    n_groups = a.shape[0] // group_size
+    n_groups = ceil(a.shape[0] / group_size)
     groups = []
-    for i in range(a.shape[0] // group_size):
+    for i in range(n_groups):
         start = i * group_size
-        end = (i + 1) * group_size
+        if i == n_groups - 1:
+            end = a.shape[0]
+        else:
+            end = (i + 1) * group_size
         groups.append(a[start:end, :])
     return groups
 
@@ -75,12 +78,6 @@ def concatBlocked(A):
     blocks = A.ndarray.collect()
     big_mat = np.concatenate(blocks, axis=0)
     ht = ndarray_to_table([big_mat])
-    
-    block_shape = blocks[0].shape
-    
-    tup = ht.ndarray.collect()[0].shape
-    assert tup == (len(blocks) * block_shape[0], block_shape[1])
-    
     return ht
 
 def concatToNumpy(A):
@@ -99,7 +96,7 @@ def ndarray_to_table(chunked_arr):
 # returns struct in form of array but not ndarray, includes the shape in the struct
 # to change the result product directly back into a ndarray we need to use from_column_major
 def block_product(left, right):
-    product = left @ right
+    product = left @ right     
     n_rows, n_cols = product.shape
     return hl.struct(
         shape=product.shape,
@@ -138,7 +135,7 @@ def computeNextH(A, H):
     nextG = matmul_colblocked_rowblocked(A, H)
     return matmul_rowblocked_nonblocked(A, nextG)
 
-def hailBlanczos(A, G, m, n, k, l, q):
+def hailBlanczos(A, G, m, n, k, l, q, block_size):
     
     # assert l > k
     # assert (q+1)*l <= (n - k)
@@ -157,16 +154,12 @@ def hailBlanczos(A, G, m, n, k, l, q):
     # perform QR decomposition on unblocked version of H
     Q, R = np.linalg.qr(npH)
     # assert Q.shape == (m, (q+1)*l)
-    
     # block Q's rows into the same number of blocks that A has
-    num_blocks = A.count() # fix
-    group_size_Q = Q.shape[0] // num_blocks
-    #assert group_size_Q * num_blocks == m
-    blocked_Q_table = ndarray_to_table(chunk_ndarray(Q, group_size_Q))
+    blocked_Q_table = ndarray_to_table(chunk_ndarray(Q, block_size))
     
     T = matmul_colblocked_rowblocked(blocked_Q_table, A)
     # assert T.shape == ((q+1)*l, n)
-
+    
     U, S, W = np.linalg.svd(T, full_matrices=False)
     # assert U.shape == ((q+1)*l, n)
     # assert S.shape == (n,)
@@ -182,27 +175,15 @@ def hailBlanczos(A, G, m, n, k, l, q):
     truncV = arr_V[:,:k]
     truncS = S[:k]
     truncW = W[:k,:]
-    
-    bound, satC = blanczosErrorB(truncV, np.diag(truncS), truncW.transpose(), m, n, k, q, concatToNumpy(A), sing_val)
-    print("Satisfies Blanczos error bound equation 4.3 if C=1: ", bound)
-    
-    return truncV, truncS, truncW, sing_val, Q, bound, satC, end - start
+        
+    return truncV, truncS, truncW, sing_val, Q, end - start #, bound, satC
 
 
-def blanczosErrorA(U, S, V, m, n, k, q, A, k1th_sing_val):
-    norm_diff = np.linalg.norm(A - U @ S @ V.transpose())
-    bound = 100 * l * (((m-k)/l) ** (1/(4*q + 2))) * k1th_sing_val
-    print('value:', norm_diff, 'bound/upper limit:', bound)
-    return norm_diff <= bound
-
-def blanczosErrorB(U, S, V, m, n, k, q, A, k1th_sing_val):
-    C = 1
-    norm_diff = np.linalg.norm(A - U @ S @ V.transpose())
-    bound = C * (m ** (1/(4*q))) * k1th_sing_val
-    satisfyingC = norm_diff / bound
-    print('difference A - USV:', norm_diff, 'bound/upper limit:', bound)
-    print('C constant needed to satisfy bound:', satisfyingC)
-    return norm_diff <= bound, satisfyingC
+def timeNumpyLibrary(data):
+    start = time.time()
+    _, S, _ = np.linalg.svd(data, full_matrices=False)
+    end = time.time()
+    return end - start
 
 def makeSharedData(model_input, block_size):
     
@@ -216,7 +197,7 @@ def makeSharedData(model_input, block_size):
     table = matrix_table_to_table_of_ndarrays(mt.n_alt, block_size, tmp_path='/tmp/test_table.ht')
     
     # for numpy implementation we want transposed version so m < n
-    np_matrix = np.asmatrix(concatToNumpy(table).transpose())
+    np_matrix = np.asmatrix(concatToNumpy(table))
 
     return table, np_matrix
 
@@ -225,45 +206,68 @@ def makeSharedData(model_input, block_size):
 # SCRIPT:
 
 
-df = pd.DataFrame(columns=['M', 'N', 'block size', 'K', 'L', 'Q', 'time', 'C'])
+df = pd.DataFrame(columns=['M', 'N', 'block size', 'K', 'L', 'Q', 'blanczos time', 'numpy time'])
 
 # references a dataframe df not passed into the function
 def loop(i, m, n, block_size, k, l, q):
-
-	#print('loop', i)
+    
+    print("loop attempt ", i, ' with m:', m, ', n:', n, ', m*n =', m*n, ', and q:', q)
 
     try: 
         assert l > k
         assert n <= m
-    except:
+    except Exception as e:
+        print(e)
         return
 
     try:
         table, mat = makeSharedData((3, n, m), block_size)
-    except:
+    except Exception as e:
+        print(e)
         print('failed to make data with ', (m, n))
+        return
     
     try:
         G = hl.nd.array(np.random.normal(0, 1, (n,l)))
-        _, S, _, _, _, _, C, time_passed = hailBlanczos(table, G, m, n, k, l, q)
-        df.loc[i] = [m, n, block_size, k, l, q, time_passed, C]
-        print(time_passed, 'seconds')
-    except:
+        _, S, _, _, _, hail_time  = hailBlanczos(table, G, m, n, k, l, q, block_size)
+        numpy_time = timeNumpyLibrary(mat)
+        df.loc[i] = [m, n, block_size, k, l, q, hail_time, numpy_time]
+    except Exception as e:
+        print(e)
         print('failed during blanczos algorithm with ', (m, n))
+        return
         
     return
 
 
-for i in range(1, 50):
+# for i in range(1, 5):
     
-    randN = 100 * randint(1, 100) #100
-    randM = 100 * randint(1, 500) #1000
-    randBlockSize = choice([2, 4, 10, 20, 25, 50])
-    randK = randint(1, 100)
-    randL = randint(1, 20) + randK
-    randQ = randint(1, 5)
+#     randN = randint(100, 1000) #100
+#     randM = randint(1000, 10000) #1000
+#     randBlockSize = choice([2, 4, 8, 16])
+#     K = 10
+#     randL = randint(1, 20) + K
+#     randQ = randint(1, 4)
     
-    loop(i, randM, randN, randBlockSize, randK, randL, randQ)
+#     loop(i, randM, randN, randBlockSize, K, randL, randQ)
     
-    df.to_csv('blanczos_data_BIG.csv')
+#     df.to_csv('blanczos_data_random.csv')
+    
+
+K = 10
+i = 0
+
+for L in [K + 2, 2 * K]:
+    
+    for Q in [1, 2, 3]: 
+        
+        for m in [100, 500, 1000, 5000]:
+            
+            for n in [50, 100, 500]:
+                
+                for block_size in [2, 4, 8, 16, 32]:
+                    
+                    loop(i, m, n, block_size, K, L, Q)
+                    df.to_csv('gs://aotoole/blanczos_data_combinatorial.csv')
+                    i += 1
 
