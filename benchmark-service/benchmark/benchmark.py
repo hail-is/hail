@@ -112,13 +112,14 @@ async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: di
     return await render_template('benchmark', request, userdata, 'index.html', benchmarks_context)
 
 
-@router.post('/lookup')
+@router.get('/lookup')
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def lookup(request, userdata):  # pylint: disable=unused-argument
     # data = await request.post()
-    data = await request.get()
-    file = data['file']
+    # data = await request.get()
+    # file = data['file']
+    file = request.query.get('file')
     benchmarks_context = get_benchmarks(file)
     params = {'filepath': file}
 
