@@ -484,7 +484,7 @@ steps:
    dependsOn:
      - service_base_image
  - kind: buildImage
-   name: batch_worker_image
+   name: batch_worker_imagef
    dockerFile: batch/Dockerfile.worker
    contextPath: .
    publishAs: batch-worker
@@ -1866,7 +1866,8 @@ steps:
     - default_ns
     - batch_pods_ns
     - copy_files
-    - service_base_image
+    - hail_run_image
+    - build_hail
     - deploy_batch
  - kind: runImage
    name: test_batch_docs
@@ -1901,8 +1902,8 @@ steps:
     - create_accounts
     - default_ns
     - batch_pods_ns
-    - service_base_image
-    - copy_files
+    - hail_run_image
+    - build_hail
     - deploy_batch
    timeout: 1200
    inputs:
