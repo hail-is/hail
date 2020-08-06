@@ -48,3 +48,9 @@ def blockmatrix_write_from_entry_expr_range_mt_standardize():
     path = hl.utils.new_temp_file(extension='bm')
     hl.linalg.BlockMatrix.write_from_entry_expr(mt.row_idx + mt.col_idx, path, mean_inpute=True, center=True,
                                                 normalize=True)
+
+
+@benchmark()
+def sum_table_of_ndarrays():
+    ht = hl.utils.range_table(400).annotate(nd=hl.nd.ones((4096, 4096)))
+    ht.aggregate(hl.agg.ndarray_sum(ht.nd))

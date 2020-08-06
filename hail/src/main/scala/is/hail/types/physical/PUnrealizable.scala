@@ -24,11 +24,6 @@ trait PUnrealizable extends PType {
   def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
     unsupported
 
-  override def copyFromPValue(mb: EmitMethodBuilder[_], region: Value[Region], pv: PCode): PCode = {
-    assert(pv.pt == this)
-    pv
-  }
-
   protected def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
     unsupported
 
@@ -63,4 +58,9 @@ trait PUnrealizableCode extends PCode {
     unsupported
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PValue = unsupported
+
+  override def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destPtype: PType, deepCopy: Boolean = false): PCode = {
+    assert(destPtype == pt)
+    this
+  }
 }

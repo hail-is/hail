@@ -369,7 +369,7 @@ object TypeCheck {
         assert(x.typ == TArray(aggBody.typ))
         assert(knownLength.forall(_.typ == TInt32))
       case x@InitOp(_, args, aggSig) =>
-        assert(args.map(_.typ) == aggSig.initOpTypes)
+        assert(args.map(_.typ) == aggSig.initOpTypes, s"${args.map(_.typ)} !=  ${aggSig.initOpTypes}")
       case x@SeqOp(_, args, aggSig) =>
         assert(args.map(_.typ) == aggSig.seqOpTypes)
       case _: CombOp =>
