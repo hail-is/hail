@@ -6,7 +6,6 @@ import time
 import copy
 from shlex import quote as shq
 import webbrowser
-from typing import Optional, Dict
 
 from hailtop.config import get_deploy_config, get_user_config  # type: ignore
 import hailtop.batch_client.client as bc  # type: ignore
@@ -14,7 +13,7 @@ from hailtop.batch_client.client import BatchClient  # type: ignore
 
 from .resource import InputResourceFile, JobResourceFile, ResourceGroup
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Dict
 if TYPE_CHECKING:
     from .batch import Batch  # pylint: disable=cyclic-import
     from .job import Job  # pylint: disable=cyclic-import # noqa: F401
