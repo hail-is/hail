@@ -4,7 +4,7 @@
 {% block content %}
 <h1>Benchmark System</h1>
 
-<form action="{{ base_path }}/lookup" method="post">
+<form action="{{ base_path }}/lookup" method="get">
     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
     <input type="text" name="file"></input>
     <input type="submit" value="lookup"></input>
@@ -40,7 +40,8 @@
     <tbody>
     {% for d in data %}
     <tr>
-        <td><a href="{{ base_path }}/name/{{ d['name'] }}">{{ d['name'] }}</a></td>
+        {% if request.query.get('file') %}
+            <td><a href="{{ base_path }}/name/{{ d['name'] }}?file={{">{{ d['name'] }}</a></td>
 <!--        <td><a href="{{ base_path }}/name?file={{ file_path }}">{{ d['name'] }}</a></td>-->
         <td>{{ d['failed'] }}</td>
         <td>{{ d['f-stat'] }}</td>
