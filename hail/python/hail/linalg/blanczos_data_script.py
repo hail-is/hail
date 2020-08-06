@@ -2,7 +2,7 @@ import numpy as np
 import hail as hl
 from hail import methods
 import pandas as pd
-from math import sqrt, pi
+from math import sqrt, pi, ceil
 from random import randint, choice
 import pandas as pd
 import time
@@ -53,14 +53,6 @@ def matrix_table_to_table_of_ndarrays(field, group_size, tmp_path = '/tmp/nd_tab
     return ht.checkpoint(tmp_path, overwrite=True)
 
 def chunk_ndarray(a, group_size):
-    """Chunks a NDarray along the first axis in chunks of `group_size`.
-    Parameters
-    ----------
-    a
-    group_size
-    -------
-
-    """
     n_groups = ceil(a.shape[0] / group_size)
     groups = []
     for i in range(n_groups):
