@@ -73,7 +73,7 @@ def add_step1_args(parser: ArgumentParser):
 
 
 def add_step2_args(parser: ArgumentParser):
-    # Batch specifies private folders that regenie doesn't know, so --pred is ignored.
+    # Pred is derived from step 1, whenever step 1 is provided
     parser.add_argument('--pred', required=False)
     parser.add_argument('--ignore-pred', required=False, action='store_true')
 
