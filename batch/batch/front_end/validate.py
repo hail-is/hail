@@ -108,10 +108,9 @@ def validate_job(i, job):
         if not isinstance(entrypoint, list) and not isinstance(entrypoint, str):
             raise ValidationError(f'jobs[{i}].entrypoint is not list or str')
 
-        if isinstance(entrypoint, list):
-            for y in range(entrypoint):
-                if not isinstance(entrypoint[y], str):
-                    raise ValidationError(f'jobs[{i}].entrypoint contains non-string element in list at index {y}')
+        for j, a in enumerate(entrypoint):
+        if not isinstance(a, str):
+            raise ValidationError(f'jobs[{i}].entrypoint[{j}] is not str')
 
     if 'env' in job:
         env = job['env']

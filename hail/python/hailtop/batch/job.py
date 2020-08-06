@@ -223,7 +223,7 @@ class Job:
         Examples
         --------
 
-        Override an ENTRYPOINT that is hardcoded in a docker image
+        Override an ENTRYPOINT that is hardcoded in a docker image:
 
         >>> b = Batch()
         >>> j = b.new_job()
@@ -231,17 +231,6 @@ class Job:
         >>> j.entrypoint('')
         >>> j.command('echo hello')
         >>> b.run()
-
-        Specify "echo" as the ENTRYPOINT
-
-        >>> b = Batch()
-        >>> j = b.new_job()
-        >>> j.image('google/cloud-sdk:237.0.0-alpine')
-        >>> j.entrypoint('echo')
-        >>> j.command('hello')
-        >>> b.run()
-
-
 
         Notes
         -----
