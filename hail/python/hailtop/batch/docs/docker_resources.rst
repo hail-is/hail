@@ -71,11 +71,21 @@ For more information about Dockerfiles and directives that can be used see the f
 Building Images
 ---------------
 
-To create a Docker image, use `docker build <dir> -t <name> -f <dockerfile>`. <dir> specifies the context directory (typically `.`, for the current working directory).
-Use `-t` to name the image, and `-f` to specify the Dockerfile path.
-More information can be found `here: <https://docs.docker.com/engine/reference/commandline/build/>`__.
+To create a Docker image, use
 
 .. code-block:: sh
+
+    docker build -t gcr.io/<my-project>/<my-image>:<tag> -f Dockerfile .
+
+    * `<dir>` is the context directory, `.` means the current working directory,
+    * `-t <name>` specifies the image name, and
+    * `-f <dockerfile>` specifies the Dockerfile file.
+    * A more complete description may be found `here: <https://docs.docker.com/engine/reference/commandline/build/>`__.
+
+For example, we can build an image named gcr.io/<my-project>/<my-image> based on the Dockerfile named Dockerfile, using the current working directory as the context:
+
+.. code-block:: sh
+
     docker build -t gcr.io/<my-project>/<my-image>:<tag> -f Dockerfile .
 
 In this example we prepend the image name with `gcr.io/<my-project>/` so that it may be pushed to the Google Container Registry, in the next step.
@@ -88,6 +98,7 @@ Dockerhub. Below is an example of pushing the image to the Google Container Regi
 `here <https://cloud.google.com/container-registry/docs/pushing-and-pulling>`__.
 
 .. code-block:: sh
+
     docker push gcr.io/<my-project>/<my-image>:<tag>
 
 
