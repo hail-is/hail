@@ -40,8 +40,7 @@
     <tbody>
     {% for d in data %}
     <tr>
-        {% if request.query.get('file') %}
-            <td><a href="{{ base_path }}/name/{{ d['name'] }}?file={{">{{ d['name'] }}</a></td>
+        <td><a href="{{ base_path }}/name/{{ d['name'] }}?file={{">{{ d['name'] }}</a></td>
 <!--        <td><a href="{{ base_path }}/name?file={{ file_path }}">{{ d['name'] }}</a></td>-->
         <td>{{ d['failed'] }}</td>
         <td>{{ d['f-stat'] }}</td>
