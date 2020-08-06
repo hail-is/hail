@@ -118,12 +118,7 @@ async def lookup(request, userdata):  # pylint: disable=unused-argument
     file = data['file']
     benchmarks_context = get_benchmarks(file)
     params = {'filepath': file}
-    # url = requests.Request.url
-    # url = urllib.request.Request
-    url = urllib.request.Request.full_url
 
-    requests.get(url, params=params)
-    #request.get(url, params=params)
     return await render_template('benchmark', request, userdata, 'index.html', benchmarks_context)
 
 
