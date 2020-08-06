@@ -1827,20 +1827,57 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
     # Helper Functions
 
+    def chunk_ndarray(a, group_size):
+        n_groups = ceil(a.shape[0] / group_size)
+        groups = []
+        for i in range(n_groups):
+            start = i * group_size
+            if i == n_groups - 1:
+                end = a.shape[0]
+            else:
+                end = (i + 1) * group_size
+            groups.append(a[start:end, :])
+        return groups
+
+    def concatBlocked(A):
+        blocks = A.ndarray.collect()
+        big_mat = np.concatenate(blocks, axis=0)
+        ht = ndarray_to_table([big_mat])
+        return ht
+
+    def concatToNumpy(A):
+        blocks = A.ndarray.collect()
+        big_mat = np.concatenate(blocks, axis=0)
+        return big_mat
+
+    def ndarray_to_table(chunked_arr):
+        structs = [hl.struct(row_group_number = idx, ndarray = block)
+                   for idx, block in enumerate(chunked_arr)]
+        ht = hl.Table.parallelize(structs)
+        ht = ht.key_by('row_group_number')
+        return ht
+
     def block_product(left, right):
-        product = left @ right
+        product = left @ right     
         n_rows, n_cols = product.shape
         return hl.struct(
             shape=product.shape,
             block=hl.range(hl.int(n_rows * n_cols)).map(
                 lambda absolute: product[absolute % n_rows, absolute // n_rows]))
 
+    # takes in output of block_product
     def block_aggregate(prod):
         shape = prod.shape
         block = prod.block
         return hl.nd.from_column_major(
             hl.agg.array_sum(block),
             hl.agg.take(shape, 1)[0])
+
+    # returns flat array
+    def to_column_major(ndarray):
+        n_rows, n_cols = ndarray.shape
+        return hl.range(hl.int(n_rows * n_cols)).map(
+            lambda absolute: ndarray[absolute % n_rows, absolute // n_rows])
 
     def matmul_rowblocked_nonblocked(A, B):
         temp = A.annotate_globals(mat = B)
@@ -1858,70 +1895,39 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         nextG = matmul_colblocked_rowblocked(A, H)
         return matmul_rowblocked_nonblocked(A, nextG)
 
-    def ndarray_to_table(chunked_arr):
-        structs = [hl.struct(row_group_number = idx, ndarray = block)
-                   for idx, block in enumerate(chunked_arr)]
-        ht = hl.Table.parallelize(structs)
-        ht = ht.key_by('row_group_number')
-        return ht
-
-    def chunk_ndarray(a, group_size):
-        n_groups = a.shape[0] // group_size
-        groups = []
-        for i in range(a.shape[0] // group_size):
-            start = i * group_size
-            end = (i + 1) * group_size
-            groups.append(a[start:end, :])
-        return groups
-
-    def concatBlocked(A):
-        blocks = A.ndarray.collect()
-        big_mat = np.concatenate(blocks, axis=0)
-        return ndarray_to_table([big_mat])
-
-    def concatToNumpy(A):
-        blocks = A.ndarray.collect()
-        big_mat = np.concatenate(blocks, axis=0)
-        # block_shape = blocks[0].shape
-        # num_blocks = len(blocks)
-        # assert big_mat.shape == (num_blocks*block_shape[0], block_shape[1])
-        return big_mat
-
 
     # Algorithm
 
-    assert l > k
-    #assert n <= m
-
+    def hailBlanczos(A, G, m, n, k, l, q, block_size):
+    
+    # assert l > k
+    # assert n <= m
+    
     Hi = matmul_rowblocked_nonblocked(A, G)
     npH = concatToNumpy(Hi)
     for j in range(0, q):
         Hj = computeNextH(A, Hi)
         npH = np.concatenate((npH, concatToNumpy(Hj)), axis=1)
         Hi = Hj
-    #assert npH.shape == (m, (q+1)*l)
-
+    
     # perform QR decomposition on unblocked version of H
     Q, R = np.linalg.qr(npH)
-    #assert Q.shape == (m, (q+1)*l)
-    
     # block Q's rows into the same number of blocks that A has
-    num_blocks = A.count()
-    group_size_Q = Q.shape[0] // num_blocks
-    blocked_Q_table = ndarray_to_table(chunk_ndarray(Q, group_size_Q))
+    blocked_Q_table = ndarray_to_table(chunk_ndarray(Q, block_size))
     
     T = matmul_colblocked_rowblocked(blocked_Q_table, A)
-    assert T.shape == ((q+1)*l, n)
-
+    
     U, S, W = np.linalg.svd(T, full_matrices=False)
-
+    
+    sing_val = S[k]
+    
     V = matmul_rowblocked_nonblocked(blocked_Q_table, U)
     arr_V = concatToNumpy(V)
-
+    
     truncV = arr_V[:,:k]
     truncS = S[:k]
     truncW = W[:k,:]
-
+        
     return truncV, truncS, truncW
 
 
