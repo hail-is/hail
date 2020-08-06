@@ -6,7 +6,8 @@
 
 <form action="{{ base_path }}/lookup" method="get">
     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-    <input type="text" name="file" value="{{ request.GET.name }}"></input>
+    <input type="text" name="file"></input>
+<!--    <input type="text" name="file" value="{{ request.GET.name }}"></input>-->
     <input type="submit" value="lookup"></input>
 </form>
 
@@ -40,11 +41,11 @@
     <tbody>
     {% for d in data %}
     <tr>
-        {% if request.GET.name is not none %}
-        <td><a href="{{ base_path }}/name/{{ d['name'] }}?file={{ request.GET.name }}">{{ d['name'] }}</a></td>
-        {% else %}
+<!--        {% if request.GET.name is not none %}-->
+<!--        <td><a href="{{ base_path }}/name/{{ d['name'] }}?file={{ request.GET.name }}">{{ d['name'] }}</a></td>-->
+<!--        {% else %}-->
         <td><a href="{{ base_path }}/name/{{ d['name'] }}?file={{ default_filepath }}">{{ d['name'] }}</a></td>
-        {% endif %}
+<!--        {% endif %}-->
 <!--        <td><a href="{{ base_path }}/name?file={{ file_path }}">{{ d['name'] }}</a></td>-->
         <td>{{ d['failed'] }}</td>
         <td>{{ d['f-stat'] }}</td>
