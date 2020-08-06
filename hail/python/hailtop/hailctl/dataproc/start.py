@@ -16,7 +16,8 @@ DEFAULT_PROPERTIES = {
     'dataproc:dataproc.monitoring.stackdriver.enable': 'false'
 }
 
-# master machine type to memory map, used for setting spark.driver.memory property
+# leadre (master) machine type to memory map, used for setting
+# spark.driver.memory property
 MACHINE_MEM = {
     'n1-standard-1': 3.75,
     'n1-standard-2': 7.5,

@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from .job import Job  # pylint: disable=cyclic-import # noqa: F401
 
 
-class Backend:
+class Backend(abc.ABC):
     """
     Abstract class for backends.
     """

@@ -338,31 +338,55 @@ def calculate_new_intervals(ht, n, reference_genome):
     return intervals
 
 
-@typecheck(reference_genome=reference_genome_type)
-def default_exome_intervals(reference_genome) -> List[hl.utils.Interval]:
-    """create a list of locus intervals suitable for importing and merging exome gvcfs. As exomes
-    are small. One partition per chromosome works well here.
+@typecheck(reference_genome=reference_genome_type, interval_size=int)
+def calculate_even_genome_partitioning(reference_genome, interval_size) -> List[hl.utils.Interval]:
+    """create a list of locus intervals suitable for importing and merging gvcfs.
 
     Parameters
     ----------
-    reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
+    reference_genome: :obj:`str` or :class:`.ReferenceGenome`,
         Reference genome to use. NOTE: only GRCh37 and GRCh38 references
         are supported.
+    interval_size: :obj:`int` The ceiling and rough target of interval size.
+        Intervals will never be larger than this, but may be smaller.
 
     Returns
     -------
     :obj:`List[Interval]`
     """
+    def calc_parts(contig):
+        def locus_interval(start, end):
+            return hl.Interval(
+                start=hl.Locus(contig=contig, position=start, reference_genome=reference_genome),
+                end=hl.Locus(contig=contig, position=end, reference_genome=reference_genome),
+                includes_end=True)
+
+        contig_length = reference_genome.lengths[contig]
+        n_parts = math.ceil(contig_length / interval_size)
+        real_size = math.ceil(contig_length / n_parts)
+        n = 1
+        intervals = []
+        while n < contig_length:
+            start = n
+            end = min(n + real_size, contig_length)
+            intervals.append(locus_interval(start, end))
+            n = end + 1
+
+        return intervals
+
     if reference_genome.name == 'GRCh37':
         contigs = [f'{i}' for i in range(1, 23)] + ['X', 'Y', 'MT']
     elif reference_genome.name == 'GRCh38':
         contigs = [f'chr{i}' for i in range(1, 23)] + ['chrX', 'chrY', 'chrM']
     else:
         raise ValueError(
-            f"Invalid reference genome '{reference_genome.name}', only 'GRCh37' and 'GRCh38' are supported")
-    return [hl.Interval(start=hl.Locus(contig=contig, position=1, reference_genome=reference_genome),
-                        end=hl.Locus.parse(f'{contig}:END', reference_genome=reference_genome),
-                        includes_end=True) for contig in contigs]
+            f"Unsupported reference genome '{reference_genome.name}', "
+            "only 'GRCh37' and 'GRCh38' are supported")
+
+    intervals = []
+    for ctg in contigs:
+        intervals.extend(calc_parts(ctg))
+    return intervals
 
 
 # END OF VCF COMBINER LIBRARY, BEGINNING OF BEST PRACTICES SCRIPT #
@@ -401,6 +425,13 @@ class CombinerConfig(object):
     default_branch_factor = 100
     default_batch_size = 100
     default_target_records = 30_000
+
+    # These are used to calculate intervals for reading GVCFs in the combiner
+    # The genome interval size results in 2568 partions for GRCh38. The exome
+    # interval size assumes that they are around 2% the size of a genome and
+    # result in 65 partitions for GRCh38.
+    default_genome_interval_size = 1_200_000
+    default_exome_interval_size = 60_000_000
 
     def __init__(self,
                  branch_factor: int = default_branch_factor,
@@ -480,6 +511,8 @@ def run_combiner(sample_paths: List[str],
                  branch_factor: int = CombinerConfig.default_branch_factor,
                  batch_size: int = CombinerConfig.default_batch_size,
                  target_records: int = CombinerConfig.default_target_records,
+                 import_interval_size: Optional[int] = None,
+                 is_genomes: bool = False,
                  overwrite: bool = False,
                  reference_genome: str = 'default',
                  contig_recoding: Optional[Dict[str, str]] = None,
@@ -506,6 +539,13 @@ def run_combiner(sample_paths: List[str],
         Combiner batch size.
     target_records : :obj:`int`
         Target records per partition in each combiner phase after the first.
+    import_interval_size : :obj:`int` or None
+        The target interval size to partition the reference into intervals for
+        importing GVCFs.
+    is_genomes : :obj:`bool`
+        The input GVCFs are genomes, if this is false, they are assumed to
+        be exomes. If `import_interval_size` is not None, this parameter is
+        ignored.
     overwrite : :obj:`bool`
         Overwrite output file, if it exists.
     reference_genome : :obj:`str`
@@ -528,8 +568,10 @@ def run_combiner(sample_paths: List[str],
         assert sample_names is not None
         assert len(sample_names) == len(sample_paths)
 
-    # FIXME: this should be hl.default_reference().even_intervals_contig_boundary
-    intervals = intervals or default_exome_intervals(reference_genome)
+    if import_interval_size is None:
+        import_interval_size = (CombinerConfig.default_genome_interval_size if is_genomes else
+                                CombinerConfig.default_exome_interval_size)
+    intervals = intervals or calculate_even_genome_partitioning(reference_genome, import_interval_size)
 
     config = CombinerConfig(branch_factor=branch_factor,
                             batch_size=batch_size,

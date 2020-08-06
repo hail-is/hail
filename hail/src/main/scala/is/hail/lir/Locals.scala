@@ -11,6 +11,15 @@ class Locals(
 
   def apply(i: Int): Local = locals(i)
 
+  def getIndex(l: Local): Option[Int] = {
+    l match {
+      case p: Parameter =>
+        Some(p.i)
+      case _ =>
+        localIdx.get(l)
+    }
+  }
+
   def index(l: Local): Int = {
     l match {
       case p: Parameter =>

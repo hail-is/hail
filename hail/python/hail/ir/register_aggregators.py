@@ -73,3 +73,6 @@ def register_aggregators():
                               'supportsInt32: bool,'
                               'supportsInt64: bool,'
                               'supportsFloat64: bool}'))
+
+    numeric_ndarray_type = dtype("ndarray<?T:numeric, ?nat>")
+    register_aggregator('NDArraySum', (), (numeric_ndarray_type,), numeric_ndarray_type)

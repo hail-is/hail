@@ -181,11 +181,13 @@ object Emit {
     }
 
     mn.instructions.add(start)
+
     emitBlock(m.entry)
     for (b <- blocks) {
       if (b ne m.entry)
         emitBlock(b)
     }
+
     mn.instructions.add(end)
 
     mn.maxStack = maxStack

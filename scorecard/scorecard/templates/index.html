@@ -73,10 +73,10 @@
         <th>reviewer</th>
       </thead>
       <tbody>
-        {% for component, user in component_user.items() %}
+        {% for team, member in team_member.items() %}
         <tr>
-          <td>{{ component }}</td>
-          <td><a href="{{ base_path }}/users/{{ user }}">{{ user }}</a></td>
+          <td>{{ team }}</td>
+          <td><a href="{{ base_path }}/users/{{ member }}">{{ member }}</a></td>
         </tr>
         {% endfor %}
       </tbody>

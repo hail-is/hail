@@ -185,13 +185,11 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
     appF.invokeCode(region)
   }
 
-  def writeToSRVB(srvb: StagedRegionValueBuilder): Code[Unit] = {
+  def writeToSRVB(mb: EmitMethodBuilder[_], srvb: StagedRegionValueBuilder): Code[Unit] = {
     assert(srvb.typ.fundamentalType.isOfType(bufferType.fundamentalType), s"srvb: ${srvb.typ}, buf: ${bufferType.fundamentalType}")
-    val writeF = cb.genEmitMethod("blockLinkedListToSRVB", FastIndexedSeq[ParamType](), typeInfo[Unit])
-    writeF.emit {
       Code(
         srvb.start(totalCount, init = true),
-        foreach(writeF) { elt =>
+        foreach(mb) { elt =>
           Code(
             elt.setup,
             elt.m.mux(
@@ -199,8 +197,6 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
               srvb.addWithDeepCopy(elemType, elt.value)),
             srvb.advance())
         })
-    }
-    writeF.invokeCode()
   }
 
   def serialize(region: Code[Region], outputBuffer: Code[OutputBuffer]): Code[Unit] = {

@@ -89,7 +89,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
       fb.emit(Code(
         rField := rArg,
         sbll.load(ptr),
-        sbll.writeToSRVB(srvb),
+        sbll.writeToSRVB(fb.emb, srvb),
         srvb.end()))
 
       val f = fb.result()()
