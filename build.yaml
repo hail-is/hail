@@ -1832,7 +1832,7 @@ steps:
  - kind: runImage
    name: test_hailtop_batch
    image:
-     valueFrom: service_base_image.image
+     valueFrom: hail_run_image.image
    script: |
      set -ex
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
@@ -1871,7 +1871,7 @@ steps:
  - kind: runImage
    name: test_batch_docs
    image:
-     valueFrom: service_base_image.image
+    valueFrom: hail_run_image.image
    script: |
      set -ex
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
