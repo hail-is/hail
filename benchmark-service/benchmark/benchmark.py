@@ -84,8 +84,9 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
             i += 1
         return x_list
 
+    x_list_test = get_x_list()  # This is a test
     try:
-        fig = px.scatter(x=get_x_list(), y=name_data['times'])  # list(range(0, len(name_data['times'])))
+        fig = px.scatter(x=x_list_test, y=name_data['times'])  # list(range(0, len(name_data['times'])))
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     except Exception:
         message = 'could not find name'
