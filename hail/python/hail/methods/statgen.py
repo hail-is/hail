@@ -1900,35 +1900,35 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
     def hailBlanczos(A, G, m, n, k, l, q, block_size):
     
-    # assert l > k
-    # assert n <= m
-    
-    Hi = matmul_rowblocked_nonblocked(A, G)
-    npH = concatToNumpy(Hi)
-    for j in range(0, q):
-        Hj = computeNextH(A, Hi)
-        npH = np.concatenate((npH, concatToNumpy(Hj)), axis=1)
-        Hi = Hj
-    
-    # perform QR decomposition on unblocked version of H
-    Q, R = np.linalg.qr(npH)
-    # block Q's rows into the same number of blocks that A has
-    blocked_Q_table = ndarray_to_table(chunk_ndarray(Q, block_size))
-    
-    T = matmul_colblocked_rowblocked(blocked_Q_table, A)
-    
-    U, S, W = np.linalg.svd(T, full_matrices=False)
-    
-    sing_val = S[k]
-    
-    V = matmul_rowblocked_nonblocked(blocked_Q_table, U)
-    arr_V = concatToNumpy(V)
-    
-    truncV = arr_V[:,:k]
-    truncS = S[:k]
-    truncW = W[:k,:]
+        # assert l > k
+        # assert n <= m
         
-    return truncV, truncS, truncW
+        Hi = matmul_rowblocked_nonblocked(A, G)
+        npH = concatToNumpy(Hi)
+        for j in range(0, q):
+            Hj = computeNextH(A, Hi)
+            npH = np.concatenate((npH, concatToNumpy(Hj)), axis=1)
+            Hi = Hj
+        
+        # perform QR decomposition on unblocked version of H
+        Q, R = np.linalg.qr(npH)
+        # block Q's rows into the same number of blocks that A has
+        blocked_Q_table = ndarray_to_table(chunk_ndarray(Q, block_size))
+        
+        T = matmul_colblocked_rowblocked(blocked_Q_table, A)
+        
+        U, S, W = np.linalg.svd(T, full_matrices=False)
+        
+        sing_val = S[k]
+        
+        V = matmul_rowblocked_nonblocked(blocked_Q_table, U)
+        arr_V = concatToNumpy(V)
+        
+        truncV = arr_V[:,:k]
+        truncS = S[:k]
+        truncW = W[:k,:]
+            
+        return truncV, truncS, truncW
 
 
 @typecheck(call_expr=expr_call,
