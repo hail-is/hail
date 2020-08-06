@@ -52,14 +52,17 @@ def test_1kg_chr22():
         assert n == true_n, sample
         assert n_variant == true_n_variant, sample
 
+def default_exome_intervals(rg):
+    return vc.calculate_even_genome_partitioning(rg, 2 ** 32)  # 4 billion, larger than any contig
+
 def test_gvcf_1k_same_as_import_vcf():
     path = os.path.join(resource('gvcfs'), '1kg_chr22', f'HG00308.hg38.g.vcf.gz')
-    [mt] = hl.import_gvcfs([path], vc.default_exome_intervals('GRCh38'), reference_genome='GRCh38')
+    [mt] = hl.import_gvcfs([path], default_exome_intervals('GRCh38'), reference_genome='GRCh38')
     assert mt._same(hl.import_vcf(path, force_bgz=True, reference_genome='GRCh38').key_rows_by('locus'))
 
 def test_gvcf_subset_same_as_import_vcf():
     path = os.path.join(resource('gvcfs'), 'subset', f'HG00187.hg38.g.vcf.gz')
-    [mt] = hl.import_gvcfs([path], vc.default_exome_intervals('GRCh38'), reference_genome='GRCh38')
+    [mt] = hl.import_gvcfs([path], default_exome_intervals('GRCh38'), reference_genome='GRCh38')
     assert mt._same(hl.import_vcf(path, force_bgz=True, reference_genome='GRCh38').key_rows_by('locus'))
 
 def test_key_by_locus_alleles():
