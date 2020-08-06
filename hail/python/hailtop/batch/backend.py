@@ -37,7 +37,6 @@ class Backend(abc.ABC):
         return
 
     # pylint: disable=R0201
-    @abc.abstractmethod
     def close(self):
         """
         Close a Hail Batch backend.
