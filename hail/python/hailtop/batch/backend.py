@@ -36,6 +36,7 @@ class Backend:
         """
         return
 
+    # pylint: disable=R0201
     @abc.abstractmethod
     def close(self):
         """
