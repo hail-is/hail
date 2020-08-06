@@ -35,7 +35,7 @@ object CompileAndEvaluate {
       FastIndexedSeq(),
       FastIndexedSeq(classInfo[Region]), LongInfo,
       MakeTuple.ordered(FastSeq(ir)),
-      print = None, optimize = false))
+      print = None, optimize = optimize))
 
     val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(0, ctx.r))
     val resultAddress = ctx.timer.time("RunCompiledFunction")(fRunnable(ctx.r))
