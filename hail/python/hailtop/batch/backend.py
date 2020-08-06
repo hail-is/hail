@@ -42,7 +42,7 @@ class Backend:
         """
         Close a Hail Batch backend.
         """
-        pass
+        return
 
 
 class LocalBackend(Backend):
