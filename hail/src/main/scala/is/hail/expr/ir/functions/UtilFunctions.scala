@@ -129,7 +129,7 @@ object UtilFunctions extends RegistryFunctions {
       case(_: Type, _: PType, _: PType, _: PType, _: PType) => PBoolean()
     }) {
       case (er, rt, (lT, l), (rT, r), (tolT, tolerance), (absT, absolute)) =>
-        assert(lT.virtualType == rT.virtualType)
+        assert(lT.virtualType == rT.virtualType, s"\n  lt=${lT.virtualType}\n  rt=${rT.virtualType}")
         val lb = boxArg(er, lT)(l)
         val rb = boxArg(er, rT)(r)
         er.mb.getType(lT.virtualType).invoke[Any, Any, Double, Boolean, Boolean]("valuesSimilar", lb, rb, tolerance, absolute)

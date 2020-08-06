@@ -57,6 +57,8 @@ abstract class PCode { self =>
 
   def asInterval: PIntervalCode = asInstanceOf[PIntervalCode]
 
+  def asNDArray: PNDArrayCode = asInstanceOf[PNDArrayCode]
+
   def asLocus: PLocusCode = asInstanceOf[PLocusCode]
 
   def asCall: PCallCode = asInstanceOf[PCallCode]

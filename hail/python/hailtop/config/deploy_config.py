@@ -1,10 +1,14 @@
+from typing import List, Tuple
+import aiohttp
+import random
 import os
 import json
 import logging
 from aiohttp import web
-from hailtop.utils import first_extant_file
+from ..utils import first_extant_file
+from ..tls import get_context_specific_ssl_client_session
 
-log = logging.getLogger('gear')
+log = logging.getLogger('deploy_config')
 
 
 class DeployConfig:
@@ -20,8 +24,10 @@ class DeployConfig:
             os.path.expanduser('~/.hail/deploy-config.json'),
             '/deploy-config/deploy-config.json')
         if config_file is not None:
+            log.info(f'deploy config file found at {config_file}')
             with open(config_file, 'r') as f:
                 config = json.loads(f.read())
+            log.info(f'deploy config location: {config["location"]}')
         else:
             log.info(f'deploy config file not found: {config_file}')
             config = {
@@ -103,6 +109,25 @@ class DeployConfig:
         root_app.add_subapp(base_path, app)
 
         return root_app
+
+    async def addresses(self, service: str) -> List[Tuple[str, int]]:
+        from ..auth import service_auth_headers  # pylint: disable=cyclic-import,import-outside-toplevel
+        namespace = self.service_ns(service)
+        headers = service_auth_headers(self, namespace)
+        async with get_context_specific_ssl_client_session(
+                raise_for_status=True,
+                timeout=aiohttp.ClientTimeout(total=5),
+                headers=headers) as session:
+            async with await session.get(
+                    self.url('address', f'/api/{service}')) as resp:
+                dicts = await resp.json()
+                return [(d['address'], d['port']) for d in dicts]
+
+    async def address(self, service: str) -> Tuple[str, int]:
+        service_addresses = await self.addresses(service)
+        n = len(service_addresses)
+        assert n > 0
+        return service_addresses[random.randrange(0, n)]
 
 
 deploy_config = None

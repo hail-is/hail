@@ -76,7 +76,7 @@ public final class Memory {
             unsafe.copyMemory(src, Unsafe.ARRAY_BYTE_BASE_OFFSET + srcOff, dst, Unsafe.ARRAY_DOUBLE_BASE_OFFSET + dstOff * 8, n * 8);
         }
     }
-    
+
     public static void memcpy(long dst, byte[] src, long srcOff, long n) {
         copyFromArray(dst, src, srcOff, n);
     }

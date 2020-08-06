@@ -601,7 +601,7 @@ class Table(ExprContainer):
             Table with new global field(s).
         """
         caller = 'Table.annotate_globals'
-        check_annotate_exprs(caller, named_exprs, self._global_indices)
+        check_annotate_exprs(caller, named_exprs, self._global_indices, set())
         return self._select_globals('Table.annotate_globals', self.globals.annotate(**named_exprs))
 
     def select_globals(self, *exprs, **named_exprs) -> 'Table':
@@ -675,7 +675,7 @@ class Table(ExprContainer):
         :class:`.Table`
         """
         caller = 'Table.transmute_globals'
-        check_annotate_exprs(caller, named_exprs, self._global_indices)
+        check_annotate_exprs(caller, named_exprs, self._global_indices, set())
         fields_referenced = extract_refs_by_indices(named_exprs.values(), self._global_indices) - set(named_exprs.keys())
 
         return self._select_globals(caller,
@@ -742,7 +742,7 @@ class Table(ExprContainer):
             Table with transmuted fields.
         """
         caller = "Table.transmute"
-        check_annotate_exprs(caller, named_exprs, self._row_indices)
+        check_annotate_exprs(caller, named_exprs, self._row_indices, set())
         fields_referenced = extract_refs_by_indices(named_exprs.values(), self._row_indices) - set(named_exprs.keys())
         fields_referenced -= set(self.key)
 
@@ -775,7 +775,7 @@ class Table(ExprContainer):
             Table with new fields.
         """
         caller = "Table.annotate"
-        check_annotate_exprs(caller, named_exprs, self._row_indices)
+        check_annotate_exprs(caller, named_exprs, self._row_indices, set())
         return self._select(caller, self.row.annotate(**named_exprs))
 
     @typecheck_method(expr=expr_bool,
@@ -3482,7 +3482,7 @@ class Table(ExprContainer):
         body = f(expr)
         result_t = body.dtype
         if any(k not in result_t.element_type for k in self.key):
-            raise ValueError(f'Table._map_partitions must preserve key fields')
+            raise ValueError('Table._map_partitions must preserve key fields')
 
         body_ir = ir.Let('global', ir.Ref(globals_uid), ir.ToStream(body._ir))
         return Table(ir.TableMapPartitions(self._tir, globals_uid, rows_uid, body_ir))
