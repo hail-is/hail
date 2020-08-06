@@ -95,7 +95,7 @@ Pushing Images
 --------------
 
 To use an image with Batch, you need to upload it somewhere Batch can read it: either the `Google Container Registry <https://cloud.google.com/container-registry/docs/>`__ or
-Dockerhub. Below is an example of pushing the image to the Google Container Registry. For more information about pulling and pushing images for the Google Container Registry, see
+Docker Hub. Below is an example of pushing the image to the Google Container Registry. For more information about pulling and pushing images for the Google Container Registry, see
 `here <https://cloud.google.com/container-registry/docs/pushing-and-pulling>`__.
 
 .. code-block:: sh
