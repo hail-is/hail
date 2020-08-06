@@ -3617,7 +3617,7 @@ class NDArrayExpression(Expression):
                         stop = hl.cond(step > 0, dlen, to_expr(-1, tint64))
 
                     slices.append(hl.tuple((start, stop, step)))
-                else:  # Not a slice, just an int index
+                else:
                     adjusted_index = hl.if_else(s < 0, s + dlen, s)
                     checked_int = hl.case().when((adjusted_index < dlen) & (adjusted_index >= 0), adjusted_index).or_error(
                         hl.str("Index ") + hl.str(s) + hl.str(f" is out of bounds for axis {i} with size ") + hl.str(dlen)
