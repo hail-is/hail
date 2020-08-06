@@ -123,11 +123,13 @@ object PCode {
       new PCanonicalNDArrayCode(pt, coerce[Long](code))
     case pt: PCanonicalStream =>
       throw new UnsupportedOperationException(s"Can't PCode.apply unrealizable PType: $pt")
+    case PVoid =>
+      throw new UnsupportedOperationException(s"Can't PCode.apply unrealizable PType: $pt")
     case _ =>
       new PPrimitiveCode(pt, code)
   }
 
-  def _empty: PCode = PCode(PVoid, Code._empty)
+  def _empty: PCode = PVoidCode
 }
 
 object PSettable {

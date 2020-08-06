@@ -476,7 +476,7 @@ class Emit[C](
 
         val argVars = args.zip(rvAgg.initOpTypes).map { case (a, t) =>
           emit(a, container = container.flatMap(_.nested(i, init = true)))
-            .map(t.copyFromPValue(mb, region, _))
+            .map(_.castTo(mb, region, t))
         }.toArray
 
         cb += sc.newState(i)
@@ -489,7 +489,7 @@ class Emit[C](
 
         val argVars = args.zip(rvAgg.seqOpTypes).map { case (a, t) =>
           emit(a, container = container.flatMap(_.nested(i, init = false)))
-            .map(t.copyFromPValue(mb, region, _))
+            .map(_.castTo(mb, region, t))
         }.toArray
         rvAgg.seqOp(cb, sc.states(i), argVars)
 
@@ -1020,7 +1020,7 @@ class Emit[C](
             Code(ec.setup,
               ec.m.mux(
                 f(i + 1),
-                Code(mout := false, out := pt.copyFromPValue(mb, region, ec.pv))))
+                Code(mout := false, out := ec.pv.castTo(mb, region, pt))))
           } else
             mout := true
         }
@@ -1048,12 +1048,12 @@ class Emit[C](
                 mout := codeCnsq.m,
                 mout.mux(
                   Code._empty,
-                  out := ir.pType.copyFromPValue(mb, region, codeCnsq.pv))),
+                  out := codeCnsq.pv.castTo(mb, region, ir.pType))),
               Code(codeAltr.setup,
                 mout := codeAltr.m,
                 mout.mux(
                   Code._empty,
-                  out := ir.pType.copyFromPValue(mb, region, codeAltr.pv))))))
+                  out := codeAltr.pv.castTo(mb, region, ir.pType))))))
 
         EmitCode(setup, mout, out.load())
 
@@ -1347,12 +1347,12 @@ class Emit[C](
 
             val codeB = emit(body, env = bodyenv)
             Code(xElt := elt,
-              tmpAcc := codeB.map(v => accType.copyFromPValue(mb, region, PCode(body.pType, codeB.v))),
+              tmpAcc := codeB.map(_.castTo(mb, region, accType)),
               xAcc := tmpAcc
             )
           }
 
-          val codeZ = emit(zero).map(accType.copyFromPValue(mb, region, _))
+          val codeZ = emit(zero).map(_.castTo(mb, region, accType))
           def retTT(): Code[Ctrl] =
             ret(COption.fromEmitCode(xAcc.get))
 
