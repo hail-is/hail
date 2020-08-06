@@ -12,6 +12,7 @@ import json
 import re
 import plotly
 import plotly.express as px
+import requests
 
 configure_logging()
 router = web.RouteTableDef()
@@ -102,7 +103,9 @@ async def lookup(request, userdata):  # pylint: disable=unused-argument
     file = data['file']
     benchmarks_context = get_benchmarks(file)
     params = {'filepath': file}
-    request.get(file, params=params)
+    url = requests.Request.url
+    requests.get(url, params=params)
+    #request.get(url, params=params)
     return await render_template('benchmark', request, userdata, 'index.html', benchmarks_context)
 
 
