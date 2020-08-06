@@ -1828,7 +1828,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     # Helper Functions
 
     def chunk_ndarray(a, group_size):
-        n_groups = ceil(a.shape[0] / group_size)
+        n_groups = math.ceil(a.shape[0] / group_size)
         groups = []
         for i in range(n_groups):
             start = i * group_size
@@ -1898,7 +1898,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
     # Algorithm
 
-    def hailBlanczos(A, G, m, n, k, l, q, block_size):
+    def hailBlanczos(A, G, k, l, q, block_size):
     
         # assert l > k
         # assert n <= m
@@ -1919,8 +1919,6 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         
         U, S, W = np.linalg.svd(T, full_matrices=False)
         
-        sing_val = S[k]
-        
         V = matmul_rowblocked_nonblocked(blocked_Q_table, U)
         arr_V = concatToNumpy(V)
         
@@ -1929,6 +1927,8 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         truncW = W[:k,:]
             
         return truncV, truncS, truncW
+
+    return hailBlanczos(A, G, k, l, q, block_size)
 
 
 @typecheck(call_expr=expr_call,

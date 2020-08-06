@@ -1239,6 +1239,11 @@ class Tests(unittest.TestCase):
                            (mt.GT.n_alt_alleles() - mean) / hl.sqrt(mean * (2 - mean) * n_rows / 2),
                            0)
 
+        # compute PCA with numpy
+        def normalize(a):
+            ms = np.mean(a, axis=0, keepdims=True)
+            return np.divide(np.subtract(a, ms), np.sqrt(2.0 * np.multiply(ms / 2.0, 1 - ms / 2.0) * a.shape[1]))
+
         hail_u, hail_s, hail_v = hl._blanczos_pca(hl.bind(make_expr, mt.AC / mt.n_called), k=3, compute_loadings=True)
 
         g = np.pad(np.diag([1.0, 1, 2]), ((0, 1), (0, 0)), mode='constant')
