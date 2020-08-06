@@ -1440,10 +1440,10 @@ def test_join_distinct_preserves_count():
 def test_write_table_containing_ndarray():
     t = hl.utils.range_table(2)
     t = t.annotate(n = hl.nd.arange(t.idx))
-    f = "foo.ht"
+    f = "test_write_table_containing_ndarray.ht"
     #t.write(f)
     t2 = hl.read_table(f)
-    print(t2._tir)
+    # print(t2._tir)
     #t.show()
     #t2.show()
     assert t._same(t2)

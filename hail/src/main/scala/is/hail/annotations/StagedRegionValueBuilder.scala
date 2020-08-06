@@ -10,13 +10,13 @@ import is.hail.utils._
 
 object StagedRegionValueBuilder {
   def deepCopy(cb: EmitClassBuilder[_], region: Code[Region], typ: PType, value: Code[_], dest: Code[Long]): Code[Unit] = {
-    val t = typ match {
-      case t: PNDArray => {
-        assert(false, "Deep copying ndarray")
-        t.representation.fundamentalType
-      }
-      case t => t.fundamentalType
-    }
+//    val t = typ match {
+//      case t: PNDArray => {
+//        t.representation.fundamentalType
+//      }
+//      case t => t.fundamentalType
+//    }
+    val t = typ
     val valueTI = ir.typeToTypeInfo(t)
     val mb = cb.getOrGenEmitMethod("deepCopy", ("deepCopy", t),
       FastIndexedSeq[ParamType](classInfo[Region], valueTI, LongInfo), UnitInfo) { mb =>

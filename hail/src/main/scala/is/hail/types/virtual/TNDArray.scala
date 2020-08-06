@@ -113,4 +113,12 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
     ("strides", TTuple(Array.fill(nDims)(TInt64): _*)),
     ("data", TArray(elementType))
   )
+
+  def validateData(r: Row): Unit = {
+    val shape = r.getAs[Row](0)
+    val strides = r.getAs[Row](1)
+    val data = r.getAs[IndexedSeq[_]](2)
+
+    assert(data.length == shape.toSeq.foldLeft(1L) { case (acc, a) => acc * a.asInstanceOf[Long]}, s"validation error! shape=${shape}, data=${data}")
+  }
 }

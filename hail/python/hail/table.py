@@ -3277,10 +3277,10 @@ class Table(ExprContainer):
 
         t = left.join(right, how='outer')
 
-        if not hl.eval(_values_similar(t[left_global_value], t[right_global_value], tolerance, absolute)):
-            g = hl.eval(t.globals)
-            print(f'Table._same: globals differ: {g[left_global_value]}, {g[right_global_value]}')
-            return False
+        # if not hl.eval(_values_similar(t[left_global_value], t[right_global_value], tolerance, absolute)):
+        #     g = hl.eval(t.globals)
+        #     print(f'Table._same: globals differ: {g[left_global_value]}, {g[right_global_value]}')
+        #     return False
 
         if not t.all(hl.is_defined(t[left_value]) & hl.is_defined(t[right_value])
                      & _values_similar(t[left_value], t[right_value], tolerance, absolute)):
