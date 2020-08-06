@@ -1,10 +1,11 @@
-import hailtop.batch as hb
-import argparse
 from hail.utils import hadoop_open as hopen
 from hail.utils import hadoop_exists as hexists
+from hailtop.batch import Resource, Batch, LocalBackend
 from collections import namedtuple
 import sys
 import shlex
+from argparse import Namespace, ArgumentParser
+from typing import Set
 
 BatchArgs = namedtuple("BatchArgs", ['cores', 'memory', 'storage'])
 input_file_args = ["bgen", "bed", "pgen", "sample", "keep", "extract", "exclude", "remove",
@@ -26,7 +27,7 @@ def _error(msg):
     sys.exit(1)
 
 
-def add_shared_args(parser: argparse.ArgumentParser):
+def add_shared_args(parser: ArgumentParser):
     # Batch knows in advance which step it is, so not required
     parser.add_argument('--step', required=False)
     parser.add_argument('--phenoFile', required=True)
@@ -66,12 +67,12 @@ def add_shared_args(parser: argparse.ArgumentParser):
     parser.add_argument('--threads', required=False, default=2)
 
 
-def add_step1_args(parser: argparse.ArgumentParser):
+def add_step1_args(parser: ArgumentParser):
     parser.add_argument('--extract', required=False)
     parser.add_argument('--exclude', required=False)
 
 
-def add_step2_args(parser: argparse.ArgumentParser):
+def add_step2_args(parser: ArgumentParser):
     # Batch specifies private folders that regenie doesn't know, so --pred is ignored.
     parser.add_argument('--pred', required=False)
     parser.add_argument('--ignore-pred', required=False, action='store_true')
@@ -80,8 +81,8 @@ def add_step2_args(parser: argparse.ArgumentParser):
     parser.add_argument('--chr', required=False)
 
 
-def read_step_args(path_or_str, step: int):
-    parser = argparse.ArgumentParser()
+def read_step_args(path_or_str: str, step: int):
+    parser = ArgumentParser()
 
     add_shared_args(parser)
 
@@ -109,13 +110,13 @@ def read_step_args(path_or_str, step: int):
     return r
 
 
-def get_phenos(step_args: argparse.Namespace):
+def get_phenos(step_args: Namespace):
     phenos_to_keep = {}
-    if step_args.phenoCol is not None and len(step_args.phenoCol):
+    if step_args.phenoCol:
         for pheno in step_args.phenoCol:
             phenos_to_keep[pheno] = True
 
-    if step_args.phenoColList is not None:
+    if step_args.phenoColList:
         for pheno in step_args.phenoColList.split(","):
             phenos_to_keep[pheno] = True
 
@@ -133,38 +134,43 @@ def get_phenos(step_args: argparse.Namespace):
     return phenos_final
 
 
-def make_input_resources(batch, step_args: argparse.Namespace):
-    add = {}
+def prepare_step_cmd(batch: Batch, step_args: Namespace, job_output: Resource, skip: Set[str] = None):
+    cmd = []
     for name, val in vars(step_args).items():
-        if name not in input_file_args or val is None:
+        if val is None or val is False or (skip is not None and name in skip):
             continue
 
-        if name in from_underscore:
-            name = from_underscore[name]
+        name = from_underscore.get(name, name)
 
-        if name == "bed":
-            prefix = step_args.bed
-            add[name] = batch.read_input_group(
-                bed=f"{prefix}.bed", bim=f"{prefix}.bim", fam=f"{prefix}.fam")
-        elif name == "pgen":
-            prefix = step_args.pgen
-            add[name] = batch.read_input_group(
-                pgen=f"{prefix}.pgen", pvar=f"{prefix}.pvar", psam=f"{prefix}.psam")
+        if name in input_file_args:
+            if name == "bed":
+                res = batch.read_input_group(bed=f"{val}.bed", bim=f"{val}.bim", fam=f"{val}.fam")
+            elif name == "pgen":
+                res = batch.read_input_group(pgen=f"{val}.pgen", pvar=f"{val}.pvar", psam=f"{val}.psam")
+            else:
+                res = batch.read_input(val)
+
+            cmd.append(f"--{name} {res}")
+        elif name == "out":
+            cmd.append(f"--{name} {job_output}")
+        elif isinstance(val, bool):
+            cmd.append(f"--{name}")
+        elif name == "phenoCol":
+            for pheno in val:
+                cmd.append(f"--{name} {pheno}")
         else:
-            add[name] = batch.read_input(val)
+            cmd.append(f"--{name} {val}")
 
-    return add
+    return ' '.join(cmd).strip()
 
 
-def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_args: argparse.Namespace):
+def prepare_jobs(batch, args: BatchArgs, step1_args: Namespace, step2_args: Namespace):
     regenie_img = 'hailgenetics/regenie:9e7074f695e2b96bbb5af9d95f112d674c3260cd'
     j1 = batch.new_job(name='run-regenie-step1')
     j1.image(regenie_img)
     j1.cpu(args.cores)
     j1.memory(args.memory)
     j1.storage(args.storage)
-
-    in_step1 = make_input_resources(batch, step1_args)
 
     phenos = get_phenos(step1_args)
     nphenos = len(phenos)
@@ -182,28 +188,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
 
     j1.declare_resource_group(**{step1_output_prefix: s1out})
 
-    cmd1 = []
-    for name, val in vars(step1_args).items():
-        if val is None or val is False or name == "step":
-            continue
-
-        if name in from_underscore:
-            name = from_underscore[name]
-
-        if name in input_file_args:
-            cmd1.append(f"--{name} {in_step1[name]}")
-        elif name == "out":
-            cmd1.append(f"--{name} {j1[step1_output_prefix]}")
-        elif isinstance(val, bool):
-            cmd1.append(f"--{name}")
-        elif name == "phenoCol":
-            for pheno in val:
-                cmd1.append(f"--{name} {pheno}")
-        else:
-            cmd1.append(f"--{name} {val}")
-
-    cmd1 = f"--step 1 {' '.join(cmd1)}"
-
+    cmd1 = prepare_step_cmd(batch, step1_args, j1[step1_output_prefix])
     j1.command(f"regenie {cmd1}")
 
     phenos = get_phenos(step2_args)
@@ -227,32 +212,10 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
 
     j2.declare_resource_group(**{step2_output_prefix: s2out})
 
-    in_step2 = make_input_resources(batch, step2_args)
-
-    cmd2 = []
-    for name, val in vars(step2_args).items():
-        if val is None or val is False or name == "step" or name == "pred":
-            continue
-
-        if name in from_underscore:
-            name = from_underscore[name]
-
-        if name in input_file_args:
-            cmd2.append(f"--{name} {in_step2[name]}")
-        elif name == "out":
-            cmd2.append(f"--{name} {j2[step2_output_prefix]}")
-        elif isinstance(val, bool):
-            cmd2.append(f"--{name}")
-        elif name == "phenoCol":
-            for pheno in val:
-                cmd2.append(f"--{name} {pheno}")
-        else:
-            cmd2.append(f"--{name} {val}")
+    cmd2 = prepare_step_cmd(batch, step2_args, j2[step2_output_prefix], skip=set(['pred']))
 
     if not step2_args.ignore_pred:
-        cmd2.append(f"--pred {j1[step1_output_prefix]['pred_list']}")
-
-    cmd2 = f"--step 2 {' '.join(cmd2)}"
+        cmd2 = (f"{cmd2} --pred {j1[step1_output_prefix]['pred_list']}")
 
     j2.command(f"regenie {cmd2}")
 
@@ -260,12 +223,12 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: argparse.Namespace, step2_a
 
 
 def run(args):
-    is_local = True if args.local or args.demo else False
+    is_local = args.local or args.demo
 
     if not is_local:
         _error("Currently only support LocalBackend (--local)")
 
-    backend = hb.LocalBackend()
+    backend = LocalBackend()
     run_opts = {}
 
     if args.demo:
@@ -283,20 +246,20 @@ def run(args):
 
     batch_args = BatchArgs(cores=args.cores, memory=args.memory, storage=args.storage)
 
-    batch = hb.Batch(backend=backend, name='regenie')
+    batch = Batch(backend=backend, name='regenie')
 
-    j1, j2, j2_out_key = prepare_jobs(batch, batch_args, step1_args, step2_args)
+    _, j2, j2_out_key = prepare_jobs(batch, batch_args, step1_args, step2_args)
 
     batch.write_output(j2[j2_out_key], args.out)
     batch.run(**run_opts)
 
 
 def parse_input_args(args: list):
-    parser = argparse.ArgumentParser()
+    parser = ArgumentParser()
     parser.add_argument('--local', required=False, action="store_true")
     parser.add_argument('--demo', required=False, action="store_true")
     parser.add_argument('--out', required=True)
-    # FIXME: replace with per-step args
+    # FIXME: replace with per-step resources
     parser.add_argument('--cores', required=False, default=2)
     parser.add_argument('--memory', required=False, default="7Gi")
     parser.add_argument('--storage', required=False, default="1Gi")
