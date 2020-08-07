@@ -207,7 +207,7 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: Namespace, step2_args: Name
             out = f"{{root}}_{pheno}.regenie"
             s2out[f"{pheno}.regenie"] = out
     else:
-        s2out[f"regenie"] = "{root}.regenie"
+        s2out["regenie"] = "{root}.regenie"
 
     print(f"Regenie Step 2 output files: \n{s2out.values()}")
 
