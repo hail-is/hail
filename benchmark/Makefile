@@ -57,10 +57,11 @@ pushed_image: image_sha
 BENCHMARK_ITERS ?= 3
 BENCHMARK_REPLICATES ?= 5
 HAIL_WHEEL_DESCRIPTOR ?= $(HAIL_VERSION)-$(SHORT_REVISION)
+BENCHMARK_BUCKET ?= gs://hail-benchmarks-2
 .PHONY: benchmark
 benchmark: pushed_image install
 	@echo Using pushed image `cat pushed_image`
-	$(HAIL_PYTHON3) scripts/benchmark_in_batch.py `cat pushed_image` gs://hail-benchmarks/$(shell whoami) $(HAIL_WHEEL_DESCRIPTOR) $(BENCHMARK_REPLICATES) $(BENCHMARK_ITERS)
+	$(HAIL_PYTHON3) scripts/benchmark_in_batch.py `cat pushed_image` $(BENCHMARK_BUCKET)/$(shell whoami) $(HAIL_WHEEL_DESCRIPTOR) $(BENCHMARK_REPLICATES) $(BENCHMARK_ITERS)
 
 clean:
 	rm -rf python/dist/*
