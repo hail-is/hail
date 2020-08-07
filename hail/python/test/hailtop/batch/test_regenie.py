@@ -1,6 +1,7 @@
 import unittest
 import hailtop.batch.genetics.regenie as br
 import os
+from shutil import which
 
 cwd = os.getcwd()
 rdir = "hailtop/batch/genetics/regenie"
@@ -16,6 +17,7 @@ def assert_same_file(file1, file2):
 
 
 class LocalTests(unittest.TestCase):
+    @unittest.skipIf(not which("docker"), "docker command is missing")
     def test_regenie(self):
         os.chdir(rdir)
         out_prefix = "batch"
@@ -37,6 +39,7 @@ class LocalTests(unittest.TestCase):
 
         os.chdir(cwd)
 
+    @unittest.skipIf(not which("docker"), "docker command is missing")
     def test_regenie_1pheno(self):
         os.chdir(rdir)
         out_prefix = "batch"
