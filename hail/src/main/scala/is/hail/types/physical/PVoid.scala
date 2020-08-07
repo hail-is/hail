@@ -16,6 +16,8 @@ case object PVoid extends PType with PUnrealizable {
   def setRequired(required: Boolean) = PVoid
 
   override def unsafeOrdering(): UnsafeOrdering = throw new NotImplementedError()
+
+  override def containsPointers: Boolean = false
 }
 
 case object PVoidCode extends PCode with PUnrealizableCode { self =>
