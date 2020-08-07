@@ -113,8 +113,8 @@ async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: di
 
 
 @router.get('/lookup')
-@check_csrf_token
-# @web_authenticated_developers_only(redirect=False)
+# @check_csrf_token
+@web_authenticated_developers_only(redirect=False)
 async def lookup(request, userdata):  # pylint: disable=unused-argument
     # data = await request.post()
     # data = await request.get()
