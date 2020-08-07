@@ -230,7 +230,7 @@ class Job:
         >>> j.image('google/cloud-sdk:237.0.0-alpine')
         >>> j.entrypoint('')
         >>> j.command('echo hello')
-        >>> b.run()
+        >>> b.run() # doctest: +SKIP
 
         Notes
         -----
