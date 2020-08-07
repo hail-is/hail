@@ -4,7 +4,7 @@
 {% block content %}
 <h1>Benchmark System</h1>
 
-<form action="{{ base_path }}/lookup" method="get">
+<form action="{{ base_path }}/lookup" method="post">
     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
     <input type="text" name="file"></input>
 
