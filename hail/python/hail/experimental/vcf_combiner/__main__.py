@@ -15,10 +15,10 @@ def main():
     parser.add_argument('tmp_path', help='Path to folder for intermediate output '
                                          '(should be an object store path, if running on the cloud).')
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('--genomes', '-G', dest='is_genomes', action='store_true',
+    group.add_argument('--genomes', '-G', action='store_true',
                        help='Indicates that the combiner is operating on genomes. '
                             'Affects how the genome is partitioned on input.')
-    group.add_argument('--exomes', '-E', dest='is_genomes', action='store_false',
+    group.add_argument('--exomes', '-E', action='store_true',
                        help='Indicates that the combiner is operating on exomes. '
                             'Affects how the genome is partitioned on input.')
     group.add_argument('--import-interval-size', type=int,
@@ -51,7 +51,8 @@ def main():
                  branch_factor=args.branch_factor,
                  target_records=args.target_records,
                  import_interval_size=args.import_interval_size,
-                 is_genomes=args.is_genomes,
+                 use_genome_default_intervals=args.genomes,
+                 use_exome_default_intervals=args.exomes,
                  overwrite=args.overwrite,
                  reference_genome=args.reference_genome,
                  key_by_locus_and_alleles=args.key_by_locus_and_alleles)
