@@ -109,7 +109,8 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 @web_authenticated_developers_only(redirect=False)
 async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: disable=unused-argument
     benchmarks_context = get_benchmarks(default_filepath)
-    return await render_template('benchmark', request, userdata, 'index.html', benchmarks_context)
+    context = {'benchmarks': benchmarks_context}
+    return await render_template('benchmark', request, userdata, 'index.html', context)
 
 
 @router.get('/lookup')
@@ -125,10 +126,10 @@ async def lookup(request, userdata):  # pylint: disable=unused-argument
     if file is None:
         return web.HTTPBadRequest()  # you'll need to look what this is up. Or you can set it to be the default file.
     benchmarks_context = get_benchmarks(file)
-    params = {'filepath': file,
-              'benchmarks': benchmarks_context}
+    context = {'filepath': file,
+               'benchmarks': benchmarks_context}
 
-    return await render_template('benchmark', request, userdata, 'index.html', params)
+    return await render_template('benchmark', request, userdata, 'index.html', context)
 
 
 def init_app() -> web.Application:
