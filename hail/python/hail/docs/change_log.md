@@ -22,6 +22,28 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.54
+
+Released 2020-08-07
+
+
+### VCF Combiner
+
+- (hail#9224)(hail#9237) **Breaking change**: Users are now required to pass a partitioning argument to the command-line interface or `run_combiner` method. See documentation for details.
+- (hail#8963) Improved performance of VCF combiner by ~4x. 
+
+
+### New features
+
+- (hail#9209) Add `hl.agg.ndarray_sum` aggregator.
+
+### Bug fixes
+
+- (hail#9206)(hail#9207) Improved error messages from invalid usages of Hail expressions.
+- (hail#9223) Fixed error in bounds checking for NDArray slicing. 
+
+---
+
 ## Version 0.2.53
 
 Released 2020-07-30
