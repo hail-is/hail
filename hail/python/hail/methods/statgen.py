@@ -1886,10 +1886,14 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         temp = temp.drop(temp.mat)
         return temp
 
+    # def matmul_colblocked_rowblocked(A, B):
+    #     temp = A.transmute(ndarray = block_product(A.ndarray.transpose(), B[A.row_group_number].ndarray))
+    #     result_arr_sum = temp.aggregate(block_aggregate(temp.ndarray))
+    #     return result_arr_sum
+
     def matmul_colblocked_rowblocked(A, B):
-        temp = A.transmute(ndarray = block_product(A.ndarray.transpose(), B[A.row_group_number].ndarray))
-        result_arr_sum = temp.aggregate(block_aggregate(temp.ndarray))
-        return result_arr_sum
+        temp = A.transmute(ndarray = A.ndarray.transpose() @ B[A.row_group_number].ndarray)
+        return temp.aggregate(hl.agg.ndarray_sum(temp.ndarray))
 
     def computeNextH(A, H):
         nextG = matmul_colblocked_rowblocked(A, H)

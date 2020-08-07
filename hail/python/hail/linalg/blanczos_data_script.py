@@ -109,8 +109,6 @@ def to_column_major(ndarray):
     return hl.range(hl.int(n_rows * n_cols)).map(
         lambda absolute: ndarray[absolute % n_rows, absolute // n_rows])
 
-
-
 def matmul_rowblocked_nonblocked(A, B):
     temp = A.annotate_globals(mat = B)
     temp = temp.annotate(ndarray = temp.ndarray @ temp.mat)
@@ -119,9 +117,8 @@ def matmul_rowblocked_nonblocked(A, B):
     return temp
 
 def matmul_colblocked_rowblocked(A, B):
-    temp = A.transmute(ndarray = block_product(A.ndarray.transpose(), B[A.row_group_number].ndarray))
-    result_arr_sum = temp.aggregate(block_aggregate(temp.ndarray))
-    return result_arr_sum
+    temp = A.transmute(ndarray = A.ndarray.transpose() @ B[A.row_group_number].ndarray)
+    return temp.aggregate(hl.agg.ndarray_sum(temp.ndarray))
 
 def computeNextH(A, H):
     nextG = matmul_colblocked_rowblocked(A, H)
