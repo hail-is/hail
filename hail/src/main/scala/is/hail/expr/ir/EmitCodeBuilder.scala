@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s.{coerce => _, _}
-import is.hail.lir.ThrowX
+import is.hail.lir
 import is.hail.types.physical.{PCode, PSettable, PValue}
 import is.hail.utils.FastIndexedSeq
 
@@ -30,7 +30,7 @@ object EmitCodeBuilder {
 class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
   def isOpenEnded: Boolean = {
     val last = code.end.last
-    (last == null) || !last.isInstanceOf[is.hail.lir.ControlX] || last.isInstanceOf[ThrowX]
+    (last == null) || !last.isInstanceOf[lir.ControlX] || last.isInstanceOf[lir.ThrowX]
   }
 
   def mb: MethodBuilder[_] = emb.mb
