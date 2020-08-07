@@ -2,6 +2,7 @@ import unittest
 import os
 import subprocess as sp
 import tempfile
+from shutil import which
 from shlex import quote as shq
 import uuid
 import google.oauth2.service_account
@@ -99,10 +100,10 @@ class LocalTests(unittest.TestCase):
 
             b.write_output(j.ofile, output_file.name)
             b.run()
-            out = self.read(output_file.name)
 
             assert self.read(output_file.name) == msg
 
+    @unittest.skipIf(not which("docker"), "docker command is missing")
     def test_single_job_with_entrypoint(self):
         with tempfile.NamedTemporaryFile('w') as output_file:
             msg = 'hello world'
@@ -115,7 +116,6 @@ class LocalTests(unittest.TestCase):
 
             b.write_output(j.ofile, output_file.name)
             b.run()
-            out = self.read(output_file.name)
 
             assert self.read(output_file.name) == msg
 
@@ -130,7 +130,6 @@ class LocalTests(unittest.TestCase):
 
             b.write_output(j.ofile, output_file.name)
             b.run()
-            out = self.read(output_file.name)
 
             assert self.read(output_file.name) == msg
 
