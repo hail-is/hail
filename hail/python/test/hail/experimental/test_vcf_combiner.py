@@ -32,7 +32,8 @@ def test_1kg_chr22():
                     tmp_path=Env.hc()._tmpdir,
                     branch_factor=2,
                     batch_size=2,
-                    reference_genome='GRCh38')
+                    reference_genome='GRCh38',
+                    use_exome_default_intervals=True)
 
     sample_data = dict()
     for sample, path in zip(sample_names, paths):
@@ -74,7 +75,8 @@ def test_key_by_locus_alleles():
                     out_file=out_file,
                     tmp_path=Env.hc()._tmpdir,
                     reference_genome='GRCh38',
-                    key_by_locus_and_alleles=True)
+                    key_by_locus_and_alleles=True,
+                    use_exome_default_intervals=True)
 
     mt = hl.read_matrix_table(out_file)
     assert(list(mt.row_key) == ['locus', 'alleles'])
@@ -89,7 +91,8 @@ def test_non_ref_alleles_set_to_missing():
                     tmp_path=Env.hc()._tmpdir,
                     branch_factor=2,
                     batch_size=2,
-                    reference_genome='GRCh38')
+                    reference_genome='GRCh38',
+                    use_exome_default_intervals=True)
 
     mt = hl.read_matrix_table(out_file)
     n_alleles = hl.len(mt.alleles)
@@ -104,8 +107,15 @@ def test_contig_recoding():
     out_file_1 = new_temp_file(extension='mt')
     out_file_2 = new_temp_file(extension='mt')
 
-    vc.run_combiner([path1, path1], out_file_1, Env.hc()._tmpdir, reference_genome='GRCh38')
-    vc.run_combiner([path2, path2], out_file_2, Env.hc()._tmpdir, reference_genome='GRCh38', contig_recoding={'22': 'chr22'})
+    vc.run_combiner([path1, path1], out_file_1,
+                    Env.hc()._tmpdir,
+                    reference_genome='GRCh38',
+                    use_exome_default_intervals=True)
+    vc.run_combiner([path2, path2], out_file_2,
+                    Env.hc()._tmpdir,
+                    reference_genome='GRCh38',
+                    contig_recoding={'22': 'chr22'},
+                    use_exome_default_intervals=True)
 
     mt1 = hl.read_matrix_table(out_file_1)
     mt2 = hl.read_matrix_table(out_file_2)

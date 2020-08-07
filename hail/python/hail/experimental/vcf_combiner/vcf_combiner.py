@@ -11,7 +11,7 @@ from hail.expr.expressions import expr_bool, expr_str
 from hail.genetics.reference_genome import reference_genome_type
 from hail.ir import Apply, TableMapRows, MatrixKeyRowsBy, TopLevelReference
 from hail.typecheck import oneof, sequenceof, typecheck
-from hail.utils.java import info
+from hail.utils.java import info, warning
 
 _transform_rows_function_map = {}
 _merge_function_map = {}
@@ -512,12 +512,26 @@ def run_combiner(sample_paths: List[str],
                  batch_size: int = CombinerConfig.default_batch_size,
                  target_records: int = CombinerConfig.default_target_records,
                  import_interval_size: Optional[int] = None,
-                 is_genomes: bool = False,
+                 use_genome_default_intervals: bool = False,
+                 use_exome_default_intervals: bool = False,
                  overwrite: bool = False,
                  reference_genome: str = 'default',
                  contig_recoding: Optional[Dict[str, str]] = None,
                  key_by_locus_and_alleles: bool = False):
     """Run the Hail VCF combiner, performing a hierarchical merge to create a combined sparse matrix table.
+
+    **Partitioning**
+
+    The partitioning of input GVCFs is determined the four parameters below, one of which must be
+    passed to this function:
+
+    - `intervals` -- User-supplied intervals.
+    - `import_interval_size` -- Use intervals of this uniform size across the genome.
+    - `use_genome_default_intervals` -- Use intervals of typical uniform size for whole genome GVCFs.
+    - `use_exome_default_intervals` -- Use intervals of typical uniform size for exome GVCFs.
+
+    It is recommended that new users include either `use_genome_default_intervals` or
+    `use_exome_default_intervals`.
 
     Parameters
     ----------
@@ -542,7 +556,11 @@ def run_combiner(sample_paths: List[str],
     import_interval_size : :obj:`int` or None
         The target interval size to partition the reference into intervals for
         importing GVCFs.
-    is_genomes : :obj:`bool`
+    use_genome_default_intervals : :obj:`bool`
+        The input GVCFs are genomes, if this is false, they are assumed to
+        be exomes. If `import_interval_size` is not None, this parameter is
+        ignored.
+    use_exome_default_intervals : :obj:`bool`
         The input GVCFs are genomes, if this is false, they are assumed to
         be exomes. If `import_interval_size` is not None, this parameter is
         ignored.
@@ -568,10 +586,37 @@ def run_combiner(sample_paths: List[str],
         assert sample_names is not None
         assert len(sample_names) == len(sample_paths)
 
-    if import_interval_size is None:
-        import_interval_size = (CombinerConfig.default_genome_interval_size if is_genomes else
-                                CombinerConfig.default_exome_interval_size)
-    intervals = intervals or calculate_even_genome_partitioning(reference_genome, import_interval_size)
+    n_partition_args = (int(intervals is not None)
+                        + int(import_interval_size is not None)
+                        + int(use_genome_default_intervals)
+                        + int(use_exome_default_intervals))
+
+    if n_partition_args == 0:
+        raise ValueError("'run_combiner': require one argument from 'intervals', 'import_interval_size', "
+                         "'use_genome_default_intervals', or 'use_exome_default_intervals' to choose GVCF partitioning")
+    if n_partition_args > 0:
+        warning("'run_combiner': multiple colliding arguments found from 'intervals', 'import_interval_size', "
+                "'use_genome_default_intervals', or 'use_exome_default_intervals'."
+                "\n  The argument found first in the list in this warning will be used, and others ignored.")
+
+    if intervals is not None:
+        info(f"Using {len(intervals)} user-supplied intervals as partitioning for GVCF import")
+    elif import_interval_size is not None:
+        intervals = calculate_even_genome_partitioning(reference_genome, import_interval_size)
+        info(f"Using {len(intervals)} intervals with user-supplied size"
+             f" {import_interval_size} as partitioning for GVCF import")
+    elif use_genome_default_intervals:
+        size = CombinerConfig.default_genome_interval_size
+        intervals = calculate_even_genome_partitioning(reference_genome, size)
+        info(f"Using {len(intervals)} intervals with default whole-genome size"
+             f" {import_interval_size} as partitioning for GVCF import")
+    elif use_exome_default_intervals:
+        size = CombinerConfig.default_exome_interval_size
+        intervals = calculate_even_genome_partitioning(reference_genome, size)
+        info(f"Using {len(intervals)} intervals with default exome size"
+             f" {import_interval_size} as partitioning for GVCF import")
+
+    assert intervals is not None
 
     config = CombinerConfig(branch_factor=branch_factor,
                             batch_size=batch_size,
