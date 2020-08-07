@@ -111,6 +111,7 @@ class LocalBackend(Backend):
         delete_scratch_on_exit: :obj:`bool`
             If `True`, delete temporary directories with intermediate files.
         """
+
         if backend_kwargs:
             raise ValueError(
                 f'LocalBackend does not support any of these keywords: {backend_kwargs}')
@@ -205,43 +206,17 @@ class LocalBackend(Backend):
                 cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
                 memory = f'-m {job._memory}' if job._memory else ''
                 cpu = f'--cpus={job._cpu}' if job._cpu else ''
-                non_empty_entrypoint = False
-                add_commands = ''
-                entrypoint = ''
-                if job._entrypoint is not None:
-                    assert "--entrypoint" not in self._extra_docker_run_flags
-
-                    if isinstance(job._entrypoint, list):
-                        assert job._entrypoint[0] is not None
-
-                        non_empty_entrypoint = True
-
-                        entrypoint = f"--entrypoint {shq(job._entrypoint[0])}"
-                        if len(job._entrypoint) > 1:
-                            add_commands = ' '.join(job._entrypoint[1:])
-                    else:
-                        non_empty_entrypoint = bool(job._entrypoint)
-                        entrypoint = f"--entrypoint {shq(job._entrypoint)}" if job._entrypoint is not None else ''
-
-                cmd = shq(joined_env + defs + cmd)
-                if non_empty_entrypoint:
-                    cmd = f"{add_commands} {cmd}"
-                else:
-                    cmd = f"/bin/bash -c {cmd}"
 
                 lines.append(f"docker run "
-                             f"{entrypoint} "
+                             "--entrypoint=''"
                              f"{self._extra_docker_run_flags} "
                              f"-v {tmpdir}:{tmpdir} "
                              f"-w {tmpdir} "
                              f"{memory} "
                              f"{cpu} "
-                             f"{job._image} "
-                             f"{cmd}")
+                             f"{job._image} /bin/bash "
+                             f"-c {shq(joined_env + defs + cmd)}")
             else:
-                if job._entrypoint is not None:
-                    print("entrypoint specified for job that doesn't have image, ignoring")
-
                 lines += env
                 lines += resource_defs
                 lines += job._command
@@ -498,7 +473,7 @@ class ServiceBackend(Backend):
 
             j = bc_batch.create_job(image=job._image if job._image else default_image,
                                     command=['/bin/bash', '-c', cmd],
-                                    entrypoint=job._entrypoint,
+                                    entrypoint="",
                                     parents=parents,
                                     attributes=attributes,
                                     resources=resources,

@@ -89,20 +89,6 @@ class LocalTests(unittest.TestCase):
 
             assert self.read(output_file.name) == msg
 
-    def test_single_job_with_entrypoint_no_image(self):
-        with tempfile.NamedTemporaryFile('w') as output_file:
-            msg = 'hello world'
-
-            b = self.batch()
-            j = b.new_job()
-            j.entrypoint('echo foobar')
-            j.command(f'echo "{msg}" > {j.ofile}')
-
-            b.write_output(j.ofile, output_file.name)
-            b.run()
-
-            assert self.read(output_file.name) == msg
-
     @unittest.skipIf(not which("docker"), "docker command is missing")
     def test_single_job_with_entrypoint(self):
         with tempfile.NamedTemporaryFile('w') as output_file:
@@ -110,22 +96,7 @@ class LocalTests(unittest.TestCase):
 
             b = self.batch()
             j = b.new_job()
-            j.image('google/cloud-sdk:237.0.0-alpine')
-            j.entrypoint(['/bin/bash', '-c'])
-            j.command(f'echo "{msg}" > {j.ofile}')
-
-            b.write_output(j.ofile, output_file.name)
-            b.run()
-
-            assert self.read(output_file.name) == msg
-
-        with tempfile.NamedTemporaryFile('w') as output_file:
-            msg = 'hello world2'
-
-            b = self.batch()
-            j = b.new_job()
-            j.image('google/cloud-sdk:237.0.0-alpine')
-            j.entrypoint('')
+            j.image('hailgenetics/entrypoint-test')
             j.command(f'echo "{msg}" > {j.ofile}')
 
             b.write_output(j.ofile, output_file.name)
@@ -435,7 +406,8 @@ class BatchTests(unittest.TestCase):
         j.declare_resource_group(output={'foo': '{root}.foo'})
         j.command(f'echo "hello" > {j.output.foo}')
         b.write_output(j.output, f'{self.gcs_output_dir}/test_single_task_write_resource_group')
-        b.write_output(j.output.foo, f'{self.gcs_output_dir}/test_single_task_write_resource_group_file.txt')
+        b.write_output(
+            j.output.foo, f'{self.gcs_output_dir}/test_single_task_write_resource_group_file.txt')
         assert b.run().status()['state'] == 'success'
 
     def test_multiple_dependent_tasks(self):
@@ -568,16 +540,15 @@ class BatchTests(unittest.TestCase):
         assert b.run().status()['state'] == 'success'
 
     def test_single_job_with_entrypoint(self):
-        b = self.batch()
-        j = b.new_job()
-        j.image('google/cloud-sdk:237.0.0-alpine')
-        j.entrypoint(['/bin/bash', '-c'])
-        j.command(f'echo "hello" > {j.ofile}')
-        assert b.run().status()['state'] == 'success'
+        with tempfile.NamedTemporaryFile('w') as output_file:
+            msg = 'hello world'
 
-        b = self.batch()
-        j = b.new_job()
-        j.image('google/cloud-sdk:237.0.0-alpine')
-        j.entrypoint('')
-        j.command(f'echo "hello2" > {j.ofile}')
-        assert b.run().status()['state'] == 'success'
+            b = self.batch()
+            j = b.new_job()
+            j.image('hailgenetics/entrypoint-test')
+            j.command(f'echo "{msg}" > {j.ofile}')
+
+            b.write_output(j.ofile, output_file.name)
+            b.run(wait=True)
+
+            assert self.read(output_file.name) == msg

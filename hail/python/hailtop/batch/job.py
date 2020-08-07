@@ -23,9 +23,6 @@ def _add_resource_to_set(resource_set, resource, include_rg=True):
             resource_set.add(resource_file)
 
 
-EntrypointType = Optional[Union[str, List[str]]]
-
-
 class Job:
     """
     Object representing a single job to execute.
@@ -81,7 +78,6 @@ class Job:
         self._gcsfuse: List[Tuple[str, str, bool]] = []
         self._env: Dict[str, str] = dict()
         self._command: List[str] = []
-        self._entrypoint: EntrypointType = None
 
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
@@ -214,46 +210,6 @@ class Job:
 
     def env(self, variable: str, value: str):
         self._env[variable] = value
-
-    def entrypoint(self, arg: EntrypointType) -> Job:
-        """
-        Set the docker container ENTRYPOINT
-        See: https://docs.docker.com/engine/reference/commandline/run/
-
-        Examples
-        --------
-
-        Override an ENTRYPOINT that is hardcoded in a docker image:
-
-        >>> b = Batch()
-        >>> j = b.new_job()
-        >>> j.image('google/cloud-sdk:237.0.0-alpine')
-        >>> j.entrypoint('')
-        >>> j.command('echo hello')
-        >>> b.run() # doctest: +SKIP
-
-        Notes
-        -----
-        Only works with jobs that specify an image.
-        Can be called more than once, subsequent calls override previous ones.
-        Will not automatically escape quotes or wrap arguments in quotes.
-
-        If you set entrypoint to something other than `'', ['bash', '-c'], or `['sh', '-c']` job Resources will be unavailable.
-
-        Limitations:
-            LocalBackend: must use list form to pass additional arguments ["/bin/bash", "-c"]
-
-        Parameters
-        ----------
-        command: :obj:`str` or :obj:`list` of :obj:`str`
-
-        Returns
-        -------
-        :class:`.Job`
-            Same job object with entrypoint appended.
-        """
-        self._entrypoint = arg
-        return self
 
     def command(self, command: str) -> Job:
         """Set the job's command to execute.
