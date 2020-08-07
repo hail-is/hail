@@ -234,14 +234,14 @@ class Job:
 
         Notes
         -----
-        This method only works with jobs that specify an image.
-        This method can be called more than once, subsequent calls override previous ones.
+        Only works with jobs that specify an image.
+        Can be called more than once, subsequent calls override previous ones.
+        Will not automatically escape quotes or wrap arguments in quotes.
 
         If you set entrypoint to something other than `'', ['bash', '-c'], or `['sh', '-c']` job Resources will be unavailable.
 
         Limitations:
-            LocalBackend: must use list form to pass executable argument ["/bin/bash", "-c"]
-            All backends: Job env variables are unavailable in entrypoint commands (Docker limitation).
+            LocalBackend: must use list form to pass additional arguments ["/bin/bash", "-c"]
 
         Parameters
         ----------
