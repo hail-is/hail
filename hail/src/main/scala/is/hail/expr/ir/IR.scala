@@ -1,12 +1,11 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Annotation, Region, UnsafeRow}
+import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.Value
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
 import is.hail.expr.ir.functions._
-import is.hail.types.{RStruct, RTable}
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -652,7 +651,7 @@ abstract class PartitionReader {
     requestedType: Type,
     emitter: Emit[C],
     mb: EmitMethodBuilder[C],
-    region: Value[Region],
+    region: StagedRegion,
     env0: Emit.E,
     container: Option[AggContainer]): COption[SizedStream]
 

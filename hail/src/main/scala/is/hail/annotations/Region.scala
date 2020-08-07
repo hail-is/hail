@@ -366,10 +366,12 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
   def isValid(): Boolean = memory != null
 
   def allocate(n: Long): Long = {
+    assert(n >= 0)
     memory.allocate(n)
   }
 
   def allocate(a: Long, n: Long): Long = {
+    assert(n >= 0)
     memory.allocate(a, n)
   }
 
@@ -395,6 +397,10 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
 
   def addReferenceTo(r: Region): Unit = {
     memory.addReferenceTo(r.memory)
+  }
+
+  def takeOwnershipOf(r: Region): Unit = {
+    memory.takeOwnershipOf(r.memory)
   }
 
   def move(r: Region): Unit = {

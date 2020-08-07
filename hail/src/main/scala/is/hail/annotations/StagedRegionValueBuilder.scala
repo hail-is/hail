@@ -217,7 +217,7 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     f(new StagedRegionValueBuilder(mb, currentPType(), this))
   }
 
-  def addIRIntermediate(t: PType): (Code[_]) => Code[Unit] = t.fundamentalType match {
+  def addIRIntermediate(t: PType, deepCopy: Boolean): (Code[_]) => Code[Unit] = t.fundamentalType match {
     case _: PBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])
     case _: PInt32 => v => addInt(v.asInstanceOf[Code[Int]])
     case _: PInt64 => v => addLong(v.asInstanceOf[Code[Long]])
@@ -226,17 +226,26 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     case t =>
       val current = currentPType()
       val valueTI = ir.typeToTypeInfo(t)
-      val m = mb.getOrGenEmitMethod("addIRIntermediate", ("addIRIntermediate", current, t),
+      val m = mb.getOrGenEmitMethod("addIRIntermediate", ("addIRIntermediate", current, t, deepCopy),
         FastIndexedSeq[ParamType](classInfo[Region], valueTI, LongInfo), UnitInfo) { mb =>
         val r = mb.getCodeParam[Region](1)
         val value = mb.getCodeParam(2)(valueTI)
         val dest = mb.getCodeParam[Long](3)
-        mb.emit(current.constructAtAddressFromValue(mb, dest, r, t, value, false))
+        mb.emit(current.constructAtAddressFromValue(mb, dest, r, t, value, deepCopy))
       }
        (v: Code[_]) => {
          assert(v.v != null)
          m.invokeCode[Unit](region, v, currentOffset) }
   }
+
+  def addIRIntermediate(t: PType): (Code[_]) => Code[Unit] =
+    addIRIntermediate(t, deepCopy = false)
+
+  def addIRIntermediate(v: PCode, deepCopy: Boolean): Code[Unit] =
+    addIRIntermediate(v.pt, deepCopy)(v.code)
+
+  def addIRIntermediate(v: PCode): Code[Unit] =
+    addIRIntermediate(v.pt, deepCopy = false)(v.code)
 
   def addWithDeepCopy(t: PType, v: Code[_]): Code[Unit] = {
     if (!(t.fundamentalType isOfType currentPType()))

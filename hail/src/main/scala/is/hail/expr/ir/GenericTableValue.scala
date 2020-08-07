@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.utils._
 import is.hail.annotations.{BroadcastRow, Region, UnsafeRow}
-import is.hail.asm4s.{Code, Value}
+import is.hail.asm4s.Code
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.lowering.TableStage
@@ -29,11 +29,11 @@ class PartitionIteratorLongReader(
     requestedType: Type,
     emitter: Emit[C],
     mb: EmitMethodBuilder[C],
-    region: Value[Region],
+    region: StagedRegion,
     env: Emit.E,
     container: Option[AggContainer]): COption[SizedStream] = {
 
-    def emitIR(ir: IR, env: Emit.E = env, region: Value[Region] = region, container: Option[AggContainer] = container): EmitCode =
+    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = region, container: Option[AggContainer] = container): EmitCode =
       emitter.emitWithRegion(ir, mb, region, env, container)
 
     val eltPType = bodyPType(requestedType)
@@ -46,19 +46,22 @@ class PartitionIteratorLongReader(
       val hasNext = mb.newLocal[Boolean]("pilr_hasNext")
       val next = mb.newLocal[Long]("pilr_next")
 
-      SizedStream.unsized(Stream.unfold[Code[Long]](
-        (_, k) =>
-          Code(
-            hasNext := it.get.hasNext,
-            hasNext.orEmpty(next := Code.longValue(it.get.next())),
-            k(COption(!hasNext, next))),
-        setup = Some(
-          it := mb.getObject(body(requestedType))
-            .invoke[java.lang.Object, java.lang.Object, Iterator[java.lang.Long]]("apply",
-              region,
-              Code.invokeScalaObject3[PType, Region, Long, java.lang.Object](UnsafeRow.getClass, "read",
-                mb.getPType(contextPC.pt), region, contextPC.tcode[Long]))))
-      .map(rv => EmitCode.present(eltPType, Region.loadIRIntermediate(eltPType)(rv))))
+      SizedStream.unsized { eltRegion =>
+        Stream
+          .unfold[Code[Long]](
+            (_, k) =>
+              Code(
+                hasNext := it.get.hasNext,
+                hasNext.orEmpty(next := Code.longValue(it.get.next())),
+                k(COption(!hasNext, next))),
+            setup = Some(
+              it := mb.getObject(body(requestedType))
+                .invoke[java.lang.Object, java.lang.Object, Iterator[java.lang.Long]]("apply",
+                  region.code,
+                  Code.invokeScalaObject3[PType, Region, Long, java.lang.Object](UnsafeRow.getClass, "read",
+                    mb.getPType(contextPC.pt), region.code, contextPC.tcode[Long]))))
+          .map(rv => EmitCode.present(eltPType, Region.loadIRIntermediate(eltPType)(rv)))
+      }
     }
   }
 
