@@ -3286,6 +3286,36 @@ class Table(ExprContainer):
 
         return True
 
+    @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
+    def _same(self, other, tolerance=1e-6, absolute=False):
+        from hail.expr.functions import _values_similar
+
+        if self._type != other._type:
+            print(f'Table._same: types differ: {self._type}, {other._type}')
+            return False
+
+        left_value = Env.get_uid()
+        left = self
+        left = left.annotate(**{left_value : left.n})
+        # left = left.group_by(_key=left.key).aggregate(**{left_value: hl.agg.collect(left.row_value)})
+
+        right_value = Env.get_uid()
+        right = other
+        right = right.annotate(**{right_value : right.n})
+        # right = right.group_by(_key=right.key).aggregate(**{right_value: hl.agg.collect(right.row_value)})
+
+        t = left.join(right, how='outer')
+
+        if not t.all(_values_similar(t[left_value], t[right_value], tolerance, absolute)):
+            print('Table._same: rows differ:')
+            t = t.filter(~ _values_similar(t[left_value], t[right_value], tolerance, absolute))
+            bad_rows = t.take(10)
+            for r in bad_rows:
+                print(f'  Row mismatch:\n    L: {r[left_value]}\n    R: {r[right_value]}')
+            return False
+
+        return True
+
     def collect_by_key(self, name: str = 'values') -> 'Table':
         """Collect values for each unique key into an array.
 

@@ -1543,6 +1543,7 @@ class Emit[C](
           ((mb.getCodeParam[Region](1): Param) +: vars.map(_.get: Param)): _*))
         strict(pt, value, codeArgs: _*)
       case x@ApplySpecial(_, typeArgs, args, rt) =>
+        println(s"ApplySpecial: $args")
         val codeArgs = args.map(a => emit(a))
         val impl = x.implementation
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)

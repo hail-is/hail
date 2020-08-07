@@ -25,7 +25,7 @@ object TNDArray {
     val strides = r.getAs[Row](1)
     val data = r.getAs[IndexedSeq[_]](2)
 
-    //assert(data.length == shape.toSeq.foldLeft(1L) { case (acc, a) => acc * a.asInstanceOf[Long]}, s"validation error! shape=${shape}, data=${data}")
+    assert(data.length == shape.toSeq.foldLeft(1L) { case (acc, a) => acc * a.asInstanceOf[Long]}, s"validation error! shape=${shape}, data=${data}")
   }
 
   def validateData(r: Code[AnyRef]): Code[Unit] = {

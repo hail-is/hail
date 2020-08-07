@@ -121,7 +121,7 @@ class Classx[C](val name: String, val superName: String) {
       InitializeLocals(m, blocks, locals, liveness)
     }
     
-    // println(Pretty(this))
+    println(Pretty(this))
     classes.iterator
       .map { c =>
       val bytes = Emit(c,
