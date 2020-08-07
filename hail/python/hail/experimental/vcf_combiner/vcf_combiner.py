@@ -505,6 +505,7 @@ class CombinerConfig(object):
 def run_combiner(sample_paths: List[str],
                  out_file: str,
                  tmp_path: str,
+                 *,
                  intervals: Optional[List[hl.utils.Interval]] = None,
                  header: Optional[str] = None,
                  sample_names: Optional[List[str]] = None,
@@ -522,16 +523,22 @@ def run_combiner(sample_paths: List[str],
 
     **Partitioning**
 
-    The partitioning of input GVCFs is determined the four parameters below, one of which must be
-    passed to this function:
+    The partitioning of input GVCFs, which determines the maximum parallelism per file,
+    is determined the four parameters below. One of these parameters must be passed to
+    this function.
 
     - `intervals` -- User-supplied intervals.
     - `import_interval_size` -- Use intervals of this uniform size across the genome.
-    - `use_genome_default_intervals` -- Use intervals of typical uniform size for whole genome GVCFs.
-    - `use_exome_default_intervals` -- Use intervals of typical uniform size for exome GVCFs.
+    - `use_genome_default_intervals` -- Use intervals of typical uniform size for whole
+      genome GVCFs.
+    - `use_exome_default_intervals` -- Use intervals of typical uniform size for exome
+      GVCFs.
 
     It is recommended that new users include either `use_genome_default_intervals` or
     `use_exome_default_intervals`.
+
+    Note also that the partitioning of the final, combined matrix table does not depend
+    the GVCF input partitioning.
 
     Parameters
     ----------
@@ -554,16 +561,13 @@ def run_combiner(sample_paths: List[str],
     target_records : :obj:`int`
         Target records per partition in each combiner phase after the first.
     import_interval_size : :obj:`int` or None
-        The target interval size to partition the reference into intervals for
-        importing GVCFs.
+        Import GVCFs with uniform partition intervals of specified size.
     use_genome_default_intervals : :obj:`bool`
-        The input GVCFs are genomes, if this is false, they are assumed to
-        be exomes. If `import_interval_size` is not None, this parameter is
-        ignored.
+        Import GVCFs with uniform partition intervals of default size for
+        whole-genome data.
     use_exome_default_intervals : :obj:`bool`
-        The input GVCFs are genomes, if this is false, they are assumed to
-        be exomes. If `import_interval_size` is not None, this parameter is
-        ignored.
+        Import GVCFs with uniform partition intervals of default size for
+        exome data.
     overwrite : :obj:`bool`
         Overwrite output file, if it exists.
     reference_genome : :obj:`str`
@@ -594,7 +598,7 @@ def run_combiner(sample_paths: List[str],
     if n_partition_args == 0:
         raise ValueError("'run_combiner': require one argument from 'intervals', 'import_interval_size', "
                          "'use_genome_default_intervals', or 'use_exome_default_intervals' to choose GVCF partitioning")
-    if n_partition_args > 0:
+    if n_partition_args > 1:
         warning("'run_combiner': multiple colliding arguments found from 'intervals', 'import_interval_size', "
                 "'use_genome_default_intervals', or 'use_exome_default_intervals'."
                 "\n  The argument found first in the list in this warning will be used, and others ignored.")
@@ -609,12 +613,12 @@ def run_combiner(sample_paths: List[str],
         size = CombinerConfig.default_genome_interval_size
         intervals = calculate_even_genome_partitioning(reference_genome, size)
         info(f"Using {len(intervals)} intervals with default whole-genome size"
-             f" {import_interval_size} as partitioning for GVCF import")
+             f" {size} as partitioning for GVCF import")
     elif use_exome_default_intervals:
         size = CombinerConfig.default_exome_interval_size
         intervals = calculate_even_genome_partitioning(reference_genome, size)
         info(f"Using {len(intervals)} intervals with default exome size"
-             f" {import_interval_size} as partitioning for GVCF import")
+             f" {size} as partitioning for GVCF import")
 
     assert intervals is not None
 
