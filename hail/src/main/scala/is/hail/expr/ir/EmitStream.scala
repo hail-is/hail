@@ -750,7 +750,8 @@ object Stream {
 
   def kWayMerge[A: TypeInfo](
     mb: EmitMethodBuilder[_],
-    streams: IndexedSeq[Stream[Code[A]]],
+    streams: IndexedSeq[StagedRegion => Stream[Code[A]]],
+    destRegion: StagedRegion,
     // compare two (idx, value) pairs, where 'value' is a value from the 'idx'th
     // stream
     lt: (Code[Int], Code[A], Code[Int], Code[A]) => Code[Boolean]
@@ -781,6 +782,7 @@ object Stream {
       val winner = mb.genFieldThisRef[Int]("merge_winner")
       val i = mb.genFieldThisRef[Int]("merge_i")
       val challenger = mb.genFieldThisRef[Int]("merge_challenger")
+      val eltRegions = destRegion.createChildRegionArray(mb, k)
 
       val runMatch = CodeLabel()
       val LpullChild = CodeLabel()
@@ -808,12 +810,12 @@ object Stream {
           // must be k, and all streams are exhausted.
           winner.ceq(k).mux(
             Leos.goto,
-            push((winner, heads(winner)))),
+            Code(eltRegions(winner).giveToParent(), push((winner, heads(winner))))),
           // We're still in the setup phase
           Code(bracket(matchIdx) = winner, i := i + 1, winner := i, LpullChild.goto)))
 
       val sources = streams.zipWithIndex.map { case (stream, idx) =>
-        stream(
+        stream(eltRegions(idx))(
           eos = Code(winner := k, matchIdx := (idx + k) >>> 1, runMatch.goto),
           push = elt => Code(heads(idx) = elt, matchIdx := (idx + k) >>> 1, runMatch.goto))
       }
@@ -824,8 +826,8 @@ object Stream {
           sources.map(_.pull.asInstanceOf[Code[Unit]])))
 
       Source[(Code[Int], Code[A])](
-        setup0 = Code(sources.map(_.setup0)),
-        close0 = Code(sources.map(_.close0)),
+        setup0 = Code(Code(sources.map(_.setup0)), eltRegions.allocateRegions(mb, Region.REGULAR)),
+        close0 = Code(eltRegions.freeAll(mb), Code(sources.map(_.close0))),
         setup = Code(
           Code(sources.map(_.setup)),
           bracket := Code.newArray[Int](k),
@@ -973,10 +975,11 @@ object EmitStream {
     }
   }
 
+  // Assumes distinct keys in each input stream.
   def kWayZipJoin(
     mb: EmitMethodBuilder[_],
-    region: Value[Region],
-    streams: IndexedSeq[Stream[PCode]],
+    streams: IndexedSeq[StagedRegion => Stream[PCode]],
+    destRegion: StagedRegion,
     resultType: PArray,
     key: IndexedSeq[String]
   ): Stream[(PCode, PCode)] = new Stream[(PCode, PCode)] {
@@ -1011,6 +1014,7 @@ object EmitStream {
       val eltType = resultType.elementType.asInstanceOf[PStruct]
       val keyType = eltType.selectFields(key)
       val curKey = ctx.mb.newPField("st_grpby_curkey", keyType)
+      val eltRegions = destRegion.createChildRegionArray(mb, k)
 
       val keyViewType = PSubsetStruct(eltType, key: _*)
       val lt: (Code[Long], Code[Long]) => Code[Boolean] = keyViewType
@@ -1022,7 +1026,7 @@ object EmitStream {
         .asInstanceOf[CodeOrdering { type T = Long }]
         .equivNonnull
 
-      val srvb = new StagedRegionValueBuilder(mb, resultType, region)
+      val srvb = new StagedRegionValueBuilder(mb, resultType, destRegion.code)
 
       val runMatch = CodeLabel()
       val LpullChild = CodeLabel()
@@ -1048,11 +1052,12 @@ object EmitStream {
 
       Code(LstartNewKey,
         Code.forLoop(i := 0, i < k, i := i + 1, result(i) = 0L),
-        curKey := winnerPc.castTo(mb, region, keyType),
+        curKey := eltRegions(winner).copyToParent(mb, winnerPc, keyType),
         LaddToResult.goto)
 
       Code(LaddToResult,
         result(winner) = heads(winner),
+        eltRegions(winner).giveToParent(),
         LpullChild.goto)
 
       def inSetup: Code[Boolean] = result.isNull
@@ -1087,10 +1092,10 @@ object EmitStream {
           Code(bracket(matchIdx) = winner, i := i + 1, winner := i, LpullChild.goto)))
 
       val sources = streams.zipWithIndex.map { case (stream, idx) =>
-        stream(
+        stream(eltRegions(idx))(
           eos = Code(winner := k, matchIdx := (idx + k) >>> 1,  runMatch.goto),
           push = elt => Code(
-            heads(idx) = elt.castTo(mb, region, eltType).tcode[Long],
+            heads(idx) = elt.castTo(mb, eltRegions(idx).code, eltType).tcode[Long],
             matchIdx := (idx + k) >>> 1,
             runMatch.goto))
       }
@@ -1101,8 +1106,8 @@ object EmitStream {
           sources.map(_.pull.asInstanceOf[Code[Unit]])))
 
       Source[(PCode, PCode)](
-        setup0 = Code(sources.map(_.setup0)),
-        close0 = Code(sources.map(_.close0)),
+        setup0 = Code(Code(sources.map(_.setup0)), eltRegions.allocateRegions(mb, Region.REGULAR)),
+        close0 = Code(eltRegions.freeAll(mb), Code(sources.map(_.close0))),
         setup = Code(
           Code(sources.map(_.setup)),
           bracket := Code.newArray[Int](k),
@@ -1712,15 +1717,16 @@ object EmitStream {
             }
 
           COption.lift(as.map(emitStream(_))).map { sss =>
-            val streams = sss.map(_.stream(outerRegion).map { ec =>
-              ec.get().castTo(mb, outerRegion.code, eltType).tcode[Long]
-            })
-            val merged = kWayMerge[Long](mb, streams, comp).map { case (i, elt) =>
-                EmitCode.present(PCode(eltType, elt))
+            val streams = sss.map { ss => (eltRegion: StagedRegion) =>
+              ss.stream(eltRegion).map { ec =>
+                ec.get().castTo(mb, outerRegion.code, eltType).tcode[Long]
+              }
             }
             SizedStream(
               Code(sss.map(_.setup)),
-              eltRegion => merged,
+              eltRegion => kWayMerge[Long](mb, streams, eltRegion, comp).map { case (i, elt) =>
+                EmitCode.present(PCode(eltType, elt))
+              },
               sss.map(_.length).reduce(_.liftedZip(_).map {
                 case (l, r) => l + r
               }))
@@ -1746,9 +1752,13 @@ object EmitStream {
           }
 
           COption.lift(as.map(emitStream(_))).map { sss =>
-            val streams = sss.map(_.getStream(outerRegion).map(_.get()))
-            val zipped = kWayZipJoin(mb, outerRegion.code, streams, curValsType, key)
-            SizedStream.unsized(eltRegion => zipped.map(joinF))
+            val streams = sss.map { ss => (eltRegion: StagedRegion) =>
+              ss.getStream(eltRegion).map(_.get())
+            }
+            SizedStream.unsized { eltRegion =>
+              kWayZipJoin(mb, streams, eltRegion, curValsType, key)
+                .map(joinF)
+            }
           }
 
         case StreamFlatMap(outerIR, name, innerIR) =>
