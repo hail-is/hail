@@ -17,15 +17,22 @@ def assert_same_file(file1, file2):
 
 
 class LocalTests(unittest.TestCase):
-    def setUp(self):
-        self.cwd = os.getcwd()
-        self.outdir = "batch"
-        self.step2_out_prefix = 'test_bin_out_firth'
+    @classmethod
+    def setUpClass(cls):
+        cls.cwd = os.getcwd()
+        cls.outdir = "batch"
+        os.chdir(rdir)
+        os.system("git clone --depth 1 --branch v1.0.5.5 git@github.com:rgcgithub/regenie.git")
+        print("RAN")
+        cls.step2_out_prefix = 'test_bin_out_firth'
+
+    @classmethod
+    def tearDownClass(cls):
+        rmtree('regenie')
+        os.chdir(cls.cwd)
 
     @unittest.skipIf(not which("docker"), "docker command is missing")
     def test_regenie(self):
-        os.chdir(rdir)
-
         args = br.parse_input_args(["--demo", "--outdir", self.outdir])
         br.run(args)
 
