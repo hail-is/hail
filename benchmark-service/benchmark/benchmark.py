@@ -125,9 +125,10 @@ async def lookup(request, userdata):  # pylint: disable=unused-argument
     if file is None:
         return web.HTTPBadRequest()  # you'll need to look what this is up. Or you can set it to be the default file.
     benchmarks_context = get_benchmarks(file)
-    params = {'filepath': file}
+    params = {'filepath': file,
+              'benchmarks': benchmarks_context}
 
-    return await render_template('benchmark', request, userdata, 'index.html', benchmarks_context)
+    return await render_template('benchmark', request, userdata, 'index.html', params)
 
 
 def init_app() -> web.Application:

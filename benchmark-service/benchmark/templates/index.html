@@ -42,7 +42,7 @@
     {% for d in data %}
     <tr>
 
-        <td><a href="{{ base_path }}/name/{{ d['name'] }}?file={{ request.query.get('file') }}">{{ d['name'] }}</a></td>
+        <td><a href="{{ base_path }}/name/{{ d['name'] }}?file={{ file }}">{{ d['name'] }}</a></td>
         <td>{{ d['failed'] }}</td>
         <td>{{ d['f-stat'] }}</td>
         <td>{{ d['mean'] }}</td>
