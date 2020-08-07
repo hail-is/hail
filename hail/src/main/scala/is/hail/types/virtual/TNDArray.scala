@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
-import is.hail.annotations.{Annotation, ExtendedOrdering, UnsafeIndexedSeq}
+import is.hail.annotations.{Annotation, ExtendedOrdering, UnsafeIndexedSeq, UnsafeRow}
+import is.hail.asm4s.Code
 import is.hail.expr.{Nat, NatBase}
 import is.hail.types.physical.PNDArray
 import is.hail.utils
@@ -16,6 +17,21 @@ object TNDArray {
       case (n, 1) => n - 1
       case (_, _) => l
     }
+  }
+
+  def validateData(ar: AnyRef): Unit = {
+    val r: Row = ar.asInstanceOf[Row]
+    val shape = r.getAs[Row](0)
+    val strides = r.getAs[Row](1)
+    val data = r.getAs[IndexedSeq[_]](2)
+
+    //assert(data.length == shape.toSeq.foldLeft(1L) { case (acc, a) => acc * a.asInstanceOf[Long]}, s"validation error! shape=${shape}, data=${data}")
+  }
+
+  def validateData(r: Code[AnyRef]): Code[Unit] = {
+    Code.invokeScalaObject1[AnyRef, Unit](
+      TNDArray.getClass, "validateData", r
+    )
   }
 }
 
@@ -101,8 +117,10 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {
     val equal = a1 == a2
-    is.hail.utils.warn(s"Stack Trace for valuesSimilar = \n${Thread.currentThread().getStackTrace.mkString("\n")}")
+    //is.hail.utils.warn(s"Stack Trace for valuesSimilar = \n${Thread.currentThread().getStackTrace.mkString("\n")}")
     is.hail.utils.warn(s"TNDArray.valuesSimilar returning $equal: ${a1.toString} vs ${a2.toString}. a1.type = ${a1.getClass.toString}")
+    val uia1 = a1.asInstanceOf[Row].getAs[UnsafeIndexedSeq](2)
+    val uia2 = a2.asInstanceOf[Row].getAs[UnsafeIndexedSeq](2)
     equal
   }
 
@@ -113,12 +131,4 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
     ("strides", TTuple(Array.fill(nDims)(TInt64): _*)),
     ("data", TArray(elementType))
   )
-
-  def validateData(r: Row): Unit = {
-    val shape = r.getAs[Row](0)
-    val strides = r.getAs[Row](1)
-    val data = r.getAs[IndexedSeq[_]](2)
-
-    assert(data.length == shape.toSeq.foldLeft(1L) { case (acc, a) => acc * a.asInstanceOf[Long]}, s"validation error! shape=${shape}, data=${data}")
-  }
 }

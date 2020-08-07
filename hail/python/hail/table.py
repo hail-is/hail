@@ -3263,24 +3263,17 @@ class Table(ExprContainer):
             print(f'Table._same: types differ: {self._type}, {other._type}')
             return False
 
-        left_global_value = Env.get_uid()
         left_value = Env.get_uid()
         left = self
-        left = left.select_globals(**{left_global_value: left.globals})
+        # left = left.annotate(**{left_value : left.row_value})
         left = left.group_by(_key=left.key).aggregate(**{left_value: hl.agg.collect(left.row_value)})
 
-        right_global_value = Env.get_uid()
         right_value = Env.get_uid()
         right = other
-        right = right.select_globals(**{right_global_value: right.globals})
+        # right = right.annotate(**{right_value : right.row_value})
         right = right.group_by(_key=right.key).aggregate(**{right_value: hl.agg.collect(right.row_value)})
 
         t = left.join(right, how='outer')
-
-        # if not hl.eval(_values_similar(t[left_global_value], t[right_global_value], tolerance, absolute)):
-        #     g = hl.eval(t.globals)
-        #     print(f'Table._same: globals differ: {g[left_global_value]}, {g[right_global_value]}')
-        #     return False
 
         if not t.all(hl.is_defined(t[left_value]) & hl.is_defined(t[right_value])
                      & _values_similar(t[left_value], t[right_value], tolerance, absolute)):

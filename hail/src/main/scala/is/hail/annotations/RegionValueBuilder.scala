@@ -214,7 +214,7 @@ class RegionValueBuilder(var region: Region) {
   def endNDArray() {
     val t = typestk.top.asInstanceOf[PNDArray]
     typestk.pop()
-    offsetstk.pop()
+    val poppedOffset = offsetstk.pop()
     val last = indexstk.pop()
     assert(last == t.representation.size)
 

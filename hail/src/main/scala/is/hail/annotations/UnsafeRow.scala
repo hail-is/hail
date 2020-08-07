@@ -11,6 +11,8 @@ import is.hail.variant.Locus
 import org.apache.spark.sql.Row
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
+import scala.collection.GenIterable
+
 trait UnKryoSerializable extends KryoSerializable {
   def write(kryo: Kryo, output: Output): Unit = {
     throw new NotImplementedException()
@@ -34,6 +36,25 @@ class UnsafeIndexedSeq(
       UnsafeRow.read(t.elementType, region, t.loadElement(aoff, length, i))
     } else
       null
+  }
+
+  override def sameElements[B >: Annotation](that: GenIterable[B]): Boolean = {
+    val uThat = that.asInstanceOf[UnsafeIndexedSeq]
+    var extraInfo = "no extra info"
+    if (t.elementType.isInstanceOf[PBaseStruct]) {
+      val ts = t.elementType.asInstanceOf[PBaseStruct]
+      if (ts.types.length == 1 && ts.types(0).isInstanceOf[PNDArray]) {
+        val uThatFirst = uThat(0).asInstanceOf[UnsafeRow] // A struct containing an ndarray
+        val addressOfNDArray = uThatFirst.t.fieldOffset(uThatFirst.offset, 0)
+        val ndarrayType = uThatFirst.t.types(0).asInstanceOf[PNDArray]
+        val undArray = new UnsafeRow(ndarrayType.representation, region, addressOfNDArray)
+        val arrayAddress = undArray.t.fieldOffset(undArray.offset, 2)
+
+        extraInfo = arrayAddress.toString
+      }
+    }
+    log.info(s"UnsafeRow.sameElements: elementType = ${t.elementType} ${this} vs ${that}. Array Address = ${extraInfo}")
+    super.sameElements(that)
   }
 
   override def toString: String = s"[${this.mkString(",")}]"
@@ -69,8 +90,11 @@ object UnsafeRow {
       case _: PInt64 => Region.loadLong(offset)
       case _: PFloat32 => Region.loadFloat(offset)
       case _: PFloat64 => Region.loadDouble(offset)
-      case t: PArray =>
-        readArray(t, region, offset)
+      case t: PArray => {
+        val myArray = readArray(t, region, offset)
+        //println(s"${myArray} at position $offset")
+        myArray
+      }
       case t: PSet =>
         readArray(t, region, offset).toSet
       case t: PString => readString(offset, t)
@@ -96,7 +120,7 @@ object UnsafeRow {
         Interval(start, end, includesStart, includesEnd)
       case nd: PNDArray => {
         val r = read(nd.representation, region, offset)
-        nd.virtualType.validateData(r.asInstanceOf[Row])
+        TNDArray.validateData(r.asInstanceOf[Row])
         r
       }
     }

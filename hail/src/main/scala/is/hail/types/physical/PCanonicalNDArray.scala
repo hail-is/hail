@@ -2,6 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder, UnsafeOrdering}
 import is.hail.asm4s.{Code, _}
+import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, EmitRegion}
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils.FastIndexedSeq
@@ -188,7 +189,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   override def construct(shapeBuilder: StagedRegionValueBuilder => Code[Unit], stridesBuilder: StagedRegionValueBuilder => Code[Unit], data: Code[Long], mb: EmitMethodBuilder[_]): Code[Long] = {
     val srvb = new StagedRegionValueBuilder(mb, this.representation)
-
+    val savedOutput = mb.newLocal[Long]()
     Code(Code(FastIndexedSeq(
       srvb.start(),
       srvb.addBaseStruct(this.shape.pType, shapeBuilder),
@@ -196,7 +197,10 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       srvb.addBaseStruct(this.strides.pType, stridesBuilder),
       srvb.advance(),
       srvb.addIRIntermediate(this.representation.fieldType("data"))(data))),
-      srvb.end()
+      savedOutput := srvb.end(),
+      TNDArray.validateData(StringFunctions.boxArg(EmitRegion(mb, mb.partitionRegion), this)(savedOutput)),
+
+      savedOutput
     )
   }
 
@@ -214,6 +218,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
     val sourceNDPType = srcPType.asInstanceOf[PNDArray]
     assert(elementType == sourceNDPType.elementType && nDims == sourceNDPType.nDims)
+    assert(false)
     representation.copyFromAddress(region, sourceNDPType.representation, srcAddress, deepCopy)
   }
 
@@ -233,7 +238,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     Code(
       srcLocal := srcAddress,
       addrLocal := addr,
-      this.representation.constructAtAddress(mb, addrLocal, region, srcNDArray.representation, srcLocal, deepCopy)
+      this.representation.constructAtAddress(mb, addrLocal, region, srcNDArray.representation, srcLocal, deepCopy),
+      TNDArray.validateData(StringFunctions.boxArg(er, this)(addrLocal))
     )
 
   }

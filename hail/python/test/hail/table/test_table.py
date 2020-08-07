@@ -1448,6 +1448,11 @@ def test_write_table_containing_ndarray():
     #t2.show()
     assert t._same(t2)
 
+def test_ndarray_self_similar():
+    t = hl.utils.range_table(2)
+    t = t.annotate(n = hl.nd.arange(t.idx))
+    assert t._same(t)
+
 def test_read_ndarray_collect():
     t = hl.utils.range_table(2)
     t = t.annotate(n = hl.nd.arange(t.idx))

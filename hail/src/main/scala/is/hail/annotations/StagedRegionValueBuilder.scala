@@ -3,9 +3,10 @@ package is.hail.annotations
 import is.hail.asm4s.Code._
 import is.hail.asm4s.{Code, FunctionBuilder, _}
 import is.hail.expr.ir
+import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ParamType}
 import is.hail.types.physical._
-import is.hail.types.virtual.{TBoolean, TFloat32, TFloat64, TInt32, TInt64, Type}
+import is.hail.types.virtual.{TBoolean, TFloat32, TFloat64, TInt32, TInt64, TNDArray, Type}
 import is.hail.utils._
 
 object StagedRegionValueBuilder {
@@ -17,20 +18,41 @@ object StagedRegionValueBuilder {
 //      case t => t.fundamentalType
 //    }
     val t = typ
+
     val valueTI = ir.typeToTypeInfo(t)
     val mb = cb.getOrGenEmitMethod("deepCopy", ("deepCopy", t),
       FastIndexedSeq[ParamType](classInfo[Region], valueTI, LongInfo), UnitInfo) { mb =>
       val r = mb.getCodeParam[Region](1)
       val value = mb.getCodeParam(2)(valueTI)
       val dest = mb.getCodeParam[Long](3)
-      mb.emit(t.constructAtAddressFromValue(mb, dest, r, t, value, true))
+
+      var codeCheck = Code._empty
+      var codeCheck2 = Code._empty
+      if (typ.isInstanceOf[PNDArray]) {
+        assert(false)
+        val er = EmitRegion(mb, r)
+        codeCheck = Code(
+          Code._println("SRVB deepCopy ndarray codeCheck"),
+          TNDArray.validateData(StringFunctions.boxArg(er, typ)(value))
+        )
+        codeCheck2 = TNDArray.validateData(StringFunctions.boxArg(er, typ)(dest))
+      }
+
+
+      mb.emit(Code(
+        codeCheck,
+        t.constructAtAddressFromValue(mb, dest, r, t, value, true),
+        codeCheck2
+      ))
     }
     mb.invokeCode[Unit](region, value, dest)
   }
 
   def deepCopyFromOffset(cb: EmitClassBuilder[_], region: Code[Region], typ: PType, value: Code[Long]): Code[Long] = {
     val t = typ match {
-      case t: PNDArray => t.representation.fundamentalType
+      case t: PNDArray => {
+        t.representation.fundamentalType
+      }
       case t => t.fundamentalType
     }
     val mb = cb.getOrGenEmitMethod("deepCopyFromOffset", ("deepCopyFromOffset", typ),
@@ -144,7 +166,11 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
   def start(init: Boolean): Code[Unit] = {
     val t = ftype match {
       case x: PCanonicalBaseStruct => x
-      case x: PNDArray => x.representation
+      case x: PNDArray => {
+        assert(false)
+        x.representation
+      }
+
     }
     var c = if (pOffset == null)
       startOffset.store(region.allocate(t.alignment, t.byteSize))
@@ -261,7 +287,20 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
         val r = mb.getCodeParam[Region](1)
         val value = mb.getCodeParam(2)(valueTI)
         val dest = mb.getCodeParam[Long](3)
-        mb.emit(current.constructAtAddressFromValue(mb, dest, r, t, value, false))
+
+        var beforeEmit = Code._empty
+        var afterEmit = Code._empty
+
+        if (current.isInstanceOf[PNDArray]) {
+          beforeEmit = TNDArray.validateData(StringFunctions.boxArg(EmitRegion(mb, r), current)(value))
+          afterEmit = TNDArray.validateData(StringFunctions.boxArg(EmitRegion(mb, r), current)(dest))
+        }
+
+        mb.emit(Code(
+          beforeEmit,
+          current.constructAtAddressFromValue(mb, dest, r, t, value, false),
+          afterEmit
+        ))
       }
        (v: Code[_]) => {
          assert(v.v != null)
