@@ -4,9 +4,6 @@ import os
 from shutil import which, rmtree
 
 
-rdir = "hailtop/batch/genetics/regenie"
-
-
 def read(file):
     with open(file, 'r') as f:
         return f.read()
@@ -19,11 +16,12 @@ def assert_same_file(file1, file2):
 class LocalTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        rdir = "hailtop/batch/genetics/regenie"
+
         cls.cwd = os.getcwd()
         cls.outdir = "batch"
         os.chdir(rdir)
         os.system("git clone --depth 1 --branch v1.0.5.5 git@github.com:rgcgithub/regenie.git")
-        print("RAN")
         cls.step2_out_prefix = 'test_bin_out_firth'
 
     @classmethod
@@ -47,11 +45,8 @@ class LocalTests(unittest.TestCase):
 
         rmtree(self.outdir)
 
-        os.chdir(self.cwd)
-
     @unittest.skipIf(not which("docker"), "docker command is missing")
     def test_regenie_1pheno(self):
-        os.chdir(rdir)
         args = br.parse_input_args(["--local", "--step1", "example/step1.txt", "--step2",
                                     "example/step2-phenoCol.txt", "--outdir", self.outdir])
         br.run(args)
@@ -74,11 +69,8 @@ class LocalTests(unittest.TestCase):
 
         rmtree(self.outdir)
 
-        os.chdir(self.cwd)
-
     @unittest.skipIf(not which("docker"), "docker command is missing")
     def test_regenie_nosplit(self):
-        os.chdir(rdir)
         args = br.parse_input_args(["--local", "--step1", "example/step1.txt", "--step2",
                                     "example/step2-nosplit.txt", "--outdir", self.outdir])
         br.run(args)

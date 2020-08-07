@@ -1,6 +1,7 @@
 from hail.utils import hadoop_open as hopen
 from hail.utils import hadoop_exists as hexists
-from hailtop.batch import Resource, Batch, LocalBackend
+from hailtop.batch import Batch, LocalBackend
+from hailtop.batch.resource import Resource
 from collections import namedtuple
 import sys
 import shlex
