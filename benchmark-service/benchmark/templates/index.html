@@ -13,15 +13,15 @@
 
 <div class="attributes">
     <div>SHA:
-        {% if sha is not none %}
-        {{ sha }}
+        {% if benchmarks['sha'] is not none %}
+        {{ benchmarks['sha'] }}
         {% else %}
         unknown
         {% endif %}
     </div>
     <div>Geometric Mean:
-        {% if geometric_mean is not none %}
-        {{ geometric_mean }}
+        {% if benchmarks['geometric_mean'] is not none %}
+        {{ benchmarks['geometric_mean'] }}
         {% endif %}
     </div>
 </div>
