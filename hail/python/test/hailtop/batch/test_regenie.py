@@ -3,7 +3,7 @@ import hailtop.batch.genetics.regenie as br
 import os
 from shutil import which
 
-cwd = os.getcwd()
+
 rdir = "hailtop/batch/genetics/regenie"
 
 
@@ -17,6 +17,9 @@ def assert_same_file(file1, file2):
 
 
 class LocalTests(unittest.TestCase):
+    def setUp(self):
+        self.cwd = os.getcwd()
+
     @unittest.skipIf(not which("docker"), "docker command is missing")
     def test_regenie(self):
         os.chdir(rdir)
@@ -37,7 +40,7 @@ class LocalTests(unittest.TestCase):
         os.remove(out1)
         os.remove(out2)
 
-        os.chdir(cwd)
+        os.chdir(self.cwd)
 
     @unittest.skipIf(not which("docker"), "docker command is missing")
     def test_regenie_1pheno(self):
@@ -68,4 +71,4 @@ class LocalTests(unittest.TestCase):
         os.remove(out_log)
         os.remove(out2)
 
-        os.chdir(cwd)
+        os.chdir(self.cwd)

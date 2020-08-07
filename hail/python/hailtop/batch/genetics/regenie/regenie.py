@@ -6,6 +6,7 @@ import sys
 import shlex
 from argparse import Namespace, ArgumentParser
 from typing import Set
+from os.path import splitext, basename
 
 BatchArgs = namedtuple("BatchArgs", ['cores', 'memory', 'storage'])
 input_file_args = ["bgen", "bed", "pgen", "sample", "keep", "extract", "exclude", "remove",
@@ -30,15 +31,17 @@ def _error(msg):
 def add_shared_args(parser: ArgumentParser):
     # Batch knows in advance which step it is, so not required
     parser.add_argument('--step', required=False)
-    parser.add_argument('--phenoFile', required=True)
 
-    parser.add_argument('--phenoCol', required=False, action='append')
-    parser.add_argument('--phenoColList', required=False)
+    parser.add_argument('--phenoFile', required=True)
+    parser.add_argument('--out', required=True)
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--bed', required=False)
     group.add_argument('--bgen', required=False)
     group.add_argument('--pgen', required=False)
+
+    parser.add_argument('--phenoCol', required=False, action='append')
+    parser.add_argument('--phenoColList', required=False)
 
     parser.add_argument('--sample', required=False)
     parser.add_argument('--covarFile', required=False)
@@ -49,7 +52,6 @@ def add_shared_args(parser: ArgumentParser):
     parser.add_argument('--bsize', required=False)
     parser.add_argument('--cv', required=False)
     parser.add_argument('--nb', required=False)
-    parser.add_argument('--out', required=False)
 
     parser.add_argument('--loocv', required=False, action='store_true')
     parser.add_argument('--bt', required=False, action='store_true')
@@ -175,20 +177,18 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: Namespace, step2_args: Name
     phenos = get_phenos(step1_args)
     nphenos = len(phenos)
 
-    step1_output_prefix = step1_args.out
-    s1out = {"log": f"{step1_output_prefix}.log", "pred_list": f"{step1_output_prefix}_pred.list"}
+    s1out = {"log": "{root}.log", "pred_list": "{root}_pred.list"}
 
     for i in range(1, nphenos + 1):
-        s1out[f"{step1_output_prefix}_{i}"] = f"{step1_output_prefix}_{i}.loco"
+        s1out[f"pheno_{i}"] = f"{{root}}_{i}.loco"
 
     if step1_args.lowmem:
         for i in range(1, nphenos + 1):
             pfile = f"{step1_args.lowmem_prefix}_l0_Y{i}"
-            s1out[pfile] = pfile
+            s1out[f"lowmem_{i}"] = pfile
 
-    j1.declare_resource_group(**{step1_output_prefix: s1out})
-
-    cmd1 = prepare_step_cmd(batch, step1_args, j1[step1_output_prefix])
+    j1.declare_resource_group(output=s1out)
+    cmd1 = prepare_step_cmd(batch, step1_args, j1.output)
     j1.command(f"regenie {cmd1}")
 
     phenos = get_phenos(step2_args)
@@ -200,26 +200,27 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: Namespace, step2_args: Name
     j2.memory(args.memory)
     j2.storage(args.storage)
 
-    step2_output_prefix = step2_args.out
-    s2out = {"log": f"{step2_output_prefix}.log"}
+    s2out = {"log": "{root}.log"}
 
     if step2_args.split:
         for pheno in phenos:
-            out = f"{step2_output_prefix}_{pheno}.regenie"
-            s2out[out] = out
+            out = f"{{root}}_{pheno}.regenie"
+            s2out[f"{pheno}.regenie"] = out
+    else:
+        s2out[f"regenie"] = "{root}.regenie"
 
     print(f"Regenie Step 2 output files: \n{s2out.values()}")
 
-    j2.declare_resource_group(**{step2_output_prefix: s2out})
+    j2.declare_resource_group(output=s2out)
 
-    cmd2 = prepare_step_cmd(batch, step2_args, j2[step2_output_prefix], skip=set(['pred']))
+    cmd2 = prepare_step_cmd(batch, step2_args, j2.output, skip=set(['pred']))
 
     if not step2_args.ignore_pred:
-        cmd2 = (f"{cmd2} --pred {j1[step1_output_prefix]['pred_list']}")
+        cmd2 = (f"{cmd2} --pred {j1.output['pred_list']}")
 
     j2.command(f"regenie {cmd2}")
 
-    return j1, j2, step2_output_prefix
+    return j2
 
 
 def run(args):
@@ -248,9 +249,16 @@ def run(args):
 
     batch = Batch(backend=backend, name='regenie')
 
-    _, j2, j2_out_key = prepare_jobs(batch, batch_args, step1_args, step2_args)
+    j2 = prepare_jobs(batch, batch_args, step1_args, step2_args)
 
-    batch.write_output(j2[j2_out_key], args.out)
+    j2out = splitext(basename(step2_args.out))[0]
+    if args.outdir[-1] != "/":
+        outpath = f"{args.outdir}/{j2out}"
+    else:
+        outpath = f"{args.outdir}{j2out}"
+
+    print(f"Output path set as: {outpath}")
+    batch.write_output(j2.output, outpath)
     batch.run(**run_opts)
 
 
@@ -258,7 +266,7 @@ def parse_input_args(args: list):
     parser = ArgumentParser()
     parser.add_argument('--local', required=False, action="store_true")
     parser.add_argument('--demo', required=False, action="store_true")
-    parser.add_argument('--out', required=True)
+    parser.add_argument('--outdir', required=True)
     # FIXME: replace with per-step resources
     parser.add_argument('--cores', required=False, default=2)
     parser.add_argument('--memory', required=False, default="7Gi")
