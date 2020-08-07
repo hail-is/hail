@@ -345,7 +345,11 @@ class SparkBackend(
     Serialization.write(Map("value" -> jsonValue, "timings" -> timings.asMap()))(new DefaultFormats {})
   }
 
-  def encodeToBytes(ir: IR, bufferSpecString: String, allocStrat: EmitAllocationStrategy.T = EmitAllocationStrategy.OneRegion): (String, Array[Byte]) = {
+  // Called from python
+  def encodeToBytes(ir: IR, bufferSpecString: String): (String, Array[Byte]) =
+    encodeToBytes(ir, bufferSpecString, EmitAllocationStrategy.OneRegion)
+
+  def encodeToBytes(ir: IR, bufferSpecString: String, allocStrat: EmitAllocationStrategy.T): (String, Array[Byte]) = {
     val bs = BufferSpec.parseOrDefault(bufferSpecString)
     withExecuteContext() { ctx =>
       _execute(ctx, ir, true, allocStrat = allocStrat)._1 match {
