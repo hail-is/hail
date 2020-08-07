@@ -9,7 +9,7 @@ What is Docker?
 Docker is a tool for packaging up operating systems, scripts, and environments in order to
 be able to run the same code regardless of what machine the code is executing on. This packaged
 code is called an image. There are three parts to Docker: a mechanism for building images,
-an image repository called DockerHub, and a way to execute code in an image
+an image repository called Docker Hub, and a way to execute code in an image
 called a container. For using Batch effectively, we're only going to focus on building images.
 
 Installation

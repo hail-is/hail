@@ -67,4 +67,5 @@ def full_combiner_chr22(*paths):
                             tmp_path='/tmp',
                             branch_factor=16,
                             reference_genome='GRCh38',
-                            overwrite=True)
+                            overwrite=True,
+                            use_default_exome_intervals=True)

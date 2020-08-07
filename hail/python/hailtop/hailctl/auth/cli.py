@@ -5,6 +5,7 @@ from . import login
 from . import logout
 from . import auth_list
 from . import copy_paste_login
+from . import user
 
 
 def parser():
@@ -29,6 +30,11 @@ def parser():
         'list',
         help='List Hail credentials.',
         description='List Hail credentials.')
+    user_parser = subparsers.add_parser(
+        'user',
+        help='Get Hail user information.',
+        description='Get Hail user information'
+    )
 
     login_parser.set_defaults(module='login')
     login.init_parser(login_parser)
@@ -42,6 +48,9 @@ def parser():
     list_parser.set_defaults(module='list')
     auth_list.init_parser(list_parser)
 
+    user_parser.set_defaults(module='user')
+    user.init_parser(user_parser)
+
     return main_parser
 
 
@@ -54,6 +63,7 @@ def main(args):
         'copy-paste-login': copy_paste_login,
         'logout': logout,
         'list': auth_list,
+        'user': user,
     }
 
     args, pass_through_args = parser().parse_known_args(args=args)

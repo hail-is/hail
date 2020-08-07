@@ -52,7 +52,7 @@ for more information about access control.
     gsutil iam ch serviceAccount:[SERVICE_ACCOUNT_NAME]:objectAdmin gs://[BUCKET_NAME]
 
 The Google Container Repository (GCR) is a Docker repository hosted by Google that is an alternative
-to Dockerhub for storing images. It is recommended to use GCR for images that shouldn't be publically
+to Docker Hub for storing images. It is recommended to use GCR for images that shouldn't be publically
 available. If you have a GCR `associated with your project <https://cloud.google.com/container-registry/docs/>`__,
 then you can enable the service account to view Docker images with the command below where
 `SERVICE_ACCOUNT_NAME` is your full service account name and `PROJECT_ID` is the name of your project
