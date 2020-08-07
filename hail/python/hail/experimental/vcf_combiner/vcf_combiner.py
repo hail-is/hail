@@ -507,14 +507,14 @@ def run_combiner(sample_paths: List[str],
                  tmp_path: str,
                  *,
                  intervals: Optional[List[hl.utils.Interval]] = None,
+                 import_interval_size: Optional[int] = None,
+                 use_genome_default_intervals: bool = False,
+                 use_exome_default_intervals: bool = False,
                  header: Optional[str] = None,
                  sample_names: Optional[List[str]] = None,
                  branch_factor: int = CombinerConfig.default_branch_factor,
                  batch_size: int = CombinerConfig.default_batch_size,
                  target_records: int = CombinerConfig.default_target_records,
-                 import_interval_size: Optional[int] = None,
-                 use_genome_default_intervals: bool = False,
-                 use_exome_default_intervals: bool = False,
                  overwrite: bool = False,
                  reference_genome: str = 'default',
                  contig_recoding: Optional[Dict[str, str]] = None,
@@ -549,7 +549,15 @@ def run_combiner(sample_paths: List[str],
     tmp_path : :obj:`str`
         Path for intermediate output.
     intervals : list of :class:`.Interval` or None
-        Partitioning with which to import GVCFs in first phase of combiner.
+        Import GVCFs with specified partition intervals.
+    import_interval_size : :obj:`int` or None
+        Import GVCFs with uniform partition intervals of specified size.
+    use_genome_default_intervals : :obj:`bool`
+        Import GVCFs with uniform partition intervals of default size for
+        whole-genome data.
+    use_exome_default_intervals : :obj:`bool`
+        Import GVCFs with uniform partition intervals of default size for
+        exome data.
     header : :obj:`str` or None
         External header file to use as GVCF header for all inputs. If defined, `sample_names` must be defined as well.
     sample_names: list of :obj:`str` or None
@@ -560,14 +568,6 @@ def run_combiner(sample_paths: List[str],
         Combiner batch size.
     target_records : :obj:`int`
         Target records per partition in each combiner phase after the first.
-    import_interval_size : :obj:`int` or None
-        Import GVCFs with uniform partition intervals of specified size.
-    use_genome_default_intervals : :obj:`bool`
-        Import GVCFs with uniform partition intervals of default size for
-        whole-genome data.
-    use_exome_default_intervals : :obj:`bool`
-        Import GVCFs with uniform partition intervals of default size for
-        exome data.
     overwrite : :obj:`bool`
         Overwrite output file, if it exists.
     reference_genome : :obj:`str`
