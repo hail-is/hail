@@ -85,6 +85,7 @@ def test_ndarray_slice():
         (rect_prism[0:, :, 1:4:2] + rect_prism[:, :1, 1:4:2],
          np_rect_prism[0:, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
         (rect_prism[0, 0, -3:-1], np_rect_prism[0, 0, -3:-1]),
+        (rect_prism[-1, 0:1, 3:0:-1], np_rect_prism[-1, 0:1, 3:0:-1]),
 
         (flat[15:5:-1], np_flat[15:5:-1]),
         (flat[::-1], np_flat[::-1]),
@@ -139,9 +140,14 @@ def test_ndarray_slice():
     assert hl.eval(rect_prism[:, :, 0:hl.null(hl.tint32):1]) is None
     assert hl.eval(rect_prism[hl.null(hl.tint32), :, :]) is None
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(FatalError, match="Slice step cannot be zero"):
         hl.eval(flat[::0])
-    assert "Slice step cannot be zero" in str(exc)
+
+    with pytest.raises(FatalError, match="Index 3 is out of bounds for axis 0 with size 2"):
+        hl.eval(mat[3, 1:3])
+
+    with pytest.raises(FatalError, match="Index -4 is out of bounds for axis 0 with size 2"):
+        hl.eval(mat[-4, 0:3])
 
 
 def test_ndarray_transposed_slice():

@@ -65,10 +65,13 @@ abstract class PCode { self =>
 
   def asStream: PCanonicalStreamCode = asInstanceOf[PCanonicalStreamCode]
 
-  def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType): PCode = {
+  def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType, deepCopy: Boolean = false): PCode = {
     PCode(destType,
-      destType.copyFromTypeAndStackValue(mb, region, pt, code))
+      destType.copyFromTypeAndStackValue(mb, region, pt, code, deepCopy))
   }
+
+  def copyToRegion(mb: EmitMethodBuilder[_], region: Value[Region]): PCode =
+    castTo(mb, region, pt, deepCopy = true)
 
   // this is necessary because Scala doesn't infer the return type of
   // PIndexableCode.memoize if PCode.memoize has a default implementation
@@ -123,11 +126,13 @@ object PCode {
       new PCanonicalNDArrayCode(pt, coerce[Long](code))
     case pt: PCanonicalStream =>
       throw new UnsupportedOperationException(s"Can't PCode.apply unrealizable PType: $pt")
+    case PVoid =>
+      throw new UnsupportedOperationException(s"Can't PCode.apply unrealizable PType: $pt")
     case _ =>
       new PPrimitiveCode(pt, code)
   }
 
-  def _empty: PCode = PCode(PVoid, Code._empty)
+  def _empty: PCode = PVoidCode
 }
 
 object PSettable {

@@ -14,7 +14,7 @@ import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, OutputBuffer, TypedCodecS
 import is.hail.rvd.{AbstractRVDSpec, IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.{RTable, TableType}
 import is.hail.types.encoded.EType
-import is.hail.types.physical.{PArray, PCanonicalString, PCanonicalStruct, PCode, PIndexableCode, PInt64, PStream, PString, PStringCode, PStruct, PType}
+import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PCode, PIndexableCode, PInt64, PStream, PStringCode, PStruct, PType}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.ReferenceGenome
@@ -202,7 +202,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
         cb.assign(os, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename)))
         cb.assign(ob, spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)))
         cb.assign(n, 0L)
-        cb += stream.getStream.forEach(mb, writeFile)
+        cb += stream.getStream(StagedRegion(region, allowSubregions = false)).forEach(mb, writeFile)
         cb += ob.writeByte(0.asInstanceOf[Byte])
         cb.assign(result, pResultType.allocate(region))
         if (hasIndex)

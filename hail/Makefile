@@ -12,7 +12,7 @@ URL := $(shell git config --get remote.origin.url)
 SCALA_VERSION = 2.11.12
 SPARK_VERSION := 2.4.5
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 53
+HAIL_PATCH_VERSION := 54
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 
@@ -128,6 +128,7 @@ $(PYTHON_JAR): shadowJar
 	cp -f $(SHADOW_JAR) $@
 
 .PHONY: pytest
+pytest: PYTEST_TARGET ?= test/hail
 pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
 pytest: python/README.md $(PYTHON_JAR)
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
@@ -137,7 +138,7 @@ pytest: python/README.md $(PYTHON_JAR)
      -r A \
      --self-contained-html \
      --html=../build/reports/pytest.html \
-     test/hail \
+     $(PYTEST_TARGET) \
      $(PYTEST_ARGS)"
 
 .PHONY: doctest
