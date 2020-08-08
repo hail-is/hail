@@ -11,7 +11,7 @@ import is.hail.utils._
 object StagedRegionValueBuilder {
   def deepCopy(cb: EmitClassBuilder[_], region: Code[Region], typ: PType, value: Code[_], dest: Code[Long]): Code[Unit] = {
     val t = typ.fundamentalType
-    val valueTI = ir.typeToTypeInfo(t)
+    val valueTI = typeToTypeInfo(t)
     val mb = cb.getOrGenEmitMethod("deepCopy", ("deepCopy", typ),
       FastIndexedSeq[ParamType](classInfo[Region], valueTI, LongInfo), UnitInfo) { mb =>
       val r = mb.getCodeParam[Region](1)
@@ -225,7 +225,7 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     case _: PFloat64 => v => addDouble(v.asInstanceOf[Code[Double]])
     case t =>
       val current = currentPType()
-      val valueTI = ir.typeToTypeInfo(t)
+      val valueTI = typeToTypeInfo(t)
       val m = mb.getOrGenEmitMethod("addIRIntermediate", ("addIRIntermediate", current, t, deepCopy),
         FastIndexedSeq[ParamType](classInfo[Region], valueTI, LongInfo), UnitInfo) { mb =>
         val r = mb.getCodeParam[Region](1)

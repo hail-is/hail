@@ -4,7 +4,7 @@ import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
 import is.hail.expr.ir.{coerce => _, _}
 import is.hail.expr.ir.functions.UtilFunctions
-import is.hail.types.physical.{PInt32, PInt64, PFloat32, PFloat64, PType}
+import is.hail.types.physical.{PInt32, PInt64, PFloat32, PFloat64, PType, typeToTypeInfo}
 
 import scala.language.existentials
 import scala.reflect.ClassTag
