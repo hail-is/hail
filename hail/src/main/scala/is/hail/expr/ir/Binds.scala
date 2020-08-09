@@ -229,8 +229,8 @@ object ChildEnvWithoutBindings {
       case ApplyAggOp(init, _, _) => if (i < init.length) env.copy(agg = None) else env.promoteAgg
       case ApplyScanOp(init, _, _) => if (i < init.length) env.copy(scan = None) else env.promoteScan
       case CollectDistributedArray(_, _, _, _, _) => if (i == 2) BindingEnv(relational = env.relational) else env
-      case MatrixAggregate(_, _) => if (i == 0) BindingEnv.empty else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
-      case TableAggregate(_, _) => if (i == 0) BindingEnv.empty else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
+      case MatrixAggregate(_, _) => if (i == 0) BindingEnv(relational = env.relational) else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
+      case TableAggregate(_, _) => if (i == 0) BindingEnv(relational = env.relational) else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
       case RelationalLet(_, _, _) => if (i == 0) BindingEnv(relational = env.relational) else env.copy(agg = None, scan = None)
       case LiftMeOut(_) => BindingEnv(Env.empty[T], env.agg.map(_ => Env.empty), env.scan.map(_ => Env.empty), relational = env.relational)
       case tir: TableIR => BindingEnv(
