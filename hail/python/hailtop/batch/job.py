@@ -275,6 +275,7 @@ class Job:
         Parameters
         ----------
         command:
+            A ``bash`` command.
 
         Returns
         -------
@@ -347,7 +348,7 @@ class Job:
         Parameters
         ----------
         storage:
-        Units are in bytes if `storage` is an :obj:`int`.
+            Units are in bytes if `storage` is an :obj:`int`.
 
         Returns
         -------
@@ -418,7 +419,7 @@ class Job:
         Parameters
         ----------
         cores:
-        Units are in cpu if `cores` is numeric.
+            Units are in cpu if `cores` is numeric.
 
         Returns
         -------
