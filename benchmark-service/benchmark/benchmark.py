@@ -129,7 +129,7 @@ async def lookup(request, userdata):  # pylint: disable=unused-argument
 
 @router.get('/compare')
 @web_authenticated_developers_only(redirect=False)
-async def lookup(request, userdata):  # pylint: disable=unused-argument
+async def compare(request, userdata):  # pylint: disable=unused-argument
     file1 = request.query.get('file1')
     file2 = request.query.get('file2')
     if file1 or file2 is None:
