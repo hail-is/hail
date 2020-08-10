@@ -14,13 +14,6 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
 class TableIRSuite extends HailSuite {
-  def rangeKT: TableIR = TableKeyBy(TableRange(20, 4), FastIndexedSeq())
-
-  def collect(tir: TableIR): IR =
-    TableAggregate(tir, MakeStruct(FastSeq(
-      "rows" -> IRAggCollect(Ref("row", tir.typ.rowType)),
-      "global" -> Ref("global", tir.typ.globalType))))
-  def collectNoKey(tir: TableIR): IR = TableCollect(tir)
 
   implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.LoweredJVMCompile)
 

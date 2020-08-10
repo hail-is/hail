@@ -21,6 +21,8 @@ google-cloud-storage==1.16.1
 humanize==0.5.1
 hurry.filesize==0.9
 Jinja2==2.10.1
+# keyrings.alt>3.1: https://bugs.launchpad.net/usd-importer/+bug/1794041/comments/6
+keyrings.alt>=3.1
 kubernetes-asyncio==9.1.0
 libsass==0.19.2
 mypy==0.780

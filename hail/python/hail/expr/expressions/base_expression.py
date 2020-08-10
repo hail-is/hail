@@ -345,12 +345,12 @@ def unify_all(*exprs) -> Tuple[Indices, LinkedList]:
             from .expression_utils import get_refs
             for name, inds in get_refs(e, *[e for a in e._aggregations for e in a.exprs]).items():
                 sources[inds.source].append(str(name))
-                raise ExpressionException(
-                    "Cannot combine expressions from different source objects."
-                    "\n    Found fields from {n} objects:{fields}".format(
-                        n=len(sources),
-                        fields=''.join("\n        {}: {}".format(src, fds) for src, fds in sources.items())
-                    )) from None
+        raise ExpressionException(
+            "Cannot combine expressions from different source objects."
+            "\n    Found fields from {n} objects:{fields}".format(
+                n=len(sources),
+                fields=''.join("\n        {}: {}".format(src, fds) for src, fds in sources.items())
+            )) from None
     first, rest = exprs[0], exprs[1:]
     aggregations = first._aggregations
     for e in rest:

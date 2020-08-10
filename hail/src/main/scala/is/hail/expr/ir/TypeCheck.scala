@@ -369,7 +369,7 @@ object TypeCheck {
         assert(x.typ == TArray(aggBody.typ))
         assert(knownLength.forall(_.typ == TInt32))
       case x@InitOp(_, args, aggSig) =>
-        assert(args.map(_.typ) == aggSig.initOpTypes)
+        assert(args.map(_.typ) == aggSig.initOpTypes, s"${args.map(_.typ)} !=  ${aggSig.initOpTypes}")
       case x@SeqOp(_, args, aggSig) =>
         assert(args.map(_.typ) == aggSig.seqOpTypes)
       case _: CombOp =>
@@ -473,6 +473,7 @@ object TypeCheck {
       case x@WriteValue(value, path, spec) =>
         assert(path.typ == TString)
       case LiftMeOut(_) =>
+      case Consume(_) =>
       case x@ShuffleWith(_, _, _, _, _, writer, readers) =>
         assert(writer.typ == TArray(TBinary))
         assert(readers.typ.isRealizable)

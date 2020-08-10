@@ -1,0 +1,62 @@
+<!--{% extends "layout.html" %}-->
+<!--{% block title %}-->
+<!--Compare Benchmarks-->
+<!--{% endblock %}-->
+
+<!--{% block content %}-->
+
+<!--<h1>Benchmark System</h1>-->
+<!--<form action="{{ base_path }}/compare" method="get">-->
+<!--    <input type="hidden" name="_csrf" value="{{ csrf_token }}">-->
+<!--    <input type="text" name="file1"></input>-->
+<!--    <input type="text" name="file2"></input>-->
+<!--    <input type="submit" value="compare"></input>-->
+<!--</form>-->
+
+<!--{% if {{ file1 }} is not none and {{ file2 }} is not none %}-->
+<!--    <table class="data-table">-->
+<!--        <thead>-->
+<!--        <tr>-->
+<!--            <th>name</th>-->
+<!--            <th>ratio</th>-->
+<!--            <th>-->
+<!--                {% if benchmarks1['sha'] is not none %}-->
+<!--                <a href="{{ base_path }}/lookup?file={{ file1 }}">{{ benchmarks1['sha'] }}</a>-->
+<!--                {% else %}-->
+<!--                unknown-->
+<!--                {% endif %}-->
+<!--            </th>-->
+<!--            <th>-->
+<!--                {% if benchmarks2['sha'] is not none %}-->
+<!--                <a href="{{ base_path }}/lookup?file={{ file2 }}">{{ benchmarks2['sha'] }}</a>-->
+<!--                {% else %}-->
+<!--                unknown-->
+<!--                {% endif %}-->
+<!--            </th>-->
+<!--        </tr>-->
+<!--        </thead>-->
+<!--        <tbody>-->
+<!--        {% for d in benchmarks1['data'] %}-->
+<!--        {% if d['name'] in benchmarks2.values() %}-->
+<!--        <tr>-->
+
+<!--            <td><a href="{{ base_path }}/name/{{ d['name'] }}?file={{ file }}">{{ d['name'] }}</a></td>-->
+<!--            <td>{{ d['name'] }}</td>-->
+<!--            <td>{{ benchmarks2/d['mean'] }}</td>-->
+<!--            <td>{{ d['mean'] }}</td>-->
+<!--            <td>{{ d['median'] }}</td>-->
+<!--            <td>{{ d['p-value'] }}</td>-->
+<!--            <td>{{ d['stdev'] }}</td>-->
+<!--        </tr>-->
+<!--        {% endfor %}-->
+<!--        </tbody>-->
+<!--    </table>-->
+
+<!--    <p> Harmonic Mean: </p>-->
+<!--    <p> Geometric Mean: </p>-->
+<!--    <p> Arithmetic Mean: </p>-->
+<!--    <p> Median: </p>-->
+<!--    <hr>-->
+<!--{% endif %}-->
+
+<!--{% endblock %}-->

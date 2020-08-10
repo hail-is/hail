@@ -977,9 +977,11 @@ object EmitStream {
             srvb.advance())),
         push((curKey, PCode(resultType, srvb.offset))))
 
+      val winnerPc = new PSubsetStructCode(keyViewType, heads(winner))
+
       Code(LstartNewKey,
         Code.forLoop(i := 0, i < k, i := i + 1, result(i) = 0L),
-        curKey := keyType.copyFromPValue(mb, region, new PSubsetStructCode(keyViewType, heads(winner))),
+        curKey := winnerPc.castTo(mb, region, keyType),
         LaddToResult.goto)
 
       Code(LaddToResult,
@@ -1021,7 +1023,7 @@ object EmitStream {
         stream(
           eos = Code(winner := k, matchIdx := (idx + k) >>> 1,  runMatch.goto),
           push = elt => Code(
-            heads(idx) = eltType.copyFromPValue(mb, region, elt).tcode[Long],
+            heads(idx) = elt.castTo(mb, region, eltType).tcode[Long],
             matchIdx := (idx + k) >>> 1,
             runMatch.goto))
       }
@@ -1090,7 +1092,10 @@ object EmitStream {
                     LchildPull.goto,
                     LinnerPush.goto),
                   Code(
-                    xCurKey := keyType.copyFromPValue(mb, region, new PSubsetStructCode(keyViewType, xCurElt.tcode[Long])),
+                    xCurKey := {
+                      val pc = new PSubsetStructCode(keyViewType, xCurElt.tcode[Long])
+                      pc.castTo(mb, region, keyType)
+                    },
                     xInOuter.mux(
                       LouterPush.goto,
                       Code(xNextGrpReady := true, LinnerEos.goto)))))
@@ -1619,7 +1624,7 @@ object EmitStream {
 
           COption.lift(as.map(emitStream(_, env))).map { sss =>
             val streams = sss.map(_.stream.map { ec =>
-              eltType.copyFromPValue(mb, region, ec.get()).tcode[Long]
+              ec.get().castTo(mb, region, eltType).tcode[Long]
             })
             val merged = kWayMerge[Long](mb, streams, comp).map { case (i, elt) =>
                 EmitCode.present(PCode(eltType, elt))
@@ -1746,10 +1751,10 @@ object EmitStream {
             val xAcc = mb.newEmitField(accName, accType)
             val tmpAcc = mb.newEmitField(accName, accType)
 
-            val zero = emitIR(zeroIR).map(accType.copyFromPValue(mb, region, _))
+            val zero = emitIR(zeroIR).map(_.castTo(mb, region, accType))
             val bodyEnv = env.bind(accName -> tmpAcc, eltName -> xElt)
 
-            val body = emitIR(bodyIR, env = bodyEnv).map(accType.copyFromPValue(mb, region, _))
+            val body = emitIR(bodyIR, env = bodyEnv).map(_.castTo(mb, region, accType))
 
             val newStream = new Stream[EmitCode] {
               def apply(eos: Code[Ctrl], push: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] = {

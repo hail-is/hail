@@ -126,6 +126,10 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     ))
   }
 
+  def setElement(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: Code[_], mb: EmitMethodBuilder[_]): Code[Unit] = {
+    Region.storeIRIntermediate(this.elementType)(getElementAddress(indices, ndAddress, mb), newElement)
+  }
+
   def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_] = {
     Region.loadIRIntermediate(data.pType.elementType)(getElementAddress(indices, ndAddress, mb))
   }
@@ -231,7 +235,7 @@ object PCanonicalNDArraySettable {
   }
 }
 
-class PCanonicalNDArraySettable(val pt: PCanonicalNDArray, val a: Settable[Long]) extends PNDArrayValue with PSettable {
+class PCanonicalNDArraySettable(override val pt: PCanonicalNDArray, val a: Settable[Long]) extends PNDArrayValue with PSettable {
   //FIXME: Rewrite apply to not require a methodBuilder, meaning also rewrite loadElementToIRIntermediate
   def apply(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Value[_] = {
     assert(indices.size == pt.nDims)
@@ -248,6 +252,13 @@ class PCanonicalNDArraySettable(val pt: PCanonicalNDArray, val a: Settable[Long]
 
   override def outOfBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Boolean] = {
     pt.outOfBounds(indices, a, mb)
+  }
+
+  override def sameShape(other: PNDArrayValue, mb: EmitMethodBuilder[_]): Code[Boolean] = {
+    val comparator = this.pt.shape.pType.codeOrdering(mb, other.pt.shape.pType)
+    val thisShape = this.pt.shape.load(this.a).asInstanceOf[Code[comparator.T]]
+    val otherShape = other.pt.shape.load(other.value.asInstanceOf[Value[Long]]).asInstanceOf[Code[comparator.T]]
+    comparator.equivNonnull(thisShape, otherShape)
   }
 }
 

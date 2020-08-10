@@ -18,12 +18,9 @@ log = logging.getLogger('scorecard')
 
 deploy_config = get_deploy_config()
 
-component_users = {
-    'Hail front-end (Py)': ['tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'konradjk', 'johnc1231'],
-    'Hail middle-end (Scala)': ['tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'johnc1231'],
-    'hailctl dataproc': ['tpoterba', 'danking', 'konradjk'],
-    'k8s, services': ['danking', 'jigold', 'akotlar', 'johnc1231'],
-    'Web app (JS)': ['akotlar', 'danking'],
+team_members = {
+    'Services Team': ['jigold', 'danking', 'catoverdrive', 'Dania-Abuhijleh'],
+    'Compilers Team': ['tpoterba', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'johnc1231'],
 }
 
 default_repo = 'hail'
@@ -47,12 +44,12 @@ async def get_healthcheck(request):  # pylint: disable=unused-argument
 @web_maybe_authenticated_user
 async def index(request, userdata):
     user_data, unassigned, urgent_issues, updated = get_users()
-    component_random_user = {c: random.choice(us) for c, us in component_users.items()}
+    team_random_member = {c: random.choice(us) for c, us in team_members.items()}
     page_context = {
         'unassigned': unassigned,
         'user_data': user_data,
         'urgent_issues': urgent_issues,
-        'component_user': component_random_user,
+        'team_member': team_random_member,
         'updated': updated
     }
     return await render_template('scorecard', request, userdata, 'index.html', page_context)
