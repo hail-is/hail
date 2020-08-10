@@ -778,6 +778,10 @@ class IRSuite extends HailSuite {
     assertComparesTo(TFloat64, 1.0, 0.0, expected = true)
   }
 
+  @Test def testDieCodeBUilder() {
+    assertFatal(Die("msg1", TInt32) + Die("msg2", TInt32), "msg1")
+  }
+
   @Test def testIf() {
     assertEvalsTo(If(True(), I32(5), I32(7)), 5)
     assertEvalsTo(If(False(), I32(5), I32(7)), 7)
