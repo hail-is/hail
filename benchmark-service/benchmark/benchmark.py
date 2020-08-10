@@ -109,7 +109,8 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 @web_authenticated_developers_only(redirect=False)
 async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: disable=unused-argument
     benchmarks_context = get_benchmarks(default_filepath)
-    context = {'benchmarks': benchmarks_context}
+    context = {'file': None,
+               'benchmarks': benchmarks_context}
     return await render_template('benchmark', request, userdata, 'index.html', context)
 
 
