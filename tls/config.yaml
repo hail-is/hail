@@ -77,3 +77,6 @@ principals:
 - name: monitoring
   domain: monitoring
   kind: json
+- name: monitoring-tests
+  domain: monitoring-tests
+  kind: json

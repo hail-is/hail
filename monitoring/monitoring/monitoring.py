@@ -13,9 +13,12 @@ from hailtop.hail_logging import AccessLogger
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.utils import run_if_changed_idempotent, retry_long_running, time_msecs
 from gear import (Database, setup_aiohttp_session,
-                  web_authenticated_developers_only, transaction)
+                  web_authenticated_developers_only, rest_authenticated_developers_only,
+                  transaction)
 from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
                         render_template, set_message)
+
+from .configuration import HAIL_USE_FULL_QUERY
 
 log = logging.getLogger('monitoring')
 
@@ -45,7 +48,8 @@ def format_data(records):
 
         cost_by_service[record['service_description']] += record['cost']
 
-        if record['service_description'] == 'Compute Engine':
+        # service.id: service.description -- "6F81-5844-456A": "Compute Engine"
+        if record['service_id'] == '6F81-5844-456A':
             assert record['source'] is not None
             compute_cost_breakdown[record['source']] += record['cost']
         else:
@@ -92,6 +96,19 @@ async def _billing(request):
     return (cost_by_service, compute_cost_breakdown, cost_by_sku_source, time_period_query)
 
 
+@routes.get('/api/v1alpha/billing')
+@rest_authenticated_developers_only
+async def get_billing(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
+    cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
+    resp = {
+        'cost_by_service': cost_by_service,
+        'compute_cost_breakdown': compute_cost_breakdown,
+        'cost_by_sku_label': cost_by_sku_label,
+        'time_period_query': time_period_query
+    }
+    return web.json_response(resp)
+
+
 @routes.get('/billing')
 @web_authenticated_developers_only()
 async def billing(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
@@ -115,7 +132,11 @@ async def query_billing_body(app):
 
         start = datetime.date(year, month, 1)
         _, last_day_of_month = calendar.monthrange(year, month)
-        end = datetime.date(year, month, last_day_of_month) + datetime.timedelta(days=7)
+
+        if HAIL_USE_FULL_QUERY:
+            end = datetime.date(year, month, last_day_of_month) + datetime.timedelta(days=7)
+        else:
+            end = start + datetime.timedelta(days=1)
 
         date_format = '%Y-%m-%d'
         start_str = datetime.date.strftime(start, date_format)
@@ -127,10 +148,10 @@ async def query_billing_body(app):
         cmd = f'''
 SELECT service.id as service_id, service.description as service_description, sku.id as sku_id, sku.description as sku_description, SUM(cost) as cost,
 CASE
-  WHEN EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace" and value = "default") THEN "batch-production"
-  WHEN EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace" and value LIKE '%pr-%') THEN "batch-test"
-  WHEN EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace") THEN "batch-dev"
-  WHEN EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "role" and value LIKE 'vdc') THEN "k8s"
+  WHEN service.id = "6F81-5844-456A" AND EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace" and value = "default") THEN "batch-production"
+  WHEN service.id = "6F81-5844-456A" AND EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace" and value LIKE '%pr-%') THEN "batch-test"
+  WHEN service.id = "6F81-5844-456A" AND EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace") THEN "batch-dev"
+  WHEN service.id = "6F81-5844-456A" AND EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "role" and value LIKE 'vdc') THEN "k8s"
   WHEN service.id = "6F81-5844-456A" THEN "unknown"
   ELSE NULL
 END AS source
@@ -138,6 +159,8 @@ FROM `broad-ctsa.hail_billing.gcp_billing_export_v1_0055E5_9CA197_B9B894`
 WHERE DATE(_PARTITIONTIME) >= "{start_str}" AND DATE(_PARTITIONTIME) <= "{end_str}" AND project.name = "hail-vdc" AND invoice.month = "{invoice_month}"
 GROUP BY service_id, service_description, sku_id, sku_description, source;
 '''
+
+        log.info(f'querying BigQuery with command: {cmd}')
 
         records = [(year, month, record['service_id'], record['service_description'], record['sku_id'], record['sku_description'], record['source'], record['cost'])
                    async for record in await bigquery_client.query(cmd)]
@@ -151,12 +174,13 @@ DELETE FROM monitoring_billing_data WHERE year = %s AND month = %s;
 
             await tx.execute_many('''
 INSERT INTO monitoring_billing_data (year, month, service_id, service_description, sku_id, sku_description, source, cost)
-VALUES (%s, %s, %s, %s, %s, %s);
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                                   records)
 
         await insert()  # pylint: disable=no-value-for-parameter
 
+    log.info('updating billing information')
     now = datetime.datetime.now()
     await _query(now)
     last_month = get_previous_month(now)

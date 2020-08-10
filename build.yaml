@@ -520,6 +520,13 @@ steps:
    dependsOn:
      - base_image
  - kind: buildImage
+   name: test_monitoring_image
+   dockerFile: monitoring/Dockerfile.test
+   contextPath: .
+   publishAs: test-monitoring
+   dependsOn:
+     - service_base_image
+ - kind: buildImage
    name: image_fetcher_image
    dockerFile: image-fetcher/Dockerfile
    contextPath: image-fetcher
@@ -1403,9 +1410,6 @@ steps:
     - kind: Service
       name: monitoring
       for: alive
-   scopes:
-    - deploy
-    - dev
    dependsOn:
     - default_ns
     - monitoring_image
@@ -1414,6 +1418,35 @@ steps:
     - deploy_router
     - create_certs
     - create_accounts
+ - kind: runImage
+   name: test_monitoring
+   image:
+     valueFrom: test_monitoring_image.image
+   script: |
+     set -ex
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: ssl-config-monitoring-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
+   timeout: 300
+   dependsOn:
+    - test_monitoring_image
+    - create_deploy_config
+    - create_accounts
+    - default_ns
+    - batch_pods_ns
+    - create_certs
+    - deploy_monitoring
  - kind: runImage
    name: test_auth_copy_paste_login
    image:
