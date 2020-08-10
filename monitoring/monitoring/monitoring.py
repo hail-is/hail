@@ -153,7 +153,7 @@ DELETE FROM monitoring_billing_data WHERE year = %s AND month = %s;
 
             await tx.execute_many('''
 INSERT INTO monitoring_billing_data (year, month, service_id, service_description, sku_id, sku_description, source, cost)
-VALUES (%s, %s, %s, %s, %s, %s);
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                                   records)
 
