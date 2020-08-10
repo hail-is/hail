@@ -29,17 +29,19 @@ trait StagedOwnedRegion extends StagedRegion {
 
   def shareWithParent(): Code[Unit]
 
-  def copyToParent(mb: EmitMethodBuilder[_], value: PCode, destType: PType): PCode
+  def copyToParent(mb: EmitMethodBuilder[_], value: PCode, destType: PType): PCode =
+    StagedRegion.copy(mb, value, this, parent, destType)
 
   def copyToParent(mb: EmitMethodBuilder[_], value: PCode): PCode =
-    copyToParent(mb, value, value.pt)
+    StagedRegion.copy(mb, value, this, parent)
 
   def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode): Code[Unit]
 
-  def copyToSibling(mb: EmitMethodBuilder[_], value: PCode, dest: StagedRegion, destType: PType): PCode
+  def copyToSibling(mb: EmitMethodBuilder[_], value: PCode, dest: StagedOwnedRegion, destType: PType): PCode =
+    StagedRegion.copy(mb, value, this, dest, destType)
 
-  def copyToSibling(mb: EmitMethodBuilder[_], value: PCode, dest: StagedRegion): PCode =
-    copyToSibling(mb, value, dest, value.pt)
+  def copyToSibling(mb: EmitMethodBuilder[_], value: PCode, dest: StagedOwnedRegion): PCode =
+    StagedRegion.copy(mb, value, this, dest)
 }
 
 abstract class StagedOwnedRegionArray {
@@ -62,6 +64,45 @@ object StagedRegion {
         Code(temp := x.r, x.r := y.r, y.r := temp)
       case (x: DummyStagedOwnedRegion, y: DummyStagedOwnedRegion) =>
         Code._empty
+    }
+  }
+
+  def copy(mb: EmitMethodBuilder[_], value: PCode, source: StagedOwnedRegion, dest: StagedOwnedRegion): PCode =
+    copy(mb, value, source, dest, value.pt)
+
+  def copy(mb: EmitMethodBuilder[_], value: PCode, source: StagedOwnedRegion, dest: StagedOwnedRegion, destType: PType): PCode = {
+    assert(source.parent eq dest.parent)
+    dest match {
+      case _: RealStagedOwnedRegion =>
+        value.copyToRegion(mb, dest.code, destType)
+      case _: DummyStagedOwnedRegion =>
+        value
+    }
+  }
+
+  def copy(mb: EmitMethodBuilder[_], value: PCode, source: StagedRegion, dest: StagedOwnedRegion): PCode =
+    copy(mb, value, source, dest, value.pt)
+
+  def copy(mb: EmitMethodBuilder[_], value: PCode, source: StagedRegion, dest: StagedOwnedRegion, destType: PType): PCode = {
+    assert(dest.parent eq source)
+    dest match {
+      case _: RealStagedOwnedRegion =>
+        value.copyToRegion(mb, dest.code, destType)
+      case _: DummyStagedOwnedRegion =>
+        value
+    }
+  }
+
+  def copy(mb: EmitMethodBuilder[_], value: PCode, source: StagedOwnedRegion, dest: StagedRegion): PCode =
+    copy(mb, value, source, dest, value.pt)
+
+  def copy(mb: EmitMethodBuilder[_], value: PCode, source: StagedOwnedRegion, dest: StagedRegion, destType: PType): PCode = {
+    assert(source.parent eq dest)
+    source match {
+      case _: RealStagedOwnedRegion =>
+        value.copyToRegion(mb, dest.code, destType)
+      case _: DummyStagedOwnedRegion =>
+        value
     }
   }
 }
@@ -114,16 +155,8 @@ class RealStagedOwnedRegion(val r: Settable[Region], val parent: StagedRegion) e
 
   def shareWithParent(): Code[Unit] = parent.code.invoke[Region, Unit]("addReferenceTo", r)
 
-  def copyToParent(mb: EmitMethodBuilder[_], value: PCode, destType: PType): PCode =
-    value.copyToRegion(mb, parent.code, destType)
-
   def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode): Code[Unit] =
     srvb.addIRIntermediate(value, deepCopy = true)
-
-  def copyToSibling(mb: EmitMethodBuilder[_], value: PCode, dest: StagedRegion, destType: PType): PCode = {
-    assert(dest.asInstanceOf[RealStagedOwnedRegion].parent eq parent)
-    value.copyToRegion(mb, dest.code, destType)
-  }
 }
 
 class DummyStagedRegion(r: Value[Region]) extends StagedRegion { self =>
@@ -155,19 +188,6 @@ class DummyStagedOwnedRegion(val r: Value[Region], val parent: StagedRegion) ext
 
   def shareWithParent(): Code[Unit] = Code._empty
 
-  def copyToParent(mb: EmitMethodBuilder[_], value: PCode, destType: PType): PCode =
-    value.castTo(mb, r, destType)
-
-  override def copyToParent(mb: EmitMethodBuilder[_], value: PCode): PCode = value
-
   def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode): Code[Unit] =
     srvb.addIRIntermediate(value, deepCopy = false)
-
-  def copyToSibling(mb: EmitMethodBuilder[_], value: PCode, dest: StagedRegion, destType: PType): PCode = {
-    assert(dest.asInstanceOf[DummyStagedOwnedRegion].parent == parent)
-    if (destType == value.pt)
-      value
-    else
-      value.castTo(mb, dest.code, destType)
-  }
 }
