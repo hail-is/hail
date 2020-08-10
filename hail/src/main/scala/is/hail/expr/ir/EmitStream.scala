@@ -1737,7 +1737,7 @@ object EmitStream {
           val eltType = curValsType.elementType.setRequired(true).asInstanceOf[PStruct]
           val keyType = eltType.selectFields(key)
 
-          def joinF: ((PCode, PCode)) => EmitCode = { case (k, vs) =>
+          def joinF(eltRegion: StagedRegion): ((PCode, PCode)) => EmitCode = { case (k, vs) =>
             val xKey = mb.newPresentEmitField("zipjoin_key", keyType)
             val xElts = mb.newPresentEmitField("zipjoin_elts", curValsType)
             val newEnv = env.bind(curKey -> xKey, curVals -> xElts)
@@ -1745,7 +1745,7 @@ object EmitStream {
               case _: PCanonicalStream =>
                 emit(emitter, joinIR, mb, outerRegion, newEnv, container)
               case _ =>
-                emitIR(joinIR, newEnv)
+                emitIR(joinIR, env = newEnv, region = eltRegion)
             }
 
             EmitCode(Code(xKey := k, xElts := vs), joint)
@@ -1757,7 +1757,7 @@ object EmitStream {
             }
             SizedStream.unsized { eltRegion =>
               kWayZipJoin(mb, streams, eltRegion, curValsType, key)
-                .map(joinF)
+                .map(joinF(eltRegion))
             }
           }
 
