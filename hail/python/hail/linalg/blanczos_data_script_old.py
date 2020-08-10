@@ -116,6 +116,11 @@ def matmul_rowblocked_nonblocked(A, B):
     temp = temp.drop(temp.mat)
     return temp
 
+# def matmul_colblocked_rowblocked(A, B):
+#         temp = A.transmute(ndarray = block_product(A.ndarray.transpose(), B[A.row_group_number].ndarray))
+#         result_arr_sum = temp.aggregate(block_aggregate(temp.ndarray))
+#         return result_arr_sum
+
 def matmul_colblocked_rowblocked(A, B):
     temp = A.transmute(ndarray = A.ndarray.transpose() @ B[A.row_group_number].ndarray)
     return temp.aggregate(hl.agg.ndarray_sum(temp.ndarray))
@@ -174,6 +179,16 @@ def timeNumpyLibrary(data):
     end = time.time()
     return end - start
 
+def timeHailPCA(data, k):
+	start = time.time()
+	try:
+		_, _, _ = hl.pca(hl.int(hl.is_defined(data)), k=k)
+	except Exception as e:
+		print(e)
+	end = time.time()
+	return end - start
+
+
 def makeSharedData(model_input, block_size):
     
     # we should have m > n for hail implementation
@@ -188,14 +203,11 @@ def makeSharedData(model_input, block_size):
     # for numpy implementation we want transposed version so m < n
     np_matrix = np.asmatrix(concatToNumpy(table))
 
-    return table, np_matrix
+    return mt, table, np_matrix
 
 
 
 # SCRIPT:
-
-
-df = pd.DataFrame(columns=['M', 'N', 'block size', 'K', 'L', 'Q', 'blanczos time', 'numpy time'])
 
 # references a dataframe df not passed into the function
 def loop(i, m, n, block_size, k, l, q):
@@ -210,7 +222,7 @@ def loop(i, m, n, block_size, k, l, q):
         return
 
     try:
-        table, mat = makeSharedData((3, n, m), block_size)
+        mt, table, mat = makeSharedData((3, n, m), block_size)
     except Exception as e:
         print(e)
         print('failed to make data with ', (m, n))
@@ -220,7 +232,8 @@ def loop(i, m, n, block_size, k, l, q):
         G = hl.nd.array(np.random.normal(0, 1, (n,l)))
         _, S, _, _, _, hail_time  = hailBlanczos(table, G, m, n, k, l, q, block_size)
         numpy_time = timeNumpyLibrary(mat)
-        df.loc[i] = [m, n, block_size, k, l, q, hail_time, numpy_time]
+        pca_time = timeHailPCA(mt.n_alt, k)
+        df.loc[i] = [m, n, block_size, k, l, q, hail_time, numpy_time, pca_time]
     except Exception as e:
         print(e)
         print('failed during blanczos algorithm with ', (m, n))
@@ -243,6 +256,11 @@ def loop(i, m, n, block_size, k, l, q):
 #     df.to_csv('blanczos_data_random.csv')
     
 
+hl.init(log = 'hail_log.txt')
+
+df = pd.DataFrame(columns=['M', 'N', 'block size', 'K', 'L', 'Q', 'blanczos time', 'numpy time', 'hail pca time'])
+# df = pd.read_csv('gs://aotoole/blanczos_data_combinatorial.csv')
+
 K = 10
 i = 0
 
@@ -250,13 +268,20 @@ for L in [K + 2, 2 * K]:
     
     for Q in [1, 2, 3]: 
         
-        for m in [100, 500, 1000, 5000]:
+        for m in [100, 500, 1000, 5000, 10000, 50000]:
             
-            for n in [50, 100, 500]:
+            for n in [50, 100, 500, 1000]:
                 
                 for block_size in [2, 4, 8, 16, 32]:
+
+                	# if i > 288:
                     
                     loop(i, m, n, block_size, K, L, Q)
-                    df.to_csv('gs://aotoole/blanczos_data_combinatorial.csv')
+                    df.to_csv('gs://aotoole/blanczos_data_combinatorial_smaller.csv')
                     i += 1
+
+	                # else:
+
+	                # 	i += 1
+
 
