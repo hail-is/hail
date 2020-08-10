@@ -1,7 +1,4 @@
-import urllib
-from urllib import request
 from typing import Any, Dict
-import aiohttp_jinja2
 from aiohttp import web
 import logging
 from gear import setup_aiohttp_session, web_authenticated_developers_only, check_csrf_token
@@ -14,7 +11,6 @@ import json
 import re
 import plotly
 import plotly.express as px
-import requests
 
 configure_logging()
 router = web.RouteTableDef()
