@@ -60,6 +60,8 @@ class PagedQueriesIterator:
         self._parser = None
         self._job_id = None
         self._location = None
+        self._row_index = None
+        self._total_rows = None
 
     def __aiter__(self) -> 'PagedQueriesIterator':
         return self
