@@ -117,11 +117,6 @@ async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: di
 # @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def lookup(request, userdata):  # pylint: disable=unused-argument
-    # data = await request.post()
-    # data = await request.get()
-    # file = data['file']
-    # data = await request.query
-    # file = data['file']
     file = request.query.get('file')
     if file is None:
         return web.HTTPBadRequest()  # you'll need to look what this is up. Or you can set it to be the default file.
@@ -130,6 +125,23 @@ async def lookup(request, userdata):  # pylint: disable=unused-argument
                'benchmarks': benchmarks_context}
 
     return await render_template('benchmark', request, userdata, 'index.html', context)
+
+
+@router.get('/compare')
+@web_authenticated_developers_only(redirect=False)
+async def lookup(request, userdata):  # pylint: disable=unused-argument
+    file1 = request.query.get('file1')
+    file2 = request.query.get('file2')
+    if file1 or file2 is None:
+        return web.HTTPBadRequest()
+    benchmarks_context1 = get_benchmarks(file1)
+    benchmarks_context2 = get_benchmarks(file2)
+    context = {'file1': file1,
+               'file2': file2,
+               'benchmarks1': benchmarks_context1,
+               'benchmarks2': benchmarks_context2}
+
+    return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
 def init_app() -> web.Application:
