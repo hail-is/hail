@@ -31,8 +31,6 @@ final case class PCanonicalStream(elementType: PType, required: Boolean = false)
     PCanonicalStream(this.elementType.deepRename(t.elementType), this.required)
 
   def setRequired(required: Boolean): PCanonicalStream = if(required == this.required) this else this.copy(required = required)
-
-  override def containsPointers: Boolean = false
 }
 
 final case class PCanonicalStreamCode(pt: PCanonicalStream, stream: SizedStream) extends PStreamCode { self =>
