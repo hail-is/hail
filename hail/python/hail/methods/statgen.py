@@ -1801,14 +1801,12 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         field = Env.get_uid()
         mt = mt.select_entries(**{field: entry_expr})
     mt = mt.select_cols().select_rows().select_globals()
-
-    # ht = mt.localize_entries("ent", "sample")
-    # ht = matrix_table_to_table_of_ndarrays(mt.field, block_size, tmp_path='/tmp/test_table.ht')
     
-    # Format Distributed Table
-    # group rows of table into blocks
-    # ht = matrix_table_to_table_of_ndarrays(mt.field, block_size, tmp_path='/tmp/test_table.ht')
+    # Format Distributed Table - group rows of table into blocks
     mt = mt.select_entries(x = mt[field])
+    temp_file_path = hl.utils.new_temp_file("pca", "mt")
+    mt.write(temp_file_path)
+    mt = hl.read_matrix_table(temp_file_path) #, intervals = SOMETHING SOMETHING WE DONT KNOW)
     ht = mt.localize_entries(entries_array_field_name='entries')
     ht = ht.select(xs = ht.entries.map(lambda e: e['x']))
     ht = ht.add_index()
@@ -1816,7 +1814,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         .aggregate(ndarray = hl.nd.array(hl.agg.collect(ht.xs)))
 
     # Set Parameters
-    # block_size = 4 # might want to make this a parameter or make some heurstic for it
+    #block_size = block_size # might want to make this a parameter or make some heurstic for it
     q = q_iterations
     l = k + oversampling_param
     n = A.take(1)[0].ndarray.shape[1]
@@ -1839,12 +1837,6 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
             groups.append(a[start:end, :])
         return groups
 
-    def concatBlocked(A):
-        blocks = A.ndarray.collect()
-        big_mat = np.concatenate(blocks, axis=0)
-        ht = ndarray_to_table([big_mat])
-        return ht
-
     def concatToNumpy(A):
         blocks = A.ndarray.collect()
         big_mat = np.concatenate(blocks, axis=0)
@@ -1857,28 +1849,6 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         ht = ht.key_by('row_group_number')
         return ht
 
-    def block_product(left, right):
-        product = left @ right     
-        n_rows, n_cols = product.shape
-        return hl.struct(
-            shape=product.shape,
-            block=hl.range(hl.int(n_rows * n_cols)).map(
-                lambda absolute: product[absolute % n_rows, absolute // n_rows]))
-
-    # takes in output of block_product
-    def block_aggregate(prod):
-        shape = prod.shape
-        block = prod.block
-        return hl.nd.from_column_major(
-            hl.agg.array_sum(block),
-            hl.agg.take(shape, 1)[0])
-
-    # returns flat array
-    def to_column_major(ndarray):
-        n_rows, n_cols = ndarray.shape
-        return hl.range(hl.int(n_rows * n_cols)).map(
-            lambda absolute: ndarray[absolute % n_rows, absolute // n_rows])
-
     def matmul_rowblocked_nonblocked(A, B):
         temp = A.annotate_globals(mat = B)
         temp = temp.annotate(ndarray = temp.ndarray @ temp.mat)
@@ -1886,18 +1856,10 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         temp = temp.drop(temp.mat)
         return temp
 
-    # def matmul_colblocked_rowblocked(A, B):
-    #     temp = A.transmute(ndarray = block_product(A.ndarray.transpose(), B[A.row_group_number].ndarray))
-    #     result_arr_sum = temp.aggregate(block_aggregate(temp.ndarray))
-    #     return result_arr_sum
-
     def matmul_colblocked_rowblocked(A, B):
-        temp = A.transmute(ndarray = A.ndarray.transpose() @ B[A.row_group_number].ndarray)
-        return temp.aggregate(hl.agg.ndarray_sum(temp.ndarray))
-
-    def computeNextH(A, H):
-        nextG = matmul_colblocked_rowblocked(A, H)
-        return matmul_rowblocked_nonblocked(A, nextG)
+        temp = A.transmute(nda
+            rray = A.ndarray.transpose() @ B[A.row_group_number].ndarray)
+        return temp.aggregate(hl.agg.ndarray_sum(temp.ndarray)) # collects A / reads A
 
 
     # Algorithm
@@ -1906,22 +1868,36 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     
         # assert l > k
         # assert n <= m
+
+        # might want to calculate actual order of parallel vs local operations
+
+        # need to add cache and persist / read and write to this 
+
+        h_list = []
+        G_i = G
+
+        for j in range(0, q + 1):
+            temp = A.annotate(H_i = A.ndarray @ G_i)
+            temp = temp.annotate(G_i_intermediate = temp.ndarray.T @ temp.H_i)
+            result = temp.aggregate(hl.struct(Hi_chunks = hl.agg.collect(temp.H_i), G_i = hl.agg.ndarray_sum(temp.G_i_intermediate)))
+            localized_H_i = np.vstack(result.Hi_chunks)
+            h_list.append(localized_H_i)
+            G_i = result.G_i
         
-        Hi = matmul_rowblocked_nonblocked(A, G)
-        npH = concatToNumpy(Hi)
-        for j in range(0, q):
-            Hj = computeNextH(A, Hi)
-            npH = np.concatenate((npH, concatToNumpy(Hj)), axis=1)
-            Hi = Hj
+        H = np.hstack(h_list) 
         
         # perform QR decomposition on unblocked version of H
-        Q, R = np.linalg.qr(npH)
+        Q, R = np.linalg.qr(H)
         # block Q's rows into the same number of blocks that A has
         blocked_Q_table = ndarray_to_table(chunk_ndarray(Q, block_size))
         
+        # definite bottleneck where we have to collect things and do local operations
+
         T = matmul_colblocked_rowblocked(blocked_Q_table, A)
         
-        U, S, W = np.linalg.svd(T, full_matrices=False)
+        # challenge question: what if we get to a point where we are going this SVD on a really large T??
+        # could potentially multiply T by its tranpose to get skinny dim x skinny dim and then do eigen decomposition on that
+        U, S, W = np.linalg.svd(T, full_matrices=False) # funny that we do a small svd in our new large svd algorithm
         
         V = matmul_rowblocked_nonblocked(blocked_Q_table, U)
         arr_V = concatToNumpy(V)
