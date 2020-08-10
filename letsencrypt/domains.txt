@@ -5,8 +5,10 @@ scorecard.@domain@
 www.@domain@
 batch.@domain@
 batch-driver.@domain@
+benchmark.@domain@
 blog.@domain@
 internal.@domain@
+monitoring.@domain@
 auth.@domain@
 ukbb-rg.@domain@
 query.@domain@
