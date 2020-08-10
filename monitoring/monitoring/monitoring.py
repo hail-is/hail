@@ -50,7 +50,7 @@ def format_data(records):
             assert record['source'] is not None
             compute_cost_breakdown[record['source']] += record['cost']
         else:
-            assert record['source'] is None, record
+            assert record['source'] is None
 
     cost_by_service = sorted([{'service': k, 'cost': v} for k, v in cost_by_service.items()],
                              key=lambda x: x['cost'],
@@ -128,10 +128,10 @@ async def query_billing_body(app):
         cmd = f'''
 SELECT service.id as service_id, service.description as service_description, sku.id as sku_id, sku.description as sku_description, SUM(cost) as cost,
 CASE
-  WHEN EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace" and value = "default") THEN "batch-production"
-  WHEN EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace" and value LIKE '%pr-%') THEN "batch-test"
-  WHEN EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace") THEN "batch-dev"
-  WHEN EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "role" and value LIKE 'vdc') THEN "k8s"
+  WHEN service.id = "6F81-5844-456A" AND EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace" and value = "default") THEN "batch-production"
+  WHEN service.id = "6F81-5844-456A" AND EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace" and value LIKE '%pr-%') THEN "batch-test"
+  WHEN service.id = "6F81-5844-456A" AND EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace") THEN "batch-dev"
+  WHEN service.id = "6F81-5844-456A" AND EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "role" and value LIKE 'vdc') THEN "k8s"
   WHEN service.id = "6F81-5844-456A" THEN "unknown"
   ELSE NULL
 END AS source
