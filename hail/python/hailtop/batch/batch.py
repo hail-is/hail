@@ -295,7 +295,7 @@ class Batch:
 
         Notes
         -----
-        All :class:`._resource.JobResourceFile` are temporary files and must be written
+        All :class:`.JobResourceFile` are temporary files and must be written
         to a permanent location using :meth:`.write_output` if the output needs
         to be saved.
 
@@ -305,10 +305,10 @@ class Batch:
             Resource to be written to a file.
         dest:
             Destination file path. For a single :class:`.ResourceFile`, this will
-            simply be `dest`. For a :class:`._resource.ResourceGroup`, `dest` is the file
+            simply be `dest`. For a :class:`.ResourceGroup`, `dest` is the file
             root and each resource file will be written to `{root}.identifier`
             where `identifier` is the identifier of the file in the
-            :class:`._resource.ResourceGroup` map.
+            :class:`.ResourceGroup` map.
         """
 
         if not isinstance(resource, _resource.Resource):
