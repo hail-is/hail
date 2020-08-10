@@ -64,19 +64,15 @@ async def _billing(request):
 
     time_period_query = request.query.get('time_period', default_time_period)
 
-    async def parse_error(msg):
-        session = await aiohttp_session.get_session(request)
-        set_message(session, msg, 'error')
-        return ([], [], [], time_period_query)
-
     try:
         time_period = datetime.datetime.strptime(time_period_query, date_format)
         month = time_period.month
         year = time_period.year
-        if time_period < datetime.datetime.strptime('07/2020', date_format):
-            return await parse_error(f"Invalid value for time_period '{time_period_query}'; time periods before 07/2020 are not supported.")
     except ValueError:
-        return await parse_error(f"Invalid value for time_period '{time_period_query}'; must be in the format of MM/YYYY.")
+        msg = f"Invalid value for time_period '{time_period_query}'; must be in the format of MM/YYYY."
+        session = await aiohttp_session.get_session(request)
+        set_message(session, msg, 'error')
+        return ([], [], [], time_period_query)
 
     db = app['db']
     records = db.execute_and_fetchall('SELECT * FROM monitoring_billing_data WHERE year = %s AND month = %s;', (year, month))
