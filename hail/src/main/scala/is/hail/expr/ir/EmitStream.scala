@@ -1454,7 +1454,7 @@ object EmitStream {
                 .map (
                   { elt =>
                     val xElt = mb.newEmitField(name, childEltType)
-                    val cond = emitIR(condIR, env = env.bind(name -> xElt))
+                    val cond = emitIR(condIR, env = env.bind(name -> xElt), region = tmpRegion)
 
                     new COption[EmitCode] {
                       def apply(none: Code[Ctrl], some: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
