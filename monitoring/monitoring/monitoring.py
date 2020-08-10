@@ -139,6 +139,8 @@ WHERE DATE(_PARTITIONTIME) >= "{start_str}" AND DATE(_PARTITIONTIME) <= "{end_st
 GROUP BY service_id, service_description, sku_id, sku_description, source;
 '''
 
+        log.info(f'querying BigQuery with command: {cmd}')
+
         records = [(year, month, record['service_id'], record['service_description'], record['sku_id'], record['sku_description'], record['source'], record['cost'])
                    async for record in await bigquery_client.query(cmd)]
 
