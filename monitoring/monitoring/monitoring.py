@@ -47,10 +47,19 @@ def format_data(records):
 
         if record['service_description'] == 'Compute Engine':
             compute_cost_breakdown[record['source']] += record['cost']
+        else:
+            assert record['source'] is None
 
-    cost_by_service = sorted([{'service': k, 'cost': v} for k, v in cost_by_service.items()], key=lambda x: x['cost'], reverse=True)
-    compute_cost_breakdown = sorted([{'source': k, 'cost': v} for k, v in compute_cost_breakdown.items()], key=lambda x: x['cost'], reverse=True)
-    cost_by_sku_label.sort(key=lambda x: x['cost'], reverse=True)
+    cost_by_service = sorted([{'service': k, 'cost': v} for k, v in cost_by_service.items()],
+                             key=lambda x: x['cost'],
+                             reverse=True)
+
+    compute_cost_breakdown = sorted([{'source': k, 'cost': v} for k, v in compute_cost_breakdown.items()],
+                                    key=lambda x: x['cost'],
+                                    reverse=True)
+
+    cost_by_sku_label.sort(key=lambda x: x['cost'],
+                           reverse=True)
 
     return (cost_by_service, compute_cost_breakdown, cost_by_sku_label)
 
@@ -66,8 +75,6 @@ async def _billing(request):
 
     try:
         time_period = datetime.datetime.strptime(time_period_query, date_format)
-        month = time_period.month
-        year = time_period.year
     except ValueError:
         msg = f"Invalid value for time_period '{time_period_query}'; must be in the format of MM/YYYY."
         session = await aiohttp_session.get_session(request)
@@ -75,7 +82,8 @@ async def _billing(request):
         return ([], [], [], time_period_query)
 
     db = app['db']
-    records = db.execute_and_fetchall('SELECT * FROM monitoring_billing_data WHERE year = %s AND month = %s;', (year, month))
+    records = db.execute_and_fetchall('SELECT * FROM monitoring_billing_data WHERE year = %s AND month = %s;',
+                                      (time_period.year, time_period.month))
     records = [record async for record in records]
 
     cost_by_service, compute_cost_breakdown, cost_by_sku_label = format_data(records)
@@ -129,10 +137,8 @@ WHERE DATE(_PARTITIONTIME) >= "{start_str}" AND DATE(_PARTITIONTIME) <= "{end_st
 GROUP BY service_description, sku_description, source;
 '''
 
-        records = [x async for x in await bigquery_client.query(cmd)]
-
-        data = [(year, month, record['service_description'], record['sku_description'], record['source'], record['cost'])
-                for record in records]
+        records = [(year, month, record['service_description'], record['sku_description'], record['source'], record['cost'])
+                   async for record in await bigquery_client.query(cmd)]
 
         @transaction(db)
         async def insert(tx):
@@ -145,7 +151,7 @@ DELETE FROM monitoring_billing_data WHERE year = %s AND month = %s;
 INSERT INTO monitoring_billing_data (year, month, service_description, sku_description, source, cost)
 VALUES (%s, %s, %s, %s, %s, %s);
 ''',
-                                  data)
+                                  records)
 
         await insert()  # pylint: disable=no-value-for-parameter
 
@@ -165,17 +171,11 @@ VALUES (%s, %s, %s, %s, %s, %s);
 
 async def polling_loop(app):
     db = app['db']
-
     while True:
-        try:
-            now = datetime.datetime.now()
-            row = await db.select_and_fetchone('SELECT mark FROM monitoring_billing_mark;')
-            if not row['mark'] or now > datetime.datetime.fromtimestamp(row['mark'] / 1000) + datetime.timedelta(days=1):
-                app['query_billing_event'].set()
-                log.info('set event')
-        except Exception:
-            log.exception('error while polling for billing mark', exc_info=True)
-
+        now = datetime.datetime.now()
+        row = await db.select_and_fetchone('SELECT mark FROM monitoring_billing_mark;')
+        if not row['mark'] or now > datetime.datetime.fromtimestamp(row['mark'] / 1000) + datetime.timedelta(days=1):
+            app['query_billing_event'].set()
         await asyncio.sleep(60)
 
 
@@ -191,7 +191,9 @@ async def on_startup(app):
     query_billing_event = asyncio.Event()
     app['query_billing_event'] = query_billing_event
 
-    asyncio.ensure_future(polling_loop(app))
+    asyncio.ensure_future(retry_long_running(
+        'polling_loop',
+        polling_loop, app))
 
     asyncio.ensure_future(retry_long_running(
         'query_billing_loop',
