@@ -1579,7 +1579,7 @@ object EmitStream {
                   multiZip(emitStreams.map(_.stream(eltRegion)))
                     .map { elts =>
                       val bodyEnv = env.bind(names.zip(eltVars): _*)
-                      val body = emitIR(bodyIR, env = bodyEnv)
+                      val body = emitIR(bodyIR, env = bodyEnv, region = eltRegion)
                       EmitCode(Code(Code((eltVars, elts).zipped.map { (v, x) => v := x }), body.setup), body.m, body.pv)
                     }
                 val newLength = behavior match {
@@ -1619,7 +1619,7 @@ object EmitStream {
                         }
 
                       val bodyEnv = env.bind(names.zip(eltVars): _*)
-                      val body = emitIR(bodyIR, env = bodyEnv)
+                      val body = emitIR(bodyIR, env = bodyEnv, region = eltRegion)
 
                       Code(
                         allEOS := true,
@@ -1679,7 +1679,7 @@ object EmitStream {
                           COption.toEmitCode(optElt, mb)
                         }
                       val bodyEnv = env.bind(names.zip(eltVars): _*)
-                      val body = emitIR(bodyIR, env = bodyEnv)
+                      val body = emitIR(bodyIR, env = bodyEnv, region = eltRegion)
 
                       Code(
                         allEOS := true,
