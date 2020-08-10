@@ -348,7 +348,7 @@ object EType {
       }, required = r.required)
     case t: TNDArray =>
       val rndarray = r.asInstanceOf[RNDArray]
-      ENDArray(fromTypeAndAnalysis(t.elementType, rndarray.elementType), t.nDims, rndarray.required)
+      ENDArrayColumnMajor(fromTypeAndAnalysis(t.elementType, rndarray.elementType), t.nDims, rndarray.required)
   }
 
   def eTypeParser(it: TokenIterator): EType = {
@@ -389,13 +389,13 @@ object EType {
         val args = IRParser.repsepUntil(it, IRParser.struct_field(eTypeParser), PunctuationToken(","), PunctuationToken("}"))
         IRParser.punctuation(it, "}")
         ETransposedArrayOfStructs(args.zipWithIndex.map { case ((name, t), i) => EField(name, t, i) }, req, structRequired)
-      case "ENDArray" =>
+      case "ENDArrayColumnMajor" =>
         IRParser.punctuation(it, "[")
         val elementType = eTypeParser(it)
         IRParser.punctuation(it, ",")
         val nDims = IRParser.int32_literal(it)
         IRParser.punctuation(it, "]")
-        ENDArray(elementType, nDims,  req)
+        ENDArrayColumnMajor(elementType, nDims,  req)
       case x => throw new UnsupportedOperationException(s"Couldn't parse $x ${it.toIndexedSeq}")
 
     }

@@ -1,13 +1,16 @@
 package is.hail.types.encoded
-import is.hail.annotations.Region
-import is.hail.asm4s.{Code, LocalRef, Value, coerce}
-import is.hail.expr.ir.EmitMethodBuilder
+import java.util.UUID
+
+import is.hail.annotations.{Region}
+import is.hail.asm4s._
+import is.hail.expr.ir.functions.StringFunctions
+import is.hail.expr.ir.{EmitMethodBuilder, EmitRegion}
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils._
 
-case class ENDArray(elementType: EType, nDims: Int, required: Boolean = false) extends EContainer {
+case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean = false) extends EContainer {
   type DecodedPType = PCanonicalNDArray
 
   override def decodeCompatible(pt: PType): Boolean = {
@@ -27,42 +30,84 @@ case class ENDArray(elementType: EType, nDims: Int, required: Boolean = false) e
     assert(pnd.elementType.required)
     val ndarray = coerce[Long](v)
 
-    val writeShapes = (0 until nDims).map(i => out.writeLong(pnd.loadShape(ndarray, i)))
-    // Note, encoded strides is in terms of indices into ndarray, not bytes.
-    val writeStrides = (0 until nDims).map(i => out.writeLong(pnd.loadStride(ndarray, i) / pnd.elementType.byteSize))
+    val firstShape = mb.newLocal[Long]("first_shape")
 
-    val dataArrayType = EArray(elementType, required)
-    val writeData = dataArrayType.buildEncoder(pnd.data.pType, mb.ecb)
+    val writeShapes = (0 until nDims).map(i => out.writeLong(pnd.loadShape(ndarray, i)))
+
+    val writeElemF = elementType.buildEncoder(pnd.elementType, mb.ecb)
+
+    val idxVars = (0 until nDims).map(_ => mb.newLocal[Long]())
+
+    val loadAndWrite = {
+      writeElemF(pnd.loadElementToIRIntermediate(idxVars, ndarray, mb), out)
+    }
+
+    val columnMajorLoops = idxVars.zipWithIndex.foldLeft(loadAndWrite) { case (innerLoops, (dimVar, dimIdx)) =>
+      Code(
+        dimVar := 0L,
+        Code.whileLoop(dimVar < pnd.loadShape(ndarray, dimIdx),
+          innerLoops,
+          dimVar := dimVar + 1L
+        )
+      )
+    }
 
     Code(
+      firstShape := pnd.loadShape(ndarray, 0),
       Code(writeShapes),
-      Code(writeStrides),
-      writeData(pnd.data.load(ndarray.get), out)
+      columnMajorLoops
     )
   }
 
   override def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] = {
     val pnd = pt.asInstanceOf[PCanonicalNDArray]
-    val shapeVars = (0 until nDims).map(i => mb.newLocal[Long](s"shape_$i"))
-    val strideVars = (0 until nDims).map(i => mb.newLocal[Long](s"stride_$i"))
+    val shapeVars = (0 until nDims).map(i => mb.newLocal[Long](s"ndarray_decoder_shape_$i"))
+    val totalNumElements = mb.newLocal[Long]("ndarray_decoder_total_num_elements")
 
-    val arrayDecoder = EArray(elementType, true).buildDecoder(pnd.data.pType, mb.ecb)
-    val dataAddress = mb.newLocal[Long]("data_addr")
+    val readElemF = elementType.buildInplaceDecoder(pnd.elementType, mb.ecb)
+    val dataAddress = mb.newLocal[Long]("ndarray_decoder_data_addr")
+
+    val dataIdx = mb.newLocal[Int]("ndarray_decoder_data_idx")
+
+    val answer = mb.newLocal[Long]("answer_nd_decode")
 
     Code(
-      Code(shapeVars.map(shapeVar => shapeVar := in.readLong())),
-      Code(strideVars.map(strideVar => strideVar := (in.readLong() * pnd.elementType.byteSize))),
-      dataAddress := arrayDecoder(region, in),
-      pnd.construct(pnd.makeShapeBuilder(shapeVars), pnd.makeShapeBuilder(strideVars), dataAddress, mb, region)
+      totalNumElements := 1L,
+      Code(shapeVars.map(shapeVar => Code(
+        shapeVar := in.readLong(),
+        totalNumElements := totalNumElements * shapeVar
+      ))),
+      dataAddress := pnd.data.pType.allocate(region, totalNumElements.toI),
+      pnd.data.pType.stagedInitialize(dataAddress, totalNumElements.toI),
+      Code.forLoop(dataIdx := 0, dataIdx < totalNumElements.toI, dataIdx := dataIdx + 1,
+        readElemF(region, pnd.data.pType.elementOffset(dataAddress, totalNumElements.toI, dataIdx), in)
+      ),
+      {
+        val er = EmitRegion(mb, region)
+        Code._println(StringFunctions.boxArg(er, pnd.data.pType)(dataAddress))
+      },
+      answer := pnd.construct(pnd.makeShapeBuilder(shapeVars), pnd.makeColumnMajorStridesBuilder(shapeVars, mb), dataAddress, mb, region),
+      {
+        val er = EmitRegion(mb, region)
+        Code._println(StringFunctions.boxArg(er, pnd)(answer))
+      },
+      answer
     )
   }
 
   override def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
-    val arraySkipper = EArray(elementType, true).buildSkip(mb)
+    val totalNumElements = mb.newLocal[Long]("ndarray_skipper_total_num_elements")
+    val dataIdx = mb.newLocal[Int]("ndarray_skipper_data_idx")
+    val skip = elementType.buildSkip(mb)
 
     Code(
-      Code((0 until nDims * 2).map(_ => in.skipLong())),
-      arraySkipper(r, in)
+      totalNumElements := 1L,
+      Code((0 until nDims).map { _ =>
+        totalNumElements := totalNumElements * in.readLong()
+      }),
+      Code.forLoop(dataIdx := 0, dataIdx < totalNumElements.toI, dataIdx := dataIdx + 1,
+        skip(r, in)
+      )
     )
   }
 
@@ -71,8 +116,8 @@ case class ENDArray(elementType: EType, nDims: Int, required: Boolean = false) e
     val elementPType = elementType.decodedPType(requestedTNDArray.elementType)
     PCanonicalNDArray(elementPType, requestedTNDArray.nDims, required)
   }
-  override def setRequired(required: Boolean): EType = ENDArray(elementType, nDims, required)
+  override def setRequired(required: Boolean): EType = ENDArrayColumnMajor(elementType, nDims, required)
 
   override def _asIdent = s"ndarray_of_${elementType.asIdent}"
-  override def _toPretty = s"ENDArray[$elementType,$nDims]"
+  override def _toPretty = s"ENDArrayColumnMajor[$elementType,$nDims]"
 }
