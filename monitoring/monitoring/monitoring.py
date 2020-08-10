@@ -38,14 +38,15 @@ def get_last_day_month(dt):
 def format_data(records):
     cost_by_service = defaultdict(lambda: 0)
     compute_cost_breakdown = defaultdict(lambda: 0)
-    cost_by_sku_label = []
+    cost_by_sku_source = []
 
     for record in records:
-        cost_by_sku_label.append(record)
+        cost_by_sku_source.append(record)
 
         cost_by_service[record['service_description']] += record['cost']
 
         if record['service_description'] == 'Compute Engine':
+            assert record['source'] is not None
             compute_cost_breakdown[record['source']] += record['cost']
         else:
             assert record['source'] is None
@@ -58,10 +59,10 @@ def format_data(records):
                                     key=lambda x: x['cost'],
                                     reverse=True)
 
-    cost_by_sku_label.sort(key=lambda x: x['cost'],
-                           reverse=True)
+    cost_by_sku_source.sort(key=lambda x: x['cost'],
+                            reverse=True)
 
-    return (cost_by_service, compute_cost_breakdown, cost_by_sku_label)
+    return (cost_by_service, compute_cost_breakdown, cost_by_sku_source)
 
 
 async def _billing(request):
@@ -86,9 +87,9 @@ async def _billing(request):
                                       (time_period.year, time_period.month))
     records = [record async for record in records]
 
-    cost_by_service, compute_cost_breakdown, cost_by_sku_label = format_data(records)
+    cost_by_service, compute_cost_breakdown, cost_by_sku_source = format_data(records)
 
-    return (cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query)
+    return (cost_by_service, compute_cost_breakdown, cost_by_sku_source, time_period_query)
 
 
 @routes.get('/billing')
@@ -122,22 +123,23 @@ async def query_billing_body(app):
 
         invoice_month = datetime.date.strftime(start, '%Y%m')
 
+        # service.id: service.description -- "6F81-5844-456A": "Compute Engine"
         cmd = f'''
-SELECT service.description as service_description, sku.description as sku_description, SUM(cost) as cost,
+SELECT service.id as service_id, service.description as service_description, sku.id as sku_id, sku.description as sku_description, SUM(cost) as cost,
 CASE
   WHEN EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace" and value = "default") THEN "batch-production"
   WHEN EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace" and value LIKE '%pr-%') THEN "batch-test"
   WHEN EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace") THEN "batch-dev"
   WHEN EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "role" and value LIKE 'vdc') THEN "k8s"
-  WHEN service.description = "Compute Engine" THEN "unknown"
+  WHEN service.id = "6F81-5844-456A" THEN "unknown"
   ELSE NULL
 END AS source
 FROM `broad-ctsa.hail_billing.gcp_billing_export_v1_0055E5_9CA197_B9B894`
 WHERE DATE(_PARTITIONTIME) >= "{start_str}" AND DATE(_PARTITIONTIME) <= "{end_str}" AND project.name = "hail-vdc" AND invoice.month = "{invoice_month}"
-GROUP BY service_description, sku_description, source;
+GROUP BY service_id, service_description, sku_id, sku_description, source;
 '''
 
-        records = [(year, month, record['service_description'], record['sku_description'], record['source'], record['cost'])
+        records = [(year, month, record['service_id'], record['service_description'], record['sku_id'], record['sku_description'], record['source'], record['cost'])
                    async for record in await bigquery_client.query(cmd)]
 
         @transaction(db)
@@ -148,7 +150,7 @@ DELETE FROM monitoring_billing_data WHERE year = %s AND month = %s;
                                   (year, month))
 
             await tx.execute_many('''
-INSERT INTO monitoring_billing_data (year, month, service_description, sku_description, source, cost)
+INSERT INTO monitoring_billing_data (year, month, service_id, service_description, sku_id, sku_description, source, cost)
 VALUES (%s, %s, %s, %s, %s, %s);
 ''',
                                   records)
