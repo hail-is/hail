@@ -45,11 +45,12 @@ def format_data(records):
 
         cost_by_service[record['service_description']] += record['cost']
 
-        if record['service_description'] == 'Compute Engine':
+        # service.id: service.description -- "6F81-5844-456A": "Compute Engine"
+        if record['service_id'] == '6F81-5844-456A':
             assert record['source'] is not None
             compute_cost_breakdown[record['source']] += record['cost']
         else:
-            assert record['source'] is None
+            assert record['source'] is None, record
 
     cost_by_service = sorted([{'service': k, 'cost': v} for k, v in cost_by_service.items()],
                              key=lambda x: x['cost'],
