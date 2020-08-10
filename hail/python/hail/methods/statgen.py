@@ -1857,17 +1857,14 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         return temp
 
     def matmul_colblocked_rowblocked(A, B):
-        temp = A.transmute(nda
-            rray = A.ndarray.transpose() @ B[A.row_group_number].ndarray)
+        temp = A.transmute(ndarray = A.ndarray.transpose() @ B[A.row_group_number].ndarray)
         return temp.aggregate(hl.agg.ndarray_sum(temp.ndarray)) # collects A / reads A
 
 
     # Algorithm
 
     def hailBlanczos(A, G, k, l, q, block_size):
-    
-        # assert l > k
-        # assert n <= m
+
 
         # might want to calculate actual order of parallel vs local operations
 
