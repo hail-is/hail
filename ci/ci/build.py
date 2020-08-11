@@ -874,6 +874,8 @@ class CreateDatabaseStep(Step):
         if self.create_passwords_job:
             assert self.create_database_job is not None
             return [self.create_passwords_job, self.create_database_job]
+        if self.create_database_job:
+            return [self.create_database_job]
         return []
 
     @staticmethod
