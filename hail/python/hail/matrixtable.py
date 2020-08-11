@@ -4112,7 +4112,7 @@ class MatrixTable(ExprContainer):
 
     def _calculate_new_partitions(self, n_partitions):
         """returns a set of range bounds that can be passed to write"""
-        mt = self.rows()w
+        mt = self.rows()
         mt = mt.select()
         return Env.backend().execute(ir.TableToValueApply(
             mt._tir,
