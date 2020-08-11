@@ -162,7 +162,7 @@ async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
         tolerations=[
             kube.client.V1Toleration(
                 key='preemptible',
-                value='true')
+                value='false')
         ],
         service_account_name=service_account_name,
         containers=[
