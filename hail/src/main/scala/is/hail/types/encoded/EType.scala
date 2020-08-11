@@ -95,7 +95,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
       val region: Value[Region] = mb.getCodeParam[Region](1)
       val addr: Value[Long] = mb.getCodeParam[Long](2)
       val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](3)
-      val dec = _buildInplaceDecoder(pt.fundamentalType, mb, region, addr, in)
+      val dec = _buildInplaceDecoder(pt.encodableType, mb, region, addr, in)
       mb.emit(dec)
     })
   }
@@ -178,14 +178,14 @@ trait EFundamentalType extends EType {
   def _buildFundamentalDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_]
 
   final def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] =
-    _buildFundamentalEncoder(pt.fundamentalType, mb, v, out)
+    _buildFundamentalEncoder(pt.encodableType, mb, v, out)
 
   final def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] =
-    _buildFundamentalDecoder(pt.fundamentalType, mb, region, in)
+    _buildFundamentalDecoder(pt.encodableType, mb, region, in)
 
-  final override def decodeCompatible(pt: PType): Boolean = _decodeCompatible(pt.fundamentalType)
+  final override def decodeCompatible(pt: PType): Boolean = _decodeCompatible(pt.encodableType)
 
-  final override def encodeCompatible(pt: PType): Boolean = _encodeCompatible(pt.fundamentalType)
+  final override def encodeCompatible(pt: PType): Boolean = _encodeCompatible(pt.encodableType)
 }
 
 trait DecoderAsmFunction { def apply(r: Region, in: InputBuffer): Long }
