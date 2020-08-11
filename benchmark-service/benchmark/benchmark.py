@@ -6,7 +6,7 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
-from benchmark.utils import ReadGoogleStorage, get_geometric_mean
+from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_index
 import json
 import re
 import plotly
@@ -18,7 +18,8 @@ logging.basicConfig(level=logging.DEBUG)
 deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
-BENCHMARK_FILE_REGEX = re.compile(r'gs://hail-benchmarks/((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
+BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
+# re.compile(r'gs://hail-benchmarks/((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
 default_filepath = 'gs://hail-benchmarks/tpoterba/0.2.45-ac6815ee857c-master.json'
 
 
@@ -50,7 +51,7 @@ def get_benchmarks(file_path):
         data.append(stats)
     geometric_mean = get_geometric_mean(prod_of_means, len(pre_data['benchmarks']))
 
-    file_info = read_gs.parse_file_path(file_path)
+    file_info = parse_file_path(BENCHMARK_FILE_REGEX, file_path)
     sha = file_info['sha']
     benchmarks = dict()
     benchmarks['sha'] = sha
@@ -67,25 +68,24 @@ async def healthcheck(request: web.Request) -> web.Response:  # pylint: disable=
 @router.get('/name/{name}')
 @web_authenticated_developers_only(redirect=False)
 async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
-    query = request.query.get('file')
-    benchmarks = get_benchmarks(query)
-    # benchmarks = get_benchmarks(default_filepath)
+    file_path = request.query.get('file')
+    benchmarks = get_benchmarks(file_path)
     name_data = next((item for item in benchmarks['data'] if item['name'] == str(request.match_info['name'])),
                      None)
 
-    def get_x_list():
-        x_list = []
-        i = 0
-        for trial in name_data['trials']:
-            temp = []
-            temp = [i] * len(trial)
-            x_list.extend(temp)
-            i += 1
-        return x_list
-
-    x_list_test = get_x_list()  # This is a test
+    # def get_x_list():
+    #     x_list = []
+    #     i = 0
+    #     for trial in name_data['trials']:
+    #         temp = []
+    #         temp = [i] * len(trial)
+    #         x_list.extend(temp)
+    #         i += 1
+    #     return x_list
+    #
+    # x_list_test = get_x_list()
     try:
-        fig = px.scatter(x=x_list_test, y=name_data['times'])
+        fig = px.scatter(x=enumerate_list_index(name_data['trials']), y=name_data['times'])
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     except Exception:
         message = 'could not find name'
@@ -115,7 +115,7 @@ async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: di
 async def lookup(request, userdata):  # pylint: disable=unused-argument
     file = request.query.get('file')
     if file is None:
-        return web.HTTPBadRequest()  # you'll need to look what this is up. Or you can set it to be the default file.
+        return web.HTTPBadRequest()
     benchmarks_context = get_benchmarks(file)
     context = {'file': file,
                'benchmarks': benchmarks_context}
