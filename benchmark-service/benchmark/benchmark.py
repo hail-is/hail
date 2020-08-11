@@ -100,6 +100,25 @@ async def index(request, userdata):  # pylint: disable=unused-argument
     return await render_template('benchmark', request, userdata, 'index.html', context)
 
 
+@router.get('/compare')
+@web_authenticated_developers_only(redirect=False)
+async def compare(request, userdata):  # pylint: disable=unused-argument
+    file1 = request.query.get('file1')
+    file2 = request.query.get('file2')
+    if file1 or file2 is None:
+        benchmarks_context1 = None
+        benchmarks_context2 = None
+    else:
+        benchmarks_context1 = get_benchmarks(file1)
+        benchmarks_context2 = get_benchmarks(file2)
+    context = {'file1': file1,
+               'file2': file2,
+               'benchmarks1': benchmarks_context1,
+               'benchmarks2': benchmarks_context2}
+
+    return await render_template('benchmark', request, userdata, 'compare.html', context)
+
+
 def init_app() -> web.Application:
     app = web.Application()
     setup_aiohttp_jinja2(app, 'benchmark')
