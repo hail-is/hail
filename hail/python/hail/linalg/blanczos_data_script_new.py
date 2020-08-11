@@ -85,6 +85,10 @@ medium_data = cleanMissingData(medium_data)
 medium_data.write("medium_data.mt", overwrite=True)
 medium_data = hl.read_matrix_table("medium_data.mt")
 
+# temp_file_path = hl.utils.new_temp_file("pca", "mt")
+# mt.write(temp_file_path)
+# mt = hl.read_matrix_table(temp_file_path) #, intervals = SOMETHING SOMETHING WE DONT KNOW)
+
 # write 
 
 # m, n = small_data.count()
@@ -97,7 +101,7 @@ for L in [K + 2, 2 * K]:
 
     for Q in [0, 2]:
 
-        for block_size in [8, 16, 32, 64]:
+        for block_size in [1000, 3000]:
 
             # loop(i, small_data.__gt, m, n, block_size, K, L, Q)
             # df.to_csv('gs://aotoole/blanczos_small_data_times.csv')
