@@ -672,6 +672,10 @@ class ArrayExpression(CollectionExpression):
         indices, aggregations = unify_all(self, zero, body)
         return construct_expr(x, tarray(body.dtype), indices, aggregations)
 
+    @typecheck_method(group_size=expr_int32)
+    def grouped(self, group_size):
+        indices, aggregations = unify_all(self, group_size)
+        return construct_expr(ir.StreamGrouped(ir.ToStream(self._ir), group_size), ..., indices, aggregations)
 
 class ArrayStructExpression(ArrayExpression):
     """Expression of type :class:`.tarray` that eventually contains structs.
