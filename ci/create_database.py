@@ -8,7 +8,7 @@ import asyncio
 import shutil
 from shlex import quote as shq
 from hailtop.utils import check_shell, check_shell_output
-from hailtop.auth.sql_config import create_secret_data_from_config
+from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
 from gear import Database
 
 assert len(sys.argv) == 2
@@ -22,7 +22,10 @@ def generate_token(size=12):
     return secrets.choice(alpha) + ''.join([secrets.choice(alnum) for _ in range(size - 1)])
 
 
-async def write_user_config(namespace, database_name, user, config):
+async def write_user_config(namespace: str,
+                            database_name: str,
+                            user: str,
+                            config: SQLConfig):
     with open('/sql-config/server-ca.pem', 'r') as f:
         server_ca = f.read()
     with open('/sql-config/client-cert.pem', 'r') as f:
@@ -52,14 +55,14 @@ kubectl -n {shq(namespace)} create secret generic \
 
 async def create_database():
     with open('/sql-config/sql-config.json', 'r') as f:
-        sql_config = json.loads(f.read())
+        sql_config = SQLConfig.from_json(f.read())
 
     namespace = create_database_config['namespace']
     database_name = create_database_config['database_name']
     cant_create_database = create_database_config['cant_create_database']
 
     if cant_create_database:
-        assert sql_config.get('db') is not None
+        assert sql_config.db is not None
 
         await write_user_config(namespace, database_name, 'admin', sql_config)
         await write_user_config(namespace, database_name, 'user', sql_config)
@@ -100,33 +103,33 @@ CREATE USER IF NOT EXISTS '{user_username}'@'%' IDENTIFIED BY '{user_password}';
 GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}'@'%';
 ''')
 
-    await write_user_config(namespace, database_name, 'admin', {
-        'host': sql_config['host'],
-        'port': sql_config['port'],
-        'instance': sql_config['instance'],
-        'connection_name': sql_config['connection_name'],
-        'user': admin_username,
-        'password': admin_password,
-        'db': _name,
-        'ssl-ca': sql_config.get('ssl-ca'),
-        'ssl-cert': sql_config.get('ssl-cert'),
-        'ssl-key': sql_config.get('ssl-key'),
-        'ssl-mode': sql_config.get('ssl-mode')
-    })
+    await write_user_config(namespace, database_name, 'admin', SQLConfig(
+        host=sql_config.host,
+        port=sql_config.port,
+        instance=sql_config.instance,
+        connection_name=sql_config.instance,
+        user=admin_username,
+        password=admin_password,
+        db=_name,
+        ssl_ca=sql_config.ssl_ca,
+        ssl_cert=sql_config.ssl_cert,
+        ssl_key=sql_config.ssl_key,
+        ssl_mode=sql_config.ssl_mode
+    ))
 
-    await write_user_config(namespace, database_name, 'user', {
-        'host': sql_config['host'],
-        'port': sql_config['port'],
-        'instance': sql_config['instance'],
-        'connection_name': sql_config['connection_name'],
-        'user': user_username,
-        'password': user_password,
-        'db': _name,
-        'ssl-ca': sql_config.get('ssl-ca'),
-        'ssl-cert': sql_config.get('ssl-cert'),
-        'ssl-key': sql_config.get('ssl-key'),
-        'ssl-mode': sql_config.get('ssl-mode')
-    })
+    await write_user_config(namespace, database_name, 'user', SQLConfig(
+        host=sql_config.host,
+        port=sql_config.port,
+        instance=sql_config.instance,
+        connection_name=sql_config.instance,
+        user=user_username,
+        password=user_password,
+        db=_name,
+        ssl_ca=sql_config.ssl_ca,
+        ssl_cert=sql_config.ssl_cert,
+        ssl_key=sql_config.ssl_key,
+        ssl_mode=sql_config.ssl_mode
+    ))
 
 
 did_shutdown = False
