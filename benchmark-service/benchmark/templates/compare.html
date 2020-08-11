@@ -37,11 +37,11 @@
         <tr>
             <td>{{ d['name'] }}</td>
             <td>
-                {% data2 = next((item for item in benchmarks2['data'] if item['name'] == d['name']), None) %}
+                {% for item in benchmarks2['data'] if item['name'] == d['name'] %}
+                    {% if item is not none %}
+                        {{ data2['mean'] / d['mean'] }}
+                    {% endif %}
                 {% endfor %}
-                {% if data2 is not none %}
-                    {{ data2['mean'] / d['mean'] }}
-                {% endif %}
             </td>
             <td>{{ d['mean'] }}</td>
             <td>
