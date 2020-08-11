@@ -103,24 +103,27 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 @router.get('/')
 @router.get('')
 @web_authenticated_developers_only(redirect=False)
-async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: disable=unused-argument
-    benchmarks_context = get_benchmarks(default_filepath)
-    context = {'file': None,
-               'benchmarks': benchmarks_context}
-    return await render_template('benchmark', request, userdata, 'index.html', context)
-
-
-@router.get('/lookup')
-@web_authenticated_developers_only(redirect=False)
-async def lookup(request, userdata):  # pylint: disable=unused-argument
+async def index(request, userdata):  # pylint: disable=unused-argument
     file = request.query.get('file')
     if file is None:
-        return web.HTTPBadRequest()
+        file = None
     benchmarks_context = get_benchmarks(file)
     context = {'file': file,
                'benchmarks': benchmarks_context}
-
     return await render_template('benchmark', request, userdata, 'index.html', context)
+
+
+# @router.get('/lookup')
+# @web_authenticated_developers_only(redirect=False)
+# async def lookup(request, userdata):  # pylint: disable=unused-argument
+#     file = request.query.get('file')
+#     if file is None:
+#         return web.HTTPBadRequest()
+#     benchmarks_context = get_benchmarks(file)
+#     context = {'file': file,
+#                'benchmarks': benchmarks_context}
+#
+#     return await render_template('benchmark', request, userdata, 'index.html', context)
 
 
 def init_app() -> web.Application:

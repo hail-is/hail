@@ -4,10 +4,8 @@
 {% block content %}
 <h1>Benchmark System</h1>
 
-<form action="{{ base_path }}/lookup" method="get">
-    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<form action="{{ base_path }}/" method="get">
     <input type="text" name="file"></input>
-
     <input type="submit" value="lookup"></input>
 </form>
 
@@ -55,7 +53,6 @@
         </tbody>
     </table>
 
-    <hr>
 {% endif %}
 
 {% endblock %}
