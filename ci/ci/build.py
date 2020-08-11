@@ -955,7 +955,7 @@ python3 create_database.py {shq(json.dumps(create_database_config))}
                 'name': 'ci-agent'
             },
             input_files=input_files,
-            parents=[self.create_passwords_job] if self.create_passwords_job else None)
+            parents=[self.create_passwords_job] if self.create_passwords_job else self.deps_parents())
 
     def cleanup(self, batch, scope, parents):
         if scope in ['deploy', 'dev'] or self.cant_create_database:
