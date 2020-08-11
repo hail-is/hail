@@ -692,7 +692,6 @@ class Job:
 
         if input_files:
             input_volume_mounts.append(f'{LOCAL_SSD_MOUNT}:/host')
-            input_mounts = None
             containers['input'] = copy_container(
                 self, 'input', input_files, input_volume_mounts,
                 self.cpu_in_mcpu, self.memory_in_bytes, requester_pays_project)
