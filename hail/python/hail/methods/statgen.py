@@ -1818,12 +1818,14 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     grouped = ht._group_within_partitions("groups", block_size * 2)
 
     part_sizes = grouped.select(part_size = hl.len(grouped.groups))
-    part_sizes = part_sizes.annotate(rows_preceeding = hl.scan.sum(part_sizes.part_size))
+    part_sizes = part_sizes.annotate(rows_preceeding = hl.int32(hl.scan.sum(part_sizes.part_size)))
     local_part_sizes = part_sizes.collect()
 
     # now we have a table where adjacent rows within the same partition got grouped together into an array called groups
 
     A = grouped.select(ndarray = hl.nd.array(grouped.groups.map(lambda group: group.xs)))
+    A = A.add_index("row_group_number")
+    A = A.key_by("row_group_number")
 
     # mt.write(temp_file_path)
     # mt = hl.read_matrix_table(temp_file_path) #, intervals = SOMETHING SOMETHING WE DONT KNOW)
