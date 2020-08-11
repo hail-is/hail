@@ -114,11 +114,11 @@ class ETypeSuite extends HailSuite {
   }
 
   @Test def testNDArrayEncodeDecode(): Unit = {
-//    val pTypeInt0 = PCanonicalNDArray(PInt32Required, 0, true)
-//    val eTypeInt0 = ENDArrayColumnMajor(EInt32Required, 0, true)
-//    val dataInt0 = Row(Row(), Row(), FastIndexedSeq(0))
-//
-//    assertEqualEncodeDecode(pTypeInt0, eTypeInt0, pTypeInt0, dataInt0)
+    val pTypeInt0 = PCanonicalNDArray(PInt32Required, 0, true)
+    val eTypeInt0 = ENDArrayColumnMajor(EInt32Required, 0, true)
+    val dataInt0 = Row(Row(), Row(), FastIndexedSeq(0))
+
+    assertEqualEncodeDecode(pTypeInt0, eTypeInt0, pTypeInt0, dataInt0)
 
     val pTypeFloat1 = PCanonicalNDArray(PFloat32Required, 1, true)
     val eTypeFloat1 = ENDArrayColumnMajor(EFloat32Required, 1, true)

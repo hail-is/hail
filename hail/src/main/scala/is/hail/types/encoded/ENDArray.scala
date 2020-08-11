@@ -30,8 +30,6 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     assert(pnd.elementType.required)
     val ndarray = coerce[Long](v)
 
-    val firstShape = mb.newLocal[Long]("first_shape")
-
     val writeShapes = (0 until nDims).map(i => out.writeLong(pnd.loadShape(ndarray, i)))
 
     val writeElemF = elementType.buildEncoder(pnd.elementType, mb.ecb)
@@ -53,7 +51,6 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     }
 
     Code(
-      firstShape := pnd.loadShape(ndarray, 0),
       Code(writeShapes),
       columnMajorLoops
     )
