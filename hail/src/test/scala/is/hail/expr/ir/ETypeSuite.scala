@@ -64,17 +64,14 @@ class ETypeSuite extends HailSuite {
     fb.resultWithIndex()(0, ctx.r).apply(x, ob)
     ob.flush()
     buffer.clearPos()
-    println("Got encode fb.result")
 
     val fb2 = EmitFunctionBuilder[Region, InputBuffer, Long](ctx, "fb2")
     val regArg = fb2.apply_method.getCodeParam[Region](1)
     val ibArg = fb2.apply_method.getCodeParam[InputBuffer](2)
     val dec = eType.buildDecoderMethod(outPType, fb2.apply_method.ecb)
     fb2.emit(dec.invokeCode(regArg, ibArg))
-    println("Emitted decoder")
 
     val result = fb2.resultWithIndex()(0, ctx.r).apply(ctx.r, new MemoryInputBuffer(buffer))
-    println("Got result")
     SafeRow.read(outPType, result)
   }
 
