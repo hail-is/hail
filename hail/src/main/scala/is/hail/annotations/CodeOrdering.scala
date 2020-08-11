@@ -1,11 +1,10 @@
 package is.hail.annotations
 
 import is.hail.asm4s._
-import is.hail.expr.ir.{Ascending, EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.{Ascending, Descending, EmitMethodBuilder, SortField, SortOrder}
 import is.hail.types._
 import is.hail.asm4s.coerce
 import is.hail.types.physical._
-import is.hail.expr.ir.{Ascending, Descending}
 import is.hail.utils._
 
 object CodeOrdering {
@@ -16,6 +15,10 @@ object CodeOrdering {
     val missingEqual: Boolean
   }
   final case class Compare(missingEqual: Boolean = true) extends Op {
+    type ReturnType = Int
+    val rtti = typeInfo[Int]
+  }
+  final case class CompareStructs(sf: IndexedSeq[SortField], missingEqual: Boolean = true) extends Op {
     type ReturnType = Int
     val rtti = typeInfo[Int]
   }

@@ -99,7 +99,7 @@ object TypeCheck {
         assert(op.t1.fundamentalType == l.typ.fundamentalType)
         assert(op.t2.fundamentalType == r.typ.fundamentalType)
         op match {
-          case _: Compare => assert(x.typ == TInt32)
+          case _: Compare | _: CompareStructs => assert(x.typ == TInt32)
           case _ => assert(x.typ == TBoolean)
         }
       case x@MakeArray(args, typ) =>
