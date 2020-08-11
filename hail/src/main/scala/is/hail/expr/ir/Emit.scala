@@ -1093,7 +1093,7 @@ class Emit[C](
 
       case x@MakeArray(args, _) =>
         val pType = x.pType.asInstanceOf[PArray]
-        val srvb = new StagedRegionValueBuilder(mb, pType)
+        val srvb = new StagedRegionValueBuilder(mb, pType, region.code)
         val addElement = srvb.addIRIntermediate(pType.elementType)
 
         val addElts = args.map { arg =>
@@ -1242,7 +1242,7 @@ class Emit[C](
         def loadValue(n: Code[Int]): Code[_] =
           Region.loadIRIntermediate(vtyp)(etyp.fieldOffset(coerce[Long](eab(n)), 1))
 
-        val srvb = new StagedRegionValueBuilder(mb, ir.pType)
+        val srvb = new StagedRegionValueBuilder(mb, ir.pType, region.code)
 
         type E = Env[(TypeInfo[_], Code[Boolean], Code[_])]
 
@@ -1413,7 +1413,7 @@ class Emit[C](
         COption.toEmitCode(resOpt, mb)
 
       case x@MakeStruct(fields) =>
-        val srvb = new StagedRegionValueBuilder(mb, x.pType)
+        val srvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
         val addFields = fields.map { case (_, x) =>
           val v = emit(x)
           Code(
@@ -1435,7 +1435,7 @@ class Emit[C](
         } else {
           val oldt = coerce[PStruct](oldStruct.pType)
           val oldv = mb.genFieldThisRef[Long]()
-          val srvb = new StagedRegionValueBuilder(mb, x.pType)
+          val srvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
 
           val addFields = fields.map { name =>
             val i = oldt.fieldIdx(name)
@@ -1468,7 +1468,7 @@ class Emit[C](
               val codeOld = emit(old)
               val xo = mb.genFieldThisRef[Long]()
               val updateMap = Map(fields: _*)
-              val srvb = new StagedRegionValueBuilder(mb, x.pType)
+              val srvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
 
               val addFields = { (newMB: EmitMethodBuilder[C], t: PType, v: EmitCode) =>
                 Code(
@@ -1506,7 +1506,7 @@ class Emit[C](
           }
 
       case x@MakeTuple(fields) =>
-        val srvb = new StagedRegionValueBuilder(mb, x.pType)
+        val srvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
         val addFields = fields.map { case (_, x) =>
           val v = emit(x)
           Code(
@@ -2151,7 +2151,7 @@ class Emit[C](
         val encRes = mb.genFieldThisRef[Array[Array[Byte]]]()
 
         def etToTuple(et: EmitCode, t: PType): Code[Long] = {
-          val srvb = new StagedRegionValueBuilder(mb, PCanonicalTuple(false, t))
+          val srvb = new StagedRegionValueBuilder(mb, PCanonicalTuple(false, t), region.code)
           Code(
             srvb.start(),
             et.setup,
@@ -2183,7 +2183,7 @@ class Emit[C](
           buf.invoke[Unit]("flush"))
 
         val decodeResult = {
-          val sab = new StagedRegionValueBuilder(mb, x.pType)
+          val sab = new StagedRegionValueBuilder(mb, x.pType, region.code)
           val bais = Code.newInstance[ByteArrayInputStream, Array[Byte]](encRes(sab.arrayIdx))
           val eltTupled = mb.genFieldThisRef[Long]()
           Code(
