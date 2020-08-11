@@ -895,7 +895,7 @@ class FileCache:
         self.pool = pool
 
     async def async_init(self):
-        asyncio.ensure_future(self.monitor_loop())
+        asyncio.ensure_future(retry_long_running('file_cache_monitoring_loop', self.monitor_loop))
         asyncio.ensure_future(retry_long_running(
             'file_cache_cleanup_loop',
             run_if_changed, self.cleanup_event, self.cleanup_loop))
