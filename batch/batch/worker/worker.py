@@ -909,22 +909,22 @@ class FileCache:
 
     async def monitor_loop(self):
         while True:
-            if await self.used_disk_space() > 0:
+            if await self.used_disk_space() > 0.9:
                 log.info('more than 90% used, cleaning up')
                 self.cleanup_event.set()
-            await asyncio.sleep(60)
+            await asyncio.sleep(5)
 
     async def cleanup_loop(self):
         for root, _, files in os.walk(f'{self.path}/cache/'):
             for file in files:
-                if await self.used_disk_space() < 0:
+                if await self.used_disk_space() < 0.7:
                     return True
                 file_path = f'{root}/{file}'
                 try:
                     async with Flock(file_path, pool=worker.pool, nonblock=True):
                         await self.remove(file_path)
                 except BlockingIOError:
-                    log.exception(f'could not remove in-use file {file_path}')
+                    log.info(f'could not remove in-use file {file_path}')
         return True
 
 
