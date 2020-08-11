@@ -105,10 +105,9 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 async def index(request, userdata):  # pylint: disable=unused-argument
     file = request.query.get('file')
     if file is None:
-        return web.HTTPBadRequest()
-        # benchmark_context = get_benchmarks(default_filepath)
-    # else:
-    benchmarks_context = get_benchmarks(file)
+        benchmarks_context = get_benchmarks(default_filepath)
+    else:
+        benchmarks_context = get_benchmarks(file)
     context = {'file': file,
                'benchmarks': benchmarks_context}
     return await render_template('benchmark', request, userdata, 'index.html', context)
