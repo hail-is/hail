@@ -115,7 +115,6 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
                'file2': file2,
                'benchmarks1': benchmarks_context1,
                'benchmarks2': benchmarks_context2}
-
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 

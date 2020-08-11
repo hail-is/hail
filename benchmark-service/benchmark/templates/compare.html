@@ -11,53 +11,54 @@
 </form>
 
 {% if file1 is not none and file2 is not none %}
-<table class="data-table">
-    <thead>
-    <tr>
-        <th>name</th>
-        <th>ratio</th>
-        <th>
-            {% if benchmarks1['sha'] is not none %}
-            <a href="{{ base_path }}/?file={{ file1 }}">{{ benchmarks1['sha'] }}</a>
-            {% else %}
-            unknown
-            {% endif %}
-        </th>
-        <th>
-            {% if benchmarks2['sha'] is not none %}
-            <a href="{{ base_path }}/?file={{ file2 }}">{{ benchmarks2['sha'] }}</a>
-            {% else %}
-            unknown
-            {% endif %}
-        </th>
-    </tr>
-    </thead>
-    <tbody>
-    {% for d in benchmarks1['data'] %}
-    <tr>
-        <td>{{ d['name'] }}</td>
-        <td>
-            {% data2 = next((item for item in benchmarks2['data'] if item['name'] == d['name']), None) %}
-            {% if data2 is not none %}
-                {{ data2['mean'] / d['mean'] }}
-            {% endif %}
-        </td>
-        <td>{{ d['mean'] }}</td>
-        <td>
-            {% if data2 is not none %}
-                {{ data2['mean'] }}
-            {% endif %}
-        </td>
-    </tr>
-    {% endfor %}
-    </tbody>
-</table>
+    <table class="data-table">
+        <thead>
+        <tr>
+            <th>name</th>
+            <th>ratio</th>
+            <th>
+                {% if benchmarks1['sha'] is not none %}
+                <a href="{{ base_path }}/?file={{ file1 }}">{{ benchmarks1['sha'] }}</a>
+                {% else %}
+                unknown
+                {% endif %}
+            </th>
+            <th>
+                {% if benchmarks2['sha'] is not none %}
+                <a href="{{ base_path }}/?file={{ file2 }}">{{ benchmarks2['sha'] }}</a>
+                {% else %}
+                unknown
+                {% endif %}
+            </th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for d in benchmarks1['data'] %}
+        <tr>
+            <td>{{ d['name'] }}</td>
+            <td>
+                {% data2 = next((item for item in benchmarks2['data'] if item['name'] == d['name']), None) %}
+                {% endfor %}
+                {% if data2 is not none %}
+                    {{ data2['mean'] / d['mean'] }}
+                {% endif %}
+            </td>
+            <td>{{ d['mean'] }}</td>
+            <td>
+                {% if data2 is not none %}
+                    {{ data2['mean'] }}
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
 
-<p> Harmonic Mean: </p>
-<p> Geometric Mean: </p>
-<p> Arithmetic Mean: </p>
-<p> Median: </p>
-<hr>
+    <p> Harmonic Mean: </p>
+    <p> Geometric Mean: </p>
+    <p> Arithmetic Mean: </p>
+    <p> Median: </p>
+    <hr>
 {% endif %}
 
 {% endblock %}
