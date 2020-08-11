@@ -910,7 +910,7 @@ class FileCache:
     async def monitor_loop(self):
         while True:
             if await self.used_disk_space() > 0.9:
-                log.info('more than 90% used, cleaning up')
+                log.info('more than 90% disk space used, cleaning up')
                 self.cleanup_event.set()
             await asyncio.sleep(5)
 
