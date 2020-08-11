@@ -912,7 +912,7 @@ class FileCache:
             if await self.used_disk_space() > 0:
                 log.info('more than 90% used, cleaning up')
                 self.cleanup_event.set()
-            await asyncio.sleep(5)
+            await asyncio.sleep(60)
 
     async def cleanup_loop(self):
         for root, _, files in os.walk(f'{self.path}/cache/'):
