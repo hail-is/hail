@@ -42,7 +42,6 @@ class ReadGoogleStorage:
         bucket = self.storage_client.get_bucket(file_info['bucket'])
         shorter_file_path = file_info['path']
             # ReadGoogleStorage.remove_prefix(file_path, 'gs://' + file_info['bucket'] + '/')
-
         try:
             # get bucket data as blob
             blob = bucket.blob(shorter_file_path)
