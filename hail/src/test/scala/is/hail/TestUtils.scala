@@ -155,7 +155,8 @@ object TestUtils {
   ): Any = {
     if (agg.isDefined || !env.isEmpty || !args.isEmpty)
       throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
-    HailContext.sparkBackend("TestUtils.loweredExecute").jvmLowerAndExecute(x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter)._1
+    HailContext.sparkBackend("TestUtils.loweredExecute")
+               .jvmLowerAndExecute(x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter, allocStrat = EmitAllocationStrategy.ManyRegions)._1
   }
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
@@ -219,7 +220,8 @@ object TestUtils {
             FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
             aggIR,
             print = bytecodePrinter,
-            optimize = optimize)
+            optimize = optimize,
+            allocStrat = EmitAllocationStrategy.ManyRegions)
           assert(resultType2.virtualType == resultType)
 
           Region.scoped { region =>
@@ -252,7 +254,8 @@ object TestUtils {
             FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))),
             optimize = optimize,
-            print = bytecodePrinter)
+            print = bytecodePrinter,
+            allocStrat = EmitAllocationStrategy.ManyRegions)
           assert(resultType2.virtualType == resultType)
 
           Region.scoped { region =>

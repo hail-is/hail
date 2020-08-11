@@ -257,13 +257,27 @@ class SparkBackend(
     case Right((pt, off)) => SafeRow(pt, off).get(0)
   }
 
-  def jvmLowerAndExecute(ir0: IR, optimize: Boolean, lowerTable: Boolean, lowerBM: Boolean, print: Option[PrintWriter] = None): (Any, ExecutionTimer) =
-    withExecuteContext() { ctx =>
-      val (l, r) = _jvmLowerAndExecute(ctx, ir0, optimize, lowerTable, lowerBM, print)
-      (executionResultToAnnotation(ctx, l), r)
-    }
+  def jvmLowerAndExecute(
+    ir0: IR,
+    optimize: Boolean,
+    lowerTable: Boolean,
+    lowerBM: Boolean,
+    print: Option[PrintWriter] = None,
+    allocStrat: EmitAllocationStrategy.T
+  ): (Any, ExecutionTimer) = withExecuteContext() { ctx =>
+    val (l, r) = _jvmLowerAndExecute(ctx, ir0, optimize, lowerTable, lowerBM, print, allocStrat)
+    (executionResultToAnnotation(ctx, l), r)
+  }
 
-  private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir0: IR, optimize: Boolean, lowerTable: Boolean, lowerBM: Boolean, print: Option[PrintWriter] = None): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
+  private[this] def _jvmLowerAndExecute(
+    ctx: ExecuteContext,
+    ir0: IR,
+    optimize: Boolean,
+    lowerTable: Boolean,
+    lowerBM: Boolean,
+    print: Option[PrintWriter] = None,
+    allocStrat: EmitAllocationStrategy.T
+  ): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
     val typesToLower: DArrayLowering.Type = (lowerTable, lowerBM) match {
       case (true, true) => DArrayLowering.All
       case (true, false) => DArrayLowering.TableOnly
@@ -282,7 +296,8 @@ class SparkBackend(
             FastIndexedSeq[(String, PType)](),
             FastIndexedSeq(classInfo[Region]), UnitInfo,
             ir,
-            print = print)
+            print = print,
+            allocStrat = allocStrat)
         }
         ctx.timer.time("Run")(Left(f(0, ctx.r)(ctx.r)))
 
@@ -292,7 +307,8 @@ class SparkBackend(
             FastIndexedSeq[(String, PType)](),
             FastIndexedSeq(classInfo[Region]), LongInfo,
             MakeTuple.ordered(FastSeq(ir)),
-            print = print)
+            print = print,
+            allocStrat = allocStrat)
         }
         ctx.timer.time("Run")(Right((pt, f(0, ctx.r).apply(ctx.r))))
     }
@@ -300,19 +316,19 @@ class SparkBackend(
     (res, ctx.timer)
   }
 
-  def execute(ir: IR, optimize: Boolean): (Any, ExecutionTimer) =
+  def execute(ir: IR, optimize: Boolean, allocStrat: EmitAllocationStrategy.T = EmitAllocationStrategy.OneRegion): (Any, ExecutionTimer) =
     withExecuteContext() { ctx =>
-      val (l, r) = _execute(ctx, ir, optimize)
+      val (l, r) = _execute(ctx, ir, optimize, allocStrat)
       (executionResultToAnnotation(ctx, l), r)
     }
 
-  private[this] def _execute(ctx: ExecuteContext, ir: IR, optimize: Boolean): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
+  private[this] def _execute(ctx: ExecuteContext, ir: IR, optimize: Boolean, allocStrat: EmitAllocationStrategy.T): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
     TypeCheck(ir)
     Validate(ir)
     try {
       val lowerTable = HailContext.getFlag("lower") != null
       val lowerBM = HailContext.getFlag("lower_bm") != null
-      _jvmLowerAndExecute(ctx, ir, optimize, lowerTable, lowerBM)
+      _jvmLowerAndExecute(ctx, ir, optimize, lowerTable, lowerBM, allocStrat = allocStrat)
     } catch {
       case _: LowererUnsupportedOperation =>
         (CompileAndEvaluate._apply(ctx, ir, optimize = optimize), ctx.timer)
@@ -329,10 +345,14 @@ class SparkBackend(
     Serialization.write(Map("value" -> jsonValue, "timings" -> timings.asMap()))(new DefaultFormats {})
   }
 
-  def encodeToBytes(ir: IR, bufferSpecString: String): (String, Array[Byte]) = {
+  // Called from python
+  def encodeToBytes(ir: IR, bufferSpecString: String): (String, Array[Byte]) =
+    encodeToBytes(ir, bufferSpecString, EmitAllocationStrategy.OneRegion)
+
+  def encodeToBytes(ir: IR, bufferSpecString: String, allocStrat: EmitAllocationStrategy.T): (String, Array[Byte]) = {
     val bs = BufferSpec.parseOrDefault(bufferSpecString)
     withExecuteContext() { ctx =>
-      _execute(ctx, ir, true)._1 match {
+      _execute(ctx, ir, true, allocStrat = allocStrat)._1 match {
         case Left(_) => throw new RuntimeException("expression returned void")
         case Right((t, off)) =>
           assert(t.size == 1)

@@ -68,11 +68,15 @@ class SetupBuilder(mb: EmitMethodBuilder[_], var setup: Code[Unit]) {
   }
 }
 
+object EmitAllocationStrategy extends Enumeration {
+  type T = Value
+  val Default, ManyRegions, OneRegion = Value
+}
 
 object Emit {
   type E = Env[EmitValue]
 
-  def apply[C](ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[C], aggs: Option[Array[AggStateSig]] = None) {
+  def apply[C](ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[C], aggs: Option[Array[AggStateSig]] = None, allocStrat: EmitAllocationStrategy.T = EmitAllocationStrategy.OneRegion) {
     TypeCheck(ir)
 
     val mb = fb.apply_method
@@ -81,14 +85,20 @@ object Emit {
       AggContainer(a, c, () => ())
     }
     val emitter = new Emit[C](ctx, fb.ecb)
+    val regionArg = mb.getCodeParam[Region](1)
+    val stagedRegion = allocStrat match {
+      case EmitAllocationStrategy.Default => new RealStagedRegion(regionArg)
+      case EmitAllocationStrategy.ManyRegions => new RealStagedRegion(regionArg)
+      case EmitAllocationStrategy.OneRegion => new DummyStagedRegion(regionArg)
+    }
     if (ir.typ == TVoid) {
       fb.emitWithBuilder { cb =>
-        emitter.emitVoid(cb, ir, mb, Env.empty, container)
+        emitter.emitVoid(cb, ir, mb, stagedRegion, Env.empty, container, None)
         Code._empty
       }
     } else {
       fb.emitWithBuilder { cb =>
-        emitter.emitI(ir, cb, Env.empty, container).handle(cb, {
+        emitter.emitI(ir, cb, stagedRegion, Env.empty, container, None).handle(cb, {
           cb._throw[RuntimeException](
             Code.newInstance[RuntimeException, String]("cannot return empty"))
         }).code
@@ -406,12 +416,6 @@ class Emit[C](
 
   import Emit.E
 
-  private[ir] def emitVoid(cb: EmitCodeBuilder, ir: IR, mb: EmitMethodBuilder[C], env: E, container: Option[AggContainer], allowSubregions: Boolean = false): Unit = {
-    val region = mb.getCodeParam[Region](1)
-    val sr = StagedRegion(region, allowSubregions)
-    emitVoid(cb, ir, mb, sr, env, container, None)
-  }
-
   private[ir] def emitVoid(cb: EmitCodeBuilder, ir: IR, mb: EmitMethodBuilder[C], region: StagedRegion, env: E, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
 
     def emit(ir: IR, mb: EmitMethodBuilder[C] = mb, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
@@ -588,12 +592,6 @@ class Emit[C](
           }
         )
     }
-  }
-
-  private[ir] def emitI(ir: IR, cb: EmitCodeBuilder, env: E, container: Option[AggContainer], allowSubregions: Boolean = false): IEmitCode = {
-    val region = cb.emb.getCodeParam[Region](1)
-    val sr = StagedRegion(region, allowSubregions)
-    emitI(ir, cb, sr, env, container, None)
   }
 
   private def emitI(ir: IR, cb: EmitCodeBuilder, region: StagedRegion, env: E,
@@ -972,14 +970,11 @@ class Emit[C](
     * {@code tAggIn.elementType}.  {@code tAggIn.symTab} is not used by Emit.
     *
     **/
-  private[ir] def emit(ir: IR, mb: EmitMethodBuilder[C], env: E, container: Option[AggContainer], allowSubregions: Boolean): EmitCode = {
+  private[ir] def emit(ir: IR, mb: EmitMethodBuilder[C], env: E, container: Option[AggContainer]): EmitCode = {
     val region = mb.getCodeParam[Region](1)
-    val sr = StagedRegion(region, allowSubregions)
+    val sr = StagedRegion(region, allowSubregions = false)
     emit(ir, mb, sr, env, container, None)
   }
-
-  private[ir] def emit(ir: IR, mb: EmitMethodBuilder[C], env: E, container: Option[AggContainer]): EmitCode =
-    emit(ir, mb, env, container, allowSubregions = false)
 
   private[ir] def emitWithRegion(ir: IR, mb: EmitMethodBuilder[C], region: StagedRegion, env: E, container: Option[AggContainer]): EmitCode =
     emit(ir, mb, region, env, container, None)
