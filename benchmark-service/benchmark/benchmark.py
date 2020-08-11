@@ -105,7 +105,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 async def compare(request, userdata):  # pylint: disable=unused-argument
     file1 = request.query.get('file1')
     file2 = request.query.get('file2')
-    if file1 or file2 is None:
+    if file1 is None or file2 is None:
         benchmarks_context1 = None
         benchmarks_context2 = None
     else:
