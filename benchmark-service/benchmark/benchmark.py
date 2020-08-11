@@ -1,4 +1,3 @@
-from typing import Any, Dict
 from aiohttp import web
 import logging
 from gear import setup_aiohttp_session, web_authenticated_developers_only
@@ -106,10 +105,10 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 async def index(request, userdata):  # pylint: disable=unused-argument
     file = request.query.get('file')
     if file is None:
-        file = None
-        benchmark_context = get_benchmarks(default_filepath)
-    else:
-        benchmarks_context = get_benchmarks(file)
+        return web.HTTPBadRequest()
+        # benchmark_context = get_benchmarks(default_filepath)
+    # else:
+    benchmarks_context = get_benchmarks(file)
     context = {'file': file,
                'benchmarks': benchmarks_context}
     return await render_template('benchmark', request, userdata, 'index.html', context)
