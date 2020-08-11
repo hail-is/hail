@@ -275,7 +275,7 @@ object EType {
   }
 
   def defaultFromPType(pt: PType): EType = {
-    pt.fundamentalType match {
+    pt.encodableType match {
       case t: PInt32 => EInt32(t.required)
       case t: PInt64 => EInt64(t.required)
       case t: PFloat32 => EFloat32(t.required)
@@ -298,6 +298,7 @@ object EType {
       case t: PArray => EArray(defaultFromPType(t.elementType), t.required)
       case t: PBaseStruct => EBaseStruct(t.fields.map(f =>
           EField(f.name, defaultFromPType(f.typ), f.index)), t.required)
+      case t: PNDArray => ENDArrayColumnMajor(defaultFromPType(t.elementType), t.nDims, t.required)
     }
   }
 

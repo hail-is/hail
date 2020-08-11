@@ -13,6 +13,8 @@ trait PPrimitive extends PType {
 
   override def containsPointers: Boolean = false
 
+  override def encodableType: PType = this
+
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     if (!deepCopy)
       return srcAddress
