@@ -1,7 +1,7 @@
 from typing import Any, Dict
 from aiohttp import web
 import logging
-from gear import setup_aiohttp_session, web_authenticated_developers_only, check_csrf_token
+from gear import setup_aiohttp_session, web_authenticated_developers_only
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
@@ -85,7 +85,7 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 
     x_list_test = get_x_list()  # This is a test
     try:
-        fig = px.scatter(x=x_list_test, y=name_data['times'])  # list(range(0, len(name_data['times'])))
+        fig = px.scatter(x=x_list_test, y=name_data['times'])
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     except Exception:
         message = 'could not find name'
@@ -111,7 +111,6 @@ async def index(request: web.Request, userdata) -> Dict[str, Any]:  # pylint: di
 
 
 @router.get('/lookup')
-# @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def lookup(request, userdata):  # pylint: disable=unused-argument
     file = request.query.get('file')
