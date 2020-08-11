@@ -19,7 +19,7 @@ log = logging.getLogger('benchmark')
 
 BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
 # re.compile(r'gs://hail-benchmarks/((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
-default_filepath = 'gs://hail-benchmarks/tpoterba/0.2.45-ac6815ee857c-master.json'
+# default_filepath = 'gs://hail-benchmarks/tpoterba/0.2.45-ac6815ee857c-master.json'
 
 
 def get_benchmarks(file_path):
@@ -105,7 +105,8 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 async def index(request, userdata):  # pylint: disable=unused-argument
     file = request.query.get('file')
     if file is None:
-        benchmarks_context = get_benchmarks(default_filepath)
+        benchmarks_context = None
+            #get_benchmarks(default_filepath)
     else:
         benchmarks_context = get_benchmarks(file)
     context = {'file': file,
