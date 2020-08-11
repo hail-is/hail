@@ -1804,14 +1804,34 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     
     # Format Distributed Table - group rows of table into blocks
     mt = mt.select_entries(x = mt[field])
-    temp_file_path = hl.utils.new_temp_file("pca", "mt")
-    mt.write(temp_file_path)
-    mt = hl.read_matrix_table(temp_file_path) #, intervals = SOMETHING SOMETHING WE DONT KNOW)
+
+    temp_file_name = hl.utils.new_temp_file("pca", "mt")
+
+    mt.write(temp_file_name)
+    desired_num_partitions = int(math.ceil(mt.count_rows() / block_size))
+    mt = hl.read_matrix_table(temp_file_name)
+    new_partitioning = mt._calculate_new_partitions(desired_num_partitions)
+    mt = hl.read_matrix_table(temp_file_name, _intervals = new_partitioning)
+
     ht = mt.localize_entries(entries_array_field_name='entries')
     ht = ht.select(xs = ht.entries.map(lambda e: e['x']))
-    ht = ht.add_index()
-    A = ht.group_by(row_group_number = hl.int32(ht.idx // block_size)) \
-        .aggregate(ndarray = hl.nd.array(hl.agg.collect(ht.xs)))
+    grouped = ht._group_within_partitions("groups", block_size * 2)
+
+    part_sizes = grouped.select(part_size = hl.len(grouped.groups))
+    part_sizes = part_sizes.annotate(rows_preceeding = hl.scan.sum(part_sizes.part_size))
+    local_part_sizes = part_sizes.collect()
+
+    # now we have a table where adjacent rows within the same partition got grouped together into an array called groups
+
+    A = grouped.select(ndarray = hl.nd.array(grouped.groups.map(lambda group: group.xs)))
+
+    # mt.write(temp_file_path)
+    # mt = hl.read_matrix_table(temp_file_path) #, intervals = SOMETHING SOMETHING WE DONT KNOW)
+    # ht = mt.localize_entries(entries_array_field_name='entries')
+    # ht = ht.select(xs = ht.entries.map(lambda e: e['x']))
+    # ht = ht.add_index()
+    # A = ht.group_by(row_group_number = hl.int32(ht.idx // block_size)) \
+    #     .aggregate(ndarray = hl.nd.array(hl.agg.collect(ht.xs)))
 
     # Set Parameters
     #block_size = block_size # might want to make this a parameter or make some heurstic for it
@@ -1825,16 +1845,13 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
     # Helper Functions
 
-    def chunk_ndarray(a, group_size):
-        n_groups = math.ceil(a.shape[0] / group_size)
+    def chunk_ndarray(Q, local_part_sizes):
         groups = []
-        for i in range(n_groups):
-            start = i * group_size
-            if i == n_groups - 1:
-                end = a.shape[0]
-            else:
-                end = (i + 1) * group_size
-            groups.append(a[start:end, :])
+        for part in local_part_sizes:
+            start = part.rows_preceeding
+            end = start + part.part_size
+            Q_i = Q[start:end]
+            groups.append(Q_i)
         return groups
 
     def concatToNumpy(A):
@@ -1886,7 +1903,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         # perform QR decomposition on unblocked version of H
         Q, R = np.linalg.qr(H)
         # block Q's rows into the same number of blocks that A has
-        blocked_Q_table = ndarray_to_table(chunk_ndarray(Q, block_size))
+        blocked_Q_table = ndarray_to_table(chunk_ndarray(Q, local_part_sizes))
         
         # definite bottleneck where we have to collect things and do local operations
 
