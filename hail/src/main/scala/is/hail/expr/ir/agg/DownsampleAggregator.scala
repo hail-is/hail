@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, ParamType}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitRegion, ParamType}
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -497,21 +497,17 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     cb += mb.invokeCode()
   }
 
-  def result(srvb: StagedRegionValueBuilder, resultType: PArray): Code[Unit] = {
-    val mb = kb.genEmitMethod("downsample_result", FastIndexedSeq[ParamType](), UnitInfo)
+  def result(mb: EmitMethodBuilder[_], srvb: StagedRegionValueBuilder, resultType: PArray): Code[Unit] = {
     val eltType = resultType.elementType.asInstanceOf[PBaseStruct]
-    mb.emit(Code(
+    Code(
       dumpBuffer(),
       srvb.addArray(resultType, { srvb => EmitCodeBuilder.scopedVoid(mb) { cb =>
           cb += srvb.start(treeSize)
           cb.ifx(treeSize > 0, {
             tree.foreach(cb) { (cb, tv) =>
-              val mb = kb.genEmitMethod("downsample_result_foreach", FastIndexedSeq[ParamType](LongInfo), UnitInfo)
-              val value = mb.getCodeParam[Long](1)
               val point = mb.newLocal[Long]("point_offset")
-
-              mb.emit(Code(
-                point := key.storageType.loadField(value, "point"),
+              cb += Code(
+                point := key.storageType.loadField(tv, "point"),
                 srvb.addBaseStruct(eltType, { srvb =>
                   Code(
                     srvb.start(),
@@ -525,13 +521,10 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
                     )
                   )
                 }),
-                srvb.advance()))
-              cb += mb.invokeCode(tv)
+                srvb.advance())
             }
           })
-      }})))
-
-    mb.invokeCode()
+      }}))
   }
 }
 
@@ -574,5 +567,5 @@ class DownsampleAggregator(arrayType: PArray) extends StagedAggregator {
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = state.merge(cb, other)
 
   protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
-    cb += state.result(srvb, resultType)
+    cb += state.result(cb.emb, srvb, resultType)
 }

@@ -18,26 +18,7 @@ import org.apache.log4j.Logger
 object ShuffleClient {
   private[this] val log = Logger.getLogger(getClass.getName())
 
-  lazy val sslContext = is.hail.services.shuffler.sslContext(
-    getClass.getResourceAsStream("/non-secret-key-and-trust-stores/client-keystore.p12"),
-    "hailhail",
-    "PKCS12",
-    getClass.getResourceAsStream("/non-secret-key-and-trust-stores/client-truststore.p12"),
-    "hailhail",
-    "JKS"
-  )
-
-  def socket(): Socket = {
-    val host = "localhost"
-    val port = 8080
-    socket(host, port)
-  }
-
-  def socket(host: String, port: Int): Socket = {
-    val s = sslContext.getSocketFactory().createSocket(host, port)
-    log.info(s"connected to ${host}:${port} (socket())")
-    s
-  }
+  def socket(): Socket = DeployConfig.get.socket("shuffler")
 
   def codeSocket(): Code[Socket] =
     Code.invokeScalaObject0[Socket](ShuffleClient.getClass, "socket")

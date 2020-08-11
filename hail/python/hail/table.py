@@ -601,7 +601,7 @@ class Table(ExprContainer):
             Table with new global field(s).
         """
         caller = 'Table.annotate_globals'
-        check_annotate_exprs(caller, named_exprs, self._global_indices)
+        check_annotate_exprs(caller, named_exprs, self._global_indices, set())
         return self._select_globals('Table.annotate_globals', self.globals.annotate(**named_exprs))
 
     def select_globals(self, *exprs, **named_exprs) -> 'Table':
@@ -675,7 +675,7 @@ class Table(ExprContainer):
         :class:`.Table`
         """
         caller = 'Table.transmute_globals'
-        check_annotate_exprs(caller, named_exprs, self._global_indices)
+        check_annotate_exprs(caller, named_exprs, self._global_indices, set())
         fields_referenced = extract_refs_by_indices(named_exprs.values(), self._global_indices) - set(named_exprs.keys())
 
         return self._select_globals(caller,
@@ -742,7 +742,7 @@ class Table(ExprContainer):
             Table with transmuted fields.
         """
         caller = "Table.transmute"
-        check_annotate_exprs(caller, named_exprs, self._row_indices)
+        check_annotate_exprs(caller, named_exprs, self._row_indices, set())
         fields_referenced = extract_refs_by_indices(named_exprs.values(), self._row_indices) - set(named_exprs.keys())
         fields_referenced -= set(self.key)
 
@@ -775,7 +775,7 @@ class Table(ExprContainer):
             Table with new fields.
         """
         caller = "Table.annotate"
-        check_annotate_exprs(caller, named_exprs, self._row_indices)
+        check_annotate_exprs(caller, named_exprs, self._row_indices, set())
         return self._select(caller, self.row.annotate(**named_exprs))
 
     @typecheck_method(expr=expr_bool,
@@ -2896,7 +2896,7 @@ class Table(ExprContainer):
         >>> dense_mt = coord_ht.to_matrix_table(row_key=['row_idx'], col_key=['col_idx'])
         >>> dense_mt.show()
         +---------+----------+----------+
-        | row_idx |      0.x |      1.x |
+        | row_idx |      1.x |      2.x |
         +---------+----------+----------+
         |   int32 |  float64 |  float64 |
         +---------+----------+----------+
@@ -3029,15 +3029,15 @@ class Table(ExprContainer):
         Row key: ['gene']
         ----------------------------------------
         >>> mt.show(n_cols=2)
-        +---------+--------------------+--------------------+
-        | gene    | lung001.expression | lung002.expression |
-        +---------+--------------------+--------------------+
-        | str     |              int32 |              int32 |
-        +---------+--------------------+--------------------+
-        | "LD4"   |                  1 |                  2 |
-        | "SCN1A" |                  2 |                  1 |
-        | "TITIN" |                  3 |                  0 |
-        +---------+--------------------+--------------------+
+        +---------+----------------------+----------------------+
+        | gene    | 'lung001'.expression | 'lung002'.expression |
+        +---------+----------------------+----------------------+
+        | str     |                int32 |                int32 |
+        +---------+----------------------+----------------------+
+        | "LD4"   |                    1 |                    2 |
+        | "SCN1A" |                    2 |                    1 |
+        | "TITIN" |                    3 |                    0 |
+        +---------+----------------------+----------------------+
         showing the first 2 of 6 columns
 
         Notes
@@ -3482,7 +3482,7 @@ class Table(ExprContainer):
         body = f(expr)
         result_t = body.dtype
         if any(k not in result_t.element_type for k in self.key):
-            raise ValueError(f'Table._map_partitions must preserve key fields')
+            raise ValueError('Table._map_partitions must preserve key fields')
 
         body_ir = ir.Let('global', ir.Ref(globals_uid), ir.ToStream(body._ir))
         return Table(ir.TableMapPartitions(self._tir, globals_uid, rows_uid, body_ir))

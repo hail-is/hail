@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.TestUtils._
+import is.hail.expr.ir.TestUtils._
 import is.hail.asm4s.Code
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
 import is.hail.types.physical.{PInt32, PInt64}
@@ -135,7 +136,7 @@ class RandomFunctionsSuite extends HailSuite {
           "counter" -> counter)))
 
     val expected = Interpret(tir, ctx).rvd.toRows.collect()
-    val actual = CompileAndEvaluate[IndexedSeq[Row]](ctx, GetField(TableCollect(tir), "rows"), false)
+    val actual = CompileAndEvaluate[IndexedSeq[Row]](ctx, GetField(collect(tir), "rows"), false)
 
     assert(expected.sameElements(actual))
   }

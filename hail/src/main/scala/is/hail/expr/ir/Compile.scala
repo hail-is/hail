@@ -24,7 +24,8 @@ object Compile {
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]], expectedCodeReturnType: TypeInfo[_],
     body: IR,
     optimize: Boolean = true,
-    print: Option[PrintWriter] = None
+    print: Option[PrintWriter] = None,
+    allocStrat: EmitAllocationStrategy.T = EmitAllocationStrategy.OneRegion
   ): (PType, (Int, Region) => F) = {
 
     val normalizeNames = new NormalizeNames(_.toString)
@@ -68,7 +69,7 @@ object Compile {
     assert(fb.mb.parameterTypeInfo == expectedCodeParamTypes, s"expected $expectedCodeParamTypes, got ${ fb.mb.parameterTypeInfo }")
     assert(fb.mb.returnTypeInfo == expectedCodeReturnType, s"expected $expectedCodeReturnType, got ${ fb.mb.returnTypeInfo }")
 
-    Emit(ctx, ir, fb)
+    Emit(ctx, ir, fb, allocStrat = allocStrat)
 
     val f = fb.resultWithIndex(print)
     codeCache += k -> CodeCacheValue(ir.pType, f)
@@ -179,7 +180,7 @@ object CompileIterator {
     val stepF = fb.apply_method
     val stepFECB = stepF.ecb
 
-    val er = EmitRegion.default(stepF)
+    val region = StagedRegion(EmitRegion.default(stepF).region, allowSubregions = false)
     val emitter = new Emit(ctx, stepFECB)
 
     val ir = LoweringPipeline.compileLowerer(true)(ctx, body).asInstanceOf[IR].noSharing
@@ -187,7 +188,7 @@ object CompileIterator {
     InferPType(ir, Env.empty[PType])
     val returnType = ir.pType.asInstanceOf[PStream].elementType.asInstanceOf[PStruct].setRequired(true)
 
-    val optStream = EmitStream.emit(emitter, ir, stepF, er.region, Env.empty, None);
+    val optStream = EmitStream.emit(emitter, ir, stepF, region, Env.empty, None)
 
     val elementAddress = stepF.genFieldThisRef[Long]("elementAddr")
 
@@ -195,41 +196,39 @@ object CompileIterator {
     stepF.cb.emitInit(didSetup := false)
 
     implicit val ecc: EmitStreamContext = EmitStreamContext(stepF)
-    var source: Source[EmitCode] = null
 
     val pullLabel = CodeLabel()
     val eosField = stepF.genFieldThisRef[Boolean]("eos")
     val eosLabel = CodeLabel()
 
-    val init = optStream.apply(Code._fatal[Unit]("bad stream"), { stream =>
-
-      source = stream.getStream.apply(
-        eosLabel.goto,
-        { element =>
-          EmitCodeBuilder.scopedCode[Unit](stepF) { cb =>
-            val pc = element.toI(cb).handle(cb, cb._fatal("missing element!"))
-            assert(pc.pt.isInstanceOf[PStruct])
-            cb.assign(elementAddress, pc.tcode[Long])
-            Code._return[Boolean](true)
-          }
-        })
-
-      Code(
-        source.setup0,
-        source.setup,
-        elementAddress := 0L,
-        eosField := false,
-        didSetup := true,
-        pullLabel,
-        source.pull)
-    })
+    val source: Source[EmitCode] = optStream.pv.asStream.stream.getStream(region).apply(
+      eosLabel.goto,
+      { element =>
+        EmitCodeBuilder.scopedVoid(stepF) { cb =>
+          val pc = element.toI(cb).handle(cb, cb._fatal("missing element!"))
+          assert(pc.pt.isInstanceOf[PStruct])
+          cb.assign(elementAddress, pc.tcode[Long])
+          cb += Code._return[Boolean](true)
+        }
+      })
 
     Code(eosLabel, source.close, source.close0, eosField := true, Code._return[Boolean](false))
 
     stepF.emit(
       didSetup.mux(
         eosField.mux(Code._return[Boolean](false), pullLabel.goto),
-        init))
+        Code(
+          optStream.setup,
+          optStream.m.mux(
+            Code._fatal[Unit]("bad stream"),
+            Code(
+              source.setup0,
+              source.setup,
+              elementAddress := 0L,
+              eosField := false,
+              didSetup := true,
+              pullLabel,
+              source.pull)))))
 
     val getMB = fb.newEmitMethod("loadAddress", FastIndexedSeq(), LongInfo)
     getMB.emit(elementAddress.load())

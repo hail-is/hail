@@ -4,9 +4,9 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, Output
 
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.asm4s.{Code, TypeInfo, Value}
-import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, ExecuteContext, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, ExecuteContext}
 import is.hail.types.encoded.EType
-import is.hail.types.physical.{PCode, PType, PValue}
+import is.hail.types.physical.{PCode, PType, PValue, typeToTypeInfo}
 import is.hail.types.virtual.Type
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD

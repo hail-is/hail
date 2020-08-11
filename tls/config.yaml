@@ -59,9 +59,18 @@ principals:
 - name: query-tests
   domain: query-tests
   kind: json
+- name: shuffler
+  domain: shuffler
+  kind: json
 - name: image-fetcher
   domain: image-fetcher
   kind: curl
 - name: benchmark
   domain: benchmark
+  kind: json
+- name: address
+  domain: address
+  kind: json
+- name: address-tests
+  domain: address-tests
   kind: json

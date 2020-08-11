@@ -7,12 +7,7 @@ import is.hail.utils._
 object TypeCheck {
   def apply(ir: BaseIR): Unit = {
     try {
-      ir match {
-        case ir: IR => check(ir, BindingEnv.empty)
-        case tir: TableIR => check(tir)
-        case mir: MatrixIR => check(mir)
-        case bmir: BlockMatrixIR => check(bmir)
-      }
+      check(ir, BindingEnv.empty)
     } catch {
       case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
     }
@@ -26,61 +21,11 @@ object TypeCheck {
     }
   }
 
-  private def check(tir: TableIR): Unit = {
-    tir match {
-      case TableMapRows(child, newRow) =>
-        val newFieldSet = newRow.typ.asInstanceOf[TStruct].fieldNames.toSet
-        assert(child.typ.key.forall(newFieldSet.contains))
-      case TableMapPartitions(child, globalName, partitionStreamName, body) =>
-        assert(EmitStream.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
-        val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
-        child.typ.key.foreach { k => if (!newRowType.hasField(k)) throw new RuntimeException(s"prev key: ${child.typ.key}, new row: ${newRowType}")}
-
-      case _ =>
-    }
-
-    tir.children
-      .iterator
-      .zipWithIndex
-      .foreach {
-        case (child: IR, i) => check(child, NewBindings(tir, i))
-        case (tir: TableIR, _) => check(tir)
-        case (mir: MatrixIR, _) => check(mir)
-        case (bmir: BlockMatrixIR, _) => check(bmir)
-      }
-  }
-
-
-  private def check(mir: MatrixIR): Unit = mir.children
-    .iterator
-    .zipWithIndex
-    .foreach {
-      case (child: IR, i) => check(child, NewBindings(mir, i))
-      case (tir: TableIR, _) => check(tir)
-      case (mir: MatrixIR, _) => check(mir)
-      case (bmir: BlockMatrixIR, _) => check(bmir)
-    }
-
-  private def check(bmir: BlockMatrixIR): Unit = bmir.children
-    .iterator
-    .zipWithIndex
-    .foreach {
-      case (child: IR, i) => check(child, NewBindings(bmir, i))
-      case (tir: TableIR, _) => check(tir)
-      case (mir: MatrixIR, _) => check(mir)
-      case (bmir: BlockMatrixIR, _) => check(bmir)
-    }
-
-  private def check(ir: IR, env: BindingEnv[Type]): Unit = {
+  private def check(ir: BaseIR, env: BindingEnv[Type]): Unit = {
     ir.children
       .iterator
       .zipWithIndex
-      .foreach {
-        case (child: IR, i) => check(child, ChildBindings(ir, i, env))
-        case (tir: TableIR, _) => check(tir)
-        case (mir: MatrixIR, _) => check(mir)
-        case (bmir: BlockMatrixIR, _) => check(bmir)
-      }
+      .foreach { case (child, i) => check(child, ChildBindings(ir, i, env)) }
 
     ir match {
       case I32(x) =>
@@ -121,7 +66,14 @@ object TypeCheck {
       case x@Ref(name, _) =>
         val expected = env.eval.lookup(name)
         assert(x.typ == expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
-      case RelationalRef(_, _) =>
+      case RelationalRef(name, t) =>
+        env.relational.lookupOption(name) match {
+          case Some(t2) =>
+            if (t != t2)
+              throw new RuntimeException(s"RelationalRef type mismatch:\n  node=${t}\n   env=${t2}")
+          case None =>
+              throw new RuntimeException(s"RelationalRef not found in env: $name")
+        }
       case x@TailLoop(name, _, body) =>
         assert(x.typ == body.typ)
         def recurInTail(node: IR, tailPosition: Boolean): Boolean = node match {
@@ -369,7 +321,7 @@ object TypeCheck {
         assert(x.typ == TArray(aggBody.typ))
         assert(knownLength.forall(_.typ == TInt32))
       case x@InitOp(_, args, aggSig) =>
-        assert(args.map(_.typ) == aggSig.initOpTypes)
+        assert(args.map(_.typ) == aggSig.initOpTypes, s"${args.map(_.typ)} !=  ${aggSig.initOpTypes}")
       case x@SeqOp(_, args, aggSig) =>
         assert(args.map(_.typ) == aggSig.seqOpTypes)
       case _: CombOp =>
@@ -473,6 +425,7 @@ object TypeCheck {
       case x@WriteValue(value, path, spec) =>
         assert(path.typ == TString)
       case LiftMeOut(_) =>
+      case Consume(_) =>
       case x@ShuffleWith(_, _, _, _, _, writer, readers) =>
         assert(writer.typ == TArray(TBinary))
         assert(readers.typ.isRealizable)
@@ -488,6 +441,18 @@ object TypeCheck {
         val shuffleType = coerce[TShuffle](id.typ)
         val keyRangeType = coerce[TInterval](keyRange.typ)
         assert(shuffleType.keyType == keyRangeType.pointType)
+
+      case TableMapRows(child, newRow) =>
+        val newFieldSet = newRow.typ.asInstanceOf[TStruct].fieldNames.toSet
+        assert(child.typ.key.forall(newFieldSet.contains))
+      case TableMapPartitions(child, globalName, partitionStreamName, body) =>
+        assert(EmitStream.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
+        val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
+        child.typ.key.foreach { k => if (!newRowType.hasField(k)) throw new RuntimeException(s"prev key: ${child.typ.key}, new row: ${newRowType}")}
+
+      case _: TableIR =>
+      case _: MatrixIR =>
+      case _: BlockMatrixIR =>
     }
   }
 }

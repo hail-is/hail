@@ -928,7 +928,7 @@ object Interpret {
             val region = Region(Region.SMALL)
             val initF = initOp(0, region)
             initF.newAggState(region)
-            initF(region, globalsOffset)
+            initF(region, globalsBc.value.readRegionValue(region))
             RegionValue(region, initF.getAggOffset())
           }
 

@@ -1,3 +1,4 @@
+import platform
 import subprocess as sp
 import os
 
@@ -11,7 +12,7 @@ def init_parser(parser):
                         choices=['notebook', 'nb', 'spark-ui', 'ui', 'spark-history', 'hist'],
                         help='Web service to launch.')
     parser.add_argument('--port', '-p', default='10000', type=str,
-                        help='Local port to use for SSH tunnel to master node (default: %(default)s).')
+                        help='Local port to use for SSH tunnel to leader (master) node (default: %(default)s).')
     parser.add_argument('--zone', '-z', type=str, help='Compute zone for Dataproc cluster.')
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
 
@@ -59,13 +60,12 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
     if not args.dry_run:
         print("Connecting to cluster '{}'...".format(args.name))
 
-        # open SSH tunnel to master node
+        # open SSH tunnel to leader (master) node
         sp.check_call(
             cmd,
             stderr=sp.STDOUT
         )
 
-        import platform
         system = platform.system()
 
         chrome = os.environ.get('HAILCTL_CHROME')

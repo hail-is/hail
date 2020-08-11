@@ -1,4 +1,4 @@
-import nest_asyncio
+import nest_asyncio  # type: ignore
 
 from .batch import Batch
 from .batch_pool_executor import BatchPoolExecutor

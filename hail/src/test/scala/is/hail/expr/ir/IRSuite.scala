@@ -778,6 +778,10 @@ class IRSuite extends HailSuite {
     assertComparesTo(TFloat64, 1.0, 0.0, expected = true)
   }
 
+  @Test def testDieCodeBUilder() {
+    assertFatal(Die("msg1", TInt32) + Die("msg2", TInt32), "msg1")
+  }
+
   @Test def testIf() {
     assertEvalsTo(If(True(), I32(5), I32(7)), 5)
     assertEvalsTo(If(False(), I32(5), I32(7)), 7)
@@ -3716,7 +3720,7 @@ class IRSuite extends HailSuite {
         |       (MakeStruct (locus  (Apply start Locus(GRCh37) (Ref __uid_3))))
         |       (MakeStruct (locus  (Apply end Locus(GRCh37) (Ref __uid_3)))) (True) (False))))
         |""".stripMargin)
-    val (v, _) = backend.execute(ir, optimize = true)
+    val (v, _) = backend.execute(ir, optimize = true, allocStrat = EmitAllocationStrategy.ManyRegions)
     assert(
       ir.typ.ordering.equiv(
         FastIndexedSeq(

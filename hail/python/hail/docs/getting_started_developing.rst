@@ -76,7 +76,7 @@ project is a good candidate for merging.
 Keep in mind the following principles when submitting a pull request:
 
 - A PR should focus on a single feature. Multiple features should be split into multiple PRs.
-- Before submitting your PR, you should rebase onto the latest master.
+- Before submitting your PR, you should rebase onto the latest main.
 - PRs must pass all tests before being merged. See the section above on `Running the tests`_ locally.
 - PRs require a review before being merged. We will assign someone from our dev team to review your PR.
 - When you make a PR, include a short message that describes the purpose of the

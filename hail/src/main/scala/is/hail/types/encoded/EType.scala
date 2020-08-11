@@ -5,7 +5,7 @@ import java.util.Map.Entry
 import is.hail.HailContext
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{coerce => _, _}
-import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, ParamType, PunctuationToken, TokenIterator, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, ParamType, PunctuationToken, TokenIterator}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types._

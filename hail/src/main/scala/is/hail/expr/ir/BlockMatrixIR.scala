@@ -498,10 +498,14 @@ case class BlockMatrixBroadcast(
     val sparsity =
       if (child.typ.isSparse)
         inIndexExpr match {
-          case IndexedSeq() => BlockMatrixSparsity.dense
+          case IndexedSeq() =>
+            assert(child.typ.nRows == 1 && child.typ.nCols == 1)
+            BlockMatrixSparsity.dense
           case IndexedSeq(0) => // broadcast col vector
+            assert(Set(1, shape(0)) == Set(child.typ.nRows, child.typ.nCols))
             BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(0 -> j))
           case IndexedSeq(1) => // broadcast row vector
+            assert(Set(1, shape(1)) == Set(child.typ.nRows, child.typ.nCols))
             BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(i -> 0))
           case IndexedSeq(0, 0) => // diagonal as col vector
             assert(shape(0) == 1L)
@@ -509,9 +513,11 @@ case class BlockMatrixBroadcast(
             BlockMatrixSparsity(nRowBlocks, nColBlocks)((_, j: Int) => child.typ.hasBlock(j -> j))
           case IndexedSeq(1, 0) => // transpose
             assert(child.typ.blockSize == blockSize)
+            assert(shape(0) == child.typ.nCols && shape(1) == child.typ.nRows)
             BlockMatrixSparsity(child.typ.sparsity.definedBlocks.map(seq => seq.map { case (i, j) => (j, i)}))
           case IndexedSeq(0, 1) =>
             assert(child.typ.blockSize == blockSize)
+            assert(shape(0) == child.typ.nRows && shape(1) == child.typ.nCols)
             child.typ.sparsity
         }
     else BlockMatrixSparsity.dense
@@ -624,8 +630,14 @@ case class BlockMatrixFilter(
   private[this] val Array(keepRow, keepCol) = indices
   private[this] val blockSize = child.typ.blockSize
 
-  private[this] def packOverlap(n: Long, keep: Array[Long]): Array[Array[Int]] =
-    keep.grouped(blockSize).map(keeps => Array.range(BlockMatrixType.getBlockIdx(keeps.head, blockSize), BlockMatrixType.getBlockIdx(keeps.last, blockSize))).toArray
+  lazy val keepRowPartitioned: Array[Array[Long]] = keepRow.grouped(blockSize).toArray
+  lazy val keepColPartitioned: Array[Array[Long]] = keepCol.grouped(blockSize).toArray
+
+  private[this] def packOverlap(keep: Array[Array[Long]]): Array[Array[Int]] =
+    keep.map(keeps => Array.range(BlockMatrixType.getBlockIdx(keeps.head, blockSize), BlockMatrixType.getBlockIdx(keeps.last, blockSize) + 1)).toArray
+
+  lazy val rowBlockDependents: Array[Array[Int]] = if (keepRow.isEmpty) Array.tabulate(child.typ.nRowBlocks)(i => Array(i)) else packOverlap(keepRowPartitioned)
+  lazy val colBlockDependents: Array[Array[Int]] = if (keepCol.isEmpty) Array.tabulate(child.typ.nColBlocks)(i => Array(i)) else packOverlap(keepColPartitioned)
 
   override lazy val typ: BlockMatrixType = {
     val childTensorShape = child.typ.shape
@@ -642,13 +654,7 @@ case class BlockMatrixFilter(
     val IndexedSeq(nRows: Long, nCols: Long) = matrixShape.toFastIndexedSeq
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(nRows, nCols)
 
-    val sparsity = child.typ.sparsity.condense {
-      val nRowBlocks = BlockMatrixType.numBlocks(nRows, blockSize)
-      val nColBlocks = BlockMatrixType.numBlocks(nCols, blockSize)
-      val rows = if (keepRow.isEmpty) Array.tabulate(nRowBlocks)(i => Array(i)) else packOverlap(nRows, keepRow)
-      val cols = if (keepCol.isEmpty) Array.tabulate(nColBlocks)(i => Array(i)) else packOverlap(nCols, keepCol)
-      rows -> cols
-    }
+    val sparsity = child.typ.sparsity.condense(rowBlockDependents -> colBlockDependents)
     BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, blockSize, sparsity)
   }
 
@@ -805,24 +811,23 @@ case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[
 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
 
+  lazy val IndexedSeq(rowBlockDependents: Array[Array[Int]], colBlockDependents: Array[Array[Int]]) = slices.map { case IndexedSeq(start, stop, step) =>
+    val size = 1 + (stop - start - 1) / step
+    val nBlocks = BlockMatrixType.numBlocks(size, child.typ.blockSize)
+    Array.tabulate(nBlocks) { blockIdx =>
+      val blockStart = start + blockIdx * child.typ.blockSize * step
+      val blockEnd = java.lang.Math.min(start + ((blockIdx + 1) * child.typ.blockSize - 1) * step, stop)
+      Array.range(child.typ.getBlockIdx(blockStart), child.typ.getBlockIdx(blockEnd) + 1)
+    }
+  }
+
   override def typ: BlockMatrixType = {
     val matrixShape: IndexedSeq[Long] = slices.map { s =>
       val IndexedSeq(start, stop, step) = s
       1 + (stop - start - 1) / step
     }
 
-    val sparsity = child.typ.sparsity.condense {
-      val IndexedSeq(rows, cols) = slices.map { case IndexedSeq(start, stop, step) =>
-        val size = 1 + (stop - start - 1) / step
-        val nBlocks = BlockMatrixType.numBlocks(size, child.typ.blockSize)
-        Array.tabulate(nBlocks) { blockIdx =>
-          val blockStart = start + blockIdx * child.typ.blockSize * step
-          val blockEnd = java.lang.Math.min(start + ((blockIdx + 1) * child.typ.blockSize - 1) * step, stop)
-          Array.range(child.typ.getBlockIdx(blockStart), child.typ.getBlockIdx(blockEnd))
-        }
-      }
-      rows -> cols
-    }
+    val sparsity = child.typ.sparsity.condense(rowBlockDependents -> colBlockDependents)
 
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(matrixShape(0), matrixShape(1))
     BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, child.typ.blockSize, sparsity)

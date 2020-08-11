@@ -12,59 +12,15 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
 
   def apply(ir: IR, env: Env[String]): IR = apply(ir, BindingEnv(env))
 
-  def apply(ir: IR, env: BindingEnv[String]): IR = normalizeIR(ir, env)
+  def apply(ir: IR, env: BindingEnv[String]): IR = normalizeIR(ir, env).asInstanceOf[IR]
 
-  def apply(ir: BaseIR): BaseIR = {
-    ir match {
-      case ir: IR => normalizeIR(ir, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)))
-      case tir: TableIR => normalizeTable(tir)
-      case mir: MatrixIR => normalizeMatrix(mir)
-      case bmir: BlockMatrixIR => normalizeBlockMatrix(bmir)
-    }
-  }
+  def apply(ir: BaseIR): BaseIR = normalizeIR(ir, BindingEnv(agg=Some(Env.empty), scan=Some(Env.empty)))
 
-  private def normalizeTable(tir: TableIR): TableIR = {
-    tir.copy(tir
-      .children
-      .iterator
-      .zipWithIndex
-      .map {
-        case (child: IR, i) => normalizeIR(child, NewBindings(tir, i).mapValuesWithKey({ case (k, _) => k }))
-        case (child: TableIR, _) => normalizeTable(child)
-        case (child: MatrixIR, _) => normalizeMatrix(child)
-        case (child: BlockMatrixIR, _) => normalizeBlockMatrix(child)
-      }.toFastIndexedSeq)
-  }
+  private def normalizeIR(ir: BaseIR, env: BindingEnv[String], context: Array[String] = Array()): BaseIR = {
 
-  private def normalizeMatrix(mir: MatrixIR): MatrixIR = {
-    mir.copy(mir
-      .children
-      .iterator
-      .zipWithIndex
-      .map {
-        case (child: IR, i) => normalizeIR(child, NewBindings(mir, i).mapValuesWithKey({ case (k, _) => k }))
-        case (child: TableIR, _) => normalizeTable(child)
-        case (child: MatrixIR, _) => normalizeMatrix(child)
-        case (child: BlockMatrixIR, _) => normalizeBlockMatrix(child)
-      }.toFastIndexedSeq)
-  }
+    def normalizeBaseIR(next: BaseIR, env: BindingEnv[String] = env): BaseIR = normalizeIR(next, env, context :+ ir.getClass().getName())
 
-  private def normalizeBlockMatrix(bmir: BlockMatrixIR): BlockMatrixIR = {
-    bmir.copy(bmir
-      .children
-      .iterator
-      .zipWithIndex
-      .map {
-        case (child: IR, i) => normalizeIR(child, NewBindings(bmir, i).mapValuesWithKey({ case (k, _) => k }))
-        case (child: TableIR, _) => normalizeTable(child)
-        case (child: MatrixIR, _) => normalizeMatrix(child)
-        case (child: BlockMatrixIR, _) => normalizeBlockMatrix(child)
-      }.toFastIndexedSeq)
-  }
-
-  private def normalizeIR(ir: IR, env: BindingEnv[String], context: Array[String] = Array()): IR = {
-
-    def normalize(next: IR, env: BindingEnv[String] = env): IR = normalizeIR(next, env, context :+ ir.getClass().getName())
+    def normalize(next: IR, env: BindingEnv[String] = env): IR = normalizeIR(next, env, context :+ ir.getClass().getName()).asInstanceOf[IR]
 
     ir match {
       case Let(name, value, body) =>
@@ -169,25 +125,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         val newLName = gen()
         val newRName = gen()
         NDArrayMap2(normalize(l), normalize(r), newLName, newRName, normalize(body, env.bindEval(lName -> newLName, rName -> newRName)))
-      case AggExplode(a, name, aggBody, isScan) =>
-        val newName = gen()
-        val (aEnv, bodyEnv) = if (isScan)
-          env.promoteScan -> env.bindScan(name, newName)
-        else
-          env.promoteAgg -> env.bindAgg(name, newName)
-        AggExplode(normalize(a, aEnv), newName, normalize(aggBody, bodyEnv), isScan)
-      case AggFilter(cond, aggIR, isScan) =>
-        val condEnv = if (isScan)
-          env.promoteScan
-        else
-          env.promoteAgg
-        AggFilter(normalize(cond, condEnv), normalize(aggIR), isScan)
-      case AggGroupBy(key, aggIR, isScan) =>
-        val keyEnv = if (isScan)
-          env.promoteScan
-        else
-          env.promoteAgg
-        AggGroupBy(normalize(key, keyEnv), normalize(aggIR), isScan)
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan) =>
         val newElementName = gen()
         val newIndexName = gen()
@@ -196,24 +133,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         else
           env.promoteAgg -> env.bindAgg(elementName, newElementName)
         AggArrayPerElement(normalize(a, aEnv), newElementName, newIndexName, normalize(aggBody, bodyEnv.bindEval(indexName, newIndexName)), knownLength.map(normalize(_, env)), isScan)
-      case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
-        ApplyAggOp(
-          initOpArgs.map(a => normalize(a)),
-          seqOpArgs.map(a => normalize(a, env.promoteAgg)),
-          aggSig)
-      case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
-        ApplyScanOp(
-          initOpArgs.map(a => normalize(a)),
-          seqOpArgs.map(a => normalize(a, env.promoteScan)),
-          aggSig)
-      case TableAggregate(child, query) =>
-        TableAggregate(normalizeTable(child),
-          normalizeIR(query, BindingEnv(child.typ.globalEnv, agg = Some(child.typ.rowEnv))
-            .mapValuesWithKey({ case (k, _) => k })))
-      case MatrixAggregate(child, query) =>
-        MatrixAggregate(normalizeMatrix(child),
-          normalizeIR(query, BindingEnv(child.typ.globalEnv, agg = Some(child.typ.entryEnv))
-            .mapValuesWithKey({ case (k, _) => k })))
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
         val newC = gen()
         val newG = gen()
@@ -225,13 +144,10 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         ShuffleWith(keyFields, rowType, rowEType, keyEType, newName,
           normalize(writer, env.copy(eval = env.eval.bind(name, newName))),
           normalize(readers, env.copy(eval = env.eval.bind(name, newName))))
-      case _ =>
-        Copy(ir, ir.children.map {
-          case child: IR => normalize(child)
-          case child: TableIR => normalizeTable(child)
-          case child: MatrixIR => normalizeMatrix(child)
-          case child: BlockMatrixIR => normalizeBlockMatrix(child)
-        })
+      case x => x.copy(x.children.iterator.zipWithIndex.map { case (child, i) =>
+        normalizeBaseIR(child, ChildBindings.transformed(x, i, env, { case (name, _) => name }))
+      }.toFastIndexedSeq)
+
     }
   }
 }

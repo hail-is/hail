@@ -1,7 +1,7 @@
 package is.hail.expr.ir.agg
 import is.hail.annotations.{CodeOrdering, Region, RegionUtils, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ParamType, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ParamType}
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
 import is.hail.io._
@@ -202,7 +202,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
 
     { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
       initContainer.load(cb)
-      nested.toCodeWithArgs(cb, "grouped_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+      nested.toCodeWithArgs(cb,
           IndexedSeq(ob),
           { (cb, i, _, args) =>
             val ob = cb.newLocal("ga_ser_init_ob", coerce[OutputBuffer](args.head))
@@ -217,7 +217,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
             cb += kEnc.invokeCode(kv, ob)
           })
           keyed.loadStates(cb)
-          nested.toCodeWithArgs(cb, "grouped_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+          nested.toCodeWithArgs(cb,
             Array(ob.get),
             { (cb, i, _, args) =>
               val ob = cb.newLocal("ga_ser_ob", coerce[OutputBuffer](args.head))
@@ -234,7 +234,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
     val kv = kb.genFieldThisRef()(typeToTypeInfo(keyType))
 
     { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
-      init(cb, nested.toCodeWithArgs(cb, "grouped_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
+      init(cb, nested.toCodeWithArgs(cb,
         FastIndexedSeq(ib),
         { (cb, i, _, args) =>
           val ib = cb.newLocal("ga_deser_init_ib", coerce[InputBuffer](args.head))
@@ -247,7 +247,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
             cb += (kv := kDec.invokeCode(region, ib))
           })
           initElement(cb, _elt, km, kv)
-          nested.toCodeWithArgs(cb, "grouped_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
+          nested.toCodeWithArgs(cb,
             FastIndexedSeq(ib),
             { (cb, i, _, args) =>
               val ib = cb.newLocal("ga_deser_ib", coerce[InputBuffer](args.head))
@@ -281,7 +281,7 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
     state.combine(cb, other, { cb =>
-      state.nested.toCode(cb, "grouped_nested_comb", (cb, i, s) => nestedAggs(i).combOp(cb, s, other.nested(i)))
+      state.nested.toCode(cb, (cb, i, s) => nestedAggs(i).combOp(cb, s, other.nested(i)))
     })
   }
 
@@ -295,7 +295,7 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
           cb += ssb.advance()
           cb += ssb.addBaseStruct(resultEltType, svb => EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
             cb += svb.start()
-            state.nested.toCode(cb, "grouped_result", { (cb, i, s) =>
+            state.nested.toCode(cb, { (cb, i, s) =>
               nestedAggs(i).result(cb, s, svb)
               cb += svb.advance()
             })

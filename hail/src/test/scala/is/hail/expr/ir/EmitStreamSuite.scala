@@ -291,6 +291,7 @@ class EmitStreamSuite extends HailSuite {
   )(call: (F, Region, T) => Long): T => IndexedSeq[Any] = {
     val fb = EmitFunctionBuilder[F](ctx, "F", (classInfo[Region]: ParamType) +: inputTypes.map(pt => EmitParamType(pt): ParamType), LongInfo)
     val mb = fb.apply_method
+    val region = StagedRegion(mb.getCodeParam[Region](1), allowSubregions = false)
     val ir = streamIR.deepCopy()
     InferPType(ir)
     val eltType = ir.pType.asInstanceOf[PStream].elementType
@@ -300,10 +301,10 @@ class EmitStreamSuite extends HailSuite {
         case s => s
       }
       TypeCheck(s)
-      EmitStream.emit(new Emit(ctx, fb.ecb), s, mb, Env.empty, None)
+      EmitStream.emit(new Emit(ctx, fb.ecb), s, mb, region, Env.empty, None)
     }
     mb.emit {
-      val arrayt = EmitStream.toArray(mb, PCanonicalArray(eltType), stream)
+      val arrayt = stream.map(s => EmitStream.toArray(mb, PCanonicalArray(eltType), s.asStream, region))
       Code(arrayt.setup, arrayt.m.mux(0L, arrayt.v))
     }
     val f = fb.resultWithIndex()
@@ -347,24 +348,24 @@ class EmitStreamSuite extends HailSuite {
   private def evalStreamLen(streamIR: IR): Option[Int] = {
     val fb = EmitFunctionBuilder[Region, Int](ctx, "eval_stream_len")
     val mb = fb.apply_method
+    val region = StagedRegion(mb.getCodeParam[Region](1), allowSubregions = false)
     val ir = streamIR.deepCopy()
     InferPType(ir)
     val optStream = ExecuteContext.scoped() { ctx =>
       TypeCheck(ir)
-      EmitStream.emit(new Emit(ctx, fb.ecb), ir, mb, Env.empty, None)
+      EmitStream.emit(new Emit(ctx, fb.ecb), ir, mb, region, Env.empty, None)
     }
-    val L = CodeLabel()
     val len = mb.newLocal[Int]()
     implicit val emitStreamCtx = EmitStreamContext(mb)
-    fb.emit(
-      Code(
-        optStream(
-          Code(len := 0, L.goto),
-          { case EmitStream.SizedStream(setup, _, length) =>
-            Code(setup, len := length.getOrElse(-1), L.goto)
-          }),
-        L,
-        len))
+    fb.emit(Code(
+      optStream.setup,
+      optStream.m.mux(
+        len := 0,
+        {
+          val EmitStream.SizedStream(setup, _, length) = optStream.pv.asStream.stream
+          Code(setup, len := length.getOrElse(-1))
+        }),
+      len))
     val f = fb.resultWithIndex()
     Region.scoped { r =>
       val len = f(0, r)(r)

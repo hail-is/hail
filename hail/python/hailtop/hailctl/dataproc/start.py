@@ -16,7 +16,8 @@ DEFAULT_PROPERTIES = {
     'dataproc:dataproc.monitoring.stackdriver.enable': 'false'
 }
 
-# master machine type to memory map, used for setting spark.driver.memory property
+# leadre (master) machine type to memory map, used for setting
+# spark.driver.memory property
 MACHINE_MEM = {
     'n1-standard-1': 3.75,
     'n1-standard-2': 7.5,
@@ -213,7 +214,7 @@ def main(args, pass_through_args):
     conf.extend_flag('image-version', IMAGE_VERSION)
 
     if not pkg_resources.resource_exists('hailtop.hailctl', "deploy.yaml"):
-        raise RuntimeError(f"package has no 'deploy.yaml' file")
+        raise RuntimeError("package has no 'deploy.yaml' file")
     deploy_metadata = yaml.safe_load(
         pkg_resources.resource_stream('hailtop.hailctl', "deploy.yaml"))['dataproc']
 

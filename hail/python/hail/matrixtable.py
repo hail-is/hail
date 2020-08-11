@@ -901,7 +901,7 @@ class MatrixTable(ExprContainer):
         """
 
         caller = "MatrixTable.annotate_globals"
-        check_annotate_exprs(caller, named_exprs, self._global_indices)
+        check_annotate_exprs(caller, named_exprs, self._global_indices, set())
         return self._select_globals(caller, self.globals.annotate(**named_exprs))
 
     @typecheck_method(named_exprs=expr_any)
@@ -953,7 +953,7 @@ class MatrixTable(ExprContainer):
         """
 
         caller = "MatrixTable.annotate_rows"
-        check_annotate_exprs(caller, named_exprs, self._row_indices)
+        check_annotate_exprs(caller, named_exprs, self._row_indices, {self._col_axis})
         return self._select_rows(caller, self._rvrow.annotate(**named_exprs))
 
     @typecheck_method(named_exprs=expr_any)
@@ -1000,7 +1000,7 @@ class MatrixTable(ExprContainer):
             Matrix table with new column-indexed field(s).
         """
         caller = "MatrixTable.annotate_cols"
-        check_annotate_exprs(caller, named_exprs, self._col_indices)
+        check_annotate_exprs(caller, named_exprs, self._col_indices, {self._row_axis})
         return self._select_cols(caller, self.col.annotate(**named_exprs))
 
     @typecheck_method(named_exprs=expr_any)
@@ -1050,7 +1050,7 @@ class MatrixTable(ExprContainer):
             Matrix table with new row-and-column-indexed field(s).
         """
         caller = "MatrixTable.annotate_entries"
-        check_annotate_exprs(caller, named_exprs, self._entry_indices)
+        check_annotate_exprs(caller, named_exprs, self._entry_indices, set())
         return self._select_entries(caller, s=self.entry.annotate(**named_exprs))
 
     def select_globals(self, *exprs, **named_exprs) -> 'MatrixTable':
@@ -1822,7 +1822,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
         """
         caller = 'MatrixTable.transmute_globals'
-        check_annotate_exprs(caller, named_exprs, self._global_indices)
+        check_annotate_exprs(caller, named_exprs, self._global_indices, set())
         fields_referenced = extract_refs_by_indices(named_exprs.values(), self._global_indices) - set(named_exprs.keys())
         return self._select_globals(caller,
                                     self.globals.annotate(**named_exprs).drop(*fields_referenced))
@@ -1861,7 +1861,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
         """
         caller = 'MatrixTable.transmute_rows'
-        check_annotate_exprs(caller, named_exprs, self._row_indices)
+        check_annotate_exprs(caller, named_exprs, self._row_indices, {self._col_axis})
         fields_referenced = extract_refs_by_indices(named_exprs.values(), self._row_indices) - set(named_exprs.keys())
         fields_referenced -= set(self.row_key)
 
@@ -1901,7 +1901,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
         """
         caller = 'MatrixTable.transmute_cols'
-        check_annotate_exprs(caller, named_exprs, self._col_indices)
+        check_annotate_exprs(caller, named_exprs, self._col_indices, {self._row_axis})
         fields_referenced = extract_refs_by_indices(named_exprs.values(), self._col_indices) - set(named_exprs.keys())
         fields_referenced -= set(self.col_key)
 
@@ -1934,7 +1934,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
         """
         caller = 'MatrixTable.transmute_entries'
-        check_annotate_exprs(caller, named_exprs, self._entry_indices)
+        check_annotate_exprs(caller, named_exprs, self._entry_indices, set())
         fields_referenced = extract_refs_by_indices(named_exprs.values(), self._entry_indices) - set(named_exprs.keys())
 
         return self._select_entries(caller,
@@ -2603,13 +2603,12 @@ class MatrixTable(ExprContainer):
         if len(t.key) > 0:
             t = t.order_by(*t.key)
         col_key_type = self.col_key.dtype
-        if len(col_key_type) == 1 and col_key_type[0] == hl.tstr:
-            col_key_field_name = list(col_key_type)[0]
-            cols = t.cols.collect()
-            entries = {cols[0][i][col_key_field_name]: t.entries[i]
+        if len(col_key_type) == 1 and col_key_type[0] in (hl.tstr, hl.tint32, hl.tint64):
+            cols = self.col_key[0].take(displayed_n_cols)
+            entries = {repr(cols[i]): t.entries[i]
                        for i in range(0, displayed_n_cols)}
         else:
-            entries = {str(i): t.entries[i] for i in range(0, displayed_n_cols)}
+            entries = {f'<col {i}>': t.entries[i] for i in range(0, displayed_n_cols)}
         t = t.select(
             **{f: t[f] for f in self.row_key},
             **{f: t[f] for f in self.row_value if include_row_fields},

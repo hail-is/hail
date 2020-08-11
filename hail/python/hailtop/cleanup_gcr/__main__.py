@@ -73,7 +73,7 @@ class CleanupImages:
         log.info(f'cleaned up image  {image}')
 
     async def run(self):
-        images = await self._executor.submit(self._client.get(f'/tags/list'))
+        images = await self._executor.submit(self._client.get('/tags/list'))
         await asyncio.gather(*[
             self.cleanup_image(image)
             for image in images['child']
@@ -94,4 +94,4 @@ async def main():
         await cleanup_images.run()
 
 
-asyncio.run(main())
+asyncio.get_event_loop().run_until_complete(main())

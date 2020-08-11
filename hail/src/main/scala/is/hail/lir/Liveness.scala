@@ -63,14 +63,14 @@ object Liveness {
         val i = q.head
         q -= i
 
-        val enwLiveIn = new java.util.BitSet(nLocals)
+        val newLiveIn = new java.util.BitSet(nLocals)
         for (j <- cfg.succ(i))
-          enwLiveIn.or(liveIn(j))
-        enwLiveIn.andNot(kill(i))
-        enwLiveIn.or(gen(i))
+          newLiveIn.or(liveIn(j))
+        newLiveIn.andNot(kill(i))
+        newLiveIn.or(gen(i))
 
-        if (enwLiveIn != liveIn(i)) {
-          liveIn(i) = enwLiveIn
+        if (newLiveIn != liveIn(i)) {
+          liveIn(i) = newLiveIn
           for (j <- cfg.pred(i))
             q += j
         }

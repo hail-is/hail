@@ -32,7 +32,8 @@ def test_1kg_chr22():
                     tmp_path=Env.hc()._tmpdir,
                     branch_factor=2,
                     batch_size=2,
-                    reference_genome='GRCh38')
+                    reference_genome='GRCh38',
+                    use_exome_default_intervals=True)
 
     sample_data = dict()
     for sample, path in zip(sample_names, paths):
@@ -52,14 +53,17 @@ def test_1kg_chr22():
         assert n == true_n, sample
         assert n_variant == true_n_variant, sample
 
+def default_exome_intervals(rg):
+    return vc.calculate_even_genome_partitioning(rg, 2 ** 32)  # 4 billion, larger than any contig
+
 def test_gvcf_1k_same_as_import_vcf():
     path = os.path.join(resource('gvcfs'), '1kg_chr22', f'HG00308.hg38.g.vcf.gz')
-    [mt] = hl.import_gvcfs([path], vc.default_exome_intervals('GRCh38'), reference_genome='GRCh38')
+    [mt] = hl.import_gvcfs([path], default_exome_intervals('GRCh38'), reference_genome='GRCh38')
     assert mt._same(hl.import_vcf(path, force_bgz=True, reference_genome='GRCh38').key_rows_by('locus'))
 
 def test_gvcf_subset_same_as_import_vcf():
     path = os.path.join(resource('gvcfs'), 'subset', f'HG00187.hg38.g.vcf.gz')
-    [mt] = hl.import_gvcfs([path], vc.default_exome_intervals('GRCh38'), reference_genome='GRCh38')
+    [mt] = hl.import_gvcfs([path], default_exome_intervals('GRCh38'), reference_genome='GRCh38')
     assert mt._same(hl.import_vcf(path, force_bgz=True, reference_genome='GRCh38').key_rows_by('locus'))
 
 def test_key_by_locus_alleles():
@@ -71,7 +75,8 @@ def test_key_by_locus_alleles():
                     out_file=out_file,
                     tmp_path=Env.hc()._tmpdir,
                     reference_genome='GRCh38',
-                    key_by_locus_and_alleles=True)
+                    key_by_locus_and_alleles=True,
+                    use_exome_default_intervals=True)
 
     mt = hl.read_matrix_table(out_file)
     assert(list(mt.row_key) == ['locus', 'alleles'])
@@ -86,7 +91,8 @@ def test_non_ref_alleles_set_to_missing():
                     tmp_path=Env.hc()._tmpdir,
                     branch_factor=2,
                     batch_size=2,
-                    reference_genome='GRCh38')
+                    reference_genome='GRCh38',
+                    use_exome_default_intervals=True)
 
     mt = hl.read_matrix_table(out_file)
     n_alleles = hl.len(mt.alleles)
@@ -101,8 +107,15 @@ def test_contig_recoding():
     out_file_1 = new_temp_file(extension='mt')
     out_file_2 = new_temp_file(extension='mt')
 
-    vc.run_combiner([path1, path1], out_file_1, Env.hc()._tmpdir, reference_genome='GRCh38')
-    vc.run_combiner([path2, path2], out_file_2, Env.hc()._tmpdir, reference_genome='GRCh38', contig_recoding={'22': 'chr22'})
+    vc.run_combiner([path1, path1], out_file_1,
+                    Env.hc()._tmpdir,
+                    reference_genome='GRCh38',
+                    use_exome_default_intervals=True)
+    vc.run_combiner([path2, path2], out_file_2,
+                    Env.hc()._tmpdir,
+                    reference_genome='GRCh38',
+                    contig_recoding={'22': 'chr22'},
+                    use_exome_default_intervals=True)
 
     mt1 = hl.read_matrix_table(out_file_1)
     mt2 = hl.read_matrix_table(out_file_2)

@@ -71,5 +71,5 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
     cb += state.bll.append(state.region, other.bll)
 
   protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
-    cb += srvb.addArray(resultType, state.bll.writeToSRVB(_))
+    cb += srvb.addArray(resultType, state.bll.writeToSRVB(cb.emb, _))
 }

@@ -1,12 +1,11 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Annotation, Region, UnsafeRow}
+import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.Value
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
 import is.hail.expr.ir.functions._
-import is.hail.types.{RStruct, RTable}
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -96,7 +95,9 @@ final case class I32(x: Int) extends IR
 final case class I64(x: Long) extends IR
 final case class F32(x: Float) extends IR
 final case class F64(x: Double) extends IR
-final case class Str(x: String) extends IR
+final case class Str(x: String) extends IR {
+  override def toString(): String = s"""Str("${StringEscapeUtils.escapeString(x)}")"""
+}
 final case class True() extends IR
 final case class False() extends IR
 final case class Void() extends IR
@@ -652,7 +653,7 @@ abstract class PartitionReader {
     requestedType: Type,
     emitter: Emit[C],
     mb: EmitMethodBuilder[C],
-    region: Value[Region],
+    region: StagedRegion,
     env0: Emit.E,
     container: Option[AggContainer]): COption[SizedStream]
 

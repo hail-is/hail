@@ -8,28 +8,37 @@ MAKEFLAGS += --no-builtin-rules
 REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
-URL := $(shell git config --get remote.origin.url)
 SCALA_VERSION = 2.11.12
 SPARK_VERSION := 2.4.5
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 51
+HAIL_PATCH_VERSION := 54
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 
 $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
 $(eval $(call ENV_VAR,BRANCH))
-$(eval $(call ENV_VAR,URL))
 $(eval $(call ENV_VAR,SPARK_VERSION))
 $(eval $(call ENV_VAR,HAIL_PIP_VERSION))
+$(eval $(call ENV_VAR,HAIL_DEBUG_MODE))
 
 HAIL_PYTHON3 ?= python3
 PIP ?= $(HAIL_PYTHON3) -m pip
+ifdef JAVA_HOME
+JAVAC ?= $(JAVA_HOME)/bin/javac
+JAR ?= $(JAVA_HOME)/bin/jar
+else
+JAVAC ?= javac
+JAR ?= jar
+endif
 
 # not perfect, not robust to simdpp changes, but probably fine
+BUILD_DEBUG_PREFIX := build/classes/scala/debug
 JAR_SOURCES := $(shell git ls-files src/main)
 JAR_SOURCES += build.gradle
 JAR_TEST_SOURCES := $(shell git ls-files src/test)
+JAR_DEBUG_SOURCES := src/debug/scala/is/hail/annotations/Memory.java
+JAR_DEBUG_CLASSES := $(addprefix $(BUILD_DEBUG_PREFIX)/, $(JAR_DEBUG_SOURCES:src/debug/scala/%.java=%.class))
 PY_FILES := $(shell git ls-files python)
 
 INIT_SCRIPTS := python/hailtop/hailctl/deploy.yaml
@@ -45,16 +54,22 @@ PYTHON_JAR := python/hail/backend/hail-all-spark.jar
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
 
+GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION)
+
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
-
-GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION)
 
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
 endif
-$(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES)
+ifdef HAIL_DEBUG_MODE
+$(SHADOW_JAR): $(JAR_DEBUG_CLASSES)
+endif
+$(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) env/HAIL_DEBUG_MODE
 	./gradlew shadowJar $(GRADLE_ARGS)
+ifdef HAIL_DEBUG_MODE
+	$(JAR) -uf $(SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
+endif
 
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_TEST_JAR): native-lib-prebuilt
@@ -71,7 +86,12 @@ endif
 jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
 	+./pgradle test $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
 
-src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH env/URL
+# javac args from compileJava in build.gradle
+$(BUILD_DEBUG_PREFIX)/%.class: src/debug/scala/%.java
+	@mkdir -p $(BUILD_DEBUG_PREFIX)
+	$(JAVAC) -d $(BUILD_DEBUG_PREFIX) -Xlint:all -Werror -XDenableSunApiLintControl -Xlint:-sunapi $<
+
+src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH
 src/main/resources/build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION
 src/main/resources/build-info.properties: Makefile
 	echo '[Build Metadata]' > $@
@@ -79,7 +99,6 @@ src/main/resources/build-info.properties: Makefile
 	echo 'revision=$(REVISION)' >> $@
 	echo 'branch=$(BRANCH)' >> $@
 	echo 'date=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)' >> $@
-	echo 'url=$(URL)' >> $@
 	echo 'sparkVersion=$(SPARK_VERSION)' >> $@
 	echo 'hailPipVersion=$(HAIL_PIP_VERSION)' >> $@
 
@@ -102,10 +121,11 @@ python/hailtop/hailctl/hail_version: python/hail/hail_version
 python/README.md: ../README.md
 	cp ../README.md python/
 
-$(PYTHON_JAR): $(SHADOW_JAR)
-	cp -f $< $@
+$(PYTHON_JAR): shadowJar
+	cp -f $(SHADOW_JAR) $@
 
 .PHONY: pytest
+pytest: PYTEST_TARGET ?= test/hail
 pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
 pytest: python/README.md $(PYTHON_JAR)
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
@@ -115,7 +135,7 @@ pytest: python/README.md $(PYTHON_JAR)
      -r A \
      --self-contained-html \
      --html=../build/reports/pytest.html \
-     test/hail \
+     $(PYTEST_TARGET) \
      $(PYTEST_ARGS)"
 
 .PHONY: doctest

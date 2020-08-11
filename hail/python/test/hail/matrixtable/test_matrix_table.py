@@ -1448,9 +1448,28 @@ class Tests(unittest.TestCase):
                               an_agg = hl.agg.sum(mt.row_idx * mt.col_idx))
         mt.cols()._force_count()
 
-    def test_show(self):
+    def test_show_runs(self):
         mt = self.get_mt()
         mt.show()
+
+    def test_show_header(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+        mt = mt.annotate_entries(x=1)
+        mt = mt.key_cols_by(col_idx=mt.col_idx + 10)
+
+        def assert_res(x):
+            expect = ('+---------+-------+\n'
+                      '| row_idx |  10.x |\n'
+                      '+---------+-------+\n'
+                      '|   int32 | int32 |\n'
+                      '+---------+-------+\n'
+                      '|       0 |     1 |\n'
+                      '+---------+-------+\n')
+            s = str(x)
+            assert s == expect
+
+        mt.show(handler=assert_res)
+
 
     def test_partitioned_write(self):
         mt = hl.utils.range_matrix_table(40, 3, 5)
@@ -1554,6 +1573,19 @@ class Tests(unittest.TestCase):
         mt = mt.filter_entries(False)
         mt = mt.group_cols_by(x=mt.col_idx // 10).aggregate(c=hl.agg.count())
         assert mt.entries().collect() == [hl.Struct(row_idx=0, x=0, c=0)]
+
+    def test_invalid_field_ref_error(self):
+        mt = hl.balding_nichols_model(2, 5, 5)
+        mt2 = hl.balding_nichols_model(2, 5, 5)
+        with pytest.raises(hl.expr.ExpressionException, match='Found fields from 2 objects:'):
+            mt.annotate_entries(x = mt.GT.n_alt_alleles() * mt2.af)
+
+    def test_invalid_field_ref_annotate(self):
+        mt = hl.balding_nichols_model(2, 5, 5)
+        mt2 = hl.balding_nichols_model(2, 5, 5)
+        with pytest.raises(hl.expr.ExpressionException, match='source mismatch'):
+            mt.annotate_entries(x = mt2.af)
+
 
 def test_read_write_all_types():
     mt = create_all_values_matrix_table()
