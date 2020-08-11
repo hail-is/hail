@@ -107,7 +107,8 @@ async def index(request, userdata):  # pylint: disable=unused-argument
     file = request.query.get('file')
     if file is None:
         file = None
-    benchmarks_context = get_benchmarks(file)
+    else:
+        benchmarks_context = get_benchmarks(file)
     context = {'file': file,
                'benchmarks': benchmarks_context}
     return await render_template('benchmark', request, userdata, 'index.html', context)
