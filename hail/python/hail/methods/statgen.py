@@ -1862,7 +1862,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         return big_mat
 
     def ndarray_to_table(chunked_arr):
-        structs = [hl.struct(row_group_number = idx, ndarray = block)
+        structs = [hl.struct(row_group_number = hl.int64(idx), ndarray = block)
                    for idx, block in enumerate(chunked_arr)]
         ht = hl.Table.parallelize(structs)
         ht = ht.key_by('row_group_number')
