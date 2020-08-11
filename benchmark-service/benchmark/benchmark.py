@@ -18,8 +18,6 @@ deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
 BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
-# re.compile(r'gs://hail-benchmarks/((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
-# default_filepath = 'gs://hail-benchmarks/tpoterba/0.2.45-ac6815ee857c-master.json'
 
 
 def get_benchmarks(file_path):
@@ -72,17 +70,6 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
     name_data = next((item for item in benchmarks['data'] if item['name'] == str(request.match_info['name'])),
                      None)
 
-    # def get_x_list():
-    #     x_list = []
-    #     i = 0
-    #     for trial in name_data['trials']:
-    #         temp = []
-    #         temp = [i] * len(trial)
-    #         x_list.extend(temp)
-    #         i += 1
-    #     return x_list
-    #
-    # x_list_test = get_x_list()
     try:
         fig = px.scatter(x=enumerate_list_index(name_data['trials']), y=name_data['times'])
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
@@ -106,25 +93,11 @@ async def index(request, userdata):  # pylint: disable=unused-argument
     file = request.query.get('file')
     if file is None:
         benchmarks_context = None
-            #get_benchmarks(default_filepath)
     else:
         benchmarks_context = get_benchmarks(file)
     context = {'file': file,
                'benchmarks': benchmarks_context}
     return await render_template('benchmark', request, userdata, 'index.html', context)
-
-
-# @router.get('/lookup')
-# @web_authenticated_developers_only(redirect=False)
-# async def lookup(request, userdata):  # pylint: disable=unused-argument
-#     file = request.query.get('file')
-#     if file is None:
-#         return web.HTTPBadRequest()
-#     benchmarks_context = get_benchmarks(file)
-#     context = {'file': file,
-#                'benchmarks': benchmarks_context}
-#
-#     return await render_template('benchmark', request, userdata, 'index.html', context)
 
 
 def init_app() -> web.Application:
