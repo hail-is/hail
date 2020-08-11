@@ -388,7 +388,7 @@ abstract class PType extends Serializable with Requiredness {
       fundamentalType.isInstanceOf[PFloat32] ||
       fundamentalType.isInstanceOf[PFloat64]
 
-  def containsPointers: Boolean = false
+  def containsPointers: Boolean
 
   def subsetTo(t: Type): PType = {
     this match {
