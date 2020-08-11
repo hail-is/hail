@@ -9,7 +9,7 @@ import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.backend.BackendUtils
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.types.physical.{PCanonicalTuple, PCode, PSettable, PStream, PType, PValue, typeToTypeInfo}
+import is.hail.types.physical.{PCanonicalTuple, PCode, PSettable, PStream, PStruct, PType, PValue, typeToTypeInfo}
 import is.hail.types.virtual.Type
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
@@ -486,10 +486,13 @@ class EmitClassBuilder[C](
 
       val newMB = if (ignoreMissingness) {
         val newMB = genEmitMethod("cord", FastIndexedSeq[ParamType](ti, ti), rt)
-        val ord = t1.codeOrdering(newMB, t2, sortOrder)
+        lazy val ord = t1.codeOrdering(newMB, t2, sortOrder)
         val v1 = newMB.getCodeParam(1)(ti)
         val v2 = newMB.getCodeParam(3)(ti)
         val c: Code[_] = op match {
+          case CodeOrdering.CompareStructs(sf, missingEqual) =>
+            val ord = CodeOrdering.rowOrdering(t1.asInstanceOf[PStruct], t2.asInstanceOf[PStruct], newMB, sf.map(_.sortOrder).toArray, missingEqual)
+            ord.compareNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
           case CodeOrdering.Compare(_) => ord.compareNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
           case CodeOrdering.Equiv(_) => ord.equivNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
           case CodeOrdering.Lt(_) => ord.ltNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
@@ -502,12 +505,15 @@ class EmitClassBuilder[C](
         newMB
       } else {
         val newMB = genEmitMethod("cord", FastIndexedSeq[ParamType](typeInfo[Boolean], ti, typeInfo[Boolean], ti), rt)
-        val ord = t1.codeOrdering(newMB, t2, sortOrder)
+        lazy val ord = t1.codeOrdering(newMB, t2, sortOrder)
         val m1 = newMB.getCodeParam[Boolean](1)
         val v1 = newMB.getCodeParam(2)(ti)
         val m2 = newMB.getCodeParam[Boolean](3)
         val v2 = newMB.getCodeParam(4)(ti)
         val c: Code[_] = op match {
+          case CodeOrdering.CompareStructs(sf, missingEqual) =>
+            val ord = CodeOrdering.rowOrdering(t1.asInstanceOf[PStruct], t2.asInstanceOf[PStruct], newMB, sf.map(_.sortOrder).toArray, missingEqual)
+            ord.compare((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
           case CodeOrdering.Compare(missingEqual) => ord.compare((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
           case CodeOrdering.Equiv(missingEqual) => ord.equiv((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
           case CodeOrdering.Lt(missingEqual) => ord.lt((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
