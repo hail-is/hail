@@ -125,7 +125,7 @@ steps:
    contextPath: tls
    publishAs: create_certs_image
    dependsOn:
-     - base_image
+     - service_base_image
  - kind: runImage
    name: create_ssl_config_hail_root
    image:
