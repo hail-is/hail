@@ -62,7 +62,7 @@ PROJECT = os.environ['PROJECT']
 WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 LOCAL_SSD_MOUNT = os.environ['LOCAL_SSD_MOUNT']
-BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
+BATCH_COPY_IMAGE = os.environ['BATCH_COPY_IMAGE']
 
 log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
@@ -76,7 +76,7 @@ log.info(f'PROJECT {PROJECT}')
 log.info(f'WORKER_CONFIG {WORKER_CONFIG}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
 log.info(f'LOCAL_SSD_MOUNT {LOCAL_SSD_MOUNT}')
-log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
+log.info(f'BATCH_COPY_IMAGE {BATCH_COPY_IMAGE}')
 
 worker_config = WorkerConfig(WORKER_CONFIG)
 assert worker_config.cores == CORES
@@ -338,7 +338,7 @@ class Container:
     async def run(self, worker):
         try:
             async with self.step('pulling'):
-                if self.image.startswith('gcr.io/'):
+                if self.image.startswith('gcr.io/') and self.image != BATCH_COPY_IMAGE:
                     key = base64.b64decode(
                         self.job.gsa_key['key.json']).decode()
                     auth = {
@@ -352,7 +352,7 @@ class Container:
                     await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
                         docker.images.pull, self.image, auth=auth)
                 else:
-                    # this caches public images
+                    # this caches public images and the copy image
                     try:
                         await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
                             docker.images.get, self.image)
@@ -575,7 +575,7 @@ retry gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
 def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays_project):
     sh_expression = copy(files, name, job.user, job.io_host_path(), requester_pays_project)
     copy_spec = {
-        'image': BATCH_WORKER_IMAGE,
+        'image': BATCH_COPY_IMAGE,
         'name': name,
         'command': ['/bin/bash', '-c', sh_expression],
         'cpu': cpu,

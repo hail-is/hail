@@ -21,8 +21,10 @@ from ..worker_config import WorkerConfig
 log = logging.getLogger('instance_pool')
 
 BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
+BATCH_COPY_IMAGE = os.environ['HAIL_BATCH_COPY_IMAGE']
 
 log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
+log.info(f'BATCH_COPY_IMAGE {BATCH_COPY_IMAGE}')
 
 
 class InstancePool:
@@ -319,6 +321,7 @@ NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name 
 ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
 
 BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
+BATCH_COPY_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_copy_image")
 
 # Setup fluentd
 touch /worker.log
@@ -399,7 +402,7 @@ docker run \
     -e WORKER_CONFIG=$WORKER_CONFIG \
     -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
     -e LOCAL_SSD_MOUNT=/mnt/disks/$LOCAL_SSD_NAME \
-    -e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
+    -e BATCH_COPY_IMAGE=$BATCH_COPY_IMAGE \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /usr/bin/docker:/usr/bin/docker \
     -v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
@@ -441,6 +444,9 @@ gsutil -m cp dockerd.log gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/w
                 }, {
                     'key': 'batch_worker_image',
                     'value': BATCH_WORKER_IMAGE
+                }, {
+                    'key': 'batch_copy_image',
+                    'value': BATCH_COPY_IMAGE
                 }, {
                     'key': 'namespace',
                     'value': DEFAULT_NAMESPACE
