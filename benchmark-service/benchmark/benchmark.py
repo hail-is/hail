@@ -150,6 +150,7 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
     if file1 is None or file2 is None:
         benchmarks_context1 = None
         benchmarks_context2 = None
+        comparisons = None
     else:
         benchmarks_context1 = get_benchmarks(file1)
         benchmarks_context2 = get_benchmarks(file2)
