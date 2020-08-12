@@ -49,16 +49,24 @@
 <!--                    {% endif %}-->
                     {% if metric == 'median' %}
                         {% set ratio = d['median'] / item['median'] %}
-                        {{'%0.3f'| format(ratio|float)}}
+                        {{ ('%0.3f'| format(ratio|float)) * 100 }}
                     {% else %}
                         {% set ratio = (d['times'] | min) / (item['times'] | min) %}
-                        {{'%0.3f'| format(ratio|float)}}
+                        {{ ('%0.3f'| format(ratio|float)) * 100 }}
                     {% endif %}
                 </td>
-                <td>{{ d['mean'] }}</td>
                 <td>
-                    {% if item is not none %}
-                        {{ item['mean'] }}
+                    {% if metric == 'median' %}
+                        {{ d['median'] }}
+                    {% else %}
+                        {{ (d['times'] | min) }}
+                    {% endif %}
+                </td>
+                <td>
+                    {% if metric == 'median' %}
+                        {{ item['median'] }}
+                    {% else %}
+                        {{ (item['times'] | min) }}
                     {% endif %}
                 </td>
             {% endfor %}
