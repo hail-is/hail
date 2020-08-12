@@ -89,7 +89,7 @@ def final_comparisons(comparisons):
     for name, r1, r2 in comparisons:
         r = r1 / r2
         ratios.append(r)
-        comps.append(name, fmt_diff(r), fmt_time(r1), fmt_time(r2))
+        comps.append((name, fmt_diff(r), fmt_time(r1), fmt_time(r2)))
     final_comps['comps'] = comps
     final_comps['harmonic_mean'] = fmt_diff(hmean(ratios))
     final_comps['geometric_mean'] = fmt_diff(gmean(ratios))
