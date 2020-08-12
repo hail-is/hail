@@ -11,6 +11,8 @@ RUN pip3 install plotly
 
 RUN pip3 install pandas
 
+RUN pip3 install scipy
+
 EXPOSE 5000
 
 CMD ["python3", "-m", "benchmark.benchmark"]
