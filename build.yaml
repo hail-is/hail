@@ -1819,6 +1819,7 @@ steps:
    image:
      valueFrom: service_base_image.image
    script: |
+     cd /io/repo/hail/python
      set -ex
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      hailctl config set batch/billing_project test
