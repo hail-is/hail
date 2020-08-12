@@ -899,7 +899,6 @@ class Emit[C](
             // is empty.
             cb.assign(xElt, elt)
             (tmpAccVars, seq).zipped.foreach { (accVar, ir) =>
-              // FIXME: needs to be simultaneous assignment
               cb.assign(accVar,
                 emitI(ir, eltRegion, env = seqEnv)
                   .map(cb)(eltRegion.copyToSibling(mb, _, tmpRegion, accVar.pt)))
