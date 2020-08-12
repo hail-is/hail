@@ -27,7 +27,7 @@ author = 'Hail Team'
 version = ''
 # The full version, including alpha/beta/rc tags
 release = ''
-
+nitpicky = True
 
 # -- General configuration ---------------------------------------------------
 

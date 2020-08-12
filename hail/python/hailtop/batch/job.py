@@ -266,8 +266,8 @@ class Job:
         identifier such as `ofile5000`.
 
         All :class:`.JobResourceFile` are temporary files and must be written to
-        a permanent location using :func:`.batch.Batch.write_output` if the
-        output needs to be saved.
+        a permanent location using :meth:`.Batch.write_output` if the output
+        needs to be saved.
 
         Only resources can be referred to in commands. Referencing a
         :class:`.batch.Batch` or :class:`.Job` will result in an error.

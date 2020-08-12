@@ -218,8 +218,7 @@ class Batch:
         return irf
 
     def read_input_group(self, **kwargs: str) -> _resource.ResourceGroup:
-        """
-        Create a new resource group representing a mapping of identifier to
+        """Create a new resource group representing a mapping of identifier to
         input resource files.
 
         Examples
@@ -257,12 +256,12 @@ class Batch:
         given the resource group `rg`, you can use the attribute notation
         `rg.identifier` or the get item notation `rg[identifier]`.
 
-        The file extensions for each file are derived from the identifier.
-        This is equivalent to `"{root}.identifier"` from
-        :meth:`.job.Job.declare_resource_group`. We are planning on adding flexibility
-        to incorporate more complicated extensions in the future such as `.vcf.bgz`.
-        For now, use :meth:`.ResourceFile.add_extension` to add an extension to a
-        resource file.
+        The file extensions for each file are derived from the identifier.  This
+        is equivalent to `"{root}.identifier"` from
+        :meth:`.Job.declare_resource_group`. We are planning on adding
+        flexibility to incorporate more complicated extensions in the future
+        such as `.vcf.bgz`.  For now, use :meth:`.JobResourceFile.add_extension`
+        to add an extension to a resource file.
 
         Parameters
         ----------

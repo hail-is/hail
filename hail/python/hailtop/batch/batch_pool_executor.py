@@ -154,7 +154,7 @@ class BatchPoolExecutor:
 
         This function returns a generator which will produce each result in the
         same order as the `iterables`, only blocking if the result is not yet
-        ready. You can convert the generator to a list with :func:`.list`.
+        ready. You can convert the generator to a list with :class:`.list`.
 
         Examples
         --------
@@ -196,7 +196,8 @@ class BatchPoolExecutor:
         timeout:
             This is roughly a timeout on how long we wait on each function
             call. Specifically, each call to the returned generator's
-            :meth:`__next__` invokes :meth:`.BatchPoolFuture.result` with this
+            :class:`.BatchPoolFuture`
+            :meth:`.iterator.__next__` invokes :meth:`.BatchPoolFuture.result` with this
             `timeout`.
         chunksize:
             The number of tasks to schedule in the same docker container. Docker
@@ -317,7 +318,7 @@ class BatchPoolExecutor:
                            *args: Any,
                            **kwargs: Any
                            ) -> 'BatchPoolFuture':
-        """Aysncio compatible version of :meth:`.submit`."""
+        """Aysncio compatible version of :meth:`BatchPoolExecutor.submit`."""
 
         if self._shutdown:
             raise RuntimeError('BatchPoolExecutor has already been shutdown.')
