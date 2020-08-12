@@ -368,6 +368,8 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
 abstract class EmitSettable extends EmitValue {
   def store(ec: EmitCode): Code[Unit]
 
+  def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit
+
   def load(): EmitCode = get
 
   def :=(ec: EmitCode): Code[Unit] = store(ec)
@@ -602,8 +604,8 @@ class Emit[C](
     def emitI(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
-    def emitStream(ir: IR): EmitCode =
-      EmitStream.emit(this, ir, mb, region, env, container)
+    def emitStream(ir: IR): IEmitCode =
+      EmitStream.emit(this, ir, mb, region, env, container).toI(cb)
 
     def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir: IR, mb, region, env, container, loopEnv)
@@ -839,6 +841,50 @@ class Emit[C](
         val AggContainer(_, sc, _) = container.get
         presentC(sc.states(i).serializeToRegion(cb, coerce[PBinary](pt), region.code))
 
+      case x@StreamFold(a, zero, accumName, valueName, body) =>
+        val eltType = coerce[PStream](a.pType).elementType
+        val accType = x.accPType
+
+        val streamOpt = emitStream(a)
+        streamOpt.flatMap(cb) { stream =>
+          val xAcc = mb.newEmitField(accumName, accType)
+          val xElt = mb.newEmitField(valueName, eltType)
+
+          cb.assign(xAcc, emitI(zero).map(cb)(_.castTo(mb, region.code, accType)))
+          stream.asStream.stream.getStream(region).forEachI(cb, { elt =>
+            cb.assign(xElt, elt)
+            cb.assign(xAcc, emitI(body, env = env.bind(accumName -> xAcc, valueName -> xElt))
+              .map(cb)(_.castTo(mb, region.code, accType)))
+          })
+
+          xAcc.toI(cb)
+        }
+
+      case x@StreamFold2(a, acc, valueName, seq, res) =>
+        val eltType = coerce[PStream](a.pType).elementType
+        val xElt = mb.newEmitField(valueName, eltType)
+        val names = acc.map(_._1)
+        val accTypes = x.accPTypes
+        val accVars = (names, accTypes).zipped.map(mb.newEmitField)
+
+        val resEnv = env.bind(names.zip(accVars): _*)
+        val seqEnv = resEnv.bind(valueName, xElt)
+
+        val streamOpt = emitStream(a)
+        streamOpt.flatMap(cb) { stream =>
+          (accVars, acc, accTypes).zipped.foreach { case (xAcc, (_, x), typ) =>
+            cb.assign(xAcc, emitI(x).map(cb)(_.castTo(mb, region.code, typ)))
+          }
+          stream.asStream.stream.getStream(region).forEachI(cb, { elt =>
+            cb.assign(xElt, elt)
+            (accVars, seq).zipped.foreach { (accVar, ir) =>
+              cb.assign(accVar, emitI(ir, env = seqEnv).map(cb)(_.castTo(mb, region.code, accVar.pt)))
+            }
+          })
+
+          emitI(res, env = resEnv)
+        }
+
       case x@ShuffleWith(
         keyFields,
         rowType,
@@ -893,7 +939,7 @@ class Emit[C](
           mb.ecb.getPType(rowsPType.elementType),
           Code._null)
         cb.append(shuffle.startPut())
-        val rows = emitStream(rowsIR).toI(cb).handle(cb, {
+        val rows = emitStream(rowsIR).handle(cb, {
           cb._fatal("rows stream was missing in shuffle write")
         }).asStream.stream.getStream(region)
         cb.append(rows.forEach(mb, { row: EmitCode =>
@@ -1342,75 +1388,6 @@ class Emit[C](
             }
           PCode(x.pType, lenCode)
         }
-
-      case x@StreamFold(a, zero, accumName, valueName, body) =>
-        val eltType = coerce[PStream](a.pType).elementType
-        val accType = x.accPType
-
-        val streamOpt = COption.fromEmitCode(emitStream(a))
-        val resOpt: COption[PCode] = streamOpt.flatMapCPS { (ss, _ctx, ret) =>
-          implicit val c = _ctx
-
-          val xAcc = mb.newEmitField(accumName, accType)
-          val tmpAcc = mb.newEmitField(accumName, accType)
-
-          def foldBody(elt: EmitCode): Code[Unit] = {
-            val xElt = mb.newEmitField(valueName, eltType)
-            val bodyenv = env.bind(accumName -> xAcc, valueName -> xElt)
-
-            val codeB = emit(body, env = bodyenv)
-            Code(xElt := elt,
-              tmpAcc := codeB.map(_.castTo(mb, region.code, accType)),
-              xAcc := tmpAcc
-            )
-          }
-
-          val codeZ = emit(zero).map(_.castTo(mb, region.code, accType))
-          def retTT(): Code[Ctrl] =
-            ret(COption.fromEmitCode(xAcc.get))
-
-          ss.asStream.stream.getStream(region)
-            .fold(mb, xAcc := codeZ, foldBody, retTT())
-        }
-
-        COption.toEmitCode(resOpt, mb)
-
-      case x@StreamFold2(a, acc, valueName, seq, res) =>
-        val eltType = coerce[PStream](a.pType).elementType
-
-        val xElt = mb.newEmitField(valueName, eltType)
-        val names = acc.map(_._1)
-        val accVars = (names, x.accPTypes).zipped.map(mb.newEmitField)
-        val tmpAccVars = (names, x.accPTypes).zipped.map(mb.newEmitField)
-
-        val resEnv = env.bind(names.zip(accVars): _*)
-        val seqEnv = resEnv.bind(valueName, xElt)
-
-        val codeR = emit(res, env = resEnv)
-        val typedCodeSeq = seq.map(ir => emit(ir, env = seqEnv))
-
-        val streamOpt = COption.fromEmitCode(emitStream(a))
-         val resOpt = streamOpt.flatMapCPS[PCode] { (ss, _ctx, ret) =>
-          implicit val c = _ctx
-
-          def foldBody(elt: EmitCode): Code[Unit] =
-            Code(xElt := elt,
-              Code(tmpAccVars.zip(typedCodeSeq).map { case (v, x) =>
-                v := x.castTo(mb, region.code, v.pt)
-              }),
-              accVars := tmpAccVars.load())
-
-          def computeRes(): Code[Ctrl] =
-              ret(COption.fromEmitCode(codeR))
-
-          ss.asStream.stream.getStream(region)
-            .fold(mb, Code(accVars.zip(acc).map { case (v, (name, x)) =>
-              v := emit(x).castTo(mb, region.code, v.pt)
-            }),
-              foldBody, computeRes())
-        }
-
-        COption.toEmitCode(resOpt, mb)
 
       case x@MakeStruct(fields) =>
         val srvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
