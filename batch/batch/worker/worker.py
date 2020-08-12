@@ -62,7 +62,6 @@ PROJECT = os.environ['PROJECT']
 WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 LOCAL_SSD_MOUNT = os.environ['LOCAL_SSD_MOUNT']
-BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 
 log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
@@ -76,7 +75,6 @@ log.info(f'PROJECT {PROJECT}')
 log.info(f'WORKER_CONFIG {WORKER_CONFIG}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
 log.info(f'LOCAL_SSD_MOUNT {LOCAL_SSD_MOUNT}')
-log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 worker_config = WorkerConfig(WORKER_CONFIG)
 assert worker_config.cores == CORES
@@ -575,7 +573,7 @@ retry gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
 def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays_project):
     sh_expression = copy(files, name, job.user, job.io_host_path(), requester_pays_project)
     copy_spec = {
-        'image': BATCH_WORKER_IMAGE,
+        'image': 'batch-worker',
         'name': name,
         'command': ['/bin/bash', '-c', sh_expression],
         'cpu': cpu,
