@@ -545,11 +545,13 @@ class BatchTests(unittest.TestCase):
 
     def test_single_job_with_shell(self):
         msg = 'hello world'
-
         b = self.batch()
         j = b.new_job(shell='/bin/sh')
         j.command(f'echo "{msg}" > {j.ofile}')
-        assert b.run().log() == msg
+        assert b.run().status()['state'] == 'success'
+
+    def test_single_job_with_nonsense_shell(self):
+        msg = 'hello world'
 
         b = self.batch()
         j = b.new_job(shell='/bin/ajdsfoijasidojf')
