@@ -1,4 +1,5 @@
 import abc
+import uuid
 
 from hail.utils.java import Env
 from .renderer import Renderer, PlainRenderer, Renderable
@@ -186,6 +187,8 @@ class IR(BaseIR):
         self._free_vars = None
         self._free_agg_vars = None
         self._free_scan_vars = None
+        self._error_id = None
+        self._stack_trace = None
 
     @property
     def aggregations(self):
@@ -278,6 +281,11 @@ class IR(BaseIR):
                 var for i in range(len(self.children))
                 for var in vars_from_child(i)}
         return self._free_scan_vars
+
+    def save_error_info(self):
+        self._error_id = uuid.uuid4().int
+        self._stack_trace = None
+
 
 
 class TableIR(BaseIR):

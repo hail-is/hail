@@ -1934,12 +1934,11 @@ class GetTupleElement(IR):
 
 
 class Die(IR):
-    @typecheck_method(message=IR, typ=hail_type, error_id=nullable(int))
+    @typecheck_method(message=IR, typ=hail_type)
     def __init__(self, message, typ, error_id=None):
         super().__init__(message)
         self.message = message
         self._typ = typ
-        self._error_id = error_id if error_id else uuid.uuid4().int
 
     @property
     def typ(self):
