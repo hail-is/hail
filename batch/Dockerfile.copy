@@ -1,0 +1,6 @@
+FROM {{ batch_worker_image.image }}
+
+# source: https://cloud.google.com/storage/docs/gsutil_install#linux
+RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
+    mv /root/google-cloud-sdk /
+ENV PATH $PATH:/google-cloud-sdk/bin

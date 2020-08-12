@@ -1,6 +1,6 @@
 import os
-import sys
 import json
+import sys
 import re
 from shlex import quote as shq
 import logging
@@ -20,7 +20,8 @@ from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
 from hailtop.utils import (time_msecs, request_retry_transient_errors,
                            RETRY_FUNCTION_SCRIPT, sleep_and_backoff, retry_all_errors, check_shell,
-                           CalledProcessError, check_shell_output)
+                           CalledProcessError, blocking_to_async, check_shell_output,
+                           retry_long_running, run_if_changed)
 from hailtop.tls import get_context_specific_ssl_client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
                                         parse_memory_in_bytes)
@@ -61,6 +62,7 @@ PROJECT = os.environ['PROJECT']
 WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 LOCAL_SSD_MOUNT = os.environ['LOCAL_SSD_MOUNT']
+BATCH_COPY_IMAGE = os.environ['BATCH_COPY_IMAGE']
 
 log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
@@ -74,6 +76,7 @@ log.info(f'PROJECT {PROJECT}')
 log.info(f'WORKER_CONFIG {WORKER_CONFIG}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
 log.info(f'LOCAL_SSD_MOUNT {LOCAL_SSD_MOUNT}')
+log.info(f'BATCH_COPY_IMAGE {BATCH_COPY_IMAGE}')
 
 worker_config = WorkerConfig(WORKER_CONFIG)
 assert worker_config.cores == CORES
@@ -335,7 +338,7 @@ class Container:
     async def run(self, worker):
         try:
             async with self.step('pulling'):
-                if self.image.startswith('gcr.io/'):
+                if self.image.startswith('gcr.io/') and self.image != BATCH_COPY_IMAGE:
                     key = base64.b64decode(
                         self.job.gsa_key['key.json']).decode()
                     auth = {
@@ -349,14 +352,24 @@ class Container:
                     await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
                         docker.images.pull, self.image, auth=auth)
                 else:
-                    # this caches public images
+                    if self.image == BATCH_COPY_IMAGE:
+                        with open('key.json', 'r') as f:
+                            key = f.read()
+                        auth = {
+                            'username': '_json_key',
+                            'password': key
+                        }
+                    else:
+                        auth = None
+
+                    # this caches public images and the copy image
                     try:
                         await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
                             docker.images.get, self.image)
                     except DockerError as e:
                         if e.status == 404:
                             await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                                docker.images.pull, self.image)
+                                docker.images.pull, self.image, auth=auth)
 
             if self.port is not None:
                 async with self.step('allocating_port'):
@@ -528,7 +541,15 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
         delay = await sleep_and_backoff(delay)
 
 
-def copy_command(src, dst, requester_pays_project=None):
+def input_copy_command(user, src, dst, io_path, requester_pays_project=None):
+    if requester_pays_project:
+        requester_pays_project = f'--requester-pays-project {requester_pays_project}'
+    else:
+        requester_pays_project = ''
+    return f'retry python3 -m batch.worker.copy --io-host-path {shq(io_path)} --cache-path /host/cache {requester_pays_project} --user {user} -f {shq(src)} {shq(dst)}'
+
+
+def output_copy_command(src, dst, requester_pays_project=None):
     if not dst.startswith('gs://'):
         mkdirs = f'mkdir -p {shq(os.path.dirname(dst))} && '
     else:
@@ -542,10 +563,14 @@ def copy_command(src, dst, requester_pays_project=None):
     return f'{mkdirs}retry gsutil {requester_pays_project} -m cp -R {shq(src)} {shq(dst)}'
 
 
-def copy(files, requester_pays_project):
+def copy(files, name, user, io_path, requester_pays_project):
     assert files
 
-    copies = ' && '.join([copy_command(f['from'], f['to'], requester_pays_project) for f in files])
+    if name == 'input':
+        copies = ' && '.join([input_copy_command(user, f['from'], f['to'], io_path, requester_pays_project) for f in files])
+    else:
+        assert name == 'output'
+        copies = ' && '.join([output_copy_command(f['from'], f['to'], requester_pays_project) for f in files])
     return f'''
 set -ex
 
@@ -558,11 +583,11 @@ retry gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
 
 
 def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays_project):
-    sh_expression = copy(files, requester_pays_project)
+    sh_expression = copy(files, name, job.user, job.io_host_path(), requester_pays_project)
     copy_spec = {
-        'image': 'google/cloud-sdk:269.0.0-alpine',
+        'image': BATCH_COPY_IMAGE,
         'name': name,
-        'command': ['/bin/sh', '-c', sh_expression],
+        'command': ['/bin/bash', '-c', sh_expression],
         'cpu': cpu,
         'memory': memory,
         'volume_mounts': volume_mounts
@@ -613,8 +638,9 @@ class Job:
         input_files = job_spec.get('input_files')
         output_files = job_spec.get('output_files')
 
-        copy_volume_mounts = []
+        input_volume_mounts = []
         main_volume_mounts = []
+        output_volume_mounts = []
 
         requester_pays_project = job_spec.get('requester_pays_project')
 
@@ -625,7 +651,7 @@ class Job:
         if self.mount_io:
             volume_mount = f'{self.io_host_path()}:/io'
             main_volume_mounts.append(volume_mount)
-            copy_volume_mounts.append(volume_mount)
+            output_volume_mounts.append(volume_mount)
 
         gcsfuse = job_spec.get('gcsfuse')
         self.gcsfuse = gcsfuse
@@ -641,7 +667,8 @@ class Job:
                 main_volume_mounts.append(volume_mount)
                 # this will be the user gsa-key
                 if secret.get('mount_in_copy', False):
-                    copy_volume_mounts.append(volume_mount)
+                    input_volume_mounts.append(volume_mount)
+                    output_volume_mounts.append(volume_mount)
 
         env = []
         for item in job_spec.get('env', []):
@@ -674,8 +701,9 @@ class Job:
         containers = {}
 
         if input_files:
+            input_volume_mounts.append(f'{LOCAL_SSD_MOUNT}:/host')
             containers['input'] = copy_container(
-                self, 'input', input_files, copy_volume_mounts,
+                self, 'input', input_files, input_volume_mounts,
                 self.cpu_in_mcpu, self.memory_in_bytes, requester_pays_project)
 
         # main container
@@ -698,7 +726,7 @@ class Job:
 
         if output_files:
             containers['output'] = copy_container(
-                self, 'output', output_files, copy_volume_mounts,
+                self, 'output', output_files, output_volume_mounts,
                 self.cpu_in_mcpu, self.memory_in_bytes, requester_pays_project)
 
         self.containers = containers
@@ -870,12 +898,53 @@ class Job:
         return f'job {self.id}'
 
 
+class FileCache:
+    def __init__(self, path, pool):
+        self.path = path
+        self.cleanup_event = asyncio.Event()
+        self.pool = pool
+
+    async def async_init(self):
+        asyncio.ensure_future(retry_long_running('file_cache_monitoring_loop', self.monitor_loop))
+        asyncio.ensure_future(retry_long_running(
+            'file_cache_cleanup_loop',
+            run_if_changed, self.cleanup_event, self.cleanup_loop))
+
+    async def used_disk_space(self):
+        usage = await blocking_to_async(self.pool, shutil.disk_usage, self.path)
+        return usage.used / usage.total
+
+    async def remove(self, path):
+        await blocking_to_async(self.pool, os.remove, path)
+
+    async def monitor_loop(self):
+        while True:
+            if await self.used_disk_space() > 0.9:
+                log.info('more than 90% disk space used, cleaning up')
+                self.cleanup_event.set()
+            await asyncio.sleep(5)
+
+    async def cleanup_loop(self):
+        for root, _, files in os.walk(f'{self.path}/cache/'):
+            for file in files:
+                if await self.used_disk_space() < 0.7:
+                    return True
+                file_path = f'{root}/{file}'
+                try:
+                    async with Flock(file_path, pool=worker.pool, nonblock=True):
+                        await self.remove(file_path)
+                except BlockingIOError:
+                    log.info(f'could not remove in-use file {file_path}')
+        return True
+
+
 class Worker:
     def __init__(self):
         self.cores_mcpu = CORES * 1000
         self.last_updated = time_msecs()
         self.cpu_sem = FIFOWeightedSemaphore(self.cores_mcpu)
         self.pool = concurrent.futures.ThreadPoolExecutor()
+        self.file_cache = FileCache('/host', self.pool)
         self.jobs = {}
 
         # filled in during activation
@@ -994,6 +1063,8 @@ class Worker:
             await app_runner.setup()
             site = web.TCPSite(app_runner, '0.0.0.0', 5000)
             await site.start()
+
+            await self.file_cache.async_init()
 
             try:
                 await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
