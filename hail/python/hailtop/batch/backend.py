@@ -514,8 +514,7 @@ class ServiceBackend(Backend):
             n_jobs_submitted += 1
 
         if verbose:
-            print(
-                f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
+            print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
 
         submit_batch_start = time.time()
         bc_batch = bc_batch.submit(disable_progress_bar=disable_progress_bar)
@@ -523,8 +522,7 @@ class ServiceBackend(Backend):
         jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 
         if verbose:
-            print(
-                f'Submitted batch {bc_batch.id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
+            print(f'Submitted batch {bc_batch.id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
 

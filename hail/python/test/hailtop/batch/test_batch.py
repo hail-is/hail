@@ -2,7 +2,6 @@ import unittest
 import os
 import subprocess as sp
 import tempfile
-from shutil import which
 from shlex import quote as shq
 import uuid
 import google.oauth2.service_account
@@ -415,8 +414,7 @@ class BatchTests(unittest.TestCase):
         j.declare_resource_group(output={'foo': '{root}.foo'})
         j.command(f'echo "hello" > {j.output.foo}')
         b.write_output(j.output, f'{self.gcs_output_dir}/test_single_task_write_resource_group')
-        b.write_output(
-            j.output.foo, f'{self.gcs_output_dir}/test_single_task_write_resource_group_file.txt')
+        b.write_output(j.output.foo, f'{self.gcs_output_dir}/test_single_task_write_resource_group_file.txt')
         assert b.run().status()['state'] == 'success'
 
     def test_multiple_dependent_tasks(self):

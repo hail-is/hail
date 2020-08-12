@@ -155,8 +155,7 @@ class Job:
         for name, d in mappings.items():
             assert name not in self._resources
             if not isinstance(d, dict):
-                raise BatchException(
-                    f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
+                raise BatchException(f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
             rg = self._batch._new_resource_group(self, d, root=name)
             self._resources[name] = rg
             _add_resource_to_set(self._valid, rg)
