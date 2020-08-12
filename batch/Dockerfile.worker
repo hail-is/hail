@@ -17,10 +17,10 @@ RUN apt-get update && \
     gcsfuse && \
   rm -rf /var/lib/apt/lists/*
 
-# https://cloud.google.com/storage/docs/gsutil_install#expandable-1
-RUN curl https://storage.googleapis.com/pub/gsutil.tar.gz --output /gsutil.tar.gz && \
-    tar xfz /gsutil.tar.gz -C /
-ENV PATH $PATH:/gsutil
+# source: https://cloud.google.com/storage/docs/gsutil_install#linux
+RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
+    mv /root/google-cloud-sdk /
+ENV PATH $PATH:/google-cloud-sdk/bin
 
 COPY docker/requirements.txt .
 # re: pip install --upgrade pip: https://github.com/grpc/grpc/issues/22815

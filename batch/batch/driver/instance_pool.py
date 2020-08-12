@@ -385,8 +385,6 @@ sudo service google-fluentd restart
 docker pull $BATCH_WORKER_IMAGE || \
     (echo 'pull failed, retrying' && sleep 15 && docker pull $BATCH_WORKER_IMAGE)
 
-docker image tag $BATCH_WORKER_IMAGE batch-worker
-
 # So here I go it's my shot.
 docker run \
     -e CORES=$CORES \
@@ -401,6 +399,7 @@ docker run \
     -e WORKER_CONFIG=$WORKER_CONFIG \
     -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
     -e LOCAL_SSD_MOUNT=/mnt/disks/$LOCAL_SSD_NAME \
+    -e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /usr/bin/docker:/usr/bin/docker \
     -v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
