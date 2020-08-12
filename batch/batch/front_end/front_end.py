@@ -1084,7 +1084,7 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
         return None
 
     attempts.sort(key=lambda x: x['start_time'])
-    
+
     for attempt in attempts:
         start_time = attempt['start_time']
         if start_time is not None:
