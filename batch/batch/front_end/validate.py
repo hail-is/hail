@@ -8,7 +8,6 @@ from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
 #   'always_run': bool,
 #   'attributes': {str: str},
 #   'command': [str],
-#   'shell': str,
 #   'env': [{
 #     'name': str,
 #     'value': str
@@ -41,7 +40,7 @@ from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
 # }]
 
 JOB_KEYS = {
-    'always_run', 'attributes', 'command', 'shell', 'env', 'gcsfuse', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'requester_pays_project', 'resources', 'secrets', 'service_account', 'timeout'
+    'always_run', 'attributes', 'command', 'env', 'gcsfuse', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'requester_pays_project', 'resources', 'secrets', 'service_account', 'timeout'
 }
 
 ENV_VAR_KEYS = {'name', 'value'}
@@ -102,9 +101,6 @@ def validate_job(i, job):
     for j, a in enumerate(command):
         if not isinstance(a, str):
             raise ValidationError(f'jobs[{i}].command[{j}] is not str')
-
-    if 'shell' in job and (not job['shell'] and job['shell'] is not None) or not isinstance(job['shell'], str):
-        raise ValidationError(f'jobs[{i}].shell must be None or a non-empty string')
 
     if 'env' in job:
         env = job['env']

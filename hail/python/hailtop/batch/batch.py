@@ -91,7 +91,7 @@ class Batch:
                  default_cpu: Optional[str] = None,
                  default_storage: Optional[str] = None,
                  default_timeout: Optional[Union[float, int]] = None,
-                 default_shell: str = None):
+                 default_shell: str = '/bin/bash'):
         self._jobs: List[Job] = []
         self._resource_map: Dict[str, Resource] = {}
         self._allocated_files: Set[str] = set()
@@ -150,14 +150,10 @@ class Batch:
         if attributes is None:
             attributes = {}
 
-        if shell is not None:
-            jshell = shell
-        elif self._default_shell is not None:
-            jshell = self._default_shell
-        else:
-            jshell = None
+        if shell is None:
+            shell = self._default_shell
 
-        j = Job(batch=self, name=name, attributes=attributes, shell=jshell)
+        j = Job(batch=self, name=name, attributes=attributes, shell=shell)
 
         if self._default_image is not None:
             j.image(self._default_image)

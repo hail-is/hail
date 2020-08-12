@@ -200,8 +200,6 @@ class LocalBackend(Backend):
             resource_defs = [r._declare(tmpdir) for r in job._mentioned]
             env = [f'export {k}={v}' for k, v in job._env.items()]
 
-            shell = job._shell if job._shell else '/bin/bash'
-
             if job._image:
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
                 joined_env = '; '.join(env) + '; ' if env else ''
@@ -216,7 +214,7 @@ class LocalBackend(Backend):
                              f"-w {tmpdir} "
                              f"{memory} "
                              f"{cpu} "
-                             f"{job._image} {shell} "
+                             f"{job._image} {job._shell} "
                              f"-c {shq(joined_env + defs + cmd)}")
             else:
                 lines += env
@@ -474,8 +472,7 @@ class ServiceBackend(Backend):
                 resources['storage'] = job._storage
 
             j = bc_batch.create_job(image=job._image if job._image else default_image,
-                                    command=['/bin/bash', '-c', cmd],
-                                    shell=job._shell,
+                                    command=[job._shell, '-c', cmd],
                                     parents=parents,
                                     attributes=attributes,
                                     resources=resources,

@@ -265,18 +265,13 @@ class Container:
             'BlkioWeight': min(weight, 1000)
         }
 
-        cmd = self.spec['command']
-
-        if self.spec['shell']:
-            cmd[0] = self.spec['shell']
-
         config = {
             "AttachStdin": False,
             "AttachStdout": False,
             "AttachStderr": False,
             "Tty": False,
             'OpenStdin': False,
-            'Cmd': cmd,
+            'Cmd': self.spec['command'],
             'Image': self.image,
             'Entrypoint': '',
         }

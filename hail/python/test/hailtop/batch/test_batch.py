@@ -544,22 +544,14 @@ class BatchTests(unittest.TestCase):
         assert b.run().status()['state'] == 'success'
 
     def test_single_job_with_shell(self):
-        with tempfile.NamedTemporaryFile('w') as output_file:
-            msg = 'hello world'
-
-            b = self.batch()
-            j = b.new_job(shell='bin/sh')
-            j.command(f'echo "{msg}" > {j.ofile}')
-
-            b.write_output(j.ofile, output_file.name)
-            b.run(wait=True)
-
-            assert self.read(output_file.name) == msg
-
-    def test_single_job_with_nonsense_shell(self):
         msg = 'hello world'
 
         b = self.batch()
-        j = b.new_job(shell='bin/ajdsfoijasidojf')
+        j = b.new_job(shell='/bin/sh')
+        j.command(f'echo "{msg}" > {j.ofile}')
+        assert b.run().log() == msg
+
+        b = self.batch()
+        j = b.new_job(shell='/bin/ajdsfoijasidojf')
         j.command(f'echo "{msg}"')
         assert b.run().status()['state'] != 'success'
