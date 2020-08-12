@@ -22,7 +22,7 @@ from_underscore = {
 
 
 def _is_local(spath: str):
-    if(spath.startswith("gs://")):
+    if spath.startswith("gs://"):
         return False
     return True
 
@@ -154,7 +154,7 @@ def get_phenos(step_args: Namespace):
     if step_args.phenoColList:
         for pheno in step_args.phenoColList.split(","):
             phenos_to_keep[pheno] = True
-    
+
     phenos = _read_first_line(step_args.phenoFile).strip().split(" ")[2:]
 
     if not phenos_to_keep:
@@ -180,7 +180,8 @@ def prepare_step_cmd(batch: Batch, step_args: Namespace, job_output: Resource, s
             if name == "bed":
                 res = batch.read_input_group(bed=f"{val}.bed", bim=f"{val}.bim", fam=f"{val}.fam")
             elif name == "pgen":
-                res = batch.read_input_group(pgen=f"{val}.pgen", pvar=f"{val}.pvar", psam=f"{val}.psam")
+                res = batch.read_input_group(
+                    pgen=f"{val}.pgen", pvar=f"{val}.pvar", psam=f"{val}.psam")
             else:
                 res = batch.read_input(val)
 
