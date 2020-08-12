@@ -38,47 +38,55 @@
         </tr>
         </thead>
         <tbody>
-        {% for d in benchmarks1['data'] %}
-        <tr>
-            <td>{{ d['name'] }}</td>
-            {% for item in benchmarks2['data'] if item['name'] == d['name'] %}
-                <td>
-<!--                    {% if item is not none %}-->
-<!--                        {% set ratio = d['mean'] / item['mean'] %}-->
-<!--                        {{'%0.3f'| format(ratio|float)}}-->
+<!--        {% for d in benchmarks1['data'] %}-->
+<!--        <tr>-->
+<!--            <td>{{ d['name'] }}</td>-->
+<!--            {% for item in benchmarks2['data'] if item['name'] == d['name'] %}-->
+<!--                <td>-->
+<!--&lt;!&ndash;                    {% if item is not none %}&ndash;&gt;-->
+<!--&lt;!&ndash;                        {% set ratio = d['mean'] / item['mean'] %}&ndash;&gt;-->
+<!--&lt;!&ndash;                        {{'%0.3f'| format(ratio|float)}}&ndash;&gt;-->
+<!--&lt;!&ndash;                    {% endif %}&ndash;&gt;-->
+<!--                    {% if metric == 'median' %}-->
+<!--                        {% set ratio = d['median'] / item['median'] %}-->
+<!--                        {{ ('%0.3f'| format(ratio|float)) }}-->
+<!--                    {% else %}-->
+<!--                        {% set ratio = (d['times'] | min) / (item['times'] | min) %}-->
+<!--                        {{ ('%0.3f'| format(ratio|float)) }}-->
 <!--                    {% endif %}-->
-                    {% if metric == 'median' %}
-                        {% set ratio = d['median'] / item['median'] %}
-                        {{ ('%0.3f'| format(ratio|float)) * 100 }}
-                    {% else %}
-                        {% set ratio = (d['times'] | min) / (item['times'] | min) %}
-                        {{ ('%0.3f'| format(ratio|float)) * 100 }}
-                    {% endif %}
-                </td>
-                <td>
-                    {% if metric == 'median' %}
-                        {{ d['median'] }}
-                    {% else %}
-                        {{ (d['times'] | min) }}
-                    {% endif %}
-                </td>
-                <td>
-                    {% if metric == 'median' %}
-                        {{ item['median'] }}
-                    {% else %}
-                        {{ (item['times'] | min) }}
-                    {% endif %}
-                </td>
-            {% endfor %}
+<!--                </td>-->
+<!--                <td>-->
+<!--                    {% if metric == 'median' %}-->
+<!--                        {{ d['median'] }}-->
+<!--                    {% else %}-->
+<!--                        {{ (d['times'] | min) }}-->
+<!--                    {% endif %}-->
+<!--                </td>-->
+<!--                <td>-->
+<!--                    {% if metric == 'median' %}-->
+<!--                        {{ item['median'] }}-->
+<!--                    {% else %}-->
+<!--                        {{ (item['times'] | min) }}-->
+<!--                    {% endif %}-->
+<!--                </td>-->
+<!--            {% endfor %}-->
+<!--        </tr>-->
+<!--        {% endfor %}-->
+        {% for name, ratio, r1, r2 in comparisons['comps'] %}
+        <tr>
+            <td>{{ name }}</td>
+            <td>{{ ratio }}</td>
+            <td>{{ r1 }}</td>
+            <td>{{ r2 }}</td>
         </tr>
         {% endfor %}
         </tbody>
     </table>
 
-    <p> Harmonic Mean: </p>
-    <p> Geometric Mean: {{ benchmarks2['geometric_mean'] / benchmarks1['geometric_mean'] }} </p>
-    <p> Arithmetic Mean: </p>
-    <p> Median: </p>
+    <p> Harmonic Mean: {{ comparisons['harmonic_mean'] }} </p>
+    <p> Geometric Mean: {{ comparisons['geometric_mean'] }} </p>
+    <p> Arithmetic Mean: {{ comparisons['arithmetic_mean'] }}</p>
+    <p> Median: {{ comparisons['median'] }}</p>
     <hr>
 {% endif %}
 

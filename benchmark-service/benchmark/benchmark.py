@@ -10,6 +10,8 @@ import json
 import re
 import plotly
 import plotly.express as px
+from scipy.stats.mstats import gmean, hmean
+import numpy as np
 
 configure_logging()
 router = web.RouteTableDef()
@@ -55,6 +57,45 @@ def get_benchmarks(file_path):
     benchmarks['geometric_mean'] = geometric_mean
     benchmarks['data'] = sorted(data, key=lambda i: i['name'])
     return benchmarks
+
+
+def get_comparisons(benchmarks1, benchmarks2, metric):
+    def get_metric(data):
+        if metric == 'median':
+            return data['median']
+        elif metric == 'best':
+            return min(data['times'])
+
+    comparisons = []
+    for d in benchmarks1['data']:
+        for item in benchmarks2['data']:
+            if item['name'] == d['name']:
+                comparisons.append((d['name'], get_metric(d), get_metric(item)))
+    return comparisons
+
+
+def fmt_time(t):
+    return round(t, 3)
+
+
+def fmt_diff(ratio):
+    return round(ratio * 100, 3)
+
+
+def final_comparisons(comparisons):
+    comps = []
+    ratios = []
+    final_comps = {}
+    for name, r1, r2 in comparisons:
+        r = r1 / r2
+        ratios.append(r)
+        comps.append(name, fmt_diff(r), fmt_time(r1), fmt_time(r2))
+    final_comps['comps'] = comps
+    final_comps['harmonic_mean'] = fmt_diff(hmean(ratios))
+    final_comps['geometric_mean'] = fmt_diff(gmean(ratios))
+    final_comps['arithmetic_mean'] = fmt_diff(np.mean(ratios))
+    final_comps['median'] = fmt_diff(np.median(ratios))
+    return final_comps
 
 
 @router.get('/healthcheck')
@@ -112,11 +153,13 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
     else:
         benchmarks_context1 = get_benchmarks(file1)
         benchmarks_context2 = get_benchmarks(file2)
+        comparisons = final_comparisons(get_comparisons(benchmarks_context1, benchmarks_context2, metric))
     context = {'file1': file1,
                'file2': file2,
                'metric': metric,
                'benchmarks1': benchmarks_context1,
-               'benchmarks2': benchmarks_context2}
+               'benchmarks2': benchmarks_context2,
+               'comparisons': comparisons}
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
