@@ -947,6 +947,7 @@ object Interpret {
             val resF = f(0, r)
             resF.setAggState(rv.region, rv.offset)
             val res = SafeRow(rTyp, resF(r, globalsOffset))
+            resF.storeAggsToRegion()
             rv.region.invalidate()
             res
           }
