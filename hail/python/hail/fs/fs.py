@@ -3,6 +3,9 @@ import sys
 import os
 from typing import Dict, List
 
+from hail.utils.java import Env, info
+from hail.utils import local_path_uri
+
 
 class FS(abc.ABC):
     @abc.abstractmethod
@@ -34,9 +37,6 @@ class FS(abc.ABC):
         pass
 
     def copy_log(self, path: str) -> None:
-        from hail.utils.java import Env, info
-        from hail.utils import local_path_uri
-
         log = Env.hc()._log
         try:
             if self.is_dir(path):

@@ -5,8 +5,10 @@ import sys
 import shlex
 from argparse import Namespace, ArgumentParser
 from typing import Set
-from os.path import splitext, basename
-from hail.fs.google_fs import GoogleCloudStorageFS
+from os.path import splitext, basename, exists
+from google.cloud import storage
+from google.cloud.storage.blob import Blob
+
 
 BatchArgs = namedtuple("BatchArgs", ['cores', 'memory', 'storage'])
 input_file_args = ["bgen", "bed", "pgen", "sample", "keep", "extract", "exclude", "remove",
@@ -18,7 +20,37 @@ from_underscore = {
     "lowmem_prefix": "lowmem-prefix"
 }
 
-fs = GoogleCloudStorageFS()
+
+def _is_local(spath: str):
+    if(spath.startswith("gs://")):
+        return False
+    return True
+
+
+def _read(spath: str):
+    if _is_local(spath):
+        with open(spath, "r") as f:
+            return f.read()
+
+    client = storage.Client()
+    blob = Blob.from_string(spath, client)
+    return blob.download_as_string()
+
+
+def _read_first_line(spath: str):
+    if _is_local(spath):
+        with open(spath, "r") as f:
+            return f.readline()
+    return _read(spath).split("\n")[0]
+
+
+def _exists(spath: str) -> bool:
+    if _is_local(spath):
+        return exists(spath)
+
+    client = storage.Client()
+    blob = Blob.from_string(spath, client)
+    return blob.exists()
 
 
 def _warn(msg):
@@ -97,15 +129,14 @@ def read_step_args(path_or_str: str, step: int):
     else:
         _error(f"Unknown step: {step}")
 
-    if not fs.exists(path_or_str):
+    if not _exists(path_or_str):
         print(f"Couldn't find a file named {path_or_str}, assuming this is an argument string")
         r = parser.parse_args(shlex.split(path_or_str))
     else:
         print(f"Found {path_or_str}, reading")
 
-        with fs.open(path_or_str, "r") as f:
-            t = shlex.split(f.read())
-            r = parser.parse_args(t)
+        t = shlex.split(_read(path_or_str))
+        r = parser.parse_args(t)
 
     if step == 2:
         if r.pred:
@@ -123,9 +154,8 @@ def get_phenos(step_args: Namespace):
     if step_args.phenoColList:
         for pheno in step_args.phenoColList.split(","):
             phenos_to_keep[pheno] = True
-
-    with fs.open(step_args.phenoFile, "r") as f:
-        phenos = f.readline().strip().split(" ")[2:]
+    
+    phenos = _read_first_line(step_args.phenoFile).strip().split(" ")[2:]
 
     if not phenos_to_keep:
         return phenos
