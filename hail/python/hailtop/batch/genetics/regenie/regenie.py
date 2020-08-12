@@ -200,7 +200,7 @@ def prepare_step_cmd(batch: Batch, step_args: Namespace, job_output: Resource, s
 
 
 def prepare_jobs(batch, args: BatchArgs, step1_args: Namespace, step2_args: Namespace):
-    regenie_img = 'hailgenetics/regenie:9e7074f695e2b96bbb5af9d95f112d674c3260cd'
+    regenie_img = 'hailgenetics/regenie:v1.0.5.6'
     j1 = batch.new_job(name='run-regenie-step1')
     j1.image(regenie_img)
     j1.cpu(args.cores)
