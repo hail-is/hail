@@ -102,11 +102,9 @@ class LocalTests(unittest.TestCase):
             assert self.read(output_file.name) == msg
 
     def test_single_job_with_nonsense_shell(self):
-        msg = 'hello world'
-
         b = self.batch()
         j = b.new_job(shell='bin/ajdsfoijasidojf')
-        j.command(f'echo "{msg}"')
+        j.command(f'echo "hello"')
         self.assertRaises(Exception, b.run())
 
     def test_single_job_w_input(self):
@@ -553,9 +551,7 @@ class BatchTests(unittest.TestCase):
         assert res == msg
 
     def test_single_job_with_nonsense_shell(self):
-        msg = 'hello world'
-
         b = self.batch()
         j = b.new_job(shell='/bin/ajdsfoijasidojf')
-        j.command(f'echo "{msg}"')
+        j.command(f'echo "hello"')
         assert b.run().status()['state'] != 'success'
