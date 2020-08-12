@@ -1792,7 +1792,6 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     """
 
     check_entry_indexed('pca/entry_expr', entry_expr)
-
     mt = matrix_table_source('pca/entry_expr', entry_expr)
     
     if entry_expr in mt._fields_inverse:
@@ -1803,10 +1802,9 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     mt = mt.select_cols().select_rows().select_globals()
     
     # Format Distributed Table - group rows of table into blocks
-    mt = mt.select_entries(x = mt[field])
 
     temp_file_name = hl.utils.new_temp_file("pca", "mt")
-
+    mt = mt.select_entries(x = mt[field])
     mt.write(temp_file_name)
     desired_num_partitions = int(math.ceil(mt.count_rows() / block_size))
     mt = hl.read_matrix_table(temp_file_name)
@@ -1827,23 +1825,15 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     A = A.add_index("row_group_number")
     A = A.key_by("row_group_number")
 
-    # mt.write(temp_file_path)
-    # mt = hl.read_matrix_table(temp_file_path) #, intervals = SOMETHING SOMETHING WE DONT KNOW)
-    # ht = mt.localize_entries(entries_array_field_name='entries')
-    # ht = ht.select(xs = ht.entries.map(lambda e: e['x']))
-    # ht = ht.add_index()
-    # A = ht.group_by(row_group_number = hl.int32(ht.idx // block_size)) \
-    #     .aggregate(ndarray = hl.nd.array(hl.agg.collect(ht.xs)))
-
     # Set Parameters
-    #block_size = block_size # might want to make this a parameter or make some heurstic for it
+
+    # block_size = block_size # might want to make this a parameter or make some heurstic for it
     q = q_iterations
     l = k + oversampling_param
     n = A.take(1)[0].ndarray.shape[1]
 
     # Generate random matrix G
     G = np.random.normal(0, 1, (n,l))
-
 
     # Helper Functions
 
