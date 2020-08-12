@@ -1,5 +1,3 @@
-from hail.utils import hadoop_open as hopen
-from hail.utils import hadoop_exists as hexists
 from hailtop.batch import Batch, LocalBackend
 from hailtop.batch.resource import Resource
 from collections import namedtuple
@@ -8,6 +6,7 @@ import shlex
 from argparse import Namespace, ArgumentParser
 from typing import Set
 from os.path import splitext, basename
+from hail.fs.google_fs import GoogleCloudStorageFS
 
 BatchArgs = namedtuple("BatchArgs", ['cores', 'memory', 'storage'])
 input_file_args = ["bgen", "bed", "pgen", "sample", "keep", "extract", "exclude", "remove",
@@ -18,6 +17,8 @@ from_underscore = {
     "ignore_pred": "ignore-pred",
     "lowmem_prefix": "lowmem-prefix"
 }
+
+fs = GoogleCloudStorageFS()
 
 
 def _warn(msg):
@@ -96,13 +97,13 @@ def read_step_args(path_or_str: str, step: int):
     else:
         _error(f"Unknown step: {step}")
 
-    if not hexists(path_or_str):
+    if not fs.exists(path_or_str):
         print(f"Couldn't find a file named {path_or_str}, assuming this is an argument string")
         r = parser.parse_args(shlex.split(path_or_str))
     else:
         print(f"Found {path_or_str}, reading")
 
-        with hopen(path_or_str, "r") as f:
+        with fs.open(path_or_str, "r") as f:
             t = shlex.split(f.read())
             r = parser.parse_args(t)
 
@@ -123,7 +124,7 @@ def get_phenos(step_args: Namespace):
         for pheno in step_args.phenoColList.split(","):
             phenos_to_keep[pheno] = True
 
-    with hopen(step_args.phenoFile, "r") as f:
+    with fs.open(step_args.phenoFile, "r") as f:
         phenos = f.readline().strip().split(" ")[2:]
 
     if not phenos_to_keep:
