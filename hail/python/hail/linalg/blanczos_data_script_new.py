@@ -11,7 +11,7 @@ import time
 
 hl.init(log = 'hail_log.txt')
 
-df = pd.DataFrame(columns=['M', 'N', 'block size', 'K', 'L', 'Q', 'blanczos time', 'hail pca time'])
+df = pd.DataFrame(columns=['M', 'N', 'block size', 'K', 'L', 'Q', 'blanczos time', 'hail pca time', 'blanczos output', 'hail output'])
 
 def loop(i, data_field, m, n, block_size, k, l, q):
 
@@ -36,9 +36,7 @@ def loop(i, data_field, m, n, block_size, k, l, q):
         end = time.time()
         hail_time = end - start
 
-        # ADD AND SAVE ENTIRE OUTPUT and errors!!!
-
-        df.loc[i] = [m, n, block_size, k, l, q, blanczos_time, hail_time]
+        df.loc[i] = [m, n, block_size, k, l, q, blanczos_time, hail_time, (blanczos_u, blanczos_s, blanczos_v), (eigens, scores, loadings)]
 
     except Exception as e:
 
@@ -54,7 +52,7 @@ def loop(i, data_field, m, n, block_size, k, l, q):
 # small_data = hl.read_matrix_table('data/1kg.mt')
 
 medium_data = hl.experimental.load_dataset(name='1000_Genomes_autosomes', version='phase_3' ,reference_genome='GRCh38')
-medium_data = medium_data.filter_rows(medium_data.variant_qc.AF[1] > 0.01)
+medium_data = medium_data.filter_rows(medium_data.variant_qc.AF[1] > 0.6)
 # write
 
 # need to add partitioning benchmarks
@@ -101,12 +99,12 @@ for L in [K + 2, 2 * K]:
 
     for Q in [0, 2]:
 
-        for block_size in [1000, 3000]:
+        for block_size in [3000, 5000]:
 
             # loop(i, small_data.__gt, m, n, block_size, K, L, Q)
             # df.to_csv('gs://aotoole/blanczos_small_data_times.csv')
 
             loop(i, medium_data.__gt, m, n, block_size, K, L, Q)
-            df.to_csv('gs://aotoole/blanczos_medium_data_times.csv')
+            df.to_csv('gs://aotoole/blanczos_medium_data_times_blocks3k5k.csv')
 
             i += 1
