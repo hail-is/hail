@@ -352,6 +352,16 @@ class Container:
                     await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
                         docker.images.pull, self.image, auth=auth)
                 else:
+                    if self.image == BATCH_COPY_IMAGE:
+                        with open('key.json', 'r') as f:
+                            key = f.read()
+                        auth = {
+                            'username': '_json_key',
+                            'password': key
+                        }
+                    else:
+                        auth = None
+                        
                     # this caches public images and the copy image
                     try:
                         await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
@@ -359,7 +369,7 @@ class Container:
                     except DockerError as e:
                         if e.status == 404:
                             await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                                docker.images.pull, self.image)
+                                docker.images.pull, self.image, auth=auth)
 
             if self.port is not None:
                 async with self.step('allocating_port'):
