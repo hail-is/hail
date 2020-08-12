@@ -1819,6 +1819,7 @@ steps:
    image:
      valueFrom: service_base_image.image
    script: |
+     cd /io/hailtop
      set -ex
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      hailctl config set batch/billing_project test
@@ -1826,6 +1827,8 @@ steps:
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/test/hailtop/batch/
    inputs:
     - from: /repo/test
+      to: /io/
+    - from: /repo/hailtop
       to: /io/
    timeout: 1200
    secrets:
