@@ -107,10 +107,7 @@ class LocalTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job(shell='bin/ajdsfoijasidojf')
         j.command(f'echo "{msg}"')
-        with self.assertRaises(Exception) as context:
-            b.run()
-
-            self.assertTrue('no such file or directory' in context.exception)
+        self.assertRaises(Exception, b.run())
 
     def test_single_job_w_input(self):
         with tempfile.NamedTemporaryFile('w') as input_file, \
