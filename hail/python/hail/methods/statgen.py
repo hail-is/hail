@@ -1703,7 +1703,7 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
            q_iterations=int,
            oversampling_param=int,
            block_size=int)
-def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=4):
+def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128):
     r"""Run randomized principal component analysis approximation (PCA) 
     on numeric columns derived from a matrix table.
 
@@ -1803,31 +1803,46 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     
     # Format Distributed Table - group rows of table into blocks
 
-    temp_file_name = hl.utils.new_temp_file("pca", "mt")
     mt = mt.select_entries(x = mt[field])
-    mt.write(temp_file_name)
-    desired_num_partitions = int(math.ceil(mt.count_rows() / block_size))
-    mt = hl.read_matrix_table(temp_file_name)
-    new_partitioning = mt._calculate_new_partitions(desired_num_partitions)
-    mt = hl.read_matrix_table(temp_file_name, _intervals = new_partitioning)
+
+    def get_even_partitioning(ht, partition_size):
+        ht = ht.select().add_index("_even_partitioning_index")
+        filt = ht.filter(ht._even_partitioning_index % partition_size == 0)
+        interval_bounds = filt.select().collect()
+        intervals = []
+        for i in range(len(interval_bounds) - 1):
+            intervals.append(hl.utils.Interval(start=interval_bounds[i], end=interval_bounds[i+1], includes_start=True, includes_end=False))
+        #Dont forget the end
+        last_element = ht.tail(1).select().collect()[0]
+        last_interval = hl.utils.Interval(start=interval_bounds[len(interval_bounds) - 1], end = last_element, includes_start=True, includes_end=True)
+        intervals.append(last_interval)
+
+        return intervals
 
     ht = mt.localize_entries(entries_array_field_name='entries')
-    ht = ht.select(xs = ht.entries.map(lambda e: e['x']))
+    ht = ht.select(xs=ht.entries.map(lambda e: e['x']))
+
+    temp_file_name = hl.utils.new_temp_file("pca", "ht")
+    ht.write(temp_file_name)
+
+    ht = hl.read_table(temp_file_name)
+    new_partitioning = get_even_partitioning(ht, block_size)
+    ht = hl.read_table(temp_file_name, _intervals=new_partitioning)
+
     grouped = ht._group_within_partitions("groups", block_size * 2)
 
-    part_sizes = grouped.select(part_size = hl.len(grouped.groups))
-    part_sizes = part_sizes.annotate(rows_preceeding = hl.int32(hl.scan.sum(part_sizes.part_size)))
+    part_sizes = grouped.select(part_size=hl.len(grouped.groups))
+    part_sizes = part_sizes.annotate(rows_preceeding=hl.int32(hl.scan.sum(part_sizes.part_size)))
     local_part_sizes = part_sizes.collect()
 
     # now we have a table where adjacent rows within the same partition got grouped together into an array called groups
 
-    A = grouped.select(ndarray = hl.nd.array(grouped.groups.map(lambda group: group.xs)))
+    A = grouped.select(ndarray=hl.nd.array(grouped.groups.map(lambda group: group.xs)))
     A = A.add_index("row_group_number")
     A = A.key_by("row_group_number")
 
     # Set Parameters
 
-    # block_size = block_size # might want to make this a parameter or make some heurstic for it
     q = q_iterations
     l = k + oversampling_param
     n = A.take(1)[0].ndarray.shape[1]
@@ -1869,14 +1884,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         temp = A.transmute(ndarray = A.ndarray.transpose() @ B[A.row_group_number].ndarray)
         return temp.aggregate(hl.agg.ndarray_sum(temp.ndarray)) # collects A / reads A
 
-
-    # Algorithm
-
     def hailBlanczos(A, G, k, l, q, block_size):
-
-
-        # might want to calculate actual order of parallel vs local operations
-
         # need to add cache and persist / read and write to this 
 
         h_list = []
@@ -1903,7 +1911,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         
         # challenge question: what if we get to a point where we are going this SVD on a really large T??
         # could potentially multiply T by its tranpose to get skinny dim x skinny dim and then do eigen decomposition on that
-        U, S, W = np.linalg.svd(T, full_matrices=False) # funny that we do a small svd in our new large svd algorithm
+        U, S, W = np.linalg.svd(T, full_matrices=False)
         
         V = matmul_rowblocked_nonblocked(blocked_Q_table, U)
         arr_V = concatToNumpy(V)
