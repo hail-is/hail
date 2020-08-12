@@ -1988,7 +1988,6 @@ object EmitStream {
     // assumes no name collisions, a bit hacky...
     def traverse(ir: IR, mult: Int): Unit = ir match {
       case Ref(name, _) => if (refName == name) uses += mult
-      case Let(_, v, b) => traverse(v, 2); traverse(b, mult)
       case StreamMap(a, _, b) => traverse(a, mult); traverse(b, 2)
       case StreamFilter(a, _, b) => traverse(a, mult); traverse(b, 2)
       case StreamFlatMap(a, _, b) => traverse(a, mult); traverse(b, 2)
