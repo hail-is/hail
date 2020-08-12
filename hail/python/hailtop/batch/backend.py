@@ -213,7 +213,7 @@ class LocalBackend(Backend):
                              f"-w {tmpdir} "
                              f"{memory} "
                              f"{cpu} "
-                             f"{job._image} {job._shell} "
+                             f"{job._image} {job._shell if job._shell else '/bin/bash'} "
                              f"-c {shq(joined_env + defs + cmd)}")
             else:
                 lines += env
@@ -470,7 +470,7 @@ class ServiceBackend(Backend):
                 resources['storage'] = job._storage
 
             j = bc_batch.create_job(image=job._image if job._image else default_image,
-                                    command=[job._shell, '-c', cmd],
+                                    command=[job._shell if job._shell else '/bin/bash', '-c', cmd],
                                     parents=parents,
                                     attributes=attributes,
                                     resources=resources,

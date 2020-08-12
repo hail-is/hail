@@ -91,7 +91,7 @@ class Batch:
                  default_cpu: Optional[str] = None,
                  default_storage: Optional[str] = None,
                  default_timeout: Optional[Union[float, int]] = None,
-                 default_shell: str = '/bin/bash'):
+                 default_shell: str = None):
         self._jobs: List[Job] = []
         self._resource_map: Dict[str, Resource] = {}
         self._allocated_files: Set[str] = set()
