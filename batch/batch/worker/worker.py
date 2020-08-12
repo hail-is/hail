@@ -361,7 +361,7 @@ class Container:
                         }
                     else:
                         auth = None
-                        
+
                     # this caches public images and the copy image
                     try:
                         await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
