@@ -113,8 +113,7 @@ class LocalBackend(Backend):
         """
 
         if backend_kwargs:
-            raise ValueError(
-                f'LocalBackend does not support any of these keywords: {backend_kwargs}')
+            raise ValueError(f'LocalBackend does not support any of these keywords: {backend_kwargs}')
 
         tmpdir = self._get_scratch_dir()
 
@@ -350,8 +349,7 @@ class ServiceBackend(Backend):
         """
 
         if backend_kwargs:
-            raise ValueError(
-                f'ServiceBackend does not support any of these keywords: {backend_kwargs}')
+            raise ValueError(f'ServiceBackend does not support any of these keywords: {backend_kwargs}')
 
         build_dag_start = time.time()
 
