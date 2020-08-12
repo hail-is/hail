@@ -66,7 +66,7 @@ class Job:
                  batch: batch.Batch,
                  name: Optional[str] = None,
                  attributes: Optional[Dict[str, str]] = None,
-                 shell: str = None):
+                 shell: Optional[str] = None):
         self._batch = batch
         self._shell = shell
         self.name = name

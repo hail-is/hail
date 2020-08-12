@@ -91,7 +91,7 @@ class Batch:
                  default_cpu: Optional[str] = None,
                  default_storage: Optional[str] = None,
                  default_timeout: Optional[Union[float, int]] = None,
-                 default_shell: str = None):
+                 default_shell: Optional[str] = None):
         self._jobs: List[Job] = []
         self._resource_map: Dict[str, Resource] = {}
         self._allocated_files: Set[str] = set()
@@ -120,7 +120,7 @@ class Batch:
     def new_job(self,
                 name: Optional[str] = None,
                 attributes: Optional[Dict[str, str]] = None,
-                shell: str = None) -> Job:
+                shell: Optional[str] = None) -> Job:
         """
         Initialize a new job object with default memory, docker image,
         and CPU settings (defined in :class:`.Batch`) upon batch creation.
