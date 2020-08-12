@@ -53,7 +53,8 @@ def test_modify_workers(gcloud_run, workers_arg):
 ])
 def test_modify_preemptible_workers(gcloud_run, workers_arg):
     cli.main(["modify", "test-cluster", workers_arg])
-    assert "--num-preemptible-workers=2" in gcloud_run.call_args[0][0]
+    assert "--num-secondary-workers=2" in gcloud_run.call_args[0][0]
+    assert "--secondary-worker-type=preemptible" in gcloud_run.call_args[0][0]
 
 
 def test_modify_max_idle(gcloud_run):

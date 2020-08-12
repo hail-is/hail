@@ -28,7 +28,8 @@ def main(args, pass_through_args):
         modify_args.append('--num-workers={}'.format(args.num_workers))
 
     if args.num_preemptible_workers is not None:
-        modify_args.append('--num-preemptible-workers={}'.format(args.num_preemptible_workers))
+        modify_args.append('--num-secondary-workers={}'.format(args.num_preemptible_workers))
+        modify_args.append('--secondary-worker-type=preemptible')
 
     if args.graceful_decommission_timeout:
         if not modify_args:

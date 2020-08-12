@@ -307,10 +307,11 @@ def main(args, pass_through_args):
     conf.flags['master-machine-type'] = args.master_machine_type
     conf.flags['master-boot-disk-size'] = '{}GB'.format(args.master_boot_disk_size)
     conf.flags['num-master-local-ssds'] = args.num_master_local_ssds
-    conf.flags['num-preemptible-workers'] = args.num_preemptible_workers
+    conf.flags['num-secondary-workers'] = args.num_preemptible_workers
+    conf.flags['secondary-worker-type'] = 'preemptible'
     conf.flags['num-worker-local-ssds'] = args.num_worker_local_ssds
     conf.flags['num-workers'] = args.num_workers
-    conf.flags['preemptible-worker-boot-disk-size'] = disk_size(args.preemptible_worker_boot_disk_size)
+    conf.flags['secondary-worker-boot-disk-size'] = disk_size(args.preemptible_worker_boot_disk_size)
     conf.flags['worker-boot-disk-size'] = disk_size(args.worker_boot_disk_size)
     conf.flags['worker-machine-type'] = args.worker_machine_type
     if args.region:

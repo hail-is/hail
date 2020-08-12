@@ -47,7 +47,8 @@ def test_workers_configuration(gcloud_run):
 
 def test_secondary_workers_configuration(gcloud_run):
     cli.main(["start", "--num-preemptible-workers=8", "test-cluster"])
-    assert "--num-preemptible-workers=8" in gcloud_run.call_args[0][0]
+    assert "--num-secondary-workers=8" in gcloud_run.call_args[0][0]
+    assert "--secondary-worker-type=preemptible" in gcloud_run.call_args[0][0]
 
 
 @pytest.mark.parametrize("machine_arg", [
