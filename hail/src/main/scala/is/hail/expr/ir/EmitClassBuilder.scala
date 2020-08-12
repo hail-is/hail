@@ -364,6 +364,7 @@ class EmitClassBuilder[C](
     val newF = newEmitMethod("newAggState", FastIndexedSeq[ParamType](typeInfo[Region]), typeInfo[Unit])
     val setF = newEmitMethod("setAggState", FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
     val getF = newEmitMethod("getAggOffset", FastIndexedSeq[ParamType](), typeInfo[Long])
+    val storeF = newEmitMethod("storeAggsToRegion", FastIndexedSeq[ParamType](), typeInfo[Unit])
     val setNSer = newEmitMethod("setNumSerialized", FastIndexedSeq[ParamType](typeInfo[Int]), typeInfo[Unit])
     val setSer = newEmitMethod("setSerializedAgg", FastIndexedSeq[ParamType](typeInfo[Int], typeInfo[Array[Byte]]), typeInfo[Unit])
     val getSer = newEmitMethod("getSerializedAgg", FastIndexedSeq[ParamType](typeInfo[Int]), typeInfo[Array[Byte]])
@@ -392,8 +393,12 @@ class EmitClassBuilder[C](
     }
 
     getF.emitWithBuilder { cb =>
-      _aggState.store(cb)
+      cb += storeF.invokeCode[Unit]()
       _aggOff
+    }
+
+    storeF.voidWithBuilder { cb =>
+      _aggState.store(cb)
     }
 
     setNSer.emit(_aggSerialized := Code.newArray[Array[Byte]](setNSer.getCodeParam[Int](1)))
@@ -808,8 +813,13 @@ trait FunctionWithObjects {
 }
 
 trait FunctionWithAggRegion {
+  // Calls storeAggsToRegion, and returns the aggregator state offset in the top agg region
   def getAggOffset(): Long
 
+  // stores agg regions into the top agg region, so that all agg resources are referenced solely by that region
+  def storeAggsToRegion(): Unit
+
+  // Sets the function's agg container to the agg state at $offset, loads agg regions onto class
   def setAggState(region: Region, offset: Long): Unit
 
   def newAggState(region: Region): Unit
