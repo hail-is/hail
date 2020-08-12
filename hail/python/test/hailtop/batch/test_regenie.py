@@ -19,6 +19,8 @@ class LocalTests(unittest.TestCase):
         rdir = "hailtop/batch/genetics/regenie"
 
         cls.cwd = os.getcwd()
+        print("CWD", cls.cwd)
+        print("listdir", os.listdir())
         cls.outdir = "batch"
         os.chdir(rdir)
         os.system("git clone --depth 1 --branch v1.0.5.5 git@github.com:rgcgithub/regenie.git")
