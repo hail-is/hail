@@ -367,7 +367,7 @@ class BatchBuilder:
         self.attributes = attributes
         self.callback = callback
 
-    def create_job(self, image, command, entrypoint=None, env=None, mount_docker_socket=False,
+    def create_job(self, image, command, shell=None, env=None, mount_docker_socket=False,
                    port=None, resources=None, secrets=None,
                    service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False,
@@ -414,8 +414,8 @@ class BatchBuilder:
             'parent_ids': parent_ids
         }
 
-        if entrypoint is not None:
-            job_spec['entrypoint'] = entrypoint
+        if shell:
+            job_spec['shell'] = shell
         if env:
             job_spec['env'] = [{'name': k, 'value': v} for (k, v) in env.items()]
         if port is not None:

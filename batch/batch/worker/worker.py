@@ -264,20 +264,22 @@ class Container:
             'Memory': self.spec['memory'],
             'BlkioWeight': min(weight, 1000)
         }
+
+        cmd = self.spec['command']
+
+        if self.spec['shell']:
+            cmd[0] = self.spec['shell']
+
         config = {
             "AttachStdin": False,
             "AttachStdout": False,
             "AttachStderr": False,
             "Tty": False,
             'OpenStdin': False,
-            'Cmd': self.spec['command'],
-            'Image': self.image
+            'Cmd': cmd,
+            'Image': self.image,
+            'Entrypoint': '',
         }
-
-        entrypoint = self.spec.get('entrypoint')
-
-        if entrypoint is not None:
-            config['Entrypoint'] = entrypoint
 
         env = self.spec.get('env', [])
 

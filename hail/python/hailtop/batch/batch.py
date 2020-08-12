@@ -90,7 +90,8 @@ class Batch:
                  default_memory: Optional[str] = None,
                  default_cpu: Optional[str] = None,
                  default_storage: Optional[str] = None,
-                 default_timeout: Optional[Union[float, int]] = None):
+                 default_timeout: Optional[Union[float, int]] = None,
+                 default_shell: str = None):
         self._jobs: List[Job] = []
         self._resource_map: Dict[str, Resource] = {}
         self._allocated_files: Set[str] = set()
@@ -112,12 +113,14 @@ class Batch:
         self._default_cpu = default_cpu
         self._default_storage = default_storage
         self._default_timeout = default_timeout
+        self._default_shell = default_shell
 
         self._backend = backend if backend else LocalBackend()
 
     def new_job(self,
                 name: Optional[str] = None,
-                attributes: Optional[Dict[str, str]] = None) -> Job:
+                attributes: Optional[Dict[str, str]] = None,
+                shell: str = None) -> Job:
         """
         Initialize a new job object with default memory, docker image,
         and CPU settings (defined in :class:`.Batch`) upon batch creation.
@@ -147,7 +150,14 @@ class Batch:
         if attributes is None:
             attributes = {}
 
-        j = Job(batch=self, name=name, attributes=attributes)
+        if shell is not None:
+            jshell = shell
+        elif self._default_shell is not None:
+            jshell = self._default_shell
+        else:
+            jshell = None
+
+        j = Job(batch=self, name=name, attributes=attributes, shell=jshell)
 
         if self._default_image is not None:
             j.image(self._default_image)

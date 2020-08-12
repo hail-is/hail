@@ -89,20 +89,29 @@ class LocalTests(unittest.TestCase):
 
             assert self.read(output_file.name) == msg
 
-    @unittest.skipIf(not which("docker"), "docker command is missing")
-    def test_single_job_with_entrypoint(self):
+    def test_single_job_with_shell(self):
         with tempfile.NamedTemporaryFile('w') as output_file:
             msg = 'hello world'
 
             b = self.batch()
-            j = b.new_job()
-            j.image('hailgenetics/entrypoint-test')
+            j = b.new_job(shell='/bin/sh')
             j.command(f'echo "{msg}" > {j.ofile}')
 
             b.write_output(j.ofile, output_file.name)
             b.run()
 
             assert self.read(output_file.name) == msg
+
+    def test_single_job_with_nonsense_shell(self):
+        msg = 'hello world'
+
+        b = self.batch()
+        j = b.new_job(shell='bin/ajdsfoijasidojf')
+        j.command(f'echo "{msg}"')
+        with self.assertRaises(Exception) as context:
+            b.run()
+
+            self.assertTrue('no such file or directory' in context.exception)
 
     def test_single_job_w_input(self):
         with tempfile.NamedTemporaryFile('w') as input_file, \
@@ -539,16 +548,23 @@ class BatchTests(unittest.TestCase):
         j.command('[ $SOME_VARIABLE = "123abcdef" ]')
         assert b.run().status()['state'] == 'success'
 
-    def test_single_job_with_entrypoint(self):
+    def test_single_job_with_shell(self):
         with tempfile.NamedTemporaryFile('w') as output_file:
             msg = 'hello world'
 
             b = self.batch()
-            j = b.new_job()
-            j.image('hailgenetics/entrypoint-test')
+            j = b.new_job(shell='bin/sh')
             j.command(f'echo "{msg}" > {j.ofile}')
 
             b.write_output(j.ofile, output_file.name)
             b.run(wait=True)
 
             assert self.read(output_file.name) == msg
+
+    def test_single_job_with_nonsense_shell(self):
+        msg = 'hello world'
+
+        b = self.batch()
+        j = b.new_job(shell='bin/ajdsfoijasidojf')
+        j.command(f'echo "{msg}"')
+        assert b.run().status()['state'] != 'success'
