@@ -179,7 +179,9 @@ def init_parser(parser):
     parser.add_argument('--configuration',
                         help='Google Cloud configuration to start cluster (defaults to currently set configuration).')
     parser.add_argument('--max-idle', type=str, help='If specified, maximum idle time before shutdown (e.g. 60m).')
-    parser.add_argument('--max-age', type=str, help='If specified, maximum age before shutdown (e.g. 60m).')
+    max_age_group = parser.add_mutually_exclusive_group()
+    max_age_group.add_argument('--expiration-time', type=str, help='If specified, time at which cluster is shutdown (e.g. 2020-01-01T00:00:00Z).')
+    max_age_group.add_argument('--max-age', type=str, help='If specified, maximum age before shutdown (e.g. 60m).')
     parser.add_argument('--bucket', type=str,
                         help='The Google Cloud Storage bucket to use for cluster staging (just the bucket name, no gs:// prefix).')
     parser.add_argument('--network', type=str, help='the network for all nodes in this cluster')
@@ -344,6 +346,8 @@ def main(args, pass_through_args):
         cmd.append('--max-idle={}'.format(args.max_idle))
     if args.max_age:
         cmd.append('--max-age={}'.format(args.max_age))
+    if args.expiration_time:
+        cmd.append('--expiration_time={}'.format(args.expiration_time))
 
     cmd.extend(pass_through_args)
 

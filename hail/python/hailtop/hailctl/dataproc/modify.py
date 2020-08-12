@@ -13,7 +13,28 @@ def init_parser(parser):
                         help='New number of preemptible worker machines.')
     parser.add_argument('--graceful-decommission-timeout', '--graceful', type=str,
                         help='If set, cluster size downgrade will use graceful decommissioning with the given timeout (e.g. "60m").')
-    parser.add_argument('--max-idle', type=str, help='New maximum idle time before shutdown (e.g. "60m").')
+    max_idle_group = parser.add_mutually_exclusive_group()
+    max_idle_group.add_argument('--max-idle',
+                                type=str,
+                                help='New maximum idle time before shutdown (e.g. "60m").')
+    max_idle_group.add_argument('--no-max-idle',
+                                action='store_true',
+                                help='Disable auto deletion after idle time.')
+    max_age_group = parser.add_mutually_exclusive_group()
+    max_age_group.add_argument(
+        '--expiration-time',
+        type=str,
+        help=('The time when cluster will be auto-deleted. (e.g. "2020-01-01T20:00:00Z"). '
+              'Execute gcloud topic datatimes for more information.'))
+    max_age_group.add_argument(
+        '--max-age',
+        type=str,
+        help=('If the cluster is older than this, it will be auto-deleted. (e.g. "2h")'
+              'Execute gcloud topic datatimes for more information.'))
+    max_age_group.add_argument(
+        '--no-max-age',
+        action='store_true',
+        help='Disable auto-deletion due to max age or expiration time.')
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
     parser.add_argument('--zone', '-z', type=str, help='Compute zone for Dataproc cluster.')
     wheel_group = parser.add_mutually_exclusive_group()
@@ -37,6 +58,14 @@ def main(args, pass_through_args):
 
     if args.max_idle:
         modify_args.append('--max-idle={}'.format(args.max_idle))
+    if args.no_max_idle:
+        modify_args.append('--no-max-idle')
+    if args.expiration_time:
+        modify_args.append('--expiration_time={}'.format(args.expiration_time))
+    if args.max_age:
+        modify_args.append('--max-age={}'.format(args.max_age))
+    if args.no_max_age:
+        modify_args.append('--no-max-age')
 
     if modify_args:
         cmd = ['dataproc', 'clusters', 'update', args.name] + modify_args
