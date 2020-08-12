@@ -1,12 +1,10 @@
 package is.hail.annotations
 
 import is.hail.asm4s._
-import is.hail.expr.ir
-import is.hail.expr.ir.{Ascending, EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.{Ascending, Descending, EmitMethodBuilder, SortField, SortOrder}
 import is.hail.types._
 import is.hail.asm4s.coerce
 import is.hail.types.physical._
-import is.hail.expr.ir.{Ascending, Descending}
 import is.hail.utils._
 
 object CodeOrdering {
@@ -17,6 +15,10 @@ object CodeOrdering {
     val missingEqual: Boolean
   }
   final case class Compare(missingEqual: Boolean = true) extends Op {
+    type ReturnType = Int
+    val rtti = typeInfo[Int]
+  }
+  final case class CompareStructs(sf: IndexedSeq[SortField], missingEqual: Boolean = true) extends Op {
     type ReturnType = Int
     val rtti = typeInfo[Int]
   }
@@ -46,8 +48,8 @@ object CodeOrdering {
     val m1: LocalRef[Boolean] = mb.newLocal[Boolean]()
     val m2: LocalRef[Boolean] = mb.newLocal[Boolean]()
 
-    val v1s: Array[LocalRef[_]] = t1.types.map(tf => mb.newLocal()(ir.typeToTypeInfo(tf)))
-    val v2s: Array[LocalRef[_]] = t2.types.map(tf => mb.newLocal()(ir.typeToTypeInfo(tf)))
+    val v1s: Array[LocalRef[_]] = t1.types.map(tf => mb.newLocal()(typeToTypeInfo(tf)))
+    val v2s: Array[LocalRef[_]] = t2.types.map(tf => mb.newLocal()(typeToTypeInfo(tf)))
 
     def setup(i: Int)(x: Value[Long], y: Value[Long]): Code[Unit] = {
       val tf1 = t1.types(i)
@@ -55,8 +57,8 @@ object CodeOrdering {
       Code(
         m1 := t1.isFieldMissing(x, i),
         m2 := t2.isFieldMissing(y, i),
-        v1s(i).storeAny(m1.mux(ir.defaultValue(tf1), Region.loadIRIntermediate(tf1)(t1.fieldOffset(x, i)))),
-        v2s(i).storeAny(m2.mux(ir.defaultValue(tf2), Region.loadIRIntermediate(tf2)(t2.fieldOffset(y, i)))))
+        v1s(i).storeAny(m1.mux(defaultValue(tf1), Region.loadIRIntermediate(tf1)(t1.fieldOffset(x, i)))),
+        v2s(i).storeAny(m2.mux(defaultValue(tf2), Region.loadIRIntermediate(tf2)(t2.fieldOffset(y, i)))))
     }
 
     private[this] def fieldOrdering(i: Int, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
@@ -143,9 +145,9 @@ object CodeOrdering {
     val lim: LocalRef[Int] = mb.newLocal[Int]()
     val i: LocalRef[Int] = mb.newLocal[Int]()
     val m1: LocalRef[Boolean] = mb.newLocal[Boolean]()
-    val v1: LocalRef[ord.T] = mb.newLocal()(ir.typeToTypeInfo(t1.elementType)).asInstanceOf[LocalRef[ord.T]]
+    val v1: LocalRef[ord.T] = mb.newLocal()(typeToTypeInfo(t1.elementType)).asInstanceOf[LocalRef[ord.T]]
     val m2: LocalRef[Boolean] = mb.newLocal[Boolean]()
-    val v2: LocalRef[ord.T] = mb.newLocal()(ir.typeToTypeInfo(t2.elementType)).asInstanceOf[LocalRef[ord.T]]
+    val v2: LocalRef[ord.T] = mb.newLocal()(typeToTypeInfo(t2.elementType)).asInstanceOf[LocalRef[ord.T]]
     val eq: LocalRef[Boolean] = mb.newLocal[Boolean]()
 
     def loop(cmp: Code[Unit], loopCond: Code[Boolean])
@@ -246,23 +248,23 @@ object CodeOrdering {
     type T = Long
     val mp1: LocalRef[Boolean] = mb.newLocal[Boolean]()
     val mp2: LocalRef[Boolean] = mb.newLocal[Boolean]()
-    val p1: LocalRef[_] = mb.newLocal()(ir.typeToTypeInfo(t1.pointType))
-    val p2: LocalRef[_] = mb.newLocal()(ir.typeToTypeInfo(t2.pointType))
+    val p1: LocalRef[_] = mb.newLocal()(typeToTypeInfo(t1.pointType))
+    val p2: LocalRef[_] = mb.newLocal()(typeToTypeInfo(t2.pointType))
 
     def loadStart(x: Value[T], y: Value[T]): Code[Unit] = {
       Code(
         mp1 := !t1.startDefined(x),
         mp2 := !t2.startDefined(y),
-        p1.storeAny(mp1.mux(ir.defaultValue(t1.pointType), Region.loadIRIntermediate(t1.pointType)(t1.startOffset(x)))),
-        p2.storeAny(mp2.mux(ir.defaultValue(t2.pointType), Region.loadIRIntermediate(t2.pointType)(t2.startOffset(y)))))
+        p1.storeAny(mp1.mux(defaultValue(t1.pointType), Region.loadIRIntermediate(t1.pointType)(t1.startOffset(x)))),
+        p2.storeAny(mp2.mux(defaultValue(t2.pointType), Region.loadIRIntermediate(t2.pointType)(t2.startOffset(y)))))
     }
 
     def loadEnd(x: Value[T], y: Value[T]): Code[Unit] = {
       Code(
         mp1 := !t1.endDefined(x),
         mp2 := !t2.endDefined(y),
-        p1.storeAny(mp1.mux(ir.defaultValue(t1.pointType), Region.loadIRIntermediate(t1.pointType)(t1.endOffset(x)))),
-        p2.storeAny(mp2.mux(ir.defaultValue(t2.pointType), Region.loadIRIntermediate(t2.pointType)(t2.endOffset(y)))))
+        p1.storeAny(mp1.mux(defaultValue(t1.pointType), Region.loadIRIntermediate(t1.pointType)(t1.endOffset(x)))),
+        p2.storeAny(mp2.mux(defaultValue(t2.pointType), Region.loadIRIntermediate(t2.pointType)(t2.endOffset(y)))))
     }
 
     override def compareNonnull(x: Code[T], y: Code[T]): Code[Int] = {

@@ -11,6 +11,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def _asIdent: String = s"ndarray_of_${elementType.asIdent}"
 
+  override def containsPointers: Boolean = true
+
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("PCNDArray[")
     elementType.pretty(sb, indent, compact)
@@ -184,8 +186,14 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     (createShape, newIndices)
   }
 
-  override def construct(shapeBuilder: StagedRegionValueBuilder => Code[Unit], stridesBuilder: StagedRegionValueBuilder => Code[Unit], data: Code[Long], mb: EmitMethodBuilder[_]): Code[Long] = {
-    val srvb = new StagedRegionValueBuilder(mb, this.representation)
+  override def construct(
+    shapeBuilder: StagedRegionValueBuilder => Code[Unit],
+    stridesBuilder: StagedRegionValueBuilder => Code[Unit],
+    data: Code[Long],
+    mb: EmitMethodBuilder[_],
+    region: Value[Region]
+  ): Code[Long] = {
+    val srvb = new StagedRegionValueBuilder(mb, this.representation, region)
 
     Code(Code(FastIndexedSeq(
       srvb.start(),

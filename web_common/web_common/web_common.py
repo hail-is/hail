@@ -64,6 +64,7 @@ def base_context(session, userdata, service):
         'batch_driver_base_url': deploy_config.external_url('batch-driver', ''),
         'ci_base_url': deploy_config.external_url('ci', ''),
         'scorecard_base_url': deploy_config.external_url('scorecard', ''),
+        'benchmark_base_url': deploy_config.external_url('benchmark', ''),
         'userdata': userdata
     }
     if 'message' in session:

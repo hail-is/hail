@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.CodeOrdering
 import is.hail.types.physical.PType
-import is.hail.types.virtual.Type
+import is.hail.types.virtual.{TStruct, Type}
 
 object ComparisonOp {
 
@@ -32,6 +32,8 @@ object ComparisonOp {
     case ("Compare", t1, t2) =>
       checkCompatible(t1, t2)
       Compare(t1, t2)
+    case ("CompareStructs", _, _) =>
+      throw new RuntimeException("CompareStructs must go through a custom parse rule to include sort fields")
   }
 
   def invert[T](op: ComparisonOp[Boolean]): ComparisonOp[Boolean] = {
@@ -58,6 +60,8 @@ sealed trait ComparisonOp[ReturnType] {
     ComparisonOp.checkCompatible(t1p.virtualType, t2p.virtualType)
     mb.getCodeOrdering(t1p, t2p, op)
   }
+
+  def render(): String = Pretty.prettyClass(this)
 }
 
 case class GT(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.Gt() }
@@ -87,3 +91,14 @@ case class Compare(t1: Type, t2: Type) extends ComparisonOp[Int] {
   val op: CodeOrdering.Op = CodeOrdering.Compare()
 }
 object Compare { def apply(typ: Type): Compare = Compare(typ, typ) }
+
+case class CompareStructs(t: TStruct, sortFields: IndexedSeq[SortField]) extends ComparisonOp[Int] {
+  if (!t.fieldNames.sameElements(sortFields.map(_.field)))
+    throw new RuntimeException(s"invalid CompareStructs: struct must have the same fields as sortFields.\n  t=$t\n  SF:$sortFields")
+  def t1: TStruct = t
+  def t2: TStruct = t
+  override val strict: Boolean = false
+  val op: CodeOrdering.Op = CodeOrdering.CompareStructs(sortFields)
+
+  override def render(): String = super.render() + " " + Pretty.prettySortFields(sortFields)
+}

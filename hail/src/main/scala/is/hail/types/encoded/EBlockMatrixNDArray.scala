@@ -97,7 +97,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
       t.data.pType.stagedInitialize(data, n, setMissing=true),
       Code.forLoop(i := 0, i < n, i := i + 1,
         readElemF(region, t.data.pType.elementOffset(data, n, i), in)),
-      t.construct(shapeBuilder, stridesBuilder, data, mb))
+      t.construct(shapeBuilder, stridesBuilder, data, mb, region))
   }
 
   def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {

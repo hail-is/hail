@@ -7,6 +7,10 @@ COPY benchmark-service/setup.py benchmark-service/MANIFEST.in  /benchmark-servic
 RUN pip3 install --no-cache-dir /benchmark-service && \
     rm -rf /benchmark-service
 
+RUN pip3 install plotly
+
+RUN pip3 install pandas
+
 EXPOSE 5000
 
 CMD ["python3", "-m", "benchmark.benchmark"]

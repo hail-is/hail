@@ -72,7 +72,7 @@ object Bindings {
 
 object AggBindings {
 
-  def apply(x: IR, i: Int, parent: BindingEnv[_]): Option[Iterable[(String, Type)]] = {
+  def apply(x: BaseIR, i: Int, parent: BindingEnv[_]): Option[Iterable[(String, Type)]] = {
     def wrapped(bindings: Iterable[(String, Type)]): Option[Iterable[(String, Type)]] = {
       if (parent.agg.isEmpty)
         throw new RuntimeException(s"aggEnv was None for child $i of $x")
@@ -93,33 +93,26 @@ object AggBindings {
       case RelationalLet(_, _, _) => None
       case CollectDistributedArray(_, _, _, _, _) if (i == 2) => None
       case _: ApplyAggOp => None
-      case _ => base
-    }
-  }
+      case _: IR => base
 
-  def apply(x: TableIR, i: Int): Option[Iterable[(String, Type)]] = {
-    x match {
       case TableAggregateByKey(child, _) => if (i == 1) Some(child.typ.rowEnv.m) else None
       case TableKeyByAndAggregate(child, _, _, _, _) => if (i == 1) Some(child.typ.rowEnv.m) else None
-      case _ => None
+      case _: TableIR => None
+
+      case MatrixMapRows(child, _) => if (i == 1) Some(child.typ.entryEnv.m) else None
+      case MatrixMapCols(child, _, _) => if (i == 1) Some(child.typ.entryEnv.m) else None
+      case MatrixAggregateColsByKey(child, _, _) => if (i == 1) Some(child.typ.entryEnv.m) else if (i == 2) Some(child.typ.colEnv.m) else None
+      case MatrixAggregateRowsByKey(child, _, _) => if (i == 1) Some(child.typ.entryEnv.m) else if (i == 2) Some(child.typ.rowEnv.m) else None
+      case _: MatrixIR => None
+
+      case _: BlockMatrixIR => None
+
     }
-  }
-
-  def apply(x: MatrixIR, i: Int): Option[Iterable[(String, Type)]] = x match {
-    case MatrixMapRows(child, _) => if (i == 1) Some(child.typ.entryEnv.m) else None
-    case MatrixMapCols(child, _, _) => if (i == 1) Some(child.typ.entryEnv.m) else None
-    case MatrixAggregateColsByKey(child, _, _) => if (i == 1) Some(child.typ.entryEnv.m) else if (i == 2) Some(child.typ.colEnv.m) else None
-    case MatrixAggregateRowsByKey(child, _, _) => if (i == 1) Some(child.typ.entryEnv.m) else if (i == 2) Some(child.typ.rowEnv.m) else None
-    case _ => None
-  }
-
-  def apply(x: BlockMatrixIR, i: Int): Option[Iterable[(String, Type)]] = x match {
-    case _ => None
   }
 }
 
 object ScanBindings {
-  def apply(x: IR, i: Int, parent: BindingEnv[_]): Option[Iterable[(String, Type)]] = {
+  def apply(x: BaseIR, i: Int, parent: BindingEnv[_]): Option[Iterable[(String, Type)]] = {
     def wrapped(bindings: Iterable[(String, Type)]): Option[Iterable[(String, Type)]] = {
       if (parent.scan.isEmpty)
         throw new RuntimeException(s"scanEnv was None for child $i of $x")
@@ -140,83 +133,39 @@ object ScanBindings {
       case RelationalLet(_, _, _) => None
       case CollectDistributedArray(_, _, _, _, _) if (i == 2) => None
       case _: ApplyScanOp => None
-      case _ => base
-    }
-  }
+      case _: IR => base
 
-  def apply(x: TableIR, i: Int): Option[Iterable[(String, Type)]] = {
-    x match {
       case TableMapRows(child, _) => if (i == 1) Some(child.typ.rowEnv.m) else None
-      case _ => None
+      case _: TableIR => None
+
+      case MatrixMapRows(child, _) => if (i == 1) Some(child.typ.rowEnv.m) else None
+      case MatrixMapCols(child, _, _) => if (i == 1) Some(child.typ.colEnv.m) else None
+      case _: MatrixIR => None
+
+      case _: BlockMatrixIR => None
     }
-  }
-
-  def apply(x: MatrixIR, i: Int): Option[Iterable[(String, Type)]] = x match {
-    case MatrixMapRows(child, _) => if (i == 1) Some(child.typ.rowEnv.m) else None
-    case MatrixMapCols(child, _, _) => if (i == 1) Some(child.typ.colEnv.m) else None
-    case _ => None
-  }
-
-  def apply(x: BlockMatrixIR, i: Int): Option[Iterable[(String, Type)]] = x match {
-    case _ => None
   }
 }
 
 object RelationalBindings {
   private val empty: Array[(String, Type)] = Array()
 
-  def apply(x: IR, i: Int): Iterable[(String, Type)] = {
+  def apply(x: BaseIR, i: Int): Iterable[(String, Type)] = {
     x match {
       case RelationalLet(name, value, _) => if (i == 1) FastIndexedSeq(name -> value.typ) else empty
-      case _ => empty
-    }
-  }
-
-  def apply(x: TableIR, i: Int): Iterable[(String, Type)] = {
-    x match {
       case RelationalLetTable(name, value, _) => if (i == 1) FastIndexedSeq(name -> value.typ) else empty
-      case _ => empty
-    }
-  }
-
-  def apply(x: MatrixIR, i: Int): Iterable[(String, Type)] =
-    x match {
       case RelationalLetMatrixTable(name, value, _) => if (i == 1) FastIndexedSeq(name -> value.typ) else empty
+      case RelationalLetBlockMatrix(name, value, _) => if (i == 1) FastIndexedSeq(name -> value.typ) else empty
       case _ => empty
     }
-
-  def apply(x: BlockMatrixIR, i: Int): Iterable[(String, Type)] = x match {
-    case RelationalLetBlockMatrix(name, value, _) => if (i == 1) FastIndexedSeq(name -> value.typ) else empty
-    case _ => empty
   }
 }
 
 object NewBindings {
-  def apply(x: IR, i: Int, parent: BindingEnv[_]): BindingEnv[Type] = {
+  def apply(x: BaseIR, i: Int, parent: BindingEnv[_]): BindingEnv[Type] = {
     BindingEnv(Env.fromSeq(Bindings(x, i)),
       agg = AggBindings(x, i, parent).map(b => Env.fromSeq(b)),
       scan = ScanBindings(x, i, parent).map(b => Env.fromSeq(b)),
-      relational = Env.fromSeq(RelationalBindings(x, i)))
-  }
-
-  def apply(x: TableIR, i: Int): BindingEnv[Type] = {
-    BindingEnv(Env.fromSeq(Bindings(x, i)),
-      agg = AggBindings(x, i).map(b => Env.fromSeq(b)),
-      scan = ScanBindings(x, i).map(b => Env.fromSeq(b)),
-      relational = Env.fromSeq(RelationalBindings(x, i)))
-  }
-
-  def apply(x: MatrixIR, i: Int): BindingEnv[Type] = {
-    BindingEnv(Env.fromSeq(Bindings(x, i)),
-      agg = AggBindings(x, i).map(b => Env.fromSeq(b)),
-      scan = ScanBindings(x, i).map(b => Env.fromSeq(b)),
-      relational = Env.fromSeq(RelationalBindings(x, i)))
-  }
-
-  def apply(x: BlockMatrixIR, i: Int): BindingEnv[Type] = {
-    BindingEnv(Env.fromSeq(Bindings(x, i)),
-      agg = AggBindings(x, i).map(b => Env.fromSeq(b)),
-      scan = ScanBindings(x, i).map(b => Env.fromSeq(b)),
       relational = Env.fromSeq(RelationalBindings(x, i)))
   }
 }
@@ -229,40 +178,29 @@ object ChildEnvWithoutBindings {
       case ApplyAggOp(init, _, _) => if (i < init.length) env.copy(agg = None) else env.promoteAgg
       case ApplyScanOp(init, _, _) => if (i < init.length) env.copy(scan = None) else env.promoteScan
       case CollectDistributedArray(_, _, _, _, _) => if (i == 2) BindingEnv(relational = env.relational) else env
-      case MatrixAggregate(_, _) => if (i == 0) BindingEnv.empty else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
-      case TableAggregate(_, _) => if (i == 0) BindingEnv.empty else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
+      case MatrixAggregate(_, _) => if (i == 0) BindingEnv(relational = env.relational) else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
+      case TableAggregate(_, _) => if (i == 0) BindingEnv(relational = env.relational) else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
       case RelationalLet(_, _, _) => if (i == 0) BindingEnv(relational = env.relational) else env.copy(agg = None, scan = None)
       case LiftMeOut(_) => BindingEnv(Env.empty[T], env.agg.map(_ => Env.empty), env.scan.map(_ => Env.empty), relational = env.relational)
-      case tir: TableIR => BindingEnv(
-        agg = AggBindings(tir, i).map(_ => Env.empty),
-        scan = ScanBindings(tir, i).map(_ => Env.empty),
-        relational = env.relational)
-      case mir: MatrixIR =>
-        BindingEnv(
-          agg = AggBindings(mir, i).map(_ => Env.empty),
-          scan = ScanBindings(mir, i).map(_ => Env.empty),
-          relational = env.relational)
-      case bmir: BlockMatrixIR =>
-        BindingEnv(
-          agg = AggBindings(bmir, i).map(_ => Env.empty),
-          scan = ScanBindings(bmir, i).map(_ => Env.empty),
-          relational = env.relational)
       case _: IR => if (UsesAggEnv(ir, i)) env.promoteAgg else if (UsesScanEnv(ir, i)) env.promoteScan else env
+      case x => BindingEnv(
+        agg = AggBindings(x, i, env).map(_ => Env.empty),
+        scan = ScanBindings(x, i, env).map(_ => Env.empty),
+        relational = env.relational)
     }
   }
 }
 
 object ChildBindings {
-  def apply(ir: IR, i: Int, baseEnv: BindingEnv[Type]): BindingEnv[Type] = {
-    assert(ir.children(i).isInstanceOf[IR])
+  def apply(ir: BaseIR, i: Int, baseEnv: BindingEnv[Type]): BindingEnv[Type] = {
     val env = ChildEnvWithoutBindings(ir, i, baseEnv)
     val newBindings = NewBindings(ir, i, env)
     env.merge(newBindings)
   }
 
-  def apply(ir: TableIR, i: Int): BindingEnv[Type] = NewBindings(ir, i)
-
-  def apply(ir: MatrixIR, i: Int): BindingEnv[Type] = NewBindings(ir, i)
-
-  def apply(ir: BlockMatrixIR, i: Int): BindingEnv[Type] = NewBindings(ir, i)
+  def transformed[T](ir: BaseIR, i: Int, baseEnv: BindingEnv[T], f: (String, Type) => T): BindingEnv[T] = {
+    val env = ChildEnvWithoutBindings(ir, i, baseEnv)
+    val newBindings = NewBindings(ir, i, env).mapValuesWithKey(f)
+    env.merge(newBindings)
+  }
 }

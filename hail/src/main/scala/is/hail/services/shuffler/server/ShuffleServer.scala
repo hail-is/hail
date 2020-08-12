@@ -9,6 +9,7 @@ import is.hail.expr.ir._
 import is.hail.types.encoded._
 import is.hail.types.virtual._
 import is.hail.io._
+import is.hail.services.tls._
 import is.hail.services.shuffler._
 import is.hail.utils._
 import javax.net.ssl._
@@ -207,17 +208,20 @@ class Shuffle (
   }
 }
 
-class ShuffleServer (
-  ssl: SSLContext,
-  port: Int
-) extends AutoCloseable {
+object ShuffleServer {
+  def main(args: Array[String]): Unit =
+    using(new ShuffleServer())(_.serve())
+}
+
+class ShuffleServer() extends AutoCloseable {
+  val ssl = getSSLContext
+  val port = 443
   val log = Logger.getLogger(this.getClass.getName());
 
   val shuffles = new ConcurrentSkipListMap[Array[Byte], Shuffle](new SameLengthByteArrayComparator())
 
   val ssf = ssl.getServerSocketFactory()
-  val ss = ssf.createServerSocket(port)
-  ss.asInstanceOf[SSLServerSocket].setNeedClientAuth(true)
+  val ss = ssf.createServerSocket(port).asInstanceOf[SSLServerSocket]
 
   val executor = Executors.newCachedThreadPool()
   var stopped = false

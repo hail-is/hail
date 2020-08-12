@@ -388,7 +388,7 @@ abstract class PType extends Serializable with Requiredness {
       fundamentalType.isInstanceOf[PFloat32] ||
       fundamentalType.isInstanceOf[PFloat64]
 
-  def containsPointers: Boolean = false
+  def containsPointers: Boolean
 
   def subsetTo(t: Type): PType = {
     this match {
@@ -459,7 +459,7 @@ abstract class PType extends Serializable with Requiredness {
 
   def deepRename(t: Type): PType = this
 
-  def defaultValue: PCode = PCode(this, ir.defaultValue(this))
+  def defaultValue: PCode = PCode(this, is.hail.types.physical.defaultValue(this))
 
 
   final def typeCheck(a: Any): Boolean = a == null || _typeCheck(a)

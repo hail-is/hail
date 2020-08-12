@@ -37,6 +37,10 @@ trait PUnrealizable extends PType {
     unsupported
 
   def stackValueToAnnotation(c: Code[_]): Code[AnyRef] = unsupported
+
+  override def containsPointers: Boolean = {
+    throw new UnsupportedOperationException("containsPointers not supported on PUnrealizable")
+  }
 }
 
 trait PUnrealizableCode extends PCode {
@@ -59,7 +63,7 @@ trait PUnrealizableCode extends PCode {
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PValue = unsupported
 
-  override def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destPtype: PType): PCode = {
+  override def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destPtype: PType, deepCopy: Boolean = false): PCode = {
     assert(destPtype == pt)
     this
   }

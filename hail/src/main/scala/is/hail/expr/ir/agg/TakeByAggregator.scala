@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType, SortOrder, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType, SortOrder}
 import is.hail.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._

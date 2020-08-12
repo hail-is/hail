@@ -3,7 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir._
-import is.hail.types.physical.{PBoolean, PCanonicalInterval, PCode, PInterval, PIntervalCode, PType}
+import is.hail.types.physical._
 import is.hail.types.virtual.{TArray, TBoolean, TInt32, TInterval, TString, TStruct, TTuple, Type}
 import is.hail.utils._
 
