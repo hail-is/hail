@@ -105,6 +105,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 async def compare(request, userdata):  # pylint: disable=unused-argument
     file1 = request.query.get('file1')
     file2 = request.query.get('file2')
+    metric = request.query.get('metrics')
     if file1 is None or file2 is None:
         benchmarks_context1 = None
         benchmarks_context2 = None
@@ -113,6 +114,7 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
         benchmarks_context2 = get_benchmarks(file2)
     context = {'file1': file1,
                'file2': file2,
+               'metric': metric,
                'benchmarks1': benchmarks_context1,
                'benchmarks2': benchmarks_context2}
     return await render_template('benchmark', request, userdata, 'compare.html', context)

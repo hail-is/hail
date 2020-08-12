@@ -7,6 +7,11 @@
 <form action="{{ base_path }}/compare" method="get">
     <input type="text" name="file1"></input>
     <input type="text" name="file2"></input>
+    <label for="metrics"> Choose a metric:</label>
+    <select id="metrics" name="metrics">
+        <option value="best">best</option>
+        <option value="median">median</option>
+    </select>
     <input type="submit" value="compare"></input>
 </form>
 
@@ -38,9 +43,16 @@
             <td>{{ d['name'] }}</td>
             {% for item in benchmarks2['data'] if item['name'] == d['name'] %}
                 <td>
-                    {% if item is not none %}
-                        {% set ratio = d['mean'] / item['mean'] %}
-                        ({{'%0.3f'| format(ratio|float)}}%)
+<!--                    {% if item is not none %}-->
+<!--                        {% set ratio = d['mean'] / item['mean'] %}-->
+<!--                        {{'%0.3f'| format(ratio|float)}}-->
+<!--                    {% endif %}-->
+                    {% if metric == 'median' %}
+                        {% set ratio = d['median'] / item['median'] %}
+                        {{'%0.3f'| format(ratio|float)}}
+                    {% else %}
+                        {% set ratio = (d['times'] | min) / (item['times'] | min) %}
+                        {{'%0.3f'| format(ratio|float)}}
                     {% endif %}
                 </td>
                 <td>{{ d['mean'] }}</td>
