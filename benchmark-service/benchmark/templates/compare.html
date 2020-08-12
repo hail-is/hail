@@ -93,7 +93,7 @@
         {% for name, ratio, r1, r2 in comparisons['comps'] %}
         <tr>
             <td>{{ name }}</td>
-            <td>{{ ratio }}</td>
+            <td>{{ ratio }}%</td>
             <td>{{ r1 }}</td>
             <td>{{ r2 }}</td>
         </tr>
@@ -101,10 +101,10 @@
         </tbody>
     </table>
 
-    <p> Harmonic Mean: {{ comparisons['harmonic_mean'] }} </p>
-    <p> Geometric Mean: {{ comparisons['geometric_mean'] }} </p>
-    <p> Arithmetic Mean: {{ comparisons['arithmetic_mean'] }}</p>
-    <p> Median: {{ comparisons['median'] }}</p>
+    <p> Harmonic Mean: {{ comparisons['harmonic_mean'] }}% </p>
+    <p> Geometric Mean: {{ comparisons['geometric_mean'] }}% </p>
+    <p> Arithmetic Mean: {{ comparisons['arithmetic_mean'] }}%</p>
+    <p> Median: {{ comparisons['median'] }}%</p>
 {% endif %}
 
 {% endblock %}
