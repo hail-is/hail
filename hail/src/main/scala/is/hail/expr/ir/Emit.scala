@@ -969,20 +969,26 @@ class Emit[C](
           uuid.loadBytes(),
           mb.ecb.getPType(rowsPType.elementType),
           Code._null)
-        cb.append(shuffle.startPut())
+        cb += shuffle.startPut()
+
+        val eltRegion = region.createChildRegion(mb)
         val rows = emitStream(rowsIR).handle(cb, {
           cb._fatal("rows stream was missing in shuffle write")
-        }).asStream.stream.getStream(region)
-        cb.append(rows.forEach(mb, { row: EmitCode =>
+        }).asStream.stream.getStream(eltRegion)
+        cb += eltRegion.allocateRegion(Region.REGULAR)
+        cb += rows.forEach(mb, { row: EmitCode =>
           Code(
             row.setup,
             row.m.mux(
               Code._fatal[Unit]("cannot handle empty rows in shuffle put"),
-              shuffle.putValue(row.value[Long])))
-        }))
-        cb.append(shuffle.putValueDone())
-        cb.append(shuffle.endPut())
-        cb.append(shuffle.close())
+              Code(shuffle.putValue(row.value[Long]),
+                   eltRegion.clear())))
+        })
+        cb += eltRegion.free()
+        cb += shuffle.putValueDone()
+        cb += shuffle.endPut()
+        cb += shuffle.close()
+
         val resPType = pt.asInstanceOf[PCanonicalBinary]
         // FIXME: server needs to send uuid for the successful partition
         val boff = cb.memoize(new PCanonicalBinaryCode(resPType, resPType.allocate(region.code, 0)), "shuffleWriteBOff")
@@ -2170,18 +2176,23 @@ class Emit[C](
         }
 
         def addContexts(ctxStream: SizedStream): Code[Unit] = ctxStream match {
-          case SizedStream(setup, stream, len) => Code(
-            setup,
-            ctxab.invoke[Int, Unit]("ensureCapacity", len.getOrElse(16)),
-            stream(region).map(etToTuple(_, ctxType)).forEach(mb, { offset =>
-              Code(
-                baos.invoke[Unit]("reset"),
-                Code.memoize(offset, "cda_add_contexts_addr") { offset =>
-                  cEnc(region.code, offset, buf)
-                },
-                buf.invoke[Unit]("flush"),
-                ctxab.invoke[Array[Byte], Unit]("add", baos.invoke[Array[Byte]]("toByteArray")))
-            }))
+          case SizedStream(setup, stream, len) =>
+            val eltRegion = region.createChildRegion(mb)
+            Code(
+              setup,
+              ctxab.invoke[Int, Unit]("ensureCapacity", len.getOrElse(16)),
+              eltRegion.allocateRegion(Region.REGULAR),
+              stream(eltRegion).map(etToTuple(_, ctxType)).forEach(mb, { offset =>
+                Code(
+                  baos.invoke[Unit]("reset"),
+                  Code.memoize(offset, "cda_add_contexts_addr") { offset =>
+                    cEnc(region.code, offset, buf)
+                  },
+                  eltRegion.clear(),
+                  buf.invoke[Unit]("flush"),
+                  ctxab.invoke[Array[Byte], Unit]("add", baos.invoke[Array[Byte]]("toByteArray")))
+              }),
+              eltRegion.free())
           }
 
         val addGlobals = Code(
@@ -2266,8 +2277,7 @@ class Emit[C](
         val eltType = coerce[PStruct](coerce[PStream](stream.pType).elementType)
         COption.toEmitCode(
           COption.fromEmitCode(emitStream(stream)).flatMap { s =>
-            COption.fromEmitCode(writer.consumeStream(ctxCode, eltType, mb,
-                                                      region.code, s.asStream.stream))
+            COption.fromEmitCode(writer.consumeStream(ctxCode, eltType, mb, region, s.asStream.stream))
           }, mb)
 
       case x =>
