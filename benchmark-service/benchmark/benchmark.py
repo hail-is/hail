@@ -116,14 +116,16 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
     try:
         # fig = px.scatter(x=enumerate_list_index(name_data['trials']), y=name_data['times'],
         #                  hovertemplate='Index: %{}'.format(name_data['times'].index(y)))
-        fig = go.Figure(go.Scatter(
-            x=enumerate_list_index(name_data['trials']),
-            y=name_data['times'],
-            hovertemplate='x=%{x}' +
-            '<br>y=%{y:.3f}<br>' +
-            '%{text}',
-            text=['Index: {}'.format(i+1) for i in range(len(name_data['times']))]
-        ))
+        # fig = go.Figure(go.Scatter(
+        #     x=enumerate_list_index(name_data['trials']),
+        #     y=name_data['times'],
+        #     hovertemplate='x=%{x}' +
+        #     '<br>y=%{y:.3f}<br>' +
+        #     '%{text}',
+        #     text=['Index: {}'.format(i+1) for i in range(len(name_data['times']))]
+        # ))
+        fig = px.scatter(x=enumerate_list_index(name_data['trials']), y=name_data['times'],
+                         hovertemplate=['Index: {}'.format(i+1) for i in range(len(name_data['times']))])
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     except Exception:
         message = 'could not find name'
