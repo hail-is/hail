@@ -4,8 +4,10 @@
 {% block content %}
 <h1>Benchmark System</h1>
 
-<form action="{{ base_path }}/" method="get">
-    <input type="text" name="file"></input>
+<form autocomplete="off" action="{{ base_path }}/" method="get">
+    <div class="autocomplete">
+        <input type="text" name="file" id="file"></input>
+    </div>
     <input type="submit" value="lookup"></input>
 </form>
 
@@ -55,4 +57,8 @@
 
 {% endif %}
 
+<script type="text/javascript" src="autocomplete.js">
+   var files = "{{ cached_files|escapejs }}";
+   autocomplete(document.getElementById("file"), files);
+</script>
 {% endblock %}

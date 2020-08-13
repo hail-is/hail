@@ -127,7 +127,7 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
         # ))
         df = pd.DataFrame(dict(trial=enumerate_list_index(name_data['trials']),
                                wall_time=name_data['times'],
-                               index=['Index: {}'.format(i+1) for i in range(len(name_data['times']))]))
+                               index=['{}'.format(i+1) for i in range(len(name_data['times']))]))
 
         fig = px.scatter(df, x=df.trial, y=df.wall_time, hover_data=['index'])
         # fig = px.scatter(x=enumerate_list_index(name_data['trials']), y=name_data['times'],
@@ -156,7 +156,8 @@ async def index(request, userdata):  # pylint: disable=unused-argument
     else:
         benchmarks_context = get_benchmarks(file)
     context = {'file': file,
-               'benchmarks': benchmarks_context}
+               'benchmarks': benchmarks_context,
+               'cached_files': ReadGoogleStorage().get_memoized_files()}
     return await render_template('benchmark', request, userdata, 'index.html', context)
 
 
