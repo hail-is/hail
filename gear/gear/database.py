@@ -1,6 +1,5 @@
 from typing import Optional
 import os
-import json
 import pymysql
 import aiomysql
 import logging

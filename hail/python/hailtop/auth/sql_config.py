@@ -54,7 +54,7 @@ ssl-mode={self.ssl_mode}
         assert self.user is not None
         assert self.password is not None
         assert self.instance is not None
-        assert self.connection is not None
+        assert self.connection_name is not None
         assert self.ssl_ca is not None
         assert self.ssl_cert is not None
         assert self.ssl_key is not None
