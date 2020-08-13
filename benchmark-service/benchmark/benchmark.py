@@ -13,6 +13,7 @@ import plotly.express as px
 from scipy.stats.mstats import gmean, hmean
 import numpy as np
 import plotly.graph_objects as go
+import pandas as pd
 
 
 configure_logging()
@@ -124,8 +125,12 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
         #     '%{text}',
         #     text=['Index: {}'.format(i+1) for i in range(len(name_data['times']))]
         # ))
-        fig = px.scatter(x=enumerate_list_index(name_data['trials']), y=name_data['times'],
-                         hover_data=['Index: {}'.format(i+1) for i in range(len(name_data['times']))])
+        df = pd.DataFrame(dict(trial=enumerate_list_index(name_data['trials']),
+                               wall_time=name_data['times'],
+                               index=['Index: {}'.format(i+1) for i in range(len(name_data['times']))]))
+        fig = px.scatter(df, x=df.trial, y=df.wall_time, hover_data=index)
+        # fig = px.scatter(x=enumerate_list_index(name_data['trials']), y=name_data['times'],
+        #                  hover_data=['Index: {}'.format(i+1) for i in range(len(name_data['times']))])
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     except Exception:
         message = 'could not find name'
