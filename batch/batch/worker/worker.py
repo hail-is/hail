@@ -650,6 +650,7 @@ class Job:
         self.mount_io = (input_files or output_files)
         if self.mount_io:
             volume_mount = f'{self.io_host_path()}:/io'
+            input_volume_mounts.append(volume_mount)
             main_volume_mounts.append(volume_mount)
             output_volume_mounts.append(volume_mount)
 
@@ -701,7 +702,7 @@ class Job:
         containers = {}
 
         if input_files:
-            input_volume_mounts.append(f'{LOCAL_SSD_MOUNT}:/host')
+            # input_volume_mounts.append(f'{LOCAL_SSD_MOUNT}:/host')
             containers['input'] = copy_container(
                 self, 'input', input_files, input_volume_mounts,
                 self.cpu_in_mcpu, self.memory_in_bytes, requester_pays_project)
