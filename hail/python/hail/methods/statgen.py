@@ -1828,8 +1828,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
     # write and read table without new partitioning
     temp_file_name = hl.utils.new_temp_file("pca", "ht")
-    ht.write(temp_file_name)
-    ht = hl.read_table(temp_file_name)
+    ht = ht.checkpoint(temp_file_name)
     # compute new partitioning and read table with it (not in ndarrays yet)
     new_partitioning = get_even_partitioning(ht, block_size)
     ht = hl.read_table(temp_file_name, _intervals=new_partitioning)
