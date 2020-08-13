@@ -47,13 +47,13 @@ def loop(i, data_field, m, n, block_size, k, l, q):
     return
 
 
-# hl.utils.get_1kg('data/')
-# hl.import_vcf('data/1kg.vcf.bgz').write('data/1kg.mt', overwrite=True)
-# small_data = hl.read_matrix_table('data/1kg.mt')
+hl.utils.get_1kg('data/')
+hl.import_vcf('data/1kg.vcf.bgz').write('data/1kg.mt', overwrite=True)
+small_data = hl.read_matrix_table('data/1kg.mt')
 
-medium_data = hl.experimental.load_dataset(name='1000_Genomes_autosomes', version='phase_3' ,reference_genome='GRCh38')
-medium_data = medium_data.filter_rows(medium_data.variant_qc.AF[1] > 0.6)
-# write
+# medium_data = hl.experimental.load_dataset(name='1000_Genomes_autosomes', version='phase_3' ,reference_genome='GRCh38')
+# medium_data = medium_data.filter_rows(medium_data.variant_qc.AF[1] > 0.6)
+
 
 # need to add partitioning benchmarks
 
@@ -77,11 +77,13 @@ def cleanMissingData(mt):
     
     return mt
 
-# small_data = cleanMissingData(small_data)
+small_data = cleanMissingData(small_data)
+small_data.write("small_data.mt", overwrite=True)
+small_data = hl.read_matrix_table("small_data.mt")
 
-medium_data = cleanMissingData(medium_data)
-medium_data.write("medium_data.mt", overwrite=True)
-medium_data = hl.read_matrix_table("medium_data.mt")
+# medium_data = cleanMissingData(medium_data)
+# medium_data.write("medium_data.mt", overwrite=True)
+# medium_data = hl.read_matrix_table("medium_data.mt")
 
 # temp_file_path = hl.utils.new_temp_file("pca", "mt")
 # mt.write(temp_file_path)
@@ -89,8 +91,8 @@ medium_data = hl.read_matrix_table("medium_data.mt")
 
 # write 
 
-# m, n = small_data.count()
-m, n = medium_data.count()
+m, n = small_data.count()
+# m, n = medium_data.count()
 
 K = 10
 i = 0
@@ -101,10 +103,10 @@ for L in [K + 2, 2 * K]:
 
         for block_size in [2000]:
 
-            # loop(i, small_data.__gt, m, n, block_size, K, L, Q)
-            # df.to_csv('gs://aotoole/blanczos_small_data_times.csv')
+            loop(i, small_data.__gt, m, n, block_size, K, L, Q)
+            df.to_csv('gs://aotoole/blanczos_small_data_broadcastQ.csv')
 
-            loop(i, medium_data.__gt, m, n, block_size, K, L, Q)
-            df.to_csv('gs://aotoole/blanczos_improved_mediumdata_2kblock.csv')
+            # loop(i, medium_data.__gt, m, n, block_size, K, L, Q)
+            # df.to_csv('gs://aotoole/blanczos_improved_mediumdata_2kblock.csv')
 
             i += 1

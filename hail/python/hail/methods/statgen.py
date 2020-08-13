@@ -1837,8 +1837,8 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
     # need to talk about what is happening here
     grouped = ht._group_within_partitions("groups", block_size * 2)
-    part_sizes = grouped.select(part_size=hl.len(grouped.groups))
-    part_sizes = part_sizes.annotate(rows_preceeding=hl.int32(hl.scan.sum(part_sizes.part_size)))
+    part_sizes = grouped.select(part_size = hl.len(grouped.groups)) 
+    part_sizes = part_sizes.annotate(rows_preceeding = hl.int32(hl.scan.sum(part_sizes.part_size)))
     local_part_sizes = part_sizes.collect()
 
     # now we have a table where adjacent rows within the same partition got grouped together into an array called groups
@@ -1924,7 +1924,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         # perform QR decomposition on unblocked version of H
         Q, R = np.linalg.qr(H)
         # block Q's rows into the same number of blocks that A has
-        blocked_Q_table = ndarray_to_table(chunk_ndarray(Q, local_part_sizes))        
+        # blocked_Q_table = ndarray_to_table(chunk_ndarray(Q, local_part_sizes))        
 
         end = time.time()
         process_Q_time = end - start
@@ -1933,25 +1933,32 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
         start = time.time()
 
-        T = matmul_colblocked_rowblocked(blocked_Q_table, A)
+        # T = matmul_colblocked_rowblocked(blocked_Q_table, A)
+
+        T = A.annotate_globals(Q = Q)
+        T = T.annotate(ndarray = Q[T.rows_preceeding:T.rows_preceeding + T.part_size, :].T @ T.ndarray)
+        arr_T = concatToNumpy(T)
         
         # challenge question: what if we get to a point where we are going this SVD on a really large T??
         # could potentially multiply T by its tranpose to get skinny dim x skinny dim and then do eigen decomposition on that
-        U, S, W = np.linalg.svd(T, full_matrices=False)
+        U, S, W = np.linalg.svd(arr_T, full_matrices=False)
 
         end = time.time()
         svd_time = end - start
 
         start = time.time()
         
-        V = matmul_rowblocked_nonblocked(blocked_Q_table, U)
-        arr_V = concatToNumpy(V)
+        # V = matmul_rowblocked_nonblocked(blocked_Q_table, U)
+        # arr_V = concatToNumpy(V)
+
+        V = Q @ U
 
         end = time.time()
 
         get_V_time = end - start
         
-        truncV = arr_V[:,:k]
+        # truncV = arr_V[:,:k]
+        truncV = V[:,:k]
         truncS = S[:k]
         truncW = W[:k,:]
             
