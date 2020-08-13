@@ -226,6 +226,7 @@ object Simplify {
 
     case StreamFilter(ToStream(ArraySort(a, left, right, lessThan)), name, cond) => ToStream(ArraySort(StreamFilter(a, name, cond), left, right, lessThan))
 
+    case CastToArray(x) if x.typ.isInstanceOf[TArray] => x
     case ToArray(ToStream(a)) if a.typ.isInstanceOf[TArray] => a
     case ToArray(ToStream(a)) if a.typ.isInstanceOf[TSet] || a.typ.isInstanceOf[TDict] =>
       CastToArray(a)
