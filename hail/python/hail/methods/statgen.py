@@ -1922,8 +1922,6 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         
         # definite bottleneck where we have to collect things and do local operations
 
-        start = time.time()
-
         # T = matmul_colblocked_rowblocked(blocked_Q_table, A)
 
         A = A.annotate(part_size = A.ndarray.shape[0])
@@ -1932,6 +1930,8 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         T = A.annotate(ndarray = A.Qt[:, A.rows_preceeding:A.rows_preceeding + A.part_size] @ A.ndarray)
         arr_T = T.aggregate(hl.agg.ndarray_sum(T.ndarray))
         
+        start = time.time()
+
         # challenge question: what if we get to a point where we are going this SVD on a really large T??
         # could potentially multiply T by its tranpose to get skinny dim x skinny dim and then do eigen decomposition on that
         U, S, W = np.linalg.svd(arr_T, full_matrices=False)
