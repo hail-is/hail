@@ -1837,15 +1837,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
     # need to talk about what is happening here
     grouped = ht._group_within_partitions("groups", block_size * 2)
-    part_sizes = grouped.select(part_size = hl.len(grouped.groups)) 
-    part_sizes = part_sizes.annotate(rows_preceeding = hl.int32(hl.scan.sum(part_sizes.part_size)))
-    local_part_sizes = part_sizes.collect()
-
-    # now we have a table where adjacent rows within the same partition got grouped together into an array called groups
-
     A = grouped.select(ndarray=hl.nd.array(grouped.groups.map(lambda group: group.xs)))
-    A = A.add_index("row_group_number")
-    A = A.key_by("row_group_number")
 
     # Set Parameters
 
@@ -1879,16 +1871,16 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         ht = ht.key_by('row_group_number')
         return ht
 
-    def matmul_rowblocked_nonblocked(A, B):
-        temp = A.annotate_globals(mat = B)
-        temp = temp.annotate(ndarray = temp.ndarray @ temp.mat)
-        temp = temp.select(temp.ndarray)
-        temp = temp.drop(temp.mat)
-        return temp
+    # def matmul_rowblocked_nonblocked(A, B):
+    #     temp = A.annotate_globals(mat = B)
+    #     temp = temp.annotate(ndarray = temp.ndarray @ temp.mat)
+    #     temp = temp.select(temp.ndarray)
+    #     temp = temp.drop(temp.mat)
+    #     return temp
 
-    def matmul_colblocked_rowblocked(A, B):
-        temp = A.transmute(ndarray = A.ndarray.transpose() @ B[A.row_group_number].ndarray)
-        return temp.aggregate(hl.agg.ndarray_sum(temp.ndarray)) # collects A / reads A
+    # # def matmul_colblocked_rowblocked(A, B):
+    # #     temp = A.transmute(ndarray = A.ndarray.transpose() @ B[A.row_group_number].ndarray)
+    # #     return temp.aggregate(hl.agg.ndarray_sum(temp.ndarray)) # collects A / reads A
 
     def hailBlanczos(A, G, k, l, q, block_size, times):
         
@@ -1935,9 +1927,11 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
         # T = matmul_colblocked_rowblocked(blocked_Q_table, A)
 
-        T = A.annotate_globals(Q = Q)
-        T = T.annotate(ndarray = Q[T.rows_preceeding:T.rows_preceeding + T.part_size, :].T @ T.ndarray)
-        arr_T = concatToNumpy(T)
+        A = A.annotate(part_size = A.ndarray.shape[0])
+        A = A.annotate(rows_preceeding = hl.int32(hl.scan.sum(A.part_size)))
+        A = A.annotate_globals(Qt = Q.T)
+        T = A.annotate(ndarray = A.Qt[:, A.rows_preceeding:A.rows_preceeding + A.part_size] @ A.ndarray)
+        arr_T = T.aggregate(hl.agg.ndarray_sum(T.ndarray))
         
         # challenge question: what if we get to a point where we are going this SVD on a really large T??
         # could potentially multiply T by its tranpose to get skinny dim x skinny dim and then do eigen decomposition on that
