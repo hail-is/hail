@@ -99,12 +99,12 @@ for L in [K + 2, 2 * K]:
 
     for Q in [0, 2]:
 
-        for block_size in [3000, 5000]:
+        for block_size in [2000]:
 
             # loop(i, small_data.__gt, m, n, block_size, K, L, Q)
             # df.to_csv('gs://aotoole/blanczos_small_data_times.csv')
 
             loop(i, medium_data.__gt, m, n, block_size, K, L, Q)
-            df.to_csv('gs://aotoole/blanczos_medium_data_times_blocks3k5k.csv')
+            df.to_csv('gs://aotoole/blanczos_medium_data_times_2kblock.csv')
 
             i += 1
