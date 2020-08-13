@@ -11,7 +11,7 @@ import time
 
 hl.init(log = 'hail_log.txt')
 
-df = pd.DataFrame(columns=['M', 'N', 'block size', 'K', 'L', 'Q', 'blanczos time', 'hail pca time', 'blanczos output', 'hail output'])
+df = pd.DataFrame(columns=['M', 'N', 'block size', 'K', 'L', 'Q', 'blanczos time',  'iteration time', 'process Q time', 'svd time', 'get V time', 'blanczos output', 'hail pca time', 'hail output'])
 
 def loop(i, data_field, m, n, block_size, k, l, q):
 
@@ -27,7 +27,7 @@ def loop(i, data_field, m, n, block_size, k, l, q):
     try:
 
         start = time.time()
-        blanczos_u, blanczos_s, blanczos_v = hl._blanczos_pca(data_field, k=10, q_iterations=q, oversampling_param=(l-k), block_size=block_size)
+        blanczos_u, blanczos_s, blanczos_v, iter_time, Q_time, svd_time, V_time = hl._blanczos_pca(data_field, k=10, q_iterations=q, oversampling_param=(l-k), block_size=block_size, report_times=True)
         end = time.time()
         blanczos_time = end - start
 
@@ -36,7 +36,7 @@ def loop(i, data_field, m, n, block_size, k, l, q):
         end = time.time()
         hail_time = end - start
 
-        df.loc[i] = [m, n, block_size, k, l, q, blanczos_time, hail_time, (blanczos_u, blanczos_s, blanczos_v), (eigens, scores, loadings)]
+        df.loc[i] = [m, n, block_size, k, l, q, blanczos_time, iter_time, Q_time, svd_time, V_time, (blanczos_u, blanczos_s, blanczos_v), hail_time, (eigens, scores, loadings)]
 
     except Exception as e:
 
@@ -105,6 +105,6 @@ for L in [K + 2, 2 * K]:
             # df.to_csv('gs://aotoole/blanczos_small_data_times.csv')
 
             loop(i, medium_data.__gt, m, n, block_size, K, L, Q)
-            df.to_csv('gs://aotoole/blanczos_medium_data_times_2kblock.csv')
+            df.to_csv('gs://aotoole/blanczos_improved_mediumdata_2kblock.csv')
 
             i += 1
