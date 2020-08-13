@@ -126,9 +126,9 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
         #     text=['Index: {}'.format(i+1) for i in range(len(name_data['times']))]
         # ))
         df = pd.DataFrame(dict(trial=enumerate_list_index(name_data['trials']),
-                               wall_time=name_data['times'],
-                               index=['Index: {}'.format(i+1) for i in range(len(name_data['times']))]))
-        fig = px.scatter(df, x=df.trial, y=df.wall_time, hover_data=index)
+                               wall_time=name_data['times']))
+        index=['Index: {}'.format(i+1) for i in range(len(name_data['times']))]
+        fig = px.scatter(df, x=df.trial, y=df.wall_time, hover_data=['index'])
         # fig = px.scatter(x=enumerate_list_index(name_data['trials']), y=name_data['times'],
         #                  hover_data=['Index: {}'.format(i+1) for i in range(len(name_data['times']))])
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
