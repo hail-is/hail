@@ -563,11 +563,11 @@ def output_copy_command(src, dst, requester_pays_project=None):
     return f'{mkdirs}retry gsutil {requester_pays_project} -m cp -R {shq(src)} {shq(dst)}'
 
 
-def copy(files, name, user, io_path, requester_pays_project):
+def copy(files, name, user, io_path, requester_pays_project):  # pylint: disable=unused-argument
     assert files
 
     if name == 'input':
-        copies = ' && '.join([input_copy_command(user, f['from'], f['to'], io_path, requester_pays_project) for f in files])
+        copies = ' && '.join([output_copy_command(f['from'], f['to'], requester_pays_project) for f in files])
     else:
         assert name == 'output'
         copies = ' && '.join([output_copy_command(f['from'], f['to'], requester_pays_project) for f in files])
