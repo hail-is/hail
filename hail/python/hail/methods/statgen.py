@@ -4,6 +4,8 @@ import numpy as np
 from typing import Dict, List, Tuple, Callable
 import builtins
 
+import time
+
 import hail
 import hail as hl
 import hail.expr.aggregators as agg
@@ -1702,8 +1704,9 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
            compute_loadings=bool,
            q_iterations=int,
            oversampling_param=int,
-           block_size=int)
-def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128):
+           block_size=int,
+           times=bool)
+def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128, times=False):
     r"""Run randomized principal component analysis approximation (PCA) 
     on numeric columns derived from a matrix table.
 
@@ -1828,6 +1831,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     ht = hl.read_table(temp_file_name)
     new_partitioning = get_even_partitioning(ht, block_size)
     ht = hl.read_table(temp_file_name, _intervals=new_partitioning)
+    # does it help to write here again?
 
     grouped = ht._group_within_partitions("groups", block_size * 2)
 
@@ -1885,42 +1889,74 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         return temp.aggregate(hl.agg.ndarray_sum(temp.ndarray)) # collects A / reads A
 
     def hailBlanczos(A, G, k, l, q, block_size):
+        
         # need to add cache and persist / read and write to this 
+
+        start = time.time()
 
         h_list = []
         G_i = G
 
-        for j in range(0, q + 1):
+        # for nonzero q
+        for j in range(0, q):
             temp = A.annotate(H_i = A.ndarray @ G_i)
             temp = temp.annotate(G_i_intermediate = temp.ndarray.T @ temp.H_i)
             result = temp.aggregate(hl.struct(Hi_chunks = hl.agg.collect(temp.H_i), G_i = hl.agg.ndarray_sum(temp.G_i_intermediate)))
             localized_H_i = np.vstack(result.Hi_chunks)
             h_list.append(localized_H_i)
             G_i = result.G_i
-        
+
+        # last step of iteration to create H, regardless of q
+        temp = A.annotate(H_i = A.ndarray @ G_i)
+        result = temp.aggregate(hl.agg.collect(temp.H_i))
+        localized_H_i = np.vstack(result)
+        h_list.append(localized_H_i)
+
         H = np.hstack(h_list) 
+
+        end = time.time()
+        q_loop_time = end - start
+
+        start = time.time()
         
         # perform QR decomposition on unblocked version of H
         Q, R = np.linalg.qr(H)
         # block Q's rows into the same number of blocks that A has
         blocked_Q_table = ndarray_to_table(chunk_ndarray(Q, local_part_sizes))
+
+        end = time.time()
+        process_Q_time = end - start
         
         # definite bottleneck where we have to collect things and do local operations
+
+        start = time.time()
 
         T = matmul_colblocked_rowblocked(blocked_Q_table, A)
         
         # challenge question: what if we get to a point where we are going this SVD on a really large T??
         # could potentially multiply T by its tranpose to get skinny dim x skinny dim and then do eigen decomposition on that
         U, S, W = np.linalg.svd(T, full_matrices=False)
+
+        end = time.time()
+        svd_time = end - start
+
+        start = time.time()
         
         V = matmul_rowblocked_nonblocked(blocked_Q_table, U)
         arr_V = concatToNumpy(V)
+
+        end = time.time()
+
+        get_V_time = end - start
         
         truncV = arr_V[:,:k]
         truncS = S[:k]
         truncW = W[:k,:]
             
-        return truncV, truncS, truncW
+        if times:
+            return truncV, truncS, truncW, q_loop_time, process_Q_time, svd_time, get_V_time
+        else:
+            return truncV, truncS, truncW
 
     return hailBlanczos(A, G, k, l, q, block_size)
 
