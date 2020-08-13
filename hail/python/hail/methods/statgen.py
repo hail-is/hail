@@ -1804,7 +1804,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         mt = mt.select_entries(**{field: entry_expr})
     mt = mt.select_cols().select_rows().select_globals()
     
-    # Format Distributed Table - group rows of table into blocks
+    # Group rows of table into blocks:
 
     mt = mt.select_entries(x = mt[field])
 
@@ -1822,19 +1822,21 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
         return intervals
 
+    # convert from matrix table to table
     ht = mt.localize_entries(entries_array_field_name='entries')
     ht = ht.select(xs=ht.entries.map(lambda e: e['x']))
 
+    # write and read table without new partitioning
     temp_file_name = hl.utils.new_temp_file("pca", "ht")
     ht.write(temp_file_name)
-
     ht = hl.read_table(temp_file_name)
+    # compute new partitioning and read table with it (not in ndarrays yet)
     new_partitioning = get_even_partitioning(ht, block_size)
     ht = hl.read_table(temp_file_name, _intervals=new_partitioning)
-    # does it help to write here again?
+    # question: does it help to write here again?
 
+    # need to talk about what is happening here
     grouped = ht._group_within_partitions("groups", block_size * 2)
-
     part_sizes = grouped.select(part_size=hl.len(grouped.groups))
     part_sizes = part_sizes.annotate(rows_preceeding=hl.int32(hl.scan.sum(part_sizes.part_size)))
     local_part_sizes = part_sizes.collect()
@@ -1932,13 +1934,6 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         start = time.time()
 
         T = matmul_colblocked_rowblocked(blocked_Q_table, A)
-
-        # alternatively without blocking Q 
-        # T = A.annotate_globals(mat = Q.tranpose())
-        # T = T.annotate(ndarray = T.mat @ T.ndarray)
-        # T = T.select(T.ndarray)
-        # T = T.drop(temp.mat)
-        # arr_T = concatToNumpy(T)
         
         # challenge question: what if we get to a point where we are going this SVD on a really large T??
         # could potentially multiply T by its tranpose to get skinny dim x skinny dim and then do eigen decomposition on that
