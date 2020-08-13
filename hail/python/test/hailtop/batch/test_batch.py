@@ -103,9 +103,10 @@ class LocalTests(unittest.TestCase):
 
     def test_single_job_with_nonsense_shell(self):
         b = self.batch()
-        j = b.new_job(shell='bin/ajdsfoijasidojf')
+        j = b.new_job(shell='/bin/ajdsfoijasidojf')
+        j.image('google/cloud-sdk:237.0.0-alpine')
         j.command(f'echo "hello"')
-        self.assertRaises(Exception, b.run())
+        self.assertRaises(Exception, b.run)
 
     def test_single_job_w_input(self):
         with tempfile.NamedTemporaryFile('w') as input_file, \
@@ -546,12 +547,10 @@ class BatchTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job(shell='/bin/sh')
         j.command(f'echo "{msg}"')
-        r = b.run(wait=True)
-        res = self.backend._batch_client.get_job_log(r.id, b._jobs[0]._job_id)["main"].rstrip()
-        assert res == msg
+        assert b.run().status()['state'] == 'success'
 
     def test_single_job_with_nonsense_shell(self):
         b = self.batch()
         j = b.new_job(shell='/bin/ajdsfoijasidojf')
         j.command(f'echo "hello"')
-        assert b.run().status()['state'] != 'success'
+        assert b.run().status()['state'] == 'failure'
