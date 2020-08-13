@@ -69,39 +69,42 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
   }
 
   private def addValues(cb: EmitCodeBuilder, leftNdValue: PNDArrayValue, rightNdValue: PNDArrayValue): Unit = {
-    val sameShape = leftNdValue.sameShape(rightNdValue, cb.emb)
+    val foo = cb.emb.genEmitMethod[Unit]("ndarray_sum_aggregator_add_values")
+    foo.voidWithBuilder(cb => {
+      val sameShape = leftNdValue.sameShape(rightNdValue, cb.emb)
 
-    val idxVars = Array.tabulate(ndTyp.nDims) { _ => cb.emb.genFieldThisRef[Long]() }
+      val idxVars = Array.tabulate(ndTyp.nDims) { _ => cb.emb.genFieldThisRef[Long]() }
 
-    def loadElement(ndValue: PNDArrayValue) = {
-      ndTyp.loadElementToIRIntermediate(idxVars, ndValue.value.asInstanceOf[Value[Long]], cb.emb)
-    }
+      def loadElement(ndValue: PNDArrayValue) = {
+        ndTyp.loadElementToIRIntermediate(idxVars, ndValue.value.asInstanceOf[Value[Long]], cb.emb)
+      }
 
-    val newElement = coerce[PNumeric](ndTyp.elementType).add(loadElement(leftNdValue), loadElement(rightNdValue))
+      val newElement = coerce[PNumeric](ndTyp.elementType).add(loadElement(leftNdValue), loadElement(rightNdValue))
 
-    val body = ndTyp.setElement(
-      idxVars,
-      leftNdValue.value.asInstanceOf[Value[Long]],
-      newElement,
-      cb.emb
-    )
+      val body = ndTyp.setElement(
+        idxVars,
+        leftNdValue.value.asInstanceOf[Value[Long]],
+        newElement,
+        cb.emb
+      )
 
     val leftNdShape = leftNdValue.shapes()
 
-    val columnMajorLoops = idxVars.zipWithIndex.foldLeft(body) { case (innerLoops, (dimVar, dimIdx)) =>
-      Code(
-        dimVar := 0L,
-        Code.whileLoop(dimVar < leftNdShape(dimIdx),
-          innerLoops,
-          dimVar := dimVar + 1L
+      val columnMajorLoops = idxVars.zipWithIndex.foldLeft(body) { case (innerLoops, (dimVar, dimIdx)) =>
+        Code(
+          dimVar := 0L,
+          Code.whileLoop(dimVar < leftNdShape(dimIdx),
+            innerLoops,
+            dimVar := dimVar + 1L
+          )
         )
-      )
-    }
+      }
 
-    cb.append(sameShape.mux(
-      columnMajorLoops,
-      Code._fatal[Unit]("Can't sum ndarrays of different shapes.")
-    ))
+      cb.append(sameShape.mux(
+        columnMajorLoops,
+        Code._fatal[Unit]("Can't sum ndarrays of different shapes.")
+      ))
+    })
   }
 
   override protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
