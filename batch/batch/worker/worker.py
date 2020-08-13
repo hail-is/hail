@@ -1064,7 +1064,8 @@ class Worker:
             site = web.TCPSite(app_runner, '0.0.0.0', 5000)
             await site.start()
 
-            await self.file_cache.async_init()
+            # FIXME: add this back once certain it's not blocking
+            # await self.file_cache.async_init()
 
             try:
                 await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
