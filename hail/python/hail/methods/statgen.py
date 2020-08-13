@@ -1705,8 +1705,8 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
            q_iterations=int,
            oversampling_param=int,
            block_size=int,
-           times=bool)
-def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128, times=False):
+           report_times=bool)
+def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128, report_times=False):
     r"""Run randomized principal component analysis approximation (PCA) 
     on numeric columns derived from a matrix table.
 
@@ -1888,7 +1888,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         temp = A.transmute(ndarray = A.ndarray.transpose() @ B[A.row_group_number].ndarray)
         return temp.aggregate(hl.agg.ndarray_sum(temp.ndarray)) # collects A / reads A
 
-    def hailBlanczos(A, G, k, l, q, block_size):
+    def hailBlanczos(A, G, k, l, q, block_size, times):
         
         # need to add cache and persist / read and write to this 
 
@@ -1922,7 +1922,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         # perform QR decomposition on unblocked version of H
         Q, R = np.linalg.qr(H)
         # block Q's rows into the same number of blocks that A has
-        blocked_Q_table = ndarray_to_table(chunk_ndarray(Q, local_part_sizes))
+        blocked_Q_table = ndarray_to_table(chunk_ndarray(Q, local_part_sizes))        
 
         end = time.time()
         process_Q_time = end - start
@@ -1932,6 +1932,13 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         start = time.time()
 
         T = matmul_colblocked_rowblocked(blocked_Q_table, A)
+
+        # alternatively without blocking Q 
+        # T = A.annotate_globals(mat = Q.tranpose())
+        # T = T.annotate(ndarray = T.mat @ T.ndarray)
+        # T = T.select(T.ndarray)
+        # T = T.drop(temp.mat)
+        # arr_T = concatToNumpy(T)
         
         # challenge question: what if we get to a point where we are going this SVD on a really large T??
         # could potentially multiply T by its tranpose to get skinny dim x skinny dim and then do eigen decomposition on that
@@ -1958,7 +1965,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         else:
             return truncV, truncS, truncW
 
-    return hailBlanczos(A, G, k, l, q, block_size)
+    return hailBlanczos(A, G, k, l, q, block_size, report_times)
 
 
 @typecheck(call_expr=expr_call,
