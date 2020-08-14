@@ -57,5 +57,5 @@ class ReadGoogleStorage:
         list_of_files = []
         bucket = self.storage_client.get_bucket(bucket_name)
         for blob in bucket.list_blobs():
-            list_of_files.append(blob.name)
+            list_of_files.append('gs://' + bucket_name + '/' + blob.name)
         return list_of_files
