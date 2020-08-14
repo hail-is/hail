@@ -26,6 +26,70 @@ BATCH_COPY_IMAGE = os.environ['HAIL_BATCH_COPY_IMAGE']
 log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 log.info(f'BATCH_COPY_IMAGE {BATCH_COPY_IMAGE}')
 
+REGIONS = [
+    {
+        'name': 'us-central1',
+        'zones': ('a', 'b', 'c', 'f'),
+        'preemptible_cpus': 100000,
+        'local_ssd_total_storage_gb': 100000
+    },
+    {
+        'name': 'us-east1',
+        'zones': ('b', 'c', 'd'),
+        'preemptible_cpus': 25000,
+        'local_ssd_total_storage_gb': 300000
+    },
+    {
+        'name': 'us-east4',
+        'zones': ('a', 'b', 'c'),
+        'preemptible_cpus': 25000,
+        'local_ssd_total_storage_gb': 100000
+    },
+    {
+        'name': 'us-west1',
+        'zones': ('a', 'b', 'c'),
+        'preemptible_cpus': 25000,
+        'local_ssd_total_storage_gb': 100000
+    },
+    {
+        'name': 'us-west2',
+        'zones': ('a', 'b', 'c'),
+        'preemptible_cpus': 25000,
+        'local_ssd_total_storage_gb': 50000
+    },
+    # no quota in us-west3
+    # could consider northamerica-northeast1 Montreal
+    {
+        'name': 'us-west4',
+        'zones': ('a', 'b', 'c'),
+        'preemptible_cpus': 10000,
+        'local_ssd_total_storage_gb': 20000
+    }
+]
+
+USCENTRAL1_CORES = None
+
+ZONES = []
+ZONE_WEIGHTS = []
+for region in REGIONS:
+    cores = region['preemptible_cpus']
+    ssd_in_cores = int(region['local_ssd_total_storage_gb'] / 375 * 16)
+    if ssd_in_cores < cores:
+        cores = ssd_in_cores
+
+    name = region['name']
+    if name == 'us-central1':
+        USCENTRAL1_CORES = cores
+
+    r_zones = region['zones']
+    weight = cores / len(r_zones)
+    for z in r_zones:
+        ZONES.append(f'{name}-{z}')
+        ZONE_WEIGHTS.append(weight)
+
+assert len(ZONES) == len(ZONE_WEIGHTS)
+assert USCENTRAL1_CORES is not None
+
 
 class InstancePool:
     def __init__(self, app, machine_name_prefix):
@@ -181,15 +245,11 @@ SET standing_worker_cores = %s, max_instances = %s, pool_size = %s;
             if machine_name not in self.name_instance:
                 break
 
-        if self.live_total_cores_mcpu // 1000 < 4_000:
+        if self.live_total_cores_mcpu // 1000 < int(USCENTRAL1_CORES * 0.9):
             zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
             zone = random.choice(zones)
         else:
-            zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f', 'us-east1-a', 'us-east1-b', 'us-east1-c', 'us-east4-a', 'us-east4-b', 'us-east4-c', 'us-west1-a', 'us-west1-b', 'us-west1-c', 'us-west2-a', 'us-west2-b', 'us-west2-c']
-            # based on quotas, us-central1: 4266 over 4 zones, us-east1: 12800 over 3 zones, us-east4: 4266 over 3 zones, us-west1: 4266 over 3 zones, us-west2: 2133 over 3 zones
-            weights = 4 * [266 / 4] + 3 * [12800 / 3] + 3 * [4266 / 3] + 3 * [4266 / 3] + 3 * [2133 / 3]
-
-            zone = random.choices(zones, weights)[0]
+            zone = random.choices(ZONES, ZONE_WEIGHTS)[0]
 
         activation_token = secrets.token_urlsafe(32)
         instance = await Instance.create(self.app, machine_name, activation_token, cores * 1000, zone)
