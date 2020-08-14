@@ -1,0 +1,32 @@
+{% extends "layout.html" %}
+{% block title %}Billing Limits{% endblock %}
+{% block content %}
+<h1>Billing Project Limits</h1>
+<div class='flex-col' style="overflow: auto;">
+    <table class="data-table" id="billing_limits">
+        <thead>
+        <tr>
+            <th>Billing Project</th>
+            <th>Accrued Cost</th>
+            <th>Limit</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for row in billing_limits %}
+        <form action="{{ base_path }}/billing_limits/{{ row['billing_project'] }}/edit" method="POST">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <tr>
+                <td>{{ row['billing_project'] }}</td>
+                <td>{{ row['accrued_cost'] }}</td>
+                <td><input type="text" required name="limit" value="{{ row['limit'] }}"></td>
+                <td>
+                    <button>Edit</button>
+                </td>
+            </tr>
+        </form>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
