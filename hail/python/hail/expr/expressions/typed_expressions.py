@@ -675,7 +675,11 @@ class ArrayExpression(CollectionExpression):
     @typecheck_method(group_size=expr_int32)
     def grouped(self, group_size):
         indices, aggregations = unify_all(self, group_size)
-        return construct_expr(ir.StreamGrouped(ir.ToStream(self._ir), group_size), ..., indices, aggregations)
+        return_type = tarray(self._type)
+        stream_ir = ir.StreamGrouped(ir.ToStream(self._ir), group_size._ir)
+        mapping_identifier = Env.get_uid("stream_grouped_map_to_arrays")
+        mapped_to_arrays = ir.StreamMap(stream_ir, mapping_identifier, ir.ToArray(ir.Ref(mapping_identifier)))
+        return construct_expr(ir.ToArray(mapped_to_arrays), return_type, indices, aggregations)
 
 class ArrayStructExpression(ArrayExpression):
     """Expression of type :class:`.tarray` that eventually contains structs.

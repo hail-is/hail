@@ -623,7 +623,7 @@ class StreamRange(IR):
 class StreamGrouped(IR):
     @typecheck_method(stream=IR, group_size=IR)
     def __init__(self, stream, group_size):
-        super().__init__(self, stream, group_size)
+        super().__init__(stream, group_size)
         self.stream = stream
         self.group_size = group_size
 
