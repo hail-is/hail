@@ -95,7 +95,9 @@ final case class I32(x: Int) extends IR
 final case class I64(x: Long) extends IR
 final case class F32(x: Float) extends IR
 final case class F64(x: Double) extends IR
-final case class Str(x: String) extends IR
+final case class Str(x: String) extends IR {
+  override def toString(): String = s"""Str("${StringEscapeUtils.escapeString(x)}")"""
+}
 final case class True() extends IR
 final case class False() extends IR
 final case class Void() extends IR
@@ -663,7 +665,7 @@ abstract class PartitionWriter {
     context: EmitCode,
     eltType: PStruct,
     mb: EmitMethodBuilder[_],
-    region: Value[Region],
+    region: StagedRegion,
     stream: SizedStream): EmitCode
 
   def ctxType: Type

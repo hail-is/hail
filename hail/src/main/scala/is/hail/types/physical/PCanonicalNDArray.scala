@@ -11,6 +11,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def _asIdent: String = s"ndarray_of_${elementType.asIdent}"
 
+  override def containsPointers: Boolean = true
+
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("PCNDArray[")
     elementType.pretty(sb, indent, compact)

@@ -45,18 +45,6 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     this(mb, typ, parent.region, parent.currentOffset)
   }
 
-  def this(fb: EmitFunctionBuilder[_], rowType: PType) = {
-    this(fb.apply_method, rowType, fb.apply_method.getCodeParam[Region](1), null)
-  }
-
-  def this(fb: EmitFunctionBuilder[_], rowType: PType, pOffset: Value[Long]) = {
-    this(fb.apply_method, rowType, fb.apply_method.getCodeParam[Region](1), pOffset)
-  }
-
-  def this(mb: EmitMethodBuilder[_], rowType: PType) = {
-    this(mb, rowType, mb.getCodeParam[Region](1), null)
-  }
-
   def this(mb: EmitMethodBuilder[_], rowType: PType, r: Value[Region]) = {
     this(mb, rowType, r, null)
   }

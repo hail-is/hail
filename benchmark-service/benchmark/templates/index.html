@@ -3,11 +3,11 @@
 
 {% block content %}
 <h1>Benchmark System</h1>
+<<<<<<< HEAD
+=======
 
-<form autocomplete="off" action="{{ base_path }}/" method="get">
-    <div class="autocomplete">
-        <input type="text" name="file" id="file"></input>
-    </div>
+<form action="{{ base_path }}/" method="get">
+    <input type="text" name="file"></input>
     <input type="submit" value="lookup"></input>
 </form>
 
@@ -54,5 +54,6 @@
         {% endfor %}
         </tbody>
     </table>
+
 {% endif %}
 {% endblock %}

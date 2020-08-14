@@ -9,7 +9,8 @@ __all__ = ['Batch',
            'LocalBackend',
            'ServiceBackend',
            'BatchException',
-           'BatchPoolExecutor'
+           'BatchPoolExecutor',
+           'genetics'
            ]
 
 nest_asyncio.apply()

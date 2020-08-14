@@ -46,6 +46,8 @@ spec:
            value: /deploy-config/deploy-config.json
          - name: HAIL_BATCH_WORKER_IMAGE
            value: "{{ batch_worker_image.image }}"
+         - name: HAIL_BATCH_COPY_IMAGE
+           value: "{{ batch_copy_image.image }}"	   
          - name: HAIL_DEFAULT_NAMESPACE
            value: "{{ default_ns.name }}"
          - name: HAIL_BATCH_PODS_NAMESPACE

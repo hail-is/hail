@@ -10,58 +10,7 @@ object ComputeUsesAndDefs {
     val defs = Memo.empty[BaseIR]
     val free = if (errorIfFreeVariables) null else mutable.Set[RefEquality[BaseRef]]()
 
-    def computeTable(tir: TableIR, env: BindingEnv[BaseIR]): Unit = tir.children
-      .iterator
-      .zipWithIndex
-      .foreach { case (child, i) =>
-        val e = ChildEnvWithoutBindings(tir, i, env)
-        val b = NewBindings(tir, i).mapValues[BaseIR](_ => tir)
-        if (!b.allEmpty && !uses.contains(tir))
-          uses.bind(tir, mutable.Set.empty[RefEquality[BaseRef]])
-        val childEnv = e.merge(b)
-        child match {
-          case child: IR => computeIR(child, childEnv)
-          case child: TableIR => computeTable(child, childEnv)
-          case child: MatrixIR => computeMatrix(child, childEnv)
-          case child: BlockMatrixIR => computeBlockMatrix(child, childEnv)
-        }
-      }
-
-    def computeMatrix(mir: MatrixIR, env: BindingEnv[BaseIR]): Unit = mir.children
-      .iterator
-      .zipWithIndex
-      .foreach { case (child, i) =>
-        val e = ChildEnvWithoutBindings(mir, i, env)
-        val b = NewBindings(mir, i).mapValues[BaseIR](_ => mir)
-        if (!b.allEmpty && !uses.contains(mir))
-          uses.bind(mir, mutable.Set.empty[RefEquality[BaseRef]])
-        val childEnv = e.merge(b)
-        child match {
-          case child: IR => computeIR(child, childEnv)
-          case child: TableIR => computeTable(child, childEnv)
-          case child: MatrixIR => computeMatrix(child, childEnv)
-          case child: BlockMatrixIR => computeBlockMatrix(child, childEnv)
-        }
-      }
-
-    def computeBlockMatrix(bmir: BlockMatrixIR, env: BindingEnv[BaseIR]): Unit = bmir.children
-      .iterator
-      .zipWithIndex
-      .foreach { case (child, i) =>
-        val e = ChildEnvWithoutBindings(bmir, i, env)
-        val b = NewBindings(bmir, i).mapValues[BaseIR](_ => bmir)
-        if (!b.allEmpty && !uses.contains(bmir))
-          uses.bind(bmir, mutable.Set.empty[RefEquality[BaseRef]])
-        val childEnv = e.merge(b)
-        child match {
-          case child: IR => computeIR(child, childEnv)
-          case child: TableIR => computeTable(child, childEnv)
-          case child: MatrixIR => computeMatrix(child, childEnv)
-          case child: BlockMatrixIR => computeBlockMatrix(child, childEnv)
-        }
-      }
-
-    def computeIR(ir: IR, env: BindingEnv[BaseIR]): Unit = {
+    def compute(ir: BaseIR, env: BindingEnv[BaseIR]): Unit = {
 
       ir match {
         case r: BaseRef =>
@@ -95,21 +44,11 @@ object ComputeUsesAndDefs {
           if (!b.allEmpty && !uses.contains(ir))
             uses.bind(ir, mutable.Set.empty[RefEquality[BaseRef]])
           val childEnv = e.merge(b)
-          child match {
-            case child: IR => computeIR(child, childEnv)
-            case child: TableIR => computeTable(child, childEnv)
-            case child: MatrixIR => computeMatrix(child, childEnv)
-            case child: BlockMatrixIR => computeBlockMatrix(child, childEnv)
-          }
+          compute(child, childEnv)
         }
     }
-    val startE = BindingEnv[BaseIR](Env.empty, Some(Env.empty), Some(Env.empty))
-    ir0 match {
-      case ir: IR => computeIR(ir, startE)
-      case tir: TableIR => computeTable(tir, startE)
-      case mir: MatrixIR => computeMatrix(mir, startE)
-      case bmir: BlockMatrixIR => computeBlockMatrix(bmir, startE)
-    }
+
+    compute(ir0, BindingEnv[BaseIR](scan = Some(Env.empty), agg = Some(Env.empty)))
 
     UsesAndDefs(uses, defs, free)
   }

@@ -125,7 +125,7 @@ steps:
    contextPath: tls
    publishAs: create_certs_image
    dependsOn:
-     - base_image
+     - service_base_image
  - kind: runImage
    name: create_ssl_config_hail_root
    image:
@@ -488,6 +488,13 @@ steps:
    dockerFile: batch/Dockerfile.worker
    contextPath: .
    publishAs: batch-worker
+ - kind: buildImage
+   name: batch_copy_image
+   dockerFile: batch/Dockerfile.copy
+   contextPath: .
+   publishAs: batch-copy
+   dependsOn:
+     - batch_worker_image
  - kind: runImage
    name: check_batch
    image:
@@ -1588,6 +1595,7 @@ steps:
     - create_accounts
     - batch_image
     - batch_worker_image
+    - batch_copy_image
     - batch_database
     - deploy_auth
     - create_certs
@@ -1819,6 +1827,7 @@ steps:
    image:
      valueFrom: service_base_image.image
    script: |
+     cd /io/hailtop
      set -ex
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      hailctl config set batch/billing_project test
@@ -1826,6 +1835,8 @@ steps:
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/test/hailtop/batch/
    inputs:
     - from: /repo/test
+      to: /io/
+    - from: /repo/hailtop
       to: /io/
    timeout: 1200
    secrets:
