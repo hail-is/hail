@@ -12,7 +12,6 @@ import plotly
 import plotly.express as px
 from scipy.stats.mstats import gmean, hmean
 import numpy as np
-import plotly.graph_objects as go
 import pandas as pd
 
 
@@ -62,45 +61,6 @@ def get_benchmarks(file_path):
     return benchmarks
 
 
-def get_comparisons(benchmarks1, benchmarks2, metric):
-    def get_metric(data):
-        if metric == 'median':
-            return data['median']
-        elif metric == 'best':
-            return min(data['times'])
-
-    comparisons = []
-    for d in benchmarks1['data']:
-        for item in benchmarks2['data']:
-            if item['name'] == d['name']:
-                comparisons.append((d['name'], get_metric(d), get_metric(item)))
-    return comparisons
-
-
-def fmt_time(t):
-    return round(t, 3)
-
-
-def fmt_diff(ratio):
-    return round(ratio * 100, 3)
-
-
-def final_comparisons(comparisons):
-    comps = []
-    ratios = []
-    final_comps = {}
-    for name, r1, r2 in comparisons:
-        r = r1 / r2
-        ratios.append(r)
-        comps.append((name, fmt_diff(r), fmt_time(r1), fmt_time(r2)))
-    final_comps['comps'] = comps
-    final_comps['harmonic_mean'] = fmt_diff(hmean(ratios))
-    final_comps['geometric_mean'] = fmt_diff(gmean(ratios))
-    final_comps['arithmetic_mean'] = fmt_diff(np.mean(ratios))
-    final_comps['median'] = fmt_diff(np.median(ratios))
-    return final_comps
-
-
 @router.get('/healthcheck')
 async def healthcheck(request: web.Request) -> web.Response:  # pylint: disable=unused-argument
     return web.Response()
@@ -115,23 +75,11 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
                      None)
 
     try:
-        # fig = px.scatter(x=enumerate_list_index(name_data['trials']), y=name_data['times'],
-        #                  hovertemplate='Index: %{}'.format(name_data['times'].index(y)))
-        # fig = go.Figure(go.Scatter(
-        #     x=enumerate_list_index(name_data['trials']),
-        #     y=name_data['times'],
-        #     hovertemplate='x=%{x}' +
-        #     '<br>y=%{y:.3f}<br>' +
-        #     '%{text}',
-        #     text=['Index: {}'.format(i+1) for i in range(len(name_data['times']))]
-        # ))
         df = pd.DataFrame(dict(trial=enumerate_list_index(name_data['trials']),
                                wall_time=name_data['times'],
                                index=['{}'.format(i+1) for i in range(len(name_data['times']))]))
 
         fig = px.scatter(df, x=df.trial, y=df.wall_time, hover_data=['index'])
-        # fig = px.scatter(x=enumerate_list_index(name_data['trials']), y=name_data['times'],
-        #                  hover_data=['Index: {}'.format(i+1) for i in range(len(name_data['times']))])
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     except Exception:
         message = 'could not find name'
@@ -159,29 +107,6 @@ async def index(request, userdata):  # pylint: disable=unused-argument
                'benchmarks': benchmarks_context,
                'cached_files': ReadGoogleStorage().list_files_in_bucket('hail-benchmarks')} # ReadGoogleStorage().get_memoized_files()
     return await render_template('benchmark', request, userdata, 'index.html', context)
-
-
-@router.get('/compare')
-@web_authenticated_developers_only(redirect=False)
-async def compare(request, userdata):  # pylint: disable=unused-argument
-    file1 = request.query.get('file1')
-    file2 = request.query.get('file2')
-    metric = request.query.get('metrics')
-    if file1 is None or file2 is None:
-        benchmarks_context1 = None
-        benchmarks_context2 = None
-        comparisons = None
-    else:
-        benchmarks_context1 = get_benchmarks(file1)
-        benchmarks_context2 = get_benchmarks(file2)
-        comparisons = final_comparisons(get_comparisons(benchmarks_context1, benchmarks_context2, metric))
-    context = {'file1': file1,
-               'file2': file2,
-               'metric': metric,
-               'benchmarks1': benchmarks_context1,
-               'benchmarks2': benchmarks_context2,
-               'comparisons': comparisons}
-    return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
 def init_app() -> web.Application:
