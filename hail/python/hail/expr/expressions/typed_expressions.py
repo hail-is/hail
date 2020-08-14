@@ -674,12 +674,29 @@ class ArrayExpression(CollectionExpression):
 
     @typecheck_method(group_size=expr_int32)
     def grouped(self, group_size):
+        """Partition an array into fixed size subarrays.
+
+        Examples
+        --------
+        >>> a = [0, 1, 2, 3, 4]
+
+        >>> hl.eval(a.grouped(2))
+        [[0, 1], [2, 3], [4]]
+
+        Parameters
+        ----------
+        group_size : :class:`.Int32Expression`
+            The number of elements per group.
+
+        Returns
+        -------
+        :class:`.ArrayExpression`.
+        """
         indices, aggregations = unify_all(self, group_size)
-        return_type = tarray(self._type)
         stream_ir = ir.StreamGrouped(ir.ToStream(self._ir), group_size._ir)
         mapping_identifier = Env.get_uid("stream_grouped_map_to_arrays")
         mapped_to_arrays = ir.StreamMap(stream_ir, mapping_identifier, ir.ToArray(ir.Ref(mapping_identifier)))
-        return construct_expr(ir.ToArray(mapped_to_arrays), return_type, indices, aggregations)
+        return construct_expr(ir.ToArray(mapped_to_arrays), tarray(self._type), indices, aggregations)
 
 class ArrayStructExpression(ArrayExpression):
     """Expression of type :class:`.tarray` that eventually contains structs.
