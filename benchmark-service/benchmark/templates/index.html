@@ -54,8 +54,12 @@
         {% endfor %}
         </tbody>
     </table>
-
 {% endif %}
+
+<p>
+    {% for f in cached_files %}
+    f
+</p>
 
 <script type="text/javascript" src="autocomplete.js">
    var files = {{ cached_files|tojson }};
