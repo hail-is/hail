@@ -833,7 +833,6 @@ class NDArrayQR(IR):
         self.nd = nd
         self.mode = mode
 
-    @typecheck_method(nd=IR, mode=str)
     def copy(self):
         return NDArrayQR(self.nd, self.mode)
 
@@ -851,6 +850,22 @@ class NDArrayQR(IR):
             self._type = tndarray(tfloat64, 2)
         else:
             raise ValueError("Cannot compute type for mode: " + self.mode)
+
+
+class NDArraySVD(IR):
+    @typecheck_method(nd=IR, full_matrices=bool, compute_uv=bool)
+    def __init__(self, nd, full_matrices, compute_uv):
+        super().__init__(nd)
+        self.nd = nd
+        self.full_matrices = full_matrices
+        self.compute_uv = compute_uv
+
+    def copy(self):
+        return NDArraySVD(self.nd, self.full_matrices, self.compute_uv)
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        return ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2))
 
 
 class NDArrayInv(IR):
