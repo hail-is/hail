@@ -121,9 +121,11 @@ object AggContainer {
       aggState
     }
 
-    val cleanup = Code(
-      region.load().invalidate(),
-      region := Code._null)
+    val cleanup = EmitCodeBuilder.scopedVoid(mb) { cb =>
+      aggState.store(cb)
+      cb += region.load().invalidate()
+      cb.assign(region, Code._null)
+    }
 
     (AggContainer(aggs, aggState, () => ()), setup, cleanup)
   }
@@ -141,6 +143,7 @@ object AggContainer {
     states.createStates(cb)
 
     AggContainer(aggs, aggState, { () =>
+      aggState.store(cb)
       cb += region.load().invalidate()
       cb.assign(region, Code._null)
     })
@@ -523,7 +526,6 @@ class Emit[C](
         cb += ob.invoke[Unit]("flush")
         cb += ob.invoke[Unit]("close")
         cb += mb.setSerializedAgg(sIdx, baos.invoke[Array[Byte]]("toByteArray"))
-        sc.store(cb)
 
       case DeserializeAggs(start, sIdx, spec, sigs) =>
         val AggContainer(_, sc, _) = container.get
@@ -821,8 +823,6 @@ class Emit[C](
           rvAgg.result(cb, sc.states(idx), srvb)
           cb += srvb.advance()
         }
-
-        sc.store(cb)
 
         presentC(srvb.offset)
 
