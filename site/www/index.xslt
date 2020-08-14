@@ -119,9 +119,13 @@ show(p)
                         home.
                     </li>
                         <li>
-                        Principal Investigators Benjamin Neale and Daniel MacArthur, whose
+                        Principal Investigator Benjamin Neale, whose
                         scientific leadership has been essential for solving the right
                         problems.
+                    </li>
+                        <li>
+                        Principal Investigator Daniel MacArthur and the other members 
+                        of the gnomAD council.
                     </li>
                         <li>
                         Jeremy Wertheimer, whose strategic advice and generous
@@ -136,6 +140,10 @@ show(p)
                     </li>
                         <li>The National Institute of Mental Health</li>
                         <li>The National Human Genome Research Institute</li>
+
+                    </ul>
+                    <p>We are grateful for generous past support from:</p>
+                    <ul>
                         <li>The Chan Zuckerburg Initiative</li>
                     </ul>
                     <p>
