@@ -812,6 +812,16 @@ class Emit[C](
           }
         }
 
+      case NDArraySVD(nd, full_matrices, computeUV) =>
+        emitI(nd).flatMap(cb){ ndPCode =>
+          val ndPVal = ndPCode.asNDArray.memoize(cb, "nd_value_to_svd")
+          val JOBZ = if (computeUV) {
+            "N"
+          } else {
+            if (full_matrices) "S" else "A"
+          }
+          ???
+        }
       case x@RunAgg(body, result, states) =>
         val newContainer = AggContainer.fromBuilder(cb, states.toArray, "run_agg")
         emitVoid(body, container = Some(newContainer))
