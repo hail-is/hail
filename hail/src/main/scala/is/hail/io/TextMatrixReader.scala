@@ -426,7 +426,7 @@ class CompiledLineParser(
   @transient private[this] val lineNumber = mb.genFieldThisRef[Long]("lineNumber")
   @transient private[this] val line = mb.genFieldThisRef[String]("line")
   @transient private[this] val pos = mb.genFieldThisRef[Int]("pos")
-  @transient private[this] val srvb = new StagedRegionValueBuilder(mb, rowPType)
+  @transient private[this] val srvb = new StagedRegionValueBuilder(mb, rowPType, region)
 
   fb.cb.emitInit(Code(
     pos := 0,

@@ -183,6 +183,13 @@ abstract class Stream[+A] { self =>
   def forEach(mb: EmitMethodBuilder[_], f: A => Code[Unit]): Code[Unit] =
     mapCPS[Unit]((_, a, k) => Code(f(a), k(()))).run(mb)
 
+  def forEachI(cb: EmitCodeBuilder, f: A => Unit): Unit = {
+    val savedCode = cb.code
+    cb.code = Code._empty
+    val streamCode = forEach(cb.emb, a => { f(a); cb.code })
+    cb.code = Code(savedCode, streamCode)
+  }
+
   def run(mb: EmitMethodBuilder[_]): Code[Unit] = {
     implicit val ctx = EmitStreamContext(mb)
     val Leos = CodeLabel()
@@ -1295,14 +1302,15 @@ object EmitStream {
               k(SizedStream(Code._empty, eltRegion => newStream, Some(len))))
           }
 
-        case x@MakeStream(elements, t) =>
+        case x@MakeStream(elements, _) =>
           val eltType = coerce[PStream](x.pType).elementType
-          val stream = sequence(mb, eltType, elements.toFastIndexedSeq.map { ir =>
-              val et = emitIR(ir)
-              EmitCode(et.setup, et.m, PCode(eltType, eltType.copyFromTypeAndStackValue(mb, outerRegion.code, ir.pType, et.value)))
-          })
+          val stream = (eltRegion: StagedRegion) =>
+            sequence(mb, eltType, elements.toFastIndexedSeq.map { ir =>
+              emitIR(ir, region = eltRegion)
+                .map(_.castTo(mb, eltRegion.code, eltType))
+            })
 
-          COption.present(SizedStream(Code._empty, eltRegion => stream, Some(elements.length)))
+          COption.present(SizedStream(Code._empty, stream, Some(elements.length)))
 
         case x@ReadPartition(context, rowType, reader) =>
           reader.emitStream(context, rowType, emitter, mb, outerRegion, env, container)
@@ -1977,9 +1985,10 @@ object EmitStream {
 
   private[ir] def multiplicity(root: IR, refName: String): Int = {
     var uses = 0
-    def traverse(ir: BaseIR, mult: Int): Unit = ir match {
+
+    // assumes no name collisions, a bit hacky...
+    def traverse(ir: IR, mult: Int): Unit = ir match {
       case Ref(name, _) => if (refName == name) uses += mult
-      case Let(_, v, b) => traverse(v, 2); traverse(b, mult)
       case StreamMap(a, _, b) => traverse(a, mult); traverse(b, 2)
       case StreamFilter(a, _, b) => traverse(a, mult); traverse(b, 2)
       case StreamFlatMap(a, _, b) => traverse(a, mult); traverse(b, 2)
@@ -1987,33 +1996,30 @@ object EmitStream {
         traverse(l, mult); traverse(r, mult); traverse(j, 2)
       case StreamScan(a, z, _, _, b) =>
         traverse(a, mult); traverse(z, 2); traverse(b, 2)
-      case StreamRange(a, b, c) =>
-        traverse(a, mult); traverse(b, mult); traverse(c, mult)
       case RunAggScan(a, _, i, s, r, _) =>
         traverse(a, mult); traverse(i, 2); traverse(s, 2); traverse(r, 2)
-      case MakeStream(irs, _) => irs.foreach(traverse(_, mult))
-      case StreamTake(s, i) =>
-        traverse(s, mult); traverse(i, mult)
-      case StreamDrop(s, i) =>
-        traverse(s, mult); traverse(i, mult)
-      case StreamGrouped(s, i) =>
-        traverse(s, mult); traverse(i, mult)
-      case StreamGroupByKey(s, k) =>
-        traverse(s, mult)
-      case StreamMerge(l, r, _) =>
-        traverse(l, mult); traverse(r, mult)
-      case StreamMultiMerge(as, _) =>
-        as.foreach(traverse(_, mult))
       case StreamZipJoin(as, _, _, _, f) =>
         as.foreach(traverse(_, mult)); traverse(f, 2)
       case StreamZip(as, _, body, _) =>
         as.foreach(traverse(_, mult)); traverse(body, 2)
-      case ToStream(a) =>
+      case StreamFold(a, zero, _, _, body) =>
+        traverse(a, mult); traverse(zero, mult); traverse(body, 2)
+      case StreamFold2(a, accs, _, seqs, res) =>
         traverse(a, mult)
-      case ToArray(a) =>
-        traverse(a, mult)
-      case ir: IR if !ir.typ.isInstanceOf[TStream] =>
-        Children(ir).foreach(traverse(_, 2))
+        accs.foreach { case (_, acc) => traverse(acc, mult) }
+        seqs.foreach(traverse(_, 2))
+        traverse(res, 2)
+      case StreamFor(a, _, body) =>
+        traverse(a, mult); traverse(body, 2)
+      case NDArrayMap(a, _, body) =>
+        traverse(a, mult); traverse(body, 2)
+      case NDArrayMap2(l, r, _, _, body) =>
+        traverse(l, mult); traverse(r, mult); traverse(body, 2)
+
+      case _ => ir.children.foreach {
+        case child: IR => traverse(child, mult)
+        case _ =>
+      }
     }
     traverse(root, 1)
     uses min 2

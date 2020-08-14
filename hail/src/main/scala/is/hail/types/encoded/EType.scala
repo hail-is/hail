@@ -255,11 +255,11 @@ object EType {
       val pt = et.decodedPType(t)
       val f = et.buildDecoder(pt, mb.ecb)
 
-      val region: Code[Region] = mb.getCodeParam[Region](1)
+      val region: Value[Region] = mb.getCodeParam[Region](1)
       val in: Code[InputBuffer] = mb.getCodeParam[InputBuffer](2)
 
       if (pt.isPrimitive) {
-        val srvb = new StagedRegionValueBuilder(mb, pt)
+        val srvb = new StagedRegionValueBuilder(mb, pt, region)
         mb.emit(Code(
           srvb.start(),
           srvb.addIRIntermediate(pt)(f(region, in)),

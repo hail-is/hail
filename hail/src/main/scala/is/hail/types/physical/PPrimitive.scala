@@ -11,6 +11,8 @@ trait PPrimitive extends PType {
 
   def _construct(mb: EmitMethodBuilder[_], region: Value[Region], pc: PCode): PCode = pc
 
+  override def containsPointers: Boolean = false
+
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     if (!deepCopy)
       return srcAddress

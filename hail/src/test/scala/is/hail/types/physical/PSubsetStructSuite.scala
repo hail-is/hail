@@ -15,7 +15,7 @@ class PSubsetStructSuite extends PhysicalTestUtils {
     val intInput = 3
     val longInput = 4L
     val fb = EmitFunctionBuilder[Region, Int, Long, Long](ctx, "fb")
-    val srvb = new StagedRegionValueBuilder(fb, rt)
+    val srvb = new StagedRegionValueBuilder(fb.emb, rt, fb.emb.getCodeParam[Region](1))
 
     fb.emit(
       Code(

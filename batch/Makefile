@@ -8,6 +8,9 @@ BATCH_IMAGE = gcr.io/$(PROJECT)/batch:$(shell docker images -q --no-trunc batch 
 BATCH_WORKER_LATEST = gcr.io/$(PROJECT)/batch-worker:latest
 BATCH_WORKER_IMAGE = gcr.io/$(PROJECT)/batch-worker:$(shell docker images -q --no-trunc batch-worker | sed -e 's,[^:]*:,,')
 
+BATCH_COPY_LATEST = gcr.io/$(PROJECT)/batch-copy:latest
+BATCH_COPY_IMAGE = gcr.io/$(PROJECT)/batch-copy:$(shell docker images -q --no-trunc batch-copy | sed -e 's,[^:]*:,,')
+
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python:../gear:../web_common
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
@@ -25,6 +28,8 @@ build:
 	-docker pull python:3.7-slim-stretch
 	-docker pull $(BATCH_WORKER_LATEST)
 	docker build -t batch-worker -f Dockerfile.worker --cache-from batch-worker,$(BATCH_WORKER_LATEST),python:3.7-slim-stretch ..
+	python3 ../ci/jinja2_render.py '{"batch_worker_image":{"image":"batch-worker"}}' Dockerfile.copy Dockerfile.copy.out
+	docker build -t batch-copy -f Dockerfile.copy.out --cache-from batch-copy,$(BATCH_COPY_LATEST),batch-worker ..
 
 .PHONY: push
 push: build
@@ -36,14 +41,19 @@ push: build
 	docker push $(BATCH_WORKER_LATEST)
 	docker tag batch-worker $(BATCH_WORKER_IMAGE)
 	docker push $(BATCH_WORKER_IMAGE)
+	docker tag batch-copy $(BATCH_COPY_LATEST)
+	docker push $(BATCH_COPY_LATEST)
+	docker tag batch-copy $(BATCH_COPY_IMAGE)
+	docker push $(BATCH_COPY_IMAGE)
 
-JINJA_ENVIRONMENT := '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"batch_image":{"image":"$(BATCH_IMAGE)"},"batch_worker_image":{"image":"$(BATCH_WORKER_IMAGE)"},"default_ns":{"name":"default"},"batch_pods_ns":{"name":"batch-pods"},"batch_database":{"user_secret_name":"sql-batch-user-config"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)","k8s_server_url":"$(KUBERNETES_SERVER_URL)"}}'
+JINJA_ENVIRONMENT = '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"batch_image":{"image":"$(BATCH_IMAGE)"},"batch_worker_image":{"image":"$(BATCH_WORKER_IMAGE)"},"batch_copy_image":{"image":"$(BATCH_COPY_IMAGE)"},"default_ns":{"name":"default"},"batch_pods_ns":{"name":"batch-pods"},"batch_database":{"user_secret_name":"sql-batch-user-config"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)","k8s_server_url":"$(KUBERNETES_SERVER_URL)"}}'
 
 .PHONY: deploy
 deploy: push
-	python3 ../ci/jinja2_render.py $(JINJA_ENVIRONMENT) deployment.yaml deployment.yaml.out
-	python3 ../ci/jinja2_render.py $(JINJA_ENVIRONMENT) service-account.yaml service-account.yaml.out
-	python3 ../ci/jinja2_render.py $(JINJA_ENVIRONMENT) service-account-batch-pods.yaml service-account-batch-pods.yaml.out
+	E=$(JINJA_ENVIRONMENT) && \
+	  python3 ../ci/jinja2_render.py $$E deployment.yaml deployment.yaml.out && \
+	  python3 ../ci/jinja2_render.py $$E service-account.yaml service-account.yaml.out && \
+	  python3 ../ci/jinja2_render.py $$E service-account-batch-pods.yaml service-account-batch-pods.yaml.out
 	kubectl -n default apply -f service-account.yaml.out
 	kubectl -n default apply -f service-account-batch-pods.yaml.out
 	kubectl -n default apply -f deployment.yaml.out

@@ -272,7 +272,7 @@ object Pretty {
             case RelationalLet(name, _, _) => prettyIdentifier(name)
             case ApplyBinaryPrimOp(op, _, _) => prettyClass(op)
             case ApplyUnaryPrimOp(op, _) => prettyClass(op)
-            case ApplyComparisonOp(op, _, _) => prettyClass(op)
+            case ApplyComparisonOp(op, _, _) => op.render()
             case GetField(_, name) => prettyIdentifier(name)
             case GetTupleElement(_, idx) => idx.toString
             case MakeTuple(fields) => prettyInts(fields.map(_._1).toFastIndexedSeq)

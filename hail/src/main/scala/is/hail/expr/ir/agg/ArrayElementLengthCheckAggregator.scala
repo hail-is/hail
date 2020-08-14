@@ -241,6 +241,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
                   nestedAggs(i).result(cb, s, ssb)
                   cb += ssb.advance()
                 })
+                state.store(cb)
               }
             })
             cb += sab.advance()
