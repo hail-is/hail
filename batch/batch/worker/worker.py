@@ -273,7 +273,7 @@ class Container:
             'OpenStdin': False,
             'Cmd': self.spec['command'],
             'Image': self.image,
-            'Entrypoint': '',
+            'Entrypoint': ''
         }
 
         env = self.spec.get('env', [])

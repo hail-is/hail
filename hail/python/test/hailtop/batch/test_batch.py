@@ -104,7 +104,7 @@ class LocalTests(unittest.TestCase):
     def test_single_job_with_nonsense_shell(self):
         b = self.batch()
         j = b.new_job(shell='/bin/ajdsfoijasidojf')
-        j.image('google/cloud-sdk:237.0.0-alpine')
+        j.image('ubuntu:18.04')
         j.command(f'echo "hello"')
         self.assertRaises(Exception, b.run)
 
@@ -358,7 +358,7 @@ class BatchTests(unittest.TestCase):
 
     def batch(self, requester_pays_project=None):
         return Batch(backend=self.backend,
-                     default_image='google/cloud-sdk:237.0.0-alpine',
+                     default_image='ubuntu:18.04',
                      attributes={'foo': 'a', 'bar': 'b'},
                      requester_pays_project=requester_pays_project)
 
