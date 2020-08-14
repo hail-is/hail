@@ -1,6 +1,5 @@
 from google.cloud import storage
 import re
-import functools
 
 
 def get_geometric_mean(prod_of_means, num_of_means):
@@ -29,11 +28,6 @@ def enumerate_list_index(list_of_lists):
 class ReadGoogleStorage:
     def __init__(self):
         self.storage_client = storage.Client()
-        self.cached_files = []
-
-    @functools.lru_cache(maxsize=128)
-    def cache_file_path(self, file_path):
-        self.cached_files.append(file_path)
 
     def get_data_as_string(self, file_path):
         self.cache_file_path(file_path)
@@ -48,14 +42,3 @@ class ReadGoogleStorage:
         except Exception:
             raise NameError()
         return data
-
-    def get_memoized_files(self):
-        return self.cached_files
-
-    @functools.lru_cache(maxsize=128)
-    def list_files_in_bucket(self, bucket_name):
-        list_of_files = []
-        bucket = self.storage_client.get_bucket(bucket_name)
-        for blob in bucket.list_blobs():
-            list_of_files.append('gs://' + bucket_name + '/' + blob.name)
-        return list_of_files

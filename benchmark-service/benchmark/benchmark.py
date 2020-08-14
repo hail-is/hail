@@ -104,8 +104,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
     else:
         benchmarks_context = get_benchmarks(file)
     context = {'file': file,
-               'benchmarks': benchmarks_context,
-               'cached_files': ReadGoogleStorage().list_files_in_bucket('hail-benchmarks')} # ReadGoogleStorage().get_memoized_files()
+               'benchmarks': benchmarks_context}
     return await render_template('benchmark', request, userdata, 'index.html', context)
 
 
