@@ -58,7 +58,7 @@
 {% endif %}
 
 <script type="text/javascript" src="autocomplete.js">
-   var files = "{{ cached_files|tojson }}";
+   var files = {{ cached_files|tojson }};
    autocomplete(document.getElementById("file"), files);
 </script>
 {% endblock %}
