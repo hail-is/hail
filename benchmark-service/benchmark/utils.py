@@ -36,7 +36,7 @@ class ReadGoogleStorage:
         self.cached_files.append(file_path)
 
     def get_data_as_string(self, file_path):
-        self.cache_file_path(self, file_path)
+        self.cache_file_path(file_path)
         file_info = parse_file_path(FILE_PATH_REGEX, file_path)
         bucket = self.storage_client.get_bucket(file_info['bucket'])
         shorter_file_path = file_info['path']
