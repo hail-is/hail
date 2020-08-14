@@ -52,8 +52,10 @@ class ReadGoogleStorage:
     def get_memoized_files(self):
         return self.cached_files
 
+    @functools.lru_cache(maxsize=128)
     def list_files_in_bucket(self, bucket_name):
         list_of_files = []
         bucket = self.storage_client.get_bucket(bucket_name)
         for blob in bucket.list_blobs():
             list_of_files.append(blob.name)
+        return list_of_files
