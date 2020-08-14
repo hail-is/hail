@@ -205,7 +205,7 @@ class LocalBackend(Backend):
             joined_env = '; '.join(env) + '; ' if env else ''
             cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
 
-            job_script = shq(joined_env + defs + cmd)
+            quoted_job_script = shq(joined_env + defs + cmd)
 
             if job._image:
 
@@ -220,9 +220,9 @@ class LocalBackend(Backend):
                              f"{memory} "
                              f"{cpu} "
                              f"{job._image} "
-                             f"{job_shell} -c {job_script}")
+                             f"{job_shell} -c {quoted_job_script}")
             else:
-                lines.append(f"{job_shell} -c {job_script}")
+                lines.append(f"{job_shell} -c {quoted_job_script}")
 
             lines += [x for r in job._external_outputs for x in copy_external_output(r)]
             lines += ['\n']
