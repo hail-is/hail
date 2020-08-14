@@ -2323,6 +2323,13 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(hl.eval(hl.corr(hl.literal(x1, 'array<float>'), hl.literal(x2, 'array<float>'))),
                                pearsonr(x1[3:], x2[3:])[0])
 
+    def test_array_grouped(self):
+        x = hl.array([0, 1, 2, 3, 4])
+        assert hl.eval(x.grouped(1)) == [[0], [1], [2], [3], [4]]
+        assert hl.eval(x.grouped(2)) == [[0, 1], [2, 3], [4]]
+        assert hl.eval(x.grouped(5)) == [x]
+        assert hl.eval(x.grouped(100)) == [x]
+
     def test_array_find(self):
         self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.null(hl.tarray(hl.tint32)))), None)
         self.assertEqual(hl.eval(hl.find(lambda x: hl.null(hl.tbool), [1, 0, -4, 6])), None)
