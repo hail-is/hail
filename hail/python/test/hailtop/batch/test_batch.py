@@ -93,7 +93,7 @@ class LocalTests(unittest.TestCase):
             msg = 'hello world'
 
             b = self.batch()
-            j = b.new_job(shell='/bin/sh')
+            j = b.new_job(shell='/bin/bash')
             j.command(f'echo "{msg}" > {j.ofile}')
 
             b.write_output(j.ofile, output_file.name)
@@ -105,6 +105,11 @@ class LocalTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job(shell='/bin/ajdsfoijasidojf')
         j.image('ubuntu:18.04')
+        j.command(f'echo "hello"')
+        self.assertRaises(Exception, b.run)
+
+        b = self.batch()
+        j = b.new_job(shell='/bin/nonexistent')
         j.command(f'echo "hello"')
         self.assertRaises(Exception, b.run)
 

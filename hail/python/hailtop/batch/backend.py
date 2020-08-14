@@ -118,8 +118,7 @@ class LocalBackend(Backend):
 
         tmpdir = self._get_scratch_dir()
 
-        lines = ['#!/bin/bash',
-                 'set -e' + 'x' if verbose else '',
+        lines = ['set -e' + 'x' if verbose else '',
                  '\n',
                  '# change cd to tmp directory',
                  f"cd {tmpdir}",
@@ -200,10 +199,16 @@ class LocalBackend(Backend):
             resource_defs = [r._declare(tmpdir) for r in job._mentioned]
             env = [f'export {k}={v}' for k, v in job._env.items()]
 
+            job_shell = job._shell if job._shell else self.DEFAULT_SHELL
+
+            defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
+            joined_env = '; '.join(env) + '; ' if env else ''
+            cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
+
+            job_script = shq(joined_env + defs + cmd)
+
             if job._image:
-                defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
-                joined_env = '; '.join(env) + '; ' if env else ''
-                cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
+
                 memory = f'-m {job._memory}' if job._memory else ''
                 cpu = f'--cpus={job._cpu}' if job._cpu else ''
 
@@ -214,12 +219,10 @@ class LocalBackend(Backend):
                              f"-w {tmpdir} "
                              f"{memory} "
                              f"{cpu} "
-                             f"{job._image} {job._shell if job._shell else self.DEFAULT_SHELL} "
-                             f"-c {shq(joined_env + defs + cmd)}")
+                             f"{job._image} "
+                             f"{job_shell} -c {job_script}")
             else:
-                lines += env
-                lines += resource_defs
-                lines += job._command
+                lines.append(f"{job_shell} -c {job_script}")
 
             lines += [x for r in job._external_outputs for x in copy_external_output(r)]
             lines += ['\n']
