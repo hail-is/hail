@@ -1,4 +1,4 @@
-FROM jupyter/scipy-notebook
+FROM jupyter/scipy-notebook:c094bb7219f9
 MAINTAINER Hail Team <hail@broadinstitute.org>
 
 USER root
@@ -8,8 +8,10 @@ RUN apt-get update && apt-get install -y \
 USER jovyan
 
 RUN pip install --no-cache-dir \
-  'jupyter-spark<0.5' \
-  hail==0.2.8 \
+  jupyter \
+  jupyter-spark \
+  "tornado<6" \
+  hail==0.2.54 \
   jupyter_contrib_nbextensions \
   && \
   jupyter serverextension enable --user --py jupyter_spark && \
