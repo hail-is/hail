@@ -9,8 +9,8 @@ def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')
     parser.add_argument('--num-workers', '--n-workers', '-w', type=int,
                         help='New number of worker machines (min. 2).')
-    parser.add_argument('--num-preemptible-workers', '--n-pre-workers', '-p', type=int,
-                        help='New number of preemptible worker machines.')
+    parser.add_argument('--num-secondary-workers', '--num-preemptible-workers', '--n-pre-workers', '-p', type=int,
+                        help='New number of secondary (preemptible) worker machines.')
     parser.add_argument('--graceful-decommission-timeout', '--graceful', type=str,
                         help='If set, cluster size downgrade will use graceful decommissioning with the given timeout (e.g. "60m").')
     parser.add_argument('--max-idle', type=str, help='New maximum idle time before shutdown (e.g. "60m").')
@@ -27,8 +27,8 @@ def main(args, pass_through_args):
     if args.num_workers is not None:
         modify_args.append('--num-workers={}'.format(args.num_workers))
 
-    if args.num_preemptible_workers is not None:
-        modify_args.append('--num-preemptible-workers={}'.format(args.num_preemptible_workers))
+    if args.num_secondary_workers is not None:
+        modify_args.append('--num-secondary-workers={}'.format(args.num_secondary_workers))
 
     if args.graceful_decommission_timeout:
         if not modify_args:
