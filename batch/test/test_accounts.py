@@ -236,8 +236,8 @@ async def test_delete_billing_project_only_when_closed(dev_client, new_billing_p
 async def test_add_and_delete_user(dev_client, new_billing_project):
     project = new_billing_project
     r = await dev_client.add_user('test', project)
-    assert r['user']  == 'test'
-    assert r['billing_project']  == project
+    assert r['user'] == 'test'
+    assert r['billing_project'] == project
 
     bp = await dev_client.get_billing_project(project)
     assert r['user'] in bp['users'], bp
@@ -262,3 +262,94 @@ async def test_add_and_delete_user(dev_client, new_billing_project):
         assert e.status == 404, e
     else:
         assert False, 'expected error'
+
+
+def test_edit_billing_limit_dev(dev_client, new_billing_project):
+    project = new_billing_project
+    r = await dev_client.add_user('test', project)
+    assert r['user'] == 'test'
+    assert r['billing_project'] == project
+    assert r['limit'] is None
+
+    limit = 5
+    r = await dev_client.edit_billing_limit(limit, project)
+    assert r['limit'] == limit
+
+    limit = None
+    r = await dev_client.edit_billing_limit(limit, project)
+    assert r['limit'] is None
+
+    try:
+        limit = 'foo'
+        r = await dev_client.edit_billing_limit(limit, project)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 400, e
+    else:
+        r = await dev_client.get_billing_project(project)
+        assert r['limit'] is None, r
+        assert False, 'expected error'
+
+    try:
+        limit = -1
+        r = await dev_client.edit_billing_limit(limit, project)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 400, e
+    else:
+        r = await dev_client.get_billing_project(project)
+        assert r['limit'] is None, r
+        assert False, 'expected error'
+
+
+def test_edit_billing_limit_nondev(make_client, dev_client, new_billing_project):
+    project = new_billing_project
+    r = await dev_client.add_user('test', project)
+    assert r['user'] == 'test'
+    assert r['billing_project'] == project
+    assert r['limit'] is None
+
+    client = await make_client(project)
+
+    try:
+        limit = 5
+        await client.edit_billing_limit(limit, project)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 404, e
+    else:
+        r = await client.get_billing_project(project)
+        assert r['limit'] is None, r
+        assert False, 'expected error'
+
+
+def test_billing_project_accrued_costs(dev_client, new_billing_project):
+    project = new_billing_project
+    r = await dev_client.add_user('test', project)
+    assert r['user'] == 'test'
+    assert r['billing_project'] == project
+    assert r['limit'] is None
+
+    def approx_equal(x, y, tolerance=1e-10):
+        return abs(x - y) <= tolerance
+
+    b1 = await dev_client.create_batch()
+    j1_1 = b1.create_job('ubuntu:18.04', command=['echo', 'head'])
+    j1_2 = b1.create_job('ubuntu:18.04', command=['echo', 'head'])
+    b1 = b1.submit()
+
+    b2 = await dev_client.create_batch()
+    j2_1 = b2.create_job('ubuntu:18.04', command=['echo', 'head'])
+    j2_2 = b2.create_job('ubuntu:18.04', command=['echo', 'head'])
+    b2 = b2.submit()
+
+    b1 = b1.wait()
+    b2 = b2.wait()
+
+    b1_expected_cost = j1_1.status()['cost'] + j1_2.status()['cost']
+    assert approx_equal(b1_expected_cost, b1['cost']), (b1_expected_cost, b1['cost'])
+
+    b2_expected_cost = j2_1.status()['cost'] + j2_2.status()['cost']
+    assert approx_equal(b2_expected_cost, b2['cost']), (b2_expected_cost, b2['cost'])
+
+    cost_by_batch = b1['cost'] + b2['cost']
+    cost_by_billing_project = (await dev_client.get_billing_project(project))['accrued_cost']
+
+    assert approx_equal(cost_by_batch, cost_by_billing_project), (cost_by_batch, cost_by_billing_project)

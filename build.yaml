@@ -1985,6 +1985,8 @@ steps:
       script: /io/sql/add-test-dev-to-billing-project-users.sql
     - name: add-status-flag-billing-projects
       script: /io/sql/add-status-flag-billing-projects.sql
+    - name: add-aggregated-billing-project-resources
+      script: /io/sql/add-aggregated-billing-project-resources.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/

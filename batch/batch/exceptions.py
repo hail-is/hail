@@ -30,3 +30,11 @@ class NonExistentUserError(BatchUserError):
 class ClosedBillingProjectError(BatchUserError):
     def __init__(self, billing_project):
         super().__init__(f'Billing project {billing_project} is closed and cannot be modified.', 'error')
+
+
+class InvalidBillingLimitError(BatchUserError):
+    def __init__(self, billing_limit, billing_project):
+        super().__init__(f'Invalid billing_limit {billing_limit} for billing project {billing_project}.', 'error')
+
+    def http_response(self):
+        return web.HTTPBadRequest(reason=self.message)

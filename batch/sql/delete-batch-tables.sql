@@ -16,6 +16,7 @@ DROP TRIGGER IF EXISTS attempts_after_update;
 DROP TRIGGER IF EXISTS jobs_after_update;
 DROP TRIGGER IF EXISTS attempt_resources_after_insert;
 
+DROP TABLE IF EXISTS `aggregated_billing_project_resources`;
 DROP TABLE IF EXISTS `aggregated_batch_resources`;
 DROP TABLE IF EXISTS `aggregated_job_resources`;
 DROP TABLE IF EXISTS `attempt_resources`;

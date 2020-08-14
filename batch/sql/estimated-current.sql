@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS `resources` (
 CREATE TABLE IF NOT EXISTS `billing_projects` (
   `name` VARCHAR(100) NOT NULL,
   `status` ENUM('open', 'closed', 'deleted') NOT NULL DEFAULT 'open',
+  `limit` DOUBLE DEFAULT NULL,
+  `msec_mcpu` BIGINT DEFAULT 0
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 CREATE INDEX `billing_project_status` ON `billing_projects` (`status`);
@@ -31,6 +33,18 @@ CREATE TABLE IF NOT EXISTS `billing_project_users` (
   PRIMARY KEY (`billing_project`, `user`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
+
+INSERT INTO `billing_projects` (`name`)
+VALUES ('ci');
+
+INSERT INTO `billing_projects` (`name`)
+VALUES ('test');
+
+INSERT INTO `billing_project_users` (`billing_project`, `user`)
+VALUES ('ci', 'ci');
+
+INSERT INTO `billing_project_users` (`billing_project`, `user`)
+VALUES ('test', 'test');
 
 INSERT INTO `billing_project_users` (`billing_project`, `user`)
 VALUES ('test', 'test-dev');
@@ -94,6 +108,7 @@ CREATE INDEX `batches_user_state_cancelled` ON `batches` (`user`, `state`, `canc
 CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
 CREATE INDEX `batches_token` ON `batches` (`token`);
 CREATE INDEX `batches_time_completed` ON `batches` (`time_completed`);
+CREATE INDEX `batches_billing_project_state` ON `batches` (`billing_project`, `state`);
 
 CREATE TABLE IF NOT EXISTS `batches_staging` (
   `batch_id` BIGINT NOT NULL,
@@ -156,6 +171,8 @@ CREATE TABLE IF NOT EXISTS `attempts` (
   FOREIGN KEY (`instance_name`) REFERENCES instances(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `attempts_instance_name` ON `attempts` (`instance_name`);
+CREATE INDEX `attempts_start_time` ON `attempts` (`start_time`);
+CREATE INDEX `attempts_end_time` ON `attempts` (`end_time`);
 
 CREATE TABLE IF NOT EXISTS `ready_cores` (
   ready_cores_mcpu BIGINT NOT NULL,
@@ -200,6 +217,15 @@ CREATE TABLE IF NOT EXISTS `batch_attributes` (
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE  
 ) ENGINE = InnoDB;
 CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(256));
+
+CREATE TABLE IF NOT EXISTS `aggregated_billing_project_resources` (
+  `billing_project` VARCHAR(100) NOT NULL,
+  `resource` VARCHAR(100) NOT NULL,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`billing_project`, `resource`),
+  FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE,
+  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
+) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `aggregated_batch_resources` (
   `batch_id` BIGINT NOT NULL,
@@ -265,6 +291,7 @@ CREATE TRIGGER attempts_after_update AFTER UPDATE ON attempts
 FOR EACH ROW
 BEGIN
   DECLARE job_cores_mcpu INT;
+  DECLARE cur_billing_project VARCHAR(100);
   DECLARE msec_diff BIGINT;
   DECLARE msec_mcpu_diff BIGINT;
   DECLARE cur_n_tokens INT;
@@ -275,6 +302,8 @@ BEGIN
 
   SELECT cores_mcpu INTO job_cores_mcpu FROM jobs
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
+
+  SELECT billing_project INTO cur_billing_project FROM batches WHERE id = NEW.batch_id;
 
   SET msec_diff = (GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0) -
                    GREATEST(COALESCE(OLD.end_time - OLD.start_time, 0), 0));
@@ -288,6 +317,13 @@ BEGIN
   UPDATE jobs
   SET msec_mcpu = jobs.msec_mcpu + msec_mcpu_diff
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
+
+  INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
+  SELECT billing_project, resource, rand_token, msec_diff * quantity
+  FROM attempt_resources
+  JOIN batches ON batches.id = attempt_resources.batch_id
+  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+  ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 
   INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
   SELECT batch_id, resource, rand_token, msec_diff * quantity
@@ -436,12 +472,15 @@ FOR EACH ROW
 BEGIN
   DECLARE cur_start_time BIGINT;
   DECLARE cur_end_time BIGINT;
+  DECLARE cur_billing_project VARCHAR(100);
   DECLARE msec_diff BIGINT;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
 
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
+
+  SELECT billing_project INTO cur_billing_project FROM batches WHERE id = NEW.batch_id;
 
   SELECT start_time, end_time INTO cur_start_time, cur_end_time
   FROM attempts
@@ -457,6 +496,11 @@ BEGIN
 
   INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
   VALUES (NEW.batch_id, NEW.resource, rand_token, NEW.quantity * msec_diff)
+  ON DUPLICATE KEY UPDATE
+    `usage` = `usage` + NEW.quantity * msec_diff;
+
+  INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
+  VALUES (cur_billing_project, NEW.resource, rand_token, NEW.quantity * msec_diff)
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 END $$

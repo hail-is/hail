@@ -7,7 +7,7 @@ import traceback
 
 from hailtop.utils import (
     time_msecs, sleep_and_backoff, is_transient_error,
-    time_msecs_str, humanize_timedelta_msecs, cost_str)
+    time_msecs_str, humanize_timedelta_msecs)
 from hailtop.tls import in_cluster_ssl_client_session
 
 from .globals import complete_states, tasks, STATUS_FORMAT_VERSION
@@ -73,7 +73,7 @@ def batch_record_to_dict(record):
     d['msec_mcpu'] = msec_mcpu
 
     cost = format_version.cost(record['msec_mcpu'], record['cost'])
-    d['cost'] = cost_str(cost)
+    d['cost'] = cost
 
     return d
 
@@ -229,7 +229,7 @@ def job_record_to_dict(record, name):
     result['msec_mcpu'] = msec_mcpu
 
     cost = format_version.cost(record['msec_mcpu'], record['cost'])
-    result['cost'] = cost_str(cost)
+    result['cost'] = cost
 
     return result
 

@@ -682,6 +682,11 @@ class BatchClient:
         bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/delete')
         return await bp_resp.json()
 
+    async def edit_billing_limit(self, limit, project):
+        bp_resp = await self._post(f'/api/v1alpha/billing_limits/{project}/edit',
+                                   json={'limit': limit})
+        return await bp_resp.json()
+
     async def close(self):
         await self._session.close()
         self._session = None

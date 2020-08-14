@@ -587,12 +587,23 @@ LOCK IN SHARE MODE;
 ''')
 
         agg_batch_resources = tx.execute_and_fetchall('''
-SELECT batch_id, JSON_OBJECTAGG(resource, `usage`) as resources
+SELECT batch_id, billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
   SELECT batch_id, resource, SUM(`usage`) AS `usage`
   FROM aggregated_batch_resources
   GROUP BY batch_id, resource) AS t
-GROUP BY t.batch_id
+JOIN batches ON batches.id = t.batch_id
+GROUP BY t.batch_id, billing_project
+LOCK IN SHARE MODE;
+''')
+
+        agg_billing_project_resources = tx.execute_and_fetchall('''
+SELECT billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
+FROM (
+  SELECT billing_project, resource, SUM(`usage`) AS `usage`
+  FROM aggregated_billing_project_resources
+  GROUP BY billing_project, resource) AS t
+GROUP BY t.billing_project
 LOCK IN SHARE MODE;
 ''')
 
@@ -602,19 +613,27 @@ LOCK IN SHARE MODE;
         agg_job_resources = {(record['batch_id'], record['job_id']): json_to_value(record['resources'])
                              async for record in agg_job_resources}
 
-        agg_batch_resources = {record['batch_id']: json_to_value(record['resources'])
+        agg_batch_resources = {(record['batch_id'], record['billing_project']): json_to_value(record['resources'])
                                async for record in agg_batch_resources}
+
+        agg_billing_project_resources = {record['billing_project']: json_to_value(record['resources'])
+                                         async for record in agg_billing_project_resources}
 
         attempt_by_batch_resources = fold(attempt_resources, lambda k: k[0])
         attempt_by_job_resources = fold(attempt_resources, lambda k: (k[0], k[1]))
         job_by_batch_resources = fold(agg_job_resources, lambda k: k[0])
+        batch_by_billing_project_resources = fold(agg_batch_resources, lambda k: k[1])
 
-        assert attempt_by_batch_resources == agg_batch_resources, (
-            dictdiffer.diff(attempt_by_batch_resources, agg_batch_resources), attempt_by_batch_resources, agg_batch_resources)
+        agg_batch_resources_2 = {batch_id: resources for (batch_id, _), resources in agg_batch_resources.items()}
+
+        assert attempt_by_batch_resources == agg_batch_resources_2, (
+            dictdiffer.diff(attempt_by_batch_resources, agg_batch_resources_2), attempt_by_batch_resources, agg_batch_resources_2)
         assert attempt_by_job_resources == agg_job_resources, (
             dictdiffer.diff(attempt_by_job_resources, agg_job_resources), attempt_by_job_resources, agg_job_resources)
-        assert job_by_batch_resources == agg_batch_resources, (
-            dictdiffer.diff(job_by_batch_resources, agg_batch_resources), job_by_batch_resources, agg_batch_resources)
+        assert job_by_batch_resources == agg_batch_resources_2, (
+            dictdiffer.diff(job_by_batch_resources, agg_batch_resources_2), job_by_batch_resources, agg_batch_resources_2)
+        assert batch_by_billing_project_resources == agg_billing_project_resources, (
+            dictdiffer.diff(batch_by_billing_project_resources, agg_billing_project_resources), batch_by_billing_project_resources, agg_billing_project_resources)
 
     while True:
         try:
