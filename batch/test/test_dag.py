@@ -204,7 +204,7 @@ def test_input_dependency_wildcard(client):
     batch.submit()
     tail.wait()
     assert head._get_exit_code(head.status(), 'input') != 0, head._status
-    assert 'glob wildcards are not allowed in file paths' in tail.log()['input'], tail.log()['input']
+    assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 
 def test_input_dependency_directory(client):
