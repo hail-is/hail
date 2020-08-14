@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir \
   jupyter \
   jupyter-spark \
   "tornado<6" \
-  hail==0.2.49 \
+  hail==0.2.54 \
   jupyter_contrib_nbextensions \
   && \
   jupyter serverextension enable --user --py jupyter_spark && \
