@@ -410,7 +410,7 @@ object NDArrayInv {
 
 final case class NDArrayQR(nd: IR, mode: String) extends IR
 
-final case class NDArraySVD(nd: IR, full_matrices: Boolean, compute_uv: Boolean)
+final case class NDArraySVD(nd: IR, full_matrices: Boolean, compute_uv: Boolean) extends IR
 
 final case class NDArrayInv(nd: IR) extends IR
 

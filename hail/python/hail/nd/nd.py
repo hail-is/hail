@@ -9,7 +9,7 @@ from hail.expr.expressions import (
     expr_int32, expr_int64, expr_tuple, expr_any, expr_array, expr_ndarray,
     expr_numeric, Int64Expression, cast_expr, construct_expr)
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
-from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat
+from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat, NDArraySVD
 
 tsequenceof_nd = oneof(sequenceof(expr_ndarray()), expr_array(expr_ndarray()))
 shape_type = oneof(expr_int64, tupleof(expr_int64), expr_tuple())
@@ -260,6 +260,11 @@ def qr(nd, mode="reduced"):
     elif mode in ["complete", "reduced"]:
         return construct_expr(ir, ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 2)))
 
+
+def svd(nd, full_matrices, compute_uv):
+    ir = NDArraySVD(nd._ir, full_matrices, compute_uv)
+    #TODO indices, aggregators
+    return construct_expr(ir,ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2)))
 
 @typecheck(nd=expr_ndarray())
 def inv(nd):
