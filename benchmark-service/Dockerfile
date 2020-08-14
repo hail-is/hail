@@ -11,10 +11,6 @@ RUN pip3 install plotly
 
 RUN pip3 install pandas
 
-RUN pip3 install scipy
-
-RUN pip3 install numpy
-
 EXPOSE 5000
 
 CMD ["python3", "-m", "benchmark.benchmark"]
