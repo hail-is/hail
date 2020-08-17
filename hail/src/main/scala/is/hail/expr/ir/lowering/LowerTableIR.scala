@@ -986,6 +986,12 @@ object LowerTableIR {
               CastRename(row, row.typ.asInstanceOf[TStruct].rename(rowMap))
             })
 
+        case TableMapPartitions(child, globalName, partitionStreamName, body) =>
+          val loweredChild = lower(child)
+          loweredChild.mapPartition(Some(child.typ.key)) { part =>
+            Let(globalName, loweredChild.globals, Let(partitionStreamName, part, body))
+          }
+
         case node =>
           throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(node) }")
       }
