@@ -98,6 +98,11 @@ class WorkerConfig:
         self.cores = instance['cores']
         self.preemptible = instance['preemptible']
 
+        data_disk = [d for d in self.disks if not d['boot']][0]
+        assert data_disk
+        self.local_ssd_data_disk = (data_disk['type'] == 'local-ssd')
+        self.data_disk_size_gb = data_disk['size']
+
     def is_valid_configuration(self, valid_resources):
         is_valid = True
         dummy_resources = self.resources(0, 0)
