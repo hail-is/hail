@@ -766,24 +766,28 @@ class Emit[C](
                   cb.append(Code._fatal[Unit](s"shape missing at index $index")))
               }
 
-              def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
-                Code(
-                  srvb.start(),
-                  Code.foreach(0 until nDims) { index =>
-                    Code(
-                      srvb.addLong(shapeTupleValue(index)),
-                      srvb.advance())
-                  })
-              }
+              def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] =
+                EmitCodeBuilder.scopedVoid(mb) { cb =>
+                  cb += srvb.start()
+                  (0 until nDims).foreach { index =>
+                    val shape =
+                      shapeTupleValue.loadField(cb, index).handle(cb, { /* impossible */ }).tcode[Long]
+                    cb += srvb.addLong(shape)
+                    cb += srvb.advance()
+                  }
+                }
 
-              def makeStridesBuilder(sourceShape: PBaseStructValue, isRowMajor: Code[Boolean], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
-                def shapeCodeSeq1 = (0 until nDims).map(sourceShape[Long](_).get)
+              def makeStridesBuilder(sourceShape: PBaseStructValue, isRowMajor: Code[Boolean], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb => EmitCodeBuilder.scopedVoid(mb) { cb =>
+                def shapeCodeSeq1 = (0 until nDims).map { i =>
+                  sourceShape.loadField(cb, i).handle(cb, { /* impossible */ }).tcode[Long]
+                }
 
-                isRowMajor.mux(
-                  xP.makeRowMajorStridesBuilder(shapeCodeSeq1, mb)(srvb),
-                  xP.makeColumnMajorStridesBuilder(shapeCodeSeq1, mb)(srvb)
-                )
-              }
+                cb.ifx(isRowMajor, {
+                  cb += xP.makeRowMajorStridesBuilder(shapeCodeSeq1, mb)(srvb)
+                }, {
+                  cb += xP.makeColumnMajorStridesBuilder(shapeCodeSeq1, mb)(srvb)
+                })
+              }}
 
               PCode(pt, xP.construct(shapeBuilder, makeStridesBuilder(shapeTupleValue, isRowMajorCode.tcode[Boolean], mb), requiredData, mb, region.code))
             }

@@ -86,7 +86,7 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
       cb.emb
     )
 
-    val leftNdShape = PCode.apply(ndTyp.shape.pType, ndTyp.shape.load(leftNdValue.value.asInstanceOf[Value[Long]])).asBaseStruct.memoize(cb, "left_nd_shape")
+    val leftNdShape = leftNdValue.shapes()
 
     val columnMajorLoops = idxVars.zipWithIndex.foldLeft(body) { case (innerLoops, (dimVar, dimIdx)) =>
       Code(
