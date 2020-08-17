@@ -61,7 +61,7 @@ INSTANCE_ID = os.environ['INSTANCE_ID']
 PROJECT = os.environ['PROJECT']
 WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
-LOCAL_SSD_MOUNT = os.environ['LOCAL_SSD_MOUNT']
+WORKER_DATA_DISK_MOUNT = os.environ['WORKER_DATA_DISK_MOUNT']
 BATCH_COPY_IMAGE = os.environ['BATCH_COPY_IMAGE']
 
 log.info(f'CORES {CORES}')
@@ -75,7 +75,7 @@ log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'PROJECT {PROJECT}')
 log.info(f'WORKER_CONFIG {WORKER_CONFIG}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
-log.info(f'LOCAL_SSD_MOUNT {LOCAL_SSD_MOUNT}')
+log.info(f'WORKER_DATA_DISK_MOUNT {WORKER_DATA_DISK_MOUNT}')
 log.info(f'BATCH_COPY_IMAGE {BATCH_COPY_IMAGE}')
 
 worker_config = WorkerConfig(WORKER_CONFIG)
@@ -385,7 +385,7 @@ class Container:
 
             merged_overlay_path = c['GraphDriver']['Data']['MergedDir']
             assert merged_overlay_path.endswith('/merged')
-            self.overlay_path = merged_overlay_path[:-7].replace(LOCAL_SSD_MOUNT, '/host')
+            self.overlay_path = merged_overlay_path[:-7].replace(WORKER_DATA_DISK_MOUNT, '/host')
             os.makedirs(f'{self.overlay_path}/', exist_ok=True)
 
             async with Flock('/xfsquota/projects', pool=worker.pool):
@@ -693,7 +693,7 @@ class Job:
         else:
             self.storage_in_bytes = parse_memory_in_bytes('350Gi')
 
-        self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes)
+        self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes, self.storage_in_bytes)
 
         self.project_name = f'batch-{self.batch_id}-job-{self.job_id}'
         self.project_id = Job.get_next_xfsquota_project_id()
@@ -702,7 +702,7 @@ class Job:
         containers = {}
 
         if input_files:
-            # input_volume_mounts.append(f'{LOCAL_SSD_MOUNT}:/host')
+            # input_volume_mounts.append(f'{WORKER_DATA_DISK_MOUNT}:/host')
             containers['input'] = copy_container(
                 self, 'input', input_files, input_volume_mounts,
                 self.cpu_in_mcpu, self.memory_in_bytes, requester_pays_project)
