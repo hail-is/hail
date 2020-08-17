@@ -693,7 +693,7 @@ class Job:
         else:
             self.storage_in_bytes = parse_memory_in_bytes('350Gi')
 
-        self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes, self.storage_in_bytes)
+        self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes)
 
         self.project_name = f'batch-{self.batch_id}-job-{self.job_id}'
         self.project_id = Job.get_next_xfsquota_project_id()
