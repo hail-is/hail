@@ -66,9 +66,9 @@ class RealStagedOwnedRegion(val r: Settable[Region], val parent: StagedRegion) e
 
   def clear(): Code[Unit] = (r: Value[Region]).clear()
 
-  def giveToParent(): Code[Unit] = parent.code.invoke("takeOwnershipOf", r)
+  def giveToParent(): Code[Unit] = r.invoke[Region, Unit]("move", parent.code)
 
-  def shareWithParent(): Code[Unit] = parent.code.invoke("addReferenceTo", r)
+  def shareWithParent(): Code[Unit] = parent.code.invoke[Region, Unit]("addReferenceTo", r)
 
   def copyToParent(mb: EmitMethodBuilder[_], value: PCode): PCode =
     value.copyToRegion(mb, parent.code)

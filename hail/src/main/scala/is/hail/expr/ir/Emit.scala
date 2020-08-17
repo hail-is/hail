@@ -249,6 +249,14 @@ case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
     IEmitCode(Lmissing, Lpresent2, pc2)
   }
 
+  def mapMissing(cb: EmitCodeBuilder)(ifMissing: => Unit): IEmitCode = {
+    val Lmissing2 = CodeLabel()
+    cb.define(Lmissing)
+    ifMissing
+    cb.goto(Lmissing2)
+    IEmitCode(Lmissing2, Lpresent, pc)
+  }
+
   def flatMap(cb: EmitCodeBuilder)(f: (PCode) => IEmitCode): IEmitCode = {
     cb.define(Lpresent)
     val ec2 = f(pc)
