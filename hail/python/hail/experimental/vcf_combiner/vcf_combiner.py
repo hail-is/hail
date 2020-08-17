@@ -662,7 +662,7 @@ def run_combiner(sample_paths: List[str],
                     mts = [transform_gvcf(vcf)
                            for vcf in hl.import_gvcfs(inputs, intervals, array_elements_required=False,
                                                       _external_header=header,
-                                                      _external_sample_ids=[sample_names[i] for i in
+                                                      _external_sample_ids=[[sample_names[i]] for i in
                                                                             merge.inputs] if header is not None else None,
                                                       reference_genome=reference_genome,
                                                       contig_recoding=contig_recoding)]
