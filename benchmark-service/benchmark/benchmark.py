@@ -10,6 +10,7 @@ import json
 import re
 import plotly
 import plotly.express as px
+import pandas as pd
 
 configure_logging()
 router = web.RouteTableDef()
@@ -71,7 +72,11 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
                      None)
 
     try:
-        fig = px.scatter(x=enumerate_list_index(name_data['trials']), y=name_data['times'])
+        df = pd.DataFrame(dict(trial=enumerate_list_index(name_data['trials']),
+                               wall_time=name_data['times'],
+                               index=['{}'.format(i+1) for i in range(len(name_data['times']))]))
+
+        fig = px.scatter(df, x=df.trial, y=df.wall_time, hover_data=['index'])
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     except Exception:
         message = 'could not find name'
