@@ -1711,22 +1711,36 @@ object EmitStream {
           val optOuter = emitStream(outerIR)
 
           optOuter.map { outer =>
-            val nested = outer.getStream(outerRegion).map[COption[Stream[EmitCode]]] { elt =>
-              if (outerEltType.isRealizable) {
-                val xElt = mb.newEmitField(name, outerEltType)
-                val innerEnv = env.bind(name -> xElt)
-                val optInner = emitStream(innerIR, env = innerEnv).map(_.getStream(outerRegion))
+            val nested = (eltRegion: StagedRegion, outerEltRegion: StagedOwnedRegion) => {
+              outer.getStream(outerEltRegion).map[COption[Stream[EmitCode]]] { elt =>
+                val optInner = if (outerEltType.isRealizable) {
+                  val xElt = mb.newEmitField(name, outerEltType)
+                  val innerEnv = env.bind(name -> xElt)
+                  val optInner = emitStream(innerIR, outerRegion = outerEltRegion, env = innerEnv)
 
-                optInner.addSetup(xElt := elt)
-              } else {
-                val innerEnv = env.bind(name -> new EmitUnrealizableValue(outerEltType, elt))
+                  optInner.addSetup(xElt := elt)
+                } else {
+                  val innerEnv = env.bind(name -> new EmitUnrealizableValue(outerEltType, elt))
 
-                emitStream(innerIR, env = innerEnv).map(_.getStream(outerRegion))
+                  emitStream(innerIR, outerRegion = outerEltRegion, env = innerEnv)
+                }
+
+                optInner.map { inner =>
+                  inner.getStream(eltRegion)
+                    .map(x => EmitCode(outerEltRegion.shareWithParent(), x),
+                         close = Some(outerEltRegion.clear()))
+                }
               }
-
             }
 
-            SizedStream.unsized(eltRegion => nested.flatten.flatten)
+            SizedStream.unsized { eltRegion =>
+              val outerEltRegion = eltRegion.createChildRegion(mb)
+              nested(eltRegion, outerEltRegion)
+                .flatten.flatten
+                .map(x => x,
+                     setup0 = Some(outerEltRegion.allocateRegion(Region.REGULAR)),
+                     close0 = Some(outerEltRegion.free()))
+            }
           }
 
         case If(condIR, thn, els) =>
