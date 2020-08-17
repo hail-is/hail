@@ -257,3 +257,6 @@ class ServiceBackend(Backend):
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
         return resp.json()
+
+    def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
+        raise NotImplementedError("ServiceBackend does not support 'register_ir_function'")
