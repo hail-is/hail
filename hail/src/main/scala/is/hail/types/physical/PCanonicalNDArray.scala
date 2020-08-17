@@ -262,6 +262,12 @@ class PCanonicalNDArraySettable(override val pt: PCanonicalNDArray, val a: Setta
     pt.outOfBounds(indices, a, mb)
   }
 
+  override def shapes(): IndexedSeq[Value[Long]] = Array.tabulate(pt.nDims) { i =>
+    new Value[Long] {
+      def get: Code[Long] = pt.loadShape(a, i)
+    }
+  }
+
   override def sameShape(other: PNDArrayValue, mb: EmitMethodBuilder[_]): Code[Boolean] = {
     val comparator = this.pt.shape.pType.codeOrdering(mb, other.pt.shape.pType)
     val thisShape = this.pt.shape.load(this.a).asInstanceOf[Code[comparator.T]]
