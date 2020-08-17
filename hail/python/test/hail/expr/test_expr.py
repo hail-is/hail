@@ -2327,8 +2327,8 @@ class Tests(unittest.TestCase):
         x = hl.array([0, 1, 2, 3, 4])
         assert hl.eval(x.grouped(1)) == [[0], [1], [2], [3], [4]]
         assert hl.eval(x.grouped(2)) == [[0, 1], [2, 3], [4]]
-        assert hl.eval(x.grouped(5)) == [x]
-        assert hl.eval(x.grouped(100)) == [x]
+        assert hl.eval(x.grouped(5)) == [[0, 1, 2, 3, 4]]
+        assert hl.eval(x.grouped(100)) == [[0, 1, 2, 3, 4]]
 
     def test_array_find(self):
         self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.null(hl.tarray(hl.tint32)))), None)
