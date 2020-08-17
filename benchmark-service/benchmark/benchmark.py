@@ -77,14 +77,14 @@ def get_comparisons(benchmarks1, benchmarks2, metric):
         item = next((item for item in benchmarks2['data'] if item['name'] == d['name']),
                     None)
         if item is None:
-            comparisons.append(d['name'], get_metric(d), None)
+            comparisons.append((d['name'], get_metric(d), None))
         else:
-            comparisons.append(d['name'], get_metric(d), get_metric(item))
+            comparisons.append((d['name'], get_metric(d), get_metric(item)))
     for d2 in benchmarks2['data']:
         item1 = next((item for item in benchmarks1['data'] if item['name'] == d2['name']),
                      None)
         if item1 is None:
-            comparisons.append(d2['name'], None, get_metric(d2))
+            comparisons.append((d2['name'], None, get_metric(d2)))
     return comparisons
 
 
