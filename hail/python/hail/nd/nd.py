@@ -261,7 +261,8 @@ def qr(nd, mode="reduced"):
         return construct_expr(ir, ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 2)))
 
 
-def svd(nd, full_matrices, compute_uv):
+@typecheck(nd=expr_ndarray(), full_matrices=bool, compute_uv=bool)
+def svd(nd, full_matrices = True, compute_uv = True):
     ir = NDArraySVD(nd._ir, full_matrices, compute_uv)
     #TODO indices, aggregators
     return construct_expr(ir,ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2)))
