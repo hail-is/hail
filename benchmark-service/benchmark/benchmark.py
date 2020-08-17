@@ -63,13 +63,28 @@ def get_comparisons(benchmarks1, benchmarks2, metric):
     def get_metric(data):
         if metric == 'median':
             return data['median']
-        return min(data['times'])  # metric == 'best'
+        assert metric == 'best'
+        return min(data['times'])
 
+    # comparisons = []
+    # for d in benchmarks1['data']:
+    #     for item in benchmarks2['data']:
+    #         if item['name'] == d['name']:
+    #             comparisons.append((d['name'], get_metric(d), get_metric(item)))
+    # return comparisons
     comparisons = []
     for d in benchmarks1['data']:
-        for item in benchmarks2['data']:
-            if item['name'] == d['name']:
-                comparisons.append((d['name'], get_metric(d), get_metric(item)))
+        item = next((item for item in benchmarks2['data'] if item['name'] == d['name']),
+                    None)
+        if item is None:
+            comparisons.append(d['name'], get_metric(d), None)
+        else:
+            comparisons.append(d['name'], get_metric(d), get_metric(item))
+    for d2 in benchmarks2['data']:
+        item1 = next((item for item in benchmarks1['data'] if item['name'] == d2['name']),
+                     None)
+        if item1 is None:
+            comparisons.append(d2['name'], None, get_metric(d2))
     return comparisons
 
 
@@ -86,9 +101,17 @@ def final_comparisons(comparisons):
     ratios = []
     final_comps = {}
     for name, r1, r2 in comparisons:
-        r = r1 / r2
-        ratios.append(r)
-        comps.append((name, fmt_diff(r), fmt_time(r1), fmt_time(r2)))
+        # r = r1 / r2
+        # ratios.append(r)
+        # comps.append((name, fmt_diff(r), fmt_time(r1), fmt_time(r2)))
+        if r1 is None:
+            comps.append((name, None, None, fmt_time(r2)))
+        elif r2 is None:
+            comps.append((name, None, fmt_time(r1), None))
+        else:
+            r = r1 / r2
+            ratios.append(r)
+            comps.append((name, fmt_diff(r), fmt_time(r1), fmt_time(r2)))
     final_comps['comps'] = comps
     final_comps['harmonic_mean'] = fmt_diff(hmean(ratios))
     final_comps['geometric_mean'] = fmt_diff(gmean(ratios))
