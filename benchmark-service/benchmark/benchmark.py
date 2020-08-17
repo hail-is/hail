@@ -66,12 +66,6 @@ def get_comparisons(benchmarks1, benchmarks2, metric):
         assert metric == 'best'
         return min(data['times'])
 
-    # comparisons = []
-    # for d in benchmarks1['data']:
-    #     for item in benchmarks2['data']:
-    #         if item['name'] == d['name']:
-    #             comparisons.append((d['name'], get_metric(d), get_metric(item)))
-    # return comparisons
     comparisons = []
     for d in benchmarks1['data']:
         item = next((item for item in benchmarks2['data'] if item['name'] == d['name']),
