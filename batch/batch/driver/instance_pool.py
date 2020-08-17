@@ -106,6 +106,8 @@ class InstancePool:
         self.worker_type = None
         self.worker_cores = None
         self.worker_disk_size_gb = None
+        self.worker_local_ssd_data_disk = None
+        self.worker_pd_ssd_data_disk_size_gb = None
         self.standing_worker_cores = None
         self.max_instances = None
         self.pool_size = None
@@ -133,12 +135,17 @@ class InstancePool:
         log.info('initializing instance pool')
 
         row = await self.db.select_and_fetchone('''
-SELECT worker_type, worker_cores, worker_disk_size_gb, standing_worker_cores, max_instances, pool_size FROM globals;
+SELECT worker_type, worker_cores, worker_disk_size_gb,
+  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
+  standing_worker_cores, max_instances, pool_size
+FROM globals;
 ''')
 
         self.worker_type = row['worker_type']
         self.worker_cores = row['worker_cores']
         self.worker_disk_size_gb = row['worker_disk_size_gb']
+        self.worker_local_ssd_data_disk = row['worker_local_ssd_data_disk']
+        self.worker_pd_ssd_data_disk_size_gb = row['worker_pd_ssd_data_disk_size_gb']
         self.standing_worker_cores = row['standing_worker_cores']
         self.max_instances = row['max_instances']
         self.pool_size = row['pool_size']
@@ -157,32 +164,35 @@ SELECT worker_type, worker_cores, worker_disk_size_gb, standing_worker_cores, ma
             'worker_type': self.worker_type,
             'worker_cores': self.worker_cores,
             'worker_disk_size_gb': self.worker_disk_size_gb,
+            'worker_local_ssd_data_disk': self.worker_local_ssd_data_disk,
+            'worker_pd_ssd_data_disk_size_gb': self.worker_pd_ssd_data_disk_size_gb,
             'standing_worker_cores': self.standing_worker_cores,
             'max_instances': self.max_instances,
             'pool_size': self.pool_size
         }
 
-    # FIXME can't adjust worker type, cores because we check if jobs
-    # can be scheduled in the front-end before inserting into the
-    # database
     async def configure(
             self,
-            # worker_type, worker_cores, worker_disk_size_gb,
+            worker_type, worker_cores, worker_disk_size_gb,
+            worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
             standing_worker_cores,
             max_instances, pool_size):
         await self.db.just_execute(
-            # worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
             '''
 UPDATE globals
-SET standing_worker_cores = %s, max_instances = %s, pool_size = %s;
+SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
+  worker_local_ssd_data_disk = %s, worker_pd_ssd_data_disk_size_gb = %s,
+  standing_worker_cores = %s, max_instances = %s, pool_size = %s;
 ''',
-            (
-                # worker_type, worker_cores, worker_disk_size_gb,
-                standing_worker_cores,
-                max_instances, pool_size))
-        # self.worker_type = worker_type
-        # self.worker_cores = worker_cores
-        # self.worker_disk_size_gb = worker_disk_size_gb
+            (worker_type, worker_cores, worker_disk_size_gb,
+             worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
+             standing_worker_cores,
+             max_instances, pool_size))
+        self.worker_type = worker_type
+        self.worker_cores = worker_cores
+        self.worker_disk_size_gb = worker_disk_size_gb
+        self.worker_local_ssd_data_disk = worker_local_ssd_data_disk
+        self.worker_pd_ssd_data_disk_size_gb = worker_pd_ssd_data_disk_size_gb
         self.standing_worker_cores = standing_worker_cores
         self.max_instances = max_instances
         self.pool_size = pool_size

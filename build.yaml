@@ -1556,6 +1556,8 @@ steps:
       script: /io/sql/insert_local_ssd_resource.py
     - name: fix-mark-job-complete-on-error
       script: /io/sql/fix-mark-job-complete-on-error.sql
+    - name: add-worker-pd-ssd-data-disk
+      script: /io/sql/add-worker-pd-ssd-data-disk.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
