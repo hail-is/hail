@@ -33,4 +33,3 @@ class Py4JBackend(Backend):
             argument_names, [pt._parsable_string() for pt in argument_types],
             return_type._parsable_string(),
             jbody)
-
