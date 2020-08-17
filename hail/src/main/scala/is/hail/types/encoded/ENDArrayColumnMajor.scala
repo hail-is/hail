@@ -1,28 +1,25 @@
 package is.hail.types.encoded
-import java.util.UUID
 
 import is.hail.annotations.{Region}
 import is.hail.asm4s._
-import is.hail.expr.ir.functions.StringFunctions
-import is.hail.expr.ir.{EmitMethodBuilder, EmitRegion}
+import is.hail.expr.ir.{EmitMethodBuilder}
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils._
 
 case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean = false) extends EContainer {
-  type DecodedPType = PCanonicalNDArray
 
   override def decodeCompatible(pt: PType): Boolean = {
     pt.required == required &&
-      pt.isInstanceOf[DecodedPType] &&
-      elementType.decodeCompatible(pt.asInstanceOf[DecodedPType].elementType)
+      pt.isInstanceOf[PCanonicalNDArray] &&
+      elementType.decodeCompatible(pt.asInstanceOf[PCanonicalNDArray].elementType)
   }
 
   override def encodeCompatible(pt: PType): Boolean = {
     pt.required == required &&
-      pt.isInstanceOf[DecodedPType] &&
-      elementType.encodeCompatible(pt.asInstanceOf[DecodedPType].elementType)
+      pt.isInstanceOf[PCanonicalNDArray] &&
+      elementType.encodeCompatible(pt.asInstanceOf[PCanonicalNDArray].elementType)
   }
 
   override def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
