@@ -302,8 +302,7 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
                     'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(self.worker_disk_size_gb)
                 }
-            },
-                worker_data_disk],
+            }, worker_data_disk],
 
             'networkInterfaces': [{
                 'network': 'global/networks/default',
@@ -340,7 +339,7 @@ nohup /bin/bash run.sh >run.log 2>&1 &
 '''
                 }, {
                     'key': 'run_script',
-                    'value': f'''
+                    'value': rf'''
 #!/bin/bash
 set -x
 
