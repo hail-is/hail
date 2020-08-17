@@ -1823,6 +1823,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         return intervals
 
     # convert from matrix table to table
+    mt = mt.checkpoint(hl.utils.new_temp_file("pca", "mt"))
     ht = mt.localize_entries(entries_array_field_name='entries')
     ht = ht.select(xs=ht.entries.map(lambda e: e['x']))
 
@@ -1894,7 +1895,8 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         for j in range(0, q):
             temp = A.annotate(H_i = A.ndarray @ G_i)
             temp = temp.annotate(G_i_intermediate = temp.ndarray.T @ temp.H_i)
-            result = temp.aggregate(hl.struct(Hi_chunks = hl.agg.collect(temp.H_i), G_i = hl.agg.ndarray_sum(temp.G_i_intermediate)))
+            result = temp.aggregate(hl.struct(Hi_chunks = hl.agg.collect(temp.H_i), 
+                                                G_i = hl.agg.ndarray_sum(temp.G_i_intermediate)))
             localized_H_i = np.vstack(result.Hi_chunks)
             h_list.append(localized_H_i)
             G_i = result.G_i
@@ -1960,7 +1962,80 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         else:
             return truncV, truncS, truncW
 
-    return hailBlanczos(A, G, k, l, q, block_size, report_times)
+    U, S, V = hailBlanczos(A, G, k, l, q, block_size, report_times)
+    # scores = U @ np.diag(S)
+    # eigenvalues = S @ S
+
+    # if compute_loadings:
+    #     loadings = V.transpose() @ np.diag(S)
+    #     return eigenvalues, scores, loadings
+    # else:
+    #     return eigenvalues, scores
+
+    return U, S, V
+
+
+@typecheck(entry_expr=expr_float64,
+           k=int,
+           compute_loadings=bool,
+           q_iterations=int,
+           oversampling_param=int,
+           block_size=int,
+           report_times=bool)
+def _hwe_normalized_blanczos(entry_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128, report_times=False):
+    r"""Run randomized principal component analysis approximation (PCA) on the 
+    Hardy-Weinberg-normalized genotype call matrix.
+
+    Implements the Blanczos algorithm found by Rokhlin, Szlam, and Tygert.
+
+    Examples
+    --------
+
+    >>> eigenvalues, scores, loadings = hl._hwe_normalized_blanczos(dataset.GT, k=5)
+
+    Notes
+    -----
+    This method specializes :func:`._blanczos_pca` for the common use case
+    of PCA in statistical genetics, that of projecting samples to a small
+    number of ancestry coordinates. Variants that are all homozygous reference
+    or all homozygous alternate are unnormalizable and removed before
+    evaluation. See :func:`._blanczos_pca` for more details.
+
+    Parameters
+    ----------
+    call_expr : :class:`.CallExpression`
+        Entry-indexed call expression.
+    k : :obj:`int`
+        Number of principal components.
+    compute_loadings : :obj:`bool`
+        If ``True``, compute row loadings.
+
+    Returns
+    -------
+    (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
+        List of eigenvalues, table with column scores, table with row loadings.
+    """
+    mt = matrix_table_source('hwe_normalized_pca/call_expr', call_expr)
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
+                          __n_called=agg.count_where(hl.is_defined(mt.__gt)))
+    mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
+
+    n_variants = mt.count_rows()
+    if n_variants == 0:
+        raise FatalError("hwe_normalized_pca: found 0 variants after filtering out monomorphic sites.")
+    info("hwe_normalized_pca: running PCA using {} variants.".format(n_variants))
+
+    mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
+    mt = mt.annotate_rows(
+        __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
+    mt = mt.unfilter_entries()
+
+    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
+
+    return pca(normalized_gt,
+               k,
+               compute_loadings)
 
 
 @typecheck(call_expr=expr_call,

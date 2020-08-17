@@ -1262,19 +1262,34 @@ class Tests(unittest.TestCase):
         check(hail_s, np_s)
 
     def test_blanczos_against_hail(self):
-        dataset = hl.balding_nichols_model(3, 100, 1000)
-        # mt = dataset.transmute_entries(n_alt = hl.float64(dataset.GT.n_alt_alleles()))
-        # ht = mt.localize_entries("ent", "sample") 
-        # ht = ht.transmute(n_alt = hl.nd.array(mt.n_alt))
-        # rows = ht.n_alt.collect()
-        # np_matrix = np.asmatrix(np.concatenate(rows, axis=0))
 
-        blanczos_u, blanczos_s, blanczos_v = hl._blanczos_pca(hl.int(hl.is_defined(dataset.GT)), k=3)
-        eigens, scores, loadings = hl.pca(hl.int(hl.is_defined(dataset.GT)), k=3)
-        #diff = blanczos_vals - np_vals
-        print(blanczos_vals)
-        #print(hail_vals)
-        return True
+        def concatToNumpy(field, horizontal=True):
+          blocks = field.collect()
+          if horizontal:
+              return np.concatenate(blocks, axis=0)
+          else:
+              return np.concatenate(blocks, axis=1)
+
+        def convertSVDtoPCA(U, S, V):
+          scores = V.transpose() @ np.diag(S)
+          eigens = S @ S.transpose()
+          loadings = U @ np.diag(S)
+          return eigens, scores, loadings
+
+        hl.utils.get_1kg('data/')
+        hl.import_vcf('data/1kg.vcf.bgz').write('data/1kg.mt', overwrite=True)
+        dataset = hl.read_matrix_table('data/1kg.mt')
+
+        blanczos_u, blanczos_s, blanczos_v = hl._blanczos_pca(hl.int(hl.is_defined(dataset.GT)), k=3, compute_loadings=True)
+        h_eigens, h_scores, h_loadings = hl.pca(hl.int(hl.is_defined(dataset.GT)), k=3, compute_loadings=True)
+        h_scores = concatToNumpy(h_scores).transpose()
+        h_loadings = concatToNumpy(h_loadings)
+
+        b_eigens, b_scores, b_loadings = convertSVDtoPCA(blanczos_u, blanczos_s, blanczos_v)
+
+        print(h_eigens - b_eigens)
+
+        raise Exception("blah blah XXXXX")
 
     @skip_unless_spark_backend()
     def test_pc_relate_against_R_truth(self):
