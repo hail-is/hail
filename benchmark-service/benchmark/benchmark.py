@@ -63,8 +63,7 @@ def get_comparisons(benchmarks1, benchmarks2, metric):
     def get_metric(data):
         if metric == 'median':
             return data['median']
-        else:  # metric == best
-            return min(data['times'])
+        return min(data['times'])  # metric == 'best'
 
     comparisons = []
     for d in benchmarks1['data']:
