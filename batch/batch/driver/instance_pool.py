@@ -267,6 +267,25 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
 
         log.info(f'created {instance}')
 
+        if self.worker_local_ssd_data_disk:
+            worker_data_disk = {
+                'type': 'SCRATCH',
+                'autoDelete': True,
+                'interface': 'NVME',
+                'initializeParams': {
+                    'diskType': f'zones/{zone}/diskTypes/local-ssd'
+                }}
+            worker_data_disk_name = 'nvme0n1'
+        else:
+            worker_data_disk = {
+                'autoDelete': True,
+                'initializeParams': {
+                    'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
+                    'diskSizeGb': str(self.worker_pd_ssd_data_disk_size_gb)
+                }
+            }
+            worker_data_disk_name = 'sdb'
+
         config = {
             'name': machine_name,
             'machineType': f'projects/{PROJECT}/zones/{zone}/machineTypes/n1-{self.worker_type}-{cores}',
@@ -283,13 +302,7 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
                     'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(self.worker_disk_size_gb)
                 }
-            }, {
-                'type': 'SCRATCH',
-                'autoDelete': True,
-                'interface': 'NVME',
-                'initializeParams': {
-                    'diskType': f'zones/{zone}/diskTypes/local-ssd'
-                }}],
+            }, worker_data_disk],
 
             'networkInterfaces': [{
                 'network': 'global/networks/default',
@@ -326,7 +339,7 @@ nohup /bin/bash run.sh >run.log 2>&1 &
 '''
                 }, {
                     'key': 'run_script',
-                    'value': r'''
+                    'value': rf'''
 #!/bin/bash
 set -x
 
@@ -340,33 +353,33 @@ jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
 mv daemon.json.tmp /etc/docker/daemon.json
 kill -SIGHUP $(pidof dockerd)
 
-LOCAL_SSD_NAME=$(lsblk | grep '^nvme' | awk '{ print $1 }')
+WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
 
 # format local SSD
-sudo mkfs.xfs -m reflink=1 /dev/$LOCAL_SSD_NAME
-sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME
-sudo mount -o prjquota /dev/$LOCAL_SSD_NAME /mnt/disks/$LOCAL_SSD_NAME
-sudo chmod a+w /mnt/disks/$LOCAL_SSD_NAME
-XFS_DEVICE=$(xfs_info /mnt/disks/$LOCAL_SSD_NAME | head -n 1 | awk '{ print $1 }' | awk  'BEGIN { FS = "=" }; { print $2 }')
+sudo mkfs.xfs -m reflink=1 /dev/$WORKER_DATA_DISK_NAME
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
+sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_NAME
+sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
+XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
 
 # reconfigure docker to use local SSD
 sudo service docker stop
-sudo mv /var/lib/docker /mnt/disks/$LOCAL_SSD_NAME/docker
-sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/docker /var/lib/docker
+sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
 sudo service docker start
 
 # reconfigure /batch and /logs and /gcsfuse to use local SSD
-sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/batch/
-sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/batch /batch
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/batch/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
 
-sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/logs/
-sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/logs /logs
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
 
-sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/gcsfuse/
-sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/gcsfuse /gcsfuse
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/gcsfuse/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/gcsfuse /gcsfuse
 
-sudo mkdir -p /mnt/disks/$LOCAL_SSD_NAME/xfsquota/
-sudo ln -s /mnt/disks/$LOCAL_SSD_NAME/xfsquota /xfsquota
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/xfsquota/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/xfsquota /xfsquota
 
 touch /xfsquota/projects
 touch /xfsquota/projid
@@ -410,7 +423,7 @@ sudo tee /etc/google-fluentd/config.d/syslog.conf <<EOF
 </source>
 EOF
 
-sudo tee /etc/google-fluentd/config.d/worker-log.conf <<EOF {
+sudo tee /etc/google-fluentd/config.d/worker-log.conf <<EOF {{
 <source>
     @type tail
     format json
@@ -424,8 +437,8 @@ sudo tee /etc/google-fluentd/config.d/worker-log.conf <<EOF {
     @type record_transformer
     enable_ruby
     <record>
-        severity \${ record["levelname"] }
-        timestamp \${ record["asctime"] }
+        severity \${{ record["levelname"] }}
+        timestamp \${{ record["asctime"] }}
     </record>
 </filter>
 EOF
@@ -444,10 +457,10 @@ EOF
 sudo cp /etc/google-fluentd/google-fluentd.conf /etc/google-fluentd/google-fluentd.conf.bak
 head -n -1 /etc/google-fluentd/google-fluentd.conf.bak | sudo tee /etc/google-fluentd/google-fluentd.conf
 sudo tee -a /etc/google-fluentd/google-fluentd.conf <<EOF
-  labels {
+  labels {{
     "namespace": "$NAMESPACE",
     "instance_id": "$INSTANCE_ID"
-  }
+  }}
 </match>
 EOF
 rm /etc/google-fluentd/google-fluentd.conf.bak
@@ -471,7 +484,7 @@ docker run \
     -e PROJECT=$PROJECT \
     -e WORKER_CONFIG=$WORKER_CONFIG \
     -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
-    -e LOCAL_SSD_MOUNT=/mnt/disks/$LOCAL_SSD_NAME \
+    -e WORKER_DATA_DISK_MOUNT=/mnt/disks/$WORKER_DATA_DISK_NAME \
     -e BATCH_COPY_IMAGE=$BATCH_COPY_IMAGE \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /usr/bin/docker:/usr/bin/docker \
@@ -480,7 +493,7 @@ docker run \
     -v /logs:/logs \
     -v /gcsfuse:/gcsfuse:shared \
     -v /xfsquota:/xfsquota \
-    --mount type=bind,source=/mnt/disks/$LOCAL_SSD_NAME,target=/host \
+    --mount type=bind,source=/mnt/disks/$WORKER_DATA_DISK_NAME,target=/host \
     -p 5000:5000 \
     --device /dev/fuse \
     --device $XFS_DEVICE \
