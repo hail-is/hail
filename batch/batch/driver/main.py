@@ -346,13 +346,13 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
     else:
         valid_worker_cores = (2, 4, 8, 16, 32, 64, 96)
     worker_cores = validate_int(
-        'Worker cores',
+        f'{worker_type} worker cores',
         post['worker_cores'],
         lambda v: v in valid_worker_cores,
         f'one of {", ".join(str(v) for v in valid_worker_cores)}')
 
     standing_worker_cores = validate_int(
-        'Standing worker cores',
+        f'{worker_type} standing worker cores',
         post['standing_worker_cores'],
         lambda v: v in valid_worker_cores,
         f'one of {", ".join(str(v) for v in valid_worker_cores)}')
