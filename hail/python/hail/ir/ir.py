@@ -865,7 +865,10 @@ class NDArraySVD(IR):
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
-        return ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2))
+        if self.compute_uv:
+            self._type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2))
+        else:
+            self._type = tndarray(tfloat64, 1)
 
 
 class NDArrayInv(IR):
