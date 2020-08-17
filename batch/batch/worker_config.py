@@ -98,8 +98,12 @@ class WorkerConfig:
         self.cores = instance['cores']
         self.preemptible = instance['preemptible']
 
-        data_disk = [d for d in self.disks if not d['boot']][0]
-        assert data_disk
+        assert len(self.disks) == 2
+        boot_disk = self.disks[0]
+        assert boot_disk['boot']
+        data_disk = self.disks[1]
+        assert not data_disk['boot']
+
         self.local_ssd_data_disk = (data_disk['type'] == 'local-ssd')
         self.data_disk_size_gb = data_disk['size']
 
