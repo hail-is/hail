@@ -29,6 +29,7 @@ build:
 	-docker pull $(BATCH_WORKER_LATEST)
 	docker build -t batch-worker -f Dockerfile.worker --cache-from batch-worker,$(BATCH_WORKER_LATEST),python:3.7-slim-stretch ..
 	python3 ../ci/jinja2_render.py '{"batch_worker_image":{"image":"batch-worker"}}' Dockerfile.copy Dockerfile.copy.out
+	-docker pull $(BATCH_COPY_LATEST)
 	docker build -t batch-copy -f Dockerfile.copy.out --cache-from batch-copy,$(BATCH_COPY_LATEST),batch-worker ..
 
 .PHONY: push
