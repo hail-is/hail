@@ -678,7 +678,7 @@ class ArrayExpression(CollectionExpression):
 
         Examples
         --------
-        >>> a = [0, 1, 2, 3, 4]
+        >>> a = hl.array([0, 1, 2, 3, 4])
 
         >>> hl.eval(a.grouped(2))
         [[0, 1], [2, 3], [4]]
