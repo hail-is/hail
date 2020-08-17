@@ -111,6 +111,9 @@ object Copy {
       case NDArrayQR(_, mode) =>
         assert(newChildren.length == 1)
         NDArrayQR(newChildren(0).asInstanceOf[IR], mode)
+      case NDArraySVD(_, fullMatrices, computeUV) =>
+        assert(newChildren.length == 1)
+        NDArraySVD(newChildren(0).asInstanceOf[IR], fullMatrices, computeUV)
       case NDArrayInv(_) =>
         assert(newChildren.length == 1)
         NDArrayInv(newChildren(0).asInstanceOf[IR])
