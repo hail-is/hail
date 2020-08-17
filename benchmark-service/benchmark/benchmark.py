@@ -95,9 +95,6 @@ def final_comparisons(comparisons):
     ratios = []
     final_comps = {}
     for name, r1, r2 in comparisons:
-        # r = r1 / r2
-        # ratios.append(r)
-        # comps.append((name, fmt_diff(r), fmt_time(r1), fmt_time(r2)))
         if r1 is None:
             comps.append((name, None, None, fmt_time(r2)))
         elif r2 is None:
