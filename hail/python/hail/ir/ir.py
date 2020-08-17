@@ -863,6 +863,9 @@ class NDArraySVD(IR):
     def copy(self):
         return NDArraySVD(self.nd, self.full_matrices, self.compute_uv)
 
+    def head_str(self):
+        return f'{self.full_matrices} {self.compute_uv}'
+
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
         if self.compute_uv:
