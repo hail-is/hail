@@ -827,7 +827,7 @@ class Emit[C](
 
           val shapePVal= new PCanonicalBaseStructCode(ndPVal.pt.shape.pType.asInstanceOf[PCanonicalBaseStruct], ndPVal.pt.shape.load(ndPVal.value.asInstanceOf[Long])).memoize(cb, "nd_svd_shape")
           val M = shapePVal[Long](0)
-          val N = shapePVal[Long](1).
+          val N = shapePVal[Long](1)
           val K = cb.newLocal[Long]("nd_svd_K")
           cb.assign(K, (M < N).mux(M, N))
           val LDA = M
@@ -861,15 +861,15 @@ class Emit[C](
 
             cb.assign(infoDGESDDResult, Code.invokeScalaObject13[String, Int, Int, Long, Int, Long, Long, Int, Long, Int, Long, Int, Long, Int](LAPACK.getClass, "dgesdd",
               JOBZ,
-              M,
-              N,
+              M.toI,
+              N.toI,
               dataArray,
-              LDA,
+              LDA.toI,
               sPType.data.pType.firstElementOffset(S_data),
               uPType.data.pType.firstElementOffset(U_data),
-              LDU,
+              LDU.toI,
               vtPType.data.pType.firstElementOffset(VT_data),
-              LDVT,
+              LDVT.toI,
               LWORKAddress,
               -1,
               IWORKAddress
@@ -882,15 +882,15 @@ class Emit[C](
 
             cb.assign(infoDGESDDResult, Code.invokeScalaObject13[String, Int, Int, Long, Int, Long, Long, Int, Long, Int, Long, Int, Long, Int](LAPACK.getClass, "dgesdd",
               JOBZ,
-              M,
-              N,
+              M.toI,
+              N.toI,
               dataArray,
-              LDA,
+              LDA.toI,
               sPType.data.pType.firstElementOffset(S_data),
               uPType.data.pType.firstElementOffset(U_data),
-              LDU,
+              LDU.toI,
               vtPType.data.pType.firstElementOffset(VT_data),
-              LDVT,
+              LDVT.toI,
               WORK,
               LWORK,
               IWORKAddress
