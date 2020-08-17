@@ -1272,7 +1272,7 @@ class Tests(unittest.TestCase):
 
         def convertSVDtoPCA(U, S, V):
           scores = V.transpose() @ np.diag(S)
-          eigens = S @ S.transpose()
+          eigens = S * S
           loadings = U @ np.diag(S)
           return eigens, scores, loadings
 
@@ -1280,16 +1280,24 @@ class Tests(unittest.TestCase):
         hl.import_vcf('data/1kg.vcf.bgz').write('data/1kg.mt', overwrite=True)
         dataset = hl.read_matrix_table('data/1kg.mt')
 
-        blanczos_u, blanczos_s, blanczos_v = hl._blanczos_pca(hl.int(hl.is_defined(dataset.GT)), k=3, compute_loadings=True)
-        h_eigens, h_scores, h_loadings = hl.pca(hl.int(hl.is_defined(dataset.GT)), k=3, compute_loadings=True)
-        h_scores = concatToNumpy(h_scores).transpose()
-        h_loadings = concatToNumpy(h_loadings)
-
+        blanczos_u, blanczos_s, blanczos_v = hl._blanczos_pca(hl.int(hl.is_defined(dataset.GT)), k=3, q_iterations=15, compute_loadings=True)
         b_eigens, b_scores, b_loadings = convertSVDtoPCA(blanczos_u, blanczos_s, blanczos_v)
 
-        print(h_eigens - b_eigens)
+        h_eigens, h_scores, h_loadings = hl.pca(hl.int(hl.is_defined(dataset.GT)), k=3, compute_loadings=True)
 
-        raise Exception("blah blah XXXXX")
+        h_scores = np.reshape(concatToNumpy(h_scores.scores), b_scores.shape)
+        h_loadings = np.reshape(concatToNumpy(h_loadings.loadings), b_loadings.shape)
+
+        def check(hail_array, np_array):
+            self.assertEqual(len(hail_array), len(np_array))
+            for i, (left, right) in enumerate(zip(hail_array, np_array)):
+                self.assertAlmostEqual(abs(left), abs(right),
+                                       msg=f'mismatch at index {i}: hl={left}, np={right}',
+                                       places=1)
+
+        check(b_eigens, h_eigens)
+        check(b_scores, h_scores)
+        check(b_loadings, h_loadings)
 
     @skip_unless_spark_backend()
     def test_pc_relate_against_R_truth(self):
