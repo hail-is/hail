@@ -698,6 +698,7 @@ class ArrayExpression(CollectionExpression):
         mapped_to_arrays = ir.StreamMap(stream_ir, mapping_identifier, ir.ToArray(ir.Ref(mapping_identifier)))
         return construct_expr(ir.ToArray(mapped_to_arrays), tarray(self._type), indices, aggregations)
 
+
 class ArrayStructExpression(ArrayExpression):
     """Expression of type :class:`.tarray` that eventually contains structs.
 

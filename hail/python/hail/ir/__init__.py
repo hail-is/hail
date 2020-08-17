@@ -174,6 +174,7 @@ __all__ = [
     'StreamScan',
     'StreamJoinRightDistinct',
     'StreamFor',
+    'StreamGrouped',
     'AggFilter',
     'AggExplode',
     'AggGroupBy',
