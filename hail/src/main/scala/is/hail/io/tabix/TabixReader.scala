@@ -1,14 +1,15 @@
 package is.hail.io.tabix
 
-import java.io.InputStream
-import java.nio.charset.StandardCharsets
-
-import htsjdk.samtools.util.FileExtensions
-import htsjdk.tribble.util.ParsingUtils
+import is.hail.backend.BroadcastValue
 import is.hail.io.compress.BGzipInputStream
 import is.hail.io.fs.FS
 import is.hail.utils._
-import is.hail.backend.BroadcastValue
+
+import htsjdk.tribble.util.{ParsingUtils, TabixUtils}
+import htsjdk.samtools.util.FileExtensions
+
+import java.io.InputStream
+import java.nio.charset.StandardCharsets
 
 import scala.collection.mutable
 import scala.language.implicitConversions
@@ -87,6 +88,7 @@ object TabixReader {
     }
     new String(buf.result(), StandardCharsets.UTF_8)
   }
+
 }
 
 class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = None) {
@@ -318,116 +320,30 @@ final class TabixLineIterator(
   extends java.lang.AutoCloseable
 {
   private var i: Int = -1
+  private var curOff: Long = 0 // virtual file offset, not real offset
   private var isEof = false
   private var is = new BGzipInputStream(fsBc.value.openNoCompression(filePath))
-
-  private var buffer = new Array[Byte](1 << 16)  // gvcf block is 64k; this can decode an entire block with one call to read()
-  private var bufferCursor: Int = 0
-  private var bufferLen: Int = 0
-  private var bufferEOF: Boolean = false
-  private var virtualFileOffsetAtLastRead = 0L
-  private var bufferPositionAtLastRead = 0L
-
-  private def getVirtualOffset: Long = {
-    virtualFileOffsetAtLastRead + (bufferCursor - bufferPositionAtLastRead)
-  }
-
-  private def virtualSeek(l: Long): Unit = {
-    is.virtualSeek(l)
-    refreshBuffer(0)
-    bufferCursor = 0
-  }
-
-  private def refreshBuffer(start: Int): Unit = {
-    assert(start < buffer.length)
-    bufferLen = start
-    virtualFileOffsetAtLastRead = is.getVirtualOffset
-    bufferPositionAtLastRead = start
-    val bytesRead = is.read(buffer, start, buffer.length - start)
-    if (bytesRead < 0)
-      bufferEOF = true
-    else
-      bufferLen = start + bytesRead
-  }
-
-  def decodeString(start: Int, end: Int): String = {
-    var stop = end
-    if (stop > start && buffer(stop) == '\r')
-      stop -= 1
-    val len = end - start
-    new String(buffer, start, len, StandardCharsets.UTF_8)
-  }
-
-  def readLine(): String = {
-    assert(bufferCursor <= bufferLen)
-    if (isEof)
-      return null
-
-    var start = bufferCursor
-
-    while (true) {
-      while (bufferCursor < bufferLen && buffer(bufferCursor) != '\n') {
-        bufferCursor += 1
-      }
-
-      if (bufferCursor >= bufferLen) {
-      // no newline before end of buffer
-        if (bufferEOF) {
-          isEof = true
-          val str = decodeString(start, bufferCursor)
-          bufferCursor += 1
-          return str
-        } else {
-
-          if (bufferCursor == 0) {
-            // line overflows buffer, need to increase buffer size
-
-            assert(bufferLen == buffer.length)
-            val tmp = new Array[Byte](buffer.length * 2)
-            System.arraycopy(buffer, 0, tmp, 0, buffer.length)
-            buffer = tmp
-
-            refreshBuffer(bufferLen)
-          } else {
-            // line does not overflow buffer, but spans buffer. Copy line left to the beginning of buffer and continue
-
-            val nToCopy = bufferLen - start
-            System.arraycopy(buffer, start, buffer, 0, nToCopy)
-            start = 0
-            bufferCursor = nToCopy
-            refreshBuffer(bufferCursor)
-          }
-        }
-      } else {
-        val str = decodeString(start, bufferCursor)
-        bufferCursor += 1
-        return str
-      }
-    }
-    throw new AssertionError()
-  }
 
   def next(): String = {
     var s: String = null
     while (s == null && !isEof) {
-      val curOff = getVirtualOffset
       if (i < 0 || curOff == 0 || !TbiOrd.less64(curOff, offsets(i)._2)) { // jump to next chunk
-
-        if (i >= 0 && curOff != offsets(i)._2)
-          throw new RuntimeException(s"error reading tabix-indexed file $filePath: " +
-            s"i=$i, curOff=$curOff, expected=${ offsets(i)._2 }")
-
         if (i == offsets.length - 1) {
           isEof = true
           return s
         }
+        if (i >= 0 && curOff != offsets(i)._2)
+          throw new RuntimeException(s"error reading tabix-indexed file $filePath: " +
+            s"i=$i, curOff=$curOff, expected=${ offsets(i)._2 }")
         if (i < 0 || offsets(i)._2 != offsets(i + 1)._1) {
-          virtualSeek(offsets(i + 1)._1)
+          is.virtualSeek(offsets(i + 1)._1)
+          curOff = is.getVirtualOffset
         }
         i += 1
       }
-      s = readLine()
+      s = TabixReader.readLine(is)
       if (s != null) {
+        curOff = is.getVirtualOffset
         if (s.isEmpty || s.charAt(0) == '#')
           s = null // continue
       } else
