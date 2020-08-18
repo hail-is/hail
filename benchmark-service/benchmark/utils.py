@@ -27,7 +27,8 @@ def enumerate_list_index(list_of_lists):
 
 class ReadGoogleStorage:
     def __init__(self):
-        self.storage_client = storage.Client()
+        credentials = google.oauth2.service_account.Credentials.from_service_account_file('/benchmark-gsa-key/key.json')
+        self.storage_client = storage.Client(credentials=credentials)
 
     def get_data_as_string(self, file_path):
         file_info = parse_file_path(FILE_PATH_REGEX, file_path)
