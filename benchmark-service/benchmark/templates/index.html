@@ -38,16 +38,17 @@
         </tr>
         </thead>
         <tbody>
-        {% for d in benchmarks['data'].values() %}
+<!--        {% for d in benchmarks['data'].values() %}-->
+        {% for key in sorted(benchmarks['data']) %}
         <tr>
-
+            {% set d = benchmarks['data'][key]%}
             <td><a href="{{ base_path }}/name/{{ d['name'] }}?file={{ file }}">{{ d['name'] }}</a></td>
             <td>{{ d['failed'] }}</td>
             <td>{{ d['f-stat'] }}</td>
             <td>{{ d['mean'] }}</td>
             <td>{{ d['median'] }}</td>
             <td>{{ d['p-value'] }}</td>
-            <td>{{ d['stdev'] }}</td>
+            <td>{{ d[key]['stdev'] }}</td>
         </tr>
         {% endfor %}
         </tbody>

@@ -66,7 +66,7 @@ def get_comparisons(benchmarks1, benchmarks2, metric):
         assert metric == 'best'
         return min(data['times'])
 
-    set_of_names = {}
+    set_of_names = set()
     for name1 in benchmarks1['data'].keys():
         set_of_names.add(name1)
     for name2 in benchmarks2['data'].keys():
