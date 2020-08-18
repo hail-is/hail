@@ -55,7 +55,7 @@ def get_benchmarks(file_path):
     benchmarks = dict()
     benchmarks['sha'] = sha
     benchmarks['geometric_mean'] = geometric_mean
-    benchmarks['data'] = sorted(data, key=lambda i: i['name'])
+    benchmarks['data'] = data #sorted(data, key=lambda i: i['name'])
     return benchmarks
 
 
