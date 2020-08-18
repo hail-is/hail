@@ -140,7 +140,7 @@ if role == 'Master':
             'language': 'python',
         }
     kernel['env'] = {
-        **kernel.get('env', dict),
+        **kernel.get('env', dict()),
         **env_to_set,
         'HAIL_SPARK_MONITOR': '1',
         'SPARK_MONITOR_UI': 'http://localhost:8088/proxy/%APP_ID%',
