@@ -845,10 +845,21 @@ class Emit[C](
           cb.assign(LWORKAddress, Code.invokeStatic1[Memory, Long, Long]("malloc",  8L))
           cb.assign(IWORKAddress, Code.invokeStatic1[Memory, Long, Long]("malloc", K.toL * 8L * 4L)) // 8K 4 byte integers.
           cb.assign(A, Code.invokeStatic1[Memory, Long, Long]("malloc", M * N * 8L))
-          cb.assign(S_data, region.code.allocate(8L, K))
+
+          def easyBox(pt: PType, address: Code[_]) = StringFunctions.boxArg(EmitRegion(mb, region.code), pt)(address)
+          def printLabel(cb: EmitCodeBuilder, label: String, pt: PType, address: Code[_]) = {
+            cb.append(Code._println(const(label).concat(const(" on next line"))))
+            cb.append(Code._println(easyBox(pt, address)))
+          }
+
+          def printLabelPrim(cb: EmitCodeBuilder, label: String, c: Code[String]) = {
+            cb.append(Code._println(const(label).concat(c)))
+          }
+
+          printLabel(cb, "dataArray = ", ndPType.data.pType, dataAddress)
 
           // Copy data into A:
-          Region.copyFrom(ndPType.data.pType.firstElementOffset(dataAddress, (M * N).toI), A, (M * N) * 8L)
+          cb.append(Region.copyFrom(ndPType.data.pType.firstElementOffset(dataAddress, (M * N).toI), A, (M * N) * 8L))
 
           // Determines JOBZ, U for LAPACK, V for LAPACK
           if (computeUV) {
@@ -863,8 +874,16 @@ class Emit[C](
 
 
             cb.assign(U_data, uPType.data.pType.allocate(region.code, UCOL.toI * LDU.toI))
+            cb.append(uPType.data.pType.stagedInitialize(U_data, UCOL.toI * LDU.toI))
+
             cb.assign(S_data, sPType.data.pType.allocate(region.code, K.toI))
+            cb.append(sPType.data.pType.stagedInitialize(S_data, K.toI))
+
             cb.assign(VT_data, vtPType.data.pType.allocate(region.code, N.toI * LDVT.toI))
+            cb.append(vtPType.data.pType.stagedInitialize(VT_data, N.toI * LDVT.toI))
+
+            printLabelPrim(cb, "K = ", K.toS)
+            printLabel(cb, "initial S_data = ", sPType.data.pType, S_data)
 
             cb.assign(infoDGESDDResult, Code.invokeScalaObject13[String, Int, Int, Long, Int, Long, Long, Int, Long, Int, Long, Int, Long, Int](LAPACK.getClass, "dgesdd",
               JOBZ,
@@ -881,6 +900,8 @@ class Emit[C](
               -1,
               IWORKAddress
             ))
+
+            cb.append(Code._println(const("dgesvd: Finished size check call, info = ").concat(infoDGESDDResult.toS)))
 
             def LWORK = Region.loadDouble(LWORKAddress).toI
             val WORK = cb.newLocal[Long]("dgesdd_work_address")
@@ -903,15 +924,25 @@ class Emit[C](
               IWORKAddress
             ))
 
+            cb.append(Code._println(const("dgesvd: Finished actual call, info = ").concat(infoDGESDDResult.toS)))
+
+            printLabel(cb, "s_data result: ", sPType.data.pType, S_data)
+            printLabel(cb, "u_data", uPType.data.pType, U_data)
+            printLabel(cb, "vt_data", vtPType.data.pType, VT_data)
+
             def uShapeSeq = FastIndexedSeq[Value[Long]](M, UCOL)
             val u = uPType.construct(uPType.makeShapeBuilder(uShapeSeq.map(_.get)), uPType.makeColumnMajorStridesBuilder(uShapeSeq.map(_.get), mb), U_data, mb, region.code)
 
             val sShapeSeq = FastIndexedSeq[Value[Long]](K)
             val s = sPType.construct(sPType.makeShapeBuilder(sShapeSeq.map(_.get)), sPType.makeColumnMajorStridesBuilder(sShapeSeq.map(_.get), mb), S_data, mb, region.code)
-            val vt = vtPType.construct(???, ???, VT_data, mb, region.code)
+
+            val vtShapeSeq = FastIndexedSeq[Value[Long]](LDVT, N)
+            val vt = vtPType.construct(vtPType.makeShapeBuilder(vtShapeSeq.map(_.get)), vtPType.makeColumnMajorStridesBuilder(vtShapeSeq.map(_.get), mb), VT_data, mb, region.code)
 
             val resultSRVB = new StagedRegionValueBuilder(mb, outputPType, region.code)
             cb.append(Code(
+              Code._println("Building a result"),
+              resultSRVB.start(),
               resultSRVB.addIRIntermediate(uPType)(u),
               resultSRVB.advance(),
               resultSRVB.addIRIntermediate(sPType)(s),
