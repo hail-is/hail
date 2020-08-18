@@ -16,6 +16,7 @@ class PCanonicalString(val required: Boolean) extends PString {
   override def byteSize: Long = 8
 
   lazy val binaryFundamentalType: PCanonicalBinary = PCanonicalBinary(required)
+  override lazy val binaryEncodableType: PCanonicalBinary =  PCanonicalBinary(required)
 
   def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
     this.fundamentalType.copyFromType(
@@ -26,7 +27,7 @@ class PCanonicalString(val required: Boolean) extends PString {
   def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
     this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
-  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  =
+  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
     fundamentalType.copyFromAddress(region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, deepCopy)
 
   override def containsPointers: Boolean = true
@@ -66,7 +67,7 @@ class PCanonicalString(val required: Boolean) extends PString {
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     fundamentalType.constructAtAddress(addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
 
-  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalString(required)
+  def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalString(required)
 }
 
 object PCanonicalString {
