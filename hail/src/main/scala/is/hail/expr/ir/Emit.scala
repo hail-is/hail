@@ -823,6 +823,8 @@ class Emit[C](
           val ndPType = ndPCode.asNDArray.pt
 
           val infoDGESDDResult = cb.newLocal[Int]("infoDGESDD")
+          val infoDGESDDErrorTest = (extraErrorMsg: String) => (infoDGESDDResult cne  0)
+            .orEmpty(Code._fatal[Unit](const(s"LAPACK error DGESDD. $extraErrorMsg Error code = ").concat(infoDGESDDResult.toS)))
 
           val LWORKAddress = mb.newLocal[Long]()
 
@@ -857,8 +859,6 @@ class Emit[C](
           def printLabelPrim(cb: EmitCodeBuilder, label: String, c: Code[String]) = {
             cb.append(Code._println(const(label).concat(c)))
           }
-
-          printLabel(cb, "dataArray = ", ndPType.data.pType, dataAddress)
 
           // Copy data into A:
           cb.append(Region.copyFrom(ndPType.data.pType.firstElementOffset(dataAddress, (M * N).toI), A, (M * N) * 8L))
@@ -905,7 +905,7 @@ class Emit[C](
             IWORKAddress
           ))
 
-          cb.append(Code._println(const("dgesvd: Finished size check call, info = ").concat(infoDGESDDResult.toS)))
+          cb.append(infoDGESDDErrorTest("Failed size query."))
 
           def LWORK = Region.loadDouble(LWORKAddress).toI
           val WORK = cb.newLocal[Long]("dgesdd_work_address")
@@ -928,7 +928,7 @@ class Emit[C](
             IWORKAddress
           ))
 
-          cb.append(Code._println(const("dgesvd: Finished actual call, info = ").concat(infoDGESDDResult.toS)))
+          cb.append(infoDGESDDErrorTest("Failed result computation."))
 
           val sShapeSeq = FastIndexedSeq[Value[Long]](K)
           val s = sPType.construct(sPType.makeShapeBuilder(sShapeSeq.map(_.get)), sPType.makeColumnMajorStridesBuilder(sShapeSeq.map(_.get), mb), S_data, mb, region.code)
@@ -944,7 +944,6 @@ class Emit[C](
 
             val resultSRVB = new StagedRegionValueBuilder(mb, x.pType, region.code)
             cb.append(Code(
-              Code._println("Building a result"),
               resultSRVB.start(),
               resultSRVB.addIRIntermediate(uPType)(u),
               resultSRVB.advance(),
