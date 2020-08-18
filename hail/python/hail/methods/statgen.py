@@ -1833,9 +1833,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     # compute new partitioning and read table with it (not in ndarrays yet)
     new_partitioning = get_even_partitioning(ht, block_size)
     ht = hl.read_table(temp_file_name, _intervals=new_partitioning)
-    # question: does it help to write here again?
 
-    # need to talk about what is happening here
     grouped = ht._group_within_partitions("groups", block_size * 2)
     A = grouped.select(ndarray=hl.nd.array(grouped.groups.map(lambda group: group.xs)))
 
@@ -1870,17 +1868,6 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         ht = hl.Table.parallelize(structs)
         ht = ht.key_by('row_group_number')
         return ht
-
-    # def matmul_rowblocked_nonblocked(A, B):
-    #     temp = A.annotate_globals(mat = B)
-    #     temp = temp.annotate(ndarray = temp.ndarray @ temp.mat)
-    #     temp = temp.select(temp.ndarray)
-    #     temp = temp.drop(temp.mat)
-    #     return temp
-
-    # # def matmul_colblocked_rowblocked(A, B):
-    # #     temp = A.transmute(ndarray = A.ndarray.transpose() @ B[A.row_group_number].ndarray)
-    # #     return temp.aggregate(hl.agg.ndarray_sum(temp.ndarray)) # collects A / reads A
 
     def hailBlanczos(A, G, k, l, q, block_size, times):
         
@@ -1963,16 +1950,15 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
             return truncV, truncS, truncW
 
     U, S, V = hailBlanczos(A, G, k, l, q, block_size, report_times)
-    # scores = U @ np.diag(S)
-    # eigenvalues = S @ S
+    matrix_S = np.diag(S)
 
-    # if compute_loadings:
-    #     loadings = V.transpose() @ np.diag(S)
-    #     return eigenvalues, scores, loadings
-    # else:
-    #     return eigenvalues, scores
+    scores = V.transpose() @ matrix_S
+    eigens = S * S
 
-    return U, S, V
+    if compute_loadings:
+        return eigens, scores, U @ matrix_S, mt
+    else:
+        return eigens, scores, mt
 
 
 @typecheck(entry_expr=expr_float64,
