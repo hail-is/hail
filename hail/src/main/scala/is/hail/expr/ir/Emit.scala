@@ -826,8 +826,8 @@ class Emit[C](
           val LWORKAddress = mb.newLocal[Long]()
 
           val shapePVal= new PCanonicalBaseStructCode(ndPVal.pt.shape.pType.asInstanceOf[PCanonicalBaseStruct], ndPVal.pt.shape.load(ndPVal.value.asInstanceOf[Long])).memoize(cb, "nd_svd_shape")
-          val M = shapePVal[Long](0)
-          val N = shapePVal[Long](1)
+          val M = shapePVal.loadField(cb, 0).handle(cb, {/* do nothing */}).memoize(cb, "dgesdd_M").value.asInstanceOf[Value[Long]]
+          val N = shapePVal.loadField(cb, 1).handle(cb, {/* do nothing */}).memoize(cb, "dgesdd_N").value.asInstanceOf[Value[Long]]
           val K = cb.newLocal[Long]("nd_svd_K")
           cb.assign(K, (M < N).mux(M, N))
           val LDA = M
