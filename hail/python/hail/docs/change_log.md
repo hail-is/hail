@@ -22,6 +22,22 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.55
+
+Released 2020-08-19
+
+### Performance
+
+- (hail#9264) Table.checkpoint now uses a faster LZ4 compression scheme.
+
+### Bug fixes
+
+- (hail#9250) `hailctl dataproc` no longer uses deprecated `gcloud`
+  flags. Consequently, users must update to a recent version of `gcloud`.
+- (hail#9294) The "Python 3" kernel in notebooks in clusters started by `hailctl
+  dataproc` now features the same Spark monitoring widget found in the "Hail"
+  kernel. There is now no reason to use the "Hail" kernel.
+
 ## Version 0.2.54
 
 Released 2020-08-07
