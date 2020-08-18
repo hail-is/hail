@@ -1,5 +1,6 @@
 from google.cloud import storage
 import re
+import google
 
 
 def get_geometric_mean(prod_of_means, num_of_means):
