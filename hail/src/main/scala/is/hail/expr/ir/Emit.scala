@@ -820,12 +820,13 @@ class Emit[C](
       case x@NDArraySVD(nd, full_matrices, computeUV) =>
         emitNDArrayStandardStrides(nd).flatMap(cb){ ndPCode =>
           val ndPVal = ndPCode.asNDArray.memoize(cb, "nd_svd_value")
+          val ndPType = ndPCode.asNDArray.pt
 
           val infoDGESDDResult = cb.newLocal[Int]("infoDGESDD")
 
           val LWORKAddress = mb.newLocal[Long]()
 
-          val shapePVal= new PCanonicalBaseStructCode(ndPVal.pt.shape.pType.asInstanceOf[PCanonicalBaseStruct], ndPVal.pt.shape.load(ndPVal.value.asInstanceOf[Long])).memoize(cb, "nd_svd_shape")
+          val shapePVal= new PCanonicalBaseStructCode(ndPVal.pt.shape.pType.asInstanceOf[PCanonicalBaseStruct], ndPVal.pt.shape.load(ndPVal.value.asInstanceOf[Value[Long]])).memoize(cb, "nd_svd_shape")
           val M = shapePVal.loadField(cb, 0).handle(cb, {/* do nothing */}).memoize(cb, "dgesdd_M").value.asInstanceOf[Value[Long]]
           val N = shapePVal.loadField(cb, 1).handle(cb, {/* do nothing */}).memoize(cb, "dgesdd_N").value.asInstanceOf[Value[Long]]
           val K = cb.newLocal[Long]("nd_svd_K")
@@ -836,12 +837,18 @@ class Emit[C](
           val LDU = M
           val VT_data = cb.newField[Long]("dgesdd_VT_address")
           val IWORKAddress = cb.newLocal[Long]("dgesdd_IWORK_address")
+          val A = cb.newLocal[Long]("dgesdd_A_address")
+          val dataAddress = cb.newLocal[Long]("nd_svd_dataArray_address")
 
-          val dataArray = ndPVal.pt.data.load(ndPVal.value.asInstanceOf[Long])
-
+          // FIXME: I can't just hand the data array pointer over like this, needs first element offset and to be copied away.
+          cb.assign(dataAddress, ndPVal.pt.data.load(ndPVal.value.asInstanceOf[Value[Long]]))
           cb.assign(LWORKAddress, Code.invokeStatic1[Memory, Long, Long]("malloc",  8L))
           cb.assign(IWORKAddress, Code.invokeStatic1[Memory, Long, Long]("malloc", K.toL * 8L * 4L)) // 8K 4 byte integers.
+          cb.assign(A, Code.invokeStatic1[Memory, Long, Long]("malloc", M * N * 8L))
           cb.assign(S_data, region.code.allocate(8L, K))
+
+          // Copy data into A:
+          Region.copyFrom(ndPType.data.pType.firstElementOffset(dataAddress, (M * N).toI), A, (M * N) * 8L)
 
           // Determines JOBZ, U for LAPACK, V for LAPACK
           if (computeUV) {
@@ -851,19 +858,19 @@ class Emit[C](
             val vtPType = outputPType.fields(2).typ.asInstanceOf[PNDArray]
 
             val JOBZ = if (full_matrices) "A" else "S"
-            val UCOL: Code[Int] = if (full_matrices) M.toI else K.toI
+            def UCOL: Value[Long] = if (full_matrices) M else K
             val LDVT = if (full_matrices) N else K
 
 
-            cb.assign(U_data, uPType.data.pType.allocate(region.code, UCOL * LDU.toI))
+            cb.assign(U_data, uPType.data.pType.allocate(region.code, UCOL.toI * LDU.toI))
             cb.assign(S_data, sPType.data.pType.allocate(region.code, K.toI))
-            cb.assign(VT_data, vtPType.data.pType.allocate(region.code, ???))
+            cb.assign(VT_data, vtPType.data.pType.allocate(region.code, N.toI * LDVT.toI))
 
             cb.assign(infoDGESDDResult, Code.invokeScalaObject13[String, Int, Int, Long, Int, Long, Long, Int, Long, Int, Long, Int, Long, Int](LAPACK.getClass, "dgesdd",
               JOBZ,
               M.toI,
               N.toI,
-              dataArray,
+              A,
               LDA.toI,
               sPType.data.pType.firstElementOffset(S_data),
               uPType.data.pType.firstElementOffset(U_data),
@@ -884,7 +891,7 @@ class Emit[C](
               JOBZ,
               M.toI,
               N.toI,
-              dataArray,
+              A,
               LDA.toI,
               sPType.data.pType.firstElementOffset(S_data),
               uPType.data.pType.firstElementOffset(U_data),
@@ -896,11 +903,11 @@ class Emit[C](
               IWORKAddress
             ))
 
-            val uShapeSeq = IndexedSeq(M.toL, UCOL.toL)
-            val u = uPType.construct(uPType.makeShapeBuilder(uShapeSeq), uPType.makeColumnMajorStridesBuilder(uShapeSeq, mb), U_data, mb, region.code)
+            def uShapeSeq = FastIndexedSeq[Value[Long]](M, UCOL)
+            val u = uPType.construct(uPType.makeShapeBuilder(uShapeSeq.map(_.get)), uPType.makeColumnMajorStridesBuilder(uShapeSeq.map(_.get), mb), U_data, mb, region.code)
 
-            val sShapeSeq = IndexedSeq(K.toL)
-            val s = sPType.construct(sPType.makeShapeBuilder(sShapeSeq), sPType.makeColumnMajorStridesBuilder(sShapeSeq, mb), S_data, mb, region.code)
+            val sShapeSeq = FastIndexedSeq[Value[Long]](K)
+            val s = sPType.construct(sPType.makeShapeBuilder(sShapeSeq.map(_.get)), sPType.makeColumnMajorStridesBuilder(sShapeSeq.map(_.get), mb), S_data, mb, region.code)
             val vt = vtPType.construct(???, ???, VT_data, mb, region.code)
 
             val resultSRVB = new StagedRegionValueBuilder(mb, outputPType, region.code)
