@@ -32,7 +32,7 @@ def get_benchmarks(file_path):
         log.info('could not get blob: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message)
 
-    data = []
+    data = {}
     prod_of_means = 1
     for d in pre_data['benchmarks']:
         stats = dict()
@@ -47,7 +47,7 @@ def get_benchmarks(file_path):
             stats['stdev'] = round(d['stdev'], 6)
             stats['times'] = d['times']
             stats['trials'] = d['trials']
-        data.append(stats)
+        data[stats['name']] = stats
     geometric_mean = get_geometric_mean(prod_of_means, len(pre_data['benchmarks']))
 
     file_info = parse_file_path(BENCHMARK_FILE_REGEX, file_path)
@@ -66,19 +66,35 @@ def get_comparisons(benchmarks1, benchmarks2, metric):
         assert metric == 'best'
         return min(data['times'])
 
+    set_of_names = {}
+    for name1 in benchmarks1['data'].keys():
+        set_of_names.add(name1)
+    for name2 in benchmarks2['data'].keys():
+        set_of_names.add(name2)
+
     comparisons = []
-    for d in benchmarks1['data']:
-        item = next((item for item in benchmarks2['data'] if item['name'] == d['name']),
-                    None)
-        if item is None:
-            comparisons.append((d['name'], get_metric(d), None))
+    for name in set_of_names:
+        data1 = benchmarks1['data'][name]
+        data2 = benchmarks2['data'][name]
+        if data2 is None:
+                 comparisons.append((name, get_metric(data1), None))
+        elif data1 is None:
+                 comparisons.append((name, None, get_metric(data2)))
         else:
-            comparisons.append((d['name'], get_metric(d), get_metric(item)))
-    for d2 in benchmarks2['data']:
-        item1 = next((item for item in benchmarks1['data'] if item['name'] == d2['name']),
-                     None)
-        if item1 is None:
-            comparisons.append((d2['name'], None, get_metric(d2)))
+            comparisons.append((name, get_metric(data1), get_metric(data2)))
+
+    # for d in benchmarks1['data']:
+    #     item = next((item for item in benchmarks2['data'] if item['name'] == d['name']),
+    #                 None)
+    #     if item is None:
+    #         comparisons.append((d['name'], get_metric(d), None))
+    #     else:
+    #         comparisons.append((d['name'], get_metric(d), get_metric(item)))
+    # for d2 in benchmarks2['data']:
+    #     item1 = next((item for item in benchmarks1['data'] if item['name'] == d2['name']),
+    #                  None)
+    #     if item1 is None:
+    #         comparisons.append((d2['name'], None, get_metric(d2)))
     return comparisons
 
 
@@ -121,8 +137,9 @@ async def healthcheck(request: web.Request) -> web.Response:  # pylint: disable=
 async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     file_path = request.query.get('file')
     benchmarks = get_benchmarks(file_path)
-    name_data = next((item for item in benchmarks['data'] if item['name'] == str(request.match_info['name'])),
-                     None)
+    # name_data = next((item for item in benchmarks['data'] if item['name'] == str(request.match_info['name'])),
+    #                  None)
+    name_data = benchmarks['data'][str(request.match_info['name'])]
 
     try:
         fig = px.scatter(x=enumerate_list_index(name_data['trials']), y=name_data['times'])
