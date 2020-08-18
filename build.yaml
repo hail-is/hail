@@ -11,6 +11,7 @@ steps:
     - auth-oauth2-client-secret
     - scorecard-github-access-token
     - zulip-config
+    - benchmark-gsa-key
  - kind: deploy
    name: deploy_batch_sa
    namespace:

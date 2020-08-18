@@ -66,3 +66,6 @@ spec:
         - name: ssl-config-benchmark
           secret:
             secretName: ssl-config-benchmark
+        - name: benchmark-gsa-key
+          secret:
+            secretName: benchmark-gsa-key
