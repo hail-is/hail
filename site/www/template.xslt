@@ -52,7 +52,7 @@
                                     <a href="https://discuss.hail.is">Forum</a>
                                 </li>
                                 <li class="nav-item">
-                                    <a href="/references.html">Powered-Science</a>
+                                    <a href="/references.html">Science</a>
                                 </li>
                                 <li class="nav-item">
                                     <a href="https://blog.hail.is/">Blog</a>
