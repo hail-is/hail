@@ -69,8 +69,8 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     in: Value[InputBuffer]
   ): Code[Long] = {
     val t = pt.asInstanceOf[PCanonicalNDArray]
-    val nRows = mb.newLocal[Int]("rows")
-    val nCols = mb.newLocal[Int]("cols")
+    val nRows = mb.newLocal[Long]("rows")
+    val nCols = mb.newLocal[Long]("cols")
     val transpose = mb.newLocal[Boolean]("transpose")
     val n = mb.newLocal[Int]("length")
     val data = mb.newLocal[Long]("data")
@@ -78,20 +78,20 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     val readElemF = elementType.buildInplaceDecoder(t.elementType, mb.ecb)
     val i = mb.newLocal[Int]("i")
 
-    val shapeBuilder = t.makeShapeBuilder(FastIndexedSeq(nRows.toL, nCols.toL))
+    val shapeBuilder = t.makeShapeBuilder(FastIndexedSeq(nRows, nCols))
     val stridesBuilder = { srvb: StagedRegionValueBuilder =>
       Code(
         srvb.start(),
         srvb.addLong(transpose.mux(nCols.toL * t.elementType.byteSize, t.elementType.byteSize)),
         srvb.advance(),
-        srvb.addLong(transpose.mux(t.elementType.byteSize, nRows.toL * t.elementType.byteSize)),
+        srvb.addLong(transpose.mux(t.elementType.byteSize, nRows * t.elementType.byteSize)),
         srvb.advance())
     }
 
     Code(
-      nRows := in.readInt(),
-      nCols := in.readInt(),
-      n := nRows * nCols,
+      nRows := in.readInt().toL,
+      nCols := in.readInt().toL,
+      n := nRows.toI * nCols.toI,
       transpose := in.readBoolean(),
       data := t.data.pType.allocate(region, n),
       t.data.pType.stagedInitialize(data, n, setMissing=true),

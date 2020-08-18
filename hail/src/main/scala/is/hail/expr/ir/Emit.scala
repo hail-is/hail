@@ -779,7 +779,7 @@ class Emit[C](
 
               def makeStridesBuilder(sourceShape: PBaseStructValue, isRowMajor: Code[Boolean], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb => EmitCodeBuilder.scopedVoid(mb) { cb =>
                 def shapeCodeSeq1 = (0 until nDims).map { i =>
-                  sourceShape.loadField(cb, i).handle(cb, { /* impossible */ }).tcode[Long]
+                  sourceShape.loadField(cb, i).handle(cb, { /* impossible */ }).memoize(cb, s"make_ndarray_shape_${i}").value.asInstanceOf[Value[Long]]
                 }
 
                 cb.ifx(isRowMajor, {
@@ -1872,11 +1872,11 @@ class Emit[C](
           val tauPType = rawPType.types(1).asInstanceOf[PNDArray]
 
           val hShapeArray = FastIndexedSeq[Value[Long]](N, M)
-          val hShapeBuilder = hPType.makeShapeBuilder(hShapeArray.map(_.get))
-          val hStridesBuilder = hPType.makeRowMajorStridesBuilder(hShapeArray.map(_.get), mb)
+          val hShapeBuilder = hPType.makeShapeBuilder(hShapeArray)
+          val hStridesBuilder = hPType.makeRowMajorStridesBuilder(hShapeArray, mb)
 
-          val tauShapeBuilder = tauPType.makeShapeBuilder(FastIndexedSeq(K.get))
-          val tauStridesBuilder = tauPType.makeRowMajorStridesBuilder(FastIndexedSeq(K.get), mb)
+          val tauShapeBuilder = tauPType.makeShapeBuilder(FastIndexedSeq(K))
+          val tauStridesBuilder = tauPType.makeRowMajorStridesBuilder(FastIndexedSeq(K), mb)
 
           val h = hPType.construct(hShapeBuilder, hStridesBuilder, aAddressDGEQRF, mb, region.code)
           val tau = tauPType.construct(tauShapeBuilder, tauStridesBuilder, tauAddress, mb, region.code)
@@ -1910,8 +1910,8 @@ class Emit[C](
 
           val rShapeArray = FastIndexedSeq[Value[Long]](rRows, rCols)
 
-          val rShapeBuilder = rPType.makeShapeBuilder(rShapeArray.map(_.get))
-          val rStridesBuilder = rPType.makeColumnMajorStridesBuilder(rShapeArray.map(_.get), mb)
+          val rShapeBuilder = rPType.makeShapeBuilder(rShapeArray)
+          val rStridesBuilder = rPType.makeColumnMajorStridesBuilder(rShapeArray, mb)
 
           // This block assumes that `rDataAddress` and `aAddressDGEQRF` point to column major arrays.
           // TODO: Abstract this into ndarray ptype/pcode interface methods.
@@ -1946,8 +1946,8 @@ class Emit[C](
 
             val qPType = crPType.types(0).asInstanceOf[PNDArray]
             val qShapeArray = if (mode == "complete") Array(M, M) else Array(M, K)
-            val qShapeBuilder = qPType.makeShapeBuilder(qShapeArray.map(_.get))
-            val qStridesBuilder = qPType.makeColumnMajorStridesBuilder(qShapeArray.map(_.get), mb)
+            val qShapeBuilder = qPType.makeShapeBuilder(qShapeArray)
+            val qStridesBuilder = qPType.makeColumnMajorStridesBuilder(qShapeArray, mb)
 
             val rNDArrayAddress = mb.genFieldThisRef[Long]()
             val qDataAddress = mb.genFieldThisRef[Long]()
@@ -2092,8 +2092,8 @@ class Emit[C](
           INFOerror("dgetri", INFOdgetri)
         ))
 
-        val shapeBuilder = ndPType.makeShapeBuilder(shapeArray.map(_.get))
-        val stridesBuilder = ndPType.makeColumnMajorStridesBuilder(shapeArray.map(_.get), mb)
+        val shapeBuilder = ndPType.makeShapeBuilder(shapeArray)
+        val stridesBuilder = ndPType.makeColumnMajorStridesBuilder(shapeArray, mb)
 
         val res = Code(
           computeLU,
@@ -2890,7 +2890,7 @@ abstract class NDArrayEmitter[C](
 
     val ptr = targetType.construct(
       shapeBuilder,
-      targetType.makeColumnMajorStridesBuilder(outputShapeVariables.map(_.load()), mb),
+      targetType.makeColumnMajorStridesBuilder(outputShapeVariables, mb),
       dataAddress,
       mb,
       region)
