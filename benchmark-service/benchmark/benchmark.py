@@ -77,9 +77,9 @@ def get_comparisons(benchmarks1, benchmarks2, metric):
         data1 = benchmarks1['data'].get(name)
         data2 = benchmarks2['data'].get(name)
         if data2 is None:
-                 comparisons.append((name, get_metric(data1), None))
+            comparisons.append((name, get_metric(data1), None))
         elif data1 is None:
-                 comparisons.append((name, None, get_metric(data2)))
+            comparisons.append((name, None, get_metric(data2)))
         else:
             comparisons.append((name, get_metric(data1), get_metric(data2)))
 
