@@ -827,15 +827,17 @@ class Emit[C](
           val LWORKAddress = mb.newLocal[Long]()
 
           val shapePVal= new PCanonicalBaseStructCode(ndPVal.pt.shape.pType.asInstanceOf[PCanonicalBaseStruct], ndPVal.pt.shape.load(ndPVal.value.asInstanceOf[Value[Long]])).memoize(cb, "nd_svd_shape")
-          val M = shapePVal.loadField(cb, 0).handle(cb, {/* do nothing */}).memoize(cb, "dgesdd_M").value.asInstanceOf[Value[Long]]
-          val N = shapePVal.loadField(cb, 1).handle(cb, {/* do nothing */}).memoize(cb, "dgesdd_N").value.asInstanceOf[Value[Long]]
+          val M = shapePVal.loadField(cb, 0).handle(cb, {/* do nothing */}).memoize(cb, "nd_svd_M").value.asInstanceOf[Value[Long]]
+          val N = shapePVal.loadField(cb, 1).handle(cb, {/* do nothing */}).memoize(cb, "nd_svd_N").value.asInstanceOf[Value[Long]]
           val K = cb.newLocal[Long]("nd_svd_K")
           cb.assign(K, (M < N).mux(M, N))
           val LDA = M
-          val S_data = cb.newField[Long]("dgesdd_S_address")
-          val U_data = cb.newField[Long]("dgesdd_U_address")
+          val S_data = cb.newField[Long]("nd_svd_S_address")
+          val U_data = cb.newField[Long]("nd_svd_U_address")
           val LDU = M
-          val VT_data = cb.newField[Long]("dgesdd_VT_address")
+          val UCOL: Value[Long] = if (full_matrices) M else K
+          val VT_data = cb.newField[Long]("nd_svd_VT_address")
+          val LDVT = if (full_matrices) N else K
           val IWORKAddress = cb.newLocal[Long]("dgesdd_IWORK_address")
           val A = cb.newLocal[Long]("dgesdd_A_address")
           val dataAddress = cb.newLocal[Long]("nd_svd_dataArray_address")
@@ -862,84 +864,85 @@ class Emit[C](
           cb.append(Region.copyFrom(ndPType.data.pType.firstElementOffset(dataAddress, (M * N).toI), A, (M * N) * 8L))
 
           // Determines JOBZ, U for LAPACK, V for LAPACK
-          if (computeUV) {
+          val (jobz, sPType, optUPType, optVTPType) = if (computeUV) {
             val outputPType = x.pType.asInstanceOf[PTuple]
             val uPType = outputPType.fields(0).typ.asInstanceOf[PNDArray]
             val sPType = outputPType.fields(1).typ.asInstanceOf[PNDArray]
             val vtPType = outputPType.fields(2).typ.asInstanceOf[PNDArray]
 
-            val JOBZ = if (full_matrices) "A" else "S"
-            def UCOL: Value[Long] = if (full_matrices) M else K
-            val LDVT = if (full_matrices) N else K
-
-
             cb.assign(U_data, uPType.data.pType.allocate(region.code, UCOL.toI * LDU.toI))
             cb.append(uPType.data.pType.stagedInitialize(U_data, UCOL.toI * LDU.toI))
 
-            cb.assign(S_data, sPType.data.pType.allocate(region.code, K.toI))
-            cb.append(sPType.data.pType.stagedInitialize(S_data, K.toI))
-
             cb.assign(VT_data, vtPType.data.pType.allocate(region.code, N.toI * LDVT.toI))
             cb.append(vtPType.data.pType.stagedInitialize(VT_data, N.toI * LDVT.toI))
+            (if (full_matrices) "A" else "S", sPType, Some(uPType), Some(vtPType))
+          }
+          else {
+            cb.assign(U_data, 0L)
+            cb.assign(VT_data, 0L)
+            ("N", x.pType.asInstanceOf[PNDArray], None, None)
+          }
 
-            printLabelPrim(cb, "K = ", K.toS)
-            printLabel(cb, "initial S_data = ", sPType.data.pType, S_data)
+          cb.assign(S_data, sPType.data.pType.allocate(region.code, K.toI))
+          cb.append(sPType.data.pType.stagedInitialize(S_data, K.toI))
 
-            cb.assign(infoDGESDDResult, Code.invokeScalaObject13[String, Int, Int, Long, Int, Long, Long, Int, Long, Int, Long, Int, Long, Int](LAPACK.getClass, "dgesdd",
-              JOBZ,
-              M.toI,
-              N.toI,
-              A,
-              LDA.toI,
-              sPType.data.pType.firstElementOffset(S_data),
-              uPType.data.pType.firstElementOffset(U_data),
-              LDU.toI,
-              vtPType.data.pType.firstElementOffset(VT_data),
-              LDVT.toI,
-              LWORKAddress,
-              -1,
-              IWORKAddress
-            ))
+          def uStart = optUPType.map(uPType => uPType.data.pType.firstElementOffset(U_data)).getOrElse(U_data.get)
+          def vtStart = optVTPType.map(vtPType => vtPType.data.pType.firstElementOffset(VT_data)).getOrElse(VT_data.get)
 
-            cb.append(Code._println(const("dgesvd: Finished size check call, info = ").concat(infoDGESDDResult.toS)))
+          cb.assign(infoDGESDDResult, Code.invokeScalaObject13[String, Int, Int, Long, Int, Long, Long, Int, Long, Int, Long, Int, Long, Int](LAPACK.getClass, "dgesdd",
+            jobz,
+            M.toI,
+            N.toI,
+            A,
+            LDA.toI,
+            sPType.data.pType.firstElementOffset(S_data),
+            uStart,
+            LDU.toI,
+            vtStart,
+            LDVT.toI,
+            LWORKAddress,
+            -1,
+            IWORKAddress
+          ))
 
-            def LWORK = Region.loadDouble(LWORKAddress).toI
-            val WORK = cb.newLocal[Long]("dgesdd_work_address")
+          cb.append(Code._println(const("dgesvd: Finished size check call, info = ").concat(infoDGESDDResult.toS)))
 
-            cb.assign(WORK, Code.invokeStatic1[Memory, Long, Long]("malloc", LWORK.toL * 8L))
+          def LWORK = Region.loadDouble(LWORKAddress).toI
+          val WORK = cb.newLocal[Long]("dgesdd_work_address")
 
-            cb.assign(infoDGESDDResult, Code.invokeScalaObject13[String, Int, Int, Long, Int, Long, Long, Int, Long, Int, Long, Int, Long, Int](LAPACK.getClass, "dgesdd",
-              JOBZ,
-              M.toI,
-              N.toI,
-              A,
-              LDA.toI,
-              sPType.data.pType.firstElementOffset(S_data),
-              uPType.data.pType.firstElementOffset(U_data),
-              LDU.toI,
-              vtPType.data.pType.firstElementOffset(VT_data),
-              LDVT.toI,
-              WORK,
-              LWORK,
-              IWORKAddress
-            ))
+          cb.assign(WORK, Code.invokeStatic1[Memory, Long, Long]("malloc", LWORK.toL * 8L))
 
-            cb.append(Code._println(const("dgesvd: Finished actual call, info = ").concat(infoDGESDDResult.toS)))
+          cb.assign(infoDGESDDResult, Code.invokeScalaObject13[String, Int, Int, Long, Int, Long, Long, Int, Long, Int, Long, Int, Long, Int](LAPACK.getClass, "dgesdd",
+            jobz,
+            M.toI,
+            N.toI,
+            A,
+            LDA.toI,
+            sPType.data.pType.firstElementOffset(S_data),
+            uStart,
+            LDU.toI,
+            vtStart,
+            LDVT.toI,
+            WORK,
+            LWORK,
+            IWORKAddress
+          ))
 
-            printLabel(cb, "s_data result: ", sPType.data.pType, S_data)
-            printLabel(cb, "u_data", uPType.data.pType, U_data)
-            printLabel(cb, "vt_data", vtPType.data.pType, VT_data)
+          cb.append(Code._println(const("dgesvd: Finished actual call, info = ").concat(infoDGESDDResult.toS)))
 
-            def uShapeSeq = FastIndexedSeq[Value[Long]](M, UCOL)
+          val sShapeSeq = FastIndexedSeq[Value[Long]](K)
+          val s = sPType.construct(sPType.makeShapeBuilder(sShapeSeq.map(_.get)), sPType.makeColumnMajorStridesBuilder(sShapeSeq.map(_.get), mb), S_data, mb, region.code)
+
+          val resultPCode = if (computeUV) {
+            val uShapeSeq = FastIndexedSeq[Value[Long]](M, UCOL)
+            val uPType = optUPType.get
             val u = uPType.construct(uPType.makeShapeBuilder(uShapeSeq.map(_.get)), uPType.makeColumnMajorStridesBuilder(uShapeSeq.map(_.get), mb), U_data, mb, region.code)
 
-            val sShapeSeq = FastIndexedSeq[Value[Long]](K)
-            val s = sPType.construct(sPType.makeShapeBuilder(sShapeSeq.map(_.get)), sPType.makeColumnMajorStridesBuilder(sShapeSeq.map(_.get), mb), S_data, mb, region.code)
-
             val vtShapeSeq = FastIndexedSeq[Value[Long]](LDVT, N)
+            val vtPType = optVTPType.get
             val vt = vtPType.construct(vtPType.makeShapeBuilder(vtShapeSeq.map(_.get)), vtPType.makeColumnMajorStridesBuilder(vtShapeSeq.map(_.get), mb), VT_data, mb, region.code)
 
-            val resultSRVB = new StagedRegionValueBuilder(mb, outputPType, region.code)
+            val resultSRVB = new StagedRegionValueBuilder(mb, x.pType, region.code)
             cb.append(Code(
               Code._println("Building a result"),
               resultSRVB.start(),
@@ -951,13 +954,12 @@ class Emit[C](
               resultSRVB.advance())
             )
 
-            val resultPCode = PCode.apply(outputPType, resultSRVB.end())
-
-            IEmitCode(cb, false, resultPCode)
+            PCode.apply(x.pType, resultSRVB.end())
           } else {
-            val JOBZ = "N"
-            throw new IllegalArgumentException("Not implemented yet")
+            PCode.apply(x.pType, s)
           }
+          IEmitCode(cb, false, resultPCode)
+
         }
       case x@RunAgg(body, result, states) =>
         val newContainer = AggContainer.fromBuilder(cb, states.toArray, "run_agg")

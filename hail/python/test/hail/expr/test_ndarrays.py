@@ -767,18 +767,23 @@ def test_ndarray_qr():
 
 
 def test_svd():
-    def assert_evals_to_same_svd(nd_expr, np_array):
-        evaled = hl.eval(hl.nd.svd(nd_expr))
-        np_svd = np.linalg.svd(np_array)
+    def assert_evals_to_same_svd(nd_expr, np_array, full_matrices=True, compute_uv=True):
+        evaled = hl.eval(hl.nd.svd(nd_expr, full_matrices, compute_uv))
+        np_svd = np.linalg.svd(np_array, full_matrices, compute_uv)
 
-        np.testing.assert_array_equal(evaled[0], np_svd[0])
-        np.testing.assert_array_equal(evaled[1], np_svd[1])
-        np.testing.assert_array_equal(evaled[2], np_svd[2])
+        if compute_uv:
+            np.testing.assert_array_equal(evaled[0], np_svd[0])
+            np.testing.assert_array_equal(evaled[1], np_svd[1])
+            np.testing.assert_array_equal(evaled[2], np_svd[2])
+
+        else:
+            np.testing.assert_array_equal(evaled, np_svd)
 
     np_small_square = np.arange(4).reshape((2, 2))
     small_square = hl.nd.array(np_small_square)
 
     assert_evals_to_same_svd(small_square, np_small_square)
+    assert_evals_to_same_svd(small_square, np_small_square, compute_uv=False)
 
 
 def test_numpy_interop():

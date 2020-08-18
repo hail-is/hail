@@ -266,7 +266,8 @@ def svd(nd, full_matrices = True, compute_uv = True):
     float_nd = nd.map(lambda x: hl.float64(x))
     ir = NDArraySVD(float_nd._ir, full_matrices, compute_uv)
     #TODO indices, aggregators
-    return construct_expr(ir,ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2)))
+    return_type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2)) if compute_uv else tndarray(tfloat64, 1)
+    return construct_expr(ir, return_type)
 
 @typecheck(nd=expr_ndarray())
 def inv(nd):
