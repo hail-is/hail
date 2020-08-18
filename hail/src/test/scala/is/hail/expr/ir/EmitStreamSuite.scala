@@ -187,8 +187,9 @@ class EmitStreamSuite extends HailSuite {
     val f = compile1[Int, Unit] { (mb, n) =>
       val r = checkedRange(0, n, "range", mb)
       var checkedInner: CheckedStream[Code[Int]] = null
-      val outer = r.stream.grouped(2).map { inner =>
-        checkedInner = new CheckedStream(inner, "inner", mb)
+      val dummyRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
+      val outer = Stream.grouped(mb, _ => r.stream, 2, dummyRegion).map { inner =>
+        checkedInner = new CheckedStream(inner(dummyRegion), "inner", mb)
         checkedInner.stream
       }
       val checkedOuter = new CheckedStream(outer, "outer", mb)
@@ -210,8 +211,9 @@ class EmitStreamSuite extends HailSuite {
     val f = compile1[Int, Unit] { (mb, n) =>
       val r = checkedRange(0, n, "range", mb)
       var checkedInner: CheckedStream[Code[Int]] = null
-      val outer = r.stream.grouped(2).map { inner =>
-        val take = Stream.zip(inner, Stream.range(mb, 0, 1, 1))
+      val dummyRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
+      val outer = Stream.grouped(mb, _ => r.stream, 2, dummyRegion).map { inner =>
+        val take = Stream.zip(inner(dummyRegion), Stream.range(mb, 0, 1, 1))
                          .map { case (i, count) => i }
         checkedInner = new CheckedStream(take, "inner", mb)
         checkedInner.stream
