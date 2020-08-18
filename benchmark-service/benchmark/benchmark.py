@@ -55,7 +55,7 @@ def get_benchmarks(file_path):
     benchmarks = dict()
     benchmarks['sha'] = sha
     benchmarks['geometric_mean'] = geometric_mean
-    benchmarks['data'] = data #sorted(data, key=lambda i: i['name'])
+    benchmarks['data'] = data
     return benchmarks
 
 
@@ -74,8 +74,8 @@ def get_comparisons(benchmarks1, benchmarks2, metric):
 
     comparisons = []
     for name in set_of_names:
-        data1 = benchmarks1['data'][name]
-        data2 = benchmarks2['data'][name]
+        data1 = benchmarks1['data'].get(name)
+        data2 = benchmarks2['data'].get(name)
         if data2 is None:
                  comparisons.append((name, get_metric(data1), None))
         elif data1 is None:
@@ -83,18 +83,6 @@ def get_comparisons(benchmarks1, benchmarks2, metric):
         else:
             comparisons.append((name, get_metric(data1), get_metric(data2)))
 
-    # for d in benchmarks1['data']:
-    #     item = next((item for item in benchmarks2['data'] if item['name'] == d['name']),
-    #                 None)
-    #     if item is None:
-    #         comparisons.append((d['name'], get_metric(d), None))
-    #     else:
-    #         comparisons.append((d['name'], get_metric(d), get_metric(item)))
-    # for d2 in benchmarks2['data']:
-    #     item1 = next((item for item in benchmarks1['data'] if item['name'] == d2['name']),
-    #                  None)
-    #     if item1 is None:
-    #         comparisons.append((d2['name'], None, get_metric(d2)))
     return comparisons
 
 
