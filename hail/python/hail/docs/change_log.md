@@ -38,6 +38,8 @@ Released 2020-08-19
   dataproc` now features the same Spark monitoring widget found in the "Hail"
   kernel. There is now no reason to use the "Hail" kernel.
 
+---
+
 ## Version 0.2.54
 
 Released 2020-08-07
