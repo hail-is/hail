@@ -124,24 +124,34 @@ if role == 'Master':
             out.write('\n')
 
     # create Jupyter kernel spec file
-    kernel = {
-        'argv': [
-            '/opt/conda/default/bin/python',
-            '-m',
-            'ipykernel',
-            '-f',
-            '{connection_file}'
-        ],
-        'display_name': 'Hail',
-        'language': 'python',
-        'env': {
-            **env_to_set,
-            'HAIL_SPARK_MONITOR': '1',
-            'SPARK_MONITOR_UI': 'http://localhost:8088/proxy/%APP_ID%',
+    try:
+        with open('/opt/conda/default/share/jupyter/kernels/python3/kernel.json', 'r') as f:
+            kernel = json.loads(f.read())
+    except:  # noqa: E722
+        kernel = {
+            'argv': [
+                '/opt/conda/default/bin/python',
+                '-m',
+                'ipykernel',
+                '-f',
+                '{connection_file}'
+            ],
+            'display_name': 'Hail',
+            'language': 'python',
         }
+    kernel['env'] = {
+        **kernel['env'],
+        **env_to_set,
+        'HAIL_SPARK_MONITOR': '1',
+        'SPARK_MONITOR_UI': 'http://localhost:8088/proxy/%APP_ID%',
     }
 
     # write kernel spec file to default Jupyter kernel directory
+    mkdir_if_not_exists('/opt/conda/default/share/jupyter/kernels/python3/')
+    with open('/opt/conda/default/share/jupyter/kernels/python3/kernel.json', 'w') as f:
+        json.dump(kernel, f)
+
+    # some old notebooks use the "Hail" kernel, so create that too
     mkdir_if_not_exists('/opt/conda/default/share/jupyter/kernels/hail/')
     with open('/opt/conda/default/share/jupyter/kernels/hail/kernel.json', 'w') as f:
         json.dump(kernel, f)
