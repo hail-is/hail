@@ -153,9 +153,9 @@ final case class LZ4FastBlockBufferSpec(blockSize: Int, child: BlockBufferSpec)
   def typeName = "LZ4FastBlockBufferSpec"
 }
 
-final case class LZ4SizeBasedFastBlockBufferSpec(blockSize: Int, minCompressionSize: Int, child: BlockBufferSpec)
+final case class LZ4SizeBasedFastBlockBufferSpec(hc: Boolean = false, blockSize: Int, minCompressionSize: Int, child: BlockBufferSpec)
     extends BlockBufferSpec {
-  def lz4: LZ4 = LZ4.fast
+  val lz4: LZ4 = if (hc) LZ4.hc else LZ4.fast
   def stagedlz4: Code[LZ4] = Code.invokeScalaObject0[LZ4](LZ4.getClass, "fast")
   def typeName = "LZ4SizeBasedFastBlockBufferSpec"
 
