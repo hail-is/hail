@@ -125,8 +125,6 @@ async def healthcheck(request: web.Request) -> web.Response:  # pylint: disable=
 async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     file_path = request.query.get('file')
     benchmarks = get_benchmarks(file_path)
-    # name_data = next((item for item in benchmarks['data'] if item['name'] == str(request.match_info['name'])),
-    #                  None)
     name_data = benchmarks['data'][str(request.match_info['name'])]
 
     try:
