@@ -301,4 +301,8 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         }
         outputBufferPos = uncompOff;
     }
+
+    public void close() throws IOException {
+        in.close();
+    }
 }
