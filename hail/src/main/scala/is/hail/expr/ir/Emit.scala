@@ -1872,10 +1872,10 @@ class Emit[C](
           val tauPType = rawPType.types(1).asInstanceOf[PNDArray]
 
           val hShapeArray = FastIndexedSeq[Value[Long]](N, M)
-          val hShapeBuilder = hPType.makeShapeBuilder(hShapeArray.map(_.get))
+          val hShapeBuilder = hPType.makeShapeBuilder(hShapeArray)
           val hStridesBuilder = hPType.makeRowMajorStridesBuilder(hShapeArray, mb)
 
-          val tauShapeBuilder = tauPType.makeShapeBuilder(FastIndexedSeq(K.get))
+          val tauShapeBuilder = tauPType.makeShapeBuilder(FastIndexedSeq(K))
           val tauStridesBuilder = tauPType.makeRowMajorStridesBuilder(FastIndexedSeq(K), mb)
 
           val h = hPType.construct(hShapeBuilder, hStridesBuilder, aAddressDGEQRF, mb, region.code)
@@ -1910,7 +1910,7 @@ class Emit[C](
 
           val rShapeArray = FastIndexedSeq[Value[Long]](rRows, rCols)
 
-          val rShapeBuilder = rPType.makeShapeBuilder(rShapeArray.map(_.get))
+          val rShapeBuilder = rPType.makeShapeBuilder(rShapeArray)
           val rStridesBuilder = rPType.makeColumnMajorStridesBuilder(rShapeArray, mb)
 
           // This block assumes that `rDataAddress` and `aAddressDGEQRF` point to column major arrays.
@@ -1946,7 +1946,7 @@ class Emit[C](
 
             val qPType = crPType.types(0).asInstanceOf[PNDArray]
             val qShapeArray = if (mode == "complete") Array(M, M) else Array(M, K)
-            val qShapeBuilder = qPType.makeShapeBuilder(qShapeArray.map(_.get))
+            val qShapeBuilder = qPType.makeShapeBuilder(qShapeArray)
             val qStridesBuilder = qPType.makeColumnMajorStridesBuilder(qShapeArray, mb)
 
             val rNDArrayAddress = mb.genFieldThisRef[Long]()
@@ -2092,7 +2092,7 @@ class Emit[C](
           INFOerror("dgetri", INFOdgetri)
         ))
 
-        val shapeBuilder = ndPType.makeShapeBuilder(shapeArray.map(_.get))
+        val shapeBuilder = ndPType.makeShapeBuilder(shapeArray)
         val stridesBuilder = ndPType.makeColumnMajorStridesBuilder(shapeArray, mb)
 
         val res = Code(

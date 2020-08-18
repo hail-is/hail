@@ -61,7 +61,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     shape.foldLeft(1L: Code[Long])(_ * _)
   }
 
-  def makeShapeBuilder(shapeArray: IndexedSeq[Code[Long]]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+  def makeShapeBuilder(shapeArray: IndexedSeq[Value[Long]]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
     coerce[Unit](Code(
       srvb.start(),
       Code(shapeArray.map(shapeElement => Code(
