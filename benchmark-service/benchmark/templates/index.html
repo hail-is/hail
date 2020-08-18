@@ -38,10 +38,9 @@
         </tr>
         </thead>
         <tbody>
-<!--        {% for d in benchmarks['data'].values() %}-->
         {% for key in sorted(benchmarks['data']) %}
         <tr>
-            {% set d = benchmarks['data'][key]%}
+            {% set d = benchmarks['data'][key] %}
             <td><a href="{{ base_path }}/name/{{ d['name'] }}?file={{ file }}">{{ d['name'] }}</a></td>
             <td>{{ d['failed'] }}</td>
             <td>{{ d['f-stat'] }}</td>
