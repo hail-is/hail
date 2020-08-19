@@ -10,6 +10,8 @@ import json
 import re
 import plotly
 import plotly.express as px
+from scipy.stats.mstats import gmean, hmean
+import numpy as np
 
 configure_logging()
 router = web.RouteTableDef()
@@ -30,7 +32,7 @@ def get_benchmarks(file_path):
         log.info('could not get blob: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message)
 
-    data = []
+    data = {}
     prod_of_means = 1
     for d in pre_data['benchmarks']:
         stats = dict()
@@ -45,7 +47,7 @@ def get_benchmarks(file_path):
             stats['stdev'] = round(d['stdev'], 6)
             stats['times'] = d['times']
             stats['trials'] = d['trials']
-        data.append(stats)
+        data[stats['name']] = stats
     geometric_mean = get_geometric_mean(prod_of_means, len(pre_data['benchmarks']))
 
     file_info = parse_file_path(BENCHMARK_FILE_REGEX, file_path)
@@ -53,8 +55,68 @@ def get_benchmarks(file_path):
     benchmarks = dict()
     benchmarks['sha'] = sha
     benchmarks['geometric_mean'] = geometric_mean
-    benchmarks['data'] = sorted(data, key=lambda i: i['name'])
+    benchmarks['data'] = data
     return benchmarks
+
+
+def get_comparisons(benchmarks1, benchmarks2, metric):
+    def get_metric(data):
+        if metric == 'median':
+            return data['median']
+        assert metric == 'best'
+        return min(data['times'])
+
+    d1_keys = set(benchmarks1['data'].keys())
+    d2_keys = set(benchmarks2['data'].keys())
+    set_of_names = d1_keys.union(d2_keys)
+
+    comparisons = []
+    for name in set_of_names:
+        data1 = benchmarks1['data'].get(name)
+        data2 = benchmarks2['data'].get(name)
+        if data2 is None:
+            comparisons.append((name, get_metric(data1), None))
+        elif data1 is None:
+            comparisons.append((name, None, get_metric(data2)))
+        else:
+            comparisons.append((name, get_metric(data1), get_metric(data2)))
+
+    return comparisons
+
+
+def fmt_time(t):
+    return round(t, 3)
+
+
+def fmt_diff(ratio):
+    return round(ratio * 100, 3)
+
+
+def final_comparisons(comparisons):
+    comps = []
+    ratios = []
+    final_comps = {}
+    for name, r1, r2 in comparisons:
+        if r1 is None:
+            comps.append((name, None, None, fmt_time(r2)))
+        elif r2 is None:
+            comps.append((name, None, fmt_time(r1), None))
+        else:
+            r = r1 / r2
+            ratios.append(r)
+            comps.append((name, fmt_diff(r), fmt_time(r1), fmt_time(r2)))
+    final_comps['comps'] = comps
+    if len(ratios) == 0:
+        final_comps['harmonic_mean'] = None
+        final_comps['geometric_mean'] = None
+        final_comps['arithmetic_mean'] = None
+        final_comps['median'] = None
+    else:
+        final_comps['harmonic_mean'] = fmt_diff(hmean(ratios))
+        final_comps['geometric_mean'] = fmt_diff(gmean(ratios))
+        final_comps['arithmetic_mean'] = fmt_diff(np.mean(ratios))
+        final_comps['median'] = fmt_diff(np.median(ratios))
+    return final_comps
 
 
 @router.get('/healthcheck')
@@ -67,8 +129,7 @@ async def healthcheck(request: web.Request) -> web.Response:  # pylint: disable=
 async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     file_path = request.query.get('file')
     benchmarks = get_benchmarks(file_path)
-    name_data = next((item for item in benchmarks['data'] if item['name'] == str(request.match_info['name'])),
-                     None)
+    name_data = benchmarks['data'][str(request.match_info['name'])]
 
     try:
         fig = px.scatter(x=enumerate_list_index(name_data['trials']), y=name_data['times'])
@@ -98,6 +159,29 @@ async def index(request, userdata):  # pylint: disable=unused-argument
     context = {'file': file,
                'benchmarks': benchmarks_context}
     return await render_template('benchmark', request, userdata, 'index.html', context)
+
+
+@router.get('/compare')
+@web_authenticated_developers_only(redirect=False)
+async def compare(request, userdata):  # pylint: disable=unused-argument
+    file1 = request.query.get('file1')
+    file2 = request.query.get('file2')
+    metric = request.query.get('metrics')
+    if file1 is None or file2 is None:
+        benchmarks_context1 = None
+        benchmarks_context2 = None
+        comparisons = None
+    else:
+        benchmarks_context1 = get_benchmarks(file1)
+        benchmarks_context2 = get_benchmarks(file2)
+        comparisons = final_comparisons(get_comparisons(benchmarks_context1, benchmarks_context2, metric))
+    context = {'file1': file1,
+               'file2': file2,
+               'metric': metric,
+               'benchmarks1': benchmarks_context1,
+               'benchmarks2': benchmarks_context2,
+               'comparisons': comparisons}
+    return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
 def init_app() -> web.Application:
