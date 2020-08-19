@@ -3348,6 +3348,11 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
     Examples
     --------
 
+    >>> hl.eval(hl.zip([1, 2, 3], [4, 5, 6]))
+    [(1, 4), (2, 5), (3, 6)]
+
+    If the arrays are different lengths, the behavior is decided by the `fill_missing` parameter.
+
     >>> hl.eval(hl.zip([1], [10, 20], [100, 200, 300]))
     [(1, 10, 100)]
 
