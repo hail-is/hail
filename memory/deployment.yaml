@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memory
+  labels:
+    app: memory
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: memory
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: memory
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+      serviceAccountName: memory
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      containers:
+        - name: memory
+          image: "{{ memory_image.image }}"
+          command: ["/bin/sh","-c"]
+          args: ["/redis-6.0.6/src/redis-server /redis/redis.conf & python3 -m memory"]          
+          env:
+           - name: HAIL_DOMAIN
+             value: "{{ global.domain }}"
+           - name: HAIL_DEPLOY_CONFIG_FILE
+             value: /deploy-config/deploy-config.json
+           - name: HAIL_BATCH_PODS_NAMESPACE
+             value: "{{ batch_pods_ns.name }}"
+           - name: HAIL_SHA
+             value: "{{ code.sha }}"
+          ports:
+           - containerPort: 5000
+          volumeMounts:
+           - name: deploy-config
+             mountPath: /deploy-config
+             readOnly: true
+           - name: session-secret-key
+             mountPath: /session-secret-key
+             readOnly: true
+           - name: ssl-config
+             mountPath: /ssl-config
+             readOnly: true
+          resources:
+            requests:
+              memory: "3.75G"
+              cpu: "800m"
+            limits:
+              memory: "3.75G"
+              cpu: "1"
+          readinessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+       - name: deploy-config
+         secret:
+           secretName: deploy-config
+       - name: session-secret-key
+         secret:
+           secretName: session-secret-key
+       - name: ssl-config
+         secret:
+           optional: false
+           secretName: ssl-config-memory

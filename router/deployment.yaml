@@ -201,6 +201,21 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  name: memory
+  labels:
+    app: memory
+spec:
+  ports:
+  - name: memory
+    port: 443
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: memory
+---
+apiVersion: v1
+kind: Service
+metadata:
   name: address
   labels:
     app: address

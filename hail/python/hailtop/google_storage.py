@@ -27,13 +27,18 @@ class GCS:
                  blocking_pool: concurrent.futures.Executor,
                  *,
                  project: Optional[str] = None,
+                 key: Optional[str] = None,
                  credentials: Optional[google.oauth2.service_account.Credentials] = None):
         self.blocking_pool = blocking_pool
         # project=None doesn't mean default, it means no project:
         # https://github.com/googleapis/google-cloud-python/blob/master/storage/google/cloud/storage/client.py#L86
-        if credentials is None and 'HAIL_GSA_KEY_FILE' in os.environ:
-            credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-                os.environ['HAIL_GSA_KEY_FILE'])
+        if credentials is None:
+            if key is None and 'HAIL_GSA_KEY_FILE' in os.environ:
+                key_file = os.environ['HAIL_GSA_KEY_FILE']
+                credentials = google.oauth2.service_account.Credentials.from_service_account_file(key_file)
+            elif key is not None:
+                credentials = google.oauth2.service_account.Credentials.from_service_account_info(key)
+
         if project:
             self.gcs_client = google.cloud.storage.Client(
                 project=project, credentials=credentials)
