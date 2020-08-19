@@ -62,8 +62,16 @@
         {% else %}
         <td>{{ ratio }}%</td>
         {% endif %}
+        {% if r1 is none %}
+        <td>  </td>
+        {% else %}
         <td>{{ r1 }}</td>
+        {% endif %}
+        {% if r2 is none %}
+        <td>  </td>
+        {% else %}
         <td>{{ r2 }}</td>
+        {% endif %}
     </tr>
     {% endfor %}
     </tbody>
