@@ -15,14 +15,6 @@ def parse_file_path(regex, name):
 
 
 def enumerate_list_index(list_of_trials):
-    # res_list = []
-    # i = 0
-    # for list in list_of_lists:
-    #     temp = []
-    #     temp = [i] * len(list)
-    #     res_list.extend(temp)
-    #     i += 1
-    # return res_list
     res_dict = {}
     trial_indices = []
     wall_times = []
