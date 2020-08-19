@@ -57,7 +57,11 @@
     {% for name, ratio, r1, r2 in comparisons['comps'] %}
     <tr>
         <td>{{ name }}</td>
+        {% if ratio is None %}
+        <td></td>
+        {% else %}
         <td>{{ ratio }}%</td>
+        {% endif %}
         <td>{{ r1 }}</td>
         <td>{{ r2 }}</td>
     </tr>
