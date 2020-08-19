@@ -3576,7 +3576,7 @@ class MatrixTable(ExprContainer):
                     ))
             if _check_cols:
                 wrong_keys = hl.eval(hl.rbind(first.col_key.collect(_localize=False), lambda first_keys: (
-                    hl.zip_with_index([mt.col_key.collect(_localize=False) for mt in datasets[1:]])
+                    hl.enumerate([mt.col_key.collect(_localize=False) for mt in datasets[1:]])
                     .find(lambda x: ~(x[1] == first_keys))[0])))
                 if wrong_keys is not None:
                     raise ValueError(f"'MatrixTable.union_rows' expects all datasets to have the same columns. "

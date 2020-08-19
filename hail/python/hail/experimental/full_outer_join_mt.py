@@ -94,12 +94,12 @@ def full_outer_join_mt(left: hl.MatrixTable, right: hl.MatrixTable) -> hl.Matrix
     ht = ht.annotate_globals(
         left_keys=hl.group_by(
             lambda t: t[0],
-            hl.zip_with_index(
+            hl.enumerate(
                 ht.left_cols.map(lambda x: hl.tuple([x[f] for f in left.col_key])), index_first=False)).map_values(
             lambda elts: elts.map(lambda t: t[1])),
         right_keys=hl.group_by(
             lambda t: t[0],
-            hl.zip_with_index(
+            hl.enumerate(
                 ht.right_cols.map(lambda x: hl.tuple([x[f] for f in right.col_key])), index_first=False)).map_values(
             lambda elts: elts.map(lambda t: t[1])))
     ht = ht.annotate_globals(

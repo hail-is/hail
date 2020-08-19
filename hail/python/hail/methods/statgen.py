@@ -440,7 +440,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     ht = ht_local.transmute(**{entries_field_name: ht_local[entries_field_name][x_field_name]})
     ht = ht._group_within_partitions("grouped_fields", block_size)
 
-    ys_and_covs_to_keep_with_indices = hl.zip_with_index(ht[sample_field_name]).filter(lambda struct_with_index: all_defined(struct_with_index[1], y_field_names + cov_field_names))
+    ys_and_covs_to_keep_with_indices = hl.enumerate(ht[sample_field_name]).filter(lambda struct_with_index: all_defined(struct_with_index[1], y_field_names + cov_field_names))
     indices_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[0])
     ys_and_covs_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[1])
 
@@ -2521,11 +2521,11 @@ def filter_alleles(mt: MatrixTable,
     mt = mt.annotate_rows(__allele_inclusion=inclusion,
                           old_locus=mt.locus,
                           old_alleles=mt.alleles)
-    new_to_old = (hl.zip_with_index(mt.__allele_inclusion)
+    new_to_old = (hl.enumerate(mt.__allele_inclusion)
                   .filter(lambda elt: elt[1])
                   .map(lambda elt: elt[0]))
-    old_to_new_dict = (hl.dict(hl.zip_with_index(hl.zip_with_index(mt.alleles)
-                                                 .filter(lambda elt: mt.__allele_inclusion[elt[0]]))
+    old_to_new_dict = (hl.dict(hl.enumerate(hl.enumerate(mt.alleles)
+                                            .filter(lambda elt: mt.__allele_inclusion[elt[0]]))
                                .map(lambda elt: (elt[1][1], elt[0]))))
 
     old_to_new = hl.bind(lambda d: mt.alleles.map(lambda a: d.get(a)), old_to_new_dict)
