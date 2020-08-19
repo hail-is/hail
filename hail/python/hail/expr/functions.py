@@ -3389,9 +3389,45 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
                           aggregations)
 
 
+@typecheck(a=expr_array(), start=expr_int32, index_first=bool)
+def enumerate(a, start=0, *, index_first=True):
+    """Returns an array of (index, element) tuples.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.enumerate(['A', 'B', 'C']))
+    [(0, 'A'), (1, 'B'), (2, 'C')]
+
+    >>> hl.eval(hl.enumerate(['A', 'B', 'C'], start=3))
+    [(3, 'A'), (4, 'B'), (5, 'C')]
+
+    >>> hl.eval(hl.enumerate(['A', 'B', 'C'], index_first=False))
+    [('A', 0), ('B', 1), ('C', 2)]
+
+
+    Parameters
+    ----------
+    a : :class:`.ArrayExpression`
+    start : :class:`.Int32Expression`
+        The number the first element of the array is labeled with.
+    index_first: :obj:`bool`
+        If ``True``, the index is the first value of the element tuples. If
+        ``False``, the index is the second value.
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+        Array of (index, element) or (element, index) tuples.
+    """
+    return range(0 + start, len(a) + start).map(lambda i: (start, a[i]) if index_first else (a[i], i))
+
+
 @typecheck(a=expr_array(), index_first=bool)
 def zip_with_index(a, index_first=True):
-    """Returns an array of (index, element) tuples.
+    """Deprecated in favor of :func:`.enumerate`.
+
+    Returns an array of (index, element) tuples.
 
     Examples
     --------
@@ -3415,7 +3451,7 @@ def zip_with_index(a, index_first=True):
     :class:`.ArrayExpression`
         Array of (index, element) or (element, index) tuples.
     """
-    return bind(lambda aa: range(0, len(aa)).map(lambda i: (i, aa[i]) if index_first else (aa[i], i)), a)
+    return enumerate(a, index_first=index_first)
 
 
 @typecheck(f=func_spec(1, expr_any),
