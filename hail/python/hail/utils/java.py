@@ -37,7 +37,7 @@ class Env:
         if not Env._hc:
             sys.stderr.write("Initializing Hail with default parameters...\n")
 
-            backend_name = os.environ.get('HAIL_QUERY_BACKEND', 's')
+            backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
             if backend_name == 'service':
                 from hail.context import init_service
                 init_service()
