@@ -840,17 +840,12 @@ class Emit[C](
           val UCOL: Value[Long] = if (full_matrices) M else K
           val vtData = cb.newField[Long]("nd_svd_VT_address")
           val LDVT = if (full_matrices) N else K
-          val IWORKAddress = cb.newLocal[Long]("dgesdd_IWORK_address")
+          val IWORK = cb.newLocal[Long]("dgesdd_IWORK_address")
           val A = cb.newLocal[Long]("dgesdd_A_address")
           val dataAddress = cb.newLocal[Long]("nd_svd_dataArray_address")
 
           cb.assign(dataAddress, ndPVal.pt.data.load(ndPVal.value.asInstanceOf[Value[Long]]))
           cb.assign(LWORKAddress, Code.invokeStatic1[Memory, Long, Long]("malloc",  8L))
-          cb.assign(IWORKAddress, Code.invokeStatic1[Memory, Long, Long]("malloc", K.toL * 8L * 4L)) // 8K 4 byte integers.
-          cb.assign(A, Code.invokeStatic1[Memory, Long, Long]("malloc", M * N * 8L))
-
-          // Copy data into A because dgesdd destroys the input array:
-          cb.append(Region.copyFrom(ndPType.data.pType.firstElementOffset(dataAddress, (M * N).toI), A, (M * N) * 8L))
 
           val (jobz, sPType, optUPType, optVTPType) = if (computeUV) {
             val outputPType = x.pType.asInstanceOf[PTuple]
@@ -890,10 +885,15 @@ class Emit[C](
             LDVT.toI,
             LWORKAddress,
             -1,
-            IWORKAddress
+            IWORK
           ))
 
           cb.append(infoDGESDDErrorTest("Failed size query."))
+
+          cb.assign(IWORK, Code.invokeStatic1[Memory, Long, Long]("malloc", K.toL * 8L * 4L)) // 8K 4 byte integers.
+          cb.assign(A, Code.invokeStatic1[Memory, Long, Long]("malloc", M * N * 8L))
+          // Copy data into A because dgesdd destroys the input array:
+          cb.append(Region.copyFrom(ndPType.data.pType.firstElementOffset(dataAddress, (M * N).toI), A, (M * N) * 8L))
 
           def LWORK = Region.loadDouble(LWORKAddress).toI
           val WORK = cb.newLocal[Long]("dgesdd_work_address")
@@ -913,8 +913,13 @@ class Emit[C](
             LDVT.toI,
             WORK,
             LWORK,
-            IWORKAddress
+            IWORK
           ))
+
+          cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", IWORK.load()))
+          cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", A.load()))
+          cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", WORK.load()))
+          cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", LWORKAddress.load()))
 
           cb.append(infoDGESDDErrorTest("Failed result computation."))
 

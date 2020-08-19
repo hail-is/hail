@@ -262,7 +262,7 @@ def qr(nd, mode="reduced"):
 
 
 @typecheck(nd=expr_ndarray(), full_matrices=bool, compute_uv=bool)
-def svd(nd, full_matrices = True, compute_uv = True):
+def svd(nd, full_matrices=True, compute_uv=True):
     """Performs a singular value decomposition.
 
     :param nd: :class:`.NDArrayExpression`
@@ -287,6 +287,7 @@ def svd(nd, full_matrices = True, compute_uv = True):
 
     return_type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2)) if compute_uv else tndarray(tfloat64, 1)
     return construct_expr(ir, return_type)
+
 
 @typecheck(nd=expr_ndarray())
 def inv(nd):

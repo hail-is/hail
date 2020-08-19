@@ -155,6 +155,7 @@ __all__ = [
     'NDArrayAgg',
     'NDArrayMatMul',
     'NDArrayQR',
+    'NDArraySVD',
     'NDArrayInv',
     'NDArrayConcat',
     'NDArrayWrite',
