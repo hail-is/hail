@@ -771,19 +771,36 @@ def test_svd():
         evaled = hl.eval(hl.nd.svd(nd_expr, full_matrices, compute_uv))
         np_svd = np.linalg.svd(np_array, full_matrices, compute_uv)
 
+        # check shapes
+        for h, n in zip(evaled, np_svd):
+            assert h.shape == n.shape
+
+        k = min(np_array.shape)
+        rank = np.linalg.matrix_rank(np_array)
+
         if compute_uv:
-            np.testing.assert_array_equal(evaled[0], np_svd[0])
-            np.testing.assert_array_equal(evaled[1], np_svd[1])
-            np.testing.assert_array_equal(evaled[2], np_svd[2])
+            np.testing.assert_array_almost_equal(evaled[0][:, :rank], np_svd[0][:, :rank])
+            np.testing.assert_array_almost_equal(evaled[1], np_svd[1])
+            np.testing.assert_array_almost_equal(evaled[2][:rank, :], np_svd[2][:rank, :])
 
         else:
             np.testing.assert_array_equal(evaled, np_svd)
 
     np_small_square = np.arange(4).reshape((2, 2))
     small_square = hl.nd.array(np_small_square)
+    np_rank_2_wide_rectangle = np.arange(12).reshape((4, 3))
+    rank_2_wide_rectangle = hl.nd.array(np_rank_2_wide_rectangle)
+    np_rank_2_tall_rectangle = np_rank_2_wide_rectangle.T
+    rank_2_tall_rectangle = hl.nd.array(np_rank_2_tall_rectangle)
 
     assert_evals_to_same_svd(small_square, np_small_square)
     assert_evals_to_same_svd(small_square, np_small_square, compute_uv=False)
+
+    assert_evals_to_same_svd(rank_2_wide_rectangle, np_rank_2_wide_rectangle)
+    assert_evals_to_same_svd(rank_2_wide_rectangle, np_rank_2_wide_rectangle, full_matrices=False)
+
+    assert_evals_to_same_svd(rank_2_tall_rectangle, np_rank_2_tall_rectangle)
+    assert_evals_to_same_svd(rank_2_tall_rectangle, np_rank_2_tall_rectangle, full_matrices=False)
 
 
 def test_numpy_interop():
