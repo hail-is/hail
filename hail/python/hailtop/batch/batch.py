@@ -251,7 +251,7 @@ class Batch:
         >>> j.command(f"plink --bfile {bfile} --geno --make-bed --out {j.geno}")
         >>> j.command(f"wc -l {bfile.fam}")
         >>> j.command(f"wc -l {bfile.bim}")
-        >>> b.run()
+        >>> b.run() # doctest: +SKIP
 
         Read a FASTA file and it's index (file extensions matter!):
 
