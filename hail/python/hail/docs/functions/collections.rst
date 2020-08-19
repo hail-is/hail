@@ -23,6 +23,7 @@ Collection functions
     map
     flatmap
     zip
+    enumerate
     zip_with_index
     flatten
     any
@@ -39,6 +40,7 @@ Collection functions
 .. autofunction:: map
 .. autofunction:: flatmap
 .. autofunction:: zip
+.. autofunction:: enumerate
 .. autofunction:: zip_with_index
 .. autofunction:: flatten
 .. autofunction:: any
