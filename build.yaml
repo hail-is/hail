@@ -488,13 +488,6 @@ steps:
    dockerFile: batch/Dockerfile.worker
    contextPath: .
    publishAs: batch-worker
- - kind: buildImage
-   name: batch_copy_image
-   dockerFile: batch/Dockerfile.copy
-   contextPath: .
-   publishAs: batch-copy
-   dependsOn:
-     - batch_worker_image
  - kind: runImage
    name: check_batch
    image:
@@ -1597,7 +1590,6 @@ steps:
     - create_accounts
     - batch_image
     - batch_worker_image
-    - batch_copy_image
     - batch_database
     - deploy_auth
     - create_certs
