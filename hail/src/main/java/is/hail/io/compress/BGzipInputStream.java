@@ -108,7 +108,6 @@ public class BGzipInputStream extends SplitCompressionInputStream {
             ((Seekable)in).seek(start);
         }
         resetState();
-        decompressNextBlock();
 
         currentPos = start;
     }
@@ -184,16 +183,15 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     }
 
     public int readBlock(byte[] b) throws IOException {
+        assert(outputBufferPos == 0);
+        decompressNextBlock();
+
         if (outputBufferSize == 0)
             return -1;  // EOF
-        assert(outputBufferPos == 0);
         assert(outputBufferSize > 0);
 
         int blockSize = outputBufferSize;
         System.arraycopy(outputBuffer, 0, b, 0, outputBufferSize);
-
-        outputBufferPos = outputBufferSize;
-        decompressNextBlock();
 
         return blockSize;
     }
@@ -201,6 +199,8 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     public int read(byte[] b, int off, int len) throws IOException {
         if (len == 0)
             return 0;
+        if (outputBufferPos == outputBufferSize)
+            decompressNextBlock();
         if (outputBufferSize == 0)
             return -1;  // EOF
         assert(outputBufferPos < outputBufferSize);
@@ -212,24 +212,19 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         System.arraycopy(outputBuffer, outputBufferPos, b, off, toCopy);
         outputBufferPos += toCopy;
 
-        if (outputBufferPos == outputBufferSize)
-            decompressNextBlock();
-
         return toCopy;
     }
 
     public int read() throws IOException {
+        if (outputBufferPos == outputBufferSize)
+            decompressNextBlock();
         if (outputBufferSize == 0)
             return -1; // EOF
-
         if (outputBufferPos == 0)
             currentPos = inputBufferInPos + 1;
 
         int r = outputBuffer[outputBufferPos];
         outputBufferPos += 1;
-
-        if (outputBufferPos == outputBufferSize)
-            decompressNextBlock();
 
         return r & 0xff;
     }
