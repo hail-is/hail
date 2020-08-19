@@ -89,7 +89,7 @@ show(p)
                            tables (see <a href="https://www.r-project.org/about.html">R</a> and <a href="https://pandas.pydata.org">Pandas</a>).
                            While sufficient for many tasks, none of these tools adequately capture
                            the structure of genetic data. Genetic data combines multiple axes (variants and samples) like
-                           matrices, and structured entries (genotypes) like tables or dataframes.
+                           matrices and structured entries (genotypes) like tables or dataframes.
                            To support genomic analysis, Hail introduces a powerful,
                            distributed data structure combining features of matrices and dataframes called
                            <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>.
