@@ -10,6 +10,7 @@ import json
 import re
 import plotly
 import plotly.express as px
+import google
 
 configure_logging()
 router = web.RouteTableDef()
@@ -18,10 +19,11 @@ deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
 BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
+credentials = google.oauth2.service_account.Credentials.from_service_account_file('/benchmark-gsa-key/key.json')
+read_gs = ReadGoogleStorage(credentials)
 
 
 def get_benchmarks(file_path):
-    read_gs = ReadGoogleStorage()
     try:
         json_data = read_gs.get_data_as_string(file_path)
         pre_data = json.loads(json_data)
