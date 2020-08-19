@@ -919,16 +919,16 @@ class Emit[C](
           cb.append(infoDGESDDErrorTest("Failed result computation."))
 
           val sShapeSeq = FastIndexedSeq[Value[Long]](K)
-          val s = sPType.construct(sPType.makeShapeBuilder(sShapeSeq.map(_.get)), sPType.makeColumnMajorStridesBuilder(sShapeSeq.map(_.get), mb), sData, mb, region.code)
+          val s = sPType.construct(sPType.makeShapeBuilder(sShapeSeq), sPType.makeColumnMajorStridesBuilder(sShapeSeq, mb), sData, mb, region.code)
 
           val resultPCode = if (computeUV) {
             val uShapeSeq = FastIndexedSeq[Value[Long]](M, UCOL)
             val uPType = optUPType.get
-            val u = uPType.construct(uPType.makeShapeBuilder(uShapeSeq.map(_.get)), uPType.makeColumnMajorStridesBuilder(uShapeSeq.map(_.get), mb), U_data, mb, region.code)
+            val u = uPType.construct(uPType.makeShapeBuilder(uShapeSeq), uPType.makeColumnMajorStridesBuilder(uShapeSeq, mb), U_data, mb, region.code)
 
             val vtShapeSeq = FastIndexedSeq[Value[Long]](LDVT, N)
             val vtPType = optVTPType.get
-            val vt = vtPType.construct(vtPType.makeShapeBuilder(vtShapeSeq.map(_.get)), vtPType.makeColumnMajorStridesBuilder(vtShapeSeq.map(_.get), mb), vtData, mb, region.code)
+            val vt = vtPType.construct(vtPType.makeShapeBuilder(vtShapeSeq), vtPType.makeColumnMajorStridesBuilder(vtShapeSeq, mb), vtData, mb, region.code)
 
             val resultSRVB = new StagedRegionValueBuilder(mb, x.pType, region.code)
             cb.append(Code(
