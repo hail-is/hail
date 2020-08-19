@@ -32,8 +32,7 @@ from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
 
 from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_gb,
                      cost_from_msec_mcpu, adjust_cores_for_packability, coalesce,
-                     adjust_cores_for_storage_request, total_worker_storage_gib,
-                     cost_str)
+                     adjust_cores_for_storage_request, total_worker_storage_gib)
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
@@ -1191,7 +1190,7 @@ GROUP BY name, msec_mcpu, `limit`;
 @routes.get('/billing_limits')
 @prom_async_time(REQUEST_TIME_GET_BILLING_LIMITS_UI)
 @web_authenticated_developers_only()
-async def ui_get_billing(request, userdata):
+async def ui_get_billing_limits(request, userdata):
     billing_limits = await _query_billing_limits(request.app)
     page_context = {
         'billing_limits': billing_limits
