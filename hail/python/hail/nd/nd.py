@@ -263,9 +263,28 @@ def qr(nd, mode="reduced"):
 
 @typecheck(nd=expr_ndarray(), full_matrices=bool, compute_uv=bool)
 def svd(nd, full_matrices = True, compute_uv = True):
+    """Performs a singular value decomposition.
+
+    :param nd: :class:`.NDArrayExpression`
+        A 2 dimensional ndarray, shape(M, N).
+    :param full_matrices: `bool`
+        If True (default), u and vt have dimensions (M, M) and (N, N) respectively. Otherwise, they have dimensions
+        (M, K) and (K, N), where K = min(M, N)
+    :param compute_uv: `bool`
+        If True (default), compute the singular vectors u and v. Otherwise, only return a single ndarray, s.
+
+    Returns
+    -------
+    - u: :class:`.NDArrayExpression`
+        The left singular vectors.
+    - s: :class:`.NDArrayExpression`
+        The singular values.
+    - vt: :class:`.NDArrayExpression`
+        The right singular vectors.
+    """
     float_nd = nd.map(lambda x: hl.float64(x))
     ir = NDArraySVD(float_nd._ir, full_matrices, compute_uv)
-    #TODO indices, aggregators
+
     return_type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2)) if compute_uv else tndarray(tfloat64, 1)
     return construct_expr(ir, return_type)
 
