@@ -12,6 +12,7 @@ import plotly
 import plotly.express as px
 from scipy.stats.mstats import gmean, hmean
 import numpy as np
+import pandas as pd
 
 configure_logging()
 router = web.RouteTableDef()
@@ -132,7 +133,14 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
     name_data = benchmarks['data'][str(request.match_info['name'])]
 
     try:
-        fig = px.scatter(x=enumerate_list_index(name_data['trials']), y=name_data['times'])
+        data = enumerate_list_index(name_data['trials'])
+        d = {
+            'trial': data['trial_indices'],
+            'wall_time': data['wall_times'],
+            'index': data['within_group_idx']
+        }
+        df = pd.DataFrame(d)
+        fig = px.scatter(df, x=df.trial, y=df.wall_time, hover_data=['index'])
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     except Exception:
         message = 'could not find name'
