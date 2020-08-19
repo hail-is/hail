@@ -57,8 +57,8 @@
     {% for name, ratio, r1, r2 in comparisons['comps'] %}
     <tr>
         <td>{{ name }}</td>
-        {% if ratio is None %}
-        <td></td>
+        {% if ratio is none %}
+        <td>  </td>
         {% else %}
         <td>{{ ratio }}%</td>
         {% endif %}
@@ -69,10 +69,13 @@
     </tbody>
 </table>
 
+{% if comparisons['harmonic_mean'] is not None %}
 <p> Harmonic Mean: {{ comparisons['harmonic_mean'] }}% </p>
 <p> Geometric Mean: {{ comparisons['geometric_mean'] }}% </p>
 <p> Arithmetic Mean: {{ comparisons['arithmetic_mean'] }}%</p>
 <p> Median: {{ comparisons['median'] }}%</p>
+{% endif %}
+
 {% endif %}
 
 {% endblock %}
