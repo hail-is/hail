@@ -106,10 +106,16 @@ def final_comparisons(comparisons):
             ratios.append(r)
             comps.append((name, fmt_diff(r), fmt_time(r1), fmt_time(r2)))
     final_comps['comps'] = comps
-    final_comps['harmonic_mean'] = fmt_diff(hmean(ratios))
-    final_comps['geometric_mean'] = fmt_diff(gmean(ratios))
-    final_comps['arithmetic_mean'] = fmt_diff(np.mean(ratios))
-    final_comps['median'] = fmt_diff(np.median(ratios))
+    if len(ratios) == 0:
+        final_comps['harmonic_mean'] = None
+        final_comps['geometric_mean'] = None
+        final_comps['arithmetic_mean'] = None
+        final_comps['median'] = None
+    else:
+        final_comps['harmonic_mean'] = fmt_diff(hmean(ratios))
+        final_comps['geometric_mean'] = fmt_diff(gmean(ratios))
+        final_comps['arithmetic_mean'] = fmt_diff(np.mean(ratios))
+        final_comps['median'] = fmt_diff(np.median(ratios))
     return final_comps
 
 
