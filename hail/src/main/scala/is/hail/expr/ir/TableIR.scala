@@ -1438,14 +1438,13 @@ case class TableMapPartitions(child: TableIR,
     val globalsOff = tv.globals.value.offset
 
     val itF = { (idx: Int, consumerCtx: RVDContext, partition: (RVDContext) => Iterator[Long]) =>
-      val consumerRegion = consumerCtx.region
-      val producerRegion = consumerCtx.freshRegion()
-      val rvb = new RegionValueBuilder()
-      val newRegionValue = RegionValue()
-      val it = partition(consumerCtx)
-      makeIterator(idx, producerRegion,
+      val boxedPartition = new StreamArgType {
+        def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long] =
+          partition(new RVDContext(outerRegion, eltRegion)).map(box)
+      }
+      makeIterator(idx, consumerCtx,
         globalsOff,
-        it.map(box)
+        boxedPartition
       ).map(l => l.longValue())
     }
 

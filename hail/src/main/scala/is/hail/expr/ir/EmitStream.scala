@@ -1,22 +1,12 @@
 package is.hail.expr.ir
 
-import is.hail.io._
 import is.hail.services.shuffler._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
-import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.types.virtual._
 import is.hail.types.physical._
-import is.hail.types.encoded._
-import is.hail.types.physical._
-import is.hail.types.virtual.TStream
 import is.hail.utils._
-import java.io.{DataOutputStream, InputStream, OutputStream}
-import java.net.Socket
-import java.util.Base64
-
-import org.apache.log4j.Logger
 
 import scala.language.{existentials, higherKinds}
 
@@ -841,6 +831,10 @@ object Stream {
   }
 }
 
+trait StreamArgType {
+  def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long]
+}
+
 object EmitStream {
 
   import Stream._
@@ -1373,19 +1367,21 @@ object EmitStream {
           val next = mb.genFieldThisRef[Long]("streamInNext")
 
           // this, Region, ...
-          mb.getStreamEmitParam(2 + n).map { iter =>
-            val stream = unfold[Code[Long]](
-              (_, k) => Code(
-                hasNext := xIter.load().hasNext,
-                hasNext.orEmpty(next := xIter.load().next().invoke[Long]("longValue")),
-                k(COption(!hasNext, next)))
-            ).map(
-              rv => EmitCode.present(eltType, Region.loadIRIntermediate(eltType)(rv)),
-              setup0 = None,
-              setup = Some(xIter := iter)
-            )
-
-            SizedStream.unsized(eltRegion => stream)
+          mb.getStreamEmitParam(2 + n).map { mkIter =>
+            SizedStream.unsized { eltRegion =>
+              unfold[Code[Long]](
+                (_, k) => Code(
+                  hasNext := xIter.load().hasNext,
+                  hasNext.orEmpty(next := xIter.load().next().invoke[Long]("longValue")),
+                  k(COption(!hasNext, next)))
+                ).map(
+                rv => EmitCode.present(eltType, Region.loadIRIntermediate(eltType)(rv)),
+                setup0 = None,
+                setup = Some(
+                  xIter := mkIter.invoke[Region, Region, Iterator[java.lang.Long]](
+                    "apply", outerRegion.code, eltRegion.code))
+                )
+            }
           }
 
         case StreamTake(a, num) =>

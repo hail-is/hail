@@ -4,7 +4,7 @@ import java.io._
 import java.util.Base64
 
 import is.hail.{HailContext, lir}
-import is.hail.annotations.{CodeOrdering, Region, RegionValue, RegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.backend.BackendUtils
@@ -912,21 +912,20 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def getStreamEmitParam(emitIndex: Int): COption[Code[Iterator[java.lang.Long]]] = {
+  def getStreamEmitParam(emitIndex: Int): COption[Code[StreamArgType]] = {
     assert(emitIndex != 0)
 
     val pt = emitParamTypes(emitIndex - 1).asInstanceOf[EmitParamType].pt
-    assert(pt.isInstanceOf[PStream])
     val codeIndex = emitParamCodeIndex(emitIndex - 1)
 
-    new COption[Code[Iterator[java.lang.Long]]] {
-      def apply(none: Code[Ctrl], some: (Code[Iterator[java.lang.Long]]) => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+    new COption[Code[StreamArgType]] {
+      def apply(none: Code[Ctrl], some: (Code[StreamArgType]) => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
         if (pt.required)
-          some(mb.getArg[Iterator[java.lang.Long]](codeIndex))
+          some(mb.getArg[StreamArgType](codeIndex))
         else
           mb.getArg[Boolean](codeIndex + 1).mux(
             none,
-            some(mb.getArg[Iterator[java.lang.Long]](codeIndex)))
+            some(mb.getArg[StreamArgType](codeIndex)))
       }
     }
   }
