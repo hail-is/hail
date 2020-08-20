@@ -162,7 +162,7 @@ class Transaction:
             self.conn_context_manager = None
             asyncio.ensure_future(_release_connection(conn_context_manager))
 
-    async def _aexit(self, exc_type, exc_val, exc_tb):
+    async def _aexit(self, exc_type, exc_val, exc_tb):  # pylint: disable=unused-argument
         # cancelling cleanup could leak a connection
         # await shield becuase we want to wait for commit/rollback to finish
         await asyncio.shield(self._aexit_1(exc_type))
