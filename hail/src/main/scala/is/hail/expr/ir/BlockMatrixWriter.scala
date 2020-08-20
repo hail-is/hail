@@ -32,7 +32,7 @@ abstract class BlockMatrixWriter {
   def pathOpt: Option[String]
   def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit
 
-  def lower(ctx: ExecuteContext, s: BlockMatrixStage, bm: BlockMatrixIR, bindings: Seq[(String, Type)], eltR: TypeWithRequiredness): IR =
+  def lower(ctx: ExecuteContext, s: BlockMatrixStage, bm: BlockMatrixIR, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR =
     throw new LowererUnsupportedOperation(s"unimplemented writer: \n${ this.getClass }")
 }
 
@@ -45,7 +45,7 @@ case class BlockMatrixNativeWriter(
 
   def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit = bm.write(ctx, path, overwrite, forceRowMajor, stageLocally)
 
-  override def lower(ctx: ExecuteContext, s: BlockMatrixStage, bm: BlockMatrixIR, bindings: Seq[(String, Type)], eltR: TypeWithRequiredness): IR = {
+  override def lower(ctx: ExecuteContext, s: BlockMatrixStage, bm: BlockMatrixIR, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR = {
     if (stageLocally)
       throw new LowererUnsupportedOperation(s"stageLocally not supported in BlockMatrixWrite lowering")
     val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(bm.typ.elementType, eltR), encodeRowMajor = forceRowMajor, required = true)
@@ -55,7 +55,7 @@ case class BlockMatrixNativeWriter(
     val blockMap = blocks.zipWithIndex.toMap
     val paths = s.addContext(TString) { idx =>
       Str(s"$path/parts/part-${ blockMap(idx) }-")
-    }.collectBlocks(bindings)({ (ctx, block) =>
+    }.collectBlocks(relationalBindings)({ (ctx, block) =>
       WriteValue(block, GetField(ctx, "new") + UUID4(), spec)
     }, blocks.toArray)
     RelationalWriter.scoped(path, overwrite, None)(WriteMetadata(paths, BlockMatrixNativeMetadataWriter(path, stageLocally, bm.typ)))

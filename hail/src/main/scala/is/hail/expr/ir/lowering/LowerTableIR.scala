@@ -172,29 +172,28 @@ class TableStage(
       globals = globalsRef)
   }
 
-  def mapCollect(bindings: Seq[(String, Type)])(f: IR => IR): IR = {
-    mapCollectWithGlobals(bindings)(f) { (parts, globals) => parts }
+  def mapCollect(relationalBindings: Map[String, IR])(f: IR => IR): IR = {
+    mapCollectWithGlobals(relationalBindings)(f) { (parts, globals) => parts }
   }
 
-  def mapCollectWithGlobals(bindings: Seq[(String, Type)])(mapF: IR => IR)(body: (IR, IR) => IR): IR =
-    mapCollectWithContextsAndGlobals(bindings)((part, ctx) => mapF(part))(body)
+  def mapCollectWithGlobals(relationalBindings: Map[String, IR])(mapF: IR => IR)(body: (IR, IR) => IR): IR =
+    mapCollectWithContextsAndGlobals(relationalBindings)((part, ctx) => mapF(part))(body)
 
-  def mapCollectWithContextsAndGlobals(bindings: Seq[(String, Type)])(mapF: (IR, Ref) => IR)(body: (IR, IR) => IR): IR = {
-    val allBroadcastVals = broadcastVals ++ bindings.map { case (name, t) => (name, Ref(name, t))}
-    val broadcastRefs = MakeStruct(allBroadcastVals)
+  def mapCollectWithContextsAndGlobals(relationalBindings: Map[String, IR])(mapF: (IR, Ref) => IR)(body: (IR, IR) => IR): IR = {
+    val broadcastRefs = MakeStruct(broadcastVals)
     val glob = Ref(genUID(), broadcastRefs.typ)
 
     val cda = CollectDistributedArray(
       contexts, broadcastRefs,
       ctxRefName, glob.name,
-      allBroadcastVals.foldLeft(mapF(partitionIR, Ref(ctxRefName, ctxType))) { case (accum, (name, _)) =>
+      broadcastVals.foldLeft(mapF(partitionIR, Ref(ctxRefName, ctxType))) { case (accum, (name, _)) =>
         Let(name, GetField(glob, name), accum)
       })
 
-    wrapInBindings(body(cda, globals))
+    LowerToCDA.substLets(wrapInBindings(body(cda, globals)), relationalBindings)
   }
 
-  def collectWithGlobals(bindings: Seq[(String, Type)]): IR = mapCollectWithGlobals(bindings)(ToArray) { (parts, globals) =>
+  def collectWithGlobals(relationalBindings: Map[String, IR]): IR = mapCollectWithGlobals(relationalBindings)(ToArray) { (parts, globals) =>
     MakeStruct(FastSeq(
       "rows" -> ToArray(flatMapIR(ToStream(parts))(ToStream)),
       "global" -> globals))
@@ -368,7 +367,7 @@ class TableStage(
 }
 
 object LowerTableIR {
-  def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Seq[(String, Type)]): IR = {
+  def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): IR = {
     def lowerIR(ir: IR) = LowerToCDA.lower(ir, typesToLower, ctx, r, relationalLetsAbove)
 
     def lower(tir: TableIR): TableStage = {
