@@ -513,7 +513,7 @@ def rbind(*exprs, _ctx=None):
 
     *args, f = exprs
     args = [expr_any.check(arg, 'rbind', f'argument {index}')
-            for index, arg in enumerate(args)]
+            for index, arg in builtins.enumerate(args)]
 
     return hl.bind(f, *args, _ctx=_ctx)
 
@@ -1691,7 +1691,7 @@ def coalesce(*args):
         raise ValueError("'coalesce' requires at least one expression argument")
     *exprs, success = unify_exprs(*args)
     if not success:
-        arg_types = ''.join([f"\n    argument {i}: type '{arg.dtype}'" for i, arg in enumerate(exprs)])
+        arg_types = ''.join([f"\n    argument {i}: type '{arg.dtype}'" for i, arg in builtins.enumerate(exprs)])
         raise TypeError(f"'coalesce' requires all arguments to have the same type or compatible types"
                         f"{arg_types}")
     indices, aggregations = unify_all(*exprs)
@@ -2556,7 +2556,7 @@ def corr(x, y) -> Float64Expression:
 _base_regex = "^([ACGTNM])+$"
 _symbolic_regex = r"(^\.)|(\.$)|(^<)|(>$)|(\[)|(\])"
 _allele_types = ["Unknown", "SNP", "MNP", "Insertion", "Deletion", "Complex", "Star", "Symbolic"]
-_allele_enum = {i: v for i, v in enumerate(_allele_types)}
+_allele_enum = {i: v for i, v in builtins.enumerate(_allele_types)}
 _allele_ints = {v: k for k, v in _allele_enum.items()}
 
 
