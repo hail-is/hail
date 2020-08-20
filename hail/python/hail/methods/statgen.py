@@ -1956,16 +1956,12 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     scores = V.transpose() @ matrix_S
     eigens = S * S
 
-    mt.describe()
-    ht.describe()
-
     # cols_and_scores = [hl.struct(col_key = hl.int64(idx), scores = scores)
     #                for idx, scores in zip(list(mt.col_key), scores)]
     hail_scores = hl.nd.array(scores) # turn the numpy array into a hail array
     hail_array_scores = hail_scores._data_array() # makes an array of arrays instead of an ndarray
     cols_and_scores = hl.zip(ht.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores = tup[1]))
     st = hl.Table.parallelize(cols_and_scores, key=list(mt.col_key))
-    st.describe()
 
     # row_key = ht.key
     # hail_loadings = hl.nd.array(U @ matrix_S)
@@ -1974,19 +1970,13 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     # lt = hl.Table.parallelize(rows_and_loadings, key=list(mt.row_key))
     # lt.describe()
 
+    us = hl.nd.array(U @ matrix_S)
     lt = ht.select()
-    lt = lt.annotate_globals(US = hl.nd.array(U @ matrix_S))
+    lt = lt.annotate_globals(US = us)
     lt = lt.add_index()
     idx = lt.key
-    lt = lt.annotate(loadings = US[lt.idx,:]._data_array)
+    lt = lt.annotate(loadings = lt.US[lt.idx,:]._data_array())
 
-    # loadings_table = ht.select()
-    # loadings_table.add_index('row_key')
-    # loadings_table.annotate_globals(U = U, S = matrix_S)
-    # loadings_table.annotate(loadings = loadings_table.U @ loadings_table.matrix_S)
-    # loadings_table.describe()
-    # broadcast U with global on scores
-    # then use that for index?? loadings = look up right row in U
 
     if compute_loadings:
         return eigens, st, lt
