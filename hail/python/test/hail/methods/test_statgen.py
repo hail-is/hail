@@ -1270,18 +1270,11 @@ class Tests(unittest.TestCase):
           else:
               return np.concatenate(blocks, axis=1)
 
-        # def convertSVDtoPCA(U, S, V):
-        #   scores = V.transpose() @ np.diag(S)
-        #   eigens = S * S
-        #   loadings = U @ np.diag(S)
-        #   return eigens, scores, loadings
-
         hl.utils.get_1kg('data/')
         hl.import_vcf('data/1kg.vcf.bgz').write('data/1kg.mt', overwrite=True)
         dataset = hl.read_matrix_table('data/1kg.mt')
 
         b_eigens, b_scores, b_loadings = hl._blanczos_pca(hl.int(hl.is_defined(dataset.GT)), k=3, q_iterations=15, compute_loadings=True)
-        # b_eigens, b_scores, b_loadings = convertSVDtoPCA(blanczos_u, blanczos_s, blanczos_v)
         b_scores = concatToNumpy(b_scores.scores)
         b_loadings = concatToNumpy(b_loadings.loadings)
 
