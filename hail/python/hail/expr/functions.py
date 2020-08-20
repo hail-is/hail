@@ -3410,7 +3410,7 @@ def enumerate(a, start=0, *, index_first=True):
     ----------
     a : :class:`.ArrayExpression`
     start : :class:`.Int32Expression`
-        The number the first element of the array is labeled with.
+        The index value from which the counter is started, 0 by default.
     index_first: :obj:`bool`
         If ``True``, the index is the first value of the element tuples. If
         ``False``, the index is the second value.
