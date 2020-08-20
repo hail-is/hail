@@ -1803,37 +1803,32 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         field = Env.get_uid()
         mt = mt.select_entries(**{field: entry_expr})
     mt = mt.select_cols().select_rows().select_globals()
-    
-    # Group rows of table into blocks:
 
     mt = mt.select_entries(x = mt[field])
 
     def get_even_partitioning(ht, partition_size):
+        ht.describe()
+        print("hello partitionings")
         ht = ht.select().add_index("_even_partitioning_index")
         filt = ht.filter(ht._even_partitioning_index % partition_size == 0)
         interval_bounds = filt.select().collect()
         intervals = []
         for i in range(len(interval_bounds) - 1):
             intervals.append(hl.utils.Interval(start=interval_bounds[i], end=interval_bounds[i+1], includes_start=True, includes_end=False))
-        #Dont forget the end
         last_element = ht.tail(1).select().collect()[0]
         last_interval = hl.utils.Interval(start=interval_bounds[len(interval_bounds) - 1], end = last_element, includes_start=True, includes_end=True)
         intervals.append(last_interval)
 
         return intervals
 
-    # convert from matrix table to table
-    # mt = mt.checkpoint(hl.utils.new_temp_file("pca", "mt"))
     ht = mt.localize_entries(entries_array_field_name="entries", columns_array_field_name="cols")
-    # ht = mt.localize_entries(entries_array_field_name='entries')
-    ht = ht.select(xs=ht.entries.map(lambda e: e['x'])) # do we still need this
-
-    # write and read table without new partitioning
+    ht = ht.select(xs=ht.entries.map(lambda e: e['x']))
     temp_file_name = hl.utils.new_temp_file("pca", "ht")
     ht = ht.checkpoint(temp_file_name)
-    # compute new partitioning and read table with it (not in ndarrays yet)
     new_partitioning = get_even_partitioning(ht, block_size)
     ht = hl.read_table(temp_file_name, _intervals=new_partitioning)
+    temp_file_name_2 = hl.utils.new_temp_file("pca", "ht2")
+    ht = ht.checkpoint(temp_file_name_2)
 
     grouped = ht._group_within_partitions("groups", block_size * 2)
     A = grouped.select(ndarray=hl.nd.array(grouped.groups.map(lambda group: group.xs)))
@@ -1871,15 +1866,12 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         return ht
 
     def hailBlanczos(A, G, k, l, q, block_size, times):
-        
-        # need to add cache and persist / read and write to this 
 
         start = time.time()
 
         h_list = []
         G_i = G
 
-        # for nonzero q
         for j in range(0, q):
             temp = A.annotate(H_i = A.ndarray @ G_i)
             temp = temp.annotate(G_i_intermediate = temp.ndarray.T @ temp.H_i)
@@ -1889,7 +1881,6 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
             h_list.append(localized_H_i)
             G_i = result.G_i
 
-        # last step of iteration to create H, regardless of q
         temp = A.annotate(H_i = A.ndarray @ G_i)
         result = temp.aggregate(hl.agg.collect(temp.H_i))
         localized_H_i = np.vstack(result)
@@ -1904,15 +1895,9 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         
         # perform QR decomposition on unblocked version of H
         Q, R = np.linalg.qr(H)
-        # block Q's rows into the same number of blocks that A has
-        # blocked_Q_table = ndarray_to_table(chunk_ndarray(Q, local_part_sizes))        
 
         end = time.time()
         process_Q_time = end - start
-        
-        # definite bottleneck where we have to collect things and do local operations
-
-        # T = matmul_colblocked_rowblocked(blocked_Q_table, A)
 
         A = A.annotate(part_size = A.ndarray.shape[0])
         A = A.annotate(rows_preceeding = hl.int32(hl.scan.sum(A.part_size)))
@@ -1922,17 +1907,12 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         
         start = time.time()
 
-        # challenge question: what if we get to a point where we are going this SVD on a really large T??
-        # could potentially multiply T by its tranpose to get skinny dim x skinny dim and then do eigen decomposition on that
         U, S, W = np.linalg.svd(arr_T, full_matrices=False)
 
         end = time.time()
         svd_time = end - start
 
         start = time.time()
-        
-        # V = matmul_rowblocked_nonblocked(blocked_Q_table, U)
-        # arr_V = concatToNumpy(V)
 
         V = Q @ U
 
@@ -1940,7 +1920,6 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
         get_V_time = end - start
         
-        # truncV = arr_V[:,:k]
         truncV = V[:,:k]
         truncS = S[:k]
         truncW = W[:k,:]
@@ -1956,19 +1935,10 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     scores = V.transpose() @ matrix_S
     eigens = S * S
 
-    # cols_and_scores = [hl.struct(col_key = hl.int64(idx), scores = scores)
-    #                for idx, scores in zip(list(mt.col_key), scores)]
-    hail_scores = hl.nd.array(scores) # turn the numpy array into a hail array
-    hail_array_scores = hail_scores._data_array() # makes an array of arrays instead of an ndarray
+    hail_scores = hl.nd.array(scores)
+    hail_array_scores = hail_scores._data_array()
     cols_and_scores = hl.zip(ht.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores = tup[1]))
     st = hl.Table.parallelize(cols_and_scores, key=list(mt.col_key))
-
-    # row_key = ht.key
-    # hail_loadings = hl.nd.array(U @ matrix_S)
-    # hail_array_loadings = hail_loadings._data_array()
-    # rows_and_loadings = hl.zip(map(lambda tup: tup.get(row_key), ht.row()), hail_array_loadings).map(lambda tup: tup[0].annotate(loadings = tup[1]))
-    # lt = hl.Table.parallelize(rows_and_loadings, key=list(mt.row_key))
-    # lt.describe()
 
     us = hl.nd.array(U @ matrix_S)
     lt = ht.select()
@@ -1976,7 +1946,6 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     lt = lt.add_index()
     idx = lt.key
     lt = lt.annotate(loadings = lt.US[lt.idx,:]._data_array())
-
 
     if compute_loadings:
         return eigens, st, lt
