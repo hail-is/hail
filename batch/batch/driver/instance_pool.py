@@ -4,12 +4,14 @@ import random
 import json
 import datetime
 import asyncio
+import urllib.parse
 import logging
 import base64
 import dateutil.parser
 import sortedcontainers
 import aiohttp
-from hailtop.utils import time_msecs, secret_alnum_string
+from hailtop.utils import (
+    retry_long_running, time_msecs, secret_alnum_string)
 
 from ..batch_configuration import DEFAULT_NAMESPACE, PROJECT, \
     WORKER_MAX_IDLE_TIME_MSECS, STANDING_WORKER_MAX_IDLE_TIME_MSECS, \
@@ -23,70 +25,6 @@ log = logging.getLogger('instance_pool')
 BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
 
 log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
-
-REGIONS = [
-    {
-        'name': 'us-central1',
-        'zones': ('a', 'b', 'c', 'f'),
-        'preemptible_cpus': 100000,
-        'local_ssd_total_storage_gb': 100000
-    },
-    {
-        'name': 'us-east1',
-        'zones': ('b', 'c', 'd'),
-        'preemptible_cpus': 25000,
-        'local_ssd_total_storage_gb': 300000
-    },
-    {
-        'name': 'us-east4',
-        'zones': ('a', 'b', 'c'),
-        'preemptible_cpus': 25000,
-        'local_ssd_total_storage_gb': 100000
-    },
-    {
-        'name': 'us-west1',
-        'zones': ('a', 'b', 'c'),
-        'preemptible_cpus': 25000,
-        'local_ssd_total_storage_gb': 100000
-    },
-    {
-        'name': 'us-west2',
-        'zones': ('a', 'b', 'c'),
-        'preemptible_cpus': 25000,
-        'local_ssd_total_storage_gb': 50000
-    },
-    # no quota in us-west3
-    # could consider northamerica-northeast1 Montreal
-    {
-        'name': 'us-west4',
-        'zones': ('a', 'b', 'c'),
-        'preemptible_cpus': 10000,
-        'local_ssd_total_storage_gb': 20000
-    }
-]
-
-USCENTRAL1_CORES = None
-
-ZONES = []
-ZONE_WEIGHTS = []
-for region in REGIONS:
-    cores = region['preemptible_cpus']
-    ssd_in_cores = int(region['local_ssd_total_storage_gb'] / 375 * 16)
-    if ssd_in_cores < cores:
-        cores = ssd_in_cores
-
-    name = region['name']
-    if name == 'us-central1':
-        USCENTRAL1_CORES = cores
-
-    r_zones = region['zones']
-    weight = cores / len(r_zones)
-    for z in r_zones:
-        ZONES.append(f'{name}-{z}')
-        ZONE_WEIGHTS.append(weight)
-
-assert len(ZONES) == len(ZONE_WEIGHTS)
-assert USCENTRAL1_CORES is not None
 
 
 class InstancePool:
@@ -110,6 +48,11 @@ class InstancePool:
         self.max_instances = None
         self.pool_size = None
 
+        # default until we update zones
+        # /regions is slow, don't make it synchronous on startup
+        self.zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
+        self.zone_weights = [1, 1, 1, 1]
+
         self.instances_by_last_updated = sortedcontainers.SortedSet(
             key=lambda instance: instance.last_updated)
 
@@ -128,6 +71,54 @@ class InstancePool:
         self.live_total_cores_mcpu = 0
 
         self.name_instance = {}
+
+    async def update_zones(self):
+        northamerica_regions = {
+            # 'northamerica-northeast1',
+            'us-central1',
+            'us-east1',
+            'us-east4',
+            'us-west1',
+            'us-west2',
+            'us-west3',
+            'us-west4'
+        }
+
+        new_zones = []
+        new_zone_weights = []
+
+        async for r in await self.compute_client.list('/regions'):
+            name = r['name']
+            if name not in northamerica_regions:
+                continue
+
+            quota_remaining = {
+                q['metric']: q['limit'] - q['usage']
+                for q in r['quotas']
+            }
+
+            remaining = quota_remaining['PREEMPTIBLE_CPUS'] // self.worker_cores
+            if self.worker_local_ssd_data_disk:
+                remaining = min(remaining, quota_remaining['LOCAL_SSD_TOTAL_GB'] // 375)
+            else:
+                remaining = min(remaining, quota_remaining['SSD_TOTAL_GB'] // self.worker_pd_ssd_data_disk_size_gb)
+
+            weight = max(remaining // len(r['zones']), 1)
+            for z in r['zones']:
+                zone_name = os.path.basename(urllib.parse.urlparse(z).path)
+                new_zones.append(zone_name)
+                new_zone_weights.append(weight)
+
+        self.zones = new_zones
+        self.zone_weights = new_zone_weights
+
+        log.info(f'updated zones: zones {self.zones} zone_weights {self.zone_weights}')
+
+    async def update_zones_loop(self):
+        while True:
+            log.info('update zones loop')
+            await self.update_zones()
+            await asyncio.sleep(60)
 
     async def async_init(self):
         log.info('initializing instance pool')
@@ -156,6 +147,10 @@ FROM globals;
         asyncio.ensure_future(self.event_loop())
         asyncio.ensure_future(self.control_loop())
         asyncio.ensure_future(self.instance_monitoring_loop())
+
+        asyncio.ensure_future(retry_long_running(
+            'update_zones_loop',
+            self.update_zones_loop))
 
     def config(self):
         return {
@@ -253,11 +248,11 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
             if machine_name not in self.name_instance:
                 break
 
-        if self.live_total_cores_mcpu // 1000 < int(USCENTRAL1_CORES * 0.9):
+        if self.live_total_cores_mcpu // 1000 < 4_000:
             zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
             zone = random.choice(zones)
         else:
-            zone = random.choices(ZONES, ZONE_WEIGHTS)[0]
+            zone = random.choices(self.zones, self.zone_weights)[0]
 
         activation_token = secrets.token_urlsafe(32)
         instance = await Instance.create(self.app, machine_name, activation_token, cores * 1000, zone)
