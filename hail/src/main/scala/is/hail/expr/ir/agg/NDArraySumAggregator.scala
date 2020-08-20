@@ -2,8 +2,8 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, coerce}
-import is.hail.types.physical.{PCanonicalBaseStructSettable, PCanonicalTuple, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PNumeric, PType}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitParamType, ParamType, coerce}
+import is.hail.types.physical.{PCanonicalBaseStructSettable, PCanonicalTuple, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PNumeric, PType, PVoid}
 import is.hail.utils._
 
 class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
@@ -20,12 +20,19 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
   val ndarrayFieldNumber = 0
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
-    cb.append(stateType.setFieldMissing(state.off, ndarrayFieldNumber))
+    val initMethod = cb.emb.genEmitMethod[Unit]("ndarray_sum_aggregator_init_op")
+    initMethod.voidWithBuilder(cb =>
+      cb.append(stateType.setFieldMissing(state.off, ndarrayFieldNumber))
+    )
+    cb.invokeVoid(initMethod)
   }
 
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(nextNDCode) = seq
-    nextNDCode.toI(cb).consume(cb, {}, {case nextNDPCode: PNDArrayCode =>
+    val seqOpMethod = cb.emb.genEmitMethod[Long, Unit]("ndarray_sum_aggregator_seq_op")
+    val nextNDInput2 = seqOpMethod.getCodeParam[Long](1)
+    seqOpMethod.voidWithBuilder(cb => {
+      val nextNDPCode = PCode.apply(nextNDCode.pt, nextNDInput2).asNDArray
       val nextNDPV = nextNDPCode.memoize(cb, "ndarray_sum_seqop_next")
       val statePV = new PCanonicalBaseStructSettable(stateType, state.off)
 
@@ -48,7 +55,7 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
         }
       )
     })
-
+    cb.invokeVoid(seqOpMethod, nextNDCode)
   }
 
   override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
@@ -69,42 +76,40 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
   }
 
   private def addValues(cb: EmitCodeBuilder, leftNdValue: PNDArrayValue, rightNdValue: PNDArrayValue): Unit = {
-    val foo = cb.emb.genEmitMethod[Unit]("ndarray_sum_aggregator_add_values")
-    foo.voidWithBuilder(cb => {
-      val sameShape = leftNdValue.sameShape(rightNdValue, cb.emb)
+    //val foo = cb.emb.genEmitMethod[Unit]("ndarray_sum_aggregator_add_values")
+    val sameShape = leftNdValue.sameShape(rightNdValue, cb.emb)
 
-      val idxVars = Array.tabulate(ndTyp.nDims) { _ => cb.emb.genFieldThisRef[Long]() }
+    val idxVars = Array.tabulate(ndTyp.nDims) { _ => cb.emb.genFieldThisRef[Long]() }
 
-      def loadElement(ndValue: PNDArrayValue) = {
-        ndTyp.loadElementToIRIntermediate(idxVars, ndValue.value.asInstanceOf[Value[Long]], cb.emb)
-      }
+    def loadElement(ndValue: PNDArrayValue) = {
+      ndTyp.loadElementToIRIntermediate(idxVars, ndValue.value.asInstanceOf[Value[Long]], cb.emb)
+    }
 
-      val newElement = coerce[PNumeric](ndTyp.elementType).add(loadElement(leftNdValue), loadElement(rightNdValue))
+    val newElement = coerce[PNumeric](ndTyp.elementType).add(loadElement(leftNdValue), loadElement(rightNdValue))
 
-      val body = ndTyp.setElement(
-        idxVars,
-        leftNdValue.value.asInstanceOf[Value[Long]],
-        newElement,
-        cb.emb
-      )
+    val body = ndTyp.setElement(
+      idxVars,
+      leftNdValue.value.asInstanceOf[Value[Long]],
+      newElement,
+      cb.emb
+    )
 
-    val leftNdShape = leftNdValue.shapes()
+  val leftNdShape = leftNdValue.shapes()
 
-      val columnMajorLoops = idxVars.zipWithIndex.foldLeft(body) { case (innerLoops, (dimVar, dimIdx)) =>
-        Code(
-          dimVar := 0L,
-          Code.whileLoop(dimVar < leftNdShape(dimIdx),
-            innerLoops,
-            dimVar := dimVar + 1L
-          )
+    val columnMajorLoops = idxVars.zipWithIndex.foldLeft(body) { case (innerLoops, (dimVar, dimIdx)) =>
+      Code(
+        dimVar := 0L,
+        Code.whileLoop(dimVar < leftNdShape(dimIdx),
+          innerLoops,
+          dimVar := dimVar + 1L
         )
-      }
+      )
+    }
 
-      cb.append(sameShape.mux(
-        columnMajorLoops,
-        Code._fatal[Unit]("Can't sum ndarrays of different shapes.")
-      ))
-    })
+    cb.append(sameShape.mux(
+      columnMajorLoops,
+      Code._fatal[Unit]("Can't sum ndarrays of different shapes.")
+    ))
   }
 
   override protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
