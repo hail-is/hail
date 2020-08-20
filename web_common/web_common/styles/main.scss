@@ -171,6 +171,11 @@ a {
     left: 36px;
 }
 
+.benchmark-caret:after {
+    /* 85 (measured width of Benchmark) / 2 + 9 - 20 / 2 = 42px */
+    left: 42px;
+}
+
 .header-dropdown-menu {
     position: absolute;
     display: none;
