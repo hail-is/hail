@@ -256,37 +256,37 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-//  @Test def testES2kWayMerge() {
-//    def merge(k: Int) {
-//      val f = compile1[Int, Unit] { (mb, _) =>
-//        val region = StagedRegion(mb.getCodeParam[Region](1))
-//        val ranges = Array.tabulate(k)(i => checkedRange(0 + i, 5 + i, s"s$i", mb, print = false))
-//
-//        val z = Stream.kWayMerge[Int](
-//           mb, ranges.map(_.stream), region,
-//           (li, lv, ri, rv) => Code.memoize(lv, "lv", rv, "rv") { (lv, rv) =>
-//             lv < rv || (lv.ceq(rv) && li < ri)
-//           })
-//
-//
-//        Code(
-//          Code(ranges.map(_.init)),
-//          z.forEach(mb, { case (i, l) =>
-//            log(const("(").concat(i.toS).concat(", ").concat(l.toS).concat(")"), enabled = false)
-//          }),
-//          Code(ranges.map(_.assertClosed(1))))
-//      }
-//      f(0)
-//    }
-//    for {
-//      k <- 0 to 5
-//    } {
-////      println(s"k = $k")
-//      merge(k)
-////      println()
-//    }
-//
-//  }
+  @Test def testES2kWayMerge() {
+    def merge(k: Int) {
+      val f = compile1[Int, Unit] { (mb, _) =>
+        val dummyRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
+        val ranges = Array.tabulate(k)(i => checkedRange(0 + i, 5 + i, s"s$i", mb, print = false))
+
+        val z = Stream.kWayMerge[Int](
+           mb, ranges.map(cs => (_: StagedRegion) => cs.stream), dummyRegion,
+           (li, lv, ri, rv) => Code.memoize(lv, "lv", rv, "rv") { (lv, rv) =>
+             lv < rv || (lv.ceq(rv) && li < ri)
+           })
+
+
+        Code(
+          Code(ranges.map(_.init)),
+          z.forEach(mb, { case (i, l) =>
+            log(const("(").concat(i.toS).concat(", ").concat(l.toS).concat(")"), enabled = false)
+          }),
+          Code(ranges.map(_.assertClosed(1))))
+      }
+      f(0)
+    }
+    for {
+      k <- 0 to 5
+    } {
+//      println(s"k = $k")
+      merge(k)
+//      println()
+    }
+
+  }
 
   private def compileStream[F: TypeInfo, T](
     streamIR: IR,
