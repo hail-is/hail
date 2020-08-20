@@ -101,7 +101,7 @@ class InstancePool:
             else:
                 remaining = min(remaining, quota_remaining['SSD_TOTAL_GB'] // self.worker_pd_ssd_data_disk_size_gb)
 
-            weight = max(remaining // len(r['zones'], 1))
+            weight = max(remaining // len(r['zones']), 1)
             for z in r['zones']:
                 zone_name = os.path.basename(urllib.parse.urlparse(z).path)
                 new_zones.append(zone_name)
