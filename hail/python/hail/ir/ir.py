@@ -620,6 +620,22 @@ class StreamRange(IR):
         self._type = tstream(tint32)
 
 
+class StreamGrouped(IR):
+    @typecheck_method(stream=IR, group_size=IR)
+    def __init__(self, stream, group_size):
+        super().__init__(stream, group_size)
+        self.stream = stream
+        self.group_size = group_size
+
+    @typecheck_method(stream=IR, group_size=IR)
+    def copy(self, stream=IR, group_size=IR):
+        return StreamGrouped(stream, group_size)
+
+    def _compute_type(self, env, agg_env):
+        self.stream._compute_type(env, agg_env)
+        self._type = tstream(self.stream._type)
+
+
 class MakeNDArray(IR):
     @typecheck_method(data=IR, shape=IR, row_major=IR)
     def __init__(self, data, shape, row_major):
