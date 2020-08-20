@@ -48,6 +48,8 @@ class InstancePool:
         self.max_instances = None
         self.pool_size = None
 
+        # default until we update zones
+        # /regions is slow, don't make it synchronous on startup
         self.zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
         self.zone_weights = [1, 1, 1, 1]
 
@@ -97,7 +99,7 @@ class InstancePool:
 
             remaining = quota_remaining['PREEMPTIBLE_CPUS'] // self.worker_cores
             if self.worker_local_ssd_data_disk:
-                remaining = min(remaining, quota_remaining['LOCAL_SSD_TOTAL_GB'] // 350)
+                remaining = min(remaining, quota_remaining['LOCAL_SSD_TOTAL_GB'] // 375)
             else:
                 remaining = min(remaining, quota_remaining['SSD_TOTAL_GB'] // self.worker_pd_ssd_data_disk_size_gb)
 

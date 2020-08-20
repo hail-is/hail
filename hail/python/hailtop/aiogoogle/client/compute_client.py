@@ -20,7 +20,6 @@ class PagedIterator:
     async def __anext__(self):
         if self._page is None:
             assert 'pageToken' not in self._request_params
-            print('first page')
             self._page = await self._client.get(self._path, params=self._request_params, **self._request_kwargs)
             self._index = 0
 
@@ -33,7 +32,6 @@ class PagedIterator:
             next_page_token = self._page.get('nextPageToken')
             if next_page_token is not None:
                 self._request_params['pageToken'] = next_page_token
-                print('next page')
                 self._page = await self._client.get(self._path, params=self._request_params, **self._request_kwargs)
                 self._index = 0
             else:
