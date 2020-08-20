@@ -4,12 +4,14 @@ import random
 import json
 import datetime
 import asyncio
+import urllib.parse
 import logging
 import base64
 import dateutil.parser
 import sortedcontainers
 import aiohttp
-from hailtop.utils import time_msecs, secret_alnum_string
+from hailtop.utils import (
+    retry_long_running, time_msecs, secret_alnum_string)
 
 from ..batch_configuration import DEFAULT_NAMESPACE, PROJECT, \
     WORKER_MAX_IDLE_TIME_MSECS, STANDING_WORKER_MAX_IDLE_TIME_MSECS, \
@@ -47,7 +49,7 @@ class InstancePool:
         self.pool_size = None
 
         self.zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
-        slef.zone_weights = [1, 1, 1, 1]
+        self.zone_weights = [1, 1, 1, 1]
 
         self.instances_by_last_updated = sortedcontainers.SortedSet(
             key=lambda instance: instance.last_updated)
@@ -85,7 +87,7 @@ class InstancePool:
 
         async for r in await self.compute_client.list('/regions'):
             name = r['name']
-            if not name in northamerica_regions:
+            if name not in northamerica_regions:
                 continue
 
             quota_remaining = {
@@ -93,14 +95,13 @@ class InstancePool:
                 for q in r['quotas']
             }
 
-            remaining = quota_remaining['PREEMPTIBLE_CPUS'] // worker_cores
+            remaining = quota_remaining['PREEMPTIBLE_CPUS'] // self.worker_cores
             if self.worker_local_ssd_data_disk:
                 remaining = min(remaining, quota_remaining['LOCAL_SSD_TOTAL_GB'] // 350)
             else:
-                remaining = min(remaining, quota_remaining['SSD_TOTAL_GB'] // worker_pd_ssd_data_disk_size_gb)
-            remaining = math.max(remaining, 1)
+                remaining = min(remaining, quota_remaining['SSD_TOTAL_GB'] // self.worker_pd_ssd_data_disk_size_gb)
 
-            weight = (remaining * 1000) // len(r['zones'])
+            weight = max(remaining // len(r['zones'], 1))
             for z in r['zones']:
                 zone_name = os.path.basename(urllib.parse.urlparse(z).path)
                 new_zones.append(zone_name)
@@ -109,7 +110,7 @@ class InstancePool:
         self.zones = new_zones
         self.zone_weights = new_zone_weights
 
-        log.info(f'updated zones: zones {zones} zone_weights {zone_weights}')
+        log.info(f'updated zones: zones {self.zones} zone_weights {self.zone_weights}')
 
     async def update_zones_loop(self):
         while True:
@@ -245,7 +246,7 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
             if machine_name not in self.name_instance:
                 break
 
-        if self.live_total_cores_mcpu // 1000 < int(USCENTRAL1_CORES * 0.9):
+        if self.live_total_cores_mcpu // 1000 < 4_000:
             zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
             zone = random.choice(zones)
         else:
