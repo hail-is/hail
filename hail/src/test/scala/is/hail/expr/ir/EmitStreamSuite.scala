@@ -259,10 +259,11 @@ class EmitStreamSuite extends HailSuite {
   @Test def testES2kWayMerge() {
     def merge(k: Int) {
       val f = compile1[Int, Unit] { (mb, _) =>
+        val dummyRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
         val ranges = Array.tabulate(k)(i => checkedRange(0 + i, 5 + i, s"s$i", mb, print = false))
 
         val z = Stream.kWayMerge[Int](
-           mb, ranges.map(_.stream),
+           mb, ranges.map(cs => (_: StagedRegion) => cs.stream), dummyRegion,
            (li, lv, ri, rv) => Code.memoize(lv, "lv", rv, "rv") { (lv, rv) =>
              lv < rv || (lv.ceq(rv) && li < ri)
            })
