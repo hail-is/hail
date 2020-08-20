@@ -13,12 +13,7 @@ object LowerToCDA {
   def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext): IR = {
     val r = Requiredness(ir, ctx)
 
-    // Slightly simpler to replace RelationalRefs in a second linear pass,
-    // since we'd have to embed the rewrite in many places otherwise
-    RewriteBottomUp(lower(ir, typesToLower, ctx, r, Map()), {
-      case rr: RelationalRef => Some(Ref(rr.name, rr.typ))
-      case _ => None
-    }).asInstanceOf[IR]
+    lower(ir, typesToLower, ctx, r, Map())
   }
 
   def substLets(ir: IR, relationalLetsAbove: Map[String, IR]): IR = {
