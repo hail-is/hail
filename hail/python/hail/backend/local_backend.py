@@ -14,6 +14,7 @@ from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.ir.renderer import CSERenderer
+from hail.ir import JavaIR
 
 from .py4j_backend import Py4JBackend
 from ..hail_logging import Logger
@@ -294,3 +295,6 @@ class LocalBackend(Py4JBackend):
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
         return json.loads(self._jbackend.pyImportFam(path, quant_pheno, delimiter, missing))
+
+    def persist_ir(self, ir):
+        return JavaIR(self._jhc.backend().executeLiteral(self._to_java_value_ir(ir)))

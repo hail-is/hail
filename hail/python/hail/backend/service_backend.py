@@ -261,3 +261,6 @@ class ServiceBackend(Backend):
 
     def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
         raise NotImplementedError("ServiceBackend does not support 'register_ir_function'")
+
+    def persist_ir(self, ir):
+        raise NotImplementedError("ServiceBackend does not support 'persist_ir'")

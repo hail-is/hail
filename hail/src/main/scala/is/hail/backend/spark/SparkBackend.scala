@@ -335,6 +335,15 @@ class SparkBackend(
     }
   }
 
+  def executeLiteral(ir: IR): IR = {
+    val t = ir.typ
+    assert(t.isRealizable)
+    val (value, timings) = execute(ir, optimize = true)
+    timings.finish()
+    timings.logInfo()
+    Literal.coerce(t, value)
+  }
+
   def executeJSON(ir: IR): String = {
     val t = ir.typ
     val (value, timings) = execute(ir, optimize = true)
