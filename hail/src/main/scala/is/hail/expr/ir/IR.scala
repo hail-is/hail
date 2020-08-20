@@ -404,11 +404,24 @@ object NDArrayQR {
     "complete" -> PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 2)))
 }
 
+object NDArraySVD {
+  def pTypes(computeUV: Boolean): PType = {
+    if (computeUV) {
+      PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 1), PCanonicalNDArray(PFloat64Required, 2))
+    }
+    else {
+      PCanonicalNDArray(PFloat64Required, 1)
+    }
+  }
+}
+
 object NDArrayInv {
   val pType = PCanonicalNDArray(PFloat64Required, 2)
 }
 
 final case class NDArrayQR(nd: IR, mode: String) extends IR
+
+final case class NDArraySVD(nd: IR, fullMatrices: Boolean, computeUV: Boolean) extends IR
 
 final case class NDArrayInv(nd: IR) extends IR
 

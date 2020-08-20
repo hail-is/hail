@@ -922,6 +922,11 @@ object IRParser {
         val mode = string_literal(it)
         val nd = ir_value_expr(env)(it)
         NDArrayQR(nd, mode)
+      case "NDArraySVD" =>
+        val fullMatrices = boolean_literal(it)
+        val computeUV = boolean_literal(it)
+        val nd = ir_value_expr(env)(it)
+        NDArraySVD(nd, fullMatrices, computeUV)
       case "NDArrayInv" =>
         val nd = ir_value_expr(env)(it)
         NDArrayInv(nd)

@@ -183,6 +183,12 @@ object InferType {
         } else {
           throw new NotImplementedError(s"Cannot infer type for mode $mode")
         }
+      case NDArraySVD(nd, _, compute_uv) =>
+        if (compute_uv) {
+          TTuple(TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(1)), TNDArray(TFloat64, Nat(2)))
+        } else {
+          TNDArray(TFloat64, Nat(1))
+        }
       case NDArrayInv(_) =>
         TNDArray(TFloat64, Nat(2))
       case NDArrayWrite(_, _) => TVoid

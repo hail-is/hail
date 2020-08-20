@@ -72,5 +72,7 @@ abstract class PNDArrayValue extends PValue {
 }
 
 abstract class PNDArrayCode extends PCode {
+  override def pt: PNDArray
+
   def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue
 }
