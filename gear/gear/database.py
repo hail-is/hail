@@ -122,7 +122,7 @@ async def _release_connection(conn_context_manager):
             if conn_context_manager._conn is not None:
                 await aexit(conn_context_manager)
         except:
-            log.exception(f'while releasing database connection')
+            log.exception('while releasing database connection')
 
 
 class Transaction:
@@ -154,7 +154,7 @@ class Transaction:
                 else:
                     await self.conn.commit()
         except:
-            log.info(f'while exiting transaction', exc_info=True)
+            log.info('while exiting transaction', exc_info=True)
             raise
         finally:
             self.conn = None
