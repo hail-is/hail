@@ -95,3 +95,7 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
         pass
+
+    @abc.abstractmethod
+    def persist_ir(self, ir):
+        pass

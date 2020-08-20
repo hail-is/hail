@@ -3384,3 +3384,15 @@ class Tests(unittest.TestCase):
             hl.tuple([1, 2, 'str'])
         ]
         assert hl.eval(hl._compare(hl.tuple(values), hl.tuple(hl.parse_json(hl.json(v), v.dtype) for v in values)) == 0)
+
+    def test_expr_persist(self):
+        # need to test laziness, so we will overwrite a file
+        ht2 = hl.utils.range_table(100)
+        with tempfile.TemporaryDirectory() as f:
+            hl.utils.range_table(10).write(f, overwrite=True)
+            ht = hl.read_table(f)
+            count1 = ht.aggregate(hl.agg.count(), _localize=False)._persist()
+            assert hl.eval(count1) == 10
+
+            hl.utils.range_table(100).write(f, overwrite=True)
+            assert hl.eval(count1) == 10
