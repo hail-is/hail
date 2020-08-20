@@ -1823,9 +1823,10 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         return intervals
 
     # convert from matrix table to table
-    mt = mt.checkpoint(hl.utils.new_temp_file("pca", "mt"))
-    ht = mt.localize_entries(entries_array_field_name='entries')
-    ht = ht.select(xs=ht.entries.map(lambda e: e['x']))
+    # mt = mt.checkpoint(hl.utils.new_temp_file("pca", "mt"))
+    ht = mt.localize_entries(entries_array_field_name="entries", columns_array_field_name="cols")
+    # ht = mt.localize_entries(entries_array_field_name='entries')
+    ht = ht.select(xs=ht.entries.map(lambda e: e['x'])) # do we still need this
 
     # write and read table without new partitioning
     temp_file_name = hl.utils.new_temp_file("pca", "ht")
@@ -1955,10 +1956,42 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     scores = V.transpose() @ matrix_S
     eigens = S * S
 
+    mt.describe()
+    ht.describe()
+
+    # cols_and_scores = [hl.struct(col_key = hl.int64(idx), scores = scores)
+    #                for idx, scores in zip(list(mt.col_key), scores)]
+    hail_scores = hl.nd.array(scores) # turn the numpy array into a hail array
+    hail_array_scores = hail_scores._data_array() # makes an array of arrays instead of an ndarray
+    cols_and_scores = hl.zip(ht.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores = tup[1]))
+    st = hl.Table.parallelize(cols_and_scores, key=list(mt.col_key))
+    st.describe()
+
+    # row_key = ht.key
+    # hail_loadings = hl.nd.array(U @ matrix_S)
+    # hail_array_loadings = hail_loadings._data_array()
+    # rows_and_loadings = hl.zip(map(lambda tup: tup.get(row_key), ht.row()), hail_array_loadings).map(lambda tup: tup[0].annotate(loadings = tup[1]))
+    # lt = hl.Table.parallelize(rows_and_loadings, key=list(mt.row_key))
+    # lt.describe()
+
+    lt = ht.select()
+    lt = lt.annotate_globals(US = hl.nd.array(U @ matrix_S))
+    lt = lt.add_index()
+    idx = lt.key
+    lt = lt.annotate(loadings = US[lt.idx,:]._data_array)
+
+    # loadings_table = ht.select()
+    # loadings_table.add_index('row_key')
+    # loadings_table.annotate_globals(U = U, S = matrix_S)
+    # loadings_table.annotate(loadings = loadings_table.U @ loadings_table.matrix_S)
+    # loadings_table.describe()
+    # broadcast U with global on scores
+    # then use that for index?? loadings = look up right row in U
+
     if compute_loadings:
-        return eigens, scores, U @ matrix_S, mt
+        return eigens, st, lt
     else:
-        return eigens, scores, mt
+        return eigens, st
 
 
 @typecheck(entry_expr=expr_float64,
