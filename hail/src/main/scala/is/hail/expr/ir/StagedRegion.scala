@@ -93,8 +93,15 @@ object StagedRegion {
     }
   }
 
-  def copy(mb: EmitMethodBuilder[_], value: PCode, source: StagedOwnedRegion, dest: StagedRegion): PCode =
-    copy(mb, value, source, dest, value.pt)
+  def copy(mb: EmitMethodBuilder[_], value: PCode, source: StagedOwnedRegion, dest: StagedRegion): PCode = {
+    assert(source.parent eq dest)
+    source match {
+      case _: RealStagedOwnedRegion =>
+        value.copyToRegion(mb, dest.code)
+      case _: DummyStagedOwnedRegion =>
+        value
+    }
+  }
 
   def copy(mb: EmitMethodBuilder[_], value: PCode, source: StagedOwnedRegion, dest: StagedRegion, destType: PType): PCode = {
     assert(source.parent eq dest)
@@ -102,7 +109,7 @@ object StagedRegion {
       case _: RealStagedOwnedRegion =>
         value.copyToRegion(mb, dest.code, destType)
       case _: DummyStagedOwnedRegion =>
-        value
+        value.castTo(mb, dest.code, destType)
     }
   }
 }
