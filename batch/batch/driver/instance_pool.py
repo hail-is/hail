@@ -115,7 +115,7 @@ class InstancePool:
     async def update_zones_loop(self):
         while True:
             log.info('update zones loop')
-            self.update_zones()
+            await self.update_zones()
             await asyncio.sleep(60)
 
     async def async_init(self):
