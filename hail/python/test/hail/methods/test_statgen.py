@@ -1305,9 +1305,10 @@ class Tests(unittest.TestCase):
         print(MEV)
 
         # check(b_eigens, h_eigens)
-        check(b_scores, h_scores)
+        print(b_scores - h_scores)
+        # check(b_scores, h_scores)
         print(b_loadings - h_loadings)
-        check(b_loadings, h_loadings)
+        # check(b_loadings, h_loadings)
 
         
         assert 1 == 4

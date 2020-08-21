@@ -1842,26 +1842,26 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
     # Helper Functions
 
-    def chunk_ndarray(Q, local_part_sizes):
-        groups = []
-        for part in local_part_sizes:
-            start = part.rows_preceeding
-            end = start + part.part_size
-            Q_i = Q[start:end]
-            groups.append(Q_i)
-        return groups
+    # def chunk_ndarray(Q, local_part_sizes):
+    #     groups = []
+    #     for part in local_part_sizes:
+    #         start = part.rows_preceeding
+    #         end = start + part.part_size
+    #         Q_i = Q[start:end]
+    #         groups.append(Q_i)
+    #     return groups
 
-    def concatToNumpy(A):
-        blocks = A.ndarray.collect()
-        big_mat = np.concatenate(blocks, axis=0)
-        return big_mat
+    # def concatToNumpy(A):
+    #     blocks = A.ndarray.collect()
+    #     big_mat = np.concatenate(blocks, axis=0)
+    #     return big_mat
 
-    def ndarray_to_table(chunked_arr):
-        structs = [hl.struct(row_group_number = hl.int64(idx), ndarray = block)
-                   for idx, block in enumerate(chunked_arr)]
-        ht = hl.Table.parallelize(structs)
-        ht = ht.key_by('row_group_number')
-        return ht
+    # def ndarray_to_table(chunked_arr):
+    #     structs = [hl.struct(row_group_number = hl.int64(idx), ndarray = block)
+    #                for idx, block in enumerate(chunked_arr)]
+    #     ht = hl.Table.parallelize(structs)
+    #     ht = ht.key_by('row_group_number')
+    #     return ht
 
     def hailBlanczos(A, G, k, l, q, block_size, times):
 
@@ -1928,9 +1928,8 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
             return truncV, truncS, truncW
 
     U, S, V = hailBlanczos(A, G, k, l, q, block_size, report_times)
-    matrix_S = np.diag(S)
 
-    scores = V.transpose() @ matrix_S
+    scores = V.transpose() * S
     eigens = S * S
 
     hail_scores = hl.nd.array(scores)
@@ -1941,13 +1940,12 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     lt = ht.select()
     lt = lt.annotate_globals(U = hl.nd.array(U))
     lt = lt.add_index()
-    idx = lt.key
     lt = lt.annotate(loadings = lt.U[lt.idx,:]._data_array())
 
     if compute_loadings:
         return eigens, st, lt
     else:
-        return eigens, st
+        return eigens, st, None
 
 
 @typecheck(entry_expr=expr_float64,
