@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitParamType, ParamType, coerce}
+import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, EmitParamType, ParamType, coerce}
 import is.hail.types.physical.{PCanonicalBaseStructSettable, PCanonicalTuple, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PNumeric, PType, PVoid}
 import is.hail.utils._
 
@@ -29,32 +29,32 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
 
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(nextNDCode) = seq
-    val seqOpMethod = cb.emb.genEmitMethod[Long, Unit]("ndarray_sum_aggregator_seq_op")
+    val seqOpMethod = cb.emb.genEmitMethod("ndarray_sum_aggregator_seq_op", FastIndexedSeq(EmitParamType(nextNDCode.pt)), CodeParamType(UnitInfo))
 
     seqOpMethod.voidWithBuilder(cb => {
-      val nextNDInput = seqOpMethod.getCodeParam[Long](1)
-      val nextNDPCode = PCode.apply(nextNDCode.pt, nextNDInput).asNDArray
-      val nextNDPV = nextNDPCode.memoize(cb, "ndarray_sum_seqop_next")
+      val nextNDInput = seqOpMethod.getEmitParam(1)
       val statePV = new PCanonicalBaseStructSettable(stateType, state.off)
-
-      statePV.loadField(cb, ndarrayFieldNumber).consume[Unit](cb,
-        {
-          cb.append(state.region.getNewRegion(Region.TINY))
-          cb.append(stateType.setFieldPresent(state.off, ndarrayFieldNumber))
-          cb.append(ndTyp.constructAtAddress(
-            cb.emb,
-            stateType.fieldOffset(state.off, ndarrayFieldNumber),
-            state.region,
-            nextNDCode.pt,
-            nextNDPV.get.tcode[Long],
-            true)
-          )
-        },
-        { currentNDPCode =>
-          val currentNDPValue = currentNDPCode.asNDArray.memoize(cb, "ndarray_sum_seqop_current")
-          addValues(cb, currentNDPValue, nextNDPV)
-        }
-      )
+      nextNDInput.toI(cb).consume(cb, {}, {case nextNDArrayPCode: PNDArrayCode =>
+        val nextNDPV = nextNDArrayPCode.memoize(cb, "ndarray_sum_seqop_next")
+        statePV.loadField(cb, ndarrayFieldNumber).consume[Unit](cb,
+          {
+            cb.append(state.region.getNewRegion(Region.TINY))
+            cb.append(stateType.setFieldPresent(state.off, ndarrayFieldNumber))
+            cb.append(ndTyp.constructAtAddress(
+              cb.emb,
+              stateType.fieldOffset(state.off, ndarrayFieldNumber),
+              state.region,
+              nextNDCode.pt,
+              nextNDInput.value[Long],
+              true)
+            )
+          },
+          { currentNDPCode =>
+            val currentNDPValue = currentNDPCode.asNDArray.memoize(cb, "ndarray_sum_seqop_current")
+            addValues(cb, currentNDPValue, nextNDPV)
+          }
+        )
+      })
     })
     cb.invokeVoid(seqOpMethod, nextNDCode)
   }
