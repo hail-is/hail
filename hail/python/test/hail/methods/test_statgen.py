@@ -1263,6 +1263,8 @@ class Tests(unittest.TestCase):
 
     def test_blanczos_against_hail(self):
 
+        k = 10
+
         def concatToNumpy(field, horizontal=True):
           blocks = field.collect()
           if horizontal:
@@ -1274,30 +1276,41 @@ class Tests(unittest.TestCase):
         hl.import_vcf('data/1kg.vcf.bgz').write('data/1kg.mt', overwrite=True)
         dataset = hl.read_matrix_table('data/1kg.mt')
 
-        b_eigens, b_scores, b_loadings = hl._blanczos_pca(hl.int(hl.is_defined(dataset.GT)), k=10, q_iterations=3, compute_loadings=True)
+        b_eigens, b_scores, b_loadings = hl._blanczos_pca(hl.int(hl.is_defined(dataset.GT)), k=k, q_iterations=3, compute_loadings=True)
         b_scores = concatToNumpy(b_scores.scores)
         b_loadings = concatToNumpy(b_loadings.loadings)
 
-        h_eigens, h_scores, h_loadings = hl.pca(hl.int(hl.is_defined(dataset.GT)), k=10, compute_loadings=True)
+        b_scores = np.reshape(b_scores, (len(b_scores) // k, k))
+        b_loadings = np.reshape(b_loadings, (len(b_loadings) // k, k))
+
+        h_eigens, h_scores, h_loadings = hl.pca(hl.int(hl.is_defined(dataset.GT)), k=k, compute_loadings=True)
 
         h_scores = np.reshape(concatToNumpy(h_scores.scores), b_scores.shape)
         h_loadings = np.reshape(concatToNumpy(h_loadings.loadings), b_loadings.shape)
 
         def check(hail_array, np_array):
-            print(type(hail_array[0]), type(np_array[0]))
-            print(hail_array - np_array)
             self.assertEqual(len(hail_array), len(np_array))
-            for i, (left, right) in enumerate(zip(hail_array, np_array)):
+            for i, (left, right) in enumerate(zip(hail_array.flatten(), np_array.flatten())):
                 self.assertAlmostEqual(abs(left), abs(right),
                                        msg=f'mismatch at index {i}: hl={left}, np={right}',
                                        places=1)
 
-        def bound(hail_array, np_array):
-          pass
+        # equation 12 from GWAS paper
+        def bound(vs, us):
+          MEV = 1/k * sum(map(lambda v: np.linalg.norm(us @ v), vs))
+          return MEV
+
+
+        MEV = bound(h_loadings, b_loadings)
+        print(MEV)
 
         # check(b_eigens, h_eigens)
         check(b_scores, h_scores)
+        print(b_loadings - h_loadings)
         check(b_loadings, h_loadings)
+
+        
+        assert 1 == 4
 
     @skip_unless_spark_backend()
     def test_pc_relate_against_R_truth(self):

@@ -1807,8 +1807,6 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     mt = mt.select_entries(x = mt[field])
 
     def get_even_partitioning(ht, partition_size):
-        ht.describe()
-        print("hello partitionings")
         ht = ht.select().add_index("_even_partitioning_index")
         filt = ht.filter(ht._even_partitioning_index % partition_size == 0)
         interval_bounds = filt.select().collect()
@@ -1940,12 +1938,11 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     cols_and_scores = hl.zip(ht.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores = tup[1]))
     st = hl.Table.parallelize(cols_and_scores, key=list(mt.col_key))
 
-    us = hl.nd.array(U @ matrix_S)
     lt = ht.select()
-    lt = lt.annotate_globals(US = us)
+    lt = lt.annotate_globals(U = hl.nd.array(U))
     lt = lt.add_index()
     idx = lt.key
-    lt = lt.annotate(loadings = lt.US[lt.idx,:]._data_array())
+    lt = lt.annotate(loadings = lt.U[lt.idx,:]._data_array())
 
     if compute_loadings:
         return eigens, st, lt
@@ -2011,9 +2008,8 @@ def _hwe_normalized_blanczos(entry_expr, k=10, compute_loadings=False, q_iterati
 
     normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
 
-    return pca(normalized_gt,
-               k,
-               compute_loadings)
+    return _blanczos_pca(normalized_gt, k, compute_loadings=compute_loadings, q_iterations=q_iterations,
+         oversampling_param=oversampling_param, block_size=block_size)
 
 
 @typecheck(call_expr=expr_call,
