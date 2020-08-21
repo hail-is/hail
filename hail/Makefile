@@ -170,6 +170,7 @@ copy-py-files: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) 
 	rsync -rv \
 	    --exclude '__pycache__/' \
 	    --exclude 'benchmark_hail/' \
+	    --exclude '.mypy_cache/' \
 	    --exclude 'docs/' \
 	    --exclude 'dist/' \
 	    --exclude 'test/' \
