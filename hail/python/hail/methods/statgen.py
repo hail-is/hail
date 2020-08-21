@@ -1813,7 +1813,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         for i in range(len(interval_bounds) - 1):
             intervals.append(hl.utils.Interval(start=interval_bounds[i], end=interval_bounds[i+1], includes_start=True, includes_end=False))
         last_element = ht.tail(1).select().collect()[0]
-        last_interval = hl.utils.Interval(start=interval_bounds[len(interval_bounds) - 1], end = last_element, includes_start=True, includes_end=True)
+        last_interval = hl.utils.Interval(start=interval_bounds[len(interval_bounds) - 1], end=last_element, includes_start=True, includes_end=True)
         intervals.append(last_interval)
 
         return intervals
@@ -1845,10 +1845,10 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         G_i = G
 
         for j in range(0, q):
-            temp = A.annotate(H_i = A.ndarray @ G_i)
-            temp = temp.annotate(G_i_intermediate = temp.ndarray.T @ temp.H_i)
-            result = temp.aggregate(hl.struct(Hi_chunks = hl.agg.collect(temp.H_i), 
-                                                G_i = hl.agg.ndarray_sum(temp.G_i_intermediate)),
+            temp = A.annotate(H_i=A.ndarray @ G_i)
+            temp = temp.annotate(G_i_intermediate=temp.ndarray.T @ temp.H_i)
+            result = temp.aggregate(hl.struct(Hi_chunks=hl.agg.collect(temp.H_i),
+                                                G_i=hl.agg.ndarray_sum(temp.G_i_intermediate)),
                                                 _localize=False)._persist()
             localized_H_i = hl.nd.vstack(result.Hi_chunks)
             h_list.append(localized_H_i)
@@ -1859,15 +1859,15 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         localized_H_i = hl.nd.vstack(result)
         h_list.append(localized_H_i)
 
-        H = hl.nd.hstack(h_list) 
+        H = hl.nd.hstack(h_list)
         
         # perform QR decomposition on unblocked version of H
         Q, R = hl.nd.qr(H)
 
-        A = A.annotate(part_size = A.ndarray.shape[0])
-        A = A.annotate(rows_preceeding = hl.int32(hl.scan.sum(A.part_size)))
-        A = A.annotate_globals(Qt = Q.T)
-        T = A.annotate(ndarray = A.Qt[:, A.rows_preceeding:A.rows_preceeding + A.part_size] @ A.ndarray)
+        A = A.annotate(part_size=A.ndarray.shape[0])
+        A = A.annotate(rows_preceeding=hl.int32(hl.scan.sum(A.part_size)))
+        A = A.annotate_globals(Qt=Q.T)
+        T = A.annotate(ndarray=A.Qt[:, A.rows_preceeding:A.rows_preceeding + A.part_size] @ A.ndarray)
         arr_T = T.aggregate(hl.agg.ndarray_sum(T.ndarray), _localize=False)
         
         # hl.linalg.svd
@@ -1887,13 +1887,13 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     eigens = hl.eval(S * S)
 
     hail_array_scores = scores._data_array()
-    cols_and_scores = hl.zip(ht.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores = tup[1]))
+    cols_and_scores = hl.zip(ht.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores=tup[1]))
     st = hl.Table.parallelize(cols_and_scores, key=list(mt.col_key))
 
     lt = ht.select()
-    lt = lt.annotate_globals(U = U)
+    lt = lt.annotate_globals(U=U)
     lt = lt.add_index()
-    lt = lt.annotate(loadings = lt.U[lt.idx,:]._data_array())
+    lt = lt.annotate(loadings=lt.U[lt.idx,:]._data_array())
 
     if compute_loadings:
         return eigens, st, lt
