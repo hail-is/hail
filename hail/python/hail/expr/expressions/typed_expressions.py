@@ -673,30 +673,30 @@ class ArrayExpression(CollectionExpression):
         return construct_expr(x, tarray(body.dtype), indices, aggregations)
 
     @typecheck_method(group_size=expr_int32)
-     def grouped(self, group_size):
-         """Partition an array into fixed size subarrays.
+    def grouped(self, group_size):
+        """Partition an array into fixed size subarrays.
 
-         Examples
-         --------
-         >>> a = hl.array([0, 1, 2, 3, 4])
+        Examples
+        --------
+        >>> a = hl.array([0, 1, 2, 3, 4])
 
-         >>> hl.eval(a.grouped(2))
-         [[0, 1], [2, 3], [4]]
+        >>> hl.eval(a.grouped(2))
+        [[0, 1], [2, 3], [4]]
 
-         Parameters
-         ----------
-         group_size : :class:`.Int32Expression`
-             The number of elements per group.
+        Parameters
+        ----------
+        group_size : :class:`.Int32Expression`
+            The number of elements per group.
 
-         Returns
-         -------
-         :class:`.ArrayExpression`.
-         """
-         indices, aggregations = unify_all(self, group_size)
-         stream_ir = ir.StreamGrouped(ir.ToStream(self._ir), group_size._ir)
-         mapping_identifier = Env.get_uid("stream_grouped_map_to_arrays")
-         mapped_to_arrays = ir.StreamMap(stream_ir, mapping_identifier, ir.ToArray(ir.Ref(mapping_identifier)))
-         return construct_expr(ir.ToArray(mapped_to_arrays), tarray(self._type), indices, aggregations)
+        Returns
+        -------
+        :class:`.ArrayExpression`.
+        """
+        indices, aggregations = unify_all(self, group_size)
+        stream_ir = ir.StreamGrouped(ir.ToStream(self._ir), group_size._ir)
+        mapping_identifier = Env.get_uid("stream_grouped_map_to_arrays")
+        mapped_to_arrays = ir.StreamMap(stream_ir, mapping_identifier, ir.ToArray(ir.Ref(mapping_identifier)))
+        return construct_expr(ir.ToArray(mapped_to_arrays), tarray(self._type), indices, aggregations)
 
 
 class ArrayStructExpression(ArrayExpression):
