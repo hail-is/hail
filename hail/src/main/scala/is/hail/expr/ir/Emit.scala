@@ -1247,7 +1247,7 @@ class Emit[C](
     def emitDeforestedNDArray(ir: IR): EmitCode =
       deforestNDArray(ir, mb, region, env)
 
-    def emitNDArrayStandardStrides(ir: IR): EmitCode =
+    def emitNDArrayColumnMajorStrides(ir: IR): EmitCode =
       // Currently relying on the fact that emitDeforestedNDArray always emits standard striding.
       emitDeforestedNDArray(ir)
 
@@ -1773,8 +1773,8 @@ class Emit[C](
       case x: NDArrayFilter => emitDeforestedNDArray(x)
 
       case NDArrayMatMul(lChild, rChild) =>
-        val lT = emitNDArrayStandardStrides(lChild)
-        val rT = emitNDArrayStandardStrides(rChild)
+        val lT = emitNDArrayColumnMajorStrides(lChild)
+        val rT = emitNDArrayColumnMajorStrides(rChild)
 
         val lPType = coerce[PNDArray](lChild.pType)
         val rPType = coerce[PNDArray](rChild.pType)
@@ -1923,7 +1923,7 @@ class Emit[C](
 
       case x@NDArrayQR(nd, mode) =>
         // See here to understand different modes: https://docs.scipy.org/doc/numpy/reference/generated/numpy.linalg.qr.html
-        val ndt = emitNDArrayStandardStrides(nd)
+        val ndt = emitNDArrayColumnMajorStrides(nd)
         val ndAddress = mb.genFieldThisRef[Long]()
         val ndPType = nd.pType.asInstanceOf[PNDArray]
         // This does a lot of byte level copying currently, so only trust
@@ -2167,7 +2167,7 @@ class Emit[C](
 
       case NDArrayInv(nd) =>
         // Based on https://github.com/numpy/numpy/blob/v1.19.0/numpy/linalg/linalg.py#L477-L547
-        val ndt = emitNDArrayStandardStrides(nd)
+        val ndt = emitNDArrayColumnMajorStrides(nd)
         val ndAddress = mb.genFieldThisRef[Long]()
         val ndPType = nd.pType.asInstanceOf[PCanonicalNDArray]
 
