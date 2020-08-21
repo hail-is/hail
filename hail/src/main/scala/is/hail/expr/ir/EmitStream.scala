@@ -1269,9 +1269,9 @@ object EmitStream {
       def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = outerRegion, container: Option[AggContainer] = container): EmitCode =
         emitter.emitWithRegion(ir, mb, region, env, container)
 
-      def emitVoidIR(ir: IR, env: Emit.E = env, container: Option[AggContainer] = container): Code[Unit] = {
+      def emitVoidIR(ir: IR, env: Emit.E = env, region: StagedRegion = outerRegion, container: Option[AggContainer] = container): Code[Unit] = {
         EmitCodeBuilder.scopedVoid(mb) { cb =>
-          emitter.emitVoid(cb, ir, mb, outerRegion, env, container, None)
+          emitter.emitVoid(cb, ir, mb, region, env, container, None)
         }
       }
 
@@ -1856,33 +1856,47 @@ object EmitStream {
             val hasPulled = mb.genFieldThisRef[Boolean]()
 
             val xElt = mb.newEmitField(eltName, eltType)
-            val xAcc = mb.newEmitField(accName, accType)
-            val tmpAcc = mb.newEmitField(accName, accType)
+            val xAccInEltR = mb.newEmitField(accName, accType)
+            val xAccInAccR = mb.newEmitField(accName, accType)
 
-            val zero = emitIR(zeroIR).map(_.castTo(mb, outerRegion.code, accType))
-            val bodyEnv = env.bind(accName -> tmpAcc, eltName -> xElt)
 
-            val body = emitIR(bodyIR, env = bodyEnv).map(_.castTo(mb, outerRegion.code, accType))
-
-            val newStream = new Stream[EmitCode] {
+            val newStream = (eltRegion: StagedRegion) => new Stream[EmitCode] {
               def apply(eos: Code[Ctrl], push: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] = {
-                val source = stream(outerRegion)(
+                val accRegion = eltRegion.createChildRegion(mb)
+
+                Code(Lpush,
+                     xAccInAccR := xAccInEltR.map(StagedRegion.copy(mb, _, eltRegion, accRegion)),
+                     push(xAccInEltR))
+
+                val bodyEnv = env.bind(accName -> xAccInAccR, eltName -> xElt)
+                val body = emitIR(bodyIR, env = bodyEnv, region = eltRegion)
+                  .map(_.castTo(mb, eltRegion.code, accType))
+
+                val source = stream(eltRegion)(
                   eos = eos,
-                  push = a => Code(xElt := a, tmpAcc := xAcc, xAcc := body, Lpush, push(xAcc)))
+                  push = a => Code(
+                    xElt := a,
+                    xAccInEltR := body,
+                    accRegion.clear(),
+                    Lpush.goto))
 
                 Source[EmitCode](
-                  setup0 = source.setup0,
-                  setup = Code(hasPulled := false, xAcc := zero, source.setup),
+                  setup0 = Code(source.setup0, accRegion.allocateRegion(Region.TINIER)),
+                  setup = Code(hasPulled := false, source.setup),
                   close = source.close,
-                  close0 = source.close0,
+                  close0 = Code(accRegion.free(), source.close0),
                   pull = hasPulled.mux(
                     source.pull,
-                    Code(hasPulled := true, Lpush.goto)))
+                    Code(
+                      hasPulled := true,
+                      xAccInEltR := emitIR(zeroIR, region = eltRegion)
+                        .map(_.castTo(mb, eltRegion.code, accType)),
+                      Lpush.goto)))
               }
             }
 
             val newLen = len.map(l => l + 1)
-            SizedStream(setup, eltRegion => newStream, newLen)
+            SizedStream(setup, newStream, newLen)
           }
 
         case x@RunAggScan(array, name, init, seqs, result, states) =>
@@ -1894,27 +1908,31 @@ object EmitStream {
           val xResult = mb.newEmitField("aggscan_result", result.pType)
 
           val bodyEnv = env.bind(name -> xElt)
-          val cInit = emitVoidIR(init, container = Some(newContainer))
-          val seqPerElt = emitVoidIR(seqs, env = bodyEnv, container = Some(newContainer))
-          val postt = emitIR(result, env = bodyEnv, container = Some(newContainer))
 
           val optStream = emitStream(array)
 
           optStream.map { case SizedStream(setup, stream, len) =>
-            val newStream = stream(outerRegion).map[EmitCode](
-              { eltt =>
-                EmitCode(
-                  Code(
-                    xElt := eltt,
-                    xResult := postt,
-                    seqPerElt),
-                  xResult.get)
-              },
-              setup0 = Some(aggSetup),
-              close0 = Some(aggCleanup),
-              setup = Some(cInit))
+            val newStream = (eltRegion: StagedRegion) => {
+              val tmpRegion = eltRegion.createChildRegion(mb)
+              val cInit = emitVoidIR(init, region = tmpRegion, container = Some(newContainer))
+              val postt = emitIR(result, region = eltRegion, env = bodyEnv, container = Some(newContainer))
+              val seqPerElt = emitVoidIR(seqs, region = eltRegion, env = bodyEnv, container = Some(newContainer))
+              stream(eltRegion).map[EmitCode](
+                { eltt =>
+                  EmitCode(
+                    Code(
+                      xElt := eltt,
+                      xResult := postt,
+                      seqPerElt),
+                    xResult.get)
+                },
+                setup0 = Some(aggSetup),
+                close0 = Some(aggCleanup),
+                setup = Some(Code(tmpRegion.allocateRegion(Region.SMALL), cInit, tmpRegion.free())))
+            }
 
-            SizedStream(setup, eltRegion => newStream, len)
+
+            SizedStream(setup, newStream, len)
           }
 
         case StreamJoinRightDistinct(leftIR, rightIR, lKey, rKey, leftName, rightName, joinIR, joinType) =>
