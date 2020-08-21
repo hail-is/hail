@@ -11,7 +11,7 @@ from hail.expr.types import HailType, tint32, tint64, tfloat32, \
     tndarray, tlocus, tinterval, is_numeric
 import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, func_spec, oneof, \
-    identity, nullable, tupleof, sliceof
+    identity, nullable, tupleof, sliceof, dictof
 from hail.utils.java import Env, warning
 from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import wrap_to_list, get_nice_field_error, get_nice_attr_error
@@ -671,32 +671,6 @@ class ArrayExpression(CollectionExpression):
 
         indices, aggregations = unify_all(self, zero, body)
         return construct_expr(x, tarray(body.dtype), indices, aggregations)
-
-    @typecheck_method(group_size=expr_int32)
-    def grouped(self, group_size):
-        """Partition an array into fixed size subarrays.
-
-        Examples
-        --------
-        >>> a = hl.array([0, 1, 2, 3, 4])
-
-        >>> hl.eval(a.grouped(2))
-        [[0, 1], [2, 3], [4]]
-
-        Parameters
-        ----------
-        group_size : :class:`.Int32Expression`
-            The number of elements per group.
-
-        Returns
-        -------
-        :class:`.ArrayExpression`.
-        """
-        indices, aggregations = unify_all(self, group_size)
-        stream_ir = ir.StreamGrouped(ir.ToStream(self._ir), group_size._ir)
-        mapping_identifier = Env.get_uid("stream_grouped_map_to_arrays")
-        mapped_to_arrays = ir.StreamMap(stream_ir, mapping_identifier, ir.ToArray(ir.Ref(mapping_identifier)))
-        return construct_expr(ir.ToArray(mapped_to_arrays), tarray(self._type), indices, aggregations)
 
 
 class ArrayStructExpression(ArrayExpression):
@@ -1706,6 +1680,54 @@ class StructExpression(Mapping[str, Expression], Expression):
             return selected_expr
         else:
             return selected_expr.annotate(**named_exprs)
+
+    @typecheck_method(mapping=dictof(str, str))
+    def rename(self, mapping):
+        """Rename fields of the struct.
+
+        Examples
+        --------
+        >>> s = hl.struct(x='hello', y='goodbye', a='dogs')
+        >>> s.rename({'x' : 'y', 'y' : 'z'}).show()
+        +----------+----------+-----------+
+        | <expr>.a | <expr>.y | <expr>.z  |
+        +----------+----------+-----------+
+        | str      | str      | str       |
+        +----------+----------+-----------+
+        | "dogs"   | "hello"  | "goodbye" |
+        +----------+----------+-----------+
+
+        Parameters
+        ----------
+        mapping : :obj:`dict` of :obj:`str`, :obj:`str`
+            Mapping from old field names to new field names.
+
+        Notes
+        -----
+        Any field that does not appear as a key in `mapping` will not be
+        renamed.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+            Struct with renamed fields.
+        """
+        old_fields = set(self._fields)
+        new_to_old = dict()
+        for old, new in mapping.items():
+            if old not in old_fields:
+                raise ValueError(f'{old} is not a field of this struct: {self.dtype}.')
+            if new in old_fields and new not in mapping:
+                raise ValueError(f'{old} is renamed to {new} but {new} is already in the '
+                                 f'struct: {self.dtype}.')
+            if new in new_to_old:
+                raise ValueError(f'{new} is the new name of both {old} and {new_to_old[new]}.')
+            new_to_old[new] = old
+
+        return self.select(
+            *list(set(self._fields) - set(mapping)),
+            **{new: self._get_field(old) for old, new in mapping.items()}
+        )
 
     @typecheck_method(fields=str)
     def drop(self, *fields):
