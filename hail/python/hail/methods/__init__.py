@@ -30,6 +30,7 @@ __all__ = ['trio_matrix',
            'pca',
            'hwe_normalized_pca',
            '_blanczos_pca',
+           '_hwe_normalized_blanczos'
            'pc_relate',
            'rename_duplicates',
            'split_multi',
