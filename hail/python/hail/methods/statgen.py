@@ -1869,10 +1869,10 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
         V = Q @ U
         
-        truncV = V[:,:k]
+        truncV = V[:, :k]
         truncS = S[:k]
-        truncW = W[:k,:]
-            
+        truncW = W[:k, :]
+
         return truncV, truncS, truncW
 
     U, S, V = hailBlanczos(A, G, k, q)
@@ -1895,13 +1895,13 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         return eigens, st, None
 
 
-@typecheck(entry_expr=expr_float64,
+@typecheck(call_expr=expr_float64,
            k=int,
            compute_loadings=bool,
            q_iterations=int,
            oversampling_param=int,
            block_size=int)
-def _hwe_normalized_blanczos(entry_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128):
+def _hwe_normalized_blanczos(call_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128):
     r"""Run randomized principal component analysis approximation (PCA) on the 
     Hardy-Weinberg-normalized genotype call matrix.
 
