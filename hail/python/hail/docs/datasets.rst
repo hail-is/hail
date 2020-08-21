@@ -22,17 +22,17 @@ versions, and reference genome builds are listed in the table below.
 =================================================== ========== =================
 Name                                                Versions   Reference Genomes
 =================================================== ========== =================
-:ref:`1000_Genomes_autosomes`                       phase_3     GRCh37
+:ref:`1000_Genomes_autosomes`                       phase_3     GRCh37, GRCh38
 :ref:`1000_Genomes_chrMT`                           phase_3     GRCh37
 :ref:`1000_Genomes_chrX`                            phase_3     GRCh37, GRCh38
 :ref:`1000_Genomes_chrY`                            phase_3     GRCh37, GRCh38
 :ref:`CADD`                                         1.4         GRCh37, GRCh38
 :ref:`DANN`                                         None        GRCh37, GRCh38
-:ref:`Ensembl_homo_sapiens_low_complexity_regions`  release_95  GRCh37
-:ref:`Ensembl_homo_sapiens_reference_genome`        release_95  GRCh37
+:ref:`Ensembl_homo_sapiens_low_complexity_regions`  release_95  GRCh37, GRCh38
+:ref:`Ensembl_homo_sapiens_reference_genome`        release_95  GRCh37, GRCh38
 :ref:`GTEx_RNA_seq_gene_read_counts`                v7          GRCh37
-:ref:`GTEx_RNA_seq_junction_read_counts`            v7          GRCh37
 :ref:`GTEx_RNA_seq_gene_TPMs`                       v7          GRCh37
+:ref:`GTEx_RNA_seq_junction_read_counts`            v7          GRCh37
 :ref:`UK_Biobank_Rapid_GWAS_both_sexes`             v2          GRCh37
 :ref:`UK_Biobank_Rapid_GWAS_female`                 v2          GRCh37
 :ref:`UK_Biobank_Rapid_GWAS_male`                   v2          GRCh37

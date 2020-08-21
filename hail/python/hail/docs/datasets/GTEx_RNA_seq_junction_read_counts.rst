@@ -1,7 +1,7 @@
 .. _GTEx_RNA_seq_junction_read_counts:
 
-GTEx_RNA_seq_gene_read_counts
-=============================
+GTEx_RNA_seq_junction_read_counts
+=================================
 
 *  **Versions:** v7
 *  **Reference genome builds:** GRCh37

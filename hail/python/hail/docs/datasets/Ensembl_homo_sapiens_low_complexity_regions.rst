@@ -1,7 +1,7 @@
 .. _Ensembl_homo_sapiens_low_complexity_regions:
 
-Ensembl_homo_sapiens_reference_genome
-=====================================
+Ensembl_homo_sapiens_low_complexity_regions
+===========================================
 
 *  **Versions:** release_95
 *  **Reference genome builds:** GRCh37, GRCh38
