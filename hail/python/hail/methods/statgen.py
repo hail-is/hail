@@ -4,8 +4,6 @@ import numpy as np
 from typing import Dict, List, Tuple, Callable
 import builtins
 
-import time
-
 import hail
 import hail as hl
 import hail.expr.aggregators as agg
@@ -1803,14 +1801,14 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         mt = mt.select_entries(**{field: entry_expr})
     mt = mt.select_cols().select_rows().select_globals()
 
-    mt = mt.select_entries(x = mt[field])
+    mt = mt.select_entries(x=mt[field])
 
     def get_even_partitioning(ht, partition_size):
         ht = ht.select().add_index("_even_partitioning_index")
         filt = ht.filter(ht._even_partitioning_index % partition_size == 0)
         interval_bounds = filt.select().collect()
         intervals = []
-        for i in range(len(interval_bounds) - 1):
+        for i in range(len(interval_bounds)-1):
             intervals.append(hl.utils.Interval(start=interval_bounds[i], end=interval_bounds[i+1], includes_start=True, includes_end=False))
         last_element = ht.tail(1).select().collect()[0]
         last_interval = hl.utils.Interval(start=interval_bounds[len(interval_bounds) - 1], end=last_element, includes_start=True, includes_end=True)
@@ -1833,13 +1831,13 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     # Set Parameters
 
     q = q_iterations
-    l = k + oversampling_param
+    L = k + oversampling_param
     n = A.take(1)[0].ndarray.shape[1]
 
     # Generate random matrix G
-    G = hl.nd.zeros((n,l)).map(lambda n: hl.rand_norm(0, 1))
+    G = hl.nd.zeros((n,L)).map(lambda n: hl.rand_norm(0,1))
 
-    def hailBlanczos(A, G, k, l, q, block_size):
+    def hailBlanczos(A, G, k, q):
 
         h_list = []
         G_i = G
@@ -1848,22 +1846,18 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
             temp = A.annotate(H_i=A.ndarray @ G_i)
             temp = temp.annotate(G_i_intermediate=temp.ndarray.T @ temp.H_i)
             result = temp.aggregate(hl.struct(Hi_chunks=hl.agg.collect(temp.H_i),
-                                                G_i=hl.agg.ndarray_sum(temp.G_i_intermediate)),
-                                                _localize=False)._persist()
+                G_i=hl.agg.ndarray_sum(temp.G_i_intermediate)),
+                _localize=False)._persist()
             localized_H_i = hl.nd.vstack(result.Hi_chunks)
             h_list.append(localized_H_i)
             G_i = result.G_i
 
-        temp = A.annotate(H_i = A.ndarray @ G_i)
+        temp = A.annotate(H_i=A.ndarray @ G_i)
         result = temp.aggregate(hl.agg.collect(temp.H_i), _localize=False)._persist()
         localized_H_i = hl.nd.vstack(result)
         h_list.append(localized_H_i)
-
         H = hl.nd.hstack(h_list)
-        
-        # perform QR decomposition on unblocked version of H
         Q, R = hl.nd.qr(H)
-
         A = A.annotate(part_size=A.ndarray.shape[0])
         A = A.annotate(rows_preceeding=hl.int32(hl.scan.sum(A.part_size)))
         A = A.annotate_globals(Qt=Q.T)
@@ -1881,7 +1875,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
             
         return truncV, truncS, truncW
 
-    U, S, V = hailBlanczos(A, G, k, l, q, block_size)
+    U, S, V = hailBlanczos(A, G, k, q)
 
     scores = V.transpose() * S
     eigens = hl.eval(S * S)
