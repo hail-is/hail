@@ -30,13 +30,14 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(nextNDCode) = seq
     val seqOpMethod = cb.emb.genEmitMethod[Long, Unit]("ndarray_sum_aggregator_seq_op")
-    val nextNDInput2 = seqOpMethod.getCodeParam[Long](1)
+
     seqOpMethod.voidWithBuilder(cb => {
-      val nextNDPCode = PCode.apply(nextNDCode.pt, nextNDInput2).asNDArray
+      val nextNDInput = seqOpMethod.getCodeParam[Long](1)
+      val nextNDPCode = PCode.apply(nextNDCode.pt, nextNDInput).asNDArray
       val nextNDPV = nextNDPCode.memoize(cb, "ndarray_sum_seqop_next")
       val statePV = new PCanonicalBaseStructSettable(stateType, state.off)
 
-      statePV.loadField(cb, ndarrayFieldNumber).consume(cb,
+      statePV.loadField(cb, ndarrayFieldNumber).consume[Unit](cb,
         {
           cb.append(state.region.getNewRegion(Region.TINY))
           cb.append(stateType.setFieldPresent(state.off, ndarrayFieldNumber))
