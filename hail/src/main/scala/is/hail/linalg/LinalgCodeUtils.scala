@@ -3,9 +3,42 @@ package is.hail.linalg
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, MethodBuilder}
 import is.hail.asm4s._
-import is.hail.types.physical.PType
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.types.physical.{PBaseStructValue, PNDArrayValue, PType}
 
 object LinalgCodeUtils {
+  def checkColumnMajor(pndv: PNDArrayValue, cb: EmitCodeBuilder): Value[Boolean] = {
+    val shapes = pndv.shapes()
+    val runningProduct = cb.newLocal[Long]("check_column_major_running_product")
+
+    val elementType = pndv.pt.elementType
+    val nDims = pndv.pt.nDims
+    cb.append(Code(
+      runningProduct := elementType.byteSize,
+      Code.foreach(0 until nDims){ index =>
+        Code._assert()
+      }
+    ))
+
+    /*
+    val runningProduct = mb.newLocal[Long]()
+    Code(
+      srvb.start(),
+      runningProduct := elementType.byteSize,
+      Code.foreach(0 until nDims){ index =>
+        Code(
+          srvb.addLong(runningProduct),
+          srvb.advance(),
+          tempShapeStorage := sourceShapeArray(index),
+          runningProduct := runningProduct * (tempShapeStorage > 0L).mux(tempShapeStorage, 1L)
+        )
+      }
+    )
+     */
+
+    ???
+  }
+
   def copyRowMajorToColumnMajor(rowMajorFirstElementAddress: Code[Long], targetFirstElementAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], elementPType: PType, mb: MethodBuilder[_]): Code[Unit] = {
     val rowIndex = mb.genFieldThisRef[Long]()
     val colIndex = mb.genFieldThisRef[Long]()

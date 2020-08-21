@@ -622,7 +622,17 @@ class Emit[C](
     def emitDeforestedNDArray(ir: IR): IEmitCode =
       deforestNDArray(ir, mb, region, env).toI(cb)
 
-    def emitNDArrayStandardStrides(ir: IR): IEmitCode = emitDeforestedNDArray(ir)
+    def emitNDArrayColumnMajorStrides(ir: IR): IEmitCode = {
+      emitI(ir).map(cb){case pNDCode: PNDArrayCode =>
+        val pNDValue = pNDCode.memoize(cb, "ndarray_column_major_check")
+        // Two paths:
+        // If it's column Major, great, do nothing.
+        // Otherwise, need to recopy it to be column major.
+        // TODO:
+        // 1. Need a way to check if a PNDArrayValue is column major.
+        ???
+      }
+    }
 
     val pt = ir.pType
 
@@ -818,7 +828,7 @@ class Emit[C](
         }
 
       case x@NDArraySVD(nd, full_matrices, computeUV) =>
-        emitNDArrayStandardStrides(nd).flatMap(cb){ ndPCode =>
+        emitNDArrayColumnMajorStrides(nd).flatMap(cb){ ndPCode =>
           val ndPVal = ndPCode.asNDArray.memoize(cb, "nd_svd_value")
           val ndPType = ndPCode.asNDArray.pt
 
@@ -1247,9 +1257,14 @@ class Emit[C](
     def emitDeforestedNDArray(ir: IR): EmitCode =
       deforestNDArray(ir, mb, region, env)
 
-    def emitNDArrayColumnMajorStrides(ir: IR): EmitCode =
+    def emitNDArrayColumnMajorStrides(ir: IR): EmitCode = {
       // Currently relying on the fact that emitDeforestedNDArray always emits standard striding.
-      emitDeforestedNDArray(ir)
+
+      // New plan, emit the thing however it wants to be, but then go and change it to the proper form.
+
+      val emitted = emit(ir)
+      emitted
+    }
 
     val pt = ir.pType
 
