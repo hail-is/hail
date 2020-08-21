@@ -1704,9 +1704,8 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
            compute_loadings=bool,
            q_iterations=int,
            oversampling_param=int,
-           block_size=int,
-           report_times=bool)
-def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128, report_times=False):
+           block_size=int)
+def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128):
     r"""Run randomized principal component analysis approximation (PCA) 
     on numeric columns derived from a matrix table.
 
@@ -1786,7 +1785,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         Number of rounds of power iteration to amplify singular values.
     oversampling_param : :obj:`int`
         Amount of oversampling to use when approximating the singular values.
-        Usually a value `l` between `k <= l <= 2k`.
+        Usually a value between `0 <= oversampling_param <= k`.
 
     Returns
     -------
@@ -1838,11 +1837,9 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     n = A.take(1)[0].ndarray.shape[1]
 
     # Generate random matrix G
-    G = np.random.normal(0, 1, (n,l))
+    G = hl.nd.zeros((n,l)).map(lambda n: hl.rand_norm(0, 1))
 
-    def hailBlanczos(A, G, k, l, q, block_size, times):
-
-        start = time.time()
+    def hailBlanczos(A, G, k, l, q, block_size):
 
         h_list = []
         G_i = G
@@ -1851,71 +1848,50 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
             temp = A.annotate(H_i = A.ndarray @ G_i)
             temp = temp.annotate(G_i_intermediate = temp.ndarray.T @ temp.H_i)
             result = temp.aggregate(hl.struct(Hi_chunks = hl.agg.collect(temp.H_i), 
-                                                G_i = hl.agg.ndarray_sum(temp.G_i_intermediate)))
-            localized_H_i = np.vstack(result.Hi_chunks)
+                                                G_i = hl.agg.ndarray_sum(temp.G_i_intermediate)),
+                                                _localize=False)._persist()
+            localized_H_i = hl.nd.vstack(result.Hi_chunks)
             h_list.append(localized_H_i)
             G_i = result.G_i
 
         temp = A.annotate(H_i = A.ndarray @ G_i)
-        result = temp.aggregate(hl.agg.collect(temp.H_i))
-        localized_H_i = np.vstack(result)
+        result = temp.aggregate(hl.agg.collect(temp.H_i), _localize=False)._persist()
+        localized_H_i = hl.nd.vstack(result)
         h_list.append(localized_H_i)
 
-        H = np.hstack(h_list) 
-
-        end = time.time()
-        q_loop_time = end - start
-
-        start = time.time()
+        H = hl.nd.hstack(h_list) 
         
         # perform QR decomposition on unblocked version of H
-        Q, R = np.linalg.qr(H)
-
-        end = time.time()
-        process_Q_time = end - start
+        Q, R = hl.nd.qr(H)
 
         A = A.annotate(part_size = A.ndarray.shape[0])
         A = A.annotate(rows_preceeding = hl.int32(hl.scan.sum(A.part_size)))
         A = A.annotate_globals(Qt = Q.T)
         T = A.annotate(ndarray = A.Qt[:, A.rows_preceeding:A.rows_preceeding + A.part_size] @ A.ndarray)
-        arr_T = T.aggregate(hl.agg.ndarray_sum(T.ndarray))
+        arr_T = T.aggregate(hl.agg.ndarray_sum(T.ndarray), _localize=False)
         
-        start = time.time()
-
-        U, S, W = np.linalg.svd(arr_T, full_matrices=False)
-
-        end = time.time()
-        svd_time = end - start
-
-        start = time.time()
+        # hl.linalg.svd
+        U, S, W = hl.nd.svd(arr_T, full_matrices=False)._persist()
 
         V = Q @ U
-
-        end = time.time()
-
-        get_V_time = end - start
         
         truncV = V[:,:k]
         truncS = S[:k]
         truncW = W[:k,:]
             
-        if times:
-            return truncV, truncS, truncW, q_loop_time, process_Q_time, svd_time, get_V_time
-        else:
-            return truncV, truncS, truncW
+        return truncV, truncS, truncW
 
-    U, S, V = hailBlanczos(A, G, k, l, q, block_size, report_times)
+    U, S, V = hailBlanczos(A, G, k, l, q, block_size)
 
     scores = V.transpose() * S
-    eigens = S * S
+    eigens = hl.eval(S * S)
 
-    hail_scores = hl.nd.array(scores)
-    hail_array_scores = hail_scores._data_array()
+    hail_array_scores = scores._data_array()
     cols_and_scores = hl.zip(ht.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores = tup[1]))
     st = hl.Table.parallelize(cols_and_scores, key=list(mt.col_key))
 
     lt = ht.select()
-    lt = lt.annotate_globals(U = hl.nd.array(U))
+    lt = lt.annotate_globals(U = U)
     lt = lt.add_index()
     lt = lt.annotate(loadings = lt.U[lt.idx,:]._data_array())
 
@@ -1930,9 +1906,8 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
            compute_loadings=bool,
            q_iterations=int,
            oversampling_param=int,
-           block_size=int,
-           report_times=bool)
-def _hwe_normalized_blanczos(entry_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128, report_times=False):
+           block_size=int)
+def _hwe_normalized_blanczos(entry_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128):
     r"""Run randomized principal component analysis approximation (PCA) on the 
     Hardy-Weinberg-normalized genotype call matrix.
 
