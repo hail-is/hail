@@ -5,7 +5,7 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
-from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_index
+from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials
 import json
 import re
 import plotly
@@ -133,7 +133,7 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
     name_data = benchmarks['data'][str(request.match_info['name'])]
 
     try:
-        data = enumerate_list_index(name_data['trials'])
+        data = enumerate_list_of_trials(name_data['trials'])
         d = {
             'trial': data['trial_indices'],
             'wall_time': data['wall_times'],

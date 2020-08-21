@@ -14,7 +14,7 @@ def parse_file_path(regex, name):
     return match.groupdict()
 
 
-def enumerate_list_index(list_of_trials):
+def enumerate_list_of_trials(list_of_trials):
     trial_indices = []
     wall_times = []
     within_group_idx = []
