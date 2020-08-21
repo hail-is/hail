@@ -14,15 +14,21 @@ def parse_file_path(regex, name):
     return match.groupdict()
 
 
-def enumerate_list_index(list_of_lists):
-    res_list = []
-    i = 0
-    for list in list_of_lists:
-        temp = []
-        temp = [i] * len(list)
-        res_list.extend(temp)
-        i += 1
-    return res_list
+def enumerate_list_of_trials(list_of_trials):
+    trial_indices = []
+    wall_times = []
+    within_group_idx = []
+    for count, trial in enumerate(list_of_trials):
+        wall_times.extend(trial)
+        within_group_idx.extend([f'{j+1}' for j in range(len(trial))])
+        temp = [count] * len(trial)
+        trial_indices.extend(temp)
+    res_dict = {
+        'trial_indices': trial_indices,
+        'wall_times': wall_times,
+        'within_group_index': within_group_idx
+    }
+    return res_dict
 
 
 class ReadGoogleStorage:
