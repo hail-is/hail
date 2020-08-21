@@ -60,24 +60,30 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
   }
 
   override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
-    val rightPV = new PCanonicalBaseStructSettable(stateType, other.off)
-    rightPV.loadField(cb, ndarrayFieldNumber).consume(cb, {},
-    { rightNDPC =>
-      val leftPV = new PCanonicalBaseStructSettable(stateType, state.off)
-      leftPV.loadField(cb, ndarrayFieldNumber).consume(cb,
-      {
-        cb.append(state.storeNonmissing(other.off))
-      },
-      { leftNDPC =>
-          val leftNdValue = leftNDPC.asNDArray.memoize(cb, "left_ndarray_sum_agg")
-          val rightNdValue = rightNDPC.asNDArray.memoize(cb, "right_ndarray_sum_agg")
-          addValues(cb, leftNdValue, rightNdValue)
-      })
+    val combOpMethod = cb.emb.genEmitMethod[Unit]("ndarray_sum_aggregator_comb_op")
+
+    combOpMethod.voidWithBuilder(cb => {
+      val rightPV = new PCanonicalBaseStructSettable(stateType, other.off)
+      rightPV.loadField(cb, ndarrayFieldNumber).consume(cb, {},
+        { rightNDPC =>
+          val leftPV = new PCanonicalBaseStructSettable(stateType, state.off)
+          leftPV.loadField(cb, ndarrayFieldNumber).consume(cb,
+            {
+              cb.append(state.storeNonmissing(other.off))
+            },
+            { leftNDPC =>
+              val leftNdValue = leftNDPC.asNDArray.memoize(cb, "left_ndarray_sum_agg")
+              val rightNdValue = rightNDPC.asNDArray.memoize(cb, "right_ndarray_sum_agg")
+              addValues(cb, leftNdValue, rightNdValue)
+            })
+        }
+      )
     })
+
+    cb.invokeVoid(combOpMethod)
   }
 
   private def addValues(cb: EmitCodeBuilder, leftNdValue: PNDArrayValue, rightNdValue: PNDArrayValue): Unit = {
-    //val foo = cb.emb.genEmitMethod[Unit]("ndarray_sum_aggregator_add_values")
     val sameShape = leftNdValue.sameShape(rightNdValue, cb.emb)
 
     val idxVars = Array.tabulate(ndTyp.nDims) { _ => cb.emb.genFieldThisRef[Long]() }
