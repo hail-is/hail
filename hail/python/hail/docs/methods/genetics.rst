@@ -14,7 +14,6 @@ Genetics
     filter_alleles
     filter_alleles_hts
     hwe_normalized_pca
-    identity_by_descent
     genetic_relatedness_matrix
     realized_relationship_matrix
     impute_sex
@@ -23,7 +22,6 @@ Genetics
     mendel_errors
     de_novo
     nirvana
-    pc_relate
     sample_qc
     skat
     lambda_gc
@@ -41,7 +39,6 @@ Genetics
 .. autofunction:: filter_alleles
 .. autofunction:: filter_alleles_hts
 .. autofunction:: hwe_normalized_pca
-.. autofunction:: identity_by_descent
 .. autofunction:: genetic_relatedness_matrix
 .. autofunction:: realized_relationship_matrix
 .. autofunction:: impute_sex
@@ -50,7 +47,6 @@ Genetics
 .. autofunction:: mendel_errors
 .. autofunction:: de_novo
 .. autofunction:: nirvana
-.. autofunction:: pc_relate
 .. autofunction:: sample_qc
 .. autofunction:: skat
 .. autofunction:: lambda_gc
