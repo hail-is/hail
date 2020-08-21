@@ -1,3 +1,4 @@
+from collections import deque
 import os
 import secrets
 import random
@@ -27,6 +28,62 @@ BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
 log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 
+class WindowFractionCounter:
+    def __init__(self, window_size: int):
+        self._window_size = window_size
+        self._q = deque()
+        self._n_true = 0
+        self._seen = set()
+
+    def push(self, key: str, x: bool):
+        if key in self._seen:
+            return
+        while len(self._q) >= self._window_size:
+            old_key, old = self._q.popleft()
+            self._seen.remove(old_key)
+            if old:
+                self._n_true -= 1
+        self._q.append((key, x))
+        self._seen.add(key)
+        if x:
+            self._n_true += 1
+
+    def fraction(self) -> float:
+        # (1, 1) prior
+        return (self._n_true + 1) / (len(self._q) + 2)
+
+    def __repr__(self):
+        return f'{self._n_true}/{len(self._q)}'
+
+
+class ZoneSuccessRate:
+    def __init__(self):
+        self._global_counter = WindowFractionCounter(10)
+        self._zone_counters = {}
+
+    def _get_zone_counter(self, zone: str):
+        zone_counter = self._zone_counters.get(zone)
+        if not zone_counter:
+            zone_counter = WindowFractionCounter(10)
+            self._zone_counters[zone] = zone_counter
+        return zone_counter
+
+    def push(self, zone: str, key: str, success: bool):
+        self._global_counter.push(key, success)
+        zone_counter = self._get_zone_counter(zone)
+        zone_counter.push(key, success)
+
+    def global_success_rate(self) -> float:
+        return self._global_counter.fraction()
+
+    def zone_success_rate(self, zone) -> float:
+        zone_counter = self._get_zone_counter(zone)
+        return zone_counter.fraction()
+
+    def __repr__(self):
+        return f'global {self._global_counter}, zones {self._zone_counters}'
+
+
 class InstancePool:
     def __init__(self, app, machine_name_prefix):
         self.app = app
@@ -37,6 +94,8 @@ class InstancePool:
         self.compute_client = app['compute_client']
         self.logging_client = app['logging_client']
         self.machine_name_prefix = machine_name_prefix
+
+        self.zone_success_rate = ZoneSuccessRate()
 
         # set in async_init
         self.worker_type = None
@@ -97,13 +156,13 @@ class InstancePool:
                 for q in r['quotas']
             }
 
-            remaining = quota_remaining['PREEMPTIBLE_CPUS'] // self.worker_cores
+            remaining = quota_remaining['PREEMPTIBLE_CPUS'] / self.worker_cores
             if self.worker_local_ssd_data_disk:
-                remaining = min(remaining, quota_remaining['LOCAL_SSD_TOTAL_GB'] // 375)
+                remaining = min(remaining, quota_remaining['LOCAL_SSD_TOTAL_GB'] / 375)
             else:
-                remaining = min(remaining, quota_remaining['SSD_TOTAL_GB'] // self.worker_pd_ssd_data_disk_size_gb)
+                remaining = min(remaining, quota_remaining['SSD_TOTAL_GB'] / self.worker_pd_ssd_data_disk_size_gb)
 
-            weight = max(remaining // len(r['zones']), 1)
+            weight = max(remaining / len(r['zones']), 1)
             for z in r['zones']:
                 zone_name = os.path.basename(urllib.parse.urlparse(z).path)
                 new_zones.append(zone_name)
@@ -252,7 +311,16 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
             zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
             zone = random.choice(zones)
         else:
-            zone = random.choices(self.zones, self.zone_weights)[0]
+            zone_prob_weights = [
+                min(w, 10) * self.zone_success_rate.zone_success_rate(z)
+                for z, w in zip(self.zones, self.zone_weights)]
+
+            log.info(f'zones {self.zones}')
+            log.info(f'zone_weights {self.zone_weights}')
+            log.info(f'zone_success_rate {self.zone_success_rate}')
+            log.info(f'zone_prob_weights {zone_prob_weights}')
+
+            zone = random.choices(self.zones, zone_prob_weights)[0]
 
         activation_token = secrets.token_urlsafe(32)
         instance = await Instance.create(self.app, machine_name, activation_token, cores * 1000, zone)
@@ -608,42 +676,46 @@ gsutil -m cp dockerd.log gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/w
             log.warning(f'event for unknown machine {name}')
             return
 
-        instance = self.name_instance.get(name)
-        if not instance:
-            log.warning(f'event for unknown instance {name}')
-            return
-
-        if event_subtype == 'compute.instances.preempted':
-            log.info(f'event handler: handle preempt {instance}')
-            await self.handle_preempt_event(instance, timestamp)
-        elif event_subtype == 'compute.instances.delete':
+        if event_subtype == 'compute.instances.insert':
             if event_type == 'GCE_OPERATION_DONE':
-                log.info(f'event handler: delete {instance} done')
-                await self.handle_delete_done_event(instance, timestamp)
-            elif event_type == 'GCE_API_CALL':
-                log.info(f'event handler: handle call delete {instance}')
-                await self.handle_call_delete_event(instance, timestamp)
-            else:
-                log.warning(f'unknown event type {event_type}')
+                severity = event['severity']
+                operation_name = payload['operation']['name']
+                success = (severity != 'ERROR')
+                self.zone_success_rate.push(resource['zone'], operation_name, success)
         else:
-            log.warning(f'unknown event subtype {event_subtype}')
+            instance = self.name_instance.get(name)
+            if not instance:
+                log.warning(f'event for unknown instance {name}')
+                return
+
+            if event_subtype == 'compute.instances.preempted':
+                log.info(f'event handler: handle preempt {instance}')
+                await self.handle_preempt_event(instance, timestamp)
+            elif event_subtype == 'compute.instances.delete':
+                if event_type == 'GCE_OPERATION_DONE':
+                    log.info(f'event handler: delete {instance} done')
+                    await self.handle_delete_done_event(instance, timestamp)
+                elif event_type == 'GCE_API_CALL':
+                    log.info(f'event handler: handle call delete {instance}')
+                    await self.handle_call_delete_event(instance, timestamp)
 
     async def event_loop(self):
         log.info('starting event loop')
         while True:
             try:
                 row = await self.db.select_and_fetchone('SELECT * FROM `gevents_mark`;')
-                if row['mark']:
-                    mark = row['mark']
-                else:
+                mark = row['mark']
+                if mark is None:
                     mark = datetime.datetime.utcnow().isoformat() + 'Z'
+                    await self.db.execute_update(
+                        'UPDATE `gevents_mark` SET mark = %s;',
+                        (mark,))
 
                 filter = f'''
 logName="projects/{PROJECT}/logs/compute.googleapis.com%2Factivity_log" AND
 resource.type=gce_instance AND
 jsonPayload.resource.name:"{self.machine_name_prefix}" AND
-jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.delete")
-AND timestamp >= "{mark}"
+timestamp >= "{mark}"
 '''
 
                 new_mark = None
