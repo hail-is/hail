@@ -1809,7 +1809,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         interval_bounds = filt.select().collect()
         intervals = []
         for i in range(len(interval_bounds) - 1):
-            intervals.append(hl.utils.Interval(start=interval_bounds[i], end=interval_bounds[i+1], includes_start=True, includes_end=False))
+            intervals.append(hl.utils.Interval(start=interval_bounds[i], end=interval_bounds[i + 1], includes_start=True, includes_end=False))
         last_element = ht.tail(1).select().collect()[0]
         last_interval = hl.utils.Interval(start=interval_bounds[len(interval_bounds) - 1], end=last_element, includes_start=True, includes_end=True)
         intervals.append(last_interval)
@@ -1846,8 +1846,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
             temp = A.annotate(H_i=A.ndarray @ G_i)
             temp = temp.annotate(G_i_intermediate=temp.ndarray.T @ temp.H_i)
             result = temp.aggregate(hl.struct(Hi_chunks=hl.agg.collect(temp.H_i),
-                                            G_i=hl.agg.ndarray_sum(temp.G_i_intermediate)),
-                                            _localize=False)._persist()
+                                                G_i=hl.agg.ndarray_sum(temp.G_i_intermediate)),_localize=False)._persist()
             localized_H_i = hl.nd.vstack(result.Hi_chunks)
             h_list.append(localized_H_i)
             G_i = result.G_i
@@ -1868,7 +1867,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         U, S, W = hl.nd.svd(arr_T, full_matrices=False)._persist()
 
         V = Q @ U
-        
+
         truncV = V[:, :k]
         truncS = S[:k]
         truncW = W[:k, :]
@@ -1953,7 +1952,7 @@ def _hwe_normalized_blanczos(call_expr, k=10, compute_loadings=False, q_iteratio
     normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
 
     return _blanczos_pca(normalized_gt, k, compute_loadings=compute_loadings, q_iterations=q_iterations,
-                        oversampling_param=oversampling_param, block_size=block_size)
+                                            oversampling_param=oversampling_param, block_size=block_size)
 
 
 @typecheck(call_expr=expr_call,
