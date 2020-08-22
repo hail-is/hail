@@ -1704,7 +1704,7 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
            oversampling_param=int,
            block_size=int)
 def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128):
-    r"""Run randomized principal component analysis approximation (PCA) 
+    r"""Run randomized principal component analysis approximation (PCA)
     on numeric columns derived from a matrix table.
 
     Implements the Blanczos algorithm found by Rokhlin, Szlam, and Tygert.
@@ -1793,7 +1793,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
     check_entry_indexed('pca/entry_expr', entry_expr)
     mt = matrix_table_source('pca/entry_expr', entry_expr)
-    
+
     if entry_expr in mt._fields_inverse:
         field = mt._fields_inverse[entry_expr]
     else:
@@ -1808,7 +1808,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         filt = ht.filter(ht._even_partitioning_index % partition_size == 0)
         interval_bounds = filt.select().collect()
         intervals = []
-        for i in range(len(interval_bounds)-1):
+        for i in range(len(interval_bounds) - 1):
             intervals.append(hl.utils.Interval(start=interval_bounds[i], end=interval_bounds[i+1], includes_start=True, includes_end=False))
         last_element = ht.tail(1).select().collect()[0]
         last_interval = hl.utils.Interval(start=interval_bounds[len(interval_bounds) - 1], end=last_element, includes_start=True, includes_end=True)
@@ -1835,7 +1835,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     n = A.take(1)[0].ndarray.shape[1]
 
     # Generate random matrix G
-    G = hl.nd.zeros((n,L)).map(lambda n: hl.rand_norm(0,1))
+    G = hl.nd.zeros((n, L)).map(lambda n: hl.rand_norm(0, 1))
 
     def hailBlanczos(A, G, k, q):
 
@@ -1846,8 +1846,8 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
             temp = A.annotate(H_i=A.ndarray @ G_i)
             temp = temp.annotate(G_i_intermediate=temp.ndarray.T @ temp.H_i)
             result = temp.aggregate(hl.struct(Hi_chunks=hl.agg.collect(temp.H_i),
-                G_i=hl.agg.ndarray_sum(temp.G_i_intermediate)),
-                _localize=False)._persist()
+                                            G_i=hl.agg.ndarray_sum(temp.G_i_intermediate)),
+                                            _localize=False)._persist()
             localized_H_i = hl.nd.vstack(result.Hi_chunks)
             h_list.append(localized_H_i)
             G_i = result.G_i
@@ -1863,7 +1863,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         A = A.annotate_globals(Qt=Q.T)
         T = A.annotate(ndarray=A.Qt[:, A.rows_preceeding:A.rows_preceeding + A.part_size] @ A.ndarray)
         arr_T = T.aggregate(hl.agg.ndarray_sum(T.ndarray), _localize=False)
-        
+
         # hl.linalg.svd
         U, S, W = hl.nd.svd(arr_T, full_matrices=False)._persist()
 
@@ -1887,7 +1887,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     lt = ht.select()
     lt = lt.annotate_globals(U=U)
     lt = lt.add_index()
-    lt = lt.annotate(loadings=lt.U[lt.idx,:]._data_array())
+    lt = lt.annotate(loadings=lt.U[lt.idx, :]._data_array())
 
     if compute_loadings:
         return eigens, st, lt
@@ -1902,7 +1902,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
            oversampling_param=int,
            block_size=int)
 def _hwe_normalized_blanczos(call_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128):
-    r"""Run randomized principal component analysis approximation (PCA) on the 
+    r"""Run randomized principal component analysis approximation (PCA) on the
     Hardy-Weinberg-normalized genotype call matrix.
 
     Implements the Blanczos algorithm found by Rokhlin, Szlam, and Tygert.
