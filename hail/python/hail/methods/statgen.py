@@ -1846,7 +1846,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
             temp = A.annotate(H_i=A.ndarray @ G_i)
             temp = temp.annotate(G_i_intermediate=temp.ndarray.T @ temp.H_i)
             result = temp.aggregate(hl.struct(Hi_chunks=hl.agg.collect(temp.H_i),
-                                                G_i=hl.agg.ndarray_sum(temp.G_i_intermediate)), _localize=False)._persist()
+                                            G_i=hl.agg.ndarray_sum(temp.G_i_intermediate)), _localize=False)._persist()
             localized_H_i = hl.nd.vstack(result.Hi_chunks)
             h_list.append(localized_H_i)
             G_i = result.G_i
@@ -1945,14 +1945,13 @@ def _hwe_normalized_blanczos(call_expr, k=10, compute_loadings=False, q_iteratio
     info("hwe_normalized_pca: running PCA using {} variants.".format(n_variants))
 
     mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
-    mt = mt.annotate_rows(
-        __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
+    mt = mt.annotate_rows(__hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
     mt = mt.unfilter_entries()
 
     normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
 
     return _blanczos_pca(normalized_gt, k, compute_loadings=compute_loadings, q_iterations=q_iterations,
-                                            oversampling_param=oversampling_param, block_size=block_size)
+                        oversampling_param=oversampling_param, block_size=block_size)
 
 
 @typecheck(call_expr=expr_call,
