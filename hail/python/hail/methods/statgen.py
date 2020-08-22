@@ -1953,7 +1953,7 @@ def _hwe_normalized_blanczos(call_expr, k=10, compute_loadings=False, q_iteratio
     normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
 
     return _blanczos_pca(normalized_gt, k, compute_loadings=compute_loadings, q_iterations=q_iterations,
-         oversampling_param=oversampling_param, block_size=block_size)
+                        oversampling_param=oversampling_param, block_size=block_size)
 
 
 @typecheck(call_expr=expr_call,
