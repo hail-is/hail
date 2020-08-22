@@ -1255,7 +1255,7 @@ class Tests(unittest.TestCase):
         scores = np.reshape(scores, (len(scores) // k, k))
         loadings = np.reshape(loadings, (len(loadings) // k, k))
 
-        self.assertEqual(len(eigen), 3)
+        self.assertEqual(len(eigens), 3)
         self.assertEqual(scores.count(), mt.count_cols())
         self.assertEqual(loadings.count(), n_rows)
 
