@@ -22,10 +22,15 @@ is the percent of genetic material shared identically by descent.
 Probability-of-identity-by-descent-zero is the probability that none of the
 alleles at a randomly chosen locus were inherited identically by descent.
 
-Hail provides two methods for the inference of relatedness: PLINK-style identity
-by descent and PC-Relate. :func:`.identity_by_descent` is appropriate for
-datasets containing one homogeneous population. :func:`.pc_relate` is appropriate
-for datasets containing multiple homogeneous populations and admixture.
+Hail provides three methods for the inference of relatedness: PLINK-style
+identity by descent, KING, and PC-Relate.
+- :func:`.identity_by_descent` is appropriate for datasets containing one homogeneous
+  population.
+- :func:`.king` is appropriate for datasets containing multiple homogeneous
+  populations and no admixture. It is also used to prune close relatives before
+  using :func:`.pc_relate`.
+- :func:`.pc_relate` is appropriate for datasets containing multiple
+  homogeneous populations and admixture.
 
 .. toctree::
     :maxdepth: 2
@@ -34,6 +39,8 @@ for datasets containing multiple homogeneous populations and admixture.
 
     identity_by_descent
     pc_relate
+    king
 
 .. autofunction:: identity_by_descent
 .. autofunction:: pc_relate
+.. autofunction:: king
