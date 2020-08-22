@@ -67,6 +67,21 @@ trait InputBlockBuffer extends Spec with Closeable {
 
   def seek(offset: Long)
 
+  def skipBytesReadRemainder(n0: Int, buf: Array[Byte]): Int = {
+    var n = n0
+    var b = 0
+    while (n > 0) {
+      b = readBlock(buf)
+      n -= b
+    }
+    if (n < 0) {
+      System.arraycopy(buf, b + n, buf, 0, -n)
+      return -n
+    } else {
+      return 0
+    }
+  }
+
   def readBlock(buf: Array[Byte]): Int
 }
 
@@ -492,12 +507,13 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
 
   def skipBytes(n0: Int) {
     var n = n0
-    while (n > 0) {
-      if (end == off)
-        readBlock()
-      val p = math.min(end - off, n)
-      n -= p
-      off += p
+    if (off + n > end) {
+      n -= (end - off)
+      off = end
+      end = in.skipBytesReadRemainder(n, buf)
+      off = 0
+    } else {
+      off += n
     }
   }
 
@@ -543,14 +559,31 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
 
 final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
   private val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
-  private var decompBuf = new Array[Byte](blockSize)
-  private var lim = 0
 
   def close() {
     in.close()
   }
 
   def seek(offset: Long): Unit = in.seek(offset)
+
+  override def skipBytesReadRemainder(n0: Int, buf: Array[Byte]): Int = {
+    var n = n0
+    while (n > 0) {
+      val blockLen = in.readBlock(comp)
+      if (blockLen == -1) {
+        return -1
+      } else {
+        val compLen = blockLen - 4
+        val decompLen = Memory.loadInt(comp, 0)
+        if (decompLen > n) {
+          lz4.decompress(buf, 0, decompLen, comp, 4, compLen)
+          System.arraycopy(buf, n, buf, 0, decompLen - n)
+        }
+        n -= decompLen
+      }
+    }
+    return -n
+  }
 
   def readBlock(buf: Array[Byte]): Int = {
     val blockLen = in.readBlock(comp)
@@ -562,7 +595,6 @@ final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) 
       lz4.decompress(buf, 0, decompLen, comp, 4, compLen)
       decompLen
     }
-    lim = result
     result
   }
 }
