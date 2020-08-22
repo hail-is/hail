@@ -1894,7 +1894,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         return eigens, st, None
 
 
-@typecheck(call_expr=expr_float64,
+@typecheck(call_expr=expr_call,
            k=int,
            compute_loadings=bool,
            q_iterations=int,
