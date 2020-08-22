@@ -1846,7 +1846,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
             temp = A.annotate(H_i=A.ndarray @ G_i)
             temp = temp.annotate(G_i_intermediate=temp.ndarray.T @ temp.H_i)
             result = temp.aggregate(hl.struct(Hi_chunks=hl.agg.collect(temp.H_i),
-                                                G_i=hl.agg.ndarray_sum(temp.G_i_intermediate)),_localize=False)._persist()
+                                                G_i=hl.agg.ndarray_sum(temp.G_i_intermediate)), _localize=False)._persist()
             localized_H_i = hl.nd.vstack(result.Hi_chunks)
             h_list.append(localized_H_i)
             G_i = result.G_i
