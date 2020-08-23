@@ -8,6 +8,8 @@ from hail.linalg import BlockMatrix
 from hail.table import Table
 from hail.typecheck import typecheck, nullable, numeric, enumeration
 
+from ..pca import hwe_normalized_pca
+
 
 @typecheck(call_expr=expr_call,
            min_individual_maf=numeric,
