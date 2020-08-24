@@ -1,6 +1,4 @@
-PROJECT := $(shell gcloud config get-value project)
-ZONE := us-central1-a
-KUBERNETES_SERVER_URL := https://104.198.230.143
+include ../config.mk
 
 BATCH_LATEST = gcr.io/$(PROJECT)/batch:latest
 BATCH_IMAGE = gcr.io/$(PROJECT)/batch:$(shell docker images -q --no-trunc batch | sed -e 's,[^:]*:,,')
