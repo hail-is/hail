@@ -37,7 +37,7 @@ object LoadPlink {
             case Array(contig, rsId, cmPos, bpPos, allele1, allele2) =>
               val pos = bpPos.toInt
               val recodedContig = contigRecoding.getOrElse(contig, contig)
-              if (!skipInvalidLoci || rg.forall(_.isValidLocus(contig, pos))) {
+              if (!skipInvalidLoci || rg.forall(_.isValidLocus(recodedContig, pos))) {
                 val locus = Locus.annotation(recodedContig, bpPos.toInt, rg)
                 val alleles =
                   if (a2Reference)
