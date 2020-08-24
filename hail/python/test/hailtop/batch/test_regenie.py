@@ -156,7 +156,6 @@ class ServiceBackendTests(unittest.TestCase):
         blobs = self.bucket.list_blobs(prefix=self.gcs_output_dir)
         for blob in blobs:
             blob.delete()
-        print('ran')
         os.remove('step2.txt')
 
     @classmethod
