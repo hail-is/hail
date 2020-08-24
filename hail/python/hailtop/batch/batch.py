@@ -5,9 +5,7 @@ from typing import Optional, Dict, Union, List, Any, Set
 
 from hailtop.utils import secret_alnum_string  # type: ignore
 
-from .backend import Backend, LocalBackend
-from .job import Job
-from .resource import Resource, InputResourceFile, JobResourceFile, ResourceGroup
+from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .utils import BatchException
 
 
@@ -43,29 +41,29 @@ class Batch:
 
     Parameters
     ----------
-    name: :obj:`str`, optional
+    name:
         Name of the batch.
-    backend: :class:`.Backend`, optional
+    backend:
         Backend used to execute the jobs. Default is :class:`.LocalBackend`.
-    attributes: :obj:`dict` of :obj:`str` to :obj:`str`, optional
+    attributes:
         Key-value pairs of additional attributes. 'name' is not a valid keyword.
         Use the name argument instead.
-    requester_pays_project: :obj:`str`, optional
+    requester_pays_project:
         The name of the Google project to be billed when accessing requester pays buckets.
-    default_image: :obj:`str`, optional
+    default_image:
         Docker image to use by default if not specified by a job.
-    default_memory: :obj:`str`, optional
+    default_memory:
         Memory setting to use by default if not specified by a job. Only
         applicable if a docker image is specified for the :class:`.LocalBackend`
         or the :class:`.ServiceBackend`. Value is in GB.
-    default_cpu: :obj:`str`, optional
+    default_cpu:
         CPU setting to use by default if not specified by a job. Only
         applicable if a docker image is specified for the :class:`.LocalBackend`
         or the :class:`.ServiceBackend`.
-    default_storage: :obj:`str`, optional
+    default_storage:
         Storage setting to use by default if not specified by a job. Only
         applicable for the :class:`.ServiceBackend`.
-    default_timeout: :obj:`float` or :obj:`int`, optional
+    default_timeout:
         Maximum time in seconds for a job to run before being killed. Only
         applicable for the :class:`.ServiceBackend`. If `None`, there is no
         timeout.
@@ -83,7 +81,7 @@ class Batch:
 
     def __init__(self,
                  name: Optional[str] = None,
-                 backend: Optional[Backend] = None,
+                 backend: Optional[_backend.Backend] = None,
                  attributes: Optional[Dict[str, str]] = None,
                  requester_pays_project: Optional[str] = None,
                  default_image: Optional[str] = None,
@@ -91,10 +89,10 @@ class Batch:
                  default_cpu: Optional[str] = None,
                  default_storage: Optional[str] = None,
                  default_timeout: Optional[Union[float, int]] = None):
-        self._jobs: List[Job] = []
-        self._resource_map: Dict[str, Resource] = {}
+        self._jobs: List[job.Job] = []
+        self._resource_map: Dict[str, _resource.Resource] = {}
         self._allocated_files: Set[str] = set()
-        self._input_resources: Set[InputResourceFile] = set()
+        self._input_resources: Set[_resource.InputResourceFile] = set()
         self._uid = Batch._get_uid()
 
         self.name = name
@@ -113,11 +111,11 @@ class Batch:
         self._default_storage = default_storage
         self._default_timeout = default_timeout
 
-        self._backend = backend if backend else LocalBackend()
+        self._backend = backend if backend else _backend.LocalBackend()
 
     def new_job(self,
                 name: Optional[str] = None,
-                attributes: Optional[Dict[str, str]] = None) -> Job:
+                attributes: Optional[Dict[str, str]] = None) -> job.Job:
         """
         Initialize a new job object with default memory, docker image,
         and CPU settings (defined in :class:`.Batch`) upon batch creation.
@@ -133,21 +131,17 @@ class Batch:
 
         Parameters
         ----------
-        name: :obj:`str`, optional
+        name:
             Name of the job.
-        attributes: :obj:`dict` of :obj:`str` to :obj:`str`, optional
+        attributes:
             Key-value pairs of additional attributes. 'name' is not a valid keyword.
             Use the name argument instead.
-
-        Returns
-        -------
-        :class:`.Job`
         """
 
         if attributes is None:
             attributes = {}
 
-        j = Job(batch=self, name=name, attributes=attributes)
+        j = job.Job(batch=self, name=name, attributes=attributes)
 
         if self._default_image is not None:
             j.image(self._default_image)
@@ -166,14 +160,14 @@ class Batch:
     def _new_job_resource_file(self, source, value=None):
         if value is None:
             value = secret_alnum_string(5)
-        jrf = JobResourceFile(value, source)
+        jrf = _resource.JobResourceFile(value, source)
         self._resource_map[jrf._uid] = jrf  # pylint: disable=no-member
         return jrf
 
     def _new_input_resource_file(self, input_path, value=None):
         if value is None:
             value = f'{secret_alnum_string(5)}/{os.path.basename(input_path)}'
-        irf = InputResourceFile(value)
+        irf = _resource.InputResourceFile(value)
         irf._add_input_path(input_path)
         self._resource_map[irf._uid] = irf  # pylint: disable=no-member
         self._input_resources.add(irf)
@@ -193,11 +187,11 @@ class Batch:
             new_resource_map[r._uid] = r  # pylint: disable=no-member
 
         self._resource_map.update(new_resource_map)
-        rg = ResourceGroup(source, root, **d)
+        rg = _resource.ResourceGroup(source, root, **d)
         self._resource_map.update({rg._uid: rg})
         return rg
 
-    def read_input(self, path: str) -> InputResourceFile:
+    def read_input(self, path: str) -> _resource.InputResourceFile:
         """
         Create a new input resource file object representing a single file.
 
@@ -218,18 +212,13 @@ class Batch:
             File path to read.
         extension: :obj:`str`, optional
             File extension to use.
-
-        Returns
-        -------
-        :class:`.InputResourceFile`
         """
 
         irf = self._new_input_resource_file(path)
         return irf
 
-    def read_input_group(self, **kwargs: str) -> ResourceGroup:
-        """
-        Create a new resource group representing a mapping of identifier to
+    def read_input_group(self, **kwargs: str) -> _resource.ResourceGroup:
+        """Create a new resource group representing a mapping of identifier to
         input resource files.
 
         Examples
@@ -267,32 +256,28 @@ class Batch:
         given the resource group `rg`, you can use the attribute notation
         `rg.identifier` or the get item notation `rg[identifier]`.
 
-        The file extensions for each file are derived from the identifier.
-        This is equivalent to `"{root}.identifier"` from
-        :meth:`.Job.declare_resource_group`. We are planning on adding flexibility
-        to incorporate more complicated extensions in the future such as `.vcf.bgz`.
-        For now, use :meth:`.ResourceFile.add_extension` to add an extension to a
-        resource file.
+        The file extensions for each file are derived from the identifier.  This
+        is equivalent to `"{root}.identifier"` from
+        :meth:`.Job.declare_resource_group`. We are planning on adding
+        flexibility to incorporate more complicated extensions in the future
+        such as `.vcf.bgz`.  For now, use :meth:`.JobResourceFile.add_extension`
+        to add an extension to a resource file.
 
         Parameters
         ----------
-        kwargs: :obj:`dict` of :obj:`str` to :obj:`str`
+        kwargs:
             Key word arguments where the name/key is the identifier and the value
             is the file path.
-
-        Returns
-        -------
-        :class:`.ResourceGroup`
         """
 
         root = secret_alnum_string(5)
         new_resources = {name: self._new_input_resource_file(file, value=f'{root}/{os.path.basename(file)}')
                          for name, file in kwargs.items()}
-        rg = ResourceGroup(None, root, **new_resources)
+        rg = _resource.ResourceGroup(None, root, **new_resources)
         self._resource_map.update({rg._uid: rg})
         return rg
 
-    def write_output(self, resource: Resource, dest: str) -> None:  # pylint: disable=R0201
+    def write_output(self, resource: _resource.Resource, dest: str):  # pylint: disable=R0201
         """
         Write resource file or resource file group to an output destination.
 
@@ -315,9 +300,9 @@ class Batch:
 
         Parameters
         ----------
-        resource: :class:`.ResourceFile` or :class:`.ResourceGroup`
+        resource:
             Resource to be written to a file.
-        dest: :obj:`str`
+        dest:
             Destination file path. For a single :class:`.ResourceFile`, this will
             simply be `dest`. For a :class:`.ResourceGroup`, `dest` is the file
             root and each resource file will be written to `{root}.identifier`
@@ -325,20 +310,20 @@ class Batch:
             :class:`.ResourceGroup` map.
         """
 
-        if not isinstance(resource, Resource):
+        if not isinstance(resource, _resource.Resource):
             raise BatchException(f"'write_output' only accepts Resource inputs. Found '{type(resource)}'.")
-        if isinstance(resource, JobResourceFile) and resource not in resource._source._mentioned:
+        if isinstance(resource, _resource.JobResourceFile) and resource not in resource._source._mentioned:
             name = resource._source._resources_inverse
             raise BatchException(f"undefined resource '{name}'\n"
                                  f"Hint: resources must be defined within the "
                                  f"job methods 'command' or 'declare_resource_group'")
 
-        if isinstance(self._backend, LocalBackend):
+        if isinstance(self._backend, _backend.LocalBackend):
             dest = os.path.abspath(dest)
 
         resource._add_output_path(dest)
 
-    def select_jobs(self, pattern: str) -> List[Job]:
+    def select_jobs(self, pattern: str) -> List[job.Job]:
         """
         Select all jobs in the batch whose name matches `pattern`.
 
@@ -354,12 +339,8 @@ class Batch:
 
         Parameters
         ----------
-        pattern: :obj:`str`
+        pattern:
             Regex pattern matching job names.
-
-        Returns
-        -------
-        :obj:`list` of :class:`.Job`
         """
 
         return [job for job in self._jobs if job.name is not None and re.match(pattern, job.name) is not None]
@@ -385,13 +366,13 @@ class Batch:
 
         Parameters
         ----------
-        dry_run: :obj:`bool`, optional
+        dry_run:
             If `True`, don't execute code.
-        verbose: :obj:`bool`, optional
+        verbose:
             If `True`, print debugging output.
-        delete_scratch_on_exit: :obj:`bool`, optional
+        delete_scratch_on_exit:
             If `True`, delete temporary directories with intermediate files.
-        backend_kwargs: key-word arguments, optional
+        backend_kwargs:
             See :meth:`.Backend._run` for backend-specific arguments.
         """
 

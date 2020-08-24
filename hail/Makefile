@@ -273,7 +273,6 @@ install-benchmark:
 
 .PHONY: batch-docs
 batch-docs:
-	mkdir -p build/batch/docs
 	rm -rf build/batch/docs
 	cp -R python/hailtop/batch/docs build/batch/
 	$(MAKE) -C build/batch/docs BUILDDIR=_build clean html
