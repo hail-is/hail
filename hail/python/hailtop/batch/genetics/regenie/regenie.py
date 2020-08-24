@@ -278,7 +278,7 @@ def run(args: Namespace, backend_opts: Dict[str, any], run_opts: Dict[str, any])
     batch = Batch(backend=backend, name='regenie')
 
     j2 = prepare_jobs(batch, step1_args, step1_batch_args, step2_args, step2_batch_args)
-
+    print(f"Will write output to: {step2_args.out}")
     batch.write_output(j2.output, step2_args.out)
     return batch.run(**run_opts)
 
