@@ -53,7 +53,6 @@ class LocalBackendTests(unittest.TestCase):
     def test_regenie_1pheno(self):
         args = br.parse_input_args(["--local", "--step1", "example/step1.txt", "--step2",
                                     "example/step2-phenoCol.txt"])
-        print("args", args)
         br.run(**args)
 
         out1 = f"{self.step2_out_prefix}.Y1.regenie"
@@ -95,13 +94,11 @@ class ServiceBackendTests(unittest.TestCase):
 
         cls.bucket_name = get_user_config().get('batch', 'bucket')
 
-        print("self.bucket_name", cls.bucket_name)
-
-        input_folder = 'batch-tests/resources/regenie'
+        input_folder = 'batch-tests/resources/regenie-v1.0.5.6'
         cls.gcs_input_dir = f'gs://{cls.bucket_name}/{input_folder}'
 
         token = uuid.uuid4()
-        cls.gcs_output_path = f'batch-tests/{token}/'
+        cls.gcs_output_path = f'batch-tests/{token}'
         cls.gcs_output_dir = f'gs://{cls.bucket_name}/{cls.gcs_output_path}'
 
         in_cluster_key_file = '/test-gsa-key/key.json'
@@ -127,10 +124,10 @@ class ServiceBackendTests(unittest.TestCase):
         --remove {cls.gcs_input_dir}/fid_iid_to_remove.txt
         --bsize 100
         --bt
-        --lowmem
-        --lowmem-prefix tmp_rg
-        --out fit_bin_out
+        --out {cls.gcs_output_dir}/fit_bin_out
         """
+
+        step1lowmen = f"{step1}\n--lowmem\n--lowmem-prefix tmp_rg"
 
         step2 = f"""
         --step 2
@@ -143,43 +140,30 @@ class ServiceBackendTests(unittest.TestCase):
         --firth --approx
         --pThresh 0.01
         --pred fit_bin_out_pred.list
-        --out test_bin_out_firth
+        --split
+        --out {cls.gcs_output_dir}/test_bin_out_firth
         """
 
-        step2split = f"{step2}\n--split"
-        step2pheno = f"{step2}\n--phenoColList Y2"
-
         cls.step1 = "step1-svc.txt"
-        cls.step2 = "step2-nosplit-svc.txt"
-        cls.step2pheno = "step2-phenolist-svc.txt"
-        cls.step2split = "step2-split-svc.txt"
+        cls.step1low = "step1low-svc.txt"
+        cls.step2 = "step2-svc.txt"
 
-        with open(cls.step1) as f:
+        with open(cls.step1, 'w') as f:
             f.write(step1)
 
-        with open(cls.step2) as f:
+        with open(cls.step1low, 'w') as f:
+            f.write(step1lowmen)
+
+        with open(cls.step2, 'w') as f:
             f.write(step2)
 
-        with open(cls.step2split) as f:
-            f.write(step2split)
-
-        with open(cls.step2split) as f:
-            f.write(step2pheno)
-
     def test_regenie(self):
-        args = br.parse_input_args([
-            "--step1", self.step1, "--step2", self.step2,
-            "--outdir", self.gcs_output_dir,
-            "--wait"])
-        br.run(args)
+        args = br.parse_input_args(["--step1", self.step1, "--step2", self.step2, "--wait"])
+        res = br.run(**args)
+        assert res.status()['state'] == "success"
 
-        out_log = f"{self.gcs_output_dir}/{self.step2_out_prefix}.log"
-        out1 = f"{self.gcs_output_dir}/{self.step2_out_prefix}.Y1.regenie"
-        out2 = f"{self.gcs_output_dir}/{self.step2_out_prefix}.Y2.regenie"
-        expected = "regenie/example/example.test_bin_out_firth_Y1.regenie"
-
-        assert len(read(out_log)) > 0
-        assert_same_file(out1, expected)
-        assert len(read(out2)) > 0
-
-        rmtree(self.outdir)
+    # TODO: FIXME
+    def test_regenie_lowmem(self):
+        args = br.parse_input_args(["--step1", self.step1low, "--step2", self.step2, "--wait"])
+        res = br.run(**args)
+        assert res.status()['state'] == "success"

@@ -1,16 +1,14 @@
 from hailtop.batch import Batch, LocalBackend, ServiceBackend
 from hailtop.batch.resource import Resource
-from collections import namedtuple
 import sys
 import shlex
 from argparse import Namespace, ArgumentParser, SUPPRESS
 from typing import Set, Dict
-from os.path import splitext, basename, exists
+from os.path import exists
 from google.cloud import storage
 from google.cloud.storage.blob import Blob
 
 
-BatchArgs = namedtuple("BatchArgs", ['threads', 'memory', 'storage'])
 input_file_args = ["bgen", "bed", "pgen", "sample", "keep", "extract", "exclude", "remove",
                    "phenoFile", "covarFile"]
 
@@ -34,7 +32,7 @@ def _read(spath: str):
 
     client = storage.Client()
     blob = Blob.from_string(spath, client)
-    return blob.download_as_string()
+    return blob.download_as_string().decode("utf-8")
 
 
 def _read_first_line(spath: str):
@@ -100,7 +98,6 @@ def add_shared_args(parser: ArgumentParser):
     parser.add_argument('--lowmem', required=False, action='store_true')
 
     parser.add_argument('--lowmem-prefix', required=False)
-    parser.add_argument('--threads', required=False, default=2)
 
 
 def add_step1_args(parser: ArgumentParser):
@@ -143,6 +140,7 @@ def read_step_args(path_or_str: str, step: int):
             print("Batch will set --pred to the output prefix of --step 1.")
 
     bparser = ArgumentParser()
+    bparser.add_argument('--threads', required=False, default=2)
     bparser.add_argument('--memory', required=False, default='1Gi')
     bparser.add_argument('--storage', required=False, default='1Gi')
 
@@ -210,7 +208,7 @@ def prepare_jobs(batch, step1_args: Namespace, step1_batch_args: Namespace, step
     regenie_img = 'hailgenetics/regenie:v1.0.5.6'
     j1 = batch.new_job(name='run-regenie-step1')
     j1.image(regenie_img)
-    j1.cpu(step1_args.threads)
+    j1.cpu(step1_batch_args.threads)
     j1.memory(step1_batch_args.memory)
     j1.storage(step1_batch_args.storage)
 
@@ -222,11 +220,6 @@ def prepare_jobs(batch, step1_args: Namespace, step1_batch_args: Namespace, step
     for i in range(1, nphenos + 1):
         s1out[f"pheno_{i}"] = f"{{root}}_{i}.loco"
 
-    if step1_args.lowmem:
-        for i in range(1, nphenos + 1):
-            pfile = f"{step1_args.lowmem_prefix}_l0_Y{i}"
-            s1out[f"lowmem_{i}"] = pfile
-
     j1.declare_resource_group(output=s1out)
     cmd1 = prepare_step_cmd(batch, step1_args, j1.output)
     j1.command(f"regenie {cmd1}")
@@ -236,7 +229,7 @@ def prepare_jobs(batch, step1_args: Namespace, step1_batch_args: Namespace, step
 
     j2 = batch.new_job(name='run-regenie-step2')
     j2.image(regenie_img)
-    j2.cpu(step2_args.threads)
+    j2.cpu(step2_batch_args.threads)
     j2.memory(step2_batch_args.memory)
     j2.storage(step2_batch_args.storage)
 
@@ -248,8 +241,6 @@ def prepare_jobs(batch, step1_args: Namespace, step1_batch_args: Namespace, step
             s2out[f"{pheno}.regenie"] = out
     else:
         s2out["regenie"] = "{root}.regenie"
-
-    print(f"Regenie Step 2 output files: \n{s2out.values()}")
 
     j2.declare_resource_group(output=s2out)
 
@@ -288,9 +279,8 @@ def run(args: Namespace, backend_opts: Dict[str, any], run_opts: Dict[str, any])
 
     j2 = prepare_jobs(batch, step1_args, step1_batch_args, step2_args, step2_batch_args)
 
-    print(f"Output path set as: {step2_args.out}")
     batch.write_output(j2.output, step2_args.out)
-    batch.run(**run_opts)
+    return batch.run(**run_opts)
 
 
 def parse_input_args(input_args: list):
