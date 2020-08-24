@@ -1,12 +1,12 @@
-from hailtop.batch import Batch, LocalBackend, ServiceBackend
-from hailtop.batch.resource import Resource
+from ... import Batch, LocalBackend, ServiceBackend
+from ...resource import Resource
 import sys
 import shlex
 from argparse import Namespace, ArgumentParser, SUPPRESS
 from typing import Set, Dict
 from os.path import exists
-from google.cloud import storage
-from google.cloud.storage.blob import Blob
+from google.cloud import storage  # type: ignore
+from google.cloud.storage.blob import Blob  # type: ignore
 
 
 input_file_args = ["bgen", "bed", "pgen", "sample", "keep", "extract", "exclude", "remove",
@@ -182,7 +182,7 @@ def prepare_step_cmd(batch: Batch, step_args: Namespace, job_output: Resource, s
 
         if name in input_file_args:
             if name == "bed":
-                res = batch.read_input_group(bed=f"{val}.bed", bim=f"{val}.bim", fam=f"{val}.fam")
+                res: Resource = batch.read_input_group(bed=f"{val}.bed", bim=f"{val}.bim", fam=f"{val}.fam")
             elif name == "pgen":
                 res = batch.read_input_group(
                     pgen=f"{val}.pgen", pvar=f"{val}.pvar", psam=f"{val}.psam")
