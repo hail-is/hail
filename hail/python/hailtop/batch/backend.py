@@ -19,7 +19,7 @@ class Backend(abc.ABC):
     """
     Abstract class for backends.
     """
-    DEFAULT_SHELL = '/bin/bash'
+    _DEFAULT_SHELL = '/bin/bash'
 
     @abc.abstractmethod
     def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs):
@@ -195,7 +195,7 @@ class LocalBackend(Backend):
             resource_defs = [r._declare(tmpdir) for r in job._mentioned]
             env = [f'export {k}={v}' for k, v in job._env.items()]
 
-            job_shell = job._shell if job._shell else self.DEFAULT_SHELL
+            job_shell = job._shell if job._shell else self._DEFAULT_SHELL
 
             defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
             joined_env = '; '.join(env) + '; ' if env else ''
@@ -470,7 +470,7 @@ class ServiceBackend(Backend):
                 resources['storage'] = job._storage
 
             j = bc_batch.create_job(image=job._image if job._image else default_image,
-                                    command=[job._shell if job._shell else self.DEFAULT_SHELL, '-c', cmd],
+                                    command=[job._shell if job._shell else self._DEFAULT_SHELL, '-c', cmd],
                                     parents=parents,
                                     attributes=attributes,
                                     resources=resources,
