@@ -4,8 +4,8 @@ from subprocess import DEVNULL, call as syscall
 
 import hail as hl
 import hail.utils as utils
-from ..helpers import (startTestHailContext, stopTestHailContext, get_dataset,
-                       skip_unless_spark_backend)
+from ...helpers import (startTestHailContext, stopTestHailContext, get_dataset,
+                        skip_unless_spark_backend)
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
