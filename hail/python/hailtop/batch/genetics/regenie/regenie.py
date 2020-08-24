@@ -286,7 +286,7 @@ def run(args: Namespace, backend_opts: Dict[str, any], run_opts: Dict[str, any])
 def parse_input_args(input_args: list):
     parser = ArgumentParser(add_help=False)
     parser.add_argument('--local', required=False, action="store_true",
-                        help="Use LocalBackend instead of ServiceBackend")
+                        help="Use LocalBackend instead of the default ServiceBackend")
     parser.add_argument('--demo', required=False, action="store_true",
                         help="Run Regenie using Batch LocalBackend and example/step1.txt, example/step2.txt step files")
     parser.add_argument('--step1', required=False,
@@ -307,32 +307,32 @@ def parse_input_args(input_args: list):
 
         run_parser = ArgumentParser(argument_default=SUPPRESS, parents=[parser, backend_parser], add_help=True)
         run_parser.add_argument('--dry_run', required=False, action="store_true",
-                                help="Batch LocalBackend run() `dry_run` option")
+                                help="Batch.run() LocalBackend `dry_run` option")
         run_parser.add_argument('--verbose', required=False, action="store_true",
-                                help="Batch LocalBackend run() `verbose` option")
+                                help="Batch.run() LocalBackend `verbose` option")
         run_parser.add_argument('--delete_scratch_on_exit', required=False, action="store_true",
-                                help="Batch LocalBackend run() `delete_scratch_on_exit` option")
+                                help="Batch.run() LocalBackend `delete_scratch_on_exit` option")
     else:
         backend_parser.add_argument('--billing_project', required=False,
-                                    help="Batch ServiceBacked `billing_project` option")
+                                    help="Batch ServiceBackend `billing_project` option")
         backend_parser.add_argument('--bucket', required=False,
-                                    help="Batch ServiceBacked `bucket` option")
+                                    help="Batch ServiceBackend `bucket` option")
 
         run_parser = ArgumentParser(argument_default=SUPPRESS, parents=[parser, backend_parser], add_help=True)
         run_parser.add_argument('--dry_run', required=False, action="store_true",
-                                help="Batch ServiceBackend run() `dry_run` option")
+                                help="Batch.run() ServiceBackend  `dry_run` option")
         run_parser.add_argument('--verbose', required=False, action="store_true",
-                                help="Batch ServiceBackend run() `verbose` option")
+                                help="Batch.run() ServiceBackend `verbose` option")
         run_parser.add_argument('--delete_scratch_on_exit', required=False, action="store_true",
-                                help="Batch ServiceBackend run() `delete_scratch_on_exit` option")
+                                help="Batch.run() ServiceBackend `delete_scratch_on_exit` option")
         run_parser.add_argument('--wait', required=False, action="store_true",
-                                help="Batch ServiceBackend run() `wait` option")
+                                help="Batch.run() ServiceBackend `wait` option")
         run_parser.add_argument('--open', required=False, action="store_true",
-                                help="Batch ServiceBackend run() `open` option")
+                                help="Batch.run() ServiceBackend `open` option")
         run_parser.add_argument('--disable_progress_bar', required=False, action="store_true",
-                                help="Batch ServiceBackend run() `disable_progress_bar` option")
+                                help="Batch.run() ServiceBackend `disable_progress_bar` option")
         run_parser.add_argument('--callback', required=False,
-                                help="Batch ServiceBackend run() `callback` option")
+                                help="Batch.run() ServiceBackend `callback` option")
 
     backend_args = backend_parser.parse_known_args(input_args)[0]
     run_args = run_parser.parse_known_args(input_args)[0]
