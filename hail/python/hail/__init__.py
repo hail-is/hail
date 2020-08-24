@@ -1,7 +1,7 @@
 import pkg_resources
 import sys
 
-if sys.version_info < (3, 6) or sys.version_info > (3, 7):
+if not (3, 6) < sys.version_info < (3, 8):
     raise EnvironmentError('Hail requires Python 3.6 or 3.7, found {}.{}'.format(
         sys.version_info.major, sys.version_info.minor))
 
