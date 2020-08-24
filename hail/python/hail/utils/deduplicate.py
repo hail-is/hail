@@ -12,11 +12,11 @@ def deduplicate(
     Example
     -------
 
-    >>> deduplicate(["a", "a", "a"])
-    ([("a": "a_1"), ("a": "a_2")], ["a", "a_1", "a_2"])
+    >>> deduplicate(['a', 'a', 'a'])
+    ([('a': 'a_1'), ('a': 'a_2')], ['a', 'a_1', 'a_2'])
 
-    >>> deduplicate(["a", "a_1", "a"])
-    ([("a": "a_2")], ["a", "a_1", "a_2"])
+    >>> deduplicate(['a', 'a_1', 'a'])
+    ([('a': 'a_2')], ['a', 'a_1', 'a_2'])
 
     Parameters
     ----------
