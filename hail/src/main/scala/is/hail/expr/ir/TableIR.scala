@@ -263,7 +263,7 @@ object LoweredTableReader {
                 "acc", "i",
                 invoke("land", TBoolean,
                   Ref("acc", TBoolean),
-                  ApplyComparisonOp(EQ(keyType),
+                  ApplyComparisonOp(LTEQ(keyType),
                     GetField(
                       ArrayRef(Ref("sortedPartData", sortedPartDataIR.typ), Ref("i", TInt32)),
                       "maxkey"),
@@ -288,7 +288,7 @@ object LoweredTableReader {
                 "acc", "i",
                 invoke("land", TBoolean,
                   Ref("acc", TBoolean),
-                  ApplyComparisonOp(EQ(pkType),
+                  ApplyComparisonOp(LTEQ(pkType),
                     selectPK(GetField(
                       ArrayRef(Ref("sortedPartData", sortedPartDataIR.typ), Ref("i", TInt32)),
                       "maxkey")),
