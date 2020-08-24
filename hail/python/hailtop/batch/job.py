@@ -65,8 +65,10 @@ class Job:
     def __init__(self,
                  batch: batch.Batch,
                  name: Optional[str] = None,
-                 attributes: Optional[Dict[str, str]] = None):
+                 attributes: Optional[Dict[str, str]] = None,
+                 shell: Optional[str] = None):
         self._batch = batch
+        self._shell = shell
         self.name = name
         self.attributes = attributes
         self._cpu: Optional[Union[float, int, str]] = None

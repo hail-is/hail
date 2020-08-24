@@ -265,6 +265,7 @@ class Container:
             'Memory': self.spec['memory'],
             'BlkioWeight': min(weight, 1000)
         }
+
         config = {
             "AttachStdin": False,
             "AttachStdout": False,
@@ -272,7 +273,8 @@ class Container:
             "Tty": False,
             'OpenStdin': False,
             'Cmd': self.spec['command'],
-            'Image': self.image
+            'Image': self.image,
+            'Entrypoint': ''
         }
 
         env = self.spec.get('env', [])

@@ -88,7 +88,8 @@ class Batch:
                  default_memory: Optional[str] = None,
                  default_cpu: Optional[str] = None,
                  default_storage: Optional[str] = None,
-                 default_timeout: Optional[Union[float, int]] = None):
+                 default_timeout: Optional[Union[float, int]] = None,
+                 default_shell: Optional[str] = None):
         self._jobs: List[job.Job] = []
         self._resource_map: Dict[str, _resource.Resource] = {}
         self._allocated_files: Set[str] = set()
@@ -110,12 +111,14 @@ class Batch:
         self._default_cpu = default_cpu
         self._default_storage = default_storage
         self._default_timeout = default_timeout
+        self._default_shell = default_shell
 
         self._backend = backend if backend else _backend.LocalBackend()
 
     def new_job(self,
                 name: Optional[str] = None,
-                attributes: Optional[Dict[str, str]] = None) -> job.Job:
+                attributes: Optional[Dict[str, str]] = None,
+                shell: Optional[str] = None) -> job.Job:
         """
         Initialize a new job object with default memory, docker image,
         and CPU settings (defined in :class:`.Batch`) upon batch creation.
@@ -141,7 +144,10 @@ class Batch:
         if attributes is None:
             attributes = {}
 
-        j = job.Job(batch=self, name=name, attributes=attributes)
+        if shell is None:
+            shell = self._default_shell
+
+        j = job.Job(batch=self, name=name, attributes=attributes, shell=shell)
 
         if self._default_image is not None:
             j.image(self._default_image)
@@ -234,7 +240,7 @@ class Batch:
         >>> j.command(f"plink --bfile {bfile} --geno --make-bed --out {j.geno}")
         >>> j.command(f"wc -l {bfile.fam}")
         >>> j.command(f"wc -l {bfile.bim}")
-        >>> b.run()
+        >>> b.run() # doctest: +SKIP
 
         Read a FASTA file and it's index (file extensions matter!):
 
