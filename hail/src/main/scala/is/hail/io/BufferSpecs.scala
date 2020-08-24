@@ -24,7 +24,7 @@ object BufferSpec {
 
   val wireSpec: BufferSpec = LEB128BufferSpec(
     BlockingBufferSpec(32 * 1024,
-      LZ4SizeBasedBlockBufferSpec(false, 32 * 1024,
+      LZ4SizeBasedBlockBufferSpec("fast", 32 * 1024,
         256,
         new StreamBlockBufferSpec)))
 
@@ -153,9 +153,13 @@ final case class LZ4FastBlockBufferSpec(blockSize: Int, child: BlockBufferSpec)
   def typeName = "LZ4FastBlockBufferSpec"
 }
 
-final case class LZ4SizeBasedBlockBufferSpec(hc: Boolean, blockSize: Int, minCompressionSize: Int, child: BlockBufferSpec)
+final case class LZ4SizeBasedBlockBufferSpec(compressorType: String, blockSize: Int, minCompressionSize: Int, child: BlockBufferSpec)
     extends BlockBufferSpec {
-  def lz4: LZ4 = if (hc) LZ4.hc else LZ4.fast
+  def lz4: LZ4 = compressorType match {
+    case "hc" => LZ4.hc
+    case "fast" => LZ4.fast
+  }
+
   def stagedlz4: Code[LZ4] = Code.invokeScalaObject0[LZ4](LZ4.getClass, "fast")
   def typeName = "LZ4SizeBasedBlockBufferSpec"
 
