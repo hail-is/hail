@@ -284,34 +284,55 @@ def run(args: Namespace, backend_opts: Dict[str, any], run_opts: Dict[str, any])
 
 
 def parse_input_args(input_args: list):
-    parser = ArgumentParser()
-    parser.add_argument('--local', required=False, action="store_true")
-    parser.add_argument('--demo', required=False, action="store_true")
-    parser.add_argument('--step1', required=False)
-    parser.add_argument('--step2', required=False)
+    parser = ArgumentParser(add_help=False)
+    parser.add_argument('--local', required=False, action="store_true",
+                        help="Use LocalBackend instead of ServiceBackend")
+    parser.add_argument('--demo', required=False, action="store_true",
+                        help="Run Regenie using Batch LocalBackend and example/step1.txt, example/step2.txt step files")
+    parser.add_argument('--step1', required=False,
+                        help="Path to newline-separated text file of Regenie step1 arguments")
+    parser.add_argument('--step2', required=False,
+                        help="Path to newline-separated text file of Regenie step2 arguments")
+
+    backend_parser = ArgumentParser(add_help=False)
 
     args = parser.parse_known_args(input_args)[0]
-    backend_parser = ArgumentParser(argument_default=SUPPRESS)
-    run_parser = ArgumentParser(argument_default=SUPPRESS)
-    if args.local:
-        backend_parser.add_argument('--tmp_dir', required=False)
-        backend_parser.add_argument('--gsa_key_file', required=False)
-        backend_parser.add_argument('--extra_docker_run_flags', required=False)
+    if args.local or args.demo:
+        backend_parser.add_argument('--tmp_dir', required=False,
+                                    help="Batch LocalBackend `tmp_dir` option")
+        backend_parser.add_argument('--gsa_key_file', required=False,
+                                    help="Batch LocalBackend `gsa_key_file` option")
+        backend_parser.add_argument('--extra_docker_run_flags', required=False,
+                                    help="Batch LocalBackend `extra_docker_run_flags` option")
 
-        run_parser.add_argument('--dry_run', required=False, action="store_true")
-        run_parser.add_argument('--verbose', required=False, action="store_true")
-        run_parser.add_argument('--delete_scratch_on_exit', required=False, action="store_true")
+        run_parser = ArgumentParser(argument_default=SUPPRESS, parents=[parser, backend_parser], add_help=True)
+        run_parser.add_argument('--dry_run', required=False, action="store_true",
+                                help="Batch LocalBackend run() `dry_run` option")
+        run_parser.add_argument('--verbose', required=False, action="store_true",
+                                help="Batch LocalBackend run() `verbose` option")
+        run_parser.add_argument('--delete_scratch_on_exit', required=False, action="store_true",
+                                help="Batch LocalBackend run() `delete_scratch_on_exit` option")
     else:
-        backend_parser.add_argument('--billing_project', required=False)
-        backend_parser.add_argument('--bucket', required=False)
+        backend_parser.add_argument('--billing_project', required=False,
+                                    help="Batch ServiceBacked `billing_project` option")
+        backend_parser.add_argument('--bucket', required=False,
+                                    help="Batch ServiceBacked `bucket` option")
 
-        run_parser.add_argument('--dry_run', required=False, action="store_true")
-        run_parser.add_argument('--verbose', required=False, action="store_true")
-        run_parser.add_argument('--delete_scratch_on_exit', required=False, action="store_true")
-        run_parser.add_argument('--wait', required=False, action="store_true")
-        run_parser.add_argument('--open', required=False, action="store_true")
-        run_parser.add_argument('--disable_progress_bar', required=False, action="store_true")
-        run_parser.add_argument('--callback', required=False)
+        run_parser = ArgumentParser(argument_default=SUPPRESS, parents=[parser, backend_parser], add_help=True)
+        run_parser.add_argument('--dry_run', required=False, action="store_true",
+                                help="Batch ServiceBackend run() `dry_run` option")
+        run_parser.add_argument('--verbose', required=False, action="store_true",
+                                help="Batch ServiceBackend run() `verbose` option")
+        run_parser.add_argument('--delete_scratch_on_exit', required=False, action="store_true",
+                                help="Batch ServiceBackend run() `delete_scratch_on_exit` option")
+        run_parser.add_argument('--wait', required=False, action="store_true",
+                                help="Batch ServiceBackend run() `wait` option")
+        run_parser.add_argument('--open', required=False, action="store_true",
+                                help="Batch ServiceBackend run() `open` option")
+        run_parser.add_argument('--disable_progress_bar', required=False, action="store_true",
+                                help="Batch ServiceBackend run() `disable_progress_bar` option")
+        run_parser.add_argument('--callback', required=False,
+                                help="Batch ServiceBackend run() `callback` option")
 
     backend_args = backend_parser.parse_known_args(input_args)[0]
     run_args = run_parser.parse_known_args(input_args)[0]

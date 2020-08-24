@@ -98,8 +98,8 @@ class ServiceBackendTests(unittest.TestCase):
         input_folder = 'batch-tests/resources/regenie-v1.0.5.6'
         cls.gcs_input_dir = f'gs://{cls.bucket_name}/{input_folder}'
 
-        in_cluster_key_file = '/test-gsa-key/key.json'
-        if os.path.exists(in_cluster_key_file):
+        in_cluster_key_file = os.environ.get('HAIL_GSA_KEY_FILE')
+        if in_cluster_key_file:
             credentials = google.oauth2.service_account.Credentials.from_service_account_file(
                 in_cluster_key_file)
         else:
