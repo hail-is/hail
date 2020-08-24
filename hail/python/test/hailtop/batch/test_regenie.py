@@ -91,7 +91,6 @@ class ServiceBackendTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         os.system("git clone --depth 1 --branch v1.0.5.6 https://github.com/rgcgithub/regenie.git")
-        cls.step2_out_prefix = 'test_bin_out_firth'
 
         cls.bucket_name = get_user_config().get('batch', 'bucket')
 
