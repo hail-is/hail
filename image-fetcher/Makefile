@@ -1,6 +1,6 @@
-.PHONY: build push deploy
+include ../config.mk
 
-PROJECT = $(shell gcloud config get-value project)
+.PHONY: build push deploy
 
 FETCH_LATEST = gcr.io/$(PROJECT)/image-fetcher:latest
 FETCH_IMAGE = gcr.io/$(PROJECT)/image-fetcher:$(shell docker images -q --no-trunc image-fetcher | sed -e 's,[^:]*:,,')

@@ -1,3 +1,5 @@
+include ../config.mk
+
 ifndef HAIL_WHEEL
 $(error HAIL_WHEEL is not set!)
 endif
@@ -27,7 +29,6 @@ cleanup_image:
 	rm -f pushed_image
 
 BENCHMARK_DOCKER_TAG := benchmark_$(shell whoami)
-PROJECT = $(shell gcloud config get-value project)
 BENCHMARK_REPO_BASE = gcr.io/$(PROJECT)/$(BENCHMARK_DOCKER_TAG)
 
 ifndef HAIL_WHEEL
