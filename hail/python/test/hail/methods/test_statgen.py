@@ -7,7 +7,8 @@ import hail as hl
 import hail.expr.aggregators as agg
 import hail.utils as utils
 from hail.linalg import BlockMatrix
-from ..helpers import startTestHailContext, stopTestHailContext, resource
+from ..helpers import (startTestHailContext, stopTestHailContext, resource,
+                       skip_unless_spark_backend)
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
