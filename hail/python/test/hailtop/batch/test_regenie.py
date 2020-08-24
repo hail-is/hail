@@ -185,7 +185,7 @@ class ServiceBackendTests(unittest.TestCase):
     def test_regenie_nosplit_lowmem(self):
         step2prefix = f'{self.gcs_output_dir}/nosplit-lowmem'
         with open('step2.txt', 'w') as f:
-            f.write(f"{self.step2low}\n--out {step2prefix}")
+            f.write(f"{self.step2}\n--out {step2prefix}")
 
         args = br.parse_input_args(["--step1", self.step1low, "--step2", 'step2.txt', "--wait"])
         res = br.run(**args)
