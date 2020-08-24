@@ -255,21 +255,22 @@ def prepare_jobs(batch, step1_args: Namespace, step1_batch_args: Namespace, step
 
 
 def run(args: Namespace, backend_opts: Dict[str, any], run_opts: Dict[str, any]):
-    is_local = args.local or args.demo
+    is_local = "local" in args or "demo" in args
 
     if is_local:
         backend = LocalBackend(**backend_opts)
     else:
         backend = ServiceBackend(**backend_opts)
 
-    if args.demo:
-        if args.step1 or args.step2:
+    has_steps = "step1" in args or "step2" in args
+    if "demo" in args:
+        if has_steps:
             _warn("When --demo provided, --step1 and --step2 are ignored")
 
         step1_args, step1_batch_args = read_step_args("example/step1.txt", 1)
         step2_args, step2_batch_args = read_step_args("example/step2.txt", 2)
     else:
-        if not(args.step1 and args.step2):
+        if not has_steps:
             _error("When --demo not provided, --step1 and --step2 must be")
 
         step1_args, step1_batch_args = read_step_args(args.step1, 1)
@@ -284,7 +285,7 @@ def run(args: Namespace, backend_opts: Dict[str, any], run_opts: Dict[str, any])
 
 
 def parse_input_args(input_args: list):
-    parser = ArgumentParser(add_help=False)
+    parser = ArgumentParser(argument_default=SUPPRESS, add_help=False)
     parser.add_argument('--local', required=False, action="store_true",
                         help="Use LocalBackend instead of the default ServiceBackend")
     parser.add_argument('--demo', required=False, action="store_true",
@@ -293,11 +294,10 @@ def parse_input_args(input_args: list):
                         help="Path to newline-separated text file of Regenie step1 arguments")
     parser.add_argument('--step2', required=False,
                         help="Path to newline-separated text file of Regenie step2 arguments")
+    args = parser.parse_known_args(input_args)
 
-    backend_parser = ArgumentParser(add_help=False)
-
-    args = parser.parse_known_args(input_args)[0]
-    if args.local or args.demo:
+    backend_parser = ArgumentParser(argument_default=SUPPRESS, add_help=False)
+    if "local" in args[0] or "demo" in args[0]:
         backend_parser.add_argument('--tmp_dir', required=False,
                                     help="Batch LocalBackend `tmp_dir` option")
         backend_parser.add_argument('--gsa_key_file', required=False,
@@ -334,10 +334,10 @@ def parse_input_args(input_args: list):
         run_parser.add_argument('--callback', required=False,
                                 help="Batch.run() ServiceBackend `callback` option")
 
-    backend_args = backend_parser.parse_known_args(input_args)[0]
-    run_args = run_parser.parse_known_args(input_args)[0]
+    backend_args = backend_parser.parse_known_args(args[1])
+    run_args = run_parser.parse_known_args(backend_args[1])
 
-    return {"args": args, "backend_opts": vars(backend_args), "run_opts": vars(run_args)}
+    return {"args": args[0], "backend_opts": vars(backend_args[0]), "run_opts": vars(run_args[0])}
 
 
 if __name__ == '__main__':
