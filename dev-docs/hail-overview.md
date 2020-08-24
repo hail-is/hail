@@ -6,7 +6,7 @@ code.
 ## Background
 
 Hail source code is stored in a monolithic repository (monorepo) on
-Github at hail-is/hail.  $HAIL will denote the repository root below.
+GitHub at hail-is/hail.  $HAIL will denote the repository root below.
 Hail is open source and developed in the open.
 
 Hail is written in Python, Java/Scala (both JVM langauges), and C/C++.
@@ -17,7 +17,7 @@ manipulation and analysis of tabular and genomic data.  Hail Batch is
 for the execution of graphs containers.
 
 The Hail client libraries are deployed in the Python Package Index
-(PyPI) hail package.  The Hail package exposes to Python modules:
+(PyPI) hail package.  The Hail package exposes two Python modules:
 `hail` and `hailtop`.  `hail` provides the Hail Query interface.
 `hailtop.batch` provides the batch interface.  `hailtop` contains
 various other infrastructure submodules (see below).
@@ -200,9 +200,9 @@ templating.
 
 Some services rely on 3rd party services.  Those include:
 
-* ci and scorecard depend on Github
+* ci and scorecard depend on GitHub
 
-* notebook and ci depend on K8s
+* batch, ci and notebook depend on K8s
 
 * batch depends on K8s and GCP
 
