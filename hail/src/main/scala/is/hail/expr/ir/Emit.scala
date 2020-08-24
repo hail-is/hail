@@ -1637,18 +1637,15 @@ class Emit[C](
               val updateMap = Map(fields: _*)
               val srvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
 
-              val addFields = { (newMB: EmitMethodBuilder[C], t: PType, v: EmitCode) =>
-                Code(
-                  v.setup,
-                  v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
-                  srvb.advance())
-              }
+              def addFields(t: PType, v: EmitCode): Code[Unit] = Code(
+                v.setup,
+                v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
+                srvb.advance())
 
-              val opSize: Int = 20
               val items = x.pType.fields.map { f =>
                 updateMap.get(f.name) match {
                   case Some(vir) =>
-                    addFields(mb, vir.pType, emitSelf.emit(vir, mb, env, container))
+                    addFields(vir.pType, emit(vir))
                   case None =>
                     val oldField = oldtype.field(f.name)
                     Code(

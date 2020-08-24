@@ -331,14 +331,18 @@ class EmitStreamSuite extends HailSuite {
   }
 
   private def compileStreamWithIter(ir: IR, streamType: PStream): Iterator[Any] => IndexedSeq[Any] = {
-    type F = AsmFunction3RegionIteratorJLongBooleanLong
+    trait F {
+      def apply(o: Region, a: StreamArgType, b: Boolean): Long
+    }
     compileStream[F, Iterator[Any]](ir, IndexedSeq(streamType)) { (f: F, r: Region, it: Iterator[Any]) =>
-      val rv = RegionValue(r)
-      val rvi = new Iterator[java.lang.Long] {
-        def hasNext: Boolean = it.hasNext
-        def next(): java.lang.Long = {
-          ScalaToRegionValue(r, streamType.elementType, it.next())
-        }
+      val rvi = new StreamArgType {
+        def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long] =
+          new Iterator[java.lang.Long] {
+            def hasNext: Boolean = it.hasNext
+            def next(): java.lang.Long = {
+              ScalaToRegionValue(eltRegion, streamType.elementType, it.next())
+            }
+          }
       }
       f(r, rvi, it == null)
     }

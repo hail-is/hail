@@ -118,12 +118,12 @@ class RealStagedRegion(r: Value[Region]) extends StagedRegion { self =>
   def code: Value[Region] = r
 
   def createChildRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion = {
-    val newR = mb.newLocal[Region]("staged_region_child")
+    val newR = mb.genFieldThisRef[Region]("staged_region_child")
     new RealStagedOwnedRegion(newR, this)
   }
 
   def createChildRegionArray(mb: EmitMethodBuilder[_], length: Int): StagedOwnedRegionArray = {
-    val regionArray = mb.newLocal[Array[Region]]("staged_region_child_array")
+    val regionArray = mb.genFieldThisRef[Array[Region]]("staged_region_child_array")
 
     def get(i: Value[Int]): Settable[Region] = new Settable[Region] {
       def get: Code[Region] = regionArray(i)
