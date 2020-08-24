@@ -1,4 +1,4 @@
-FROM {{ base_image.image }}
+FROM {{ service_base_image.image }}
 
 # re: RANDFILE, https://github.com/openssl/openssl/issues/7754#issuecomment-444063355
 RUN apt-get update && \

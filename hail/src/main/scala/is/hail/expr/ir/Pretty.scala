@@ -65,13 +65,13 @@ object Pretty {
       basePrettySeq(states, depth, prettyAggStateSignature)
 
     def prettyAggStateSignature(state: AggStateSig, depth: Int): Unit = {
+      sb.append('\n')
       sb.append(" " * depth)
       sb += '('
       sb.append(prettyClass(state))
       sb += ' '
       state.t.foreachBetween(typ => sb.append(typ.toString))(sb += ' ')
       if (state.n.isDefined) {
-        sb += '\n'
         prettyAggStateSignatures(state.n.get, depth + 2)
       }
       sb += ')'
@@ -181,14 +181,14 @@ object Pretty {
           sb.append(i)
           sb += ' '
           prettyAggStateSignature(aggSig, depth + 2)
-          sb += ' '
+          sb += '\n'
           pretty(value, depth + 2)
         case CombOpValue(i, value, sig) =>
           sb += ' '
           sb.append(i)
-          sb += ' '
+          sb += '\n'
           prettyPhysicalAggSig(sig, depth + 2)
-          sb += ' '
+          sb += '\n'
           pretty(value, depth + 2)
         case SerializeAggs(i, i2, spec, aggSigs) =>
           sb += ' '
@@ -272,7 +272,7 @@ object Pretty {
             case RelationalLet(name, _, _) => prettyIdentifier(name)
             case ApplyBinaryPrimOp(op, _, _) => prettyClass(op)
             case ApplyUnaryPrimOp(op, _) => prettyClass(op)
-            case ApplyComparisonOp(op, _, _) => prettyClass(op)
+            case ApplyComparisonOp(op, _, _) => op.render()
             case GetField(_, name) => prettyIdentifier(name)
             case GetTupleElement(_, idx) => idx.toString
             case MakeTuple(fields) => prettyInts(fields.map(_._1).toFastIndexedSeq)

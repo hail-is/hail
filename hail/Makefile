@@ -8,18 +8,16 @@ MAKEFLAGS += --no-builtin-rules
 REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
-URL := $(shell git config --get remote.origin.url)
 SCALA_VERSION = 2.11.12
 SPARK_VERSION := 2.4.5
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 54
+HAIL_PATCH_VERSION := 55
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 
 $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
 $(eval $(call ENV_VAR,BRANCH))
-$(eval $(call ENV_VAR,URL))
 $(eval $(call ENV_VAR,SPARK_VERSION))
 $(eval $(call ENV_VAR,HAIL_PIP_VERSION))
 $(eval $(call ENV_VAR,HAIL_DEBUG_MODE))
@@ -93,7 +91,7 @@ $(BUILD_DEBUG_PREFIX)/%.class: src/debug/scala/%.java
 	@mkdir -p $(BUILD_DEBUG_PREFIX)
 	$(JAVAC) -d $(BUILD_DEBUG_PREFIX) -Xlint:all -Werror -XDenableSunApiLintControl -Xlint:-sunapi $<
 
-src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH env/URL
+src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH
 src/main/resources/build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION
 src/main/resources/build-info.properties: Makefile
 	echo '[Build Metadata]' > $@
@@ -101,7 +99,6 @@ src/main/resources/build-info.properties: Makefile
 	echo 'revision=$(REVISION)' >> $@
 	echo 'branch=$(BRANCH)' >> $@
 	echo 'date=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)' >> $@
-	echo 'url=$(URL)' >> $@
 	echo 'sparkVersion=$(SPARK_VERSION)' >> $@
 	echo 'hailPipVersion=$(HAIL_PIP_VERSION)' >> $@
 
@@ -173,6 +170,7 @@ copy-py-files: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) 
 	rsync -rv \
 	    --exclude '__pycache__/' \
 	    --exclude 'benchmark_hail/' \
+	    --exclude '.mypy_cache/' \
 	    --exclude 'docs/' \
 	    --exclude 'dist/' \
 	    --exclude 'test/' \
@@ -275,7 +273,6 @@ install-benchmark:
 
 .PHONY: batch-docs
 batch-docs:
-	mkdir -p build/batch/docs
 	rm -rf build/batch/docs
 	cp -R python/hailtop/batch/docs build/batch/
 	$(MAKE) -C build/batch/docs BUILDDIR=_build clean html

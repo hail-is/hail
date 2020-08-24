@@ -1,23 +1,58 @@
-
-{% extends "base.html" %}
-{% block title %}
-Posts index
-{% endblock %}
+{% extends "layout.html" %}
+{% block title %} Benchmarks {% endblock %}
 
 {% block content %}
 <h1>Benchmark System</h1>
-<p>
-<ul>
-    {% for post in posts %}
-    <li>
-        <a href='/{{ post.id }}'>{{ post.title }}</a> {{ post.editor }}
-    </li>
-    {% endfor %}
-</ul>
-</p>
-<hr>
-<p>
-    <a href='/goose'>Goose</a>
-</p>
+
+<form action="{{ base_path }}/" method="get">
+    <input type="text" name="file"></input>
+    <input type="submit" value="lookup"></input>
+</form>
+
+{% if file is not none %}
+    <div class="attributes">
+        <div>SHA:
+            {% if benchmarks['sha'] is not none %}
+            {{ benchmarks['sha'] }}
+            {% else %}
+            unknown
+            {% endif %}
+        </div>
+        <div>Geometric Mean:
+            {% if benchmarks['geometric_mean'] is not none %}
+            {{ benchmarks['geometric_mean'] }}
+            {% endif %}
+        </div>
+    </div>
+
+    <table class="data-table">
+        <thead>
+        <tr>
+            <th>name</th>
+            <th>failed</th>
+            <th>f-stat</th>
+            <th>mean</th>
+            <th>median</th>
+            <th>p-value</th>
+            <th>stdev</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for d in benchmarks['data'].values() %}
+        <tr>
+
+            <td><a href="{{ base_path }}/name/{{ d['name'] }}?file={{ file }}">{{ d['name'] }}</a></td>
+            <td>{{ d['failed'] }}</td>
+            <td>{{ d['f-stat'] }}</td>
+            <td>{{ d['mean'] }}</td>
+            <td>{{ d['median'] }}</td>
+            <td>{{ d['p-value'] }}</td>
+            <td>{{ d['stdev'] }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+{% endif %}
 
 {% endblock %}

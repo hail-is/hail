@@ -5,6 +5,8 @@ import shutil
 import subprocess as sp
 import tempfile
 
+from hailtop.utils import sync_check_shell
+
 parser = argparse.ArgumentParser(prog='create_certs.py',
                                  description='create hail certs')
 parser.add_argument('namespace', type=str, help='kubernetes namespace')
@@ -21,8 +23,7 @@ root_cert_file = args.root_cert_file
 
 
 def echo_check_call(cmd):
-    print(" ".join(cmd))
-    sp.check_call(cmd)
+    sync_check_shell(' '.join(cmd), echo=True)
 
 
 def create_key_and_cert(p):

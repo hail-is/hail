@@ -778,6 +778,37 @@ class IRSuite extends HailSuite {
     assertComparesTo(TFloat64, 1.0, 0.0, expected = true)
   }
 
+  @Test def testApplyComparisonOpCompareStructs() {
+    def assertComparesTo(t: TStruct, sf: IndexedSeq[SortField], x: Any, y: Any, expected: Int) {
+      assertEvalsTo(ApplyComparisonOp(CompareStructs(t, sf), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
+    }
+
+    val t1 = TStruct("x" -> TInt32, "y" -> TFloat64)
+    val ascAsc = FastIndexedSeq(SortField("x", Ascending), SortField("y", Ascending))
+    val ascDesc = FastIndexedSeq(SortField("x", Ascending), SortField("y", Descending))
+    val descAsc = FastIndexedSeq(SortField("x", Descending), SortField("y", Ascending))
+    val descDesc = FastIndexedSeq(SortField("x", Descending), SortField("y", Descending))
+
+    assertComparesTo(t1, ascAsc, Row(0, 0d), Row(0, 0d), 0)
+    assertComparesTo(t1, ascDesc, Row(0, 0d), Row(0, 0d), 0)
+    assertComparesTo(t1, descAsc, Row(0, 0d), Row(0, 0d), 0)
+    assertComparesTo(t1, descDesc, Row(0, 0d), Row(0, 0d), 0)
+
+    assertComparesTo(t1, ascAsc, Row(1, 0d), Row(0, 0d), 1)
+    assertComparesTo(t1, ascDesc, Row(1, 0d), Row(0, 0d), 1)
+    assertComparesTo(t1, descAsc, Row(1, 0d), Row(0, 0d), -1)
+    assertComparesTo(t1, descDesc, Row(1, 0d), Row(0, 0d), -1)
+
+    assertComparesTo(t1, ascAsc, Row(0, 1d), Row(0, 0d), 1)
+    assertComparesTo(t1, ascDesc, Row(0, 1d), Row(0, 0d), -1)
+    assertComparesTo(t1, descAsc, Row(0, 1d), Row(0, 0d), 1)
+    assertComparesTo(t1, descDesc, Row(0, 1d), Row(0, 0d), -1)
+  }
+
+  @Test def testDieCodeBUilder() {
+    assertFatal(Die("msg1", TInt32) + Die("msg2", TInt32), "msg1")
+  }
+
   @Test def testIf() {
     assertEvalsTo(If(True(), I32(5), I32(7)), 5)
     assertEvalsTo(If(False(), I32(5), I32(7)), 7)
@@ -3058,6 +3089,10 @@ class IRSuite extends HailSuite {
       ApplyBinaryPrimOp(Add(), i, j),
       ApplyUnaryPrimOp(Negate(), i),
       ApplyComparisonOp(EQ(TInt32), i, j),
+      ApplyComparisonOp(CompareStructs(
+        TStruct("x" -> TInt32, "y" -> TFloat64),
+        FastIndexedSeq(SortField("x", Ascending), SortField("y", Descending))),
+        In(0, TStruct("x" -> TInt32, "y" -> TFloat64)), In(1, TStruct("x" -> TInt32, "y" -> TFloat64))),
       MakeArray(FastSeq(i, NA(TInt32), I32(-3)), TArray(TInt32)),
       MakeStream(FastSeq(i, NA(TInt32), I32(-3)), TStream(TInt32)),
       nd,
@@ -3716,7 +3751,7 @@ class IRSuite extends HailSuite {
         |       (MakeStruct (locus  (Apply start Locus(GRCh37) (Ref __uid_3))))
         |       (MakeStruct (locus  (Apply end Locus(GRCh37) (Ref __uid_3)))) (True) (False))))
         |""".stripMargin)
-    val (v, _) = backend.execute(ir, optimize = true)
+    val (v, _) = backend.execute(ir, optimize = true, allocStrat = EmitAllocationStrategy.ManyRegions)
     assert(
       ir.typ.ordering.equiv(
         FastIndexedSeq(

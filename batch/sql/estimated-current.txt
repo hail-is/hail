@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS `globals` (
   `worker_cores` BIGINT NOT NULL,
   `worker_type` VARCHAR(100) NOT NULL,
   `worker_disk_size_gb` BIGINT NOT NULL,
+  `worker_local_ssd_data_disk` BOOLEAN NOT NULL DEFAULT 1,
+  `worker_pd_ssd_data_disk_size_gb` BIGINT NOT NULL DEFAULT 0,
   `standing_worker_cores` BIGINT NOT NULL,
   `max_instances` BIGINT NOT NULL,
   `pool_size` BIGINT NOT NULL,

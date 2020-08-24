@@ -37,6 +37,12 @@ trait PUnrealizable extends PType {
     unsupported
 
   def stackValueToAnnotation(c: Code[_]): Code[AnyRef] = unsupported
+
+  override def encodableType: PType = unsupported
+
+  override def containsPointers: Boolean = {
+    throw new UnsupportedOperationException("containsPointers not supported on PUnrealizable")
+  }
 }
 
 trait PUnrealizableCode extends PCode {

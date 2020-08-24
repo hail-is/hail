@@ -252,11 +252,6 @@ class PCanonicalBaseStructSettable(
     a := pv.asInstanceOf[PCanonicalBaseStructCode].a
   }
 
-  def apply[T](i: Int): Value[T] =
-    new Value[T] {
-      def get: Code[T] = coerce[T](Region.loadIRIntermediate(pt.types(i))(pt.loadField(a, i)))
-    }
-
   def isFieldMissing(fieldIdx: Int): Code[Boolean] = {
     this.pt.isFieldMissing(a, fieldIdx)
   }

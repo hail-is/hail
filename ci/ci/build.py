@@ -874,6 +874,8 @@ class CreateDatabaseStep(Step):
         if self.create_passwords_job:
             assert self.create_database_job is not None
             return [self.create_passwords_job, self.create_database_job]
+        if self.create_database_job:
+            return [self.create_database_job]
         return []
 
     @staticmethod
@@ -925,17 +927,19 @@ python3 create_database.py {shq(json.dumps(create_database_config))}
         if self.inputs:
             for i in self.inputs:
                 input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
-        password_files_input = [
-            (f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.admin_password_file}', self.admin_password_file),
-            (f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.user_password_file}', self.user_password_file)]
-        input_files.extend(password_files_input)
 
-        self.create_passwords_job = batch.create_job(
-            CI_UTILS_IMAGE,
-            command=['bash', '-c', create_passwords_script],
-            attributes={'name': self.name + "_create_passwords"},
-            output_files=[(x[1], x[0]) for x in password_files_input],
-            parents=self.deps_parents())
+        if not self.cant_create_database:
+            password_files_input = [
+                (f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.admin_password_file}', self.admin_password_file),
+                (f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.user_password_file}', self.user_password_file)]
+            input_files.extend(password_files_input)
+
+            self.create_passwords_job = batch.create_job(
+                CI_UTILS_IMAGE,
+                command=['bash', '-c', create_passwords_script],
+                attributes={'name': self.name + "_create_passwords"},
+                output_files=[(x[1], x[0]) for x in password_files_input],
+                parents=self.deps_parents())
 
         self.create_database_job = batch.create_job(
             CI_UTILS_IMAGE,
@@ -951,7 +955,7 @@ python3 create_database.py {shq(json.dumps(create_database_config))}
                 'name': 'ci-agent'
             },
             input_files=input_files,
-            parents=[self.create_passwords_job])
+            parents=[self.create_passwords_job] if self.create_passwords_job else self.deps_parents())
 
     def cleanup(self, batch, scope, parents):
         if scope in ['deploy', 'dev'] or self.cant_create_database:

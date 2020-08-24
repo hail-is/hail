@@ -45,9 +45,13 @@ def test_workers_configuration(gcloud_run):
     assert "--num-workers=4" in gcloud_run.call_args[0][0]
 
 
-def test_secondary_workers_configuration(gcloud_run):
-    cli.main(["start", "--num-preemptible-workers=8", "test-cluster"])
-    assert "--num-preemptible-workers=8" in gcloud_run.call_args[0][0]
+@pytest.mark.parametrize("workers_arg", [
+    "--num-secondary-workers=8",
+    "--num-preemptible-workers=8"
+])
+def test_secondary_workers_configuration(gcloud_run, workers_arg):
+    cli.main(["start", workers_arg, "test-cluster"])
+    assert "--num-secondary-workers=8" in gcloud_run.call_args[0][0]
 
 
 @pytest.mark.parametrize("machine_arg", [
@@ -62,7 +66,7 @@ def test_machine_type_configuration(gcloud_run, machine_arg):
 @pytest.mark.parametrize("machine_arg", [
     "--master-boot-disk-size=250",
     "--worker-boot-disk-size=200",
-    "--preemptible-worker-boot-disk-size=100",
+    "--secondary-worker-boot-disk-size=100"
 ])
 def test_boot_disk_size_configuration(gcloud_run, machine_arg):
     cli.main(["start", machine_arg, "test-cluster"])
@@ -77,7 +81,7 @@ def test_vep_defaults_to_highmem_master_machine(gcloud_run):
 def test_vep_defaults_to_larger_worker_boot_disk(gcloud_run):
     cli.main(["start", "test-cluster", "--vep=GRCh37"])
     assert "--worker-boot-disk-size=200GB" in gcloud_run.call_args[0][0]
-    assert "--preemptible-worker-boot-disk-size=200GB" in gcloud_run.call_args[0][0]
+    assert "--secondary-worker-boot-disk-size=200GB" in gcloud_run.call_args[0][0]
 
 
 @pytest.mark.parametrize("requester_pays_arg", [

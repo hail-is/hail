@@ -122,3 +122,22 @@ def test_contig_recoding():
 
     assert mt1.count() == mt2.count()
     assert mt1._same(mt2)
+
+def test_sample_override():
+    out_file = new_temp_file(extension='mt')
+
+    sample_names = all_samples[:5]
+    new_names = [f'S{i}' for i, _ in enumerate(sample_names)]
+    paths = [os.path.join(resource('gvcfs'), '1kg_chr22', f'{s}.hg38.g.vcf.gz') for s in sample_names]
+    header_path = paths[0]
+    vc.run_combiner(paths,
+                    out_file=out_file,
+                    tmp_path=Env.hc()._tmpdir,
+                    reference_genome='GRCh38',
+                    header=header_path,
+                    sample_names=new_names,
+                    key_by_locus_and_alleles=True,
+                    use_exome_default_intervals=True)
+    mt_cols = hl.read_matrix_table(out_file).key_cols_by().cols()
+    mt_names = mt_cols.aggregate(hl.agg.collect(mt_cols.s))
+    assert new_names == mt_names

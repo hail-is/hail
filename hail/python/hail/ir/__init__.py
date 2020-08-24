@@ -7,8 +7,8 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     Literal, LiftMeOut, Join, JavaIR, I32, I64, F32, F64, Str, FalseIR, TrueIR, \
     Void, Cast, NA, IsNA, If, Coalesce, Let, AggLet, Ref, TopLevelReference, \
     TailLoop, Recur, ApplyBinaryPrimOp, ApplyUnaryPrimOp, ApplyComparisonOp, \
-    MakeArray, ArrayRef, ArrayLen, ArrayZeros, StreamRange, MakeNDArray, \
-    NDArrayShape, NDArrayReshape, NDArrayMap, NDArrayRef, NDArraySlice, \
+    MakeArray, ArrayRef, ArrayLen, ArrayZeros, StreamRange, StreamGrouped, MakeNDArray, \
+    NDArrayShape, NDArrayReshape, NDArrayMap, NDArrayRef, NDArraySlice, NDArraySVD, \
     NDArrayReindex, NDArrayAgg, NDArrayMatMul, NDArrayQR, NDArrayInv, NDArrayConcat, NDArrayWrite, \
     ArraySort, ToSet, ToDict, ToArray, CastToArray, ToStream, \
     LowerBoundOnOrderedCollection, GroupByKey, StreamMap, StreamZip, \
@@ -155,6 +155,7 @@ __all__ = [
     'NDArrayAgg',
     'NDArrayMatMul',
     'NDArrayQR',
+    'NDArraySVD',
     'NDArrayInv',
     'NDArrayConcat',
     'NDArrayWrite',
@@ -174,6 +175,7 @@ __all__ = [
     'StreamScan',
     'StreamJoinRightDistinct',
     'StreamFor',
+    'StreamGrouped',
     'AggFilter',
     'AggExplode',
     'AggGroupBy',

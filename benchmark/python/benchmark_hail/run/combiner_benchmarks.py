@@ -48,14 +48,18 @@ def python_only_10k_combine(path):
 
 @benchmark(args=single_gvcf.handle())
 def import_and_transform_gvcf(path):
-    intervals = vc_all.default_exome_intervals('GRCh38')
+    size = vc_all.CombinerConfig.default_exome_interval_size
+    intervals = vc_all.calculate_even_genome_partitioning('GRCh38', size)
+
     [mt] = hl.import_gvcfs([path], intervals, reference_genome='GRCh38')
     mt = vc_all.transform_gvcf(mt)
     mt._force_count()
 
 @benchmark(args=single_gvcf.handle())
 def import_gvcf_force_count(path):
-    intervals = vc_all.default_exome_intervals('GRCh38')
+    size = vc_all.CombinerConfig.default_exome_interval_size
+    intervals = vc_all.calculate_even_genome_partitioning('GRCh38', size)
+
     [mt] = hl.import_gvcfs([path], intervals, reference_genome='GRCh38')
     mt._force_count_rows()
 
@@ -68,4 +72,4 @@ def full_combiner_chr22(*paths):
                             branch_factor=16,
                             reference_genome='GRCh38',
                             overwrite=True,
-                            use_default_exome_intervals=True)
+                            use_exome_default_intervals=True)

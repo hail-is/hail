@@ -1,9 +1,10 @@
-import platform
-import subprocess as sp
 import os
-
+import platform
 import shutil
+import subprocess
 import tempfile
+
+from . import gcloud
 
 
 def init_parser(parser):
@@ -15,6 +16,26 @@ def init_parser(parser):
                         help='Local port to use for SSH tunnel to leader (master) node (default: %(default)s).')
     parser.add_argument('--zone', '-z', type=str, help='Compute zone for Dataproc cluster.')
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
+
+
+def get_chrome_path():
+    system = platform.system()
+
+    if system == 'Darwin':
+        return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+
+    if system == 'Linux':
+        for c in ['chromium', 'chromium-browser']:
+            chrome = shutil.which(c)
+            if chrome:
+                return chrome
+
+        raise EnvironmentError("cannot find 'chromium' or 'chromium-browser' on path")
+
+    if system == 'Windows':
+        return '/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe'
+
+    raise ValueError(f"unsupported system: {system}, set environment variable HAILCTL_CHROME to a chrome executable")
 
 
 def main(args, pass_through_args):  # pylint: disable=unused-argument
@@ -36,16 +57,11 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
     }
     connect_port_and_path = dataproc_port_and_path[service]
 
-    if args.zone:
-        zone = args.zone
-    else:
-        zone = sp.check_output(["gcloud", "config", "get-value", "compute/zone"], stderr=sp.DEVNULL).decode().strip()
-
+    zone = args.zone if args.zone else gcloud.get_config("compute/zone")
     if not zone:
         raise RuntimeError("Could not determine compute zone. Use --zone argument to hailctl, or use `gcloud config set compute/zone <my-zone>` to set a default.")
 
-    cmd = ['gcloud',
-           'compute',
+    cmd = ['compute',
            'ssh',
            '{}-m'.format(args.name),
            '--zone={}'.format(zone),
@@ -60,31 +76,14 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
     if not args.dry_run:
         print("Connecting to cluster '{}'...".format(args.name))
 
-        # open SSH tunnel to leader (master) node
-        sp.check_call(
-            cmd,
-            stderr=sp.STDOUT
-        )
+        # open SSH tunnel to master node
+        gcloud.run(cmd)
 
-        system = platform.system()
-
-        chrome = os.environ.get('HAILCTL_CHROME')
-        if system == 'Darwin':
-            chrome = chrome or r'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-        elif system == 'Linux':
-            for c in ['chromium', 'chromium-browser']:
-                chrome = chrome or shutil.which(c)
-            if chrome is None:
-                raise EnvironmentError("cannot find 'chromium' or 'chromium-browser' on path")
-        elif system == 'Windows':
-            chrome = chrome or r'/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe'
-
-        if not chrome:
-            raise ValueError(f"unsupported system: {system}, set environment variable HAILCTL_CHROME to a chrome executable")
+        chrome = os.environ.get('HAILCTL_CHROME') or get_chrome_path()
 
         # open Chrome with SOCKS proxy configuration
         with open(os.devnull, 'w') as f:
-            sp.Popen([
+            subprocess.Popen([
                 chrome,
                 'http://localhost:{}'.format(connect_port_and_path),
                 '--proxy-server=socks5://localhost:{}'.format(args.port),

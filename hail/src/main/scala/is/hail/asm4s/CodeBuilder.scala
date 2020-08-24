@@ -1,5 +1,7 @@
 package is.hail.asm4s
 
+import is.hail.lir
+
 abstract class SettableBuilder {
   def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T]
 }
@@ -157,7 +159,7 @@ trait CodeBuilderLike {
 class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
   def isOpenEnded: Boolean = {
     val last = code.end.last
-    (last == null) || !last.isInstanceOf[is.hail.lir.ControlX]
+    (last == null) || !last.isInstanceOf[lir.ControlX] || last.isInstanceOf[lir.ThrowX]
   }
 
   def uncheckedAppend(c: Code[Unit]): Unit = {

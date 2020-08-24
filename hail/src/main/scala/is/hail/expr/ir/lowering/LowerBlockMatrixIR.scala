@@ -42,7 +42,7 @@ case class EmptyBlockMatrixStage(eltType: Type) extends BlockMatrixStage(Array()
 
   def blockBody(ctxRef: Ref): IR = NA(TNDArray(eltType, Nat(2)))
 
-  override def collectBlocks(bindings: Seq[(String, Type)])(f: (IR, IR) => IR, blocksToCollect: Array[(Int, Int)]): IR = {
+  override def collectBlocks(relationalBindings: Map[String, IR])(f: (IR, IR) => IR, blocksToCollect: Array[(Int, Int)]): IR = {
     assert(blocksToCollect.isEmpty)
     MakeArray(FastSeq(), TArray(f(Ref("x", ctxType), blockBody(Ref("x", ctxType))).typ))
   }
@@ -53,26 +53,26 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
 
   def blockBody(ctxRef: Ref): IR
 
-  def collectBlocks(bindings: Seq[(String, Type)])(f: (IR, IR) => IR, blocksToCollect: Array[(Int, Int)]): IR = {
+  def collectBlocks(relationalBindings: Map[String, IR])(f: (IR, IR) => IR, blocksToCollect: Array[(Int, Int)]): IR = {
     val ctxRef = Ref(genUID(), ctxType)
     val body = f(ctxRef, blockBody(ctxRef))
     val ctxs = MakeStream(blocksToCollect.map(idx => blockContext(idx)), TStream(ctxRef.typ))
     val bodyFreeVars = FreeVariables(body, supportsAgg = false, supportsScan = false)
     val bcFields = globalVals.filter { case (f, _) => bodyFreeVars.eval.lookupOption(f).isDefined }
-    val bcVals = MakeStruct(bcFields.map { case (f, v) => f -> Ref(f, v.typ) } ++ bindings.map { case (name, t) => (name, Ref(name, t))})
+    val bcVals = MakeStruct(bcFields.map { case (f, v) => f -> Ref(f, v.typ) })
     val bcRef = Ref(genUID(), bcVals.typ)
     val wrappedBody = bcFields.foldLeft(body) { case (accum, (f, _)) =>
       Let(f, GetField(bcRef, f), accum)
     }
     val collect = CollectDistributedArray(ctxs, bcVals, ctxRef.name, bcRef.name, wrappedBody)
-    globalVals.foldRight[IR](collect) { case ((f, v), accum) => Let(f, v, accum) }
+    LowerToCDA.substLets(globalVals.foldRight[IR](collect) { case ((f, v), accum) => Let(f, v, accum) }, relationalBindings)
   }
 
-  def collectLocal(bindings: Seq[(String, Type)], typ: BlockMatrixType): IR = {
+  def collectLocal(relationalBindings: Map[String, IR], typ: BlockMatrixType): IR = {
     val blocksRowMajor = Array.range(0, typ.nRowBlocks).flatMap { i =>
       Array.tabulate(typ.nColBlocks)(j => i -> j).filter(typ.hasBlock)
     }
-    val cda = collectBlocks(bindings)((_, b) => b, blocksRowMajor)
+    val cda = collectBlocks(relationalBindings)((_, b) => b, blocksRowMajor)
     val blockResults = Ref(genUID(), cda.typ)
 
     val rows = if (typ.isSparse) {
@@ -165,12 +165,12 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
 }
 
 object LowerBlockMatrixIR {
-  def apply(node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Seq[(String, Type)]): IR = {
+  def apply(node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): IR = {
 
     def unimplemented[T](node: BaseIR): T =
       throw new LowererUnsupportedOperation(s"unimplemented: \n${ Pretty(node) }")
 
-    def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, r, relationalLetsAbove: Seq[(String, Type)])
+    def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, r, relationalLetsAbove: Map[String, IR])
 
     def lower(bmir: BlockMatrixIR): BlockMatrixStage = {
       if (!DArrayLowering.lowerBM(typesToLower))

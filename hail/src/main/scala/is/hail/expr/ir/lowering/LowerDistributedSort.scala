@@ -10,7 +10,7 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 
 object LowerDistributedSort {
-  def localSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Seq[(String, Type)]): TableStage = {
+  def localSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
     val numPartitions = stage.partitioner.numPartitions
     val collected = stage.collectWithGlobals(relationalLetsAbove)
 

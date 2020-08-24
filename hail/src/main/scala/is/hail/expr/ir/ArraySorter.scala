@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.types.physical.{PCanonicalArray, PType}
+import is.hail.types.physical.{PCanonicalArray, PType, typeToTypeInfo}
 
 class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   val typ: PType = array.elt

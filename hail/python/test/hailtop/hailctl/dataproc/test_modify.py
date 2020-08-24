@@ -47,13 +47,14 @@ def test_modify_workers(gcloud_run, workers_arg):
 
 
 @pytest.mark.parametrize("workers_arg", [
+    "--num-secondary-workers=2",
     "--num-preemptible-workers=2",
     "--n-pre-workers=2",
     "-p=2",
 ])
-def test_modify_preemptible_workers(gcloud_run, workers_arg):
+def test_modify_secondary_workers(gcloud_run, workers_arg):
     cli.main(["modify", "test-cluster", workers_arg])
-    assert "--num-preemptible-workers=2" in gcloud_run.call_args[0][0]
+    assert "--num-secondary-workers=2" in gcloud_run.call_args[0][0]
 
 
 def test_modify_max_idle(gcloud_run):
@@ -63,7 +64,7 @@ def test_modify_max_idle(gcloud_run):
 
 @pytest.mark.parametrize("workers_arg", [
     "--num-workers=2",
-    "--num-preemptible-workers=2",
+    "--num-secondary-workers=2",
 ])
 def test_graceful_decommission_timeout(gcloud_run, workers_arg):
     cli.main(["modify", "test-cluster", workers_arg, "--graceful-decommission-timeout=1h"])
