@@ -566,3 +566,36 @@ final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) 
     result
   }
 }
+
+final class LZ4SizeBasedCompressingInputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
+  private val comp = new Array[Byte](8 + lz4.maxCompressedLength(blockSize))
+  private var lim = 0
+
+  def close() {
+    in.close()
+  }
+
+  def seek(offset: Long): Unit = in.seek(offset)
+
+  def readBlock(buf: Array[Byte]): Int = {
+    val blockLen = in.readBlock(comp)
+    val result = if (blockLen == -1) {
+      -1
+    } else {
+      val flag = Memory.loadInt(comp, 0)
+      flag match {
+        case 0 =>
+          System.arraycopy(comp, 4, buf, 0, blockLen - 4)
+          blockLen - 4
+        case 1 =>
+          val compLen = blockLen - 8
+          val decompLen = Memory.loadInt(comp, 4)
+          lz4.decompress(buf, 0, decompLen, comp, 8, compLen)
+          decompLen
+        case _ => throw new RuntimeException(s"bad flag: $flag")
+      }
+    }
+    lim = result
+    result
+  }
+}
