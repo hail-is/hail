@@ -134,6 +134,13 @@ package object ir {
     StreamFold(stream, zero, accum.name, elt.name, f(accum, elt))
   }
 
+  def sortIR(stream: IR)(f: (Ref, Ref) => IR): IR = {
+    val t = coerce[TStream](stream.typ).elementType
+    val l = Ref(genUID(), t)
+    val r = Ref(genUID(), t)
+    ArraySort(stream, l.name, r.name, f(l, r))
+  }
+
   def streamSumIR(stream: IR): IR = {
     foldIR(stream, 0){ case (accum, elt) => accum + elt}
   }
