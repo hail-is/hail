@@ -302,9 +302,8 @@ def parse_input_args(input_args: list):
         run_parser.add_argument('--verbose', required=False, action="store_true")
         run_parser.add_argument('--delete_scratch_on_exit', required=False, action="store_true")
     else:
-        backend_parser.add_argument('--tmp_dir')
-        backend_parser.add_argument('--gsa_key_file')
-        backend_parser.add_argument('--extra_docker_run_flags')
+        backend_parser.add_argument('--billing_project', required=False)
+        backend_parser.add_argument('--bucket', required=False)
 
         run_parser.add_argument('--dry_run', required=False, action="store_true")
         run_parser.add_argument('--verbose', required=False, action="store_true")
