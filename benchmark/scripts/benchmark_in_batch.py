@@ -21,6 +21,7 @@ if __name__ == '__main__':
     if label:
         labeled_sha = f'{labeled_sha}-{label}'
     output_file = os.path.join(BUCKET_BASE, f'{labeled_sha}.json')
+    permissions_test_file = os.path.join(BUCKET_BASE, f'permissions-test')
 
     b = hb.Batch(name=f'benchmark-{labeled_sha}',
                  backend=hb.ServiceBackend(billing_project='hail'),
@@ -31,9 +32,14 @@ if __name__ == '__main__':
                              'n_iters': str(N_ITERS),
                              'image': str(BENCHMARK_IMAGE)})
 
+    test_permissions = b.new_job(f'test permissions')
+    test_permissions.command(f'echo hello world > {test_permissions.permissions_test_file}')
+    b.write_output(test_permissions.permissions_test_file, permissions_test_file)
+
     resource_tasks = {}
     for r in all_resources:
         j = b.new_job(f'create_resource_{r.name()}').cpu(4)
+        j.depends_on(test_permissions)
         j.command(f'hail-bench create-resources --data-dir benchmark-resources --group {r.name()}')
         j.command(f"time tar -cf {r.name()}.tar benchmark-resources/{r.name()} --exclude='*.crc'")
         j.command(f'ls -lh {r.name()}.tar')
