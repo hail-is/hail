@@ -351,10 +351,10 @@ object LoweredTableReader {
           body: IR => IR): TableStage = {
           val partOrigIndex = sortedPartData.map(_.getInt(6))
 
-          val partitioner = new RVDPartitioner(keyType,
+          val partitioner = new RVDPartitioner(pkType,
             sortedPartData.map { partData =>
               Interval(selectPK(partData.getAs[Row](1)), selectPK(partData.getAs[Row](2)), includesStart = true, includesEnd = true)
-            }, key.length)
+            }, pkType.size)
 
           val pkPartitioned = TableStage(globals, partitioner,
             ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
@@ -366,7 +366,7 @@ object LoweredTableReader {
               flatMapIR(StreamGroupByKey(part, pkType.fieldNames)) { inner =>
                 ToStream(sortIR(inner) { case (l, r) => ApplyComparisonOp(LT(l.typ), l, r) })
               }
-            }
+            }.changePartitionerNoRepartition(partitioner.extendKeySamePartitions(keyType))
         }
       }
     } else {
