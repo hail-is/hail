@@ -140,7 +140,7 @@ def read_step_args(path_or_str: str, step: int):
             print("Batch will set --pred to the output prefix of --step 1.")
 
     bparser = ArgumentParser()
-    bparser.add_argument('--threads', required=False, default=2)
+    bparser.add_argument('--threads', required=False, default=1)
     bparser.add_argument('--memory', required=False, default='1Gi')
     bparser.add_argument('--storage', required=False, default='1Gi')
 
