@@ -1,7 +1,7 @@
+include ../config.mk
+
 .PHONY: build
 build: base-stmp service-base
-
-PROJECT := $(shell gcloud config get-value project)
 
 BASE_LATEST = gcr.io/$(PROJECT)/base:latest
 BASE_IMAGE = gcr.io/$(PROJECT)/base:$(shell docker images -q --no-trunc base:latest | sed -e 's,[^:]*:,,')

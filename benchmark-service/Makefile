@@ -1,5 +1,4 @@
-PROJECT = $(shell gcloud config get-value project)
-DOMAIN ?= hail.is
+include ../config.mk
 
 BENCHMARK_LATEST = gcr.io/$(PROJECT)/benchmark:latest
 BENCHMARK_IMAGE = gcr.io/$(PROJECT)/benchmark:$(shell docker images -q --no-trunc benchmark:latest | sed -e 's,[^:]*:,,')

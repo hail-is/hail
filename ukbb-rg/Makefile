@@ -1,4 +1,4 @@
-PROJECT := $(shell gcloud config get-value project)
+include ../config.mk
 
 UKBB_RG_STATIC_LATEST = gcr.io/$(PROJECT)/ukbb-rg-static:latest
 UKBB_RG_STATIC_IMAGE = gcr.io/$(PROJECT)/ukbb-rg-static:$(shell docker images -q --no-trunc ukbb-rg-static | sed -e 's,[^:]*:,,')
