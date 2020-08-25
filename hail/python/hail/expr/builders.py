@@ -79,7 +79,7 @@ class SwitchBuilder(ConditionalBuilder):
                 expr = cond(is_missing(base), self._when_missing_case)
             return expr
 
-        return hl.bind(f, self._base)
+        return bind(f, self._base)
 
     @typecheck_method(value=expr_any, then=expr_any)
     def when(self, value, then) -> 'SwitchBuilder':
