@@ -1,5 +1,6 @@
 from google.cloud import storage
 import re
+import functools
 
 BENCHMARK_BUCKETS = ['hail-benchmarks', 'hail-benchmarks-2']
 
