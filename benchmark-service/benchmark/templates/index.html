@@ -6,8 +6,16 @@
 
 <h1>Benchmark System</h1>
 
-<form action="{{ base_path }}/" method="get">
-    <input type="text" name="file"></input>
+<!--<form action="{{ base_path }}/" method="get">-->
+<!--    <input type="text" name="file"></input>-->
+<!--    <input type="submit" value="lookup"></input>-->
+<!--</form>-->
+
+<form autocomplete="off" action="{{ base_path }}/" method="get">
+    <div class="autocomplete">
+        <!--        <input type="text" name="file" id="file"></input>-->
+        <input type="text" name="file" id="autoComplete"></input>
+    </div>
     <input type="submit" value="lookup"></input>
 </form>
 
