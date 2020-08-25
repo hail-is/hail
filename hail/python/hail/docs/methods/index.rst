@@ -83,13 +83,14 @@ Methods
 
 Hail provides three methods for the inference of relatedness: PLINK-style
 identity by descent, KING, and PC-Relate.
-- :func:`.identity_by_descent` is appropriate for datasets containing one homogeneous
-  population.
+
+- :func:`.identity_by_descent` is appropriate for datasets containing one
+  homogeneous population.
 - :func:`.king` is appropriate for datasets containing multiple homogeneous
   populations and no admixture. It is also used to prune close relatives before
   using :func:`.pc_relate`.
-- :func:`.pc_relate` is appropriate for datasets containing multiple
-  homogeneous populations and admixture.
+- :func:`.pc_relate` is appropriate for datasets containing multiple homogeneous
+  populations and admixture.
 
 .. autosummary::
 
