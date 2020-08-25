@@ -57,7 +57,7 @@ class SwitchBuilder(ConditionalBuilder):
     @typecheck_method(base=expr_any)
     def __init__(self, base):
         self._base = base
-        self._has_missing_branch = False
+        self._when_missing_case = None
         super(SwitchBuilder, self).__init__()
 
     def _finish(self, default):
@@ -67,12 +67,19 @@ class SwitchBuilder(ConditionalBuilder):
 
         def f(base):
             # build cond chain bottom-up
-            expr = default
-            for condition, then in self._cases[::-1]:
-                expr = cond(condition, then, expr)
+            from hail.expr.functions import is_missing
+            if default is self._base:
+                expr = base
+            else:
+                expr = default
+            for value, then in self._cases[::-1]:
+                expr = cond(base == value, then, expr)
+            # needs to be on the outside, because upstream missingness would propagate
+            if self._when_missing_case is not None:
+                expr = cond(is_missing(base), self._when_missing_case)
             return expr
 
-        return bind(f, self._base)
+        return hl.bind(f, self._base)
 
     @typecheck_method(value=expr_any, then=expr_any)
     def when(self, value, then) -> 'SwitchBuilder':
@@ -101,7 +108,7 @@ class SwitchBuilder(ConditionalBuilder):
                 self._base.dtype, value.dtype))
 
         self._unify_type(then.dtype)
-        self._cases.append((self._base == value, then))
+        self._cases.append((value, then))
         return self
 
     @typecheck_method(then=expr_any)
@@ -118,13 +125,11 @@ class SwitchBuilder(ConditionalBuilder):
         :class:`.SwitchBuilder`
             Mutates and returns `self`.
         """
-        if self._has_missing_branch:
+        if self._when_missing_case is not None:
             raise ExpressionException("'when_missing' can only be called once")
         self._unify_type(then.dtype)
 
-        from hail.expr.functions import is_missing
-        # need to insert at 0, because upstream missingness would propagate
-        self._cases.insert(0, (is_missing(self._base), then))
+        self._when_missing_case = then
         return self
 
     @typecheck_method(then=expr_any)
