@@ -8,7 +8,7 @@ tearDownModule = stopTestHailContext
 
 
 @skip_unless_spark_backend()
-def test_pc_relate_against_R_truth(self):
+def test_pc_relate_against_R_truth():
     mt = hl.import_vcf(resource('pc_relate_bn_input.vcf.bgz'))
     hail_kin = hl.pc_relate(mt.GT, 0.00, k=2).checkpoint(utils.new_temp_file(extension='ht'))
 
@@ -27,7 +27,7 @@ def test_pc_relate_against_R_truth(self):
 
 
 @skip_unless_spark_backend()
-def test_pc_relate_simple_example(self):
+def test_pc_relate_simple_example():
     gs = hl.literal(
         [[0, 0, 0, 0, 1, 1, 1, 1],
          [0, 0, 1, 1, 0, 0, 1, 1],
@@ -60,7 +60,7 @@ def test_pc_relate_simple_example(self):
 
 
 @skip_unless_spark_backend()
-def test_pcrelate_paths(self):
+def test_pcrelate_paths():
     mt = hl.balding_nichols_model(3, 50, 100)
     _, scores3, _ = hl.hwe_normalized_pca(mt.GT, k=3, compute_loadings=False)
 
@@ -82,7 +82,7 @@ def test_pcrelate_paths(self):
 
 
 @skip_unless_spark_backend()
-def test_pcrelate_issue_5263(self):
+def test_pcrelate_issue_5263():
     mt = hl.balding_nichols_model(3, 50, 100)
     expected = hl.pc_relate(mt.GT, 0.10, k=2, statistics='all')
     mt = mt.select_entries(GT2=mt.GT,
