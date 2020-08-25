@@ -1,7 +1,7 @@
 import hail as hl
 import hail.utils as utils
-from ..helpers import (startTestHailContext, stopTestHailContext, resource,
-                       skip_unless_spark_backend)
+from ...helpers import (startTestHailContext, stopTestHailContext, resource,
+                        skip_unless_spark_backend)
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
