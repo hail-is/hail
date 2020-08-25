@@ -74,11 +74,13 @@
 <script>
     var files = {{ cached_files|tojson }};
 
+    document.write(files);
+
     new autoComplete({
         data: {                              // Data src [Array, Function, Async] | (REQUIRED)
           src: files,
           key: ["title"],
-          cache: false
+          cache: true    // TODO true or false??
         },
         sort: (a, b) => {                    // Sort rendered results ascendingly | (Optional)
             if (a.match < b.match) return -1;
