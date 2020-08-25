@@ -63,16 +63,13 @@ class SwitchBuilder(ConditionalBuilder):
     def _finish(self, default):
         assert len(self._cases) > 0
 
-        from hail.expr.functions import cond, bind
+        from hail.expr.functions import cond
 
-        def f(base):
-            # build cond chain bottom-up
-            expr = default
-            for condition, then in self._cases[::-1]:
-                expr = cond(condition, then, expr)
-            return expr
-
-        return bind(f, self._base)
+        # build cond chain bottom-up
+        expr = default
+        for condition, then in self._cases[::-1]:
+            expr = cond(condition, then, expr)
+        return expr
 
     @typecheck_method(value=expr_any, then=expr_any)
     def when(self, value, then) -> 'SwitchBuilder':
