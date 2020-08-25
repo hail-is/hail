@@ -8,4 +8,4 @@
 --bt
 --lowmem
 --lowmem-prefix tmp_rg
---out fit_bin_out
+--out out/fit_bin_out

@@ -8,4 +8,4 @@
 --firth --approx
 --pThresh 0.01
 --pred fit_bin_out_pred.list
---out test_bin_out_firth
+--out out/test_bin_out_firth
