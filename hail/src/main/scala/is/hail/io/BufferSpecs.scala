@@ -24,7 +24,8 @@ object BufferSpec {
 
   val wireSpec: BufferSpec = LEB128BufferSpec(
     BlockingBufferSpec(32 * 1024,
-      LZ4FastBlockBufferSpec(32 * 1024,
+      LZ4SizeBasedBlockBufferSpec("fast", 32 * 1024,
+        256,
         new StreamBlockBufferSpec)))
 
   val memorySpec: BufferSpec = wireSpec
@@ -59,6 +60,7 @@ object BufferSpec {
       classOf[LZ4BlockBufferSpec],
       classOf[LZ4HCBlockBufferSpec],
       classOf[LZ4FastBlockBufferSpec],
+      classOf[LZ4SizeBasedBlockBufferSpec],
       classOf[StreamBlockBufferSpec],
       classOf[BufferSpec],
       classOf[LEB128BufferSpec],
@@ -149,6 +151,27 @@ final case class LZ4FastBlockBufferSpec(blockSize: Int, child: BlockBufferSpec)
   def lz4 = LZ4.fast
   def stagedlz4: Code[LZ4] = Code.invokeScalaObject0[LZ4](LZ4.getClass, "fast")
   def typeName = "LZ4FastBlockBufferSpec"
+}
+
+final case class LZ4SizeBasedBlockBufferSpec(compressorType: String, blockSize: Int, minCompressionSize: Int, child: BlockBufferSpec)
+    extends BlockBufferSpec {
+  def lz4: LZ4 = compressorType match {
+    case "hc" => LZ4.hc
+    case "fast" => LZ4.fast
+  }
+
+  def stagedlz4: Code[LZ4] = Code.invokeScalaObject0[LZ4](LZ4.getClass, "fast")
+  def typeName = "LZ4SizeBasedBlockBufferSpec"
+
+  def buildInputBuffer(in: InputStream): InputBlockBuffer = new LZ4SizeBasedCompressingInputBlockBuffer(lz4, blockSize, child.buildInputBuffer(in))
+
+  def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new LZ4SizeBasedCompressingOutputBlockBuffer(lz4, blockSize, minCompressionSize, child.buildOutputBuffer(out))
+
+  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer] =
+    Code.newInstance[LZ4SizeBasedCompressingInputBlockBuffer, LZ4, Int, InputBlockBuffer](stagedlz4, blockSize, child.buildCodeInputBuffer(in))
+
+  def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
+    Code.newInstance[LZ4SizeBasedCompressingOutputBlockBuffer, LZ4, Int, Int, OutputBlockBuffer](stagedlz4, blockSize, minCompressionSize, child.buildCodeOutputBuffer(out))
 }
 
 object StreamBlockBufferSpec {

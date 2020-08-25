@@ -5,6 +5,7 @@ from .linkedlist import LinkedList
 from .interval import Interval
 from .java import error, warning, info, FatalError
 from .tutorial import get_1kg, get_movie_lens
+from .deduplicate import deduplicate
 
 __all__ = ['hadoop_open',
            'hadoop_copy',
@@ -37,4 +38,5 @@ __all__ = ['hadoop_open',
            'get_movie_lens',
            'timestamp_path',
            '_dumps_partitions',
-           'default_handler']
+           'default_handler',
+           'deduplicate']

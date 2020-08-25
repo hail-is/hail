@@ -337,6 +337,21 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(vcf2._same(filter1))
         self.assertEqual(len(parts), vcf2.n_partitions())
 
+    @skip_unless_spark_backend()
+    def test_import_gvcfs_long_line(self):
+        import bz2
+        path = resource('gvcfs/long_line.g.vcf.gz')
+        parts = [
+            hl.Interval(start=hl.Struct(locus=hl.Locus('1', 1)),
+                        end=hl.Struct(locus=hl.Locus('1', 1_000_000)),
+                        includes_end=True)
+        ]
+        [vcf] = hl.import_gvcfs([path], parts)
+        [data] = vcf.info.Custom.collect()
+        with bz2.open(resource('gvcfs/long_line.ref.bz2')) as ref:
+            ref_str = ref.read().decode('utf-8')
+            self.assertEqual(ref_str, data)
+
     def test_vcf_parser_golden_master__ex_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('ex.vcf'), 'GRCh37')
 

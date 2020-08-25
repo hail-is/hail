@@ -32,6 +32,15 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
       PCanonicalTuple(fundamentalFieldTypes, required)
   }
 
+  override lazy val tupleEncodableType: PTuple = {
+    val encodableFieldTypes = _types.map(tf => tf.copy(typ = tf.typ.encodableType))
+    if ((_types, encodableFieldTypes).zipped
+      .forall { case (t, ft) => t == ft })
+      this
+    else
+      PCanonicalTuple(encodableFieldTypes, required)
+  }
+
   override def deepRename(t: Type) = deepTupleRename(t.asInstanceOf[TTuple])
 
   private def deepTupleRename(t: TTuple) = {

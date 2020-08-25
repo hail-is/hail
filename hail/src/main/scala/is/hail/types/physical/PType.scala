@@ -360,6 +360,9 @@ abstract class PType extends Serializable with Requiredness {
       types, Array and Struct. */
   def fundamentalType: PType = this
 
+  // Encodable types are types that can have corresponding ETypes
+  def encodableType: PType
+
   final def unary_+(): PType = setRequired(true)
 
   final def unary_-(): PType = setRequired(false)
@@ -388,7 +391,7 @@ abstract class PType extends Serializable with Requiredness {
       fundamentalType.isInstanceOf[PFloat32] ||
       fundamentalType.isInstanceOf[PFloat64]
 
-  def containsPointers: Boolean = false
+  def containsPointers: Boolean
 
   def subsetTo(t: Type): PType = {
     this match {
@@ -459,7 +462,7 @@ abstract class PType extends Serializable with Requiredness {
 
   def deepRename(t: Type): PType = this
 
-  def defaultValue: PCode = PCode(this, ir.defaultValue(this))
+  def defaultValue: PCode = PCode(this, is.hail.types.physical.defaultValue(this))
 
 
   final def typeCheck(a: Any): Boolean = a == null || _typeCheck(a)

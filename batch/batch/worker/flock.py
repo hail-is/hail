@@ -7,29 +7,27 @@ from hailtop.utils import blocking_to_async
 
 
 class Flock:
-    def __init__(self, path, pool=None):
+    def __init__(self, path, pool=None, nonblock=False):
         self.path = os.path.abspath(path)
         self.pool = pool
 
         self.flock_flags = fcntl.LOCK_EX
         self.fds = []
 
+        if nonblock:
+            self.flock_flags |= fcntl.LOCK_NB
+
         if os.path.isdir(self.path):
             self.path = self.path.rstrip('/') + '/'
 
     def __enter__(self):
-        dirname, filename = os.path.split(self.path)
+        dirname, _ = os.path.split(self.path)
 
         components = dirname.split('/')
         for i in range(2, len(components) + 1):
             path = '/'.join(components[:i])
             os.makedirs(path, exist_ok=True)
             fd = os.open(path, os.O_RDONLY)
-            self.fds.append(fd)
-            fcntl.flock(fd, self.flock_flags)
-
-        if filename:
-            fd = os.open(self.path, os.O_CREAT)
             self.fds.append(fd)
             fcntl.flock(fd, self.flock_flags)
 
@@ -53,6 +51,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('path', type=str)
     parser.add_argument('-c', dest='command', type=str, required=True)
+    parser.add_argument('-n', dest='nonblock', action='store_true')
     args = parser.parse_args()
 
     with Flock(args.path):

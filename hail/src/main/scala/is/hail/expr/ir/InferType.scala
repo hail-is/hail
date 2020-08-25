@@ -67,7 +67,7 @@ object InferType {
       case ApplyComparisonOp(op, l, r) =>
         assert(l.typ == r.typ)
         op match {
-          case _: Compare => TInt32
+          case _: Compare | _: CompareStructs => TInt32
           case _ => TBoolean
         }
       case a: ApplyIR => a.explicitNode.typ
@@ -182,6 +182,12 @@ object InferType {
           TNDArray(TFloat64, Nat(2))
         } else {
           throw new NotImplementedError(s"Cannot infer type for mode $mode")
+        }
+      case NDArraySVD(nd, _, compute_uv) =>
+        if (compute_uv) {
+          TTuple(TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(1)), TNDArray(TFloat64, Nat(2)))
+        } else {
+          TNDArray(TFloat64, Nat(1))
         }
       case NDArrayInv(_) =>
         TNDArray(TFloat64, Nat(2))

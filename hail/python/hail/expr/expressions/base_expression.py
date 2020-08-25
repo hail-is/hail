@@ -1109,3 +1109,10 @@ class Expression(object):
 
     def _aggregation_method(self):
         return self._selector_and_agg_method()[1](self._indices.source)
+
+    def _persist(self):
+        src = self._indices.source
+        if src is not None:
+            raise ValueError("Can only persist a scalar (no Table/MatrixTable source)")
+        executed_jir = Env.backend().persist_ir(self._ir)
+        return expressions.construct_expr(executed_jir, self.dtype)

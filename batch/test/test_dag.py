@@ -177,6 +177,24 @@ def test_input_dependency(client):
     bucket_name = get_user_config().get('batch', 'bucket')
     batch = client.create_batch()
     head = batch.create_job('ubuntu:18.04',
+                            command=['/bin/sh', '-c', 'echo head1 > /io/data1; echo head2 > /io/data2'],
+                            output_files=[('/io/data1', f'gs://{bucket_name}'),
+                                          ('/io/data2', f'gs://{bucket_name}')])
+    tail = batch.create_job('ubuntu:18.04',
+                            command=['/bin/sh', '-c', 'cat /io/data1; cat /io/data2'],
+                            input_files=[(f'gs://{bucket_name}/data1', '/io/'),
+                                         (f'gs://{bucket_name}/data2', '/io/')],
+                            parents=[head])
+    batch.submit()
+    tail.wait()
+    assert head._get_exit_code(head.status(), 'main') == 0, head._status
+    assert tail.log()['main'] == 'head1\nhead2\n', (tail.log()['main'], tail.status())
+
+
+def test_input_dependency_wildcard(client):
+    bucket_name = get_user_config().get('batch', 'bucket')
+    batch = client.create_batch()
+    head = batch.create_job('ubuntu:18.04',
                             command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
                             output_files=[('/io/data*', f'gs://{bucket_name}')])
     tail = batch.create_job('ubuntu:18.04',
@@ -185,7 +203,7 @@ def test_input_dependency(client):
                             parents=[head])
     batch.submit()
     tail.wait()
-    assert head._get_exit_code(head.status(), 'main') == 0, head._status
+    assert head._get_exit_code(head.status(), 'input') != 0, head._status
     assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 

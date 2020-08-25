@@ -199,6 +199,21 @@ spec:
   selector:
     app: address
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shuffler
+  labels:
+    app: shuffler
+spec:
+  ports:
+  - name: shuffler
+    port: 443
+    protocol: TCP
+    targetPort: 443
+  selector:
+    app: shuffler
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:

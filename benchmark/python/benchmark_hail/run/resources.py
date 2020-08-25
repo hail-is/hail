@@ -296,6 +296,26 @@ class GVCFsChromosome22(ResourceGroup):
             raise KeyError(resource)
         return f'{resource}.hg38.g.vcf.gz'
 
+
+class BaldingNichols5k5k(ResourceGroup):
+    def __init__(self):
+        super(BaldingNichols5k5k, self).__init__('bn_5k_5k.mt')
+
+    def name(self):
+        return 'bn_5k_5k'
+
+    def _create(self, data_dir):
+        hl.balding_nichols_model(n_populations=5,
+                                 n_variants=5000,
+                                 n_samples=5000,
+                                 n_partitions=16).write(os.path.join(data_dir, 'bn_5k_5k.mt'))
+
+    def path(self, resource):
+        if resource is not None:
+            raise KeyError(resource)
+        return f'bn_5k_5k.mt'
+
+
 profile_25 = Profile25()
 many_partitions_tables = ManyPartitionsTables()
 gnomad_dp_sim = GnomadDPSim()
@@ -306,9 +326,10 @@ random_doubles = RandomDoublesMatrixTable()
 empty_gvcf = EmptyGVCF()
 single_gvcf = SingleGVCF()
 chr22_gvcfs = GVCFsChromosome22()
+balding_nichols_5k_5k = BaldingNichols5k5k()
 
 all_resources = profile_25, many_partitions_tables, gnomad_dp_sim, many_strings_table, many_ints_table, sim_ukbb, \
-    random_doubles, empty_gvcf, single_gvcf, chr22_gvcfs
+    random_doubles, empty_gvcf, single_gvcf, chr22_gvcfs, balding_nichols_5k_5k
 
 __all__ = ['profile_25',
            'many_partitions_tables',
@@ -319,4 +340,5 @@ __all__ = ['profile_25',
            'random_doubles',
            'empty_gvcf',
            'chr22_gvcfs',
+           'balding_nichols_5k_5k',
            'all_resources']

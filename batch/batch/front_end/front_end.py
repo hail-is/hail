@@ -512,6 +512,8 @@ async def create_jobs(request, userdata):
 
     worker_type = app['worker_type']
     worker_cores = app['worker_cores']
+    worker_local_ssd_data_disk = app['worker_local_ssd_data_disk']
+    worker_pd_ssd_data_disk_size_gb = app['worker_pd_ssd_data_disk_size_gb']
 
     batch_id = int(request.match_info['batch_id'])
 
@@ -611,12 +613,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         f'cpu cannot be 0')
 
                 cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
-                cores_mcpu = adjust_cores_for_storage_request(cores_mcpu, req_storage_bytes, worker_cores)
+                cores_mcpu = adjust_cores_for_storage_request(cores_mcpu, req_storage_bytes, worker_cores,
+                                                              worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
                 cores_mcpu = adjust_cores_for_packability(cores_mcpu)
 
                 if cores_mcpu > worker_cores * 1000:
                     total_memory_available = worker_memory_per_core_gb(worker_type) * worker_cores
-                    total_storage_available = total_worker_storage_gib()
+                    total_storage_available = total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
                         f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} storage={resources["storage"]}'
@@ -1082,6 +1085,9 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
         raise web.HTTPNotFound()
     if len(attempts) == 1 and attempts[0]['attempt_id'] is None:
         return None
+
+    attempts.sort(key=lambda x: x['start_time'])
+
     for attempt in attempts:
         start_time = attempt['start_time']
         if start_time is not None:
@@ -1441,12 +1447,15 @@ async def on_startup(app):
     row = await db.select_and_fetchone(
         '''
 SELECT worker_type, worker_cores, worker_disk_size_gb,
+  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
   instance_id, internal_token, n_tokens FROM globals;
 ''')
 
     app['worker_type'] = row['worker_type']
     app['worker_cores'] = row['worker_cores']
     app['worker_disk_size_gb'] = row['worker_disk_size_gb']
+    app['worker_local_ssd_data_disk'] = row['worker_local_ssd_data_disk']
+    app['worker_pd_ssd_data_disk_size_gb'] = row['worker_pd_ssd_data_disk_size_gb']
     app['n_tokens'] = row['n_tokens']
 
     instance_id = row['instance_id']

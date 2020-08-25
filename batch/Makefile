@@ -37,13 +37,14 @@ push: build
 	docker tag batch-worker $(BATCH_WORKER_IMAGE)
 	docker push $(BATCH_WORKER_IMAGE)
 
-JINJA_ENVIRONMENT := '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"batch_image":{"image":"$(BATCH_IMAGE)"},"batch_worker_image":{"image":"$(BATCH_WORKER_IMAGE)"},"default_ns":{"name":"default"},"batch_pods_ns":{"name":"batch-pods"},"batch_database":{"user_secret_name":"sql-batch-user-config"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)","k8s_server_url":"$(KUBERNETES_SERVER_URL)"}}'
+JINJA_ENVIRONMENT = '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"batch_image":{"image":"$(BATCH_IMAGE)"},"batch_worker_image":{"image":"$(BATCH_WORKER_IMAGE)"},"default_ns":{"name":"default"},"batch_pods_ns":{"name":"batch-pods"},"batch_database":{"user_secret_name":"sql-batch-user-config"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)","k8s_server_url":"$(KUBERNETES_SERVER_URL)"}}'
 
 .PHONY: deploy
 deploy: push
-	python3 ../ci/jinja2_render.py $(JINJA_ENVIRONMENT) deployment.yaml deployment.yaml.out
-	python3 ../ci/jinja2_render.py $(JINJA_ENVIRONMENT) service-account.yaml service-account.yaml.out
-	python3 ../ci/jinja2_render.py $(JINJA_ENVIRONMENT) service-account-batch-pods.yaml service-account-batch-pods.yaml.out
+	E=$(JINJA_ENVIRONMENT) && \
+	  python3 ../ci/jinja2_render.py $$E deployment.yaml deployment.yaml.out && \
+	  python3 ../ci/jinja2_render.py $$E service-account.yaml service-account.yaml.out && \
+	  python3 ../ci/jinja2_render.py $$E service-account-batch-pods.yaml service-account-batch-pods.yaml.out
 	kubectl -n default apply -f service-account.yaml.out
 	kubectl -n default apply -f service-account-batch-pods.yaml.out
 	kubectl -n default apply -f deployment.yaml.out
@@ -55,6 +56,6 @@ create-build-worker-image-instance:
 
 .PHONY: create-worker-image
 create-worker-image:
-	-gcloud -q compute --project $(PROJECT) images delete batch-worker-8
-	gcloud -q compute --project $(PROJECT) images create batch-worker-8 --source-disk=build-batch-worker-image --source-disk-zone=$(ZONE)
+	-gcloud -q compute --project $(PROJECT) images delete batch-worker-9
+	gcloud -q compute --project $(PROJECT) images create batch-worker-9 --source-disk=build-batch-worker-image --source-disk-zone=$(ZONE)
 	gcloud -q compute --project $(PROJECT) instances delete --zone=$(ZONE) build-batch-worker-image

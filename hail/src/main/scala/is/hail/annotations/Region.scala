@@ -399,13 +399,9 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory.addReferenceTo(r.memory)
   }
 
-  def takeOwnershipOf(r: Region): Unit = {
-    memory.takeOwnershipOf(r.memory)
-  }
-
   def move(r: Region): Unit = {
-    r.addReferenceTo(this)
-    this.clear()
+    r.memory.takeOwnershipOf(memory)
+    memory = pool.getMemory(blockSize)
   }
 
   def nReferencedRegions(): Long = memory.nReferencedRegions()

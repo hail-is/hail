@@ -17,7 +17,8 @@ from ..hail_logging import PythonOnlyLogger
 
 
 class ServiceBackend(Backend):
-    def __init__(self, billing_project: str = None, bucket: str = None, *, deploy_config=None, skip_logging_configuration: bool = False):
+    def __init__(self, billing_project: str = None, bucket: str = None, *, deploy_config=None,
+                 skip_logging_configuration: bool = False):
         if billing_project is None:
             billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:
@@ -257,3 +258,9 @@ class ServiceBackend(Backend):
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
         return resp.json()
+
+    def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
+        raise NotImplementedError("ServiceBackend does not support 'register_ir_function'")
+
+    def persist_ir(self, ir):
+        raise NotImplementedError("ServiceBackend does not support 'persist_ir'")

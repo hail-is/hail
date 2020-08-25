@@ -1,0 +1,19 @@
+{% extends "layout.html" %}
+{% block title %}
+Benchmark Summary
+{% endblock %}
+
+{% block content %}
+<h1>{{name}}</h1>
+
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js"></script>
+
+<div class="chart" id="scatterplot">
+    <script>
+        var graphs = {{plot | safe}};
+        Plotly.plot('scatterplot',graphs,{});
+    </script>
+</div>
+
+{% endblock %}

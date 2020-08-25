@@ -31,7 +31,7 @@ object TableWriter {
 abstract class TableWriter {
   def path: String
   def apply(ctx: ExecuteContext, mv: TableValue): Unit
-  def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, bindings: Seq[(String, Type)]): IR =
+  def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 }
 
@@ -42,7 +42,7 @@ case class TableNativeWriter(
   codecSpecJSONStr: String = null
 ) extends TableWriter {
 
-  override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, bindings: Seq[(String, Type)]): IR = {
+  override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
     val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(t.typ.rowType, r.rowType), t.typ.rowType, bufferSpec)
     val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(t.typ.globalType, r.globalType), t.typ.globalType, bufferSpec)
@@ -62,7 +62,7 @@ case class TableNativeWriter(
           "oldCtx" -> ctxElt,
           "writeCtx" -> pf))
       }
-    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(bindings) { (rows, ctxRef) =>
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
       val file = GetField(ctxRef, "writeCtx")
       WritePartition(rows, file + UUID4(), rowWriter)
     } { (parts, globals) =>
@@ -147,7 +147,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
     context: EmitCode,
     eltType: PStruct,
     mb: EmitMethodBuilder[_],
-    region: Value[Region],
+    region: StagedRegion,
     stream: SizedStream): EmitCode = {
     val enc = spec.buildEmitEncoder(eltType, mb.ecb)
 
@@ -162,6 +162,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
       val os = mb.newLocal[ByteTrackingOutputStream]("write_os")
       val ob = mb.newLocal[OutputBuffer]("write_ob")
       val n = mb.newLocal[Long]("partition_count")
+      val eltRegion = region.createChildRegion(mb)
 
       def writeFile(codeRow: EmitCode): Code[Unit] = {
         val rowType = coerce[PStruct](codeRow.pt)
@@ -171,8 +172,8 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
             { pc =>
               val row = pc.memoize(cb, "row")
               if (hasIndex) {
-                val keyRVB = new StagedRegionValueBuilder(mb, keyType)
-                indexWriter.add(cb, {
+                val keyRVB = new StagedRegionValueBuilder(mb, keyType, eltRegion.code)
+              indexWriter.add(cb, {
                   cb += keyRVB.start()
                   keyType.fields.foreach { f =>
                     cb += keyRVB.addIRIntermediate(f.typ)(Region.loadIRIntermediate(f.typ)(rowType.fieldOffset(coerce[Long](row.value), f.name)))
@@ -184,7 +185,8 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
                   IEmitCode.present(cb, PCode(+PCanonicalStruct(), 0L)))
               }
               cb += ob.writeByte(1.asInstanceOf[Byte])
-              cb += enc(region, row, ob)
+              cb += enc(eltRegion.code, row, ob)
+              cb += eltRegion.clear()
               cb.assign(n, n + 1L)
             })
           }
@@ -202,9 +204,11 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
         cb.assign(os, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename)))
         cb.assign(ob, spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)))
         cb.assign(n, 0L)
-        cb += stream.getStream(StagedRegion(region, allowSubregions = false)).forEach(mb, writeFile)
+        cb += eltRegion.allocateRegion(Region.REGULAR)
+        cb += stream.getStream(eltRegion).forEach(mb, writeFile)
+        cb += eltRegion.free()
         cb += ob.writeByte(0.asInstanceOf[Byte])
-        cb.assign(result, pResultType.allocate(region))
+        cb.assign(result, pResultType.allocate(region.code))
         if (hasIndex)
           indexWriter.close(cb)
         cb += ob.flush()

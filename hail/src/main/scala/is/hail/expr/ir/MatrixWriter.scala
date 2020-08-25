@@ -38,15 +38,15 @@ case class WrappedMatrixWriter(writer: MatrixWriter,
   colKey: IndexedSeq[String]) extends TableWriter {
   def path: String = writer.path
   def apply(ctx: ExecuteContext, tv: TableValue): Unit = writer(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
-  override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, bindings: Seq[(String, Type)]): IR =
-    writer.lower(colsFieldName, entriesFieldName, colKey, ctx, ts, t, r, bindings)
+  override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR =
+    writer.lower(colsFieldName, entriesFieldName, colKey, ctx, ts, t, r, relationalLetsAbove)
 }
 
 abstract class MatrixWriter {
   def path: String
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit
   def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-    ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, bindings: Seq[(String, Type)]): IR =
+    ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 }
 
@@ -60,7 +60,7 @@ case class MatrixNativeWriter(
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = mv.write(ctx, path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr)
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
-    ctx: ExecuteContext, tablestage: TableStage, t: TableIR, r: RTable, bindings: Seq[(String, Type)]): IR = {
+    ctx: ExecuteContext, tablestage: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
     val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
     val rm = r.asMatrixType(colsFieldName, entriesFieldName)
@@ -99,7 +99,7 @@ case class MatrixNativeWriter(
       zip2(oldCtx, MakeStream(partFiles, TStream(TString)), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
         MakeStruct(FastSeq("oldCtx" -> ctxElt, "writeCtx" -> pf))
       }
-    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(bindings) { (rows, ctx) =>
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctx) =>
       WritePartition(rows, GetField(ctx, "writeCtx") + UUID4(), rowWriter)
     } { (parts, globals) =>
       val writeEmpty = WritePartition(MakeStream(FastSeq(makestruct()), TStream(TStruct.empty)), Str(partFile(1, 0)), emptyWriter)
@@ -170,7 +170,7 @@ case class SplitPartitionNativeWriter(
     context: EmitCode,
     eltType: PStruct,
     mb: EmitMethodBuilder[_],
-    region: Value[Region],
+    region: StagedRegion,
     stream: SizedStream): EmitCode = {
     val enc1 = spec1.buildEmitEncoder(eltType, mb.ecb)
     val enc2 = spec2.buildEmitEncoder(eltType, mb.ecb)
@@ -187,6 +187,7 @@ case class SplitPartitionNativeWriter(
       val os2 = mb.newLocal[ByteTrackingOutputStream]("write_os2")
       val ob2 = mb.newLocal[OutputBuffer]("write_ob2")
       val n = mb.newLocal[Long]("partition_count")
+      val eltRegion = region.createChildRegion(mb)
 
       def writeFile(codeRow: EmitCode): Code[Unit] = {
         val rowType = coerce[PStruct](codeRow.pt)
@@ -194,8 +195,8 @@ case class SplitPartitionNativeWriter(
           val pc = codeRow.toI(cb).handle(cb, cb._fatal("row can't be missing"))
           val row = pc.memoize(cb, "row")
           if (hasIndex) {
-            val keyRVB = new StagedRegionValueBuilder(mb, keyType)
-            val aRVB = new StagedRegionValueBuilder(mb, iAnnotationType)
+            val keyRVB = new StagedRegionValueBuilder(mb, keyType, eltRegion.code)
+            val aRVB = new StagedRegionValueBuilder(mb, iAnnotationType, eltRegion.code)
             indexWriter.add(cb, {
               cb += keyRVB.start()
               keyType.fields.foreach { f =>
@@ -210,9 +211,10 @@ case class SplitPartitionNativeWriter(
             })
           }
           cb += ob1.writeByte(1.asInstanceOf[Byte])
-          cb += enc1(region, row, ob1)
+          cb += enc1(eltRegion.code, row, ob1)
           cb += ob2.writeByte(1.asInstanceOf[Byte])
-          cb += enc2(region, row, ob2)
+          cb += enc2(eltRegion.code, row, ob2)
+          cb += eltRegion.clear()
           cb.assign(n, n + 1L)
         }
       }
@@ -232,10 +234,12 @@ case class SplitPartitionNativeWriter(
         cb.assign(ob1, spec1.buildCodeOutputBuffer(Code.checkcast[OutputStream](os1)))
         cb.assign(ob2, spec2.buildCodeOutputBuffer(Code.checkcast[OutputStream](os2)))
         cb.assign(n, 0L)
-        cb += stream.getStream(StagedRegion(region, allowSubregions = false)).forEach(mb, writeFile)
+        cb += eltRegion.allocateRegion(Region.REGULAR)
+        cb += stream.getStream(eltRegion).forEach(mb, writeFile)
+        cb += eltRegion.free()
         cb += ob1.writeByte(0.asInstanceOf[Byte])
         cb += ob2.writeByte(0.asInstanceOf[Byte])
-        cb.assign(result, pResultType.allocate(region))
+        cb.assign(result, pResultType.allocate(region.code))
         if (hasIndex)
           indexWriter.close(cb)
         cb += ob1.flush()

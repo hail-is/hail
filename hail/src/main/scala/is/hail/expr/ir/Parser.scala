@@ -819,10 +819,15 @@ object IRParser {
         ApplyUnaryPrimOp(op, x)
       case "ApplyComparisonOp" =>
         val opName = identifier(it)
+        val op: (Type, Type) => ComparisonOp[_] = opName match {
+          case "CompareStructs" =>
+            val sf = sort_fields(it);
+            { (t1: Type, t2: Type) => assert(t1 == t2); CompareStructs(t1.asInstanceOf[TStruct], sf) }
+          case _ => (t1: Type, t2: Type) => ComparisonOp.fromStringAndTypes((opName, t1, t2))
+        }
         val l = ir_value_expr(env)(it)
         val r = ir_value_expr(env)(it)
-        val op = ComparisonOp.fromStringAndTypes((opName, l.typ, r.typ))
-        ApplyComparisonOp(op, l, r)
+        ApplyComparisonOp(op(l.typ, r.typ), l, r)
       case "MakeArray" =>
         val typ = opt(it, type_expr(env.typEnv)).map(_.asInstanceOf[TArray]).orNull
         val args = ir_value_children(env)(it)
@@ -843,6 +848,10 @@ object IRParser {
         val stop = ir_value_expr(env)(it)
         val step = ir_value_expr(env)(it)
         StreamRange(start, stop, step)
+      case "StreamGrouped" =>
+        val s = ir_value_expr(env)(it)
+        val groupSize = ir_value_expr(env)(it)
+        StreamGrouped(s, groupSize)
       case "ArrayZeros" => ArrayZeros(ir_value_expr(env)(it))
       case "ArraySort" =>
         val l = identifier(it)
@@ -913,6 +922,11 @@ object IRParser {
         val mode = string_literal(it)
         val nd = ir_value_expr(env)(it)
         NDArrayQR(nd, mode)
+      case "NDArraySVD" =>
+        val fullMatrices = boolean_literal(it)
+        val computeUV = boolean_literal(it)
+        val nd = ir_value_expr(env)(it)
+        NDArraySVD(nd, fullMatrices, computeUV)
       case "NDArrayInv" =>
         val nd = ir_value_expr(env)(it)
         NDArrayInv(nd)

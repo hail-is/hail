@@ -125,7 +125,7 @@ steps:
    contextPath: tls
    publishAs: create_certs_image
    dependsOn:
-     - base_image
+     - service_base_image
  - kind: runImage
    name: create_ssl_config_hail_root
    image:
@@ -637,6 +637,30 @@ steps:
     - default_ns
     - batch_pods_ns
     - deploy_query_sa
+ - kind: buildImage
+   name: shuffler_image
+   dockerFile: shuffler/Dockerfile
+   contextPath: shuffler
+   publishAs: shuffler
+   inputs:
+     - from: /hail.jar
+       to: /hail.jar
+   dependsOn:
+     - service_base_image
+     - build_hail
+ - kind: deploy
+   name: deploy_shuffler
+   namespace:
+     valueFrom: default_ns.name
+   config: shuffler/deployment.yaml
+   wait:
+    - kind: Service
+      name: shuffler
+      for: alive
+   dependsOn:
+    - default_ns
+    - shuffler_image
+    - create_certs
  - kind: buildImage
    name: hail_repl_image
    dockerFile: hail/Dockerfile.hail-repl
@@ -1525,6 +1549,8 @@ steps:
       script: /io/sql/insert_local_ssd_resource.py
     - name: fix-mark-job-complete-on-error
       script: /io/sql/fix-mark-job-complete-on-error.sql
+    - name: add-worker-pd-ssd-data-disk
+      script: /io/sql/add-worker-pd-ssd-data-disk.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
@@ -1580,6 +1606,7 @@ steps:
     - default_ns
     - batch_pods_ns
     - deploy_batch
+    - deploy_shuffler
     - query_image
     - deploy_query_sa
     - deploy_query_sa_batch_pods
@@ -1630,46 +1657,6 @@ steps:
     - build_hail
     - hail_run_image
     - deploy_query
- - kind: runImage
-   name: test_hail_services_java
-   image:
-     valueFrom: hail_run_image.image
-   resources:
-     memory: "3.75G"
-     cpu: "1"
-   script: |
-     set -ex
-     cd /io
-     mkdir -p src/test
-     tar xzf resources.tar.gz -C src/test
-     java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-services.xml
-   inputs:
-    - from: /resources.tar.gz
-      to: /io/resources.tar.gz
-    - from: /hail-test.jar
-      to: /io/hail-test.jar
-    - from: /testng-services.xml
-      to: /io/testng-services.xml
-   secrets:
-    - name: test-tokens
-      namespace:
-        valueFrom: batch_pods_ns.name
-      mountPath: /user-tokens
-    - name: gce-deploy-config
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /deploy-config
-    - name: ssl-config-services-java-tests
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /ssl-config
-   dependsOn:
-    - default_ns
-    - batch_pods_ns
-    - create_certs
-    - hail_run_image
-    - build_hail
-    - deploy_batch
  - kind: runImage
    name: test_batch
    image:
@@ -1834,6 +1821,7 @@ steps:
    image:
      valueFrom: service_base_image.image
    script: |
+     cd /io/hailtop
      set -ex
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      hailctl config set batch/billing_project test
@@ -1841,6 +1829,8 @@ steps:
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/test/hailtop/batch/
    inputs:
     - from: /repo/test
+      to: /io/
+    - from: /repo/hailtop
       to: /io/
    timeout: 1200
    secrets:
@@ -2301,4 +2291,46 @@ steps:
     - default_ns
     - service_base_image
     - create_certs
+    - deploy_address
+ - kind: runImage
+   name: test_hail_services_java
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     memory: "3.75G"
+     cpu: "1"
+   script: |
+     set -ex
+     cd /io
+     mkdir -p src/test
+     tar xzf resources.tar.gz -C src/test
+     java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-services.xml
+   inputs:
+    - from: /resources.tar.gz
+      to: /io/resources.tar.gz
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
+    - from: /testng-services.xml
+      to: /io/testng-services.xml
+   secrets:
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: ssl-config-services-java-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - create_certs
+    - hail_run_image
+    - build_hail
+    - deploy_batch
+    - deploy_shuffler
     - deploy_address

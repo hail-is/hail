@@ -137,6 +137,15 @@ class LocalBackend(
     Serialization.write(Map("value" -> jsonValue, "timings" -> timings.asMap()))(new DefaultFormats {})
   }
 
+  def executeLiteral(ir: IR): IR = {
+    val t = ir.typ
+    assert(t.isRealizable)
+    val (value, timings) = execute(ir)
+    timings.finish()
+    timings.logInfo()
+    Literal.coerce(t, value)
+  }
+
   def encodeToBytes(ir: IR, bufferSpecString: String): (String, Array[Byte]) = {
     val bs = BufferSpec.parseOrDefault(bufferSpecString)
     withExecuteContext() { ctx =>
@@ -222,7 +231,7 @@ class LocalBackend(
     }
   }
 
-  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Seq[(String, Type)]): TableStage = {
+  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
     // Use a local sort for the moment to enable larger pipelines to run
     LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
   }

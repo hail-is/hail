@@ -86,6 +86,16 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     }
   }
 
+  override lazy val structEncodableType: PStruct = {
+    val encodableFieldTypes = fields.map(f => f.typ.encodableType)
+    if ((fields, encodableFieldTypes).zipped
+      .forall { case (f, ft) => f.typ == ft })
+      this
+    else {
+      PCanonicalStruct(required, (fields, encodableFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
+    }
+  }
+
   def loadField(offset: Code[Long], fieldName: String): Code[Long] =
     loadField(offset, fieldIdx(fieldName))
 

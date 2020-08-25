@@ -38,6 +38,14 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
+  override val encodableType: PCanonicalArray = {
+    if (elementType == elementType.encodableType) {
+      this
+    } else {
+      this.copy(elementType = elementType.encodableType)
+    }
+  }
+
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalArray(elementType, required)
 
   def loadLength(aoff: Long): Int =

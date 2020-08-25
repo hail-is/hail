@@ -334,36 +334,57 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
 
     post = await request.post()
 
-    # FIXME can't adjust worker type, cores because we check if jobs
-    # can be scheduled in the front-end before inserting into the
-    # database
+    valid_worker_types = ('highcpu', 'standard', 'highmem')
+    worker_type = validate(
+        'Worker type',
+        post['worker_type'],
+        lambda v: v in valid_worker_types,
+        f'one of {", ".join(valid_worker_types)}')
 
-    # valid_worker_types = ('highcpu', 'standard', 'highmem')
-    # worker_type = validate(
-    #     'Worker type',
-    #     post['worker_type'],
-    #     lambda v: v in valid_worker_types,
-    #     f'one of {", ".join(valid_worker_types)}')
-
-    valid_worker_cores = (1, 2, 4, 8, 16, 32, 64, 96)
-    # worker_cores = validate_int(
-    #     'Worker cores',
-    #     post['worker_cores'],
-    #     lambda v: v in valid_worker_cores,
-    #     f'one of {", ".join(str(v) for v in valid_worker_cores)}')
+    if worker_type == 'standard':
+        valid_worker_cores = (1, 2, 4, 8, 16, 32, 64, 96)
+    else:
+        valid_worker_cores = (2, 4, 8, 16, 32, 64, 96)
+    worker_cores = validate_int(
+        f'{worker_type} worker cores',
+        post['worker_cores'],
+        lambda v: v in valid_worker_cores,
+        f'one of {", ".join(str(v) for v in valid_worker_cores)}')
 
     standing_worker_cores = validate_int(
-        'Standing worker cores',
+        f'{worker_type} standing worker cores',
         post['standing_worker_cores'],
         lambda v: v in valid_worker_cores,
-        f'one of {", ".join(str(v) for v in valid_worker_cores)}'
-    )
+        f'one of {", ".join(str(v) for v in valid_worker_cores)}')
 
-    # worker_disk_size_gb = validate_int(
-    #     'Worker disk size',
-    #     post['worker_disk_size_gb'],
-    #     lambda v: v > 0,
-    #     'a positive integer')
+    worker_disk_size_gb = validate_int(
+        'Worker disk size',
+        post['worker_disk_size_gb'],
+        lambda v: v > 0,
+        'a positive integer')
+
+    worker_local_ssd_data_disk = validate_int(
+        'Worker local SSD data disk (boolean)',
+        post['worker_local_ssd_data_disk'],
+        lambda v: v in (0, 1),
+        'boolean (0 or 1)')
+
+    worker_pd_ssd_data_disk_size_gb = validate_int(
+        'Worker PD SSD data disk size (in GB)',
+        post['worker_pd_ssd_data_disk_size_gb'],
+        lambda v: v >= 0,
+        'a nonnegative integer')
+
+    if worker_local_ssd_data_disk == 0 and worker_pd_ssd_data_disk_size_gb == 0:
+        set_message(session,
+                    'One of worker local SSD or PD SSD data disk must be non-zero.',
+                    'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+    if worker_local_ssd_data_disk == 1 and worker_pd_ssd_data_disk_size_gb > 0:
+        set_message(session,
+                    'Both worker local SSD and PD SSD data disk are non-zero.',
+                    'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
     max_instances = validate_int(
         'Max instances',
@@ -378,7 +399,8 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
         'a positive integer')
 
     await inst_pool.configure(
-        # worker_type, worker_cores, worker_disk_size_gb,
+        worker_type, worker_cores, worker_disk_size_gb,
+        worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
         standing_worker_cores,
         max_instances, pool_size)
 

@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
 import is.hail.types.encoded._
-import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PCanonicalStringOptional, PCanonicalStringRequired, PCanonicalStruct, PFloat64Required, PInt32Optional, PInt32Required, PInt64Optional, PInt64Required, PType}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PCanonicalStringOptional, PCanonicalStringRequired, PCanonicalStruct, PFloat32Required, PFloat64Required, PInt32Optional, PInt32Required, PInt64Optional, PInt64Required, PType}
 import is.hail.io.{InputBuffer, MemoryBuffer, MemoryInputBuffer, MemoryOutputBuffer, OutputBuffer}
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._
@@ -31,7 +31,7 @@ class ETypeSuite extends HailSuite {
       EArray(EArray(EInt32Optional, required = true), required = true),
       EBaseStruct(FastIndexedSeq(), required = true),
       EBaseStruct(FastIndexedSeq(EField("x", EBinaryRequired, 0), EField("y", EFloat64Optional, 1)), required = true),
-      ENDArray(EFloat64Required , 3)
+      ENDArrayColumnMajor(EFloat64Required , 3)
     ).map(t => Array(t: Any))
   }
 
@@ -46,9 +46,7 @@ class ETypeSuite extends HailSuite {
     assert(Serialization.read[EType](s) == etype)
   }
 
-  def assertEqualEncodeDecode(inPType: PType, eType: EType, outPType: PType, data: Annotation): Unit = {
-    assert(inPType.virtualType == outPType.virtualType)
-
+  def encodeDecode(inPType: PType, eType: EType, outPType: PType, data: Annotation): Annotation = {
     val fb = EmitFunctionBuilder[Long, OutputBuffer, Unit](ctx, "fb")
     val arg1 = fb.apply_method.getCodeParam[Long](1)
     val arg2 = fb.apply_method.getCodeParam[OutputBuffer](2)
@@ -66,18 +64,20 @@ class ETypeSuite extends HailSuite {
     fb.resultWithIndex()(0, ctx.r).apply(x, ob)
     ob.flush()
     buffer.clearPos()
-    println("Got encode fb.result")
 
     val fb2 = EmitFunctionBuilder[Region, InputBuffer, Long](ctx, "fb2")
     val regArg = fb2.apply_method.getCodeParam[Region](1)
     val ibArg = fb2.apply_method.getCodeParam[InputBuffer](2)
     val dec = eType.buildDecoderMethod(outPType, fb2.apply_method.ecb)
     fb2.emit(dec.invokeCode(regArg, ibArg))
-    println("Emitted decoder")
 
     val result = fb2.resultWithIndex()(0, ctx.r).apply(ctx.r, new MemoryInputBuffer(buffer))
-    println("Got result")
-    assert(SafeRow.read(outPType, result) == data)
+    SafeRow.read(outPType, result)
+  }
+
+  def assertEqualEncodeDecode(inPType: PType, eType: EType, outPType: PType, data: Annotation): Unit = {
+    val encodeDecodeResult = encodeDecode(inPType, eType, outPType, data)
+    assert(encodeDecodeResult == data)
   }
 
   @Test def testDifferentRequirednessEncodeDecode() {
@@ -111,16 +111,66 @@ class ETypeSuite extends HailSuite {
   }
 
   @Test def testNDArrayEncodeDecode(): Unit = {
+    val pTypeInt0 = PCanonicalNDArray(PInt32Required, 0, true)
+    val eTypeInt0 = ENDArrayColumnMajor(EInt32Required, 0, true)
+    val dataInt0 = Row(Row(), Row(), FastIndexedSeq(0))
+
+    assertEqualEncodeDecode(pTypeInt0, eTypeInt0, pTypeInt0, dataInt0)
+
+    val pTypeFloat1 = PCanonicalNDArray(PFloat32Required, 1, true)
+    val eTypeFloat1 = ENDArrayColumnMajor(EFloat32Required, 1, true)
+    val dataFloat1 = Row(Row(5L), Row(4L), (0 until 5).map(_.toFloat))
+
+    assertEqualEncodeDecode(pTypeFloat1, eTypeFloat1, pTypeFloat1, dataFloat1)
+
     val pTypeInt2 = PCanonicalNDArray(PInt32Required, 2, true)
-    val eTypeInt2 = ENDArray(EInt32Required, 2, true)
-    val dataInt2 = Row(Row(2L, 2L), Row(16L, 8L), FastIndexedSeq(1, 2, 3, 4))
+    val eTypeInt2 = ENDArrayColumnMajor(EInt32Required, 2, true)
+    val dataInt2 = Row(Row(2L, 2L), Row(4L, 8L), FastIndexedSeq(10, 20, 30, 40))
 
     assertEqualEncodeDecode(pTypeInt2, eTypeInt2, pTypeInt2, dataInt2)
 
-    val pTypeFloat3 = PCanonicalNDArray(PFloat64Required, 3, false)
-    val eTypeFloat3 = ENDArray(EFloat64Required, 3, false)
-    val dataFloat3 = Row(Row(3L, 2L, 1L), Row(32L, 16L, 16L), FastIndexedSeq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
+    val pTypeDouble3 = PCanonicalNDArray(PFloat64Required, 3, false)
+    val eTypeDouble3 = ENDArrayColumnMajor(EFloat64Required, 3, false)
+    val dataDouble3 = Row(Row(3L, 2L, 1L), Row(16L, 8L, 8L), FastIndexedSeq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
 
-    assertEqualEncodeDecode(pTypeFloat3, eTypeFloat3, pTypeFloat3, dataFloat3)
+    assert(encodeDecode(pTypeDouble3, eTypeDouble3, pTypeDouble3, dataDouble3) ==
+      Row(Row(3L, 2L, 1L), Row(8L, 24L, 48L), FastIndexedSeq(1.0, 3.0, 5.0, 2.0, 4.0, 6.0)))
+
+    // Test for skipping
+    val pStructContainingNDArray = PCanonicalStruct(true,
+      "a" -> pTypeInt2,
+      "b" -> PInt32Optional
+    )
+    val pOnlyReadB = PCanonicalStruct(true,
+      "b" -> PInt32Optional
+    )
+    val eStructContainingNDArray = EBaseStruct(
+      FastIndexedSeq(
+        EField("a", ENDArrayColumnMajor(EInt32Required, 2, true), 0),
+        EField("b", EInt32Required, 1)
+      ),
+      true)
+
+    val dataStruct = Row(dataInt2, 3)
+
+    assert(encodeDecode(pStructContainingNDArray, eStructContainingNDArray, pOnlyReadB, dataStruct) ==
+      Row(3))
+
+    // Try reading a EBaseStruct into a PNDArray, old method.
+    val shapeAndStrideType = EBaseStruct(FastIndexedSeq(
+      EField("0", EInt64Required, 0),
+      EField("1", EInt64Required, 1)
+    ), true)
+    val eTypeStructInt2 = EBaseStruct(
+      FastIndexedSeq(
+        EField("shape", shapeAndStrideType, 0),
+        EField("strides", shapeAndStrideType, 1),
+        EField("data", EArray(EInt32Required, true), 2)
+      ),
+      true)
+    val dataStructInt2 = Row(Row(2L, 2L), Row(4L, 8L), FastIndexedSeq(10, 20, 30, 40))
+
+
+    encodeDecode(pTypeInt2.representation, eTypeStructInt2, pTypeInt2, dataStructInt2)
   }
 }

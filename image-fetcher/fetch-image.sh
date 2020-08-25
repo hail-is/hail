@@ -16,11 +16,11 @@ case $DEFAULT_NAMESPACE in
 	;;
 esac
 
-ln -s /ssl-config/image-fetcher.curlrc $HOME/.curlrc
+ln -s /ssl-config/ssl-config.curlrc $HOME/.curlrc
 
 while true; do
     for image in "gcr.io/$PROJECT/base:latest" google/cloud-sdk:237.0.0-alpine $(curl -sSL https://notebook$NOTEBOOK_BASE_PATH/images); do
-    	docker pull $image
+        docker pull $image || true
     done
     sleep 360
 done

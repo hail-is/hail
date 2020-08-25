@@ -5,7 +5,7 @@ import java.util.Map.Entry
 import is.hail.HailContext
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{coerce => _, _}
-import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, ParamType, PunctuationToken, TokenIterator, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, ParamType, PunctuationToken, TokenIterator}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types._
@@ -95,7 +95,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
       val region: Value[Region] = mb.getCodeParam[Region](1)
       val addr: Value[Long] = mb.getCodeParam[Long](2)
       val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](3)
-      val dec = _buildInplaceDecoder(pt.fundamentalType, mb, region, addr, in)
+      val dec = _buildInplaceDecoder(pt.encodableType, mb, region, addr, in)
       mb.emit(dec)
     })
   }
@@ -178,14 +178,14 @@ trait EFundamentalType extends EType {
   def _buildFundamentalDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_]
 
   final def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] =
-    _buildFundamentalEncoder(pt.fundamentalType, mb, v, out)
+    _buildFundamentalEncoder(pt.encodableType, mb, v, out)
 
   final def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] =
-    _buildFundamentalDecoder(pt.fundamentalType, mb, region, in)
+    _buildFundamentalDecoder(pt.encodableType, mb, region, in)
 
-  final override def decodeCompatible(pt: PType): Boolean = _decodeCompatible(pt.fundamentalType)
+  final override def decodeCompatible(pt: PType): Boolean = _decodeCompatible(pt.encodableType)
 
-  final override def encodeCompatible(pt: PType): Boolean = _encodeCompatible(pt.fundamentalType)
+  final override def encodeCompatible(pt: PType): Boolean = _encodeCompatible(pt.encodableType)
 }
 
 trait DecoderAsmFunction { def apply(r: Region, in: InputBuffer): Long }
@@ -255,11 +255,11 @@ object EType {
       val pt = et.decodedPType(t)
       val f = et.buildDecoder(pt, mb.ecb)
 
-      val region: Code[Region] = mb.getCodeParam[Region](1)
+      val region: Value[Region] = mb.getCodeParam[Region](1)
       val in: Code[InputBuffer] = mb.getCodeParam[InputBuffer](2)
 
       if (pt.isPrimitive) {
-        val srvb = new StagedRegionValueBuilder(mb, pt)
+        val srvb = new StagedRegionValueBuilder(mb, pt, region)
         mb.emit(Code(
           srvb.start(),
           srvb.addIRIntermediate(pt)(f(region, in)),
@@ -275,7 +275,7 @@ object EType {
   }
 
   def defaultFromPType(pt: PType): EType = {
-    pt.fundamentalType match {
+    pt.encodableType match {
       case t: PInt32 => EInt32(t.required)
       case t: PInt64 => EInt64(t.required)
       case t: PFloat32 => EFloat32(t.required)
@@ -298,6 +298,7 @@ object EType {
       case t: PArray => EArray(defaultFromPType(t.elementType), t.required)
       case t: PBaseStruct => EBaseStruct(t.fields.map(f =>
           EField(f.name, defaultFromPType(f.typ), f.index)), t.required)
+      case t: PNDArray => ENDArrayColumnMajor(defaultFromPType(t.elementType), t.nDims, t.required)
     }
   }
 
@@ -348,7 +349,7 @@ object EType {
       }, required = r.required)
     case t: TNDArray =>
       val rndarray = r.asInstanceOf[RNDArray]
-      ENDArray(fromTypeAndAnalysis(t.elementType, rndarray.elementType), t.nDims, rndarray.required)
+      ENDArrayColumnMajor(fromTypeAndAnalysis(t.elementType, rndarray.elementType), t.nDims, rndarray.required)
   }
 
   def eTypeParser(it: TokenIterator): EType = {
@@ -389,13 +390,13 @@ object EType {
         val args = IRParser.repsepUntil(it, IRParser.struct_field(eTypeParser), PunctuationToken(","), PunctuationToken("}"))
         IRParser.punctuation(it, "}")
         ETransposedArrayOfStructs(args.zipWithIndex.map { case ((name, t), i) => EField(name, t, i) }, req, structRequired)
-      case "ENDArray" =>
+      case "ENDArrayColumnMajor" =>
         IRParser.punctuation(it, "[")
         val elementType = eTypeParser(it)
         IRParser.punctuation(it, ",")
         val nDims = IRParser.int32_literal(it)
         IRParser.punctuation(it, "]")
-        ENDArray(elementType, nDims,  req)
+        ENDArrayColumnMajor(elementType, nDims,  req)
       case x => throw new UnsupportedOperationException(s"Couldn't parse $x ${it.toIndexedSeq}")
 
     }

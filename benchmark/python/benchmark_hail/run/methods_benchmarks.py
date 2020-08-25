@@ -135,9 +135,9 @@ def pc_relate(mt_path):
     rel._force_count()
 
 
-@benchmark()
-def pc_relate_big():
-    mt = hl.balding_nichols_model(3, 2 * 4096, 2 * 4096).checkpoint(hl.utils.new_temp_file(extension='mt'))
+@benchmark(args=balding_nichols_5k_5k.handle())
+def pc_relate_5k_5k(mt_path):
+    mt = hl.read_matrix_table(mt_path)
     mt = mt.annotate_cols(scores = hl.range(2).map(lambda x: hl.rand_unif(0, 1)))
     rel = hl.pc_relate(mt.GT,
                        0.05,

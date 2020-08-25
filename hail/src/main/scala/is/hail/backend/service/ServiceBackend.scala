@@ -298,7 +298,7 @@ class ServiceBackend() extends Backend {
     }
   }
 
-  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Seq[(String, Type)]): TableStage = {
+  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
     // Use a local sort for the moment to enable larger pipelines to run
     LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
   }

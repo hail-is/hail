@@ -138,6 +138,8 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   }
 
   def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalBinary(required)
+
+  override val encodableType = this
 }
 
 object PCanonicalBinary {

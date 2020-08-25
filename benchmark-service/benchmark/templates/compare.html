@@ -1,0 +1,89 @@
+{% extends "layout.html" %}
+{% block title %} Compare Benchmarks {% endblock %}
+
+{% block content %}
+
+<h1>Benchmark System</h1>
+<div class="flex-col-align-left">
+    <form method="get" action="{{ base_path }}/compare">
+        <label for="file1">File 1:</label>
+        <input style="vertical-align:text-bottom;" name="file1" size=30 type="text" required
+               {% if start %}
+               value = "{{ file1 }}"
+               {% else %}
+               placeholder="gs://..."
+               {% endif %}
+        ><br>
+        <label for="file2">File 2:</label>
+        <input style="vertical-align:text-bottom;" name="file2" size=30 type="text" required
+               {% if end %}
+               value = "{{ file2 }}"
+               {% else %}
+               placeholder="gs://..."
+               {% endif %}
+        ><br>
+        <label for="metrics">Choose a metric:</label>
+        <select id="metrics" name="metrics">
+            <option value="best">best</option>
+            <option value="median">median</option>
+        </select>
+        <button type="submit">Compare</button>
+    </form>
+</div>
+
+{% if file1 is not none and file2 is not none %}
+<table class="data-table">
+    <thead>
+    <tr>
+        <th>name</th>
+        <th>ratio of first to second</th>
+        <th>
+            {% if benchmarks1['sha'] is not none %}
+            <a href="{{ base_path }}/?file={{ file1 }}">{{ benchmarks1['sha'] }}</a>
+            {% else %}
+            unknown
+            {% endif %}
+        </th>
+        <th>
+            {% if benchmarks2['sha'] is not none %}
+            <a href="{{ base_path }}/?file={{ file2 }}">{{ benchmarks2['sha'] }}</a>
+            {% else %}
+            unknown
+            {% endif %}
+        </th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for name, ratio, r1, r2 in comparisons['comps'] %}
+    <tr>
+        <td>{{ name }}</td>
+        {% if ratio is none %}
+        <td>  </td>
+        {% else %}
+        <td>{{ ratio }}%</td>
+        {% endif %}
+        {% if r1 is none %}
+        <td>  </td>
+        {% else %}
+        <td>{{ r1 }}</td>
+        {% endif %}
+        {% if r2 is none %}
+        <td>  </td>
+        {% else %}
+        <td>{{ r2 }}</td>
+        {% endif %}
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+{% if comparisons['harmonic_mean'] is not none %}
+<p> Harmonic Mean: {{ comparisons['harmonic_mean'] }}% </p>
+<p> Geometric Mean: {{ comparisons['geometric_mean'] }}% </p>
+<p> Arithmetic Mean: {{ comparisons['arithmetic_mean'] }}%</p>
+<p> Median: {{ comparisons['median'] }}%</p>
+{% endif %}
+
+{% endif %}
+
+{% endblock %}

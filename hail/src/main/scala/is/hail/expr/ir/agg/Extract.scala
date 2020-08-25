@@ -150,6 +150,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
       val f2 = f(0, aggRegion)
       f2.setAggState(aggRegion, off)
       f2(aggRegion)
+      f2.storeAggsToRegion()
       f2.getSerializedAgg(0)
     }
   }
@@ -173,6 +174,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
         f2.setSerializedAgg(0, bytes1)
         f2.setSerializedAgg(1, bytes2)
         f2(r)
+        f2.storeAggsToRegion()
         f2.getSerializedAgg(0)
       }
     }

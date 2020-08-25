@@ -620,6 +620,22 @@ class StreamRange(IR):
         self._type = tstream(tint32)
 
 
+class StreamGrouped(IR):
+    @typecheck_method(stream=IR, group_size=IR)
+    def __init__(self, stream, group_size):
+        super().__init__(stream, group_size)
+        self.stream = stream
+        self.group_size = group_size
+
+    @typecheck_method(stream=IR, group_size=IR)
+    def copy(self, stream=IR, group_size=IR):
+        return StreamGrouped(stream, group_size)
+
+    def _compute_type(self, env, agg_env):
+        self.stream._compute_type(env, agg_env)
+        self._type = tstream(self.stream._type)
+
+
 class MakeNDArray(IR):
     @typecheck_method(data=IR, shape=IR, row_major=IR)
     def __init__(self, data, shape, row_major):
@@ -817,7 +833,6 @@ class NDArrayQR(IR):
         self.nd = nd
         self.mode = mode
 
-    @typecheck_method(nd=IR, mode=str)
     def copy(self):
         return NDArrayQR(self.nd, self.mode)
 
@@ -835,6 +850,28 @@ class NDArrayQR(IR):
             self._type = tndarray(tfloat64, 2)
         else:
             raise ValueError("Cannot compute type for mode: " + self.mode)
+
+
+class NDArraySVD(IR):
+    @typecheck_method(nd=IR, full_matrices=bool, compute_uv=bool)
+    def __init__(self, nd, full_matrices, compute_uv):
+        super().__init__(nd)
+        self.nd = nd
+        self.full_matrices = full_matrices
+        self.compute_uv = compute_uv
+
+    def copy(self):
+        return NDArraySVD(self.nd, self.full_matrices, self.compute_uv)
+
+    def head_str(self):
+        return f'{self.full_matrices} {self.compute_uv}'
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        if self.compute_uv:
+            self._type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2))
+        else:
+            self._type = tndarray(tfloat64, 1)
 
 
 class NDArrayInv(IR):

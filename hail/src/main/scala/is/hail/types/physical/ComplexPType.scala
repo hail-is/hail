@@ -13,6 +13,8 @@ abstract class ComplexPType extends PType {
 
   override def fundamentalType: PType = representation.fundamentalType
 
+  override def encodableType: PType = representation.encodableType
+
   override def containsPointers: Boolean = representation.containsPointers
 
   def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
