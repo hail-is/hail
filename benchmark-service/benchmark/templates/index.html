@@ -3,6 +3,35 @@
 
 {% block content %}
 <!--<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/css/autoComplete.min.css">-->
+<style>
+.autoComplete {
+  position: relative;
+  display: inline-block;
+}
+
+.autoComplete_list {
+  display: none;
+  position: absolute;
+  background-color: #f9f9f9;
+  min-width: 160px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+  z-index: 1;
+}
+
+.autoComplete_list a {
+  color: black;
+  padding: 12px 16px;
+  text-decoration: none;
+  display: block;
+}
+
+.autoComplete_list a:hover {background-color: #f1f1f1}
+
+.autoComplete:hover .autoComplete_list {
+  display: block;
+}
+
+</style>
 
 <h1>Benchmark System</h1>
 
