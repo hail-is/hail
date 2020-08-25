@@ -8,7 +8,7 @@ from hail.expr.types import ttuple, tlocus, tarray, tstr, tstruct
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.typecheck import typecheck, nullable, func_spec, oneof
-from hail.utils import Interval, Struct, new_temp_file
+from hail.utils import Interval, Struct, new_temp_file, deduplicate
 from hail.utils.misc import plural
 from hail.utils.java import Env, info
 from hail import ir
@@ -277,24 +277,8 @@ def rename_duplicates(dataset, name='unique_id') -> MatrixTable:
 
     require_col_key_str(dataset, 'rename_duplicates')
     ids = dataset.col_key[0].collect()
-    uniques = set()
-    mapping = []
-    new_ids = []
 
-    def fmt(s, i):
-        return '{}_{}'.format(s, i)
-
-    for s in ids:
-        s_ = s
-        i = 0
-        while s_ in uniques:
-            i += 1
-            s_ = fmt(s, i)
-
-        if s_ != s:
-            mapping.append((s, s_))
-        uniques.add(s_)
-        new_ids.append(s_)
+    mapping, new_ids = deduplicate(ids)
 
     if mapping:
         info(f'Renamed {len(mapping)} duplicate {plural("sample ID", len(mapping))}. Mangled IDs as follows:'

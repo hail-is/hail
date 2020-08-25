@@ -16,6 +16,7 @@ import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, dictof, anytype, \
     anyfunc, nullable, sequenceof, oneof, numeric, lazy, enumeration, \
     table_key_type, func_spec
+from hail.utils import deduplicate
 from hail.utils.placement_tree import PlacementTree
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import wrap_to_tuple, storage_level, plural, \
@@ -2430,27 +2431,14 @@ class Table(ExprContainer):
             raise ValueError(f"'join': key mismatch:\n  "
                              f"  left:  [{', '.join(str(t) for t in left_key_types)}]\n  "
                              f"  right: [{', '.join(str(t) for t in right_key_types)}]")
-        seen = set(self._fields.keys())
+        left_fields = set(self._fields)
+        right_fields = set(right._fields)
 
-        renames = {}
-
-        for field in right._fields:
-            if field in seen and field not in right.key:
-                i = 1
-                while i < 100:
-                    mod = _mangle(field, i)
-                    if mod not in seen:
-                        renames[field] = mod
-                        seen.add(mod)
-                        break
-                    i += 1
-                else:
-                    raise RecursionError(f'cannot rename field {repr(field)} after 99'
-                                         f' mangling attempts')
-            else:
-                seen.add(field)
+        renames, _ = deduplicate(
+            right_fields, max_attempts=100, already_used=left_fields)
 
         if renames:
+            renames = dict(renames)
             right = right.rename(renames)
             info('Table.join: renamed the following fields on the right to avoid name conflicts:'
                  + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items()))
