@@ -576,8 +576,11 @@ LOCK IN SHARE MODE;
 
         agg_batch_resources = tx.execute_and_fetchall('''
 SELECT batch_id, JSON_OBJECTAGG(resource, `usage`) as resources
-FROM aggregated_batch_resources
-GROUP BY batch_id
+FROM (
+  SELECT batch_id, resource, SUM(`usage`) AS `usage`
+  FROM aggregated_batch_resources
+  GROUP BY batch_id, resource) AS t
+GROUP BY t.batch_id
 LOCK IN SHARE MODE;
 ''')
 
