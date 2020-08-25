@@ -172,6 +172,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
     return await render_template('benchmark', request, userdata, 'index.html', context)
 
 
+
 @router.get('/compare')
 @web_authenticated_developers_only(redirect=False)
 async def compare(request, userdata):  # pylint: disable=unused-argument
