@@ -54,3 +54,10 @@ def blockmatrix_write_from_entry_expr_range_mt_standardize():
 def sum_table_of_ndarrays():
     ht = hl.utils.range_table(400).annotate(nd=hl.nd.ones((4096, 4096)))
     ht.aggregate(hl.agg.ndarray_sum(ht.nd))
+
+
+@benchmark()
+def to_matrix_table_row_major():
+    mt = hl.utils.range_matrix_table(20_000, 20_000, n_partitions=4)
+    bm = hl.linalg.BlockMatrix.from_entry_expr(mt.row_idx + mt.col_idx)
+    bm.to_matrix_table_row_major()._force_count_rows()
