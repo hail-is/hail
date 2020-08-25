@@ -237,6 +237,7 @@ class Batch:
         ...                            bim="data/example.bim",
         ...                            fam="data/example.fam")
         >>> j = b.new_job()
+        >>> j.command(f"plink --bfile {bfile} --geno --make-bed --out {j.geno}")
         >>> j.command(f"wc -l {bfile.fam}")
         >>> j.command(f"wc -l {bfile.bim}")
         >>> b.run() # doctest: +SKIP
