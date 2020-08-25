@@ -113,6 +113,15 @@ class LocalTests(unittest.TestCase):
         j.command(f'echo "hello"')
         self.assertRaises(Exception, b.run)
 
+    def test_single_job_with_intermediate_failure(self):
+        b = self.batch()
+        j = b.new_job()
+        j.command(f'echoddd "hello"')
+        j2 = b.new_job()
+        j2.command(f'echo "world"')
+
+        self.assertRaises(Exception, b.run)
+
     def test_single_job_w_input(self):
         with tempfile.NamedTemporaryFile('w') as input_file, \
                 tempfile.NamedTemporaryFile('w') as output_file:
@@ -558,4 +567,13 @@ class BatchTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job(shell='/bin/ajdsfoijasidojf')
         j.command(f'echo "hello"')
+        assert b.run().status()['state'] == 'failure'
+
+    def test_single_job_with_intermediate_failure(self):
+        b = self.batch()
+        j = b.new_job()
+        j.command(f'echoddd "hello"')
+        j2 = b.new_job()
+        j2.command(f'echo "world"')
+
         assert b.run().status()['state'] == 'failure'

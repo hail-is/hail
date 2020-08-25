@@ -114,7 +114,7 @@ class LocalBackend(Backend):
 
         tmpdir = self._get_scratch_dir()
 
-        lines = ['set -e' + 'x' if verbose else '',
+        lines = ['set -e' + ('x' if verbose else ''),
                  '\n',
                  '# change cd to tmp directory',
                  f"cd {tmpdir}",
@@ -224,6 +224,7 @@ class LocalBackend(Backend):
             lines += ['\n']
 
         script = "\n".join(lines)
+
         if dry_run:
             print(lines)
         else:
