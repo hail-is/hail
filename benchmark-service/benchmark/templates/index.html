@@ -2,36 +2,37 @@
 {% block title %} Benchmarks {% endblock %}
 
 {% block content %}
-<!--<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/css/autoComplete.min.css">-->
-<style>
-.autoComplete {
-  position: relative;
-  display: inline-block;
-}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/css/autoComplete.min.css">
 
-#file_list {
-  display: none;
-  position: absolute;
-  background-color: #f9f9f9;
-  min-width: 160px;
-  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-  z-index: 1;
-}
+<!--<style>-->
+<!--.autoComplete {-->
+<!--  position: relative;-->
+<!--  display: inline-block;-->
+<!--}-->
 
-#file_list a {
-  color: black;
-  padding: 12px 16px;
-  text-decoration: none;
-  display: block;
-}
+<!--#file_list {-->
+<!--  display: none;-->
+<!--  position: absolute;-->
+<!--  background-color: #f9f9f9;-->
+<!--  min-width: 160px;-->
+<!--  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);-->
+<!--  z-index: 1;-->
+<!--}-->
 
-#file_list a:hover {background-color: #f1f1f1}
+<!--#file_list a {-->
+<!--  color: black;-->
+<!--  padding: 12px 16px;-->
+<!--  text-decoration: none;-->
+<!--  display: block;-->
+<!--}-->
 
-.autoComplete:hover #file_list {
-  display: block;
-}
+<!--#file_list a:hover {background-color: #f1f1f1}-->
 
-</style>
+<!--.autoComplete:hover #file_list {-->
+<!--  display: block;-->
+<!--}-->
+
+<!--</style>-->
 
 <h1>Benchmark System</h1>
 
@@ -43,7 +44,7 @@
 <form autocomplete="off" action="{{ base_path }}/" method="get">
     <div class="autocomplete">
         <!--        <input type="text" name="file" id="file"></input>-->
-        <input type="text" name="file" id="autoComplete" class="autoComplete"></input>
+        <input type="text" name="file" id="autoComplete"></input>
     </div>
     <input type="submit" value="lookup"></input>
 </form>
