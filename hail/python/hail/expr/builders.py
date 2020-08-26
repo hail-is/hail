@@ -1,3 +1,4 @@
+import hail as hl
 from hail.typecheck import typecheck_method
 from hail.expr.expressions import unify_types, unify_types_limited, expr_any, \
     expr_bool, ExpressionException, construct_expr, expr_str
@@ -61,25 +62,22 @@ class SwitchBuilder(ConditionalBuilder):
         super(SwitchBuilder, self).__init__()
 
     def _finish(self, default):
-        assert len(self._cases) > 0
-
-        from hail.expr.functions import cond, bind
+        assert len(self._cases) > 0 or self._when_missing_case is not None
 
         def f(base):
             # build cond chain bottom-up
-            from hail.expr.functions import is_missing
             if default is self._base:
                 expr = base
             else:
                 expr = default
             for value, then in self._cases[::-1]:
-                expr = cond(base == value, then, expr)
+                expr = hl.cond(base == value, then, expr)
             # needs to be on the outside, because upstream missingness would propagate
             if self._when_missing_case is not None:
-                expr = cond(is_missing(base), self._when_missing_case)
+                expr = hl.cond(hl.is_missing(base), self._when_missing_case, expr)
             return expr
 
-        return bind(f, self._base)
+        return hl.bind(f, self._base)
 
     @typecheck_method(value=expr_any, then=expr_any)
     def when(self, value, then) -> 'SwitchBuilder':
@@ -149,7 +147,7 @@ class SwitchBuilder(ConditionalBuilder):
         -------
         :class:`.Expression`
         """
-        if len(self._cases) == 0:
+        if len(self._cases) == 0 and self._when_missing_case is None:
             return then
         self._unify_type(then.dtype)
         return self._finish(then)
