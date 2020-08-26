@@ -279,7 +279,7 @@ python/hail/docs/change_log.rst: python/hail/docs/change_log.md
 	  | pandoc -o $@
 
 .PHONY: batch-docs
-batch-docs: install-editable
+batch-docs:
 	$(MAKE) -C python/hailtop/batch/docs \
 	      BUILDDIR=$(PWD)/build/docs/batch \
 	      html
@@ -294,7 +294,7 @@ batch-docs: install-editable
 
 HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
 .PHONY: hail-docs
-hail-docs: install-editable $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
+hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs
 	        SPHINXOPTS='-tchecktutorial' \
 	        BUILDDIR=$(PWD)/build/docs/hail \
@@ -309,7 +309,7 @@ hail-docs: install-editable $(PYTHON_VERSION_INFO) python/hail/docs/change_log.r
 	@echo Built Hail docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: hail-docs-no-test
-hail-docs-no-test:  $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
+hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
 	        BUILDDIR=$(PWD)/build/docs/hail \
 	        html
