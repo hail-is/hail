@@ -116,3 +116,9 @@ def test_connect_zone_required(gcloud_run, gcloud_config):
         cli.main(["connect", "test-cluster", "notebook"])
 
     assert gcloud_run.call_count == 0
+
+
+def test_connect_project(gcloud_run):
+    cli.main(["connect", "test-cluster", "notebook", "--project=test-project"])
+
+    assert "--project=test-project" in gcloud_run.call_args[0][0]
