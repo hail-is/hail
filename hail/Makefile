@@ -281,8 +281,8 @@ python/hail/docs/change_log.rst: python/hail/docs/change_log.md
 .PHONY: batch-docs
 batch-docs: install-editable
 	$(MAKE) -C python/hailtop/batch/docs \
-          BUILDDIR=$(PWD)/build/docs/batch \
-          html
+	      BUILDDIR=$(PWD)/build/docs/batch \
+	      html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/batch
 	cp -R build/docs/batch/html build/www/docs/batch
@@ -295,10 +295,10 @@ batch-docs: install-editable
 HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
 .PHONY: hail-docs
 hail-docs: install-editable $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
-	$(MAKE) -C python/hail/docs \
-          SPHINXOPTS='-tchecktutorial' \
-          BUILDDIR=$(PWD)/build/docs/hail \
-          html
+	$(MAKE) -C python/hail/docs
+	        SPHINXOPTS='-tchecktutorial' \
+	        BUILDDIR=$(PWD)/build/docs/hail \
+	        html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	cp -R build/docs/hail/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
@@ -311,8 +311,8 @@ hail-docs: install-editable $(PYTHON_VERSION_INFO) python/hail/docs/change_log.r
 .PHONY: hail-docs-no-test
 hail-docs-no-test:  $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
-          BUILDDIR=$(PWD)/build/docs/hail \
-          html
+	        BUILDDIR=$(PWD)/build/docs/hail \
+	        html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	cp -R build/docs/hail/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
