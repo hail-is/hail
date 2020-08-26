@@ -275,8 +275,8 @@ install-benchmark:
 
 python/hail/docs/change_log.rst: python/hail/docs/change_log.md
 	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
-    < $< \
-    | pandoc -o $@
+	  < $< \
+	  | pandoc -o $@
 
 .PHONY: batch-docs
 batch-docs: install-editable
