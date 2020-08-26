@@ -1465,14 +1465,15 @@ class PartitionedVCFRDD(
   @(transient@param) _partitions: Array[Partition]
 ) extends RDD[String](SparkBackend.sparkContext("PartitionedVCFRDD"), Seq()) {
 
-  val contigRemappingBc = sparkContext.broadcast(reverseContigMapping)
+  val contigRemappingBc = if (reverseContigMapping.size != 0) sparkContext.broadcast(reverseContigMapping) else null
 
   protected def getPartitions: Array[Partition] = _partitions
 
   def compute(split: Partition, context: TaskContext): Iterator[String] = {
     val p = split.asInstanceOf[PartitionedVCFPartition]
 
-    val chromToQuery = contigRemappingBc.value.getOrElse(p.chrom, p.chrom)
+    val chromToQuery = if (contigRemappingBc != null) contigRemappingBc.value.getOrElse(p.chrom, p.chrom) else p.chrom
+
     val reg = {
       val r = new TabixReader(file, fsBc.value)
       val tid = r.chr2tid(chromToQuery)
