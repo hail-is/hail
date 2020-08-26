@@ -327,6 +327,9 @@ async def test_billing_project_accrued_costs(make_client, dev_client, new_billin
     r = await dev_client.add_user('test', project)
     assert r['user'] == 'test'
     assert r['billing_project'] == project
+    r = await dev_client.get_billing_project(project)
+    assert r['limit'] is None
+    assert r['accrued_cost'] == 0
 
     client = await make_client(project)
 
@@ -356,3 +359,58 @@ async def test_billing_project_accrued_costs(make_client, dev_client, new_billin
     cost_by_billing_project = (await dev_client.get_billing_project(project))['accrued_cost']
 
     assert approx_equal(cost_by_batch, cost_by_billing_project), (cost_by_batch, cost_by_billing_project)
+
+
+async def test_billing_limit_zero(make_client, dev_client, new_billing_project):
+    project = new_billing_project
+    r = await dev_client.add_user('test', project)
+    assert r['user'] == 'test'
+    assert r['billing_project'] == project
+    r = await dev_client.get_billing_project(project)
+    assert r['limit'] is None
+    assert r['accrued_cost'] == 0
+
+    limit = 0
+    r = await dev_client.edit_billing_limit(project, limit)
+    assert r['limit'] == limit
+
+    client = await make_client(project)
+
+    try:
+        batch = client.create_batch()
+        batch = await batch.submit()
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 403 and 'has exceeded the budget' in e.message
+    else:
+        assert False, f'should receive a 403 Forbidden {batch.id}'
+
+
+async def test_billing_limit_tiny(make_client, dev_client, new_billing_project):
+    project = new_billing_project
+    r = await dev_client.add_user('test', project)
+    assert r['user'] == 'test'
+    assert r['billing_project'] == project
+    r = await dev_client.get_billing_project(project)
+    assert r['limit'] is None
+    assert r['accrued_cost'] == 0
+
+    limit = 0.00001
+    r = await dev_client.edit_billing_limit(project, limit)
+    assert r['limit'] == limit
+
+    client = await make_client(project)
+
+    batch = client.create_batch()
+    j1 = batch.create_job('ubuntu:18.04', command=['sleep', '5'])
+    j2 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j1])
+    j3 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j2])
+    j4 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j3])
+    j5 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j4])
+    j6 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j5])
+    j7 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j6])
+    j8 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j7])
+    j9 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j8])
+    j10 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j9])
+    batch = await batch.submit()
+    batch = await batch.wait()
+    assert batch['state'] == 'cancelled', batch

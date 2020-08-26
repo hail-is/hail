@@ -34,11 +34,12 @@ from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
 
 from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_gb,
                      cost_from_msec_mcpu, adjust_cores_for_packability, coalesce,
-                     adjust_cores_for_storage_request, total_worker_storage_gib)
-from ..batch import batch_record_to_dict, job_record_to_dict
+                     adjust_cores_for_storage_request, total_worker_storage_gib,
+                     query_billing_projects)
+from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
                           NonExistentUserError, ClosedBillingProjectError,
-                          InvalidBillingLimitError)
+                          InvalidBillingLimitError, OpenBatchError, NonExistentBatchError)
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import (BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME,
@@ -841,23 +842,20 @@ async def create_batch(request, userdata):
 
     @transaction(db)
     async def insert(tx):
-        rows = tx.execute_and_fetchall(
-            '''
-SELECT billing_project_users.*, billing_projects.status as project_status
-FROM billing_project_users
-INNER JOIN billing_projects
-ON billing_projects.name = billing_project_users.billing_project
-WHERE billing_project = %s AND user = %s
-LOCK IN SHARE MODE;
-''',
-            (billing_project, user))
-        rows = [row async for row in rows]
-        if len(rows) != 1:
-            assert len(rows) == 0
+        billing_projects = await query_billing_projects(tx, user=user, billing_project=billing_project)
+
+        if len(billing_projects) != 1:
+            assert len(billing_projects) == 0
             raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
-        assert rows[0]['project_status'] is not None
-        if rows[0]['project_status'] in {'closed', 'deleted'}:
+        assert billing_projects[0]['status'] is not None
+        if billing_projects[0]['status'] in {'closed', 'deleted'}:
             raise web.HTTPForbidden(reason=f'Billing project {billing_project} is closed or deleted.')
+
+        bp = billing_projects[0]
+        limit = bp['limit']
+        accrued_cost = bp['accrued_cost']
+        if limit is not None and accrued_cost >= limit:
+            raise web.HTTPForbidden(reason=f'billing project {billing_project} has exceeded the budget; accrued={cost_str(accrued_cost)} limit={cost_str(limit)}')
 
         maybe_batch = await tx.execute_and_fetchone(
             '''
@@ -910,21 +908,12 @@ GROUP BY batches.id;
 
 
 async def _cancel_batch(app, batch_id, user):
-    db = app['db']
-
-    record = await db.select_and_fetchone(
-        '''
-SELECT `state` FROM batches
-WHERE user = %s AND id = %s AND NOT deleted;
-''',
-        (user, batch_id))
-    if not record:
-        raise web.HTTPNotFound()
-    if record['state'] == 'open':
-        raise web.HTTPBadRequest(reason=f'cannot cancel open batch {batch_id}')
-
-    await db.just_execute(
-        'CALL cancel_batch(%s);', (batch_id,))
+    try:
+        await cancel_batch_in_db(app['db'], batch_id, user)
+    except NonExistentBatchError as e:
+        raise web.HTTPNotFound() from e
+    except OpenBatchError as e:
+        raise web.HTTPBadRequest(reason=f'cannot cancel open batch {batch_id}') from e
 
     app['cancel_batch_state_changed'].set()
 
@@ -1233,10 +1222,10 @@ async def ui_get_billing_limits(request, userdata):
     else:
         user = None
 
-    billing_limits = await _query_billing_projects(db, user=user)
+    billing_projects = await query_billing_projects(db, user=user)
 
     page_context = {
-        'billing_limits': billing_limits,
+        'billing_projects': billing_projects,
         'is_developer': userdata['is_developer']
     }
     return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
@@ -1419,69 +1408,12 @@ async def ui_get_billing(request, userdata):
     return await render_template('batch', request, userdata, 'billing.html', page_context)
 
 
-async def _query_billing_projects(db, user=None, billing_project=None):
-    args = []
-
-    where_conditions = ["billing_projects.`status` != 'deleted'"]
-
-    if user:
-        where_conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
-        args.append(user)
-
-    if billing_project:
-        where_conditions.append('billing_projects.name = %s')
-        args.append(billing_project)
-
-    if where_conditions:
-        where_condition = f'WHERE {" AND ".join(where_conditions)}'
-    else:
-        where_condition = ''
-
-    sql = f'''
-SELECT billing_projects.name as billing_project,
-    billing_projects.`status` as `status`,
-    users, msec_mcpu, `limit`, SUM(`usage` * rate) as cost
-FROM (
-  SELECT billing_project, JSON_ARRAYAGG(`user`) as users
-  FROM billing_project_users
-  GROUP BY billing_project
-) AS t
-RIGHT JOIN billing_projects
-  ON t.billing_project = billing_projects.name
-LEFT JOIN aggregated_billing_project_resources
-  ON aggregated_billing_project_resources.billing_project = billing_projects.name
-LEFT JOIN resources
-  ON resources.resource = aggregated_billing_project_resources.resource
-{where_condition}
-GROUP BY billing_projects.name, users, msec_mcpu, `limit`;
-'''
-
-    def record_to_dict(record):
-        cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
-        cost_resources = record['cost']
-        record['accrued_cost'] = coalesce(cost_msec_mcpu, 0) + coalesce(cost_resources, 0)
-        del record['msec_mcpu']
-        del record['cost']
-
-        if record['users'] is None:
-            record['users'] = []
-        else:
-            record['users'] = json.loads(record['users'])
-        return record
-
-    billing_projects = [record_to_dict(record)
-                        async for record
-                        in db.select_and_fetchall(sql, tuple(args))]
-
-    return billing_projects
-
-
 @routes.get('/billing_projects')
 @prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS_UI)
 @web_authenticated_developers_only()
 async def ui_get_billing_projects(request, userdata):
     db = request.app['db']
-    billing_projects = await _query_billing_projects(db)
+    billing_projects = await query_billing_projects(db)
     page_context = {
         'billing_projects': [{**p, 'size': len(p['users'])} for p in billing_projects if p['status'] == 'open'],
         'closed_projects': [p for p in billing_projects if p['status'] == 'closed']
@@ -1500,7 +1432,7 @@ async def get_billing_projects(request, userdata):
     else:
         user = None
 
-    billing_projects = await _query_billing_projects(db, user=user)
+    billing_projects = await query_billing_projects(db, user=user)
 
     return web.json_response(data=billing_projects)
 
@@ -1517,7 +1449,7 @@ async def get_billing_project(request, userdata):
     else:
         user = None
 
-    billing_projects = await _query_billing_projects(db, user=user, billing_project=billing_project)
+    billing_projects = await query_billing_projects(db, user=user, billing_project=billing_project)
 
     if not billing_projects:
         raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
