@@ -1,6 +1,7 @@
 package is.hail.linalg
 
 import java.io._
+import java.nio._
 
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, sum => breezeSum, _}
 import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sqrt => breezeSqrt}
@@ -88,9 +89,10 @@ class CollectMatricesRDD(@transient var bms: IndexedSeq[BlockMatrix]) extends RD
 object BlockMatrix {
   type M = BlockMatrix
   val defaultBlockSize: Int = 4096 // 32 * 1024 bytes
+  val bufferSpecBlockSize = 32 * 1024
   val bufferSpec: BufferSpec =
-    new BlockingBufferSpec(32 * 1024,
-      new LZ4FastBlockBufferSpec(32 * 1024,
+    new BlockingBufferSpec(bufferSpecBlockSize,
+      new LZ4FastBlockBufferSpec(bufferSpecBlockSize,
         new StreamBlockBufferSpec))
 
   def apply(gp: GridPartitioner, piBlock: (GridPartitioner, Int) => ((Int, Int), BDM[Double])): BlockMatrix =
@@ -1996,14 +1998,23 @@ class WriteBlocksRDD(
   }
 }
 
+object BlockMatrixReadRowBlockedRDD {
+  val MAXIMUM_CACHE_MEMORY = 32 * 1024 * 1024
+}
+
 class BlockMatrixReadRowBlockedRDD(
   fsBc: BroadcastValue[FS],
   path: String,
   partitionRanges: IndexedSeq[NumericRange.Exclusive[Long]],
-  metadata: BlockMatrixMetadata) extends RDD[RVDContext => Iterator[Long]](SparkBackend.sparkContext("BlockMatrixReadRowBlockedRDD"), Nil) {
+  metadata: BlockMatrixMetadata
+) extends RDD[RVDContext => Iterator[Long]](SparkBackend.sparkContext("BlockMatrixReadRowBlockedRDD"), Nil) {
+  import BlockMatrixReadRowBlockedRDD._
 
-  val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = metadata
-  val gp = GridPartitioner(blockSize, nRows, nCols)
+  private[this] val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = metadata
+  private[this] val gp = GridPartitioner(blockSize, nRows, nCols)
+  private[this] val doublesPerFile = MAXIMUM_CACHE_MEMORY / (gp.nBlockCols * 8)
+  assert(doublesPerFile >= blockSize,
+    "BlockMatrixCachedPartFile must be able to hold at least one row of every block in memory")
 
   override def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[Long]] = {
     val pi = split.index
@@ -2013,51 +2024,143 @@ class BlockMatrixReadRowBlockedRDD(
       val region = ctx.region
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
+      val firstRow = rowsForPartition(0)
+      var blockRow = (firstRow / blockSize).toInt
+      val fs = fsBc.value
+      var pfs = Array.tabulate(gp.nBlockCols) { blockCol =>
+        new BlockMatrixCachedPartFile(
+          (firstRow % blockSize).toInt,
+          doublesPerFile,
+          fs,
+          path,
+          partFiles(gp.coordinatesBlock(blockRow, blockCol)))
+      }
 
       rowsForPartition.iterator.map { row =>
-        val pfs = partFilesForRow(row, partFiles)
-        val rowInPartFile = (row % blockSize).toInt
+        val nextBlockRow = (row / blockSize).toInt
+        if (nextBlockRow != blockRow) {
+          assert(row % blockSize == 0)
+          blockRow = nextBlockRow
+          pfs = Array.tabulate(gp.nBlockCols) { blockCol =>
+            new BlockMatrixCachedPartFile(
+              0,
+              doublesPerFile,
+              fs,
+              path,
+              partFiles(gp.coordinatesBlock(blockRow, blockCol)))
+          }
+        }
 
         rvb.start(PCanonicalStruct(("row_idx", PInt64()), ("entries", PCanonicalArray(PFloat64()))))
         rvb.startStruct()
         rvb.addLong(row)
+        assert(nCols < Int.MaxValue)
         rvb.startArray(nCols.toInt)
-        pfs.foreach { pFile => readPartFileRow(fsBc.value, rvb, rowInPartFile, pFile) }
+        var colsRemaining = nCols.toInt
+        pfs.foreach { pf =>
+          val colsAdded = pf.addRow(rvb, colsRemaining)
+          colsRemaining -= colsAdded
+        }
+        assert(colsRemaining == 0)
         rvb.endArray()
         rvb.endStruct()
-
         rvb.end()
       }
     }
   }
 
-  private def partFilesForRow(row: Long, partFiles: IndexedSeq[String]): Array[String] = {
-    val blockRow = (row / blockSize).toInt
-    Array.tabulate(gp.nBlockCols) { blockCol => partFiles(gp.coordinatesBlock(blockRow, blockCol)) }
-  }
-
-  private def readPartFileRow(fs: FS, rvb: RegionValueBuilder, rowIdx: Int, pFile: String) {
-    val filename = path + "/parts/" + pFile
-    val is = fs.open(filename)
-    val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
-
-    val rows = in.readInt()
-    val cols = in.readInt()
-    val isTranspose = in.readBoolean()
-    assert(isTranspose, "BlockMatrix must be saved in row-major format")
-
-    val entriesToSkip = rowIdx * cols
-    in.skipBytes(8 * entriesToSkip)
-
-    var i = 0
-    while (i < cols) {
-      rvb.addDouble(in.readDouble())
-      i += 1
-    }
-    is.close()
-  }
-
   override def getPartitions: Array[Partition] = {
     Array.tabulate(partitionRanges.length) { pi => new Partition { val index: Int = pi } }
+  }
+}
+
+class BlockMatrixCachedPartFile(
+  private[this] val startRow: Int,
+  _cacheCapacity: Int,
+  private[this] val fs: FS,
+  path: String,
+  pFile: String
+) {
+  private[this] val cacheCapacity = math.min(_cacheCapacity, BlockMatrix.bufferSpecBlockSize)
+  private[this] val cache = new Array[Double](cacheCapacity)
+  private[this] var cacheIndex = cacheCapacity
+  private[this] var cacheEnd = cacheCapacity
+  private[this] var fileIndex = 0
+  private[this] val filename = path + "/parts/" + pFile
+  private[this] var rows = -1
+  private[this] var cols = -1
+
+  private[this] var row = startRow
+  private[this] val ref = using(fs.open(filename)) { is =>
+    val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
+    rows = in.readInt()
+    assert(rows > 0)
+    cols = in.readInt()
+    assert(cols > 0)
+    assert(cols <= cacheCapacity)
+    val isTranspose = in.readBoolean()
+    val arr = new Array[Double](rows * cols)
+    in.readDoubles(arr, 0, rows * cols)
+    arr
+  }
+
+  using(fs.open(filename)) { is =>
+    val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
+    rows = in.readInt()
+    assert(rows > 0)
+    cols = in.readInt()
+    assert(cols > 0)
+    assert(cols <= cacheCapacity)
+    val isTranspose = in.readBoolean()
+    assert(isTranspose, "BlockMatrix must be saved in row-major format")
+    in.skipBytes(startRow * cols * 8)
+    val doublesToRead = math.min(cacheCapacity, (rows - startRow) * cols)
+    in.readDoubles(cache, 0, doublesToRead)
+    cacheIndex = 0
+    cacheEnd = doublesToRead
+    fileIndex = startRow * cols + doublesToRead
+    log.info(s"fileIndex 1 $fileIndex")
+  }
+
+  private[this] def fillCache(): Unit = {
+    System.arraycopy(cache, cacheIndex, cache, 0, cacheEnd - cacheIndex)
+    val startWritingAt = cacheEnd - cacheIndex
+    cacheIndex = 0
+    using(fs.open(filename)) { is =>
+      val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
+
+      assert(rows == in.readInt())
+      assert(cols == in.readInt())
+      val isTranspose = in.readBoolean()
+      assert(isTranspose, "BlockMatrix must be saved in row-major format")
+
+      in.skipBytes(8 * fileIndex)
+      val doublesToRead = math.min(
+        cacheCapacity - startWritingAt,
+        rows * cols - fileIndex)
+      in.readDoubles(cache, startWritingAt, doublesToRead)
+      cacheEnd = doublesToRead + startWritingAt
+      var i = 0
+      fileIndex += doublesToRead
+      assert(doublesToRead > 0)
+    }
+  }
+
+  def addRow(rvb: RegionValueBuilder, colsRemaining: Int): Int = {
+    assert(cols <= colsRemaining)
+    if (cacheIndex + cols > cacheEnd) {
+      fillCache()
+    }
+
+    var i = cacheIndex
+    val endOfRow = cacheIndex + cols
+    while (i < endOfRow) {
+      rvb.addDouble(cache(i))
+      i += 1
+    }
+
+    row += 1
+    cacheIndex += cols
+    return cols
   }
 }
