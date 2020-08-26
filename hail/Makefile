@@ -281,15 +281,15 @@ python/hail/docs/change_log.rst: python/hail/docs/change_log.md
 .PHONY: batch-docs
 batch-docs: install-editable
 	$(MAKE) -C python/hailtop/batch/docs \
-          BUILDDIR=../../../build/docs/batch \
+          BUILDDIR=$(PWD)/build/docs/batch \
           html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/batch
 	cp -R build/docs/batch/html build/www/docs/batch
 	find build/www/docs/batch \
-       -iname *.html \
-       -type f \
-       -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
+	     -iname *.html \
+	     -type f \
+	     -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built Batch docs: build/www/docs/batch/index.html
 
 HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
@@ -297,29 +297,29 @@ HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
 hail-docs: install-editable $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
           SPHINXOPTS='-tchecktutorial' \
-          BUILDDIR=../../../build/docs/hail \
+          BUILDDIR=$(PWD)/build/docs/hail \
           html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	cp -R build/docs/hail/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	find build/www/docs/$(HAIL_MAJOR_MINOR_VERSION) \
-       -iname *.html \
-       -type f \
-       -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
+	     -iname *.html \
+	     -type f \
+	     -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built Hail docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: hail-docs-no-test
 hail-docs-no-test:  $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
-          BUILDDIR=../../../build/docs/hail \
+          BUILDDIR=$(PWD)/build/docs/hail \
           html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	cp -R build/docs/hail/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	find build/www/docs/$(HAIL_MAJOR_MINOR_VERSION) \
-       -iname *.html \
-       -type f \
-       -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
+	     -iname *.html \
+	     -type f \
+	     -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: upload-docs
