@@ -87,9 +87,9 @@ object Emit {
     val emitter = new Emit[C](ctx, fb.ecb)
     val regionArg = mb.getCodeParam[Region](1)
     val stagedRegion = allocStrat match {
-      case EmitAllocationStrategy.Default => new RealStagedRegion(regionArg)
-      case EmitAllocationStrategy.ManyRegions => new RealStagedRegion(regionArg)
-      case EmitAllocationStrategy.OneRegion => new DummyStagedRegion(regionArg)
+      case EmitAllocationStrategy.Default => StagedRegion(regionArg, allowSubregions = true)
+      case EmitAllocationStrategy.ManyRegions => StagedRegion(regionArg, allowSubregions = true)
+      case EmitAllocationStrategy.OneRegion => StagedRegion(regionArg, allowSubregions = false)
     }
     if (ir.typ == TVoid) {
       fb.emitWithBuilder { cb =>
