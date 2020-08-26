@@ -1,13 +1,14 @@
 package is.hail.types.physical
 
 import is.hail.HailSuite
-import is.hail.utils.log
+import is.hail.utils.{HailException, log}
 import is.hail.annotations.{Region, ScalaToRegionValue, UnsafeRow}
 import is.hail.expr.ir.EmitFunctionBuilder
 
 abstract class PhysicalTestUtils extends HailSuite {
   def copyTestExecutor(sourceType: PType, destType: PType, sourceValue: Any,
-    expectCompileErr: Boolean = false, deepCopy: Boolean = false, interpret: Boolean = false, expectedValue: Any = null) {
+    expectCompileError: Boolean = false, expectRuntimeError: Boolean = false,
+    deepCopy: Boolean = false, interpret: Boolean = false, expectedValue: Any = null) {
 
     val srcRegion = Region()
     val region = Region()
@@ -36,17 +37,17 @@ abstract class PhysicalTestUtils extends HailSuite {
           srcRegion.clear()
           region.clear()
 
-          if (expectCompileErr) {
+          if (expectCompileError || expectRuntimeError) {
             log.info("OK: Caught expected compile-time error")
             return
           }
 
-          throw new Error(e)
+          throw e
       }
 
       return
     }
-    
+
     var compileSuccess = false
     val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "not_empty")
     val codeRegion = fb.getCodeParam[Region](1)
@@ -60,25 +61,35 @@ abstract class PhysicalTestUtils extends HailSuite {
         srcRegion.clear()
         region.clear()
 
-        if (expectCompileErr) {
+        if (expectCompileError) {
           log.info("OK: Caught expected compile-time error")
           return
         }
 
-        throw new Error(e)
+        throw e
     }
 
-    if(compileSuccess && expectCompileErr) {
+    if (compileSuccess && expectCompileError) {
       region.clear()
       srcRegion.clear()
       throw new Error("Did not receive expected compile time error")
     }
 
-    val f = fb.result()()
-    val copyOff = f(region, srcAddress)
-    val copy = UnsafeRow.read(destType, region, copyOff)
+    val copy = try {
+      val f = fb.result()()
+      val copyOff = f(region, srcAddress)
+      UnsafeRow.read(destType, region, copyOff)
+    } catch {
+      case e: HailException =>
+        if (expectRuntimeError) {
+          log.info("OK: Caught expected compile-time error")
+          return
+        }
 
-    log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
+        throw e
+    }
+
+    log.info(s"Copied value: ${ copy }, Source value: ${ sourceValue }")
 
     if(expectedValue != null) {
       assert(copy == expectedValue)

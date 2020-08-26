@@ -184,8 +184,7 @@ class PContainerTest extends PhysicalTestUtils {
     // Note: can't test where data is null due to ArrayStack.top semantics (ScalaToRegionValue: assert(size_ > 0))
     def runTests(deepCopy: Boolean, interpret: Boolean) {
       copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt64()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, 9),
-        expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
-      
+        expectCompileError = true, deepCopy = deepCopy, interpret = interpret)
       copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32()), IndexedSeq(1, 2, 3, 4),
         deepCopy = deepCopy, interpret = interpret)
       copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32()), IndexedSeq(1, 2, 3, 4),
@@ -203,16 +202,16 @@ class PContainerTest extends PhysicalTestUtils {
 
       // downcast disallowed
       copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32(true)), IndexedSeq(1, 2, 3, 4),
-        expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
+        deepCopy = deepCopy, interpret = interpret)
       copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64(), true)),
         FastIndexedSeq(FastIndexedSeq(20L), FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
-        expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
+        deepCopy = deepCopy, interpret = interpret)
       copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64(), true)),
         FastIndexedSeq(FastIndexedSeq(20L), FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
-        expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
+        deepCopy = deepCopy, interpret = interpret)
       copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64(true))),
         FastIndexedSeq(FastIndexedSeq(20L), FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
-        expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
+         deepCopy = deepCopy, interpret = interpret)
 
       // test empty arrays
       copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32()), FastIndexedSeq(),
@@ -270,7 +269,7 @@ class PContainerTest extends PhysicalTestUtils {
         deepCopy = deepCopy, interpret = interpret)
 
       copyTestExecutor(PCanonicalDict(PCanonicalString(), PInt32()), PCanonicalDict(PCanonicalString(true), PInt32()), Map("test3" -> 3),
-        expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
+        deepCopy = deepCopy, interpret = interpret)
     }
 
     runTests(true, false)

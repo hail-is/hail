@@ -17,7 +17,7 @@ class PBaseStructSuite extends PhysicalTestUtils {
         deepCopy = deepCopy, interpret = interpret)
 
       copyTestExecutor(PCanonicalStruct("a" -> PInt64(false)), PCanonicalStruct("a" -> PInt64(true)), Annotation(3L),
-        expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
+        deepCopy = deepCopy, interpret = interpret)
 
       var srcType = PCanonicalStruct("a" -> PInt64(true), "b" -> PInt32(true), "c" -> PFloat64(true), "d" -> PFloat32(true), "e" -> PBoolean(true))
       var destType = PCanonicalStruct("a" -> PInt64(true), "b" -> PInt32(true), "c" -> PFloat64(true), "d" -> PFloat32(true), "e" -> PBoolean(true))
@@ -50,12 +50,12 @@ class PBaseStructSuite extends PhysicalTestUtils {
 
       srcType = PCanonicalStruct("a" -> PInt64(), "b" -> PInt32(true), "c" -> PFloat64(), "d" -> PFloat32(), "e" -> PBoolean())
       destType = PCanonicalStruct("a" -> PInt64(), "b" -> PInt32(), "c" -> PFloat64(true), "d" -> PFloat32(), "e" -> PBoolean())
-      copyTestExecutor(srcType, destType, expectedVal, expectCompileErr = true, deepCopy = deepCopy)
+      copyTestExecutor(srcType, destType, expectedVal, deepCopy = deepCopy)
 
       srcType = PCanonicalStruct("a" -> srcType, "b" -> PFloat32())
       destType = PCanonicalStruct("a" -> destType, "b" -> PFloat32())
       nestedExpectedVal = Annotation(expectedVal, 13F)
-      copyTestExecutor(srcType, destType, nestedExpectedVal, expectCompileErr = true, deepCopy = deepCopy)
+      copyTestExecutor(srcType, destType, nestedExpectedVal, deepCopy = deepCopy)
 
       srcType = PCanonicalStruct("a" -> PCanonicalArray(PInt32(true)), "b" -> PInt64())
       destType = PCanonicalStruct("a" -> PCanonicalArray(PInt32()), "b" -> PInt64())
@@ -69,7 +69,7 @@ class PBaseStructSuite extends PhysicalTestUtils {
 
       srcType = PCanonicalStruct("a" -> PCanonicalArray(PInt32(true)), "b" -> PInt64())
       destType = PCanonicalStruct("a" -> PCanonicalArray(PInt32(), true), "b" -> PInt64())
-      copyTestExecutor(srcType, destType, expectedVal, expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
+      copyTestExecutor(srcType, destType, expectedVal, deepCopy = deepCopy, interpret = interpret, expectRuntimeError = true)
 
       srcType = PCanonicalStruct("a" -> PCanonicalArray(PCanonicalArray(PCanonicalStruct("a" -> PInt32(true)))), "b" -> PInt64())
       destType = PCanonicalStruct("a" -> PCanonicalArray(PCanonicalArray(PCanonicalStruct("a" -> PInt32(true)))), "b" -> PInt64())

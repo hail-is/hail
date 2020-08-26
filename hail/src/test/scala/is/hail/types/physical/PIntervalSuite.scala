@@ -24,7 +24,7 @@ class PIntervalSuite extends PhysicalTestUtils {
 
       copyTestExecutor(PCanonicalInterval(PInt64()), PCanonicalInterval(PInt64(true)),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
-        expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
+        deepCopy = deepCopy, interpret = interpret)
 
       copyTestExecutor(PCanonicalInterval(PInt64(true)), PCanonicalInterval(PInt64(true)),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)), deepCopy = deepCopy, interpret = interpret)
