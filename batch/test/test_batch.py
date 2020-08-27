@@ -563,5 +563,5 @@ echo $HAIL_BATCH_WORKER_IP
         j = builder.create_job('google/cloud-sdk', ['gcloud', 'auth', 'list'])
         builder.submit()
         status = j.wait()
-        assert status['state'] == 'Failed', status
+        assert status['state'] == 'Success', status
         assert "No credentialed accounts." in j.log()['main']
