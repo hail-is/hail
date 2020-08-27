@@ -2,7 +2,7 @@ package is.hail.types.encoded
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
@@ -32,37 +32,34 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     PCanonicalNDArray(elementPType, 2, required)
   }
 
-  override def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
-    val pnd = pt.asInstanceOf[PCanonicalNDArray]
-    assert(pnd.elementType.required)
-    val ndarray = coerce[Long](v)
-    val i = mb.newLocal[Long]("i")
-    val j = mb.newLocal[Long]("j")
-    val r = mb.newLocal[Long]("r")
-    val c = mb.newLocal[Long]("c")
-    val writeElemF = elementType.buildEncoder(pnd.elementType, mb.ecb)
+  def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+    val ndarray = PCode(pt, v).asNDArray.memoize(cb, "ndarray")
+    val shapes = ndarray.shapes()
+    val r = cb.newLocal[Long]("r", shapes(0))
+    val c = cb.newLocal[Long]("c", shapes(1))
+    val i = cb.newLocal[Long]("i")
+    val j = cb.newLocal[Long]("j")
+    val writeElemF = elementType.buildEncoder(ndarray.pt.elementType, cb.emb.ecb)
 
-    Code(
-      r := pnd.loadShape(ndarray, 0),
-      c := pnd.loadShape(ndarray, 1),
-      out.writeInt(r.toI),
-      out.writeInt(c.toI),
-      out.writeBoolean(encodeRowMajor), {
-        if (encodeRowMajor) {
-          Code.forLoop(i := 0L, i < r, i := i + 1L,
-            Code.forLoop(j := 0L, j < c, j := j + 1L,
-              writeElemF(pnd.loadElementToIRIntermediate(FastIndexedSeq(i, j), ndarray, mb),
-                out)))
-        } else {
-          Code.forLoop(j := 0L, j < c, j := j + 1L,
-            Code.forLoop(i := 0L, i < r, i := i + 1L,
-              writeElemF(pnd.loadElementToIRIntermediate(FastIndexedSeq(i, j), ndarray, mb),
-                out)))
-        }
+    cb += out.writeInt(r.toI)
+    cb += out.writeInt(c.toI)
+    cb += out.writeBoolean(encodeRowMajor)
+    if (encodeRowMajor) {
+      cb.forLoop(cb.assign(i, 0L), i < r, cb.assign(i, i + 1L), {
+        cb.forLoop(cb.assign(j, 0L), j < c, cb.assign(j, j + 1L), {
+          cb += writeElemF(ndarray(FastIndexedSeq(i, j), cb.emb), out)
+        })
       })
+    } else {
+      cb.forLoop(cb.assign(j, 0L), j < c, cb.assign(j, j + 1L), {
+        cb.forLoop(cb.assign(i, 0L), i < r, cb.assign(i, i + 1L), {
+          cb += writeElemF(ndarray(FastIndexedSeq(i, j), cb.emb), out)
+        })
+      })
+    }
   }
 
-  override def _buildDecoder(
+  def _buildDecoder(
     pt: PType,
     mb: EmitMethodBuilder[_],
     region: Value[Region],
@@ -120,4 +117,3 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     sb.append("]")
   }
 }
-
