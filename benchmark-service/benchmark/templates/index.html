@@ -5,7 +5,179 @@
 <!--<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/css/autoComplete.min.css">-->
 
 <style>
-#autoComplete_wrapper{position:relative;display:inline-block}#autoComplete{position:relative;padding:0 2rem 0 3.5rem;height:2.1rem;width:6rem;font-size:1.2rem;outline:0;border-radius:50rem;border:.05rem solid #ff7a7a;caret-color:#ff7a7a;color:rgba(255,255,255,0);background-image:url(./images/magnifier.svg);background-repeat:no-repeat;background-size:1.2rem;background-origin:border-box;background-position:center;transition:all .4s ease;-webkit-transition:all -webkit-transform .4s ease;text-overflow:ellipsis}#autoComplete::placeholder{color:rgba(255,122,122,0);transition:all .3s ease}#autoComplete:hover::placeholder{color:rgba(255,122,122,.3);transition:all .3s ease;-webkit-transition:all -webkit-transform .3s ease}#autoComplete:focus::placeholder{padding:.1rem .6rem;font-size:1rem;color:rgba(255,122,122,.3);transition:all .3s ease;-webkit-transition:all -webkit-transform .3s ease}#autoComplete::selection{color:transparent}#autoComplete:focus::selection{color:#fff;background-color:rgba(255,122,122,1)}#autoComplete:hover{padding:0 2rem 0 3.5rem;color:rgba(255,122,122,1);height:3rem;width:16.5rem;background-image:url(./images/magnifier.svg);background-size:1.7rem;background-position:left 1.05rem top .7rem;transition:all .3s ease;-webkit-transition:all -webkit-transform .3s ease}#autoComplete:focus{padding:0 2rem 0 3.5rem;color:rgba(255,122,122,1);height:3rem;width:16.5rem;border:.05rem solid #ff7a7a;background-image:url(./images/magnifier.svg);background-size:1.5rem;background-position:left 1.05rem top .8rem;box-shadow:rgba(255,122,122,.1) 0 0 20px 5px}#autoComplete_list{position:fixed;z-index:1000;padding:0;left:0;right:0;margin-top:0;margin-left:auto;margin-right:auto;width:18rem;transition:all .1s ease-in-out;-webkit-transition:all -webkit-transform .1s ease}.autoComplete_result{margin:.15rem auto;padding:.6rem;max-width:280px;border:.05rem solid #e3e3e3;list-style:none;text-align:left;font-size:1.1rem;color:#7b7b7b;transition:all .1s ease-in-out;background-color:#fff}.autoComplete_result::selection{color:rgba(#fff,0);background-color:rgba(#fff,0)}.autoComplete_result:last-child{border-radius:0 0 1rem 1rem}.autoComplete_result:hover{cursor:pointer;background-color:rgba(255,248,248,.9);border-left:2px solid rgba(255,122,122,1);border-right:2px solid rgba(255,122,122,1);border-top:2px solid transparent;border-bottom:2px solid transparent}.autoComplete_result:focus{outline:0;background-color:rgba(255,248,248,.9);border-left:2px solid rgba(255,122,122,1);border-right:2px solid rgba(255,122,122,1);border-top:2px solid transparent;border-bottom:2px solid transparent}.autoComplete_highlighted{opacity:1;color:rgba(255,122,122,1);font-weight:700}.autoComplete_highlighted::selection{color:rgba(#fff,0);background-color:rgba(#fff,0)}.autoComplete_selected{cursor:pointer;background-color:rgba(255,248,248,.9);border-left:2px solid rgba(255,122,122,1);border-right:2px solid rgba(255,122,122,1);border-top:2px solid transparent;border-bottom:2px solid transparent}@media only screen and (max-width:600px){#autoComplete{width:5rem}#autoComplete:focus{width:11rem;background-size:1.6rem;background-position:left 1.1rem top .75rem}.autoComplete_result:first-child{border-radius:1rem 1rem 0 0}.autoComplete_result:last-child{border-radius:0 0 1rem 1rem}.autoComplete_result:only-child{border-radius:1rem}}@media screen and (-webkit-min-device-pixel-ratio:0){#autoComplete{border-width:1px}#autoComplete:hover{border-width:1px}#autoComplete:focus{border-width:1px}}@-moz-document url-prefix(){#autoComplete{border-width:1px;background-size:1.2rem;background-origin:border-box;background-position:center}#autoComplete:hover{border-width:1px}#autoComplete:focus{border-width:1px;background-position:left 1.1rem top .8rem}}
+#autoComplete_wrapper {
+    position:relative;
+    display:inline-block;
+}
+#autoComplete {
+    position:relative;
+    padding:0 2rem 0 3.5rem;
+    height:2.1rem;
+    width:6rem;
+    font-size:1.2rem;
+    outline:0;
+    border-radius:50rem;
+    border:.05rem solid #ff7a7a;
+    caret-color:#ff7a7a;
+    color:rgba(255,255,255,0);
+    background-image:url(./images/magnifier.svg);
+    background-repeat:no-repeat;
+    background-size:1.2rem;
+    background-origin:border-box;
+    background-position:center;
+    transition:all .4s ease;
+    -webkit-transition:all -webkit-transform .4s ease;
+    text-overflow:ellipsis;
+}
+#autoComplete::placeholder {
+    color:rgba(255,122,122,0);
+    transition:all .3s ease;
+}
+#autoComplete:hover::placeholder {
+    color:rgba(255,122,122,.3);
+    transition:all .3s ease;
+    -webkit-transition:all -webkit-transform .3s ease;
+}
+#autoComplete:focus::placeholder {
+    padding:.1rem .6rem;
+    font-size:1rem;
+    color:rgba(255,122,122,.3);
+    transition:all .3s ease;
+    -webkit-transition:all -webkit-transform .3s ease;
+}
+#autoComplete::selection {
+    color:transparent;
+}
+#autoComplete:focus::selection {
+    color:#fff;
+    background-color:rgba(255,122,122,1);
+}
+#autoComplete:hover {
+    padding:0 2rem 0 3.5rem;
+    color:rgba(255,122,122,1);
+    height:3rem;
+    width:16.5rem;
+    background-image:url(./images/magnifier.svg);
+    background-size:1.7rem;
+    background-position:left 1.05rem top .7rem;transition:all .3s ease;
+    -webkit-transition:all -webkit-transform .3s ease;
+}
+#autoComplete:focus {
+    padding:0 2rem 0 3.5rem;
+    color:rgba(255,122,122,1);
+    height:3rem;
+    width:16.5rem;
+    border:.05rem solid #ff7a7a;
+    background-image:url(./images/magnifier.svg);
+    background-size:1.5rem;
+    background-position:left 1.05rem top .8rem;
+    box-shadow:rgba(255,122,122,.1) 0 0 20px 5px;
+}
+#autoComplete_list {
+    position:fixed;
+    z-index:1000;
+    padding:0;
+    left:0;
+    right:0;
+    margin-top:0;
+    margin-left:auto;
+    margin-right:auto;
+    width:18rem;
+    transition:all .1s ease-in-out;
+    -webkit-transition:all;
+    -webkit-transform .1s ease;
+}
+.autoComplete_result {
+    margin:.15rem auto;
+    padding:.6rem;
+    max-width:280px;
+    border:.05rem solid #e3e3e3;
+    list-style:none;
+    text-align:left;
+    font-size:1.1rem;
+    color:#7b7b7b;
+    transition:all .1s ease-in-out;
+    background-color:#fff;
+}
+.autoComplete_result::selection {
+    color:rgba(#fff,0);
+    background-color:rgba(#fff,0);
+}
+.autoComplete_result:last-child {
+    border-radius:0 0 1rem 1rem;
+}
+.autoComplete_result:hover {
+    cursor:pointer;
+    background-color:rgba(255,248,248,.9);
+    border-left:2px solid rgba(255,122,122,1);
+    border-right:2px solid rgba(255,122,122,1);
+    border-top:2px solid transparent;
+    border-bottom:2px solid transparent;
+}
+.autoComplete_result:focus {
+    outline:0;
+    background-color:rgba(255,248,248,.9);
+    border-left:2px solid rgba(255,122,122,1);
+    border-right:2px solid rgba(255,122,122,1);
+    border-top:2px solid transparent;
+    border-bottom:2px solid transparent;
+}
+.autoComplete_highlighted {
+    opacity:1;
+    color:rgba(255,122,122,1);
+    font-weight:700;
+}
+.autoComplete_highlighted::selection {
+    color:rgba(#fff,0);
+    background-color:rgba(#fff,0);
+}
+.autoComplete_selected {
+    cursor:pointer;
+    background-color:rgba(255,248,248,.9);
+    border-left:2px solid rgba(255,122,122,1);
+    border-right:2px solid rgba(255,122,122,1);
+    border-top:2px solid transparent;
+    border-bottom:2px solid transparent;
+}
+#autoComplete {
+    width:5rem;
+}
+#autoComplete:focus {
+    width:11rem;
+    background-size:1.6rem;
+    background-position:left 1.1rem top .75rem;
+}
+.autoComplete_result:first-child {
+    border-radius:1rem 1rem 0 0;
+}
+.autoComplete_result:last-child {
+    border-radius:0 0 1rem 1rem;
+}
+.autoComplete_result:only-child {
+    border-radius:1rem;
+}
+#autoComplete {
+    border-width:1px;
+}
+#autoComplete:hover {
+    border-width:1px;
+}
+#autoComplete:focus {
+    border-width:1px
+}
+#autoComplete {
+    border-width:1px;
+    background-size:1.2rem;
+    background-origin:border-box;
+    background-position:center;
+}
+#autoComplete:hover {
+    border-width:1px;
+}
+#autoComplete:focus {
+    border-width:1px;
+    background-position:left 1.1rem top .8rem;
+}
 </style>
 <!--<style>-->
 <!--.autoComplete {-->
