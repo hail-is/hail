@@ -29,7 +29,7 @@ def king(call_expr, *, block_size=None):
 
     - :math:`i` and :math:`j` be two individuals in the dataset
 
-    - :math:`N^{Aa}_{i}` be the number of heterozygote genotype force individual
+    - :math:`N^{Aa}_{i}` be the number of heterozygote genotypes for individual
       :math:`i`.
 
     - :math:`N^{Aa,Aa}_{i,j}` be the number of variants at which a pair of
@@ -103,7 +103,7 @@ def king(call_expr, *, block_size=None):
             4 p_s (1 - p_s) (1 - 2\phi_{i,j})
 
     This identity reveals that the quotient of the expected genetic distance and
-    the four-trial binomial variance in the allele frequency, represents,
+    the four-trial binomial variance in the allele frequency represents,
     roughly, the "fraction of genetic material *not* shared
     identically-by-descent":
 
