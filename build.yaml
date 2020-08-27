@@ -2305,6 +2305,7 @@ steps:
      cd /io
      mkdir -p src/test
      tar xzf resources.tar.gz -C src/test
+     export PYSPARK_SUBMIT_ARGS="--driver-memory 3750m --executor-memory 3750m pyspark-shell"
      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-services.xml
    inputs:
     - from: /resources.tar.gz
