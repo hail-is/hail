@@ -2,9 +2,9 @@ package is.hail.types.encoded
 
 import is.hail.annotations.{Region}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitMethodBuilder}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.io.{InputBuffer, OutputBuffer}
-import is.hail.types.physical.{PCanonicalNDArray, PType}
+import is.hail.types.physical.{PCanonicalNDArray, PCode, PType}
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils._
 
@@ -22,35 +22,27 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
       elementType.encodeCompatible(pt.asInstanceOf[PCanonicalNDArray].elementType)
   }
 
-  override def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
-    val pnd = pt.asInstanceOf[PCanonicalNDArray]
-    assert(pnd.elementType.required)
-    val ndarray = coerce[Long](v)
+  def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+    val ndarray = PCode(pt, v).asNDArray.memoize(cb, "ndarray")
+    val writeElemF = elementType.buildEncoder(ndarray.pt.elementType, cb.emb.ecb)
 
-    val writeShapes = (0 until nDims).map(i => out.writeLong(pnd.loadShape(ndarray, i)))
+    val shapes = ndarray.shapes()
+    shapes.foreach(s => cb += out.writeLong(s))
 
-    val writeElemF = elementType.buildEncoder(pnd.elementType, mb.ecb)
+    val idxVars = Array.tabulate(ndarray.pt.nDims)(i => cb.newLocal[Long](s"idx_$i", 0))
+    val loopStarts = Array.fill(ndarray.pt.nDims)(CodeLabel())
 
-    val idxVars = (0 until nDims).map(_ => mb.newLocal[Long]())
-
-    val loadAndWrite = {
-      writeElemF(pnd.loadElementToIRIntermediate(idxVars, ndarray, mb), out)
+    idxVars.zip(loopStarts).reverse.foreach { case (dimVar, loopLabel) =>
+      cb.assign(dimVar, 0L)
+      cb.define(loopLabel)
     }
 
-    val columnMajorLoops = idxVars.zipWithIndex.foldLeft(loadAndWrite) { case (innerLoops, (dimVar, dimIdx)) =>
-      Code(
-        dimVar := 0L,
-        Code.whileLoop(dimVar < pnd.loadShape(ndarray, dimIdx),
-          innerLoops,
-          dimVar := dimVar + 1L
-        )
-      )
-    }
+    cb += writeElemF(ndarray(idxVars, cb.emb), out)
 
-    Code(
-      Code(writeShapes),
-      columnMajorLoops
-    )
+    (idxVars, loopStarts, shapes).zipped.foreach { case (dimVar, loopLabel, shape) =>
+      cb.assign(dimVar, dimVar + 1L)
+      cb.ifx(dimVar < shape, cb.goto(loopLabel))
+    }
   }
 
   override def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] = {
