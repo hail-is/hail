@@ -23,7 +23,7 @@ BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)(
 
 
 def get_benchmarks(file_path):
-    read_gs = ReadGoogleStorage(file='/benchmark-gsa-key/broad-ctsa-7ac34ab517ba.json')
+    read_gs = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/broad-ctsa-7ac34ab517ba.json')
     try:
         json_data = read_gs.get_data_as_string(file_path)
         pre_data = json.loads(json_data)
