@@ -35,77 +35,56 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     }
   }
 
-  def buildPrefixEncoder(pt: PArray, mb: EmitMethodBuilder[_], array: Value[Long],
+  def buildPrefixEncoder(cb: EmitCodeBuilder, pt: PArray, array: Value[Long],
     out: Value[OutputBuffer], prefixLength: Code[Int]
-  ): Code[Unit] = {
-    val len = mb.newLocal[Int]("len")
-    val prefixLen = mb.newLocal[Int]("prefixLen")
+  ): Unit = {
+    val arr: PIndexableValue = PCode(pt, array).asIndexable.memoize(cb, "encode_array_a")
+    val prefixLen = cb.newLocal[Int]("prefixLen", prefixLength)
+    val i = cb.newLocal[Int]("i", 0)
 
-    val i = mb.newLocal[Int]("i")
+    cb += out.writeInt(prefixLen)
 
-    val writeLen = out.writeInt(prefixLen)
-    val writeMissingBytes = pt match {
+    pt match {
       case t: PCanonicalArray if t.elementType.required == elementType.required =>
         if (!elementType.required) {
-          val nMissingLocal = mb.newLocal[Int]("nMissingBytes")
-          Code(
-            nMissingLocal := pt.nMissingBytes(prefixLen),
-            (nMissingLocal > 0).orEmpty(
-              Code(
-                out.writeBytes(array + const(pt.lengthHeaderBytes), nMissingLocal - 1),
-                out.writeByte((Region.loadByte(array + const(pt.lengthHeaderBytes) +
-                  (nMissingLocal - 1).toL) & EType.lowBitMask(prefixLen)).toB)
-              )
-            )
-          )
-        } else
-          Code._empty
+          val nMissingLocal = cb.newLocal[Int]("nMissingBytes", pt.nMissingBytes(prefixLen))
+          cb.ifx(nMissingLocal > 0, {
+            cb += out.writeBytes(array + const(pt.lengthHeaderBytes), nMissingLocal - 1)
+            cb += out.writeByte((Region.loadByte(array + const(pt.lengthHeaderBytes)
+              + (nMissingLocal - 1).toL) & EType.lowBitMask(prefixLen)).toB)
+          })
+        }
       case _ =>
         val b = Code.newLocal[Int]("b")
         val shift = Code.newLocal[Int]("shift")
-        EmitCodeBuilder.scopedVoid(mb) { cb =>
-          cb.assign(i, 0)
-          cb.assign(b, 0)
-          cb.assign(shift, 0)
-          cb.whileLoop(i < prefixLen, {
-            cb.ifx(pt.isElementMissing(array, i), cb.assign(b, b | (const(1) << shift)))
-            cb.assign(shift, shift + 1)
-            cb.assign(i, i + 1)
-            cb.ifx(shift.ceq(7), {
-              cb.assign(shift, 0)
-              cb += out.writeByte(b.toB)
-              cb.assign(b, 0)
-            })
+        cb.assign(i, 0)
+        cb.assign(b, 0)
+        cb.assign(shift, 0)
+        cb.whileLoop(i < prefixLen, {
+          cb.ifx(pt.isElementMissing(array, i), cb.assign(b, b | (const(1) << shift)))
+          cb.assign(shift, shift + 1)
+          cb.assign(i, i + 1)
+          cb.ifx(shift.ceq(7), {
+            cb.assign(shift, 0)
+            cb += out.writeByte(b.toB)
+            cb.assign(b, 0)
           })
-          cb.ifx(shift > 0, cb += out.writeByte(b.toB))
-        }
+        })
+        cb.ifx(shift > 0, cb += out.writeByte(b.toB))
     }
 
-
-    val writeElemF = elementType.buildEncoder(pt.elementType, mb.ecb)
-    val elem = pt.elementOffset(array, len, i)
-    val writeElems = Code(
-      i := 0,
-      Code.whileLoop(
-        i < prefixLen,
-        Code(
-          pt.isElementDefined(array, i).mux(
-            writeElemF(Region.loadIRIntermediate(pt.elementType)(elem), out), // XXX, get or loadIRIntermediate
-            Code._empty),
-          i := i + const(1))))
-
-    Code(
-      len := pt.loadLength(array),
-      prefixLen := prefixLength,
-      writeLen,
-      writeMissingBytes,
-      writeElems)
+    val writeElemF = elementType.buildEncoder(pt.elementType, cb.emb.ecb)
+    cb.forLoop(cb.assign(i, 0), i < prefixLen, cb.assign(i, i + 1), {
+      arr.loadElement(cb, i).consume(cb, { /* do nothing */ }, { pc =>
+        cb += writeElemF(pc.code, out)
+      })
+    })
   }
 
-  def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
     val pa = pt.asInstanceOf[PArray]
     val array = coerce[Long](v)
-    buildPrefixEncoder(pa, mb, array, out, pa.loadLength(array))
+    buildPrefixEncoder(cb, pa, array, out, pa.loadLength(array))
   }
 
   def _buildFundamentalDecoder(
