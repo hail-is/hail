@@ -149,8 +149,9 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 
 @router.get('/')
 @router.get('')
-@web_authenticated_developers_only(redirect=False)
-async def index(request, userdata):  # pylint: disable=unused-argument
+#@web_authenticated_developers_only(redirect=False)
+async def index(request):  # pylint: disable=unused-argument
+    userdata = {}
     file = request.query.get('file')
     if file is None:
         benchmarks_context = None
