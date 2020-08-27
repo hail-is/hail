@@ -337,7 +337,7 @@ class LocalTests(unittest.TestCase):
             assert self.read(output_file.name) == '123abcdef'
 
 
-class BatchTests(unittest.TestCase):
+class ServiceTests(unittest.TestCase):
     def setUp(self):
         self.backend = ServiceBackend()
 
