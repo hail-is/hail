@@ -860,19 +860,21 @@ object EmitStream {
     mb: EmitMethodBuilder[_],
     pcStream: PCanonicalStreamCode,
     ab: StagedArrayBuilder,
-    destRegion: StagedRegion
+    destRegion: StagedRegion,
+    allowAllocations: Boolean
   ): Code[Unit] = {
-    _write(mb, pcStream.stream, ab, destRegion)
+    _write(mb, pcStream.stream, ab, destRegion, allowAllocations)
   }
 
   private def _write(
     mb: EmitMethodBuilder[_],
     sstream: SizedStream,
     ab: StagedArrayBuilder,
-    destRegion: StagedRegion
+    destRegion: StagedRegion,
+    allowAllocations: Boolean
   ): Code[Unit] = {
     val SizedStream(ssSetup, stream, optLen) = sstream
-    val eltRegion = destRegion.createChildRegion(mb)
+    val eltRegion = destRegion.createChildRegion(mb, allowAllocations)
     Code(FastSeq(
       eltRegion.allocateRegion(Region.REGULAR),
       ssSetup,
@@ -892,7 +894,8 @@ object EmitStream {
     mb: EmitMethodBuilder[_],
     aTyp: PArray,
     pcStream: PCanonicalStreamCode,
-    destRegion: StagedRegion
+    destRegion: StagedRegion,
+    allowAllocations: Boolean
   ): PCode = {
     val srvb = new StagedRegionValueBuilder(mb, aTyp, destRegion.code)
     val ss = pcStream.stream
@@ -902,7 +905,7 @@ object EmitStream {
         val i = mb.newLocal[Int]("sta_i")
         val vab = new StagedArrayBuilder(aTyp.elementType, mb, 0)
         val ptr = Code(
-          _write(mb, ss, vab, destRegion),
+          _write(mb, ss, vab, destRegion, allowAllocations),
           xLen := vab.size,
           srvb.start(xLen),
           i := const(0),
@@ -916,7 +919,7 @@ object EmitStream {
         PCode(aTyp, ptr)
 
       case Some(len) =>
-        val eltRegion = destRegion.createChildRegion(mb)
+        val eltRegion = destRegion.createChildRegion(mb, allowAllocations)
         val ptr = Code.sequence1(FastIndexedSeq(
             eltRegion.allocateRegion(Region.REGULAR),
             ss.setup,

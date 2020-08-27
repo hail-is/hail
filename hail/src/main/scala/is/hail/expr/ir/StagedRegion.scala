@@ -14,11 +14,22 @@ abstract class StagedRegion {
 
   def createChildRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion
 
+  def createChildRegion(
+    mb: EmitMethodBuilder[_],
+    allowAllocations: Boolean
+  ): StagedOwnedRegion =
+    if (allowAllocations) createRealChildRegion(mb) else createDummyChildRegion()
+
   final def createSiblingRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion =
     parent.createChildRegion(mb)
 
-  final def createDummyChildRegion: StagedOwnedRegion =
+  final def createDummyChildRegion(): StagedOwnedRegion =
     new DummyStagedOwnedRegion(code, this)
+
+  final def createRealChildRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion = {
+    val newR = mb.genFieldThisRef[Region]("staged_region_child")
+    new RealStagedOwnedRegion(newR, this)
+  }
 
   def createChildRegionArray(mb: EmitMethodBuilder[_], length: Int): StagedOwnedRegionArray
 }
@@ -124,10 +135,8 @@ object StagedRegion {
 class RealStagedRegion(r: Value[Region], val optParent: Option[StagedRegion]) extends StagedRegion { self =>
   def code: Value[Region] = r
 
-  def createChildRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion = {
-    val newR = mb.genFieldThisRef[Region]("staged_region_child")
-    new RealStagedOwnedRegion(newR, this)
-  }
+  def createChildRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion =
+    createRealChildRegion(mb)
 
   def createChildRegionArray(mb: EmitMethodBuilder[_], length: Int): StagedOwnedRegionArray = {
     val regionArray = mb.genFieldThisRef[Array[Region]]("staged_region_child_array")
@@ -185,7 +194,7 @@ class DummyStagedRegion(r: Value[Region], val optParent: Option[StagedRegion]) e
   def code: Value[Region] = r
 
   def createChildRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion =
-    new DummyStagedOwnedRegion(r, this)
+    createDummyChildRegion()
 
   def createChildRegionArray(mb: EmitMethodBuilder[_], length: Int): StagedOwnedRegionArray =
     new StagedOwnedRegionArray {

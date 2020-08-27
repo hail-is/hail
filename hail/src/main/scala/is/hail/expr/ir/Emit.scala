@@ -500,10 +500,11 @@ class Emit[C](
       }
 
       case StreamFor(a, valueName, body) =>
-        val eltType = a.pType.asInstanceOf[PStream].elementType
+        val streamType = coerce[PStream](a.pType)
+        val eltType = streamType.elementType
         val streamOpt = emitStream(a)
 
-        val eltRegion = region.createChildRegion(mb)
+        val eltRegion = region.createChildRegion(mb, streamType.separateRegions)
 
         def forBody(elt: EmitCode): Code[Unit] = {
           val xElt = mb.newEmitField(valueName, eltType)
@@ -1070,8 +1071,8 @@ class Emit[C](
         val streamType = coerce[PStream](a.pType)
         val eltType = streamType.elementType
         val accType = x.accPType
-        val eltRegion = region.createChildRegion(mb)
-        val tmpRegion = region.createChildRegion(mb)
+        val eltRegion = region.createChildRegion(mb, streamType.separateRegions)
+        val tmpRegion = region.createChildRegion(mb, streamType.separateRegions)
 
         val streamOpt = emitStream(a)
         streamOpt.flatMap(cb) { stream =>
@@ -1101,7 +1102,8 @@ class Emit[C](
         }
 
       case x@StreamFold2(a, acc, valueName, seq, res) =>
-        val eltType = coerce[PStream](a.pType).elementType
+        val streamType = coerce[PStream](a.pType)
+        val eltType = streamType.elementType
 
         val xElt = mb.newEmitField(valueName, eltType)
         val names = acc.map(_._1)
@@ -1109,8 +1111,8 @@ class Emit[C](
         val accVars = (names, accTypes).zipped.map(mb.newEmitField)
         val tmpAccVars = (names, accTypes).zipped.map(mb.newEmitField)
 
-        val eltRegion = region.createChildRegion(mb)
-        val tmpRegion = region.createChildRegion(mb)
+        val eltRegion = region.createChildRegion(mb, streamType.separateRegions)
+        val tmpRegion = region.createChildRegion(mb, streamType.separateRegions)
 
         val resEnv = env.bind(names.zip(accVars): _*)
         val seqEnv = resEnv.bind(valueName, xElt)
@@ -1195,7 +1197,7 @@ class Emit[C](
           Code._null)
         cb += shuffle.startPut()
 
-        val eltRegion = region.createChildRegion(mb)
+        val eltRegion = region.createChildRegion(mb, rowsPType.separateRegions)
         val rows = emitStream(rowsIR)
           .get(cb, "rows stream was missing in shuffle write")
           .asStream.stream.getStream(eltRegion)
@@ -1486,7 +1488,7 @@ class Emit[C](
         val optStream = emitStream(array)
         optStream.map { stream =>
           PCode(pt, Code(
-            EmitStream.write(mb, stream.asStream, vab, region),
+            EmitStream.write(mb, stream.asStream, vab, region, coerce[PStream](array.pType).separateRegions),
             sort,
             distinct,
             sorter.toRegion()))
@@ -1498,7 +1500,7 @@ class Emit[C](
 
       case ToArray(a) =>
         emitStream(a).map { stream =>
-          EmitStream.toArray(mb, coerce[PArray](pt), stream.asStream, region)
+          EmitStream.toArray(mb, coerce[PArray](pt), stream.asStream, region, coerce[PStream](a.pType).separateRegions)
         }
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
@@ -1580,7 +1582,7 @@ class Emit[C](
 
         emitStream(collection).map { stream =>
           PCode(pt, Code(
-            EmitStream.write(mb, stream.asStream, eab, region),
+            EmitStream.write(mb, stream.asStream, eab, region, atyp.separateRegions),
             sorter.sort(sortF),
             sorter.pruneMissing,
             eab.size.ceq(0).mux(
@@ -1640,12 +1642,12 @@ class Emit[C](
       case x@StreamLen(a) =>
         emitStream(a).map { ss =>
           val count = mb.newLocal[Int]("stream_length")
-          val eltRegion = region.createChildRegion(mb)
           val SizedStream(setup, stream, length) = ss.asStream.stream
           val lenCode =
             length match {
               case Some(len) => Code(setup, len)
               case None =>
+                val eltRegion = region.createChildRegion(mb, coerce[PStream](a.pType).separateRegions)
                 Code(
                   count := 0,
                   setup,
@@ -2274,7 +2276,8 @@ class Emit[C](
         EmitCode(ndt.setup, ndt.m, PCode(ndPType, res))
 
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
-        val ctxType = coerce[PArray](contexts.pType).elementType
+        val ctxsType = coerce[PStream](contexts.pType)
+        val ctxType = ctxsType.elementType
         val gType = globals.pType
         val bType = body.pType
 
@@ -2361,7 +2364,7 @@ class Emit[C](
 
         def addContexts(ctxStream: SizedStream): Code[Unit] = ctxStream match {
           case SizedStream(setup, stream, len) =>
-            val eltRegion = region.createChildRegion(mb)
+            val eltRegion = region.createChildRegion(mb, ctxsType.separateRegions)
             Code(
               setup,
               ctxab.invoke[Int, Unit]("ensureCapacity", len.getOrElse(16)),
@@ -2458,10 +2461,12 @@ class Emit[C](
 
       case x@WritePartition(stream, ctx, writer) =>
         val ctxCode = emit(ctx)
-        val eltType = coerce[PStruct](coerce[PStream](stream.pType).elementType)
+        val streamType = coerce[PStream](stream.pType)
+        val eltType = coerce[PStruct](streamType.elementType)
+        val stagedRegion = StagedRegion(region.code, streamType.separateRegions)
         COption.toEmitCode(
           COption.fromEmitCode(emitStream(stream)).flatMap { s =>
-            COption.fromEmitCode(writer.consumeStream(ctxCode, eltType, mb, region, s.asStream.stream))
+            COption.fromEmitCode(writer.consumeStream(ctxCode, eltType, mb, stagedRegion, s.asStream.stream))
           }, mb)
 
       case x =>

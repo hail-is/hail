@@ -307,7 +307,7 @@ class EmitStreamSuite extends HailSuite {
       EmitStream.emit(new Emit(ctx, fb.ecb), s, mb, region, Env.empty, None)
     }
     mb.emit {
-      val arrayt = stream.map(s => EmitStream.toArray(mb, PCanonicalArray(eltType), s.asStream, region))
+      val arrayt = stream.map(s => EmitStream.toArray(mb, PCanonicalArray(eltType), s.asStream, region, allowAllocations = false))
       Code(arrayt.setup, arrayt.m.mux(0L, arrayt.v))
     }
     val f = fb.resultWithIndex()
