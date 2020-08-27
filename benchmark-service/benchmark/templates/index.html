@@ -16,10 +16,10 @@
     width:6rem;
     font-size:1.2rem;
     outline:0;
-    border-radius:50rem;
-    border:.05rem solid #ff7a7a;
-    caret-color:#ff7a7a;
-    color:rgba(255,255,255,0);
+    border-radius:25rem;
+<!--    border:.05rem solid #ff7a7a; -->
+<!--    caret-color:#ff7a7a;-->
+    color:rgba(192,192,192,0.3);
     background-image:url(./images/magnifier.svg);
     background-repeat:no-repeat;
     background-size:1.2rem;
@@ -30,18 +30,18 @@
     text-overflow:ellipsis;
 }
 #autoComplete::placeholder {
-    color:rgba(255,122,122,0);
+    color:rgba(192,192,192,0.3);
     transition:all .3s ease;
 }
 #autoComplete:hover::placeholder {
-    color:rgba(255,122,122,.3);
+    color:rgba(192,192,192,0.3);
     transition:all .3s ease;
     -webkit-transition:all -webkit-transform .3s ease;
 }
 #autoComplete:focus::placeholder {
     padding:.1rem .6rem;
     font-size:1rem;
-    color:rgba(255,122,122,.3);
+    color:rgba(192,192,192,0.3);
     transition:all .3s ease;
     -webkit-transition:all -webkit-transform .3s ease;
 }
@@ -50,11 +50,11 @@
 }
 #autoComplete:focus::selection {
     color:#fff;
-    background-color:rgba(255,122,122,1);
+    background-color:rgba(192,192,192,1);
 }
 #autoComplete:hover {
     padding:0 2rem 0 3.5rem;
-    color:rgba(255,122,122,1);
+    color:rgba(192,192,192,1);
     height:3rem;
     width:16.5rem;
     background-image:url(./images/magnifier.svg);
@@ -64,14 +64,14 @@
 }
 #autoComplete:focus {
     padding:0 2rem 0 3.5rem;
-    color:rgba(255,122,122,1);
+    color:rgba(192,192,192,1);
     height:3rem;
     width:16.5rem;
     border:.05rem solid #ff7a7a;
     background-image:url(./images/magnifier.svg);
     background-size:1.5rem;
     background-position:left 1.05rem top .8rem;
-    box-shadow:rgba(255,122,122,.1) 0 0 20px 5px;
+    box-shadow:rgba(192,192,192,0.1) 0 0 20px 5px;
 }
 #autoComplete_list {
     position:fixed;
@@ -108,23 +108,23 @@
 }
 .autoComplete_result:hover {
     cursor:pointer;
-    background-color:rgba(255,248,248,.9);
-    border-left:2px solid rgba(255,122,122,1);
-    border-right:2px solid rgba(255,122,122,1);
+    background-color:rgba(192,192,192,0.9);
+    border-left:2px solid rgba(192,192,192,1);
+    border-right:2px solid rgba(192,192,192,1);
     border-top:2px solid transparent;
     border-bottom:2px solid transparent;
 }
 .autoComplete_result:focus {
     outline:0;
-    background-color:rgba(255,248,248,.9);
-    border-left:2px solid rgba(255,122,122,1);
-    border-right:2px solid rgba(255,122,122,1);
+    background-color:rgba(192,192,192,0.9);
+    border-left:2px solid rgba(192,192,192,1);
+    border-right:2px solid rgba(192,192,192,1);
     border-top:2px solid transparent;
     border-bottom:2px solid transparent;
 }
 .autoComplete_highlighted {
     opacity:1;
-    color:rgba(255,122,122,1);
+    color:rgba(192,192,192,1);
     font-weight:700;
 }
 .autoComplete_highlighted::selection {
@@ -133,9 +133,9 @@
 }
 .autoComplete_selected {
     cursor:pointer;
-    background-color:rgba(255,248,248,.9);
-    border-left:2px solid rgba(255,122,122,1);
-    border-right:2px solid rgba(255,122,122,1);
+    background-color:rgba(192,192,192,0.9);
+    border-left:2px solid rgba(192,192,192,1);
+    border-right:2px solid rgba(192,192,192,1);
     border-top:2px solid transparent;
     border-bottom:2px solid transparent;
 }
