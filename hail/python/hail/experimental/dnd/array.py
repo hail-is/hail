@@ -20,8 +20,8 @@ def read(fname: str) -> 'DNDArray':
     # read without good partitioning, just to get the globals
     a = DNDArray(hl.read_table(fname))
     t = hl.read_table(fname, _intervals=[
-        hl.Interval(hl.Struct(**{a.r_field: i, a.c_field: j}),
-                    hl.Struct(**{a.r_field: i, a.c_field: j + 1}))
+        hl.Interval(hl.Struct(r=i, c=j),
+                    hl.Struct(r=i, c=j + 1))
         for i in range(a.n_block_rows)
         for j in range(a.n_block_cols)])
     return DNDArray(t)
@@ -67,8 +67,6 @@ class DNDArray:
             t = range_table(0, 0)
             t = t.annotate(r=0, c=0, block=nd.array([]).reshape((0, 0)))
             t = t.select_globals(
-                r_field='r',
-                c_field='c',
                 n_rows=0,
                 n_cols=0,
                 n_block_rows=0,
@@ -109,8 +107,6 @@ class DNDArray:
             ).map(lambda x: x.entries))
         mt = mt.select(block=hl.nd.array(mt.entries))
         mt = mt.select_globals(
-            r_field='r',
-            c_field='c',
             n_rows=n_rows,
             n_cols=n_cols,
             n_block_rows=n_block_rows,
@@ -134,8 +130,6 @@ class DNDArray:
         self.m: Table = t
 
         dimensions = t.globals.collect()[0]
-        self.r_field: str = dimensions.r_field
-        self.c_field: str = dimensions.c_field
         self.n_rows: int = dimensions.n_rows
         self.n_cols: int = dimensions.n_cols
         self.n_block_rows: int = dimensions.n_block_rows
@@ -157,14 +151,13 @@ class DNDArray:
         m = m.annotate(block=m.block.T)
         dimensions = m.globals.collect()[0]
         m = m.select_globals(
-            r_field=self.c_field,
-            c_field=self.r_field,
             n_rows=dimensions.n_cols,
             n_cols=dimensions.n_rows,
             n_block_rows=dimensions.n_block_cols,
             n_block_cols=dimensions.n_block_rows,
             block_size=dimensions.block_size)
-        m = m._key_by_assert_sorted(self.c_field, self.r_field)
+        m = m._key_by_assert_sorted('c', 'r')
+        m = m.rename({'r': 'c', 'c': 'r'})
         return DNDArray(m)
 
     def _block_inner_product(self,
@@ -211,8 +204,6 @@ class DNDArray:
             hl.struct(block=block_aggregate(o.product))._ir))
         o = o.select('block')
         o = o.select_globals(
-            r_field='r',
-            c_field='c',
             n_rows=n_rows,
             n_cols=n_cols,
             n_block_rows=n_block_rows,
@@ -289,7 +280,7 @@ class DNDArray:
                    for _ in range(self.n_block_cols)]
                   for _ in range(self.n_block_rows)]
         for block in blocks:
-            result[block[self.r_field]][block[self.c_field]] = block.block
+            result[block.r][block.c] = block.block
 
         return np.concatenate(
             [np.concatenate(result[x], axis=1) for x in range(self.n_block_rows)],
