@@ -399,6 +399,11 @@ class CollectionExpression(Expression):
             hl.agg.mean(length),
             hl.agg.explode(lambda elt: elt._all_summary_aggs(), self)))
 
+    def __contains__(self, element):
+        class_name = type(self).__name__
+        raise TypeError(f"Cannot use `in` operator on hail `{class_name}`s. Use the `contains` method instead."
+                        "`names.contains('Charlie')` instead of `'Charlie' in names`")
+
 
 class ArrayExpression(CollectionExpression):
     """Expression of type :class:`.tarray`.
@@ -1590,6 +1595,9 @@ class StructExpression(Mapping[str, Expression], Expression):
     def __iter__(self):
         return iter(self._fields)
 
+    def __contains__(self, item):
+        return item in self._fields
+
     def __hash__(self):
         return object.__hash__(self)
 
@@ -2417,6 +2425,10 @@ class StringExpression(Expression):
                 raise TypeError("String expects index to be type 'slice' or expression of type 'int32', "
                                 "found expression of type '{}'".format(item.dtype))
             return self._index(tstr, item)
+
+    def __contains__(self, item):
+        raise TypeError(f"Cannot use `in` operator on hail `StringExpression`s. Use the `contains` method instead."
+                        "`my_string.contains('cat')` instead of `'cat' in my_string`")
 
     def __add__(self, other):
         """Concatenate strings.
