@@ -26,8 +26,8 @@ def enumerate_list_index(list_of_lists):
 
 
 class ReadGoogleStorage:
-    def __init__(self):
-        self.storage_client = storage.Client()
+    def __init__(self, file=None):
+        self.storage_client = storage.Client.from_service_account_json(file)
 
     def get_data_as_string(self, file_path):
         file_info = parse_file_path(FILE_PATH_REGEX, file_path)
