@@ -2,7 +2,7 @@ package is.hail.types.encoded
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.BaseType
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -88,39 +88,29 @@ final case class EPackedIntArray(
     )
   }
 
-  def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
     val pa = pt.asInstanceOf[PArray]
-
-    val packer = mb.newLocal[IntPacker]("packer")
-    val len = mb.newLocal[Int]("len")
-    val i = mb.newLocal[Int]("i")
     val array = coerce[Long](v)
-    val keysLen = mb.newLocal[Int]("keysLen")
-    val dataLen = mb.newLocal[Int]("dataLen")
+    val len = cb.newLocal[Int]("len", pa.loadLength(array))
+    val packer = cb.newLocal[IntPacker]("packer", getPacker(cb.emb))
+    val keysLen = cb.newLocal[Int]("keysLen", (len + const(3)) / const(4))
+    val dataLen = cb.newLocal[Int]("dataLen", len * const(4))
+    val i = cb.newLocal[Int]("i", 0)
 
-    Code(Code(FastIndexedSeq(
-      packer := getPacker(mb),
-      len := pa.loadLength(array),
-      out.writeInt(len),
-      if (elementsRequired)
-        Code._empty
-      else
-        out.writeBytes(array + const(pa.lengthHeaderBytes), pa.nMissingBytes(len)),
-      keysLen := (len + const(3)) / const(4),
-      dataLen := len * const(4),
-      packer.load().ensureSpace(keysLen, dataLen),
-      packer.load().resetPack(),
-      i := 0,
-      Code.whileLoop(i < len,
-          Code(
-            pa.isElementDefined(array, i).mux(
-              packer.invoke[Long, Unit]("pack", pa.elementOffset(array, len, i)),
-              Code._empty),
-            i := i + const(1))),
-      packer.load().finish(),
-      out.writeInt(packer.load().ki + packer.load().di),
-      out.write(packer.load().keys, const(0), packer.load().ki))),
-      out.write(packer.load().data, const(0), packer.load().di))
+    cb += out.writeInt(len)
+    if (!elementsRequired)
+      cb += out.writeBytes(array + const(pa.lengthHeaderBytes), pa.nMissingBytes(len))
+    cb += packer.load().ensureSpace(keysLen, dataLen)
+    cb += packer.load().resetPack()
+    cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), {
+      cb.ifx(pa.isElementDefined(array, i), {
+        cb += packer.invoke[Long, Unit]("pack", pa.elementOffset(array, len, i))
+      })
+    })
+    cb += packer.load().finish()
+    cb += out.writeInt(packer.load().ki + packer.load().di)
+    cb += out.write(packer.load().keys, const(0), packer.load().ki)
+    cb += out.write(packer.load().data, const(0), packer.load().di)
   }
 
   def _asIdent: String = s"packedintarray_w_${if (elementsRequired) "required" else "optional"}_elements"
