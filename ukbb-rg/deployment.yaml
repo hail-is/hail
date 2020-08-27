@@ -38,6 +38,9 @@ spec:
          resources:
            requests:
              memory: "3.75G"
+             cpu: "800m"
+           limits:
+             memory: "3.75G"
              cpu: "1"
          ports:
           - containerPort: 80
@@ -83,6 +86,9 @@ spec:
          imagePullPolicy: Always
          resources:
            requests:
+             memory: "3.75G"
+             cpu: "800m"
+           limits:
              memory: "3.75G"
              cpu: "1"
          ports:
