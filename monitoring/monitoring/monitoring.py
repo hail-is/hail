@@ -196,13 +196,13 @@ async def on_startup(app):
     query_billing_event = asyncio.Event()
     app['query_billing_event'] = query_billing_event
 
-    asyncio.ensure_future(retry_long_running(
-        'polling_loop',
-        polling_loop, app))
-
-    asyncio.ensure_future(retry_long_running(
-        'query_billing_loop',
-        run_if_changed_idempotent, query_billing_event, query_billing_body, app))
+    # asyncio.ensure_future(retry_long_running(
+    #     'polling_loop',
+    #     polling_loop, app))
+    #
+    # asyncio.ensure_future(retry_long_running(
+    #     'query_billing_loop',
+    #     run_if_changed_idempotent, query_billing_event, query_billing_body, app))
 
 
 def run():
