@@ -12,8 +12,17 @@ from hail.table import Table
 import hail as hl
 
 
-def array(mt: MatrixTable, entry_field: str, *, block_size=None) -> 'DNDArray':
-    return DNDArray.from_matrix_table(mt, entry_field, block_size=block_size)
+def array(mt: MatrixTable,
+          entry_field: str,
+          *,
+          n_partitions: Optional[int] = None,
+          block_size: Optional[int] = None,
+          sort_columns: bool = False) -> 'DNDArray':
+    return DNDArray.from_matrix_table(mt,
+                                      entry_field,
+                                      n_partitions=n_partitions,
+                                      block_size=block_size,
+                                      sort_columns=sort_columns)
 
 
 def read(fname: str) -> 'DNDArray':
@@ -55,7 +64,8 @@ class DNDArray:
             entry_field: str,
             *,
             n_partitions: Optional[int] = None,
-            block_size: Optional[int] = None
+            block_size: Optional[int] = None,
+            sort_columns: bool = False
     ) -> 'DNDArray':
         if n_partitions is None:
             n_partitions = mt.n_partitions()
@@ -82,6 +92,27 @@ class DNDArray:
         n_block_rows = (n_rows + block_size - 1) // block_size
         n_block_cols = (n_cols + block_size - 1) // block_size
         entries, cols, row_index, col_blocks = (Env.get_uid() for _ in range(4))
+
+        if sort_columns:
+            col_index = Env.get_uid()
+            col_order = mt.add_col_index(col_index)
+            col_order = col_order.key_cols_by().cols()
+            col_order = col_order.select(key=col_order.row.select(*mt.col_key),
+                                         index=col_order[col_index])
+            col_order = col_order.collect(_localize=False)
+            col_order = hl.sorted(col_order, key=lambda x: x.key)
+            col_order = col_order['index'].collect()[0]
+            mt = mt.choose_cols(col_order)
+        else:
+            col_keys = mt.col_key.collect(_localize=False)
+            out_of_order = hl.range(hl.len(col_keys) - 1).map(
+                lambda i: col_keys[i] > col_keys[i+1])
+            out_of_order = out_of_order.collect()[0]
+            if any(out_of_order):
+                raise ValueError(
+                    f'from_matrix_table: columns are not in sorted order. You may request a '
+                    f'sort with sort_columns=True.')
+
         mt = (mt
               .select_globals()
               .select_rows()
