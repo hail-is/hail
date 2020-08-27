@@ -5,7 +5,7 @@ import java.util.Map.Entry
 import is.hail.HailContext
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{coerce => _, _}
-import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, ParamType, PunctuationToken, TokenIterator}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, ParamType, PunctuationToken, TokenIterator}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types._
@@ -55,9 +55,12 @@ abstract class EType extends BaseType with Serializable with Requiredness {
       FastIndexedSeq[ParamType](ptti, classInfo[OutputBuffer]),
       UnitInfo) { mb =>
 
-      val arg = mb.getCodeParam(1)(ptti)
-      val out = mb.getCodeParam[OutputBuffer](2)
-      mb.emit(_buildEncoder(pt, mb, arg, out))
+      mb.emitWithBuilder { cb =>
+        val arg = mb.getCodeParam(1)(ptti)
+        val out = mb.getCodeParam[OutputBuffer](2)
+        _buildEncoder(cb, pt, arg, out)
+        Code._empty
+      }
     }
   }
 
@@ -113,7 +116,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     }).invokeCode(_, _)
   }
 
-  def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit]
+  def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit
 
   def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_]
 
@@ -174,11 +177,11 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 trait EFundamentalType extends EType {
   def _decodeCompatible(pt: PType): Boolean = _compatible(pt)
   def _encodeCompatible(pt: PType): Boolean = _compatible(pt)
-  def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit]
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit
   def _buildFundamentalDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_]
 
-  final def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] =
-    _buildFundamentalEncoder(pt.encodableType, mb, v, out)
+  final def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit =
+    _buildFundamentalEncoder(cb, pt.encodableType, v, out)
 
   final def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] =
     _buildFundamentalDecoder(pt.encodableType, mb, region, in)
