@@ -47,20 +47,15 @@ help:
 clean:
 	rm -rf $(BUILDDIR)
 
-.PHONY: check-python
-check-python:
-	@echo "Ensuring that Hail can be imported..."
-	python3 -c "import hail"
-
 .PHONY: tutorials-tar
-tutorials-tar:
-	rm -rf tutorials/data
-	rm -f tutorials/*.log
+tutorials-tar: $(BUILDDIR)/html/tutorials.tar.gz
+
+$(BUILDDIR)/html/tutorials.tar.gz: $(wildcard tutorials/*.ipynb)
 	mkdir -p $(BUILDDIR)/html
-	tar cvf $(BUILDDIR)/html/tutorials.tar.gz tutorials
+	tar cvf $(BUILDDIR)/html/tutorials.tar.gz $^
 
 .PHONY: html
-html: check-python tutorials-tar
+html: tutorials-tar
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."

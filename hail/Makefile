@@ -168,6 +168,8 @@ copy-py-files: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) 
 	mkdir -p build/deploy/src
 	cp ../README.md build/deploy/
 	rsync -rv \
+	    --exclude '.eggs/' \
+	    --exclude '.pytest_cache/' \
 	    --exclude '__pycache__/' \
 	    --exclude 'benchmark_hail/' \
 	    --exclude '.mypy_cache/' \
@@ -271,33 +273,54 @@ benchmark: $(WHEEL)
 install-benchmark:
 	HAIL_WHEEL=DUMMY HAIL_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark install
 
+python/hail/docs/change_log.rst: python/hail/docs/change_log.md
+	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
+	  < $< \
+	  | pandoc -o $@
+
 .PHONY: batch-docs
 batch-docs:
-	rm -rf build/batch/docs
-	mkdir -p build/batch
-	cp -R python/hailtop/batch/docs build/batch/
-	$(MAKE) -C build/batch/docs BUILDDIR=_build clean html
+	$(MAKE) -C python/hailtop/batch/docs \
+	      BUILDDIR=$(PWD)/build/docs/batch \
+	      html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/batch
-	mv build/batch/docs/_build/html build/www/docs/batch
+	cp -R build/docs/batch/html build/www/docs/batch
+	find build/www/docs/batch \
+	     -iname *.html \
+	     -type f \
+	     -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built Batch docs: build/www/docs/batch/index.html
 
 HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
 .PHONY: hail-docs
-hail-docs: install $(PYTHON_VERSION_INFO)
-	mkdir -p build/docs
-	rm -rf build/docs
-	cp -R python/hail/docs build/
-	cp python/hail/hail_version build/
-	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
-    < build/docs/change_log.md \
-    | pandoc -o build/docs/change_log.rst
-	$(MAKE) SPHINXOPTS='-tchecktutorial' -C build/docs BUILDDIR=_build clean html
+hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
+	$(MAKE) -C python/hail/docs \
+	        SPHINXOPTS='-tchecktutorial' \
+	        BUILDDIR=$(PWD)/build/docs/hail \
+	        html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
-	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
-	find ./build/www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
+	cp -R build/docs/hail/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
+	find build/www/docs/$(HAIL_MAJOR_MINOR_VERSION) \
+	     -iname *.html \
+	     -type f \
+	     -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built Hail docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
+
+.PHONY: hail-docs-no-test
+hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
+	$(MAKE) -C python/hail/docs \
+	        BUILDDIR=$(PWD)/build/docs/hail \
+	        html
+	mkdir -p build/www/docs
+	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
+	cp -R build/docs/hail/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
+	find build/www/docs/$(HAIL_MAJOR_MINOR_VERSION) \
+	     -iname *.html \
+	     -type f \
+	     -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
+	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: upload-docs
 upload-docs: hail-docs batch-docs
@@ -307,25 +330,7 @@ upload-docs: hail-docs batch-docs
 	gsutil -m acl set public-read $(docs_location)
 
 .PHONY: test
-test: pytest jvm-test doctest tutorial-test
-
-.PHONY: tutorial-test
-docs-no-test: install $(PYTHON_VERSION_INFO) install-dev-deps
-	mkdir -p build
-	rm -rf build/www
-	rm -rf build/docs
-	mkdir -p build/docs
-	cp -R python/hail/docs build/
-	cp python/hail/hail_version build/
-	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
-    < build/docs/change_log.md \
-    | pandoc -o build/docs/change_log.rst
-	$(MAKE) -C build/docs BUILDDIR=_build clean html
-	mkdir -p build/www/docs
-	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
-	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
-	find ./build/www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
-	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
+test: pytest jvm-test doctest
 
 .PHONY: native-lib native-lib-test native-lib-clean native-lib-prebuilt native-lib-reset-prebuilt
 native-lib:
@@ -340,12 +345,15 @@ native-lib-reset-prebuilt:
 	$(MAKE) -C src/main/c reset-prebuilt
 
 clean: clean-env native-lib-clean
+	make -C python/hail/docs clean
+	make -C python/hailtop/batch/docs clean
 	./gradlew clean $(GRADLE_ARGS)
 	rm -rf build/
 	rm -rf $(PYTHON_JAR)
 	rm -rf python/README.md
 	rm -rf $(SCALA_BUILD_INFO)
 	rm -rf $(PYTHON_VERSION_INFO)
+	rm -rf python/hail/docs/change_log.rst
 
 .PHONY: update-hail-repl
 update-hail-repl: NAMESPACE ?= default
