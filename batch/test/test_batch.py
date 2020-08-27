@@ -560,7 +560,7 @@ echo $HAIL_BATCH_WORKER_IP
 
     def test_verify_no_access_to_metadata_server(self):
         builder = self.client.create_batch()
-        j = builder.create_job('google/cloud-sdk', ['gcloud', 'auth', 'login'])
+        j = builder.create_job('google/cloud-sdk', ['gcloud', 'auth', 'list'])
         builder.submit()
         status = j.wait()
         assert status['state'] == 'Failed', status
