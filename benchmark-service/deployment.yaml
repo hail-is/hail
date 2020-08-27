@@ -51,6 +51,9 @@ spec:
             - name: ssl-config-benchmark
               mountPath: /ssl-config
               readOnly: true
+            - name: benchmark-gsa-key
+              mountPath: /benchmark-gsa-key
+              readOnly: true
           readinessProbe:
             tcpSocket:
               port: 5000
@@ -66,3 +69,6 @@ spec:
         - name: ssl-config-benchmark
           secret:
             secretName: ssl-config-benchmark
+        - name: benchmark-gsa-key
+          secret:
+            secretName: benchmark-gsa-key
