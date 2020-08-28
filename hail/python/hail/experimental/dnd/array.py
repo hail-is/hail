@@ -221,23 +221,9 @@ class DNDArray:
         return DNDArray(o)
 
     def __matmul__(self, right: 'DNDArray') -> 'DNDArray':
-        # FIXME: use ndarray sum / fma
-        def block_product(left, right):
-            product = left @ right
-            n_rows, n_cols = product.shape
-            return hl.struct(
-                shape=product.shape,
-                block=hl.range(hl.int(n_rows * n_cols)).map(
-                    lambda absolute: product[absolute % n_rows, absolute // n_rows]))
-
-        def block_aggregate(prod):
-            shape = prod.shape
-            block = prod.block
-            return hl.nd.from_column_major(
-                hl.agg.array_sum(block),
-                hl.agg.take(shape, 1)[0])
-
-        return self._block_inner_product(right, block_product, block_aggregate)
+        return self._block_inner_product(right,
+                                         lambda left, right: left @ right,
+                                         hl.agg.ndarray_sum)
 
     def inner_product(self,
                       right: 'DNDArray',
