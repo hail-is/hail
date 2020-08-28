@@ -2,7 +2,6 @@
 {% block title %} Benchmarks {% endblock %}
 
 {% block content %}
-<!--<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/css/autoComplete.min.css">-->
 <link rel="stylesheet" href="{{ base_path }}/hail/benchmark-service/benchmark/styles/autocomplete.css" />
 <!--<style>-->
 <!--#autoComplete_wrapper {-->
@@ -201,14 +200,8 @@
 
 <h1>Benchmark System</h1>
 
-<!--<form action="{{ base_path }}/" method="get">-->
-<!--    <input type="text" name="file"></input>-->
-<!--    <input type="submit" value="lookup"></input>-->
-<!--</form>-->
-
 <form autocomplete="off" action="{{ base_path }}/" method="get">
     <div class="autocomplete">
-        <!--        <input type="text" name="file" id="file"></input>-->
         <input type="text" name="file" id="autoComplete"></input>
     </div>
     <input type="submit" value="lookup" id="button"></input>
