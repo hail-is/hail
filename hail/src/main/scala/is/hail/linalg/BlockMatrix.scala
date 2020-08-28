@@ -1642,7 +1642,7 @@ private class BlockMatrixFilterRowsRDD(bm: BlockMatrix, keep: Array[Long])
 
   private val originalGP = bm.gp
   private val blockSize = originalGP.blockSize
-  private val tempDenseGP = GridPartitioner(blockSize, originalGP.nRows, keep.length)
+  private val tempDenseGP = GridPartitioner(blockSize, keep.length, originalGP.nCols)
 
   private val allBlockRowRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
     BlockMatrixFilterRDD.computeAllBlockRowRanges(keep, originalGP, tempDenseGP)
