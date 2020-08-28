@@ -1545,6 +1545,8 @@ case class BlockMatrixFilterColsRDDPartition(index: Int, blockColRanges: Array[(
 private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
   extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) {
 
+  private val childPartitionsBc = bm.blocks.sparkContext.broadcast(bm.blocks.partitions)
+
   private val originalGP = bm.gp
   private val blockSize = originalGP.blockSize
   @transient private val tempDenseGP = GridPartitioner(blockSize, originalGP.nRows, keep.length)
@@ -1610,7 +1612,7 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
 
         if (blockParentMap(newGP.partitionToBlock(split.index)).contains(parentBI)) {
           val parentPI = originalGP.blockToPartition(parentBI)
-          block = bm.blocks.iterator(bm.blocks.partitions(parentPI), context).next()._2
+          block = bm.blocks.iterator(childPartitionsBc.value(parentPI), context).next()._2
         }
         var colRangeIndex = 0
         while (colRangeIndex < startIndices.length) {
