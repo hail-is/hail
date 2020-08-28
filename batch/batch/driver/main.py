@@ -606,58 +606,6 @@ LOCK IN SHARE MODE;
         await asyncio.sleep(10)
 
 
-async def check_cost(db):
-    @transaction(db, read_only=True)
-    async def check(tx):
-        agg_job_resources = tx.execute_and_fetchall('''
-SELECT *
-FROM jobs
-LEFT JOIN (
-  SELECT batch_id, job_id, SUM(`usage` * rate) AS cost
-  FROM aggregated_job_resources
-  INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
-  GROUP BY batch_id, job_id
-  LOCK IN SHARE MODE) AS t
-ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
-LOCK IN SHARE MODE;
-''')
-
-        agg_batch_resources = tx.execute_and_fetchall('''
-SELECT *
-FROM batches
-LEFT JOIN (
-  SELECT batch_id, SUM(`usage` * rate) AS cost
-  FROM aggregated_batch_resources
-  INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
-  GROUP BY batch_id
-  LOCK IN SHARE MODE) AS t
-ON batches.id = t.batch_id
-LOCK IN SHARE MODE;
-''')
-
-        def assert_cost_same(id, msec_mcpu, cost_resources):
-            cost_msec_mcpu = cost_from_msec_mcpu(msec_mcpu)
-            if cost_msec_mcpu is not None and cost_resources is not None:
-                if cost_msec_mcpu != 0:
-                    assert abs(cost_resources - cost_msec_mcpu) / cost_msec_mcpu <= 0.001, \
-                        (id, cost_msec_mcpu, cost_resources)
-                else:
-                    assert cost_resources == 0, (id, cost_msec_mcpu, cost_resources)
-
-        async for record in agg_job_resources:
-            assert_cost_same((record['batch_id'], record['job_id']), record['msec_mcpu'], record['cost'])
-
-        async for record in agg_batch_resources:
-            assert_cost_same(record['batch_id'], record['msec_mcpu'], record['cost'])
-
-    while True:
-        try:
-            await check()  # pylint: disable=no-value-for-parameter
-        except Exception:
-            log.exception('while checking cost')
-        await asyncio.sleep(10)
-
-
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
@@ -734,7 +682,6 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
 
     # asyncio.ensure_future(check_incremental_loop(db))
     # asyncio.ensure_future(check_resource_aggregation(db))
-    # asyncio.ensure_future(check_cost(db))
 
 
 async def on_cleanup(app):
