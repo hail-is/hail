@@ -330,7 +330,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
     left.typ.nCols == right.typ.nCols &&
     left.typ.blockSize == right.typ.blockSize)
 
-  override def typ: BlockMatrixType = left.typ.copy(sparsity = sparsityStrategy.mergeSparsity(left.typ.sparsity, right.typ.sparsity))
+  override lazy val typ: BlockMatrixType = left.typ.copy(sparsity = sparsityStrategy.mergeSparsity(left.typ.sparsity, right.typ.sparsity))
 
   lazy val children: IndexedSeq[BaseIR] = Array(left, right, f)
 
@@ -425,7 +425,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
 
 case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends BlockMatrixIR {
 
-  override def typ: BlockMatrixType = {
+  override lazy val typ: BlockMatrixType = {
     val blockSize = left.typ.blockSize
     val (lRows, lCols) = BlockMatrixIR.tensorShapeToMatrixShape(left)
     val (rRows, rCols) = BlockMatrixIR.tensorShapeToMatrixShape(right)
@@ -579,7 +579,7 @@ case class BlockMatrixAgg(
 
   assert(outIndexExpr.length < 2)
 
-  override def typ: BlockMatrixType = {
+  override lazy val typ: BlockMatrixType = {
     val matrixShape = BlockMatrixIR.tensorShapeToMatrixShape(child)
     val matrixShapeArr = Array[Long](matrixShape._1, matrixShape._2)
     val shape = outIndexExpr.map({ i: Int => matrixShapeArr(i) }).toFastIndexedSeq
@@ -678,7 +678,7 @@ case class BlockMatrixFilter(
 }
 
 case class BlockMatrixDensify(child: BlockMatrixIR) extends BlockMatrixIR {
-  def typ: BlockMatrixType = BlockMatrixType.dense(
+  override lazy val typ: BlockMatrixType = BlockMatrixType.dense(
     child.typ.elementType,
     child.typ.nRows, child.typ.nCols, child.typ.blockSize)
 
@@ -771,7 +771,7 @@ case class RectangleSparsifier(rectangles: IndexedSeq[IndexedSeq[Long]]) extends
 }
 
 case class PerBlockSparsifier(blocks: IndexedSeq[Int]) extends BlockMatrixSparsifier {
-  override def typ: Type = TArray(TInt32)
+  override lazy val typ: Type = TArray(TInt32)
 
   val blockSet = blocks.toSet
 
@@ -790,7 +790,7 @@ case class BlockMatrixSparsify(
   child: BlockMatrixIR,
   sparsifier: BlockMatrixSparsifier
 ) extends BlockMatrixIR {
-  def typ: BlockMatrixType = child.typ.copy(sparsity=sparsifier.definedBlocks(child.typ))
+  override lazy val typ: BlockMatrixType = child.typ.copy(sparsity=sparsifier.definedBlocks(child.typ))
 
   def blockCostIsLinear: Boolean = child.blockCostIsLinear
 
@@ -821,7 +821,7 @@ case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[
     }
   }
 
-  override def typ: BlockMatrixType = {
+  override lazy val typ: BlockMatrixType = {
     val matrixShape: IndexedSeq[Long] = slices.map { s =>
       val IndexedSeq(start, stop, step) = s
       1 + (stop - start - 1) / step
@@ -871,7 +871,7 @@ case class ValueToBlockMatrix(
 
   val blockCostIsLinear: Boolean = true
 
-  override def typ: BlockMatrixType = {
+  override lazy val typ: BlockMatrixType = {
     BlockMatrixType.dense(elementType(child.typ), shape(0), shape(1), blockSize)
   }
 
@@ -912,7 +912,7 @@ case class BlockMatrixRandom(
 
   val blockCostIsLinear: Boolean = true
 
-  override def typ: BlockMatrixType =
+  override lazy val typ: BlockMatrixType =
     BlockMatrixType.dense(TFloat64, shape(0), shape(1), blockSize)
 
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
@@ -928,7 +928,7 @@ case class BlockMatrixRandom(
 }
 
 case class RelationalLetBlockMatrix(name: String, value: IR, body: BlockMatrixIR) extends BlockMatrixIR {
-  def typ: BlockMatrixType = body.typ
+  override lazy val typ: BlockMatrixType = body.typ
 
   def children: IndexedSeq[BaseIR] = Array(value, body)
 
