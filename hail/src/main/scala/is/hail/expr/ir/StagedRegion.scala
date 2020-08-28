@@ -43,6 +43,9 @@ abstract class ChildStagedRegion extends StagedRegion {
 
   final def createSiblingRegionArray(mb: EmitMethodBuilder[_], length: Int): StagedOwnedRegionArray =
     parent.createChildRegionArray(mb, length)
+
+  def copyToSibling(mb: EmitMethodBuilder[_], value: PCode, dest: ChildStagedRegion, destType: PType): PCode =
+    StagedRegion.copy(mb, value, this, dest, destType)
 }
 
 trait StagedOwnedRegion extends ChildStagedRegion {
@@ -65,9 +68,6 @@ trait StagedOwnedRegion extends ChildStagedRegion {
     StagedRegion.copy(mb, value, this, parent)
 
   def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode): Code[Unit]
-
-  def copyToSibling(mb: EmitMethodBuilder[_], value: PCode, dest: ChildStagedRegion, destType: PType): PCode =
-    StagedRegion.copy(mb, value, this, dest, destType)
 
   def copyToSibling(mb: EmitMethodBuilder[_], value: PCode, dest: ChildStagedRegion): PCode =
     StagedRegion.copy(mb, value, this, dest)
@@ -96,48 +96,62 @@ object StagedRegion {
     }
   }
 
-  def copy(mb: EmitMethodBuilder[_], value: PCode, source: StagedOwnedRegion, dest: StagedOwnedRegion): PCode =
-    copy(mb, value, source, dest, value.pt)
-
-  def copy(mb: EmitMethodBuilder[_], value: PCode, source: StagedOwnedRegion, dest: StagedOwnedRegion, destType: PType): PCode = {
+  def copy(mb: EmitMethodBuilder[_], value: PCode, source: ChildStagedRegion, dest: ChildStagedRegion): PCode = {
     assert(source.parent eq dest.parent)
-    dest match {
-      case _: RealStagedOwnedRegion =>
-        value.copyToRegion(mb, dest.code, destType)
-      case _: DummyStagedOwnedRegion =>
-        value
-    }
-  }
-
-  def copy(mb: EmitMethodBuilder[_], value: PCode, source: StagedRegion, dest: StagedOwnedRegion): PCode =
-    copy(mb, value, source, dest, value.pt)
-
-  def copy(mb: EmitMethodBuilder[_], value: PCode, source: StagedRegion, dest: StagedOwnedRegion, destType: PType): PCode = {
-    assert(dest.parent eq source)
-    dest match {
-      case _: RealStagedOwnedRegion =>
-        value.copyToRegion(mb, dest.code, destType)
-      case _: DummyStagedOwnedRegion =>
-        value
-    }
-  }
-
-  def copy(mb: EmitMethodBuilder[_], value: PCode, source: StagedOwnedRegion, dest: StagedRegion): PCode = {
-    assert(source.parent eq dest)
-    source match {
-      case _: RealStagedOwnedRegion =>
+    source.parent match {
+      case _: RealRootStagedRegion =>
         value.copyToRegion(mb, dest.code)
-      case _: DummyStagedOwnedRegion =>
+      case _: DummyRootStagedRegion =>
         value
     }
   }
 
-  def copy(mb: EmitMethodBuilder[_], value: PCode, source: StagedOwnedRegion, dest: StagedRegion, destType: PType): PCode = {
-    assert(source.parent eq dest)
-    source match {
-      case _: RealStagedOwnedRegion =>
+  def copy(mb: EmitMethodBuilder[_], value: PCode, source: ChildStagedRegion, dest: ChildStagedRegion, destType: PType): PCode = {
+    assert(source.parent eq dest.parent)
+    source.parent match {
+      case _: RealRootStagedRegion =>
         value.copyToRegion(mb, dest.code, destType)
-      case _: DummyStagedOwnedRegion =>
+      case _: DummyRootStagedRegion =>
+        value.castTo(mb, dest.code, destType)
+    }
+  }
+
+  def copy(mb: EmitMethodBuilder[_], value: PCode, source: RootStagedRegion, dest: ChildStagedRegion): PCode = {
+    assert(dest.parent eq source)
+    source match {
+      case _: RealRootStagedRegion =>
+        value.copyToRegion(mb, dest.code)
+      case _: DummyRootStagedRegion =>
+        value
+    }
+  }
+
+  def copy(mb: EmitMethodBuilder[_], value: PCode, source: RootStagedRegion, dest: ChildStagedRegion, destType: PType): PCode = {
+    assert(dest.parent eq source)
+    source match {
+      case _: RealRootStagedRegion =>
+        value.copyToRegion(mb, dest.code, destType)
+      case _: DummyRootStagedRegion =>
+        value.castTo(mb, dest.code, destType)
+    }
+  }
+
+  def copy(mb: EmitMethodBuilder[_], value: PCode, source: ChildStagedRegion, dest: RootStagedRegion): PCode = {
+    assert(source.parent eq dest)
+    dest match {
+      case _: RealRootStagedRegion =>
+        value.copyToRegion(mb, dest.code)
+      case _: DummyRootStagedRegion =>
+        value
+    }
+  }
+
+  def copy(mb: EmitMethodBuilder[_], value: PCode, source: ChildStagedRegion, dest: RootStagedRegion, destType: PType): PCode = {
+    assert(source.parent eq dest)
+    dest match {
+      case _: RealRootStagedRegion =>
+        value.copyToRegion(mb, dest.code, destType)
+      case _: DummyRootStagedRegion =>
         value.castTo(mb, dest.code, destType)
     }
   }

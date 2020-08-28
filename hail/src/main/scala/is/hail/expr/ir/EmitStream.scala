@@ -301,8 +301,9 @@ object Stream {
   def grouped[A](
     mb: EmitMethodBuilder[_],
     childStream: ChildStagedRegion => Stream[A],
+    innerStreamType: PStream,
     size: Code[Int],
-    outerRegion: RootStagedRegion
+    eltRegion: ChildStagedRegion
   ): Stream[ChildStagedRegion => Stream[A]] = new Stream[ChildStagedRegion => Stream[A]] {
     def apply(outerEos: Code[Ctrl], outerPush: (ChildStagedRegion => Stream[A]) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[ChildStagedRegion => Stream[A]] = {
       val xCounter = ctx.mb.genFieldThisRef[Int]("st_grp_ctr")
@@ -314,11 +315,12 @@ object Stream {
       // Need to be able to free the memory used by a child stream element
       // when the outer stream advances before all inner stream elements
       // are consumed.
-      val childEltRegion = outerRegion.createChildRegion(mb)
+      var childEltRegion: StagedOwnedRegion = null
 
       var childSource: Source[A] = null
       val inner = (innerEltRegion: ChildStagedRegion) => new Stream[A] {
         def apply(innerEos: Code[Ctrl], innerPush: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
+          childEltRegion = innerEltRegion.createSiblingRegion(mb)
           val LinnerEos = CodeLabel()
           val LinnerPush = CodeLabel()
 
@@ -366,8 +368,13 @@ object Stream {
         // inner stream is unused
         val Lunreachable = CodeLabel()
         Code(Lunreachable, Code._fatal[Unit]("unreachable"))
+
+        val innerEltRegion = eltRegion
+          .asRoot(innerStreamType.separateRegions)
+          .createChildRegion(mb)
+
         // LinnerPush is never executed; childEltRegion is cleared every element.
-        val unusedInnerSource = inner(childEltRegion)(Lunreachable.goto, _ => Lunreachable.goto)
+        val unusedInnerSource = inner(innerEltRegion)(Lunreachable.goto, _ => Lunreachable.goto)
       }
 
       Code(LchildPull, childSource.pull)
@@ -1143,11 +1150,12 @@ object EmitStream {
   def groupBy(
     mb: EmitMethodBuilder[_],
     stream: ChildStagedRegion => Stream[PCode],
-    eltType: PStruct,
+    innerStreamType: PStream,
     key: Array[String],
-    outerRegion: RootStagedRegion
+    eltRegion: ChildStagedRegion
   ): Stream[ChildStagedRegion => Stream[PCode]] = new Stream[ChildStagedRegion => Stream[PCode]] {
     def apply(outerEos: Code[Ctrl], outerPush: (ChildStagedRegion => Stream[PCode]) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[ChildStagedRegion => Stream[PCode]] = {
+      val eltType = coerce[PStruct](innerStreamType.elementType)
       val keyType = eltType.selectFields(key)
       val keyViewType = PSubsetStruct(eltType, key)
       val ordering = keyType.codeOrdering(mb, keyViewType, missingFieldsEqual = false).asInstanceOf[CodeOrdering { type T = Long }]
@@ -1158,8 +1166,8 @@ object EmitStream {
       val xEOS = ctx.mb.genFieldThisRef[Boolean]("st_grpby_eos")
       val xNextGrpReady = ctx.mb.genFieldThisRef[Boolean]("st_grpby_ngr")
 
-      val holdingRegion = outerRegion.createChildRegion(mb)
-      val keyRegion = outerRegion.createChildRegion(mb)
+      var holdingRegion: StagedOwnedRegion = null
+      var keyRegion: StagedOwnedRegion = null
 
       val LchildPull = CodeLabel()
       val LouterPush = CodeLabel()
@@ -1168,6 +1176,9 @@ object EmitStream {
       var childSource: Source[PCode] = null
       val inner = (innerEltRegion: ChildStagedRegion) => new Stream[PCode] {
         def apply(innerEos: Code[Ctrl], innerPush: PCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[PCode] = {
+          holdingRegion = innerEltRegion.createSiblingRegion(mb)
+          keyRegion = innerEltRegion.createSiblingRegion(mb)
+
           val LinnerEos = CodeLabel()
           val LinnerPush = CodeLabel()
 
@@ -1216,9 +1227,14 @@ object EmitStream {
         // inner stream is unused
         val Lunreachable = CodeLabel()
         Code(Lunreachable, Code._fatal[Unit]("unreachable"))
+
+        val innerEltRegion = eltRegion
+          .asRoot(innerStreamType.separateRegions)
+          .createChildRegion(mb)
+
         // LinnerPush is never executed; holdingRegion will be cleared every
         // element, and keyRegion cleared every new key.
-        val unusedInnerSource = inner(holdingRegion)(Lunreachable.goto, _ => Lunreachable.goto)
+        val unusedInnerSource = inner(innerEltRegion)(Lunreachable.goto, _ => Lunreachable.goto)
       }
 
       // Precondition: holdingRegion is empty
@@ -1442,40 +1458,41 @@ object EmitStream {
           val xS = mb.genFieldThisRef[Int]("st_n")
           optStream.flatMap { case SizedStream(setup, stream, len) =>
             optSize.map { s =>
-              val newStream = Stream.grouped(mb, stream, xS, outerRegion)
-                .map { inner =>
-                  EmitCode(
-                    Code._empty,
-                    false,
-                    PCanonicalStreamCode(
-                      innerType,
-                      SizedStream.unsized(inner)))
-                }
+              val newStream = (eltRegion: ChildStagedRegion) =>
+                Stream.grouped(mb, stream, innerType, xS, eltRegion)
+                  .map { inner =>
+                    EmitCode(
+                      Code._empty,
+                      false,
+                      PCanonicalStreamCode(
+                        innerType,
+                        SizedStream.unsized(inner)))
+                  }
               SizedStream(
                 Code(setup, xS := s.tcode[Int], (xS <= 0).orEmpty(Code._fatal[Unit](const("StreamGrouped: nonpositive size")))),
-                _ => newStream,
+                newStream,
                 len.map(l => ((l.toL + xS.toL - 1L) / xS.toL).toI)) // rounding up integer division
             }
           }
 
         case x@StreamGroupByKey(a, key) =>
           val innerType = coerce[PCanonicalStream](coerce[PStream](x.pType).elementType)
-          val eltType = coerce[PStruct](innerType.elementType)
           val optStream = emitStream(a)
           optStream.map { ss =>
             val nonMissingStream = (eltRegion: ChildStagedRegion) => ss.getStream(eltRegion).mapCPS[PCode] { (_, ec, k) =>
               Code(ec.setup, ec.m.orEmpty(Code._fatal[Unit](const("expected non-missing"))), k(ec.pv))
             }
-            val newStream = groupBy(mb, nonMissingStream, eltType, key.toArray, outerRegion)
-              .map { inner =>
-                EmitCode.present(
-                  PCanonicalStreamCode(
-                    innerType,
-                    SizedStream.unsized { innerEltRegion =>
-                      inner(innerEltRegion).map(EmitCode.present)
-                    }))
-              }
-            SizedStream.unsized(_ => newStream)
+            val newStream = (eltRegion: ChildStagedRegion) =>
+              groupBy(mb, nonMissingStream, innerType, key.toArray, eltRegion)
+                .map { inner =>
+                  EmitCode.present(
+                    PCanonicalStreamCode(
+                      innerType,
+                      SizedStream.unsized { innerEltRegion =>
+                        inner(innerEltRegion).map(EmitCode.present)
+                      }))
+                }
+            SizedStream.unsized(newStream)
           }
 
         case StreamMap(childIR, name, bodyIR) =>
