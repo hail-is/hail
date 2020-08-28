@@ -32,7 +32,7 @@ def test_range_matmul():
     da = hl.experimental.dnd.array(mt, 'x', block_size=block_size)
     da = (da @ da.T).checkpoint(new_temp_file())
     assert da._force_count_blocks() == n_blocks
-    da_result = da.collect().reshape(n_variants, n_variants)
+    da_result = da.collect()
 
     a = np.array(mt.x.collect()).reshape(n_variants, n_samples)
     a_result = a @ a.T
@@ -83,7 +83,7 @@ def test_small_matmul():
     da = hl.experimental.dnd.array(mt, 'dosage', block_size=block_size)
     da = (da @ da.T).checkpoint(new_temp_file())
     assert da._force_count_blocks() == n_blocks
-    da_result = da.collect().reshape(n_variants, n_variants)
+    da_result = da.collect()
 
     a = np.array(mt.dosage.collect()).reshape(n_variants, n_samples)
     a_result = a @ a.T
@@ -104,7 +104,7 @@ def test_medium_matmul():
     da = hl.experimental.dnd.array(mt, 'dosage', block_size=block_size)
     da = (da @ da.T).checkpoint(new_temp_file())
     assert da._force_count_blocks() == n_blocks
-    da_result = da.collect().reshape(n_variants, n_variants)
+    da_result = da.collect()
 
     a = np.array(mt.dosage.collect()).reshape(n_variants, n_samples)
     a_result = a @ a.T
@@ -123,14 +123,14 @@ def test_matmul_via_inner_product():
     da = hl.experimental.dnd.array(mt, 'x', block_size=block_size)
     prod = (da @ da.T).checkpoint(new_temp_file())
     assert prod._force_count_blocks() == n_blocks
-    prod_result = prod.collect().reshape(n_variants, n_variants)
+    prod_result = prod.collect()
 
     ip_result = da.inner_product(da.T,
                                  lambda l, r: l * r,
                                  lambda l, r: l + r,
                                  hl.float(0.0),
                                  lambda prod: hl.agg.sum(prod)
-    ).collect().reshape(n_variants, n_variants)
+    ).collect()
 
     assert np.array_equal(prod_result, ip_result)
 
@@ -177,7 +177,7 @@ def test_dndarray_sum():
     da2 = hl.experimental.dnd.array(mt2, 'dosage', block_size=block_size)
     da_sum = (da1 + da2).checkpoint(new_temp_file())
     assert da_sum._force_count_blocks() == n_blocks
-    da_result = da_sum.collect().reshape(n_variants, n_variants)
+    da_result = da_sum.collect()
 
     a1 = np.array(mt1.dosage.collect()).reshape(n_variants, n_samples)
     a2 = np.array(mt2.dosage.collect()).reshape(n_variants, n_samples)
@@ -199,7 +199,7 @@ def test_dndarray_sum_scalar():
     da1 = hl.experimental.dnd.array(mt1, 'dosage', block_size=block_size)
     da_sum = (da1 + 10).checkpoint(new_temp_file())
     assert da_sum._force_count_blocks() == n_blocks
-    da_result = da_sum.collect().reshape(n_variants, n_variants)
+    da_result = da_sum.collect()
 
     a1 = np.array(mt1.dosage.collect()).reshape(n_variants, n_samples)
     a_result = a1 + 10
@@ -220,7 +220,7 @@ def test_dndarray_rsum_scalar():
     da1 = hl.experimental.dnd.array(mt1, 'dosage', block_size=block_size)
     da_sum = (10 + da1).checkpoint(new_temp_file())
     assert da_sum._force_count_blocks() == n_blocks
-    da_result = da_sum.collect().reshape(n_variants, n_variants)
+    da_result = da_sum.collect()
 
     a1 = np.array(mt1.dosage.collect()).reshape(n_variants, n_samples)
     a_result = 10 + a1
@@ -241,7 +241,7 @@ def test_dndarray_mul_scalar():
     da1 = hl.experimental.dnd.array(mt1, 'dosage', block_size=block_size)
     da_sum = (da1 * 10).checkpoint(new_temp_file())
     assert da_sum._force_count_blocks() == n_blocks
-    da_result = da_sum.collect().reshape(n_variants, n_variants)
+    da_result = da_sum.collect()
 
     a1 = np.array(mt1.dosage.collect()).reshape(n_variants, n_samples)
     a_result = a1 * 10
@@ -262,7 +262,7 @@ def test_dndarray_rmul_scalar():
     da1 = hl.experimental.dnd.array(mt1, 'dosage', block_size=block_size)
     da_sum = (10 * da1).checkpoint(new_temp_file())
     assert da_sum._force_count_blocks() == n_blocks
-    da_result = da_sum.collect().reshape(n_variants, n_variants)
+    da_result = da_sum.collect()
 
     a1 = np.array(mt1.dosage.collect()).reshape(n_variants, n_samples)
     a_result = 10 * a1
@@ -283,7 +283,7 @@ def test_dndarray_sub_scalar():
     da1 = hl.experimental.dnd.array(mt1, 'dosage', block_size=block_size)
     da_sum = (da1 - 10).checkpoint(new_temp_file())
     assert da_sum._force_count_blocks() == n_blocks
-    da_result = da_sum.collect().reshape(n_variants, n_variants)
+    da_result = da_sum.collect()
 
     a1 = np.array(mt1.dosage.collect()).reshape(n_variants, n_samples)
     a_result = a1 - 10
@@ -304,7 +304,7 @@ def test_dndarray_rsub_scalar():
     da1 = hl.experimental.dnd.array(mt1, 'dosage', block_size=block_size)
     da_sum = (10 - da1).checkpoint(new_temp_file())
     assert da_sum._force_count_blocks() == n_blocks
-    da_result = da_sum.collect().reshape(n_variants, n_variants)
+    da_result = da_sum.collect()
 
     a1 = np.array(mt1.dosage.collect()).reshape(n_variants, n_samples)
     a_result = 10 - a1
