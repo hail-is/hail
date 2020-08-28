@@ -63,3 +63,9 @@ class ReadGoogleStorage:
         for blob in bucket.list_blobs():
             list_of_files.append('gs://' + bucket_name + '/' + blob.name)
         return list_of_files
+
+    def list_files(self):
+        list_of_files = []
+        list_of_files.extend(self.list_files_in_bucket('hail-benchmarks'))
+        list_of_files.extend(self.list_files_in_bucket('hail-benchmarks-2'))
+        return list_of_files
