@@ -18,7 +18,8 @@
     outline:0;
     border-radius:50rem;
     border:.05rem solid;
-    color:rgba(255,255,255,0);
+    /* color:rgba(255,255,255,0); */
+    color:rgba(0,0,0,1);
     background-image:url(./images/magnifier.svg);
     background-repeat:no-repeat;
     background-size:1.2rem;
@@ -177,6 +178,24 @@
     border-width:1px;
     background-position:left 1.1rem top .8rem;
 }
+#button {
+    font-family: inherit;
+    font-size: 1rem;
+    background: none;
+    border: 1px solid $black;
+    border-radius: 3px;
+    margin: 0;
+    cursor: pointer;
+    &:focus {
+	outline: 0;
+    }
+    &:active,
+    &:hover {
+	outline: 0;
+        color: $devil-gray;
+	border-color: $devil-gray;
+    }
+}
 </style>
 
 <h1>Benchmark System</h1>
@@ -191,7 +210,7 @@
         <!--        <input type="text" name="file" id="file"></input>-->
         <input type="text" name="file" id="autoComplete"></input>
     </div>
-    <input type="submit" value="lookup"></input>
+    <input type="submit" value="lookup" id="button"></input>
 </form>
 
 {% if file is not none %}
