@@ -1092,7 +1092,7 @@ class Emit[C](
             // empty.
             cb.assign(xElt, elt)
             cb.assign(xAcc, emitI(body, eltRegion, env.bind(accumName -> xAcc, valueName -> xElt))
-              .map(cb)(eltRegion.copyToSibling(mb, _, tmpRegion, accType)))
+              .map(cb)(eltRegion.copyTo(mb, _, tmpRegion, accType)))
             cb += eltRegion.clear()
             cb += StagedRegion.swap(mb, eltRegion, tmpRegion)
           })
@@ -1137,7 +1137,7 @@ class Emit[C](
             (tmpAccVars, seq).zipped.foreach { (accVar, ir) =>
               cb.assign(accVar,
                 emitI(ir, eltRegion, env = seqEnv)
-                  .map(cb)(eltRegion.copyToSibling(mb, _, tmpRegion, accVar.pt)))
+                  .map(cb)(eltRegion.copyTo(mb, _, tmpRegion, accVar.pt)))
             }
             (accVars, tmpAccVars).zipped.foreach { (v, tmp) => cb.assign(v, tmp) }
             cb += eltRegion.clear()

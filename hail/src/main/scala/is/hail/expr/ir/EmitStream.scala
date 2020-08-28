@@ -1075,7 +1075,7 @@ object EmitStream {
 
       Code(LstartNewKey,
         Code.forLoop(i := 0, i < k, i := i + 1, result(i) = 0L),
-        curKey := eltRegions(winner).copyToSibling(mb, winnerPc, destRegion, keyType),
+        curKey := eltRegions(winner).copyTo(mb, winnerPc, destRegion, keyType),
         LaddToResult.goto)
 
       Code(LaddToResult,
@@ -1907,8 +1907,8 @@ object EmitStream {
                 val accRegion = eltRegion.createSiblingRegion(mb)
 
                 Code(Lpush,
-                     xAccInAccR := xAccInEltR.map(StagedRegion.copy(mb, _, eltRegion, accRegion)),
-                     push(xAccInEltR))
+                  xAccInAccR := xAccInEltR.map(eltRegion.copyTo(mb, _, accRegion)),
+                  push(xAccInEltR))
 
                 val bodyEnv = env.bind(accName -> xAccInAccR, eltName -> xElt)
                 val body = emitIR(bodyIR, env = bodyEnv, region = eltRegion)
