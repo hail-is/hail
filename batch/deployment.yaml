@@ -60,6 +60,10 @@ spec:
          - name: HAIL_SHOULD_PROFILE
            value: "1"
 {% endif %}
+{% if scope == "test" %}
+         - name: HAIL_SHOULD_CHECK_INVARIANTS
+           value: "1"
+{% endif %}
 {% if deploy %}
          - name: HAIL_BATCH_BUCKET_NAME
            value: hail-batch

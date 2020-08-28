@@ -1794,7 +1794,7 @@ steps:
              -s \
              -vv \
              --instafail \
-             -k "not test_scale" \
+             -k "not test_scale and not test_invariants" \
              --durations=0 \
              /io/test/
    inputs:
@@ -1848,7 +1848,7 @@ steps:
              -s \
              -vv \
              --instafail \
-             -k "not test_scale" \
+             -k "not test_scale and not test_invariants" \
              --durations=0 \
              /io/test/
    inputs:
@@ -1902,7 +1902,7 @@ steps:
              -s \
              -vv \
              --instafail \
-             -k "not test_scale" \
+             -k "not test_scale and not test_invariants" \
              --durations=0 \
              /io/test/
    inputs:
@@ -1956,7 +1956,7 @@ steps:
              -s \
              -vv \
              --instafail \
-             -k "not test_scale" \
+             -k "not test_scale and not test_invariants" \
              --durations=0 \
              /io/test/
    inputs:
@@ -2010,7 +2010,7 @@ steps:
              -s \
              -vv \
              --instafail \
-             -k "not test_scale" \
+             -k "not test_scale and not test_invariants" \
              --durations=0 \
              /io/test/
    inputs:
@@ -2896,3 +2896,38 @@ steps:
     - deploy_batch
     - deploy_shuffler
     - deploy_address
+ - kind: runImage
+   name: test_batch_invariants
+   image:
+     valueFrom: batch_image.image
+   script: |
+     python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" --log-cli-level=INFO -s -vv --instafail -k "test_invariants" /io/test/
+   inputs:
+    - from: /repo/batch/test
+      to: /io/
+   timeout: 300
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: ssl-config-batch-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
+   scopes:
+    - test
+    - dev
+   dependsOn:
+    - create_deploy_config
+    - create_accounts
+    - default_ns
+    - batch_pods_ns
+    - copy_files
+    - batch_image
+    - deploy_batch
+    - test_batch

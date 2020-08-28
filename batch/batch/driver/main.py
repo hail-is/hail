@@ -11,6 +11,7 @@ import kubernetes_asyncio as kube
 import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
 from gear import (Database, setup_aiohttp_session,
+                  rest_authenticated_developers_only,
                   web_authenticated_developers_only, check_csrf_token,
                   transaction)
 from hailtop.hail_logging import AccessLogger
@@ -25,9 +26,9 @@ import uvloop
 
 from ..batch import mark_job_complete, mark_job_started
 from ..log_store import LogStore
-from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
-    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE, \
-    WORKER_LOGS_BUCKET_NAME, PROJECT
+from ..batch_configuration import (REFRESH_INTERVAL_IN_SECONDS,
+                                   DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE,
+                                   HAIL_SHOULD_CHECK_INVARIANTS, WORKER_LOGS_BUCKET_NAME, PROJECT)
 from ..globals import HTTP_CLIENT_MAX_SIZE
 
 from .instance_pool import InstancePool
@@ -142,6 +143,17 @@ def active_instances_only(fun):
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
+
+
+@routes.get('/check_invariants')
+@rest_authenticated_developers_only
+async def get_check_invariants(request):
+    app = request.app
+    data = {
+        'check_incremental': app['check_incremental_error'],
+        'check_resource_aggregation': app['check_resource_aggregation']
+    }
+    return web.json_response(data=data)
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/close')
@@ -425,7 +437,7 @@ async def get_user_resources(request, userdata):
                                  'user_resources.html', page_context)
 
 
-async def check_incremental_loop(db):
+async def check_incremental_loop(app, db):
     @transaction(db, read_only=True)
     async def check(tx):
         ready_cores = await tx.execute_and_fetchone('''
@@ -506,13 +518,13 @@ GROUP BY user;
     while True:
         try:
             await check()  # pylint: disable=no-value-for-parameter
-        except Exception:
+        except Exception as e:
+            app['check_incremental'] = e
             log.exception('while checking incremental')
-        # 10/s
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(10)
 
 
-async def check_resource_aggregation(db):
+async def check_resource_aggregation(app, db):
     def json_to_value(x):
         if x is None:
             return x
@@ -603,7 +615,8 @@ LOCK IN SHARE MODE;
     while True:
         try:
             await check()  # pylint: disable=no-value-for-parameter
-        except Exception:
+        except Exception as e:
+            app['check_resource_aggregation'] = e
             log.exception('while checking resource aggregation')
         await asyncio.sleep(10)
 
@@ -682,8 +695,12 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     await scheduler.async_init()
     app['scheduler'] = scheduler
 
-    # asyncio.ensure_future(check_incremental_loop(db))
-    # asyncio.ensure_future(check_resource_aggregation(db))
+    app['check_incremental'] = None
+    app['check_resource_aggregation'] = None
+
+    if HAIL_SHOULD_CHECK_INVARIANTS:
+        asyncio.ensure_future(check_incremental_loop(app, db))
+        asyncio.ensure_future(check_resource_aggregation(app, db))
 
 
 async def on_cleanup(app):
