@@ -110,7 +110,7 @@ MACHINE_MEM = {
     'm1-ultramem-160': 3844,
     'm1-megamem-96': 1433,
     'm2-ultramem-2084': 5888,
-    'm2-ultramem-4164': 11,
+    'm2-ultramem-4164': 11776,
     'c2-standard-4': 16,
     'c2-standard-8': 32,
     'c2-standard-16': 64,
