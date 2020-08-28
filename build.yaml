@@ -556,7 +556,7 @@ steps:
      {{ code.checkout_script }}
      cd hail
      time retry ./gradlew --version
-     time retry make jars python-version-info wheel
+     time retry make jars python-version-info wheel HAIL_DEBUG_MODE=1
      time (cd python && zip -r hail.zip hail hailtop)
      time tar czf test.tar.gz -C python test
      time tar czf resources.tar.gz -C src/test resources
