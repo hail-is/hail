@@ -319,7 +319,7 @@ class SparkBackend(
   def execute(ir: IR, optimize: Boolean, allocStrat: EmitAllocationStrategy.T = EmitAllocationStrategy.OneRegion): (Any, ExecutionTimer) =
     withExecuteContext() { ctx =>
       val (l, r) = _execute(ctx, ir, optimize, allocStrat)
-      (executionResultToAnnotation(ctx, l), r)
+      ctx.timer.time("convertRegionValueToAnnotation")((executionResultToAnnotation(ctx, l), r))
     }
 
   private[this] def _execute(ctx: ExecuteContext, ir: IR, optimize: Boolean, allocStrat: EmitAllocationStrategy.T): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
