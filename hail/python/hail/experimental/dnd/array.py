@@ -52,7 +52,7 @@ class DNDArray:
     @staticmethod
     def from_matrix_table(
             mt: MatrixTable,
-            entrc_field: str,
+            entry_field: str,
             *,
             n_partitions: Optional[int] = None,
             block_size: Optional[int] = None
@@ -91,7 +91,7 @@ class DNDArray:
               .add_row_index(row_index)
               .localize_entries(entries, cols))
         # FIXME: remove when ndarray support structs
-        mt = mt.annotate(**{entries: mt[entries][entrc_field]})
+        mt = mt.annotate(**{entries: mt[entries][entry_field]})
         mt = mt.annotate(
             **{col_blocks: hl.range(n_block_cols).map(
                 lambda c: hl.struct(
