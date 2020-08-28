@@ -251,11 +251,12 @@ class DNDArray:
             _, n_cols = right.shape
 
             def compute_element(absolute):
-                row = absolute % n_rows
-                col = absolute // n_rows
-                return hl.range(hl.int(n_inner)).map(
-                    lambda inner: multiply(left[row, inner], right[inner, col])
-                ).fold(add, zero)
+                return hl.rbind(
+                    absolute % n_rows,
+                    absolute // n_rows,
+                    lambda row, col: hl.range(hl.int(n_inner)).map(
+                        lambda inner: multiply(left[row, inner], right[inner, col])
+                    ).fold(add, zero))
 
             return hl.struct(
                 shape=(left.shape[0], right.shape[1]),
