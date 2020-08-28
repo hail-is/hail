@@ -265,7 +265,7 @@
     new autoComplete({
         data: {                              // Data src [Array, Function, Async] | (REQUIRED)
           src: files,
-          cache: true    // TODO true or false??
+          cache: true   
         },
         sort: (a, b) => {                    // Sort rendered results ascendingly | (Optional)
             if (a.match < b.match) return -1;
@@ -303,9 +303,6 @@
             result.innerHTML = "No Results";
             document.querySelector("#autoComplete_list").appendChild(result);
         },
-        // onSelection: feedback => {             // Action script onSelection event | (Optional)
-        //    console.log(feedback.selection.value.image_url);
-        // }
         onSelection: feedback => {
         feedback.event.preventDefault();
         document.querySelector("#autoComplete").value = feedback.selection.value;
