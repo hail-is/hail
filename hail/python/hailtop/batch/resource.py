@@ -1,4 +1,3 @@
-from __future__ import annotations  # noqa: F407 # pylint: disable=no-name-in-module
 import abc
 
 from shlex import quote as shq
@@ -64,13 +63,13 @@ class ResourceFile(Resource, str):
         if self._source is not None:
             self._source._external_outputs.add(self)
 
-    def _add_resource_group(self, rg: ResourceGroup) -> None:
+    def _add_resource_group(self, rg: 'ResourceGroup') -> None:
         self._resource_group = rg
 
     def _has_resource_group(self) -> bool:
         return self._resource_group is not None
 
-    def _get_resource_group(self) -> Optional[ResourceGroup]:
+    def _get_resource_group(self) -> Optional['ResourceGroup']:
         return self._resource_group
 
     def __str__(self):
@@ -100,7 +99,7 @@ class InputResourceFile(ResourceFile):
         self._input_path = None
         super().__init__(value)
 
-    def _add_input_path(self, path: str) -> InputResourceFile:
+    def _add_input_path(self, path: str) -> 'InputResourceFile':
         self._input_path = path
         return self
 
@@ -139,7 +138,7 @@ class JobResourceFile(ResourceFile):
         assert self._value is not None
         return f'{directory}/{self._source._job_id}/{self._value}'
 
-    def add_extension(self, extension: str) -> JobResourceFile:
+    def add_extension(self, extension: str) -> 'JobResourceFile':
         """
         Specify the file extension to use.
 

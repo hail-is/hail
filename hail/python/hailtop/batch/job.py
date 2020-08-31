@@ -1,4 +1,3 @@
-from __future__ import annotations  # noqa: F407 # pylint: disable=no-name-in-module
 import re
 from typing import Union, Optional, Dict, List, Set, Tuple
 
@@ -63,7 +62,7 @@ class Job:
         return uid
 
     def __init__(self,
-                 batch: batch.Batch,
+                 batch: 'batch.Batch',
                  name: Optional[str] = None,
                  attributes: Optional[Dict[str, str]] = None,
                  shell: Optional[str] = None):
@@ -93,7 +92,7 @@ class Job:
         self._valid: Set[_resource.Resource] = set()  # resources declared in the appropriate place
         self._dependencies: Set[Job] = set()
 
-    def _get_resource(self, item: str) -> _resource.Resource:
+    def _get_resource(self, item: str) -> '_resource.Resource':
         if item not in self._resources:
             r = self._batch._new_job_resource_file(self, value=item)
             self._resources[item] = r
@@ -101,19 +100,19 @@ class Job:
 
         return self._resources[item]
 
-    def __getitem__(self, item: str) -> _resource.Resource:
+    def __getitem__(self, item: str) -> '_resource.Resource':
         return self._get_resource(item)
 
-    def __getattr__(self, item: str) -> _resource.Resource:
+    def __getattr__(self, item: str) -> '_resource.Resource':
         return self._get_resource(item)
 
-    def _add_internal_outputs(self, resource: _resource.Resource) -> None:
+    def _add_internal_outputs(self, resource: '_resource.Resource') -> None:
         _add_resource_to_set(self._internal_outputs, resource, include_rg=False)
 
-    def _add_inputs(self, resource: _resource.Resource) -> None:
+    def _add_inputs(self, resource: '_resource.Resource') -> None:
         _add_resource_to_set(self._inputs, resource, include_rg=False)
 
-    def declare_resource_group(self, **mappings: str) -> Job:
+    def declare_resource_group(self, **mappings: str) -> 'Job':
         """Declare a resource group for a job.
 
         Examples
@@ -161,7 +160,7 @@ class Job:
             _add_resource_to_set(self._valid, rg)
         return self
 
-    def depends_on(self, *jobs: Job) -> Job:
+    def depends_on(self, *jobs: 'Job') -> 'Job':
         """
         Explicitly set dependencies on other jobs.
 
@@ -211,7 +210,7 @@ class Job:
     def env(self, variable: str, value: str):
         self._env[variable] = value
 
-    def command(self, command: str) -> Job:
+    def command(self, command: str) -> 'Job':
         """Set the job's command to execute.
 
         Examples
@@ -324,7 +323,7 @@ class Job:
         self._command.append(subst_command)
         return self
 
-    def storage(self, storage: Union[str, int]) -> Job:
+    def storage(self, storage: Union[str, int]) -> 'Job':
         """
         Set the job's storage size.
 
@@ -360,7 +359,7 @@ class Job:
         self._storage = str(storage)
         return self
 
-    def memory(self, memory: Union[str, int]) -> Job:
+    def memory(self, memory: Union[str, int]) -> 'Job':
         """
         Set the job's memory requirements.
 
@@ -396,7 +395,7 @@ class Job:
         self._memory = str(memory)
         return self
 
-    def cpu(self, cores: Union[str, int, float]) -> Job:
+    def cpu(self, cores: Union[str, int, float]) -> 'Job':
         """
         Set the job's CPU requirements.
 
@@ -431,7 +430,7 @@ class Job:
         self._cpu = str(cores)
         return self
 
-    def image(self, image: str) -> Job:
+    def image(self, image: str) -> 'Job':
         """
         Set the job's docker image.
 
@@ -459,7 +458,7 @@ class Job:
         self._image = image
         return self
 
-    def always_run(self, always_run: bool = True) -> Job:
+    def always_run(self, always_run: bool = True) -> 'Job':
         """
         Set the job to always run, even if dependencies fail.
 
@@ -495,7 +494,7 @@ class Job:
         self._always_run = always_run
         return self
 
-    def timeout(self, timeout: Union[float, int]) -> Job:
+    def timeout(self, timeout: Union[float, int]) -> 'Job':
         """
         Set the maximum amount of time this job can run for.
 
