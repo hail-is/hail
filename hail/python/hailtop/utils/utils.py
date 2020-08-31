@@ -431,6 +431,14 @@ async def run_if_changed(changed, f, *args, **kwargs):
             await changed.wait()
 
 
+async def run_if_changed_idempotent(changed, f, *args, **kwargs):
+    while True:
+        should_wait = await f(*args, **kwargs)
+        changed.clear()
+        if should_wait:
+            await changed.wait()
+
+
 class LoggingTimerStep:
     def __init__(self, timer, name):
         self.timer = timer

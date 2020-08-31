@@ -1,0 +1,79 @@
+{% extends "layout.html" %}
+{% block title %}Billing{% endblock %}
+{% block content %}
+<div class="flex-col-align-left">
+    <form method="GET" action="{{ base_path }}/billing">
+        <label for="time_period">Time Period:</label>
+        <input style="vertical-align:text-bottom;" name="time_period" size=30 type="text" required
+               {% if time_period %}
+               value = "{{ time_period }}"
+               {% else %}
+               placeholder="MM/YYYY"
+               {% endif %}
+        >
+        <button type="submit">Submit</button>
+    </form>
+</div>
+
+<h1>Costs by Google Service</h1>
+<table class="data-table">
+    <thead>
+    <tr>
+        <th>Service</th>
+        <th>Cost</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for record in cost_by_service %}
+    <tr>
+        <td>{{ record['service'] }}</td>
+        <td class="numeric-cell">{{ record['cost'] }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<h1>Compute Engine Costs by Source</h1>
+<table class="data-table">
+    <thead>
+    <tr>
+        <th>Source</th>
+        <th>Cost</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for record in compute_cost_breakdown %}
+    <tr>
+        <td>{{ record['source'] }}</td>
+        <td class="numeric-cell">{{ record['cost'] }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<h1>Costs by Product</h1>
+<table class="data-table">
+    <thead>
+    <tr>
+        <th>Service</th>
+        <th>Product</th>
+        <th>Source</th>
+        <th>Cost</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for record in cost_by_sku_label %}
+    <tr>
+        <td>{{ record['service_description'] }}</td>
+        <td>{{ record['sku_description'] }}</td>
+        <td>
+            {% if record['source'] is not none %}
+            {{ record['source'] }}
+            {% endif %}
+        </td>
+        <td class="numeric-cell">{{ record['cost'] }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
