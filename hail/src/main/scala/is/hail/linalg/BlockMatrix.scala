@@ -1316,7 +1316,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
   
   def filterRows(keep: Array[Long]): BlockMatrix = {
-    transpose().filterCols(keep).transpose()
+    new BlockMatrix(new BlockMatrixFilterRowsRDD(this, keep), blockSize, keep.length, nCols)
   }
 
   def filterCols(keep: Array[Long]): BlockMatrix = {
@@ -1539,7 +1539,7 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
   @transient override val partitioner: Option[Partitioner] = Some(newGP)
 }
 
-case class BlockMatrixFilterColsRDDPartition(index: Int, blockColRanges: Array[(Int, Array[Int], Array[Int])]) extends Partition
+case class BlockMatrixFilterOneDimRDDPartition(index: Int, blockRanges: Array[(Int, Array[Int], Array[Int])]) extends Partition
 
 // checked in Python: keep non-empty, increasing, valid range
 private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
@@ -1581,7 +1581,7 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
   protected def getPartitions: Array[Partition] = {
     Array.tabulate(newGP.numPartitions) { partitionIndex: Int =>
       val blockIndex = newGP.partitionToBlock(partitionIndex)
-      BlockMatrixFilterColsRDDPartition(partitionIndex, allBlockColRanges(newGP.blockBlockCol(blockIndex)))
+      BlockMatrixFilterOneDimRDDPartition(partitionIndex, allBlockColRanges(newGP.blockBlockCol(blockIndex)))
     }
   }
 
@@ -1604,10 +1604,10 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
     var j = 0
     var k = 0
 
-    val splitCast = split.asInstanceOf[BlockMatrixFilterColsRDDPartition]
+    val splitCast = split.asInstanceOf[BlockMatrixFilterOneDimRDDPartition]
 
     splitCast
-      .blockColRanges
+      .blockRanges
       .foreach { case (blockCol, startIndices, endIndices) =>
         val parentBI = originalGP.coordinatesBlock(blockRow, blockCol)
         var block = parentZeroBlock
@@ -1631,6 +1631,101 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
     assert(j == newBlockNCols)
 
     Iterator.single(((blockRow, newBlockCol), newBlock))
+  }
+
+  @transient override val partitioner: Option[Partitioner] = Some(newGP)
+}
+
+// checked in Python: keep non-empty, increasing, valid range
+private class BlockMatrixFilterRowsRDD(bm: BlockMatrix, keep: Array[Long])
+  extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) {
+
+  private val childPartitionsBc = bm.blocks.sparkContext.broadcast(bm.blocks.partitions)
+
+  private val originalGP = bm.gp
+  private val blockSize = originalGP.blockSize
+  private val tempDenseGP = GridPartitioner(blockSize, keep.length, originalGP.nCols)
+
+  @transient private val allBlockRowRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
+    BlockMatrixFilterRDD.computeAllBlockRowRanges(keep, originalGP, tempDenseGP)
+
+  @transient private val originalMaybeBlocksSet = originalGP.partitionIndexToBlockIndex.map(_.toSet)
+
+  //Map the denseGP blocks to the blocks of parents they depend on, temporarily pretending they are all there.
+  //Then delete the parents that aren't in originalGP.maybeBlocks, then delete the pairs
+  //without parents at all.
+  @transient private val blockParentMap = (0 until tempDenseGP.numPartitions).map { blockId =>
+    val (newBlockRow, blockCol) = tempDenseGP.blockCoordinates(blockId)
+    blockId -> allBlockRowRanges(newBlockRow).map { case (blockRow, _, _) =>
+      originalGP.coordinatesBlock(blockRow, blockCol)
+    }
+  }.map{case (blockId, parents) =>
+    val filteredParents = originalMaybeBlocksSet match {
+      case None => parents
+      case Some(blockIdSet) => parents.filter(id => blockIdSet.contains(id))
+    }
+    (blockId, filteredParents)
+  }.filter{case (_, parents) => !parents.isEmpty}.toMap
+
+  private val blockParentMapBc = bm.blocks.sparkContext.broadcast(blockParentMap)
+
+  @transient private val blockIndices = blockParentMap.keys.toFastIndexedSeq.sorted
+  @transient private val newGPMaybeBlocks = if (blockIndices.length == tempDenseGP.maxNBlocks)  None else Some(blockIndices)
+  private val newGP = tempDenseGP.copy(partitionIndexToBlockIndex = newGPMaybeBlocks)
+
+  protected def getPartitions: Array[Partition] = {
+    Array.tabulate(newGP.numPartitions) { partitionIndex: Int =>
+      val blockIndex = newGP.partitionToBlock(partitionIndex)
+      BlockMatrixFilterOneDimRDDPartition(partitionIndex, allBlockRowRanges(newGP.blockBlockRow(blockIndex)))
+    }
+  }
+
+  override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
+    new NarrowDependency(bm.blocks) {
+      def getParents(partitionId: Int): Seq[Int] = {
+        val blockForPartition = newGP.partitionToBlock(partitionId)
+        val blockParents = blockParentMap(blockForPartition)
+        val partitionParents = blockParents.map(blockId => originalGP.blockToPartition(blockId)).toSet.toArray.sorted
+        partitionParents
+      }
+    })
+
+  def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
+    val blockIndex = newGP.partitionToBlock(split.index)
+    val (newBlockRow, blockCol) = newGP.blockCoordinates(blockIndex)
+    val (newBlockNRows, blockNCols) = newGP.blockDims(blockIndex)
+    val parentZeroBlock = BDM.zeros[Double](originalGP.blockSize, originalGP.blockSize)
+    val newBlock = BDM.zeros[Double](newBlockNRows, blockNCols)
+    var j = 0
+    var k = 0
+
+    val splitCast = split.asInstanceOf[BlockMatrixFilterOneDimRDDPartition]
+
+    splitCast
+      .blockRanges
+      .foreach { case (blockRow, startIndices, endIndices) =>
+        val parentBI = originalGP.coordinatesBlock(blockRow, blockCol)
+        var block = parentZeroBlock
+
+        if (blockParentMapBc.value(newGP.partitionToBlock(split.index)).contains(parentBI)) {
+          val parentPI = originalGP.blockToPartition(parentBI)
+          block = bm.blocks.iterator(childPartitionsBc.value(parentPI), context).next()._2
+        }
+        var rowRangeIndex = 0
+        while (rowRangeIndex < startIndices.length) {
+          val si = startIndices(rowRangeIndex)
+          val ei = endIndices(rowRangeIndex)
+          k = j + ei - si
+
+          newBlock(j until k, ::) := block(si until ei, 0 until newBlock.cols)
+
+          j = k
+          rowRangeIndex += 1
+        }
+      }
+    assert(j == newBlockNRows)
+
+    Iterator.single(((newBlockRow, blockCol), newBlock))
   }
 
   @transient override val partitioner: Option[Partitioner] = Some(newGP)
