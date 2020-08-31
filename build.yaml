@@ -2274,7 +2274,11 @@ steps:
     - base_image
     - test_batch
     - test_ci
-    - test_hailtop_batch
+    - test_hailtop_batch_1
+    - test_hailtop_batch_2
+    - test_hailtop_batch_3
+    - test_hailtop_batch_4
+    - test_hailtop_batch_5
     - test_query
  - kind: runImage
    name: test_dataproc
