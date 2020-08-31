@@ -1,9 +1,9 @@
-from ... import Batch, LocalBackend, ServiceBackend
+from typing import Set, Dict, Any
+from ... import Batch, LocalBackend, ServiceBackend, Backend
 from ...resource import Resource
 import sys
 import shlex
 from argparse import Namespace, ArgumentParser, SUPPRESS
-from typing import Set, Dict
 from os.path import exists
 from google.cloud import storage  # type: ignore
 from google.cloud.storage.blob import Blob  # type: ignore
@@ -254,11 +254,11 @@ def prepare_jobs(batch, step1_args: Namespace, step1_batch_args: Namespace, step
     return j2
 
 
-def run(args: Namespace, backend_opts: Dict[str, any], run_opts: Dict[str, any]):
+def run(args: Namespace, backend_opts: Dict[str, Any], run_opts: Dict[str, Any]):
     is_local = "local" in args or "demo" in args
 
     if is_local:
-        backend = LocalBackend(**backend_opts)
+        backend: Backend = LocalBackend(**backend_opts)
     else:
         backend = ServiceBackend(**backend_opts)
 

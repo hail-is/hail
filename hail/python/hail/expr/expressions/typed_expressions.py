@@ -2427,7 +2427,7 @@ class StringExpression(Expression):
             return self._index(tstr, item)
 
     def __contains__(self, item):
-        raise TypeError(f"Cannot use `in` operator on hail `StringExpression`s. Use the `contains` method instead."
+        raise TypeError("Cannot use `in` operator on hail `StringExpression`s. Use the `contains` method instead."
                         "`my_string.contains('cat')` instead of `'cat' in my_string`")
 
     def __add__(self, other):
