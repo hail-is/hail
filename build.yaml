@@ -344,25 +344,6 @@ steps:
     - default_ns
     - base_image
  - kind: runImage
-   name: delete_tokens
-   image:
-     valueFrom: service_base_image.image
-   script: |
-     kubectl -n {{ default_ns.name }} delete secret ci-tokens
-     kubectl -n {{ batch_pods_ns.name }} delete secret test-tokens
-     kubectl -n {{ batch_pods_ns.name }} delete secret test-dev-tokens
-   scopes:
-    - test
-    - dev
-   runIfRequested: true
-   serviceAccount:
-     name: admin
-     namespace:
-       valueFrom: default_ns.name
-   dependsOn:
-    - service_base_image
-    - default_ns
- - kind: runImage
    name: create_accounts
    image:
      valueFrom: service_base_image.image
@@ -449,7 +430,6 @@ steps:
     - auth_database
     - service_base_image
     - create_deploy_config
-    - delete_tokens
  - kind: buildImage
    name: hail_build_image
    dockerFile: hail/Dockerfile.hail-build
