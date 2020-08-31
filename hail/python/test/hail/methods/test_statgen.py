@@ -1172,11 +1172,11 @@ class Tests(unittest.TestCase):
     def test_blanczos_against_numpy(self):
 
         def concatToNumpy(field, horizontal=True):
-          blocks = field.collect()
-          if horizontal:
-              return np.concatenate(blocks, axis=0)
-          else:
-              return np.concatenate(blocks, axis=1)
+            blocks = field.collect()
+            if horizontal:
+                return np.concatenate(blocks, axis=0)
+            else:
+                return np.concatenate(blocks, axis=1)
       
         mt = hl.import_vcf(resource('tiny_m.vcf'))
         mt = mt.filter_rows(hl.len(mt.alleles) == 2)
@@ -1202,8 +1202,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(scores_t.count(), mt.count_cols())
         self.assertEqual(loadings_t.count(), n_rows)
 
-        assert len(scores.globals) == 0
-        assert len(loadings.globals) == 0
+        assert len(scores_t.globals) == 0
+        assert len(loadings_t.globals) == 0
 
         # compute PCA with numpy
         def normalize(a):
