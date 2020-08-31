@@ -564,4 +564,4 @@ echo $HAIL_BATCH_WORKER_IP
         builder.submit()
         status = j.wait()
         assert status['state'] == 'Success', status
-        assert "No credentialed accounts." in j.log()['main']
+        assert "No credentialed accounts." in j.log()['main'], j.log()
