@@ -22,6 +22,22 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.56
+
+## New features
+
+- (hail#9308) Add hl.enumerate in favor of hl.zip_with_index, which is now deprecated.
+- (hail#9278) Add `ArrayExpression.grouped`, a function that groups hail arrays into fixed size subarrays.
+
+## Performance
+
+- (hail#9373)(hail#9374) Decrease amount of memory used when slicing or filtering along a single BlockMatrix dimension.
+
+## hailctl dataproc
+
+- (hail#9263) Add support for `--expiration-time` argument to `hailctl dataproc start`. 
+- (hail#9263) Add support for `--no-max-idle`, `no-max-age`, `--max-age`, and `--expiration-time` to `hailctl dataproc --modify`.
+
 ## Version 0.2.55
 
 Released 2020-08-19
