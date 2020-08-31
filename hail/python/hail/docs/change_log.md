@@ -33,7 +33,7 @@ an earlier version of Hail to read files written in a later version.
 
 - (hail#9373)(hail#9374) Decrease amount of memory used when slicing or filtering along a single BlockMatrix dimension.
 
-## Bug Fixes
+## Bug fixes
 
 - (hail#9304) Fix crash in `run_combiner` caused by inputs where VCF lines and BGZ blocks align.
 
