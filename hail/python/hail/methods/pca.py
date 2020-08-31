@@ -200,3 +200,260 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
     if not compute_loadings:
         t = None
     return hl.eval(g.eigenvalues), scores, None if t is None else t.drop('eigenvalues', 'scores')
+
+
+@typecheck(entry_expr=expr_float64,
+           k=int,
+           compute_loadings=bool,
+           q_iterations=int,
+           oversampling_param=int,
+           block_size=int)
+def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128):
+    r"""Run randomized principal component analysis approximation (PCA)
+    on numeric columns derived from a matrix table.
+
+    Implements the Blanczos algorithm found by Rokhlin, Szlam, and Tygert.
+
+    Examples
+    --------
+
+    For a matrix table with variant rows, sample columns, and genotype entries,
+    compute the top 2 PC sample scores and eigenvalues of the matrix of 0s and
+    1s encoding missingness of genotype calls.
+
+    >>> eigenvalues, scores, _ = hl._blanczos_pca(hl.int(hl.is_defined(dataset.GT)),
+    ...                                 k=2)
+
+    Warning
+    -------
+      This method does **not** automatically mean-center or normalize each column.
+      If desired, such transformations should be incorporated in `entry_expr`.
+
+      Hail will return an error if `entry_expr` evaluates to missing, nan, or
+      infinity on any entry.
+
+    Notes
+    -----
+
+    PCA is run on the columns of the numeric matrix obtained by evaluating
+    `entry_expr` on each entry of the matrix table, or equivalently on the rows
+    of the **transposed** numeric matrix :math:`M` referenced below.
+
+    PCA computes the SVD
+
+    .. math::
+
+      M = USV^T
+
+    where columns of :math:`U` are left singular vectors (orthonormal in
+    :math:`\mathbb{R}^n`), columns of :math:`V` are right singular vectors
+    (orthonormal in :math:`\mathbb{R}^m`), and :math:`S=\mathrm{diag}(s_1, s_2,
+    \ldots)` with ordered singular values :math:`s_1 \ge s_2 \ge \cdots \ge 0`.
+    Typically one computes only the first :math:`k` singular vectors and values,
+    yielding the best rank :math:`k` approximation :math:`U_k S_k V_k^T` of
+    :math:`M`; the truncations :math:`U_k`, :math:`S_k` and :math:`V_k` are
+    :math:`n \times k`, :math:`k \times k` and :math:`m \times k`
+    respectively.
+
+    From the perspective of the rows of :math:`M` as samples (data points),
+    :math:`V_k` contains the loadings for the first :math:`k` PCs while
+    :math:`MV_k = U_k S_k` contains the first :math:`k` PC scores of each
+    sample. The loadings represent a new basis of features while the scores
+    represent the projected data on those features. The eigenvalues of the Gramian
+    :math:`MM^T` are the squares of the singular values :math:`s_1^2, s_2^2,
+    \ldots`, which represent the variances carried by the respective PCs. By
+    default, Hail only computes the loadings if the ``loadings`` parameter is
+    specified.
+
+    Scores are stored in a :class:`.Table` with the column key of the matrix
+    table as key and a field `scores` of type ``array<float64>`` containing
+    the principal component scores.
+
+    Loadings are stored in a :class:`.Table` with the row key of the matrix
+    table as key and a field `loadings` of type ``array<float64>`` containing
+    the principal component loadings.
+
+    The eigenvalues are returned in descending order, with scores and loadings
+    given the corresponding array order.
+
+    Parameters
+    ----------
+    entry_expr : :class:`.Expression`
+        Numeric expression for matrix entries.
+    k : :obj:`int`
+        Number of principal components.
+    compute_loadings : :obj:`bool`
+        If ``True``, compute row loadings.
+    q_iterations : :obj:`int`
+        Number of rounds of power iteration to amplify singular values.
+    oversampling_param : :obj:`int`
+        Amount of oversampling to use when approximating the singular values.
+        Usually a value between `0 <= oversampling_param <= k`.
+
+    Returns
+    -------
+    (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
+        List of eigenvalues, table with column scores, table with row loadings.
+    """
+
+    check_entry_indexed('pca/entry_expr', entry_expr)
+    mt = matrix_table_source('pca/entry_expr', entry_expr)
+
+    if entry_expr in mt._fields_inverse:
+        field = mt._fields_inverse[entry_expr]
+    else:
+        field = Env.get_uid()
+        mt = mt.select_entries(**{field: entry_expr})
+    mt = mt.select_cols().select_rows().select_globals()
+
+    mt = mt.select_entries(x=mt[field])
+
+    def get_even_partitioning(ht, partition_size):
+        ht = ht.select().add_index("_even_partitioning_index")
+        filt = ht.filter(ht._even_partitioning_index % partition_size == 0)
+        interval_bounds = filt.select().collect()
+        intervals = []
+        for i in range(len(interval_bounds) - 1):
+            intervals.append(hl.utils.Interval(start=interval_bounds[i], end=interval_bounds[i + 1], includes_start=True, includes_end=False))
+        last_element = ht.tail(1).select().collect()[0]
+        last_interval = hl.utils.Interval(start=interval_bounds[len(interval_bounds) - 1], end=last_element, includes_start=True, includes_end=True)
+        intervals.append(last_interval)
+
+        return intervals
+
+    ht = mt.localize_entries(entries_array_field_name="entries", columns_array_field_name="cols")
+    ht = ht.select(xs=ht.entries.map(lambda e: e['x']))
+    temp_file_name = hl.utils.new_temp_file("pca", "ht")
+    ht = ht.checkpoint(temp_file_name)
+    new_partitioning = get_even_partitioning(ht, block_size)
+    ht = hl.read_table(temp_file_name, _intervals=new_partitioning)
+    temp_file_name_2 = hl.utils.new_temp_file("pca", "ht2")
+    ht = ht.checkpoint(temp_file_name_2)
+
+    grouped = ht._group_within_partitions("groups", block_size * 2)
+    A = grouped.select(ndarray=hl.nd.array(grouped.groups.map(lambda group: group.xs)))
+
+    # Set Parameters
+
+    q = q_iterations
+    L = k + oversampling_param
+    n = A.take(1)[0].ndarray.shape[1]
+
+    # Generate random matrix G
+    G = hl.nd.zeros((n, L)).map(lambda n: hl.rand_norm(0, 1))
+
+    def hailBlanczos(A, G, k, q):
+
+        h_list = []
+        G_i = G
+
+        for j in range(0, q):
+            temp = A.annotate(H_i=A.ndarray @ G_i)
+            temp = temp.annotate(G_i_intermediate=temp.ndarray.T @ temp.H_i)
+            result = temp.aggregate(hl.struct(Hi_chunks=hl.agg.collect(temp.H_i),
+                                              G_i=hl.agg.ndarray_sum(temp.G_i_intermediate)), _localize=False)._persist()
+            localized_H_i = hl.nd.vstack(result.Hi_chunks)
+            h_list.append(localized_H_i)
+            G_i = result.G_i
+
+        temp = A.annotate(H_i=A.ndarray @ G_i)
+        result = temp.aggregate(hl.agg.collect(temp.H_i), _localize=False)._persist()
+        localized_H_i = hl.nd.vstack(result)
+        h_list.append(localized_H_i)
+        H = hl.nd.hstack(h_list)
+        Q, R = hl.nd.qr(H)
+        A = A.annotate(part_size=A.ndarray.shape[0])
+        A = A.annotate(rows_preceeding=hl.int32(hl.scan.sum(A.part_size)))
+        A = A.annotate_globals(Qt=Q.T)
+        T = A.annotate(ndarray=A.Qt[:, A.rows_preceeding:A.rows_preceeding + A.part_size] @ A.ndarray)
+        arr_T = T.aggregate(hl.agg.ndarray_sum(T.ndarray), _localize=False)
+
+        # hl.linalg.svd
+        U, S, W = hl.nd.svd(arr_T, full_matrices=False)._persist()
+
+        V = Q @ U
+
+        truncV = V[:, :k]
+        truncS = S[:k]
+        truncW = W[:k, :]
+
+        return truncV, truncS, truncW
+
+    U, S, V = hailBlanczos(A, G, k, q)
+
+    scores = V.transpose() * S
+    eigens = hl.eval(S * S)
+
+    hail_array_scores = scores._data_array()
+    cols_and_scores = hl.zip(ht.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores=tup[1]))
+    st = hl.Table.parallelize(cols_and_scores, key=list(mt.col_key))
+
+    lt = ht.select()
+    lt = lt.annotate_globals(U=U)
+    lt = lt.add_index()
+    lt = lt.annotate(loadings=lt.U[lt.idx, :]._data_array())
+
+    if compute_loadings:
+        return eigens, st, lt
+    else:
+        return eigens, st, None
+
+
+@typecheck(call_expr=expr_call,
+           k=int,
+           compute_loadings=bool,
+           q_iterations=int,
+           oversampling_param=int,
+           block_size=int)
+def _hwe_normalized_blanczos(call_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128):
+    r"""Run randomized principal component analysis approximation (PCA) on the
+    Hardy-Weinberg-normalized genotype call matrix.
+
+    Implements the Blanczos algorithm found by Rokhlin, Szlam, and Tygert.
+
+    Examples
+    --------
+
+    >>> eigenvalues, scores, loadings = hl._hwe_normalized_blanczos(dataset.GT, k=5)
+
+    Notes
+    -----
+    This method specializes :func:`._blanczos_pca` for the common use case
+    of PCA in statistical genetics, that of projecting samples to a small
+    number of ancestry coordinates. Variants that are all homozygous reference
+    or all homozygous alternate are unnormalizable and removed before
+    evaluation. See :func:`._blanczos_pca` for more details.
+
+    Parameters
+    ----------
+    call_expr : :class:`.CallExpression`
+        Entry-indexed call expression.
+    k : :obj:`int`
+        Number of principal components.
+    compute_loadings : :obj:`bool`
+        If ``True``, compute row loadings.
+
+    Returns
+    -------
+    (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
+        List of eigenvalues, table with column scores, table with row loadings.
+    """
+    mt = matrix_table_source('hwe_normalized_pca/call_expr', call_expr)
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
+                          __n_called=agg.count_where(hl.is_defined(mt.__gt)))
+    mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
+
+    n_variants = mt.count_rows()
+    if n_variants == 0:
+        raise FatalError("hwe_normalized_pca: found 0 variants after filtering out monomorphic sites.")
+    info("hwe_normalized_pca: running PCA using {} variants.".format(n_variants))
+
+    mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
+    mt = mt.annotate_rows(__hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
+    mt = mt.unfilter_entries()
+
+    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
+
+    return _blanczos_pca(normalized_gt, k, compute_loadings=compute_loadings, q_iterations=q_iterations,
+                         oversampling_param=oversampling_param, block_size=block_size)
