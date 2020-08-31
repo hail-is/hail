@@ -132,7 +132,7 @@ class DeployConfig(
           s"Cannot open a socket from an external client to a service.")
     }
     log.info(s"attempting to connect ${service} at ${host}:${port}")
-    var s = null
+    var s: Socket = null
     var attempts = 0
     while (s == null) {
       try {
