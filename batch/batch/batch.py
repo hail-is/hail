@@ -7,7 +7,7 @@ import traceback
 
 from hailtop.utils import (
     time_msecs, sleep_and_backoff, is_transient_error,
-    time_msecs_str, humanize_timedelta_msecs)
+    time_msecs_str, humanize_timedelta_msecs, cost_str)
 from hailtop.tls import in_cluster_ssl_client_session
 
 from .globals import complete_states, tasks, STATUS_FORMAT_VERSION
@@ -15,7 +15,6 @@ from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
 from .batch_format_version import BatchFormatVersion
 from .spec_writer import SpecWriter
-from .utils import cost_str
 
 log = logging.getLogger('batch')
 

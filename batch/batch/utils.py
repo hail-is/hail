@@ -14,12 +14,6 @@ def coalesce(x, default):
     return default
 
 
-def cost_str(cost):
-    if cost is None:
-        return None
-    return f'${cost:.4f}'
-
-
 def cost_from_msec_mcpu(msec_mcpu):
     if msec_mcpu is None:
         return None
