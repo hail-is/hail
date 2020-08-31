@@ -150,7 +150,7 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 async def get_check_invariants(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     data = {
-        'check_incremental': app['check_incremental_error'],
+        'check_incremental': app['check_incremental'],
         'check_resource_aggregation': app['check_resource_aggregation']
     }
     return web.json_response(data=data)
