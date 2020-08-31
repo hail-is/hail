@@ -106,12 +106,12 @@ class DNDArray:
         else:
             col_keys = mt.col_key.collect(_localize=False)
             out_of_order = hl.range(hl.len(col_keys) - 1).map(
-                lambda i: col_keys[i] > col_keys[i+1])
+                lambda i: col_keys[i] > col_keys[i + 1])
             out_of_order = out_of_order.collect()[0]
             if any(out_of_order):
                 raise ValueError(
-                    f'from_matrix_table: columns are not in sorted order. You may request a '
-                    f'sort with sort_columns=True.')
+                    'from_matrix_table: columns are not in sorted order. You may request a '
+                    'sort with sort_columns=True.')
 
         mt = (mt
               .select_globals()
