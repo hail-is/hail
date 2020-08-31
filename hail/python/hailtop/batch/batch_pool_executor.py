@@ -19,7 +19,9 @@ from ..google_storage import GCS  # type: ignore
 if sys.version_info < (3, 7):
     def create_task(coro, *, name=None):  # pylint: disable=unused-argument
         asyncio.ensure_future(coro)
-    asyncio.create_task = create_task
+else:
+    def create_task(*args, **kwargs):
+        asyncio.create_task(*args, **kwargs)
 
 
 def cpu_spec_to_float(spec: Union[int, str]) -> float:
@@ -237,7 +239,7 @@ class BatchPoolExecutor:
         submissions = [self.async_submit(fn, *arguments)
                        for arguments in zip(*iterables)]
         futures = await asyncio.gather(*submissions)
-        fetching_tasks = [asyncio.create_task(future._async_fetch_result())
+        fetching_tasks = [create_task(future._async_fetch_result())
                           for future in futures]
 
         async def async_result_or_cancel_all(future):

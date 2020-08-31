@@ -1,4 +1,3 @@
-from __future__ import annotations  # noqa: F407 # pylint: disable=no-name-in-module
 import abc
 
 from shlex import quote as shq
