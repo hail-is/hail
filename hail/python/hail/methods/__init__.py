@@ -5,7 +5,7 @@ from .impex import (export_elasticsearch, export_gen, export_bgen, export_plink,
                     import_bgen, import_gen, import_table, import_plink, read_matrix_table,
                     read_table, get_vcf_metadata, import_vcf, import_gvcfs, import_vcfs,
                     index_bgen, import_matrix_table)
-from .statgen import (skat, impute_sex, genetic_relatedness_matrix, realized_relationship_matrix, 
+from .statgen import (skat, impute_sex, genetic_relatedness_matrix, realized_relationship_matrix,
                       pca, hwe_normalized_pca, _blanczos_pca, _hwe_normalized_blanczos, split_multi,
                       filter_alleles, filter_alleles_hts, split_multi_hts, balding_nichols_model,
                       ld_prune, row_correlation, ld_matrix, linear_mixed_model,

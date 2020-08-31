@@ -31,6 +31,7 @@ def hwe_normalize(call_expr):
     normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
     return normalized_gt
 
+
 @typecheck(call_expr=expr_call,
            k=int,
            compute_loadings=bool)
@@ -90,7 +91,6 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False) -> Tuple[List[fl
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-
 
     return pca(hwe_normalize(call_expr),
                k,
