@@ -632,6 +632,14 @@ class BatchClient:
     def create_batch(self, attributes=None, callback=None):
         return BatchBuilder(self, attributes, callback)
 
+    async def get_billing_project(self, billing_project):
+        bp_resp = await self._get(f'/api/v1alpha/billing_projects/{billing_project}')
+        return await bp_resp.json()
+
+    async def list_billing_projects(self):
+        bp_resp = await self._get(f'/api/v1alpha/billing_projects')
+        return await bp_resp.json()
+
     async def close(self):
         await self._session.close()
         self._session = None

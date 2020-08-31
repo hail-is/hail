@@ -40,6 +40,16 @@ class Test(unittest.TestCase):
     def tearDown(self):
         self.client.close()
 
+    def test_get_billing_project(self):
+        r = self.client.get_billing_project('test')
+        assert r['billing_project'] == 'test', r
+        assert r['users'] == ['test'], r
+
+    def test_list_billing_projects(self):
+        r = self.client.list_billing_projects()
+        assert len(r) == 1
+        assert r[0]['billing_project'] == 'test', r
+
     def test_job(self):
         builder = self.client.create_batch()
         j = builder.create_job('ubuntu:18.04', ['echo', 'test'])
@@ -406,6 +416,8 @@ class Test(unittest.TestCase):
 
     def test_authorized_users_only(self):
         endpoints = [
+            (requests.get, '/api/v1alpha/billing_projects', 401),
+            (requests.get, '/api/v1alpha/billing_projects/foo', 401),
             (requests.get, '/api/v1alpha/batches/0/jobs/0', 401),
             (requests.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
             (requests.get, '/api/v1alpha/batches', 401),

@@ -65,6 +65,8 @@ REQUEST_TIME_POST_CANCEL_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch
 REQUEST_TIME_POST_DELETE_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/delete', verb='POST')
 REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET')
 REQUEST_TIME_GET_JOB_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id', verb="GET")
+REQUEST_TIME_GET_BILLING_PROJECTS = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects', verb="GET")
+REQUEST_TIME_GET_BILLING_PROJECT = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/{billing_project}', verb="GET")
 REQUEST_TIME_GET_BILLING_UI = REQUEST_TIME.labels(endpoint='/billing', verb="GET")
 REQUEST_TIME_GET_BILLING_PROJECTS_UI = REQUEST_TIME.labels(endpoint='/billing_projects', verb="GET")
 REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/user/remove', verb="POST")
@@ -1257,30 +1259,106 @@ async def ui_get_billing(request, userdata):
     return await render_template('batch', request, userdata, 'billing.html', page_context)
 
 
+async def _query_billing_projects(db, user=None, billing_project=None):
+    args = []
+
+    where_conditions = []
+
+    if user:
+        where_conditions.append("JSON_CONTAINS(users, '%s')")
+        args.append(user)
+
+    if billing_project:
+        where_conditions.append('billing_projects.name = %s')
+        args.append(billing_project)
+
+    if where_conditions:
+        where_condition = f'WHERE {" AND ".join(where_conditions)}'
+    else:
+        where_condition = ''
+
+    sql = f'''
+SELECT billing_projects.name as billing_project, users, msec_mcpu, `limit`, SUM(`usage` * rate) as cost
+FROM (
+  SELECT billing_project, JSON_ARRAYAGG(`user`) as users
+  FROM billing_project_users
+  GROUP BY billing_project
+) AS t
+RIGHT JOIN billing_projects
+  ON t.billing_project = billing_projects.name
+LEFT JOIN aggregated_billing_project_resources
+  ON aggregated_billing_project_resources.billing_project = billing_projects.name
+LEFT JOIN resources
+  ON resources.resource = aggregated_billing_project_resources.resource
+{where_condition}
+GROUP BY billing_projects.name, users, msec_mcpu, `limit`;
+'''
+
+    def record_to_dict(record):
+        cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
+        cost_resources = record['cost']
+        record['accrued_cost'] = coalesce(cost_msec_mcpu, 0) + coalesce(cost_resources, 0)
+        del record['msec_mcpu']
+        if record['users'] is None:
+            record['users'] = []
+        else:
+            record['users'] = json.loads(record['users'])
+        return record
+
+    billing_projects = [record_to_dict(record)
+                        async for record
+                        in db.select_and_fetchall(sql, tuple(args))]
+
+    return billing_projects
+
+
 @routes.get('/billing_projects')
 @prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS_UI)
 @web_authenticated_developers_only()
 async def ui_get_billing_projects(request, userdata):
     db = request.app['db']
-
-    @transaction(db, read_only=True)
-    async def select(tx):
-        billing_projects = {}
-        async for record in tx.execute_and_fetchall(
-                'SELECT * FROM billing_projects LOCK IN SHARE MODE;'):
-            name = record['name']
-            billing_projects[name] = []
-        async for record in tx.execute_and_fetchall(
-                'SELECT * FROM billing_project_users LOCK IN SHARE MODE;'):
-            billing_project = record['billing_project']
-            user = record['user']
-            billing_projects[billing_project].append(user)
-        return billing_projects
-    billing_projects = await select()  # pylint: disable=no-value-for-parameter
+    billing_projects = await _query_billing_projects(db)
     page_context = {
         'billing_projects': billing_projects
     }
     return await render_template('batch', request, userdata, 'billing_projects.html', page_context)
+
+
+@routes.get('/api/v1alpha/billing_projects')
+@prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS)
+@rest_authenticated_users_only
+async def get_billing_projects(request, userdata):
+    db = request.app['db']
+
+    if not userdata['is_developer']:
+        user = userdata['username']
+    else:
+        user = None
+
+    billing_projects = await _query_billing_projects(db, user=user)
+
+    return web.json_response(data=billing_projects)
+
+
+@routes.get('/api/v1alpha/billing_projects/{billing_project}')
+@prom_async_time(REQUEST_TIME_GET_BILLING_PROJECT)
+@rest_authenticated_users_only
+async def get_billing_project(request, userdata):
+    db = request.app['db']
+    billing_project = request.match_info['billing_project']
+
+    if not userdata['is_developer']:
+        user = userdata['username']
+    else:
+        user = None
+
+    billing_projects = await _query_billing_projects(db, user=user, billing_project=billing_project)
+
+    if not billing_projects:
+        raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
+
+    assert len(billing_projects) == 1
+    return web.json_response(data=billing_projects[0])
 
 
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')

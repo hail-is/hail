@@ -203,5 +203,11 @@ class BatchClient:
         builder = self._async_client.create_batch(attributes=attributes, callback=callback)
         return BatchBuilder.from_async_builder(builder)
 
+    def get_billing_project(self, billing_project):
+        return async_to_blocking(self._async_client.get_billing_project(billing_project))
+
+    def list_billing_projects(self):
+        return async_to_blocking(self._async_client.list_billing_projects())
+
     def close(self):
         async_to_blocking(self._async_client.close())
