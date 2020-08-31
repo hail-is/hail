@@ -3420,7 +3420,7 @@ def enumerate(a, start=0, *, index_first=True):
     :class:`.ArrayExpression`
         Array of (index, element) or (element, index) tuples.
     """
-    return range(0 + start, len(a) + start).map(lambda i: (i, a[i]) if index_first else (a[i], i))
+    return range(0, len(a)).map(lambda i: (i + start, a[i]) if index_first else (a[i], i + start))
 
 
 @typecheck(a=expr_array(), index_first=bool)
