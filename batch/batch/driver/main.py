@@ -147,7 +147,7 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 @routes.get('/check_invariants')
 @rest_authenticated_developers_only
-async def get_check_invariants(request):
+async def get_check_invariants(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     data = {
         'check_incremental': app['check_incremental_error'],
