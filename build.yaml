@@ -1552,6 +1552,8 @@ steps:
       script: /io/sql/fix-mark-job-complete-on-error.sql
     - name: add-worker-pd-ssd-data-disk
       script: /io/sql/add-worker-pd-ssd-data-disk.sql
+    - name: add-aggregated-batch-resources-tokens
+      script: /io/sql/add-aggregated-batch-resources-tokens.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
