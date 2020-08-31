@@ -239,7 +239,7 @@ class BatchPoolExecutor:
         submissions = [self.async_submit(fn, *arguments)
                        for arguments in zip(*iterables)]
         futures = await asyncio.gather(*submissions)
-        fetching_tasks = [asyncio.create_task(future._async_fetch_result())
+        fetching_tasks = [create_task(future._async_fetch_result())
                           for future in futures]
 
         async def async_result_or_cancel_all(future):
