@@ -29,7 +29,6 @@ from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
     DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE, \
     WORKER_LOGS_BUCKET_NAME, PROJECT
 from ..globals import HTTP_CLIENT_MAX_SIZE
-from ..utils import cost_from_msec_mcpu
 
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
