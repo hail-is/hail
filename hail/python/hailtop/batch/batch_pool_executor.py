@@ -21,7 +21,7 @@ if sys.version_info < (3, 7):
         return asyncio.ensure_future(coro)
 else:
     def create_task(*args, **kwargs):
-        return asyncio.create_task(*args, **kwargs)
+        return asyncio.create_task(*args, **kwargs)  # pylint: disable=no-member
 
 
 def cpu_spec_to_float(spec: Union[int, str]) -> float:
@@ -239,7 +239,7 @@ class BatchPoolExecutor:
         submissions = [self.async_submit(fn, *arguments)
                        for arguments in zip(*iterables)]
         futures = await asyncio.gather(*submissions)
-        fetching_tasks = [create_task(future._async_fetch_result())
+        fetching_tasks = [asyncio.create_task(future._async_fetch_result())
                           for future in futures]
 
         async def async_result_or_cancel_all(future):
