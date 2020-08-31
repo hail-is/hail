@@ -1203,6 +1203,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(loadings_t.count(), n_rows)
 
         assert len(scores_t.globals) == 0
+        print(f"loadings_globals = {loadings_t.globals}")
         assert len(loadings_t.globals) == 0
 
         # compute PCA with numpy
@@ -1221,7 +1222,7 @@ class Tests(unittest.TestCase):
         def bound(vs, us):
           return 1/k * sum([np.linalg.norm(us.T @ vs[:,i]) for i in range(k)])
 
-        np.testing.assert_allclose(eigen, np_eigenvalues, rtol=0.05)
+        np.testing.assert_allclose(eigens, np_eigenvalues, rtol=0.05)
         assert bound(np_loadings, loadings) > 0.9
 
 

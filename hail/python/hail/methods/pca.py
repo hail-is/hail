@@ -395,7 +395,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     lt = ht.select()
     lt = lt.annotate_globals(U=U)
     lt = lt.add_index()
-    lt = lt.annotate(loadings=lt.U[lt.idx, :]._data_array())
+    lt = lt.annotate(loadings=lt.U[lt.idx, :]._data_array()).select_globals()
 
     if compute_loadings:
         return eigens, st, lt
