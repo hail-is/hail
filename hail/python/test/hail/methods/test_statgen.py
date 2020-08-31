@@ -1168,7 +1168,6 @@ class Tests(unittest.TestCase):
         check(hail_scores, np_scores)
         check(hail_loadings, np_loadings)
 
-
     def test_blanczos_against_numpy(self):
 
         def concatToNumpy(field, horizontal=True):
@@ -1203,7 +1202,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(loadings_t.count(), n_rows)
 
         assert len(scores_t.globals) == 0
-        print(f"loadings_globals = {loadings_t.globals}")
         assert len(loadings_t.globals) == 0
 
         # compute PCA with numpy
@@ -1219,23 +1217,21 @@ class Tests(unittest.TestCase):
         np_loadings = V.transpose()
         np_eigenvalues = np.multiply(s, s)
 
-        def bound(vs, us):
-          return 1/k * sum([np.linalg.norm(us.T @ vs[:,i]) for i in range(k)])
+        def bound(vs, us):  # equation 12 from https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4827102/pdf/main.pdf
+            return 1/k * sum([np.linalg.norm(us.T @ vs[:,i]) for i in range(k)])
 
         np.testing.assert_allclose(eigens, np_eigenvalues, rtol=0.05)
         assert bound(np_loadings, loadings) > 0.9
 
-
     def test_blanczos_against_hail(self):
-        
         k = 10
 
         def concatToNumpy(field, horizontal=True):
-          blocks = field.collect()
-          if horizontal:
-              return np.concatenate(blocks, axis=0)
-          else:
-              return np.concatenate(blocks, axis=1)
+            blocks = field.collect()
+            if horizontal:
+                return np.concatenate(blocks, axis=0)
+            else:
+                return np.concatenate(blocks, axis=1)
 
         hl.utils.get_1kg('data/')
         hl.import_vcf('data/1kg.vcf.bgz').write('data/1kg.mt', overwrite=True)
@@ -1251,15 +1247,14 @@ class Tests(unittest.TestCase):
         h_scores = np.reshape(concatToNumpy(h_scores.scores), b_scores.shape)
         h_loadings = np.reshape(concatToNumpy(h_loadings.loadings), b_loadings.shape)
 
-        # equation 12 from GWAS paper
+        # equation 12 from https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4827102/pdf/main.pdf
         def bound(vs, us):
-          return 1/k * sum([np.linalg.norm(us.T @ vs[:,i]) for i in range(k)])
+            return 1/k * sum([np.linalg.norm(us.T @ vs[:,i]) for i in range(k)])
 
         MEV = bound(h_loadings, b_loadings)
 
         np.testing.assert_allclose(b_eigens, h_eigens, rtol=0.05)
         assert MEV > 0.9
-
 
     def test_split_multi_hts(self):
         ds1 = hl.import_vcf(resource('split_test.vcf'))
@@ -1300,7 +1295,6 @@ class Tests(unittest.TestCase):
         mt = hl.split_multi_hts(mt, permit_shuffle=True)
         mt._force_count_rows()
         assert mt.alleles.collect() == [['A', 'C'], ['A', 'G'], ['A', 'T']]
-
 
     def test_issue_4527(self):
         mt = hl.utils.range_matrix_table(1, 1)
