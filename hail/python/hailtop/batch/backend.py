@@ -1,3 +1,4 @@
+from typing import Optional, Dict
 import abc
 import os
 import subprocess as sp
@@ -11,18 +12,14 @@ from hailtop.config import get_deploy_config, get_user_config  # type: ignore
 import hailtop.batch_client.client as bc  # type: ignore
 from hailtop.batch_client.client import BatchClient  # type: ignore
 
-from .resource import InputResourceFile, JobResourceFile, ResourceGroup
-
-from typing import TYPE_CHECKING, Optional, Dict
-if TYPE_CHECKING:
-    from .batch import Batch  # pylint: disable=cyclic-import
-    from .job import Job  # pylint: disable=cyclic-import # noqa: F401
+from . import resource, batch, job as _job  # pylint: disable=unused-import
 
 
 class Backend(abc.ABC):
     """
     Abstract class for backends.
     """
+    _DEFAULT_SHELL = '/bin/bash'
 
     @abc.abstractmethod
     def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs):
@@ -31,7 +28,7 @@ class Backend(abc.ABC):
 
         Warning
         -------
-        This method should not be called directly. Instead, use :meth:`.Batch.run`.
+        This method should not be called directly. Instead, use :meth:`.batch.Batch.run`.
         """
         return
 
@@ -55,13 +52,13 @@ class LocalBackend(Backend):
 
     Parameters
     ----------
-    tmp_dir: :obj:`str`, optional
+    tmp_dir:
         Temporary directory to use.
-    gsa_key_file: :obj:`str`, optional
+    gsa_key_file:
         Mount a file with a gsa key to `/gsa-key/key.json`. Only used if a
         job specifies a docker image. This option will override the value set by
         the environment variable `HAIL_BATCH_GSA_KEY_FILE`.
-    extra_docker_run_flags: :obj:`str`, optional
+    extra_docker_run_flags:
         Additional flags to pass to `docker run`. Only used if a job specifies
         a docker image. This option will override the value set by the environment
         variable `HAIL_BATCH_EXTRA_DOCKER_RUN_FLAGS`.
@@ -88,7 +85,7 @@ class LocalBackend(Backend):
         self._extra_docker_run_flags = flags
 
     def _run(self,
-             batch: 'Batch',
+             batch: 'batch.Batch',
              dry_run: bool,
              verbose: bool,
              delete_scratch_on_exit: bool,
@@ -98,17 +95,17 @@ class LocalBackend(Backend):
 
         Warning
         -------
-        This method should not be called directly. Instead, use :meth:`.Batch.run`.
+        This method should not be called directly. Instead, use :meth:`.batch.Batch.run`.
 
         Parameters
         ----------
-        batch: :class:`.Batch`
+        batch:
             Batch to execute.
-        dry_run: :obj:`bool`
+        dry_run:
             If `True`, don't execute code.
-        verbose: :obj:`bool`
+        verbose:
             If `True`, print debugging output.
-        delete_scratch_on_exit: :obj:`bool`
+        delete_scratch_on_exit:
             If `True`, delete temporary directories with intermediate files.
         """
 
@@ -117,8 +114,7 @@ class LocalBackend(Backend):
 
         tmpdir = self._get_scratch_dir()
 
-        lines = ['#!/bin/bash',
-                 'set -e' + 'x' if verbose else '',
+        lines = ['set -e' + ('x' if verbose else ''),
                  '\n',
                  '# change cd to tmp directory',
                  f"cd {tmpdir}",
@@ -133,7 +129,7 @@ class LocalBackend(Backend):
             requester_pays_project = ''
 
         def copy_input(job, r):
-            if isinstance(r, InputResourceFile):
+            if isinstance(r, resource.InputResourceFile):
                 if r not in copied_input_resource_files:
                     copied_input_resource_files.add(r)
 
@@ -153,7 +149,7 @@ class LocalBackend(Backend):
 
                 return []
 
-            assert isinstance(r, JobResourceFile)
+            assert isinstance(r, resource.JobResourceFile)
             return []
 
         def copy_external_output(r):
@@ -165,17 +161,17 @@ class LocalBackend(Backend):
                     return 'cp'
                 return f'gsutil {requester_pays_project} cp'
 
-            if isinstance(r, InputResourceFile):
+            if isinstance(r, resource.InputResourceFile):
                 return [f'{_cp(dest)} {shq(r._input_path)} {shq(dest)}'
                         for dest in r._output_paths]
 
-            assert isinstance(r, JobResourceFile)
+            assert isinstance(r, resource.JobResourceFile)
             return [f'{_cp(dest)} {r._get_path(tmpdir)} {shq(dest)}'
                     for dest in r._output_paths]
 
         def symlink_input_resource_group(r):
             symlinks = []
-            if isinstance(r, ResourceGroup) and r._source is None:
+            if isinstance(r, resource.ResourceGroup) and r._source is None:
                 for name, irf in r._resources.items():
                     src = irf._get_path(tmpdir)
                     dest = f'{r._get_path(tmpdir)}.{name}'
@@ -199,30 +195,36 @@ class LocalBackend(Backend):
             resource_defs = [r._declare(tmpdir) for r in job._mentioned]
             env = [f'export {k}={v}' for k, v in job._env.items()]
 
+            job_shell = job._shell if job._shell else self._DEFAULT_SHELL
+
+            defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
+            joined_env = '; '.join(env) + '; ' if env else ''
+            cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
+
+            quoted_job_script = shq(joined_env + defs + cmd)
+
             if job._image:
-                defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
-                joined_env = '; '.join(env) + '; ' if env else ''
-                cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
+
                 memory = f'-m {job._memory}' if job._memory else ''
                 cpu = f'--cpus={job._cpu}' if job._cpu else ''
 
                 lines.append(f"docker run "
+                             "--entrypoint=''"
                              f"{self._extra_docker_run_flags} "
                              f"-v {tmpdir}:{tmpdir} "
                              f"-w {tmpdir} "
                              f"{memory} "
                              f"{cpu} "
-                             f"{job._image} /bin/bash "
-                             f"-c {shq(joined_env + defs + cmd)}")
+                             f"{job._image} "
+                             f"{job_shell} -c {quoted_job_script}")
             else:
-                lines += env
-                lines += resource_defs
-                lines += job._command
+                lines.append(f"{job_shell} -c {quoted_job_script}")
 
             lines += [x for r in job._external_outputs for x in copy_external_output(r)]
             lines += ['\n']
 
         script = "\n".join(lines)
+
         if dry_run:
             print(lines)
         else:
@@ -271,9 +273,9 @@ class ServiceBackend(Backend):
 
     Parameters
     ----------
-    billing_project: :obj:`str`, optional
+    billing_project:
         Name of billing project to use.
-    bucket: :obj:`str`, optional
+    bucket:
         Name of bucket to use.  Should not include the ``gs://``
         prefix.
 
@@ -310,7 +312,7 @@ class ServiceBackend(Backend):
         self._batch_client.close()
 
     def _run(self,
-             batch: 'Batch',
+             batch: 'batch.Batch',
              dry_run: bool,
              verbose: bool,
              delete_scratch_on_exit: bool,
@@ -323,26 +325,26 @@ class ServiceBackend(Backend):
 
         Warning
         -------
-        This method should not be called directly. Instead, use :meth:`.Batch.run`
+        This method should not be called directly. Instead, use :meth:`.batch.Batch.run`
         and pass :class:`.ServiceBackend` specific arguments as key-word arguments.
 
         Parameters
         ----------
-        batch: :class:`.Batch`
+        batch:
             Batch to execute.
-        dry_run: :obj:`bool`
+        dry_run:
             If `True`, don't execute code.
-        verbose: :obj:`bool`
+        verbose:
             If `True`, print debugging output.
-        delete_scratch_on_exit: :obj:`bool`
+        delete_scratch_on_exit:
             If `True`, delete temporary directories with intermediate files.
-        wait: :obj:`bool`, optional
+        wait:
             If `True`, wait for the batch to finish executing before returning.
-        open: :obj:`bool`, optional
+        open:
             If `True`, open the UI page for the batch.
-        disable_progress_bar: :obj:`bool`, optional
+        disable_progress_bar:
             If `True`, disable the progress bar.
-        callback: :obj:`str`, optional
+        callback:
             If not `None`, a URL that will receive at most one POST request
             after the entire batch completes.
         """
@@ -367,7 +369,7 @@ class ServiceBackend(Backend):
         n_jobs_submitted = 0
         used_remote_tmpdir = False
 
-        job_to_client_job_mapping: Dict['Job', bc.Job] = {}
+        job_to_client_job_mapping: Dict[_job.Job, bc.Job] = {}
         jobs_to_command = {}
         commands = []
 
@@ -377,24 +379,24 @@ class ServiceBackend(Backend):
                                    '--key-file=/gsa-key/key.json'
 
         def copy_input(r):
-            if isinstance(r, InputResourceFile):
+            if isinstance(r, resource.InputResourceFile):
                 return [(r._input_path, r._get_path(local_tmpdir))]
-            assert isinstance(r, JobResourceFile)
+            assert isinstance(r, resource.JobResourceFile)
             return [(r._get_path(remote_tmpdir), r._get_path(local_tmpdir))]
 
         def copy_internal_output(r):
-            assert isinstance(r, JobResourceFile)
+            assert isinstance(r, resource.JobResourceFile)
             return [(r._get_path(local_tmpdir), r._get_path(remote_tmpdir))]
 
         def copy_external_output(r):
-            if isinstance(r, InputResourceFile):
+            if isinstance(r, resource.InputResourceFile):
                 return [(r._input_path, dest) for dest in r._output_paths]
-            assert isinstance(r, JobResourceFile)
+            assert isinstance(r, resource.JobResourceFile)
             return [(r._get_path(local_tmpdir), dest) for dest in r._output_paths]
 
         def symlink_input_resource_group(r):
             symlinks = []
-            if isinstance(r, ResourceGroup) and r._source is None:
+            if isinstance(r, resource.ResourceGroup) and r._source is None:
                 for name, irf in r._resources.items():
                     src = irf._get_path(local_tmpdir)
                     dest = f'{r._get_path(local_tmpdir)}.{name}'
@@ -469,7 +471,7 @@ class ServiceBackend(Backend):
                 resources['storage'] = job._storage
 
             j = bc_batch.create_job(image=job._image if job._image else default_image,
-                                    command=['/bin/bash', '-c', cmd],
+                                    command=[job._shell if job._shell else self._DEFAULT_SHELL, '-c', cmd],
                                     parents=parents,
                                     attributes=attributes,
                                     resources=resources,

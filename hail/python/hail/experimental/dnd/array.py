@@ -52,7 +52,7 @@ class DNDArray:
     @staticmethod
     def from_matrix_table(
             mt: MatrixTable,
-            entrc_field: str,
+            entry_field: str,
             *,
             n_partitions: Optional[int] = None,
             block_size: Optional[int] = None
@@ -91,7 +91,7 @@ class DNDArray:
               .add_row_index(row_index)
               .localize_entries(entries, cols))
         # FIXME: remove when ndarray support structs
-        mt = mt.annotate(**{entries: mt[entries][entrc_field]})
+        mt = mt.annotate(**{entries: mt[entries][entry_field]})
         mt = mt.annotate(
             **{col_blocks: hl.range(n_block_cols).map(
                 lambda c: hl.struct(
@@ -221,23 +221,9 @@ class DNDArray:
         return DNDArray(o)
 
     def __matmul__(self, right: 'DNDArray') -> 'DNDArray':
-        # FIXME: use ndarray sum / fma
-        def block_product(left, right):
-            product = left @ right
-            n_rows, n_cols = product.shape
-            return hl.struct(
-                shape=product.shape,
-                block=hl.range(hl.int(n_rows * n_cols)).map(
-                    lambda absolute: product[absolute % n_rows, absolute // n_rows]))
-
-        def block_aggregate(prod):
-            shape = prod.shape
-            block = prod.block
-            return hl.nd.from_column_major(
-                hl.agg.array_sum(block),
-                hl.agg.take(shape, 1)[0])
-
-        return self._block_inner_product(right, block_product, block_aggregate)
+        return self._block_inner_product(right,
+                                         lambda left, right: left @ right,
+                                         hl.agg.ndarray_sum)
 
     def inner_product(self,
                       right: 'DNDArray',

@@ -1,32 +1,32 @@
-.. _GERP_scores:
+.. _DANN:
 
-GERP_scores
-===========
+DANN
+====
 
-*  **Versions:** GERP++
+*  **Versions:** None
 *  **Reference genome builds:** GRCh37, GRCh38
 *  **Type:** :class:`Table`
 
-Schema (GERP++, GRCh37)
-~~~~~~~~~~~~~~~~~~~~~~~
+Schema (None, GRCh37)
+~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: text
 
     ----------------------------------------
     Global fields:
         'metadata': struct {
-            name: str, 
-            version: str, 
-            reference_genome: str, 
-            n_rows: int64, 
+            name: str,
+            version: str,
+            reference_genome: str,
+            n_rows: int64,
             n_partitions: int32
-        } 
+        }
     ----------------------------------------
     Row fields:
-        'locus': locus<GRCh37> 
-        'N': float64 
-        'S': float64 
+        'locus': locus<GRCh37>
+        'alleles': array<str>
+        'score': float64
     ----------------------------------------
-    Key: ['locus']
+    Key: ['locus', 'alleles']
     ----------------------------------------
-    
+

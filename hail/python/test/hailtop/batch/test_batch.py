@@ -88,6 +88,40 @@ class LocalTests(unittest.TestCase):
 
             assert self.read(output_file.name) == msg
 
+    def test_single_job_with_shell(self):
+        with tempfile.NamedTemporaryFile('w') as output_file:
+            msg = 'hello world'
+
+            b = self.batch()
+            j = b.new_job(shell='/bin/bash')
+            j.command(f'echo "{msg}" > {j.ofile}')
+
+            b.write_output(j.ofile, output_file.name)
+            b.run()
+
+            assert self.read(output_file.name) == msg
+
+    def test_single_job_with_nonsense_shell(self):
+        b = self.batch()
+        j = b.new_job(shell='/bin/ajdsfoijasidojf')
+        j.image('ubuntu:18.04')
+        j.command(f'echo "hello"')
+        self.assertRaises(Exception, b.run)
+
+        b = self.batch()
+        j = b.new_job(shell='/bin/nonexistent')
+        j.command(f'echo "hello"')
+        self.assertRaises(Exception, b.run)
+
+    def test_single_job_with_intermediate_failure(self):
+        b = self.batch()
+        j = b.new_job()
+        j.command(f'echoddd "hello"')
+        j2 = b.new_job()
+        j2.command(f'echo "world"')
+
+        self.assertRaises(Exception, b.run)
+
     def test_single_job_w_input(self):
         with tempfile.NamedTemporaryFile('w') as input_file, \
                 tempfile.NamedTemporaryFile('w') as output_file:
@@ -303,7 +337,7 @@ class LocalTests(unittest.TestCase):
             assert self.read(output_file.name) == '123abcdef'
 
 
-class BatchTests(unittest.TestCase):
+class ServiceTests(unittest.TestCase):
     def setUp(self):
         self.backend = ServiceBackend()
 
@@ -338,7 +372,7 @@ class BatchTests(unittest.TestCase):
 
     def batch(self, requester_pays_project=None):
         return Batch(backend=self.backend,
-                     default_image='google/cloud-sdk:237.0.0-alpine',
+                     default_image='ubuntu:18.04',
                      attributes={'foo': 'a', 'bar': 'b'},
                      requester_pays_project=requester_pays_project)
 
@@ -521,3 +555,25 @@ class BatchTests(unittest.TestCase):
         j.env('SOME_VARIABLE', '123abcdef')
         j.command('[ $SOME_VARIABLE = "123abcdef" ]')
         assert b.run().status()['state'] == 'success'
+
+    def test_single_job_with_shell(self):
+        msg = 'hello world'
+        b = self.batch()
+        j = b.new_job(shell='/bin/sh')
+        j.command(f'echo "{msg}"')
+        assert b.run().status()['state'] == 'success'
+
+    def test_single_job_with_nonsense_shell(self):
+        b = self.batch()
+        j = b.new_job(shell='/bin/ajdsfoijasidojf')
+        j.command(f'echo "hello"')
+        assert b.run().status()['state'] == 'failure'
+
+    def test_single_job_with_intermediate_failure(self):
+        b = self.batch()
+        j = b.new_job()
+        j.command(f'echoddd "hello"')
+        j2 = b.new_job()
+        j2.command(f'echo "world"')
+
+        assert b.run().status()['state'] == 'failure'

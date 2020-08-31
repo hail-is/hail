@@ -1,16 +1,14 @@
-from hailtop.batch import Batch, LocalBackend
-from hailtop.batch.resource import Resource
-from collections import namedtuple
+from ... import Batch, LocalBackend, ServiceBackend
+from ...resource import Resource
 import sys
 import shlex
-from argparse import Namespace, ArgumentParser
-from typing import Set
-from os.path import splitext, basename, exists
-from google.cloud import storage
-from google.cloud.storage.blob import Blob
+from argparse import Namespace, ArgumentParser, SUPPRESS
+from typing import Set, Dict
+from os.path import exists
+from google.cloud import storage  # type: ignore
+from google.cloud.storage.blob import Blob  # type: ignore
 
 
-BatchArgs = namedtuple("BatchArgs", ['cores', 'memory', 'storage'])
 input_file_args = ["bgen", "bed", "pgen", "sample", "keep", "extract", "exclude", "remove",
                    "phenoFile", "covarFile"]
 
@@ -34,7 +32,7 @@ def _read(spath: str):
 
     client = storage.Client()
     blob = Blob.from_string(spath, client)
-    return blob.download_as_string()
+    return blob.download_as_string().decode("utf-8")
 
 
 def _read_first_line(spath: str):
@@ -100,7 +98,6 @@ def add_shared_args(parser: ArgumentParser):
     parser.add_argument('--lowmem', required=False, action='store_true')
 
     parser.add_argument('--lowmem-prefix', required=False)
-    parser.add_argument('--threads', required=False, default=2)
 
 
 def add_step1_args(parser: ArgumentParser):
@@ -131,18 +128,25 @@ def read_step_args(path_or_str: str, step: int):
 
     if not _exists(path_or_str):
         print(f"Couldn't find a file named {path_or_str}, assuming this is an argument string")
-        r = parser.parse_args(shlex.split(path_or_str))
+        t = shlex.split(path_or_str)
     else:
         print(f"Found {path_or_str}, reading")
-
         t = shlex.split(_read(path_or_str))
-        r = parser.parse_args(t)
+
+    regenie_args = parser.parse_known_args(t)[0]
 
     if step == 2:
-        if r.pred:
+        if regenie_args.pred:
             print("Batch will set --pred to the output prefix of --step 1.")
 
-    return r
+    bparser = ArgumentParser()
+    bparser.add_argument('--threads', required=False, default=1)
+    bparser.add_argument('--memory', required=False, default='1Gi')
+    bparser.add_argument('--storage', required=False, default='1Gi')
+
+    batch_args = bparser.parse_known_args(t)[0]
+
+    return regenie_args, batch_args
 
 
 def get_phenos(step_args: Namespace):
@@ -178,7 +182,7 @@ def prepare_step_cmd(batch: Batch, step_args: Namespace, job_output: Resource, s
 
         if name in input_file_args:
             if name == "bed":
-                res = batch.read_input_group(bed=f"{val}.bed", bim=f"{val}.bim", fam=f"{val}.fam")
+                res: Resource = batch.read_input_group(bed=f"{val}.bed", bim=f"{val}.bim", fam=f"{val}.fam")
             elif name == "pgen":
                 res = batch.read_input_group(
                     pgen=f"{val}.pgen", pvar=f"{val}.pvar", psam=f"{val}.psam")
@@ -199,13 +203,14 @@ def prepare_step_cmd(batch: Batch, step_args: Namespace, job_output: Resource, s
     return ' '.join(cmd).strip()
 
 
-def prepare_jobs(batch, args: BatchArgs, step1_args: Namespace, step2_args: Namespace):
+def prepare_jobs(batch, step1_args: Namespace, step1_batch_args: Namespace, step2_args: Namespace,
+                 step2_batch_args: Namespace):
     regenie_img = 'hailgenetics/regenie:v1.0.5.6'
     j1 = batch.new_job(name='run-regenie-step1')
     j1.image(regenie_img)
-    j1.cpu(args.cores)
-    j1.memory(args.memory)
-    j1.storage(args.storage)
+    j1.cpu(step1_batch_args.threads)
+    j1.memory(step1_batch_args.memory)
+    j1.storage(step1_batch_args.storage)
 
     phenos = get_phenos(step1_args)
     nphenos = len(phenos)
@@ -214,11 +219,6 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: Namespace, step2_args: Name
 
     for i in range(1, nphenos + 1):
         s1out[f"pheno_{i}"] = f"{{root}}_{i}.loco"
-
-    if step1_args.lowmem:
-        for i in range(1, nphenos + 1):
-            pfile = f"{step1_args.lowmem_prefix}_l0_Y{i}"
-            s1out[f"lowmem_{i}"] = pfile
 
     j1.declare_resource_group(output=s1out)
     cmd1 = prepare_step_cmd(batch, step1_args, j1.output)
@@ -229,9 +229,9 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: Namespace, step2_args: Name
 
     j2 = batch.new_job(name='run-regenie-step2')
     j2.image(regenie_img)
-    j2.cpu(args.cores)
-    j2.memory(args.memory)
-    j2.storage(args.storage)
+    j2.cpu(step2_batch_args.threads)
+    j2.memory(step2_batch_args.memory)
+    j2.storage(step2_batch_args.storage)
 
     s2out = {"log": "{root}.log"}
 
@@ -241,8 +241,6 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: Namespace, step2_args: Name
             s2out[f"{pheno}.regenie"] = out
     else:
         s2out["regenie"] = "{root}.regenie"
-
-    print(f"Regenie Step 2 output files: \n{s2out.values()}")
 
     j2.declare_resource_group(output=s2out)
 
@@ -256,60 +254,94 @@ def prepare_jobs(batch, args: BatchArgs, step1_args: Namespace, step2_args: Name
     return j2
 
 
-def run(args):
-    is_local = args.local or args.demo
+def run(args: Namespace, backend_opts: Dict[str, any], run_opts: Dict[str, any]):
+    is_local = "local" in args or "demo" in args
 
-    if not is_local:
-        _error("Currently only support LocalBackend (--local)")
+    if is_local:
+        backend = LocalBackend(**backend_opts)
+    else:
+        backend = ServiceBackend(**backend_opts)
 
-    backend = LocalBackend()
-    run_opts = {}
-
-    if args.demo:
-        if args.step1 or args.step2:
+    has_steps = "step1" in args or "step2" in args
+    if "demo" in args:
+        if has_steps:
             _warn("When --demo provided, --step1 and --step2 are ignored")
 
-        step1_args = read_step_args("example/step1.txt", 1)
-        step2_args = read_step_args("example/step2.txt", 2)
+        step1_args, step1_batch_args = read_step_args("example/step1.txt", 1)
+        step2_args, step2_batch_args = read_step_args("example/step2.txt", 2)
     else:
-        if not(args.step1 and args.step2):
+        if not has_steps:
             _error("When --demo not provided, --step1 and --step2 must be")
 
-        step1_args = read_step_args(args.step1, 1)
-        step2_args = read_step_args(args.step2, 2)
-
-    batch_args = BatchArgs(cores=args.cores, memory=args.memory, storage=args.storage)
+        step1_args, step1_batch_args = read_step_args(args.step1, 1)
+        step2_args, step2_batch_args = read_step_args(args.step2, 2)
 
     batch = Batch(backend=backend, name='regenie')
 
-    j2 = prepare_jobs(batch, batch_args, step1_args, step2_args)
+    j2 = prepare_jobs(batch, step1_args, step1_batch_args, step2_args, step2_batch_args)
+    print(f"Will write output to: {step2_args.out}")
+    batch.write_output(j2.output, step2_args.out)
+    return batch.run(**run_opts)
 
-    j2out = splitext(basename(step2_args.out))[0]
-    if args.outdir[-1] != "/":
-        outpath = f"{args.outdir}/{j2out}"
+
+def parse_input_args(input_args: list):
+    parser = ArgumentParser(argument_default=SUPPRESS, add_help=False)
+    parser.add_argument('--local', required=False, action="store_true",
+                        help="Use LocalBackend instead of the default ServiceBackend")
+    parser.add_argument('--demo', required=False, action="store_true",
+                        help="Run Regenie using Batch LocalBackend and example/step1.txt, example/step2.txt step files")
+    parser.add_argument('--step1', required=False,
+                        help="Path to newline-separated text file of Regenie step1 arguments")
+    parser.add_argument('--step2', required=False,
+                        help="Path to newline-separated text file of Regenie step2 arguments")
+    args = parser.parse_known_args(input_args)
+
+    backend_parser = ArgumentParser(argument_default=SUPPRESS, add_help=False)
+    if "local" in args[0] or "demo" in args[0]:
+        backend_parser.add_argument('--tmp_dir', required=False,
+                                    help="Batch LocalBackend `tmp_dir` option")
+        backend_parser.add_argument('--gsa_key_file', required=False,
+                                    help="Batch LocalBackend `gsa_key_file` option")
+        backend_parser.add_argument('--extra_docker_run_flags', required=False,
+                                    help="Batch LocalBackend `extra_docker_run_flags` option")
+
+        run_parser = ArgumentParser(argument_default=SUPPRESS, parents=[parser, backend_parser], add_help=True,
+                                    epilog="Batch LocalBackend options shown, try without '--local' to see ServiceBackend options")
+        run_parser.add_argument('--dry_run', required=False, action="store_true",
+                                help="Batch.run() LocalBackend `dry_run` option")
+        run_parser.add_argument('--verbose', required=False, action="store_true",
+                                help="Batch.run() LocalBackend `verbose` option")
+        run_parser.add_argument('--delete_scratch_on_exit', required=False, action="store_true",
+                                help="Batch.run() LocalBackend `delete_scratch_on_exit` option")
     else:
-        outpath = f"{args.outdir}{j2out}"
+        backend_parser.add_argument('--billing_project', required=False,
+                                    help="Batch ServiceBackend `billing_project` option")
+        backend_parser.add_argument('--bucket', required=False,
+                                    help="Batch ServiceBackend `bucket` option")
 
-    print(f"Output path set as: {outpath}")
-    batch.write_output(j2.output, outpath)
-    batch.run(**run_opts)
+        run_parser = ArgumentParser(argument_default=SUPPRESS, parents=[parser, backend_parser], add_help=True,
+                                    epilog="Batch ServiceBackend options shown, try '--local' to see LocalBackend options")
+        run_parser.add_argument('--dry_run', required=False, action="store_true",
+                                help="Batch.run() ServiceBackend  `dry_run` option")
+        run_parser.add_argument('--verbose', required=False, action="store_true",
+                                help="Batch.run() ServiceBackend `verbose` option")
+        run_parser.add_argument('--delete_scratch_on_exit', required=False, action="store_true",
+                                help="Batch.run() ServiceBackend `delete_scratch_on_exit` option")
+        run_parser.add_argument('--wait', required=False, action="store_true",
+                                help="Batch.run() ServiceBackend `wait` option")
+        run_parser.add_argument('--open', required=False, action="store_true",
+                                help="Batch.run() ServiceBackend `open` option")
+        run_parser.add_argument('--disable_progress_bar', required=False, action="store_true",
+                                help="Batch.run() ServiceBackend `disable_progress_bar` option")
+        run_parser.add_argument('--callback', required=False,
+                                help="Batch.run() ServiceBackend `callback` option")
 
+    backend_args = backend_parser.parse_known_args(args[1])
+    run_args = run_parser.parse_known_args(backend_args[1])
 
-def parse_input_args(args: list):
-    parser = ArgumentParser()
-    parser.add_argument('--local', required=False, action="store_true")
-    parser.add_argument('--demo', required=False, action="store_true")
-    parser.add_argument('--outdir', required=True)
-    # FIXME: replace with per-step resources
-    parser.add_argument('--cores', required=False, default=2)
-    parser.add_argument('--memory', required=False, default="7Gi")
-    parser.add_argument('--storage', required=False, default="1Gi")
-    parser.add_argument('--step1', required=False)
-    parser.add_argument('--step2', required=False)
-
-    return parser.parse_args(args)
+    return {"args": args[0], "backend_opts": vars(backend_args[0]), "run_opts": vars(run_args[0])}
 
 
 if __name__ == '__main__':
     args = parse_input_args(sys.argv[1:])
-    run(args)
+    run(**args)

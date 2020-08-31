@@ -707,7 +707,8 @@ class PLINKTests(unittest.TestCase):
                              resource('skip_invalid_loci.bim'),
                              resource('skip_invalid_loci.fam'),
                              reference_genome='GRCh37',
-                             skip_invalid_loci=True)
+                             skip_invalid_loci=True,
+                             contig_recoding={'chr1': '1'})
         self.assertEqual(mt._force_count_rows(), 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):

@@ -1,7 +1,8 @@
 package is.hail.types
 
-import is.hail.annotations.RegionValue
 import is.hail.asm4s._
+import is.hail.expr.ir.StreamArgType
+
 import scala.language.implicitConversions
 
 package object physical {
@@ -15,7 +16,7 @@ package object physical {
     case _: PBoolean => typeInfo[Boolean]
     case PVoid => typeInfo[Unit]
     case _: PBinary => typeInfo[Long]
-    case _: PStream => classInfo[Iterator[RegionValue]]
+    case _: PStream => classInfo[StreamArgType]
     case _: PBaseStruct => typeInfo[Long]
     case _: PNDArray => typeInfo[Long]
     case _: PContainer => typeInfo[Long]

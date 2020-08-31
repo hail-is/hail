@@ -12,6 +12,7 @@ def init_parser(parser):
     parser.add_argument('service', type=str,
                         choices=['notebook', 'nb', 'spark-ui', 'ui', 'spark-history', 'hist'],
                         help='Web service to launch.')
+    parser.add_argument('--project', help='Google Cloud project for the cluster (defaults to currently set project).')
     parser.add_argument('--port', '-p', default='10000', type=str,
                         help='Local port to use for SSH tunnel to leader (master) node (default: %(default)s).')
     parser.add_argument('--zone', '-z', type=str, help='Compute zone for Dataproc cluster.')
@@ -69,6 +70,9 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
            '--ssh-flag=-N',
            '--ssh-flag=-f',
            '--ssh-flag=-n']
+
+    if args.project:
+        cmd.append(f"--project={args.project}")
 
     print('gcloud command:')
     print(' '.join(cmd[:4]) + ' \\\n    ' + ' \\\n    '.join([f"'{x}'" for x in cmd[4:]]))

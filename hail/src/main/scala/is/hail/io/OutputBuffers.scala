@@ -315,3 +315,30 @@ final class LZ4OutputBlockBuffer(lz4: LZ4, blockSize: Int, out: OutputBlockBuffe
 
   def getPos(): Long = out.getPos()
 }
+
+final class LZ4SizeBasedCompressingOutputBlockBuffer(lz4: LZ4, blockSize: Int, minCompressionSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
+  private val comp = new Array[Byte](8 + lz4.maxCompressedLength(blockSize))
+
+  def flush() {
+    out.flush()
+  }
+
+  def close() {
+    out.close()
+  }
+
+  def writeBlock(buf: Array[Byte], decompLen: Int): Unit = {
+    if (decompLen < minCompressionSize) {
+      System.arraycopy(buf, 0, comp, 4, decompLen)
+      Memory.storeInt(comp, 0, 0) // uncompressed
+      out.writeBlock(comp, decompLen + 4)
+    } else {
+      val compLen = lz4.compress(comp, 8, buf, decompLen)
+      Memory.storeInt(comp, 0, 1) // compressed
+      Memory.storeInt(comp, 4, decompLen) // decompLen
+      out.writeBlock(comp, compLen + 8)
+    }
+  }
+
+  def getPos(): Long = out.getPos()
+}

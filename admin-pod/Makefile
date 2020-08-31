@@ -1,4 +1,4 @@
-PROJECT := $(shell gcloud config get-value project)
+include ../config.mk
 
 SERVICE_BASE_IMAGE = gcr.io/$(PROJECT)/service-base:$(shell docker images -q --no-trunc service-base:latest | sed -e 's,[^:]*:,,')
 

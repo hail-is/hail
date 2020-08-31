@@ -2,6 +2,7 @@
 *~
 .*.crc
 *.pyc
+.mypy_cache/
 **/hail-*.log
 hail/.bloop/
 hail/.gradle/

@@ -9,6 +9,7 @@ Methods
     impex
     stats
     genetics
+    relatedness
     misc
 
 .. rubric:: Import / Export
@@ -60,14 +61,12 @@ Methods
     filter_alleles_hts
     genetic_relatedness_matrix
     hwe_normalized_pca
-    identity_by_descent
     impute_sex
     ld_matrix
     ld_prune
     mendel_errors
     de_novo
     nirvana
-    pc_relate
     realized_relationship_matrix
     sample_qc
     skat
@@ -79,6 +78,18 @@ Methods
     variant_qc
     vep
 
+
+.. rubric:: Relatedness
+
+Hail provides two methods for the inference of relatedness: PLINK-style identity
+by descent and PC-Relate. :meth:`identity_by_descent` is appropriate for
+datasets containing one homogeneous population. :meth:`pc_relate` is appropriate
+for datasets containing multiple homogeneous populations and admixture.
+
+.. autosummary::
+
+    identity_by_descent
+    pc_relate
 
 .. rubric:: Miscellaneous
 

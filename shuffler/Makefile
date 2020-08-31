@@ -1,6 +1,4 @@
-PROJECT := $(shell gcloud config get-value project)
-ZONE := us-central1-a
-KUBERNETES_SERVER_URL := https://104.198.230.143
+include ../config.mk
 
 SHUFFLER_LATEST = gcr.io/$(PROJECT)/shuffler:latest
 SHUFFLER_IMAGE = gcr.io/$(PROJECT)/shuffler:$(shell docker images -q --no-trunc shuffler | sed -e 's,[^:]*:,,')

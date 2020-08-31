@@ -43,10 +43,10 @@ def async_to_blocking(coro):
 class BatchPoolExecutor:
     """An executor which executes Python functions in the cloud.
 
-    :class:`.ProcessPoolExecutor` and :class:`.ThreadPoolExecutor` enable the
-    use of all the computer cores available on a single
-    computer. :class:`.BatchPoolExecutor` enables the use of an effectively
-    arbitrary number of cloud computer cores.
+    :class:`.concurrent.futures.ProcessPoolExecutor` and
+    :class:`.concurrent.futures.ThreadPoolExecutor` enable the use of all the
+    computer cores available on a single computer. :class:`.BatchPoolExecutor`
+    enables the use of an effectively arbitrary number of cloud computer cores.
 
     Functions provided to :meth:`.submit` are serialized using `dill
     <https://dill.readthedocs.io/en/latest/dill.html>`__, sent to a Python
@@ -84,31 +84,31 @@ class BatchPoolExecutor:
 
     Parameters
     ----------
-    name: :obj:`str`, optional
+    name:
         A name for the executor. Executors produce many batches and each batch
         will include this name as a prefix.
-    backend: :class:`.ServiceBackend`, optional
+    backend:
         Backend used to execute the jobs. Must be a :class:`.ServiceBackend`.
-    image: :obj:`str`, optional
+    image:
         The name of a Docker image used for each submitted job. The image must
         include Python 3.6 or later and must have the ``dill`` Python package
         installed. If you intend to use ``numpy``, ensure that OpenBLAS is also
         installed. If unspecified, an image with a matching Python verison and
         ``numpy``, ``scipy``, and ``sklearn`` installed is used.
-    cpus_per_job: :obj:`int`, :obj:`float`, :obj:`str`, optional
+    cpus_per_job:
         The number of CPU cores to allocate to each job. The default value is
         ``1``. The parameter is passed unaltered to :meth:`.Job.cpu`. This
         parameter's value is used to set several environment variables
         instructing BLAS and LAPACK to limit core use.
-    wait_on_exit: :obj:`bool`
+    wait_on_exit:
         If ``True`` or unspecified, wait for all jobs to complete when exiting a
         context. If ``False``, do not wait. This option has no effect if this
         executor is not used with the ``with`` syntax.
-    cleanup_bucket: :obj:`bool`
+    cleanup_bucket:
         If ``True`` or unspecified, delete all temporary files in the cloud
         storage bucket when this executor fully shuts down. If Python crashes
         before the executor is shutdown, the files will not be deleted.
-    project: Optional[str]
+    project:
         If specified, the project to use when authenticating with Google
         Storage. Google Storage is used to transfer serialized values between
         this computer and the cloud machines that execute jobs.
@@ -154,7 +154,7 @@ class BatchPoolExecutor:
 
         This function returns a generator which will produce each result in the
         same order as the `iterables`, only blocking if the result is not yet
-        ready. You can convert the generator to a list with :func:`.list`.
+        ready. You can convert the generator to a list with :class:`.list`.
 
         Examples
         --------
@@ -186,19 +186,20 @@ class BatchPoolExecutor:
 
         Parameters
         ----------
-        fn: Callable
+        fn:
             The function to execute.
-        iterables: Any
+        iterables:
             The `iterables` are zipped together and each tuple is used as
             arguments to `fn`. See the second example for more detail. It is not
             possible to pass keyword arguments. Each element of `iterables` must
             have the same length.
-        timeout: Optional[Union[int, float]]
+        timeout:
             This is roughly a timeout on how long we wait on each function
             call. Specifically, each call to the returned generator's
-            :meth:`__next__` invokes :meth:`.BatchPoolFuture.result` with this
+            :class:`.BatchPoolFuture`
+            :meth:`.iterator.__next__` invokes :meth:`.BatchPoolFuture.result` with this
             `timeout`.
-        chunksize: int
+        chunksize:
             The number of tasks to schedule in the same docker container. Docker
             containers take about 5 seconds to start. Ideally, each task should
             take an order of magnitude more time than start-up time. You can
@@ -253,7 +254,11 @@ class BatchPoolExecutor:
         return (await async_result_or_cancel_all(future)
                 for future in futures)
 
-    def submit(self, *callable_and_args, **kwargs) -> 'BatchPoolFuture':
+    def submit(self,
+               fn: Callable,
+               *args: Any,
+               **kwargs: Any
+               ) -> 'BatchPoolFuture':
         """Call `fn` on a cloud machine with all remaining arguments and keyword arguments.
 
         The function, any objects it references, the arguments, and the keyword
@@ -298,19 +303,22 @@ class BatchPoolExecutor:
 
         Parameters
         ----------
-        fn: Callable
+        fn:
             The function to execute.
-        *args: Any
+        args:
             Arguments for the funciton.
-        **kwargs: Any
+        kwargs:
             Keyword arguments for the function.
         """
-        unapplied, *args = callable_and_args
         return async_to_blocking(
-            self.async_submit(unapplied, *args, **kwargs))
+            self.async_submit(fn, *args, **kwargs))
 
-    async def async_submit(self, unapplied: Callable, *args, **kwargs) -> 'BatchPoolFuture':
-        """Aysncio compatible version of :meth:`.submit`."""
+    async def async_submit(self,
+                           unapplied: Callable,
+                           *args: Any,
+                           **kwargs: Any
+                           ) -> 'BatchPoolFuture':
+        """Aysncio compatible version of :meth:`BatchPoolExecutor.submit`."""
 
         if self._shutdown:
             raise RuntimeError('BatchPoolExecutor has already been shutdown.')
@@ -375,7 +383,7 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
         if self._shutdown and self.finished_future_count == len(self.futures):
             self._cleanup(False)
 
-    def shutdown(self, wait=True):
+    def shutdown(self, wait: bool = True):
         """Allow temporary resources to be cleaned up.
 
         Until shutdown is called, some temporary cloud storage files will
@@ -384,7 +392,7 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
 
         Parameters
         ----------
-        wait: :obj:`bool`
+        wait:
             If true, wait for all jobs to complete before returning from this
             method.
         """
@@ -465,7 +473,7 @@ class BatchPoolFuture:
 
         Parameters
         ----------
-        timeout: Optional[Union[float, int]]
+        timeout:
             Wait this long before raising a timeout error.
         """
         return async_to_blocking(self.async_result(timeout))
@@ -478,7 +486,7 @@ class BatchPoolFuture:
 
         Parameters
         ----------
-        timeout: Optional[Union[float, int]]
+        timeout:
             Wait this long before raising a timeout error.
         """
         if self.cancelled():

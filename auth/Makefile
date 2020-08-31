@@ -1,5 +1,4 @@
-PROJECT = $(shell gcloud config get-value project)
-DOMAIN ?= hail.is
+include ../config.mk
 
 AUTH_LATEST = gcr.io/$(PROJECT)/auth:latest
 AUTH_IMAGE = gcr.io/$(PROJECT)/auth:$(shell docker images -q --no-trunc auth:latest | sed -e 's,[^:]*:,,')

@@ -3396,3 +3396,35 @@ class Tests(unittest.TestCase):
 
             hl.utils.range_table(100).write(f, overwrite=True)
             assert hl.eval(count1) == 10
+
+    def test_struct_expression_expr_rename(self):
+        s = hl.struct(f1=1, f2=2, f3=3)
+
+        assert hl.eval(s.rename({'f1': 'foo'})) == hl.Struct(f2=2, f3=3, foo=1)
+        assert hl.eval(s.rename({'f3': 'fiddle', 'f1': 'hello'})) == \
+            hl.Struct(f2=2, fiddle=3, hello=1)
+        assert hl.eval(s.rename({'f3': 'fiddle', 'f1': 'hello', 'f2': 'ohai'})) == \
+            hl.Struct(fiddle=3, hello=1, ohai=2)
+        assert hl.eval(s.rename({'f3': 'fiddle', 'f1': 'hello', 'f2': 's p a c e'})) == \
+            hl.Struct(fiddle=3, hello=1, **{'s p a c e': 2})
+
+        try:
+            hl.eval(s.rename({'f1': 'f2'}))
+        except ValueError as err:
+            assert 'already in the struct' in err.args[0]
+        else:
+            assert False
+
+        try:
+            hl.eval(s.rename({'f4': 'f2'}))
+        except ValueError as err:
+            assert 'f4 is not a field of this struct' in err.args[0]
+        else:
+            assert False
+
+        try:
+            hl.eval(s.rename({'f1': 'f5', 'f2': 'f5'}))
+        except ValueError as err:
+            assert 'f5 is the new name of both' in err.args[0]
+        else:
+            assert False

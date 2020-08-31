@@ -173,51 +173,51 @@ object LoweredTableReader {
       Let("n", ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(), count),
         AggLet("key", GetField(Ref("x", xType), "key"),
           MakeStruct(FastIndexedSeq(
-          "n" -> Ref("n", TInt64),
-          "minkey" ->
-            ArrayRef(
-              ApplyAggOp(
-                FastIndexedSeq(I32(1)),
-                FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
-                minkey),
-              I32(0)),
-          "maxkey" ->
-            ArrayRef(
-              ApplyAggOp(
-                FastIndexedSeq(I32(1)),
-                FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
-                maxkey),
-              I32(0)),
-          "ksorted" ->
-            ApplyComparisonOp(EQ(TInt64),
-              ApplyAggOp(
-                FastIndexedSeq(),
-                FastIndexedSeq(
-                  invoke("toInt64", TInt64,
-                    invoke("lor", TBoolean,
-                      IsNA(GetField(Ref("x", xType), "prevkey")),
-                      ApplyComparisonOp(LTEQ(keyType),
-                        GetField(Ref("x", xType), "prevkey"),
-                        GetField(Ref("x", xType), "key"))))),
-                sum),
-              Ref("n", TInt64)),
-          "pksorted" ->
-            ApplyComparisonOp(EQ(TInt64),
-              ApplyAggOp(
-                FastIndexedSeq(),
-                FastIndexedSeq(
-                  invoke("toInt64", TInt64,
-                    invoke("lor", TBoolean,
-                      IsNA(selectPK(GetField(Ref("x", xType), "prevkey"))),
-                      ApplyComparisonOp(LTEQ(pkType),
-                        selectPK(GetField(Ref("x", xType), "prevkey")),
-                        selectPK(GetField(Ref("x", xType), "key")))))),
-                sum),
-              Ref("n", TInt64)),
-          "sample" -> ApplyAggOp(
-            FastIndexedSeq(I32(samplesPerPartition)),
-            FastIndexedSeq(GetField(Ref("x", xType), "key"), GetField(Ref("x", xType), "token")),
-            samplekey))),
+            "n" -> Ref("n", TInt64),
+            "minkey" ->
+              ArrayRef(
+                ApplyAggOp(
+                  FastIndexedSeq(I32(1)),
+                  FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
+                  minkey),
+                I32(0)),
+            "maxkey" ->
+              ArrayRef(
+                ApplyAggOp(
+                  FastIndexedSeq(I32(1)),
+                  FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
+                  maxkey),
+                I32(0)),
+            "ksorted" ->
+              ApplyComparisonOp(EQ(TInt64),
+                ApplyAggOp(
+                  FastIndexedSeq(),
+                  FastIndexedSeq(
+                    invoke("toInt64", TInt64,
+                      invoke("lor", TBoolean,
+                        IsNA(GetField(Ref("x", xType), "prevkey")),
+                        ApplyComparisonOp(LTEQ(keyType),
+                          GetField(Ref("x", xType), "prevkey"),
+                          GetField(Ref("x", xType), "key"))))),
+                  sum),
+                Ref("n", TInt64)),
+            "pksorted" ->
+              ApplyComparisonOp(EQ(TInt64),
+                ApplyAggOp(
+                  FastIndexedSeq(),
+                  FastIndexedSeq(
+                    invoke("toInt64", TInt64,
+                      invoke("lor", TBoolean,
+                        IsNA(selectPK(GetField(Ref("x", xType), "prevkey"))),
+                        ApplyComparisonOp(LTEQ(pkType),
+                          selectPK(GetField(Ref("x", xType), "prevkey")),
+                          selectPK(GetField(Ref("x", xType), "key")))))),
+                  sum),
+                Ref("n", TInt64)),
+            "sample" -> ApplyAggOp(
+              FastIndexedSeq(I32(samplesPerPartition)),
+              FastIndexedSeq(GetField(Ref("x", xType), "key"), GetField(Ref("x", xType), "token")),
+              samplekey))),
           isScan = false)))
 
     val scanResult = CollectDistributedArray(
@@ -263,7 +263,7 @@ object LoweredTableReader {
                 "acc", "i",
                 invoke("land", TBoolean,
                   Ref("acc", TBoolean),
-                  ApplyComparisonOp(EQ(keyType),
+                  ApplyComparisonOp(LTEQ(keyType),
                     GetField(
                       ArrayRef(Ref("sortedPartData", sortedPartDataIR.typ), Ref("i", TInt32)),
                       "maxkey"),
@@ -288,7 +288,7 @@ object LoweredTableReader {
                 "acc", "i",
                 invoke("land", TBoolean,
                   Ref("acc", TBoolean),
-                  ApplyComparisonOp(EQ(pkType),
+                  ApplyComparisonOp(LTEQ(pkType),
                     selectPK(GetField(
                       ArrayRef(Ref("sortedPartData", sortedPartDataIR.typ), Ref("i", TInt32)),
                       "maxkey")),
@@ -302,7 +302,7 @@ object LoweredTableReader {
       FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
       summary,
       optimize = true)
-    
+
     val a = f(0, ctx.r)(ctx.r)
     val s = SafeRow(resultPType.asInstanceOf[PStruct], a)
 
@@ -332,7 +332,7 @@ object LoweredTableReader {
         }
       }
     } else if (pksorted) {
-      info("Coerced sorted dataset")
+      info("Coerced prefix-sorted dataset")
 
       new LoweredTableReaderCoercer {
         private[this] def selectPK(r: Row): Row = {
@@ -340,6 +340,7 @@ object LoweredTableReader {
           var i = 0
           while (i < partitionKey) {
             a(i) = r.get(i)
+            i += 1
           }
           Row.fromSeq(a)
         }
@@ -352,20 +353,43 @@ object LoweredTableReader {
 
           val partitioner = new RVDPartitioner(pkType,
             sortedPartData.map { partData =>
-              Interval(selectPK(partData.getAs[Row](0)), selectPK(partData.getAs[Row](1)), includesStart = true, includesEnd = true)
-            }, key.length)
+              Interval(selectPK(partData.getAs[Row](1)), selectPK(partData.getAs[Row](2)), includesStart = true, includesEnd = true)
+            }, pkType.size)
 
           val pkPartitioned = TableStage(globals, partitioner,
-            Literal(TArray(contextType), partOrigIndex.map(i => contexts(i))),
+            ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
             body)
 
-          throw new LowererUnsupportedOperation("pksorted VCF import requires repartition")
+          pkPartitioned
+            .strictify()
+            .mapPartition(None) { part =>
+              flatMapIR(StreamGroupByKey(part, pkType.fieldNames)) { inner =>
+                ToStream(sortIR(inner) { case (l, r) => ApplyComparisonOp(LT(l.typ), l, r) })
+              }
+            }.changePartitionerNoRepartition(partitioner.extendKeySamePartitions(keyType))
         }
       }
     } else {
       info(s"Ordering unsorted dataset with shuffle")
 
-      throw new LowererUnsupportedOperation("unsorted VCF import requires shuffle")
+      new LoweredTableReaderCoercer {
+        def coerce(globals: IR,
+          contextType: Type,
+          contexts: IndexedSeq[Any],
+          body: IR => IR): TableStage = {
+          val partOrigIndex = sortedPartData.map(_.getInt(6))
+
+          val partitioner = RVDPartitioner.unkeyed(sortedPartData.length)
+
+          ctx.backend.lowerDistributedSort(ctx,
+            TableStage(globals, partitioner,
+              ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
+              body),
+            keyType.fieldNames.map(f => SortField(f, Ascending)),
+            Map.empty
+          )
+        }
+      }
     }
   }
 }
@@ -1438,14 +1462,13 @@ case class TableMapPartitions(child: TableIR,
     val globalsOff = tv.globals.value.offset
 
     val itF = { (idx: Int, consumerCtx: RVDContext, partition: (RVDContext) => Iterator[Long]) =>
-      val consumerRegion = consumerCtx.region
-      val producerRegion = consumerCtx.freshRegion()
-      val rvb = new RegionValueBuilder()
-      val newRegionValue = RegionValue()
-      val it = partition(consumerCtx)
-      makeIterator(idx, producerRegion,
+      val boxedPartition = new StreamArgType {
+        def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long] =
+          partition(new RVDContext(outerRegion, eltRegion)).map(box)
+      }
+      makeIterator(idx, consumerCtx,
         globalsOff,
-        it.map(box)
+        boxedPartition
       ).map(l => l.longValue())
     }
 
@@ -1559,7 +1582,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
           extracted.postAggIR,
           Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ)))))
     assert(rTyp.virtualType == newRow.typ)
-    
+
     // 1. init op on all aggs and write out to initPath
     val initAgg = Region.scoped { aggRegion =>
       Region.scoped { fRegion =>

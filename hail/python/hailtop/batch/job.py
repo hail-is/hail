@@ -65,8 +65,10 @@ class Job:
     def __init__(self,
                  batch: batch.Batch,
                  name: Optional[str] = None,
-                 attributes: Optional[Dict[str, str]] = None):
+                 attributes: Optional[Dict[str, str]] = None,
+                 shell: Optional[str] = None):
         self._batch = batch
+        self._shell = shell
         self.name = name
         self.attributes = attributes
         self._cpu: Optional[Union[float, int, str]] = None
@@ -112,8 +114,7 @@ class Job:
         _add_resource_to_set(self._inputs, resource, include_rg=False)
 
     def declare_resource_group(self, **mappings: str) -> Job:
-        """
-        Declare a resource group for a job.
+        """Declare a resource group for a job.
 
         Examples
         --------
@@ -139,15 +140,16 @@ class Job:
 
         Parameters
         ----------
-        mappings: Keyword (named) arguments of value :obj:`dict` mapping file identifiers of :obj:`str` to file names of :obj:`str`.
-            Keywords (in the above example `tmp1`) are the name(s) of the resource group(s).
-            File names may contain arbitrary Python expressions, which will be evaluated by Python `eval`.
-            To use the keyword as the file name, use `{root}` (in the above example {root} will be replaced with `tmp1`).
+        mappings:
+            Keywords (in the above example `tmp1`) are the name(s) of the
+            resource group(s).  File names may contain arbitrary Python
+            expressions, which will be evaluated by Python `eval`.  To use the
+            keyword as the file name, use `{root}` (in the above example {root}
+            will be replaced with `tmp1`).
 
         Returns
         -------
-        :class:`.Job`
-            Same job object with resource groups set.
+        Same job object with resource groups set.
         """
 
         for name, d in mappings.items():
@@ -194,13 +196,12 @@ class Job:
 
         Parameters
         ----------
-        jobs: :class:`.Job`, varargs
+        jobs:
             Sequence of jobs to depend on.
 
         Returns
         -------
-        :class:`.Job`
-            Same job object with dependencies set.
+        Same job object with dependencies set.
         """
 
         for j in jobs:
@@ -267,20 +268,20 @@ class Job:
         identifier such as `ofile5000`.
 
         All :class:`.JobResourceFile` are temporary files and must be written to
-        a permanent location using :func:`.batch.Batch.write_output` if the
-        output needs to be saved.
+        a permanent location using :meth:`.Batch.write_output` if the output
+        needs to be saved.
 
         Only resources can be referred to in commands. Referencing a
         :class:`.batch.Batch` or :class:`.Job` will result in an error.
 
         Parameters
         ----------
-        command: :obj:`str`
+        command:
+            A ``bash`` command.
 
         Returns
         -------
-        :class:`.Job`
-            Same job object with command appended.
+        Same job object with command appended.
         """
 
         def handler(match_obj):
@@ -348,13 +349,12 @@ class Job:
 
         Parameters
         ----------
-        storage: :obj:`str` or :obj:`int`
+        storage:
             Units are in bytes if `storage` is an :obj:`int`.
 
         Returns
         -------
-        :class:`.Job`
-            Same job object with storage set.
+        Same job object with storage set.
         """
 
         self._storage = str(storage)
@@ -385,13 +385,12 @@ class Job:
 
         Parameters
         ----------
-        memory: :obj:`str` or :obj:`int`
+        memory:
             Units are in bytes if `memory` is an :obj:`int`.
 
         Returns
         -------
-        :class:`.Job`
-            Same job object with memory requirements set.
+        Same job object with memory requirements set.
         """
 
         self._memory = str(memory)
@@ -421,13 +420,12 @@ class Job:
 
         Parameters
         ----------
-        cores: :obj:`str` or :obj:`int` or :obj:`float`
+        cores:
             Units are in cpu if `cores` is numeric.
 
         Returns
         -------
-        :class:`.Job`
-            Same job object with CPU requirements set.
+        Same job object with CPU requirements set.
         """
 
         self._cpu = str(cores)
@@ -450,13 +448,12 @@ class Job:
 
         Parameters
         ----------
-        image: :obj:`str`
+        image:
             Docker image to use.
 
         Returns
         -------
-        :class:`.Job`
-            Same job object with docker image set.
+        Same job object with docker image set.
         """
 
         self._image = image
@@ -484,13 +481,12 @@ class Job:
 
         Parameters
         ----------
-        always_run: :obj:`bool`
+        always_run:
             If True, set job to always run.
 
         Returns
         -------
-        :class:`.Job`
-            Same job object set to always run.
+        Same job object set to always run.
         """
 
         if not isinstance(self._batch._backend, backend.ServiceBackend):
@@ -517,13 +513,12 @@ class Job:
 
         Parameters
         ----------
-        timeout: :obj:`float` or :obj:`int`
+        timeout:
             Maximum amount of time for a job to run before being killed.
 
         Returns
         -------
-        :class:`.Job`
-            Same job object set with a timeout.
+        Same job object set with a timeout.
         """
 
         if not isinstance(self._batch._backend, backend.ServiceBackend):
@@ -555,18 +550,17 @@ class Job:
 
         Parameters
         ----------
-        bucket: :obj:`str`
+        bucket:
             Name of the google storage bucket to mount.
-        mount_point: :obj:`str`
+        mount_point:
             The path at which the bucket should be mounted to in the Docker
             container.
-        read_only: :obj:`bool`
+        read_only:
             If ``True``, mount the bucket in read-only mode.
 
         Returns
         -------
-        :class:`.Job`
-            Same job object set with a bucket to mount with gcsfuse.
+        Same job object set with a bucket to mount with gcsfuse.
         """
 
         if not isinstance(self._batch._backend, backend.ServiceBackend):

@@ -1,4 +1,4 @@
-PROJECT := $(shell gcloud config get-value project)
+include ../config.mk
 
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python:../gear
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3

@@ -24,13 +24,8 @@ help:
 clean:
 	rm -rf $(BUILDDIR)
 
-.PHONY: check-python
-check-python:
-	@echo "Ensuring that Batch can be imported..."
-	python3 -c "import hailtop.batch"
-
 .PHONY: html
-html: check-python
+html:
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."

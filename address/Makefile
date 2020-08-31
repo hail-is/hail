@@ -1,4 +1,4 @@
-PROJECT := $(shell gcloud config get-value project)
+include ../config.mk
 
 ADDRESS_LATEST = gcr.io/$(PROJECT)/address:latest
 ADDRESS_IMAGE = gcr.io/$(PROJECT)/address:$(shell docker images -q --no-trunc address | sed -e 's,[^:]*:,,')

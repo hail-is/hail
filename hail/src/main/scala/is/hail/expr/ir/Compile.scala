@@ -7,6 +7,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.Stream.Source
 import is.hail.expr.ir.agg.AggStateSig
 import is.hail.expr.ir.lowering.LoweringPipeline
+import is.hail.rvd.RVDContext
 import is.hail.types.physical.{PStream, PStruct, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
@@ -144,7 +145,10 @@ object CompileIterator {
     def loadAddress(): Long
   }
 
-  private trait TMPStepFunction extends AsmFunction3RegionLongIteratorJLongBoolean with StepFunctionBase
+  private trait TMPStepFunction extends StepFunctionBase {
+    def apply(o: Object, a: Long, b: StreamArgType): Boolean
+    def setRegions(outerRegion: Region, eltRegion: Region): Unit
+  }
 
   private abstract class LongIteratorWrapper extends Iterator[java.lang.Long] {
     def step(): Boolean
@@ -177,10 +181,16 @@ object CompileIterator {
   ): (PType, (Int, Region) => F) = {
 
     val fb = EmitFunctionBuilder.apply[F](ctx, "stream", argTypeInfo.toFastIndexedSeq, CodeParamType(BooleanInfo))
+    val outerRegionField = fb.genFieldThisRef[Region]("outerRegion")
+    val eltRegionField = fb.genFieldThisRef[Region]("eltRegion")
+    val setF = fb.newEmitMethod("setRegions", FastIndexedSeq(CodeParamType(typeInfo[Region]), CodeParamType(typeInfo[Region])), CodeParamType(typeInfo[Unit]))
+    setF.emit(Code(outerRegionField := setF.getCodeParam[Region](1), eltRegionField := setF.getCodeParam[Region](2)))
+
     val stepF = fb.apply_method
     val stepFECB = stepF.ecb
 
-    val region = StagedRegion(EmitRegion.default(stepF).region, allowSubregions = false)
+    val eltRegion = StagedRegion(eltRegionField, allowSubregions = false)
+    val outerRegion = StagedRegion(outerRegionField, allowSubregions = false)
     val emitter = new Emit(ctx, stepFECB)
 
     val ir = LoweringPipeline.compileLowerer(true)(ctx, body).asInstanceOf[IR].noSharing
@@ -188,7 +198,7 @@ object CompileIterator {
     InferPType(ir, Env.empty[PType])
     val returnType = ir.pType.asInstanceOf[PStream].elementType.asInstanceOf[PStruct].setRequired(true)
 
-    val optStream = EmitStream.emit(emitter, ir, stepF, region, Env.empty, None)
+    val optStream = EmitStream.emit(emitter, ir, stepF, outerRegion, Env.empty, None)
 
     val elementAddress = stepF.genFieldThisRef[Long]("elementAddr")
 
@@ -201,7 +211,7 @@ object CompileIterator {
     val eosField = stepF.genFieldThisRef[Boolean]("eos")
     val eosLabel = CodeLabel()
 
-    val source: Source[EmitCode] = optStream.pv.asStream.stream.getStream(region).apply(
+    val source: Source[EmitCode] = optStream.pv.asStream.stream.getStream(eltRegion).apply(
       eosLabel.goto,
       { element =>
         EmitCodeBuilder.scopedVoid(stepF) { cb =>
@@ -240,22 +250,23 @@ object CompileIterator {
     ctx: ExecuteContext,
     typ0: PStruct, typ1: PStream,
     ir: IR
-  ): (PType, (Int, Region, Long, Iterator[java.lang.Long]) => Iterator[java.lang.Long]) = {
+  ): (PType, (Int, RVDContext, Long, StreamArgType) => Iterator[java.lang.Long]) = {
     assert(typ0.required)
     assert(typ1.required)
     val (eltPType, makeStepper) = compileStepper[TMPStepFunction](
       ctx, ir,
       Array[ParamType](
-        CodeParamType(typeInfo[Region]),
+        CodeParamType(typeInfo[Object]),
         EmitParamType(typ0),
         EmitParamType(typ1)),
       None)
-    (eltPType, (idx, r, v0, v1) => {
-      val stepper = makeStepper(idx, r)
+    (eltPType, (idx, consumerCtx, v0, part) => {
+      val stepper = makeStepper(idx, consumerCtx.partitionRegion)
+      stepper.setRegions(consumerCtx.partitionRegion, consumerCtx.region)
       new LongIteratorWrapper {
         val stepFunction: TMPStepFunction = stepper
 
-        def step(): Boolean = stepper.apply(r, v0, v1)
+        def step(): Boolean = stepper.apply(null, v0, part)
       }
     })
   }

@@ -32,8 +32,8 @@ def enumerate_list_of_trials(list_of_trials):
 
 
 class ReadGoogleStorage:
-    def __init__(self):
-        self.storage_client = storage.Client()
+    def __init__(self, service_account_key_file=None):
+        self.storage_client = storage.Client.from_service_account_json(service_account_key_file)
 
     def get_data_as_string(self, file_path):
         file_info = parse_file_path(FILE_PATH_REGEX, file_path)

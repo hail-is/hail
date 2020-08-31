@@ -5,10 +5,7 @@ from shlex import quote as shq
 from typing import Optional, Set
 
 from .utils import BatchException
-
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from .job import Job  # pylint: disable=cyclic-import
+from . import job  # pylint: disable=cyclic-import
 
 
 class Resource:
@@ -55,7 +52,7 @@ class ResourceFile(Resource, str):
         super(ResourceFile, self).__init__()
         assert value is None or isinstance(value, str)
         self._value = value
-        self._source: Optional[Job] = None
+        self._source: Optional[job.Job] = None
         self._output_paths: Set[str] = set()
         self._resource_group: Optional[ResourceGroup] = None
 
@@ -132,10 +129,10 @@ class JobResourceFile(ResourceFile):
     to be saved.
     """
 
-    def __init__(self, value, source: Job):
+    def __init__(self, value, source: job.Job):
         super().__init__(value)
         self._has_extension = False
-        self._source: Job = source
+        self._source: job.Job = source
 
     def _get_path(self, directory: str) -> str:
         assert self._source is not None
@@ -233,7 +230,7 @@ class ResourceGroup(Resource):
         cls._counter += 1
         return uid
 
-    def __init__(self, source: Optional[Job], root: str, **values: ResourceFile):
+    def __init__(self, source: Optional[job.Job], root: str, **values: ResourceFile):
         self._source = source
         self._resources = {}  # dict of name to resource uid
         self._root = root
