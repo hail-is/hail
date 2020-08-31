@@ -1192,15 +1192,15 @@ class Tests(unittest.TestCase):
 
         k = 3
 
-        eigens, scores, loadings = hl._blanczos_pca(hl.bind(make_expr, mt.AC / mt.n_called), k=k, q_iterations=7, compute_loadings=True)
-        scores = concatToNumpy(scores.scores)
-        loadings = concatToNumpy(loadings.loadings)
+        eigens, scores_t, loadings_t = hl._blanczos_pca(hl.bind(make_expr, mt.AC / mt.n_called), k=k, q_iterations=7, compute_loadings=True)
+        scores = concatToNumpy(scores_t.scores)
+        loadings = concatToNumpy(loadings_t.loadings)
         scores = np.reshape(scores, (len(scores) // k, k))
         loadings = np.reshape(loadings, (len(loadings) // k, k))
 
         self.assertEqual(len(eigens), 3)
-        self.assertEqual(scores.count(), mt.count_cols())
-        self.assertEqual(loadings.count(), n_rows)
+        self.assertEqual(scores_t.count(), mt.count_cols())
+        self.assertEqual(loadings_t.count(), n_rows)
 
         assert len(scores.globals) == 0
         assert len(loadings.globals) == 0
