@@ -11,6 +11,26 @@ from hail.utils import FatalError
 from hail.utils.java import Env, info
 
 
+def hwe_normalize(call_expr):
+    mt = matrix_table_source('hwe_normalized_pca/call_expr', call_expr)
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
+                          __n_called=agg.count_where(hl.is_defined(mt.__gt)))
+    mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
+
+    n_variants = mt.count_rows()
+    if n_variants == 0:
+        raise FatalError("hwe_normalized_pca: found 0 variants after filtering out monomorphic sites.")
+    info("hwe_normalized_pca: running PCA using {} variants.".format(n_variants))
+
+    mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
+    mt = mt.annotate_rows(
+        __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
+    mt = mt.unfilter_entries()
+
+    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
+    return normalized_gt
+
 @typecheck(call_expr=expr_call,
            k=int,
            compute_loadings=bool)
@@ -70,25 +90,9 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False) -> Tuple[List[fl
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-    mt = matrix_table_source('hwe_normalized_pca/call_expr', call_expr)
-    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
-    mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
-                          __n_called=agg.count_where(hl.is_defined(mt.__gt)))
-    mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
 
-    n_variants = mt.count_rows()
-    if n_variants == 0:
-        raise FatalError("hwe_normalized_pca: found 0 variants after filtering out monomorphic sites.")
-    info("hwe_normalized_pca: running PCA using {} variants.".format(n_variants))
 
-    mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
-    mt = mt.annotate_rows(
-        __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
-    mt = mt.unfilter_entries()
-
-    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
-
-    return pca(normalized_gt,
+    return pca(hwe_normalize(call_expr),
                k,
                compute_loadings)
 
@@ -438,22 +442,6 @@ def _hwe_normalized_blanczos(call_expr, k=10, compute_loadings=False, q_iteratio
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-    mt = matrix_table_source('hwe_normalized_pca/call_expr', call_expr)
-    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
-    mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
-                          __n_called=agg.count_where(hl.is_defined(mt.__gt)))
-    mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
 
-    n_variants = mt.count_rows()
-    if n_variants == 0:
-        raise FatalError("hwe_normalized_pca: found 0 variants after filtering out monomorphic sites.")
-    info("hwe_normalized_pca: running PCA using {} variants.".format(n_variants))
-
-    mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
-    mt = mt.annotate_rows(__hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
-    mt = mt.unfilter_entries()
-
-    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
-
-    return _blanczos_pca(normalized_gt, k, compute_loadings=compute_loadings, q_iterations=q_iterations,
+    return _blanczos_pca(hwe_normalize(call_expr), k, compute_loadings=compute_loadings, q_iterations=q_iterations,
                          oversampling_param=oversampling_param, block_size=block_size)
