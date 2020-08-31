@@ -201,23 +201,26 @@ class EmitUnrealizableValue(val pt: PType, private val ec: EmitCode) extends Emi
  *     jumping to Lmissing.
  */
 object IEmitCode {
-  def apply(cb: EmitCodeBuilder, m: Code[Boolean], pc: => PCode): IEmitCode = {
+  def apply[A](cb: EmitCodeBuilder, m: Code[Boolean], value: => A): IEmitCodeGen[A] = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
     cb.ifx(m, { cb.goto(Lmissing) })
-    val resPc: PCode = pc
+    val res: A = value
     cb.goto(Lpresent)
-    IEmitCode(Lmissing, Lpresent, resPc)
+    IEmitCodeGen(Lmissing, Lpresent, res)
   }
 
-  def present(cb: EmitCodeBuilder, pc: => PCode): IEmitCode = {
+  def apply[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A): IEmitCodeGen[A] =
+    IEmitCodeGen(Lmissing, Lpresent, value)
+
+  def present[A](cb: EmitCodeBuilder, value: => A): IEmitCodeGen[A] = {
     val Lpresent = CodeLabel()
     cb.goto(Lpresent)
-    IEmitCode(CodeLabel(), Lpresent, pc)
+    IEmitCodeGen(CodeLabel(), Lpresent, value)
   }
 
-  def sequence[T](seq: IndexedSeq[T], toIec: T => IEmitCode, cb: EmitCodeBuilder)
-      (f: IndexedSeq[PCode] => PCode): IEmitCode = {
+  def sequence[A, B](seq: IndexedSeq[A], toIec: A => IEmitCodeGen[B], cb: EmitCodeBuilder)
+      (f: IndexedSeq[B] => B): IEmitCodeGen[B] = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
 
@@ -228,62 +231,67 @@ object IEmitCode {
       cb.goto(Lmissing)
       cb.define(iec.Lpresent)
 
-      iec.pc
+      iec.value
     }
     val pc = f(pcs)
     cb.goto(Lpresent)
 
-    IEmitCode(Lmissing, Lpresent, pc)
+    IEmitCodeGen(Lmissing, Lpresent, pc)
   }
 
-  def flatten(seq: IndexedSeq[() => IEmitCode], cb: EmitCodeBuilder)(f: IndexedSeq[PCode] => PCode): IEmitCode =
-    sequence(seq, { (i: () => IEmitCode) => i() }, cb)(f)
+  def flatten[A](seq: IndexedSeq[() => IEmitCodeGen[A]], cb: EmitCodeBuilder)(f: IndexedSeq[A] => A): IEmitCodeGen[A] =
+    sequence(seq, { (i: () => IEmitCodeGen[A]) => i() }, cb)(f)
 }
 
-case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
-  def map(cb: EmitCodeBuilder)(f: (PCode) => PCode): IEmitCode = {
+object IEmitCodeGen {
+  implicit class IEmitCode(val iec: IEmitCodeGen[PCode]) extends AnyVal {
+    def pc: PCode = iec.value
+    def pt: PType = pc.pt
+  }
+}
+
+case class IEmitCodeGen[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) {
+  def map(cb: EmitCodeBuilder)(f: (A) => A): IEmitCodeGen[A] = {
     val Lpresent2 = CodeLabel()
     cb.define(Lpresent)
-    val pc2 = f(pc)
+    val value2 = f(value)
     cb.goto(Lpresent2)
-    IEmitCode(Lmissing, Lpresent2, pc2)
+    IEmitCodeGen(Lmissing, Lpresent2, value2)
   }
 
-  def mapMissing(cb: EmitCodeBuilder)(ifMissing: => Unit): IEmitCode = {
+  def mapMissing(cb: EmitCodeBuilder)(ifMissing: => Unit): IEmitCodeGen[A] = {
     val Lmissing2 = CodeLabel()
     cb.define(Lmissing)
     ifMissing
     cb.goto(Lmissing2)
-    IEmitCode(Lmissing2, Lpresent, pc)
+    IEmitCodeGen(Lmissing2, Lpresent, value)
   }
 
-  def flatMap(cb: EmitCodeBuilder)(f: (PCode) => IEmitCode): IEmitCode = {
+  def flatMap(cb: EmitCodeBuilder)(f: (A) => IEmitCodeGen[A]): IEmitCodeGen[A] = {
     cb.define(Lpresent)
-    val ec2 = f(pc)
+    val ec2 = f(value)
     cb.define(ec2.Lmissing)
     cb.goto(Lmissing)
-    IEmitCode(Lmissing, ec2.Lpresent, ec2.pc)
+    IEmitCodeGen(Lmissing, ec2.Lpresent, ec2.value)
   }
 
-  def handle(cb: EmitCodeBuilder, ifMissing: => Unit): PCode = {
+  def handle(cb: EmitCodeBuilder, ifMissing: => Unit): A = {
     cb.define(Lmissing)
     ifMissing
     cb.define(Lpresent)
-    pc
+    value
   }
 
-  def consume[T](cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (PCode) => T): T = {
+  def consume[T](cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (A) => T): T = {
     val Lafter = CodeLabel()
     cb.define(Lmissing)
     ifMissing
     if (cb.isOpenEnded) cb.goto(Lafter)
     cb.define(Lpresent)
-    val ret = ifPresent(pc)
+    val ret = ifPresent(value)
     cb.define(Lafter)
     ret
   }
-
-  def pt: PType = pc.pt
 }
 
 object EmitCode {

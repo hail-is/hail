@@ -16,6 +16,8 @@ import java.util.UUID
 package object ir {
   type TokenIterator = BufferedIterator[Token]
 
+  type IEmitCode = IEmitCodeGen[PCode]
+
   var uidCounter: Long = 0
 
   def genUID(): String = {
