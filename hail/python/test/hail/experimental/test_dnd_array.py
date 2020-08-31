@@ -32,7 +32,7 @@ def test_range_matmul():
     da = hl.experimental.dnd.array(mt, 'x', block_size=block_size)
     da = (da @ da.T).checkpoint(new_temp_file())
     assert da._force_count_blocks() == n_blocks
-    da_result = da.collect().reshape(n_variants, n_variants)
+    da_result = da.collect()
 
     a = np.array(mt.x.collect()).reshape(n_variants, n_samples)
     a_result = a @ a.T
@@ -83,7 +83,7 @@ def test_small_matmul():
     da = hl.experimental.dnd.array(mt, 'dosage', block_size=block_size)
     da = (da @ da.T).checkpoint(new_temp_file())
     assert da._force_count_blocks() == n_blocks
-    da_result = da.collect().reshape(n_variants, n_variants)
+    da_result = da.collect()
 
     a = np.array(mt.dosage.collect()).reshape(n_variants, n_samples)
     a_result = a @ a.T
@@ -104,7 +104,7 @@ def test_medium_matmul():
     da = hl.experimental.dnd.array(mt, 'dosage', block_size=block_size)
     da = (da @ da.T).checkpoint(new_temp_file())
     assert da._force_count_blocks() == n_blocks
-    da_result = da.collect().reshape(n_variants, n_variants)
+    da_result = da.collect()
 
     a = np.array(mt.dosage.collect()).reshape(n_variants, n_samples)
     a_result = a @ a.T
@@ -123,14 +123,14 @@ def test_matmul_via_inner_product():
     da = hl.experimental.dnd.array(mt, 'x', block_size=block_size)
     prod = (da @ da.T).checkpoint(new_temp_file())
     assert prod._force_count_blocks() == n_blocks
-    prod_result = prod.collect().reshape(n_variants, n_variants)
+    prod_result = prod.collect()
 
     ip_result = da.inner_product(da.T,
                                  lambda l, r: l * r,
                                  lambda l, r: l + r,
                                  hl.float(0.0),
                                  lambda prod: hl.agg.sum(prod)
-    ).collect().reshape(n_variants, n_variants)
+    ).collect()
 
     assert np.array_equal(prod_result, ip_result)
 
@@ -157,3 +157,156 @@ def test_king_homo_estimator():
                   [4., 6., 0., 6., 0.],
                   [2., 4., 6., 0., 6.],
                   [4., 6., 0., 6., 0.]]))
+
+
+def test_dndarray_sum():
+    n_variants = 10
+    n_samples = 10
+    block_size = 3
+    n_blocks = 16
+    mt1 = hl.balding_nichols_model(n_populations=2,
+                                   n_variants=n_variants,
+                                   n_samples=n_samples)
+    mt1 = mt1.select_entries(dosage=hl.float(mt1.GT.n_alt_alleles()))
+    mt2 = hl.balding_nichols_model(n_populations=2,
+                                   n_variants=n_variants,
+                                   n_samples=n_samples)
+    mt2 = mt2.select_entries(dosage=hl.float(mt2.GT.n_alt_alleles()))
+
+    da1 = hl.experimental.dnd.array(mt1, 'dosage', block_size=block_size)
+    da2 = hl.experimental.dnd.array(mt2, 'dosage', block_size=block_size)
+    da_sum = (da1 + da2).checkpoint(new_temp_file())
+    assert da_sum._force_count_blocks() == n_blocks
+    da_result = da_sum.collect()
+
+    a1 = np.array(mt1.dosage.collect()).reshape(n_variants, n_samples)
+    a2 = np.array(mt2.dosage.collect()).reshape(n_variants, n_samples)
+    a_result = a1 + a2
+
+    assert np.array_equal(da_result, a_result)
+
+
+def test_dndarray_sum_scalar():
+    n_variants = 10
+    n_samples = 10
+    block_size = 3
+    n_blocks = 16
+    mt1 = hl.balding_nichols_model(n_populations=2,
+                                   n_variants=n_variants,
+                                   n_samples=n_samples)
+    mt1 = mt1.select_entries(dosage=hl.float(mt1.GT.n_alt_alleles()))
+
+    da1 = hl.experimental.dnd.array(mt1, 'dosage', block_size=block_size)
+    da_sum = (da1 + 10).checkpoint(new_temp_file())
+    assert da_sum._force_count_blocks() == n_blocks
+    da_result = da_sum.collect()
+
+    a1 = np.array(mt1.dosage.collect()).reshape(n_variants, n_samples)
+    a_result = a1 + 10
+
+    assert np.array_equal(da_result, a_result)
+
+
+def test_dndarray_rsum_scalar():
+    n_variants = 10
+    n_samples = 10
+    block_size = 3
+    n_blocks = 16
+    mt1 = hl.balding_nichols_model(n_populations=2,
+                                   n_variants=n_variants,
+                                   n_samples=n_samples)
+    mt1 = mt1.select_entries(dosage=hl.float(mt1.GT.n_alt_alleles()))
+
+    da1 = hl.experimental.dnd.array(mt1, 'dosage', block_size=block_size)
+    da_sum = (10 + da1).checkpoint(new_temp_file())
+    assert da_sum._force_count_blocks() == n_blocks
+    da_result = da_sum.collect()
+
+    a1 = np.array(mt1.dosage.collect()).reshape(n_variants, n_samples)
+    a_result = 10 + a1
+
+    assert np.array_equal(da_result, a_result)
+
+
+def test_dndarray_mul_scalar():
+    n_variants = 10
+    n_samples = 10
+    block_size = 3
+    n_blocks = 16
+    mt1 = hl.balding_nichols_model(n_populations=2,
+                                   n_variants=n_variants,
+                                   n_samples=n_samples)
+    mt1 = mt1.select_entries(dosage=hl.float(mt1.GT.n_alt_alleles()))
+
+    da1 = hl.experimental.dnd.array(mt1, 'dosage', block_size=block_size)
+    da_sum = (da1 * 10).checkpoint(new_temp_file())
+    assert da_sum._force_count_blocks() == n_blocks
+    da_result = da_sum.collect()
+
+    a1 = np.array(mt1.dosage.collect()).reshape(n_variants, n_samples)
+    a_result = a1 * 10
+
+    assert np.array_equal(da_result, a_result)
+
+
+def test_dndarray_rmul_scalar():
+    n_variants = 10
+    n_samples = 10
+    block_size = 3
+    n_blocks = 16
+    mt1 = hl.balding_nichols_model(n_populations=2,
+                                   n_variants=n_variants,
+                                   n_samples=n_samples)
+    mt1 = mt1.select_entries(dosage=hl.float(mt1.GT.n_alt_alleles()))
+
+    da1 = hl.experimental.dnd.array(mt1, 'dosage', block_size=block_size)
+    da_sum = (10 * da1).checkpoint(new_temp_file())
+    assert da_sum._force_count_blocks() == n_blocks
+    da_result = da_sum.collect()
+
+    a1 = np.array(mt1.dosage.collect()).reshape(n_variants, n_samples)
+    a_result = 10 * a1
+
+    assert np.array_equal(da_result, a_result)
+
+
+def test_dndarray_sub_scalar():
+    n_variants = 10
+    n_samples = 10
+    block_size = 3
+    n_blocks = 16
+    mt1 = hl.balding_nichols_model(n_populations=2,
+                                   n_variants=n_variants,
+                                   n_samples=n_samples)
+    mt1 = mt1.select_entries(dosage=hl.float(mt1.GT.n_alt_alleles()))
+
+    da1 = hl.experimental.dnd.array(mt1, 'dosage', block_size=block_size)
+    da_sum = (da1 - 10).checkpoint(new_temp_file())
+    assert da_sum._force_count_blocks() == n_blocks
+    da_result = da_sum.collect()
+
+    a1 = np.array(mt1.dosage.collect()).reshape(n_variants, n_samples)
+    a_result = a1 - 10
+
+    assert np.array_equal(da_result, a_result)
+
+
+def test_dndarray_rsub_scalar():
+    n_variants = 10
+    n_samples = 10
+    block_size = 3
+    n_blocks = 16
+    mt1 = hl.balding_nichols_model(n_populations=2,
+                                   n_variants=n_variants,
+                                   n_samples=n_samples)
+    mt1 = mt1.select_entries(dosage=hl.float(mt1.GT.n_alt_alleles()))
+
+    da1 = hl.experimental.dnd.array(mt1, 'dosage', block_size=block_size)
+    da_sum = (10 - da1).checkpoint(new_temp_file())
+    assert da_sum._force_count_blocks() == n_blocks
+    da_result = da_sum.collect()
+
+    a1 = np.array(mt1.dosage.collect()).reshape(n_variants, n_samples)
+    a_result = 10 - a1
+
+    assert np.array_equal(da_result, a_result)

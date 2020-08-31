@@ -1,6 +1,6 @@
 import json
 import numpy as np
-from typing import Optional, Tuple, Callable
+from typing import Optional, Tuple, Callable, Any
 
 from hail.utils.java import Env
 from hail.utils import range_table, new_temp_file
@@ -246,6 +246,76 @@ class DNDArray:
                 hl.agg.take(shape, 1)[0])
 
         return self._block_inner_product(right, block_product, block_aggregate)
+
+    def _block_map(self, fun: Callable[[Expression], Expression]) -> 'DNDArray':
+        o = self.m
+        o = o.annotate(block=fun(o.block))
+        return DNDArray(o)
+
+    def _block_pairwise_map(self,
+                            right: 'DNDArray',
+                            fun: Callable[[Expression, Expression], Expression]
+                            ) -> 'DNDArray':
+        left = self
+        assert left.block_size == right.block_size
+        assert left.n_rows == right.n_rows
+        assert left.n_cols == right.n_cols
+        assert left.n_block_rows == right.n_block_rows
+        assert left.n_block_cols == right.n_block_cols
+
+        o = left.m
+        o = o.annotate(
+            block=fun(o.block, right.m[o.r, o.c].block))
+
+        return DNDArray(o)
+
+    def __add__(self, right: Any) -> 'DNDArray':
+        assert not isinstance(right, Table)
+        assert not isinstance(right, MatrixTable)
+
+        if not isinstance(right, DNDArray):
+            return self._block_map(lambda left: left + right)
+
+        return self._block_pairwise_map(right, lambda left, right: left + right)
+
+    def __radd__(self, left: Any) -> 'DNDArray':
+        assert not isinstance(left, Table)
+        assert not isinstance(left, MatrixTable)
+        assert not isinstance(left, DNDArray)
+
+        return self._block_map(lambda right: left + right)
+
+    def __sub__(self, right: Any) -> 'DNDArray':
+        assert not isinstance(right, Table)
+        assert not isinstance(right, MatrixTable)
+
+        if not isinstance(right, DNDArray):
+            return self._block_map(lambda left: left - right)
+
+        return self._block_pairwise_map(right, lambda left, right: left - right)
+
+    def __rsub__(self, left: Any) -> 'DNDArray':
+        assert not isinstance(left, Table)
+        assert not isinstance(left, MatrixTable)
+        assert not isinstance(left, DNDArray)
+
+        return self._block_map(lambda right: left - right)
+
+    def __mul__(self, right: Any) -> 'DNDArray':
+        assert not isinstance(right, Table)
+        assert not isinstance(right, MatrixTable)
+
+        if not isinstance(right, DNDArray):
+            return self._block_map(lambda left: left * right)
+
+        return self._block_pairwise_map(right, lambda left, right: left * right)
+
+    def __rmul__(self, left: Any) -> 'DNDArray':
+        assert not isinstance(left, Table)
+        assert not isinstance(left, MatrixTable)
+        assert not isinstance(left, DNDArray)
+
+        return self._block_map(lambda right: left * right)
 
     def write(self, *args, **kwargs) -> 'DNDArray':
         return self.m.write(*args, **kwargs)
