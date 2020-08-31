@@ -62,7 +62,7 @@ class Job:
         return uid
 
     def __init__(self,
-                 batch: batch.Batch,
+                 batch: 'batch.Batch',
                  name: Optional[str] = None,
                  attributes: Optional[Dict[str, str]] = None,
                  shell: Optional[str] = None):
@@ -92,7 +92,7 @@ class Job:
         self._valid: Set[_resource.Resource] = set()  # resources declared in the appropriate place
         self._dependencies: Set[Job] = set()
 
-    def _get_resource(self, item: str) -> _resource.Resource:
+    def _get_resource(self, item: str) -> '_resource.Resource':
         if item not in self._resources:
             r = self._batch._new_job_resource_file(self, value=item)
             self._resources[item] = r
@@ -100,16 +100,16 @@ class Job:
 
         return self._resources[item]
 
-    def __getitem__(self, item: str) -> _resource.Resource:
+    def __getitem__(self, item: str) -> '_resource.Resource':
         return self._get_resource(item)
 
-    def __getattr__(self, item: str) -> _resource.Resource:
+    def __getattr__(self, item: str) -> '_resource.Resource':
         return self._get_resource(item)
 
-    def _add_internal_outputs(self, resource: _resource.Resource) -> None:
+    def _add_internal_outputs(self, resource: '_resource.Resource') -> None:
         _add_resource_to_set(self._internal_outputs, resource, include_rg=False)
 
-    def _add_inputs(self, resource: _resource.Resource) -> None:
+    def _add_inputs(self, resource: '_resource.Resource') -> None:
         _add_resource_to_set(self._inputs, resource, include_rg=False)
 
     def declare_resource_group(self, **mappings: str) -> 'Job':
