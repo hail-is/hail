@@ -605,41 +605,41 @@ echo $HAIL_BATCH_WORKER_IP
         builder = self.client.create_batch()
         script = '''
 nc -l -p 5000 &
-echo "hello" | nc -q 0 localhost 5000
+echo "hello" | nc -q 1 localhost 5000
 '''.lstrip('\n')
         j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
                                command=['/bin/bash', '-c', script])
         builder.submit()
         status = j.wait()
         assert status['state'] == 'Success', status
-        assert "Connection refused" not in j.log()['main']
+        assert 'hello' == j.log()['main']
 
     def test_verify_can_tcp_to_127_0_0_1(self):
         builder = self.client.create_batch()
         script = '''
 nc -l -p 5000 &
-echo "hello" | nc -q 0 127.0.0.1 5000
+echo "hello" | nc -q 1 127.0.0.1 5000
 '''.lstrip('\n')
         j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
                                command=['/bin/bash', '-c', script])
         builder.submit()
         status = j.wait()
         assert status['state'] == 'Success', status
-        assert "Connection refused" not in j.log()['main']
+        assert 'hello' == j.log()['main']
 
     def test_verify_can_tcp_to_self_ip(self):
         builder = self.client.create_batch()
         script = '''
 set -e
 nc -l -p 5000 &
-echo "hello" | nc -q 0 $(hostname -i) 5000
+echo "hello" | nc -q 1 $(hostname -i) 5000
 '''.lstrip('\n')
         j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
                                command=['/bin/sh', '-c', script])
         builder.submit()
         status = j.wait()
         assert status['state'] == 'Success', status
-        assert "hello" == j.log()['main']
+        assert 'hello' == j.log()['main']
 
     def test_verify_cannot_talk_to_internal_gateway(self):
         builder = self.client.create_batch()
