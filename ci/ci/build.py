@@ -387,7 +387,8 @@ true
                                         'mount_path': '/secrets/gcr-push-service-account-key'
                                     }],
                                     parents=parents,
-                                    always_run=True)
+                                    always_run=True,
+                                    network='private')
 
 
 class RunImageStep(Step):
@@ -480,7 +481,8 @@ class RunImageStep(Step):
             service_account=self.service_account,
             parents=self.deps_parents(),
             always_run=self.always_run,
-            timeout=self.timeout)
+            timeout=self.timeout,
+            network='private')
 
     def cleanup(self, batch, scope, parents):
         pass
@@ -647,7 +649,8 @@ date
                                         'namespace': BATCH_PODS_NAMESPACE,
                                         'name': 'ci-agent'
                                     },
-                                    parents=self.deps_parents())
+                                    parents=self.deps_parents(),
+                                    network='private')
 
     def cleanup(self, batch, scope, parents):
         if scope in ['deploy', 'dev'] or is_test_deployment:
@@ -675,7 +678,8 @@ true
                                         'name': 'ci-agent'
                                     },
                                     parents=parents,
-                                    always_run=True)
+                                    always_run=True,
+                                    network='private')
 
 
 class DeployStep(Step):
@@ -792,7 +796,8 @@ date
                                         'namespace': BATCH_PODS_NAMESPACE,
                                         'name': 'ci-agent'
                                     },
-                                    parents=self.deps_parents())
+                                    parents=self.deps_parents(),
+                                    network='private')
 
     def cleanup(self, batch, scope, parents):  # pylint: disable=unused-argument
         if self.wait:
@@ -817,7 +822,8 @@ date
                                             'name': 'ci-agent'
                                         },
                                         parents=parents,
-                                        always_run=True)
+                                        always_run=True,
+                                        network='private')
 
 
 class CreateDatabaseStep(Step):
@@ -955,7 +961,8 @@ python3 create_database.py {shq(json.dumps(create_database_config))}
                 'name': 'ci-agent'
             },
             input_files=input_files,
-            parents=[self.create_passwords_job] if self.create_passwords_job else self.deps_parents())
+            parents=[self.create_passwords_job] if self.create_passwords_job else self.deps_parents(),
+            network='private')
 
     def cleanup(self, batch, scope, parents):
         if scope in ['deploy', 'dev'] or self.cant_create_database:
@@ -994,4 +1001,5 @@ done
                 'name': 'ci-agent'
             },
             parents=parents,
-            always_run=True)
+            always_run=True,
+            network='private')
