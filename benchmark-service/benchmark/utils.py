@@ -34,7 +34,6 @@ def enumerate_list_of_trials(list_of_trials):
 
 def list_benchmark_files(read_gs):
     list_of_files = []
-    #list_of_files.extend(self.list_files_in_bucket('hail-benchmarks'))
     for bucket in BENCHMARK_BUCKETS:
         list_of_files.extend(read_gs.list_files(bucket_name=bucket))
     return list_of_files
@@ -63,5 +62,3 @@ class ReadGoogleStorage:
         for blob in bucket.list_blobs():
             list_of_files.append('gs://' + bucket_name + '/' + blob.name)
         return list_of_files
-
-
