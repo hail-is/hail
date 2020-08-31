@@ -29,19 +29,16 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     val shapes = ndarray.shapes()
     shapes.foreach(s => cb += out.writeLong(s))
 
-    val idxVars = Array.tabulate(ndarray.pt.nDims)(i => cb.newLocal[Long](s"idx_$i", 0))
-    val loopStarts = Array.fill(ndarray.pt.nDims)(CodeLabel())
-
-    idxVars.zip(loopStarts).reverse.foreach { case (dimVar, loopLabel) =>
-      cb.assign(dimVar, 0L)
-      cb.define(loopLabel)
-    }
-
-    cb += writeElemF(ndarray(idxVars, cb.emb), out)
-
-    (idxVars, loopStarts, shapes).zipped.foreach { case (dimVar, loopLabel, shape) =>
-      cb.assign(dimVar, dimVar + 1L)
-      cb.ifx(dimVar < shape, cb.goto(loopLabel))
+    val idxVars = Array.tabulate(ndarray.pt.nDims)(i => cb.newLocal[Long](s"idx_$i"))
+    cb += idxVars.zipWithIndex.foldLeft(writeElemF(ndarray(idxVars, cb.emb), out))
+    { case (innerLoops, (dimVar, dimIdx)) =>
+      Code(
+        dimVar := 0L,
+        Code.whileLoop(dimVar < shapes(dimIdx),
+          innerLoops,
+          dimVar := dimVar + 1L
+        )
+      )
     }
   }
 
