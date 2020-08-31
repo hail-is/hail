@@ -160,7 +160,7 @@ class Job:
             _add_resource_to_set(self._valid, rg)
         return self
 
-    def depends_on(self, *jobs: Job) -> 'Job':
+    def depends_on(self, *jobs: 'Job') -> 'Job':
         """
         Explicitly set dependencies on other jobs.
 
