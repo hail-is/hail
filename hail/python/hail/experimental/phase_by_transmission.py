@@ -128,10 +128,10 @@ def phase_by_transmission(
 
         combinations = hl.flatmap(
             lambda f:
-            hl.zip_with_index(mother_v)
+            hl.enumerate(mother_v)
                 .filter(lambda m: m[1] + f[1] == proband_v)
                 .map(lambda m: hl.struct(m=m[0], f=f[0])),
-            hl.zip_with_index(father_v)
+            hl.enumerate(father_v)
         )
 
         return (
@@ -160,7 +160,7 @@ def phase_by_transmission(
         :rtype: ArrayExpression
         """
 
-        transmitted_allele = hl.zip_with_index(hl.array([mother_call[0], mother_call[1]])).find(lambda m: m[1] == proband_call[0])
+        transmitted_allele = hl.enumerate(hl.array([mother_call[0], mother_call[1]])).find(lambda m: m[1] == proband_call[0])
         return hl.or_missing(
             hl.is_defined(transmitted_allele),
             hl.array([
@@ -330,7 +330,7 @@ def explode_trio_matrix(tm: hl.MatrixTable, col_keys: List[str] = ['s'], keep_tr
     tm = tm.select_entries(**select_entries_expr)
 
     tm = tm.key_cols_by()
-    select_cols_expr = {'__trio_members': hl.zip_with_index(hl.array([tm.proband, tm.father, tm.mother]))}
+    select_cols_expr = {'__trio_members': hl.enumerate(hl.array([tm.proband, tm.father, tm.mother]))}
     if keep_trio_cols:
         select_cols_expr['source_trio'] = hl.struct(**tm.col)
     tm = tm.select_cols(**select_cols_expr)
