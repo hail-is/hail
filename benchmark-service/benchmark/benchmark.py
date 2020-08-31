@@ -5,7 +5,8 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
-from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials
+from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials,\
+    list_benchmark_files
 import json
 import re
 import plotly
@@ -167,7 +168,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
         benchmarks_context = get_benchmarks(request.app, file)
     context = {'file': file,
                'benchmarks': benchmarks_context,
-               'benchmark_file_list': app['benchmark_file_list']}
+               'benchmark_file_list': list_benchmark_files(app['gs_reader'])}
     return await render_template('benchmark', request, userdata, 'index.html', context)
 
 
@@ -192,14 +193,12 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
                'benchmarks1': benchmarks_context1,
                'benchmarks2': benchmarks_context2,
                'comparisons': comparisons,
-               'benchmark_file_list': app['benchmark_file_list']}
+               'benchmark_file_list': list_benchmark_files(app['gs_reader'])}
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
 def on_startup(app):
     app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
-    files = app['gs_reader'].list_files()
-    app['benchmark_file_list'] = files
 
 
 def run():
