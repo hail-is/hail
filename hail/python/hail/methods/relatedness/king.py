@@ -22,8 +22,9 @@ def king(call_expr, *, block_size=None):
     Notes
     -----
 
-    The following presentation summarizes the methods section of Manichaikul,
-    et. al., but adopts a more consistent notation for matrices.
+    The following presentation summarizes the methods section of `Manichaikul,
+    et. al. <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3025716/>`__, but
+    adopts a more consistent notation for matrices.
 
     Let
 
@@ -41,10 +42,11 @@ def king(call_expr, *, block_size=None):
     - :math:`S_{i,j}` be the set of single-nucleotide variants for which both
       individuals :math:`i` and :math:`j` have a non-missing genotype.
 
-    - :math:`X_{i,s}` be the genotype score matrix. Homozygous-reference
-      genotypes are represented as 0, heterozygous genotypes are represented as
-      1, and homozygous-alternate genotypes are represented as
-      2. :math:`X_{i,s}` is calculated by invoking
+    - :math:`X_{i,s}` be the genotype score matrix. Each entry corresponds to
+      the genotype of individual :math:`i` at variant
+      :math:`s`. Homozygous-reference genotypes are represented as 0,
+      heterozygous genotypes are represented as 1, and homozygous-alternate
+      genotypes are represented as 2. :math:`X_{i,s}` is calculated by invoking
       :meth:`CallExpression.n_alt_alleles` on the `call_expr`.
 
     The three counts above, :math:`N^{Aa}`, :math:`N^{Aa,Aa}`, and
@@ -234,8 +236,8 @@ def king(call_expr, *, block_size=None):
     var = hl.linalg.BlockMatrix.from_entry_expr(mt[is_hom_var], block_size=block_size)
     defined = hl.linalg.BlockMatrix.from_entry_expr(mt[is_defined], block_size=block_size)
     ref_var = (ref.T @ var).checkpoint(hl.utils.new_temp_file())
-    # We need the count of times the pair is AA,aa and aa,AA. da_ref_var is only AA,aa.
-    # Transposing da_ref_var gives da_var_ref, i.e. aa,AA.
+    # We need the count of times the pair is AA,aa and aa,AA. ref_var is only
+    # AA,aa.  Transposing ref_var gives var_ref, i.e. aa,AA.
     #
     # n.b. (REF.T @ VAR).T == (VAR.T @ REF) by laws of matrix multiply
     N_AA_aa = ref_var + ref_var.T
