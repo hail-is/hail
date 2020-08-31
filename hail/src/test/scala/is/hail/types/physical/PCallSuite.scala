@@ -19,7 +19,7 @@ class PCallSuite extends PhysicalTestUtils {
         IndexedSeq(2, 3), deepCopy = deepCopy, interpret = interpret)
 
       copyTestExecutor(PCanonicalArray(PCanonicalCall(), true), PCanonicalArray(PCanonicalCall(true)),
-        IndexedSeq(2, 3), expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
+        IndexedSeq(2, 3), deepCopy = deepCopy, interpret = interpret)
     }
 
     runTests(true)

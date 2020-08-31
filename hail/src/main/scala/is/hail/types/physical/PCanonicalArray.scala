@@ -474,7 +474,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       } else
         srcAddress
     } else {
-      assert(elementRequired <= srcArray.elementRequired)
 
       val len = mb.newLocal[Int]()
       val srcAddrVar = mb.newLocal[Long]()
@@ -488,10 +487,11 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         stagedInitialize(newAddr, len, setMissing = true),
         i := 0,
         Code.whileLoop(i < len,
-          srcArray.isElementDefined(srcAddrVar, i).orEmpty(
+          srcArray.isElementDefined(srcAddrVar, i).mux(
             Code(
               setElementPresent(newAddr, i),
-              elementType.constructAtAddress(mb, elementOffset(newAddr, len, i), region, srcArray.elementType, srcArray.loadElement(srcAddrVar, len, i), deepCopy))),
+              elementType.constructAtAddress(mb, elementOffset(newAddr, len, i), region, srcArray.elementType, srcArray.loadElement(srcAddrVar, len, i), deepCopy)),
+            if (elementType.required) Code._fatal[Unit]("required array element encountered missing value!") else Code._empty),
           i := i + 1
         ),
         newAddr)

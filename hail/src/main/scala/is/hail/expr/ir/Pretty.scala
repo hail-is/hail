@@ -117,6 +117,13 @@ object Pretty {
 
       sb.append(prettyClass(ir) )
 
+      /**
+      ir match {
+        case ir: IR => if (ir._pType != null) sb.append(" " + ir.pType.toString)
+        case _ =>
+      }
+      */
+
       ir match {
         case MakeStruct(fields) =>
           if (fields.nonEmpty) {
