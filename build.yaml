@@ -2499,17 +2499,17 @@ steps:
     - default_ns
     - batch_pods_ns
     - base_image
+    - test_batch_0
     - test_batch_1
     - test_batch_2
     - test_batch_3
     - test_batch_4
-    - test_batch_5
     - test_ci
+    - test_hailtop_batch_0
     - test_hailtop_batch_1
     - test_hailtop_batch_2
     - test_hailtop_batch_3
     - test_hailtop_batch_4
-    - test_hailtop_batch_5
     - test_query
  - kind: runImage
    name: test_dataproc
