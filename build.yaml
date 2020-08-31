@@ -1661,16 +1661,243 @@ steps:
     - hail_run_image
     - deploy_query
  - kind: runImage
-   name: test_batch
+   name: test_batch_1
    image:
      valueFrom: batch_image.image
    script: |
+     export PYTEST_SPLITS=5
+     export PYTEST_SPLIT_INDEX=1
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      hailctl config set batch/bucket hail-test-dmk9z
-     python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" --log-cli-level=INFO -s -vv --instafail -k "not test_scale" /io/test/
+     python3 -m pytest \
+             --log-date-format="%Y-%m-%dT%H:%M:%S" \
+             --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
+             --log-cli-level=INFO \
+             -s \
+             -vv \
+             --instafail \
+             -k "not test_scale" \
+             --durations=0 \
+             /io/test/
+   inputs:
+    - from: /repo/batch/test
+      to: /io/
+   port: 5000
+   timeout: 1200
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: ssl-config-batch-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
+   dependsOn:
+    - create_deploy_config
+    - create_accounts
+    - default_ns
+    - batch_pods_ns
+    - copy_files
+    - base_image
+    - batch_image
+    - ci_utils_image
+    - deploy_batch
+ - kind: runImage
+   name: test_batch_2
+   image:
+     valueFrom: batch_image.image
+   script: |
+     export PYTEST_SPLITS=5
+     export PYTEST_SPLIT_INDEX=2
+     export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+     export HAIL_BASE_IMAGE={{ base_image.image }}
+     export CI_UTILS_IMAGE={{ ci_utils_image.image }}
+     export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     hailctl config set batch/bucket hail-test-dmk9z
+     python3 -m pytest \
+             --log-date-format="%Y-%m-%dT%H:%M:%S" \
+             --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
+             --log-cli-level=INFO \
+             -s \
+             -vv \
+             --instafail \
+             -k "not test_scale" \
+             --durations=0 \
+             /io/test/
+   inputs:
+    - from: /repo/batch/test
+      to: /io/
+   port: 5000
+   timeout: 1200
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: ssl-config-batch-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
+   dependsOn:
+    - create_deploy_config
+    - create_accounts
+    - default_ns
+    - batch_pods_ns
+    - copy_files
+    - base_image
+    - batch_image
+    - ci_utils_image
+    - deploy_batch
+ - kind: runImage
+   name: test_batch_3
+   image:
+     valueFrom: batch_image.image
+   script: |
+     export PYTEST_SPLITS=5
+     export PYTEST_SPLIT_INDEX=3
+     export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+     export HAIL_BASE_IMAGE={{ base_image.image }}
+     export CI_UTILS_IMAGE={{ ci_utils_image.image }}
+     export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     hailctl config set batch/bucket hail-test-dmk9z
+     python3 -m pytest \
+             --log-date-format="%Y-%m-%dT%H:%M:%S" \
+             --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
+             --log-cli-level=INFO \
+             -s \
+             -vv \
+             --instafail \
+             -k "not test_scale" \
+             --durations=0 \
+             /io/test/
+   inputs:
+    - from: /repo/batch/test
+      to: /io/
+   port: 5000
+   timeout: 1200
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: ssl-config-batch-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
+   dependsOn:
+    - create_deploy_config
+    - create_accounts
+    - default_ns
+    - batch_pods_ns
+    - copy_files
+    - base_image
+    - batch_image
+    - ci_utils_image
+    - deploy_batch
+ - kind: runImage
+   name: test_batch_4
+   image:
+     valueFrom: batch_image.image
+   script: |
+     export PYTEST_SPLITS=5
+     export PYTEST_SPLIT_INDEX=4
+     export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+     export HAIL_BASE_IMAGE={{ base_image.image }}
+     export CI_UTILS_IMAGE={{ ci_utils_image.image }}
+     export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     hailctl config set batch/bucket hail-test-dmk9z
+     python3 -m pytest \
+             --log-date-format="%Y-%m-%dT%H:%M:%S" \
+             --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
+             --log-cli-level=INFO \
+             -s \
+             -vv \
+             --instafail \
+             -k "not test_scale" \
+             --durations=0 \
+             /io/test/
+   inputs:
+    - from: /repo/batch/test
+      to: /io/
+   port: 5000
+   timeout: 1200
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: ssl-config-batch-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
+   dependsOn:
+    - create_deploy_config
+    - create_accounts
+    - default_ns
+    - batch_pods_ns
+    - copy_files
+    - base_image
+    - batch_image
+    - ci_utils_image
+    - deploy_batch
+ - kind: runImage
+   name: test_batch_5
+   image:
+     valueFrom: batch_image.image
+   script: |
+     export PYTEST_SPLITS=5
+     export PYTEST_SPLIT_INDEX=5
+     export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+     export HAIL_BASE_IMAGE={{ base_image.image }}
+     export CI_UTILS_IMAGE={{ ci_utils_image.image }}
+     export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     hailctl config set batch/bucket hail-test-dmk9z
+     python3 -m pytest \
+             --log-date-format="%Y-%m-%dT%H:%M:%S" \
+             --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
+             --log-cli-level=INFO \
+             -s \
+             -vv \
+             --instafail \
+             -k "not test_scale" \
+             --durations=0 \
+             /io/test/
    inputs:
     - from: /repo/batch/test
       to: /io/
