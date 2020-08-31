@@ -557,3 +557,11 @@ echo $HAIL_BATCH_WORKER_IP
             assert e.status == 400
         else:
             assert False, f'should receive a 400 Bad Request {batch.id}'
+
+    def test_verify_no_access_to_metadata_server(self):
+        builder = self.client.create_batch()
+        j = builder.create_job('google/cloud-sdk', ['gcloud', 'auth', 'list'])
+        builder.submit()
+        status = j.wait()
+        assert status['state'] == 'Success', status
+        assert "No credentialed accounts." in j.log()['main'], (j.log()['main'], status)

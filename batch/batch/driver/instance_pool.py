@@ -414,8 +414,8 @@ set -x
 
 # only allow udp/53 (dns) to metadata server
 # -I inserts at the head of the chain, so the ACCEPT rule runs first
-iptables -I FORWARD -i docker0 -d 169.254.169.254 -j DROP
-iptables -I FORWARD -i docker0 -d 169.254.169.254 -p udp -m udp --destination-port 53 -j ACCEPT
+iptables -I DOCKER-USER -d 169.254.169.254 -j DROP
+iptables -I DOCKER-USER -d 169.254.169.254 -p udp -m udp --destination-port 53 -j ACCEPT
 
 # add docker daemon debug logging
 jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
