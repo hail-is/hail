@@ -1299,6 +1299,8 @@ GROUP BY billing_projects.name, users, msec_mcpu, `limit`;
         cost_resources = record['cost']
         record['accrued_cost'] = coalesce(cost_msec_mcpu, 0) + coalesce(cost_resources, 0)
         del record['msec_mcpu']
+        del record['cost']
+
         if record['users'] is None:
             record['users'] = []
         else:
