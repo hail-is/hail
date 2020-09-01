@@ -637,7 +637,7 @@ class BatchClient:
         return await bp_resp.json()
 
     async def list_billing_projects(self):
-        bp_resp = await self._get(f'/api/v1alpha/billing_projects')
+        bp_resp = await self._get('/api/v1alpha/billing_projects')
         return await bp_resp.json()
 
     async def close(self):
