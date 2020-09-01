@@ -611,7 +611,7 @@ echo "hello" | nc -q 1 localhost 5000
                                command=['/bin/bash', '-c', script])
         builder.submit()
         status = j.wait()
-        assert status['state'] == 'Success', status
+        assert status['state'] == 'Success', (j.log()['main'], status)
         assert 'hello\n' == j.log()['main']
 
     def test_verify_can_tcp_to_127_0_0_1(self):
@@ -624,7 +624,7 @@ echo "hello" | nc -q 1 127.0.0.1 5000
                                command=['/bin/bash', '-c', script])
         builder.submit()
         status = j.wait()
-        assert status['state'] == 'Success', status
+        assert status['state'] == 'Success', (j.log()['main'], status)
         assert 'hello\n' == j.log()['main']
 
     def test_verify_can_tcp_to_self_ip(self):
@@ -638,7 +638,7 @@ echo "hello" | nc -q 1 $(hostname -i) 5000
                                command=['/bin/sh', '-c', script])
         builder.submit()
         status = j.wait()
-        assert status['state'] == 'Success', status
+        assert status['state'] == 'Success', (j.log()['main'], status)
         assert 'hello\n' == j.log()['main']
 
     def test_verify_cannot_talk_to_internal_gateway(self):
