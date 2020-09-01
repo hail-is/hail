@@ -1,10 +1,12 @@
 from typing import Set, Dict, Any
 from ... import Batch, LocalBackend, ServiceBackend, Backend
 from ...resource import Resource
+import os
 import sys
 import shlex
 from argparse import Namespace, ArgumentParser, SUPPRESS
 from os.path import exists
+import google.oauth2.service_account  # type: ignore
 from google.cloud import storage  # type: ignore
 from google.cloud.storage.blob import Blob  # type: ignore
 
@@ -25,13 +27,27 @@ def _is_local(spath: str):
     return True
 
 
+GCS_CLIENT = None
+
+
+def gcs_client():
+    global GCS_CLIENT
+    if GCS_CLIENT is None:
+        credentials = None
+        key_file = os.environ.get('HAIL_GSA_KEY_FILE')
+        if key_file:
+            credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+                key_file)
+        GCS_CLIENT = storage.Client(project=None, credentials=credentials)
+    return GCS_CLIENT
+
+
 def _read(spath: str):
     if _is_local(spath):
         with open(spath, "r") as f:
             return f.read()
 
-    client = storage.Client()
-    blob = Blob.from_string(spath, client)
+    blob = Blob.from_string(spath, gcs_client())
     return blob.download_as_string().decode("utf-8")
 
 
@@ -46,8 +62,7 @@ def _exists(spath: str) -> bool:
     if _is_local(spath):
         return exists(spath)
 
-    client = storage.Client()
-    blob = Blob.from_string(spath, client)
+    blob = Blob.from_string(spath, gcs_client())
     return blob.exists()
 
 
