@@ -74,18 +74,11 @@ final case class EPackedIntArray(
       array)
   }
 
-  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
-    val len = mb.newLocal[Int]("len")
-
-    Code(
-      len := in.readInt(),
-      if (elementsRequired)
-        Code._empty
-      else
-        in.skipBytes(UnsafeUtils.packBitsToBytes(len)),
-      len := in.readInt(),
-      in.skipBytes(len)
-    )
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+    val len = cb.newLocal[Int]("len", in.readInt())
+    if (!elementsRequired) cb += in.skipBytes(UnsafeUtils.packBitsToBytes(len))
+    cb.assign(len, in.readInt())
+    cb += in.skipBytes(len)
   }
 
   def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
