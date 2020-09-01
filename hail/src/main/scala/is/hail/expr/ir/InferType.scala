@@ -28,7 +28,7 @@ object InferType {
       case RelationalLet(_, _, body) => body.typ
       case In(_, t) => t.virtualType
       case MakeArray(_, t) => t
-      case MakeStream(_, t) => t
+      case MakeStream(_, t, _) => t
       case MakeNDArray(data, shape, _) =>
         TNDArray(coerce[TArray](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
       case _: ArrayLen => TInt32
@@ -95,7 +95,7 @@ object InferType {
       case CastToArray(a) =>
         val elt = coerce[TContainer](a.typ).elementType
         TArray(elt)
-      case ToStream(a) =>
+      case ToStream(a, _) =>
         val elt = coerce[TIterable](a.typ).elementType
         TStream(elt)
       case StreamLen(a) => TInt32

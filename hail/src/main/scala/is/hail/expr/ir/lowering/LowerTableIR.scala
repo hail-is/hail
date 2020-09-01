@@ -193,11 +193,12 @@ class TableStage(
     LowerToCDA.substLets(wrapInBindings(body(cda, globals)), relationalBindings)
   }
 
-  def collectWithGlobals(relationalBindings: Map[String, IR]): IR = mapCollectWithGlobals(relationalBindings)(ToArray) { (parts, globals) =>
-    MakeStruct(FastSeq(
-      "rows" -> ToArray(flatMapIR(ToStream(parts))(ToStream)),
-      "global" -> globals))
-  }
+  def collectWithGlobals(relationalBindings: Map[String, IR]): IR =
+    mapCollectWithGlobals(relationalBindings)(ToArray) { (parts, globals) =>
+      MakeStruct(FastSeq(
+        "rows" -> ToArray(flatMapIR(ToStream(parts))(ToStream(_))),
+        "global" -> globals))
+    }
 
   def getGlobals(): IR = wrapInBindings(globals)
 

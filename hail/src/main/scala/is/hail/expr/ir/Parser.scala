@@ -834,8 +834,9 @@ object IRParser {
         MakeArray.unify(args, typ)
       case "MakeStream" =>
         val typ = opt(it, type_expr(env.typEnv)).map(_.asInstanceOf[TStream]).orNull
+        val separateRegions = boolean_literal(it)
         val args = ir_value_children(env)(it)
-        MakeStream(args, typ)
+        MakeStream(args, typ, separateRegions)
       case "ArrayRef" =>
         val a = ir_value_expr(env)(it)
         val i = ir_value_expr(env)(it)
@@ -844,10 +845,11 @@ object IRParser {
       case "ArrayLen" => ArrayLen(ir_value_expr(env)(it))
       case "StreamLen" => StreamLen(ir_value_expr(env)(it))
       case "StreamRange" =>
+        val separateRegions = boolean_literal(it)
         val start = ir_value_expr(env)(it)
         val stop = ir_value_expr(env)(it)
         val step = ir_value_expr(env)(it)
-        StreamRange(start, stop, step)
+        StreamRange(start, stop, step, separateRegions)
       case "StreamGrouped" =>
         val s = ir_value_expr(env)(it)
         val groupSize = ir_value_expr(env)(it)
@@ -934,7 +936,10 @@ object IRParser {
       case "ToDict" => ToDict(ir_value_expr(env)(it))
       case "ToArray" => ToArray(ir_value_expr(env)(it))
       case "CastToArray" => CastToArray(ir_value_expr(env)(it))
-      case "ToStream" => ToStream(ir_value_expr(env)(it))
+      case "ToStream" =>
+        val separateRegions = boolean_literal(it)
+        val a = ir_value_expr(env)(it)
+        ToStream(a, separateRegions)
       case "LowerBoundOnOrderedCollection" =>
         val onKey = boolean_literal(it)
         val col = ir_value_expr(env)(it)

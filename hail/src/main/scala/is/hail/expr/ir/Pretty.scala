@@ -284,7 +284,10 @@ object Pretty {
             case GetTupleElement(_, idx) => idx.toString
             case MakeTuple(fields) => prettyInts(fields.map(_._1).toFastIndexedSeq)
             case MakeArray(_, typ) => typ.parsableString()
-            case MakeStream(_, typ) => typ.parsableString()
+            case MakeStream(_, typ, separateRegions) =>
+              s"${ typ.parsableString() } ${prettyBooleanLiteral(separateRegions) }"
+            case StreamRange(_, _, _, separateRegions) => prettyBooleanLiteral(separateRegions)
+            case ToStream(_, separateRegions) => prettyBooleanLiteral(separateRegions)
             case StreamMap(_, name, _) => prettyIdentifier(name)
             case StreamMerge(_, _, key) => prettyIdentifiers(key)
             case StreamZip(_, names, _, behavior) => prettyIdentifier(behavior match {

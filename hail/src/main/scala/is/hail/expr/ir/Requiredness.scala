@@ -467,7 +467,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.unionFrom(defs(node).map(coerce[TypeWithRequiredness]))
       case MakeArray(args, _) =>
         coerce[RIterable](requiredness).elementType.unionFrom(args.map(lookup))
-      case MakeStream(args, _) =>
+      case MakeStream(args, _, _) =>
         coerce[RIterable](requiredness).elementType.unionFrom(args.map(lookup))
       case ArrayRef(a, i, _) =>
         val aReq = lookupAs[RIterable](a)

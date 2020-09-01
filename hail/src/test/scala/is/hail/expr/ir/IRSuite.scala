@@ -1066,70 +1066,70 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testGetNestedPStream() {
-    var types = Seq(PCanonicalStream(PInt32(true), true))
+    var types = Seq(PCanonicalStream(PInt32(true), required = true))
     var res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(true), true))
+    assert(res == PCanonicalStream(PInt32(true), required = true))
 
-    types = Seq(PCanonicalStream(PInt32(true), false))
+    types = Seq(PCanonicalStream(PInt32(true), required = false))
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(true), false))
+    assert(res == PCanonicalStream(PInt32(true), required = false))
 
-    types = Seq(PCanonicalStream(PInt32(false), true))
+    types = Seq(PCanonicalStream(PInt32(false), required = true))
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(false), true))
+    assert(res == PCanonicalStream(PInt32(false), required = true))
 
-    types = Seq(PCanonicalStream(PInt32(false), false))
+    types = Seq(PCanonicalStream(PInt32(false), required = false))
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(false), false))
-
-    types = Seq(
-      PCanonicalStream(PInt32(true), true),
-      PCanonicalStream(PInt32(true), true)
-    )
-    res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(true), true))
+    assert(res == PCanonicalStream(PInt32(false), required = false))
 
     types = Seq(
-      PCanonicalStream(PInt32(false), true),
-      PCanonicalStream(PInt32(true), true)
+      PCanonicalStream(PInt32(true), required = true),
+      PCanonicalStream(PInt32(true), required = true)
     )
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(false), true))
+    assert(res == PCanonicalStream(PInt32(true), required = true))
 
     types = Seq(
-      PCanonicalStream(PInt32(false), true),
-      PCanonicalStream(PInt32(true), false)
+      PCanonicalStream(PInt32(false), required = true),
+      PCanonicalStream(PInt32(true), required = true)
     )
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(false), false))
+    assert(res == PCanonicalStream(PInt32(false), required = true))
 
     types = Seq(
-      PCanonicalStream(PCanonicalStream(PInt32(true), true), true),
-      PCanonicalStream(PCanonicalStream(PInt32(true), true), true)
+      PCanonicalStream(PInt32(false), required = true),
+      PCanonicalStream(PInt32(true), required = false)
     )
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PCanonicalStream(PInt32(true), true), true))
+    assert(res == PCanonicalStream(PInt32(false), required = false))
 
     types = Seq(
-      PCanonicalStream(PCanonicalStream(PInt32(true), true), true),
-      PCanonicalStream(PCanonicalStream(PInt32(false), true), true)
+      PCanonicalStream(PCanonicalStream(PInt32(true), required = true), required = true),
+      PCanonicalStream(PCanonicalStream(PInt32(true), required = true), required = true)
     )
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), true), true))
+    assert(res == PCanonicalStream(PCanonicalStream(PInt32(true), required = true), required = true))
 
     types = Seq(
-      PCanonicalStream(PCanonicalStream(PInt32(true), false), true),
-      PCanonicalStream(PCanonicalStream(PInt32(false), true), true)
+      PCanonicalStream(PCanonicalStream(PInt32(true), required = true), required = true),
+      PCanonicalStream(PCanonicalStream(PInt32(false), required = true), required = true)
     )
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), false), true))
+    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), required = true), required = true))
 
     types = Seq(
-      PCanonicalStream(PCanonicalStream(PInt32(true), false), false),
-      PCanonicalStream(PCanonicalStream(PInt32(false), true), true)
+      PCanonicalStream(PCanonicalStream(PInt32(true), required = false), required = true),
+      PCanonicalStream(PCanonicalStream(PInt32(false), required = true), required = true)
     )
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), false), false))
+    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), required = false), required = true))
+
+    types = Seq(
+      PCanonicalStream(PCanonicalStream(PInt32(true), required = false), required = false),
+      PCanonicalStream(PCanonicalStream(PInt32(false), required = true), required = true)
+    )
+    res  = InferPType.getCompatiblePType(types)
+    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), required = false), required = false))
   }
 
   @Test def testGetNestedElementPCanonicalDict() {

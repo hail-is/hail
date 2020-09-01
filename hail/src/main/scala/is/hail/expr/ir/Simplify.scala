@@ -202,8 +202,8 @@ object Simplify {
 
     case ArrayLen(ArraySort(a, _, _, _)) => ArrayLen(ToArray(a))
 
-    case ArrayLen(ToArray(MakeStream(args, _))) => I32(args.length)
-    case StreamLen(MakeStream(args, _)) => I32(args.length)
+    case ArrayLen(ToArray(MakeStream(args, _, _))) => I32(args.length)
+    case StreamLen(MakeStream(args, _, _)) => I32(args.length)
 
     case ArrayRef(MakeArray(args, _), I32(i), _) if i >= 0 && i < args.length => args(i)
 
@@ -224,16 +224,18 @@ object Simplify {
 
     case StreamFilter(ArraySort(a, left, right, lessThan), name, cond) => ArraySort(StreamFilter(a, name, cond), left, right, lessThan)
 
-    case StreamFilter(ToStream(ArraySort(a, left, right, lessThan)), name, cond) => ToStream(ArraySort(StreamFilter(a, name, cond), left, right, lessThan))
+    case StreamFilter(ToStream(ArraySort(a, left, right, lessThan), separateRegions), name, cond) =>
+      ToStream(ArraySort(StreamFilter(a, name, cond), left, right, lessThan), separateRegions)
 
     case CastToArray(x) if x.typ.isInstanceOf[TArray] => x
-    case ToArray(ToStream(a)) if a.typ.isInstanceOf[TArray] => a
-    case ToArray(ToStream(a)) if a.typ.isInstanceOf[TSet] || a.typ.isInstanceOf[TDict] =>
+    case ToArray(ToStream(a, _)) if a.typ.isInstanceOf[TArray] => a
+    case ToArray(ToStream(a, _)) if a.typ.isInstanceOf[TSet] || a.typ.isInstanceOf[TDict] =>
       CastToArray(a)
 
-    case ToStream(ToArray(s)) if s.typ.isInstanceOf[TStream] => s
+    case ToStream(ToArray(s), _) if s.typ.isInstanceOf[TStream] => s
 
-    case ToStream(Let(name, value, ToArray(x))) if x.typ.isInstanceOf[TStream] => Let(name, value, x)
+    case ToStream(Let(name, value, ToArray(x)), _) if x.typ.isInstanceOf[TStream] =>
+      Let(name, value, x)
 
     case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
 

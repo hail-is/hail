@@ -107,7 +107,7 @@ object TypeCheck {
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
           s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
         }
-      case x@MakeStream(args, typ) =>
+      case x@MakeStream(args, typ, _) =>
         assert(typ != null)
         assert(typ.elementType.isRealizable)
 
@@ -120,7 +120,7 @@ object TypeCheck {
         assert(x.typ == coerce[TArray](a.typ).elementType)
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TArray])
-      case x@StreamRange(a, b, c) =>
+      case x@StreamRange(a, b, c, _) =>
         assert(a.typ == TInt32)
         assert(b.typ == TInt32)
         assert(c.typ == TInt32)
@@ -210,7 +210,7 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TStream])
       case x@CastToArray(a) =>
         assert(a.typ.isInstanceOf[TContainer])
-      case x@ToStream(a) =>
+      case x@ToStream(a, _) =>
         assert(a.typ.isInstanceOf[TContainer])
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val elt = coerce[TIterable](orderedCollection.typ).elementType

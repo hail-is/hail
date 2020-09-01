@@ -230,7 +230,7 @@ object Interpret {
           }
 
       case MakeArray(elements, _) => elements.map(interpret(_, env, args)).toFastIndexedSeq
-      case MakeStream(elements, _) => elements.map(interpret(_, env, args)).toFastIndexedSeq
+      case MakeStream(elements, _, _) => elements.map(interpret(_, env, args)).toFastIndexedSeq
       case x@ArrayRef(a, i, s) =>
         val aValue = interpret(a, env, args)
         val iValue = interpret(i, env, args)
@@ -264,7 +264,7 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].length
-      case StreamRange(start, stop, step) =>
+      case StreamRange(start, stop, step, _) =>
         val startValue = interpret(start, env, args)
         val stopValue = interpret(stop, env, args)
         val stepValue = interpret(step, env, args)
