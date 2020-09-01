@@ -469,7 +469,7 @@ class MethodBuilder[C](
   // very long method names, repeated hundreds of thousands of times can cause memory issues.
   // If necessary to find the name of a method precisely, this can be set to around the constant
   // limit of 65535 characters, but usually, this can be much smaller.
-  val methodName: String = _mname.substring(0, scala.math.min(_mname.length, 8192 /* 65535 */))
+  val methodName: String = _mname.substring(0, scala.math.min(_mname.length, 2000 /* 65535 */))
 
   if (methodName != "<init>" && !isJavaIdentifier(methodName))
     throw new IllegalArgumentException(s"Illegal method name, not Java identifier: $methodName")
