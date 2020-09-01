@@ -147,3 +147,4 @@ steps:
    dependsOn:
     - service_base_image
     - default_ns
+    - batch_pods_ns
