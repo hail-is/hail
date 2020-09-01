@@ -6,7 +6,7 @@ import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.types.virtual.{TStream, Type}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, Stream}
 
-final case class PCanonicalStream(elementType: PType, required: Boolean = false) extends PStream {
+final case class PCanonicalStream(elementType: PType, separateRegions: Boolean = false, required: Boolean = false) extends PStream {
   override val fundamentalType: PStream = {
     if (elementType == elementType.fundamentalType)
       this
@@ -28,7 +28,7 @@ final case class PCanonicalStream(elementType: PType, required: Boolean = false)
   override def deepRename(t: Type) = deepRenameStream(t.asInstanceOf[TStream])
 
   private def deepRenameStream(t: TStream): PStream =
-    PCanonicalStream(this.elementType.deepRename(t.elementType), this.required)
+    copy(elementType = elementType.deepRename(t.elementType))
 
   def setRequired(required: Boolean): PCanonicalStream = if(required == this.required) this else this.copy(required = required)
 }

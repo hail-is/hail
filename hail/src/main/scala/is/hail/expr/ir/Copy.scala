@@ -59,18 +59,18 @@ object Copy {
       case MakeArray(args, typ) =>
         assert(args.length == newChildren.length)
         MakeArray(newChildren.map(_.asInstanceOf[IR]), typ)
-      case MakeStream(args, typ) =>
+      case MakeStream(args, typ, separateRegions) =>
         assert(args.length == newChildren.length)
-        MakeStream(newChildren.map(_.asInstanceOf[IR]), typ)
+        MakeStream(newChildren.map(_.asInstanceOf[IR]), typ, separateRegions)
       case ArrayRef(_, _, _) =>
         assert(newChildren.length == 3)
         ArrayRef(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
       case ArrayLen(_) =>
         assert(newChildren.length == 1)
         ArrayLen(newChildren(0).asInstanceOf[IR])
-      case StreamRange(_, _, _) =>
+      case StreamRange(_, _, _, separateRegions) =>
         assert(newChildren.length == 3)
-        StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
+        StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], separateRegions)
       case ArrayZeros(_) =>
         assert(newChildren.length == 1)
         ArrayZeros(newChildren(0).asInstanceOf[IR])
@@ -135,9 +135,9 @@ object Copy {
       case CastToArray(_) =>
         assert(newChildren.length == 1)
         CastToArray(newChildren(0).asInstanceOf[IR])
-      case ToStream(_) =>
+      case ToStream(_, separateRegions) =>
         assert(newChildren.length == 1)
-        ToStream(newChildren(0).asInstanceOf[IR])
+        ToStream(newChildren(0).asInstanceOf[IR], separateRegions)
       case LowerBoundOnOrderedCollection(_, _, asKey) =>
         assert(newChildren.length == 2)
         LowerBoundOnOrderedCollection(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], asKey)

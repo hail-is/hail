@@ -1451,7 +1451,7 @@ case class TableMapPartitions(child: TableIR,
     val rowPType = tv.rvd.rowPType
     val globalPType = tv.globals.t
 
-    val partitionPType = PCanonicalStream(rowPType, true)
+    val partitionPType = PCanonicalStream(rowPType, separateRegions = true, required = true)
     val (newRowPType: PStruct, makeIterator) = CompileIterator.forTableMapPartitions(
       ctx,
       globalPType, partitionPType,

@@ -49,13 +49,13 @@ object Children {
       Array(l, r)
     case MakeArray(args, typ) =>
       args.toFastIndexedSeq
-    case MakeStream(args, typ) =>
+    case MakeStream(args, _, _) =>
       args.toFastIndexedSeq
     case ArrayRef(a, i, s) =>
       Array(a, i, s)
     case ArrayLen(a) =>
       Array(a)
-    case StreamRange(start, stop, step) =>
+    case StreamRange(start, stop, step, _) =>
       Array(start, stop, step)
     case ArrayZeros(length) =>
       Array(length)
@@ -77,7 +77,7 @@ object Children {
       Array(a)
     case CastToArray(a) =>
       Array(a)
-    case ToStream(a) =>
+    case ToStream(a, _) =>
       Array(a)
     case LowerBoundOnOrderedCollection(orderedCollection, elem, _) =>
       Array(orderedCollection, elem)

@@ -991,7 +991,8 @@ class Emit[C](
         presentC(sc.states(i).serializeToRegion(cb, coerce[PBinary](pt), region.code))
 
       case x@StreamFold(a, zero, accumName, valueName, body) =>
-        val eltType = coerce[PStream](a.pType).elementType
+        val streamType = coerce[PStream](a.pType)
+        val eltType = streamType.elementType
         val accType = x.accPType
         val eltRegion = region.createChildRegion(mb)
         val tmpRegion = region.createChildRegion(mb)

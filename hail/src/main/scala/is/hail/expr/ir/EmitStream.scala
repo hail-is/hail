@@ -1280,7 +1280,7 @@ object EmitStream {
             throw new RuntimeException(s"PValue type did not match inferred ptype:\n name: $name\n  pv: ${ ev.pt }\n  ir: $typ")
           COption.fromEmitCode(ev.get).map(_.asStream.stream)
 
-        case x@StreamRange(startIR, stopIR, stepIR) =>
+        case x@StreamRange(startIR, stopIR, stepIR, _) =>
           val eltType = coerce[PStream](x.pType).elementType
           val step = mb.genFieldThisRef[Int]("sr_step")
           val start = mb.genFieldThisRef[Int]("sr_start")
@@ -1318,7 +1318,7 @@ object EmitStream {
             }
           }
 
-        case ToStream(containerIR) =>
+        case ToStream(containerIR, _) =>
           COption.fromEmitCode(emitIR(containerIR)).mapCPS { (containerAddr, k) =>
             val (asetup, a) = EmitCodeBuilder.scoped(mb) { cb =>
               containerAddr.asIndexable.memoize(cb, "ts_a")
@@ -1348,7 +1348,7 @@ object EmitStream {
               k(SizedStream(Code._empty, eltRegion => newStream, Some(len))))
           }
 
-        case x@MakeStream(elements, _) =>
+        case x@MakeStream(elements, _, _) =>
           val eltType = coerce[PStream](x.pType).elementType
           val stream = (eltRegion: StagedRegion) =>
             sequence(mb, eltType, elements.toFastIndexedSeq.map { ir =>
@@ -1361,7 +1361,7 @@ object EmitStream {
         case x@ReadPartition(context, rowType, reader) =>
           reader.emitStream(context, rowType, emitter, mb, outerRegion, env, container)
 
-        case In(n, PCanonicalStream(eltType, _)) =>
+        case In(n, PCanonicalStream(eltType, _, _)) =>
           val xIter = mb.genFieldThisRef[Iterator[java.lang.Long]]("streamInIterator")
           val hasNext = mb.genFieldThisRef[Boolean]("streamInHasNext")
           val next = mb.genFieldThisRef[Long]("streamInNext")

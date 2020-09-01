@@ -122,7 +122,7 @@ object PType {
       case TCall => PCanonicalCall(required)
       case t: TLocus => PCanonicalLocus(t.rg, required)
       case t: TInterval => PCanonicalInterval(canonical(t.pointType), required)
-      case t: TStream => PCanonicalStream(canonical(t.elementType), required)
+      case t: TStream => PCanonicalStream(canonical(t.elementType), required = required)
       case t: TArray => PCanonicalArray(canonical(t.elementType), required)
       case t: TSet => PCanonicalSet(canonical(t.elementType), required)
       case t: TDict => PCanonicalDict(canonical(t.keyType), canonical(t.valueType), required)
@@ -148,7 +148,7 @@ object PType {
       case t: PCall => PCanonicalCall(t.required)
       case t: PLocus => PCanonicalLocus(t.rg, t.required)
       case t: PInterval => PCanonicalInterval(canonical(t.pointType), t.required)
-      case t: PStream => PCanonicalStream(canonical(t.elementType), t.required)
+      case t: PStream => PCanonicalStream(canonical(t.elementType), required = t.required)
       case t: PArray => PCanonicalArray(canonical(t.elementType), t.required)
       case t: PSet => PCanonicalSet(canonical(t.elementType), t.required)
       case t: PTuple => PCanonicalTuple(t._types.map(pf => PTupleField(pf.index, canonical(pf.typ))), t.required)
@@ -431,7 +431,7 @@ abstract class PType extends Serializable with Requiredness {
       case t: PInterval =>
         PCanonicalInterval(t.pointType.deepInnerRequired(true), required)
       case t: PStream =>
-        PCanonicalStream(t.elementType.deepInnerRequired(true), required)
+        PCanonicalStream(t.elementType.deepInnerRequired(true), required = required)
       case t =>
         t.setRequired(required)
     }
