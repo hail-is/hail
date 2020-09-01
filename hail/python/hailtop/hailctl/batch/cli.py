@@ -101,12 +101,12 @@ def main(args):
     # hailctl batch doesn't create batches
     client = BatchClient(None)
 
-    if args.module == 'billing':
-        from .billing import cli  # pylint: disable=import-outside-toplevel
-        cli.main(args, pass_through_args, client)
-        return
-
     try:
+        if args.module == 'billing':
+            from .billing import cli  # pylint: disable=import-outside-toplevel
+            cli.main(args, pass_through_args, client)
+            return
+
         jmp[args.module].main(args, pass_through_args, client)
     finally:
         client.close()

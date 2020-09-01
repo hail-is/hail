@@ -40,15 +40,13 @@ def main(args, pass_through_args, client):
 
     args, pass_through_args = init_parser().parse_known_args(args=pass_through_args)
 
-    try:
-        if not args or 'module' not in args:
-            init_parser().print_help()
-            sys.exit(0)
-        try:
-            jmp[args.module].main(args, pass_through_args, client)
-        except:
-            sys.stderr.write(f"ERROR: no such module: {args.module!r}")
-            init_parser().print_help()
-            sys.exit(1)
-    finally:
-        client.close()
+    if not args or 'module' not in args:
+        init_parser().print_help()
+        sys.exit(0)
+
+    if args.module not in jmp:
+        sys.stderr.write(f"ERROR: no such module: {args.module!r}")
+        init_parser().print_help()
+        sys.exit(1)
+
+    jmp[args.module].main(args, pass_through_args, client)
