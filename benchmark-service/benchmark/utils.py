@@ -1,12 +1,13 @@
 from google.cloud import storage
 import re
 
+BENCHMARK_BUCKETS = ['hail-benchmarks', 'hail-benchmarks-2']
+
+FILE_PATH_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)(?P<path>.*)')
+
 
 def get_geometric_mean(prod_of_means, num_of_means):
     return prod_of_means ** (1.0 / num_of_means)
-
-
-FILE_PATH_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)(?P<path>.*)')
 
 
 def parse_file_path(regex, name):
@@ -31,6 +32,13 @@ def enumerate_list_of_trials(list_of_trials):
     return res_dict
 
 
+def list_benchmark_files(read_gs):
+    list_of_files = []
+    for bucket in BENCHMARK_BUCKETS:
+        list_of_files.extend(read_gs.list_files(bucket_name=bucket))
+    return list_of_files
+
+
 class ReadGoogleStorage:
     def __init__(self, service_account_key_file=None):
         self.storage_client = storage.Client.from_service_account_json(service_account_key_file)
@@ -47,3 +55,10 @@ class ReadGoogleStorage:
         except Exception:
             raise NameError()
         return data
+
+    def list_files(self, bucket_name):
+        list_of_files = []
+        bucket = self.storage_client.get_bucket(bucket_name)
+        for blob in bucket.list_blobs():
+            list_of_files.append('gs://' + bucket_name + '/' + blob.name)
+        return list_of_files

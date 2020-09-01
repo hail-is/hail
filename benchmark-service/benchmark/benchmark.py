@@ -5,7 +5,8 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
-from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials
+from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials,\
+    list_benchmark_files
 import json
 import re
 import plotly
@@ -23,10 +24,10 @@ log = logging.getLogger('benchmark')
 BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
 
 
-def get_benchmarks(file_path):
-    read_gs = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
+def get_benchmarks(app, file_path):
+    gs_reader = app['gs_reader']
     try:
-        json_data = read_gs.get_data_as_string(file_path)
+        json_data = gs_reader.get_data_as_string(file_path)
         pre_data = json.loads(json_data)
     except Exception:
         message = f'could not find file, {file_path}'
@@ -129,7 +130,7 @@ async def healthcheck(request: web.Request) -> web.Response:  # pylint: disable=
 @web_authenticated_developers_only(redirect=False)
 async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     file_path = request.query.get('file')
-    benchmarks = get_benchmarks(file_path)
+    benchmarks = get_benchmarks(request.app, file_path)
     name_data = benchmarks['data'][str(request.match_info['name'])]
 
     try:
@@ -159,19 +160,22 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 @router.get('')
 @web_authenticated_developers_only(redirect=False)
 async def index(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
     file = request.query.get('file')
     if file is None:
         benchmarks_context = None
     else:
-        benchmarks_context = get_benchmarks(file)
+        benchmarks_context = get_benchmarks(request.app, file)
     context = {'file': file,
-               'benchmarks': benchmarks_context}
+               'benchmarks': benchmarks_context,
+               'benchmark_file_list': list_benchmark_files(app['gs_reader'])}
     return await render_template('benchmark', request, userdata, 'index.html', context)
 
 
 @router.get('/compare')
 @web_authenticated_developers_only(redirect=False)
 async def compare(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
     file1 = request.query.get('file1')
     file2 = request.query.get('file2')
     metric = request.query.get('metrics')
@@ -180,30 +184,33 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
         benchmarks_context2 = None
         comparisons = None
     else:
-        benchmarks_context1 = get_benchmarks(file1)
-        benchmarks_context2 = get_benchmarks(file2)
+        benchmarks_context1 = get_benchmarks(app, file1)
+        benchmarks_context2 = get_benchmarks(app, file2)
         comparisons = final_comparisons(get_comparisons(benchmarks_context1, benchmarks_context2, metric))
     context = {'file1': file1,
                'file2': file2,
                'metric': metric,
                'benchmarks1': benchmarks_context1,
                'benchmarks2': benchmarks_context2,
-               'comparisons': comparisons}
+               'comparisons': comparisons,
+               'benchmark_file_list': list_benchmark_files(app['gs_reader'])}
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
-def init_app() -> web.Application:
+def on_startup(app):
+    app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
+
+
+def run():
     app = web.Application()
     setup_aiohttp_jinja2(app, 'benchmark')
     setup_aiohttp_session(app)
 
     setup_common_static_routes(router)
     app.add_routes(router)
-    return app
-
-
-web.run_app(deploy_config.prefix_application(init_app(), 'benchmark'),
-            host='0.0.0.0',
-            port=5000,
-            access_log_class=AccessLogger,
-            ssl_context=get_in_cluster_server_ssl_context())
+    on_startup(app)
+    web.run_app(deploy_config.prefix_application(app, 'benchmark'),
+                host='0.0.0.0',
+                port=5000,
+                access_log_class=AccessLogger,
+                ssl_context=get_in_cluster_server_ssl_context())
