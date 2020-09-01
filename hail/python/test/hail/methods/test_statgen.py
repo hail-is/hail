@@ -1191,7 +1191,10 @@ class Tests(unittest.TestCase):
 
         k = 3
 
-        eigens, scores_t, loadings_t = hl._blanczos_pca(hl.bind(make_expr, mt.AC / mt.n_called), k=k, q_iterations=7, compute_loadings=True)
+        float_expr = make_expr(mt.AC / mt.n_called)
+
+        eigens, scores_t, loadings_t = hl._blanczos_pca(float_expr, k=k, q_iterations=7, compute_loadings=True)
+        A = np.array(float_expr.collect()).reshape((3, 4)).T
         scores = concatToNumpy(scores_t.scores)
         loadings = concatToNumpy(loadings_t.loadings)
         scores = np.reshape(scores, (len(scores) // k, k))
@@ -1200,6 +1203,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(len(eigens), 3)
         self.assertEqual(scores_t.count(), mt.count_cols())
         self.assertEqual(loadings_t.count(), n_rows)
+        np.testing.assert_almost_equal(A @ loadings, scores)
 
         assert len(scores_t.globals) == 0
         assert len(loadings_t.globals) == 0
@@ -1213,7 +1217,6 @@ class Tests(unittest.TestCase):
         g[1, 0] = 1.0 / 3
         n = normalize(g)
         U, s, V = np.linalg.svd(n, full_matrices=0)
-        np_scores = U.dot(np.diag(s))
         np_loadings = V.transpose()
         np_eigenvalues = np.multiply(s, s)
 
