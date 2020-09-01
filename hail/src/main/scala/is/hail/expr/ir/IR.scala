@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import com.google.api.gax.rpc.InvalidArgumentException
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.Value
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
@@ -519,7 +520,12 @@ object Die {
   def apply(message: String, typ: Type, errorId: Int): Die = Die(Str(message), typ, errorId)
 }
 
-final case class Die(message: IR, _typ: Type, errorId: Int) extends IR
+final case class Die(message: IR, _typ: Type, errorId: Int) extends IR {
+  val stackTrace = Thread.currentThread().getStackTrace().mkString("\n")
+  if (errorId == -1 && message.asInstanceOf[Str].x.contains("axis")) {
+    throw new IllegalArgumentException("Mistake")
+  }
+}
 
 final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR]) extends IR {
   var conversion: (Seq[Type], Seq[IR]) => IR = _

@@ -311,11 +311,11 @@ class SparkBackend(Py4JBackend):
             def criteria(hail_ir):
                 return hail_ir._error_id is not None and hail_ir._error_id == error_id
 
-            error_sources = ir.search(criteria)
+            error_sources = ir.base_search(criteria)
             better_stack_trace = None
             if error_sources:
                 better_stack_trace = error_sources[0]._stack_trace
-
+            import pdb; pdb.set_trace()
             if better_stack_trace:
                 error_message = str(e)
                 message_and_trace = (f'{error_message}\n'

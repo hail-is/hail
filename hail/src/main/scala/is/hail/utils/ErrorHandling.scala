@@ -55,7 +55,19 @@ trait ErrorHandling {
 
     log.error(s"$short\nFrom $logExpanded")
 
-    val error_id = if (e.isInstanceOf[HailException]) e.asInstanceOf[HailException].errorId else -1
+    def searchForErrorCode(exception: Throwable): Int = {
+      if (exception.isInstanceOf[HailException]) {
+        exception.asInstanceOf[HailException].errorId
+      }
+      else if (exception.getCause == null) {
+        -1
+      }
+      else {
+        searchForErrorCode(exception.getCause)
+      }
+    }
+
+    val error_id = searchForErrorCode(e)
 
     (short, expanded, error_id)
   }

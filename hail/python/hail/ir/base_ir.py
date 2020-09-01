@@ -1,5 +1,4 @@
 import abc
-import uuid
 
 from hail.utils.java import Env
 from .renderer import Renderer, PlainRenderer, Renderable
@@ -31,6 +30,8 @@ class BaseIR(Renderable):
         super().__init__()
         self._type = None
         self.children = children
+        self._error_id = None
+        self._stack_trace = None
 
     def __str__(self):
         r = PlainRenderer(stop_at_jir=False)
@@ -188,6 +189,42 @@ class BaseIR(Renderable):
     def free_scan_vars(self):
         return set()
 
+    def base_search(self, criteria):
+        others = [node for child in self.children if isinstance(child, BaseIR) for node in child.base_search(criteria)]
+        if criteria(self):
+            return others + [self]
+        return others
+
+    def save_error_info(self):
+        self._error_id = get_next_int()
+
+        import traceback
+        stack = traceback.format_stack()
+        i = len(stack)
+        while i > 0:
+            candidate = stack[i - 1]
+            if 'IPython' in candidate:
+                break
+            i -= 1
+        filt_stack = []
+
+        forbidden_phrases = [
+            '_ir_lambda_method',
+            'decorator.py',
+            'typecheck/check',
+            'interactiveshell.py',
+            'expressions.construct_variable',
+            'traceback.format_stack()'
+        ]
+        while i < len(stack):
+            candidate = stack[i]
+            i += 1
+            if any(phrase in candidate for phrase in forbidden_phrases):
+                continue
+            filt_stack.append(candidate)
+
+        self._stack_trace = '\n'.join(filt_stack)
+
 
 class IR(BaseIR):
     def __init__(self, *children):
@@ -196,8 +233,6 @@ class IR(BaseIR):
         self._free_vars = None
         self._free_agg_vars = None
         self._free_scan_vars = None
-        self._error_id = None
-        self._stack_trace = None
 
     @property
     def aggregations(self):
@@ -290,36 +325,6 @@ class IR(BaseIR):
                 var for i in range(len(self.children))
                 for var in vars_from_child(i)}
         return self._free_scan_vars
-
-    def save_error_info(self):
-        self._error_id = get_next_int()
-
-        import traceback
-        stack = traceback.format_stack()
-        i = len(stack)
-        while i > 0:
-            candidate = stack[i - 1]
-            if 'IPython' in candidate:
-                break
-            i -= 1
-        filt_stack = []
-
-        forbidden_phrases = [
-            '_ir_lambda_method',
-            'decorator.py',
-            'typecheck/check',
-            'interactiveshell.py',
-            'expressions.construct_variable',
-            'traceback.format_stack()'
-        ]
-        while i < len(stack):
-            candidate = stack[i]
-            i += 1
-            if any(phrase in candidate for phrase in forbidden_phrases):
-                continue
-            filt_stack.append(candidate)
-
-        self._stack_trace = '\n'.join(filt_stack)
 
 
 class TableIR(BaseIR):
