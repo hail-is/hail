@@ -1278,7 +1278,7 @@ async def _query_billing_projects(db, user=None, billing_project=None):
         where_condition = ''
 
     sql = f'''
-SELECT billing_projects.name as billing_project, users, msec_mcpu, `limit`, SUM(`usage` * rate) as cost
+SELECT billing_projects.name as billing_project, users
 FROM (
   SELECT billing_project, JSON_ARRAYAGG(`user`) as users
   FROM billing_project_users
@@ -1286,21 +1286,10 @@ FROM (
 ) AS t
 RIGHT JOIN billing_projects
   ON t.billing_project = billing_projects.name
-LEFT JOIN aggregated_billing_project_resources
-  ON aggregated_billing_project_resources.billing_project = billing_projects.name
-LEFT JOIN resources
-  ON resources.resource = aggregated_billing_project_resources.resource
-{where_condition}
-GROUP BY billing_projects.name, users, msec_mcpu, `limit`;
+{where_condition};
 '''
 
     def record_to_dict(record):
-        cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
-        cost_resources = record['cost']
-        record['accrued_cost'] = coalesce(cost_msec_mcpu, 0) + coalesce(cost_resources, 0)
-        del record['msec_mcpu']
-        del record['cost']
-
         if record['users'] is None:
             record['users'] = []
         else:
