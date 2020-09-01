@@ -32,7 +32,10 @@ def _read(spath: str):
         with open(spath, "r") as f:
             return f.read()
 
-    credentials = Credentials.from_authorized_user_file(os.environ['HAIL_GSA_KEY_FILE'])
+    credentials = None
+    key_file = os.environ.get('HAIL_GSA_KEY_FILE')
+    if key_file is not None and key_file != '':
+        credentials = Credentials.from_authorized_user_file(key_file)
     client = storage.Client(credentials=credentials)
     blob = Blob.from_string(spath, client)
     return blob.download_as_string().decode("utf-8")
