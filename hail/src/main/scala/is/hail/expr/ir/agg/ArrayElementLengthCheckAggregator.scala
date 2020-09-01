@@ -192,10 +192,10 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
     val len = seq.head
     len.toI(cb).consume(cb, { /* do nothing */ }, { len =>
       if (!knownLength) {
-        val v = cb.newLocal("aelca_seqop_len", len.tcode[Int])
+        val v = cb.newLocal("aelca_seqop_len", len.asInt.intValue(cb))
         cb.ifx(state.lenRef < 0, state.initLength(cb, v), cb += state.checkLength(v))
       } else {
-        cb += state.checkLength(len.tcode[Int])
+        cb += state.checkLength(len.asInt.intValue(cb))
       }
     })
   }

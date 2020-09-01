@@ -4,6 +4,7 @@ import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s.{Code, Settable, SettableBuilder, Value, coerce, const}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.types.BaseStruct
+import is.hail.types.physical.stypes.{SStruct, SSubsetStruct, SType}
 import is.hail.types.virtual.TStruct
 import is.hail.utils._
 
@@ -118,75 +119,26 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   override def setRequired(required: Boolean): PType =
     PSubsetStruct(ps.setRequired(required).asInstanceOf[PStruct], _fieldNames)
 
-  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
-    val srcPSubsetStruct = srcPType.asInstanceOf[PSubsetStruct]
-    ps.copyFromType(mb, region, srcPSubsetStruct.ps, srcAddress, deepCopy)
+  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] =
+    throw new UnsupportedOperationException
+
+  override def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
+    throw new UnsupportedOperationException
+
+  override def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
+    throw new UnsupportedOperationException
+
+  def sType: SSubsetStruct = SSubsetStruct(ps.sType.asInstanceOf[SStruct], _fieldNames)
+
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = throw new UnsupportedOperationException
+
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = {
+    throw new UnsupportedOperationException
   }
 
-  override def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
-    val srcPSubsetStruct = srcPType.asInstanceOf[PSubsetStruct]
-    ps.copyFromAddress(region, srcPSubsetStruct.ps, srcAddress, deepCopy)
+  def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): PCode = throw new UnsupportedOperationException
+
+  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+    throw new UnsupportedOperationException
   }
-
-  override def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
-    val srcPSubsetStruct = srcPType.asInstanceOf[PSubsetStruct]
-    ps.copyFromAddress(region, srcPSubsetStruct.ps, srcAddress, deepCopy)
-  }
-
-  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
-    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
-
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
-    val srcPSubsetStruct = srcPType.asInstanceOf[PSubsetStruct]
-    Region.storeAddress(addr, ps.copyFromType(mb, region, srcPSubsetStruct.ps, srcAddress, deepCopy))
-  }
-
-  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
-    val srcPSubsetStruct = srcPType.asInstanceOf[PSubsetStruct]
-    Region.storeAddress(addr, ps.copyFromAddress(region, srcPSubsetStruct.ps, srcAddress, deepCopy))
-  }
-}
-
-object PSubsetStructSettable {
-  def apply(cb: EmitCodeBuilder, pt: PSubsetStruct, name: String, sb: SettableBuilder): PSubsetStructSettable = {
-    new PSubsetStructSettable(pt, sb.newSettable(name))
-  }
-}
-
-class PSubsetStructSettable(val pt: PSubsetStruct, a: Settable[Long]) extends PBaseStructValue with PSettable {
-  def get: PSubsetStructCode = new PSubsetStructCode(pt, a)
-
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
-
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
-    IEmitCode(cb,
-      pt.isFieldMissing(a, fieldIdx),
-      pt.fields(fieldIdx).typ.load(pt.fieldOffset(a, fieldIdx)))
-  }
-
-  def isFieldMissing(fieldIdx: Int): Code[Boolean] =
-    pt.isFieldMissing(a, fieldIdx)
-
-  def store(pv: PCode): Code[Unit] = {
-    a := pv.asInstanceOf[PSubsetStructCode].a
-  }
-}
-
-class PSubsetStructCode(val pt: PSubsetStruct, val a: Code[Long]) extends PBaseStructCode {
-  def code: Code[_] = a
-
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PBaseStructValue = {
-    val s = PSubsetStructSettable(cb, pt, name, sb)
-    cb.assign(s, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue = memoize(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue = memoize(cb, name, cb.fieldBuilder)
-
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] =
-    pt.ps.constructAtAddress(mb, dst, r, pt.ps, a, deepCopy = false)
 }

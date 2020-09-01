@@ -5,7 +5,7 @@ import is.hail.expr.ir.{EmitCodeBuilder}
 import is.hail.types.virtual.TLocus
 import is.hail.variant._
 
-abstract class PLocus extends ComplexPType {
+abstract class PLocus extends PType {
   def rgBc: BroadcastRG
 
   lazy val virtualType: TLocus = TLocus(rgBc)
@@ -18,26 +18,28 @@ abstract class PLocus extends ComplexPType {
 
   def position(value: Code[Long]): Code[Int]
 
+  def position(value: Long): Int
+
   def positionType: PInt32
 }
 
 abstract class PLocusValue extends PValue {
-  def contig(): PStringCode
+  def contig(cb: EmitCodeBuilder): PStringCode
 
-  def position(): Value[Int]
+  def position(cb: EmitCodeBuilder): Code[Int]
 
-  def getLocusObj(): Code[Locus] = Code.invokeStatic2[Locus, String, Int, Locus]("apply",
-    contig().loadString(), position())
+  def getLocusObj(cb: EmitCodeBuilder): Code[Locus] = Code.invokeStatic2[Locus, String, Int, Locus]("apply",
+    contig(cb).loadString(), position(cb))
 }
 
 abstract class PLocusCode extends PCode {
   def pt: PLocus
 
-  def contig(): PStringCode
+  def contig(cb: EmitCodeBuilder): PStringCode
 
-  def position(): Code[Int]
+  def position(cb: EmitCodeBuilder): Code[Int]
 
-  def getLocusObj(): Code[Locus]
+  def getLocusObj(cb: EmitCodeBuilder): Code[Locus]
 
   def memoize(cb: EmitCodeBuilder, name: String): PLocusValue
 

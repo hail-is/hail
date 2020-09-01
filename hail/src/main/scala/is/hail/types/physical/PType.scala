@@ -6,8 +6,9 @@ import is.hail.asm4s._
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir
 import is.hail.expr.ir._
+import is.hail.types.physical.stypes.SType
 import is.hail.types.virtual._
-import is.hail.types.{coerce, Requiredness}
+import is.hail.types.{Requiredness, coerce}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
@@ -31,7 +32,7 @@ object PType {
 
   val genRequiredScalar: Gen[PType] = genScalar(true)
 
-  def genComplexType(required: Boolean): Gen[ComplexPType] = {
+  def genComplexType(required: Boolean): Gen[PType] = {
     val rgDependents = ReferenceGenome.references.values.toArray.map(rg =>
       PCanonicalLocus(rg, required))
     val others = Array(PCanonicalCall(required))
@@ -311,6 +312,8 @@ abstract class PType extends Serializable with Requiredness {
 
   def virtualType: Type
 
+  def sType: SType
+
   override def toString: String = {
     val sb = new StringBuilder
     pretty(sb, 0, true)
@@ -437,14 +440,9 @@ abstract class PType extends Serializable with Requiredness {
     }
 
   // Semantics: must be callable without requiredeness check: srcAddress must point to non-null value
-  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long]
+  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long]
 
-  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_]
-
-  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_]): Code[_] =
-    this.copyFromTypeAndStackValue(mb, region, srcPType, stackValue, false)
-
-  protected def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long
+  protected[physical] def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long
 
   def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     // no requirement for requiredness
@@ -454,17 +452,20 @@ abstract class PType extends Serializable with Requiredness {
     _copyFromAddress(region, srcPType, srcAddress, deepCopy)
   }
 
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit]
-  def constructAtAddressFromValue(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], deepCopy: Boolean): Code[Unit]
-    = constructAtAddress(mb, addr, region, srcPType, asm4s.coerce[Long](src), deepCopy)
+  // return a PCode that can cheaply operate on the region representation. Generally a pointer type, but not necessarily (e.g. primitives).
+  def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): PCode
 
-  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit
+  // stores a stack value as a region value of this type
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long]
+
+  // stores a stack value inside pre-allocated memory of this type (in a nested structure, for instance).
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit
+
+  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit
 
   def deepRename(t: Type): PType = this
 
   def defaultValue: PCode = PCode(this, is.hail.types.physical.defaultValue(this))
-
-  def load(src: Code[Long]): PCode = PCode(this, Region.loadIRIntermediate(this)(src))
 
   def ti: TypeInfo[_] = typeToTypeInfo(this)
 

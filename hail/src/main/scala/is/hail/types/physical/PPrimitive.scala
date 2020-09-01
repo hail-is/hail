@@ -1,8 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations.Region
-import is.hail.asm4s._
-import is.hail.asm4s.{Code, MethodBuilder}
+import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.utils._
 
@@ -21,43 +20,41 @@ trait PPrimitive extends PType {
 
     // FIXME push down
     val addr = region.allocate(byteSize, byteSize)
-    constructAtAddress(addr, region, srcPType, srcAddress, deepCopy)
+    unstagedStoreAtAddress(addr, region, srcPType, srcAddress, deepCopy)
     addr
   }
 
-  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
+
+  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+    assert(srcPType.isOfType(this))
+    Region.copyFrom(srcAddress, addr, byteSize)
+  }
+
+  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
     assert(this.isOfType(srcPType))
     if (deepCopy) {
-      val addr = mb.newLocal[Long]()
-      Code(
-        addr := region.allocate(byteSize, byteSize),
-        constructAtAddress(mb, addr, region, srcPType, srcAddress, deepCopy),
-        addr
-      )
+      val addr = cb.newLocal[Long]("primitive_copyfromtype_addr", region.allocate(alignment, byteSize))
+      storeAtAddress(cb, addr, region, srcPType.getPointerTo(cb, srcAddress), deepCopy)
+      addr.load()
     } else srcAddress
   }
 
-  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] = {
-    assert(this.isOfType(srcPType))
-    stackValue
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
+    val newAddr = cb.newLocal[Long]("pprimitive_store_addr", region.allocate(alignment, byteSize))
+    storeAtAddress(cb, newAddr, region, value, deepCopy)
+    newAddr
   }
 
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
-    assert(srcPType.isOfType(this))
-    Region.copyFrom(srcAddress, addr, byteSize)
+
+  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = {
+    storePrimitiveAtAddress(cb, addr, value)
   }
 
-  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
-    assert(srcPType.isOfType(this))
-    Region.copyFrom(srcAddress, addr, byteSize)
-  }
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: PCode): Unit
 
-  override def constructAtAddressFromValue(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], deepCopy: Boolean): Code[Unit] = {
-    assert(this.isOfType(srcPType))
-    storePrimitiveAtAddress(addr, srcPType, src)
+  override def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): PCode = {
+    sType.loadFrom(cb, null, this, addr)
   }
-
-  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_]): Code[Unit]
 
   def setRequired(required: Boolean): PPrimitive = {
     if (required == this.required)
@@ -70,22 +67,5 @@ trait PPrimitive extends PType {
         case _: PFloat32 => PFloat32(required)
         case _: PFloat64 => PFloat64(required)
       }
-  }
-}
-
-class PPrimitiveCode(val pt: PType, val code: Code[_]) extends PCode {
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
-
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], a: Code[Long]): Code[Unit] =
-    Region.storeIRIntermediate(pt)(a, code)
-
-  def memoize(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeImpl(cb, name)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeFieldImpl(cb, name)
-
-  def primCode[T](implicit ti: TypeInfo[T]): Code[T] = {
-    val IndexedSeq(typeInfo) = pt.codeTupleTypes()
-    assert(ti == typeInfo)
-    code.asInstanceOf[Code[T]]
   }
 }

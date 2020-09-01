@@ -73,13 +73,13 @@ object IntervalFunctions extends RegistryFunctions {
     registerPCode1("includesStart", TInterval(tv("T")), TBoolean, (_: Type, x: PType) =>
       PBoolean(x.required)
     ) {
-      case (r, rt, interval: PIntervalCode) => PCode(rt, interval.includesStart())
+      case (r, cb, rt, interval: PIntervalCode) => PCode(rt, interval.includesStart())
     }
 
     registerPCode1("includesEnd", TInterval(tv("T")), TBoolean, (_: Type, x: PType) =>
       PBoolean(x.required)
     ) {
-      case (r, rt, interval: PIntervalCode) => PCode(rt, interval.includesEnd())
+      case (r, cb, rt, interval: PIntervalCode) => PCode(rt, interval.includesEnd())
     }
 
     registerIEmitCode2("contains", TInterval(tv("T")), tv("T"), TBoolean, {

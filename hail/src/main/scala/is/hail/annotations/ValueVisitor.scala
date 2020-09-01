@@ -1,6 +1,8 @@
 package is.hail.annotations
 
 import is.hail.types.physical._
+import is.hail.utils.Interval
+import is.hail.variant.{Call, Locus}
 
 trait ValueVisitor {
   def visitMissing(t: PType): Unit
@@ -18,6 +20,12 @@ trait ValueVisitor {
   def visitString(s: String): Unit
 
   def visitBinary(b: Array[Byte]): Unit
+
+  def visitLocus(l: Locus); Unit
+
+  def visitCall(c: Call): Unit
+
+  def visitInterval(t: PInterval, i: Interval): Unit
 
   def enterStruct(t: PStruct): Unit
 
@@ -127,4 +135,17 @@ final class PrettyVisitor extends ValueVisitor {
   }
 
   def leaveElement() {}
+
+  def visitLocus(l: Locus): Unit = {
+    sb.append(l.toString)
+  }
+
+  def visitCall(c: Call): Unit = {
+    sb.append(Call.toString(c))
+  }
+
+  def visitInterval(t: PInterval, i: Interval): Unit = {
+    sb.append(t.virtualType.str(i))
+  }
+
 }

@@ -18,13 +18,10 @@ trait PUnrealizable extends PType {
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering =
     unsupported
 
-  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] =
+  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] =
     unsupported
 
-  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
-    unsupported
-
-  protected def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
+  protected[physical] def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
     unsupported
 
   override def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
@@ -33,10 +30,14 @@ trait PUnrealizable extends PType {
   def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =
     unsupported
 
-  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
+  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     unsupported
 
-  def stackValueToAnnotation(c: Code[_]): Code[AnyRef] = unsupported
+  override def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): PCode = unsupported
+
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = unsupported
+
+  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = unsupported
 
   override def encodableType: PType = unsupported
 
@@ -57,16 +58,5 @@ trait PUnrealizableCode extends PCode {
 
   override def tcode[T](implicit ti: TypeInfo[T]): Code[T] = unsupported
 
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] =
-    unsupported
-
-  override def allocateAndStore(mb: EmitMethodBuilder[_], r: Value[Region]): (Code[Unit], Code[Long]) =
-    unsupported
-
   def memoizeField(cb: EmitCodeBuilder, name: String): PValue = unsupported
-
-  override def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destPtype: PType, deepCopy: Boolean = false): PCode = {
-    assert(destPtype == pt)
-    this
-  }
 }

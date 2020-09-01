@@ -2,7 +2,8 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering}
 import is.hail.asm4s.{Code, MethodBuilder, Value}
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.types.physical.stypes.{SContainer, SIndexablePointer, SIndexablePointerCode, SIndexablePointerSettable}
 
 trait PArrayBackedContainer extends PContainer {
   val arrayRep: PArray
@@ -125,23 +126,14 @@ trait PArrayBackedContainer extends PContainer {
   def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean] =
     arrayRep.hasMissingValues(sourceOffset)
 
-  def copyFrom(region: Region, srcOff: Long): Long =
-    arrayRep.copyFrom(region, srcOff)
-
-  def copyFrom(mb: EmitMethodBuilder[_], region: Code[Region], srcOff: Code[Long]): Code[Long] =
-    arrayRep.copyFrom(mb, region, srcOff)
-
   override def unsafeOrdering: UnsafeOrdering =
     unsafeOrdering(this)
 
   override def unsafeOrdering(rightType: PType): UnsafeOrdering =
     arrayRep.unsafeOrdering(rightType)
 
-  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] =
-    this.arrayRep.copyFromType(mb, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
-
-  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
-    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
+  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] =
+    this.arrayRep.copyFromType(cb, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
 
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
     arrayRep.copyFromAddress(region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
@@ -152,9 +144,15 @@ trait PArrayBackedContainer extends PContainer {
   def nextElementAddress(currentOffset: Code[Long]): Code[Long] =
     arrayRep.nextElementAddress(currentOffset)
 
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =
-    arrayRep.constructAtAddress(mb, addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
+  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
+    arrayRep.unstagedStoreAtAddress(addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
 
-  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
-    arrayRep.constructAtAddress(addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
+  def sType: SContainer = SIndexablePointer(this)
+
+  def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): PCode = SIndexablePointer(this).loadFrom(cb, null, this, addr)
+
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = arrayRep.store(cb, region, value, deepCopy)
+
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit =
+    arrayRep.storeAtAddress(cb, addr, region, value, deepCopy)
 }

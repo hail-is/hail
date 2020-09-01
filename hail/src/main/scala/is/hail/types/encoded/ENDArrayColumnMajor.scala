@@ -26,11 +26,11 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     val ndarray = PCode(pt, v).asNDArray.memoize(cb, "ndarray")
     val writeElemF = elementType.buildEncoder(ndarray.pt.elementType, cb.emb.ecb)
 
-    val shapes = ndarray.shapes()
+    val shapes = ndarray.shapes(cb)
     shapes.foreach(s => cb += out.writeLong(s))
 
     val idxVars = Array.tabulate(ndarray.pt.nDims)(i => cb.newLocal[Long](s"idx_$i"))
-    cb += idxVars.zipWithIndex.foldLeft(writeElemF(ndarray(idxVars, cb.emb), out))
+    cb += idxVars.zipWithIndex.foldLeft(writeElemF(ndarray.loadElement(idxVars, cb).code, out))
     { case (innerLoops, (dimVar, dimIdx)) =>
       Code(
         dimVar := 0L,

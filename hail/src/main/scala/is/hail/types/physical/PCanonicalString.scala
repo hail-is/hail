@@ -3,9 +3,11 @@ package is.hail.types.physical
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, MethodBuilder, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.types.physical.stypes.{SBaseStructPointer, SBaseStructPointerCode, SString, SStringPointer, SStringPointerCode, SStruct}
 import is.hail.utils.FastIndexedSeq
 
 case object PCanonicalStringOptional extends PCanonicalString(false)
+
 case object PCanonicalStringRequired extends PCanonicalString(true)
 
 class PCanonicalString(val required: Boolean) extends PString {
@@ -16,16 +18,13 @@ class PCanonicalString(val required: Boolean) extends PString {
   override def byteSize: Long = 8
 
   lazy val binaryFundamentalType: PCanonicalBinary = PCanonicalBinary(required)
-  override lazy val binaryEncodableType: PCanonicalBinary =  PCanonicalBinary(required)
+  override lazy val binaryEncodableType: PCanonicalBinary = PCanonicalBinary(required)
 
-  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
-    this.fundamentalType.copyFromType(
-      mb, region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, deepCopy
+  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
+    binaryFundamentalType.copyFromType(
+      cb, region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, deepCopy
     )
   }
-
-  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
-    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
     fundamentalType.copyFromAddress(region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, deepCopy)
@@ -61,35 +60,31 @@ class PCanonicalString(val required: Boolean) extends PString {
       dstAddress)
   }
 
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =
-    fundamentalType.constructAtAddress(mb, addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
-
-  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
-    fundamentalType.constructAtAddress(addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
+  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
+    fundamentalType.unstagedStoreAtAddress(addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
 
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalString(required)
+
+  def sType: SString = SStringPointer(this)
+
+  def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): PCode = sType.loadFrom(cb, null, this, addr)
+
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
+    value.st match {
+      case SStringPointer(t) if t.equalModuloRequired(this) && !deepCopy =>
+        value.asInstanceOf[SStringPointerCode].a
+      case _ =>
+        binaryFundamentalType.store(cb, region, value.asString.asBytes(), deepCopy)
+    }
+  }
+
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = {
+    cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
+  }
 }
 
 object PCanonicalString {
   def apply(required: Boolean = false): PCanonicalString = if (required) PCanonicalStringRequired else PCanonicalStringOptional
 
   def unapply(t: PString): Option[Boolean] = Option(t.required)
-}
-
-class PCanonicalStringCode(val pt: PCanonicalString, a: Code[Long]) extends PStringCode {
-  def code: Code[_] = a
-
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
-
-  def loadLength(): Code[Int] = pt.loadLength(a)
-
-  def loadString(): Code[String] = pt.loadString(a)
-
-  def asBytes(): PBinaryCode = new PCanonicalBinaryCode(pt.binaryFundamentalType, a)
-
-  def memoize(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeImpl(cb, name)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeFieldImpl(cb, name)
-
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
 }

@@ -28,7 +28,4 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
 
   private def deepRenameDict(t: TDict) =
     PCanonicalDict(this.keyType.deepRename(t.keyType), this.valueType.deepRename(t.valueType), this.required)
-
-  override def load(src: Code[Long]): PCode =
-    new PCanonicalIndexableCode(this, Region.loadAddress(src))
 }

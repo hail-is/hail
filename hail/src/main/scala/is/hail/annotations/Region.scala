@@ -355,7 +355,13 @@ object Region {
           i += 1
         }
         v.leaveTuple()
-      case t: ComplexPType =>
+      case t: PCanonicalInterval =>
+        visit(t.representation, off, v)
+      case t: PCanonicalLocus =>
+        visit(t.representation, off, v)
+      case t: PCanonicalCall =>
+        visit(t.representation, off, v)
+      case t: PCanonicalNDArray =>
         visit(t.representation, off, v)
     }
   }

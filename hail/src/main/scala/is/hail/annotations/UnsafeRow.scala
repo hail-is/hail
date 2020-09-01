@@ -77,10 +77,9 @@ object UnsafeRow {
     new String(readBinary(boff, t.fundamentalType))
 
   def readLocus(offset: Long, t: PLocus): Locus = {
-    val ft = t.representation.asInstanceOf[PStruct]
     Locus(
-      readString(ft.loadField(offset, 0), t.contigType),
-      Region.loadInt(ft.loadField(offset, 1)))
+      t.contig(offset),
+      t.position(offset))
   }
 
   def readAnyRef(t: PType, region: Region, offset: Long): AnyRef = read(t, region, offset).asInstanceOf[AnyRef]

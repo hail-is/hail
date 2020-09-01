@@ -98,7 +98,7 @@ object StringFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerPCode1("length", TString, TInt32, (_: Type, _: PType) => PInt32()) { case (r: EmitRegion, rt, s: PStringCode) =>
+    registerPCode1("length", TString, TInt32, (_: Type, _: PType) => PInt32()) { case (r: EmitRegion, cb, rt, s: PStringCode) =>
       PCode(rt, s.loadString().invoke[Int]("length"))
     }
 
@@ -276,7 +276,7 @@ object StringFunctions extends RegistryFunctions {
     })(thisClass, "strptime")
 
     registerPCode("parse_json", Array(TString), TTuple(tv("T")),
-      (rType: Type, _: Seq[PType]) => PType.canonical(rType, true), typeParameters = Array(tv("T"))) { case (er, resultType, Array(s: PStringCode)) =>
+      (rType: Type, _: Seq[PType]) => PType.canonical(rType, true), typeParameters = Array(tv("T"))) { case (er, cb, resultType, Array(s: PStringCode)) =>
 
       PCode(resultType, StringFunctions.unwrapReturn(er, resultType)(
         Code.invokeScalaObject2[String, Type, Row](JSONAnnotationImpex.getClass, "irImportAnnotation",

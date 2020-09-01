@@ -7,7 +7,7 @@ import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, EmitCode}
 import is.hail.types.virtual.TInterval
 import is.hail.utils._
 
-abstract class PInterval extends ComplexPType {
+abstract class PInterval extends PType {
   val pointType: PType
 
   lazy val virtualType: TInterval = TInterval(pointType.virtualType)
@@ -113,8 +113,12 @@ abstract class PIntervalValue extends PValue {
 
   def loadStart(cb: EmitCodeBuilder): IEmitCode
 
+  def startDefined(cb: EmitCodeBuilder): Code[Boolean]
+
   def loadEnd(cb: EmitCodeBuilder): IEmitCode
 
+  def endDefined(cb: EmitCodeBuilder): Code[Boolean]
+  
   // FIXME orderings should take emitcodes/iemitcodes
   def isEmpty(cb: EmitCodeBuilder): Code[Boolean] = {
     val gt = cb.emb.getCodeOrdering(pt.pointType, CodeOrdering.Gt())

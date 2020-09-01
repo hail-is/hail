@@ -4,7 +4,7 @@ import is.hail.asm4s._
 import is.hail.types.virtual._
 import is.hail.expr.ir._
 
-abstract class PShuffle extends ComplexPType {
+abstract class PShuffle extends PType {
   def tShuffle: TShuffle
 
   def virtualType: TShuffle = tShuffle

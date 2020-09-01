@@ -8,6 +8,7 @@ import is.hail.types.encoded.EType
 import is.hail.types.physical._
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.io.OutputBuffer
+import is.hail.types.physical.stypes.{SBaseStructPointer, SBaseStructPointerSettable}
 
 object InternalNodeBuilder {
   def virtualType(keyType: Type, annotationType: Type): TStruct = typ(PType.canonical(keyType), PType.canonical(annotationType)).virtualType
@@ -43,7 +44,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
     InternalNodeBuilder.arrayType(keyType, annotationType))
 
   val pType: PCanonicalStruct = InternalNodeBuilder.typ(keyType, annotationType)
-  private val node = new PCanonicalBaseStructSettable(pType, sb.newSettable[Long]("internal_node_node"))
+  private val node = new SBaseStructPointerSettable(SBaseStructPointer(pType), sb.newSettable[Long]("internal_node_node"))
 
   def loadFrom(cb: EmitCodeBuilder, ib: StagedIndexWriterUtils, idx: Value[Int]): Unit = {
     cb.assign(region, ib.getRegion(idx))
@@ -61,7 +62,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   }
 
   def allocate(cb: EmitCodeBuilder): Unit = {
-    cb += node.store(PCode(pType, pType.allocate(region)))
+    node.store(cb, PCode(pType, pType.allocate(region)))
     ab.create(cb, pType.fieldOffset(node.a, "children"))
   }
 

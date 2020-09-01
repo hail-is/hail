@@ -5,6 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.types.virtual.{TStream, Type}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, Stream}
+import is.hail.types.physical.stypes.{SStream, SStreamCode, SType}
 
 final case class PCanonicalStream(elementType: PType, separateRegions: Boolean = false, required: Boolean = false) extends PStream {
   override val fundamentalType: PStream = {
@@ -22,8 +23,8 @@ final case class PCanonicalStream(elementType: PType, separateRegions: Boolean =
     sb.append("]")
   }
 
-  override def defaultValue: PCanonicalStreamCode =
-    PCanonicalStreamCode(this, SizedStream(Code._empty, _ => Stream.empty(EmitCode.missing(elementType)), Some(0)))
+  override def defaultValue: SStreamCode =
+    SStreamCode(SStream(elementType.sType, separateRegions), SizedStream(Code._empty, _ => Stream.empty(EmitCode.missing(elementType)), Some(0)))
 
   override def deepRename(t: Type) = deepRenameStream(t.asInstanceOf[TStream])
 
@@ -31,16 +32,6 @@ final case class PCanonicalStream(elementType: PType, separateRegions: Boolean =
     copy(elementType = elementType.deepRename(t.elementType))
 
   def setRequired(required: Boolean): PCanonicalStream = if(required == this.required) this else this.copy(required = required)
-}
 
-final case class PCanonicalStreamCode(pt: PCanonicalStream, stream: SizedStream) extends PStreamCode { self =>
-  def memoize(cb: EmitCodeBuilder, name: String): PValue = new PValue {
-    val pt = self.pt
-    var used: Boolean = false
-    def get: PCode = {
-      assert(!used)
-      used = true
-      self
-    }
-  }
+  override def sType: SStream = SStream(elementType.sType)
 }

@@ -3,6 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations.{Region, StagedRegionValueBuilder, UnsafeOrdering}
 import is.hail.asm4s.{Code, MethodBuilder, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.types.physical.stypes.{SCall, SCanonicalCall, SCanonicalCallCode, SNDArrayPointer, SNDArrayPointerCode}
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -24,14 +25,14 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     off => representation.loadField(off, "shape")
   )
 
-  def loadShape(off: Code[Long], idx: Int): Code[Long] =
-    shape.pType.types(idx).load(shape.pType.fieldOffset(shape.load(off), idx)).tcode[Long]
+  def loadShape(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long] =
+    shape.pType.types(idx).getPointerTo(cb, shape.pType.fieldOffset(shape.load(off), idx)).asInt64.longValue(cb)
 
-  def loadStride(off: Code[Long], idx: Int): Code[Long] =
-    strides.pType.types(idx).load(strides.pType.fieldOffset(strides.load(off), idx)).tcode[Long]
+  def loadStride(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long] =
+    strides.pType.types(idx).getPointerTo(cb, strides.pType.fieldOffset(strides.load(off), idx)).asInt64.longValue(cb)
 
   @transient lazy val strides = new StaticallyKnownField(
-    PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*): PTuple,
+    PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required): _*): PTuple,
     (off) => representation.loadField(off, "strides")
   )
 
@@ -134,7 +135,18 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     Region.storeIRIntermediate(this.elementType)(getElementAddress(indices, ndAddress, mb), newElement)
   }
 
+  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): Code[Long] = {
+    val off = getElementAddress(indices, ndAddress, cb.emb)
+    data.pType.elementType.fundamentalType match {
+      case _: PArray | _: PBinary =>
+        Region.loadAddress(off)
+      case _ =>
+        off
+    }
+  }
+
   def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_] = {
+
     Region.loadIRIntermediate(data.pType.elementType)(getElementAddress(indices, ndAddress, mb))
   }
 
@@ -194,17 +206,13 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
-    val sourceNDPType = srcPType.asInstanceOf[PNDArray]
+  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
+    val sourceNDPType = srcPType.asInstanceOf[PCanonicalNDArray]
 
     assert(this.elementType == sourceNDPType.elementType && this.nDims == sourceNDPType.nDims)
 
-    this.representation.copyFromType(mb, region, sourceNDPType.representation, srcAddress, deepCopy)
+    this.representation.copyFromType(cb, region, sourceNDPType.representation, srcAddress, deepCopy)
   }
-
-  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
-    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
-
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
     val sourceNDPType = srcPType.asInstanceOf[PNDArray]
     assert(elementType == sourceNDPType.elementType && nDims == sourceNDPType.nDims)
@@ -218,93 +226,25 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalNDArray(elementType, nDims, required)
 
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =
-    this.fundamentalType.constructAtAddress(mb, addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
+  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
+    this.fundamentalType.unstagedStoreAtAddress(addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
 
-  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
-    this.fundamentalType.constructAtAddress(addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
-}
+  def sType: SNDArrayPointer = SNDArrayPointer(this)
 
-object PCanonicalNDArraySettable {
-  def apply(cb: EmitCodeBuilder, pt: PCanonicalNDArray, name: String, sb: SettableBuilder): PCanonicalNDArraySettable = {
-    new PCanonicalNDArraySettable(pt, sb.newSettable(name))
-  }
-}
+  def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): PCode = sType.loadFrom(cb, null, this, addr)
 
-class PCanonicalNDArraySettable(override val pt: PCanonicalNDArray, val a: Settable[Long]) extends PNDArrayValue with PSettable {
-  //FIXME: Rewrite apply to not require a methodBuilder, meaning also rewrite loadElementToIRIntermediate
-  def apply(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Value[_] = {
-    assert(indices.size == pt.nDims)
-    new Value[Any] {
-      override def get: Code[Any] = pt.loadElementToIRIntermediate(indices, a, mb)
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
+    value.st match {
+      case SNDArrayPointer(t) if t.equalModuloRequired(this) =>
+          representation.store(cb, region, representation.getPointerTo(cb, value.asInstanceOf[SNDArrayPointerCode].a), deepCopy)
     }
   }
 
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
-
-  override def get: PCode = new PCanonicalNDArrayCode(pt, a)
-
-  override def store(pv: PCode): Code[Unit] = a := pv.asInstanceOf[PCanonicalNDArrayCode].a
-
-  override def outOfBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Boolean] = {
-    val shape = this.shapes()
-    val outOfBounds = mb.genFieldThisRef[Boolean]()
-    Code(
-      outOfBounds := false,
-      Code.foreach(0 until pt.nDims) { dimIndex =>
-        outOfBounds := outOfBounds || (indices(dimIndex) >= shape(dimIndex))
-      },
-      outOfBounds
-    )
-  }
-
-  override def assertInBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_], errorId: Int): Code[Unit] = {
-    val shape = this.shapes()
-    Code.foreach(0 until pt.nDims) { dimIndex =>
-      val eMsg = const("Index ").concat(indices(dimIndex).toS)
-        .concat(s" is out of bounds for axis $dimIndex with size ")
-        .concat(shape(dimIndex).toS)
-      (indices(dimIndex) >= shape(dimIndex)).orEmpty(Code._fatalWithID[Unit](eMsg, errorId))
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = {
+    value.st match {
+      case SNDArrayPointer(t) if t.equalModuloRequired(this) =>
+        representation.storeAtAddress(cb, addr, region, representation.getPointerTo(cb, value.asInstanceOf[SNDArrayPointerCode].a), deepCopy)
     }
-  }
-
-  override def shapes(): IndexedSeq[Value[Long]] = Array.tabulate(pt.nDims) { i =>
-    new Value[Long] {
-      def get: Code[Long] = pt.loadShape(a, i)
-    }
-  }
-
-  override def strides(): IndexedSeq[Value[Long]] = Array.tabulate(pt.nDims) { i =>
-    new Value[Long] {
-      def get: Code[Long] = pt.loadStride(a, i)
-    }
-  }
-
-  override def sameShape(other: PNDArrayValue, mb: EmitMethodBuilder[_]): Code[Boolean] = {
-    val comparator = this.pt.shape.pType.codeOrdering(mb, other.pt.shape.pType)
-    val thisShape = this.pt.shape.load(this.a).asInstanceOf[Code[comparator.T]]
-    val otherShape = other.pt.shape.load(other.value.asInstanceOf[Value[Long]]).asInstanceOf[Code[comparator.T]]
-    comparator.equivNonnull(thisShape, otherShape)
   }
 }
 
-class PCanonicalNDArrayCode(val pt: PCanonicalNDArray, val a: Code[Long]) extends PNDArrayCode {
-
-  override def code: Code[_] = a
-
-  override def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
-
-  override def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = ???
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PNDArrayValue = {
-    val s = PCanonicalNDArraySettable(cb, pt, name, sb)
-    cb.assign(s, this)
-    s
-  }
-
-  override def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue = memoize(cb, name, cb.localBuilder)
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): PValue = memoize(cb, name, cb.fieldBuilder)
-
-  override def shape: PBaseStructCode = PCode(this.pt.shape.pType, this.pt.shape.load(a)).asBaseStruct
-}

@@ -25,6 +25,11 @@ object EmitCodeBuilder {
     val (cbcode, _) = EmitCodeBuilder.scoped(mb)(f)
     cbcode
   }
+
+  def scopedEmitCode(mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => EmitCode): EmitCode = {
+    val (cbcode, ec) = EmitCodeBuilder.scoped(mb)(f)
+    EmitCode(Code(cbcode, ec.setup), ec.m, ec.pv)
+  }
 }
 
 class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
@@ -46,14 +51,22 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def assign(s: PSettable, v: PCode): Unit = {
-    append(s := v)
+    s.store(this, v)
   }
 
   def assign(s: EmitSettable, v: EmitCode): Unit = {
-    append(s := v)
+    s.store(this, v)
   }
 
   def assign(s: EmitSettable, v: IEmitCode): Unit = {
+    s.store(this, v)
+  }
+
+  def assign(is: IndexedSeq[EmitSettable], ix: IndexedSeq[EmitCode]): Unit = {
+    (is, ix).zipped.foreach { case (s, c) => s.store(this, c) }
+  }
+
+  def assign(s: PresentEmitSettable, v: PCode): Unit = {
     s.store(this, v)
   }
 
@@ -79,7 +92,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   def memoizeField[T](ec: EmitCode, name: String): EmitValue = {
     val l = emb.newEmitField(name, ec.pt)
-    append(l := ec)
+    l.store(this, ec)
     l
   }
 
