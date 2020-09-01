@@ -2589,44 +2589,6 @@ steps:
     - blog_nginx_image
     - create_certs
  - kind: runImage
-   name: delete_batch_instances
-   image:
-     valueFrom: base_image.image
-   alwaysRun: true
-   script: |
-     set -ex
-     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-     set +e
-     gcloud -q compute instances list \
-         --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
-         --format="table[no-heading](zone.basename(), name)" \
-         --project {{ global.project }} \
-       | xargs -n2 -r sh -c 'gcloud -q compute instances delete --zone "$1" --project {{ global.project }} "$2" || true' argv0
-   secrets:
-    - name: test-gsa-key
-      namespace:
-        valueFrom: batch_pods_ns.name
-      mountPath: /test-gsa-key
-   scopes:
-    - dev
-    - test
-   dependsOn:
-    - default_ns
-    - batch_pods_ns
-    - base_image
-    - test_batch_0
-    - test_batch_1
-    - test_batch_2
-    - test_batch_3
-    - test_batch_4
-    - test_ci
-    - test_hailtop_batch_0
-    - test_hailtop_batch_1
-    - test_hailtop_batch_2
-    - test_hailtop_batch_3
-    - test_hailtop_batch_4
-    - test_query
- - kind: runImage
    name: test_dataproc
    image:
      valueFrom: ci_utils_image.image
@@ -2930,4 +2892,42 @@ steps:
     - copy_files
     - batch_image
     - deploy_batch
-    - test_batch
+    - test_batch_0
+    - test_batch_1
+    - test_batch_2
+    - test_batch_3
+    - test_batch_4
+    - test_ci
+    - test_hailtop_batch_0
+    - test_hailtop_batch_1
+    - test_hailtop_batch_2
+    - test_hailtop_batch_3
+    - test_hailtop_batch_4
+    - test_query
+ - kind: runImage
+   name: delete_batch_instances
+   image:
+     valueFrom: base_image.image
+   alwaysRun: true
+   script: |
+     set -ex
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
+     set +e
+     gcloud -q compute instances list \
+         --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
+         --format="table[no-heading](zone.basename(), name)" \
+         --project {{ global.project }} \
+       | xargs -n2 -r sh -c 'gcloud -q compute instances delete --zone "$1" --project {{ global.project }} "$2" || true' argv0
+   secrets:
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
+   scopes:
+    - dev
+    - test
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - base_image
+    - test_batch_invariants
