@@ -1,0 +1,57 @@
+package is.hail.types.physical
+
+import is.hail.annotations.Region
+import is.hail.asm4s.{Code, TypeInfo, Value}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.BaseType
+
+class UninitializedMValue(val addr: Value[Long], val region: Value[Region], val typ: MType) {
+  final def store(cb: EmitCodeBuilder, code: SCode): Unit = store(cb, code.memoize(cb))
+
+  final def store(cb: EmitCodeBuilder, value: SValue): Unit = typ.storeFromSValue(cb, this, value)
+}
+
+class MCode(val addr: Code[Long], val typ: MType) {
+  def memoize(cb: EmitCodeBuilder): MValue = {
+    val x = cb.newLocal[Long]("mcode_memoize")
+    cb.assign(x, addr)
+    new MValue(x, typ)
+  }
+}
+
+class MValue(val addr: Value[Long], val typ: MType)
+
+trait MType extends BaseType {
+
+  def allocate(cb: EmitCodeBuilder, region: Value[Region]): UninitializedMValue
+
+  def storeFromSValue(cb: EmitCodeBuilder, memory: UninitializedMValue, value: SValue): Unit
+
+  def storeFromMValue(cb: EmitCodeBuilder, memory: UninitializedMValue, value: MValue): Unit
+
+  def coerceOrCopyMValue(cb: EmitCodeBuilder, region: Value[Region], value: MValue, deep: Boolean): MValue
+}
+
+// replaces the current PCode
+trait SCode {
+  def typ: SType
+
+  def memoize(cb: EmitCodeBuilder): SValue
+
+  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region]): SCode = typ.coerceOrCopySValue(cb, region, this, deep = true)
+
+  def castTo(cb: EmitCodeBuilder, region: Value[Region], newTyp: SType): SCode = newTyp.coerceOrCopySValue(cb, region, this, deep = false)
+}
+
+// replaces the current PValue
+trait SValue {
+  def typ: SType
+}
+
+trait SType extends BaseType {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], mv: MValue): SValue
+
+  def coerceOrCopySValue(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deep: Boolean): SCode
+
+  def codeTupleTypes(): IndexedSeq[TypeInfo[_]]
+}
