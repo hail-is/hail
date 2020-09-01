@@ -612,7 +612,7 @@ echo "hello" | nc -q 1 localhost 5000
         builder.submit()
         status = j.wait()
         assert status['state'] == 'Success', status
-        assert 'hello' == j.log()['main']
+        assert 'hello\n' == j.log()['main']
 
     def test_verify_can_tcp_to_127_0_0_1(self):
         builder = self.client.create_batch()
@@ -625,7 +625,7 @@ echo "hello" | nc -q 1 127.0.0.1 5000
         builder.submit()
         status = j.wait()
         assert status['state'] == 'Success', status
-        assert 'hello' == j.log()['main']
+        assert 'hello\n' == j.log()['main']
 
     def test_verify_can_tcp_to_self_ip(self):
         builder = self.client.create_batch()
@@ -639,7 +639,7 @@ echo "hello" | nc -q 1 $(hostname -i) 5000
         builder.submit()
         status = j.wait()
         assert status['state'] == 'Success', status
-        assert 'hello' == j.log()['main']
+        assert 'hello\n' == j.log()['main']
 
     def test_verify_cannot_talk_to_internal_gateway(self):
         builder = self.client.create_batch()
@@ -647,7 +647,7 @@ echo "hello" | nc -q 1 $(hostname -i) 5000
                                command=['curl', 'internal.hail', '--connect-timeout', '60'])
         builder.submit()
         status = j.wait()
-        assert status['state'] == 'Error', status
+        assert status['state'] == 'Failed', status
         assert "Connection refused" in j.log()['main']
 
     def test_verify_private_network_is_restricted(self):
