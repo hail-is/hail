@@ -67,20 +67,13 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     )
   }
 
-  override def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
-    val totalNumElements = mb.newLocal[Long]("ndarray_skipper_total_num_elements")
-    val dataIdx = mb.newLocal[Int]("ndarray_skipper_data_idx")
-    val skip = elementType.buildSkip(mb)
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+    val skip = elementType.buildSkip(cb.emb)
 
-    Code(
-      totalNumElements := 1L,
-      Code((0 until nDims).map { _ =>
-        totalNumElements := totalNumElements * in.readLong()
-      }),
-      Code.forLoop(dataIdx := 0, dataIdx < totalNumElements.toI, dataIdx := dataIdx + 1,
-        skip(r, in)
-      )
-    )
+    val numElements = cb.newLocal[Long]("ndarray_skipper_total_num_elements",
+      (0 until nDims).foldLeft(const(1L).get){ (p, i) => p * in.readLong() })
+    val i = cb.newLocal[Long]("ndarray_skipper_data_idx")
+    cb.forLoop(cb.assign(i, 0L), i < numElements, cb.assign(i, i + 1L), cb += skip(r, in))
   }
 
   def _decodedPType(requestedType: Type): PType = {
