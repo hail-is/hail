@@ -295,11 +295,22 @@ class SparkBackend(Py4JBackend):
     def execute(self, ir, timed=False):
         jir = self._to_java_value_ir(ir)
         # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
-        result = json.loads(self._jhc.backend().executeJSON(jir))
-        value = ir.typ._from_json(result['value'])
-        timings = result['timings']
+        try:
+            result = json.loads(self._jhc.backend().executeJSON(jir))
+            value = ir.typ._from_json(result['value'])
+            timings = result['timings']
 
-        return (value, timings) if timed else value
+            return (value, timings) if timed else value
+        except FatalError as e:
+            error_id = e._error_id
+
+            # Now need to check if the error code is present on any IR!
+            def criteria(hail_ir):
+                return hail_ir._error_id is not None and hail_ir._error_id == error_id
+
+            error_sources = ir.search(criteria)
+
+            raise e
 
     def value_type(self, ir):
         jir = self._to_java_value_ir(ir)
