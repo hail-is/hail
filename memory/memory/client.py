@@ -6,14 +6,12 @@ from hailtop.auth import service_auth_headers
 from hailtop.config import get_deploy_config
 from hailtop.google_storage import GCS
 from hailtop.tls import get_context_specific_ssl_client_session
-from hailtop.utils import async_to_blocking, request_retry_transient_errors
+from hailtop.utils import request_retry_transient_errors
 
 @asyncinit
-class AsyncMemoryClient:
-    async def __init__(self, billing_project, fs=None, deploy_config=None, session=None,
+class MemoryClient:
+    async def __init__(self, gcs_project=None, fs=None, deploy_config=None, session=None,
                        headers=None, _token=None):
-        self.billing_project = billing_project
-
         if not deploy_config:
             deploy_config = get_deploy_config()
 
@@ -26,7 +24,7 @@ class AsyncMemoryClient:
         self._session = session
 
         if fs is None:
-            fs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(), project=billing_project)
+            fs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(), project=gcs_project)
         self._fs = fs
 
         h = {}
@@ -39,16 +37,12 @@ class AsyncMemoryClient:
         self._headers = h
 
     async def _get_file_if_exists(self, filename):
-        request = {
-            'billing_project': self.billing_project,
-            'filename': filename}
+        params = {'q': filename}
         try:
-            response = await request_retry_transient_errors(
-                self._session, 'POST',
-                self.url + '/getfile', json=request, headers=self._headers)
-            async with response:
-                if response.status == 200:
-                    return await response.read()
+            url = f'{self.url}/api/v1alpha/objects/'
+            async with await request_retry_transient_errors(
+                self._session, 'get', url, params=params, headers=self._headers):
+                return await response.read()
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 return None
@@ -63,17 +57,3 @@ class AsyncMemoryClient:
     async def close(self):
         await self._session.close()
         self._session = None
-
-class BlockingMemoryClient:
-    def __init__(self, billing_project, fs=None, deploy_config=None, session=None,
-                 headers=None, _token=None):
-        self._client = async_to_blocking(AsyncMemoryClient(billing_project, fs, deploy_config, session, headers, _token))
-
-    def _get_file_if_exists(self, filename):
-        return async_to_blocking(self._client._get_file_if_exists(filename))
-
-    def read_file(self, filename):
-        return async_to_blocking(self._client.read_file(filename))
-
-    def close(self):
-        return async_to_blocking(self._client.close())

@@ -33,11 +33,12 @@ class GCS:
         # project=None doesn't mean default, it means no project:
         # https://github.com/googleapis/google-cloud-python/blob/master/storage/google/cloud/storage/client.py#L86
         if credentials is None:
-            if key is None and 'HAIL_GSA_KEY_FILE' in os.environ:
+            if key is not None:
+                credentials = google.oauth2.service_account.Credentials.from_service_account_info(key)
+            elif 'HAIL_GSA_KEY_FILE' in os.environ:
                 key_file = os.environ['HAIL_GSA_KEY_FILE']
                 credentials = google.oauth2.service_account.Credentials.from_service_account_file(key_file)
-            elif key is not None:
-                credentials = google.oauth2.service_account.Credentials.from_service_account_info(key)
+
 
         if project:
             self.gcs_client = google.cloud.storage.Client(

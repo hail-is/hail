@@ -22,26 +22,23 @@ BATCH_PODS_NAMESPACE = os.environ['HAIL_BATCH_PODS_NAMESPACE']
 log = logging.getLogger('batch')
 routes = web.RouteTableDef()
 
-socket = '/tmp/redis.sock'
+socket = '/redis/redis.sock'
 
 @routes.get('/healthcheck')
 async def healthcheck(request):  # pylint: disable=unused-argument
     return web.Response()
 
-@routes.post('/getfile')
+@routes.get('/api/v1alpha/objects/')
 @rest_authenticated_users_only
-async def getfile(request, userdata):
-    body = await request.json()
-    billing_project = body['billing_project']
-    filename = body['filename']
-    userinfo = await get_or_add_user(request.app, userdata, billing_project)
+async def get_object(request, userdata):
+    filename = request.query.get('q')
+    userinfo = await get_or_add_user(request.app, userdata)
     body = await get_file_or_none(request.app, userdata['username'], userinfo, filename)
     if body is None:
         raise web.HTTPNotFound()
-    print(f'{filename} got result of length { len(body) }')
     return web.Response(body=body)
 
-async def get_or_add_user(app, userdata, project):
+async def get_or_add_user(app, userdata):
     users = app['users']
     username = userdata['username']
     if username not in users:
@@ -52,7 +49,7 @@ async def get_or_add_user(app, userdata, project):
             BATCH_PODS_NAMESPACE,
             _request_timeout=5.0)
         gsa_key = base64.b64decode(gsa_key_secret.data['key.json']).decode()
-        users[username] = {'fs': GCS(blocking_pool=app['thread_pool'], key=json.loads(gsa_key)), 'project': project}
+        users[username] = {'fs': GCS(blocking_pool=app['thread_pool'], key=json.loads(gsa_key))}
     return users[username]
 
 def make_redis_key(username, filepath):
@@ -61,23 +58,25 @@ def make_redis_key(username, filepath):
 async def get_file_or_none(app, username, userinfo, filepath):
     filekey = make_redis_key(username, filepath)
     result = await app['redis_pool'].execute('GET', filekey)
-    if result is None and filekey not in app['file_queue']:
+    if result is None and filekey not in app['files_in_progress']:
         try:
-            app['worker_pool'].call_or_error(load_file, app['redis_pool'], app['file_queue'], filekey, userinfo['fs'], filepath)
+            app['worker_pool'].call_nowait(load_file, app['redis_pool'], app['files_in_progress'], filekey, userinfo['fs'], filepath)
         except asyncio.QueueFull:
             pass
     return result
 
 async def load_file(redis, files, file_key, fs, filepath):
-    files.add(file_key)
-    data = await fs.read_binary_gs_file(filepath)
-    await redis.execute('SET', file_key, data)
-    files.remove(file_key)
+    try:
+        files.add(file_key)
+        data = await fs.read_binary_gs_file(filepath)
+        await redis.execute('SET', file_key, data)
+    finally:
+        files.remove(file_key)
 
 async def on_startup(app):
     app['thread_pool'] = concurrent.futures.ThreadPoolExecutor()
     app['worker_pool'] = AsyncWorkerPool(parallelism=4, queue_size=10)
-    app['file_queue'] = set()
+    app['files_in_progress'] = set()
     app['users'] = {}
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()

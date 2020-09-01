@@ -1841,7 +1841,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      hailctl config set batch/bucket hail-test-dmk9z
-     python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" --log-cli-level=INFO -s -vv --instafail /io/test/
+     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
    timeout: 600
    secrets: 
     - name: gce-deploy-config

@@ -21,10 +21,45 @@ spec:
       priorityClassName: production
 {% endif %}
       containers:
+        - name: redis
+          image: redis:6.0.6-alpine
+          command:
+           - redis-server
+           - --port 
+           - "0"
+           - --unixsocket
+           - /redis/redis.sock
+           - --timeout 
+           - "0"
+           - --maxmemory
+           - 2gb
+           - --maxmemory-policy
+           - allkeys-lru
+          volumeMounts:
+           - name: redis-socket
+             mountPath: /redis
+          resources:
+            requests:
+              memory: "2.5G"
+              cpu: "400m"
+            limits:
+              memory: "3.75G"
+              cpu: "1"
+          readinessProbe:
+            exec:
+              command:
+               - redis-cli
+               - -s 
+               - /redis/redis.sock
+               - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
         - name: memory
           image: "{{ memory_image.image }}"
-          command: ["/bin/sh","-c"]
-          args: ["/redis-6.0.6/src/redis-server /redis/redis.conf & python3 -m memory"]          
+          command:
+           - python3
+           - -m
+           - memory
           env:
            - name: HAIL_DOMAIN
              value: "{{ global.domain }}"
@@ -37,6 +72,8 @@ spec:
           ports:
            - containerPort: 5000
           volumeMounts:
+           - name: redis-socket
+             mountPath: /redis
            - name: deploy-config
              mountPath: /deploy-config
              readOnly: true
@@ -48,8 +85,8 @@ spec:
              readOnly: true
           resources:
             requests:
-              memory: "3.75G"
-              cpu: "800m"
+              memory: "1.25G"
+              cpu: "400m"
             limits:
               memory: "3.75G"
               cpu: "1"
@@ -59,6 +96,8 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 5
       volumes:
+       - name: redis-socket
+         emptyDir: {}
        - name: deploy-config
          secret:
            secretName: deploy-config

@@ -188,7 +188,7 @@ class AsyncWorkerPool:
     async def call(self, f, *args, **kwargs):
         await self._queue.put((f, args, kwargs))
 
-    def call_or_error(self, f, *args, **kwargs):
+    def call_nowait(self, f, *args, **kwargs):
         self._queue.put_nowait((f, args, kwargs))
 
 
