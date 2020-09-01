@@ -1,8 +1,10 @@
 package is.hail.utils
 
-class HailException(val msg: String, val logMsg: Option[String], cause: Throwable) extends RuntimeException(msg, cause) {
-  def this(msg: String) = this(msg, None, null)
-  def this(msg: String, logMsg: Option[String]) = this(msg, logMsg, null)
+class HailException(val msg: String, val logMsg: Option[String], cause: Throwable, val error_id: Int) extends RuntimeException(msg, cause) {
+  def this(msg: String) = this(msg, None, null, -1)
+  def this(msg: String, logMsg: Option[String]) = this(msg, logMsg, null, -1)
+  def this(msg: String, logMsg: Option[String], cause: Throwable) = this(msg, logMsg, null, -1)
+  def this(msg: String, error_id: Int) = this(msg, None, null, error_id)
 }
 
 trait ErrorHandling {
@@ -44,13 +46,15 @@ trait ErrorHandling {
     }\n"
   }
 
-  def handleForPython(e: Throwable): (String, String) = {
+  def handleForPython(e: Throwable): (String, String, Int) = {
     val short = deepestMessage(e)
     val expanded = expandException(e, false)
     val logExpanded = expandException(e, true)
 
     log.error(s"$short\nFrom $logExpanded")
 
-    (short, expanded)
+    val error_id = if (e.isInstanceOf[HailException]) e.asInstanceOf[HailException].error_id else -1
+
+    (short, expanded, error_id)
   }
 }

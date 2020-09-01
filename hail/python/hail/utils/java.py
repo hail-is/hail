@@ -8,6 +8,12 @@ import hail
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
 
+    def __init__(self, msg, error_id=-1):
+        super().__init__(msg)
+        self._error_id = error_id
+
+class HailUserError(Exception):
+    """:class:`.HailUserError` is an error thrown by Hail when the user makes an error."""
 
 class Env:
     _jutils = None

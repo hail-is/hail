@@ -284,8 +284,7 @@ class IR(BaseIR):
 
     def save_error_info(self):
         self._error_id = uuid.uuid4().int
-        self._stack_trace = None
-
+        self._stack_trace = "Stack trace placeholder"
 
 
 class TableIR(BaseIR):

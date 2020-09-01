@@ -36,10 +36,11 @@ def handle_java_exception(f):
                 raise
 
             tpl = Env.jutils().handleForPython(e.java_exception)
-            deepest, full = tpl._1(), tpl._2()
+            deepest, full, error_id = tpl._1(), tpl._2(), tpl._3()
+
             raise FatalError('%s\n\nJava stack trace:\n%s\n'
                              'Hail version: %s\n'
-                             'Error summary: %s' % (deepest, full, hail.__version__, deepest)) from None
+                             'Error summary: %s' % (deepest, full, hail.__version__, deepest), error_id) from None
         except pyspark.sql.utils.CapturedException as e:
             raise FatalError('%s\n\nJava stack trace:\n%s\n'
                              'Hail version: %s\n'

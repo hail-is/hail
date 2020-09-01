@@ -1935,7 +1935,7 @@ class GetTupleElement(IR):
 
 class Die(IR):
     @typecheck_method(message=IR, typ=hail_type)
-    def __init__(self, message, typ, error_id=None):
+    def __init__(self, message, typ):
         super().__init__(message)
         self.message = message
         self._typ = typ
