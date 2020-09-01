@@ -24,7 +24,7 @@ class EBoolean(override val required: Boolean) extends EFundamentalType {
     in: Value[InputBuffer]
   ): Code[Boolean] = in.readBoolean()
 
-  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = in.skipBoolean()
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = cb += in.skipBoolean()
 
   override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PBoolean]
 
