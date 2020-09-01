@@ -1,6 +1,6 @@
 from .auth import Credentials, ApplicationDefaultCredentials, \
     ServiceAccountCredentials, AccessToken, Session
-from .client import BigQueryClient, ContainerClient, ComputeClient, IAmClient, LoggingClient
+from .client import BigQueryClient, ContainerClient, ComputeClient, IAmClient, LoggingClient, StorageClient
 
 __all__ = [
     'Credentials',
@@ -12,5 +12,6 @@ __all__ = [
     'ContainerClient',
     'ComputeClient',
     'IAmClient',
-    'LoggingClient'
+    'LoggingClient',
+    'StorageClient'
 ]
