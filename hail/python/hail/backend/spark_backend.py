@@ -38,9 +38,12 @@ def handle_java_exception(f):
             tpl = Env.jutils().handleForPython(e.java_exception)
             deepest, full, error_id = tpl._1(), tpl._2(), tpl._3()
 
-            raise FatalError('%s\n\nJava stack trace:\n%s\n'
-                             'Hail version: %s\n'
-                             'Error summary: %s' % (deepest, full, hail.__version__, deepest), error_id) from None
+            if error_id != -1:
+                raise FatalError('Error summary: %s' % (deepest,), error_id) from None
+            else:
+                raise FatalError('%s\n\nJava stack trace:\n%s\n'
+                                 'Hail version: %s\n'
+                                 'Error summary: %s' % (deepest, full, hail.__version__, deepest), error_id) from None
         except pyspark.sql.utils.CapturedException as e:
             raise FatalError('%s\n\nJava stack trace:\n%s\n'
                              'Hail version: %s\n'
@@ -314,7 +317,12 @@ class SparkBackend(Py4JBackend):
                 better_stack_trace = error_sources[0]._stack_trace
 
             if better_stack_trace:
-                raise HailUserError(better_stack_trace)
+                error_message = str(e)
+                message_and_trace = (f'{error_message}\n'
+                                     '------------\n'
+                                     'Python stack trace:\n'
+                                     f'{better_stack_trace}')
+                raise HailUserError(message_and_trace) from None
 
             raise e
 
