@@ -32,4 +32,4 @@ async def test_billing_monitoring():
             return data
 
         data = await asyncio.wait_for(wait_forever(), timeout=30 * 60)
-        assert data['cost_by_service'], str(data)
+        assert data['cost_by_service'] is not None, data
