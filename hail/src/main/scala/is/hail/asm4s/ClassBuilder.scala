@@ -466,7 +466,10 @@ class MethodBuilder[C](
   val returnTypeInfo: TypeInfo[_],
   val isStatic: Boolean = false
 ) extends WrappedClassBuilder[C] {
-  val methodName: String = _mname.substring(0, scala.math.min(_mname.length, 65535))
+  // very long method names, repeated hundreds of thousands of times can cause memory issues.
+  // If necessary to find the name of a method precisely, this can be set to around the constant
+  // limit of 65535 characters, but usually, this can be much smaller.
+  val methodName: String = _mname.substring(0, scala.math.min(_mname.length, 2000 /* 65535 */))
 
   if (methodName != "<init>" && !isJavaIdentifier(methodName))
     throw new IllegalArgumentException(s"Illegal method name, not Java identifier: $methodName")

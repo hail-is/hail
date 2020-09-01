@@ -97,6 +97,10 @@ abstract class PContainer extends PIterable {
 abstract class PIndexableValue extends PValue {
   def loadLength(): Value[Int]
 
+  def isElementMissing(i: Code[Int]): Code[Boolean]
+
+  def isElementDefined(i: Code[Int]): Code[Boolean] = !isElementMissing(i)
+
   def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode
 }
 

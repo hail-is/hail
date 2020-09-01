@@ -192,11 +192,15 @@ abstract class PBaseStruct extends PType {
 }
 
 abstract class PBaseStructValue extends PValue {
+  def pt: PBaseStruct
+
   def isFieldMissing(fieldIdx: Int): Code[Boolean]
+
+  def isFieldMissing(fieldName: String): Code[Boolean] = isFieldMissing(pt.fieldIdx(fieldName))
 
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode
 
-  def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadField(cb, pt.asInstanceOf[PBaseStruct].fieldIdx(fieldName))
+  def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadField(cb, pt.fieldIdx(fieldName))
 }
 
 abstract class PBaseStructCode extends PCode {

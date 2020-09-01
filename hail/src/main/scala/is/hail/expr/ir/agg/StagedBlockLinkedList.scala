@@ -209,11 +209,11 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
       val i = serF.newLocal[Int]()
       val b = serF.newLocal[Long]()
       Code(
-        foreachNode(serF, n) { Code(
-          ob.writeBoolean(true),
-          b := buffer(n),
-          bufferEType.buildPrefixEncoder(bufferType.encodableType, serF, b, ob, count(n)))
-        },
+        foreachNode(serF, n) { EmitCodeBuilder.scopedVoid(serF) { cb =>
+          cb += ob.writeBoolean(true)
+          cb.assign(b, buffer(n))
+          bufferEType.buildPrefixEncoder(cb, bufferType.encodableType, b, ob, count(n))
+        }},
         ob.writeBoolean(false))
     }
     serF.invokeCode(region, outputBuffer)

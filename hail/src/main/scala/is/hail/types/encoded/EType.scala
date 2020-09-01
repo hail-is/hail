@@ -5,7 +5,7 @@ import java.util.Map.Entry
 import is.hail.HailContext
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{coerce => _, _}
-import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, ParamType, PunctuationToken, TokenIterator}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, ParamType, PunctuationToken, TokenIterator}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types._
@@ -42,33 +42,36 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     pType -> makeDec
   }
 
-  final def buildEncoder(pt: PType, cb: EmitClassBuilder[_]): StagedEncoder = {
-    buildEncoderMethod(pt, cb).invokeCode(_, _)
+  final def buildEncoder(pt: PType, kb: EmitClassBuilder[_]): StagedEncoder = {
+    buildEncoderMethod(pt, kb).invokeCode(_, _)
   }
 
-  final def buildEncoderMethod(pt: PType, cb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
+  final def buildEncoderMethod(pt: PType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
     if (!encodeCompatible(pt))
       throw new RuntimeException(s"encode incompatible:\n  PT: $pt\n  ET: ${ parsableString() }")
     val ptti = typeToTypeInfo(pt)
-    cb.getOrGenEmitMethod(s"ENCODE_${ pt.asIdent }_TO_${ asIdent }",
+    kb.getOrGenEmitMethod(s"ENCODE_${ pt.asIdent }_TO_${ asIdent }",
       (pt, this, "ENCODE"),
       FastIndexedSeq[ParamType](ptti, classInfo[OutputBuffer]),
       UnitInfo) { mb =>
 
-      val arg = mb.getCodeParam(1)(ptti)
-      val out = mb.getCodeParam[OutputBuffer](2)
-      mb.emit(_buildEncoder(pt, mb, arg, out))
+      mb.emitWithBuilder { cb =>
+        val arg = mb.getCodeParam(1)(ptti)
+        val out = mb.getCodeParam[OutputBuffer](2)
+        _buildEncoder(cb, pt, arg, out)
+        Code._empty
+      }
     }
   }
 
-  final def buildDecoder[T](pt: PType, cb: EmitClassBuilder[_]): StagedDecoder[T] = {
-    buildDecoderMethod(pt, cb).invokeCode(_, _)
+  final def buildDecoder[T](pt: PType, kb: EmitClassBuilder[_]): StagedDecoder[T] = {
+    buildDecoderMethod(pt, kb).invokeCode(_, _)
   }
 
-  final def buildDecoderMethod[T](pt: PType, cb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
+  final def buildDecoderMethod[T](pt: PType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
     if (!decodeCompatible(pt))
       throw new RuntimeException(s"decode incompatible:\n  PT: $pt }\n  ET: ${ parsableString() }")
-    cb.getOrGenEmitMethod(s"DECODE_${ asIdent }_TO_${ pt.asIdent }",
+    kb.getOrGenEmitMethod(s"DECODE_${ asIdent }_TO_${ pt.asIdent }",
       (pt, this, "DECODE"),
       FastIndexedSeq[ParamType](typeInfo[Region], classInfo[InputBuffer]),
       typeToTypeInfo(pt)) { mb =>
@@ -80,14 +83,14 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     }
   }
 
-  final def buildInplaceDecoder(pt: PType, cb: EmitClassBuilder[_]): StagedInplaceDecoder = {
-    buildInplaceDecoderMethod(pt, cb).invokeCode(_, _, _)
+  final def buildInplaceDecoder(pt: PType, kb: EmitClassBuilder[_]): StagedInplaceDecoder = {
+    buildInplaceDecoderMethod(pt, kb).invokeCode(_, _, _)
   }
 
-  final def buildInplaceDecoderMethod(pt: PType, cb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
+  final def buildInplaceDecoderMethod(pt: PType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
     if (!decodeCompatible(pt))
       throw new RuntimeException(s"decode incompatible:\n  PT: $pt\n  ET: ${ parsableString() }")
-    cb.getOrGenEmitMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
+    kb.getOrGenEmitMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
       (pt, this, "INPLACE_DECODE"),
       FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Long], classInfo[InputBuffer]),
       UnitInfo)({ mb =>
@@ -113,7 +116,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     }).invokeCode(_, _)
   }
 
-  def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit]
+  def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit
 
   def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_]
 
@@ -174,11 +177,11 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 trait EFundamentalType extends EType {
   def _decodeCompatible(pt: PType): Boolean = _compatible(pt)
   def _encodeCompatible(pt: PType): Boolean = _compatible(pt)
-  def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit]
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit
   def _buildFundamentalDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_]
 
-  final def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] =
-    _buildFundamentalEncoder(pt.encodableType, mb, v, out)
+  final def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit =
+    _buildFundamentalEncoder(cb, pt.encodableType, v, out)
 
   final def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] =
     _buildFundamentalDecoder(pt.encodableType, mb, region, in)

@@ -556,9 +556,11 @@ class PCanonicalIndexableSettable(
   def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
     val iv = cb.newLocal("pcindval_i", i)
     IEmitCode(cb,
-      pt.isElementMissing(a, iv),
+      isElementMissing(iv),
       pt.elementType.load(elementsAddress + iv.toL * pt.elementByteSize))
   }
+
+  def isElementMissing(i: Code[Int]): Code[Boolean] = pt.isElementMissing(a, i)
 
   def store(pc: PCode): Code[Unit] = {
     Code(

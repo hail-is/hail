@@ -2,7 +2,7 @@ package is.hail.types.encoded
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.BaseType
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -13,8 +13,8 @@ case object EFloat64Optional extends EFloat64(false)
 case object EFloat64Required extends EFloat64(true)
 
 class EFloat64(override val required: Boolean) extends EFundamentalType {
-  override def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
-    out.writeDouble(coerce[Double](v))
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+    cb += out.writeDouble(coerce[Double](v))
   }
 
   def _buildFundamentalDecoder(
