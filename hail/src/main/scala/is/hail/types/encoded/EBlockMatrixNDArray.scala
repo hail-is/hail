@@ -97,15 +97,13 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
       t.construct(shapeBuilder, stridesBuilder, data, mb, region))
   }
 
-  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
-    val len = mb.newLocal[Int]("len")
-    val i = mb.newLocal[Int]("i")
-    val skip = elementType.buildSkip(mb)
-    Code(
-      len := in.readInt(),
-      len := len * in.readInt(),
-      in.skipBoolean(),
-      Code.forLoop(i := 0, i < len, i := i + 1, skip(r, in)))
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+    val skip = elementType.buildSkip(cb.emb)
+
+    val len = cb.newLocal[Int]("len", in.readInt() * in.readInt())
+    val i = cb.newLocal[Int]("i")
+    cb += in.skipBoolean()
+    cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), cb += skip(r, in))
   }
 
   def _asIdent = s"ndarray_of_${elementType.asIdent}"
