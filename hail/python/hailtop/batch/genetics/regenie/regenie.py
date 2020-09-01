@@ -6,9 +6,9 @@ import sys
 import shlex
 from argparse import Namespace, ArgumentParser, SUPPRESS
 from os.path import exists
+import google.oauth2.service_account  # type: ignore
 from google.cloud import storage  # type: ignore
 from google.cloud.storage.blob import Blob  # type: ignore
-from google.oauth2.service_account.credentials import Credentials  # type: ignore
 
 
 input_file_args = ["bgen", "bed", "pgen", "sample", "keep", "extract", "exclude", "remove",
@@ -35,7 +35,7 @@ def _read(spath: str):
     credentials = None
     key_file = os.environ.get('HAIL_GSA_KEY_FILE')
     if key_file:
-        credentials = Credentials.from_service_account_file(key_file)
+        credentials = google.oauth2.service_account.Credentials.from_service_account_file(key_file)
     client = storage.Client(credentials=credentials)
     blob = Blob.from_string(spath, client)
     return blob.download_as_string().decode("utf-8")
