@@ -9,7 +9,7 @@ import py4j
 import pyspark
 
 import hail
-from hail.utils.java import FatalError, Env, scala_package_object, scala_object
+from hail.utils.java import FatalError, HailUserError, Env, scala_package_object, scala_object
 from hail.expr.types import dtype
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
@@ -309,6 +309,12 @@ class SparkBackend(Py4JBackend):
                 return hail_ir._error_id is not None and hail_ir._error_id == error_id
 
             error_sources = ir.search(criteria)
+            better_stack_trace = None
+            if error_sources:
+                better_stack_trace = error_sources[0]._stack_trace
+
+            if better_stack_trace:
+                raise HailUserError(better_stack_trace)
 
             raise e
 

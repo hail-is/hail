@@ -5,6 +5,15 @@ from hail.utils.java import Env
 from .renderer import Renderer, PlainRenderer, Renderable
 
 
+counter = 0
+
+
+def get_next_int():
+    global counter
+    counter = counter + 1
+    return counter
+
+
 def _env_bind(env, bindings):
     if bindings:
         if env:
@@ -283,8 +292,34 @@ class IR(BaseIR):
         return self._free_scan_vars
 
     def save_error_info(self):
-        self._error_id = uuid.uuid4().int
-        self._stack_trace = "Stack trace placeholder"
+        self._error_id = get_next_int()
+
+        import traceback
+        stack = traceback.format_stack()
+        i = len(stack)
+        while i > 0:
+            candidate = stack[i - 1]
+            if 'IPython' in candidate:
+                break
+            i -= 1
+        filt_stack = []
+
+        forbidden_phrases = [
+            '_ir_lambda_method',
+            'decorator.py',
+            'typecheck/check',
+            'interactiveshell.py',
+            'expressions.construct_variable',
+            'traceback.format_stack()'
+        ]
+        while i < len(stack):
+            candidate = stack[i]
+            i += 1
+            if any(phrase in candidate for phrase in forbidden_phrases):
+                continue
+            filt_stack.append(candidate)
+
+        self._stack_trace = '\n'.join(filt_stack)
 
 
 class TableIR(BaseIR):

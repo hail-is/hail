@@ -47,7 +47,7 @@ object InferType {
       case _: SerializeAggs => TVoid
       case _: DeserializeAggs => TVoid
       case _: Begin => TVoid
-      case Die(_, t) => t
+      case Die(_, t, _) => t
       case If(cond, cnsq, altr) =>
         assert(cond.typ == TBoolean)
         assert(cnsq.typ == altr.typ)

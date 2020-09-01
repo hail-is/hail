@@ -516,10 +516,10 @@ final case class In(i: Int, _typ: PType) extends IR
 
 // FIXME: should be type any
 object Die {
-  def apply(message: String, typ: Type): Die = Die(Str(message), typ)
+  def apply(message: String, typ: Type, errorId: Int): Die = Die(Str(message), typ, errorId)
 }
 
-final case class Die(message: IR, _typ: Type) extends IR
+final case class Die(message: IR, _typ: Type, errorId: Int) extends IR
 
 final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR]) extends IR {
   var conversion: (Seq[Type], Seq[IR]) => IR = _

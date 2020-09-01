@@ -1,14 +1,16 @@
 package is.hail.utils
 
-class HailException(val msg: String, val logMsg: Option[String], cause: Throwable, val error_id: Int) extends RuntimeException(msg, cause) {
+class HailException(val msg: String, val logMsg: Option[String], cause: Throwable, val errorId: Int) extends RuntimeException(msg, cause) {
   def this(msg: String) = this(msg, None, null, -1)
   def this(msg: String, logMsg: Option[String]) = this(msg, logMsg, null, -1)
   def this(msg: String, logMsg: Option[String], cause: Throwable) = this(msg, logMsg, null, -1)
-  def this(msg: String, error_id: Int) = this(msg, None, null, error_id)
+  def this(msg: String, errorId: Int) = this(msg, None, null, errorId)
 }
 
 trait ErrorHandling {
   def fatal(msg: String): Nothing = throw new HailException(msg)
+
+  def fatal(msg: String, errorId: Int) = throw new HailException(msg, errorId)
 
   def fatal(msg: String, cause: Throwable): Nothing = throw new HailException(msg, None, cause)
 
@@ -53,7 +55,7 @@ trait ErrorHandling {
 
     log.error(s"$short\nFrom $logExpanded")
 
-    val error_id = if (e.isInstanceOf[HailException]) e.asInstanceOf[HailException].error_id else -1
+    val error_id = if (e.isInstanceOf[HailException]) e.asInstanceOf[HailException].errorId else -1
 
     (short, expanded, error_id)
   }

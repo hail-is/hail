@@ -58,7 +58,7 @@ object DictFunctions extends RegistryFunctions {
           invoke("concat", TString,
             Str("'    not found in dictionary. Keys: "),
             invoke("str", TString, invoke("keys", TArray(k.typ), d)))))
-      get(d, k, Die(errormsg, vtype))
+      get(d, k, Die(errormsg, vtype, -1))
     }
 
     registerIR1("dictToArray", tdict, TArray(TStruct("key" -> tv("key"), "value" -> tv("value")))) { (_, d) =>

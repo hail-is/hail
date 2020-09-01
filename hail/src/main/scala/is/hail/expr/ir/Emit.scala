@@ -559,11 +559,11 @@ class Emit[C](
 
         cb.assign(ib, Code._null)
 
-      case Die(m, typ) =>
+      case Die(m, typ, errorId) =>
         val cm = emitI(m)
         val msg = cb.newLocal[String]("exmsg", "<exception message missing>")
         cm.consume(cb, {}, s => cb.assign(msg, s.asString.loadString()))
-        cb._throw(Code.newInstance[HailException, String](msg))
+        cb._throw(Code.newInstance[HailException, String, Int](msg, errorId))
 
       case x@WriteMetadata(annotations, writer) =>
         writer.writeMetadata(emitI(annotations), cb, region.code)
@@ -1686,15 +1686,15 @@ class Emit[C](
         val ev = mb.getEmitParam(2 + i)
         assert(ev.pt == expectedPType)
         ev
-      case Die(m, typ) =>
+      case Die(m, typ, errorId) =>
         val cm = emit(m)
         EmitCode(
           Code(
             cm.setup,
-            Code._throw[HailException, Unit](Code.newInstance[HailException, String](
+            Code._throw[HailException, Unit](Code.newInstance[HailException, String, Int](
               cm.m.mux[String](
                 "<exception message missing>",
-                coerce[String](StringFunctions.wrapArg(EmitRegion(mb, region.code), m.pType)(cm.v)))))),
+                coerce[String](StringFunctions.wrapArg(EmitRegion(mb, region.code), m.pType)(cm.v))), errorId))),
           true,
           pt.defaultValue)
 

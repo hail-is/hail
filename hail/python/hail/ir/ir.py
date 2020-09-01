@@ -1948,7 +1948,7 @@ class Die(IR):
         return Die(message, self._typ)
 
     def head_str(self):
-        return self._typ._parsable_string()
+        return f'{self._typ._parsable_string()} {self._error_id}'
 
     def _eq(self, other):
         return other._typ == self._typ

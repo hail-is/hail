@@ -129,7 +129,7 @@ object StringFunctions extends RegistryFunctions {
               Str("string index out of bounds: "),
               invoke("concat", TString,
                 invoke("str", TString, i),
-                invoke("concat", TString, Str(" / "), invoke("str", TString, len)))), TInt32),
+                invoke("concat", TString, Str(" / "), invoke("str", TString, len)))), TInt32, -1),
             If(i < 0, i + len, i)),
         invoke("substring", TString, s, idx, idx + 1)))
     }
