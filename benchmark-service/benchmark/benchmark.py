@@ -28,11 +28,7 @@ BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
 def get_benchmarks(app, file_path):
-<<<<<<< HEAD
     gs_reader = app['gs_reader']
-=======
-    read_gs = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
->>>>>>> test
     try:
         json_data = gs_reader.get_data_as_string(file_path)
         pre_data = json.loads(json_data)
