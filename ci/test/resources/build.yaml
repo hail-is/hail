@@ -138,7 +138,7 @@ steps:
    secrets:
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: gce-deploy-config
       namespace:
@@ -147,4 +147,3 @@ steps:
    dependsOn:
     - service_base_image
     - default_ns
-    - batch_pods_ns

@@ -648,7 +648,7 @@ echo "hello" | nc -q 1 $(hostname -i) 5000
         builder.submit()
         status = j.wait()
         assert status['state'] == 'Failed', status
-        assert "Connection refused" in j.log()['main']
+        assert 'Connection timed out after' in j.log()['main']
 
     def test_verify_private_network_is_restricted(self):
         builder = self.client.create_batch()
