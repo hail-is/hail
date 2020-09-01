@@ -49,11 +49,11 @@ extensions = [
 ]
 
 katex_css_path = \
-    'https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css'
+    'https://cdn.jsdelivr.net/npm/katex@0.12.0/dist/katex.min.css'
 katex_js_path = \
-    'https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js'
+    'https://cdn.jsdelivr.net/npm/katex@0.12.0/dist/katex.min.js'
 katex_autorender_path = \
-    'https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js'
+    'https://cdn.jsdelivr.net/npm/katex@0.12.0/dist/contrib/auto-render.min.js'
 katex_inline = [r'\(', r'\)']
 katex_display = [r'\[', r'\]']
 katex_prerender = False

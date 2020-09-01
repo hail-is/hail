@@ -61,3 +61,10 @@ def block_matrix_to_matrix_table_row_major():
     mt = hl.utils.range_matrix_table(20_000, 20_000, n_partitions=4)
     bm = hl.linalg.BlockMatrix.from_entry_expr(mt.row_idx + mt.col_idx)
     bm.to_matrix_table_row_major()._force_count_rows()
+
+
+@benchmark()
+def king():
+    mt = hl.balding_nichols_model(6, n_variants=10000, n_samples=4096)
+    path = hl.utils.new_temp_file(extension='mt')
+    hl.king(mt.GT).write(path, overwrite=True)

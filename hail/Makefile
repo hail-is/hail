@@ -320,7 +320,7 @@ hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	     -iname *.html \
 	     -type f \
 	     -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
-	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
+	@echo Built docs: file://$(PWD)/build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: upload-docs
 upload-docs: hail-docs batch-docs
