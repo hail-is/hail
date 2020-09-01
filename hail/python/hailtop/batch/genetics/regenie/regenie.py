@@ -1,12 +1,14 @@
 from typing import Set, Dict, Any
 from ... import Batch, LocalBackend, ServiceBackend, Backend
 from ...resource import Resource
+import os
 import sys
 import shlex
 from argparse import Namespace, ArgumentParser, SUPPRESS
 from os.path import exists
 from google.cloud import storage  # type: ignore
 from google.cloud.storage.blob import Blob  # type: ignore
+from google.oauth2.credentials import Credentials  # type: ignore
 
 
 input_file_args = ["bgen", "bed", "pgen", "sample", "keep", "extract", "exclude", "remove",
@@ -30,7 +32,8 @@ def _read(spath: str):
         with open(spath, "r") as f:
             return f.read()
 
-    client = storage.Client()
+    credentials = Credentials.from_authorized_user_file(os.environ['HAIL_GSA_KEY_FILE'])
+    client = storage.Client(credentials=credentials)
     blob = Blob.from_string(spath, client)
     return blob.download_as_string().decode("utf-8")
 
