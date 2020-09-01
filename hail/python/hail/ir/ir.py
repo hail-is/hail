@@ -602,16 +602,20 @@ class ArrayZeros(IR):
 
 
 class StreamRange(IR):
-    @typecheck_method(start=IR, stop=IR, step=IR)
-    def __init__(self, start, stop, step):
+    @typecheck_method(start=IR, stop=IR, step=IR, separate_regions=bool)
+    def __init__(self, start, stop, step, separate_regions=False):
         super().__init__(start, stop, step)
         self.start = start
         self.stop = stop
         self.step = step
+        self.separate_regions = separate_regions
 
     @typecheck_method(start=IR, stop=IR, step=IR)
     def copy(self, start, stop, step):
         return StreamRange(start, stop, step)
+
+    def head_str(self):
+        return self.separate_regions
 
     def _compute_type(self, env, agg_env):
         self.start._compute_type(env, agg_env)
@@ -1031,14 +1035,18 @@ class CastToArray(IR):
 
 
 class ToStream(IR):
-    @typecheck_method(a=IR)
-    def __init__(self, a):
+    @typecheck_method(a=IR, separate_regions=bool)
+    def __init__(self, a, separate_regions=False):
         super().__init__(a)
         self.a = a
+        self.separate_regions = separate_regions
 
     @typecheck_method(a=IR)
     def copy(self, a):
         return ToStream(a)
+
+    def head_str(self):
+        return self.separate_regions
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
