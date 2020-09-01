@@ -150,8 +150,8 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 async def get_check_invariants(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     data = {
-        'check_incremental': app['check_incremental'],
-        'check_resource_aggregation': app['check_resource_aggregation']
+        'check_incremental_error': app['check_incremental_error'],
+        'check_resource_aggregation_error': app['check_resource_aggregation_error']
     }
     return web.json_response(data=data)
 
@@ -519,7 +519,7 @@ GROUP BY user;
         try:
             await check()  # pylint: disable=no-value-for-parameter
         except Exception as e:
-            app['check_incremental'] = e
+            app['check_incremental_error'] = e
             log.exception('while checking incremental')
         await asyncio.sleep(10)
 
@@ -616,7 +616,7 @@ LOCK IN SHARE MODE;
         try:
             await check()  # pylint: disable=no-value-for-parameter
         except Exception as e:
-            app['check_resource_aggregation'] = e
+            app['check_resource_aggregation_error'] = e
             log.exception('while checking resource aggregation')
         await asyncio.sleep(10)
 
@@ -695,8 +695,8 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     await scheduler.async_init()
     app['scheduler'] = scheduler
 
-    app['check_incremental'] = None
-    app['check_resource_aggregation'] = None
+    app['check_incremental_error'] = None
+    app['check_resource_aggregation_error'] = None
 
     if HAIL_SHOULD_CHECK_INVARIANTS:
         asyncio.ensure_future(check_incremental_loop(app, db))

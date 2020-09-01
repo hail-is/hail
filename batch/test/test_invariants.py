@@ -22,15 +22,9 @@ async def test_invariants():
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60)) as session:
 
-        async def wait_forever():
-            data = None
-            while data is None:
-                resp = await utils.request_retry_transient_errors(
-                    session, 'GET', url, headers=headers)
-                data = await resp.json()
-                await asyncio.sleep(5)
-            return data
+        resp = await utils.request_retry_transient_errors(
+            session, 'GET', url, headers=headers)
+        data = await resp.json()
 
-        data = await asyncio.wait_for(wait_forever(), timeout=30 * 60)
-        assert data['check_incremental'] is None, str(data)
-        assert data['check_resource_aggregation'] is None, str(data)
+        assert data['check_incremental_error'] is None, data
+        assert data['check_resource_aggregation_error'] is None, data
