@@ -1,3 +1,4 @@
+import os
 from aiohttp import web
 import logging
 from gear import setup_aiohttp_session, web_authenticated_developers_only
@@ -22,6 +23,8 @@ deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
 BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
+
+BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
 def get_benchmarks(app, file_path):
@@ -162,8 +165,9 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 
 @router.get('/')
 @router.get('')
-@web_authenticated_developers_only(redirect=False)
-async def index(request, userdata):  # pylint: disable=unused-argument
+# @web_authenticated_developers_only(redirect=False)
+async def index(request):  # pylint: disable=unused-argument
+    userdata = {}
     app = request.app
     file = request.query.get('file')
     if file is None:
@@ -212,6 +216,7 @@ def run():
     setup_aiohttp_session(app)
 
     setup_common_static_routes(router)
+    router.static('/static', f'{BENCHMARK_ROOT}/static')
     app.add_routes(router)
     on_startup(app)
     web.run_app(deploy_config.prefix_application(app, 'benchmark'),

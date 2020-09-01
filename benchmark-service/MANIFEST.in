@@ -1,2 +1,2 @@
 recursive-include benchmark/templates *
-recursive-include benchmark/styles *
+recursive-include benchmark/static *
