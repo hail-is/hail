@@ -158,57 +158,42 @@ final case class ETransposedArrayOfStructs(
     )
   }
 
-  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
-    val len = mb.newLocal[Int]("len")
-    val i = mb.newLocal[Int]("i")
-    val nMissing = mb.newLocal[Int]("nMissing")
-    val alen = mb.newLocal[Int]("alen")
-    val anMissing = mb.newLocal[Int]("anMissing")
-    val fmbytes = mb.newLocal[Long]("fmbytes")
-    val skipFields = Code(fields.map { f =>
-      val skip = f.typ.buildSkip(mb)
-      if (f.typ.required) {
-        Code(
-          i := 0,
-          Code.whileLoop(i < alen, Code(skip(r, in), i := i + 1)))
-      } else {
-        Code(
-          in.readBytes(r, fmbytes, anMissing),
-          i := 0,
-          Code.whileLoop(i < alen,
-            Code(
-              Region.loadBit(fmbytes, i.toL).mux(
-                Code._empty,
-                skip(r, in)),
-              i := i + 1)))
-      }
-    }.toArray)
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+    val len = cb.newLocal[Int]("len")
+    val i = cb.newLocal[Int]("i")
+    val nMissing = cb.newLocal[Int]("nMissing")
+    val alen = cb.newLocal[Int]("alen")
+    val anMissing = cb.newLocal[Int]("anMissing")
+    val fmbytes = cb.newLocal[Long]("fmbytes")
 
+    cb.assign(len, in.readInt())
+    cb.assign(nMissing, UnsafeUtils.packBitsToBytes(len))
     val prefix = Code(len := in.readInt(), nMissing := UnsafeUtils.packBitsToBytes(len))
     if (structRequired) {
-      Code(
-        prefix,
-        alen := len,
-        anMissing := UnsafeUtils.packBitsToBytes(alen),
-        fmbytes := r.allocate(const(1), nMissing.toL),
-        skipFields
-      )
+      cb.assign(alen, len)
+      cb.assign(fmbytes, r.allocate(const(1), nMissing.toL))
     } else {
-      val mbytes = mb.newLocal[Long]("mbytes")
-      Code(
-        prefix,
-        mbytes := r.allocate(const(1), nMissing.toL),
-        in.readBytes(r, mbytes, nMissing),
-        i := 0,
-        alen := 0,
-        Code.whileLoop(i < len,
-          Code(
-            alen := alen + (!Region.loadBit(mbytes, i.toL)).toI,
-            i := i + const(1))),
-        anMissing := UnsafeUtils.packBitsToBytes(alen),
-        fmbytes := r.allocate(const(1), nMissing.toL),
-        skipFields
-      )
+      val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1), nMissing.toL))
+      cb += in.readBytes(r, mbytes, nMissing)
+      cb.forLoop({
+        cb.assign(i, 0)
+        cb.assign(alen, 0)
+      }, i < len,
+        cb.assign(i, i + 1),
+        cb.assign(alen, alen + (!Region.loadBit(mbytes, i.toL)).toI))
+      cb.assign(anMissing, UnsafeUtils.packBitsToBytes(alen))
+      cb.assign(fmbytes, r.allocate(const(1), nMissing.toL))
+    }
+
+    fields.foreach { f =>
+      val skip = f.typ.buildSkip(cb.emb)
+      if (f.typ.required) {
+        cb.forLoop(cb.assign(i, 0), i < alen, cb.assign(i, i + 1), cb += skip(r, in))
+      } else {
+        cb += in.readBytes(r, fmbytes, anMissing)
+        cb.forLoop(cb.assign(i, 0), i < alen, cb.assign(i, i + 1),
+          cb.ifx(!Region.loadBit(fmbytes, i.toL), cb += skip(r, in)))
+      }
     }
   }
 
