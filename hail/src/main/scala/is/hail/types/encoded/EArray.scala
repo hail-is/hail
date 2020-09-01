@@ -148,33 +148,18 @@ final case class EArray(val elementType: EType, override val required: Boolean =
       array.load())
   }
 
-  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
-    val len = mb.newLocal[Int]("len")
-    val i = mb.newLocal[Int]("i")
-    val skip = elementType.buildSkip(mb)
-
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+    val skip = elementType.buildSkip(cb.emb)
+    val len = cb.newLocal[Int]("len", in.readInt())
+    val i = cb.newLocal[Int]("i")
     if (elementType.required) {
-      Code(
-        len := in.readInt(),
-        i := 0,
-        Code.whileLoop(i < len,
-          Code(
-            skip(r, in),
-            i := i + const(1))))
+      cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), cb += skip(r, in))
     } else {
-      val mbytes = mb.newLocal[Long]("mbytes")
-      val nMissing = mb.newLocal[Int]("nMissing")
-      Code(
-        len := in.readInt(),
-        nMissing := UnsafeUtils.packBitsToBytes(len),
-        mbytes := r.allocate(const(1), nMissing.toL),
-        in.readBytes(r, mbytes, nMissing),
-        i := 0,
-        Code.whileLoop(i < len,
-          Region.loadBit(mbytes, i.toL).mux(
-            Code._empty,
-            skip(r, in)),
-          i := i + const(1)))
+      val nMissing = cb.newLocal[Int]("nMissing", UnsafeUtils.packBitsToBytes(len))
+      val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1), nMissing.toL))
+      cb += in.readBytes(r, mbytes, nMissing)
+      cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1),
+        cb.ifx(!Region.loadBit(mbytes, i.toL), cb += skip(r, in)))
     }
   }
 
