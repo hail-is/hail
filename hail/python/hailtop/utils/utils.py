@@ -36,6 +36,12 @@ def first_extant_file(*files):
     return None
 
 
+def cost_str(cost):
+    if cost is None:
+        return None
+    return f'${cost:.4f}'
+
+
 def secret_alnum_string(n=22, *, case=None):
     # 22 characters is math.log(62 ** 22, 2) == ~130 bits of randomness. OWASP
     # recommends at least 128 bits:

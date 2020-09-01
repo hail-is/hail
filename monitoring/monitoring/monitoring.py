@@ -11,7 +11,7 @@ from hailtop.aiogoogle import BigQueryClient
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import get_in_cluster_server_ssl_context
-from hailtop.utils import run_if_changed_idempotent, retry_long_running, time_msecs
+from hailtop.utils import run_if_changed_idempotent, retry_long_running, time_msecs, cost_str
 from gear import (Database, setup_aiohttp_session,
                   web_authenticated_developers_only, rest_authenticated_developers_only,
                   transaction)
@@ -55,16 +55,18 @@ def format_data(records):
         else:
             assert record['source'] is None
 
-    cost_by_service = sorted([{'service': k, 'cost': v} for k, v in cost_by_service.items()],
+    cost_by_service = sorted([{'service': k, 'cost': cost_str(v)} for k, v in cost_by_service.items()],
                              key=lambda x: x['cost'],
                              reverse=True)
 
-    compute_cost_breakdown = sorted([{'source': k, 'cost': v} for k, v in compute_cost_breakdown.items()],
+    compute_cost_breakdown = sorted([{'source': k, 'cost': cost_str(v)} for k, v in compute_cost_breakdown.items()],
                                     key=lambda x: x['cost'],
                                     reverse=True)
 
     cost_by_sku_source.sort(key=lambda x: x['cost'],
                             reverse=True)
+    for record in cost_by_sku_source:
+        record['cost'] = cost_str(record['cost'])
 
     return (cost_by_service, compute_cost_breakdown, cost_by_sku_source)
 
