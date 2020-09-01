@@ -604,6 +604,7 @@ echo $HAIL_BATCH_WORKER_IP
     def test_verify_can_tcp_to_localhost(self):
         builder = self.client.create_batch()
         script = '''
+set -e
 nc -l -p 5000 &
 echo "hello" | nc -q 1 localhost 5000
 '''.lstrip('\n')
@@ -617,6 +618,7 @@ echo "hello" | nc -q 1 localhost 5000
     def test_verify_can_tcp_to_127_0_0_1(self):
         builder = self.client.create_batch()
         script = '''
+set -e
 nc -l -p 5000 &
 echo "hello" | nc -q 1 127.0.0.1 5000
 '''.lstrip('\n')

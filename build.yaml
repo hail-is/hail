@@ -1787,6 +1787,7 @@ steps:
    image:
      valueFrom: batch_image.image
    script: |
+     set -ex
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=0
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
@@ -1843,6 +1844,7 @@ steps:
    image:
      valueFrom: batch_image.image
    script: |
+     set -ex
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=1
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
@@ -1899,6 +1901,7 @@ steps:
    image:
      valueFrom: batch_image.image
    script: |
+     set -ex
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=2
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
@@ -1955,6 +1958,7 @@ steps:
    image:
      valueFrom: batch_image.image
    script: |
+     set -ex
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=3
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
@@ -2011,6 +2015,7 @@ steps:
    image:
      valueFrom: batch_image.image
    script: |
+     set -ex
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=4
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
