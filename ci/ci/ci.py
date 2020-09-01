@@ -21,7 +21,7 @@ from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
                         render_template, set_message)
 
 from .environment import BUCKET
-from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch
+from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
@@ -302,6 +302,8 @@ async def deploy_status(request, userdata):  # pylint: disable=unused-argument
     batch_client = request.app['batch_client']
 
     async def get_failure_information(batch):
+        if isinstance(batch, MergeFailureBatch):
+            return batch.exception
         jobs = await collect_agen(batch.jobs())
         return [
             {**j,
