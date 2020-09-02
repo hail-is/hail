@@ -81,7 +81,6 @@ steps:
      valueFrom: base_image.image
    script: |
      set -ex
-     cd /io
      mkdir repo
      cd repo
      {{ code.checkout_script }}
