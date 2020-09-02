@@ -1795,6 +1795,8 @@ steps:
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+     export HAIL_CURL_IMAGE={{ curl_image.image }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -1852,6 +1854,8 @@ steps:
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+     export HAIL_CURL_IMAGE={{ curl_image.image }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -1909,6 +1913,8 @@ steps:
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+     export HAIL_CURL_IMAGE={{ curl_image.image }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -1966,6 +1972,8 @@ steps:
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+     export HAIL_CURL_IMAGE={{ curl_image.image }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
