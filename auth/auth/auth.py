@@ -87,9 +87,9 @@ async def callback(request):
         token = google.oauth2.id_token.verify_oauth2_token(
             flow.credentials.id_token, google.auth.transport.requests.Request())
         email = token['email']
-    except Exception:
+    except Exception as e:
         log.exception('oauth2 callback: could not fetch and verify token')
-        raise web.HTTPUnauthorized()
+        raise web.HTTPUnauthorized() from e
 
     db = request.app['db']
     users = [x async for x in
@@ -251,9 +251,9 @@ async def rest_callback(request):
         token = google.oauth2.id_token.verify_oauth2_token(
             flow.credentials.id_token, google.auth.transport.requests.Request())
         email = token['email']
-    except Exception:
+    except Exception as e:
         log.exception('fetching and decoding token')
-        raise web.HTTPUnauthorized()
+        raise web.HTTPUnauthorized() from e
 
     db = request.app['db']
     users = [x async for x in
