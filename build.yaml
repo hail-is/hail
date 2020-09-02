@@ -75,18 +75,6 @@ steps:
    dockerFile: docker/Dockerfile.base
    contextPath: .
    publishAs: base
- - kind: runImage
-   name: check
-   image:
-     valueFrom: base_image.image
-   script: |
-     set -ex
-     mkdir repo
-     cd repo
-     {{ code.checkout_script }}
-     make -k check
-   dependsOn:
-     - base_image
  - kind: buildImage
    name: service_base_image
    dockerFile: docker/Dockerfile.service-base
@@ -94,6 +82,30 @@ steps:
    publishAs: service-base
    dependsOn:
     - base_image
+ - kind: runImage
+   name: check_hail
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     make check-hail
+   dependsOn:
+     - base_image
+ - kind: runImage
+   name: check_services
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     make check-services
+   dependsOn:
+     - service_base_image
  - kind: runImage
    name: copy_files
    image:

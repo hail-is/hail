@@ -5,8 +5,12 @@ default:
 	     build hail see: https://hail.is/docs/0.2/
 	exit 1
 
-.PHONY: check
-check: check-auth check-batch check-benchmark check-ci check-gear check-hail \
+.PHONY: check-hail
+check-hail:
+	make -C hail/python check
+
+.PHONY: check-services
+check-services: check-auth check-batch check-benchmark check-ci check-gear \
   check-notebook check-query check-router-resolver check-scorecard check-web-common
 
 .PHONY: check-auth
@@ -28,10 +32,6 @@ check-ci:
 .PHONY: check-gear
 check-gear:
 	make -C gear check
-
-.PHONY: check-hail
-check-hail:
-	make -C hail/python check
 
 .PHONY: check-notebook
 check-notebook:
