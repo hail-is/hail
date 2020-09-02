@@ -17,13 +17,15 @@
         :nosignatures:
 
     {% for item in attributes %}
+    {% if item[0] != '_' %}
         ~{{ name }}.{{ item }}
+    {% endif %}
     {%- endfor %}
     {% endif %}
     {% endblock %}
 
     {% block methods %}
-    {% if methods %}
+    {% if (methods | reject('in', inherited_members) | list | count) != 0 %}
 
     .. rubric:: Methods
 
@@ -31,7 +33,9 @@
         :nosignatures:
 
     {% for item in methods %}
+    {% if item not in inherited_members and item[0] != '_' %}
         ~{{ name }}.{{ item }}
+    {% endif %}
     {%- endfor %}
     {% endif %}
     {% endblock %}
