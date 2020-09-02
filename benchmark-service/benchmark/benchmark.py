@@ -217,7 +217,7 @@ def run():
     setup_common_static_routes(router)
     router.static('/static', f'{BENCHMARK_ROOT}/static')
     app.add_routes(router)
-    on_startup(app)
+    app.on_startup.append(on_startup)
     web.run_app(deploy_config.prefix_application(app, 'benchmark'),
                 host='0.0.0.0',
                 port=5000,
