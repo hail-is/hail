@@ -464,7 +464,8 @@ steps:
      valueFrom: benchmark_image.image
    script: |
      set -ex
-     python3 -m flake8 benchmark
+     SITE_PACKAGES=$(pip3 show benchmark | grep Location | sed 's/Location: //')
+     python3 -m flake8 $SITE_PACKAGES/benchmark
      python3 -m pylint --rcfile pylintrc benchmark --score=n
    dependsOn:
      - benchmark_image
@@ -887,7 +888,7 @@ steps:
      valueFrom: hail_pip_installed_python37_image.image
    script: |
      set -x
-     SITE_PACKAGES=$(pip3 show hail | grep Location | sed 's/Location: //')
+     SITE_PACKAGES=$(pip3 show hailtop | grep Location | sed 's/Location: //')
 
      exit_status=0
 
@@ -904,7 +905,7 @@ steps:
      valueFrom: hail_pip_installed_python36_image.image
    script: |
      set -x
-     SITE_PACKAGES=$(pip3 show hail | grep Location | sed 's/Location: //')
+     SITE_PACKAGES=$(pip3 show hailtop | grep Location | sed 's/Location: //')
 
      exit_status=0
 
@@ -1317,7 +1318,8 @@ steps:
      valueFrom: monitoring_image.image
    script: |
      set -ex
-     python3 -m flake8 monitoring
+     SITE_PACKAGES=$(pip3 show monitoring | grep Location | sed 's/Location: //')
+     python3 -m flake8 $SITE_PACKAGES/monitoring
      python3 -m pylint --rcfile pylintrc monitoring
    dependsOn:
      - monitoring_image
