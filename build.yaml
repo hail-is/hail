@@ -1840,6 +1840,7 @@ steps:
     - batch_image
     - ci_utils_image
     - deploy_batch
+    - netcat_ubuntu_image
     - curl_image
  - kind: runImage
    name: test_batch_1
@@ -1899,6 +1900,7 @@ steps:
     - batch_image
     - ci_utils_image
     - deploy_batch
+    - netcat_ubuntu_image
     - curl_image
  - kind: runImage
    name: test_batch_2
@@ -1958,6 +1960,7 @@ steps:
     - batch_image
     - ci_utils_image
     - deploy_batch
+    - netcat_ubuntu_image
     - curl_image
  - kind: runImage
    name: test_batch_3
@@ -2017,6 +2020,7 @@ steps:
     - batch_image
     - ci_utils_image
     - deploy_batch
+    - netcat_ubuntu_image
     - curl_image
  - kind: runImage
    name: test_batch_4
