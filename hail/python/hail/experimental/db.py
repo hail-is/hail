@@ -21,6 +21,14 @@ class DatasetVersion:
         return DatasetVersion(doc['url'],
                               doc['version'])
 
+    @staticmethod
+    def insert_region(versions, region):
+        if region is not None:
+            for version in versions:
+                if '{region}' in version.url:
+                    version.url = version.url.format(region=region)
+        return versions
+
     def __init__(self, url, version):
         self.url = url
         self.version = version
@@ -32,13 +40,14 @@ class DatasetVersion:
 
 class Dataset:
     @staticmethod
-    def from_name_and_json(name, doc):
+    def from_name_and_json(name, doc, region):
         assert 'description' in doc, doc
         assert 'url' in doc, doc
         assert 'key_properties' in doc, doc
         assert 'versions' in doc, doc
         versions = [DatasetVersion.from_json(x)
                     for x in doc['versions']]
+        versions = DatasetVersion.insert_region(versions, region)
         return Dataset(name,
                        doc['description'],
                        doc['url'],
@@ -89,20 +98,27 @@ class DB:
     """
 
     _valid_key_properties = {'gene', 'unique'}
+    _valid_regions = {'us', 'eu'}
 
     def __init__(self,
                  *,
+                 region=None,
                  url=None,
                  config=None):
+        self.region = region
         if config is not None and url is not None:
             raise ValueError(f'Only specify one of the parameters url and config, '
                              f'received: url={url} and config={config}')
         if config is None:
             if url is None:
-                config_path = pkg_resources.resource_filename(__name__, "annotation_db.json")
-                assert os.path.exists(config_path), f'{config_path} does not exist'
-                with open(config_path) as f:
-                    config = json.load(f)
+                if self.region in DB._valid_regions:
+                    config_path = pkg_resources.resource_filename(__name__, "annotation_db.json")
+                    assert os.path.exists(config_path), f'{config_path} does not exist'
+                    with open(config_path) as f:
+                        config = json.load(f)
+                else:
+                    raise ValueError(f'Specify valid region parameter, received: region={self.region}. '
+                                     f'Valid regions are {DB._valid_regions}.')
             else:
                 response = retry_response_returning_functions(
                     requests.get, url)
@@ -112,7 +128,7 @@ class DB:
             if not isinstance(config, dict):
                 raise ValueError(f'expected a dict mapping dataset names to '
                                  f'configurations, but found {config}')
-        self.__by_name = {k: Dataset.from_name_and_json(k, v)
+        self.__by_name = {k: Dataset.from_name_and_json(k, v, self.region)
                           for k, v in config.items()}
 
     def available_databases(self):
