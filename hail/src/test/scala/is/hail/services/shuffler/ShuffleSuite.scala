@@ -8,6 +8,7 @@ import is.hail.types.virtual._
 import is.hail.types.physical._
 import is.hail.types.encoded._
 import is.hail.expr.ir.ArrayZipBehavior._
+import is.hail.services._
 import is.hail.services.shuffler.server._
 import is.hail.services.shuffler.ShufflerTestUtils._
 import is.hail.io._
@@ -35,76 +36,78 @@ class ShuffleSuite extends HailSuite {
     val rowEType = EType.defaultFromPType(rowPType).asInstanceOf[EBaseStruct]
     val keyEType = EType.defaultFromPType(keyPType).asInstanceOf[EBaseStruct]
     val shuffleType = TShuffle(keyFields, rowType, rowEType, keyEType)
-    using(new ShuffleClient(shuffleType, rowPType, keyPType)) { c =>
-      val rowDecodedPType = c.codecs.rowDecodedPType
+    retryTransientErrors {
+      using(new ShuffleClient(shuffleType, rowPType, keyPType)) { c =>
+        val rowDecodedPType = c.codecs.rowDecodedPType
 
-      val values = new ArrayBuilder[Long]()
-      Region.scoped { region =>
-        val rvb = new RegionValueBuilder(region)
-        val nElements = 1000000
-        val nPartitions = 100
-        val shuffled = Random.shuffle((0 until nElements).toIndexedSeq).toArray
-        var i = 0
-        while (i < nElements) {
-          rvb.start(rowPType)
-          rvb.startStruct()
-          rvb.addInt(shuffled(i))
-          rvb.endStruct()
-          values += rvb.end()
-          i += 1
-        }
+        val values = new ArrayBuilder[Long]()
+        Region.scoped { region =>
+          val rvb = new RegionValueBuilder(region)
+          val nElements = 1000000
+          val nPartitions = 100
+          val shuffled = Random.shuffle((0 until nElements).toIndexedSeq).toArray
+          var i = 0
+          while (i < nElements) {
+            rvb.start(rowPType)
+            rvb.startStruct()
+            rvb.addInt(shuffled(i))
+            rvb.endStruct()
+            values += rvb.end()
+            i += 1
+          }
 
-        c.start()
-        c.put(values.result())
+          c.start()
+          c.put(values.result())
 
-        val partitionBounds = arrayOfUnsafeRow(
-          c.codecs.keyDecodedPType,
-          c.partitionBounds(region, nPartitions))
-        assert(partitionBounds.length == nPartitions + 1)
-        val keyOrd = c.codecs.keyDecodedPType.unsafeOrdering
-        assert(nPartitions < nElements)
-        assertStrictlyIncreasingPrefix(
-          keyOrd, partitionBounds, partitionBounds.length)
+          val partitionBounds = arrayOfUnsafeRow(
+            c.codecs.keyDecodedPType,
+            c.partitionBounds(region, nPartitions))
+          assert(partitionBounds.length == nPartitions + 1)
+          val keyOrd = c.codecs.keyDecodedPType.unsafeOrdering
+          assert(nPartitions < nElements)
+          assertStrictlyIncreasingPrefix(
+            keyOrd, partitionBounds, partitionBounds.length)
 
-        val left = struct(0)
-        val right = struct(nElements)
+          val left = struct(0)
+          val right = struct(nElements)
 
-        val fromOneQuery = arrayOfUnsafeRow(
-          rowDecodedPType,
-          c.get(region, left, true, right, false))
+          val fromOneQuery = arrayOfUnsafeRow(
+            rowDecodedPType,
+            c.get(region, left, true, right, false))
 
-        i = 0
-        val ab = new ArrayBuilder[Long]()
-        while (i < nPartitions) {
-          ab ++= c.get(region,
-            partitionBounds(i).offset, true,
-            partitionBounds(i + 1).offset, i == nPartitions - 1)
-          i += 1
-        }
-        val fromPartitionedQueries = arrayOfUnsafeRow(
-          rowDecodedPType,
-          ab.result())
+          i = 0
+          val ab = new ArrayBuilder[Long]()
+          while (i < nPartitions) {
+            ab ++= c.get(region,
+              partitionBounds(i).offset, true,
+              partitionBounds(i + 1).offset, i == nPartitions - 1)
+            i += 1
+          }
+          val fromPartitionedQueries = arrayOfUnsafeRow(
+            rowDecodedPType,
+            ab.result())
 
-        i = 0
-        def assertFirstFieldEqualsIndex(rows: IndexedSeq[UnsafeRow], i: Int): Unit = {
-          assert(!rows(i).isNullAt(0),
-            s"""first field is undefined ${rows(i)}
+          i = 0
+          def assertFirstFieldEqualsIndex(rows: IndexedSeq[UnsafeRow], i: Int): Unit = {
+            assert(!rows(i).isNullAt(0),
+              s"""first field is undefined ${rows(i)}
                |Context: ${rows.slice(i-3, i+3)}.
                |Length: ${rows.length}""".stripMargin)
-          assert(rows(i).getInt(0) == i,
-            s"""first field should be ${i}: ${rows(i)}.
+            assert(rows(i).getInt(0) == i,
+              s"""first field should be ${i}: ${rows(i)}.
                |Context: ${rows.slice(i-3, i+3)}.
                |Length: ${rows.length}""".stripMargin)
+          }
+          while (i < nElements) {
+            assertFirstFieldEqualsIndex(fromOneQuery, i)
+            assertFirstFieldEqualsIndex(fromPartitionedQueries, i)
+            i += 1
+          }
+          assert(fromOneQuery.length == nElements)
+          assert(fromPartitionedQueries.length == nElements)
         }
-        while (i < nElements) {
-          assertFirstFieldEqualsIndex(fromOneQuery, i)
-          assertFirstFieldEqualsIndex(fromPartitionedQueries, i)
-          i += 1
-        }
-        assert(fromOneQuery.length == nElements)
-        assert(fromPartitionedQueries.length == nElements)
+        c.stop()
       }
-      c.stop()
     }
   }
 
@@ -209,7 +212,9 @@ class ShuffleSuite extends HailSuite {
         .asInstanceOf[PArray]
       val elementPType = rowArrayPType.elementType
         .asInstanceOf[PBaseStruct]
-      val pairOff = f(0, ctx.r)(ctx.r)
+      retryTransientErrors {
+        val pairOff = f(0, ctx.r)(ctx.r)
+      }
       val pair = new UnsafeRow(pairPType, null, pairOff)
       val partitionBounds = pair.get(0).asInstanceOf[IndexedSeq[UnsafeRow]]
       assert(nParts > 0)

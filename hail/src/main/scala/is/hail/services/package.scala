@@ -1,5 +1,8 @@
 package is.hail
 
+import javax.net.ssl.SSLException
+import java.net.SocketException
+
 import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
 
@@ -28,6 +31,11 @@ package object services {
         RETRYABLE_HTTP_STATUS_CODES.contains(e.status)
       case e: HttpHostConnectException =>
         true
+      case e: SocketException =>
+        e.getMessage.contains("Connection reset")
+      case e: SSLException =>
+        val cause = e.getCause
+        cause != null && isTransientError(cause)
       case _ =>
         false
     }
