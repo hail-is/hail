@@ -1,10 +1,8 @@
 from types import TracebackType
-from typing import Optional, Type, Deque, TypeVar
+from typing import Optional, Type, Deque
 import collections
 import time
 import asyncio
-
-T = TypeVar('T')
 
 
 class RateLimit:
