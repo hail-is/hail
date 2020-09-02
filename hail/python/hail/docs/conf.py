@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.abspath('./_ext'))
 
 # -- General configuration ------------------------------------------------
 
-nitpicky = True
+# nitpicky = True
 
 # If your documentation needs a minimal Sphinx version, state it here.
 #
