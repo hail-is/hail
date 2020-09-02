@@ -23,7 +23,7 @@ check-batch:
 
 .PHONY: check-benchmark
 check-benchmark:
-	make -C benchmark/python check
+	make -C benchmark-service check
 
 .PHONY: check-ci
 check-ci:

@@ -8,6 +8,8 @@ QUERY_IMAGE = gcr.io/$(PROJECT)/query:$(shell docker images -q --no-trunc query 
 
 .PHONY: check
 check:
+	echo $(PYTHONPATH)
+	$(PYTHON) -c 'import os; print(os.environ["PYTHONPATH"])'
 	$(PYTHON) -m flake8  --config ../setup.cfg query
 	$(PYTHON) -m pylint --rcfile ../pylintrc query --score=n
 
