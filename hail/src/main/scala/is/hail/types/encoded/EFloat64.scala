@@ -16,15 +16,13 @@ class EFloat64(override val required: Boolean) extends EFundamentalType {
   def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
     cb += out.writeDouble(coerce[Double](v))
   }
-
-  def _buildFundamentalDecoder(
-    pt: PType,
+def _buildFundamentalDecoder( pt: PType,
     mb: EmitMethodBuilder[_],
     region: Value[Region],
     in: Value[InputBuffer]
   ): Code[Double] = in.readDouble()
 
-  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = in.skipDouble()
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = cb += in.skipDouble()
 
   override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PFloat64]
 

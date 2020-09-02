@@ -108,11 +108,12 @@ abstract class EType extends BaseType with Serializable with Requiredness {
       (this, "SKIP"),
       FastIndexedSeq[ParamType](classInfo[Region], classInfo[InputBuffer]),
       UnitInfo)({ mb =>
-
-      val r: Value[Region] = mb.getCodeParam[Region](1)
-      val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](2)
-      val skip = _buildSkip(mb, r, in)
-      mb.emit(skip)
+      mb.emitWithBuilder { cb =>
+        val r: Value[Region] = mb.getCodeParam[Region](1)
+        val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](2)
+        _buildSkip(cb, r, in)
+        Code._empty
+      }
     }).invokeCode(_, _)
   }
 
@@ -132,7 +133,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     Region.storeIRIntermediate(pt)(addr, decoded)
   }
 
-  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit]
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit
 
   def _compatible(pt: PType): Boolean = fatal("EType subclasses must override either `_compatible` or both `_encodeCompatible` and `_decodeCompatible`")
 

@@ -218,22 +218,17 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       readFields,
       Code._empty)
   }
-  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
-    val mbytes = mb.newLocal[Long]("mbytes")
-    val skipFields = fields.map { f =>
-      val skip = f.typ.buildSkip(mb)
-      if (f.typ.required)
-        skip(r, in)
-      else
-        Region.loadBit(mbytes, missingIdx(f.index).toLong).mux(
-          Code._empty,
-          skip(r, in))
-    }
 
-    Code(
-      mbytes := r.allocate(const(1), const(nMissingBytes)),
-      in.readBytes(r, mbytes, nMissingBytes),
-      Code(skipFields))
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+    val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1), const(nMissingBytes)))
+    cb += in.readBytes(r, mbytes, nMissingBytes)
+    fields.foreach { f =>
+      val skip = f.typ.buildSkip(cb.emb)
+      if (f.typ.required)
+        cb += skip(r, in)
+      else
+        cb.ifx(!Region.loadBit(mbytes, missingIdx(f.index).toLong), cb += skip(r, in))
+    }
   }
 
   def _asIdent: String = {

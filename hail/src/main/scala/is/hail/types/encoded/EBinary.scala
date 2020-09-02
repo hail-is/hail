@@ -38,11 +38,8 @@ class EBinary(override val required: Boolean) extends EFundamentalType {
       barray.load())
   }
 
-  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
-    val len = mb.newLocal[Int]("len")
-    Code(
-      len := in.readInt(),
-      in.skipBytes(len))
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+    cb += in.skipBytes(in.readInt())
   }
 
   override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PBinary]
