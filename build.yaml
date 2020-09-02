@@ -76,6 +76,7 @@ steps:
    contextPath: .
    publishAs: base
  - kind: runImage
+   name: check
    image:
      valueFrom: base_image.image
    script: |
@@ -84,7 +85,7 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
-     make check
+     make -k check
    dependsOn:
      - base_image
  - kind: buildImage
