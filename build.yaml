@@ -929,7 +929,8 @@ steps:
      valueFrom: notebook_image.image
    script: |
      set -ex
-     python3 -m flake8 notebook
+     SITE_PACKAGES=$(pip3 show notebook | grep Location | sed 's/Location: //')
+     python3 -m flake8 $SITE_PACKAGES/notebook
      python3 -m pylint --rcfile pylintrc notebook
    dependsOn:
      - notebook_image
@@ -2759,7 +2760,8 @@ steps:
      valueFrom: address_image.image
    script: |
      set -ex
-     python3 -m flake8 address
+     SITE_PACKAGES=$(pip3 show address | grep Location | sed 's/Location: //')
+     python3 -m flake8 $SITE_PACKAGES/address
      python3 -m pylint --rcfile pylintrc address
    dependsOn:
      - address_image
