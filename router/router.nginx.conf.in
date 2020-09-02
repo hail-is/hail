@@ -75,8 +75,8 @@ server {
         include /etc/nginx/proxy.conf;
     }
 
-    listen 80;
-    listen [::]:80;
+    listen 443;
+    listen [::]:443;
 }
 
 server {
