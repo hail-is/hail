@@ -176,7 +176,6 @@ async def index(request):  # pylint: disable=unused-argument
     return await render_template('benchmark', request, userdata, 'index.html', context)
 
 
-
 @router.get('/compare')
 @web_authenticated_developers_only(redirect=False)
 async def compare(request, userdata):  # pylint: disable=unused-argument
@@ -203,7 +202,11 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
 
 
 def on_startup(app):
-    app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
+    try:
+        app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
+    except Exception:
+        app['gs_reader'] = None
+        log.exception(f'error in startup', stack_info=True)
 
 
 def run():
