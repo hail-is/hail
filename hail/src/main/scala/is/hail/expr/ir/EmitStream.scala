@@ -298,8 +298,13 @@ object Stream {
     }
   }
 
-  def grouped[A](mb: EmitMethodBuilder[_], childStream: StagedRegion => Stream[A], size: Code[Int], outerRegion: StagedRegion): Stream[StagedRegion => Stream[A]] = new Stream[StagedRegion => Stream[A]] {
-    def apply(outerEos: Code[Ctrl], outerPush: (StagedRegion => Stream[A]) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[StagedRegion => Stream[A]] = {
+  def grouped[A](
+    mb: EmitMethodBuilder[_],
+    childStream: ChildStagedRegion => Stream[A],
+    size: Code[Int],
+    outerRegion: RootStagedRegion
+  ): Stream[ChildStagedRegion => Stream[A]] = new Stream[ChildStagedRegion => Stream[A]] {
+    def apply(outerEos: Code[Ctrl], outerPush: (ChildStagedRegion => Stream[A]) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[ChildStagedRegion => Stream[A]] = {
       val xCounter = ctx.mb.genFieldThisRef[Int]("st_grp_ctr")
       val xInOuter = ctx.mb.genFieldThisRef[Boolean]("st_grp_io")
       val xSize = ctx.mb.genFieldThisRef[Int]("st_grp_sz")
@@ -312,7 +317,7 @@ object Stream {
       val childEltRegion = outerRegion.createChildRegion(mb)
 
       var childSource: Source[A] = null
-      val inner = (innerEltRegion: StagedRegion) => new Stream[A] {
+      val inner = (innerEltRegion: ChildStagedRegion) => new Stream[A] {
         def apply(innerEos: Code[Ctrl], innerPush: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
           val LinnerEos = CodeLabel()
           val LinnerPush = CodeLabel()
@@ -483,9 +488,9 @@ object Stream {
 
   def leftJoinRightDistinct(
     mb: EmitMethodBuilder[_],
-    lElemType: PType, mkLeft: StagedRegion => Stream[EmitCode],
-    rElemType: PType, mkRight: StagedRegion => Stream[EmitCode],
-    destRegion: StagedRegion,
+    lElemType: PType, mkLeft: ChildStagedRegion => Stream[EmitCode],
+    rElemType: PType, mkRight: ChildStagedRegion => Stream[EmitCode],
+    destRegion: ChildStagedRegion,
     comp: (EmitValue, EmitValue) => Code[Int]
   ): Stream[(EmitCode, EmitCode)] = new Stream[(EmitCode, EmitCode)] {
     def apply(eos: Code[Ctrl], push: ((EmitCode, EmitCode)) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(EmitCode, EmitCode)] = {
@@ -494,7 +499,7 @@ object Stream {
       val lx = mb.newEmitField(lElemType) // last value received from left
       val rx = mb.newEmitField(rElemType) // last value received from right
       val rxOut = mb.newEmitField(rElemType.setRequired(false)) // right value to push (may be missing while rx is not)
-      val rightRegion = destRegion.createChildRegion(mb)
+      val rightRegion = destRegion.createSiblingRegion(mb)
 
       var rightSource: Source[EmitCode] = null
       val leftSource = mkLeft(destRegion)(
@@ -517,7 +522,7 @@ object Stream {
                 (c < 0).mux(
                   Code(rxOut := EmitCode.missing(rElemType),
                        Lpush.goto),
-                  Code(rightRegion.shareWithParent(),
+                  Code(rightRegion.shareWithSibling(destRegion),
                        rxOut := rx,
                        Lpush.goto))))
           })
@@ -542,9 +547,9 @@ object Stream {
 
   def merge(
     mb: EmitMethodBuilder[_],
-    lElemType: PType, mkLeft: StagedRegion => Stream[EmitCode],
-    rElemType: PType, mkRight: StagedRegion => Stream[EmitCode],
-    outElemType: PType, destRegion: StagedRegion,
+    lElemType: PType, mkLeft: ChildStagedRegion => Stream[EmitCode],
+    rElemType: PType, mkRight: ChildStagedRegion => Stream[EmitCode],
+    outElemType: PType, destRegion: ChildStagedRegion,
     comp: (EmitValue, EmitValue) => Code[Int]
   ): Stream[EmitCode] = new Stream[EmitCode] {
     def apply(eos: Code[Ctrl], push: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] = {
@@ -652,9 +657,9 @@ object Stream {
 
   def outerJoinRightDistinct(
     mb: EmitMethodBuilder[_],
-    lElemType: PType, mkLeft: StagedRegion => Stream[EmitCode],
-    rElemType: PType, mkRight: StagedRegion => Stream[EmitCode],
-    destRegion: StagedRegion,
+    lElemType: PType, mkLeft: ChildStagedRegion => Stream[EmitCode],
+    rElemType: PType, mkRight: ChildStagedRegion => Stream[EmitCode],
+    destRegion: ChildStagedRegion,
     comp: (EmitValue, EmitValue) => Code[Int]
   ): Stream[(EmitCode, EmitCode)] = new Stream[(EmitCode, EmitCode)] {
     def apply(eos: Code[Ctrl], push: ((EmitCode, EmitCode)) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(EmitCode, EmitCode)] = {
@@ -666,8 +671,8 @@ object Stream {
       val lOutMissing = mb.genFieldThisRef[Boolean]("ojrd_lom")
       val rOutMissing = mb.genFieldThisRef[Boolean]("ojrd_rom")
       val c = mb.genFieldThisRef[Int]()
-      val leftRegion = destRegion.createChildRegion(mb)
-      val rightRegion = destRegion.createChildRegion(mb)
+      val leftRegion = destRegion.createSiblingRegion(mb)
+      val rightRegion = destRegion.createSiblingRegion(mb)
 
       val Leos = CodeLabel()
       Code(Leos, eos)
@@ -684,7 +689,7 @@ object Stream {
             lOutMissing := true,
             rOutMissing := false,
             (pulledRight && c.cne(0)).mux(
-              Code(rightRegion.shareWithParent(), Lpush.goto),
+              Code(rightRegion.shareWithSibling(destRegion), Lpush.goto),
               Code(pulledRight := true, rightRegion.clear(), LpullRight.goto)))),
         push = a => {
           val Lcompare = CodeLabel()
@@ -696,17 +701,17 @@ object Stream {
             (c > 0).mux(
               pulledRight.mux(
                 Code(lOutMissing := true,
-                     rightRegion.shareWithParent(),
+                     rightRegion.shareWithSibling(destRegion),
                      Lpush.goto),
                 Code(pulledRight := true,
                      LpullRight.goto)),
               (c < 0).mux(
                 Code(rOutMissing := true,
-                     leftRegion.giveToParent(),
+                     leftRegion.giveToSibling(destRegion),
                      Lpush.goto),
                 Code(pulledRight := true,
-                     leftRegion.giveToParent(),
-                     rightRegion.shareWithParent(),
+                     leftRegion.giveToSibling(destRegion),
+                     rightRegion.shareWithSibling(destRegion),
                      Lpush.goto))))
 
           rightSource = mkRight(rightRegion)(
@@ -715,7 +720,7 @@ object Stream {
               Code(rightEOS := true,
                    lOutMissing := false,
                    rOutMissing := true,
-                   leftRegion.giveToParent(),
+                   leftRegion.giveToSibling(destRegion),
                    Lpush.goto)),
             push = b => Code(
               rx := b,
@@ -728,7 +733,7 @@ object Stream {
             lx := a,
             pulledRight.mux[Unit](
               rightEOS.mux[Ctrl](
-                Code(leftRegion.giveToParent(), Lpush.goto),
+                Code(leftRegion.giveToSibling(destRegion), Lpush.goto),
                 Code(
                   c.ceq(0).orEmpty(pulledRight := false),
                   Lcompare.goto)),
@@ -757,8 +762,8 @@ object Stream {
 
   def kWayMerge[A: TypeInfo](
     mb: EmitMethodBuilder[_],
-    streams: IndexedSeq[StagedRegion => Stream[Code[A]]],
-    destRegion: StagedRegion,
+    streams: IndexedSeq[ChildStagedRegion => Stream[Code[A]]],
+    destRegion: ChildStagedRegion,
     // compare two (idx, value) pairs, where 'value' is a value from the 'idx'th
     // stream
     lt: (Code[Int], Code[A], Code[Int], Code[A]) => Code[Boolean]
@@ -789,7 +794,7 @@ object Stream {
       val winner = mb.genFieldThisRef[Int]("merge_winner")
       val i = mb.genFieldThisRef[Int]("merge_i")
       val challenger = mb.genFieldThisRef[Int]("merge_challenger")
-      val eltRegions = destRegion.createChildRegionArray(mb, k)
+      val eltRegions = destRegion.createSiblingRegionArray(mb, k)
 
       val runMatch = CodeLabel()
       val LpullChild = CodeLabel()
@@ -817,7 +822,7 @@ object Stream {
           // must be k, and all streams are exhausted.
           winner.ceq(k).mux(
             Leos.goto,
-            Code(eltRegions(winner).giveToParent(), push((winner, heads(winner))))),
+            Code(eltRegions(winner).giveToSibling(destRegion), push((winner, heads(winner))))),
           // We're still in the setup phase
           Code(bracket(matchIdx) = winner, i := i + 1, winner := i, LpullChild.goto)))
 
@@ -860,21 +865,19 @@ object EmitStream {
     mb: EmitMethodBuilder[_],
     pcStream: PCanonicalStreamCode,
     ab: StagedArrayBuilder,
-    destRegion: StagedRegion,
-    allowAllocations: Boolean
+    destRegion: RootStagedRegion
   ): Code[Unit] = {
-    _write(mb, pcStream.stream, ab, destRegion, allowAllocations)
+    _write(mb, pcStream.stream, ab, destRegion)
   }
 
   private def _write(
     mb: EmitMethodBuilder[_],
     sstream: SizedStream,
     ab: StagedArrayBuilder,
-    destRegion: StagedRegion,
-    allowAllocations: Boolean
+    destRegion: RootStagedRegion
   ): Code[Unit] = {
     val SizedStream(ssSetup, stream, optLen) = sstream
-    val eltRegion = destRegion.createChildRegion(mb, allowAllocations)
+    val eltRegion = destRegion.createChildRegion(mb)
     Code(FastSeq(
       eltRegion.allocateRegion(Region.REGULAR),
       ssSetup,
@@ -894,8 +897,7 @@ object EmitStream {
     mb: EmitMethodBuilder[_],
     aTyp: PArray,
     pcStream: PCanonicalStreamCode,
-    destRegion: StagedRegion,
-    allowAllocations: Boolean
+    destRegion: RootStagedRegion
   ): PCode = {
     val srvb = new StagedRegionValueBuilder(mb, aTyp, destRegion.code)
     val ss = pcStream.stream
@@ -905,7 +907,7 @@ object EmitStream {
         val i = mb.newLocal[Int]("sta_i")
         val vab = new StagedArrayBuilder(aTyp.elementType, mb, 0)
         val ptr = Code(
-          _write(mb, ss, vab, destRegion, allowAllocations),
+          _write(mb, ss, vab, destRegion),
           xLen := vab.size,
           srvb.start(xLen),
           i := const(0),
@@ -919,7 +921,7 @@ object EmitStream {
         PCode(aTyp, ptr)
 
       case Some(len) =>
-        val eltRegion = destRegion.createChildRegion(mb, allowAllocations)
+        val eltRegion = destRegion.createChildRegion(mb)
         val ptr = Code.sequence1(FastIndexedSeq(
             eltRegion.allocateRegion(Region.REGULAR),
             ss.setup,
@@ -961,12 +963,12 @@ object EmitStream {
     }
   }
 
-  case class SizedStream(setup: Code[Unit], stream: StagedRegion => Stream[EmitCode], length: Option[Code[Int]]) {
-    def getStream(eltRegion: StagedRegion): Stream[EmitCode] = stream(eltRegion).addSetup(setup)
+  case class SizedStream(setup: Code[Unit], stream: ChildStagedRegion => Stream[EmitCode], length: Option[Code[Int]]) {
+    def getStream(eltRegion: ChildStagedRegion): Stream[EmitCode] = stream(eltRegion).addSetup(setup)
   }
 
   object SizedStream {
-    def unsized(stream: StagedRegion => Stream[EmitCode]): SizedStream =
+    def unsized(stream: ChildStagedRegion => Stream[EmitCode]): SizedStream =
       SizedStream(Code._empty, stream, None)
   }
 
@@ -992,8 +994,8 @@ object EmitStream {
   // Assumes distinct keys in each input stream.
   def kWayZipJoin(
     mb: EmitMethodBuilder[_],
-    streams: IndexedSeq[StagedRegion => Stream[PCode]],
-    destRegion: StagedRegion,
+    streams: IndexedSeq[ChildStagedRegion => Stream[PCode]],
+    destRegion: ChildStagedRegion,
     resultType: PArray,
     key: IndexedSeq[String]
   ): Stream[(PCode, PCode)] = new Stream[(PCode, PCode)] {
@@ -1028,7 +1030,7 @@ object EmitStream {
       val eltType = resultType.elementType.asInstanceOf[PStruct]
       val keyType = eltType.selectFields(key)
       val curKey = ctx.mb.newPField("st_grpby_curkey", keyType)
-      val eltRegions = destRegion.createChildRegionArray(mb, k)
+      val eltRegions = destRegion.createSiblingRegionArray(mb, k)
 
       val keyViewType = PSubsetStruct(eltType, key: _*)
       val lt: (Code[Long], Code[Long]) => Code[Boolean] = keyViewType
@@ -1066,12 +1068,12 @@ object EmitStream {
 
       Code(LstartNewKey,
         Code.forLoop(i := 0, i < k, i := i + 1, result(i) = 0L),
-        curKey := eltRegions(winner).copyToParent(mb, winnerPc, keyType),
+        curKey := eltRegions(winner).copyToSibling(mb, winnerPc, destRegion, keyType),
         LaddToResult.goto)
 
       Code(LaddToResult,
         result(winner) = heads(winner),
-        eltRegions(winner).giveToParent(),
+        eltRegions(winner).giveToSibling(destRegion),
         LpullChild.goto)
 
       def inSetup: Code[Boolean] = result.isNull
@@ -1140,12 +1142,12 @@ object EmitStream {
 
   def groupBy(
     mb: EmitMethodBuilder[_],
-    stream: StagedRegion => Stream[PCode],
+    stream: ChildStagedRegion => Stream[PCode],
     eltType: PStruct,
     key: Array[String],
-    outerRegion: StagedRegion
-  ): Stream[StagedRegion => Stream[PCode]] = new Stream[StagedRegion => Stream[PCode]] {
-    def apply(outerEos: Code[Ctrl], outerPush: (StagedRegion => Stream[PCode]) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[StagedRegion => Stream[PCode]] = {
+    outerRegion: RootStagedRegion
+  ): Stream[ChildStagedRegion => Stream[PCode]] = new Stream[ChildStagedRegion => Stream[PCode]] {
+    def apply(outerEos: Code[Ctrl], outerPush: (ChildStagedRegion => Stream[PCode]) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[ChildStagedRegion => Stream[PCode]] = {
       val keyType = eltType.selectFields(key)
       val keyViewType = PSubsetStruct(eltType, key)
       val ordering = keyType.codeOrdering(mb, keyViewType, missingFieldsEqual = false).asInstanceOf[CodeOrdering { type T = Long }]
@@ -1164,7 +1166,7 @@ object EmitStream {
       val LouterEos = CodeLabel()
 
       var childSource: Source[PCode] = null
-      val inner = (innerEltRegion: StagedRegion) => new Stream[PCode] {
+      val inner = (innerEltRegion: ChildStagedRegion) => new Stream[PCode] {
         def apply(innerEos: Code[Ctrl], innerPush: PCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[PCode] = {
           val LinnerEos = CodeLabel()
           val LinnerPush = CodeLabel()
@@ -1224,7 +1226,7 @@ object EmitStream {
 
       Code(LouterEos, outerEos)
 
-      Source[StagedRegion => Stream[PCode]](
+      Source[ChildStagedRegion => Stream[PCode]](
         setup0 = Code(childSource.setup0, holdingRegion.allocateRegion(Region.REGULAR), keyRegion.allocateRegion(Region.TINIER)),
         close0 = Code(holdingRegion.free(), keyRegion.free(), childSource.close0),
         setup = Code(
@@ -1262,17 +1264,17 @@ object EmitStream {
     emitter: Emit[C],
     streamIR0: IR,
     mb: EmitMethodBuilder[C],
-    outerRegion: StagedRegion,
+    outerRegion: RootStagedRegion,
     env0: Emit.E,
     container: Option[AggContainer]
   ): EmitCode = {
 
-    def _emitStream(streamIR: IR, outerRegion: StagedRegion, env: Emit.E): COption[SizedStream] = {
+    def _emitStream(streamIR: IR, outerRegion: RootStagedRegion, env: Emit.E): COption[SizedStream] = {
 
-      def emitStream(streamIR: IR, outerRegion: StagedRegion = outerRegion, env: Emit.E = env): COption[SizedStream] =
+      def emitStream(streamIR: IR, outerRegion: RootStagedRegion = outerRegion, env: Emit.E = env): COption[SizedStream] =
         _emitStream(streamIR, outerRegion, env)
 
-      def emitStreamToEmitCode(streamIR: IR, outerRegion: StagedRegion = outerRegion, env: Emit.E = env): EmitCode =
+      def emitStreamToEmitCode(streamIR: IR, outerRegion: RootStagedRegion = outerRegion, env: Emit.E = env): EmitCode =
         COption.toEmitCode(
           _emitStream(streamIR, outerRegion, env).map { stream =>
             PCanonicalStreamCode(streamIR.pType.asInstanceOf[PCanonicalStream], stream)
@@ -1461,7 +1463,7 @@ object EmitStream {
           val eltType = coerce[PStruct](innerType.elementType)
           val optStream = emitStream(a)
           optStream.map { ss =>
-            val nonMissingStream = (eltRegion: StagedRegion) => ss.getStream(eltRegion).mapCPS[PCode] { (_, ec, k) =>
+            val nonMissingStream = (eltRegion: ChildStagedRegion) => ss.getStream(eltRegion).mapCPS[PCode] { (_, ec, k) =>
               Code(ec.setup, ec.m.orEmpty(Code._fatal[Unit](const("expected non-missing"))), k(ec.pv))
             }
             val newStream = groupBy(mb, nonMissingStream, eltType, key.toArray, outerRegion)
@@ -1481,22 +1483,24 @@ object EmitStream {
 
           val optStream = emitStream(childIR)
           optStream.map { case SizedStream(setup, stream, len) =>
-            def newStream(eltRegion: StagedRegion) = stream(eltRegion).map { eltt => (eltType, bodyIR.pType) match {
-              case (eltType: PCanonicalStream, _: PCanonicalStream) =>
+            def newStream(eltRegion: ChildStagedRegion) = stream(eltRegion).map { eltt => (eltType, bodyIR.pType) match {
+              case (eltType: PCanonicalStream, bodyType: PCanonicalStream) =>
                 val bodyenv = env.bind(name -> new EmitUnrealizableValue(eltType, eltt))
+                val outerRegion = eltRegion.asRoot(bodyType.separateRegions)
 
-                emitStreamToEmitCode(bodyIR, outerRegion = eltRegion, env = bodyenv)
+                emitStreamToEmitCode(bodyIR, outerRegion, bodyenv)
               case (eltType: PCanonicalStream, _) =>
                 val bodyenv = env.bind(name -> new EmitUnrealizableValue(eltType, eltt))
 
                 emitIR(bodyIR, region = eltRegion, env = bodyenv)
-              case (_, _: PCanonicalStream) =>
+              case (_, bodyType: PCanonicalStream) =>
                 val xElt = mb.newEmitField(name, eltType)
                 val bodyenv = env.bind(name -> xElt)
+                val outerRegion = eltRegion.asRoot(bodyType.separateRegions)
 
                 EmitCode(
                   xElt := eltt,
-                  emitStreamToEmitCode(bodyIR, outerRegion = eltRegion, env = bodyenv))
+                  emitStreamToEmitCode(bodyIR, outerRegion, env = bodyenv))
               case _ =>
                 val xElt = mb.newEmitField(name, eltType)
                 val bodyenv = env.bind(name -> xElt)
@@ -1514,7 +1518,7 @@ object EmitStream {
           val optStream = emitStream(childIR)
 
           optStream.map { ss =>
-            val newStream = (eltRegion: StagedRegion) => {
+            val newStream = (eltRegion: ChildStagedRegion) => {
               val tmpRegion = eltRegion.createSiblingRegion(mb)
               ss.getStream(tmpRegion)
                 .map (
@@ -1590,13 +1594,12 @@ object EmitStream {
 
           optStreams.map { emitStreams =>
             val lenSetup = Code(emitStreams.map(_.setup))
-            val streams = emitStreams.map(_.stream(outerRegion))
             val lengths = emitStreams.map(_.length)
 
             behavior match {
 
               case behavior@(ArrayZipBehavior.TakeMinLength | ArrayZipBehavior.AssumeSameLength) =>
-                val newStream = (eltRegion: StagedRegion) =>
+                val newStream = (eltRegion: ChildStagedRegion) =>
                   multiZip(emitStreams.map(_.stream(eltRegion)))
                     .map { elts =>
                       val bodyEnv = env.bind(names.zip(eltVars): _*)
@@ -1615,7 +1618,7 @@ object EmitStream {
                 SizedStream(lenSetup, newStream, newLength)
 
               case ArrayZipBehavior.AssertSameLength =>
-                val newStream = (eltRegion: StagedRegion) => {
+                val newStream = (eltRegion: ChildStagedRegion) => {
                   // extend to infinite streams, where the COption becomes missing after EOS
                   val extended: IndexedSeq[Stream[COption[EmitCode]]] =
                     emitStreams.map(_.stream(eltRegion)).zipWithIndex.map { case (stream, i) =>
@@ -1674,7 +1677,7 @@ object EmitStream {
                 SizedStream(lenSetup, newStream, newLength)
 
               case ArrayZipBehavior.ExtendNA =>
-                val newStream = (eltRegion: StagedRegion) => {
+                val newStream = (eltRegion: ChildStagedRegion) => {
                   // extend to infinite streams, where the COption becomes missing after EOS
                   val extended: IndexedSeq[Stream[COption[EmitCode]]] =
                     emitStreams.map(_.stream(eltRegion)).zipWithIndex.map { case (stream, i) =>
@@ -1733,7 +1736,7 @@ object EmitStream {
             }
 
           COption.lift(as.map(emitStream(_))).map { sss =>
-            val streams = sss.map { ss => (eltRegion: StagedRegion) =>
+            val streams = sss.map { ss => (eltRegion: ChildStagedRegion) =>
               ss.stream(eltRegion).map { ec =>
                 ec.get().castTo(mb, outerRegion.code, eltType).tcode[Long]
               }
@@ -1768,7 +1771,7 @@ object EmitStream {
           }
 
           COption.lift(as.map(emitStream(_))).map { sss =>
-            val streams = sss.map { ss => (eltRegion: StagedRegion) =>
+            val streams = sss.map { ss => (eltRegion: ChildStagedRegion) =>
               ss.getStream(eltRegion).map(_.get())
             }
             SizedStream.unsized { eltRegion =>
@@ -1779,24 +1782,31 @@ object EmitStream {
 
         case StreamFlatMap(outerIR, name, innerIR) =>
           val outerEltType = coerce[PStream](outerIR.pType).elementType
+          val innerStreamType = coerce[PStream](innerIR.pType)
 
           val optOuter = emitStream(outerIR)
           val outerEltRegion = outerRegion.createChildRegion(mb)
 
           optOuter.map { outer =>
-            val newStream = (eltRegion: StagedRegion) => {
+            val newStream = (eltRegion: ChildStagedRegion) => {
               outer.getStream(outerEltRegion)
                 .map[COption[Stream[EmitCode]]] { elt =>
                   val optInner = if (outerEltType.isRealizable) {
                     val xElt = mb.newEmitField(name, outerEltType)
                     val innerEnv = env.bind(name -> xElt)
-                    val optInner = emitStream(innerIR, outerRegion = outerEltRegion, env = innerEnv)
+                    val optInner = emitStream(
+                      innerIR,
+                      outerRegion = outerEltRegion.asRoot(innerStreamType.separateRegions),
+                      env = innerEnv)
 
                     optInner.addSetup(xElt := elt)
                   } else {
                     val innerEnv = env.bind(name -> new EmitUnrealizableValue(outerEltType, elt))
 
-                    emitStream(innerIR, outerRegion = outerEltRegion, env = innerEnv)
+                    emitStream(
+                      innerIR,
+                      outerRegion = outerEltRegion.asRoot(innerStreamType.separateRegions),
+                      env = innerEnv)
                   }
 
                   optInner.map { inner =>
@@ -1828,16 +1838,16 @@ object EmitStream {
               optLeftStream,
               optRightStream,
               { case (SizedStream(leftSetup, leftStream, lLen), SizedStream(rightSetup, rightStream, rLen)) =>
-                  val newStream = mux(mb, eltType,
+                  val newStream = (eltRegion: ChildStagedRegion) => mux(mb, eltType,
                     xCond,
-                    leftStream(outerRegion),
-                    rightStream(outerRegion))
+                    leftStream(eltRegion),
+                    rightStream(eltRegion))
                   val newLen = lLen.liftedZip(rLen).map { case (l1, l2) =>
                     xCond.mux(l1, l2)
                   }
                   val newSetup = xCond.mux(leftSetup, rightSetup)
 
-                  SizedStream(newSetup, eltRegion => newStream, newLen)
+                  SizedStream(newSetup, newStream, newLen)
               })
 
             newOptStream.addSetup(xCond := cond.tcode[Boolean])
@@ -1875,7 +1885,7 @@ object EmitStream {
             val xAccInAccR = mb.newEmitField(accName, accType)
 
 
-            val newStream = (eltRegion: StagedRegion) => new Stream[EmitCode] {
+            val newStream = (eltRegion: ChildStagedRegion) => new Stream[EmitCode] {
               def apply(eos: Code[Ctrl], push: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] = {
                 val accRegion = eltRegion.createSiblingRegion(mb)
 
@@ -1927,7 +1937,7 @@ object EmitStream {
           val optStream = emitStream(array)
 
           optStream.map { case SizedStream(setup, stream, len) =>
-            val newStream = (eltRegion: StagedRegion) => {
+            val newStream = (eltRegion: ChildStagedRegion) => {
               val tmpRegion = eltRegion.createSiblingRegion(mb)
               val cInit = emitVoidIR(init, region = tmpRegion, container = Some(newContainer))
               val postt = emitIR(result, region = eltRegion, env = bodyEnv, container = Some(newContainer))
@@ -1981,7 +1991,7 @@ object EmitStream {
 
           emitStream(leftIR).flatMap { case SizedStream(leftSetup, leftStream, leftLen) =>
             emitStream(rightIR).map { rightSS =>
-              val newStream = (eltRegion: StagedRegion) =>
+              val newStream = (eltRegion: ChildStagedRegion) => {
                 if (joinType == "left")
                   leftJoinRightDistinct(
                     mb,
@@ -1998,8 +2008,11 @@ object EmitStream {
                     eltRegion,
                     compare)
                     .map(joinF)
+              }
 
-              SizedStream(leftSetup, newStream, if (joinType == "left") leftLen else None)
+              SizedStream(leftSetup,
+                          newStream,
+                          if (joinType == "left") leftLen else None)
             }
           }
 
@@ -2101,7 +2114,7 @@ object EmitStream {
 
     COption.toEmitCode(
       _emitStream(streamIR0, outerRegion, env0).map { stream =>
-        PCanonicalStreamCode(streamIR0.pType.asInstanceOf[PCanonicalStream], stream)
+        PCanonicalStreamCode(coerce[PCanonicalStream](streamIR0.pType), stream)
       }, mb)
   }
 

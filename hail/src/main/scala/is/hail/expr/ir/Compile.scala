@@ -189,8 +189,8 @@ object CompileIterator {
     val stepF = fb.apply_method
     val stepFECB = stepF.ecb
 
-    val eltRegion = StagedRegion(eltRegionField, allowSubregions = false)
     val outerRegion = StagedRegion(outerRegionField, allowSubregions = false)
+    val eltRegion = outerRegion.createChildRegion(stepF)
     val emitter = new Emit(ctx, stepFECB)
 
     val ir = LoweringPipeline.compileLowerer(true)(ctx, body).asInstanceOf[IR].noSharing
