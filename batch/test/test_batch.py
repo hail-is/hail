@@ -606,6 +606,7 @@ echo $HAIL_BATCH_WORKER_IP
         script = '''
 set -e
 nc -l -p 5000 &
+sleep 5
 echo "hello" | nc -q 1 localhost 5000
 '''.lstrip('\n')
         j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
@@ -620,6 +621,7 @@ echo "hello" | nc -q 1 localhost 5000
         script = '''
 set -e
 nc -l -p 5000 &
+sleep 5
 echo "hello" | nc -q 1 127.0.0.1 5000
 '''.lstrip('\n')
         j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
@@ -634,6 +636,7 @@ echo "hello" | nc -q 1 127.0.0.1 5000
         script = '''
 set -e
 nc -l -p 5000 &
+sleep 5
 echo "hello" | nc -q 1 $(hostname -i) 5000
 '''.lstrip('\n')
         j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
