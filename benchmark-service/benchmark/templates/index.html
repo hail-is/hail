@@ -61,7 +61,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/js/autoComplete.min.js"></script>
 <script>
-    var files = {{ cached_files|tojson }};
+    var files = {{ benchmark_file_list|tojson }};
 
     new autoComplete({
         data: {                              // Data src [Array, Function, Async] | (REQUIRED)
