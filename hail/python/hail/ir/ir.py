@@ -1939,6 +1939,7 @@ class Die(IR):
         super().__init__(message)
         self.message = message
         self._typ = typ
+        self.save_error_info()
 
     @property
     def typ(self):

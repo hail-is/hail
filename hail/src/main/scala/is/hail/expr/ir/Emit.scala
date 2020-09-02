@@ -1686,11 +1686,7 @@ class Emit[C](
         val ev = mb.getEmitParam(2 + i)
         assert(ev.pt == expectedPType)
         ev
-      case x@Die(m, typ, errorId) =>
-        log.info("errorId of Die was " + errorId + s" IR was ${x}")
-        if (errorId == -1) {
-          log.info(x.stackTrace)
-        }
+      case @Die(m, typ, errorId) =>
         val cm = emit(m)
         EmitCode(
           Code(

@@ -307,7 +307,5 @@ class CaseBuilder(ConditionalBuilder):
         """
         if len(self._cases) == 0:
             raise ExpressionException("'or_error' cannot be called without at least one 'when' call")
-        die_ir = ir.Die(message._ir, self._ret_type)
-        die_ir.save_error_info()
-        error_expr = construct_expr(die_ir, self._ret_type)
+        error_expr = construct_expr(ir.Die(message._ir, self._ret_type), self._ret_type)
         return self._finish(error_expr)
