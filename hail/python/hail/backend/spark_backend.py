@@ -307,7 +307,6 @@ class SparkBackend(Py4JBackend):
         except FatalError as e:
             error_id = e._error_id
 
-            # Now need to check if the error code is present on any IR!
             def criteria(hail_ir):
                 return hail_ir._error_id is not None and hail_ir._error_id == error_id
 
@@ -315,7 +314,7 @@ class SparkBackend(Py4JBackend):
             better_stack_trace = None
             if error_sources:
                 better_stack_trace = error_sources[0]._stack_trace
-            import pdb; pdb.set_trace()
+
             if better_stack_trace:
                 error_message = str(e)
                 message_and_trace = (f'{error_message}\n'
