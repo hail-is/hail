@@ -164,16 +164,15 @@ final case class ETransposedArrayOfStructs(
     val nMissing = cb.newLocal[Int]("nMissing")
     val alen = cb.newLocal[Int]("alen")
     val anMissing = cb.newLocal[Int]("anMissing")
-    val fmbytes = cb.newLocal[Long]("fmbytes")
+    val mbytes = cb.newLocal[Long]("mbytes")
 
     cb.assign(len, in.readInt())
     cb.assign(nMissing, UnsafeUtils.packBitsToBytes(len))
+    cb.assign(mbytes, r.allocate(const(1), nMissing.toL))
     val prefix = Code(len := in.readInt(), nMissing := UnsafeUtils.packBitsToBytes(len))
     if (structRequired) {
       cb.assign(alen, len)
-      cb.assign(fmbytes, r.allocate(const(1), nMissing.toL))
     } else {
-      val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1), nMissing.toL))
       cb += in.readBytes(r, mbytes, nMissing)
       cb.forLoop({
         cb.assign(i, 0)
@@ -181,18 +180,17 @@ final case class ETransposedArrayOfStructs(
       }, i < len,
         cb.assign(i, i + 1),
         cb.assign(alen, alen + (!Region.loadBit(mbytes, i.toL)).toI))
-      cb.assign(anMissing, UnsafeUtils.packBitsToBytes(alen))
-      cb.assign(fmbytes, r.allocate(const(1), nMissing.toL))
     }
+    cb.assign(anMissing, UnsafeUtils.packBitsToBytes(alen))
 
     fields.foreach { f =>
       val skip = f.typ.buildSkip(cb.emb)
       if (f.typ.required) {
         cb.forLoop(cb.assign(i, 0), i < alen, cb.assign(i, i + 1), cb += skip(r, in))
       } else {
-        cb += in.readBytes(r, fmbytes, anMissing)
+        cb += in.readBytes(r, mbytes, anMissing)
         cb.forLoop(cb.assign(i, 0), i < alen, cb.assign(i, i + 1),
-          cb.ifx(!Region.loadBit(fmbytes, i.toL), cb += skip(r, in)))
+          cb.ifx(!Region.loadBit(mbytes, i.toL), cb += skip(r, in)))
       }
     }
   }
