@@ -10,6 +10,6 @@ __all__ = [
     'ContainerClient',
     'ComputeClient',
     'IAmClient',
-    'LoggingClient'
+    'LoggingClient',
     'StorageClient'
 ]

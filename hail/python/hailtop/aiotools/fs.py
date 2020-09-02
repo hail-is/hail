@@ -1,12 +1,15 @@
+from typing import TypeVar, Optional, List, Type
+from types import TracebackType
 import abc
-from .stream import AsyncStream
+from concurrent.futures import ThreadPoolExecutor
+import urllib.parse
+from .stream import AsyncStream, blocking_stream_to_async
 
 AsyncFSType = TypeVar('AsyncFSType', bound='AsyncFS')
 
 
 class AsyncFS(abc.ABC):
     @abc.abstractmethod
-    @property
     async def schemes(self) -> List[str]:
         pass
 
@@ -26,11 +29,13 @@ class AsyncFS(abc.ABC):
                         exc_tb: Optional[TracebackType]) -> None:
         await self.close()
 
-class LocalAsyncFS(AsyncFS):
-    def __init__(self, thread_pool):
-        self._thread_pool = _thread_pool
 
-    @property
+class LocalAsyncFS(AsyncFS):
+    def __init__(self, thread_pool: ThreadPoolExecutor, max_workers=None):
+        if not thread_pool:
+            thread_pool = ThreadPoolExecutor(max_workers=max_workers)
+        self._thread_pool = thread_pool
+
     async def schemes(self) -> List[str]:
         return ['file']
 
@@ -40,23 +45,27 @@ class LocalAsyncFS(AsyncFS):
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme and parsed.scheme != 'file':
             raise ValueError(f"invalid scheme, expected file: {parsed.scheme}")
-        blocking_stream_to_async(open(parsed.path, mode))
+        blocking_stream_to_async(self._thread_pool, open(parsed.path, mode))
 
 
-class AsyncRootFS(AsyncFS):
-    def __init__(self, default_scheme : Optional[str], filesystems: List[AsyncFS]):
+class RouterAsyncFS(AsyncFS):
+    def __init__(self, default_scheme: Optional[str], filesystems: List[AsyncFS]):
         self._default_scheme = default_scheme
         self._filesystems = {
             scheme: fs
             for fs in filesystems
-            for scheme in fs.schemes
+            for scheme in fs.schemes()
         }
+        self._schemes = list(self._filesystems)
 
-    async def open(url: str, mode: str = 'r') -> AsyncStream:
+    async def schemes(self):
+        return self._schemes
+
+    async def open(self, url: str, mode: str = 'r') -> AsyncStream:
         parsed = urllib.parse.urlparse(url)
         if not url.scheme:
             if self._default_scheme:
-                parsed = parsed._replace(scheme = default_scheme)
+                parsed = parsed._replace(scheme=self._default_scheme)
                 url = urllib.parse.urlunparse(parsed)
             else:
                 raise ValueError(f"can't open: no default scheme and URL has no scheme: {url}")

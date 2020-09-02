@@ -1,7 +1,8 @@
-import abc
+from typing import List
 import asyncio
+import urllib.parse
 import aiohttp
-from hailtop.aiotools import AsyncStream
+from hailtop.aiotools import AsyncStream, AsyncFS, FeedableAsyncIterable
 from .base_client import BaseClient
 
 
@@ -18,6 +19,7 @@ class InsertObjectStream(AsyncStream):
     async def write(self, b):
         assert not self.closed
         await self._it.feed(b)
+        return len(b)
 
     async def _wait_closed(self):
         await self._it.stop()
@@ -34,7 +36,7 @@ class GetObjectStream(AsyncStream):
     def readable(self) -> bool:
         return True
 
-    async def read(self, n: int =-1) -> bytes:
+    async def read(self, n: int = -1) -> bytes:
         assert not self._closed
         return await self._content.read(n)
 
@@ -85,7 +87,7 @@ class StorageClient(BaseClient):
     async def get_object_metadata(self, bucket: str, name: str, **kwargs):
         params = kwargs.get('params')
         assert not params or 'alt' not in params
-        return await self.get('/b/{bucket}/o/{name}', **kwargs)
+        return await self.get(f'/b/{bucket}/o/{name}', **kwargs)
 
 
 class GoogleStorageAsyncFS(AsyncFS):
@@ -115,7 +117,7 @@ class GoogleStorageAsyncFS(AsyncFS):
 
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme != 'gs':
-            raise ValueError(f"invalid scheme, expected gs: {scheme}")
+            raise ValueError(f"invalid scheme, expected gs: {parsed.scheme}")
         bucket = parsed.netloc
 
         name = parsed.path
@@ -125,9 +127,9 @@ class GoogleStorageAsyncFS(AsyncFS):
 
         if 'r' in mode:
             return self._storage_client.get_object(bucket, name)
-        else:
-            assert 'w' in mode
-            return self._storage_client.insert_object(bucket, name)
+
+        assert 'w' in mode
+        return self._storage_client.insert_object(bucket, name)
 
     async def close(self):
         await self._storage_client.close()

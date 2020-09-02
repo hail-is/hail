@@ -2,6 +2,7 @@ from typing import Set, Dict, Any
 from ... import Batch, LocalBackend, ServiceBackend, Backend
 from ...resource import Resource
 import os
+from os.path import exists
 import sys
 import shlex
 from argparse import Namespace, ArgumentParser, SUPPRESS

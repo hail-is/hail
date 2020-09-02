@@ -1,7 +1,5 @@
 from typing import TypeVar, AsyncIterator
-import io
 import asyncio
-
 
 _T = TypeVar('_T')
 
@@ -31,35 +29,3 @@ class FeedableAsyncIterable(AsyncIterator[_T]):
     async def stop(self) -> None:
         await self._queue.put(_StopFeedableAsyncIterator())
         self._stopped = True
-
-
-class _AsyncStreamFromBlocking(AsyncStream):
-    def __init__(self, f: io.RawIOBase):
-        self._f = f
-
-    @property
-    def readable(self) -> bool:
-        return self._f.readable()
-
-    async def read(self, n: int = -1) -> bytes:
-        if not self.readable():
-            raise NotImplementedError
-        assert not self.closed
-        return self._f.read(n)
-
-    def writable(self) -> bool:
-        return self._f.writable()
-
-    async def write(self, b: bytes) -> None:
-        if not self.writable():
-            raise NotImplementedError
-        assert not self.closed
-        return self._f.write(b)
-
-    async def _wait_closed(self) -> None:
-        self._f.close()
-        self._f = None
-
-
-def blocking_stream_to_async(f: io.RawIOBase) -> _AsyncStreamFromBlocking:
-    return _AsyncStreamFromBlocking(f)
