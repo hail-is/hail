@@ -5,6 +5,25 @@ import is.hail.asm4s._
 import is.hail.types.physical.{PCode, PType}
 import is.hail.utils._
 
+object StagedRegion {
+  def apply(r: Value[Region], allowSubregions: Boolean = false): RootStagedRegion =
+    if (allowSubregions) new RealRootStagedRegion(r) else new DummyRootStagedRegion(r)
+
+  def apply(r: Value[Region]): StagedRegion =
+    new DummyRootStagedRegion(r)
+
+  def swap(mb: EmitMethodBuilder[_], x: StagedOwnedRegion, y: StagedOwnedRegion): Code[Unit] = {
+    assert(x.parent eq y.parent)
+    (x, y) match {
+      case (x: RealStagedOwnedRegion, y: RealStagedOwnedRegion) =>
+        val temp = mb.newLocal[Region]("sr_swap")
+        Code(temp := x.r, x.r := y.r, y.r := temp)
+      case (x: DummyStagedOwnedRegion, y: DummyStagedOwnedRegion) =>
+        Code._empty
+    }
+  }
+}
+
 abstract class StagedRegion {
   def code: Value[Region]
 
@@ -73,22 +92,6 @@ abstract class StagedOwnedRegionArray {
   def allocateRegions(mb: EmitMethodBuilder[_], size: Int): Code[Unit]
 
   def freeAll(mb: EmitMethodBuilder[_]): Code[Unit]
-}
-
-object StagedRegion {
-  def apply(r: Value[Region], allowSubregions: Boolean = false): RootStagedRegion =
-    if (allowSubregions) new RealRootStagedRegion(r) else new DummyRootStagedRegion(r)
-
-  def swap(mb: EmitMethodBuilder[_], x: StagedOwnedRegion, y: StagedOwnedRegion): Code[Unit] = {
-    assert(x.parent eq y.parent)
-    (x, y) match {
-      case (x: RealStagedOwnedRegion, y: RealStagedOwnedRegion) =>
-        val temp = mb.newLocal[Region]("sr_swap")
-        Code(temp := x.r, x.r := y.r, y.r := temp)
-      case (x: DummyStagedOwnedRegion, y: DummyStagedOwnedRegion) =>
-        Code._empty
-    }
-  }
 }
 
 class RealRootStagedRegion(val code: Value[Region]) extends RootStagedRegion { self =>

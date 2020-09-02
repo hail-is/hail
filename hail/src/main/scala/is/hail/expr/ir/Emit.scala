@@ -68,15 +68,10 @@ class SetupBuilder(mb: EmitMethodBuilder[_], var setup: Code[Unit]) {
   }
 }
 
-object EmitAllocationStrategy extends Enumeration {
-  type T = Value
-  val Default, ManyRegions, OneRegion = Value
-}
-
 object Emit {
   type E = Env[EmitValue]
 
-  def apply[C](ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[C], aggs: Option[Array[AggStateSig]] = None, allocStrat: EmitAllocationStrategy.T = EmitAllocationStrategy.OneRegion) {
+  def apply[C](ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[C], aggs: Option[Array[AggStateSig]] = None) {
     TypeCheck(ir)
 
     val mb = fb.apply_method
@@ -85,20 +80,15 @@ object Emit {
       AggContainer(a, c, () => ())
     }
     val emitter = new Emit[C](ctx, fb.ecb)
-    val regionArg = mb.getCodeParam[Region](1)
-    val stagedRegion = allocStrat match {
-      case EmitAllocationStrategy.Default => StagedRegion(regionArg, allowSubregions = true)
-      case EmitAllocationStrategy.ManyRegions => StagedRegion(regionArg, allowSubregions = true)
-      case EmitAllocationStrategy.OneRegion => StagedRegion(regionArg, allowSubregions = false)
-    }
+    val region = StagedRegion(mb.getCodeParam[Region](1))
     if (ir.typ == TVoid) {
       fb.emitWithBuilder { cb =>
-        emitter.emitVoid(cb, ir, mb, stagedRegion, Env.empty, container, None)
+        emitter.emitVoid(cb, ir, mb, region, Env.empty, container, None)
         Code._empty
       }
     } else {
       fb.emitWithBuilder { cb =>
-        emitter.emitI(ir, cb, stagedRegion, Env.empty, container, None).handle(cb, {
+        emitter.emitI(ir, cb, region, Env.empty, container, None).handle(cb, {
           cb._throw[RuntimeException](
             Code.newInstance[RuntimeException, String]("cannot return empty"))
         }).code
@@ -1285,9 +1275,8 @@ class Emit[C](
     *
     **/
   private[ir] def emit(ir: IR, mb: EmitMethodBuilder[C], env: E, container: Option[AggContainer]): EmitCode = {
-    val region = mb.getCodeParam[Region](1)
-    val sr = StagedRegion(region, allowSubregions = false)
-    emit(ir, mb, sr, env, container, None)
+    val region = StagedRegion(mb.getCodeParam[Region](1))
+    emit(ir, mb, region, env, container, None)
   }
 
   private[ir] def emitWithRegion(ir: IR, mb: EmitMethodBuilder[C], region: StagedRegion, env: E, container: Option[AggContainer]): EmitCode =

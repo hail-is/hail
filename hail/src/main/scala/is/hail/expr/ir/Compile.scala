@@ -25,8 +25,7 @@ object Compile {
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]], expectedCodeReturnType: TypeInfo[_],
     body: IR,
     optimize: Boolean = true,
-    print: Option[PrintWriter] = None,
-    allocStrat: EmitAllocationStrategy.T = EmitAllocationStrategy.OneRegion
+    print: Option[PrintWriter] = None
   ): (PType, (Int, Region) => F) = {
 
     val normalizeNames = new NormalizeNames(_.toString)
@@ -70,7 +69,7 @@ object Compile {
     assert(fb.mb.parameterTypeInfo == expectedCodeParamTypes, s"expected $expectedCodeParamTypes, got ${ fb.mb.parameterTypeInfo }")
     assert(fb.mb.returnTypeInfo == expectedCodeReturnType, s"expected $expectedCodeReturnType, got ${ fb.mb.returnTypeInfo }")
 
-    Emit(ctx, ir, fb, allocStrat = allocStrat)
+    Emit(ctx, ir, fb)
 
     val f = fb.resultWithIndex(print)
     codeCache += k -> CodeCacheValue(ir.pType, f)
