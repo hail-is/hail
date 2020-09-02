@@ -319,7 +319,7 @@ class SparkBackend(Py4JBackend):
                 error_message = str(e)
                 message_and_trace = (f'{error_message}\n'
                                      '------------\n'
-                                     'Python stack trace:\n'
+                                     'Hail stack trace:\n'
                                      f'{better_stack_trace}')
                 raise HailUserError(message_and_trace) from None
 
