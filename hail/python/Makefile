@@ -12,5 +12,4 @@ check:
 	$(PYTHON) -m flake8 --config ../../setup.cfg hail
 	$(PYTHON) -m flake8 --config ../../setup.cfg hailtop
 	$(PYTHON) -m pylint --rcfile ../../pylintrc hailtop --score=n
-	$(PYTHON) -m mypy --ignore-missing-imports hailtop/utils
-	cd hailtop && $(PYTHON) -m mypy batch google_storage.py
+	$(PYTHON) -m mypy --ignore-missing-imports hailtop/utils hailtop/batch hailtop/google_storage.py

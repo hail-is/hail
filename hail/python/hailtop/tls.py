@@ -7,7 +7,7 @@ import ssl
 from ssl import Purpose
 import requests
 from requests.adapters import HTTPAdapter
-from urllib3.poolmanager import PoolManager  # type: ignore
+from urllib3.poolmanager import PoolManager
 
 log = logging.getLogger('hailtop.ssl')
 server_ssl_context = None

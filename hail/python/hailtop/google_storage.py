@@ -4,11 +4,11 @@ import logging
 import concurrent.futures
 from functools import wraps
 
-import google.api_core.exceptions  # type: ignore
-import google.oauth2.service_account  # type: ignore
-import google.cloud.storage  # type: ignore
-from google.cloud.storage.blob import Blob  # type: ignore
-from hailtop.utils import blocking_to_async, retry_transient_errors  # type: ignore
+import google.api_core.exceptions
+import google.oauth2.service_account
+import google.cloud.storage
+from google.cloud.storage.blob import Blob
+from hailtop.utils import blocking_to_async, retry_transient_errors
 
 
 logging.getLogger("google").setLevel(logging.WARNING)
