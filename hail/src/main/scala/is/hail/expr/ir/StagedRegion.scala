@@ -12,13 +12,13 @@ object StagedRegion {
   def apply(r: Value[Region]): StagedRegion =
     new DummyRootStagedRegion(r)
 
-  def swap(mb: EmitMethodBuilder[_], x: StagedOwnedRegion, y: StagedOwnedRegion): Code[Unit] = {
+  def swap(mb: EmitMethodBuilder[_], x: OwnedStagedRegion, y: OwnedStagedRegion): Code[Unit] = {
     assert(x.parent eq y.parent)
     (x, y) match {
-      case (x: RealStagedOwnedRegion, y: RealStagedOwnedRegion) =>
+      case (x: RealOwnedStagedRegion, y: RealOwnedStagedRegion) =>
         val temp = mb.newLocal[Region]("sr_swap")
         Code(temp := x.r, x.r := y.r, y.r := temp)
-      case (x: DummyStagedOwnedRegion, y: DummyStagedOwnedRegion) =>
+      case (x: DummyOwnedStagedRegion, y: DummyOwnedStagedRegion) =>
         Code._empty
     }
   }
@@ -35,18 +35,18 @@ abstract class StagedRegion {
 }
 
 abstract class RootStagedRegion extends StagedRegion {
-  def createChildRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion
+  def createChildRegion(mb: EmitMethodBuilder[_]): OwnedStagedRegion
 
-  def createChildRegionArray(mb: EmitMethodBuilder[_], length: Int): StagedOwnedRegionArray
+  def createChildRegionArray(mb: EmitMethodBuilder[_], length: Int): OwnedStagedRegionArray
 }
 
 abstract class ChildStagedRegion extends StagedRegion {
   def parent: RootStagedRegion
 
-  final def createSiblingRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion =
+  final def createSiblingRegion(mb: EmitMethodBuilder[_]): OwnedStagedRegion =
     parent.createChildRegion(mb)
 
-  final def createSiblingRegionArray(mb: EmitMethodBuilder[_], length: Int): StagedOwnedRegionArray =
+  final def createSiblingRegionArray(mb: EmitMethodBuilder[_], length: Int): OwnedStagedRegionArray =
     parent.createChildRegionArray(mb, length)
 
   final def copyToParent(mb: EmitMethodBuilder[_], value: PCode, destType: PType): PCode =
@@ -70,7 +70,7 @@ abstract class ChildStagedRegion extends StagedRegion {
   protected def copyToParentOrSibling(mb: EmitMethodBuilder[_], value: PCode, dest: StagedRegion): PCode
 }
 
-trait StagedOwnedRegion extends ChildStagedRegion {
+trait OwnedStagedRegion extends ChildStagedRegion {
   def allocateRegion(size: Int): Code[Unit]
 
   def free(): Code[Unit]
@@ -86,8 +86,8 @@ trait StagedOwnedRegion extends ChildStagedRegion {
   def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode): Code[Unit]
 }
 
-abstract class StagedOwnedRegionArray {
-  def apply(i: Value[Int]): StagedOwnedRegion
+abstract class OwnedStagedRegionArray {
+  def apply(i: Value[Int]): OwnedStagedRegion
 
   def allocateRegions(mb: EmitMethodBuilder[_], size: Int): Code[Unit]
 
@@ -95,12 +95,12 @@ abstract class StagedOwnedRegionArray {
 }
 
 class RealRootStagedRegion(val code: Value[Region]) extends RootStagedRegion { self =>
-  def createChildRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion = {
+  def createChildRegion(mb: EmitMethodBuilder[_]): OwnedStagedRegion = {
     val newR = mb.genFieldThisRef[Region]("staged_region_child")
-    new RealStagedOwnedRegion(newR, this)
+    new RealOwnedStagedRegion(newR, this)
   }
 
-  def createChildRegionArray(mb: EmitMethodBuilder[_], length: Int): StagedOwnedRegionArray = {
+  def createChildRegionArray(mb: EmitMethodBuilder[_], length: Int): OwnedStagedRegionArray = {
     val regionArray = mb.genFieldThisRef[Array[Region]]("staged_region_child_array")
 
     def get(i: Value[Int]): Settable[Region] = new Settable[Region] {
@@ -109,8 +109,8 @@ class RealRootStagedRegion(val code: Value[Region]) extends RootStagedRegion { s
       def store(rhs: Code[Region]): Code[Unit] = regionArray.update(i, rhs)
     }
 
-    new StagedOwnedRegionArray {
-      def apply(i: Value[Int]): StagedOwnedRegion = new RealStagedOwnedRegion(get(i), self)
+    new OwnedStagedRegionArray {
+      def apply(i: Value[Int]): OwnedStagedRegion = new RealOwnedStagedRegion(get(i), self)
 
       def allocateRegions(mb: EmitMethodBuilder[_], size: Int): Code[Unit] = {
         val i = mb.newLocal[Int]("sora_alloc_i")
@@ -129,7 +129,7 @@ class RealRootStagedRegion(val code: Value[Region]) extends RootStagedRegion { s
   }
 }
 
-class RealStagedOwnedRegion(val r: Settable[Region], val parent: RealRootStagedRegion) extends StagedOwnedRegion {
+class RealOwnedStagedRegion(val r: Settable[Region], val parent: RealRootStagedRegion) extends OwnedStagedRegion {
   def code: Value[Region] = r
 
   def allocateRegion(size: Int): Code[Unit] = r := Region.stagedCreate(size)
@@ -161,12 +161,12 @@ class RealStagedOwnedRegion(val r: Settable[Region], val parent: RealRootStagedR
 }
 
 class DummyRootStagedRegion(val code: Value[Region]) extends RootStagedRegion { self =>
-  def createChildRegion(mb: EmitMethodBuilder[_]): StagedOwnedRegion =
-    new DummyStagedOwnedRegion(code, this)
+  def createChildRegion(mb: EmitMethodBuilder[_]): OwnedStagedRegion =
+    new DummyOwnedStagedRegion(code, this)
 
-  def createChildRegionArray(mb: EmitMethodBuilder[_], length: Int): StagedOwnedRegionArray =
-    new StagedOwnedRegionArray {
-      def apply(i: Value[Int]): StagedOwnedRegion = new DummyStagedOwnedRegion(code, self)
+  def createChildRegionArray(mb: EmitMethodBuilder[_], length: Int): OwnedStagedRegionArray =
+    new OwnedStagedRegionArray {
+      def apply(i: Value[Int]): OwnedStagedRegion = new DummyOwnedStagedRegion(code, self)
 
       def allocateRegions(mb: EmitMethodBuilder[_], size: Int): Code[Unit] =
         Code._empty
@@ -176,7 +176,7 @@ class DummyRootStagedRegion(val code: Value[Region]) extends RootStagedRegion { 
     }
 }
 
-class DummyStagedOwnedRegion(val code: Value[Region], val parent: DummyRootStagedRegion) extends StagedOwnedRegion {
+class DummyOwnedStagedRegion(val code: Value[Region], val parent: DummyRootStagedRegion) extends OwnedStagedRegion {
   def allocateRegion(size: Int): Code[Unit] = Code._empty
 
   def free(): Code[Unit] = Code._empty

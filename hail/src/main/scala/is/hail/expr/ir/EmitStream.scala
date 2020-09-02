@@ -315,7 +315,7 @@ object Stream {
       // Need to be able to free the memory used by a child stream element
       // when the outer stream advances before all inner stream elements
       // are consumed.
-      var childEltRegion: StagedOwnedRegion = null
+      var childEltRegion: OwnedStagedRegion = null
 
       var childSource: Source[A] = null
       val inner = (innerEltRegion: ChildStagedRegion) => new Stream[A] {
@@ -1166,8 +1166,8 @@ object EmitStream {
       val xEOS = ctx.mb.genFieldThisRef[Boolean]("st_grpby_eos")
       val xNextGrpReady = ctx.mb.genFieldThisRef[Boolean]("st_grpby_ngr")
 
-      var holdingRegion: StagedOwnedRegion = null
-      var keyRegion: StagedOwnedRegion = null
+      var holdingRegion: OwnedStagedRegion = null
+      var keyRegion: OwnedStagedRegion = null
 
       val LchildPull = CodeLabel()
       val LouterPush = CodeLabel()
