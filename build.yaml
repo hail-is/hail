@@ -103,7 +103,7 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
-     make check-services
+     make -k check-services
    dependsOn:
      - service_base_image
  - kind: runImage
