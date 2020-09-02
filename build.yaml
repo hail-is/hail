@@ -931,6 +931,9 @@ steps:
 
      python3 -m flake8 --config setup.cfg $SITE_PACKAGES/hail $SITE_PACKAGES/hailtop || exit_status=$?
      python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
+     # debugging
+     pwd
+     echo $SITE_PACKAGES
      mypy --ignore-missing-imports $SITE_PACKAGES/hailtop/utils $SITE_PACKAGES/hailtop/batch $SITE_PACKAGES/hailtop/google_storage.py || exit_status=$?
 
      exit $exit_status
