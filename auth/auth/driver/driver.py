@@ -9,7 +9,7 @@ import asyncio
 import aiohttp
 import kubernetes_asyncio as kube
 from hailtop.utils import time_msecs
-from hailtop.auth.sql_config import create_secret_data_from_config
+from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
 from hailtop import aiogoogle
 from gear import create_session, Database
 
@@ -114,6 +114,7 @@ class K8sSecretResource:
                     for k, v in data.items()
                 }))
         self.name = name
+        self.namespace = namespace
 
     async def _delete(self, name, namespace):
         try:
@@ -202,7 +203,7 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
 
     def secret_data(self):
         with open('/database-server-config/sql-config.json', 'r') as f:
-            server_config = json.loads(f.read())
+            server_config = SQLConfig.from_json(f.read())
         with open('/database-server-config/server-ca.pem', 'r') as f:
             server_ca = f.read()
         with open('/database-server-config/client-cert.pem', 'r') as f:
@@ -217,15 +218,17 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
         assert self.name is not None
         assert self.password is not None
 
-        config = {
-            'host': server_config['host'],
-            'port': server_config['port'],
-            'user': self.name,
-            'password': self.password,
-            'instance': server_config['instance'],
-            'connection_name': server_config['connection_name'],
-            'db': self.name
-        }
+        config = SQLConfig(
+            host=server_config.host,
+            port=server_config.port,
+            user=self.name,
+            password=self.password,
+            instance=server_config.instance,
+            connection_name=server_config.connection_name,
+            db=self.name,
+            ssl_ca='/sql-config/server-ca.pem',
+            ssl_cert='/sql-config/client-cert.pem',
+            ssl_key='/sql-config/client-key.pem')
         return create_secret_data_from_config(
             config, server_ca, client_cert, client_key)
 

@@ -1,5 +1,5 @@
+from typing import Optional
 import os
-import json
 import pymysql
 import aiomysql
 import logging
@@ -7,6 +7,7 @@ import functools
 import ssl
 
 from hailtop.utils import sleep_and_backoff, LoggingTimer
+from hailtop.auth.sql_config import SQLConfig
 
 
 log = logging.getLogger('gear.database')
@@ -53,38 +54,31 @@ async def aexit(acontext_manager, exc_type=None, exc_val=None, exc_tb=None):
     return await acontext_manager.__aexit__(exc_type, exc_val, exc_tb)
 
 
-def get_sql_config(config_file=None):
-    if config_file is None:
+def get_sql_config(maybe_config_file: Optional[str] = None) -> SQLConfig:
+    if maybe_config_file is None:
         config_file = os.environ.get('HAIL_DATABASE_CONFIG_FILE',
                                      '/sql-config/sql-config.json')
+    else:
+        config_file = maybe_config_file
     with open(config_file, 'r') as f:
-        sql_config = json.loads(f.read())
-    check_sql_config(sql_config)
-    return sql_config
-
-
-def check_sql_config(sql_config):
-    assert sql_config is not None
-    for key in ('ssl-cert', 'ssl-key', 'ssl-ca', 'ssl-mode'):
-        assert sql_config.get(key) is not None, key
-    for key in ('ssl-cert', 'ssl-key', 'ssl-ca'):
-        if not os.path.isfile(sql_config[key]):
-            raise ValueError(f'specified {key}, {sql_config[key]} does not exist')
+        sql_config = SQLConfig.from_json(f.read())
+    sql_config.check()
     log.info('using tls and verifying server certificates for MySQL')
+    return sql_config
 
 
 database_ssl_context = None
 
 
-def get_database_ssl_context(sql_config=None):
+def get_database_ssl_context(sql_config: Optional[SQLConfig] = None) -> ssl.SSLContext:
     global database_ssl_context
     if database_ssl_context is None:
         if sql_config is None:
             sql_config = get_sql_config()
         database_ssl_context = ssl.create_default_context(
-            cafile=sql_config['ssl-ca'])
-        database_ssl_context.load_cert_chain(sql_config['ssl-cert'],
-                                             keyfile=sql_config['ssl-key'],
+            cafile=sql_config.ssl_ca)
+        database_ssl_context.load_cert_chain(sql_config.ssl_cert,
+                                             keyfile=sql_config.ssl_key,
                                              password=None)
         database_ssl_context.verify_mode = ssl.CERT_REQUIRED
         database_ssl_context.check_hostname = False
@@ -92,15 +86,15 @@ def get_database_ssl_context(sql_config=None):
 
 
 @retry_transient_mysql_errors
-async def create_database_pool(config_file=None, autocommit=True, maxsize=10):
+async def create_database_pool(config_file: str = None, autocommit: bool = True, maxsize: int = 10):
     sql_config = get_sql_config(config_file)
     ssl_context = get_database_ssl_context(sql_config)
     assert ssl_context is not None
     return await aiomysql.create_pool(
         maxsize=maxsize,
         # connection args
-        host=sql_config['host'], user=sql_config['user'], password=sql_config['password'],
-        db=sql_config.get('db'), port=sql_config['port'], charset='utf8',
+        host=sql_config.host, user=sql_config.user, password=sql_config.password,
+        db=sql_config.db, port=sql_config.port, charset='utf8',
         ssl=ssl_context, cursorclass=aiomysql.cursors.DictCursor, autocommit=autocommit)
 
 
