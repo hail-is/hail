@@ -25,7 +25,7 @@ package object services {
     math.min(delay * 2, 60.0)
   }
 
-  def isTransientError(e: Exception): Boolean = {
+  def isTransientError(e: Throwable): Boolean = {
     e match {
       case e: ClientResponseException =>
         RETRYABLE_HTTP_STATUS_CODES.contains(e.status)
