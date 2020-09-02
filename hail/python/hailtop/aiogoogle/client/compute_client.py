@@ -1,9 +1,9 @@
-from typing import Mapping, Any
+from typing import Mapping, Any, Optional
 from .base_client import BaseClient
 
 
 class PagedIterator:
-    def __init__(self, client: 'ComputeClient', path: str, request_params: Mapping[str, Any], request_kwargs: Mapping[str, Any]):
+    def __init__(self, client: 'ComputeClient', path: str, request_params: Optional[Mapping[str, Any]], request_kwargs: Mapping[str, Any]):
         assert 'params' not in request_kwargs
         self._client = client
         self._path = path

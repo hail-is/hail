@@ -1,12 +1,14 @@
-from typing import Optional, Type
+from typing import Optional, Type, Generic, TypeVar, BinaryIO
 from types import TracebackType
 import abc
 import io
 from concurrent.futures import ThreadPoolExecutor
 from hailtop.utils import blocking_to_async
 
+T = TypeVar('T')
 
-class AsyncStream(abc.ABC):
+
+class AsyncStream(abc.ABC, Generic[T]):
     def __init__(self):
         self._closed = False
         self._waited_closed = False
@@ -20,7 +22,7 @@ class AsyncStream(abc.ABC):
     def writable(self) -> bool:  # pylint: disable=no-self-use
         return False
 
-    async def write(self, b: bytes) -> None:
+    async def write(self, b: bytes) -> int:
         raise NotImplementedError
 
     def close(self) -> None:
@@ -42,7 +44,7 @@ class AsyncStream(abc.ABC):
     def closed(self) -> None:
         return self._closed
 
-    async def __aenter__(self) -> 'AsyncStream[bytes]':
+    async def __aenter__(self) -> 'AsyncStream[T]':
         return self
 
     async def __aexit__(
@@ -53,7 +55,10 @@ class AsyncStream(abc.ABC):
 
 
 class _AsyncStreamFromBlocking(AsyncStream):
-    def __init__(self, thread_pool: ThreadPoolExecutor, f: io.RawIOBase):
+    _thread_pool: ThreadPoolExecutor
+    _f: Optional[BinaryIO]
+    
+    def __init__(self, thread_pool: ThreadPoolExecutor, f: BinaryIO):
         super().__init__()
         self._thread_pool = thread_pool
         self._f = f
@@ -64,7 +69,6 @@ class _AsyncStreamFromBlocking(AsyncStream):
     async def read(self, n: int = -1) -> bytes:
         if not self.readable():
             raise NotImplementedError
-        assert not self.closed
         return await blocking_to_async(self._thread_pool, self._f.read, n)
 
     def writable(self) -> bool:
@@ -73,7 +77,6 @@ class _AsyncStreamFromBlocking(AsyncStream):
     async def write(self, b: bytes) -> int:
         if not self.writable():
             raise NotImplementedError
-        assert not self.closed
         return await blocking_to_async(self._thread_pool, self._f.write, b)
 
     async def _wait_closed(self) -> None:
@@ -81,5 +84,5 @@ class _AsyncStreamFromBlocking(AsyncStream):
         self._f = None
 
 
-def blocking_stream_to_async(thread_pool: ThreadPoolExecutor, f: io.RawIOBase) -> _AsyncStreamFromBlocking:
+def blocking_stream_to_async(thread_pool: ThreadPoolExecutor, f: BinaryIO) -> _AsyncStreamFromBlocking:
     return _AsyncStreamFromBlocking(thread_pool, f)

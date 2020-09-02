@@ -1,4 +1,4 @@
-from typing import TypeVar, Optional, List, Type
+from typing import TypeVar, Optional, List, Type, BinaryIO, cast
 from types import TracebackType
 import abc
 from concurrent.futures import ThreadPoolExecutor
@@ -45,7 +45,7 @@ class LocalAsyncFS(AsyncFS):
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme and parsed.scheme != 'file':
             raise ValueError(f"invalid scheme, expected file: {parsed.scheme}")
-        blocking_stream_to_async(self._thread_pool, open(parsed.path, mode))
+        return blocking_stream_to_async(self._thread_pool, cast(BinaryIO, open(parsed.path, mode)))
 
 
 class RouterAsyncFS(AsyncFS):
@@ -63,7 +63,7 @@ class RouterAsyncFS(AsyncFS):
 
     async def open(self, url: str, mode: str = 'r') -> AsyncStream:
         parsed = urllib.parse.urlparse(url)
-        if not url.scheme:
+        if not parsed.scheme:
             if self._default_scheme:
                 parsed = parsed._replace(scheme=self._default_scheme)
                 url = urllib.parse.urlunparse(parsed)

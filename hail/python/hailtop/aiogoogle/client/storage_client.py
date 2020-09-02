@@ -6,7 +6,7 @@ from hailtop.aiotools import AsyncStream, AsyncFS, FeedableAsyncIterable
 from .base_client import BaseClient
 
 
-class InsertObjectStream(AsyncStream):
+class InsertObjectStream(AsyncStream[bytes]):
     def __init__(self, it, request_task):
         super().__init__()
         self._it = it
@@ -27,7 +27,7 @@ class InsertObjectStream(AsyncStream):
             self._value = await resp.json()
 
 
-class GetObjectStream(AsyncStream):
+class GetObjectStream(AsyncStream[bytes]):
     def __init__(self, resp):
         super().__init__()
         self._resp = resp
@@ -65,7 +65,7 @@ class StorageClient(BaseClient):
         params['uploadType'] = 'media'
 
         assert 'data' not in kwargs
-        it = FeedableAsyncIterable()
+        it: FeedableAsyncIterable[bytes]  = FeedableAsyncIterable()
         kwargs['data'] = aiohttp.AsyncIterablePayload(it)
         request_task = asyncio.create_task(self._session.post(
             f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
@@ -99,7 +99,7 @@ class GoogleStorageAsyncFS(AsyncFS):
     def schemes(self) -> List[str]:
         return ['gs']
 
-    async def open(self, url: str, mode: str = 'r') -> AsyncStream:
+    async def open(self, url: str, mode: str = 'r') -> AsyncStream[bytes]:
         if not all(c in 'rwxabt+' for c in mode):
             raise ValueError(f"invalid mode: {mode}")
         if 't' in mode and 'b' in mode:
@@ -126,10 +126,10 @@ class GoogleStorageAsyncFS(AsyncFS):
             name = name[1:]
 
         if 'r' in mode:
-            return self._storage_client.get_object(bucket, name)
+            return await self._storage_client.get_object(bucket, name)
 
         assert 'w' in mode
-        return self._storage_client.insert_object(bucket, name)
+        return await self._storage_client.insert_object(bucket, name)
 
     async def close(self):
         await self._storage_client.close()
