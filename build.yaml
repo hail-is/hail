@@ -2627,22 +2627,6 @@ steps:
     - test_hailtop_batch_4
     - test_query
  - kind: runImage
-   name: test_hailtop_not_batch
-   image:
-     valueFrom: service_base_image.image
-   script: |
-     set -ex
-     cd /io/test
-     # batch tests are run by test_hailtop_batch_N steps
-     # FIXME tests don't work against hailtop installation in service base image
-     python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/hailctl --log-cli-level=INFO -s -vv --instafail test/hailtop
-   inputs:
-    - from: /repo/test
-      to: /io/
-   dependsOn:
-    - copy_files
-    - service_base_image
- - kind: runImage
    name: test_dataproc
    image:
      valueFrom: ci_utils_image.image
