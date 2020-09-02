@@ -58,7 +58,6 @@ class _AsyncStreamFromBlocking(AsyncStream):
         self._thread_pool = thread_pool
         self._f = f
 
-    @property
     def readable(self) -> bool:
         return self._f.readable()
 

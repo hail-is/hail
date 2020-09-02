@@ -10,7 +10,7 @@ AsyncFSType = TypeVar('AsyncFSType', bound='AsyncFS')
 
 class AsyncFS(abc.ABC):
     @abc.abstractmethod
-    async def schemes(self) -> List[str]:
+    def schemes(self) -> List[str]:
         pass
 
     @abc.abstractmethod
@@ -36,7 +36,7 @@ class LocalAsyncFS(AsyncFS):
             thread_pool = ThreadPoolExecutor(max_workers=max_workers)
         self._thread_pool = thread_pool
 
-    async def schemes(self) -> List[str]:
+    def schemes(self) -> List[str]:
         return ['file']
 
     async def open(self, url: str, mode: str = 'r') -> AsyncStream:
@@ -58,7 +58,7 @@ class RouterAsyncFS(AsyncFS):
         }
         self._schemes = list(self._filesystems)
 
-    async def schemes(self):
+    def schemes(self):
         return self._schemes
 
     async def open(self, url: str, mode: str = 'r') -> AsyncStream:
