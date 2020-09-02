@@ -24,7 +24,7 @@ check-auth:
 check-batch:
 	make -C batch check
 
-.PHONY: check-benchmark
+.PHONY: check-benchmark-service
 check-benchmark-service:
 	make -C benchmark-service check
 

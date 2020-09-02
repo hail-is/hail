@@ -464,10 +464,8 @@ steps:
      valueFrom: benchmark_image.image
    script: |
      set -ex
-     mkdir repo
-     cd repo
-     {{ code.checkout_script }}
-     make check-benchmark-service
+     python3 -m flake8 benchmark
+     python3 -m pylint --rcfile pylintrc benchmark --score=n
    dependsOn:
      - benchmark_image
  - kind: buildImage
