@@ -3,8 +3,8 @@ include ../config.mk
 AUTH_LATEST = gcr.io/$(PROJECT)/auth:latest
 AUTH_IMAGE = gcr.io/$(PROJECT)/auth:$(shell docker images -q --no-trunc auth:latest | sed -e 's,[^:]*:,,')
 
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
-PYTHON := PYTHONPATH=$(PYTHONPATH)../hail/python:../gear:../web_common python3
+EXTRA_PYTHONPATH := ../hail/python:../gear:../web_common
+PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 
 .PHONY: check
 check:
