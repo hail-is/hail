@@ -458,6 +458,18 @@ steps:
    publishAs: benchmark
    dependsOn:
      - service_base_image
+ - kind: runImage
+   name: check_benchmark_service
+   image:
+     valueFrom: benchmark_image.image
+   script: |
+     set -ex
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     make check-benchmark-service
+   dependsOn:
+     - benchmark_image
  - kind: buildImage
    name: monitoring_image
    dockerFile: monitoring/Dockerfile
