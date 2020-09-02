@@ -17,4 +17,4 @@ RUN pip3 install numpy
 
 EXPOSE 5000
 
-CMD ["python3", "-m", "benchmark.benchmark"]
+CMD ["python3", "-m", "benchmark"]

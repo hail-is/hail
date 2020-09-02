@@ -201,7 +201,7 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
-def on_startup(app):
+async def on_startup(app):
     try:
         app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
     except Exception:
