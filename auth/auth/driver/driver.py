@@ -228,7 +228,8 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
             db=self.name,
             ssl_ca='/sql-config/server-ca.pem',
             ssl_cert='/sql-config/client-cert.pem',
-            ssl_key='/sql-config/client-key.pem')
+            ssl_key='/sql-config/client-key.pem',
+            ssl_mode='VERIFY_CA')
         return create_secret_data_from_config(
             config, server_ca, client_cert, client_key)
 
