@@ -125,7 +125,7 @@ def check_ssl_config(ssl_config: Dict[str, str]):
 
 class TLSAdapter(HTTPAdapter):
     def __init__(self, ssl_cert, ssl_key, ssl_ca):
-        super(TLSAdapter, self).__init__()
+        super().__init__()
         self.ssl_cert = ssl_cert
         self.ssl_key = ssl_key
         self.ssl_ca = ssl_ca

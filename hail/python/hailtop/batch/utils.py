@@ -13,4 +13,4 @@ def arg_max():
 class BatchException(Exception):
     def __init__(self, msg=''):
         self.msg = msg
-        super(BatchException, self).__init__(msg)
+        super().__init__(msg)
