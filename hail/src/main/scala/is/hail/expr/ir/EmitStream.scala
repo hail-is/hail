@@ -486,8 +486,9 @@ object Stream {
 
   def leftJoinRightDistinct(
     mb: EmitMethodBuilder[_],
-    lElemType: PType, left: Stream[EmitCode],
-    rElemType: PType, right: Stream[EmitCode],
+    lElemType: PType, mkLeft: StagedRegion => Stream[EmitCode],
+    rElemType: PType, mkRight: StagedRegion => Stream[EmitCode],
+    destRegion: StagedRegion,
     comp: (EmitValue, EmitValue) => Code[Int]
   ): Stream[(EmitCode, EmitCode)] = new Stream[(EmitCode, EmitCode)] {
     def apply(eos: Code[Ctrl], push: ((EmitCode, EmitCode)) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(EmitCode, EmitCode)] = {
@@ -496,40 +497,46 @@ object Stream {
       val lx = mb.newEmitField(lElemType) // last value received from left
       val rx = mb.newEmitField(rElemType) // last value received from right
       val rxOut = mb.newEmitField(rElemType.setRequired(false)) // right value to push (may be missing while rx is not)
+      val rightRegion = destRegion.createChildRegion(mb)
 
       var rightSource: Source[EmitCode] = null
-      val leftSource = left(
+      val leftSource = mkLeft(destRegion)(
         eos = eos,
         push = a => {
           val Lpush = CodeLabel()
           val LpullRight = CodeLabel()
           val Lcompare = CodeLabel()
 
-          val compareCode = Code(Lcompare, {
+          rightSource = mkRight(rightRegion)(
+            eos = Code(rightEOS := true, rxOut := EmitCode.missing(rElemType), Lpush.goto),
+            push = b => Code(rx := b, Lcompare.goto))
+
+          Code(Lcompare, {
             val c = mb.genFieldThisRef[Int]()
             Code(
               c := comp(lx, rx),
               (c > 0).mux(
-                LpullRight.goto,
+                Code(rightRegion.clear(), LpullRight.goto),
                 (c < 0).mux(
-                  Code(rxOut := EmitCode.missing(rElemType), Lpush.goto),
-                  Code(rxOut := rx, Lpush.goto))))
+                  Code(rxOut := EmitCode.missing(rElemType),
+                       Lpush.goto),
+                  Code(rightRegion.shareWithParent(),
+                       rxOut := rx,
+                       Lpush.goto))))
           })
-
-          rightSource = right(
-            eos = Code(rightEOS := true, rxOut := EmitCode.missing(rElemType), Lpush.goto),
-            push = b => Code(rx := b, Lcompare.goto))
+          Code(Lpush, push((lx, rxOut)))
+          Code(LpullRight, rightSource.pull)
 
           Code(
             lx := a,
             pulledRight.mux[Unit](
-              rightEOS.mux[Ctrl](Code(Lpush, push((lx, rxOut))), compareCode),
-              Code(pulledRight := true, Code(LpullRight, rightSource.pull))))
+              rightEOS.mux[Ctrl](Lpush.goto, Lcompare.goto),
+              Code(pulledRight := true, LpullRight.goto)))
         })
 
       Source[(EmitCode, EmitCode)](
-        setup0 = Code(leftSource.setup0, rightSource.setup0),
-        close0 = Code(leftSource.close0, rightSource.close0),
+        setup0 = Code(leftSource.setup0, rightSource.setup0, rightRegion.allocateRegion(Region.REGULAR)),
+        close0 = Code(rightRegion.free(), leftSource.close0, rightSource.close0),
         setup = Code(pulledRight := false, rightEOS := false, leftSource.setup, rightSource.setup),
         close = Code(leftSource.close, rightSource.close),
         pull = leftSource.pull)
@@ -648,8 +655,9 @@ object Stream {
 
   def outerJoinRightDistinct(
     mb: EmitMethodBuilder[_],
-    lElemType: PType, left: Stream[EmitCode],
-    rElemType: PType, right: Stream[EmitCode],
+    lElemType: PType, mkLeft: StagedRegion => Stream[EmitCode],
+    rElemType: PType, mkRight: StagedRegion => Stream[EmitCode],
+    destRegion: StagedRegion,
     comp: (EmitValue, EmitValue) => Code[Int]
   ): Stream[(EmitCode, EmitCode)] = new Stream[(EmitCode, EmitCode)] {
     def apply(eos: Code[Ctrl], push: ((EmitCode, EmitCode)) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(EmitCode, EmitCode)] = {
@@ -661,6 +669,8 @@ object Stream {
       val lOutMissing = mb.genFieldThisRef[Boolean]("ojrd_lom")
       val rOutMissing = mb.genFieldThisRef[Boolean]("ojrd_rom")
       val c = mb.genFieldThisRef[Int]()
+      val leftRegion = destRegion.createChildRegion(mb)
+      val rightRegion = destRegion.createChildRegion(mb)
 
       val Leos = CodeLabel()
       Code(Leos, eos)
@@ -669,7 +679,7 @@ object Stream {
       val Lpush = CodeLabel()
 
       var rightSource: Source[EmitCode] = null
-      val leftSource = left(
+      val leftSource = mkLeft(leftRegion)(
         eos = rightEOS.mux(
           Leos.goto,
           Code(
@@ -677,10 +687,8 @@ object Stream {
             lOutMissing := true,
             rOutMissing := false,
             (pulledRight && c.cne(0)).mux(
-              Lpush.goto,
-              Code(
-                pulledRight := true,
-                LpullRight.goto)))),
+              Code(rightRegion.shareWithParent(), Lpush.goto),
+              Code(pulledRight := true, rightRegion.clear(), LpullRight.goto)))),
         push = a => {
           val Lcompare = CodeLabel()
 
@@ -690,28 +698,31 @@ object Stream {
             rOutMissing := false,
             (c > 0).mux(
               pulledRight.mux(
-                Code(lOutMissing := true, Lpush.goto),
-                Code(pulledRight := true, LpullRight.goto)
-              ),
+                Code(lOutMissing := true,
+                     rightRegion.shareWithParent(),
+                     Lpush.goto),
+                Code(pulledRight := true,
+                     LpullRight.goto)),
               (c < 0).mux(
-                Code(rOutMissing := true, Lpush.goto),
-                Code(
-                  (lOutMissing || rOutMissing).orEmpty(Code._fatal[Unit]("")),
-                  pulledRight := true,
-                  Lpush.goto)))
-          )
+                Code(rOutMissing := true,
+                     leftRegion.giveToParent(),
+                     Lpush.goto),
+                Code(pulledRight := true,
+                     leftRegion.giveToParent(),
+                     rightRegion.shareWithParent(),
+                     Lpush.goto))))
 
-          rightSource = right(
+          rightSource = mkRight(rightRegion)(
             eos = leftEOS.mux(
               Leos.goto,
-              Code(rightEOS := true, lOutMissing := false, rOutMissing := true, Lpush.goto)
-            ),
+              Code(rightEOS := true,
+                   lOutMissing := false,
+                   rOutMissing := true,
+                   leftRegion.giveToParent(),
+                   Lpush.goto)),
             push = b => Code(
               rx := b,
-              leftEOS.mux(
-                Code((!lOutMissing || rOutMissing).orEmpty(Code._fatal[Unit]("")), Lpush.goto),
-                Lcompare.goto
-              )))
+              leftEOS.mux(Lpush.goto, Lcompare.goto)))
 
           Code(Lpush, push((lx.missingIf(mb, lOutMissing), rx.missingIf(mb, rOutMissing))))
           Code(LpullRight, rightSource.pull)
@@ -720,7 +731,7 @@ object Stream {
             lx := a,
             pulledRight.mux[Unit](
               rightEOS.mux[Ctrl](
-                Code((lOutMissing || !rOutMissing).orEmpty(Code._fatal[Unit]("")), Lpush.goto),
+                Code(leftRegion.giveToParent(), Lpush.goto),
                 Code(
                   c.ceq(0).orEmpty(pulledRight := false),
                   Lcompare.goto)),
@@ -730,11 +741,20 @@ object Stream {
       Code(LpullLeft, leftSource.pull)
 
       Source[(EmitCode, EmitCode)](
-        setup0 = Code(leftSource.setup0, rightSource.setup0),
-        close0 = Code(leftSource.close0, rightSource.close0),
-        setup = Code(pulledRight := false, leftEOS := false, rightEOS := false, c := 0, leftSource.setup, rightSource.setup),
+        setup0 = Code(leftSource.setup0, rightSource.setup0,
+                      leftRegion.allocateRegion(Region.REGULAR),
+                      rightRegion.allocateRegion(Region.REGULAR)),
+        close0 = Code(leftRegion.free(), rightRegion.free(),
+                      leftSource.close0, rightSource.close0),
+        setup = Code(pulledRight := false, c := 0,
+                     leftEOS := false, rightEOS := false,
+                     leftSource.setup, rightSource.setup),
         close = Code(leftSource.close, rightSource.close),
-        pull = leftEOS.mux(LpullRight.goto, rightEOS.mux(LpullLeft.goto, (c <= 0).mux(LpullLeft.goto, LpullRight.goto))))
+        pull = leftEOS.mux(
+          Code(rightRegion.clear(), LpullRight.goto),
+          rightEOS.mux(LpullLeft.goto,
+                       (c <= 0).mux(LpullLeft.goto,
+                                    Code(rightRegion.clear(), LpullRight.goto)))))
     }
   }
 
@@ -1962,23 +1982,25 @@ object EmitStream {
 
           emitStream(leftIR).flatMap { case SizedStream(leftSetup, leftStream, leftLen) =>
             emitStream(rightIR).map { rightSS =>
-              val rightStream = rightSS.getStream(outerRegion)
-              val newStream = if (joinType == "left")
-                leftJoinRightDistinct(
-                  mb,
-                  lEltType, leftStream(outerRegion),
-                  rEltType, rightStream,
-                  compare)
-                  .map(joinF)
-              else
-                outerJoinRightDistinct(
-                  mb,
-                  lEltType, leftStream(outerRegion),
-                  rEltType, rightStream,
-                  compare)
-                  .map(joinF)
+              val newStream = (eltRegion: StagedRegion) =>
+                if (joinType == "left")
+                  leftJoinRightDistinct(
+                    mb,
+                    lEltType, leftStream,
+                    rEltType, rightSS.getStream,
+                    eltRegion,
+                    compare)
+                    .map(joinF)
+                else
+                  outerJoinRightDistinct(
+                    mb,
+                    lEltType, leftStream,
+                    rEltType, rightSS.getStream,
+                    eltRegion,
+                    compare)
+                    .map(joinF)
 
-              SizedStream(leftSetup, eltRegion => newStream, if (joinType == "left") leftLen else None)
+              SizedStream(leftSetup, newStream, if (joinType == "left") leftLen else None)
             }
           }
 
