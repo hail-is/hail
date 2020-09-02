@@ -1,5 +1,4 @@
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
-PYTHON := PYTHONPATH=$(PYTHONPATH) python3
+PYTHON := python3
 
 .PHONY: check-hail
 check-hail:

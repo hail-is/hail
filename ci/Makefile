@@ -6,8 +6,8 @@ CI_UTILS_IMAGE = gcr.io/$(PROJECT)/ci-utils:$(shell docker images -q --no-trunc 
 CI_LATEST = gcr.io/$(PROJECT)/ci:latest
 CI_IMAGE = gcr.io/$(PROJECT)/ci:$(shell docker images -q --no-trunc ci | sed -e 's,[^:]*:,,')
 
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
-PYTHON := PYTHONPATH=$(PYTHONPATH)../batch:../hail/python:../gear:../web_common python3
+EXTRA_PYTHONPATH := ../batch:../hail/python:../gear:../web_common
+PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 
 .PHONY: check
 check:

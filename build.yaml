@@ -83,6 +83,30 @@ steps:
    dependsOn:
     - base_image
  - kind: runImage
+   name: check_hail
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     make check-hail
+   dependsOn:
+     - base_image
+ - kind: runImage
+   name: check_services
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     make -k check-services
+   dependsOn:
+     - service_base_image
+ - kind: runImage
    name: copy_files
    image:
      valueFrom: base_image.image
@@ -176,18 +200,6 @@ steps:
      - default_ns
      - create_certs_image
      - create_ssl_config_hail_root
- - kind: runImage
-   name: check_gear
-   image:
-     valueFrom: service_base_image.image
-   script: |
-     set -ex
-     python3 -m flake8 gear
-     python3 -m pylint --rcfile pylintrc gear
-     python3 -m flake8 web_common
-     python3 -m pylint --rcfile pylintrc web_common
-   dependsOn:
-     - service_base_image
  - kind: createDatabase
    name: test_database_instance
    databaseName: test-instance
@@ -439,16 +451,6 @@ steps:
    publishAs: scorecard
    dependsOn:
      - service_base_image
- - kind: runImage
-   name: check_scorecard
-   image:
-     valueFrom: scorecard_image.image
-   script: |
-     set -ex
-     python3 -m flake8 scorecard
-     python3 -m pylint --rcfile pylintrc scorecard
-   dependsOn:
-     - scorecard_image
  - kind: buildImage
    name: benchmark_image
    dockerFile: benchmark-service/Dockerfile
@@ -456,6 +458,16 @@ steps:
    publishAs: benchmark
    dependsOn:
      - service_base_image
+ - kind: runImage
+   name: check_benchmark_service
+   image:
+     valueFrom: benchmark_image.image
+   script: |
+     set -ex
+     python3 -m flake8 benchmark
+     python3 -m pylint --rcfile pylintrc benchmark --score=n
+   dependsOn:
+     - benchmark_image
  - kind: buildImage
    name: monitoring_image
    dockerFile: monitoring/Dockerfile
@@ -470,16 +482,6 @@ steps:
    publishAs: auth
    dependsOn:
      - service_base_image
- - kind: runImage
-   name: check_auth
-   image:
-     valueFrom: auth_image.image
-   script: |
-     set -ex
-     python3 -m flake8 auth
-     python3 -m pylint --rcfile pylintrc auth
-   dependsOn:
-     - auth_image
  - kind: buildImage
    name: router_image
    dockerFile: router/Dockerfile
@@ -499,16 +501,6 @@ steps:
    dockerFile: batch/Dockerfile.worker
    contextPath: .
    publishAs: batch-worker
- - kind: runImage
-   name: check_batch
-   image:
-     valueFrom: batch_image.image
-   script: |
-     set -ex
-     python3 -m flake8 batch
-     python3 -m pylint --rcfile pylintrc batch
-   dependsOn:
-     - batch_image
  - kind: buildImage
    name: test_ci_image
    dockerFile: ci/Dockerfile.test
@@ -538,16 +530,6 @@ steps:
    publishAs: ci
    dependsOn:
      - service_base_image
- - kind: runImage
-   name: check_ci
-   image:
-     valueFrom: ci_image.image
-   script: |
-     set -ex
-     python3 -m flake8 ci
-     python3 -m pylint --rcfile pylintrc ci
-   dependsOn:
-     - ci_image
  - kind: buildImage
    name: ci_utils_image
    dockerFile: ci/Dockerfile.ci-utils
@@ -555,16 +537,6 @@ steps:
    publishAs: ci-utils
    dependsOn:
      - service_base_image
- - kind: runImage
-   name: check_benchmark
-   image:
-     valueFrom: benchmark_image.image
-   script: |
-     set -ex
-     python3 -m flake8 benchmark
-     python3 -m pylint --rcfile pylintrc benchmark
-   dependsOn:
-     - benchmark_image
  - kind: runImage
    name: build_hail
    image:
@@ -629,16 +601,6 @@ steps:
    dependsOn:
      - service_base_image
      - build_hail
- - kind: runImage
-   name: check_query
-   image:
-     valueFrom: query_image.image
-   script: |
-     set -ex
-     python3 -m flake8 query
-     python3 -m pylint --rcfile pylintrc query
-   dependsOn:
-     - query_image
  - kind: deploy
    name: deploy_query_sa
    namespace:

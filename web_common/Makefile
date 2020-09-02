@@ -1,5 +1,5 @@
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
-PYTHON := PYTHONPATH=$(PYTHONPATH)../hail/python:../gear python3
+PYTHONPATH := ../hail/python:../gear
+PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 
 .PHONY: check
 check:

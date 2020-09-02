@@ -3,8 +3,8 @@ include ../config.mk
 BENCHMARK_LATEST = gcr.io/$(PROJECT)/benchmark:latest
 BENCHMARK_IMAGE = gcr.io/$(PROJECT)/benchmark:$(shell docker images -q --no-trunc benchmark:latest | sed -e 's,[^:]*:,,')
 
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
-PYTHON := PYTHONPATH=$(PYTHONPATH)../hail/python:../gear:../web_common python3
+EXTRA_PYTHONPATH := ../hail/python:../gear:../web_common
+PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 
 .PHONY: check
 check:
