@@ -218,7 +218,7 @@ class ContextRDD[T: ClassTag](
   def cmapPartitionsWithContextAndIndex[U: ClassTag](f: (Int, RVDContext, (RVDContext) => Iterator[T]) => Iterator[U]): ContextRDD[U] = {
     new ContextRDD(rdd.mapPartitionsWithIndex(
       (i, part) => part.flatMap {
-        x => inCtx(consumerCtx => f(i, consumerCtx, x))
+        x => Iterator.single[RVDContext => Iterator[U]](consumerCtx => f(i, consumerCtx, x))
       }))
   }
 
