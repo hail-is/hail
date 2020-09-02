@@ -298,7 +298,7 @@ def calculate_new_intervals(ht, n, reference_genome):
         Table / Rows Table to compute new intervals for
     n : :obj:`int`
         Number of rows each partition should have, (last partition may be smaller)
-    reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
+    reference_genome: :class:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
 
     Returns
@@ -344,7 +344,7 @@ def calculate_even_genome_partitioning(reference_genome, interval_size) -> List[
 
     Parameters
     ----------
-    reference_genome: :obj:`str` or :class:`.ReferenceGenome`,
+    reference_genome: :class:`str` or :class:`.ReferenceGenome`,
         Reference genome to use. NOTE: only GRCh37 and GRCh38 references
         are supported.
     interval_size: :obj:`int` The ceiling and rough target of interval size.
@@ -542,11 +542,11 @@ def run_combiner(sample_paths: List[str],
 
     Parameters
     ----------
-    sample_paths : :obj:`list` of :obj:`str`
+    sample_paths : :obj:`list` of :class:`str`
         Paths to individual GVCFs.
-    out_file : :obj:`str`
+    out_file : :class:`str`
         Path to final combined matrix table.
-    tmp_path : :obj:`str`
+    tmp_path : :class:`str`
         Path for intermediate output.
     intervals : list of :class:`.Interval` or None
         Import GVCFs with specified partition intervals.
@@ -558,9 +558,9 @@ def run_combiner(sample_paths: List[str],
     use_exome_default_intervals : :obj:`bool`
         Import GVCFs with uniform partition intervals of default size for
         exome data.
-    header : :obj:`str` or None
+    header : :class:`str` or None
         External header file to use as GVCF header for all inputs. If defined, `sample_names` must be defined as well.
-    sample_names: list of :obj:`str` or None
+    sample_names: list of :class:`str` or None
         Sample names, to be used with `header`.
     branch_factor : :obj:`int`
         Combiner branch factor.
@@ -570,9 +570,9 @@ def run_combiner(sample_paths: List[str],
         Target records per partition in each combiner phase after the first.
     overwrite : :obj:`bool`
         Overwrite output file, if it exists.
-    reference_genome : :obj:`str`
+    reference_genome : :class:`str`
         Reference genome for GVCF import.
-    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`), optional
+    contig_recoding: :obj:`dict` of (:class:`str`, :obj:`str`), optional
         Mapping from contig name in gVCFs to contig name the reference
         genome.  All contigs must be present in the
         `reference_genome`, so this is useful for mapping

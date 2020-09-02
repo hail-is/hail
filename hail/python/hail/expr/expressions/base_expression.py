@@ -939,11 +939,11 @@ class Expression(object):
 
         Parameters
         ----------
-        path : :obj:`str`
+        path : :class:`str`
             The path to which to export.
-        delimiter : :obj:`str`
+        delimiter : :class:`str`
             The string for delimiting columns.
-        missing : :obj:`str`
+        missing : :class:`str`
             The string to output for missing values.
         header : :obj:`bool`
             When ``True`` include a header line.

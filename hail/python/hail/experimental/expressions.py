@@ -24,7 +24,7 @@ def write_expression(expr, path, overwrite=False):
 
    expr : :class:`Expression`
        Expression to write.
-   path : :obj:`str`
+   path : :class:`str`
        Path to which to write expression.
        Suggested extension: .he (hail expression).
    overwrite : :obj:`bool`
@@ -55,7 +55,7 @@ def read_expression(path):
    Parameters
    ----------
 
-   path : :obj:`str`
+   path : :class:`str`
        File to read.
 
    Returns

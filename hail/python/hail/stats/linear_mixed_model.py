@@ -272,7 +272,7 @@ class LinearMixedModel(object):
     x: :class:`ndarray`, optional
         Design matrix with shape :math:`(n, p)`.
         Include for low-rank inference.
-    p_path: :obj:`str`, optional
+    p_path: :class:`str`, optional
         Path at which :math:`P` has been stored as a block matrix.
     """
     @typecheck_method(py=np.ndarray,
@@ -699,10 +699,10 @@ class LinearMixedModel(object):
 
         Parameters
         ----------
-        pa_t_path: :obj:`str`
+        pa_t_path: :class:`str`
             Path to block matrix :math:`(P_r A)^T` with shape :math:`(m, r)`.
             Each row is a projected augmentation :math:`P_r x_\star` of :math:`P_r X`.
-        a_t_path: :obj:`str`, optional
+        a_t_path: :class:`str`, optional
             Path to block matrix :math:`A^T` with shape :math:`(m, n)`.
             Each row is an augmentation :math:`x_\star` of :math:`X`.
             Include for low-rank inference.
@@ -914,7 +914,7 @@ class LinearMixedModel(object):
             :math:`n \times p` matrix of fixed effects.
         k: :class:`ndarray`
             :math:`n \times n` positive semi-definite kernel :math:`K`.
-        p_path: :obj:`str`, optional
+        p_path: :class:`str`, optional
             Path at which to write :math:`P` as a block matrix.
         overwrite: :obj:`bool`
             If ``True``, overwrite an existing file at `p_path`.
@@ -1034,7 +1034,7 @@ class LinearMixedModel(object):
             :math:`n \times p` matrix of fixed effects :math:`X`.
         z: :class:`ndarray` or :class:`BlockMatrix`
             :math:`n \times m` matrix of random effects :math:`Z`.
-        p_path: :obj:`str`, optional
+        p_path: :class:`str`, optional
             Path at which to write :math:`P` as a block matrix.
             Required if `z` is a block matrix.
         overwrite: :obj:`bool`

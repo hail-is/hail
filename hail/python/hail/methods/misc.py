@@ -267,7 +267,7 @@ def rename_duplicates(dataset, name='unique_id') -> MatrixTable:
     ----------
     dataset : :class:`.MatrixTable`
         Dataset.
-    name : :obj:`str`
+    name : :class:`str`
         Name of new field.
 
     Returns

@@ -78,7 +78,7 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
     ----------
     dataset : :class:`.MatrixTable`
         Dataset.
-    output : :obj:`str`
+    output : :class:`str`
         Filename root for output GEN and SAMPLE files.
     precision : :obj:`int`
         Number of digits to write after the decimal point.
@@ -177,7 +177,7 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
     ----------
     mt : :class:`.MatrixTable`
         Input matrix table.
-    output : :obj:`str`
+    output : :class:`str`
         Root for output BGEN and SAMPLE files.
     gp : :class:`.ArrayExpression` of type :py:data:`.tfloat64`, optional
         Expression for genotype probabilities.  If ``None``, entry
@@ -192,7 +192,7 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
         Expression for the rsID. If ``None``, the row field `rsid` is
         used if defined and is of type :py:data:`.tstr`.  The default
         and missing value is ``"."``.
-    parallel : :obj:`str`, optional
+    parallel : :class:`str`, optional
         If ``None``, write a single BGEN file.  If
         ``'header_per_shard'``, write a collection of BGEN files (one
         per partition), each with its own header.  If
@@ -289,7 +289,7 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     ----------
     dataset : :class:`.MatrixTable`
         Dataset.
-    output : :obj:`str`
+    output : :class:`str`
         Filename root for output BED, BIM, and FAM files.
     call : :class:`.CallExpression`, optional
         Expression for the genotype call to output. If ``None``, the entry field
@@ -479,11 +479,11 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     ----------
     dataset : :class:`.MatrixTable`
         Dataset.
-    output : :obj:`str`
+    output : :class:`str`
         Path of .vcf or .vcf.bgz file to write.
-    append_to_header : :obj:`str`, optional
+    append_to_header : :class:`str`, optional
         Path of file to append to VCF header.
-    parallel : :obj:`str`, optional
+    parallel : :class:`str`, optional
         If ``'header_per_shard'``, return a set of VCF files (one per
         partition) rather than serially concatenating these files. If
         ``'separate_header'``, return a separate VCF header file and a set of
@@ -591,14 +591,14 @@ def import_locus_intervals(path,
 
     Parameters
     ----------
-    path : :obj:`str`
+    path : :class:`str`
         Path to file.
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
     skip_invalid_intervals : :obj:`bool`
         If ``True`` and `reference_genome` is not ``None``, skip lines with
         intervals that are not consistent with the reference genome.
-    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
+    contig_recoding: :obj:`dict` of (:class:`str`, :obj:`str`)
         Mapping from contig name in file to contig name in loaded dataset.
         All contigs must be present in the `reference_genome`, so this is
         useful for mapping differently-formatted data onto known references.
@@ -763,14 +763,14 @@ def import_bed(path,
 
     Parameters
     ----------
-    path : :obj:`str`
+    path : :class:`str`
         Path to .bed file.
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
     skip_invalid_intervals : :obj:`bool`
         If ``True`` and `reference_genome` is not ``None``, skip lines with
         intervals that are not consistent with the reference genome.
-    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
+    contig_recoding: :obj:`dict` of (:class:`str`, :obj:`str`)
         Mapping from contig name in BED to contig name in loaded dataset.
         All contigs must be present in the `reference_genome`, so this is
         useful for mapping differently-formatted data onto known references.
@@ -882,13 +882,13 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
 
     Parameters
     ----------
-    path : :obj:`str`
+    path : :class:`str`
         Path to FAM file.
     quant_pheno : :obj:`bool`
         If ``True``, phenotype is interpreted as quantitative.
-    delimiter : :obj:`str`
+    delimiter : :class:`str`
         Field delimiter regex.
-    missing : :obj:`str`
+    missing : :class:`str`
         The string used to denote missing values. For case-control, 0, -9, and
         non-numeric are also treated as missing.
 
@@ -932,9 +932,9 @@ def grep(regex, path, max_count=100, *, show=True):
 
     Parameters
     ----------
-    regex : :obj:`str`
+    regex : :class:`str`
         The regular expression to match.
-    path : :obj:`str` or :obj:`list` of :obj:`str`
+    path : :class:`str` or :obj:`list` of :obj:`str`
         The files to search.
     max_count : :obj:`int`
         The maximum number of matches to return
@@ -944,7 +944,7 @@ def grep(regex, path, max_count=100, *, show=True):
 
     Returns
     ---
-    :obj:`dict` of :obj:`str` to :obj:`list` of :obj:`str`
+    :obj:`dict` of :class:`str` to :obj:`list` of :obj:`str`
     """
     jfs = Env.spark_backend('grep').fs._jfs
     if show:
@@ -1085,19 +1085,19 @@ def import_bgen(path,
 
     Parameters
     ----------
-    path : :obj:`str` or :obj:`list` of :obj:`str`
+    path : :class:`str` or :obj:`list` of :obj:`str`
         BGEN file(s) to read.
-    entry_fields : :obj:`list` of :obj:`str`
+    entry_fields : :obj:`list` of :class:`str`
         List of entry fields to create.
         Options: ``'GT'``, ``'GP'``, ``'dosage'``.
-    sample_file : :obj:`str`, optional
+    sample_file : :class:`str`, optional
         Sample file to read the sample ids from. If specified, the number of
         samples in the file must match the number in the BGEN file(s).
     n_partitions : :obj:`int`, optional
         Number of partitions.
     block_size : :obj:`int`, optional
         Block size, in MB.
-    index_file_map : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+    index_file_map : :obj:`dict` of :class:`str` to :obj:`str`, optional
         Dict of BGEN file to index file location. Cannot use Hadoop glob
         patterns in file names.
     variants : :class:`.StructExpression` or :class:`.LocusExpression` or :obj:`list` of :class:`.Struct` or :obj:`list` of :class:`.Locus` or :class:`.Table`
@@ -1107,7 +1107,7 @@ def import_bgen(path,
         with two fields: `contig` of type :class:`.tstr` and `position` of type :class:`.tint`. If the
         type of `locus` is :class:`.tlocus`, the reference genome must match that used to index the BGEN
         file(s). The type of `alleles` is a :class:`.tarray` of :class:`.tstr`.
-    _row_fields : :obj:`list` of :obj:`str`
+    _row_fields : :obj:`list` of :class:`str`
         List of non-key row fields to create.
         Options: ``'varid'``, ``'rsid'``
 
@@ -1264,20 +1264,20 @@ def import_gen(path,
 
     Parameters
     ----------
-    path : :obj:`str` or :obj:`list` of :obj:`str`
+    path : :class:`str` or :obj:`list` of :obj:`str`
         GEN files to import.
-    sample_file : :obj:`str`
+    sample_file : :class:`str`
         Sample file to import.
     tolerance : :obj:`float`
         If the sum of the genotype probabilities for a genotype differ from 1.0
         by more than the tolerance, set the genotype to missing.
     min_partitions : :obj:`int`, optional
         Number of partitions.
-    chromosome : :obj:`str`, optional
+    chromosome : :class:`str`, optional
         Chromosome if not included in the GEN file
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
-    contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+    contig_recoding : :obj:`dict` of :class:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
         in the reference genome given by `reference_genome`.
     skip_invalid_loci : :obj:`bool`
@@ -1458,7 +1458,7 @@ def import_table(paths,
     ... `fN` (0-indexed).
 
     The `types` parameter allows the user to pass the types of fields in the
-    table. It is an :obj:`dict` keyed by :obj:`str`, with :class:`.HailType` values.
+    table. It is an :obj:`dict` keyed by :class:`str`, with :class:`.HailType` values.
     See the examples above for a standard usage. Additionally, this option can
     be used to override type imputation. For example, if the field
     ``Chromosome`` only contains the values ``1`` through ``22``, it will be
@@ -1469,9 +1469,9 @@ def import_table(paths,
     Parameters
     ----------
 
-    paths : :obj:`str` or :obj:`list` of :obj:`str`
+    paths : :class:`str` or :obj:`list` of :obj:`str`
         Files to import.
-    key : :obj:`str` or :obj:`list` of :obj:`str`
+    key : :class:`str` or :obj:`list` of :obj:`str`
         Key fields(s).
     min_partitions : :obj:`int` or :obj:`None`
         Minimum number of partitions.
@@ -1480,17 +1480,17 @@ def import_table(paths,
         `f1`, ... `fN` (0-indexed).
     impute : :obj:`bool`
         If ``True``, Impute field types from the file.
-    comment : :obj:`str` or :obj:`list` of :obj:`str`
+    comment : :class:`str` or :obj:`list` of :obj:`str`
         Skip lines beginning with the given string if the string is a single
         character. Otherwise, skip lines that match the regex specified. Multiple
         comment characters or patterns should be passed as a list.
-    delimiter : :obj:`str`
+    delimiter : :class:`str`
         Field delimiter regex.
-    missing : :obj:`str` or :obj:`List[str]`
+    missing : :class:`str` or :obj:`List[str]`
         Identifier(s) to be treated as missing.
-    types : :obj:`dict` mapping :obj:`str` to :class:`.HailType`
+    types : :obj:`dict` mapping :class:`str` to :class:`.HailType`
         Dictionary defining field types.
-    quote : :obj:`str` or :obj:`None`
+    quote : :class:`str` or :obj:`None`
         Quote character.
     skip_blank_lines : :obj:`bool`
         If ``True``, ignore empty lines. Otherwise, throw an error if an empty
@@ -1501,10 +1501,10 @@ def import_table(paths,
         useful when the file extension is not ``'.bgz'``, but the file is
         blocked gzip, so that the file can be read in parallel and not on a
         single node.
-    filter : :obj:`str`, optional
+    filter : :class:`str`, optional
         Line filter regex. A partial match results in the line being removed
         from the file. Applies before `find_replace`, if both are defined.
-    find_replace : (:obj:`str`, :obj:`str`)
+    find_replace : (:class:`str`, :obj:`str`)
         Line substitution regex. Functions like ``re.sub``, but obeys the exact
         semantics of Java's
         `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
@@ -1730,18 +1730,18 @@ def import_matrix_table(paths,
 
     Parameters
     ----------
-    paths: :obj:`str` or :obj:`list` of :obj:`str`
+    paths: :class:`str` or :obj:`list` of :obj:`str`
         Files to import.
-    row_fields: :obj:`dict` of :obj:`str` to :class:`.HailType`
+    row_fields: :obj:`dict` of :class:`str` to :class:`.HailType`
         Columns to take as row fields in the MatrixTable. They must be located
         before all entry columns.
-    row_key: :obj:`str` or :obj:`list` of :obj:`str`
+    row_key: :class:`str` or :obj:`list` of :obj:`str`
         Key fields(s). If empty, creates an index `row_id` to use as key.
     entry_type: :class:`.HailType`
         Type of entries in matrix table. Must be one of: :py:data:`.tint32`,
         :py:data:`.tint64`, :py:data:`.tfloat32`, :py:data:`.tfloat64`, or
         :py:data:`.tstr`. Default: :py:data:`.tint32`.
-    missing: :obj:`str`
+    missing: :class:`str`
         Identifier to be treated as missing. Default: NA
     min_partitions: :obj:`int` or :obj:`None`
         Minimum number of partitions.
@@ -1751,12 +1751,12 @@ def import_matrix_table(paths,
     force_bgz : :obj:`bool`
         If ``True``, load **.gz** files as blocked gzip files, assuming
         that they were actually compressed using the BGZ codec.
-    sep : :obj:`str`
+    sep : :class:`str`
         This parameter is a deprecated name for `delimiter`, please use that
         instead.
-    delimiter : :obj:`str`
+    delimiter : :class:`str`
         A single character string which separates values in the file.
-    comment : :obj:`str` or :obj:`list` of :obj:`str`
+    comment : :class:`str` or :obj:`list` of :obj:`str`
         Skip lines beginning with the given string if the string is a single
         character. Otherwise, skip lines that match the regex specified. Multiple
         comment characters or patterns should be passed as a list.
@@ -1906,24 +1906,24 @@ def import_plink(bed, bim, fam,
 
     Parameters
     ----------
-    bed : :obj:`str`
+    bed : :class:`str`
         PLINK BED file.
 
-    bim : :obj:`str`
+    bim : :class:`str`
         PLINK BIM file.
 
-    fam : :obj:`str`
+    fam : :class:`str`
         PLINK FAM file.
 
     min_partitions : :obj:`int`, optional
         Minimum number of partitions.  Useful in conjunction with `block_size`.
 
-    missing : :obj:`str`
+    missing : :class:`str`
         String used to denote missing values **only** for the phenotype field.
         This is in addition to "-9", "0", and "N/A" for case-control
         phenotypes.
 
-    delimiter : :obj:`str`
+    delimiter : :class:`str`
         FAM file field delimiter regex.
 
     quant_pheno : :obj:`bool`
@@ -1933,10 +1933,10 @@ def import_plink(bed, bim, fam,
         If ``True``, A2 is treated as the reference allele. If False, A1 is treated
         as the reference allele.
 
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
 
-    contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+    contig_recoding : :obj:`dict` of :class:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
         in the reference genome given by ``reference_genome``. If ``None``, the
         default is dependent on the ``reference_genome``. For "GRCh37", the default
@@ -1988,7 +1988,7 @@ def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_c
 
     Parameters
     ----------
-    path : :obj:`str`
+    path : :class:`str`
         File to read.
 
     Returns
@@ -2048,13 +2048,13 @@ def get_vcf_metadata(path):
 
     Parameters
     ----------
-    path : :obj:`str`
+    path : :class:`str`
         VCF file(s) to read. If more than one file is given, the first
         file is used.
 
     Returns
     -------
-    :obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to :obj:`str`))
+    :obj:`dict` of :class:`str` to (:obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to :obj:`str`))
     """
 
     return Env.backend().parse_vcf_metadata(path)
@@ -2184,7 +2184,7 @@ def import_vcf(path,
 
     Parameters
     ----------
-    path : :obj:`str` or :obj:`list` of :obj:`str`
+    path : :class:`str` or :obj:`list` of :obj:`str`
         VCF file(s) to read.
     force : :obj:`bool`
         If ``True``, load **.vcf.gz** files serially. No downstream operations
@@ -2192,7 +2192,7 @@ def import_vcf(path,
     force_bgz : :obj:`bool`
         If ``True``, load **.vcf.gz** files as blocked gzip files, assuming
         that they were actually compressed using the BGZ codec.
-    header_file : :obj:`str`, optional
+    header_file : :class:`str`, optional
         Optional header override file. If not specified, the first file in
         `path` is used.
     min_partitions : :obj:`int`, optional
@@ -2200,12 +2200,12 @@ def import_vcf(path,
     drop_samples : :obj:`bool`
         If ``True``, create sites-only dataset. Don't load sample IDs or
         entries.
-    call_fields : :obj:`list` of :obj:`str`
+    call_fields : :obj:`list` of :class:`str`
         List of FORMAT fields to load as :py:data:`.tcall`. "GT" is
         loaded as a call automatically.
-    reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
+    reference_genome: :class:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
-    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`), optional
+    contig_recoding: :obj:`dict` of (:class:`str`, :obj:`str`), optional
         Mapping from contig name in VCF to contig name in loaded dataset.
         All contigs must be present in the `reference_genome`, so this is
         useful for mapping differently-formatted data onto known references.
@@ -2222,10 +2222,10 @@ def import_vcf(path,
         Type of floating point entries in matrix table. Must be one of:
         :py:data:`.tfloat32` or :py:data:`.tfloat64`. Default:
         :py:data:`.tfloat64`.
-    filter : :obj:`str`, optional
+    filter : :class:`str`, optional
         Line filter regex. A partial match results in the line being removed
         from the file. Applies before `find_replace`, if both are defined.
-    find_replace : (:obj:`str`, :obj:`str`)
+    find_replace : (:class:`str`, :obj:`str`)
         Line substitution regex. Functions like ``re.sub``, but obeys the exact
         semantics of Java's
         `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
@@ -2398,14 +2398,14 @@ def index_bgen(path,
 
     Parameters
     ----------
-    path : :obj:`str` or :obj:`list` of :obj:`str`
+    path : :class:`str` or :obj:`list` of :obj:`str`
         .bgen files to index.
-    index_file_map : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+    index_file_map : :obj:`dict` of :class:`str` to :obj:`str`, optional
         Dict of BGEN file to index file location. Index file location must have
         a `.idx2` file extension. Cannot use Hadoop glob patterns in file names.
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
-    contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+    contig_recoding : :obj:`dict` of :class:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
         in the reference genome given by `reference_genome`.
     skip_invalid_loci : :obj:`bool`
@@ -2428,7 +2428,7 @@ def read_table(path, *, _intervals=None, _filter_intervals=False) -> Table:
 
     Parameters
     ----------
-    path : :obj:`str`
+    path : :class:`str`
         File to read.
 
     Returns

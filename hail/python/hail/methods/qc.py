@@ -72,7 +72,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     ----------
     mt : :class:`.MatrixTable`
         Dataset.
-    name : :obj:`str`
+    name : :class:`str`
         Name for resulting field.
 
     Returns
@@ -237,7 +237,7 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     ----------
     mt : :class:`.MatrixTable`
         Dataset.
-    name : :obj:`str`
+    name : :class:`str`
         Name for resulting field.
 
     Returns
@@ -568,11 +568,11 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
     ----------
     dataset : :class:`.MatrixTable` or :class:`.Table`
         Dataset.
-    config : :obj:`str`
+    config : :class:`str`
         Path to VEP configuration file.
     block_size : :obj:`int`
         Number of rows to process per VEP invocation.
-    name : :obj:`str`
+    name : :class:`str`
         Name for resulting row field.
     csq : :obj:`bool`
         If ``True``, annotates with the VCF CSQ field as a :py:data:`.tstr`.
@@ -926,11 +926,11 @@ def nirvana(dataset: Union[MatrixTable, Table], config, block_size=500000, name=
     ----------
     dataset : :class:`.MatrixTable` or :class:`.Table`
         Dataset.
-    config : :obj:`str`
+    config : :class:`str`
         Path to Nirvana configuration file.
     block_size : :obj:`int`
         Number of rows to process per Nirvana invocation.
-    name : :obj:`str`
+    name : :class:`str`
         Name for resulting row field.
 
     Returns

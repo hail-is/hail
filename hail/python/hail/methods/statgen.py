@@ -122,7 +122,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
         Samples are called females if F < female_threshold.
     male_threshold : :obj:`float`
         Samples are called males if F > male_threshold.
-    aaf : :obj:`str` or :obj:`None`
+    aaf : :class:`str` or :obj:`None`
         A field defining the alternate allele frequency for each row. If
         ``None``, AAF will be computed from `call`.
 
@@ -301,7 +301,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
     block_size : :obj:`int`
         Number of row regressions to perform simultaneously per core. Larger blocks
         require more memory but may improve performance.
-    pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
+    pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
         Additional row fields to include in the resulting table.
 
     Returns
@@ -713,7 +713,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         Non-empty list of column-indexed covariate expressions.
-    pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
+    pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
         Additional row fields to include in the resulting table.
 
     Returns
@@ -797,7 +797,7 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         Non-empty list of column-indexed covariate expressions.
-    pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
+    pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
         Additional row fields to include in the resulting table.
 
     Returns
@@ -955,7 +955,7 @@ def linear_mixed_model(y,
     k: :class:`ndarray`, optional
         Kinship matrix :math:`K`.
         Exactly one of `z_t` and `k` must be set.
-    p_path: :obj:`str`, optional
+    p_path: :class:`str`, optional
         Path at which to write the projection :math:`P` as a block matrix.
         Required if `z_t` is set.
     overwrite: :obj:`bool`
@@ -1131,10 +1131,10 @@ def linear_mixed_regression_rows(entry_expr,
         If mean_impute is false, must have no missing values.
     model: :class:`.LinearMixedModel`
         Fit linear mixed model with ``path_p`` set.
-    pa_t_path: :obj:`str`, optional
+    pa_t_path: :class:`str`, optional
         Path at which to store the transpose of :math:`PA`.
         If not set, a temporary file is used.
-    a_t_path: :obj:`str`, optional
+    a_t_path: :class:`str`, optional
         Path at which to store the transpose of :math:`A`.
         If not set, a temporary file is used.
     mean_impute: :obj:`bool`
@@ -1142,7 +1142,7 @@ def linear_mixed_regression_rows(entry_expr,
     partition_size: :obj:`int`
         Number of rows to process per partition.
         Default given by block size of :math:`P`.
-    pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
+    pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
         Additional row fields to include in the resulting table.
 
     Returns
@@ -1719,7 +1719,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
         If ``True``, variants are assumed to be left
         aligned and have unique loci. This avoids a shuffle. If the assumption
         is violated, an error is generated.
-    vep_root : :obj:`str`
+    vep_root : :class:`str`
         Top-level location of vep data. All variable-length VEP fields
         (intergenic_consequences, motif_feature_consequences,
         regulatory_feature_consequences, and transcript_consequences)
@@ -2338,7 +2338,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
         Representing a random function.  Ancestral allele frequency
         distribution.  Default is :func:`.rand_unif` over the range
         `[0.1, 0.9]` with seed 0.
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
     mixture : :obj:`bool`
         Treat `pop_dist` as the parameters of a Dirichlet distribution,

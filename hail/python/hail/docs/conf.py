@@ -29,6 +29,8 @@ sys.path.insert(0, os.path.abspath('./_ext'))
 
 # -- General configuration ------------------------------------------------
 
+nitpicky = True
+
 # If your documentation needs a minimal Sphinx version, state it here.
 #
 needs_sphinx = '1.5.4'
@@ -45,7 +47,8 @@ extensions = [
     'nbsphinx',
     # https://github.com/spatialaudio/nbsphinx/issues/24#issuecomment-187172022 and https://github.com/ContinuumIO/anaconda-issues/issues/1430
     'IPython.sphinxext.ipython_console_highlighting',
-    'sphinx.ext.napoleon'
+    'sphinx.ext.napoleon',
+    'sphinx.ext.intersphinx'
 ]
 
 katex_css_path = \
@@ -90,6 +93,11 @@ autodoc_default_flags = ['members', 'undoc-members']
 
 napoleon_use_rtype = False
 napoleon_use_param = False
+
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/3.7', None),
+    'PySpark': ('https://spark.apache.org/docs/latest/api/python/', None),
+    'Bokeh': ('https://docs.bokeh.org/en/latest', None)}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates', '_templates/_autosummary']

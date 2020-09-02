@@ -118,7 +118,7 @@ class GroupedMatrixTable(ExprContainer):
 
         Parameters
         ----------
-        exprs : args of :obj:`str` or :class:`.Expression`
+        exprs : args of :class:`str` or :class:`.Expression`
             Row fields to group by.
         named_exprs : keyword args of :class:`.Expression`
             Row-indexed expressions to group by.
@@ -163,7 +163,7 @@ class GroupedMatrixTable(ExprContainer):
 
         Parameters
         ----------
-        exprs : args of :obj:`str` or :class:`.Expression`
+        exprs : args of :class:`str` or :class:`.Expression`
             Column fields to group by.
         named_exprs : keyword args of :class:`.Expression`
             Column-indexed expressions to group by.
@@ -782,7 +782,7 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        keys : varargs of :obj:`str` or :class:`.Expression`.
+        keys : varargs of :class:`str` or :class:`.Expression`.
             Column fields to key by.
         named_keys : keyword args of :class:`.Expression`.
             Column fields to key by.
@@ -834,7 +834,7 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        keys : varargs of :obj:`str` or :class:`.Expression`.
+        keys : varargs of :class:`str` or :class:`.Expression`.
             Row fields to key by.
         named_keys : keyword args of :class:`.Expression`.
             Row fields to key by.
@@ -1079,7 +1079,7 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        exprs : variable-length args of :obj:`str` or :class:`.Expression`
+        exprs : variable-length args of :class:`str` or :class:`.Expression`
             Arguments that specify field names or nested field reference expressions.
         named_exprs : keyword args of :class:`.Expression`
             Field names and the expressions to compute them.
@@ -1135,7 +1135,7 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        exprs : variable-length args of :obj:`str` or :class:`.Expression`
+        exprs : variable-length args of :class:`str` or :class:`.Expression`
             Arguments that specify field names or nested field reference expressions.
         named_exprs : keyword args of :class:`.Expression`
             Field names and the expressions to compute them.
@@ -1185,7 +1185,7 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        exprs : variable-length args of :obj:`str` or :class:`.Expression`
+        exprs : variable-length args of :class:`str` or :class:`.Expression`
             Arguments that specify field names or nested field reference expressions.
         named_exprs : keyword args of :class:`.Expression`
             Field names and the expressions to compute them.
@@ -1228,7 +1228,7 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        exprs : variable-length args of :obj:`str` or :class:`.Expression`
+        exprs : variable-length args of :class:`str` or :class:`.Expression`
             Arguments that specify field names or nested field reference expressions.
         named_exprs : keyword args of :class:`.Expression`
             Field names and the expressions to compute them.
@@ -1286,7 +1286,7 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        exprs : varargs of :obj:`str` or :class:`.Expression`
+        exprs : varargs of :class:`str` or :class:`.Expression`
             Names of fields to drop or field reference expressions.
 
         Returns
@@ -1760,9 +1760,9 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        row_field : :obj:`str`
+        row_field : :class:`str`
             Name for computed row field (default: ``entry_stats_row``.
-        col_field : :obj:`str`
+        col_field : :class:`str`
             Name for computed column field (default: ``entry_stats_col``.
 
         Returns
@@ -2223,7 +2223,7 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        exprs : args of :obj:`str` or :class:`.Expression`
+        exprs : args of :class:`str` or :class:`.Expression`
             Row fields to group by.
         named_exprs : keyword args of :class:`.Expression`
             Row-indexed expressions to group by.
@@ -2254,7 +2254,7 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        exprs : args of :obj:`str` or :class:`.Expression`
+        exprs : args of :class:`str` or :class:`.Expression`
             Column fields to group by.
         named_exprs : keyword args of :class:`.Expression`
             Column-indexed expressions to group by.
@@ -3008,10 +3008,10 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        entries_array_field_name : :obj:`str`
+        entries_array_field_name : :class:`str`
             The name of the table field containing the array of entry structs
             for the given row.
-        columns_array_field_name : :obj:`str`
+        columns_array_field_name : :class:`str`
             The name of the global field containing the array of column
             structs.
 
@@ -3427,7 +3427,7 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        name : :obj:`str`
+        name : :class:`str`
             Name for row index field.
 
         Returns
@@ -3455,7 +3455,7 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        name: :obj:`str`
+        name: :class:`str`
             Name for column index field.
 
         Returns
@@ -3912,7 +3912,7 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        fields : :obj:`dict` from :obj:`str` to :obj:`str`
+        fields : :obj:`dict` from :class:`str` to :obj:`str`
             Mapping from old field names to new field names.
 
         Returns
@@ -4040,7 +4040,7 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        separator : :obj:`str`
+        separator : :class:`str`
             Separator between sample IDs and entry field names.
 
         Returns

@@ -799,7 +799,7 @@ class ArrayStructExpression(ArrayExpression):
 
         Parameters
         ----------
-        item : :obj:`str`
+        item : :class:`str`
             Field name
 
         Returns
@@ -1287,7 +1287,7 @@ class SetStructExpression(SetExpression):
 
         Parameters
         ----------
-        item : :obj:`str`
+        item : :class:`str`
             Field name
 
         Returns
@@ -1615,7 +1615,7 @@ class StructExpression(Mapping[str, Expression], Expression):
 
         Parameters
         ----------
-        item : :obj:`str`
+        item : :class:`str`
             Field name.
 
         Returns
@@ -1725,7 +1725,7 @@ class StructExpression(Mapping[str, Expression], Expression):
 
         Parameters
         ----------
-        fields : varargs of :obj:`str`
+        fields : varargs of :class:`str`
             Field names to keep.
         named_exprs : keyword args of :class:`.Expression`
             New field expressions.
@@ -1775,7 +1775,7 @@ class StructExpression(Mapping[str, Expression], Expression):
 
         Parameters
         ----------
-        mapping : :obj:`dict` of :obj:`str`, :obj:`str`
+        mapping : :obj:`dict` of :class:`str`, :obj:`str`
             Mapping from old field names to new field names.
 
         Notes
@@ -1817,7 +1817,7 @@ class StructExpression(Mapping[str, Expression], Expression):
 
         Parameters
         ----------
-        fields: varargs of :obj:`str`
+        fields: varargs of :class:`str`
             Fields to drop.
 
         Returns

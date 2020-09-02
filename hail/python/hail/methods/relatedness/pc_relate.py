@@ -269,7 +269,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     min_kinship : :obj:`float`, optional
         If set, pairs of samples with kinship lower than `min_kinship` are excluded
         from the results.
-    statistics : :obj:`str`
+    statistics : :class:`str`
         Set of statistics to compute.
         If ``'kin'``, only estimate the kinship statistic.
         If ``'kin2'``, estimate the above and IBD2.

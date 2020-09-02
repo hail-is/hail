@@ -121,7 +121,7 @@ def dtype(type_str):
 
     Parameters
     ----------
-    type_str : :obj:`str`
+    type_str : :class:`str`
         String representation of type.
 
     Returns
@@ -200,7 +200,7 @@ class HailType(object):
 
         Returns
         -------
-        :obj:`str`
+        :class:`str`
         """
         b = []
         b.append(' ' * indent)
@@ -1058,7 +1058,7 @@ class tstruct(HailType, Mapping):
 
         Returns
         -------
-        :obj:`tuple` of :obj:`str`
+        :obj:`tuple` of :class:`str`
             Tuple of struct field names.
         """
         return self._fields
@@ -1233,7 +1233,7 @@ class tunion(HailType, Mapping):
 
         Returns
         -------
-        :obj:`tuple` of :obj:`str`
+        :obj:`tuple` of :class:`str`
             Tuple of union case names
         """
         return self._cases
@@ -1470,7 +1470,7 @@ class tlocus(HailType):
 
     Parameters
     ----------
-    reference_genome: :class:`.ReferenceGenome` or :obj:`str`
+    reference_genome: :class:`.ReferenceGenome` or :class:`str`
         Reference genome to use.
 
     See Also

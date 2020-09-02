@@ -131,7 +131,7 @@ def null(t: Union[HailType, str]):
 
     Parameters
     ----------
-    t : :obj:`str` or :class:`.HailType`
+    t : :class:`str` or :class:`.HailType`
         Type of the missing expression.
 
     Returns
@@ -872,7 +872,7 @@ def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'
         Chromosome.
     pos : int or :class:`.Expression` of type :py:data:`.tint32`
         Base position along the chromosome.
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
 
     Returns
@@ -904,7 +904,7 @@ def locus_from_global_position(global_pos,
     ----------
     global_pos : int or :class:`.Expression` of type :py:data:`.tint64`
         Global base position along the reference genome.
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Reference genome to use for converting the global position to a contig and local position.
 
     Returns
@@ -934,7 +934,7 @@ def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') ->
     ----------
     s : str or :class:`.StringExpression`
         String to parse.
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
 
     Returns
@@ -967,7 +967,7 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     ----------
     s : :class:`.StringExpression`
         String to parse.
-    reference_genome: :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome: :class:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
 
     Returns
@@ -1212,7 +1212,7 @@ def locus_interval(contig,
         If ``True``, interval includes start point.
     includes_end : :class:`.BooleanExpression`
         If ``True``, interval includes end point.
-    reference_genome : :obj:`str` or :class:`.hail.genetics.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.hail.genetics.ReferenceGenome`
         Reference genome to use.
     invalid_missing : :class:`.BooleanExpression`
         If ``True``, invalid intervals are set to NA rather than causing an exception.
@@ -1288,7 +1288,7 @@ def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'def
     ----------
     s : str or :class:`.StringExpression`
         String to parse.
-    reference_genome : :obj:`str` or :class:`.hail.genetics.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.hail.genetics.ReferenceGenome`
         Reference genome to use.
     invalid_missing : :class:`.BooleanExpression`
         If ``True``, invalid intervals are set to NA rather than causing an exception.
@@ -4084,7 +4084,7 @@ def empty_set(t: Union[HailType, builtins.str]) -> SetExpression:
 
     Parameters
     ----------
-    t : :obj:`str` or :class:`.HailType`
+    t : :class:`str` or :class:`.HailType`
         Type of the set elements.
 
     Returns
@@ -4135,7 +4135,7 @@ def empty_array(t: Union[HailType, builtins.str]) -> ArrayExpression:
 
     Parameters
     ----------
-    t : :obj:`str` or :class:`.HailType`
+    t : :class:`str` or :class:`.HailType`
         Type of the array elements.
 
     Returns
@@ -4258,9 +4258,9 @@ def empty_dict(key_type: Union[HailType, builtins.str], value_type: Union[HailTy
 
     Parameters
     ----------
-    key_type : :obj:`str` or :class:`.HailType`
+    key_type : :class:`str` or :class:`.HailType`
         Type of the keys.
-    value_type : :obj:`str` or :class:`.HailType`
+    value_type : :class:`str` or :class:`.HailType`
         Type of the values.
     Returns
     -------
@@ -4971,7 +4971,7 @@ def get_sequence(contig, position, before=0, after=0, reference_genome='default'
     after : :class:`.Expression` of type :py:data:`.tint32`, optional
         Number of bases to include after the locus of interest. Truncates at
         contig boundary.
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Reference genome to use. Must have a reference sequence available.
 
     Returns
@@ -5002,7 +5002,7 @@ def is_valid_contig(contig, reference_genome='default') -> BooleanExpression:
     Parameters
     ----------
     contig : :class:`.Expression` of type :py:data:`.tstr`
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
 
     Returns
     -------
@@ -5025,7 +5025,7 @@ def contig_length(contig, reference_genome='default') -> Int32Expression:
     Parameters
     ----------
     contig : :class:`.Expression` of type :py:data:`.tstr`
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
 
     Returns
     -------
@@ -5053,7 +5053,7 @@ def is_valid_locus(contig, position, reference_genome='default') -> BooleanExpre
     ----------
     contig : :class:`.Expression` of type :py:data:`.tstr`
     position : :class:`.Expression` of type :py:data:`.tint`
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
 
     Returns
     -------
@@ -5253,7 +5253,7 @@ def liftover(x, dest_reference_genome, min_match=0.95, include_strand=False):
     ----------
     x : :class:`.Expression` of type :py:data:`.tlocus` or :py:data:`.tinterval` of :py:data:`.tlocus`
         Locus or locus interval to lift over.
-    dest_reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    dest_reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Reference genome to convert to.
     min_match : :obj:`float`
         Minimum ratio of bases that must remap.

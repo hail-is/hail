@@ -346,7 +346,7 @@ class DB:
         ----------
         rel : :class:`.MatrixTable` or :class:`.Table`
             The relational object to which to add annotations.
-        names : varargs of :obj:`str`
+        names : varargs of :class:`str`
             The names of the datasets with which to annotate `rel`.
 
         Returns
