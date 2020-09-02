@@ -1265,7 +1265,7 @@ async def _query_billing_projects(db, user=None, billing_project=None):
     where_conditions = []
 
     if user:
-        where_conditions.append("JSON_CONTAINS(users, %s)")
+        where_conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
         args.append(user)
 
     if billing_project:
