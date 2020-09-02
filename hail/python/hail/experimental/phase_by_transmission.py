@@ -1,7 +1,6 @@
 import hail as hl
 from hail.typecheck import typecheck, sequenceof
 from hail.expr.expressions import expr_str, expr_call, expr_locus, expr_array
-from hail.matrixtable import MatrixTable
 from typing import List
 
 
@@ -200,7 +199,7 @@ def phase_by_transmission(
     )
 
 
-@typecheck(tm=MatrixTable,
+@typecheck(tm=hl.MatrixTable,
            call_field=str,
            phased_call_field=str)
 def phase_trio_matrix_by_transmission(tm: hl.MatrixTable, call_field: str = 'GT', phased_call_field: str = 'PBT_GT') -> hl.MatrixTable:
@@ -279,7 +278,7 @@ def phase_trio_matrix_by_transmission(tm: hl.MatrixTable, call_field: str = 'GT'
     )
 
 
-@typecheck(tm=MatrixTable,
+@typecheck(tm=hl.MatrixTable,
            col_keys=sequenceof(str),
            keep_trio_cols=bool,
            keep_trio_entries=bool)
@@ -304,9 +303,11 @@ def explode_trio_matrix(tm: hl.MatrixTable, col_keys: List[str] = ['s'], keep_tr
 
     Note
     ----
-    This assumes that the input MatrixTable is a trio MatrixTable (similar to the result of :meth:`.methods.trio_matrix`)
-    Its entry schema has to contain 'proband_entry`, `father_entry` and `mother_entry` all with the same type.
-    Its column schema has to contain 'proband`, `father` and `mother` all with the same type.
+    This assumes that the input MatrixTable is a trio MatrixTable (similar to
+    the result of :meth:`.methods.trio_matrix`) Its entry schema has to contain
+    'proband_entry`, `father_entry` and `mother_entry` all with the same type.
+    Its column schema has to contain 'proband`, `father` and `mother` all with
+    the same type.
 
     Parameters
     ----------
@@ -322,7 +323,8 @@ def explode_trio_matrix(tm: hl.MatrixTable, col_keys: List[str] = ['s'], keep_tr
     Returns
     -------
     :class:`.MatrixTable`
-        Sample MatrixTable"""
+        Sample MatrixTable
+    """
 
     select_entries_expr = {'__trio_entries': hl.array([tm.proband_entry, tm.father_entry, tm.mother_entry])}
     if keep_trio_entries:

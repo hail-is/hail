@@ -31,7 +31,7 @@ Genetics
     split_multi_hts
     summarize_variants
     transmission_disequilibrium_test
-    trio_matrix
+    ~family_methods.trio_matrix
     variant_qc
     vep
 

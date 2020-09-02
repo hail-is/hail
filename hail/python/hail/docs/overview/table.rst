@@ -12,7 +12,7 @@ Import
 
 Hail has functions to create tables from a variety of data sources.
 The most common use case is to load data from a TSV or CSV file, which can be
-done with the :func:`import_table` function.
+done with the :func:`.import_table` function.
 
     >>> ht = hl.import_table("data/kt_example1.tsv", impute=True)
 
@@ -137,7 +137,7 @@ a wide variety of aggregator functions (see :ref:`sec-aggregators`):
     0.5
 
 We also might want to compute the mean value of `HT` for each sex. This is
-possible with a combination of :meth:`Table.group_by` and
+possible with a combination of :meth:`.Table.group_by` and
 :meth:`.GroupedTable.aggregate`:
 
     >>> ht_agg = (ht.group_by(ht.SEX)

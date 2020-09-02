@@ -33,14 +33,14 @@ def array_windows(a, radius):
 
     Parameters
     ----------
-    a: :obj:`ndarray` of signed integer or float values
+    a: :obj:`numpy.ndarray` of signed integer or float values
         1-dimensional array of values, non-decreasing with respect to index.
     radius: :obj:`float`
         Non-negative radius of window for values.
 
     Returns
     -------
-    (:class:`ndarray` of :obj:`int64`, :class:`ndarray` of :obj:`int64`)
+    (:class:`numpy.ndarray` of :obj:`int`, :class:`np.ndarray` of :obj:`int`)
         Tuple of start indices array and stop indices array.
     """
     if radius < 0:
@@ -161,7 +161,7 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
 
     Returns
     -------
-    (:class:`ndarray` of :obj:`int64`, :class:`ndarray` of :obj:`int64`)
+    (:class:`numpy.ndarray` of :obj:`int`, :class:`np.ndarray` of :obj:`int`)
         Tuple of start indices array and stop indices array.
     """
     if radius < 0:

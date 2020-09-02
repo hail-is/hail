@@ -97,7 +97,9 @@ napoleon_use_param = False
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3.7', None),
     'PySpark': ('https://spark.apache.org/docs/latest/api/python/', None),
-    'Bokeh': ('https://docs.bokeh.org/en/latest', None)}
+    'Bokeh': ('https://docs.bokeh.org/en/1.2.0/', None),
+    'numpy': ('https://numpy.org/doc/stable/', None),
+    'pandas': ('https://pandas.pydata.org/docs/', None)}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates', '_templates/_autosummary']

@@ -920,9 +920,9 @@ class Expression(object):
         -----
 
         For entry-indexed expressions, if there is one column key field, the
-        result of calling :func:`hl.str` on that field is used as the column
-        header. Otherwise, each compound column key is converted to JSON and
-        used as a column header. For example:
+        result of calling :func:`~hail.expr.functions.str` on that field is used as
+        the column header. Otherwise, each compound column key is converted to
+        JSON and used as a column header. For example:
 
         >>> small_mt = small_mt.key_cols_by(s=small_mt.sample_idx, family='fam1')
         >>> small_mt.GT.export('output/gt-no-header.tsv')

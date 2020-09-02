@@ -260,16 +260,16 @@ class LinearMixedModel(object):
 
     Parameters
     ----------
-    py: :class:`ndarray`
+    py: :class:`numpy.ndarray`
         Projected response vector :math:`P_r y` with shape :math:`(r)`.
-    px: :class:`ndarray`
+    px: :class:`numpy.ndarray`
         Projected design matrix :math:`P_r X` with shape :math:`(r, p)`.
-    s: :class:`ndarray`
+    s: :class:`numpy.ndarray`
         Eigenvalues vector :math:`S` with shape :math:`(r)`.
-    y: :class:`ndarray`, optional
+    y: :class:`numpy.ndarray`, optional
         Response vector with shape :math:`(n)`.
         Include for low-rank inference.
-    x: :class:`ndarray`, optional
+    x: :class:`numpy.ndarray`, optional
         Design matrix with shape :math:`(n, p)`.
         Include for low-rank inference.
     p_path: :class:`str`, optional
@@ -461,7 +461,7 @@ class LinearMixedModel(object):
 
         Returns
         -------
-        :obj:`float` or (:obj:`float`, :class:`ndarray`, :obj:`float`, :obj:`float`)
+        :obj:`float` or (:obj:`float`, :class:`numpy.ndarray`, :obj:`float`, :obj:`float`)
             If `return_parameters` is ``False``, returns (shifted) negative log REML.
             Otherwise, returns (shifted) negative log REML, :math:`\beta`, :math:`\sigma^2`,
             and :math:`\tau^2`.
@@ -614,7 +614,7 @@ class LinearMixedModel(object):
 
         Returns
         -------
-        :class:`ndarray` of :obj:`float64`
+        :class:`numpy.ndarray` of :obj:`float`
             Normalized likelihood values for :math:`\mathit{h}^2`.
         """
         log_lkhd = np.zeros(101, dtype=np.float64)
@@ -758,10 +758,10 @@ class LinearMixedModel(object):
 
         Parameters
         ----------
-        pa: :class:`ndarray`
+        pa: :class:`numpy.ndarray`
             Projected matrix :math:`P_r A` of alternatives with shape :math:`(r, m)`.
             Each column is a projected augmentation :math:`P_r x_\star` of :math:`P_r X`.
-        a: :class:`ndarray`, optional
+        a: :class:`numpy.ndarray`, optional
             Matrix :math:`A` of alternatives with shape :math:`(n, m)`.
             Each column is an augmentation :math:`x_\star` of :math:`X`.
             Required for low-rank inference.
@@ -908,11 +908,11 @@ class LinearMixedModel(object):
 
         Parameters
         ----------
-        y: :class:`ndarray`
+        y: :class:`numpy.ndarray`
             :math:`n` vector of observations.
-        x: :class:`ndarray`
+        x: :class:`numpy.ndarray`
             :math:`n \times p` matrix of fixed effects.
-        k: :class:`ndarray`
+        k: :class:`numpy.ndarray`
             :math:`n \times n` positive semi-definite kernel :math:`K`.
         p_path: :class:`str`, optional
             Path at which to write :math:`P` as a block matrix.
@@ -923,7 +923,7 @@ class LinearMixedModel(object):
         -------
         model: :class:`LinearMixedModel`
             Model constructed from :math:`y`, :math:`X`, and :math:`K`.
-        p: :class:`ndarray`
+        p: :class:`numpy.ndarray`
             Matrix :math:`P` whose rows are the eigenvectors of :math:`K`.
         """
         _check_dims(y, "y", 1)
@@ -996,7 +996,7 @@ class LinearMixedModel(object):
         eigenvalue are dropped from :math:`S`, with the corresponding
         eigenvectors dropped from :math:`P`. This guards against precision
         loss on left eigenvectors computed via the right gramian :math:`Z^T Z`
-        in :meth:`BlockMatrix.svd`.
+        in :meth:`.BlockMatrix.svd`.
 
         In either case, one can truncate to a rank :math:`r` model as follows.
         If `p` is an ndarray:
@@ -1028,11 +1028,11 @@ class LinearMixedModel(object):
 
         Parameters
         ----------
-        y: :class:`ndarray`
+        y: :class:`numpy.ndarray`
             :math:`n` vector of observations :math:`y`.
-        x: :class:`ndarray`
+        x: :class:`numpy.ndarray`
             :math:`n \times p` matrix of fixed effects :math:`X`.
-        z: :class:`ndarray` or :class:`BlockMatrix`
+        z: :class:`numpy.ndarray` or :class:`.BlockMatrix`
             :math:`n \times m` matrix of random effects :math:`Z`.
         p_path: :class:`str`, optional
             Path at which to write :math:`P` as a block matrix.
@@ -1049,7 +1049,7 @@ class LinearMixedModel(object):
         -------
         model: :class:`LinearMixedModel`
             Model constructed from :math:`y`, :math:`X`, and :math:`Z`.
-        p: :class:`ndarray` or :class:`.BlockMatrix`
+        p: :class:`numpy.ndarray` or :class:`.BlockMatrix`
             Matrix :math:`P` whose rows are the eigenvectors of :math:`K`.
             The type is block matrix if `z` is a block matrix and
             :meth:`.BlockMatrix.svd` of `z` returns :math:`U` as a block matrix.

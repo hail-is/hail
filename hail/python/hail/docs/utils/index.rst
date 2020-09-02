@@ -5,8 +5,8 @@ utils
 
 .. autosummary::
 
-    Interval
-    Struct
+    ~interval.Interval
+    ~struct.Struct
     hadoop_open
     hadoop_copy
     hadoop_exists

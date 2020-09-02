@@ -577,7 +577,7 @@ class ArrayExpression(CollectionExpression):
 
         Parameters
         ----------
-        x : :class:`.Expression` or :obj:`Callable`
+        x : :class:`.Expression` or :obj:`typing.Callable`
             Value to find, or function from element to Boolean expression.
 
         Returns
@@ -3159,12 +3159,12 @@ class CallExpression(Expression):
 
         Parameters
         ----------
-        alleles: :class:`.Int32Expression` or :class:`.ArrayStringExpression`.
+        alleles: :class:`.Int32Expression` or :class:`.ArrayExpression` of :obj:`.tstr`.
             Number of total alleles, including the reference, or array of variant alleles.
 
         Returns
         -------
-        :class:`.ArrayInt32Expression`
+        :class:`.ArrayExpression` of :obj:`tint32`
             An array of summed one-hot encodings of allele indices.
         """
 

@@ -1086,9 +1086,9 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        starts: :obj:`list` of :obj:`int`, or :class:`ndarray` of :obj:`int32` or :obj:`int64`
+        starts: :obj:`list` of :obj:`int`, or :class:`numpy.ndarray` of :obj:`int`
             Start indices for each row (inclusive).
-        stops: :obj:`list` of :obj:`int`, or :class:`ndarray` of :obj:`int32` or :obj:`int64`
+        stops: :obj:`list` of :obj:`int`, or :class:`numpy.ndarray` of :obj:`int`
             Stop indices for each row (exclusive).
         blocks_only: :obj:`bool`
             If ``False``, set all elements outside row intervals to zero.
@@ -1677,7 +1677,7 @@ class BlockMatrix(object):
 
         The resulting table has the following fields:
             - **row_idx** (:py:data.`tint64`, key field) -- Row index
-            - **entries** (:py:data:`.tarray<tfloat64>`) -- Entries for the row
+            - **entries** (:py:class:`.tarray` of :py:data:`.tfloat64`) -- Entries for the row
 
         Examples
         --------
@@ -1910,7 +1910,7 @@ class BlockMatrix(object):
         partition_size: :obj:`int`, optional
             Number of rows to group per partition for export.
             Default given by block size of the block matrix.
-        entries: :obj:`str
+        entries: :class:`str
             Describes which entries to export. One of:
             ``'full'``, ``'lower'``, ``'strict_lower'``, ``'upper'``, ``'strict_upper'``.
         """
@@ -2378,13 +2378,13 @@ class BlockMatrix(object):
 
         Returns
         -------
-        u: :class:`ndarray` or :class:`BlockMatrix`
+        u: :class:`numpy.ndarray` or :class:`BlockMatrix`
             Left singular vectors :math:`U`, as a block matrix if :math:`n > m` and
             :math:`\sqrt[3]{nmr}` exceeds `complexity_bound`.
             Only returned if `compute_uv` is True.
-        s: :class:`ndarray`
+        s: :class:`numpy.ndarray`
             Singular values from :math:`\Sigma` in descending order.
-        vt: :class:`ndarray` or :class:`BlockMatrix`
+        vt: :class:`numpy.ndarray` or :class:`BlockMatrix`
             Right singular vectors :math:`V^T``, as a block matrix if :math:`n \leq m` and
             :math:`\sqrt[3]{nmr}` exceeds `complexity_bound`.
             Only returned if `compute_uv` is True.

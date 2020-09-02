@@ -1064,7 +1064,7 @@ def filter(condition, aggregation) -> Expression:
 
     Returns
     -------
-    :class:`.Aggregable`
+    :class:`.Expression`
         Aggregable expression.
     """
 
@@ -1198,7 +1198,7 @@ def call_stats(call, alleles) -> StructExpression:
     Parameters
     ----------
     call : :class:`.CallExpression`
-    alleles : :class:`.ArrayStringExpression` or :class:`.Int32Expression`
+    alleles : :class:`.ArrayExpression` of strings or :class:`.Int32Expression`
         Variant alleles array, or number of alleles (including reference).
 
     Returns
@@ -1330,7 +1330,7 @@ def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
     -------
     :class:`.ArrayExpression`
         Expression for downsampled coordinate points (x, y). The element type of the array is
-        :py:data:`.ttuple` of :py:data:`.tfloat64`, :py:data:`.tfloat64`, and :py:data:`.tarray` of :py:data:`.tstring`
+        :class:`.ttuple` of :py:data:`.tfloat64`, :py:data:`.tfloat64`, and :class:`.tarray` of :py:data:`.tstr`
     """
     if label is None:
         label = hl.null(hl.tarray(hl.tstr))

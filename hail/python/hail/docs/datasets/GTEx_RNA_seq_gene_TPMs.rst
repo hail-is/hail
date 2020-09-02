@@ -5,7 +5,7 @@ GTEx_RNA_seq_gene_TPMs
 
 *  **Versions:** v7
 *  **Reference genome builds:** GRCh37
-*  **Type:** :class:`MatrixTable`
+*  **Type:** :class:`hail.MatrixTable`
 
 Schema (v7, GRCh37)
 ~~~~~~~~~~~~~~~~~~~

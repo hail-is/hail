@@ -579,7 +579,7 @@ class tndarray(HailType):
 
     .. include:: _templates/experimental.rst
 
-    In Python, these are represented as NumPy :obj:`ndarray`.
+    In Python, these are represented as NumPy :obj:`numpy.ndarray`.
 
     Notes
     -----
@@ -596,7 +596,7 @@ class tndarray(HailType):
 
     See Also
     --------
-    :class:`.NDArrayExpression`, :func:`.ndarray`
+    :class:`.NDArrayExpression`, :obj:`.nd.array`
     """
 
     @typecheck_method(element_type=hail_type, ndim=oneof(NatBase, int))

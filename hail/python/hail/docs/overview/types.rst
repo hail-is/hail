@@ -46,7 +46,7 @@ automatically impute the type of your data.
 
 There are a few situations where you may want to specify types explicitly:
 
-- To specify column types in :func:`import_table` if the imputed types
+- To specify column types in :func:`.import_table` if the imputed types
   do not match what you want.
 - When converting a Python value to a Hail expression with :func:`.literal`,
   if you don't wish to rely on the imputed type.

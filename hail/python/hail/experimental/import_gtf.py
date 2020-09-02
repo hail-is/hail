@@ -47,7 +47,7 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_part
        points of the ``interval`` field will be of type :class:`.tlocus`.
        Otherwise, the start and end points of the ``interval`` field will be of
        type :class:`.tstruct` with fields ``seqname`` (type :class:`str`) and
-       ``position`` (type :class:`.tint32`).
+       ``position`` (type :obj:`.tint32`).
 
        Furthermore, if the ``reference_genome`` parameter is specified and
        ``skip_invalid_contigs`` is ``True``, this import function will skip

@@ -952,7 +952,7 @@ def linear_mixed_model(y,
         row-standardized to variance :math:`1 / m` to form the entries of
         :math:`Z^T`. If `mean_impute` is false, must have no missing values.
         Exactly one of `z_t` and `k` must be set.
-    k: :class:`ndarray`, optional
+    k: :class:`numpy.ndarray`, optional
         Kinship matrix :math:`K`.
         Exactly one of `z_t` and `k` must be set.
     p_path: :class:`str`, optional
@@ -970,7 +970,7 @@ def linear_mixed_model(y,
     -------
     model: :class:`.LinearMixedModel`
         Linear mixed model ready to be fit.
-    p: :class:`ndarray` or :class:`.BlockMatrix`
+    p: :class:`numpy.ndarray` or :class:`.BlockMatrix`
         Matrix :math:`P` whose rows are the eigenvectors of :math:`K`.
         The type is block matrix if the model is low rank (i.e., if `z_t` is set
         and :math:`n > m`).

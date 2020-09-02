@@ -558,7 +558,7 @@ def histogram2d(x: NumericExpression,
                 log: bool = False):
     """Plot a two-dimensional histogram.
 
-    ``x`` and ``y`` must both be a :class:`NumericExpression` from the same :class:`Table`.
+    ``x`` and ``y`` must both be a :class:`.NumericExpression` from the same :class:`.Table`.
 
     If ``x_range`` or ``y_range`` are not provided, the function will do a pass through the data to determine
     min and max of each variable.
@@ -854,8 +854,8 @@ def scatter(
     """Create an interactive scatter plot.
 
     ``x`` and ``y`` must both be either:
-    - a :class:`NumericExpression` from the same :class:`Table`.
-    - a tuple (str, :class:`NumericExpression`) from the same :class:`Table`. If passed as a tuple the first element is used as the hover label.
+    - a :class:`.NumericExpression` from the same :class:`.Table`.
+    - a tuple (str, :class:`.NumericExpression`) from the same :class:`.Table`. If passed as a tuple the first element is used as the hover label.
 
     If no label or a single label is provided, then returns :class:`bokeh.plotting.figure.Figure`
     Otherwise returns a :class:`bokeh.plotting.figure.Column` containing:
@@ -1003,8 +1003,8 @@ def joint_plot(
     """Create an interactive scatter plot with marginal densities on the side.
 
        ``x`` and ``y`` must both be either:
-       - a :class:`NumericExpression` from the same :class:`Table`.
-       - a tuple (str, :class:`NumericExpression`) from the same :class:`Table`. If passed as a tuple the first element is used as the hover label.
+       - a :class:`.NumericExpression` from the same :class:`.Table`.
+       - a tuple (str, :class:`.NumericExpression`) from the same :class:`.Table`. If passed as a tuple the first element is used as the hover label.
 
        This function returns a :class:`bokeh.plotting.figure.Column` containing two :class:`bokeh.plotting.figure.Row`:
        - The first row contains the X-axis marginal density and a selection widget if multiple entries are specified in the ``label``
@@ -1229,8 +1229,8 @@ def qq(
     """Create a Quantile-Quantile plot. (https://en.wikipedia.org/wiki/Q-Q_plot)
 
     ``pvals`` must be either:
-    - a :class:`NumericExpression`
-    - a tuple (str, :class:`NumericExpression`). If passed as a tuple the first element is used as the hover label.
+    - a :class:`.NumericExpression`
+    - a tuple (str, :class:`.NumericExpression`). If passed as a tuple the first element is used as the hover label.
 
     If no label or a single label is provided, then returns :class:`bokeh.plotting.figure.Figure`
     Otherwise returns a :class:`bokeh.plotting.figure.Column` containing:

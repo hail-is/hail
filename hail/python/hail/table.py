@@ -3472,7 +3472,7 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        tables : :obj:`List[Table]`
+        tables : :class:`list` of :class:`Table`
             A list of tables to combine
         data_field_name : :class:`str`
             The name of the resulting data field

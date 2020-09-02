@@ -1,8 +1,6 @@
 import hail as hl
 from hail.expr.expressions import expr_float64, expr_numeric, analyze
 from hail.typecheck import typecheck, oneof, sequenceof, nullable
-from hail.table import Table
-from hail.matrixtable import MatrixTable
 from hail.utils import wrap_to_list, new_temp_file
 
 
@@ -21,7 +19,7 @@ def ld_score_regression(weight_expr,
                         n_samples_exprs,
                         n_blocks=200,
                         two_step_threshold=30,
-                        n_reference_panel_variants=None) -> Table:
+                        n_reference_panel_variants=None) -> hl.Table:
     r"""Estimate SNP-heritability and level of confounding biases from genome-wide association study
     (GWAS) summary statistics.
 
@@ -220,7 +218,7 @@ def ld_score_regression(weight_expr,
             ds._row_indices)
 
     # format input dataset
-    if isinstance(ds, MatrixTable):
+    if isinstance(ds, hl.MatrixTable):
         if len(chi_sq_exprs) != 1:
             raise ValueError("""Only one chi_sq_expr allowed if originating
                 from a matrix table.""")
@@ -261,7 +259,7 @@ def ld_score_regression(weight_expr,
                             & hl.is_defined(ds.__x))
 
     else:
-        assert isinstance(ds, Table)
+        assert isinstance(ds, hl.Table)
         for y in chi_sq_exprs:
             analyze('ld_score_regression/chi_squared_expr', y, ds._row_indices)
         for n in n_samples_exprs:
