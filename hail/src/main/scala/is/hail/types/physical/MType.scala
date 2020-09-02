@@ -1,14 +1,19 @@
 package is.hail.types.physical
 
-import is.hail.annotations.Region
+import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, TypeInfo, Value}
-import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.BaseType
 
-class UninitializedMValue(val addr: Value[Long], val region: Value[Region], val typ: MType) {
-  final def store(cb: EmitCodeBuilder, code: SCode): Unit = store(cb, code.memoize(cb))
+class UninitializedMValue(val addr: Value[Long], val typ: MType) {
+  final def store(cb: EmitCodeBuilder, region: Value[Region], code: SCode): MValue = {
+    store(cb, region, code.memoize(cb))
+  }
 
-  final def store(cb: EmitCodeBuilder, value: SValue): Unit = typ.storeFromSValue(cb, this, value)
+  final def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue): MValue = {
+    typ.storeFromSValue(cb, this, value)
+    new MValue(addr, typ)
+  }
 }
 
 class MCode(val addr: Code[Long], val typ: MType) {
@@ -22,6 +27,9 @@ class MCode(val addr: Code[Long], val typ: MType) {
 class MValue(val addr: Value[Long], val typ: MType)
 
 trait MType extends BaseType {
+  def byteSize: Long
+
+  def alignment: Long
 
   def allocate(cb: EmitCodeBuilder, region: Value[Region]): UninitializedMValue
 
@@ -54,4 +62,8 @@ trait SType extends BaseType {
   def coerceOrCopySValue(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deep: Boolean): SCode
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]]
+
+  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering
 }
+
+// how do we implement MakeArray(makeStructs) to allocate once?
