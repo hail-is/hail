@@ -53,6 +53,7 @@ object GenericLines {
         }
 
         private var eof = false
+        private var closed = false
 
         private var buf = new Array[Byte](64 * 1024)
         private var bufOffset = 0L
@@ -73,6 +74,8 @@ object GenericLines {
             val nRead = is.read(buf)
             if (nRead == -1) {
               eof = true
+              assert(!closed)
+              close()
             } else {
               bufPos = 0
               bufMark = nRead
@@ -203,7 +206,10 @@ object GenericLines {
         }
 
         def close(): Unit = {
-          is.close()
+          if (!closed) {
+            is.close()
+            closed = true
+          }
         }
       }
     }
