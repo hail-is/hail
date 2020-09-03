@@ -2,7 +2,6 @@ import copy
 from collections import defaultdict
 
 import decorator
-import uuid
 
 import hail
 from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \

@@ -12,8 +12,10 @@ class FatalError(Exception):
         super().__init__(msg)
         self._error_id = error_id
 
+
 class HailUserError(Exception):
     """:class:`.HailUserError` is an error thrown by Hail when the user makes an error."""
+
 
 class Env:
     _jutils = None
