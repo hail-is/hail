@@ -28,6 +28,7 @@ socket = '/redis/redis.sock'
 async def healthcheck(request):  # pylint: disable=unused-argument
     return web.Response()
 
+
 @routes.get('/api/v1alpha/objects')
 @rest_authenticated_users_only
 async def get_object(request, userdata):
@@ -40,6 +41,7 @@ async def get_object(request, userdata):
         raise web.HTTPNotFound()
     etag, body = result
     return web.Response(headers={'ETag': etag}, body=body)
+
 
 async def get_or_add_user(app, userdata):
     users = app['users']
@@ -55,8 +57,10 @@ async def get_or_add_user(app, userdata):
         users[username] = {'fs': GCS(blocking_pool=app['thread_pool'], key=json.loads(gsa_key))}
     return users[username]
 
+
 def make_redis_key(username, filepath):
     return f'{ username }_{ filepath }'
+
 
 async def get_file_or_none(app, username, userinfo, filepath):
     filekey = make_redis_key(username, filepath)
@@ -88,6 +92,7 @@ async def get_file_or_none(app, username, userinfo, filepath):
             pass
     return None
 
+
 async def load_file(redis, files, file_key, fs, filepath):
     try:
         files.add(file_key)
@@ -96,6 +101,7 @@ async def load_file(redis, files, file_key, fs, filepath):
         await redis.execute('HMSET', file_key, 'etag', etag.encode('ascii'), 'body', data)
     finally:
         files.remove(file_key)
+
 
 async def on_startup(app):
     app['thread_pool'] = concurrent.futures.ThreadPoolExecutor()
@@ -106,6 +112,7 @@ async def on_startup(app):
     k8s_client = kube.client.CoreV1Api()
     app['k8s_client'] = k8s_client
     app['redis_pool'] = await aioredis.create_pool(socket)
+
 
 def run():
     app = web.Application()

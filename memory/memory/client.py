@@ -8,6 +8,7 @@ from hailtop.google_storage import GCS
 from hailtop.tls import get_context_specific_ssl_client_session
 from hailtop.utils import request_retry_transient_errors
 
+
 @asyncinit
 class MemoryClient:
     async def __init__(self, gcs_project=None, fs=None, deploy_config=None, session=None,
@@ -41,7 +42,7 @@ class MemoryClient:
         try:
             url = f'{self.url}/api/v1alpha/objects'
             async with await request_retry_transient_errors(
-                self._session, 'get', url, params=params, headers=self._headers) as response:
+                    self._session, 'get', url, params=params, headers=self._headers) as response:
                 return await response.read()
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
