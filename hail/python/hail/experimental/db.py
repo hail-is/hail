@@ -87,13 +87,14 @@ class DB:
     This class facilitates the annotation of genetic datasets with variant
     annotations. It accepts either an HTTP(S) URL to an Annotation DB
     configuration or a python :obj:`dict` describing an Annotation DB
-    configuration.
+    configuration. User must specify the region ('us' or 'eu') in which the cluster is
+    running if connecting to the default Hail Annotation DB.
 
     Examples
     --------
     Create an annotation database connecting to the default Hail Annotation DB:
 
-    >>> db = hl.experimental.DB()
+    >>> db = hl.experimental.DB(region='us')
     >>> mt = db.annotate_rows_db(mt, 'gnomad_lof_metrics') # doctest: +SKIP
     """
 
