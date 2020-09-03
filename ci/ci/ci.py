@@ -311,9 +311,9 @@ async def deploy_status(request, userdata):  # pylint: disable=unused-argument
             log = await full_job.log()
             return {**full_job._status, 'log': log}
 
-        return asyncio.gather(*[fetch_job_and_log(j)
-                                for j in jobs
-                                if j['state'] in ('Error', 'Failed')])
+        return await asyncio.gather(*[fetch_job_and_log(j)
+                                      for j in jobs
+                                      if j['state'] in ('Error', 'Failed')])
     wb_configs = [{
         'branch': wb.branch.short_str(),
         'sha': wb.sha,
