@@ -8,6 +8,15 @@ import is.hail.utils._
 
 import scala.reflect.ClassTag
 
+object Backend {
+
+  private var id: Long = 0L
+  def nextID(): String = {
+    id += 1
+    s"hail_query_$id"
+  }
+}
+
 abstract class BroadcastValue[T] { def value: T }
 
 abstract class BackendContext
