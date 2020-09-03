@@ -33,7 +33,7 @@ object RepartitionedOrderedRDD2 {
   * Assumes new key type is a prefix of old key type, so no reordering is
   * needed.
   */
-class RepartitionedOrderedRDD2 private (@transient prev: RVD, @transient newRangeBounds: IndexedSeq[Interval])
+class RepartitionedOrderedRDD2 private (@transient val prev: RVD, @transient val newRangeBounds: IndexedSeq[Interval])
   extends RDD[ContextRDD.ElementType[Long]](prev.crdd.sparkContext, Nil) { // Nil since we implement getDependencies
 
   val prevCRDD: ContextRDD[Long] = prev.boundary.crdd
