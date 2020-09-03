@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import com.google.api.gax.rpc.InvalidArgumentException
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.Value
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
