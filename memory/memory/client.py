@@ -39,9 +39,9 @@ class MemoryClient:
     async def _get_file_if_exists(self, filename):
         params = {'q': filename}
         try:
-            url = f'{self.url}/api/v1alpha/objects/'
+            url = f'{self.url}/api/v1alpha/objects'
             async with await request_retry_transient_errors(
-                self._session, 'get', url, params=params, headers=self._headers):
+                self._session, 'get', url, params=params, headers=self._headers) as response:
                 return await response.read()
         except aiohttp.ClientResponseError as e:
             if e.status == 404:

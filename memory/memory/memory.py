@@ -28,12 +28,14 @@ socket = '/redis/redis.sock'
 async def healthcheck(request):  # pylint: disable=unused-argument
     return web.Response()
 
-@routes.get('/api/v1alpha/objects/')
+@routes.get('/api/v1alpha/objects')
 @rest_authenticated_users_only
 async def get_object(request, userdata):
     filename = request.query.get('q')
     userinfo = await get_or_add_user(request.app, userdata)
-    result = await get_file_or_none(request.app, userdata['username'], userinfo, filename)
+    username = userdata['username']
+    log.info(f'memory: request for object {filename} from user {username}')
+    result = await get_file_or_none(request.app, username, userinfo, filename)
     if result is None:
         raise web.HTTPNotFound()
     etag, body = result
@@ -58,23 +60,30 @@ def make_redis_key(username, filepath):
 
 async def get_file_or_none(app, username, userinfo, filepath):
     filekey = make_redis_key(username, filepath)
+    fs = userinfo['fs']
     try:
-        etag = fs.get_etag(filepath)
+        etag = await fs.get_etag(filepath)
         if etag is None:
+            log.info(f"memory: Couldn't retrieve file {filepath} for user {username}; missing etag")
             await app['redis_pool'].execute('DEL', filekey)
             return None
     except Exception as e:
-        log.info("memory: Couldn't retrieve file {filepath} for user {username} with error {e}")
+        log.info(f"memory: Couldn't retrieve file {filepath} for user {username} with error {e}")
         return None
 
     cached_etag = await app['redis_pool'].execute('HGET', filekey, 'etag')
+    if cached_etag is not None:
+        cached_etag = cached_etag.decode('ascii')
     if cached_etag is not None and cached_etag == etag:
         result = await app['redis_pool'].execute('HGET', filekey, 'body')
+        log.info(f"memory: Retrieved file {filepath} for user {username} with etag'{etag}'")
         return cached_etag, result
 
+    log.info(f"memory: Couldn't retrieve file {filepath} for user {username}: current version not in cache.")
     if filekey not in app['files_in_progress']:
         try:
-            app['worker_pool'].call_nowait(load_file, app['redis_pool'], app['files_in_progress'], filekey, userinfo['fs'], filepath)
+            log.info(f"memory: Loading {filepath} to cache for user {username}")
+            app['worker_pool'].call_nowait(load_file, app['redis_pool'], app['files_in_progress'], filekey, fs, filepath)
         except asyncio.QueueFull:
             pass
     return None
@@ -84,7 +93,7 @@ async def load_file(redis, files, file_key, fs, filepath):
         files.add(file_key)
         data = await fs.read_binary_gs_file(filepath)
         etag = await fs.get_etag(filepath)
-        await redis.execute('HMSET', file_key, 'etag', etag, 'body', data)
+        await redis.execute('HMSET', file_key, 'etag', etag.encode('ascii'), 'body', data)
     finally:
         files.remove(file_key)
 

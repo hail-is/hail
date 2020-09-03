@@ -33,7 +33,7 @@ class Tests(unittest.TestCase):
         self.temp_files = set()
 
     def tearDown(self):
-        self.fs.delete_gs_files(self.test_path)
+        async_to_blocking(self.fs.delete_gs_files(self.test_path))
         self.client.close()
 
     def add_temp_file_from_string(self, name: str, str_value: str):
@@ -50,10 +50,12 @@ class Tests(unittest.TestCase):
         for file, data in cases:
             handle = self.add_temp_file_from_string(file, data)
             i = 0
-            cached = self.client.read_file(handle)
+            cached = self.client._get_file_if_exists(handle)
             while cached is None and i < 10:
-                cached = self.client.read_file(handle)
+                print(cached, data)
+                cached = self.client._get_file_if_exists(handle)
                 i += 1
+            print(cached, data)
             self.assertEqual(cached, data)
    
 #     def test_authorized_users_only(self):
