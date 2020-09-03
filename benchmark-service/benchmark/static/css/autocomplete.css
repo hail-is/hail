@@ -1,12 +1,16 @@
-#autoComplete_wrapper {
+/* #autoComplete_wrapper {
     position:relative;
     display:inline-block;
+} */
+ul.file_list {
+    padding-left: 0;
 }
 #autoComplete {
     position:relative;
     padding:0 2rem 0 3.5rem;
     height:2.1rem;
-    width:6rem;
+    /*width:6rem;*/
+    width:100%;
     font-size:1.2rem;
     outline:0;
     border-radius:3px;
@@ -20,10 +24,21 @@
     transition:all .4s ease;
     -webkit-transition:all -webkit-transform .4s ease;
     text-overflow:ellipsis;
+    border-width:1px;
 }
 #autoComplete::placeholder {
     color:rgba(192,192,192,0);
     transition:all .3s ease;
+}
+#autoComplete:hover {
+    padding:0 2rem 0 3.5rem;
+    color:rgba(192,192,192,1);
+    height:3rem;
+    /*width:16.5rem;*/
+    background-size:1.7rem;
+    background-position:left 1.05rem top .7rem;transition:all .3s ease;
+    -webkit-transition:all -webkit-transform .3s ease;
+    border-width:1px;
 }
 #autoComplete:hover::placeholder {
     color:rgba(192,192,192,0.3);
@@ -44,24 +59,16 @@
     color:#fff;
     background-color:rgba(192,192,192,1);
 }
-#autoComplete:hover {
-    padding:0 2rem 0 3.5rem;
-    color:rgba(192,192,192,1);
-    height:3rem;
-    width:16.5rem;
-    background-size:1.7rem;
-    background-position:left 1.05rem top .7rem;transition:all .3s ease;
-    -webkit-transition:all -webkit-transform .3s ease;
-}
 #autoComplete:focus {
     padding:0 2rem 0 3.5rem;
     color:rgba(192,192,192,1);
     height:3rem;
-    width:16.5rem;
+    /*width:16.5rem;*/
     border:.05rem solid #000000;
     background-size:1.5rem;
     background-position:left 1.05rem top .8rem;
     box-shadow:rgba(192,192,192,0.1) 0 0 20px 5px;
+    border-width:1px
 }
 #autoComplete_list {
     position:fixed;
@@ -90,27 +97,33 @@
     background-color:#fff;
 }
 .autoComplete_result::selection {
-    color:rgba(#fff,0);
-    background-color:rgba(#fff,0);
+    color: #fff;
+    background-color: #fff;
 }
 .autoComplete_result:last-child {
-    border-radius:0 0 1rem 1rem;
+    /*border-radius:0 0 1rem 1rem;*/
+     border-radius:4px;
+}
+.autoComplete_result:hover, .autoComplete_result:focus {
+    border-left: 2psx solid rgba(192,192,192,1);
+    border-right:2px solid rgba(192,192,192,1);
+    background-color:rgba(192,192,192,0.3);
 }
 .autoComplete_result:hover {
     cursor:pointer;
-    background-color:rgba(192,192,192,0.3);
+    /* background-color:rgba(192,192,192,0.3);
     border-left:2px solid rgba(192,192,192,1);
     border-right:2px solid rgba(192,192,192,1);
     border-top:2px solid transparent;
-    border-bottom:2px solid transparent;
+    border-bottom:2px solid transparent;*/
 }
 .autoComplete_result:focus {
     outline:0;
-    background-color:rgba(192,192,192,0.3);
+    /*background-color:rgba(192,192,192,0.3);
     border-left:2px solid rgba(192,192,192,1);
     border-right:2px solid rgba(192,192,192,1);
     border-top:2px solid transparent;
-    border-bottom:2px solid transparent;
+    border-bottom:2px solid transparent;*/
 }
 .autoComplete_highlighted {
     opacity:1;
@@ -129,50 +142,48 @@
     border-top:2px solid transparent;
     border-bottom:2px solid transparent;
 }
+/*
 #autoComplete {
     width:5rem;
-}
+} */
+/*
 #autoComplete:focus {
     width:11rem;
     background-size:1.6rem;
     background-position:left 1.1rem top .75rem;
-}
+    border-width:1px
+}*/
 .autoComplete_result:first-child {
     border-radius:1rem 1rem 0 0;
 }
 .autoComplete_result:last-child {
-    border-radius:0 0 1rem 1rem;
+    /* border-radius:0 0 1rem 1rem;*/
+    border-radius: 4px;
 }
 .autoComplete_result:only-child {
     border-radius:1rem;
 }
+/*
 #autoComplete {
-    border-width:1px;
-}
-#autoComplete:hover {
     border-width:1px;
 }
 #autoComplete:focus {
     border-width:1px
-}
+} */
+/*
 #autoComplete {
     border-width:1px;
     background-size:1.2rem;
     background-origin:border-box;
     background-position:center;
-}
-#autoComplete:hover {
-    border-width:1px;
-}
-#autoComplete:focus {
-    border-width:1px;
-    background-position:left 1.1rem top .8rem;
-}
+} */
+
+/*
 #button {
     font-family: inherit;
     font-size: 1rem;
     background: none;
-    /* border: 1px solid $black; */
+    /* border: 1px solid $black;
     border: solid $black;
     border-radius: 3px;
     margin: 0;
@@ -187,3 +198,4 @@
 	border-color: $devil-gray;
     }
 }
+*/
