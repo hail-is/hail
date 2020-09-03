@@ -55,18 +55,18 @@
   "url": "https://gnomad.broadinstitute.org/",
   "key_properties": ["unique"],
   "versions": [
-    {"url":"gs://gnomad-public/release/2.1.1/ht/exomes/gnomad.exomes.r2.1.1.sites.ht",
+    {"url":"gs://gnomad-public-requester-pays/release/2.1.1/ht/exomes/gnomad.exomes.r2.1.1.sites.ht",
      "version": "2.1.1-GRCh37"},
-    {"url":"gs://gnomad-public/release/2.1.1/liftover_grch38/ht/exomes/gnomad.exomes.r2.1.1.sites.liftover_grch38.ht",
+    {"url":"gs://gnomad-public-requester-pays/release/2.1.1/liftover_grch38/ht/exomes/gnomad.exomes.r2.1.1.sites.liftover_grch38.ht",
      "version": "2.1.1-GRCh38"}]},
  "gnomad_genome_sites":
  {"description": "gnomAD: a resource with the goal of aggregating and harmonizing both exome and genome sequencing data from a wide variety of large-scale sequencing projects.",
   "url": "https://gnomad.broadinstitute.org/",
   "key_properties": ["unique"],
   "versions": [
-    {"url":"gs://gnomad-public/release/2.1.1/ht/genomes/gnomad.genomes.r2.1.1.sites.ht",
+    {"url":"gs://gnomad-public-requester-pays/release/2.1.1/ht/genomes/gnomad.genomes.r2.1.1.sites.ht",
      "version": "2.1.1-GRCh37"},
-    {"url":"gs://gnomad-public/release/2.1.1/liftover_grch38/ht/genomes/gnomad.genomes.r2.1.1.sites.liftover_grch38.ht",
+    {"url":"gs://gnomad-public-requester-pays/release/2.1.1/liftover_grch38/ht/genomes/gnomad.genomes.r2.1.1.sites.liftover_grch38.ht",
      "version": "2.1.1-GRCh38"}]},
  "clinvar_gene_summary":
  {"description": "Clinvar: aggregates information about genomic variation and its relationship to human health.",
