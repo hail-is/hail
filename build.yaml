@@ -1737,7 +1737,7 @@ steps:
     - build_hail
     - hail_run_image
     - deploy_query
-   name: curl_image
+ - name: curl_image
    dockerFile:
      inline: |
        FROM ubuntu:18.04
