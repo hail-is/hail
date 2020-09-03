@@ -104,7 +104,7 @@ ul {
 }
 .autoComplete_highlighted {
     opacity:1;
-    color:rgba(192,192,192,1);
+    color:rgba(140,140,140,1);
     font-weight:700;
 }
 .autoComplete_highlighted::selection {
@@ -119,12 +119,7 @@ ul {
     border-top:2px solid transparent;
     border-bottom:2px solid transparent;
 }
-.autoComplete_result:first-child {
-    /* border-radius:1rem 1rem 0 0;*/
-    border-radius: 4px;
-}
-.autoComplete_result:last-child {
-    /* border-radius:0 0 1rem 1rem;*/
+.autoComplete_result:first-child, .autoComplete_result:last-child {
     border-radius: 4px;
 }
 .autoComplete_result:only-child {
