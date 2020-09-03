@@ -106,20 +106,20 @@ class DB:
                  region=None,
                  url=None,
                  config=None):
+        if region not in DB._valid_regions:
+            raise ValueError(f'Specify valid region parameter, received: region={region}. '
+                             f'Valid regions are {DB._valid_regions}.')
         self.region = region
+
         if config is not None and url is not None:
             raise ValueError(f'Only specify one of the parameters url and config, '
                              f'received: url={url} and config={config}')
         if config is None:
             if url is None:
-                if self.region in DB._valid_regions:
-                    config_path = pkg_resources.resource_filename(__name__, "annotation_db.json")
-                    assert os.path.exists(config_path), f'{config_path} does not exist'
-                    with open(config_path) as f:
-                        config = json.load(f)
-                else:
-                    raise ValueError(f'Specify valid region parameter, received: region={self.region}. '
-                                     f'Valid regions are {DB._valid_regions}.')
+                config_path = pkg_resources.resource_filename(__name__, "annotation_db.json")
+                assert os.path.exists(config_path), f'{config_path} does not exist'
+                with open(config_path) as f:
+                    config = json.load(f)
             else:
                 session = external_requests_client_session()
                 response = retry_response_returning_functions(
