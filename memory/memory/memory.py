@@ -33,10 +33,11 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 async def get_object(request, userdata):
     filename = request.query.get('q')
     userinfo = await get_or_add_user(request.app, userdata)
-    body = await get_file_or_none(request.app, userdata['username'], userinfo, filename)
-    if body is None:
+    result = await get_file_or_none(request.app, userdata['username'], userinfo, filename)
+    if result is None:
         raise web.HTTPNotFound()
-    return web.Response(body=body)
+    etag, body = result
+    return web.Response(headers={'ETag': etag}, body=body)
 
 async def get_or_add_user(app, userdata):
     users = app['users']
@@ -57,19 +58,33 @@ def make_redis_key(username, filepath):
 
 async def get_file_or_none(app, username, userinfo, filepath):
     filekey = make_redis_key(username, filepath)
-    result = await app['redis_pool'].execute('GET', filekey)
-    if result is None and filekey not in app['files_in_progress']:
+    try:
+        etag = fs.get_etag(filepath)
+        if etag is None:
+            await app['redis_pool'].execute('DEL', filekey)
+            return None
+    except Exception as e:
+        log.info("memory: Couldn't retrieve file {filepath} for user {username} with error {e}")
+        return None
+
+    cached_etag = await app['redis_pool'].execute('HGET', filekey, 'etag')
+    if cached_etag is not None and cached_etag == etag:
+        result = await app['redis_pool'].execute('HGET', filekey, 'body')
+        return cached_etag, result
+
+    if filekey not in app['files_in_progress']:
         try:
             app['worker_pool'].call_nowait(load_file, app['redis_pool'], app['files_in_progress'], filekey, userinfo['fs'], filepath)
         except asyncio.QueueFull:
             pass
-    return result
+    return None
 
 async def load_file(redis, files, file_key, fs, filepath):
     try:
         files.add(file_key)
         data = await fs.read_binary_gs_file(filepath)
-        await redis.execute('SET', file_key, data)
+        etag = await fs.get_etag(filepath)
+        await redis.execute('HMSET', file_key, 'etag', etag, 'body', data)
     finally:
         files.remove(file_key)
 

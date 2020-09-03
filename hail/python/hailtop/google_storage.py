@@ -39,7 +39,6 @@ class GCS:
                 key_file = os.environ['HAIL_GSA_KEY_FILE']
                 credentials = google.oauth2.service_account.Credentials.from_service_account_file(key_file)
 
-
         if project:
             self.gcs_client = google.cloud.storage.Client(
                 project=project, credentials=credentials)
@@ -60,6 +59,9 @@ class GCS:
 
     def shutdown(self, wait: bool = True):
         self.blocking_pool.shutdown(wait)
+
+    async def get_etag(self, uri: str):
+        return await retry_transient_errors(self._wrap_network_call(GCS._get_etag), self, uri)
 
     async def write_gs_file_from_string(self, uri: str, string: str, *args, **kwargs):
         return await retry_transient_errors(self._wrapped_write_gs_file_from_string,
@@ -117,6 +119,13 @@ class GCS:
                                            *args,
                                            **kwargs)
         return wrapped
+
+    def _get_etag(self, uri: str):
+        b = self._get_blob(uri)
+        if b.exists():
+            b.reload()
+            return b.etag
+        return None
 
     def _write_gs_file_from_string(self, uri: str, string: str, *args, **kwargs):
         b = self._get_blob(uri)
