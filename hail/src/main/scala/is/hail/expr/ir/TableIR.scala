@@ -1508,7 +1508,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
         Coalesce(FastIndexedSeq(
           extracted.postAggIR,
-            Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ, -1))))
+            Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ))))
 
       val rowIterationNeedsGlobals = Mentions(extracted.postAggIR, "global")
       val globalsBc =
@@ -1580,7 +1580,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       Let(scanRef, extracted.results,
         Coalesce(FastIndexedSeq(
           extracted.postAggIR,
-          Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ, -1)))))
+          Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ)))))
     assert(rTyp.virtualType == newRow.typ)
 
     // 1. init op on all aggs and write out to initPath
@@ -1807,7 +1807,7 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
       FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
       Coalesce(FastIndexedSeq(
         newGlobals,
-        Die("Internal error: TableMapGlobals: globals missing", newGlobals.typ, -1))))
+        Die("Internal error: TableMapGlobals: globals missing", newGlobals.typ))))
 
     val resultOff = f(0, ctx.r)(ctx.r, tv.globals.value.offset)
     tv.copy(typ = typ,
@@ -2018,7 +2018,7 @@ case class TableKeyByAndAggregate(
       FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
       Coalesce(FastIndexedSeq(
         newKey,
-        Die("Internal error: TableKeyByAndAggregate: newKey missing", newKey.typ, -1))))
+        Die("Internal error: TableKeyByAndAggregate: newKey missing", newKey.typ))))
 
     val globalsBc = prev.globals.broadcast
 
