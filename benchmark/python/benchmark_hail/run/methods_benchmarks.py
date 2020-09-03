@@ -84,6 +84,20 @@ def hwe_normalized_pca(mt_path):
 
 
 @benchmark(args=profile_25.handle('mt'))
+def hwe_normalized_pca_blanczos_small_data_0_iterations(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    mt = mt.filter_rows(mt.info.AF[0] > 0.01)
+    hl._hwe_normalized_blanczos(mt.GT, q_iterations=0)
+
+
+@benchmark(args=profile_25.handle('mt'))
+def hwe_normalized_pca_blanczos_small_data_10_iterations(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    mt = mt.filter_rows(mt.info.AF[0] > 0.01)
+    hl._hwe_normalized_blanczos(mt.GT, q_iterations=10)
+
+
+@benchmark(args=profile_25.handle('mt'))
 def split_multi_hts(mt_path):
     mt = hl.read_matrix_table(mt_path)
     hl.split_multi_hts(mt)._force_count_rows()
