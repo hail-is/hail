@@ -560,8 +560,9 @@ echo $HAIL_BATCH_WORKER_IP
 
     def test_verify_no_access_to_metadata_server(self):
         builder = self.client.create_batch()
-        j = builder.create_job('google/cloud-sdk', ['gcloud', 'auth', 'list'])
+        j = builder.create_job(os.environ['HAIL_CURL_IMAGE'],
+                               ['curl', '-fsSL', 'metadata.google.internal', '--max-time', '10'])
         builder.submit()
         status = j.wait()
-        assert status['state'] == 'Success', status
-        assert "No credentialed accounts." in j.log()['main'], (j.log()['main'], status)
+        assert status['state'] == 'Failure', status
+        assert "Connection timed out" in j.log()['main'], (j.log()['main'], status)

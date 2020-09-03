@@ -1737,6 +1737,11 @@ steps:
     - build_hail
     - hail_run_image
     - deploy_query
+   name: curl_image
+   dockerFile:
+     inline: |
+       FROM ubuntu:18.04
+       RUN apt-get update && apt-get install curl -y
  - kind: runImage
    name: test_batch_0
    image:
@@ -1747,6 +1752,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
+     export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -1791,6 +1797,7 @@ steps:
     - batch_image
     - ci_utils_image
     - deploy_batch
+    - curl_image
  - kind: runImage
    name: test_batch_1
    image:
@@ -1801,6 +1808,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
+     export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -1845,6 +1853,7 @@ steps:
     - batch_image
     - ci_utils_image
     - deploy_batch
+    - curl_image
  - kind: runImage
    name: test_batch_2
    image:
@@ -1855,6 +1864,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
+     export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -1899,6 +1909,7 @@ steps:
     - batch_image
     - ci_utils_image
     - deploy_batch
+    - curl_image
  - kind: runImage
    name: test_batch_3
    image:
@@ -1909,6 +1920,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
+     export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -1953,6 +1965,7 @@ steps:
     - batch_image
     - ci_utils_image
     - deploy_batch
+    - curl_image
  - kind: runImage
    name: test_batch_4
    image:
@@ -1963,6 +1976,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
+     export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -2007,6 +2021,7 @@ steps:
     - batch_image
     - ci_utils_image
     - deploy_batch
+    - curl_image
  - kind: runImage
    name: create_ci_test_repo
    image:
