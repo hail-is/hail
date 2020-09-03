@@ -206,7 +206,7 @@ async def on_startup(app):
         app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
     except Exception:
         app['gs_reader'] = None
-        log.exception(f'error in startup', stack_info=True)
+        log.exception('error in startup', stack_info=True)
 
 
 def run():
