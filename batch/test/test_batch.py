@@ -601,6 +601,14 @@ echo $HAIL_BATCH_WORKER_IP
         no_token_status = no_token.wait()
         assert no_token_status['state'] == 'Failed', no_token_status
 
+    def test_verify_access_to_public_internet(self):
+        builder = self.client.create_batch()
+        j = builder.create_job(os.environ['HAIL_CURL_IMAGE'],
+                               ['curl', '-fsSL', 'example.com'])
+        builder.submit()
+        status = j.wait()
+        assert status['state'] == 'Success', status
+
     def test_verify_can_tcp_to_localhost(self):
         builder = self.client.create_batch()
         script = '''
