@@ -5,6 +5,9 @@
 ul.file_list {
     padding-left: 0;
 }
+ul {
+    padding-left: 0;
+}
 #autoComplete {
     position:relative;
     padding:0 2rem 0 3.5rem;
