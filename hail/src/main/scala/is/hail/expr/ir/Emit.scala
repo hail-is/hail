@@ -1686,7 +1686,7 @@ class Emit[C](
         val ev = mb.getEmitParam(2 + i)
         assert(ev.pt == expectedPType)
         ev
-      case @Die(m, typ, errorId) =>
+      case Die(m, typ, errorId) =>
         val cm = emit(m)
         EmitCode(
           Code(
