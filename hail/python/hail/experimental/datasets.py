@@ -35,6 +35,11 @@ def load_dataset(name,
     -------
     :class:`.Table` or :class:`.MatrixTable`"""
 
+    valid_regions = {'us', 'eu'}
+    if region not in valid_regions:
+        raise ValueError(f'Specify valid region parameter, received: region={region}. '
+                         f'Valid regions are {valid_regions}.')
+
     config_path = pkg_resources.resource_filename(__name__, 'datasets.json')
     assert os.path.exists(config_path), f'{config_path} does not exist'
     with open(config_path) as f:
