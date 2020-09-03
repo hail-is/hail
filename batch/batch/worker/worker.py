@@ -696,7 +696,7 @@ class Job:
             'env': env,
             'cpu': self.cpu_in_mcpu,
             'memory': self.memory_in_bytes,
-            'volume_mounts': main_volume_mounts,
+            'volume_mounts': main_volume_mounts
         }
         port = job_spec.get('port')
         if port:
