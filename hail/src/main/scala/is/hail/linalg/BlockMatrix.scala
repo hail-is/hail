@@ -419,9 +419,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   val nCols: Long) extends Serializable {
 
   import BlockMatrix._
-
-  private[linalg] val st: String = Thread.currentThread().getStackTrace.mkString("\n")
-
+  
   require(blocks.partitioner.isDefined)
   require(blocks.partitioner.get.isInstanceOf[GridPartitioner])
 
