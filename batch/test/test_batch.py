@@ -646,15 +646,6 @@ echo "hello" | nc -q 1 $(hostname -i) 5000
         assert status['state'] == 'Success', (j.log()['main'], status)
         assert 'hello\n' == j.log()['main']
 
-    def test_verify_cannot_talk_to_internal_gateway(self):
-        builder = self.client.create_batch()
-        j = builder.create_job(os.environ['HAIL_CURL_IMAGE'],
-                               command=['curl', 'internal.hail', '--connect-timeout', '60'])
-        builder.submit()
-        status = j.wait()
-        assert status['state'] == 'Failed', status
-        assert 'Connection timed out after' in j.log()['main']
-
     def test_verify_private_network_is_restricted(self):
         builder = self.client.create_batch()
         builder.create_job(os.environ['HAIL_CURL_IMAGE'],
