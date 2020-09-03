@@ -35,9 +35,6 @@ def load_dataset(name,
     -------
     :class:`.Table` or :class:`.MatrixTable`"""
 
-    # with hl.hadoop_open(config_file, 'r') as f:
-    #     datasets = json.load(f)
-
     config_path = pkg_resources.resource_filename(__name__, 'datasets.json')
     assert os.path.exists(config_path), f'{config_path} does not exist'
     with open(config_path) as f:
