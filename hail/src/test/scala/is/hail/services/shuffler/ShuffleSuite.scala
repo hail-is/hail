@@ -212,7 +212,7 @@ class ShuffleSuite extends HailSuite {
         .asInstanceOf[PArray]
       val elementPType = rowArrayPType.elementType
         .asInstanceOf[PBaseStruct]
-      val pairOff == retryTransientErrors { f(0, ctx.r)(ctx.r) }
+      val pairOff = retryTransientErrors { f(0, ctx.r)(ctx.r) }
       val pair = new UnsafeRow(pairPType, null, pairOff)
       val partitionBounds = pair.get(0).asInstanceOf[IndexedSeq[UnsafeRow]]
       assert(nParts > 0)
