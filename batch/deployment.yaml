@@ -60,7 +60,7 @@ spec:
          - name: HAIL_SHOULD_PROFILE
            value: "1"
 {% endif %}
-{% if scope == "test" %}
+{% if scope == "test" or scope == "dev" %}
          - name: HAIL_SHOULD_CHECK_INVARIANTS
            value: "1"
 {% endif %}
