@@ -11,9 +11,9 @@ def load_dataset(name,
     Example
     -------
 
-    >>> # Load 1000 Genomes MatrixTable with GRCh38 coordinates
-    >>> mt_1kg = hl.experimental.load_dataset(name='1000_genomes',   # doctest: +SKIP
-    ...                                       version='phase3',
+    >>> # Load 1000 Genomes autosomes MatrixTable with GRCh38 coordinates
+    >>> mt_1kg = hl.experimental.load_dataset(name='1000_Genomes_autosomes',   # doctest: +SKIP
+    ...                                       version='phase_3',
     ...                                       reference_genome='GRCh38')
 
     Parameters
