@@ -202,11 +202,7 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
 
 
 async def on_startup(app):
-    try:
-        app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
-    except Exception:
-        app['gs_reader'] = None
-        log.exception('error in startup', stack_info=True)
+    app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
 
 
 def run():

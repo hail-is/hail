@@ -80,7 +80,7 @@
 .autoComplete_result {
     margin:.15rem auto;
     padding:.6rem;
-    max-width:280px;
+    /* max-width:280px; */
     border:.05rem solid #e3e3e3;
     list-style:none;
     text-align:left;
