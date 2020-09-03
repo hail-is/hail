@@ -175,7 +175,7 @@ class Job:
         return Job(_job)
 
     @staticmethod
-    def submitted_job(batch, job_id, _status=None) -> Job:
+    def submitted_job(batch, job_id, _status=None):
         assert isinstance(batch, Batch)
         _job = SubmittedJob(batch, job_id, _status)
         return Job(_job)
