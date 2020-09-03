@@ -3,6 +3,10 @@ steps:
    name: default_ns
    namespaceName: default
    public: true
+ - kind: createNamespace
+   name: batch_pods_ns
+   namespaceName: batch_pods
+   public: false
  - kind: buildImage
    name: inline_image
    dockerFile:
