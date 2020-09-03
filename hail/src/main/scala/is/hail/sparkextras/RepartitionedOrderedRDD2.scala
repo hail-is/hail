@@ -7,14 +7,20 @@ import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 
+object OrderedDependency {
+  def generate[T](oldPartitioner: RVDPartitioner, newIntervals: IndexedSeq[Interval], rdd: RDD[T]): OrderedDependency[T] = {
+    new OrderedDependency(
+      newIntervals.map(oldPartitioner.queryInterval).toArray,
+      rdd)
+  }
+}
+
 class OrderedDependency[T](
-    oldPartitionerBc: Broadcast[RVDPartitioner],
-    newIntervalListBc: Broadcast[IndexedSeq[Interval]],
-    rdd: RDD[T]
+  depArray: Array[Range],
+  rdd: RDD[T]
 ) extends NarrowDependency[T](rdd) {
 
-  override def getParents(partitionId: Int): Seq[Int] =
-    oldPartitionerBc.value.queryInterval(newIntervalListBc.value(partitionId))
+  override def getParents(partitionId: Int): Seq[Int] = depArray(partitionId)
 }
 
 object RepartitionedOrderedRDD2 {
@@ -27,23 +33,21 @@ object RepartitionedOrderedRDD2 {
   * Assumes new key type is a prefix of old key type, so no reordering is
   * needed.
   */
-class RepartitionedOrderedRDD2 private (prev: RVD, newRangeBounds: IndexedSeq[Interval])
+class RepartitionedOrderedRDD2 private (@transient prev: RVD, @transient newRangeBounds: IndexedSeq[Interval])
   extends RDD[ContextRDD.ElementType[Long]](prev.crdd.sparkContext, Nil) { // Nil since we implement getDependencies
 
   val prevCRDD: ContextRDD[Long] = prev.boundary.crdd
   val typ: RVDType = prev.typ
   val kOrd: ExtendedOrdering = PartitionBoundOrdering(typ.kType.virtualType)
-  val oldPartitionerBc: Broadcast[RVDPartitioner] = prev.partitioner.broadcast(prevCRDD.sparkContext)
-  val newRangeBoundsBc: Broadcast[IndexedSeq[Interval]] = prevCRDD.sparkContext.broadcast(newRangeBounds)
 
-  require(newRangeBounds.forall{i => typ.kType.virtualType.relaxedTypeCheck(i.start) && typ.kType.virtualType.relaxedTypeCheck(i.end)})
 
   def getPartitions: Array[Partition] = {
-    Array.tabulate[Partition](newRangeBoundsBc.value.length) { i =>
+    require(newRangeBounds.forall{i => typ.kType.virtualType.relaxedTypeCheck(i.start) && typ.kType.virtualType.relaxedTypeCheck(i.end)})
+    Array.tabulate[Partition](newRangeBounds.length) { i =>
       RepartitionedOrderedRDD2Partition(
         i,
         dependency.getParents(i).toArray.map(prevCRDD.partitions),
-        newRangeBoundsBc.value(i))
+        newRangeBounds(i))
     }
   }
 
@@ -68,9 +72,9 @@ class RepartitionedOrderedRDD2 private (prev: RVD, newRangeBounds: IndexedSeq[In
     }
   }
 
-  val dependency = new OrderedDependency(
-    oldPartitionerBc,
-    newRangeBoundsBc,
+  val dependency: OrderedDependency[_] = OrderedDependency.generate(
+    prev.partitioner,
+    newRangeBounds,
     prevCRDD.rdd)
 
   override def getDependencies: Seq[Dependency[_]] = FastSeq(dependency)
