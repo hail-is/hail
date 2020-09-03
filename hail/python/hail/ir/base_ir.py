@@ -206,22 +206,20 @@ class BaseIR(Renderable):
             if 'IPython' in candidate:
                 break
             i -= 1
-        filt_stack = []
 
         forbidden_phrases = [
             '_ir_lambda_method',
             'decorator.py',
+            'decorator-gen',
             'typecheck/check',
             'interactiveshell.py',
             'expressions.construct_variable',
             'traceback.format_stack()'
         ]
-        while i < len(stack):
-            candidate = stack[i]
-            i += 1
-            if any(phrase in candidate for phrase in forbidden_phrases):
-                continue
-            filt_stack.append(candidate)
+        filt_stack = [
+            candidate for candidate in stack[i:]
+            if not any(phrase in candidate for phrase in forbidden_phrases)
+        ]
 
         self._stack_trace = '\n'.join(filt_stack)
 
