@@ -17,5 +17,6 @@ AUTHORIZED_USERS = {
     'mkveerapen',
     'annamiraotoole',
     'Dania-Abuhijleh',
-    'bw2'
+    'bw2',
+    'pwc2'
 }
