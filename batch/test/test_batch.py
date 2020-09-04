@@ -564,5 +564,5 @@ echo $HAIL_BATCH_WORKER_IP
                                ['curl', '-fsSL', 'metadata.google.internal', '--max-time', '10'])
         builder.submit()
         status = j.wait()
-        assert status['state'] == 'Failure', status
+        assert status['state'] == 'Failed', status
         assert "Connection timed out" in j.log()['main'], (j.log()['main'], status)
