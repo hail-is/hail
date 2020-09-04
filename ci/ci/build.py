@@ -504,7 +504,11 @@ class CreateNamespaceStep(Step):
         self.job = None
 
         if is_test_deployment:
-            self._name = DEFAULT_NAMESPACE
+            assert self.namespace_name in ('default', 'batch_pods'), self.namespace_name
+            if self.namespace_name == 'default':
+                self._name = DEFAULT_NAMESPACE
+            else:
+                self._name = BATCH_PODS_NAMESPACE
             return
 
         if params.scope == 'deploy':
