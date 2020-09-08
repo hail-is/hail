@@ -16,8 +16,9 @@ on Google Cloud Platform and are available for use through Hail's
 
 To load a dataset from this repository into a Hail pipeline, provide the name,
 version, and reference genome build of the dataset you would like to use as
-strings to the :func:`.load_dataset` function. The available dataset names,
-versions, and reference genome builds are listed in the table below.
+strings to the :func:`.load_dataset` function. You will also need to provide
+the region ('us' or 'eu') to access the appropriate bucket. The available
+dataset names, versions, and reference genome builds are listed in the table below.
 
 =================================================== ========== =================
 Name                                                Versions   Reference Genomes

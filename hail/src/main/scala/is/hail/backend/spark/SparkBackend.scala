@@ -318,8 +318,12 @@ class SparkBackend(
 
   def execute(ir: IR, optimize: Boolean, allocStrat: EmitAllocationStrategy.T = EmitAllocationStrategy.OneRegion): (Any, ExecutionTimer) =
     withExecuteContext() { ctx =>
+      val queryID = Backend.nextID()
+      log.info(s"starting execution of query $queryID} of initial size ${ IRSize(ir) }")
       val (l, r) = _execute(ctx, ir, optimize, allocStrat)
-      ctx.timer.time("convertRegionValueToAnnotation")((executionResultToAnnotation(ctx, l), r))
+      val javaObjResult = ctx.timer.time("convertRegionValueToAnnotation")(executionResultToAnnotation(ctx, l))
+      log.info(s"finished execution of query $queryID")
+      (javaObjResult, r)
     }
 
   private[this] def _execute(ctx: ExecuteContext, ir: IR, optimize: Boolean, allocStrat: EmitAllocationStrategy.T): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {

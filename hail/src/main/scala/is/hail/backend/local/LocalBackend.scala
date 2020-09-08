@@ -118,13 +118,17 @@ class LocalBackend(
 
   def execute(ir: IR): (Any, ExecutionTimer) =
     withExecuteContext() { ctx =>
+      val queryID = Backend.nextID()
+      log.info(s"starting execution of query $queryID} of initial size ${ IRSize(ir) }")
       val (pt, a) = _execute(ctx, ir)
-      pt match {
+      log.info(s"finished execution of query $queryID")
+      val result = pt match {
         case PVoid =>
           (null, ctx.timer)
         case pt: PTuple =>
           (SafeRow(pt, a).get(0), ctx.timer)
       }
+      result
     }
 
   def executeJSON(ir: IR): String = {
