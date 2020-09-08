@@ -209,6 +209,9 @@ def init_parser(parser):
     parser.add_argument('--requester-pays-allow-annotation-db',
                         action='store_true',
                         help="Allows reading from any of the requester-pays buckets that hold data for the annotation database.")
+    parser.add_argument('--debug-mode',
+                        action='store_true',
+                        help="Enable debug features on created cluster (heap dump on out-of-memory error)")
 
 
 def main(args, pass_through_args):
@@ -223,6 +226,12 @@ def main(args, pass_through_args):
     conf.extend_flag('properties', DEFAULT_PROPERTIES)
     if args.properties:
         conf.parse_and_extend('properties', args.properties)
+
+    if args.debug_mode:
+        conf.extend_flag('properties', {
+            "spark:spark.driver.extraJavaOptions": "-Xss4M -XX:+HeapDumpOnOutOfMemoryError",
+            "spark:spark.executor.extraJavaOptions": "-Xss4M -XX:+HeapDumpOnOutOfMemoryError",
+        })
 
     # default to highmem machines if using VEP
     if not args.worker_machine_type:
