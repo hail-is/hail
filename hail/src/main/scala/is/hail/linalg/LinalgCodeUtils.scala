@@ -8,6 +8,7 @@ import is.hail.types.physical.{PBaseStructValue, PNDArrayValue, PType}
 
 object LinalgCodeUtils {
   def checkColumnMajor(pndv: PNDArrayValue, cb: EmitCodeBuilder): Value[Boolean] = {
+    val answer = cb.newField[Boolean]("checkColumnMajorResult")
     val shapes = pndv.shapes()
     val runningProduct = cb.newLocal[Long]("check_column_major_running_product")
 
@@ -16,27 +17,13 @@ object LinalgCodeUtils {
     cb.append(Code(
       runningProduct := elementType.byteSize,
       Code.foreach(0 until nDims){ index =>
-        Code._assert()
-      }
-    ))
-
-    /*
-    val runningProduct = mb.newLocal[Long]()
-    Code(
-      srvb.start(),
-      runningProduct := elementType.byteSize,
-      Code.foreach(0 until nDims){ index =>
         Code(
-          srvb.addLong(runningProduct),
-          srvb.advance(),
-          tempShapeStorage := sourceShapeArray(index),
-          runningProduct := runningProduct * (tempShapeStorage > 0L).mux(tempShapeStorage, 1L)
+          answer := answer & (shapes(index) ceq runningProduct),
+          runningProduct := runningProduct * (shapes(index) > 0L).mux(shapes(index), 1L)
         )
       }
-    )
-     */
-
-    ???
+    ))
+    answer
   }
 
   def copyRowMajorToColumnMajor(rowMajorFirstElementAddress: Code[Long], targetFirstElementAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], elementPType: PType, mb: MethodBuilder[_]): Code[Unit] = {
