@@ -13,7 +13,7 @@ import is.hail.expr.ir._
 import is.hail.types.physical.{PStruct, PTuple, PType}
 import is.hail.types.virtual.{TStruct, TVoid, Type}
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
-import is.hail.io.fs.{HadoopFS}
+import is.hail.io.fs.HadoopFS
 import is.hail.utils._
 import is.hail.io.bgen.IndexBgen
 import org.json4s.DefaultFormats
@@ -30,8 +30,9 @@ import java.io.PrintWriter
 
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.VCFsReader
-import is.hail.linalg.RowMatrix
+import is.hail.linalg.{BlockMatrix, RowMatrix}
 import is.hail.stats.LinearMixedModel
+import is.hail.types.BlockMatrixType
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.storage.StorageLevel
 import org.json4s.JsonAST.{JInt, JObject}
@@ -225,6 +226,14 @@ class SparkBackend(
   val fs: HadoopFS = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
   val bmCache: SparkBlockMatrixCache = SparkBlockMatrixCache()
+
+  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = bmCache.persistBlockMatrix(id, value, storageLevel)
+
+  def unpersist(backendContext: BackendContext, id: String): Unit = bmCache.unpersistBlockMatrix(id)
+
+  def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix = bmCache.getPersistedBlockMatrix(id)
+
+  def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = bmCache.getPersistedBlockMatrixType(id)
 
   def withExecuteContext[T]()(f: ExecuteContext => T): T = {
     ExecuteContext.scoped(tmpdir, localTmpdir, this, fs)(f)

@@ -8,7 +8,7 @@ import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
-import is.hail.types.TableType
+import is.hail.types.{BlockMatrixType, TableType}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.encoded._
@@ -3425,7 +3425,7 @@ class IRSuite extends HailSuite {
       densify,
       RelationalLetBlockMatrix("x", I32(0), read),
       slice,
-      BlockMatrixRead(BlockMatrixPersistReader("x"))
+      BlockMatrixRead(BlockMatrixPersistReader("x", BlockMatrixType.dense(TFloat64, 1, 1, 5)))
     )
 
     blockMatrixIRs.map(ir => Array(ir))

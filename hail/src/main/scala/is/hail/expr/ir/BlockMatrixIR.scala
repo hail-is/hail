@@ -9,6 +9,7 @@ import breeze.linalg
 import breeze.linalg.DenseMatrix
 import breeze.numerics
 import is.hail.annotations.Region
+import is.hail.backend.BackendContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.Nat
 import is.hail.expr.ir.lowering.{BlockMatrixStage, LowererUnsupportedOperation}
@@ -98,6 +99,7 @@ object BlockMatrixReader {
   def fromJValue(ctx: ExecuteContext, jv: JValue): BlockMatrixReader = {
     (jv \ "name").extract[String] match {
       case "BlockMatrixNativeReader" => BlockMatrixNativeReader.fromJValue(ctx.fs, jv)
+      case "BlockMatrixPersistReader" => BlockMatrixPersistReader.fromJValue(ctx.backendContext, jv)
       case _ => jv.extract[BlockMatrixReader]
     }
   }
@@ -195,11 +197,22 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
   }
 }
 
-case class BlockMatrixPersistReader(id: String) extends BlockMatrixReader {
-  lazy val bm: BlockMatrix = HailContext.sparkBackend("BlockMatrixPersistReader").bmCache.getPersistedBlockMatrix(id)
+case class BlockMatrixNativePersistParameters(id: String)
+
+object BlockMatrixPersistReader {
+  def fromJValue(ctx: BackendContext, jv: JValue): BlockMatrixNativeReader = {
+    implicit val formats: Formats = BlockMatrixReader.formats
+    val params = jv.extract[BlockMatrixNativePersistParameters]
+    BlockMatrixPersistReader(params.id, HailContext.backend.getPersistedBlockMatrixType(ctx, params.id))
+  }
+}
+
+case class BlockMatrixPersistReader(id: String, typ: BlockMatrixType) extends BlockMatrixReader {
   def pathsUsed: Seq[String] = FastSeq()
-  lazy val fullType: BlockMatrixType = BlockMatrixType.fromBlockMatrix(bm)
-  def apply(ctx: ExecuteContext): BlockMatrix = bm
+  lazy val fullType: BlockMatrixType = typ
+  def apply(ctx: ExecuteContext): BlockMatrix = {
+    HailContext.backend.getPersistedBlockMatrix(ctx.backendContext, id)
+  }
 }
 
 class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
