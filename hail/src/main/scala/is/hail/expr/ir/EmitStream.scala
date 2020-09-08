@@ -2079,13 +2079,13 @@ object EmitStream {
                 val shuffleLocal = mb.newLocal[ShuffleClient]("shuffleClient")
                 val shuffle = new ValueShuffleClient(shuffleLocal)
 
-                val stream = unfold[EmitCode](
+                val stream = (eltRegion: ChildStagedRegion) => unfold[EmitCode](
                   { (_, k) =>
                     k(
                       COption(
                         shuffle.getValueFinished(),
                         EmitCode.present(
-                          shuffleType.rowDecodedPType, shuffle.getValue(outerRegion.code))))
+                          shuffleType.rowDecodedPType, shuffle.getValue(eltRegion.code))))
                   },
                   setup = Some(Code(
                     shuffleLocal := CodeShuffleClient.create(
@@ -2097,7 +2097,7 @@ object EmitStream {
                   close = Some(Code(
                     shuffle.getDone(),
                     shuffle.close())))
-                unsized(eltRegion => stream)
+                unsized(stream)
               }
             }
           }
@@ -2115,13 +2115,13 @@ object EmitStream {
               val uuid = new PCanonicalShuffleSettable(idt.pt.asInstanceOf[PCanonicalShuffle], uuidLocal)
               val shuffleLocal = mb.newLocal[ShuffleClient]("shuffleClient")
               val shuffle = new ValueShuffleClient(shuffleLocal)
-              val stream = unfold[EmitCode](
+              val stream = (eltRegion: ChildStagedRegion) => unfold[EmitCode](
                 { (_, k) =>
                   k(
                     COption(
                       shuffle.partitionBoundsValueFinished(),
                       EmitCode.present(
-                        shuffleType.keyDecodedPType, shuffle.partitionBoundsValue(outerRegion.code))))
+                        shuffleType.keyDecodedPType, shuffle.partitionBoundsValue(eltRegion.code))))
                 },
                 setup = Some(Code(
                   uuidLocal := idt.tcode[Long],
@@ -2130,7 +2130,7 @@ object EmitStream {
                 close = Some(Code(
                   shuffle.endPartitionBounds(),
                   shuffle.close())))
-              unsized(eltRegion => stream)
+              unsized(stream)
           }
         }
 
