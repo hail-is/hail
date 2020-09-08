@@ -33,10 +33,11 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 @rest_authenticated_users_only
 async def get_object(request, userdata):
     filename = request.query.get('q')
+    etag = request.query.get('etag')
     userinfo = await get_or_add_user(request.app, userdata)
     username = userdata['username']
     log.info(f'memory: request for object {filename} from user {username}')
-    result = await get_file_or_none(request.app, username, userinfo, filename)
+    result = await get_file_or_none(request.app, username, userinfo, filename, etag)
     if result is None:
         raise web.HTTPNotFound()
     etag, body = result
@@ -62,20 +63,11 @@ def make_redis_key(username, filepath):
     return f'{ username }_{ filepath }'
 
 
-async def get_file_or_none(app, username, userinfo, filepath):
+async def get_file_or_none(app, username, userinfo, filepath, etag):
     filekey = make_redis_key(username, filepath)
     fs = userinfo['fs']
-    try:
-        etag = await fs.get_etag(filepath)
-        if etag is None:
-            log.info(f"memory: Couldn't retrieve file {filepath} for user {username}; missing etag")
-            await app['redis_pool'].execute('DEL', filekey)
-            return None
-    except Exception as e:
-        log.info(f"memory: Couldn't retrieve file {filepath} for user {username} with error {e}")
-        return None
 
-    cached_etag = await app['redis_pool'].execute('HGET', filekey, 'etag')
+    cached_etag = await app['redis_pool'].execute('HGET', filekey, 'etag', encoding='ascii')
     if cached_etag is not None:
         cached_etag = cached_etag.decode('ascii')
     if cached_etag is not None and cached_etag == etag:

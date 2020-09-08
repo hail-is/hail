@@ -38,7 +38,10 @@ class MemoryClient:
         self._headers = h
 
     async def _get_file_if_exists(self, filename):
-        params = {'q': filename}
+        etag = await self._fs.get_etag(filename)
+        if etag is None:
+            return None
+        params = {'q': filename, 'etag': etag}
         try:
             url = f'{self.url}/api/v1alpha/objects'
             async with await request_retry_transient_errors(
