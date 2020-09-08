@@ -57,24 +57,3 @@ class Tests(unittest.TestCase):
                 i += 1
             print(cached, data)
             self.assertEqual(cached, data)
-   
-#     def test_authorized_users_only(self):
-#         endpoints = [
-#             (requests.get, '/api/v1alpha/batches/0/jobs/0', 401),
-#             (requests.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
-#             (requests.get, '/api/v1alpha/batches', 401),
-#             (requests.post, '/api/v1alpha/batches/create', 401),
-#             (requests.post, '/api/v1alpha/batches/0/jobs/create', 401),
-#             (requests.get, '/api/v1alpha/batches/0', 401),
-#             (requests.delete, '/api/v1alpha/batches/0', 401),
-#             (requests.patch, '/api/v1alpha/batches/0/close', 401),
-#             # redirect to auth/login
-#             (requests.get, '/batches', 302),
-#             (requests.get, '/batches/0', 302),
-#             (requests.post, '/batches/0/cancel', 401),
-#             (requests.get, '/batches/0/jobs/0', 302)]
-#         for method, url, expected in endpoints:
-#             full_url = deploy_config.url('memory', url)
-#             r = retry_response_returning_functions(
-#                 method, full_url, allow_redirects=False)
-#             self.assertEqual(assert r.status_code, expected), (full_url, r, expected)
