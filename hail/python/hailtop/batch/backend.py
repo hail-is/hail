@@ -8,9 +8,9 @@ import copy
 from shlex import quote as shq
 import webbrowser
 
-from hailtop.config import get_deploy_config, get_user_config  # type: ignore
-import hailtop.batch_client.client as bc  # type: ignore
-from hailtop.batch_client.client import BatchClient  # type: ignore
+from hailtop.config import get_deploy_config, get_user_config
+import hailtop.batch_client.client as bc
+from hailtop.batch_client.client import BatchClient
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
 

@@ -6,9 +6,9 @@ import sys
 import shlex
 from argparse import Namespace, ArgumentParser, SUPPRESS
 from os.path import exists
-import google.oauth2.service_account  # type: ignore
-from google.cloud import storage  # type: ignore
-from google.cloud.storage.blob import Blob  # type: ignore
+import google.oauth2.service_account
+from google.cloud import storage
+from google.cloud.storage.blob import Blob
 
 
 input_file_args = ["bgen", "bed", "pgen", "sample", "keep", "extract", "exclude", "remove",

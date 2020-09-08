@@ -3,18 +3,18 @@ from types import TracebackType
 from io import BytesIO
 import asyncio
 import concurrent
-import dill  # type: ignore
+import dill
 import functools
 import sys
 import time
 
-from hailtop.utils import secret_alnum_string, partition  # type: ignore
-import hailtop.batch_client.client as low_level_batch_client  # type: ignore
-from hailtop.batch_client.parse import parse_cpu_in_mcpu  # type: ignore
+from hailtop.utils import secret_alnum_string, partition
+import hailtop.batch_client.client as low_level_batch_client
+from hailtop.batch_client.parse import parse_cpu_in_mcpu
 
 from .batch import Batch
 from .backend import ServiceBackend
-from ..google_storage import GCS  # type: ignore
+from ..google_storage import GCS
 
 if sys.version_info < (3, 7):
     def create_task(coro, *, name=None):  # pylint: disable=unused-argument

@@ -1,8 +1,8 @@
 import doctest
 import os
-import pytest  # type: ignore
+import pytest
 
-import hailtop.batch as batch  # type: ignore
+import hailtop.batch as batch
 
 
 @pytest.fixture(autouse=True)
