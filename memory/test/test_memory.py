@@ -1,4 +1,5 @@
 import concurrent
+import os
 import unittest
 import uuid
 from memory.client import MemoryClient
@@ -28,7 +29,7 @@ class Tests(unittest.TestCase):
         token = uuid.uuid4()
         self.test_path = f'gs://{bucket_name}/memory-tests/{token}'
 
-        self.fs = GCS(concurrent.futures.ThreadPoolExecutor())
+        self.fs = GCS(concurrent.futures.ThreadPoolExecutor(), project=os.environ('PROJECT'))
         self.client = BlockingMemoryClient(fs=self.fs)
         self.temp_files = set()
 

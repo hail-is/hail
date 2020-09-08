@@ -1840,6 +1840,7 @@ steps:
    script: |
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     export PROJECT={{ global.project }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
    timeout: 600
