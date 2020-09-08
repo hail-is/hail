@@ -888,7 +888,7 @@ steps:
      valueFrom: hail_pip_installed_python37_image.image
    script: |
      set -x
-     SITE_PACKAGES=$(pip3 show hailtop | grep Location | sed 's/Location: //')
+     SITE_PACKAGES=$(pip3 show hail | grep Location | sed 's/Location: //')
 
      exit_status=0
 
@@ -905,7 +905,7 @@ steps:
      valueFrom: hail_pip_installed_python36_image.image
    script: |
      set -x
-     SITE_PACKAGES=$(pip3 show hailtop | grep Location | sed 's/Location: //')
+     SITE_PACKAGES=$(pip3 show hail | grep Location | sed 's/Location: //')
 
      exit_status=0
 
