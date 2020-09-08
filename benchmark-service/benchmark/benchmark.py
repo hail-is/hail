@@ -29,10 +29,10 @@ def get_benchmarks(app, file_path):
     try:
         json_data = gs_reader.get_data_as_string(file_path)
         pre_data = json.loads(json_data)
-    except Exception:
+    except Exception as e:
         message = f'could not find file, {file_path}'
         log.info('could not get blob: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=message)
+        raise web.HTTPBadRequest(text=message) from e
 
     data = {}
     prod_of_means = 1
@@ -143,10 +143,10 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
         df = pd.DataFrame(d)
         fig = px.scatter(df, x=df.trial, y=df.wall_time, hover_data=['index'])
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-    except Exception:
+    except Exception as e:
         message = 'could not find name'
         log.info('name is of type NoneType: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=message)
+        raise web.HTTPBadRequest(text=message) from e
 
     context = {
         'name': request.match_info.get('name', ''),

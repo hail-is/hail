@@ -52,8 +52,8 @@ class ReadGoogleStorage:
             blob = bucket.blob(shorter_file_path)
             # convert to string
             data = blob.download_as_string()
-        except Exception:
-            raise NameError()
+        except Exception as e:
+            raise NameError() from e
         return data
 
     def list_files(self, bucket_name):
