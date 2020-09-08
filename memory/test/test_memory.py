@@ -28,7 +28,7 @@ class Tests(unittest.TestCase):
         token = uuid.uuid4()
         self.test_path = f'gs://{bucket_name}/memory-tests/{token}'
 
-        self.fs = GCS(concurrent.futures.ThreadPoolExecutor(), project='hail-vdc')
+        self.fs = GCS(concurrent.futures.ThreadPoolExecutor())
         self.client = BlockingMemoryClient(fs=self.fs)
         self.temp_files = set()
 
