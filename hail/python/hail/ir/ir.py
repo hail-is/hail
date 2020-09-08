@@ -1933,19 +1933,23 @@ class GetTupleElement(IR):
 
 
 class Die(IR):
-    @typecheck_method(message=IR, typ=hail_type)
-    def __init__(self, message, typ):
+    @typecheck_method(message=IR, typ=hail_type, error_id=nullable(int), stack_trace=nullable(str))
+    def __init__(self, message, typ, error_id=None, stack_trace=None):
         super().__init__(message)
         self.message = message
         self._typ = typ
-        self.save_error_info()
+        self._error_id = error_id
+        self._stack_trace = stack_trace
+
+        if error_id is None or stack_trace is None:
+            self.save_error_info()
 
     @property
     def typ(self):
         return self._typ
 
     def copy(self, message):
-        return Die(message, self._typ)
+        return Die(message, self._typ, self._error_id, self._stack_trace)
 
     def head_str(self):
         return f'{self._typ._parsable_string()} {self._error_id}'
