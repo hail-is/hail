@@ -2711,7 +2711,7 @@ class IRSuite extends HailSuite {
 
   @Test def testDie() {
     assertFatal(Die("mumblefoo", TFloat64), "mble")
-    assertFatal(Die(NA(TString), TFloat64), "message missing")
+    assertFatal(Die(NA(TString), TFloat64, -1), "message missing")
   }
 
   @Test def testDieInferPType() {

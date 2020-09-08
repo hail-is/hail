@@ -45,7 +45,7 @@ object IRBuilder {
     If(cond(env), cnsq(env), altr(env))
 
   def irDie(message: IRProxy, typ: Type): IRProxy = (env: E) =>
-    Die(message(env), typ)
+    Die(message(env), typ, -1)
 
   def makeArray(first: IRProxy, rest: IRProxy*): IRProxy = arrayToProxy(first +: rest)
 

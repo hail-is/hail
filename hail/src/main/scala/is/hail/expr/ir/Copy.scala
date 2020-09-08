@@ -279,9 +279,9 @@ object Copy {
         assert(newChildren.length == 1)
         GetTupleElement(newChildren(0).asInstanceOf[IR], idx)
       case In(i, t) => In(i, t)
-      case Die(_, typ) =>
+      case Die(_, typ, errorId) =>
         assert(newChildren.length == 1)
-        Die(newChildren(0).asInstanceOf[IR], typ)
+        Die(newChildren(0).asInstanceOf[IR], typ, errorId)
       case x@ApplyIR(fn, typeArgs, args) =>
         val r = ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]))
         r.conversion = x.conversion

@@ -1192,7 +1192,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.case(missing_false=True).when(hl.null(hl.tbool), 1).default(2)), 2)
 
         error_case = hl.case().when(False, 1).or_error("foo")
-        self.assertRaises(hl.utils.java.FatalError, lambda: hl.eval(error_case))
+        with pytest.raises(hl.utils.java.HailUserError) as exc:
+            hl.eval(error_case)
+        assert '.or_error("foo")' in str(exc.value)
 
     def test_struct_ops(self):
         s = hl.struct(f1=1, f2=2, f3=3)
@@ -2943,9 +2945,9 @@ class Tests(unittest.TestCase):
 
         with self.assertRaisesRegex(hl.utils.FatalError, "value of f\(x\) is missing"):
             hl.eval(hl.uniroot(lambda x: hl.null('float'), 0, 1))
-        with self.assertRaisesRegex(hl.utils.FatalError, 'opposite signs'):
+        with self.assertRaisesRegex(hl.utils.HailUserError, 'opposite signs'):
             hl.eval(hl.uniroot(lambda x: x ** 2 - 0.5, -1, 1))
-        with self.assertRaisesRegex(hl.utils.FatalError, 'min must be less than max'):
+        with self.assertRaisesRegex(hl.utils.HailUserError, 'min must be less than max'):
             hl.eval(hl.uniroot(lambda x: x, 1, -1))
 
         def multiple_roots(x):
@@ -3244,22 +3246,22 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.bit_rshift(hl.int64(-11), 64, logical=True)) == 0
 
     def test_bit_shift_errors(self):
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
                 hl.eval(hl.bit_lshift(1, -1))
 
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_rshift(1, -1))
 
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_rshift(1, -1, logical=True))
 
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_lshift(hl.int64(1), -1))
 
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_rshift(hl.int64(1), -1))
 
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_rshift(hl.int64(1), -1, logical=True))
 
     def test_prev_non_null(self):

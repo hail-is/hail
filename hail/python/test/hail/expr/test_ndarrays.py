@@ -1,11 +1,9 @@
-import hail as hl
-from hail.utils.java import FatalError
 import numpy as np
 from ..helpers import *
 import tempfile
 import pytest
 
-from hail.utils.java import FatalError
+from hail.utils.java import FatalError, HailUserError
 
 
 def assert_ndarrays(asserter, exprs_and_expecteds):
@@ -140,13 +138,13 @@ def test_ndarray_slice():
     assert hl.eval(rect_prism[:, :, 0:hl.null(hl.tint32):1]) is None
     assert hl.eval(rect_prism[hl.null(hl.tint32), :, :]) is None
 
-    with pytest.raises(FatalError, match="Slice step cannot be zero"):
+    with pytest.raises(HailUserError, match="Slice step cannot be zero"):
         hl.eval(flat[::0])
 
-    with pytest.raises(FatalError, match="Index 3 is out of bounds for axis 0 with size 2"):
+    with pytest.raises(HailUserError, match="Index 3 is out of bounds for axis 0 with size 2"):
         hl.eval(mat[3, 1:3])
 
-    with pytest.raises(FatalError, match="Index -4 is out of bounds for axis 0 with size 2"):
+    with pytest.raises(HailUserError, match="Index -4 is out of bounds for axis 0 with size 2"):
         hl.eval(mat[-4, 0:3])
 
 
@@ -203,11 +201,11 @@ def test_ndarray_eval():
         hl.nd.array(mishapen_data_list1)
     assert "inner dimensions do not match" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array(hl.array(mishapen_data_list1)))
     assert "inner dimensions do not match" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array(hl.array(mishapen_data_list2)))
     assert "inner dimensions do not match" in str(exc.value)
 

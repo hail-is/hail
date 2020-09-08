@@ -1172,8 +1172,9 @@ object IRParser {
         In(idx, typ)
       case "Die" =>
         val typ = type_expr(env.typEnv)(it)
+        val errorId = int32_literal(it)
         val msg = ir_value_expr(env)(it)
-        Die(msg, typ)
+        Die(msg, typ, errorId)
       case "ApplySeeded" =>
         val function = identifier(it)
         val seed = int64_literal(it)

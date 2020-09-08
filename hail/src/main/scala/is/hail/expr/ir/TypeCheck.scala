@@ -384,7 +384,7 @@ object TypeCheck {
           case pstream: PStream => assert(pstream.elementType.isRealizable)
           case _ =>
         }
-      case Die(msg, typ) =>
+      case Die(msg, typ, _) =>
         assert(msg.typ == TString)
       case x@ApplyIR(fn, typeArgs, args) =>
       case x: AbstractApplyNode[_] =>

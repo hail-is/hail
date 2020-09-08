@@ -966,7 +966,7 @@ object LowerTableIR {
             MakeStruct(
               (lKeyFields, rKeyFields).zipped.map { (lKey, rKey) =>
                 if (joinType == "outer" && lReq.field(lKey).required && rReq.field(rKey).required)
-                  lKey -> Coalesce(FastSeq(GetField(lEltRef, lKey), GetField(rEltRef, rKey), Die("TableJoin expected non-missing key", left.typ.rowType.fieldType(lKey))))
+                  lKey -> Coalesce(FastSeq(GetField(lEltRef, lKey), GetField(rEltRef, rKey), Die("TableJoin expected non-missing key", left.typ.rowType.fieldType(lKey), -1)))
                 else
                   lKey -> Coalesce(FastSeq(GetField(lEltRef, lKey), GetField(rEltRef, rKey)))
               }

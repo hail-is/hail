@@ -1,12 +1,16 @@
 package is.hail.utils
 
-class HailException(val msg: String, val logMsg: Option[String], cause: Throwable) extends RuntimeException(msg, cause) {
-  def this(msg: String) = this(msg, None, null)
-  def this(msg: String, logMsg: Option[String]) = this(msg, logMsg, null)
+class HailException(val msg: String, val logMsg: Option[String], cause: Throwable, val errorId: Int) extends RuntimeException(msg, cause) {
+  def this(msg: String) = this(msg, None, null, -1)
+  def this(msg: String, logMsg: Option[String]) = this(msg, logMsg, null, -1)
+  def this(msg: String, logMsg: Option[String], cause: Throwable) = this(msg, logMsg, cause, -1)
+  def this(msg: String, errorId: Int) = this(msg, None, null, errorId)
 }
 
 trait ErrorHandling {
   def fatal(msg: String): Nothing = throw new HailException(msg)
+
+  def fatal(msg: String, errorId: Int) = throw new HailException(msg, errorId)
 
   def fatal(msg: String, cause: Throwable): Nothing = throw new HailException(msg, None, cause)
 
@@ -44,13 +48,27 @@ trait ErrorHandling {
     }\n"
   }
 
-  def handleForPython(e: Throwable): (String, String) = {
+  def handleForPython(e: Throwable): (String, String, Int) = {
     val short = deepestMessage(e)
     val expanded = expandException(e, false)
     val logExpanded = expandException(e, true)
 
     log.error(s"$short\nFrom $logExpanded")
 
-    (short, expanded)
+    def searchForErrorCode(exception: Throwable): Int = {
+      if (exception.isInstanceOf[HailException]) {
+        exception.asInstanceOf[HailException].errorId
+      }
+      else if (exception.getCause == null) {
+        -1
+      }
+      else {
+        searchForErrorCode(exception.getCause)
+      }
+    }
+
+    val error_id = searchForErrorCode(e)
+
+    (short, expanded, error_id)
   }
 }
