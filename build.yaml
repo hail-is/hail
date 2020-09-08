@@ -2836,8 +2836,8 @@ steps:
    image:
      valueFrom: hail_run_image.image
    resources:
-     memory: "3.75G"
-     cpu: "1"
+     memory: "7.5G"
+     cpu: "2"
    script: |
      set -ex
      cd /io
