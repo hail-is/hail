@@ -147,7 +147,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
     context: EmitCode,
     eltType: PStruct,
     mb: EmitMethodBuilder[_],
-    region: RootStagedRegion,
+    region: ParentStagedRegion,
     stream: SizedStream): EmitCode = {
     val enc = spec.buildEmitEncoder(eltType, mb.ecb)
 
