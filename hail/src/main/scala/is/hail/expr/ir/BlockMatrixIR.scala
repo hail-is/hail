@@ -145,7 +145,18 @@ class BlockMatrixNativeReader(
     BlockMatrixType(TFloat64, tensorShape, isRowVector, metadata.blockSize, sparsity)
   }
 
-  def apply(ctx: ExecuteContext): BlockMatrix = BlockMatrix.read(ctx.fs, params.path)
+  def apply(ctx: ExecuteContext): BlockMatrix = {
+    val key = ("BlockMatrixNativeReader.apply", params.path)
+    if (ctx.memo.contains(key)) {
+      ctx.memo(key).asInstanceOf[BlockMatrix]
+    }
+    else {
+      val bm = BlockMatrix.read(ctx.fs, params.path)
+      ctx.memo.update(key, bm)
+      bm
+    }
+
+  }
 
   override def lower(ctx: ExecuteContext): BlockMatrixStage = {
     val blockFiles = fullType.sparsity.definedBlocksColMajor.map { blocks =>
