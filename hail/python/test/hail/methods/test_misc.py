@@ -198,7 +198,7 @@ class Tests(unittest.TestCase):
 
     def test_verify_biallelic(self):
         mt = hl.import_vcf(resource('sample2.vcf'))  # has multiallelics
-        with self.assertRaises(hl.utils.FatalError):
+        with self.assertRaises(hl.utils.HailUserError):
             hl.methods.misc.require_biallelic(mt, '')._force_count_rows()
 
     def test_lambda_gc(self):
