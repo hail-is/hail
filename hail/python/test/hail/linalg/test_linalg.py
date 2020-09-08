@@ -947,7 +947,7 @@ class Tests(unittest.TestCase):
 
         ht = hl.Table.parallelize([{'locus': hl.Locus('1', 1), 'cm': hl.null(hl.tfloat64)}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
-        with self.assertRaises(HailUserError) as cm:
+        with self.assertRaises(FatalError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         self.assertTrue("missing value for 'coord_expr'" in str(cm.exception))
 
