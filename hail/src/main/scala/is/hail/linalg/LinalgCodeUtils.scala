@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, MethodBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.{PBaseStructValue, PNDArrayValue, PType}
+import is.hail.types.physical.{PBaseStructValue, PNDArrayCode, PNDArrayValue, PType}
 
 object LinalgCodeUtils {
   def checkColumnMajor(pndv: PNDArrayValue, cb: EmitCodeBuilder): Value[Boolean] = {
@@ -24,6 +24,15 @@ object LinalgCodeUtils {
       }
     ))
     answer
+  }
+
+  def createColumnMajorCode(pndv: PNDArrayValue, cb: EmitCodeBuilder): PNDArrayCode = {
+    val shape = pndv.shapes()
+    val shapeBuilder = pndv.pt.makeShapeBuilder(shape)
+    val stridesBuilder = pndv.pt.makeColumnMajorStridesBuilder(shape, cb.emb)
+    val dataLength = pndv.pt.numElements(shape, cb.emb)
+    val data = pndv.pt.data.pType.allocate(???, dataLength.toI)
+    val answer = pndv.pt.construct(shapeBuilder, stridesBuilder, data)
   }
 
   def copyRowMajorToColumnMajor(rowMajorFirstElementAddress: Code[Long], targetFirstElementAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], elementPType: PType, mb: MethodBuilder[_]): Code[Unit] = {

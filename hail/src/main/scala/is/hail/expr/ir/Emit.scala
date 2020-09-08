@@ -625,12 +625,13 @@ class Emit[C](
     def emitNDArrayColumnMajorStrides(ir: IR): IEmitCode = {
       emitI(ir).map(cb){case pNDCode: PNDArrayCode =>
         val pNDValue = pNDCode.memoize(cb, "ndarray_column_major_check")
-        // Two paths:
-        // If it's column Major, great, do nothing.
-        // Otherwise, need to recopy it to be column major.
-        // TODO:
-        // 1. Need a way to check if a PNDArrayValue is column major.
-        ???
+        val isColumnMajor = LinalgCodeUtils.checkColumnMajor(pNDValue, cb)
+        val answer = cb.newField[Long]("ndarray_output_column_major")
+        cb.ifx(isColumnMajor, {cb.append(answer := pNDValue.tcode[Long])},
+        {
+          cb.append(answer := LinalgCodeUtils.createColumnMajorCode(pNDValue, cb).tcode[Long])
+        })
+        PCode.apply(pNDValue.pt, answer)
       }
     }
 
@@ -1979,7 +1980,7 @@ class Emit[C](
 
         val computeHAndTau = Code(FastIndexedSeq(
           ndAddress := ndt.value[Long],
-          aNumElements := ndPType.numElements(shapeArray.map(_.get), mb),
+          aNumElements := ndPType.numElements(shapeArray, mb),
 
           // Make some space for A, which will be overriden during DGEQRF
           aAddressDGEQRF := ndPType.data.pType.allocate(region.code, aNumElements.toI),
@@ -3015,7 +3016,7 @@ abstract class NDArrayEmitter[C](
 
     val dataAddress: Code[Long] =
       Code(
-        dataSrvb.start(targetType.numElements(outputShapeVariables.map(_.load()), mb).toI),
+        dataSrvb.start(targetType.numElements(outputShapeVariables, mb).toI),
         emitLoops(mb, outputShapeVariables, dataSrvb),
         dataSrvb.end())
 
