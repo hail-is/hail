@@ -29,7 +29,7 @@ class Tests(unittest.TestCase):
         token = uuid.uuid4()
         self.test_path = f'gs://{bucket_name}/memory-tests/{token}'
 
-        self.fs = GCS(concurrent.futures.ThreadPoolExecutor(), project=os.environ('PROJECT'))
+        self.fs = GCS(concurrent.futures.ThreadPoolExecutor(), project=os.environ['PROJECT'])
         self.client = BlockingMemoryClient(fs=self.fs)
         self.temp_files = set()
 
@@ -53,8 +53,6 @@ class Tests(unittest.TestCase):
             i = 0
             cached = self.client._get_file_if_exists(handle)
             while cached is None and i < 10:
-                print(cached, data)
                 cached = self.client._get_file_if_exists(handle)
                 i += 1
-            print(cached, data)
             self.assertEqual(cached, data)
