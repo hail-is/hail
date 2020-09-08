@@ -1,7 +1,7 @@
 import pytest
 
 from hail.linalg import BlockMatrix
-from hail.utils import new_temp_file, new_local_temp_dir, local_path_uri, FatalError
+from hail.utils import new_temp_file, new_local_temp_dir, local_path_uri, FatalError, HailUserError
 from ..helpers import *
 import numpy as np
 import tempfile
@@ -912,7 +912,7 @@ class Tests(unittest.TestCase):
         assert_eq(starts, [0, 1, 1, 3, 3, 5])
         assert_eq(stops, [1, 3, 3, 5, 5, 6])
 
-        with self.assertRaises(FatalError) as cm:
+        with self.assertRaises(HailUserError) as cm:
             hl.linalg.utils.locus_windows(ht.order_by(ht.cm).locus, 1.0)
         self.assertTrue('ascending order' in str(cm.exception))
 
@@ -938,16 +938,16 @@ class Tests(unittest.TestCase):
 
         ht = hl.Table.parallelize([{'locus': hl.null(hl.tlocus()), 'cm': 1.0}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
-        with self.assertRaises(FatalError) as cm:
+        with self.assertRaises(HailUserError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0)
         self.assertTrue("missing value for 'locus_expr'" in str(cm.exception))
-        with self.assertRaises(FatalError) as cm:
+        with self.assertRaises(HailUserError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         self.assertTrue("missing value for 'locus_expr'" in str(cm.exception))
 
         ht = hl.Table.parallelize([{'locus': hl.Locus('1', 1), 'cm': hl.null(hl.tfloat64)}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
-        with self.assertRaises(FatalError) as cm:
+        with self.assertRaises(HailUserError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         self.assertTrue("missing value for 'coord_expr'" in str(cm.exception))
 
