@@ -169,12 +169,12 @@ class DB:
         --------
         Annotate a matrix table with the `gnomad_lof_metrics`:
 
-        >>> db = hl.experimental.DB()
+        >>> db = hl.experimental.DB(region='us')
         >>> mt = db.annotate_rows_db(mt, 'gnomad_lof_metrics') # doctest: +SKIP
 
         Annotate a table with `clinvar_gene_summary`, `CADD`, and `DANN`:
 
-        >>> db = hl.experimental.DB()
+        >>> db = hl.experimental.DB(region='us')
         >>> mt = db.annotate_rows_db(mt, 'clinvar_gene_summary', 'CADD', 'DANN') # doctest: +SKIP
 
         Notes
