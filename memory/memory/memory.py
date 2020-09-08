@@ -68,8 +68,6 @@ async def get_file_or_none(app, username, userinfo, filepath, etag):
     fs = userinfo['fs']
 
     cached_etag = await app['redis_pool'].execute('HGET', filekey, 'etag', encoding='ascii')
-    if cached_etag is not None:
-        cached_etag = cached_etag.decode('ascii')
     if cached_etag is not None and cached_etag == etag:
         result = await app['redis_pool'].execute('HGET', filekey, 'body')
         log.info(f"memory: Retrieved file {filepath} for user {username} with etag'{etag}'")
