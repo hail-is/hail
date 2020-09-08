@@ -3246,22 +3246,22 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.bit_rshift(hl.int64(-11), 64, logical=True)) == 0
 
     def test_bit_shift_errors(self):
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
                 hl.eval(hl.bit_lshift(1, -1))
 
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_rshift(1, -1))
 
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_rshift(1, -1, logical=True))
 
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_lshift(hl.int64(1), -1))
 
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_rshift(hl.int64(1), -1))
 
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_rshift(hl.int64(1), -1, logical=True))
 
     def test_prev_non_null(self):
