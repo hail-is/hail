@@ -108,8 +108,8 @@ ul {
     font-weight:700;
 }
 .autoComplete_highlighted::selection {
-    color:rgba(#fff,0);
-    background-color:rgba(#fff,0);
+    color: #fff;
+    background-color: #fff;
 }
 .autoComplete_selected {
     cursor:pointer;
@@ -125,24 +125,3 @@ ul {
 .autoComplete_result:only-child {
     border-radius:1rem;
 }
-/*
-#button {
-    font-family: inherit;
-    font-size: 1rem;
-    background: none;
-    /* border: 1px solid $black;
-    border: solid $black;
-    border-radius: 3px;
-    margin: 0;
-    cursor: pointer;
-    &:focus {
-	outline: 0;
-    }
-    &:active,
-    &:hover {
-	outline: 0;
-        color: $devil-gray;
-	border-color: $devil-gray;
-    }
-}
-*/
