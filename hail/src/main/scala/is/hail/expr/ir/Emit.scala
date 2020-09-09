@@ -1258,52 +1258,19 @@ class Emit[C](
     def emitDeforestedNDArray(ir: IR): EmitCode =
       deforestNDArray(ir, mb, region, env)
 
-//    def emitNDArrayColumnMajorStrides(ir: IR): EmitCode = {
-//      val (extraSetup, ec) = EmitCodeBuilder.scoped(mb){cb =>
-//        cb.append(Code._println("Trying to emit Column Major strides"))
-//        val initialEC = emit(ir)
-//        val savedMissingValue = cb.newLocal[Boolean]("missing_check")
-//        cb.append(savedMissingValue := initialEC.m)
-//        cb.append(Code._println(savedMissingValue.toS))
-//        val newEC = EmitCode(initialEC.setup, savedMissingValue, initialEC.pv)
-//
-//        newEC.map{case pNDCode: PNDArrayCode =>
-//          cb.append(Code._println("Emitted ir in emitNDArrayColumnMajorStrides"))
-//          val pNDValue = pNDCode.memoize(cb, "ndarray_column_major_check")
-//          cb.append(Code._println("Memoized"))
-//          val isColumnMajor = LinalgCodeUtils.checkColumnMajor(pNDValue, cb)
-//          val pAnswer = cb.emb.newPField("ndarray_output_column_major", pNDValue.pt)
-//          cb.ifx(Code(
-//            Code._println("isColumnMajor?"),
-//            isColumnMajor
-//          ), {cb.append(pAnswer := pNDValue)},
-//            {
-//              cb.append(pAnswer := LinalgCodeUtils.createColumnMajorCode(pNDValue, cb, region.code))
-//            })
-//          pAnswer.get
-//        }
-//      }
-//      EmitCode(extraSetup, ec)
-//    }
     def emitNDArrayColumnMajorStrides(ir: IR): EmitCode = {
-      val (extraSetup, ec) = EmitCodeBuilder.scoped(mb){cb =>
-        cb.append(Code._println("Trying to emit Column Major strides"))
-        val initialEC = emit(ir)
-
-        EmitCode.fromI(cb.emb)(cb => {
-          initialEC.toI(cb).map(cb){case pNDCode: PNDArrayCode =>
-            val pNDValue = pNDCode.memoize(cb, "ndarray_column_major_check")
-            val isColumnMajor = LinalgCodeUtils.checkColumnMajor(pNDValue, cb)
-            val pAnswer = cb.emb.newPField("ndarray_output_column_major", pNDValue.pt)
-            cb.ifx(isColumnMajor, {cb.append(pAnswer := pNDValue)},
-              {
-                cb.append(pAnswer := LinalgCodeUtils.createColumnMajorCode(pNDValue, cb, region.code))
-              })
-            pAnswer.get
-          }
-        })
+      EmitCode.fromI(mb) { cb =>
+        emit(ir).toI(cb).map(cb) { case pNDCode: PNDArrayCode =>
+          val pNDValue = pNDCode.memoize(cb, "ndarray_column_major_check")
+          val isColumnMajor = LinalgCodeUtils.checkColumnMajor(pNDValue, cb)
+          val pAnswer = cb.emb.newPField("ndarray_output_column_major", pNDValue.pt)
+          cb.ifx(isColumnMajor, {cb.append(pAnswer := pNDValue)},
+            {
+              cb.append(pAnswer := LinalgCodeUtils.createColumnMajorCode(pNDValue, cb, region.code))
+            })
+          pAnswer
+        }
       }
-      EmitCode(extraSetup, ec)
     }
 
     val pt = ir.pType
