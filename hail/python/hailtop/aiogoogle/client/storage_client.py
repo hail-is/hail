@@ -3,7 +3,7 @@ import asyncio
 import urllib.parse
 import aiohttp
 from hailtop.aiotools import AsyncStream, AsyncFS, FeedableAsyncIterable
-from multidict import CIMultiDictProxy
+from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 from .base_client import BaseClient
 
 
