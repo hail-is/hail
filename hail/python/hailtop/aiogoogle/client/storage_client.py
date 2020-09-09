@@ -68,7 +68,7 @@ class StorageClient(BaseClient):
         assert 'data' not in kwargs
         it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
         kwargs['data'] = aiohttp.AsyncIterablePayload(it)
-        request_task = asyncio.create_task(self._session.post(
+        request_task = asyncio.ensure_future(self._session.post(
             f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
             **kwargs))
         return InsertObjectStream(it, request_task)

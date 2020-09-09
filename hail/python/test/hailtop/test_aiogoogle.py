@@ -24,8 +24,7 @@ async def filesystem(request):
                 base = f'/tmp/{token}'
             else:
                 assert request.param.endswith('gs')
-                # FIXME
-                bucket = 'hail-cseed'
+                bucket = os.environ['HAIL_TEST_BUCKET']
                 base = f'gs://{bucket}/{token}'
 
             await fs.mkdir(base)

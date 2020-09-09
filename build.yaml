@@ -949,6 +949,8 @@ steps:
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
+     export HAIL_TEST_BUCKET=hail-test-dmk9z
+     export GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=0
@@ -962,6 +964,11 @@ steps:
        to: /io/resources.tar.gz
      - from: /data.tar.gz
        to: /io/data.tar.gz
+   secrets:
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /gsa-key
    dependsOn:
      - hail_run_image
      - build_hail
@@ -982,6 +989,8 @@ steps:
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
+     export HAIL_TEST_BUCKET=hail-test-dmk9z
+     export GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=1
@@ -995,6 +1004,11 @@ steps:
        to: /io/resources.tar.gz
      - from: /data.tar.gz
        to: /io/data.tar.gz
+   secrets:
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /gsa-key
    dependsOn:
      - hail_run_image
      - build_hail
@@ -1015,6 +1029,8 @@ steps:
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
+     export HAIL_TEST_BUCKET=hail-test-dmk9z
+     export GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=2
@@ -1028,6 +1044,11 @@ steps:
        to: /io/resources.tar.gz
      - from: /data.tar.gz
        to: /io/data.tar.gz
+   secrets:
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /gsa-key
    dependsOn:
      - hail_run_image
      - build_hail
@@ -1048,6 +1069,8 @@ steps:
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
+     export HAIL_TEST_BUCKET=hail-test-dmk9z
+     export GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=3
@@ -1061,6 +1084,11 @@ steps:
        to: /io/resources.tar.gz
      - from: /data.tar.gz
        to: /io/data.tar.gz
+   secrets:
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /gsa-key
    dependsOn:
      - hail_run_image
      - build_hail
@@ -1081,6 +1109,8 @@ steps:
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
+     export HAIL_TEST_BUCKET=hail-test-dmk9z
+     export GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=4
@@ -1094,6 +1124,11 @@ steps:
        to: /io/resources.tar.gz
      - from: /data.tar.gz
        to: /io/data.tar.gz
+   secrets:
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /gsa-key
    dependsOn:
      - hail_run_image
      - build_hail
