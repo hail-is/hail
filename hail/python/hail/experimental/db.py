@@ -130,7 +130,7 @@ class DB:
                              f'received: url={url} and config={config}')
         if config is None:
             if url is None:
-                config_path = pkg_resources.resource_filename(__name__, "annotation_db_update.json")
+                config_path = pkg_resources.resource_filename(__name__, "annotation_db_dict_url.json")
                 assert os.path.exists(config_path), f'{config_path} does not exist'
                 with open(config_path) as f:
                     config = json.load(f)

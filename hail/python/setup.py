@@ -33,7 +33,7 @@ setup(
     package_data={
         'hail': ['hail_pip_version',
                  'hail_version',
-                 'experimental/annotation_db.json',
+                 'experimental/annotation_db_formatted_url.json',
                  'experimental/datasets.json'],
         'hail.backend': ['hail-all-spark.jar'],
         'hailtop.hailctl': ['hail_version', 'deploy.yaml']},
