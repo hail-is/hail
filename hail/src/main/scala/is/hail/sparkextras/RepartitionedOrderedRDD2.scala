@@ -7,6 +7,8 @@ import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 
+import scala.annotation.tailrec
+
 object OrderedDependency {
   def generate[T](oldPartitioner: RVDPartitioner, newIntervals: IndexedSeq[Interval], rdd: RDD[T]): OrderedDependency[T] = {
     new OrderedDependency(
@@ -61,7 +63,7 @@ class RepartitionedOrderedRDD2 private (@transient val prev: RVD, @transient val
         private[this] val innerCtx = outerCtx.freshContext()
         private[this] val outerRegion = outerCtx.region
         private[this] val innerRegion = innerCtx.region
-        private[this] val parentIterator = ordPartition.parents.iterator.flatMap(p => prevCRDD.iterator(p, context).next().apply(innerCtx))
+        private[this] val parentIterator = ordPartition.parents.iterator.flatMap(p => prevCRDD.iterator(p, context).flatMap(_.apply(innerCtx)))
         private[this] var pulled: Boolean = false
         private[this] var current: Long =  _
         private[this] val ur = new UnsafeRow(typ.rowType)
@@ -70,18 +72,17 @@ class RepartitionedOrderedRDD2 private (@transient val prev: RVD, @transient val
         // drop left elements at iterator allocation to avoid extra control flow in hasNext()
         dropLeft()
 
-        private[this] def dropLeft(): Unit = {
-          var eltLessThan = true
-          while (parentIterator.hasNext && eltLessThan) {
-            innerRegion.clear()
+        @tailrec private[this] def dropLeft(): Unit = {
+          if (parentIterator.hasNext) {
             pull()
-
-            eltLessThan = pord.lt(key, range.left)
-          }
-
-          // End the iterator if we exhausted iterators before finding an element greater than range.left,
-          // or if first remaining value is greater than range.right
-          if (eltLessThan || pord.gt(key, range.right))
+            if (pord.lt(key, range.left)) {
+              innerRegion.clear()
+              dropLeft()
+            } else if (pord.gt(key, range.right))
+              // End the iterator if first remaining value is greater than range.right
+              end()
+          } else
+            // End the iterator if we exhausted parent iterators before finding an element greater than range.left
             end()
         }
 
