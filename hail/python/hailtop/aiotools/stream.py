@@ -1,14 +1,12 @@
-from typing import Optional, Type, Generic, TypeVar, BinaryIO
+from typing import Optional, Type, BinaryIO
 from types import TracebackType
 import abc
 import io
 from concurrent.futures import ThreadPoolExecutor
 from hailtop.utils import blocking_to_async
 
-T = TypeVar('T')
 
-
-class AsyncStream(abc.ABC, Generic[T]):
+class AsyncStream(abc.ABC):
     def __init__(self):
         self._closed = False
         self._waited_closed = False
@@ -44,7 +42,7 @@ class AsyncStream(abc.ABC, Generic[T]):
     def closed(self) -> None:
         return self._closed
 
-    async def __aenter__(self) -> 'AsyncStream[T]':
+    async def __aenter__(self) -> 'AsyncStream':
         return self
 
     async def __aexit__(

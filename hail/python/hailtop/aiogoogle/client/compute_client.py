@@ -48,5 +48,5 @@ class ComputeClient(BaseClient):
     # https://cloud.google.com/compute/docs/reference/rest/v1/instances/get
     # https://cloud.google.com/compute/docs/reference/rest/v1/instances/delete
 
-    async def list(self, path: str, *, params: Mapping[str, Any] = None, **kwargs) -> Any:
+    async def list(self, path: str, *, params: Mapping[str, Any] = None, **kwargs) -> PagedIterator:
         return PagedIterator(self, path, params, kwargs)

@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple, Any
 import asyncio
 import urllib.parse
 import aiohttp
@@ -6,7 +6,7 @@ from hailtop.aiotools import AsyncStream, AsyncFS, FeedableAsyncIterable
 from .base_client import BaseClient
 
 
-class InsertObjectStream(AsyncStream[bytes]):
+class InsertObjectStream(AsyncStream):
     def __init__(self, it, request_task):
         super().__init__()
         self._it = it
@@ -22,12 +22,15 @@ class InsertObjectStream(AsyncStream[bytes]):
         return len(b)
 
     async def _wait_closed(self):
+        print(f'in _wait_closed')
         await self._it.stop()
         async with await self._request_task as resp:
             self._value = await resp.json()
+            print(self._value)
+        print(f'_wait_closed done')
 
 
-class GetObjectStream(AsyncStream[bytes]):
+class GetObjectStream(AsyncStream):
     def __init__(self, resp):
         super().__init__()
         self._resp = resp
@@ -81,13 +84,21 @@ class StorageClient(BaseClient):
         assert 'alt' not in params
         params['alt'] = 'media'
 
-        resp = await self._session.get(f'https://storage.googleapis.com/storage/v1/b/{bucket}/o/{name}', **kwargs)
+        print(f'making request for {name}')
+        resp = await self._session.get(
+            f'https://storage.googleapis.com/storage/v1/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs)
         return GetObjectStream(resp)
 
-    async def get_object_metadata(self, bucket: str, name: str, **kwargs):
+    async def get_object_metadata(self, bucket: str, name: str, **kwargs) -> Any:
         params = kwargs.get('params')
         assert not params or 'alt' not in params
-        return await self.get(f'/b/{bucket}/o/{name}', **kwargs)
+        return await self.get(f'/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs)
+
+    async def delete_object(self, bucket: str, name: str, **kwargs) -> None:
+        await self.delete(f'/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs)
+
+    async def _list_objects(self, bucket: str, **kwargs) -> Any:
+        return await self.get(f'/b/{bucket}/o', **kwargs)
 
 
 class GoogleStorageAsyncFS(AsyncFS):
@@ -99,7 +110,19 @@ class GoogleStorageAsyncFS(AsyncFS):
     def schemes(self) -> List[str]:
         return ['gs']
 
-    async def open(self, url: str, mode: str = 'r') -> AsyncStream[bytes]:
+    def _get_bucket_name(self, url) -> Tuple[str, str]:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme != 'gs':
+            raise ValueError(f"invalid scheme, expected gs: {parsed.scheme}")
+
+        name = parsed.path
+        if name:
+            assert name[0] == '/'
+            name = name[1:]
+
+        return (parsed.netloc, name)
+            
+    async def open(self, url: str, mode: str = 'r') -> AsyncStream:
         if not all(c in 'rwxabt+' for c in mode):
             raise ValueError(f"invalid mode: {mode}")
         if 't' in mode and 'b' in mode:
@@ -115,15 +138,7 @@ class GoogleStorageAsyncFS(AsyncFS):
         if ('r' in mode) + ('w' in mode) != 1:
             raise ValueError(f"must have exactly one of read/write mode: {mode}")
 
-        parsed = urllib.parse.urlparse(url)
-        if parsed.scheme != 'gs':
-            raise ValueError(f"invalid scheme, expected gs: {parsed.scheme}")
-        bucket = parsed.netloc
-
-        name = parsed.path
-        if name:
-            assert name[0] == '/'
-            name = name[1:]
+        bucket, name = self._get_bucket_name(url)
 
         if 'r' in mode:
             return await self._storage_client.get_object(bucket, name)
@@ -131,6 +146,58 @@ class GoogleStorageAsyncFS(AsyncFS):
         assert 'w' in mode
         return await self._storage_client.insert_object(bucket, name)
 
-    async def close(self):
+    async def mkdir(self, url: str) -> None:
+        pass
+
+    async def isfile(self, url: str) -> bool:
+        try:
+            bucket, name = self._get_bucket_name(url)
+            assert not name.endswith('/')
+            await self._storage_client.get_object_metadata(bucket, name)
+            return True
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                return False
+            raise
+
+    async def isdir(self, url: str) -> bool:
+        bucket, name = self._get_bucket_name(url)
+        if not name.endswith('/'):
+            name = f'{name}/'
+        params = {
+            'delimiter': '/',
+            'includeTrailingDelimiter': 'true',
+            'maxResults': 1,
+            'prefix': name
+        }
+        data = await self._storage_client._list_objects(bucket, params=params)
+        assert 'prefixes' not in data or data['prefixes'] is None
+        items = data.get('items')
+        return items is not None and len(items) > 0
+
+    async def remove(self, url: str) -> None:
+        bucket, name = self._get_bucket_name(url)
+        await self._storage_client.delete_object(bucket, name)
+
+    async def rmtree(self, url: str) -> None:
+        bucket, name = self._get_bucket_name(url)
+        if not name.endswith('/'):
+            name = f'{name}/'
+        params = {
+            'prefix': name
+        }
+        done = False
+        while not done:
+            done = True
+            data = await self._storage_client._list_objects(bucket, params=params)
+            items = data.get('items')
+            print(items)
+            if items:
+                for item in items:
+                    await self._storage_client.delete_object(bucket, item['name'])
+                    print('done: False')
+                    done = False
+
+    async def close(self) -> None:
         await self._storage_client.close()
         self._storage_client = None
