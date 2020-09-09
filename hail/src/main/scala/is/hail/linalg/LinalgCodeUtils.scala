@@ -15,15 +15,11 @@ object LinalgCodeUtils {
 
     val elementType = pndv.pt.elementType
     val nDims = pndv.pt.nDims
-    cb.append(Code._println("Trying to check column major"))
     cb.append(Code(
       runningProduct := elementType.byteSize,
-      Code._println("Just before for loop"),
       Code._println(pndv.value.asInstanceOf[Value[Long]].toS),
       Code.foreach(0 until nDims){ index =>
         Code(
-          Code._println(s"Loop iteration ${index}"),
-          Code._println(shapes(index).toS),
           answer := answer & (shapes(index) ceq runningProduct),
           runningProduct := runningProduct * (shapes(index) > 0L).mux(shapes(index), 1L)
         )
