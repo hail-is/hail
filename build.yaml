@@ -950,7 +950,7 @@ steps:
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
      export HAIL_TEST_BUCKET=hail-test-dmk9z
-     export GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json
+     export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=0
@@ -968,7 +968,7 @@ steps:
     - name: test-gsa-key
       namespace:
         valueFrom: batch_pods_ns.name
-      mountPath: /gsa-key
+      mountPath: /test-gsa-key
    dependsOn:
      - batch_pods_ns
      - hail_run_image
@@ -991,7 +991,7 @@ steps:
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
      export HAIL_TEST_BUCKET=hail-test-dmk9z
-     export GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json
+     export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=1
@@ -1009,7 +1009,7 @@ steps:
     - name: test-gsa-key
       namespace:
         valueFrom: batch_pods_ns.name
-      mountPath: /gsa-key
+      mountPath: /test-gsa-key
    dependsOn:
      - batch_pods_ns
      - hail_run_image
@@ -1032,7 +1032,7 @@ steps:
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
      export HAIL_TEST_BUCKET=hail-test-dmk9z
-     export GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json
+     export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=2
@@ -1050,7 +1050,7 @@ steps:
     - name: test-gsa-key
       namespace:
         valueFrom: batch_pods_ns.name
-      mountPath: /gsa-key
+      mountPath: /test-gsa-key
    dependsOn:
      - batch_pods_ns
      - hail_run_image
@@ -1073,7 +1073,7 @@ steps:
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
      export HAIL_TEST_BUCKET=hail-test-dmk9z
-     export GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json
+     export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=3
@@ -1091,7 +1091,7 @@ steps:
     - name: test-gsa-key
       namespace:
         valueFrom: batch_pods_ns.name
-      mountPath: /gsa-key
+      mountPath: /test-gsa-key
    dependsOn:
      - batch_pods_ns
      - hail_run_image
@@ -1114,7 +1114,7 @@ steps:
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
      export HAIL_TEST_BUCKET=hail-test-dmk9z
-     export GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json
+     export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=4
@@ -1132,7 +1132,7 @@ steps:
     - name: test-gsa-key
       namespace:
         valueFrom: batch_pods_ns.name
-      mountPath: /gsa-key
+      mountPath: /test-gsa-key
    dependsOn:
      - batch_pods_ns
      - hail_run_image
