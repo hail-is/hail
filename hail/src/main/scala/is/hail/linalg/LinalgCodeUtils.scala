@@ -17,7 +17,6 @@ object LinalgCodeUtils {
     val nDims = pndv.pt.nDims
     cb.append(Code(
       runningProduct := elementType.byteSize,
-      Code._println(pndv.value.asInstanceOf[Value[Long]].toS),
       Code.foreach(0 until nDims){ index =>
         Code(
           answer := answer & (shapes(index) ceq runningProduct),
