@@ -1,9 +1,9 @@
-from typing import Mapping, Any
+from typing import Mapping, Any, Optional
 from .base_client import BaseClient
 
 
 class PagedIterator:
-    def __init__(self, client: 'ComputeClient', path: str, request_params: Mapping[str, Any], request_kwargs: Mapping[str, Any]):
+    def __init__(self, client: 'ComputeClient', path: str, request_params: Optional[Mapping[str, Any]], request_kwargs: Mapping[str, Any]):
         assert 'params' not in request_kwargs
         self._client = client
         self._path = path
@@ -48,5 +48,5 @@ class ComputeClient(BaseClient):
     # https://cloud.google.com/compute/docs/reference/rest/v1/instances/get
     # https://cloud.google.com/compute/docs/reference/rest/v1/instances/delete
 
-    async def list(self, path: str, *, params: Mapping[str, Any] = None, **kwargs) -> Any:
+    async def list(self, path: str, *, params: Mapping[str, Any] = None, **kwargs) -> PagedIterator:
         return PagedIterator(self, path, params, kwargs)

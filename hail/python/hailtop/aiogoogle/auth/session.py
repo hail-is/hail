@@ -43,6 +43,8 @@ class BaseSession(abc.ABC):
 
 
 class RateLimitedSession(BaseSession):
+    _session: Optional[BaseSession]
+
     def __init__(self, *, session: BaseSession, rate_limit: RateLimit):
         self._session = session
         self._rate_limiter = RateLimiter(rate_limit)
@@ -58,6 +60,9 @@ class RateLimitedSession(BaseSession):
 
 
 class Session(BaseSession):
+    _session: Optional[aiohttp.ClientSession]
+    _access_token: Optional[AccessToken]
+
     def __init__(self, *, credentials: Credentials = None, **kwargs):
         if credentials is None:
             credentials = Credentials.default_credentials()
