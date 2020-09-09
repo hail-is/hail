@@ -295,4 +295,6 @@ class PCanonicalNDArrayCode(val pt: PCanonicalNDArray, val a: Code[Long]) extend
   override def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue = memoize(cb, name, cb.localBuilder)
 
   override def memoizeField(cb: EmitCodeBuilder, name: String): PValue = memoize(cb, name, cb.fieldBuilder)
+
+  override def shape: PBaseStructCode = PCode(this.pt.shape.pType, this.pt.shape.load(a)).asBaseStruct
 }

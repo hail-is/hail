@@ -809,6 +809,9 @@ class Emit[C](
             }
           }
         }
+      case NDArrayShape(ndIR) =>
+        emitI(ndIR).map(cb){ case pc: PNDArrayCode => pc.shape}
+
       case NDArrayRef(nd, idxs) =>
         val ndt = emitI(nd)
         val ndPType = coerce[PNDArray](nd.pType)
@@ -1749,11 +1752,6 @@ class Emit[C](
         assert(unified)
         impl.apply(EmitRegion(mb, region.code), pt, typeArgs, codeArgs: _*)
 
-      case NDArrayShape(ndIR) =>
-        val ndt = emit(ndIR)
-        val ndP = ndIR.pType.asInstanceOf[PNDArray]
-
-        EmitCode(ndt.setup, ndt.m, PCode(pt, ndP.shape.load(ndt.value[Long])))
       case x@NDArrayReindex(child, indexMap) =>
         val childt = emit(child)
         val childPType = coerce[PNDArray](child.pType)
