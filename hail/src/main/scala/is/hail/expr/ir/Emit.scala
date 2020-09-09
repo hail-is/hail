@@ -1639,7 +1639,6 @@ class Emit[C](
 
       case x@StreamLen(a) =>
         val outerRegion = region.asParent(coerce[PStream](a.pType).separateRegions, "StreamLen")
-        println(s"in StreamLen\n${outerRegion.description}")
         emitStream(a, outerRegion).map { ss =>
           val count = mb.newLocal[Int]("stream_length")
           val SizedStream(setup, stream, length) = ss.asStream.stream
