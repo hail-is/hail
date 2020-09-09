@@ -36,7 +36,7 @@ object RepartitionedOrderedRDD2 {
 class RepartitionedOrderedRDD2 private (@transient val prev: RVD, @transient val newRangeBounds: IndexedSeq[Interval])
   extends RDD[ContextRDD.ElementType[Long]](prev.crdd.sparkContext, Nil) { // Nil since we implement getDependencies
 
-  val prevCRDD: ContextRDD[Long] = prev.boundary.crdd
+  val prevCRDD: ContextRDD[Long] = prev.crdd
   val typ: RVDType = prev.typ
   val kOrd: ExtendedOrdering = PartitionBoundOrdering(typ.kType.virtualType)
 
@@ -55,20 +55,74 @@ class RepartitionedOrderedRDD2 private (@transient val prev: RVD, @transient val
     val ordPartition = partition.asInstanceOf[RepartitionedOrderedRDD2Partition]
     val pord = kOrd.intervalEndpointOrdering
     val range = ordPartition.range
-    val ur = new UnsafeRow(typ.rowType)
-    val key = new SelectFieldsRow(ur, typ.kFieldIdx)
 
-    Iterator.single { (ctx: RVDContext) =>
-      ordPartition.parents.iterator
-        .flatMap { parentPartition =>
-          prevCRDD.iterator(parentPartition, context).flatMap(_(ctx))
-        }.dropWhile { ptr =>
-          ur.set(ctx.r, ptr)
-          pord.lt(key, range.left)
-        }.takeWhile { ptr =>
-          ur.set(ctx.r, ptr)
-          pord.lteq(key, range.right)
+    Iterator.single { (outerCtx: RVDContext) =>
+      new Iterator[Long] {
+        private[this] val innerCtx = outerCtx.freshContext()
+        private[this] val outerRegion = outerCtx.region
+        private[this] val innerRegion = innerCtx.region
+        private[this] val parentIterator = ordPartition.parents.iterator.flatMap(p => prevCRDD.iterator(p, context).next().apply(innerCtx))
+        private[this] var pulled: Boolean = false
+        private[this] var current: Long =  _
+        private[this] val ur = new UnsafeRow(typ.rowType)
+        private[this] val key = new SelectFieldsRow(ur, typ.kFieldIdx)
+
+        // drop left elements at iterator allocation to avoid extra control flow in hasNext()
+        dropLeft()
+
+        private[this] def dropLeft(): Unit = {
+          var eltLessThan = true
+          while (parentIterator.hasNext && eltLessThan) {
+            innerRegion.clear()
+            pull()
+
+            eltLessThan = pord.lt(key, range.left)
+          }
+
+          // End the iterator if we exhausted iterators before finding an element greater than range.left,
+          // or if first remaining value is greater than range.right
+          if (eltLessThan || pord.gt(key, range.right))
+            end()
         }
+
+        private[this] def pull(): Unit = {
+          current = parentIterator.next()
+          ur.set(innerRegion, current)
+          pulled = true
+        }
+
+        private[this] def end(): Unit = {
+          pulled = false
+          innerRegion.clear()
+        }
+
+        def hasNext: Boolean = {
+          if (pulled)
+            return true
+
+          if (!parentIterator.hasNext)
+            return false
+
+          pull()
+
+          if (pord.gt(key, range.right)) {
+            end()
+            return false
+          }
+
+          true
+        }
+
+        def next(): Long = {
+          // hasNext() must be called before next() to fill `current`
+          if (!hasNext)
+            throw new NoSuchElementException
+          pulled = false
+          innerRegion.move(outerRegion)
+          current
+        }
+
+      }
     }
   }
 
