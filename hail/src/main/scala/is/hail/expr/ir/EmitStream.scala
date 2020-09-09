@@ -389,6 +389,7 @@ object Stream {
         val LouterPull = CodeLabel()
         var innerSource: Source[A] = null
         val LinnerPull = CodeLabel()
+        val Lpull = CodeLabel()
         val LinnerEos = CodeLabel()
         val LcloseOuter = CodeLabel()
         val inInnerStream = ctx.mb.genFieldThisRef[Boolean]("sfm_in_innner")
@@ -401,14 +402,14 @@ object Stream {
             Code(FastIndexedSeq[Code[Unit]](
               innerSource.setup, inInnerStream := true, LinnerPull, innerSource.pull,
               // for layout
-              LinnerEos, innerSource.close, inInnerStream := false, closing.mux(LcloseOuter.goto, LouterPull.goto)))
+              LinnerEos, innerSource.close, inInnerStream := false, closing.mux(LcloseOuter.goto, Lpull.goto)))
           })
         Source[A](
           setup0 = Code(outerSource.setup0, innerSource.setup0),
           close0 = Code(innerSource.close0, outerSource.close0),
           setup = Code(closing := false, inInnerStream := false, outerSource.setup),
           close = Code(inInnerStream.mux(Code(closing := true, LinnerEos.goto), Code._empty), LcloseOuter, outerSource.close),
-          pull = inInnerStream.mux(LinnerPull.goto, Code(LouterPull, outerSource.pull)))
+          pull = Code(Lpull, inInnerStream.mux[Ctrl](LinnerPull.goto, Code(LouterPull, outerSource.pull))))
       }
     }
   }
