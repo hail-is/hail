@@ -200,7 +200,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
 case class BlockMatrixNativePersistParameters(id: String)
 
 object BlockMatrixPersistReader {
-  def fromJValue(ctx: BackendContext, jv: JValue): BlockMatrixNativeReader = {
+  def fromJValue(ctx: BackendContext, jv: JValue): BlockMatrixPersistReader = {
     implicit val formats: Formats = BlockMatrixReader.formats
     val params = jv.extract[BlockMatrixNativePersistParameters]
     BlockMatrixPersistReader(params.id, HailContext.backend.getPersistedBlockMatrixType(ctx, params.id))
