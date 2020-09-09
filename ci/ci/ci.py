@@ -339,18 +339,18 @@ async def dev_deploy_branch(request, userdata):
     app = request.app
     try:
         params = await request.json()
-    except Exception:
+    except Exception as e:
         message = 'could not read body as JSON'
         log.info('dev deploy failed: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=message)
+        raise web.HTTPBadRequest(text=message) from e
 
     try:
         branch = FQBranch.from_short_str(params['branch'])
         steps = params['steps']
-    except Exception:
+    except Exception as e:
         message = f'parameters are wrong; check the branch and steps syntax.\n\n{params}'
         log.info('dev deploy failed: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=message)
+        raise web.HTTPBadRequest(text=message) from e
 
     gh = app['github_client']
     request_string = f'/repos/{branch.repo.owner}/{branch.repo.name}/git/refs/heads/{branch.name}'
@@ -358,10 +358,10 @@ async def dev_deploy_branch(request, userdata):
     try:
         branch_gh_json = await gh.getitem(request_string)
         sha = branch_gh_json['object']['sha']
-    except Exception:
+    except Exception as e:
         message = f'error finding {branch} at GitHub'
         log.info('dev deploy failed: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=message)
+        raise web.HTTPBadRequest(text=message) from e
 
     unwatched_branch = UnwatchedBranch(branch, sha, userdata)
 
@@ -369,10 +369,10 @@ async def dev_deploy_branch(request, userdata):
 
     try:
         batch_id = await unwatched_branch.deploy(batch_client, steps)
-    except Exception:  # pylint: disable=broad-except
+    except Exception as e:  # pylint: disable=broad-except
         message = traceback.format_exc()
         raise web.HTTPBadGateway(
-            text=f'starting the deploy failed due to\n{message}')
+            text=f'starting the deploy failed due to\n{message}') from e
     return web.json_response({'sha': sha, 'batch_id': batch_id})
 
 

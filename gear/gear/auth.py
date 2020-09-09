@@ -28,10 +28,10 @@ async def _userdata_from_session_id(session_id):
             return None
 
         log.exception('unknown exception getting userinfo')
-        raise web.HTTPInternalServerError()
-    except Exception:  # pylint: disable=broad-except
+        raise web.HTTPInternalServerError() from e
+    except Exception as e:  # pylint: disable=broad-except
         log.exception('unknown exception getting userinfo')
-        raise web.HTTPInternalServerError()
+        raise web.HTTPInternalServerError() from e
 
 
 async def userdata_from_web_request(request):

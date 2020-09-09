@@ -48,7 +48,7 @@ class ResourceFile(Resource, str):
         return r
 
     def __init__(self, value: Optional[str]):
-        super(ResourceFile, self).__init__()
+        super().__init__()
         assert value is None or isinstance(value, str)
         self._value = value
         self._source: Optional[job.Job] = None

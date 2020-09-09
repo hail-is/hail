@@ -324,11 +324,11 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
     def validate_int(name, value, predicate, description):
         try:
             i = int(value)
-        except ValueError:
+        except ValueError as e:
             set_message(session,
                         f'{name} invalid: {value}.  Must be an integer.',
                         'error')
-            raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+            raise web.HTTPFound(deploy_config.external_url('batch-driver', '/')) from e
         return validate(name, i, predicate, description)
 
     post = await request.post()
@@ -584,13 +584,13 @@ LOCK IN SHARE MODE;
 ''')
 
         attempt_resources = {(record['batch_id'], record['job_id'], record['attempt_id']): json_to_value(record['resources'])
-                             async for record in attempt_resources}  # pylint: disable=bad-continuation
+                             async for record in attempt_resources}
 
         agg_job_resources = {(record['batch_id'], record['job_id']): json_to_value(record['resources'])
-                             async for record in agg_job_resources}  # pylint: disable=bad-continuation
+                             async for record in agg_job_resources}
 
         agg_batch_resources = {record['batch_id']: json_to_value(record['resources'])
-                               async for record in agg_batch_resources}  # pylint: disable=bad-continuation
+                               async for record in agg_batch_resources}
 
         attempt_by_batch_resources = fold(attempt_resources, lambda k: k[0])
         attempt_by_job_resources = fold(attempt_resources, lambda k: (k[0], k[1]))

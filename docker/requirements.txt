@@ -9,7 +9,7 @@ asyncinit==0.2.4
 Authlib==0.11
 decorator==4.4.0
 dill>=0.3.1.1,<0.4
-flake8==3.7.8
+flake8==3.8.3
 Flask-Cors==3.0.8
 Flask-Sockets==0.2.1
 Flask==1.0.3
@@ -31,7 +31,7 @@ parsimonious==0.8.1
 prometheus_async==19.2.0
 prometheus_client==0.7.1
 pyjwt==1.7.1
-pylint==2.5.3
+pylint==2.6.0
 PyMySQL==0.9.3
 pytest==4.6.3
 pytest-asyncio==0.10.0

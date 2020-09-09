@@ -507,16 +507,16 @@ class BatchPoolFuture:
             await asyncio.wait_for(self.fetch_lock.acquire(), timeout=timeout)
             if timeout:
                 timeout -= time.time() - before
-        except asyncio.TimeoutError:
-            raise concurrent.futures.TimeoutError()
+        except asyncio.TimeoutError as e:
+            raise concurrent.futures.TimeoutError() from e
         try:
             if self.value != NO_VALUE:
                 return
             try:
                 await asyncio.wait_for(self.batch._async_batch.wait(disable_progress_bar=True),
                                        timeout=timeout)
-            except asyncio.TimeoutError:
-                raise concurrent.futures.TimeoutError()
+            except asyncio.TimeoutError as e:
+                raise concurrent.futures.TimeoutError() from e
             try:
                 value, traceback = dill.loads(
                     await self.executor.gcs.read_binary_gs_file(self.output_gcs))
