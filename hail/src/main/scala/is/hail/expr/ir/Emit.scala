@@ -626,12 +626,12 @@ class Emit[C](
       emitI(ir).map(cb){case pNDCode: PNDArrayCode =>
         val pNDValue = pNDCode.memoize(cb, "ndarray_column_major_check")
         val isColumnMajor = LinalgCodeUtils.checkColumnMajor(pNDValue, cb)
-        val answer = cb.newField[Long]("ndarray_output_column_major")
-        cb.ifx(isColumnMajor, {cb.append(answer := pNDValue.tcode[Long])},
+        val pAnswer = cb.emb.newPField("ndarray_output_column_major", pNDValue.pt)
+        cb.ifx(isColumnMajor, {cb.append(pAnswer := pNDValue)},
         {
-          cb.append(answer := LinalgCodeUtils.createColumnMajorCode(pNDValue, cb).tcode[Long])
+          cb.append(pAnswer := LinalgCodeUtils.createColumnMajorCode(pNDValue, cb, region.code))
         })
-        PCode.apply(pNDValue.pt, answer)
+        pAnswer.get
       }
     }
 
@@ -1260,11 +1260,7 @@ class Emit[C](
 
     def emitNDArrayColumnMajorStrides(ir: IR): EmitCode = {
       // Currently relying on the fact that emitDeforestedNDArray always emits standard striding.
-
-      // New plan, emit the thing however it wants to be, but then go and change it to the proper form.
-
-      val emitted = emit(ir)
-      emitted
+      emitDeforestedNDArray(ir)
     }
 
     val pt = ir.pType
