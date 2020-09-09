@@ -320,7 +320,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         num_intervals = len(interval_bounds)
         for i in range(num_intervals - 2):
             intervals.append(hl.utils.Interval(start=interval_bounds[i], end=interval_bounds[i + 1], includes_start=True, includes_end=False))
-        last_interval = hl.utils.Interval(start=interval_bounds[num_intervals - 2], end=interval_bounds[num_intervals-1], includes_start=True, includes_end=True)
+        last_interval = hl.utils.Interval(start=interval_bounds[num_intervals - 2], end=interval_bounds[num_intervals - 1], includes_start=True, includes_end=True)
         intervals.append(last_interval)
 
         return intervals
