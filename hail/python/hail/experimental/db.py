@@ -1,37 +1,52 @@
 import json
 import os
-import pkg_resources
+import warnings
+
 import hail as hl
+import pkg_resources
+import requests
+from hailtop.utils import retry_response_returning_functions
 
-from hailtop.utils import (retry_response_returning_functions,
-                           external_requests_client_session)
-
-from ..utils.java import Env
-from ..typecheck import typecheck_method, oneof
-from ..table import table_type
-from ..matrixtable import matrix_table_type
 from . import lens
+from ..matrixtable import matrix_table_type
+from ..table import table_type
+from ..typecheck import typecheck_method, oneof
+from ..utils.java import Env
 
 
 class DatasetVersion:
     @staticmethod
     def from_json(doc):
-        assert 'url' in doc, doc
-        assert 'version' in doc, doc
+        assert 'url' in doc
+        assert 'version' in doc
         return DatasetVersion(doc['url'],
                               doc['version'])
 
     @staticmethod
-    def insert_region(versions, region):
+    def get_region(name, versions, region):
+        available_versions = []
         if region is not None:
             for version in versions:
-                if '{region}' in version.url:
-                    version.url = version.url.format(region=region)
-        return versions
+                if version.check_region(name, region):
+                    version.url = version.url[region]
+                    available_versions.append(version)
+        return available_versions
 
     def __init__(self, url, version):
         self.url = url
         self.version = version
+
+    def check_region(self, name, region):
+        current_version = self.version
+        available_regions = [k for k, v in self.url.items() if v is not None]
+        valid_region = True
+        if region not in available_regions:
+            message = f'dataset: \'{name}\', version: {current_version}, exists but is not yet ' \
+                      f'available in \'{region}\' region bucket, ' \
+                      f'currently available in {available_regions} region bucket(s).'
+            warnings.warn(message, UserWarning, stacklevel=1)
+            valid_region = False
+        return valid_region
 
     def maybe_index(self, indexer_key_expr, all_matches):
         return hl.read_table(self.url)._maybe_flexindex_table_by_expr(
@@ -41,18 +56,18 @@ class DatasetVersion:
 class Dataset:
     @staticmethod
     def from_name_and_json(name, doc, region):
-        assert 'description' in doc, doc
-        assert 'url' in doc, doc
-        assert 'key_properties' in doc, doc
-        assert 'versions' in doc, doc
-        versions = [DatasetVersion.from_json(x)
-                    for x in doc['versions']]
-        versions = DatasetVersion.insert_region(versions, region)
-        return Dataset(name,
-                       doc['description'],
-                       doc['url'],
-                       set(doc['key_properties']),
-                       versions)
+        assert 'description' in doc
+        assert 'url' in doc
+        assert 'key_properties' in doc
+        assert 'versions' in doc
+        versions = [DatasetVersion.from_json(x) for x in doc['versions']]
+        versions = DatasetVersion.get_region(name, versions, region)
+        if versions:
+            return Dataset(name,
+                           doc['description'],
+                           doc['url'],
+                           set(doc['key_properties']),
+                           versions)
 
     def __init__(self, name, description, url, key_properties, versions):
         assert set(key_properties).issubset(DB._valid_key_properties)
@@ -110,20 +125,18 @@ class DB:
             raise ValueError(f'Specify valid region parameter, received: region={region}. '
                              f'Valid regions are {DB._valid_regions}.')
         self.region = region
-
         if config is not None and url is not None:
             raise ValueError(f'Only specify one of the parameters url and config, '
                              f'received: url={url} and config={config}')
         if config is None:
             if url is None:
-                config_path = pkg_resources.resource_filename(__name__, "annotation_db.json")
+                config_path = pkg_resources.resource_filename(__name__, "annotation_db_update.json")
                 assert os.path.exists(config_path), f'{config_path} does not exist'
                 with open(config_path) as f:
                     config = json.load(f)
             else:
-                session = external_requests_client_session()
                 response = retry_response_returning_functions(
-                    session.get, url)
+                    requests.get, url)
                 config = response.json()
             assert isinstance(config, dict)
         else:
@@ -131,7 +144,8 @@ class DB:
                 raise ValueError(f'expected a dict mapping dataset names to '
                                  f'configurations, but found {config}')
         self.__by_name = {k: Dataset.from_name_and_json(k, v, self.region)
-                          for k, v in config.items()}
+                          for k, v in config.items()
+                          if Dataset.from_name_and_json(k, v, self.region) is not None}
 
     def available_databases(self):
         return self.__by_name.keys()
@@ -206,6 +220,10 @@ class DB:
         if len(set(names)) != len(names):
             raise ValueError(
                 f'cannot annotate same dataset twice, please remove duplicates from: {names}')
+        # unavailable = [k for k in self.__by_name.keys() if k not in list(names)]
+        unavailable = [x for x in list(names) if x not in self.__by_name.keys()]
+        if unavailable:
+            raise ValueError(f'datasets: {unavailable} are not available in the {self.region} region')
         datasets = [self.dataset_by_name(name) for name in names]
         if any(dataset.is_gene_keyed() for dataset in datasets):
             gene_field, rel = self._annotate_gene_name(rel)
