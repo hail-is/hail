@@ -85,11 +85,29 @@ async def test_isdir(filesystem):
     dir = f'{base}/{token}'
     await fs.mkdir(dir)
 
-    file = f'{dir}/foo'
-    await fs.touch(file)
+    await fs.touch(f'{dir}/foo')
 
     # can't test this until after creating foo
     assert await fs.isdir(dir)
+
+
+@pytest.mark.asyncio
+async def test_isdir_subdir_only(filesystem):
+    fs, base = filesystem
+
+    token1 = secrets.token_hex(16)
+    dir = f'{base}/{token1}'
+    await fs.mkdir(dir)
+
+    token2 = secrets.token_hex(16)
+    subdir = f'{dir}/{token2}'
+    await fs.mkdir(subdir)
+
+    await fs.touch(f'{subdir}/foo')
+
+    # can't test this until after creating foo
+    assert await fs.isdir(dir)
+    assert await fs.isdir(subdir)
 
 
 @pytest.mark.asyncio

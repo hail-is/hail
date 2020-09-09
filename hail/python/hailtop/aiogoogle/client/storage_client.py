@@ -149,9 +149,12 @@ class GoogleStorageAsyncFS(AsyncFS):
             'prefix': name
         }
         data = await self._storage_client._list_objects(bucket, params=params)
-        assert 'prefixes' not in data or data['prefixes'] is None
+        prefixes = data.get('prefixes')
+        n_prefixes = len(prefixes) if prefixes is not None else 0
         items = data.get('items')
-        return items is not None and len(items) > 0
+        n_items = len(items) if items is not None else 0
+        n = n_prefixes + n_items
+        return n > 0
 
     async def remove(self, url: str) -> None:
         bucket, name = self._get_bucket_name(url)
