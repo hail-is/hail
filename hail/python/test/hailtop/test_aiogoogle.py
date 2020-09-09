@@ -144,6 +144,21 @@ async def test_rmtree(filesystem):
 
 
 @pytest.mark.asyncio
+async def test_get_object_metadata():
+    bucket = os.environ['HAIL_TEST_BUCKET']
+    file = secrets.token_hex(16)
+
+    async with StorageClient() as client:
+        async with await client.insert_object(bucket, file) as f:
+            await f.write(b'foo')
+        metadata = await client.get_object_metadata(bucket, file)
+        assert 'etag' in metadata
+        assert metadata['md5Hash'] == 'rL0Y20zC+Fzt72VPzMSk2A=='
+        assert metadata['crc32c'] == 'z8SuHQ=='
+        assert int(metadata['size']) == 3
+
+
+@pytest.mark.asyncio
 async def test_get_object_headers():
     bucket = os.environ['HAIL_TEST_BUCKET']
     file = secrets.token_hex(16)
