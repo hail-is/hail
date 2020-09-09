@@ -42,7 +42,7 @@ class AsyncFS(abc.ABC):
         pass
 
     async def touch(self, url: str) -> None:
-        async with await self.open(url, 'wb') as f:
+        async with await self.open(url, 'wb'):
             pass
 
     async def close(self) -> None:
@@ -64,10 +64,11 @@ class LocalAsyncFS(AsyncFS):
             thread_pool = ThreadPoolExecutor(max_workers=max_workers)
         self._thread_pool = thread_pool
 
-    def schemes(self) -> List[str]:
+    def schemes(self) -> Set[str]:
         return {'file'}
 
-    def _get_path(self, url):
+    @staticmethod
+    def _get_path(url):
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme and parsed.scheme != 'file':
             raise ValueError(f"invalid scheme, expected file: {parsed.scheme}")

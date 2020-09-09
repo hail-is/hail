@@ -1,13 +1,5 @@
 PYTHON := python3
 
-.PHONY: fleep
-fleep:
-	$(PYTHON) -m mypy --ignore-missing-imports hailtop/aiotools hailtop/aiogoogle
-	$(PYTHON) -m flake8 --config ../../setup.cfg hailtop/aiotools
-	$(PYTHON) -m flake8 --config ../../setup.cfg hailtop/aiogoogle
-	$(PYTHON) -m pylint --rcfile ../../pylintrc hailtop.aiotools --score=n
-	$(PYTHON) -m pylint --rcfile ../../pylintrc hailtop.aiogoogle --score=n
-
 .PHONY: check-hail
 check-hail:
 	$(PYTHON) -m flake8 --config ../../setup.cfg hail

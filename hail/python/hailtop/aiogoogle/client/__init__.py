@@ -11,5 +11,8 @@ __all__ = [
     'ComputeClient',
     'IAmClient',
     'LoggingClient',
-    'StorageClient'
+    'InsertObjectStream',
+    'GetObjectStream',
+    'StorageClient',
+    'GoogleStorageAsyncFS'
 ]

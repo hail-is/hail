@@ -1,4 +1,4 @@
-from typing import List, Tuple, Any
+from typing import Tuple, Any, Set, Optional
 import asyncio
 import urllib.parse
 import aiohttp
@@ -22,12 +22,10 @@ class InsertObjectStream(AsyncStream):
         return len(b)
 
     async def _wait_closed(self):
-        print(f'in _wait_closed')
         await self._it.stop()
         async with await self._request_task as resp:
             self._value = await resp.json()
             print(self._value)
-        print(f'_wait_closed done')
 
 
 class GetObjectStream(AsyncStream):
@@ -68,7 +66,7 @@ class StorageClient(BaseClient):
         params['uploadType'] = 'media'
 
         assert 'data' not in kwargs
-        it: FeedableAsyncIterable[bytes]  = FeedableAsyncIterable()
+        it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
         kwargs['data'] = aiohttp.AsyncIterablePayload(it)
         request_task = asyncio.create_task(self._session.post(
             f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
@@ -102,15 +100,16 @@ class StorageClient(BaseClient):
 
 
 class GoogleStorageAsyncFS(AsyncFS):
-    def __init__(self, storage_client: StorageClient = None):
+    def __init__(self, storage_client: Optional[StorageClient] = None):
         if not storage_client:
             storage_client = StorageClient()
         self._storage_client = storage_client
 
-    def schemes(self) -> List[str]:
-        return ['gs']
+    def schemes(self) -> Set[str]:
+        return {'gs'}
 
-    def _get_bucket_name(self, url) -> Tuple[str, str]:
+    @staticmethod
+    def _get_bucket_name(url: str) -> Tuple[str, str]:
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme != 'gs':
             raise ValueError(f"invalid scheme, expected gs: {parsed.scheme}")
@@ -121,7 +120,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             name = name[1:]
 
         return (parsed.netloc, name)
-            
+
     async def open(self, url: str, mode: str = 'r') -> AsyncStream:
         if not all(c in 'rwxabt+' for c in mode):
             raise ValueError(f"invalid mode: {mode}")

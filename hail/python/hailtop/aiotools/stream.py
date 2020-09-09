@@ -1,7 +1,6 @@
 from typing import Optional, Type, BinaryIO
 from types import TracebackType
 import abc
-import io
 from concurrent.futures import ThreadPoolExecutor
 from hailtop.utils import blocking_to_async
 
@@ -55,7 +54,7 @@ class AsyncStream(abc.ABC):
 class _AsyncStreamFromBlocking(AsyncStream):
     _thread_pool: ThreadPoolExecutor
     _f: Optional[BinaryIO]
-    
+
     def __init__(self, thread_pool: ThreadPoolExecutor, f: BinaryIO):
         super().__init__()
         self._thread_pool = thread_pool

@@ -1,4 +1,4 @@
-from typing import TypeVar, AsyncIterator, Union
+from typing import TypeVar, AsyncIterator
 import asyncio
 
 _T = TypeVar('_T')
@@ -10,7 +10,7 @@ class _StopFeedableAsyncIterator:
 
 class FeedableAsyncIterable(AsyncIterator[_T]):
     def __init__(self, maxsize: int = 1):
-        self._queue: asyncio.Queue[Union[_StopFeedableAsyncIterator, _T]] = asyncio.Queue(maxsize=maxsize)
+        self._queue: asyncio.Queue = asyncio.Queue(maxsize=maxsize)
         self._stopped = False
 
     def __aiter__(self) -> 'FeedableAsyncIterable[_T]':
