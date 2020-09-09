@@ -345,8 +345,8 @@ object BlockMatrix {
     bms.zipWithIndex.foreach { case (bm, bIdx) =>
       val uri = blockMatrixURI(bIdx)
       if (overwrite)
-        fs.delete(prefix, recursive = true)
-      else if (fs.exists(prefix))
+        fs.delete(uri, recursive = true)
+      else if (fs.exists(uri))
         fatal(s"file already exists: $uri")
 
       fs.mkDir(uri)
