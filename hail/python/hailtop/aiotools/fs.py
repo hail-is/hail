@@ -7,7 +7,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
 from hailtop.utils import blocking_to_async
-from .stream import AsyncStream, blocking_stream_to_async
+from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
 
 AsyncFSType = TypeVar('AsyncFSType', bound='AsyncFS')
 
@@ -18,7 +18,11 @@ class AsyncFS(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def open(self, url: str, mode: str = 'r') -> AsyncStream:
+    async def open(self, url: str) -> ReadableStream:
+        pass
+
+    @abc.abstractmethod
+    async def create(self, url: str) -> WritableStream:
         pass
 
     @abc.abstractmethod
@@ -42,7 +46,7 @@ class AsyncFS(abc.ABC):
         pass
 
     async def touch(self, url: str) -> None:
-        async with await self.open(url, 'wb'):
+        async with await self.create(url):
             pass
 
     async def close(self) -> None:
@@ -74,10 +78,11 @@ class LocalAsyncFS(AsyncFS):
             raise ValueError(f"invalid scheme, expected file: {parsed.scheme}")
         return parsed.path
 
-    async def open(self, url: str, mode: str = 'r') -> AsyncStream:
-        if 'b' not in mode:
-            raise ValueError(f"can't open: text mode not supported: {mode}")
-        return blocking_stream_to_async(self._thread_pool, cast(BinaryIO, open(self._get_path(url), mode)))
+    async def open(self, url: str) -> ReadableStream:
+        return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, open(self._get_path(url), 'rb')))
+
+    async def create(self, url: str) -> WritableStream:
+        return blocking_writable_stream_to_async(self._thread_pool, cast(BinaryIO, open(self._get_path(url), 'wb')))
 
     async def mkdir(self, url: str) -> None:
         path = self._get_path(url)
@@ -106,8 +111,9 @@ class RouterAsyncFS(AsyncFS):
         schemes = set()
         for fs in filesystems:
             for scheme in fs.schemes():
-                scheme_fs[scheme] = fs
-                schemes.add(scheme)
+                if scheme not in schemes:
+                    scheme_fs[scheme] = fs
+                    schemes.add(scheme)
 
         if default_scheme not in schemes:
             raise ValueError(f'default scheme {default_scheme} not in set of schemes: {", ".join(schemes)}')
@@ -135,9 +141,13 @@ class RouterAsyncFS(AsyncFS):
 
         return fs
 
-    async def open(self, url: str, mode: str = 'r') -> AsyncStream:
+    async def open(self, url: str) -> ReadableStream:
         fs = self._get_fs(url)
-        return await fs.open(url, mode)
+        return await fs.open(url)
+
+    async def create(self, url: str) -> WritableStream:
+        fs = self._get_fs(url)
+        return await fs.create(url)
 
     async def mkdir(self, url: str) -> None:
         fs = self._get_fs(url)

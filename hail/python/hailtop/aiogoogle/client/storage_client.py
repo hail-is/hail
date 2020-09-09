@@ -2,20 +2,17 @@ from typing import Tuple, Any, Set, Optional
 import asyncio
 import urllib.parse
 import aiohttp
-from hailtop.aiotools import AsyncStream, AsyncFS, FeedableAsyncIterable
+from hailtop.aiotools import ReadableStream, WritableStream, AsyncFS, FeedableAsyncIterable
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 from .base_client import BaseClient
 
 
-class InsertObjectStream(AsyncStream):
+class InsertObjectStream(WritableStream):
     def __init__(self, it, request_task):
         super().__init__()
         self._it = it
         self._request_task = request_task
         self._value = None
-
-    def writable(self):
-        return True
 
     async def write(self, b):
         assert not self.closed
@@ -26,17 +23,13 @@ class InsertObjectStream(AsyncStream):
         await self._it.stop()
         async with await self._request_task as resp:
             self._value = await resp.json()
-            print(self._value)
 
 
-class GetObjectStream(AsyncStream):
+class GetObjectStream(ReadableStream):
     def __init__(self, resp):
         super().__init__()
         self._resp = resp
         self._content = resp.content
-
-    def readable(self) -> bool:
-        return True
 
     async def read(self, n: int = -1) -> bytes:
         assert not self._closed
@@ -124,28 +117,12 @@ class GoogleStorageAsyncFS(AsyncFS):
 
         return (parsed.netloc, name)
 
-    async def open(self, url: str, mode: str = 'r') -> AsyncStream:
-        if not all(c in 'rwxabt+' for c in mode):
-            raise ValueError(f"invalid mode: {mode}")
-        if 't' in mode and 'b' in mode:
-            raise ValueError(f"can't have text and binary mode at once: {mode}")
-        if 'b' not in mode:
-            raise ValueError(f"text mode not supported: {mode}")
-        if 'x' in mode:
-            raise ValueError(f"exclusive creation not supported: {mode}")
-        if 'a' in mode:
-            raise ValueError(f"append mode not supported: {mode}")
-        if '+' in mode:
-            raise ValueError(f"updating not supported: {mode}")
-        if ('r' in mode) + ('w' in mode) != 1:
-            raise ValueError(f"must have exactly one of read/write mode: {mode}")
-
+    async def open(self, url: str) -> ReadableStream:
         bucket, name = self._get_bucket_name(url)
+        return await self._storage_client.get_object(bucket, name)
 
-        if 'r' in mode:
-            return await self._storage_client.get_object(bucket, name)
-
-        assert 'w' in mode
+    async def create(self, url: str) -> WritableStream:
+        bucket, name = self._get_bucket_name(url)
         return await self._storage_client.insert_object(bucket, name)
 
     async def mkdir(self, url: str) -> None:
@@ -192,11 +169,9 @@ class GoogleStorageAsyncFS(AsyncFS):
             done = True
             data = await self._storage_client._list_objects(bucket, params=params)
             items = data.get('items')
-            print(items)
             if items:
                 for item in items:
                     await self._storage_client.delete_object(bucket, item['name'])
-                    print('done: False')
                     done = False
 
     async def close(self) -> None:

@@ -51,12 +51,12 @@ async def test_write_read(filesystem, file_data):
     token = secrets.token_hex(16)
     file = f'{base}/{token}'
 
-    async with await fs.open(file, 'wb') as f:
+    async with await fs.create(file) as f:
         for b in file_data:
             await f.write(b)
 
     expected = b''.join(file_data)
-    async with await fs.open(file, 'rb') as f:
+    async with await fs.open(file) as f:
         actual = await f.read()
 
     assert expected == actual
