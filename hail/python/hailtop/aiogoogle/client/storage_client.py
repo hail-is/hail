@@ -154,7 +154,6 @@ class GoogleStorageAsyncFS(AsyncFS):
     async def isfile(self, url: str) -> bool:
         try:
             bucket, name = self._get_bucket_name(url)
-            assert not name.endswith('/')
             await self._storage_client.get_object_metadata(bucket, name)
             return True
         except aiohttp.ClientResponseError as e:
