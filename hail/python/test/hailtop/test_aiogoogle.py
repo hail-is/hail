@@ -4,7 +4,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor
 import pytest
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS
-from hailtop.aiogoogle import GoogleStorageAsyncFS
+from hailtop.aiogoogle import StorageClient, GoogleStorageAsyncFS
 
 
 @pytest.fixture(params=['file', 'gs', 'router/file', 'router/gs'])
@@ -123,3 +123,18 @@ async def test_rmtree(filesystem):
     await fs.rmtree(dir)
 
     assert not await fs.isdir(dir)
+
+
+@pytest.mark.asyncio
+async def test_get_object_headers():
+    bucket = os.environ['HAIL_TEST_BUCKET']
+    file = secrets.token_hex(16)
+
+    async with StorageClient() as client:
+        async with await client.insert_object(bucket, file) as f:
+            await f.write(b'foo')
+        async with await client.get_object(bucket, file) as f:
+            headers = f.headers()
+            assert 'ETag' in headers
+            assert headers['X-Goog-Hash'] == 'crc32c=z8SuHQ==,md5=rL0Y20zC+Fzt72VPzMSk2A=='
+            assert await f.read() == b'foo'

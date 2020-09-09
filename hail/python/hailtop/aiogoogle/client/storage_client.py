@@ -3,6 +3,7 @@ import asyncio
 import urllib.parse
 import aiohttp
 from hailtop.aiotools import AsyncStream, AsyncFS, FeedableAsyncIterable
+from multidict import CIMultiDictProxy
 from .base_client import BaseClient
 
 
@@ -40,6 +41,9 @@ class GetObjectStream(AsyncStream):
     async def read(self, n: int = -1) -> bytes:
         assert not self._closed
         return await self._content.read(n)
+
+    def headers(self) -> 'CIMultiDictProxy[str]':
+        return self._resp.headers
 
     async def _wait_closed(self) -> None:
         self._content = None
@@ -82,7 +86,6 @@ class StorageClient(BaseClient):
         assert 'alt' not in params
         params['alt'] = 'media'
 
-        print(f'making request for {name}')
         resp = await self._session.get(
             f'https://storage.googleapis.com/storage/v1/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs)
         return GetObjectStream(resp)
