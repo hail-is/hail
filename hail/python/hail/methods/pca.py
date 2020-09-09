@@ -312,15 +312,15 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
     mt = mt.select_entries(x=mt[field])
 
-    def get_even_partitioning(ht, partition_size):
+    def get_even_partitioning(ht, partition_size, total_num_rows):
         ht = ht.select().add_index("_even_partitioning_index")
-        filt = ht.filter(ht._even_partitioning_index % partition_size == 0)
+        filt = ht.filter((ht._even_partitioning_index % partition_size == 0) | (ht._even_partitioning_index == (total_num_rows - 1)))
         interval_bounds = filt.select().collect()
         intervals = []
-        for i in range(len(interval_bounds) - 1):
+        num_intervals = len(interval_bounds)
+        for i in range(num_intervals - 2):
             intervals.append(hl.utils.Interval(start=interval_bounds[i], end=interval_bounds[i + 1], includes_start=True, includes_end=False))
-        last_element = ht.tail(1).select().collect()[0]
-        last_interval = hl.utils.Interval(start=interval_bounds[len(interval_bounds) - 1], end=last_element, includes_start=True, includes_end=True)
+        last_interval = hl.utils.Interval(start=interval_bounds[num_intervals - 2], end=interval_bounds[num_intervals-1], includes_start=True, includes_end=True)
         intervals.append(last_interval)
 
         return intervals
@@ -329,7 +329,8 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     ht = ht.select(xs=ht.entries.map(lambda e: e['x']))
     temp_file_name = hl.utils.new_temp_file("pca", "ht")
     ht = ht.checkpoint(temp_file_name)
-    new_partitioning = get_even_partitioning(ht, block_size)
+    num_rows = ht.count()
+    new_partitioning = get_even_partitioning(ht, block_size, num_rows)
     ht = hl.read_table(temp_file_name, _intervals=new_partitioning)
     temp_file_name_2 = hl.utils.new_temp_file("pca", "ht2")
     ht = ht.checkpoint(temp_file_name_2)
