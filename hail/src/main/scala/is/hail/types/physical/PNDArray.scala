@@ -32,7 +32,7 @@ abstract class PNDArray extends PType {
     Region.loadLong(shape.pType.fieldOffset(shape.load(off), idx))
   }
 
-  def numElements(shape: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): Code[Long]
+  def numElements(shape: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long]
 
   def makeShapeBuilder(shapeArray: IndexedSeq[Value[Long]]): StagedRegionValueBuilder => Code[Unit]
 

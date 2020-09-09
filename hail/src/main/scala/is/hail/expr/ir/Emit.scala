@@ -622,7 +622,18 @@ class Emit[C](
     def emitDeforestedNDArray(ir: IR): IEmitCode =
       deforestNDArray(ir, mb, region, env).toI(cb)
 
-    def emitNDArrayStandardStrides(ir: IR): IEmitCode = emitDeforestedNDArray(ir)
+    def emitNDArrayColumnMajorStrides(ir: IR): IEmitCode = {
+      emitI(ir).map(cb){case pNDCode: PNDArrayCode =>
+        val pNDValue = pNDCode.memoize(cb, "ndarray_column_major_check")
+        val isColumnMajor = LinalgCodeUtils.checkColumnMajor(pNDValue, cb)
+        val pAnswer = cb.emb.newPField("ndarray_output_column_major", pNDValue.pt)
+        cb.ifx(isColumnMajor, {cb.append(pAnswer := pNDValue)},
+        {
+          cb.append(pAnswer := LinalgCodeUtils.createColumnMajorCode(pNDValue, cb, region.code))
+        })
+        pAnswer.get
+      }
+    }
 
     val pt = ir.pType
 
@@ -818,7 +829,7 @@ class Emit[C](
         }
 
       case x@NDArraySVD(nd, full_matrices, computeUV) =>
-        emitNDArrayStandardStrides(nd).flatMap(cb){ ndPCode =>
+        emitNDArrayColumnMajorStrides(nd).flatMap(cb){ ndPCode =>
           val ndPVal = ndPCode.asNDArray.memoize(cb, "nd_svd_value")
           val ndPType = ndPCode.asNDArray.pt
 
@@ -1247,9 +1258,20 @@ class Emit[C](
     def emitDeforestedNDArray(ir: IR): EmitCode =
       deforestNDArray(ir, mb, region, env)
 
-    def emitNDArrayStandardStrides(ir: IR): EmitCode =
-      // Currently relying on the fact that emitDeforestedNDArray always emits standard striding.
-      emitDeforestedNDArray(ir)
+    def emitNDArrayColumnMajorStrides(ir: IR): EmitCode = {
+      EmitCode.fromI(mb) { cb =>
+        emit(ir).toI(cb).map(cb) { case pNDCode: PNDArrayCode =>
+          val pNDValue = pNDCode.memoize(cb, "ndarray_column_major_check")
+          val isColumnMajor = LinalgCodeUtils.checkColumnMajor(pNDValue, cb)
+          val pAnswer = cb.emb.newPField("ndarray_output_column_major", pNDValue.pt)
+          cb.ifx(isColumnMajor, {cb.append(pAnswer := pNDValue)},
+            {
+              cb.append(pAnswer := LinalgCodeUtils.createColumnMajorCode(pNDValue, cb, region.code))
+            })
+          pAnswer
+        }
+      }
+    }
 
     val pt = ir.pType
 
@@ -1773,8 +1795,8 @@ class Emit[C](
       case x: NDArrayFilter => emitDeforestedNDArray(x)
 
       case NDArrayMatMul(lChild, rChild) =>
-        val lT = emitNDArrayStandardStrides(lChild)
-        val rT = emitNDArrayStandardStrides(rChild)
+        val lT = emitNDArrayColumnMajorStrides(lChild)
+        val rT = emitNDArrayColumnMajorStrides(rChild)
 
         val lPType = coerce[PNDArray](lChild.pType)
         val rPType = coerce[PNDArray](rChild.pType)
@@ -1923,7 +1945,7 @@ class Emit[C](
 
       case x@NDArrayQR(nd, mode) =>
         // See here to understand different modes: https://docs.scipy.org/doc/numpy/reference/generated/numpy.linalg.qr.html
-        val ndt = emitNDArrayStandardStrides(nd)
+        val ndt = emitNDArrayColumnMajorStrides(nd)
         val ndAddress = mb.genFieldThisRef[Long]()
         val ndPType = nd.pType.asInstanceOf[PNDArray]
         // This does a lot of byte level copying currently, so only trust
@@ -1964,7 +1986,7 @@ class Emit[C](
 
         val computeHAndTau = Code(FastIndexedSeq(
           ndAddress := ndt.value[Long],
-          aNumElements := ndPType.numElements(shapeArray.map(_.get), mb),
+          aNumElements := ndPType.numElements(shapeArray, mb),
 
           // Make some space for A, which will be overriden during DGEQRF
           aAddressDGEQRF := ndPType.data.pType.allocate(region.code, aNumElements.toI),
@@ -2167,7 +2189,7 @@ class Emit[C](
 
       case NDArrayInv(nd) =>
         // Based on https://github.com/numpy/numpy/blob/v1.19.0/numpy/linalg/linalg.py#L477-L547
-        val ndt = emitNDArrayStandardStrides(nd)
+        val ndt = emitNDArrayColumnMajorStrides(nd)
         val ndAddress = mb.genFieldThisRef[Long]()
         val ndPType = nd.pType.asInstanceOf[PCanonicalNDArray]
 
@@ -3000,7 +3022,7 @@ abstract class NDArrayEmitter[C](
 
     val dataAddress: Code[Long] =
       Code(
-        dataSrvb.start(targetType.numElements(outputShapeVariables.map(_.load()), mb).toI),
+        dataSrvb.start(targetType.numElements(outputShapeVariables, mb).toI),
         emitLoops(mb, outputShapeVariables, dataSrvb),
         dataSrvb.end())
 

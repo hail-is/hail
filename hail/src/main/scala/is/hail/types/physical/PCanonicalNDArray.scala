@@ -57,7 +57,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   override lazy val encodableType: PType = PCanonicalNDArray(elementType.encodableType, nDims, required)
 
-  def numElements(shape: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {
+  def numElements(shape: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {
     shape.foldLeft(1L: Code[Long])(_ * _)
   }
 
