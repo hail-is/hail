@@ -1476,12 +1476,6 @@ object IRParser {
           expr <- ir_value_expr(newEnv)(it)
           newKey <- ir_value_expr(newEnv)(it)
         } yield TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize)
-      case "TableGroupWithinPartitions" =>
-        val name = identifier(it)
-        val n = int32_literal(it)
-        table_ir(env)(it).map { child =>
-          TableGroupWithinPartitions(child, name, n)
-        }
       case "TableRepartition" =>
         val n = int32_literal(it)
         val strategy = int32_literal(it)
