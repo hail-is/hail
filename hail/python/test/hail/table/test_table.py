@@ -1514,3 +1514,10 @@ def test_map_partitions_errors():
         ht._map_partitions(lambda rows: 5)
     with pytest.raises(ValueError, match='must preserve key fields'):
         ht._map_partitions(lambda rows: rows.map(lambda r: r.drop('idx')))
+
+def test_map_partitions_indexed():
+    tmp_file = new_temp_file()
+    hl.utils.range_table(100, 8).write(tmp_file)
+    ht = hl.read_table(tmp_file, _intervals=[hl.Interval(start=hl.Struct(idx=11), end=hl.Struct(idx=55))])
+    ht = ht.key_by()._map_partitions(lambda partition: [hl.struct(foo=partition)])
+    assert [inner.idx for outer in ht.foo.collect() for inner in outer] == list(range(11, 55))
