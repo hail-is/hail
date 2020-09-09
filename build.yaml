@@ -970,6 +970,7 @@ steps:
         valueFrom: batch_pods_ns.name
       mountPath: /gsa-key
    dependsOn:
+     - batch_pods_ns
      - hail_run_image
      - build_hail
  - kind: runImage
@@ -1010,6 +1011,7 @@ steps:
         valueFrom: batch_pods_ns.name
       mountPath: /gsa-key
    dependsOn:
+     - batch_pods_ns
      - hail_run_image
      - build_hail
  - kind: runImage
@@ -1050,6 +1052,7 @@ steps:
         valueFrom: batch_pods_ns.name
       mountPath: /gsa-key
    dependsOn:
+     - batch_pods_ns
      - hail_run_image
      - build_hail
  - kind: runImage
@@ -1090,6 +1093,7 @@ steps:
         valueFrom: batch_pods_ns.name
       mountPath: /gsa-key
    dependsOn:
+     - batch_pods_ns
      - hail_run_image
      - build_hail
  - kind: runImage
@@ -1130,6 +1134,7 @@ steps:
         valueFrom: batch_pods_ns.name
       mountPath: /gsa-key
    dependsOn:
+     - batch_pods_ns
      - hail_run_image
      - build_hail
  - kind: runImage
