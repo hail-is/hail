@@ -64,6 +64,8 @@ abstract class PNDArrayValue extends PValue {
 
   def shapes(): IndexedSeq[Value[Long]]
 
+  def strides(): IndexedSeq[Value[Long]]
+
   override def pt: PNDArray = ???
 
   def outOfBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Boolean]

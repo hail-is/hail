@@ -270,6 +270,12 @@ class PCanonicalNDArraySettable(override val pt: PCanonicalNDArray, val a: Setta
     }
   }
 
+  override def strides(): IndexedSeq[Value[Long]] = Array.tabulate(pt.nDims) { i =>
+    new Value[Long] {
+      def get: Code[Long] = pt.loadStride(a, i)
+    }
+  }
+
   override def sameShape(other: PNDArrayValue, mb: EmitMethodBuilder[_]): Code[Boolean] = {
     val comparator = this.pt.shape.pType.codeOrdering(mb, other.pt.shape.pType)
     val thisShape = this.pt.shape.load(this.a).asInstanceOf[Code[comparator.T]]
