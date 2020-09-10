@@ -7,21 +7,22 @@ import is.hail.HailContext
 import is.hail.asm4s.Code
 import is.hail.backend.BroadcastValue
 import is.hail.check.Gen
-import is.hail.types._
+import is.hail.expr.ir.{EmitClassBuilder, ExecuteContext, RelationalSpec}
 import is.hail.expr.{JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser}
-import is.hail.io.reference.FASTAReader
+import is.hail.io.fs.FS
+import is.hail.io.reference.LiftOver
+import is.hail.io.reference.{FASTAReader, FASTAReaderConfig}
+import is.hail.types._
+import is.hail.types.virtual.{TInt64, TLocus, Type}
 import is.hail.utils._
-import org.json4s._
-import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
-import is.hail.expr.ir.{EmitClassBuilder, ExecuteContext, RelationalSpec}
-import is.hail.types.virtual.{TInt64, TLocus, Type}
-import is.hail.io.reference.LiftOver
-import is.hail.io.fs.FS
 import org.apache.spark.TaskContext
+import org.json4s._
+import org.json4s.jackson.{JsonMethods, Serialization}
+import java.lang.ThreadLocal
 
 
 class BroadcastRG(rgParam: ReferenceGenome) extends Serializable {
@@ -136,7 +137,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     Interval(start, end, includesStart = true, includesEnd = false)
   }
 
-  private var fastaReader: FASTAReader = _
+  private var fastaReaderCfg: FASTAReaderConfig = _
 
   def contigParser = Parser.oneOfLiteral(contigs)
 
@@ -306,7 +307,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
         s"@1", badContigs.truncatable("\n  "))
   }
 
-  def hasSequence: Boolean = fastaReader != null
+  def hasSequence: Boolean = fastaReaderCfg != null
 
   def addSequence(ctx: ExecuteContext, fastaFile: String, indexFile: String) {
     if (hasSequence)
@@ -343,33 +344,41 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     val fastaPath = fs.fileStatus(fastaFile).getPath.toString
     val indexPath = fs.fileStatus(indexFile).getPath.toString
-    fastaReader = FASTAReader(ctx.localTmpdir, fs, this, fastaPath, indexPath)
+    fastaReaderCfg = FASTAReaderConfig(ctx.localTmpdir, fs.broadcast, this, fastaPath, indexPath)
   }
 
   def addSequenceFromReader(tmpdir: String, fs: FS, fastaFile: String, indexFile: String, blockSize: Int, capacity: Int): ReferenceGenome = {
-    fastaReader = new FASTAReader(tmpdir, fs.broadcast, this, fastaFile, indexFile, blockSize, capacity)
+    fastaReaderCfg = FASTAReaderConfig(tmpdir, fs.broadcast, this, fastaFile, indexFile, blockSize, capacity)
     this
   }
 
-  def getSequence(contig: String, position: Int, before: Int = 0, after: Int = 0): String = {
+  @transient private lazy val realFastaReader: ThreadLocal[FASTAReader] = new ThreadLocal[FASTAReader]
+
+  private def fastaReader(): FASTAReader = {
     if (!hasSequence)
       fatal(s"FASTA file has not been loaded for reference genome '$name'.")
-    fastaReader.lookup(contig, position, before, after)
+    if (realFastaReader.get() == null)
+      realFastaReader.set(fastaReaderCfg.reader)
+    if (realFastaReader.get().cfg != fastaReaderCfg)
+      realFastaReader.set(fastaReaderCfg.reader)
+    realFastaReader.get()
+  }
+
+  def getSequence(contig: String, position: Int, before: Int = 0, after: Int = 0): String = {
+    fastaReader().lookup(contig, position, before, after)
   }
 
   def getSequence(l: Locus, before: Int, after: Int): String =
     getSequence(l.contig, l.position, before, after)
 
   def getSequence(i: Interval): String = {
-    if (!hasSequence)
-      fatal(s"FASTA file has not been loaded for reference genome '$name'.")
-    fastaReader.lookup(i)
+    fastaReader().lookup(i)
   }
 
   def removeSequence(): Unit = {
     if (!hasSequence)
       fatal(s"Reference genome '$name' does not have sequence loaded.")
-    fastaReader = null
+    fastaReaderCfg = null
   }
 
   private[this] var liftoverMaps: Map[String, LiftOver] = Map.empty[String, LiftOver]
@@ -490,15 +499,15 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       chunks.tail.foldLeft[Code[String]](chunks.head) { (c, s) => c.invoke[String, String]("concat", s) }
 
     var rg = Code.invokeScalaObject1[String, ReferenceGenome](ReferenceGenome.getClass, "parse", stringAssembler)
-    if (fastaReader != null) {
+    if (hasSequence) {
       rg = rg.invoke[String, FS, String, String, Int, Int, ReferenceGenome](
         "addSequenceFromReader",
         localTmpdir,
         cb.getFS,
-        fastaReader.fastaFile,
-        fastaReader.indexFile,
-        fastaReader.blockSize,
-        fastaReader.capacity)
+        fastaReaderCfg.fastaFile,
+        fastaReaderCfg.indexFile,
+        fastaReaderCfg.blockSize,
+        fastaReaderCfg.capacity)
     }
 
     for ((destRG, lo) <- liftoverMaps) {
@@ -621,7 +630,7 @@ object ReferenceGenome {
     }
 
     val rg = ReferenceGenome(name, contigs.result(), lengths.result().toMap, xContigs, yContigs, mtContigs, parInput)
-    rg.fastaReader = FASTAReader(tmpdir, ctx.fs, rg, fastaFile, indexFile)
+    rg.fastaReaderCfg = FASTAReaderConfig(tmpdir, fs.broadcast, rg, fastaFile, indexFile)
     rg
   }
 
