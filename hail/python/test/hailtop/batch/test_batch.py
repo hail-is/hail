@@ -519,6 +519,21 @@ class ServiceTests(unittest.TestCase):
 
         assert b.run().status()['state'] == 'failure'
 
+    def test_gcsfuse_implicit_dirs(self):
+        path = f'/{self.bucket_name}{self.gcs_output_path}'
+
+        b = self.batch()
+        head = b.new_job()
+        head.command(f'mkdir -p {path}; echo head > {path}/gcsfuse/data')
+        head.gcsfuse(self.bucket_name, f'/{self.bucket_name}', read_only=False)
+
+        tail = b.new_job()
+        tail.command(f'cat {path}/gcsfuse/data')
+        tail.gcsfuse(self.bucket_name, f'/{self.bucket_name}', read_only=True)
+        tail.depends_on(head)
+
+        assert b.run().status()['state'] == 'success'
+
     def test_requester_pays(self):
         b = self.batch(requester_pays_project='hail-vdc')
         input = b.read_input('gs://hail-services-requester-pays/hello')
