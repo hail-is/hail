@@ -566,3 +566,19 @@ echo $HAIL_BATCH_WORKER_IP
         status = j.wait()
         assert status['state'] == 'Failed', status
         assert "Connection timed out" in j.log()['main'], (j.log()['main'], status)
+
+    def test_user_authentication_within_job(self):
+        batch = self.client.create_batch()
+        default_ns = os.environ['HAIL_DEFAULT_NAMESPACE']
+        cmd = ['bash', '-c', f'mkdir -p ~/.hail; hailctl dev config -l gce {default_ns}; hailctl batch list']
+        with_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=True)
+        no_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=False)
+        b = batch.submit()
+        batch_id = b.id
+
+        with_token_status = with_token.wait()
+        assert with_token_status['state'] == 'Success', with_token_status
+        assert str(batch_id) in with_token.log()['main'], (with_token.log()['main'], batch_id)
+
+        no_token_status = no_token.wait()
+        assert no_token_status['state'] == 'Failed', no_token_status
