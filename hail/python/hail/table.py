@@ -3497,7 +3497,7 @@ class Table(ExprContainer):
             groups = part.grouped(n)
             key_names = list(self.key)
             return groups.map(lambda group:
-                        hl.struct(**{key_name: group[0][key_name] for key_name in key_names}).annotate(**{name:group}))
+                              hl.struct(**{key_name: group[0][key_name] for key_name in key_names}).annotate(**{name: group}))
 
         return self._map_partitions(grouping_func)
 
