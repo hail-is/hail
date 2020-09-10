@@ -993,6 +993,12 @@ class Emit[C](
           IEmitCode(cb, false, resultPCode)
 
         }
+      case x: NDArrayMap  =>  emitDeforestedNDArray(x)
+      case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
+      case x: NDArrayReshape => emitDeforestedNDArray(x)
+      case x: NDArrayConcat => emitDeforestedNDArray(x)
+      case x: NDArraySlice => emitDeforestedNDArray(x)
+      case x: NDArrayFilter => emitDeforestedNDArray(x)
       case x@RunAgg(body, result, states) =>
         val newContainer = AggContainer.fromBuilder(cb, states.toArray, "run_agg")
         emitVoid(body, container = Some(newContainer))
@@ -1777,12 +1783,6 @@ class Emit[C](
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
         impl.apply(EmitRegion(mb, region.code), pt, typeArgs, codeArgs: _*)
-      case x: NDArrayMap  =>  emitDeforestedNDArray(x)
-      case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
-      case x: NDArrayReshape => emitDeforestedNDArray(x)
-      case x: NDArrayConcat => emitDeforestedNDArray(x)
-      case x: NDArraySlice => emitDeforestedNDArray(x)
-      case x: NDArrayFilter => emitDeforestedNDArray(x)
 
       case NDArrayMatMul(lChild, rChild) =>
         val lT = emitNDArrayColumnMajorStrides(lChild)
