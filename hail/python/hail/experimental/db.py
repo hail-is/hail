@@ -15,8 +15,28 @@ from ..utils.java import Env
 
 
 class DatasetVersion:
+    """A `DatasetVersion` instance.
+
+    To create a `DatasetVersion` instance with the url and version (e.g. GRCh37)
+    of a particular dataset specified in JSON configuration file or a provided
+    dict mapping dataset names to configurations. Facilitates creation of
+    Dataset objects with `Dataset.from_name_and_json()` method by providing
+    versions of datasets only if they are available in the specified region via
+    the `get_region()` method.
+    """
     @staticmethod
     def from_json(doc):
+        """Create `DatasetVersion` object from dictionary.
+
+        Parameters
+        ----------
+        doc : :obj:`dict`
+            Dictionary containing url and version.
+
+        Returns
+        -------
+        :class:`DatasetVersion`
+        """
         assert 'url' in doc
         assert 'version' in doc
         return DatasetVersion(doc['url'],
@@ -24,6 +44,24 @@ class DatasetVersion:
 
     @staticmethod
     def get_region(name, versions, region):
+        """Get versions of a `Dataset` in the specified region, if they exist.
+
+        Parameters
+        ----------
+        name : :obj:`str`
+            Name of dataset.
+        versions : :obj:`dict`
+            Dictionary containing url and version, where the value for url is
+            a dictionary containing the regions 'us' and 'eu'.
+        region : :obj: `str`
+            GCP region from which to access data, available regions given in
+            hl.experimental.DB._valid_regions, currently either 'us' or 'eu'.
+
+        Returns
+        -------
+        available_versions : :obj:`list`
+            List of available versions of a `Dataset` for region.
+        """
         available_versions = []
         if region is not None:
             for version in versions:
@@ -37,6 +75,22 @@ class DatasetVersion:
         self.version = version
 
     def check_region(self, name, region):
+        """To check if a `DatasetVersion` object is accessible in the desired
+        region.
+
+        Parameters
+        ----------
+        name : :obj:`str`
+            Name of dataset.
+        region : :obj: `str`
+            GCP region from which to access data, available regions given in
+            hl.experimental.DB._valid_regions, currently either 'us' or 'eu'.
+
+        Returns
+        -------
+        valid_region : :obj:`bool`
+            Whether or not the dataset exists in the specified region.
+        """
         current_version = self.version
         available_regions = [k for k, v in self.url.items() if v is not None]
         valid_region = True
@@ -54,8 +108,32 @@ class DatasetVersion:
 
 
 class Dataset:
+    """A `Dataset` instance.
+
+    To create a `Dataset` object with name, description, url, key_properties, and
+    versions specified in JSON configuration file or a provided dict mapping
+    dataset names to configurations.
+    """
     @staticmethod
     def from_name_and_json(name, doc, region):
+        """Create `Dataset` object from dictionary.
+
+        Parameters
+        ----------
+        name : :obj:`str`
+            Name of dataset.
+        doc : :obj:`dict`
+            Dictionary containing dataset description, url, key_properties, and
+            versions.
+        region : :obj: `str`
+            GCP region from which to access data, available regions given in
+            hl.experimental.DB._valid_regions, currently either 'us' or 'eu'.
+
+        Returns
+        -------
+        :class:`Dataset`
+            If versions exist for region returns a `Dataset` object, else None.
+        """
         assert 'description' in doc
         assert 'url' in doc
         assert 'key_properties' in doc
@@ -78,6 +156,12 @@ class Dataset:
         self.versions = versions
 
     def is_gene_keyed(self):
+        """Check if `Dataset` is gene keyed.
+
+        Returns
+        -------
+        :obj:`bool`
+        """
         return 'gene' in self.key_properties
 
     def index_compatible_version(self, key_expr):
@@ -148,7 +232,14 @@ class DB:
                           if Dataset.from_name_and_json(k, v, self.region) is not None}
 
     def available_databases(self):
-        return self.__by_name.keys()
+        """Retrieve list of names of available databases.
+
+        Returns
+        -------
+        :obj:`list`
+            List of available databases.
+        """
+        return sorted(self.__by_name.keys())
 
     @staticmethod
     def _row_lens(rel):
@@ -161,6 +252,18 @@ class DB:
                 'annotation database can only annotate Hail MatrixTable or Table')
 
     def dataset_by_name(self, name):
+        """Retrieve Dataset object by name.
+
+        Parameters
+        ----------
+        name : :obj:`str`
+            Name of dataset.
+
+        Returns
+        -------
+        :class:`Dataset`
+            Dataset object.
+        """
         if name not in self.__by_name:
             raise ValueError(
                 f'{name} not found in annotation database, you may list all '
@@ -171,6 +274,19 @@ class DB:
         gene_field = Env.get_uid()
         gencode = self.__by_name['gencode'].index_compatible_version(rel.key)
         return gene_field, rel.annotate(**{gene_field: gencode.gene_name})
+
+    def _check_availability(self, names):
+        """Check if datasets given in `names` are available in the annotation
+        database instance.
+
+        Parameters
+        ----------
+        names : :obj:`iterable`
+            Tuple or list of names to check.
+        """
+        unavailable = [x for x in names if x not in self.__by_name.keys()]
+        if unavailable:
+            raise ValueError(f'datasets: {unavailable} not available in the {self.region} region.')
 
     @typecheck_method(rel=oneof(table_type, matrix_table_type), names=str)
     def annotate_rows_db(self, rel, *names):
@@ -220,10 +336,7 @@ class DB:
         if len(set(names)) != len(names):
             raise ValueError(
                 f'cannot annotate same dataset twice, please remove duplicates from: {names}')
-        # unavailable = [k for k in self.__by_name.keys() if k not in list(names)]
-        unavailable = [x for x in list(names) if x not in self.__by_name.keys()]
-        if unavailable:
-            raise ValueError(f'datasets: {unavailable} are not available in the {self.region} region')
+        self._check_availability(names)
         datasets = [self.dataset_by_name(name) for name in names]
         if any(dataset.is_gene_keyed() for dataset in datasets):
             gene_field, rel = self._annotate_gene_name(rel)
