@@ -524,7 +524,7 @@ class ServiceTests(unittest.TestCase):
 
         b = self.batch()
         head = b.new_job()
-        head.command(f'mkdir -p {path}; echo head > {path}/gcsfuse/data')
+        head.command(f'mkdir -p {path}/gcsfuse/; echo head > {path}/gcsfuse/data')
         head.gcsfuse(self.bucket_name, f'/{self.bucket_name}', read_only=False)
 
         tail = b.new_job()
