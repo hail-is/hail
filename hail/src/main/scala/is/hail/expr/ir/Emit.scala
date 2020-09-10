@@ -1290,9 +1290,6 @@ class Emit[C](
     def emitStream(ir: IR): EmitCode =
       EmitStream.emit(this, ir, mb, region, env, container)
 
-    def emitDeforestedNDArray(ir: IR): EmitCode =
-      deforestNDArray(ir, mb, region, env)
-
     def emitNDArrayColumnMajorStrides(ir: IR): EmitCode = {
       EmitCode.fromI(mb) { cb =>
         emit(ir).toI(cb).map(cb) { case pNDCode: PNDArrayCode =>
