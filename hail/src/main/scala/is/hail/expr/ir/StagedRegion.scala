@@ -9,10 +9,10 @@ object StagedRegion {
   def apply(
     r: Value[Region],
     allowSubregions: Boolean = false,
-    parent: Option[ParentStagedRegion] = None,
+    parents: Seq[ParentStagedRegion] = Seq(),
     description: String = "root"
   ): ParentStagedRegion =
-    new ParentStagedRegion(r, parent, allowSubregions, description)
+    new ParentStagedRegion(r, parents, allowSubregions, description)
 
   def apply(r: Value[Region]): StagedRegion = new StagedRegion {
     val code = r
@@ -38,11 +38,12 @@ abstract class StagedRegion {
   def code: Value[Region]
 
   final def asParent(allowAllocations: Boolean, description: String): ParentStagedRegion = {
-    val parent = this match {
-      case child: ChildStagedRegion => Some(child.parent)
-      case _ => None
+    val parents = this match {
+      case child: ChildStagedRegion => child.otherAncestors :+ child.parent
+      case parent: ParentStagedRegion => Seq(parent)
+      case _ => Seq()
     }
-    StagedRegion(code, allowAllocations, parent, description)
+    StagedRegion(code, allowAllocations, parents, description)
   }
 
   def <=(that: ParentStagedRegion): Boolean
@@ -52,13 +53,14 @@ abstract class StagedRegion {
 
 class ParentStagedRegion(
   val code: Value[Region],
-  val parent: Option[ParentStagedRegion],
+  val parents: Seq[ParentStagedRegion],
   val allowSubregions: Boolean,
   desc: String
 ) extends StagedRegion { self =>
-  final def description: String = parent match {
-    case Some(p) => s"$desc < ${ p.description }"
-    case None => desc
+  final def description: String = parents match {
+    case Seq() => desc
+    case Seq(p) => s"$desc < ${ p.description }"
+    case ps => s"$desc < ${ ps.map(_.description).mkString(" {", " | ", " }") }"
   }
 
   def createChildRegion(mb: EmitMethodBuilder[_]): OwnedStagedRegion =
@@ -115,7 +117,7 @@ class ParentStagedRegion(
   }
 
   final def <=(that: ParentStagedRegion): Boolean =
-    (this == that) || parent.exists(_ <= that)
+    (this == that) || parents.exists(_ <= that)
 
   def assertEqual(that: ParentStagedRegion) {
     assert(this == that, s"${this.description}\n${that.description}")
@@ -133,8 +135,7 @@ abstract class ChildStagedRegion extends StagedRegion {
 
   def asSubregionOf(that: ParentStagedRegion): ChildStagedRegion
 
-  final def createSiblingRegion(mb: EmitMethodBuilder[_]): OwnedStagedRegion =
-    parent.createChildRegion(mb)
+  def createSiblingRegion(mb: EmitMethodBuilder[_]): OwnedStagedRegion
 
   final def createSiblingRegionArray(mb: EmitMethodBuilder[_], length: Int): OwnedStagedRegionArray =
     parent.createChildRegionArray(mb, length)
@@ -151,6 +152,11 @@ abstract class ChildStagedRegion extends StagedRegion {
 
   final def <=(that: ParentStagedRegion): Boolean =
     (this.parent <= that) || otherAncestors.exists(_ <= that)
+
+  def description: String = if (otherAncestors.isEmpty)
+    parent.description
+  else
+    otherAncestors.map(_.description).mkString(s"{ ${parent.description} | ", " | ", "}")
 
   def assertSubRegion(that: ParentStagedRegion) {
     assert(this <= that, s"${this.parent.description}\n${that.description}")
@@ -193,6 +199,11 @@ class RealOwnedStagedRegion(
   def asSubregionOf(that: ParentStagedRegion): ChildStagedRegion =
     new RealOwnedStagedRegion(r, parent, otherAncestors :+ that)
 
+  def createSiblingRegion(mb: EmitMethodBuilder[_]): OwnedStagedRegion = {
+    val newR = mb.genFieldThisRef[Region]("staged_region_child")
+    new RealOwnedStagedRegion(newR, parent, otherAncestors)
+  }
+
   def allocateRegion(size: Int): Code[Unit] = r := Region.stagedCreate(size)
 
   def free(): Code[Unit] = Code(r.invalidate(), r := Code._null)
@@ -232,6 +243,10 @@ class DummyOwnedStagedRegion(
 
   def asSubregionOf(that: ParentStagedRegion): ChildStagedRegion =
     new DummyOwnedStagedRegion(code, parent, otherAncestors :+ that)
+
+  def createSiblingRegion(mb: EmitMethodBuilder[_]): OwnedStagedRegion = {
+    new DummyOwnedStagedRegion(code, parent, otherAncestors)
+  }
 
   def allocateRegion(size: Int): Code[Unit] = Code._empty
 
