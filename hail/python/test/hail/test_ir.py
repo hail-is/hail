@@ -351,7 +351,7 @@ class BlockMatrixIRTests(unittest.TestCase):
     def test_parses(self):
         backend = Env.spark_backend('BlockMatrixIRTests.test_parses')
 
-        bmir = hl.BlockMatrix.fill(1, 1, 0.0)._bmir
+        bmir = hl.linalg.BlockMatrix.fill(1, 1, 0.0)._bmir
         backend.execute(ir.BlockMatrixWrite(bmir, ir.BlockMatrixPersistWriter('x', 'MEMORY_ONLY')))
         persist = ir.BlockMatrixRead(ir.BlockMatrixPersistReader('x', bmir))
 
