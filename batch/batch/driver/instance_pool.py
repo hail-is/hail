@@ -1,5 +1,6 @@
 from collections import deque
 import os
+import re
 import secrets
 import random
 import json
@@ -26,6 +27,14 @@ log = logging.getLogger('instance_pool')
 BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
 
 log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
+
+RESOURCE_NAME_REGEX = re.compile('projects/(?P<project>[^/]+)/zones/(?P<zone>[^/]+)/instances/(?P<name>.+)')
+
+
+def parse_resource_name(resource_name):
+    match = RESOURCE_NAME_REGEX.fullmatch(resource_name)
+    assert match
+    return match.groupdict()
 
 
 class WindowFractionCounter:
@@ -657,49 +666,52 @@ gsutil -m cp dockerd.log gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/w
         await instance.mark_deleted('deleted', timestamp)
 
     async def handle_event(self, event):
-        payload = event.get('jsonPayload')
+        payload = event.get('protoPayload')
         if payload is None:
             log.warning('event has no payload')
             return
 
         timestamp = dateutil.parser.isoparse(event['timestamp']).timestamp() * 1000
-        version = payload['version']
-        if version != '1.2':
-            log.warning('unknown event verison {version}')
-            return
 
         resource_type = event['resource']['type']
         if resource_type != 'gce_instance':
             log.warning(f'unknown event resource type {resource_type}')
             return
 
-        event_type = payload['event_type']
-        event_subtype = payload['event_subtype']
-        resource = payload['resource']
-        name = resource['name']
+        if 'last' in event['operation']:
+            event_type = 'GCE_OPERATION_DONE'
+        elif 'first' in event['operation']:
+            event_type = 'GCE_API_CALL'
+        else:
+            log.warning(f'unknown event_type {event["operation"]}')
+            event_type = None
 
-        log.info(f'event {version} {resource_type} {event_type} {event_subtype} {name}')
+        event_subtype = payload['methodName']
+        resource = event['resource']
+        name = parse_resource_name(payload['resourceName'])['name']
+
+        log.info(f'event {resource_type} {event_type} {event_subtype} {name}')
 
         if not name.startswith(self.machine_name_prefix):
             log.warning(f'event for unknown machine {name}')
             return
 
-        if event_subtype == 'compute.instances.insert':
+        if 'compute.instances.insert' in event_subtype:
             if event_type == 'GCE_OPERATION_DONE':
                 severity = event['severity']
-                operation_name = payload['operation']['name']
+                operation_type = 'insert'
                 success = (severity != 'ERROR')
-                self.zone_success_rate.push(resource['zone'], operation_name, success)
+                self.zone_success_rate.push(resource['labels']['zone'], operation_type, success)
         else:
             instance = self.name_instance.get(name)
             if not instance:
                 log.warning(f'event for unknown instance {name}')
                 return
 
-            if event_subtype == 'compute.instances.preempted':
+            if 'compute.instances.preempted' in event_subtype:
                 log.info(f'event handler: handle preempt {instance}')
                 await self.handle_preempt_event(instance, timestamp)
-            elif event_subtype == 'compute.instances.delete':
+            elif 'compute.instances.delete' in event_subtype:
                 if event_type == 'GCE_OPERATION_DONE':
                     log.info(f'event handler: delete {instance} done')
                     await self.handle_delete_done_event(instance, timestamp)
@@ -720,9 +732,9 @@ gsutil -m cp dockerd.log gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/w
                         (mark,))
 
                 filter = f'''
-logName="projects/{PROJECT}/logs/compute.googleapis.com%2Factivity_log" AND
+logName="projects/{PROJECT}/logs/cloudaudit.googleapis.com%2Factivity" AND
 resource.type=gce_instance AND
-jsonPayload.resource.name:"{self.machine_name_prefix}" AND
+protoPayload.resourceName:"{self.machine_name_prefix}" AND
 timestamp >= "{mark}"
 '''
 
