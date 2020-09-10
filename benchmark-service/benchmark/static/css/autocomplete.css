@@ -21,7 +21,7 @@
     border-width:1px;
 }
 #autoComplete::placeholder {
-    color:rgba(140,140,140,0);
+    color:rgba(140,140,140,0.5);
     transition:all .3s ease;
     -webkit-transition:all -webkit-transform .3s ease;
 }
