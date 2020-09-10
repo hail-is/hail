@@ -73,7 +73,7 @@ class FASTAReader(val tmpdir: String, val fsBc: BroadcastValue[FS], val rg: Refe
     reader.value.getSubsequenceAt(contig, start, if (end > maxEnd) maxEnd else end).getBaseString
   }
 
-  private def fillBlock(blockIdx: Int) {
+  private def fillBlock(blockIdx: Int): String = {
     val seq = new StringBuilder
     val start = blockIdx.toLong * blockSize
     var pos = start
@@ -85,13 +85,17 @@ class FASTAReader(val tmpdir: String, val fsBc: BroadcastValue[FS], val rg: Refe
       pos += query.length
     }
 
-    cache.put(blockIdx, seq.result())
+    val res = seq.result()
+    cache.put(blockIdx, res)
+    res
   }
 
   private def readBlock(blockIdx: Int): String = {
-    if (!cache.containsKey(blockIdx))
+    val x = cache.get(blockIdx)
+    if (x != null)
+      x
+    else
       fillBlock(blockIdx)
-    cache.get(blockIdx)
   }
 
   private def readBlock(blockIdx: Int, offset: Int): String = {
