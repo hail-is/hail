@@ -24,7 +24,7 @@ from .register_aggregators import register_aggregators
 from .table_ir import MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, \
     TableIntervalJoin, TableUnion, TableRange, TableMapGlobals, TableExplode, \
     TableKeyBy, TableMapRows, TableRead, TableImport, MatrixEntriesTable, \
-    TableFilter, TableKeyByAndAggregate, TableGroupWithinPartitions, \
+    TableFilter, TableKeyByAndAggregate, \
     TableAggregateByKey, MatrixColsTable, TableParallelize, TableHead, \
     TableTail, TableOrderBy, TableDistinct, RepartitionStrategy, \
     TableRepartition, CastMatrixToTable, TableRename, TableMultiWayZipJoin, \
@@ -277,7 +277,6 @@ __all__ = [
     'MatrixEntriesTable',
     'TableFilter',
     'TableKeyByAndAggregate',
-    'TableGroupWithinPartitions',
     'TableAggregateByKey',
     'MatrixColsTable',
     'TableParallelize',
