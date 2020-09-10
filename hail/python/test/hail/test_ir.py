@@ -349,8 +349,16 @@ class BlockMatrixIRTests(unittest.TestCase):
 
     @skip_unless_spark_backend()
     def test_parses(self):
-        for x in self.blockmatrix_irs():
-            Env.spark_backend('BlockMatrixIRTests.test_parses')._parse_blockmatrix_ir(str(x))
+        backend = Env.spark_backend('BlockMatrixIRTests.test_parses')
+
+        bmir = hl.BlockMatrix.fill(1, 1, 0.0)._bmir
+        backend.execute(ir.BlockMatrixWrite(bmir, ir.BlockMatrixPersistWriter('x', 'MEMORY_ONLY')))
+        persist = ir.BlockMatrixRead(ir.BlockMatrixPersistReader('x', bmir))
+
+        for x in (self.blockmatrix_irs() + [persist]):
+            backend._parse_blockmatrix_ir(str(x))
+
+        backend.execute(ir.UnpersistBlockMatrix(persist))
 
 
 class ValueTests(unittest.TestCase):

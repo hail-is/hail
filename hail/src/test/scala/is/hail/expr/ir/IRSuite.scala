@@ -24,7 +24,7 @@ import is.hail.variant.{Call2, Locus}
 import is.hail.{ExecStrategy, HailContext, HailSuite}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
-import org.testng.annotations.{DataProvider, Test}
+import org.testng.annotations.{BeforeClass, DataProvider, Test}
 
 import scala.language.{dynamics, implicitConversions}
 
@@ -3424,9 +3424,7 @@ class IRSuite extends HailSuite {
       sparsify3,
       densify,
       RelationalLetBlockMatrix("x", I32(0), read),
-      slice,
-      BlockMatrixRead(BlockMatrixPersistReader("x", BlockMatrixType.dense(TFloat64, 1, 1, 5)))
-    )
+      slice)
 
     blockMatrixIRs.map(ir => Array(ir))
   }
@@ -3484,6 +3482,16 @@ class IRSuite extends HailSuite {
     val s = Pretty(x, elideLiterals = false)
     val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
     assert(x2 == x)
+  }
+
+  def testBlockMatrixIRParserPersist() {
+    val bm = BlockMatrix.fill(1, 1, 0.0, 5)
+    backend.persist(ctx.backendContext, "x", bm, "MEMORY_ONLY")
+    val persist = BlockMatrixRead(BlockMatrixPersistReader("x", BlockMatrixType.fromBlockMatrix(bm)))
+
+    val s = Pretty(persist, elideLiterals = false)
+    val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
+    assert(x2 == persist)
   }
 
   @Test def testCachedIR() {
