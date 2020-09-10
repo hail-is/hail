@@ -332,8 +332,6 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     num_rows = ht.count()
     new_partitioning = get_even_partitioning(ht, block_size, num_rows)
     ht = hl.read_table(temp_file_name, _intervals=new_partitioning)
-    temp_file_name_2 = hl.utils.new_temp_file("pca", "ht2")
-    ht = ht.checkpoint(temp_file_name_2)
 
     grouped = ht._group_within_partitions("groups", block_size * 2)
     A = grouped.select(ndarray=hl.nd.array(grouped.groups.map(lambda group: group.xs)))
