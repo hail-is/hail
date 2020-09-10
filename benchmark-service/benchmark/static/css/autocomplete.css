@@ -1,4 +1,4 @@
-ul {
+#file_list {
     padding-left: 0;
 }
 #autoComplete {
@@ -21,7 +21,7 @@ ul {
     border-width:1px;
 }
 #autoComplete::placeholder {
-    color:rgba(192,192,192,0);
+    color:rgba(140,140,140,0);
     transition:all .3s ease;
 }
 #autoComplete:hover {
@@ -34,7 +34,7 @@ ul {
     border-width:1px;
 }
 #autoComplete:hover::placeholder {
-    color:rgba(192,192,192,0.3);
+    color:rgba(140,140,140,0.3);
     transition:all .3s ease;
     -webkit-transition:all -webkit-transform .3s ease;
 }
