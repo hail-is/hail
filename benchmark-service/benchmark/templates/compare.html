@@ -106,7 +106,7 @@
             return 0;
         },
         placeHolder: "gs://...",     // Place Holder text                 | (Optional)
-        selector: ".autocomplete",           // Input field selector              | (Optional)
+        selector: "#autoComplete1",           // Input field selector              | (Optional)
         threshold: 2,                        // Min. Chars length to start Engine | (Optional)
         debounce: 300,                       // Post duration for engine to start | (Optional)
         searchEngine: "strict",              // Search Engine type/mode           | (Optional)
@@ -117,7 +117,7 @@
             container: source => {
                 source.setAttribute("id", "file_list");
             },
-            destination: document.querySelector(".autocomplete"),
+            destination: document.querySelector("#autoComplete1"),
             position: "afterend",
             element: "ul"
         },
@@ -138,7 +138,7 @@
         },
         onSelection: feedback => {
         feedback.event.preventDefault();
-        document.querySelector(".autocomplete").value = feedback.selection.value;
+        document.querySelector("#autoComplete2").value = feedback.selection.value;
   }
 });
 

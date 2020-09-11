@@ -132,9 +132,8 @@ async def healthcheck(request: web.Request) -> web.Response:  # pylint: disable=
 
 
 @router.get('/name/{name}')
-#@web_authenticated_developers_only(redirect=False)
-async def show_name(request: web.Request) -> web.Response:  # pylint: disable=unused-argument
-    userdata = {}
+@web_authenticated_developers_only(redirect=False)
+async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     file_path = request.query.get('file')
     benchmarks = get_benchmarks(request.app, file_path)
     name_data = benchmarks['data'][str(request.match_info['name'])]
@@ -164,9 +163,8 @@ async def show_name(request: web.Request) -> web.Response:  # pylint: disable=un
 
 @router.get('/')
 @router.get('')
-# @web_authenticated_developers_only(redirect=False)
-async def index(request):  # pylint: disable=unused-argument
-    userdata = {}
+@web_authenticated_developers_only(redirect=False)
+async def index(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     file = request.query.get('file')
     if file is None:
@@ -180,9 +178,8 @@ async def index(request):  # pylint: disable=unused-argument
 
 
 @router.get('/compare')
-# @web_authenticated_developers_only(redirect=False)
-async def compare(request):  # pylint: disable=unused-argument
-    userdata = {}
+@web_authenticated_developers_only(redirect=False)
+async def compare(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     file1 = request.query.get('file1')
     file2 = request.query.get('file2')
