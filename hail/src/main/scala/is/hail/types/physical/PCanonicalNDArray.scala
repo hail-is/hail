@@ -270,6 +270,12 @@ class PCanonicalNDArraySettable(override val pt: PCanonicalNDArray, val a: Setta
     }
   }
 
+  override def strides(): IndexedSeq[Value[Long]] = Array.tabulate(pt.nDims) { i =>
+    new Value[Long] {
+      def get: Code[Long] = pt.loadStride(a, i)
+    }
+  }
+
   override def sameShape(other: PNDArrayValue, mb: EmitMethodBuilder[_]): Code[Boolean] = {
     val comparator = this.pt.shape.pType.codeOrdering(mb, other.pt.shape.pType)
     val thisShape = this.pt.shape.load(this.a).asInstanceOf[Code[comparator.T]]
@@ -295,4 +301,6 @@ class PCanonicalNDArrayCode(val pt: PCanonicalNDArray, val a: Code[Long]) extend
   override def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue = memoize(cb, name, cb.localBuilder)
 
   override def memoizeField(cb: EmitCodeBuilder, name: String): PValue = memoize(cb, name, cb.fieldBuilder)
+
+  override def shape: PBaseStructCode = PCode(this.pt.shape.pType, this.pt.shape.load(a)).asBaseStruct
 }

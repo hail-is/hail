@@ -809,6 +809,35 @@ class Emit[C](
             }
           }
         }
+      case NDArrayShape(ndIR) =>
+        emitI(ndIR).map(cb){ case pc: PNDArrayCode => pc.shape}
+      case x@NDArrayReindex(child, indexMap) =>
+        val childEC = emitI(child)
+        val childPType = coerce[PNDArray](child.pType)
+        childEC.map(cb){ case pndCode: PNDArrayCode =>
+          val pndVal = pndCode.memoize(cb, "ndarray_reindex_child")
+          val childShape = pndVal.shapes()
+          val childStrides = pndVal.strides()
+
+          PCode(x.pType, x.pType.construct({ srvb =>
+            Code(
+              srvb.start(),
+              Code.foreach(indexMap) { childIndex =>
+                Code(
+                  srvb.addLong(if (childIndex < childPType.nDims) childShape(childIndex) else 1L),
+                  srvb.advance())
+              })
+          }, { srvb =>
+            Code(
+              srvb.start(),
+              Code.foreach(indexMap) { index =>
+                Code(
+                  srvb.addLong(if (index < childPType.nDims) childStrides(index) else 0L),
+                  srvb.advance())
+              })
+          }, childPType.data.load(pndVal.tcode[Long]), mb, region.code))
+        }
+
       case NDArrayRef(nd, idxs) =>
         val ndt = emitI(nd)
         val ndPType = coerce[PNDArray](nd.pType)
@@ -964,6 +993,12 @@ class Emit[C](
           IEmitCode(cb, false, resultPCode)
 
         }
+      case x: NDArrayMap  =>  emitDeforestedNDArray(x)
+      case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
+      case x: NDArrayReshape => emitDeforestedNDArray(x)
+      case x: NDArrayConcat => emitDeforestedNDArray(x)
+      case x: NDArraySlice => emitDeforestedNDArray(x)
+      case x: NDArrayFilter => emitDeforestedNDArray(x)
       case x@RunAgg(body, result, states) =>
         val newContainer = AggContainer.fromBuilder(cb, states.toArray, "run_agg")
         emitVoid(body, container = Some(newContainer))
@@ -1254,9 +1289,6 @@ class Emit[C](
 
     def emitStream(ir: IR): EmitCode =
       EmitStream.emit(this, ir, mb, region, env, container)
-
-    def emitDeforestedNDArray(ir: IR): EmitCode =
-      deforestNDArray(ir, mb, region, env)
 
     def emitNDArrayColumnMajorStrides(ir: IR): EmitCode = {
       EmitCode.fromI(mb) { cb =>
@@ -1748,51 +1780,6 @@ class Emit[C](
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
         impl.apply(EmitRegion(mb, region.code), pt, typeArgs, codeArgs: _*)
-
-      case NDArrayShape(ndIR) =>
-        val ndt = emit(ndIR)
-        val ndP = ndIR.pType.asInstanceOf[PNDArray]
-
-        EmitCode(ndt.setup, ndt.m, PCode(pt, ndP.shape.load(ndt.value[Long])))
-      case x@NDArrayReindex(child, indexMap) =>
-        val childt = emit(child)
-        val childPType = coerce[PNDArray](child.pType)
-
-        val setup = childt.setup
-        val value =
-          Code.memoize(childt.value[Long], "ndarr_reindex_child_addr") { childAddress =>
-            Code.memoize(
-              childPType.shape.load(childAddress), "ndarr_reindex_child_shape_addr",
-              childPType.strides.load(childAddress), "ndarr_reindex_child_strides_addr") { (childShapeAddr, childStridesAddr) =>
-              val childShape = new CodePTuple(childPType.shape.pType, childShapeAddr)
-              val childStrides = new CodePTuple(childPType.strides.pType, childStridesAddr)
-
-              x.pType.construct({ srvb =>
-                                Code(
-                                  srvb.start(),
-                                  Code.foreach(indexMap) { childIndex =>
-                                    Code(
-                                      srvb.addLong(if (childIndex < childPType.nDims) childShape(childIndex) else 1L),
-                                      srvb.advance())
-                                  })
-                              }, { srvb =>
-                                Code(
-                                  srvb.start(),
-                                  Code.foreach(indexMap) { index =>
-                                    Code(
-                                      srvb.addLong(if (index < childPType.nDims) childStrides(index) else 0L),
-                                      srvb.advance())
-                                  })
-                              }, childPType.data.load(childAddress), mb, region.code)
-            }
-          }
-        EmitCode(setup, childt.m, PCode(pt, value))
-      case x: NDArrayMap  =>  emitDeforestedNDArray(x)
-      case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
-      case x: NDArrayReshape => emitDeforestedNDArray(x)
-      case x: NDArrayConcat => emitDeforestedNDArray(x)
-      case x: NDArraySlice => emitDeforestedNDArray(x)
-      case x: NDArrayFilter => emitDeforestedNDArray(x)
 
       case NDArrayMatMul(lChild, rChild) =>
         val lT = emitNDArrayColumnMajorStrides(lChild)
