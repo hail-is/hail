@@ -889,11 +889,10 @@ class Emit[C](
               val LDB = K
               val LDC = M
 
-              val multiplyViaDGEMM = Code(
-                ((M cne 0L) && (N cne 0L) && (K cne 0L)).mux(Code(
-                  answerPArrayAddress := outputPType.data.pType.allocate(region.code, (M * N).toI),
-                  outputPType.data.pType.stagedInitialize(answerPArrayAddress, (M * N).toI),
-                  lPType.elementType match {
+              cb.ifx((M cne 0L) && (N cne 0L) && (K cne 0L), {
+                  cb.assign(answerPArrayAddress, outputPType.data.pType.allocate(region.code, (M * N).toI))
+                  cb.append(outputPType.data.pType.stagedInitialize(answerPArrayAddress, (M * N).toI))
+                  cb.append(lPType.elementType match {
                     case PFloat32(_) =>
                       Code.invokeScalaObject13[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method = "sgemm",
                         "N",
@@ -926,18 +925,20 @@ class Emit[C](
                         outputPType.data.pType.firstElementOffset(answerPArrayAddress, (M * N).toI),
                         LDC.toI
                       )
-                  }),
-                  answerPArrayAddress := outputPType.data.pType.zeroes(mb,
-                    region.code, (M * N).toI)
-                ),
-                outputPType.construct(
+                  })
+                },
+                {
+                  cb.assign(answerPArrayAddress, outputPType.data.pType.zeroes(mb, region.code, (M * N).toI))
+                }
+              )
+              val res = outputPType.construct(
                   outputPType.makeShapeBuilder(IndexedSeq(M, N)),
                   outputPType.makeColumnMajorStridesBuilder(IndexedSeq(M, N), mb),
                   answerPArrayAddress,
                   mb,
-                  region.code))
+                  region.code)
 
-              EmitCode(Code._empty, false, PCode(pt, multiplyViaDGEMM)).toI(cb)
+              EmitCode(Code._empty, false, PCode(pt, res)).toI(cb)
             } else {
               val numericElementType = coerce[PNumeric](lPType.elementType)
               val eVti = typeToTypeInfo(numericElementType)
