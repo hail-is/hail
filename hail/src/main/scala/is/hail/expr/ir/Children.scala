@@ -213,7 +213,6 @@ object Children {
     case BlockMatrixToValueApply(child, _) => Array(child)
     case BlockMatrixCollect(child) => Array(child)
     case BlockMatrixWrite(child, _) => Array(child)
-    case UnpersistBlockMatrix(child) => Array(child)
     case BlockMatrixMultiWrite(blockMatrices, _) => blockMatrices
     case CollectDistributedArray(ctxs, globals, _, _, body) => Array(ctxs, globals, body)
     case ReadPartition(path, _, _) => Array(path)

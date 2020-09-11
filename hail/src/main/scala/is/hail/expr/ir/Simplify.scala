@@ -559,8 +559,6 @@ object Simplify {
       if (child.typ.isInstanceOf[TArray]) ArrayRef(child, I32((i * ncols + j).toInt)) else child
 
     case LiftMeOut(child) if IsConstant(child) => child
-    case UnpersistBlockMatrix(x) if !x.isInstanceOf[BlockMatrixRead] => Begin(FastIndexedSeq())
-    case UnpersistBlockMatrix(BlockMatrixRead(x)) if !x.isInstanceOf[BlockMatrixPersistReader] => Begin(FastIndexedSeq())
   }
 
   private[this] def tableRules(canRepartition: Boolean): PartialFunction[TableIR, TableIR] = {

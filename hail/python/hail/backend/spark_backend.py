@@ -324,6 +324,9 @@ class SparkBackend(Py4JBackend):
     def unpersist_matrix_table(self, mt):
         return MatrixTable._from_java(self._to_java_matrix_ir(mt._mir).pyUnpersist())
 
+    def unpersist_block_matrix(self, id):
+        self._jhc.backend().unpersist(id)
+
     def blockmatrix_type(self, bmir):
         jir = self._to_java_blockmatrix_ir(bmir)
         return tblockmatrix._from_java(jir.typ())

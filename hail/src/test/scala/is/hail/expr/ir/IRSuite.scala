@@ -3198,7 +3198,6 @@ class IRSuite extends HailSuite {
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
       BlockMatrixWrite(blockMatrix, BlockMatrixPersistWriter("x", "MEMORY_ONLY")),
-      UnpersistBlockMatrix(blockMatrix),
       CollectDistributedArray(StreamRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32)),
       ReadPartition(Str("foo"),
         TStruct("foo" -> TInt32),
@@ -3492,6 +3491,7 @@ class IRSuite extends HailSuite {
     val s = Pretty(persist, elideLiterals = false)
     val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
     assert(x2 == persist)
+    backend.unpersist(ctx.backendContext, "x")
   }
 
   @Test def testCachedIR() {

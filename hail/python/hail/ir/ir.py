@@ -2316,24 +2316,6 @@ class BlockMatrixMultiWrite(IR):
         return True
 
 
-class UnpersistBlockMatrix(IR):
-    @typecheck_method(child=BlockMatrixIR)
-    def __init__(self, child):
-        super().__init__(child)
-        self.child = child
-
-    def copy(self, child):
-        return UnpersistBlockMatrix(child)
-
-    def _compute_type(self, env, agg_env):
-        self.child._compute_type()
-        self._type = tvoid
-
-    @staticmethod
-    def is_effectful() -> bool:
-        return True
-
-
 class TableToValueApply(IR):
     def __init__(self, child, config):
         super().__init__(child)

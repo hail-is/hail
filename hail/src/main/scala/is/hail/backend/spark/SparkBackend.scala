@@ -229,11 +229,13 @@ class SparkBackend(
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = bmCache.persistBlockMatrix(id, value, storageLevel)
 
-  def unpersist(backendContext: BackendContext, id: String): Unit = bmCache.unpersistBlockMatrix(id)
+  def unpersist(backendContext: BackendContext, id: String): Unit = unpersist(id)
 
   def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix = bmCache.getPersistedBlockMatrix(id)
 
   def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = bmCache.getPersistedBlockMatrixType(id)
+
+  def unpersist(id: String): Unit = bmCache.unpersistBlockMatrix(id)
 
   def withExecuteContext[T]()(f: ExecuteContext => T): T = {
     ExecuteContext.scoped(tmpdir, localTmpdir, this, fs)(f)
