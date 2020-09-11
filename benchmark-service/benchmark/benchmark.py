@@ -131,8 +131,9 @@ async def healthcheck(request: web.Request) -> web.Response:  # pylint: disable=
 
 
 @router.get('/name/{name}')
-@web_authenticated_developers_only(redirect=False)
-async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
+#@web_authenticated_developers_only(redirect=False)
+async def show_name(request: web.Request) -> web.Response:  # pylint: disable=unused-argument
+    userdata = {}
     file_path = request.query.get('file')
     benchmarks = get_benchmarks(request.app, file_path)
     name_data = benchmarks['data'][str(request.match_info['name'])]
@@ -162,8 +163,9 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 
 @router.get('/')
 @router.get('')
-@web_authenticated_developers_only(redirect=False)
-async def index(request, userdata):  # pylint: disable=unused-argument
+# @web_authenticated_developers_only(redirect=False)
+async def index(request):  # pylint: disable=unused-argument
+    userdata = {}
     app = request.app
     file = request.query.get('file')
     if file is None:
