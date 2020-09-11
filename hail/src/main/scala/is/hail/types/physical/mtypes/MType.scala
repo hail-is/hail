@@ -67,8 +67,10 @@ trait MType {
     new UninitializedMValue(addr, this)
   }
 
+  // value should have the same virtual type
   def storeFromSValue(cb: EmitCodeBuilder, memory: UninitializedMValue, value: SValue): MValue
 
+  // value should have the same virtual type, but can be different mtype
   def storeFromMValue(cb: EmitCodeBuilder, memory: UninitializedMValue, value: MValue): MValue
 
   def coerceOrCopyMValue(cb: EmitCodeBuilder, region: Value[Region], value: MValue, deep: Boolean): MValue
