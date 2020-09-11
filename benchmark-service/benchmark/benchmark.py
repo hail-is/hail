@@ -49,7 +49,8 @@ def get_benchmarks(app, file_path):
                 stats['f-stat'] = round(d.get('f-stat'), 6)
             stats['mean'] = round(d['mean'], 6)
             stats['median'] = round(d['median'], 6)
-            stats['p-value'] = round(d['p-value'], 6)
+            if d.get('p-value') is not None:
+                stats['p-value'] = round(d['p-value'], 6)
             stats['stdev'] = round(d['stdev'], 6)
             stats['times'] = d['times']
             stats['trials'] = d['trials']
