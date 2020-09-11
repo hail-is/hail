@@ -150,7 +150,7 @@ async def show_name(request: web.Request) -> web.Response:  # pylint: disable=un
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     except Exception as e:
         message = 'could not find name'
-        log.info('name is of type NoneType: ' + message, exc_info=True)
+        log.info('name is of type NoneType: ' + message + data + data['trial_indices'], exc_info=True)
         raise web.HTTPBadRequest(text=message) from e
 
     context = {
