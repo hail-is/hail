@@ -869,8 +869,7 @@ class Emit[C](
             val lShape = leftPVal.shapes()
             val rShape = rightPVal.shapes()
 
-            val (unifyShapeSetup, unifiedShapeArray) = NDArrayEmitter.matmulShape(mb, lShape, rShape)
-            cb.append(unifyShapeSetup)
+            val unifiedShape = NDArrayEmitter.matmulShape(cb, lShape, rShape)
 
             val leftBroadcastMask = if (lPType.nDims > 2) NDArrayEmitter.broadcastMask(lShape) else IndexedSeq[Value[Long]]()
             val rightBroadcastMask = if (rPType.nDims > 2) NDArrayEmitter.broadcastMask(rShape) else IndexedSeq[Value[Long]]()
@@ -943,7 +942,7 @@ class Emit[C](
               val numericElementType = coerce[PNumeric](lPType.elementType)
               val eVti = typeToTypeInfo(numericElementType)
 
-              val emitter = new NDArrayEmitter[C](outputPType.nDims, unifiedShapeArray, lPType.shape.pType, lPType.elementType, Code._empty, Code._empty, false) {
+              val emitter = new NDArrayEmitter[C](outputPType.nDims, unifiedShape, lPType.shape.pType, lPType.elementType, Code._empty, Code._empty, false) {
                 override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
                   val element = coerce[Any](elemMB.genFieldThisRef("matmul_element")(eVti))
                   val k = elemMB.genFieldThisRef[Long]()
@@ -2924,7 +2923,8 @@ object NDArrayEmitter {
     (sb.result(), shape)
   }
 
-  def matmulShape(mb: EmitMethodBuilder[_], leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): (Code[Unit], IndexedSeq[Value[Long]]) = {
+  def matmulShape(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
+    val mb = cb.emb
     val sb = SetupBuilder(mb)
 
     assert(leftShape.nonEmpty)
@@ -2963,7 +2963,8 @@ object NDArrayEmitter {
       (lK cne rK).orEmpty(
         Code._fatal[Unit](const("Matrix dimensions incompatible: ").concat(lK.toS).concat(" ").concat(rK.toS))))
 
-    (setup, shape)
+    cb.append(setup)
+    shape
   }
 }
 
