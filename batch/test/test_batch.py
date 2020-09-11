@@ -569,8 +569,7 @@ echo $HAIL_BATCH_WORKER_IP
 
     def test_user_authentication_within_job(self):
         batch = self.client.create_batch()
-        default_ns = os.environ['HAIL_DEFAULT_NAMESPACE']
-        cmd = ['bash', '-c', f'mkdir -p ~/.hail; hailctl dev config -l gce {default_ns}; hailctl batch list']
+        cmd = ['bash', '-c', f'hailctl batch list']
         with_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=True)
         no_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=False)
         b = batch.submit()
