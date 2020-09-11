@@ -143,7 +143,7 @@ async def show_name(request: web.Request) -> web.Response:  # pylint: disable=un
         d = {
             'trial': data['trial_indices'],
             'wall_time': data['wall_times'],
-            'index': data['within_group_idx']
+            'index': data['within_group_index']
         }
         df = pd.DataFrame(d)
         fig = px.scatter(df, x=df.trial, y=df.wall_time, hover_data=['index'])
