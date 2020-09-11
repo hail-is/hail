@@ -1027,11 +1027,9 @@ class Emit[C](
         // See here to understand different modes: https://docs.scipy.org/doc/numpy/reference/generated/numpy.linalg.qr.html
         emitNDArrayColumnMajorStrides(nd).map(cb) { case pndCode: PNDArrayCode =>
           val pndValue = pndCode.memoize(cb, "ndarray_qr_nd")
-          val ndAddress = mb.genFieldThisRef[Long]()
-          val ndPType = nd.pType.asInstanceOf[PNDArray]
           // This does a lot of byte level copying currently, so only trust
           // the PCanonicalNDArray representation.
-          assert(ndPType.isInstanceOf[PCanonicalNDArray])
+          assert(pndValue.pt.isInstanceOf[PCanonicalNDArray])
 
           val shapeArray = pndValue.shapes()
 
@@ -1048,7 +1046,7 @@ class Emit[C](
 
           def LWORK = Region.loadDouble(LWORKAddress).toI
 
-          val dataAddress = ndPType.data.load(ndAddress)
+          val dataAddress = pndValue.pt.data.load(pndValue.tcode[Long])
 
           val tauPType = PCanonicalArray(PFloat64Required, true)
           val tauAddress = mb.genFieldThisRef[Long]()
@@ -1062,14 +1060,13 @@ class Emit[C](
             .orEmpty(Code._fatal[Unit](const(s"LAPACK error DGEQRF. $extraErrorMsg Error code = ").concat(infoDGEQRFResult.toS)))
 
           val computeHAndTau = Code(FastIndexedSeq(
-            ndAddress := pndValue.value.asInstanceOf[Value[Long]],
-            aNumElements := ndPType.numElements(shapeArray, mb),
+            aNumElements := pndValue.pt.numElements(shapeArray, mb),
 
             // Make some space for A, which will be overriden during DGEQRF
-            aAddressDGEQRF := ndPType.data.pType.allocate(region.code, aNumElements.toI),
-            ndPType.data.pType.stagedInitialize(aAddressDGEQRF, aNumElements.toI),
-            Region.copyFrom(ndPType.data.pType.firstElementOffset(dataAddress, (M * N).toI),
-              ndPType.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI), (M * N) * 8L),
+            aAddressDGEQRF := pndValue.pt.data.pType.allocate(region.code, aNumElements.toI),
+            pndValue.pt.data.pType.stagedInitialize(aAddressDGEQRF, aNumElements.toI),
+            Region.copyFrom(pndValue.pt.data.pType.firstElementOffset(dataAddress, (M * N).toI),
+              pndValue.pt.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI), (M * N) * 8L),
 
             tauAddress := tauPType.allocate(region.code, K.toI),
             tauPType.stagedInitialize(tauAddress, K.toI),
@@ -1079,7 +1076,7 @@ class Emit[C](
             infoDGEQRFResult := Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
               M.toI,
               N.toI,
-              ndPType.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
+              pndValue.pt.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
               LDA.toI,
               tauPType.firstElementOffset(tauAddress, K.toI),
               LWORKAddress,
@@ -1092,7 +1089,7 @@ class Emit[C](
             infoDGEQRFResult := Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
               M.toI,
               N.toI,
-              ndPType.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
+              pndValue.pt.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
               LDA.toI,
               tauPType.firstElementOffset(tauAddress, K.toI),
               workAddress,
@@ -1157,9 +1154,9 @@ class Emit[C](
             Code.forLoop(currCol := 0, currCol < rCols.toI, currCol := currCol + 1,
               Code.forLoop(currRow := 0, currRow < rRows.toI, currRow := currRow + 1,
                 Region.storeDouble(
-                  ndPType.data.pType.elementOffset(rDataAddress, aNumElements.toI, currCol * rRows.toI + currRow),
+                  pndValue.pt.data.pType.elementOffset(rDataAddress, aNumElements.toI, currCol * rRows.toI + currRow),
                   (currCol >= currRow).mux(
-                    Region.loadDouble(ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, currCol * M.toI + currRow)),
+                    Region.loadDouble(pndValue.pt.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, currCol * M.toI + currRow)),
                     0.0
                   )
                 )
@@ -1206,9 +1203,9 @@ class Emit[C](
                 qNumElements := M * numColsToUse,
                 qCondition.mux(
                   Code(
-                    aAddressDORGQR := ndPType.data.pType.allocate(region.code, qNumElements.toI),
+                    aAddressDORGQR := pndValue.pt.data.pType.allocate(region.code, qNumElements.toI),
                     qPType.data.pType.stagedInitialize(aAddressDORGQR, qNumElements.toI),
-                    Region.copyFrom(ndPType.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
+                    Region.copyFrom(pndValue.pt.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
                       qPType.data.pType.firstElementOffset(aAddressDORGQR, qNumElements.toI), aNumElements * 8L)
                   ),
                   aAddressDORGQR := aAddressDGEQRF
@@ -1219,7 +1216,7 @@ class Emit[C](
                   M.toI,
                   numColsToUse.toI,
                   K.toI,
-                  ndPType.data.pType.firstElementOffset(aAddressDORGQR, aNumElements.toI),
+                  pndValue.pt.data.pType.firstElementOffset(aAddressDORGQR, aNumElements.toI),
                   LDA.toI,
                   tauPType.firstElementOffset(tauAddress, K.toI),
                   LWORKAddress,
@@ -1233,7 +1230,7 @@ class Emit[C](
                   M.toI,
                   numColsToUse.toI,
                   K.toI,
-                  ndPType.data.pType.elementOffset(aAddressDORGQR, (M * numColsToUse).toI, 0),
+                  pndValue.pt.data.pType.elementOffset(aAddressDORGQR, (M * numColsToUse).toI, 0),
                   LDA.toI,
                   tauPType.elementOffset(tauAddress, K.toI, 0),
                   workAddress,
@@ -1244,7 +1241,7 @@ class Emit[C](
 
                 qDataAddress := qPType.data.pType.allocate(region.code, qNumElements.toI),
                 qPType.data.pType.stagedInitialize(qDataAddress, qNumElements.toI),
-                Region.copyFrom(ndPType.data.pType.firstElementOffset(aAddressDORGQR),
+                Region.copyFrom(pndValue.pt.data.pType.firstElementOffset(aAddressDORGQR),
                   qPType.data.pType.firstElementOffset(qDataAddress), (M * numColsToUse) * 8L),
 
                 crOutputSrvb.start(),
