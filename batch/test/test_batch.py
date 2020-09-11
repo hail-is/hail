@@ -10,7 +10,7 @@ import aiohttp
 import requests
 
 from hailtop.config import get_deploy_config
-from hailtop.auth import service_auth_headers
+from hailtop.auth import service_auth_headers, get_userinfo
 from hailtop.utils import retry_response_returning_functions
 from hailtop.batch_client.client import BatchClient, Job
 
@@ -569,15 +569,23 @@ echo $HAIL_BATCH_WORKER_IP
 
     def test_user_authentication_within_job(self):
         batch = self.client.create_batch()
-        cmd = ['bash', '-c', f'hailctl batch list']
+        cmd = ['bash', '-c', f'hailctl auth user']
         with_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=True)
         no_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=False)
         b = batch.submit()
-        batch_id = b.id
 
         with_token_status = with_token.wait()
         assert with_token_status['state'] == 'Success', with_token_status
-        assert str(batch_id) in with_token.log()['main'], (with_token.log()['main'], batch_id)
+
+        username = get_userinfo()
+        auth_pattern = r'{' \
+        + ''.join(r'\s."' + k + r'":\s."(?P<' + k + '>[-._\w\d]+)",'
+                       for k in ["username", "email", "gsa_email"]) \
+        + r'\s.}'
+
+        import re
+        m = re.search(auth_pattern, with_token.log()['main'])
+        assert m is not None and m.group("username") == username, (username, with_token.log()['main'])
 
         no_token_status = no_token.wait()
         assert no_token_status['state'] == 'Failed', no_token_status
