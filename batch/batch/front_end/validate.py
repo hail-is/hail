@@ -40,7 +40,7 @@ from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
 # }]
 
 JOB_KEYS = {
-    'always_run', 'attributes', 'command', 'env', 'gcsfuse', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'requester_pays_project', 'resources', 'secrets', 'service_account', 'timeout', 'mount_tokens'
+    'always_run', 'attributes', 'command', 'env', 'gcsfuse', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'mount_tokens', 'output_files', 'parent_ids', 'pvc_size', 'port', 'requester_pays_project', 'resources', 'secrets', 'service_account', 'timeout'
 }
 
 ENV_VAR_KEYS = {'name', 'value'}
@@ -197,6 +197,11 @@ def validate_job(i, job):
     mount_docker_socket = job['mount_docker_socket']
     if not isinstance(mount_docker_socket, bool):
         raise ValidationError(f'jobs[{i}].mount_docker_socket not bool')
+
+    if 'mount_tokens' in job:
+        mount_tokens = job['mount_tokens']
+        if not isinstance(mount_tokens, bool):
+            raise ValidationError(f'jobs[{i}].mount_tokens is not bool')
 
     if 'output_files' in job:
         output_files = job['output_files']
