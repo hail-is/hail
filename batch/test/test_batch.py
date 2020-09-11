@@ -578,11 +578,12 @@ echo $HAIL_BATCH_WORKER_IP
         assert with_token_status['state'] == 'Success', with_token_status
 
         username = get_userinfo()['username']
-        auth_pattern = r'{' + ','.join(r'\s*"' + k + r'":\s*"(?P<' + k + '>[-@._\w\d]+)"' for k in ["username", "email", "gsa_email"]) + r'\s*}'
 
-        import re
-        m = re.search(auth_pattern, with_token.log()['main'])
-        assert m is not None and m.group("username") == username, (username, with_token.log()['main'])
+        try: 
+            job_userinfo = json.loads(with_token.log()['main'].strip())
+        except: 
+            job_userinfo = None
+        assert job_userinfo is not None and job_userinfo["username"] == username, (username, with_token.log()['main'])
 
         no_token_status = no_token.wait()
         assert no_token_status['state'] == 'Failed', no_token_status
