@@ -171,3 +171,60 @@ async def test_get_object_headers():
             assert 'ETag' in headers
             assert headers['X-Goog-Hash'] == 'crc32c=z8SuHQ==,md5=rL0Y20zC+Fzt72VPzMSk2A=='
             assert await f.read() == b'foo'
+
+
+@pytest.mark.asyncio
+async def test_statfile_nonexistent_file(filesystem):
+    fs, base = filesystem
+
+    with pytest.raises(FileNotFoundError):
+        await fs.statfile(f'{base}/foo')
+
+
+@pytest.mark.asyncio
+async def test_statfile_directory(filesystem):
+    fs, base = filesystem
+
+    await fs.mkdir(f'{base}/dir')
+    await fs.touch(f'{base}/dir/foo')
+
+    with pytest.raises(FileNotFoundError):
+        # statfile raises FileNotFound on directories
+        await fs.statfile(f'{base}/dir')
+
+
+@pytest.mark.asyncio
+async def test_statfile(filesystem):
+    fs, base = filesystem
+
+    n = 37
+    file = f'{base}/bar'
+    async with await fs.create(file) as f:
+        await f.write(secrets.token_bytes(n))
+
+    status = await fs.statfile(file)
+    assert await status.size() == n
+
+@pytest.mark.asyncio
+async def test_listfiles(filesystem):
+    fs, base = filesystem
+
+    # create the following directory structure in base:
+    # foobar
+    # foo/a
+    # foo/b/c
+    foobar = f'{base}/foobar'
+    a = f'{base}/foo/a'
+    b = f'{base}/foo/b'
+    c = f'{base}/foo/b/c'
+    await fs.touch(foobar)
+    await fs.mkdir(f'{base}/foo')
+    await fs.touch(a)
+    await fs.mkdir(f'{base}/foo/b')
+    await fs.touch(c)
+
+    async def listfiles(dir, recursive):
+        return {entry.url() async for entry in fs.listfiles(dir, recursive)}
+
+    assert await listfiles(f'{base}/foo', recursive=True) == {a, c}
+    assert await listfiles(f'{base}/foo', recursive=False) == {a, b}

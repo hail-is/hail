@@ -1,10 +1,41 @@
-from typing import Tuple, Any, Set, Optional
+from typing import Tuple, Any, Set, Optional, Mapping, Dict, AsyncIterator
 import asyncio
 import urllib.parse
 import aiohttp
-from hailtop.aiotools import ReadableStream, WritableStream, AsyncFS, FeedableAsyncIterable
+from hailtop.aiotools import FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS, FeedableAsyncIterable
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 from .base_client import BaseClient
+
+
+class PageIterator:
+    def __init__(self, client: 'BaseClient', path: str, request_kwargs: Mapping[str, Any]):
+        if 'params' in request_kwargs:
+            request_params = request_kwargs['params']
+            del request_kwargs['params']
+        else:
+            request_params = {}
+        self._client = client
+        self._path = path
+        self._request_params = request_params
+        self._request_kwargs = request_kwargs
+        self._page = None
+
+    def __aiter__(self) -> 'PageIterator':
+        return self
+
+    async def __anext__(self):
+        if self._page is None:
+            assert 'pageToken' not in self._request_params
+            self._page = await self._client.get(self._path, params=self._request_params, **self._request_kwargs)
+            return self._page
+
+        next_page_token = self._page.get('nextPageToken')
+        if next_page_token is not None:
+            self._request_params['pageToken'] = next_page_token
+            self._page = await self._client.get(self._path, params=self._request_params, **self._request_kwargs)
+            return self._page
+        else:
+            raise StopAsyncIteration
 
 
 class InsertObjectStream(WritableStream):
@@ -91,8 +122,40 @@ class StorageClient(BaseClient):
     async def delete_object(self, bucket: str, name: str, **kwargs) -> None:
         await self.delete(f'/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs)
 
+    async def list_objects(self, bucket: str, **kwargs) -> PageIterator:
+        return PageIterator(self, f'/b/{bucket}/o', kwargs)
+
     async def _list_objects(self, bucket: str, **kwargs) -> Any:
         return await self.get(f'/b/{bucket}/o', **kwargs)
+
+
+class GetObjectFileStatus(FileStatus):
+    def __init__(self, items):
+        self._items = items
+
+    async def size(self) -> int:
+        return int(self._items['size'])
+
+    async def __getitem__(self, key: str) -> Any:
+        return self._items[key]
+
+
+class GoogleStorageFileListEntry(FileListEntry):
+    def __init__(self, url: str, is_file: bool, items: Optional[Dict[str, Any]]):
+        super().__init__(url)
+        self._is_file = is_file
+        self._items = items
+        self._status = None
+
+    def is_file(self) -> bool:
+        return self._is_file
+
+    def is_prefix(self) -> bool:
+        return not self._is_file
+
+    def status(self) -> FileStatus:
+        if self._status is None:
+            self._status = GetObjectFileStatus(self._items)
 
 
 class GoogleStorageAsyncFS(AsyncFS):
@@ -127,6 +190,58 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def mkdir(self, url: str) -> None:
         pass
+
+    async def statfile(self, url: str) -> GetObjectFileStatus:
+        try:
+            bucket, name = self._get_bucket_name(url)
+            return GetObjectFileStatus(await self._storage_client.get_object_metadata(bucket, name))
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                raise FileNotFoundError(url)
+            raise
+
+    async def _listfiles_recursive(self, bucket: str, name: str) -> AsyncIterator[FileListEntry]:
+        params = {
+            'prefix': name
+        }
+        async for page in await self._storage_client.list_objects(bucket, params=params):
+            prefixes = page.get('prefixes')
+            assert not prefixes
+
+            items = page.get('items')
+            if items is not None:
+                for item in page['items']:
+                    yield GoogleStorageFileListEntry(f'gs://{bucket}/{item["name"]}', True, item)
+
+    async def _listfiles_flat(self, bucket: str, name: str) -> AsyncIterator[FileListEntry]:
+        assert name.endswith('/')
+        params = {
+            'prefix': name,
+            'delimiter': '/',
+            'includeTrailingDelimiter': 'true'
+        }
+        async for page in await self._storage_client.list_objects(bucket, params=params):
+            prefixes = page.get('prefixes')
+            if prefixes:
+                for prefix in prefixes:
+                    url = f'gs://{bucket}/{prefix}'
+                    if url.endswith('/'):
+                        url = url[:-1]
+                    yield GoogleStorageFileListEntry(url, False, None)
+
+            items = page.get('items')
+            if items:
+                for item in page['items']:
+                    yield GoogleStorageFileListEntry(f'gs://{bucket}/{item["name"]}', True, item)
+
+    def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+        bucket, name = self._get_bucket_name(url)
+        if not name.endswith('/'):
+            name = f'{name}/'
+        if recursive:
+            return self._listfiles_recursive(bucket, name)
+        else:
+            return self._listfiles_flat(bucket, name)
 
     async def isfile(self, url: str) -> bool:
         try:
