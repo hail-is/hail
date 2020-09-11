@@ -971,17 +971,17 @@ class Emit[C](
 
                   val lElem = leftPVal.apply(lIndices, elemMB)
                   val rElem = rightPVal.apply(rIndices, elemMB)
-                  val kLen = elemMB.genFieldThisRef[Long]()
+                  val kLen = elemMB.genFieldThisRef[Long]("ndarray_matmul_k")
 
-                  val loopCode = Code(
+                  Code(
                     k := 0L,
                     kLen := lShape(lPType.nDims - 1),
                     element := numericElementType.zero,
                     Code.whileLoop(k < kLen,
                       element := numericElementType.add(numericElementType.multiply(lElem, rElem), element),
                       k := k + 1L),
-                    element)
-                  loopCode
+                    element
+                  )
                 }
               }
               emitter.emit(mb, outputPType, region.code).toI(cb)
