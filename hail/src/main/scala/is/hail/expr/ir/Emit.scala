@@ -981,6 +981,75 @@ class Emit[C](
           }
         }
 
+      case NDArrayInv(nd) =>
+        // Based on https://github.com/numpy/numpy/blob/v1.19.0/numpy/linalg/linalg.py#L477-L547
+        emitNDArrayColumnMajorStrides(nd).map(cb) { case pNDCode: PNDArrayCode =>
+          val pndVal = pNDCode.memoize(cb, "ndarray_inverse_nd")
+          val shapeArray = pndVal.shapes()
+
+          assert(shapeArray.length == 2)
+
+          val M = shapeArray(0)
+          val N = shapeArray(1)
+          val LDA = M
+
+          val dataAddress = pndVal.pt.data.load(pndVal.tcode[Long])
+
+          val IPIVptype = PCanonicalArray(PInt32Required, true)
+          val IPIVaddr = mb.genFieldThisRef[Long]()
+          val WORKaddr = mb.genFieldThisRef[Long]()
+          val Aaddr = mb.genFieldThisRef[Long]()
+          val An = mb.newLocal[Int]()
+
+          val INFOdgetrf = mb.newLocal[Int]()
+          val INFOdgetri = mb.newLocal[Int]()
+          val INFOerror = (fun: String, info: LocalRef[Int]) => (info cne 0)
+            .orEmpty(Code._fatal[Unit](const(s"LAPACK error ${fun}. Error code = ").concat(info.toS)))
+
+          val computeLU = Code(FastIndexedSeq(
+            (N cne M).orEmpty(Code._fatal[Unit](const("Can only invert square matrix"))),
+            An := (M * N).toI,
+
+            Aaddr := pndVal.pt.data.pType.allocate(region.code, An),
+            pndVal.pt.data.pType.stagedInitialize(Aaddr, An),
+            Region.copyFrom(pndVal.pt.data.pType.firstElementOffset(dataAddress, An),
+              pndVal.pt.data.pType.firstElementOffset(Aaddr, An), An.toL * 8L),
+
+            IPIVaddr := IPIVptype.allocate(region.code, N.toI),
+            IPIVptype.stagedInitialize(IPIVaddr, N.toI),
+
+            INFOdgetrf := Code.invokeScalaObject5[Int, Int, Long, Int, Long, Int](LAPACK.getClass, "dgetrf",
+              M.toI,
+              N.toI,
+              pndVal.pt.data.pType.firstElementOffset(Aaddr, An.toI),
+              LDA.toI,
+              IPIVptype.firstElementOffset(IPIVaddr, N.toI)
+            ),
+            INFOerror("dgetrf", INFOdgetrf),
+
+            WORKaddr := Code.invokeStatic1[Memory, Long, Long]("malloc", An.toL * 8L),
+
+            INFOdgetri := Code.invokeScalaObject6[Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgetri",
+              N.toI,
+              pndVal.pt.data.pType.firstElementOffset(Aaddr, An.toI),
+              LDA.toI,
+              IPIVptype.firstElementOffset(IPIVaddr, N.toI),
+              WORKaddr,
+              N.toI
+            ),
+            INFOerror("dgetri", INFOdgetri)
+          ))
+
+          val shapeBuilder = pndVal.pt.makeShapeBuilder(shapeArray)
+          val stridesBuilder = pndVal.pt.makeColumnMajorStridesBuilder(shapeArray, mb)
+
+          val res = Code(
+            computeLU,
+            pndVal.pt.construct(shapeBuilder, stridesBuilder, Aaddr, mb, region.code)
+          )
+          PCode(pndVal.pt, res)
+        }
+
       case x@NDArraySVD(nd, full_matrices, computeUV) =>
         emitNDArrayColumnMajorStrides(nd).flatMap(cb){ ndPCode =>
           val ndPVal = ndPCode.asNDArray.memoize(cb, "nd_svd_value")
