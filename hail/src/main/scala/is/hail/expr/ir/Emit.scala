@@ -3049,3 +3049,83 @@ abstract class NDArrayEmitter[C](
     columnMajorLoops
   }
 }
+
+abstract class NDArrayEmitter2[C](
+                                  val nDims: Int,
+                                  val outputShape: IndexedSeq[Value[Long]],
+                                  val outputShapePType: PTuple,
+                                  val outputElementPType: PType,
+                                  val setupShape: Code[Unit],
+                                  val setupMissing: Code[Unit] = Code._empty,
+                                  val missing: Code[Boolean] = false) {
+
+  def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_]
+
+  def emit(cb: EmitCodeBuilder, targetType: PNDArray, region: Value[Region]): IEmitCode = {
+    val outputShapeVariables = (0 until nDims).map(_ => cb.emb.genFieldThisRef[Long]())
+
+    val dataSrvb = new StagedRegionValueBuilder(cb.emb, targetType.data.pType, region)
+
+    val dataAddress: Code[Long] =
+      Code(
+        dataSrvb.start(targetType.numElements(outputShapeVariables, cb.emb).toI),
+        emitLoops(cb, outputShapeVariables, dataSrvb),
+        dataSrvb.end())
+
+    def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
+      coerce[Unit](Code(
+        srvb.start(),
+        Code.foreach(outputShapeVariables){ shapeElement =>
+          Code(
+            srvb.addLong(shapeElement),
+            srvb.advance()
+          )
+        }
+      ))
+    }
+
+    val m = cb.emb.genFieldThisRef[Boolean]()
+
+    val fullSetup = Code(
+      setupMissing,
+      m := missing,
+      m.mux(
+        Code._empty,
+        Code(
+          setupShape,
+          Code.foreach(0 until nDims)(index => outputShapeVariables(index) := outputShape(index)))))
+
+    val ptr = targetType.construct(
+      shapeBuilder,
+      targetType.makeColumnMajorStridesBuilder(outputShapeVariables, cb.emb),
+      dataAddress,
+      cb.emb,
+      region)
+
+    EmitCode(fullSetup, m, PCode(targetType, ptr)).toI(cb)}
+
+  private def emitLoops(cb: EmitCodeBuilder, outputShapeVariables: IndexedSeq[Value[Long]], srvb: StagedRegionValueBuilder): Code[Unit] = {
+    val mb = cb.emb
+    val idxVars = Array.tabulate(nDims) { _ => mb.genFieldThisRef[Long]() }.toFastIndexedSeq
+    val storeElement = mb.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType))
+
+    val body =
+      Code(
+        storeElement.storeAny(outputElement(cb, idxVars)),
+        srvb.addIRIntermediate(outputElementPType)(storeElement),
+        srvb.advance()
+      )
+
+    val columnMajorLoops = idxVars.zipWithIndex.foldLeft(body) { case (innerLoops, (dimVar, dimIdx)) =>
+      Code(
+        dimVar := 0L,
+        Code.whileLoop(dimVar < outputShapeVariables(dimIdx),
+          innerLoops,
+          dimVar := dimVar + 1L
+        )
+      )
+    }
+
+    columnMajorLoops
+  }
+}
