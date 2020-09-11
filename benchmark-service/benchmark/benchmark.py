@@ -180,8 +180,9 @@ async def index(request):  # pylint: disable=unused-argument
 
 
 @router.get('/compare')
-@web_authenticated_developers_only(redirect=False)
-async def compare(request, userdata):  # pylint: disable=unused-argument
+# @web_authenticated_developers_only(redirect=False)
+async def compare(request):  # pylint: disable=unused-argument
+    userdata = {}
     app = request.app
     file1 = request.query.get('file1')
     file2 = request.query.get('file2')
