@@ -8,6 +8,7 @@ import time
 import unittest
 import aiohttp
 import requests
+import json
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers, get_userinfo
