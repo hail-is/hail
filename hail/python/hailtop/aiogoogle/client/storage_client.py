@@ -150,7 +150,7 @@ class GoogleStorageFileListEntry(FileListEntry):
     def is_file(self) -> bool:
         return self._is_file
 
-    def is_prefix(self) -> bool:
+    def is_dir(self) -> bool:
         return not self._is_file
 
     def status(self) -> FileStatus:
@@ -254,43 +254,17 @@ class GoogleStorageAsyncFS(AsyncFS):
             raise
 
     async def isdir(self, url: str) -> bool:
-        bucket, name = self._get_bucket_name(url)
-        if not name.endswith('/'):
-            name = f'{name}/'
-        params = {
-            'delimiter': '/',
-            'includeTrailingDelimiter': 'true',
-            'maxResults': 1,
-            'prefix': name
-        }
-        data = await self._storage_client._list_objects(bucket, params=params)
-        prefixes = data.get('prefixes')
-        n_prefixes = len(prefixes) if prefixes is not None else 0
-        items = data.get('items')
-        n_items = len(items) if items is not None else 0
-        n = n_prefixes + n_items
-        return n > 0
+        async for entry in self.listfiles(url):
+            return True
+        return False
 
     async def remove(self, url: str) -> None:
         bucket, name = self._get_bucket_name(url)
         await self._storage_client.delete_object(bucket, name)
 
     async def rmtree(self, url: str) -> None:
-        bucket, name = self._get_bucket_name(url)
-        if not name.endswith('/'):
-            name = f'{name}/'
-        params = {
-            'prefix': name
-        }
-        done = False
-        while not done:
-            done = True
-            data = await self._storage_client._list_objects(bucket, params=params)
-            items = data.get('items')
-            if items:
-                for item in items:
-                    await self._storage_client.delete_object(bucket, item['name'])
-                    done = False
+        async for entry in self.listfiles(url, recursive=True):
+            await self.remove(entry.url())
 
     async def close(self) -> None:
         await self._storage_client.close()

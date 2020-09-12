@@ -39,7 +39,7 @@ class FileListEntry(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def is_prefix(self) -> bool:
+    def is_dir(self) -> bool:
         pass
 
     @abc.abstractmethod
@@ -88,7 +88,6 @@ class AsyncFS(abc.ABC):
     async def rmtree(self, url: str) -> None:
         pass
 
-    # FIXME remove
     async def touch(self, url: str) -> None:
         async with await self.create(url):
             pass
@@ -137,7 +136,7 @@ class LocalFileListEntry(FileListEntry):
     async def is_file(self) -> bool:
         return not await blocking_to_async(self._thread_pool, self._entry.is_dir)
 
-    async def is_prefix(self) -> bool:
+    async def is_dir(self) -> bool:
         return await blocking_to_async(self._thread_pool, self._entry.is_dir)
 
     async def status() -> LocalStatFileStatus:
