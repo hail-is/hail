@@ -248,7 +248,7 @@ object PCanonicalNDArraySettable {
 class PCanonicalNDArraySettable(override val pt: PCanonicalNDArray, val a: Settable[Long]) extends PNDArrayValue with PSettable {
   //FIXME: Rewrite apply to not require a methodBuilder, meaning also rewrite loadElementToIRIntermediate
   def apply(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Value[_] = {
-    assert(indices.size == pt.nDims)
+    assert(indices.size == pt.nDims, s"${indices.size} != ${pt.nDims}")
     new Value[Any] {
       override def get: Code[Any] = pt.loadElementToIRIntermediate(indices, a, mb)
     }

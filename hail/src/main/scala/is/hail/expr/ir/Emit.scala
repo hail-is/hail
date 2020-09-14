@@ -950,9 +950,11 @@ class Emit[C](
             } else {
               val numericElementType = coerce[PNumeric](lPType.elementType)
               val eVti = typeToTypeInfo(numericElementType)
+              val iUnifiedShape = IEmitCodeGen(CodeLabel(), CodeLabel(), unifiedShape)
 
-              val emitter = new NDArrayEmitter[C](unifiedShape, lPType.shape.pType, Code._empty, Code._empty, false) {
-                override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
+              val emitter = new NDArrayEmitter2(iUnifiedShape, lPType.shape.pType) {
+                override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_] = {
+                  val elemMB = cb.emb
                   val element = coerce[Any](elemMB.genFieldThisRef("matmul_element")(eVti))
                   val k = elemMB.genFieldThisRef[Long]()
 
@@ -971,6 +973,7 @@ class Emit[C](
                   }
 
                   val lElem = leftPVal.apply(lIndices, elemMB)
+                  assert(rightPVal.pt.nDims == rIndices.length, s"${rightPVal} (nDim = ${rightPVal.pt.nDims}, ${rIndices}")
                   val rElem = rightPVal.apply(rIndices, elemMB)
                   val kLen = elemMB.genFieldThisRef[Long]("ndarray_matmul_k")
 
@@ -985,7 +988,7 @@ class Emit[C](
                   )
                 }
               }
-              emitter.emit(mb, outputPType, region.code).toI(cb)
+              emitter.emit(cb, outputPType, region.code).toI(cb)
             }
           }
         }
@@ -3018,6 +3021,79 @@ abstract class NDArrayEmitter[C](val outputShape: IndexedSeq[Value[Long]], val o
     val body =
       Code(
         storeElement.storeAny(outputElement(mb, idxVars)),
+        srvb.addIRIntermediate(outputElementPType)(storeElement),
+        srvb.advance()
+      )
+
+    val columnMajorLoops = idxVars.zipWithIndex.foldLeft(body) { case (innerLoops, (dimVar, dimIdx)) =>
+      Code(
+        dimVar := 0L,
+        Code.whileLoop(dimVar < outputShapeVariables(dimIdx),
+          innerLoops,
+          dimVar := dimVar + 1L
+        )
+      )
+    }
+
+    columnMajorLoops
+  }
+}
+
+abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Long]]], val outputShapePType: PTuple)
+{
+  val nDims = outputShapePType.size
+
+  def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_]
+
+  def emit(cb: EmitCodeBuilder, targetType: PNDArray, region: Value[Region]): EmitCode = {
+    val mb = cb.emb
+    val outputShapeVariables = (0 until nDims).map(i => cb.newField[Long](s"ndarray_emitter_shape_${i}"))
+
+    val dataSrvb = new StagedRegionValueBuilder(mb, targetType.data.pType, region)
+
+    val dataAddress: Code[Long] =
+      Code(
+        dataSrvb.start(targetType.numElements(outputShapeVariables, mb).toI),
+        emitLoops(cb, outputShapeVariables, targetType.elementType, dataSrvb),
+        dataSrvb.end())
+
+    def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
+      coerce[Unit](Code(
+        srvb.start(),
+        Code.foreach(outputShapeVariables) { shapeElement =>
+          Code(
+            srvb.addLong(shapeElement),
+            srvb.advance()
+          )
+        }
+      ))
+    }
+
+    val m = mb.genFieldThisRef[Boolean]()
+
+    outputShape.consume(cb, {}, { shapeArray: IndexedSeq[Value[Long]] =>
+
+      val fullSetup = Code.foreach(0 until nDims)(index => outputShapeVariables(index) := shapeArray(index))
+
+      val ptr = targetType.construct(
+        shapeBuilder,
+        targetType.makeColumnMajorStridesBuilder(outputShapeVariables, mb),
+        dataAddress,
+        mb,
+        region)
+
+      EmitCode(fullSetup, m, PCode(targetType, ptr))
+    })
+  }
+
+  private def emitLoops(cb: EmitCodeBuilder, outputShapeVariables: IndexedSeq[Value[Long]], outputElementPType: PType, srvb: StagedRegionValueBuilder): Code[Unit] = {
+    val mb = cb.emb
+    val idxVars = Array.tabulate(nDims) { _ => mb.genFieldThisRef[Long]() }.toFastIndexedSeq
+    val storeElement = mb.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType))
+
+    val body =
+      Code(
+        storeElement.storeAny(outputElement(cb, idxVars)),
         srvb.addIRIntermediate(outputElementPType)(storeElement),
         srvb.advance()
       )
