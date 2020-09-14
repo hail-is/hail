@@ -556,7 +556,12 @@ steps:
      {{ code.checkout_script }}
      cd hail
      time retry ./gradlew --version
-     time retry make jars python-version-info wheel HAIL_DEBUG_MODE=1
+     time retry make jars HAIL_DEBUG_MODE=1
+     time retry make jars
+     mkdir build/debug_libs
+     mv io/repo/hail/build/hail-all-spark.jar build/debug_libs/
+     mv io/repo/hail/build/hail-all-spark-test.jar build/debug_libs/
+     time retry make jars python-version-info wheel
      time (cd python && zip -r hail.zip hail hailtop)
      time tar czf test.tar.gz -C python test
      time tar czf resources.tar.gz -C src/test resources
