@@ -14,11 +14,11 @@
     <tbody>
       {% for billing_project in billing_projects %}
       <tr>
-        <td>{{ billing_project }}</td>
+        <td>{{ billing_project['billing_project'] }}</td>
         <td></td>
         <td></td>
       </tr>
-      {% for user in billing_projects[billing_project] %}
+      {% for user in billing_project['users'] %}
       <tr>
         <td></td>
         <td>{{ user }}</td>

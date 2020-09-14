@@ -9,6 +9,7 @@ from . import cancel
 from . import wait
 from . import log
 from . import job
+from . import billing
 
 
 def parser():
@@ -17,6 +18,10 @@ def parser():
         description='Manage batches running on the batch service managed by the Hail team.')
     subparsers = main_parser.add_subparsers()
 
+    billing_parser = subparsers.add_parser(
+        'billing',
+        help='List billing',
+        description='List billing')
     list_parser = subparsers.add_parser(
         'list',
         help="List batches",
@@ -50,6 +55,8 @@ def parser():
         description='Wait for a batch to complete, then print JSON status.'
     )
 
+    billing_parser.set_defaults(module='billing')
+
     list_parser.set_defaults(module='list')
     list_batches.init_parser(list_parser)
 
@@ -79,6 +86,7 @@ def main(args):
         parser().print_help()
         sys.exit(0)
     jmp = {
+        'billing': billing,
         'list': list_batches,
         'delete': delete,
         'get': get,
@@ -94,6 +102,11 @@ def main(args):
     client = BatchClient(None)
 
     try:
+        if args.module == 'billing':
+            from .billing import cli  # pylint: disable=import-outside-toplevel
+            cli.main(args, pass_through_args, client)
+            return
+
         jmp[args.module].main(args, pass_through_args, client)
     finally:
         client.close()
