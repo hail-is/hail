@@ -6,6 +6,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   private val usedBlocks = new ArrayBuilder[Long](4)
   private val bigChunks = new ArrayBuilder[Long](4)
   private val jObjects = new ArrayBuilder[AnyRef](0)
+  private val ndarrayRefs = new ArrayBuilder[Long](4)
 
   private var totalChunkMemory = 0L
   private var currentBlock: Long = 0L
@@ -253,5 +254,13 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     val r = references(idx)
     r.release()
     references.update(idx, null)
+  }
+
+  def allocateNDArray(size: Long): Long = {
+      ???
+  }
+
+  def trackNDArray(alloc: Long): Unit = {
+    this.ndarrayRefs += alloc
   }
 }
