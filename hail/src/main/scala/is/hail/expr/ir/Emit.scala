@@ -850,8 +850,7 @@ class Emit[C](
 
             val ndValue = ndCode.memoize(cb, "reffed_ndarray")
             val idxValues = memoizedIndices.map(_.value.asInstanceOf[Value[Long]])
-            cb.append(ndValue.outOfBounds(idxValues, mb)
-                    .orEmpty(Code._fatal[Unit]("Index out of bounds")))
+            cb.append(ndValue.assertInBounds(idxValues, mb, errorId))
 
             PCode(ndPType.elementType, ndValue.apply(idxValues, mb))
           }
