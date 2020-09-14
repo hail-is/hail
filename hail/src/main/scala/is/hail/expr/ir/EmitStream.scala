@@ -2038,8 +2038,8 @@ object EmitStream {
               }
 
               sized(leftSetup,
-                          newStream,
-                          if (joinType == "left") leftLen else None)
+                    newStream,
+                    if (joinType == "left") leftLen else None)
             }
           }
 
