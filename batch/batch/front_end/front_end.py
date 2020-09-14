@@ -644,6 +644,19 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     'mount_path': '/gsa-key',
                     'mount_in_copy': True
                 })
+                if spec.get('mount_tokens', False):
+                    secrets.append({
+                        'namespace': BATCH_PODS_NAMESPACE,
+                        'name': userdata['tokens_secret_name'],
+                        'mount_path': '/user-tokens',
+                        'mount_in_copy': True
+                    })
+                    secrets.append({
+                        'namespace': DEFAULT_NAMESPACE,
+                        'name': 'gce-deploy-config',
+                        'mount_path': '/deploy-config',
+                        'mount_in_copy': True
+                    })
 
                 sa = spec.get('service_account')
                 check_service_account_permissions(user, sa)

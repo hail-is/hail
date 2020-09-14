@@ -8,9 +8,10 @@ import time
 import unittest
 import aiohttp
 import requests
+import json
 
 from hailtop.config import get_deploy_config
-from hailtop.auth import service_auth_headers
+from hailtop.auth import service_auth_headers, get_userinfo
 from hailtop.utils import retry_response_returning_functions
 from hailtop.batch_client.client import BatchClient, Job
 
@@ -566,3 +567,24 @@ echo $HAIL_BATCH_WORKER_IP
         status = j.wait()
         assert status['state'] == 'Failed', status
         assert "Connection timed out" in j.log()['main'], (j.log()['main'], status)
+
+    def test_user_authentication_within_job(self):
+        batch = self.client.create_batch()
+        cmd = ['bash', '-c', f'hailctl auth user']
+        with_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=True)
+        no_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=False)
+        b = batch.submit()
+
+        with_token_status = with_token.wait()
+        assert with_token_status['state'] == 'Success', with_token_status
+
+        username = get_userinfo()['username']
+
+        try: 
+            job_userinfo = json.loads(with_token.log()['main'].strip())
+        except: 
+            job_userinfo = None
+        assert job_userinfo is not None and job_userinfo["username"] == username, (username, with_token.log()['main'])
+
+        no_token_status = no_token.wait()
+        assert no_token_status['state'] == 'Failed', no_token_status

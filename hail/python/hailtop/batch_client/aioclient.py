@@ -371,7 +371,8 @@ class BatchBuilder:
                    port=None, resources=None, secrets=None,
                    service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False,
-                   timeout=None, gcsfuse=None, requester_pays_project=None):
+                   timeout=None, gcsfuse=None, requester_pays_project=None,
+                   mount_tokens=False):
         if self._submitted:
             raise ValueError("cannot create a job in an already submitted batch")
 
@@ -438,6 +439,8 @@ class BatchBuilder:
                                    for (bucket, mount_path, read_only) in gcsfuse]
         if requester_pays_project:
             job_spec['requester_pays_project'] = requester_pays_project
+        if mount_tokens:
+            job_spec['mount_tokens'] = mount_tokens
 
         self._job_specs.append(job_spec)
 
