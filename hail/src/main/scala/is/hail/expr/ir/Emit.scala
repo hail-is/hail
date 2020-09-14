@@ -838,7 +838,7 @@ class Emit[C](
           }, childPType.data.load(pndVal.tcode[Long]), mb, region.code))
         }
 
-      case NDArrayRef(nd, idxs) =>
+      case NDArrayRef(nd, idxs, errorId) =>
         val ndt = emitI(nd)
         val ndPType = coerce[PNDArray](nd.pType)
 

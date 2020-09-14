@@ -734,9 +734,13 @@ class NDArrayRef(IR):
         super().__init__(nd, *idxs)
         self.nd = nd
         self.idxs = idxs
+        self.save_error_info()
 
     def copy(self, *args):
         return NDArrayRef(args[0], args[1:])
+
+    def head_str(self):
+        return str(self._error_id)
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)

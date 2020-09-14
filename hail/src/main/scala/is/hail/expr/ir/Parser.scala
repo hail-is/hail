@@ -901,9 +901,10 @@ object IRParser {
         val nd = ir_value_expr(env)(it)
         NDArrayAgg(nd, axes)
       case "NDArrayRef" =>
+        val errorId = int32_literal(it)
         val nd = ir_value_expr(env)(it)
         val idxs = ir_value_children(env)(it)
-        NDArrayRef(nd, idxs)
+        NDArrayRef(nd, idxs, errorId)
       case "NDArraySlice" =>
         val nd = ir_value_expr(env)(it)
         val slices = ir_value_expr(env)(it)
