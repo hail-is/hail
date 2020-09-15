@@ -440,7 +440,6 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     ht_local = mt._localize_entries(entries_field_name, sample_field_name)
 
     ht = ht_local.transmute(**{entries_field_name: ht_local[entries_field_name][x_field_name]})
-    ht = ht._group_within_partitions("grouped_fields", block_size)
 
     ys_and_covs_to_keep_with_indices = hl.enumerate(ht[sample_field_name]).filter(lambda struct_with_index: all_defined(struct_with_index[1], y_field_names + cov_field_names))
     indices_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[0])
@@ -451,13 +450,23 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
                              __y_nd=hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[y_name] for y_name in y_field_names]))),
                              __cov_nd=cov_nd)
     k = builtins.len(covariates)
-
-    ht = ht.annotate(**{X_field_name: hl.nd.array(hl.map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples)), ht["grouped_fields"][entries_field_name])).T})
     n = hl.len(ht.kept_samples)
     ht = ht.annotate_globals(d=n - k - 1)
     cov_Qt = hl.if_else(k > 0, hl.nd.qr(ht.__cov_nd)[0].T, hl.nd.zeros((0, n)))
     ht = ht.annotate_globals(__Qty=cov_Qt @ ht.__y_nd)
     ht = ht.annotate_globals(__yyp=dot_rows_with_themselves(ht.__y_nd.T) - dot_rows_with_themselves(ht.__Qty.T))
+
+    ht = ht._group_within_partitions("grouped_fields", block_size)
+
+    def process_block(block):
+        X = hl.nd.array(block.map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples)))).T
+        ...
+
+    def process_partition(part):
+        grouped = part.grouped(block_size)
+        return grouped.map(lambda block: process_block(block))
+
+    ht = ht.annotate(**{X_field_name: hl.nd.array(hl.map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples)), ht["grouped_fields"][entries_field_name])).T})
 
     sum_x_nd = ht[X_field_name].T @ hl.nd.ones((n,))
     ht = ht.annotate(sum_x=sum_x_nd._data_array())
