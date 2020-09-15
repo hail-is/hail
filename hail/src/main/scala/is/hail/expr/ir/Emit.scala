@@ -247,6 +247,9 @@ object IEmitCodeGen {
   implicit class IEmitCode(val iec: IEmitCodeGen[PCode]) extends AnyVal {
     def pc: PCode = iec.value
     def pt: PType = pc.pt
+
+    def memoize(cb: EmitCodeBuilder, name: String): EmitValue =
+      cb.memoize(iec, name)
   }
 }
 
@@ -282,14 +285,38 @@ case class IEmitCodeGen[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) {
     value
   }
 
-  def consume[T](cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (A) => T): T = {
+  def get(cb: EmitCodeBuilder, errorMsg: String = "expected non-missing"): A =
+    handle(cb, cb._fatal(errorMsg))
+
+  def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (A) => Unit): Unit = {
     val Lafter = CodeLabel()
     cb.define(Lmissing)
     ifMissing
     if (cb.isOpenEnded) cb.goto(Lafter)
     cb.define(Lpresent)
-    val ret = ifPresent(value)
+    ifPresent(value)
     cb.define(Lafter)
+  }
+
+  def consumePCode(cb: EmitCodeBuilder, ifMissing: => PCode, ifPresent: (A) => PCode): PCode = {
+    val Lafter = CodeLabel()
+    cb.define(Lmissing)
+    val missingValue = ifMissing
+    val pt = missingValue.pt
+    val ret = cb.emb.newPLocal(pt)
+    cb.assign(ret, missingValue)
+    cb.goto(Lafter)
+    cb.define(Lpresent)
+    val presentValue = ifPresent(value)
+    assert(presentValue.pt == pt)
+    cb.assign(ret, presentValue)
+    cb.define(Lafter)
+    ret
+  }
+
+  def consumeCode[B: TypeInfo](cb: EmitCodeBuilder, ifMissing: => Code[B], ifPresent: (A) => Code[B]): Code[B] = {
+    val ret = cb.emb.newLocal[B]("iec_consumeCode")
+    consume(cb, cb.assign(ret, ifMissing), a => cb.assign(ret, ifPresent(a)))
     ret
   }
 }
@@ -569,8 +596,7 @@ class Emit[C](
 
       case Die(m, typ, errorId) =>
         val cm = emitI(m)
-        val msg = cb.newLocal[String]("exmsg", "<exception message missing>")
-        cm.consume(cb, {}, s => cb.assign(msg, s.asString.loadString()))
+        val msg = cm.consumeCode(cb, "<exception message missing>", _.asString.loadString())
         cb._throw(Code.newInstance[HailException, String, Int](msg, errorId))
 
       case x@WriteMetadata(annotations, writer) =>
@@ -695,8 +721,7 @@ class Emit[C](
       case NA(typ) =>
         IEmitCode(cb, const(true), pt.defaultValue)
       case IsNA(v) =>
-        val m = cb.newLocal[Boolean]("isna")
-        emitI(v).consume(cb, cb.assign(m, const(true)), { _ => cb.assign(m, const(false)) })
+        val m = emitI(v).consumeCode(cb, true, _ => false)
         presentC(m)
       case ApplyBinaryPrimOp(op, l, r) =>
         emitI(l).flatMap(cb) { pcL =>
@@ -709,13 +734,11 @@ class Emit[C](
         if (op.strict) {
           emitI(l).flatMap(cb)(l => emitI(r).map(cb)(r => PCode(pt, f((false, l.code), (false, r.code)))))
         } else {
-          val lm = cb.newLocal[Boolean]("lm", false)
-          val rm = cb.newLocal[Boolean]("rm", false)
-          val lc = emitI(l).handle(cb, cb.assign(lm, true))
-          val rc = emitI(r).handle(cb, cb.assign(rm, true))
+          val lc = emitI(l).memoize(cb, "l")
+          val rc = emitI(r).memoize(cb, "r")
           presentC(
-            f((lm, lm.mux(defaultValue(l.pType), lc.code)),
-              (rm, rm.mux(defaultValue(r.pType), rc.code))))
+            f((lc.m, lc.v),
+              (rc.m, rc.v)))
         }
 
       case x@ArrayRef(a, i, s) =>
@@ -795,7 +818,7 @@ class Emit[C](
                   cb += srvb.start()
                   (0 until nDims).foreach { index =>
                     val shape =
-                      shapeTupleValue.loadField(cb, index).handle(cb, { /* impossible */ }).tcode[Long]
+                      shapeTupleValue.loadField(cb, index).get(cb).tcode[Long]
                     cb += srvb.addLong(shape)
                     cb += srvb.advance()
                   }
@@ -803,7 +826,7 @@ class Emit[C](
 
               def makeStridesBuilder(sourceShape: PBaseStructValue, isRowMajor: Code[Boolean], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb => EmitCodeBuilder.scopedVoid(mb) { cb =>
                 def shapeCodeSeq1 = (0 until nDims).map { i =>
-                  sourceShape.loadField(cb, i).handle(cb, { /* impossible */ }).memoize(cb, s"make_ndarray_shape_${i}").value.asInstanceOf[Value[Long]]
+                  sourceShape.loadField(cb, i).get(cb).memoize(cb, s"make_ndarray_shape_${i}").value.asInstanceOf[Value[Long]]
                 }
 
                 cb.ifx(isRowMajor, {
@@ -877,8 +900,8 @@ class Emit[C](
           val LWORKAddress = mb.newLocal[Long]()
 
           val shapePVal= new PCanonicalBaseStructCode(ndPVal.pt.shape.pType.asInstanceOf[PCanonicalBaseStruct], ndPVal.pt.shape.load(ndPVal.value.asInstanceOf[Value[Long]])).memoize(cb, "nd_svd_shape")
-          val M = shapePVal.loadField(cb, 0).handle(cb, {/* do nothing */}).memoize(cb, "nd_svd_M").value.asInstanceOf[Value[Long]]
-          val N = shapePVal.loadField(cb, 1).handle(cb, {/* do nothing */}).memoize(cb, "nd_svd_N").value.asInstanceOf[Value[Long]]
+          val M = shapePVal.loadField(cb, 0).get(cb).memoize(cb, "nd_svd_M").value.asInstanceOf[Value[Long]]
+          val N = shapePVal.loadField(cb, 1).get(cb).memoize(cb, "nd_svd_N").value.asInstanceOf[Value[Long]]
           val K = cb.newLocal[Long]("nd_svd_K")
           cb.assign(K, (M < N).mux(M, N))
           val LDA = M
@@ -1145,32 +1168,26 @@ class Emit[C](
 
         val shuffleEnv = env.bind(name -> mb.newPresentEmitSettable(uuid.pt, uuid))
 
-        val successfulShuffleIds: PValue = emitI(writerIR, env = shuffleEnv).consume(cb,
-          { cb._fatal("shuffle ID must be non-missing") },
+        val successfulShuffleIds: PValue = emitI(writerIR, env = shuffleEnv)
+          .get(cb, "shuffle ID must be non-missing")
           // just store it so the writer gets run
-          { code => code.memoize(cb, "shuffleSuccessfulShuffleIds") })
+          .memoize(cb, "shuffleSuccessfulShuffleIds")
 
-        val isMissing = cb.newLocal[Boolean]("shuffleWithIsMissing")
-
-        val shuffleReaders = emitI(readersIR, env = shuffleEnv).consume(cb,
-          { cb.append(isMissing := const(true)) },
-          { value =>
-            cb.append(isMissing := const(false))
-            value.memoize(cb, "shuffleReaders")
-          })
+        val shuffleReaders =
+          emitI(readersIR, env = shuffleEnv).memoize(cb, "shuffleReaders")
 
         cb.append(shuffle.stop())
         cb.append(shuffle.close())
 
-        IEmitCode(cb, isMissing, shuffleReaders)
+        shuffleReaders.toI(cb)
 
       case ShuffleWrite(idIR, rowsIR) =>
         val shuffleType = coerce[TShuffle](idIR.typ)
         val rowsPType = coerce[PStream](rowsIR.pType)
-        val uuid = emitI(idIR).consume(cb,
-          { cb._fatal("shuffle ID must be non-missing") },
-          { case (code: PCanonicalShuffleCode) =>
-            code.memoize(cb, "shuffleClientUUID") })
+        val uuid = emitI(idIR)
+          .get(cb, "shuffle ID must be non-missing")
+          .asInstanceOf[PCanonicalShuffleCode]
+          .memoize(cb, "shuffleClientUUID")
         val shuffle = CodeShuffleClient.createValue(
           cb,
           mb.ecb.getType(shuffleType),
@@ -1180,9 +1197,9 @@ class Emit[C](
         cb += shuffle.startPut()
 
         val eltRegion = region.createChildRegion(mb)
-        val rows = emitStream(rowsIR).handle(cb, {
-          cb._fatal("rows stream was missing in shuffle write")
-        }).asStream.stream.getStream(eltRegion)
+        val rows = emitStream(rowsIR)
+          .get(cb, "rows stream was missing in shuffle write")
+          .asStream.stream.getStream(eltRegion)
         cb += eltRegion.allocateRegion(Region.REGULAR)
         cb += rows.forEach(mb, { row: EmitCode =>
           Code(
