@@ -955,8 +955,8 @@ class Emit[C](
               val emitter = new NDArrayEmitter2(iUnifiedShape) {
                 override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_] = {
                   val elemMB = cb.emb
-                  val element = coerce[Any](elemMB.genFieldThisRef("matmul_element")(eVti))
-                  val k = elemMB.genFieldThisRef[Long]()
+                  val element = coerce[Any](cb.newField("matmul_element")(eVti))
+                  val k = cb.newField[Long]("ndarray_matmul_k")
 
                   val (lIndices: IndexedSeq[Value[Long]], rIndices: IndexedSeq[Value[Long]]) = (lPType.nDims, rPType.nDims, idxVars) match {
                     case (1, 1, Seq()) => (IndexedSeq(k), IndexedSeq(k))
@@ -974,7 +974,7 @@ class Emit[C](
 
                   val lElem = leftPVal(lIndices, elemMB)
                   val rElem = rightPVal(rIndices, elemMB)
-                  val kLen = cb.newField[Long]("ndarray_matmul_k")
+                  val kLen = cb.newField[Long]("ndarray_matmul_kLen")
 
                   Code(
                     k := 0L,
@@ -3078,7 +3078,7 @@ abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Lo
 
   private def emitLoops(cb: EmitCodeBuilder, outputShapeVariables: IndexedSeq[Value[Long]], outputElementPType: PType, srvb: StagedRegionValueBuilder): Code[Unit] = {
     val mb = cb.emb
-    val idxVars = Array.tabulate(nDims) { _ => mb.genFieldThisRef[Long]() }.toFastIndexedSeq
+    val idxVars = Array.tabulate(nDims) { i => cb.newField[Long](s"ndarray_emitter_idxVar_$i") }.toFastIndexedSeq
     val storeElement = mb.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType))
 
     val body =
