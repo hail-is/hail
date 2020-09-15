@@ -523,7 +523,6 @@ def test_ndarray_matmul():
     np_ones_int32 = np.ones((4, 4), dtype=np.int32)
     np_ones_float64 = np.ones((4, 4), dtype=np.float64)
     np_zero_by_four = np.array([], dtype=np.float64).reshape((0, 4))
-
     v = hl.nd.array(np_v)
     y = hl.nd.array(np_y)
     m = hl.nd.array(np_m)
