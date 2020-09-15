@@ -952,7 +952,7 @@ class Emit[C](
               val eVti = typeToTypeInfo(numericElementType)
               val iUnifiedShape = IEmitCodeGen(CodeLabel(), CodeLabel(), unifiedShape)
 
-              val emitter = new NDArrayEmitter2(iUnifiedShape, lPType.shape.pType) {
+              val emitter = new NDArrayEmitter2(iUnifiedShape) {
                 override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_] = {
                   val elemMB = cb.emb
                   val element = coerce[Any](elemMB.genFieldThisRef("matmul_element")(eVti))
@@ -973,7 +973,6 @@ class Emit[C](
                   }
 
                   val lElem = leftPVal.apply(lIndices, elemMB)
-                  assert(rightPVal.pt.nDims == rIndices.length, s"${rightPVal} (nDim = ${rightPVal.pt.nDims}, ${rIndices}")
                   val rElem = rightPVal.apply(rIndices, elemMB)
                   val kLen = elemMB.genFieldThisRef[Long]("ndarray_matmul_k")
 
@@ -3039,9 +3038,9 @@ abstract class NDArrayEmitter[C](val outputShape: IndexedSeq[Value[Long]], val o
   }
 }
 
-abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Long]]], val outputShapePType: PTuple)
+abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Long]]])
 {
-  val nDims = outputShapePType.size
+  val nDims = outputShape.value.length
 
   def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_]
 
