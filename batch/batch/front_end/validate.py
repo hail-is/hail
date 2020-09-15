@@ -22,6 +22,7 @@ from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
 #   'port': int,
 #   'pvc_size': str,
 #   'requester_pays_project': str,
+#   'network': str,
 #   'resoures': {
 #     'memory': str,
 #     'cpu': str,
@@ -39,9 +40,11 @@ from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
 #   'timeout': float or int
 # }]
 
-JOB_KEYS = {
-    'always_run', 'attributes', 'command', 'env', 'gcsfuse', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'mount_tokens', 'output_files', 'parent_ids', 'pvc_size', 'port', 'requester_pays_project', 'resources', 'secrets', 'service_account', 'timeout'
-}
+JOB_KEYS = {'always_run', 'attributes', 'command', 'env', 'gcsfuse', 'image',
+            'input_files', 'job_id', 'mount_docker_socket', 'mount_tokens',
+            'output_files', 'parent_ids', 'pvc_size', 'port',
+            'requester_pays_project', 'network', 'resources', 'secrets',
+            'service_account', 'timeout'}
 
 ENV_VAR_KEYS = {'name', 'value'}
 
@@ -254,6 +257,13 @@ def validate_job(i, job):
         requester_pays_project = job['requester_pays_project']
         if not isinstance(requester_pays_project, str):
             raise ValidationError(f'jobs[{i}].requester_pays_project not str')
+
+    if 'network' in job:
+        network = job['network']
+        if not isinstance(network, str):
+            raise ValidationError(f'jobs[{i}].network not str')
+        if network not in ('public', 'private'):
+            raise ValidationError(f'jobs[{i}].network not "public" or "private"')
 
     if 'resources' in job:
         resources = job['resources']

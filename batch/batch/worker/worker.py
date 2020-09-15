@@ -301,6 +301,11 @@ class Container:
         if env:
             config['Env'] = env
 
+        network = self.spec.get('network')
+        if network is None:
+            network = 'public'
+        host_config['NetworkMode'] = network  # not documented, I used strace to inspect the packets
+
         config['HostConfig'] = host_config
 
         return config

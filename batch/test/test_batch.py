@@ -592,11 +592,74 @@ echo $HAIL_BATCH_WORKER_IP
 
         username = get_userinfo()['username']
 
-        try: 
+        try:
             job_userinfo = json.loads(with_token.log()['main'].strip())
-        except: 
+        except Exception:
             job_userinfo = None
         assert job_userinfo is not None and job_userinfo["username"] == username, (username, with_token.log()['main'])
 
         no_token_status = no_token.wait()
         assert no_token_status['state'] == 'Failed', no_token_status
+
+    def test_verify_can_tcp_to_localhost(self):
+        builder = self.client.create_batch()
+        script = '''
+nc -l -p 5000 &
+echo "hello" | nc -q 0 localhost 5000
+'''.lstrip('\n')
+        j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
+                               command=['/bin/bash', '-c', script])
+        builder.submit()
+        status = j.wait()
+        assert status['state'] == 'Success', status
+        assert "Connection refused" not in j.log()['main']
+
+    def test_verify_can_tcp_to_127_0_0_1(self):
+        builder = self.client.create_batch()
+        script = '''
+nc -l -p 5000 &
+echo "hello" | nc -q 0 127.0.0.1 5000
+'''.lstrip('\n')
+        j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
+                               command=['/bin/bash', '-c', script])
+        builder.submit()
+        status = j.wait()
+        assert status['state'] == 'Success', status
+        assert "Connection refused" not in j.log()['main']
+
+    def test_verify_can_tcp_to_self_ip(self):
+        builder = self.client.create_batch()
+        script = '''
+set -e
+nc -l -p 5000 &
+echo "hello" | nc -q 0 $(hostname -i) 5000
+'''.lstrip('\n')
+        j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
+                               command=['/bin/sh', '-c', script])
+        builder.submit()
+        status = j.wait()
+        assert status['state'] == 'Success', status
+        assert "hello" == j.log()['main']
+
+    def test_verify_cannot_talk_to_internal_gateway(self):
+        builder = self.client.create_batch()
+        j = builder.create_job(os.environ['HAIL_CURL_IMAGE'],
+                               command=['curl', 'internal.hail', '--connect-timeout', '60'])
+        builder.submit()
+        status = j.wait()
+        assert status['state'] == 'Error', status
+        assert "Connection refused" in j.log()['main']
+
+    def test_verify_private_network_is_restricted(self):
+        builder = self.client.create_batch()
+        builder.create_job(os.environ['HAIL_CURL_IMAGE'],
+                           command=['curl', 'internal.hail', '--connect-timeout', '60'],
+                           network='private')
+        try:
+            builder.submit()
+        except aiohttp.ClientResponseError as err:
+            assert err.status == 400
+            assert 'unauthorized network private' in err.message
+        else:
+            assert False
+>>>>>>> b27e1f6fae... [batch] isolate networks for non ci jobs

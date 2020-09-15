@@ -344,6 +344,25 @@ steps:
     - default_ns
     - base_image
  - kind: runImage
+   name: delete_tokens
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     kubectl -n {{ default_ns.name }} delete secret ci-tokens
+     kubectl -n {{ batch_pods_ns.name }} delete secret test-tokens
+     kubectl -n {{ batch_pods_ns.name }} delete secret test-dev-tokens
+   scopes:
+    - test
+    - dev
+   runIfRequested: true
+   serviceAccount:
+     name: admin
+     namespace:
+       valueFrom: default_ns.name
+   dependsOn:
+    - service_base_image
+    - default_ns
+ - kind: runImage
    name: create_accounts
    image:
      valueFrom: service_base_image.image
@@ -430,6 +449,7 @@ steps:
     - auth_database
     - service_base_image
     - create_deploy_config
+    - delete_tokens
  - kind: buildImage
    name: hail_build_image
    dockerFile: hail/Dockerfile.hail-build
@@ -1771,6 +1791,12 @@ steps:
     - hail_run_image
     - deploy_query
  - kind: buildImage
+   name: netcat_ubuntu_image
+   dockerFile:
+     inline: |
+       FROM ubuntu:18.04
+       RUN apt-get update && apt-get install netcat -y
+ - kind: buildImage
    name: curl_image
    dockerFile:
      inline: |
@@ -2012,6 +2038,9 @@ steps:
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     export HAIL_NETCAT_UBUNTU_IMAGE={{
+     netcat_ubuntu_image.image }}
+     export HAIL_CURL_IMAGE={{ curl_image.image }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2055,6 +2084,7 @@ steps:
     - batch_image
     - ci_utils_image
     - deploy_batch
+    - netcat_ubuntu_image
     - curl_image
  - kind: runImage
    name: create_ci_test_repo

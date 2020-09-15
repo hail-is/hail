@@ -678,6 +678,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 else:
                     state = 'Pending'
 
+                network = spec.get('network')
+                if user != 'ci' and not (network is None or network == 'public'):
+                    raise web.HTTPBadRequest(reason=f'unauthorized network {network}')
+
                 spec_writer.add(json.dumps(spec))
                 db_spec = batch_format_version.db_spec(spec)
 
