@@ -972,9 +972,9 @@ class Emit[C](
                       (lStackVars :+ n :+ k, rStackVars :+ k :+ m)
                   }
 
-                  val lElem = leftPVal.apply(lIndices, elemMB)
-                  val rElem = rightPVal.apply(rIndices, elemMB)
-                  val kLen = elemMB.genFieldThisRef[Long]("ndarray_matmul_k")
+                  val lElem = leftPVal(lIndices, elemMB)
+                  val rElem = rightPVal(rIndices, elemMB)
+                  val kLen = cb.newField[Long]("ndarray_matmul_k")
 
                   Code(
                     k := 0L,
@@ -987,7 +987,7 @@ class Emit[C](
                   )
                 }
               }
-              emitter.emit(cb, outputPType, region.code).toI(cb)
+              emitter.emit(cb, outputPType, region.code)
             }
           }
         }
@@ -3044,7 +3044,7 @@ abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Lo
 
   def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_]
 
-  def emit(cb: EmitCodeBuilder, targetType: PNDArray, region: Value[Region]): EmitCode = {
+  def emit(cb: EmitCodeBuilder, targetType: PNDArray, region: Value[Region]): IEmitCode = {
     val mb = cb.emb
     val outputShapeVariables = (0 until nDims).map(i => cb.newField[Long](s"ndarray_emitter_shape_${i}"))
 
@@ -3068,11 +3068,8 @@ abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Lo
       ))
     }
 
-    val m = mb.genFieldThisRef[Boolean]()
-
-    outputShape.consume(cb, {}, { shapeArray: IndexedSeq[Value[Long]] =>
-
-      val fullSetup = Code.foreach(0 until nDims)(index => outputShapeVariables(index) := shapeArray(index))
+    outputShape.map(cb){ shapeArray: IndexedSeq[Value[Long]] =>
+      cb.append(Code.foreach(0 until nDims)(index => outputShapeVariables(index) := shapeArray(index)))
 
       val ptr = targetType.construct(
         shapeBuilder,
@@ -3081,8 +3078,8 @@ abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Lo
         mb,
         region)
 
-      EmitCode(fullSetup, m, PCode(targetType, ptr))
-    })
+      PCode(targetType, ptr)
+    }
   }
 
   private def emitLoops(cb: EmitCodeBuilder, outputShapeVariables: IndexedSeq[Value[Long]], outputElementPType: PType, srvb: StagedRegionValueBuilder): Code[Unit] = {
