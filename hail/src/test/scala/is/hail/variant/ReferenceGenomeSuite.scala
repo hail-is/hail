@@ -5,7 +5,7 @@ import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.types.virtual.TLocus
-import is.hail.io.reference.FASTAReader
+import is.hail.io.reference.FASTAReaderConfig
 import is.hail.utils.Interval
 import is.hail.{HailSuite, TestUtils}
 import org.testng.annotations.Test
@@ -104,8 +104,8 @@ class ReferenceGenomeSuite extends HailSuite {
     val rg = ReferenceGenome("test", Array("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
     ReferenceGenome.addReference(rg)
 
-    val fr = FASTAReader(ctx, rg, fastaFile, indexFile, 3, 5)
-    val frGzip = FASTAReader(ctx, rg, fastaFileGzip, indexFile, 3, 5)
+    val fr = FASTAReaderConfig(ctx.localTmpdir, ctx.fs.broadcast, rg, fastaFile, indexFile, 3, 5).reader
+    val frGzip = FASTAReaderConfig(ctx.localTmpdir, ctx.fs.broadcast, rg, fastaFileGzip, indexFile, 3, 5).reader
 
     object Spec extends Properties("Fasta Random") {
       property("cache gives same base as from file") = forAll(Locus.gen(rg)) { l =>
