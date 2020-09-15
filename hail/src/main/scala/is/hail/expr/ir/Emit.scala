@@ -219,8 +219,8 @@ object IEmitCode {
     IEmitCodeGen(CodeLabel(), Lpresent, value)
   }
 
-  def sequence[A, B](seq: IndexedSeq[A], toIec: A => IEmitCodeGen[B], cb: EmitCodeBuilder)
-      (f: IndexedSeq[B] => B): IEmitCodeGen[B] = {
+  def sequence[A, B, C](seq: IndexedSeq[A], toIec: A => IEmitCodeGen[B], cb: EmitCodeBuilder)
+      (f: IndexedSeq[B] => C): IEmitCodeGen[C] = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
 
@@ -239,7 +239,7 @@ object IEmitCode {
     IEmitCodeGen(Lmissing, Lpresent, pc)
   }
 
-  def flatten[A](seq: IndexedSeq[() => IEmitCodeGen[A]], cb: EmitCodeBuilder)(f: IndexedSeq[A] => A): IEmitCodeGen[A] =
+  def flatten[A, B](seq: IndexedSeq[() => IEmitCodeGen[A]], cb: EmitCodeBuilder)(f: IndexedSeq[A] => B): IEmitCodeGen[B] =
     sequence(seq, { (i: () => IEmitCodeGen[A]) => i() }, cb)(f)
 }
 
@@ -251,7 +251,7 @@ object IEmitCodeGen {
 }
 
 case class IEmitCodeGen[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) {
-  def map(cb: EmitCodeBuilder)(f: (A) => A): IEmitCodeGen[A] = {
+  def map[B](cb: EmitCodeBuilder)(f: (A) => B): IEmitCodeGen[B] = {
     val Lpresent2 = CodeLabel()
     cb.define(Lpresent)
     val value2 = f(value)
@@ -267,7 +267,7 @@ case class IEmitCodeGen[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) {
     IEmitCodeGen(Lmissing2, Lpresent, value)
   }
 
-  def flatMap(cb: EmitCodeBuilder)(f: (A) => IEmitCodeGen[A]): IEmitCodeGen[A] = {
+  def flatMap[B](cb: EmitCodeBuilder)(f: (A) => IEmitCodeGen[B]): IEmitCodeGen[B] = {
     cb.define(Lpresent)
     val ec2 = f(value)
     cb.define(ec2.Lmissing)
