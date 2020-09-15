@@ -3045,37 +3045,31 @@ abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Lo
   def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_]
 
   def emit(cb: EmitCodeBuilder, targetType: PNDArray, region: Value[Region]): IEmitCode = {
-    val mb = cb.emb
-    val outputShapeVariables = (0 until nDims).map(i => cb.newField[Long](s"ndarray_emitter_shape_${i}"))
-
-    val dataSrvb = new StagedRegionValueBuilder(mb, targetType.data.pType, region)
-
-    val dataAddress: Code[Long] =
-      Code(
-        dataSrvb.start(targetType.numElements(outputShapeVariables, mb).toI),
-        emitLoops(cb, outputShapeVariables, targetType.elementType, dataSrvb),
-        dataSrvb.end())
-
-    def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
-      coerce[Unit](Code(
-        srvb.start(),
-        Code.foreach(outputShapeVariables) { shapeElement =>
-          Code(
-            srvb.addLong(shapeElement),
-            srvb.advance()
-          )
-        }
-      ))
-    }
-
     outputShape.map(cb){ shapeArray: IndexedSeq[Value[Long]] =>
-      cb.append(Code.foreach(0 until nDims)(index => outputShapeVariables(index) := shapeArray(index)))
+      val dataSrvb = new StagedRegionValueBuilder(cb.emb, targetType.data.pType, region)
+      val dataAddress: Code[Long] =
+        Code(
+          dataSrvb.start(targetType.numElements(shapeArray, cb.emb).toI),
+          emitLoops(cb, shapeArray, targetType.elementType, dataSrvb),
+          dataSrvb.end())
+
+      def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
+        coerce[Unit](Code(
+          srvb.start(),
+          Code.foreach(shapeArray) { shapeElement =>
+            Code(
+              srvb.addLong(shapeElement),
+              srvb.advance()
+            )
+          }
+        ))
+      }
 
       val ptr = targetType.construct(
         shapeBuilder,
-        targetType.makeColumnMajorStridesBuilder(outputShapeVariables, mb),
+        targetType.makeColumnMajorStridesBuilder(shapeArray, cb.emb),
         dataAddress,
-        mb,
+        cb.emb,
         region)
 
       PCode(targetType, ptr)
