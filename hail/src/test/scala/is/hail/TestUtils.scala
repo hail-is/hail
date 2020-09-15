@@ -466,7 +466,7 @@ object TestUtils {
     val arrayIR = if (expected == null) nd else {
       val refs = Array.fill(nd.typ.asInstanceOf[TNDArray].nDims) { Ref(genUID(), TInt32) }
       Let("nd", nd,
-        dims.zip(refs).foldRight[IR](NDArrayRef(Ref("nd", nd.typ), refs.map(Cast(_, TInt64)))) {
+        dims.zip(refs).foldRight[IR](NDArrayRef(Ref("nd", nd.typ), refs.map(Cast(_, TInt64)), -1)) {
           case ((n, ref), accum) =>
             ToArray(StreamMap(rangeIR(n.toInt), ref.name, accum))
         })

@@ -86,8 +86,8 @@ object Copy {
       case NDArrayConcat(_, axis) =>
         assert(newChildren.length ==  1)
         NDArrayConcat(newChildren(0).asInstanceOf[IR], axis)
-      case NDArrayRef(_, _) =>
-        NDArrayRef(newChildren(0).asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]))
+      case NDArrayRef(_, _, errorId) =>
+        NDArrayRef(newChildren(0).asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]), errorId)
       case NDArraySlice(_, _) =>
         assert(newChildren.length ==  2)
         NDArraySlice(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])

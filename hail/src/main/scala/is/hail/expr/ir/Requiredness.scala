@@ -586,7 +586,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val ndsReq = lookupAs[RIterable](nds)
         requiredness.unionFrom(ndsReq.elementType)
         requiredness.union(ndsReq.required)
-      case NDArrayRef(nd, idxs) =>
+      case NDArrayRef(nd, idxs, _) =>
         val ndReq = lookupAs[RNDArray](nd)
         requiredness.unionFrom(ndReq.elementType)
         requiredness.union(ndReq.required && idxs.forall(lookup(_).required))

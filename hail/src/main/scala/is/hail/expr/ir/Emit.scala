@@ -869,7 +869,7 @@ class Emit[C](
           }, childPType.data.load(pndVal.tcode[Long]), mb, region.code))
         }
 
-      case NDArrayRef(nd, idxs) =>
+      case NDArrayRef(nd, idxs, errorId) =>
         val ndt = emitI(nd)
         val ndPType = coerce[PNDArray](nd.pType)
 
@@ -881,8 +881,7 @@ class Emit[C](
 
             val ndValue = ndCode.memoize(cb, "reffed_ndarray")
             val idxValues = memoizedIndices.map(_.value.asInstanceOf[Value[Long]])
-            cb.append(ndValue.outOfBounds(idxValues, mb)
-                    .orEmpty(Code._fatal[Unit]("Index out of bounds")))
+            cb.append(ndValue.assertInBounds(idxValues, mb, errorId))
 
             PCode(ndPType.elementType, ndValue.apply(idxValues, mb))
           }

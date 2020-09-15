@@ -125,7 +125,7 @@ object Children {
       Array(array, init, seq, result)
     case RunAgg(body, result, _) =>
       Array(body, result)
-    case NDArrayRef(nd, idxs) =>
+    case NDArrayRef(nd, idxs, _) =>
       nd +: idxs
     case NDArraySlice(nd, slices) =>
       Array(nd, slices)

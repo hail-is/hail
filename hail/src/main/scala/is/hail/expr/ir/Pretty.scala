@@ -319,6 +319,7 @@ object Pretty {
             case NDArrayReindex(_, indexExpr) => prettyInts(indexExpr)
             case NDArrayConcat(_, axis) => axis.toString
             case NDArrayAgg(_, axes) => prettyInts(axes)
+            case NDArrayRef(_, _, errorId) => s"$errorId"
             case ArraySort(_, l, r, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ApplyIR(function, typeArgs, _) => prettyIdentifier(function) + " " + prettyTypes(typeArgs) + " " + ir.typ.parsableString()
             case Apply(function, typeArgs, _, t) => prettyIdentifier(function) + " " + prettyTypes(typeArgs) + " " + t.parsableString()

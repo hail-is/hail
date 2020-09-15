@@ -44,8 +44,6 @@ abstract class PNDArray extends PType {
 
   def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_]
 
-  def outOfBounds(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Boolean]
-
   def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long]
 
   def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): (Code[Unit], IndexedSeq[Value[Long]])
@@ -69,6 +67,8 @@ abstract class PNDArrayValue extends PValue {
   override def pt: PNDArray = ???
 
   def outOfBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Boolean]
+
+  def assertInBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_], errorId: Int = -1): Code[Unit]
 
   def sameShape(other: PNDArrayValue, mb: EmitMethodBuilder[_]): Code[Boolean]
 }

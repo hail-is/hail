@@ -327,6 +327,11 @@ object Code {
       Code.invokeStatic0[scala.Option[String], scala.Option[String]]("empty"),
       Code._null[Throwable]))
 
+  def _fatal[U](msg: Code[String], errorId: Int)(implicit uti: TypeInfo[U]): Code[U] =
+    Code._throw[is.hail.utils.HailException, U](Code.newInstance[is.hail.utils.HailException, String, Int](
+      msg,
+      errorId))
+
   def _return[T](c: Code[T]): Code[Unit] = {
     c.end.append(if (c.v != null)
       lir.returnx(c.v)

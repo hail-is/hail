@@ -158,7 +158,7 @@ object InferType {
       case NDArrayAgg(nd, axes) =>
         val childType = coerce[TNDArray](nd.typ)
         TNDArray(childType.elementType, Nat(childType.nDims - axes.length))
-      case NDArrayRef(nd, idxs) =>
+      case NDArrayRef(nd, idxs, _) =>
         assert(idxs.forall(_.typ == TInt64))
         coerce[TNDArray](nd.typ).elementType
       case NDArraySlice(nd, slices) =>

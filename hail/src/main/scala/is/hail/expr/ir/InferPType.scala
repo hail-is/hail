@@ -249,7 +249,7 @@ object InferPType {
         PCanonicalNDArray(body.pType.setRequired(true), lPType.nDims, requiredness(node).required)
       case NDArrayReindex(nd, indexExpr) =>
         PCanonicalNDArray(coerce[PNDArray](nd.pType).elementType, indexExpr.length, requiredness(node).required)
-      case NDArrayRef(nd, idxs) =>
+      case NDArrayRef(nd, idxs, _) =>
         coerce[PNDArray](nd.pType).elementType.setRequired(requiredness(node).required)
       case NDArraySlice(nd, slices) =>
         val remainingDims = coerce[PTuple](slices.pType).types.filter(_.isInstanceOf[PTuple])
