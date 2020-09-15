@@ -8,7 +8,7 @@ import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
-import is.hail.types.TableType
+import is.hail.types.{BlockMatrixType, TableType}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.encoded._
@@ -3198,7 +3198,6 @@ class IRSuite extends HailSuite {
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
       BlockMatrixWrite(blockMatrix, BlockMatrixPersistWriter("x", "MEMORY_ONLY")),
-      UnpersistBlockMatrix(blockMatrix),
       CollectDistributedArray(StreamRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32)),
       ReadPartition(Str("foo"),
         TStruct("foo" -> TInt32),
@@ -3424,9 +3423,7 @@ class IRSuite extends HailSuite {
       sparsify3,
       densify,
       RelationalLetBlockMatrix("x", I32(0), read),
-      slice,
-      BlockMatrixRead(BlockMatrixPersistReader("x"))
-    )
+      slice)
 
     blockMatrixIRs.map(ir => Array(ir))
   }
@@ -3484,6 +3481,17 @@ class IRSuite extends HailSuite {
     val s = Pretty(x, elideLiterals = false)
     val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
     assert(x2 == x)
+  }
+
+  def testBlockMatrixIRParserPersist() {
+    val bm = BlockMatrix.fill(1, 1, 0.0, 5)
+    backend.persist(ctx.backendContext, "x", bm, "MEMORY_ONLY")
+    val persist = BlockMatrixRead(BlockMatrixPersistReader("x", BlockMatrixType.fromBlockMatrix(bm)))
+
+    val s = Pretty(persist, elideLiterals = false)
+    val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
+    assert(x2 == persist)
+    backend.unpersist(ctx.backendContext, "x")
   }
 
   @Test def testCachedIR() {

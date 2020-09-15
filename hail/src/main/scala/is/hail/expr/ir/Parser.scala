@@ -1256,8 +1256,6 @@ object IRParser {
         val writer = deserialize[BlockMatrixMultiWriter](writerStr)
         val blockMatrices = repUntil(it, blockmatrix_ir(env), PunctuationToken(")"))
         BlockMatrixMultiWrite(blockMatrices.toFastIndexedSeq, writer)
-      case "UnpersistBlockMatrix" =>
-        UnpersistBlockMatrix(blockmatrix_ir(env)(it))
       case "CollectDistributedArray" =>
         val cname = identifier(it)
         val gname = identifier(it)

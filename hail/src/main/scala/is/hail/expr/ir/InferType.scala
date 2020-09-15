@@ -241,7 +241,6 @@ object InferType {
       case _: BlockMatrixCollect => TNDArray(TFloat64, Nat(2))
       case _: BlockMatrixWrite => TVoid
       case _: BlockMatrixMultiWrite => TVoid
-      case _: UnpersistBlockMatrix => TVoid
       case TableGetGlobals(child) => child.typ.globalType
       case TableCollect(child) => TStruct("rows" -> TArray(child.typ.rowType), "global" -> child.typ.globalType)
       case TableToValueApply(child, function) => function.typ(child.typ)

@@ -3,6 +3,8 @@ package is.hail.backend
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{ExecuteContext, IR, SortField}
 import is.hail.expr.ir.lowering.TableStage
+import is.hail.linalg.BlockMatrix
+import is.hail.types.BlockMatrixType
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
@@ -26,6 +28,14 @@ abstract class Backend {
 
   def broadcast[T: ClassTag](value: T): BroadcastValue[T]
 
+  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit
+
+  def unpersist(backendContext: BackendContext, id: String): Unit
+
+  def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix
+
+  def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType
+
   def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]])(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]]
 
   def stop(): Unit
@@ -35,4 +45,3 @@ abstract class Backend {
 
   def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage
 }
-

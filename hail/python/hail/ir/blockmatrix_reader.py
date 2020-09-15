@@ -14,9 +14,6 @@ class BlockMatrixReader(object):
     def __eq__(self, other):
         pass
 
-    def unpersisted(self, ir):
-        return ir
-
 
 class BlockMatrixNativeReader(BlockMatrixReader):
     @typecheck_method(path=str)
@@ -68,5 +65,5 @@ class BlockMatrixPersistReader(BlockMatrixReader):
         return isinstance(other, BlockMatrixPersistReader) and \
             self.id == other.id
 
-    def unpersisted(self, ir):
+    def unpersisted(self):
         return self.original

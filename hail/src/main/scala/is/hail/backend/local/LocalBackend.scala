@@ -27,6 +27,9 @@ import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
 import java.io.PrintWriter
 
+import is.hail.linalg.BlockMatrix
+import is.hail.types.BlockMatrixType
+
 class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
 
 object LocalBackend {
@@ -245,4 +248,12 @@ class LocalBackend(
 
   def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =
     LoadPlink.importFamJSON(fs, path, isQuantPheno, delimiter, missingValue)
+
+  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???
+
+  def unpersist(backendContext: BackendContext, id: String): Unit = ???
+
+  def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix = ???
+
+  def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = ???
 }

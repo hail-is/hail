@@ -13,7 +13,6 @@ object InterpretableButNotCompilable {
     case _: MatrixMultiWrite => true
     case _: TableMultiWrite => true
     case _: BlockMatrixWrite => true
-    case _: UnpersistBlockMatrix => true
     case _: BlockMatrixMultiWrite => true
     case _: TableToValueApply => true
     case _: MatrixToValueApply => true
@@ -38,7 +37,6 @@ object Compilable {
       case _: TableMultiWrite => false
       case _: BlockMatrixCollect => false
       case _: BlockMatrixWrite => false
-      case _: UnpersistBlockMatrix => false
       case _: BlockMatrixMultiWrite => false
       case _: TableToValueApply => false
       case _: MatrixToValueApply => false

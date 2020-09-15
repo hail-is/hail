@@ -16,7 +16,7 @@ from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, F64, \
     ApplyUnaryPrimOp, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
     BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter, TableFromBlockMatrixNativeReader, TableRead, \
     BlockMatrixSlice, BlockMatrixSparsify, BlockMatrixDensify, RectangleSparsifier, \
-    RowIntervalSparsifier, BandSparsifier, PerBlockSparsifier, UnpersistBlockMatrix
+    RowIntervalSparsifier, BandSparsifier, PerBlockSparsifier
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader, BlockMatrixPersistReader
 from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter, BlockMatrixPersistWriter
 from hail.ir import ExportType
@@ -1303,8 +1303,10 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Unpersisted block matrix.
         """
-        Env.backend().execute(UnpersistBlockMatrix(self._bmir))
-        return BlockMatrix(self._bmir.unpersisted())
+        if isinstance(self._bmir, BlockMatrixRead) and isinstance(self._bmir.reader, BlockMatrixPersistReader):
+            Env.backend().unpersist_block_matrix(self._bmir.reader.id)
+            return self._bmir.reader.unpersisted()
+        return self
 
     def __pos__(self):
         return self
