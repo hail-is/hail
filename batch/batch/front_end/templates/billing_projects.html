@@ -23,7 +23,7 @@
         <td></td>
         <td>{{ user }}</td>
         <td>
-          <form action="{{ base_path }}/billing_projects/{{ billing_project }}/users/{{ user }}/remove" method="POST">
+          <form action="{{ base_path }}/billing_projects/{{ billing_project['billing_project'] }}/users/{{ user }}/remove" method="POST">
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
             <button>
               Remove
@@ -32,7 +32,7 @@
         </td>
       </tr>
       {% endfor %}
-      <form action="{{ base_path }}/billing_projects/{{ billing_project }}/users/add" method="POST">
+      <form action="{{ base_path }}/billing_projects/{{ billing_project['billing_project'] }}/users/add" method="POST">
         <input type="hidden" name="_csrf" value="{{ csrf_token }}">
         <tr>
           <td></td>
