@@ -4,6 +4,7 @@ import java.io._
 
 import is.hail.HailContext
 import is.hail.expr.ir.ExecuteContext
+import is.hail.io.FileWriteMetadata
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
 import is.hail.rvd.RVDContext
@@ -18,7 +19,7 @@ import scala.reflect.ClassTag
 object RichContextRDD {
   def writeParts[T](ctx: RVDContext, rootPath: String, f:String, idxRelPath: String, mkIdxWriter: (String) => IndexWriter,
                     stageLocally: Boolean, fs: FS, localTmpdir: String, it: Iterator[T],
-                    write: (RVDContext, Iterator[T], OutputStream, IndexWriter) => Long): Iterator[(String, Long)] = {
+                    write: (RVDContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long)): Iterator[FileWriteMetadata] = {
     val finalFilename = rootPath + "/parts/" + f
     val finalIdxFilename = if (idxRelPath != null) rootPath + "/" + idxRelPath + "/" + f + ".idx" else null
     val (filename, idxFilename) =
@@ -35,9 +36,10 @@ object RichContextRDD {
         finalFilename -> finalIdxFilename
     val os = fs.create(filename)
     val iw = mkIdxWriter(idxFilename)
-    val count = write(ctx, it, os, iw)
-    if (iw != null)
-      iw.close()
+
+    // write will close `os` and `iw`
+    val (rowCount, bytesWritten) = write(ctx, it, os, iw)
+
     if (stageLocally) {
       fs.copy(filename, finalFilename)
       if (iw != null) {
@@ -46,7 +48,7 @@ object RichContextRDD {
       }
     }
     ctx.region.clear()
-    Iterator.single(f -> count)
+    Iterator.single(FileWriteMetadata(f, rowCount, bytesWritten))
   }
 }
 
@@ -86,8 +88,8 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
     idxRelPath: String,
     stageLocally: Boolean,
     mkIdxWriter: (String) => IndexWriter,
-    write: (RVDContext, Iterator[T], OutputStream, IndexWriter) => Long
-  ): (Array[String], Array[Long]) = {
+    write: (RVDContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long)
+  ): Array[FileWriteMetadata] = {
     val localTmpdir = ctx.localTmpdir
     val fs = ctx.fs
     val fsBc = ctx.fsBc
@@ -100,16 +102,14 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
 
     val d = digitsNeeded(nPartitions)
 
-    val (partFiles, partitionCounts) = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+    val fileData = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
       val f = partFile(d, i, TaskContext.get)
       RichContextRDD.writeParts(ctx, path, f, idxRelPath, mkIdxWriter, stageLocally, fs, localTmpdir, it, write)
     }
       .collect()
-      .unzip
 
-    val itemCount = partitionCounts.sum
-    assert(nPartitions == partitionCounts.length)
+    assert(nPartitions == fileData.length)
 
-    (partFiles, partitionCounts)
+    fileData
   }
 }

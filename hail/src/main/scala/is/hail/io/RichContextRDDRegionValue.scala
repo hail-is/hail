@@ -22,7 +22,7 @@ object RichContextRDDRegionValue {
     makeEnc: (OutputStream) => Encoder,
     indexKeyFieldIndices: Array[Int] = null,
     rowType: PStruct = null
-  )(ctx: RVDContext, it: Iterator[Long], os: OutputStream, iw: IndexWriter): Long = {
+  )(ctx: RVDContext, it: Iterator[Long], os: OutputStream, iw: IndexWriter): (Long, Long) = {
     val context = TaskContext.get
     val outputMetrics =
       if (context != null)
@@ -37,7 +37,7 @@ object RichContextRDDRegionValue {
       if (iw != null) {
         val off = en.indexOffset()
         val key = SafeRow.selectFields(rowType, ctx.r, ptr)(indexKeyFieldIndices)
-        iw += (key, off, Row())
+        iw.appendRow(key, off, Row())
       }
       en.writeByte(1)
       en.writeRegionValue(ptr)
@@ -52,12 +52,17 @@ object RichContextRDDRegionValue {
 
     en.writeByte(0) // end
     en.flush()
+    var bytesWritten = 0L
+    if (iw != null) {
+      bytesWritten += iw.trackedOS().bytesWritten
+    }
     if (outputMetrics != null) {
       ExposedMetrics.setBytes(outputMetrics, trackedOS.bytesWritten)
     }
+    bytesWritten += trackedOS.bytesWritten
     os.close()
 
-    rowCount
+    (rowCount, bytesWritten)
   }
 
   def writeSplitRegion(
@@ -73,7 +78,7 @@ object RichContextRDDRegionValue {
     makeIndexWriter: (String) => IndexWriter,
     makeRowsEnc: (OutputStream) => Encoder,
     makeEntriesEnc: (OutputStream) => Encoder
-  ): (String, Long) = {
+  ): FileWriteMetadata = {
     val fullRowType = t.rowType
 
     val context = TaskContext.get
@@ -96,7 +101,7 @@ object RichContextRDDRegionValue {
       } else
         (finalRowsPartPath, finalEntriesPartPath, finalIdxPath)
 
-    val rowCount = using(fs.create(rowsPartPath)) { rowsOS =>
+    val (rowCount, totalBytesWritten) = using(fs.create(rowsPartPath)) { rowsOS =>
       val trackedRowsOS = new ByteTrackingOutputStream(rowsOS)
       using(makeRowsEnc(trackedRowsOS)) { rowsEN =>
 
@@ -110,7 +115,7 @@ object RichContextRDDRegionValue {
                 val rows_off = rowsEN.indexOffset()
                 val ents_off = entriesEN.indexOffset()
                 val key = SafeRow.selectFields(fullRowType, ctx.r, ptr)(t.kFieldIdx)
-                iw += (key, rows_off, Row(ents_off))
+                iw.appendRow(key, rows_off, Row(ents_off))
 
                 rowsEN.writeByte(1)
                 rowsEN.writeRegionValue(ptr)
@@ -131,9 +136,11 @@ object RichContextRDDRegionValue {
 
               rowsEN.flush()
               entriesEN.flush()
-              ExposedMetrics.setBytes(outputMetrics, trackedRowsOS.bytesWritten + trackedEntriesOS.bytesWritten)
 
-              rowCount
+              val totalBytesWritten = trackedRowsOS.bytesWritten + trackedEntriesOS.bytesWritten + iw.trackedOS().bytesWritten
+              ExposedMetrics.setBytes(outputMetrics, totalBytesWritten)
+
+              (rowCount, totalBytesWritten)
             }
           }
         }
@@ -147,7 +154,7 @@ object RichContextRDDRegionValue {
       fs.copy(idxPath + "/metadata.json.gz", finalIdxPath + "/metadata.json.gz")
     }
 
-    f -> rowCount
+    FileWriteMetadata(f, rowCount, totalBytesWritten)
   }
 
   def writeSplitSpecs(
@@ -211,7 +218,7 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
     t: RVDType,
     stageLocally: Boolean,
     encoding: AbstractTypedCodecSpec
-  ): (Array[String], Array[Long]) = {
+  ): Array[FileWriteMetadata] = {
     crdd.writePartitions(
       ctx,
       path,

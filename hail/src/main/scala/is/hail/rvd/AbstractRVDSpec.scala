@@ -75,7 +75,7 @@ object AbstractRVDSpec {
     rowType: PStruct,
     bufferSpec: BufferSpec,
     rows: IndexedSeq[Annotation]
-  ): Array[Long] = {
+  ): Array[FileWriteMetadata] = {
     val fs = execCtx.fs
     val partsPath = path + "/parts"
     fs.mkDir(partsPath)
@@ -86,7 +86,7 @@ object AbstractRVDSpec {
       partFile(0, 0, TaskContext.get)
     val codecSpec = TypedCodecSpec(rowType, bufferSpec)
 
-    val part0Count =
+    val (part0Count, bytesWritten) =
       using(fs.create(partsPath + "/" + filePath)) { os =>
         using(RVDContext.default) { ctx =>
           val rvb = ctx.rvb
@@ -102,7 +102,7 @@ object AbstractRVDSpec {
     val spec = MakeRVDSpec(codecSpec, Array(filePath), RVDPartitioner.unkeyed(1))
     spec.write(fs, path)
 
-    Array(part0Count)
+    Array(FileWriteMetadata(path, part0Count, bytesWritten))
   }
 
   def readZipped(

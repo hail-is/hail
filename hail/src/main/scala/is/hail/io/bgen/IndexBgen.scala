@@ -121,7 +121,7 @@ object IndexBgen {
         using(makeIW(idxPath)) { iw =>
           it.foreach { r =>
             assert(r.getInt(fileIdxIdx) == partIdx)
-            iw += (Row(r(locusIdx), r(allelesIdx)), r.getLong(offsetIdx), Row())
+            iw.appendRow(Row(r(locusIdx), r(allelesIdx)), r.getLong(offsetIdx), Row())
           }
         }
         info(s"Finished writing index file for ${ bgenFilePaths(partIdx) }")

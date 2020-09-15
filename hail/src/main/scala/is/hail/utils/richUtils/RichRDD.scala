@@ -3,6 +3,7 @@ package is.hail.utils.richUtils
 import java.io.{OutputStream, OutputStreamWriter}
 
 import is.hail.expr.ir.ExecuteContext
+import is.hail.io.FileWriteMetadata
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
 import is.hail.utils._
@@ -197,9 +198,9 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     ctx: ExecuteContext,
     path: String,
     stageLocally: Boolean,
-    write: (Iterator[T], OutputStream) => Long
+    write: (Iterator[T], OutputStream) => (Long, Long)
   )(implicit tct: ClassTag[T]
-  ): (Array[String], Array[Long]) =
+  ): (Array[FileWriteMetadata]) =
     ContextRDD.weaken(r).writePartitions(ctx,
       path,
       null,
