@@ -36,7 +36,7 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
       val statePV = new PCanonicalBaseStructSettable(stateType, state.off)
       nextNDInput.toI(cb).consume(cb, {}, {case nextNDArrayPCode: PNDArrayCode =>
         val nextNDPV = nextNDArrayPCode.memoize(cb, "ndarray_sum_seqop_next")
-        statePV.loadField(cb, ndarrayFieldNumber).consume[Unit](cb,
+        statePV.loadField(cb, ndarrayFieldNumber).consume(cb,
           {
             cb.append(state.region.getNewRegion(Region.TINY))
             cb.append(stateType.setFieldPresent(state.off, ndarrayFieldNumber))

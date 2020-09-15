@@ -167,29 +167,26 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
       def writeFile(codeRow: EmitCode): Code[Unit] = {
         val rowType = coerce[PStruct](codeRow.pt)
         EmitCodeBuilder.scopedVoid(mb) { cb =>
-          codeRow.toI(cb).consume(cb,
-            cb._fatal("row can't be missing"),
-            { pc =>
-              val row = pc.memoize(cb, "row")
-              if (hasIndex) {
-                val keyRVB = new StagedRegionValueBuilder(mb, keyType, eltRegion.code)
-              indexWriter.add(cb, {
-                  cb += keyRVB.start()
-                  keyType.fields.foreach { f =>
-                    cb += keyRVB.addIRIntermediate(f.typ)(Region.loadIRIntermediate(f.typ)(rowType.fieldOffset(coerce[Long](row.value), f.name)))
-                    cb += keyRVB.advance()
-                  }
-                  IEmitCode.present(cb, PCode(keyType, keyRVB.offset))
-                },
-                  ob.invoke[Long]("indexOffset"),
-                  IEmitCode.present(cb, PCode(+PCanonicalStruct(), 0L)))
+          val pc = codeRow.toI(cb).get(cb, "row can't be missing")
+          val row = pc.memoize(cb, "row")
+          if (hasIndex) {
+            val keyRVB = new StagedRegionValueBuilder(mb, keyType, eltRegion.code)
+          indexWriter.add(cb, {
+              cb += keyRVB.start()
+              keyType.fields.foreach { f =>
+                cb += keyRVB.addIRIntermediate(f.typ)(Region.loadIRIntermediate(f.typ)(rowType.fieldOffset(coerce[Long](row.value), f.name)))
+                cb += keyRVB.advance()
               }
-              cb += ob.writeByte(1.asInstanceOf[Byte])
-              cb += enc(eltRegion.code, row, ob)
-              cb += eltRegion.clear()
-              cb.assign(n, n + 1L)
-            })
+              IEmitCode.present(cb, PCode(keyType, keyRVB.offset))
+            },
+              ob.invoke[Long]("indexOffset"),
+              IEmitCode.present(cb, PCode(+PCanonicalStruct(), 0L)))
           }
+          cb += ob.writeByte(1.asInstanceOf[Byte])
+          cb += enc(eltRegion.code, row, ob)
+          cb += eltRegion.clear()
+          cb.assign(n, n + 1L)
+        }
       }
 
       PCode(pResultType, EmitCodeBuilder.scopedCode(mb) { cb: EmitCodeBuilder =>
@@ -229,18 +226,15 @@ case class RVDSpecWriter(path: String, spec: RVDSpecMaker) extends MetadataWrite
     cb: EmitCodeBuilder,
     region: Value[Region]): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
-    val pc = writeAnnotations.handle(cb, cb._fatal("write annotations can't be missing!")).asInstanceOf[PIndexableCode]
+    val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asInstanceOf[PIndexableCode]
     val a = pc.memoize(cb, "filePaths")
     val partFiles = cb.newLocal[Array[String]]("partFiles")
     val n = cb.newLocal[Int]("n", a.loadLength())
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partFiles, Code.newArray[String](n))
     cb.whileLoop(i < n, {
-      a.loadElement(cb, i).consume(cb, {
-        cb._fatal("file name can't be missing!")
-      }, { case s: PStringCode =>
-        cb += partFiles.update(i, s.loadString())
-      })
+      val s = a.loadElement(cb, i).get(cb, "file name can't be missing!").asInstanceOf[PStringCode]
+      cb += partFiles.update(i, s.loadString())
       cb.assign(i, i + 1)
     })
     cb += cb.emb.getObject(spec)
@@ -277,7 +271,7 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
     cb: EmitCodeBuilder,
     region: Value[Region]): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
-    val pc = writeAnnotations.handle(cb, cb._fatal("write annotations can't be missing!")).asInstanceOf[PIndexableCode]
+    val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asInstanceOf[PIndexableCode]
     val partCounts = cb.newLocal[Array[Long]]("partCounts")
     val a = pc.memoize(cb, "writePartCounts")
 
@@ -285,9 +279,8 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partCounts, Code.newArray[Long](n))
     cb.whileLoop(i < n, {
-      a.loadElement(cb, i).consume(cb, {
-        cb._fatal("part count can't be missing!")
-      }, { count => cb += partCounts.update(i, count.tcode[Long]) })
+      val count = a.loadElement(cb, i).get(cb, "part count can't be missing!")
+      cb += partCounts.update(i, count.tcode[Long])
       cb.assign(i, i + 1)
     })
     cb += cb.emb.getObject(new TableSpecHelper(path, rowRelPath, globalRelPath, refRelPath, typ, log))

@@ -215,7 +215,7 @@ object CompileIterator {
       eosLabel.goto,
       { element =>
         EmitCodeBuilder.scopedVoid(stepF) { cb =>
-          val pc = element.toI(cb).handle(cb, cb._fatal("missing element!"))
+          val pc = element.toI(cb).get(cb)
           assert(pc.pt.isInstanceOf[PStruct])
           cb.assign(elementAddress, pc.tcode[Long])
           cb += Code._return[Boolean](true)
