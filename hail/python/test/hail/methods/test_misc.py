@@ -28,6 +28,7 @@ class Tests(unittest.TestCase):
             'foo'
         )['foo'].dtype == hl.tstr
 
+    @fails_local_backend()
     def test_annotate_intervals(self):
         ds = get_dataset()
 
@@ -196,6 +197,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.allele_types, {'SNP': 2, 'MNP': 1, 'Unknown': 1, 'Insertion': 1})
         self.assertEqual(r.allele_counts, {2: 1, 3: 2})
 
+    @fails_local_backend()
     def test_verify_biallelic(self):
         mt = hl.import_vcf(resource('sample2.vcf'))  # has multiallelics
         with self.assertRaises(hl.utils.HailUserError):

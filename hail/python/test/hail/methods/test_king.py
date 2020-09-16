@@ -1,5 +1,5 @@
 import hail as hl
-from ..helpers import resource, startTestHailContext, stopTestHailContext
+from ..helpers import resource, startTestHailContext, stopTestHailContext, fails_local_backend
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -28,6 +28,7 @@ def assert_c_king_same_as_hail_king(c_king_path, hail_king_mt):
     assert expected.count() == 0, expected.collect()
 
 
+@fails_local_backend()
 def test_king_small():
     plink_path = resource('balding-nichols-1024-variants-4-samples-3-populations')
     mt = hl.import_plink(bed=f'{plink_path}.bed',
@@ -39,6 +40,7 @@ def test_king_small():
         kinship)
 
 
+@fails_local_backend()
 def test_king_large():
     plink_path = resource('fastlmmTest')
     mt = hl.import_plink(bed=f'{plink_path}.bed',

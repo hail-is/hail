@@ -1,24 +1,25 @@
-import sys
-import os
 import json
+import os
 import socket
 import socketserver
+import sys
 from threading import Thread
+
+import pkg_resources
 import py4j
 from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
 
 import hail
-from hail.utils.java import FatalError, Env, scala_package_object, scala_object
-from hail.expr.types import dtype
-from hail.expr.table_type import ttable
-from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
-from hail.ir.renderer import CSERenderer
+from hail.expr.matrix_type import tmatrix
+from hail.expr.table_type import ttable
+from hail.expr.types import dtype
 from hail.ir import JavaIR
-
+from hail.ir.renderer import CSERenderer
+from hail.utils.java import FatalError, Env, scala_package_object, scala_object
 from .py4j_backend import Py4JBackend
-from ..hail_logging import Logger
 from ..fs.local_fs import LocalFS
+from ..hail_logging import Logger
 
 
 def handle_java_exception(f):
@@ -135,12 +136,19 @@ class LocalBackend(Py4JBackend):
     def __init__(self, tmpdir, log, quiet, append, branching_factor,
                  skip_logging_configuration, optimizer_iterations):
         SPARK_HOME = os.environ['SPARK_HOME']
-        HAIL_HOME = os.environ['HAIL_HOME']
+        if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
+            hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
+        elif os.environ.get('HAIL_HOME'):
+            HAIL_HOME = os.environ['HAIL_HOME']
+            hail_jar_path = f'{HAIL_HOME}/hail/build/libs/hail-all-spark.jar'
+        else:
+            raise RuntimeError('local backend requires a packaged jar or HAIL_HOME to be set')
+
         port = launch_gateway(
             redirect_stdout=sys.stdout,
             redirect_stderr=sys.stderr,
             jarpath=f'{SPARK_HOME}/jars/py4j-0.10.7.jar',
-            classpath=f'{SPARK_HOME}/jars/*:{HAIL_HOME}/hail/build/libs/hail-all-spark.jar',
+            classpath=f'{SPARK_HOME}/jars/*:{hail_jar_path}',
             die_on_exit=True)
         self._gateway = JavaGateway(
             gateway_parameters=GatewayParameters(port=port, auto_convert=True))

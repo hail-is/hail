@@ -64,6 +64,7 @@ class Tests(unittest.TestCase):
             evaled = hl.eval(hl.zeros(size))
             assert evaled == [0 for i in range(size)]
 
+    @fails_local_backend()
     def test_seeded_sampling(self):
         sampled1 = hl.utils.range_table(50, 6).filter(hl.rand_bool(0.5))
         sampled2 = hl.utils.range_table(50, 5).filter(hl.rand_bool(0.5))
@@ -1065,6 +1066,7 @@ class Tests(unittest.TestCase):
         )
         mt.cols()._force_count()
 
+    @fails_local_backend()
     def test_aggregator_info_score(self):
         gen_file = resource('infoScoreTest.gen')
         sample_file = resource('infoScoreTest.sample')
@@ -1091,6 +1093,7 @@ class Tests(unittest.TestCase):
             violations.show()
             self.fail("disagreement between computed info score and truth")
 
+    @fails_local_backend()
     def test_aggregator_info_score_works_with_bgen_import(self):
         sample_file = resource('random.sample')
         bgen_file = resource('random.bgen')
@@ -1172,6 +1175,7 @@ class Tests(unittest.TestCase):
             .default(4))
         self.assertEqual(hl.eval(expr5), -1)
 
+    @fails_local_backend()
     def test_case(self):
         def make_case(x):
             x = hl.literal(x)
@@ -2344,6 +2348,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.set([1, 0, -4, 6]))), -4)
         self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.set([1, 0, 4, 6]))), None)
 
+    @fails_local_backend()
     def test_sorted(self):
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, 3, 2], lambda x: x % 2)), [0, 4, 2, 1, 3])
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, 3, 2], lambda x: x % 2, reverse=True)), [1, 3, 0, 4, 2])
@@ -2504,6 +2509,7 @@ class Tests(unittest.TestCase):
         ds = hl.utils.range_matrix_table(3, 3)
         ds.col_idx.show(3)
 
+    @fails_local_backend()
     def test_export(self):
         for delimiter in ['\t', ',', '@']:
             for missing in ['NA', 'null']:
@@ -2547,6 +2553,7 @@ class Tests(unittest.TestCase):
                                 2, None, 6]
             assert expected_collect == actual.x.collect()
 
+    @fails_local_backend()
     def test_export_genetic_data(self):
         mt = hl.balding_nichols_model(1, 3, 3)
         mt = mt.key_cols_by(s = 's' + hl.str(mt.sample_idx))
@@ -2935,6 +2942,7 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(hl.mean(s), 3)
         self.assert_evals_to(hl.median(s), 3)
 
+    @fails_local_backend()
     def test_uniroot(self):
         tol = 1.220703e-4
 
@@ -3004,6 +3012,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(res['p_value'] / 2.1565e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.91805817)
 
+    @fails_local_backend()
     def test_hardy_weinberg_test(self):
         res = hl.eval(hl.hardy_weinberg_test(1, 2, 1))
         self.assertAlmostEqual(res['p_value'], 0.65714285)
@@ -3245,6 +3254,7 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.bit_rshift(hl.int64(-1), 64)) == -1
         assert hl.eval(hl.bit_rshift(hl.int64(-11), 64, logical=True)) == 0
 
+    @fails_local_backend()
     def test_bit_shift_errors(self):
         with pytest.raises(hl.utils.HailUserError):
                 hl.eval(hl.bit_lshift(1, -1))

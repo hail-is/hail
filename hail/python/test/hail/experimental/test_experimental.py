@@ -92,6 +92,7 @@ class Tests(unittest.TestCase):
         ht = x.annotate(fp=hl.cond(~x.tp, hl.rand_bool(0.2), False))
         _, aucs = hl.experimental.plot_roc_curve(ht, ['score1', 'score2', 'score3'])
 
+    @fails_local_backend()
     def test_ld_score_regression(self):
 
         ht_scores = hl.import_table(
@@ -276,6 +277,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(f1(1, 3)), 24) # idempotent
         self.assertEqual(hl.eval(f2(1, 3)), 24) # idempotent
         
+    @fails_local_backend()
     def test_pc_project(self):
         mt = hl.balding_nichols_model(3, 100, 50)
         _, _, loadings_ht = hl.hwe_normalized_pca(mt.GT, k=10, compute_loadings=True)
@@ -285,6 +287,7 @@ class Tests(unittest.TestCase):
         ht = hl.experimental.pc_project(mt_to_project.GT, loadings_ht.loadings, loadings_ht.af)
         assert ht._force_count() == 100
 
+    @fails_local_backend()
     def test_mt_full_outer_join(self):
         mt1 = hl.utils.range_matrix_table(10, 10)
         mt1 = mt1.annotate_cols(c1=hl.rand_unif(0, 1))
@@ -313,6 +316,7 @@ class Tests(unittest.TestCase):
         assert jmt.filter_rows(hl.is_defined(jmt.left_row) & hl.is_defined(jmt.right_row)).count_rows() == mt.count_rows()
         assert jmt.filter_entries(hl.is_defined(jmt.left_entry) & hl.is_defined(jmt.right_entry)).entries().count() == mt.entries().count()
 
+    @fails_local_backend()
     def test_block_matrices_tofiles(self):
         data = [
             np.random.rand(11*12),
@@ -333,6 +337,7 @@ class Tests(unittest.TestCase):
             a2 = np.fromfile(f'{prefix}/files/{i}')
             self.assertTrue(np.array_equal(a, a2))
 
+    @fails_local_backend()
     def test_export_block_matrices(self):
         data = [
             np.random.rand(11*12),

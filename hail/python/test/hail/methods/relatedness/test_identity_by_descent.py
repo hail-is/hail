@@ -66,3 +66,4 @@ class Tests(unittest.TestCase):
         dataset = dataset.annotate_rows(dummy_maf=0.01)
         hl.identity_by_descent(dataset, dataset['dummy_maf'], min=0.0, max=1.0)
         hl.identity_by_descent(dataset, hl.float32(dataset['dummy_maf']), min=0.0, max=1.0)
+

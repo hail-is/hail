@@ -2,7 +2,7 @@ import numpy as np
 
 import hail as hl
 from hail.utils import new_temp_file
-from ..helpers import startTestHailContext, stopTestHailContext
+from ..helpers import startTestHailContext, stopTestHailContext, fails_local_backend
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -21,6 +21,7 @@ def test_range_collect():
     assert np.array_equal(da.collect(), a)
 
 
+@fails_local_backend()
 def test_range_matmul():
     n_variants = 10
     n_samples = 10
@@ -40,6 +41,7 @@ def test_range_matmul():
     assert np.array_equal(da_result, a_result)
 
 
+@fails_local_backend()
 def test_small_collect():
     n_variants = 10
     n_samples = 10
@@ -55,6 +57,7 @@ def test_small_collect():
     assert np.array_equal(da.collect(), a)
 
 
+@fails_local_backend()
 def test_medium_collect():
     n_variants = 100
     n_samples = 100
@@ -70,6 +73,7 @@ def test_medium_collect():
     assert np.array_equal(da.collect(), a)
 
 
+@fails_local_backend()
 def test_small_matmul():
     n_variants = 10
     n_samples = 10
@@ -91,6 +95,7 @@ def test_small_matmul():
     assert np.array_equal(da_result, a_result)
 
 
+@fails_local_backend()
 def test_medium_matmul():
     n_variants = 100
     n_samples = 100
@@ -112,6 +117,7 @@ def test_medium_matmul():
     assert np.array_equal(da_result, a_result)
 
 
+@fails_local_backend()
 def test_matmul_via_inner_product():
     n_variants = 10
     n_samples = 10
@@ -135,6 +141,7 @@ def test_matmul_via_inner_product():
     assert np.array_equal(prod_result, ip_result)
 
 
+@fails_local_backend()
 def test_king_homo_estimator():
     hl.set_global_seed(1)
     mt = hl.balding_nichols_model(2, 5, 5)
@@ -159,6 +166,7 @@ def test_king_homo_estimator():
                   [4., 6., 0., 6., 0.]]))
 
 
+@fails_local_backend()
 def test_dndarray_sum():
     n_variants = 10
     n_samples = 10
@@ -186,6 +194,7 @@ def test_dndarray_sum():
     assert np.array_equal(da_result, a_result)
 
 
+@fails_local_backend()
 def test_dndarray_sum_scalar():
     n_variants = 10
     n_samples = 10
@@ -207,6 +216,7 @@ def test_dndarray_sum_scalar():
     assert np.array_equal(da_result, a_result)
 
 
+@fails_local_backend()
 def test_dndarray_rsum_scalar():
     n_variants = 10
     n_samples = 10
@@ -228,6 +238,7 @@ def test_dndarray_rsum_scalar():
     assert np.array_equal(da_result, a_result)
 
 
+@fails_local_backend()
 def test_dndarray_mul_scalar():
     n_variants = 10
     n_samples = 10
@@ -249,6 +260,7 @@ def test_dndarray_mul_scalar():
     assert np.array_equal(da_result, a_result)
 
 
+@fails_local_backend()
 def test_dndarray_rmul_scalar():
     n_variants = 10
     n_samples = 10
@@ -270,6 +282,7 @@ def test_dndarray_rmul_scalar():
     assert np.array_equal(da_result, a_result)
 
 
+@fails_local_backend()
 def test_dndarray_sub_scalar():
     n_variants = 10
     n_samples = 10
@@ -291,6 +304,7 @@ def test_dndarray_sub_scalar():
     assert np.array_equal(da_result, a_result)
 
 
+@fails_local_backend()
 def test_dndarray_rsub_scalar():
     n_variants = 10
     n_samples = 10
@@ -327,6 +341,7 @@ def test_dndarray_errors_on_unsorted_columns():
         assert False
 
 
+@fails_local_backend()
 def test_dndarray_sort_columns():
     n_variants = 10
     n_samples = 10

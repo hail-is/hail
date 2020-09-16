@@ -89,3 +89,4 @@ def test_pcrelate_issue_5263():
                            GT=hl.call(hl.rand_bool(0.5), hl.rand_bool(0.5)))
     actual = hl.pc_relate(mt.GT2, 0.10, k=2, statistics='all')
     assert expected._same(actual, tolerance=1e-4)
+

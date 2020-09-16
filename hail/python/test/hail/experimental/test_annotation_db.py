@@ -26,7 +26,8 @@ class AnnotationDBTests(unittest.TestCase):
                                   'key_properties': [],
                                   'versions': [{'url': fname, 'version': 'v1-GRCh37'}]}}
 
-    def tearDownAnnotationDBTests():
+    @classmethod
+    def tearDownAnnotationDBTests(cls):
         stopTestHailContext()
         AnnotationDBTests.temp_dir.cleanup()
 
