@@ -321,7 +321,7 @@ def calculate_new_intervals(ht, n, reference_genome):
     ht = ht.annotate(y=ht.x + 1)
     ht = ht.filter((ht.x // n != ht.y // n) | (ht.x == (n_rows - 1)))
     ht = ht.select()
-    ht = ht.annoatte(start=hl.or_else(
+    ht = ht.annotate(start=hl.or_else(
         hl.scan._prev_nonnull(hl.locus_from_global_position(ht.locus.global_position() + 1,
                                                             reference_genome=reference_genome)),
         hl.locus_from_global_position(0, reference_genome=reference_genome)))

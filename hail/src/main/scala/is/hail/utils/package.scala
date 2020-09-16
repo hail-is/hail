@@ -207,23 +207,17 @@ package object utils extends Logging
     val gib = mib * 1024
     val tib = gib * 1024
 
-    var div: Long = 1
-    var suffix: String = null
-    if (absds < kib) {
-      suffix = "B"
-    } else if (absds < mib) {
-      div = kib
-      suffix = "KiB"
-    } else if (absds < gib) {
-      div = mib
-      suffix = "MiB"
-    } else if (absds < tib) {
-      div = gib
-      suffix = "GiB"
-    } else {
-      div = tib
-      suffix = "TiB"
-    }
+    val (div, suffix) = if (absds < kib)
+      (1, "B")
+    else if (absds < mib)
+      (kib, "KiB")
+    else if (absds < gib)
+      (mib, "MiB")
+    else if (absds < tib)
+      (gib, "GiB")
+    else
+      (tib, "TiB")
+
 
     s"${ formatDouble(absds.toDouble / div, precision) } $suffix"
   }

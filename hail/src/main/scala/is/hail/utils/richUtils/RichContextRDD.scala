@@ -37,7 +37,7 @@ object RichContextRDD {
     val os = fs.create(filename)
     val iw = mkIdxWriter(idxFilename)
 
-    // write will close `os` and `iw`
+    // write must close `os` and `iw`
     val (rowCount, bytesWritten) = write(ctx, it, os, iw)
 
     if (stageLocally) {

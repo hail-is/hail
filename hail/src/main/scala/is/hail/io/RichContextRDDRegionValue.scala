@@ -54,6 +54,8 @@ object RichContextRDDRegionValue {
     en.flush()
     var bytesWritten = 0L
     if (iw != null) {
+      // close() flushes to the output stream, so look up bytesWritten after closing
+      iw.close()
       bytesWritten += iw.trackedOS().bytesWritten
     }
     if (outputMetrics != null) {
