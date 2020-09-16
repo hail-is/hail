@@ -1049,13 +1049,13 @@ class Emit[C](
           val dataAddress = pndValue.pt.data.load(pndValue.tcode[Long])
 
           val tauPType = PCanonicalArray(PFloat64Required, true)
-          val tauAddress = mb.genFieldThisRef[Long]()
-          val workAddress = mb.genFieldThisRef[Long]()
-          val aAddressDGEQRF = mb.genFieldThisRef[Long]() // Should be column major
-          val rDataAddress = mb.genFieldThisRef[Long]()
-          val aNumElements = mb.genFieldThisRef[Long]()
+          val tauAddress = cb.newLocal[Long]("ndarray_qr_tauAddress")
+          val workAddress = cb.newLocal[Long]("ndarray_qr_workAddress")
+          val aAddressDGEQRF = cb.newLocal[Long]("ndarray_qr_aAddressDGEQRF") // Should be column major
+          val rDataAddress = cb.newLocal[Long]("ndarray_qr_rDataAddress")
+          val aNumElements = cb.newLocal[Long]("ndarray_qr_aNumElements")
 
-          val infoDGEQRFResult = mb.newLocal[Int]()
+          val infoDGEQRFResult = cb.newLocal[Int]("ndaray_qr_infoDGEQRFResult")
           val infoDGEQRFErrorTest = (extraErrorMsg: String) => (infoDGEQRFResult cne 0)
             .orEmpty(Code._fatal[Unit](const(s"LAPACK error DGEQRF. $extraErrorMsg Error code = ").concat(infoDGEQRFResult.toS)))
 
@@ -1146,31 +1146,17 @@ class Emit[C](
             val currRow = cb.newLocal[Int]("ndarray_qr_currRow")
             val currCol = cb.newLocal[Int]("ndarray_qr_currCol")
 
-//            cb.forLoop({cb.assign(currCol, 0)}, currCol < rCols.toI, {cb.assign(currCol, currCol + 1)}, {
-//              cb.forLoop({cb.assign(currRow, 0)}, currRow < rRows.toI, {cb.assign(currRow, currRow + 1)}, {
-//                cb.append(Region.storeDouble(
-//                  pndValue.pt.data.pType.elementOffset(rDataAddress, aNumElements.toI, currCol * rRows.toI + currRow),
-//                  (currCol >= currRow).mux(
-//                    Region.loadDouble(pndValue.pt.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, currCol * M.toI + currRow)),
-//                    0.0
-//                  )
-//                ))
-//              })
-//            })
-
-            val copyOutUpperTriangle = Code.forLoop(currCol := 0, currCol < rCols.toI, currCol := currCol + 1,
-              Code.forLoop(currRow := 0, currRow < rRows.toI, currRow := currRow + 1,
-                Region.storeDouble(
+            cb.forLoop({cb.assign(currCol, 0)}, currCol < rCols.toI, {cb.assign(currCol, currCol + 1)}, {
+              cb.forLoop({cb.assign(currRow, 0)}, currRow < rRows.toI, {cb.assign(currRow, currRow + 1)}, {
+                cb.append(Region.storeDouble(
                   pndValue.pt.data.pType.elementOffset(rDataAddress, aNumElements.toI, currCol * rRows.toI + currRow),
                   (currCol >= currRow).mux(
                     Region.loadDouble(pndValue.pt.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, currCol * M.toI + currRow)),
                     0.0
                   )
-                )
-              )
-            )
-
-            cb.append(copyOutUpperTriangle)
+                ))
+              })
+            })
 
             val computeR = rPType.construct(rShapeBuilder, rStridesBuilder, rDataAddress, mb, region.code)
 
