@@ -1,6 +1,7 @@
 import os
 from timeit import default_timer as timer
 import unittest
+import pytest
 from decorator import decorator
 
 from hail.utils.java import Env
@@ -124,6 +125,19 @@ def skip_unless_spark_backend():
             return func(*args, **kwargs)
         else:
             raise unittest.SkipTest('requires Spark')
+
+    return wrapper
+
+def fails_local_backend():
+    from hail.backend.local_backend import LocalBackend
+
+    @decorator
+    def wrapper(func, *args, **kwargs):
+        if isinstance(hl.utils.java.Env.backend(), LocalBackend):
+            with pytest.raises(BaseException):
+                return func(*args, **kwargs)
+        else:
+            return func(*args, **kwargs)
 
     return wrapper
 
