@@ -161,8 +161,9 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 
 @router.get('/')
 @router.get('')
-@web_authenticated_developers_only(redirect=False)
-async def index(request, userdata):  # pylint: disable=unused-argument
+#@web_authenticated_developers_only(redirect=False)
+async def index(request):  # pylint: disable=unused-argument
+    userdata = {}
     app = request.app
     file = request.query.get('file')
     if file is None:
@@ -176,8 +177,9 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 
 @router.get('/compare')
-@web_authenticated_developers_only(redirect=False)
-async def compare(request, userdata):  # pylint: disable=unused-argument
+#@web_authenticated_developers_only(redirect=False)
+async def compare(request):  # pylint: disable=unused-argument
+    userdata = {}
     app = request.app
     file1 = request.query.get('file1')
     file2 = request.query.get('file2')

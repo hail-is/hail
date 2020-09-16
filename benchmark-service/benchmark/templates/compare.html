@@ -9,7 +9,7 @@
     <form autocomplete="off" method="get" action="{{ base_path }}/compare">
         <label for="file1">File 1:</label>
         <div class="autocomplete">
-        <input style="vertical-align:text-bottom;" name="file1" id="autoComplete1" size=30 type="text" required
+        <input style="vertical-align:text-bottom;" name="file1" class="autoComplete" id="autoComplete1" size=30 type="text" required
                {% if start %}
                value = "{{ file1 }}"
                {% else %}
@@ -19,7 +19,7 @@
         </div>
         <label for="file2">File 2:</label>
         <div class="autocomplete">
-        <input style="vertical-align:text-bottom;" name="file2" id="autoComplete2" size=30 type="text" required
+        <input style="vertical-align:text-bottom;" name="file2" class="autoComplete" id="autoComplete2" size=30 type="text" required
                {% if end %}
                value = "{{ file2 }}"
                {% else %}
@@ -106,7 +106,7 @@
             return 0;
         },
         placeHolder: "gs://...",     // Place Holder text                 | (Optional)
-        selector: "#autoComplete1",           // Input field selector              | (Optional)
+        selector: ".autoComplete",           // Input field selector              | (Optional)
         threshold: 2,                        // Min. Chars length to start Engine | (Optional)
         debounce: 300,                       // Post duration for engine to start | (Optional)
         searchEngine: "strict",              // Search Engine type/mode           | (Optional)
@@ -117,7 +117,7 @@
             container: source => {
                 source.setAttribute("id", "file_list");
             },
-            destination: document.querySelector("#autoComplete1"),
+            destination: document.querySelector(".autoComplete"),
             position: "afterend",
             element: "ul"
         },
@@ -138,7 +138,7 @@
         },
         onSelection: feedback => {
         feedback.event.preventDefault();
-        document.querySelector("#autoComplete2").value = feedback.selection.value;
+        document.querySelector(".autoComplete").value = feedback.selection.value;
   }
 });
 
