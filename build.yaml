@@ -1664,6 +1664,8 @@ steps:
       script: /io/sql/add-worker-pd-ssd-data-disk.sql
     - name: add-aggregated-batch-resources-tokens
       script: /io/sql/add-aggregated-batch-resources-tokens.sql
+    - name: change-test-worker-pool-size
+      script: /io/sql/change_test_worker_pool_size.py
    inputs:
     - from: /repo/batch/sql
       to: /io/
