@@ -7,7 +7,7 @@ from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials,\
-    list_benchmark_files
+    list_benchmark_files, round_if_defined
 import json
 import re
 import plotly
@@ -45,11 +45,11 @@ def get_benchmarks(app, file_path):
         stats['failed'] = d['failed']
         if not d['failed']:
             prod_of_means *= d['mean']
-            stats['f-stat'] = round(d['f-stat'], 6)
-            stats['mean'] = round(d['mean'], 6)
-            stats['median'] = round(d['median'], 6)
-            stats['p-value'] = round(d['p-value'], 6)
-            stats['stdev'] = round(d['stdev'], 6)
+            stats['f-stat'] = round_if_defined(d.get('f-stat'))
+            stats['mean'] = round_if_defined(d.get('mean'))
+            stats['median'] = round_if_defined(d.get('median'))
+            stats['p-value'] = round_if_defined(d.get('p-value'))
+            stats['stdev'] = round_if_defined(d.get('stdev'))
             stats['times'] = d['times']
             stats['trials'] = d['trials']
         data[stats['name']] = stats
@@ -141,7 +141,7 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
         d = {
             'trial': data['trial_indices'],
             'wall_time': data['wall_times'],
-            'index': data['within_group_idx']
+            'index': data['within_group_index']
         }
         df = pd.DataFrame(d)
         fig = px.scatter(df, x=df.trial, y=df.wall_time, hover_data=['index'])
