@@ -456,7 +456,6 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     ht = ht.annotate_globals(__Qty=cov_Qt @ ht.__y_nd)
     ht = ht.annotate_globals(__yyp=dot_rows_with_themselves(ht.__y_nd.T) - dot_rows_with_themselves(ht.__Qty.T))
 
-
     def process_block(block):
         X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples)))).T
         sum_x = (X.T @ hl.nd.ones((n,)))._data_array()
@@ -473,58 +472,24 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         key_fields = [key_field for key_field in ht.key]
         key_dict = {key_field: block[key_field] for key_field in key_fields}
 
+        key_fields = [key_field for key_field in ht.key]
+        key_dict = {key_field: block[key_field] for key_field in key_fields}
         linreg_fields_dict = {"sum_x": sum_x, "y_transpose_x": ytx.T._data_array(), "beta": b.T._data_array(),
                               "standard_error": se.T._data_array(), "t_stat": t.T._data_array(), "p_value": p.T._data_array()}
+        combined_dict = {**key_dict, **linreg_fields_dict}
 
         # Need to pull off "struct of arrays to array of structs". How?
         # Turn it into a giant zipped list, so that it can be iterated over all at once
-        linreg_field_names = [key for key, value in linreg_fields_dict]
-        linreg_field_data = [value for key, value in linreg_fields_dict]
-        linreg_structs = hl.zip(*linreg_field_data).map(lambda tup: hl.struct(**{linreg_field_names[i]: tup[i] for i in range(len(linreg_field_names))}))
-        import pdb; pdb.set_trace()
-
-        return hl.struct()
+        combined_field_names = [key for key, value in combined_dict.items()]
+        combined_field_data = [value for key, value in combined_dict.items()]
+        linreg_structs = hl.zip(*combined_field_data).map(lambda tup: hl.struct(**{combined_field_names[i]: tup[i] for i in range(len(combined_field_names))}))
+        return linreg_structs
 
     def process_partition(part):
         grouped = part.grouped(block_size)
-        return grouped.map(lambda block: process_block(block))
+        return grouped.flatmap(lambda block: process_block(block))
 
-    test = ht._map_partitions(process_partition)
-
-    ht = ht._group_within_partitions("grouped_fields", block_size)
-    ht = ht.annotate(**{X_field_name: hl.nd.array(hl.map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples)), ht["grouped_fields"][entries_field_name])).T})
-
-    sum_x_nd = ht[X_field_name].T @ hl.nd.ones((n,))
-    ht = ht.annotate(sum_x=sum_x_nd._data_array())
-    Qtx = cov_Qt @ ht[X_field_name]
-    ytx = ht.__y_nd.T @ ht[X_field_name]
-    xyp = ytx - (ht.__Qty.T @ Qtx)
-    xxpRec = (dot_rows_with_themselves(ht[X_field_name].T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
-    b = xyp * xxpRec
-    se = ((1.0 / ht.d) * (ht.__yyp.reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
-    t = b / se
-    p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.d, True, False))
-    ht = ht.annotate(__b=b, __ytx=ytx, __se=se, __t=t, __p=p)
-
-    def zip_to_struct(ht, struct_root_name, **kwargs):
-        mapping = list(kwargs.items())
-        sources = [pair[1] for pair in mapping]
-        dests = [pair[0] for pair in mapping]
-        ht = ht.annotate(**{struct_root_name: hl.zip(*sources)})
-        ht = ht.transmute(**{struct_root_name: ht[struct_root_name].map(lambda tup: hl.struct(**{dests[i]: tup[i] for i in range(len(dests))}))})
-        return ht
-
-    res = ht.key_by()
-    key_fields = [key_field for key_field in ht.key]
-    key_dict = {key_field: res.grouped_fields[key_field] for key_field in key_fields}
-    linreg_fields_dict = {"sum_x": res.sum_x, "y_transpose_x": res.__ytx.T._data_array(), "beta": res.__b.T._data_array(),
-                          "standard_error": res.__se.T._data_array(), "t_stat": res.__t.T._data_array(), "p_value": res.__p.T._data_array()}
-    combined_dict = {**key_dict, **linreg_fields_dict}
-    res = zip_to_struct(res, "all_zipped", **combined_dict)
-
-    res = res.explode(res.all_zipped)
-    res = res.select(**{field: res.row.all_zipped[field] for field in res.row.all_zipped})
-    res = res.key_by(*[res[key_field] for key_field in ht.key])
+    res = ht._map_partitions(process_partition)
 
     if not y_is_list:
         fields = ['y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
