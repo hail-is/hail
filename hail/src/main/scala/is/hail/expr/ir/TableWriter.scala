@@ -125,10 +125,15 @@ case class TableNativeWriter(
     val totalRowsBytes = partitionBytesWritten.sum
     val globalBytesWritten = globalFileData.bytesWritten
     val totalBytesWritten: Long = totalRowsBytes + globalBytesWritten
-    val smallestPartition = fileData.minBy(_.bytesWritten)
-    val largestPartition = fileData.maxBy(_.bytesWritten)
-    val smallestStr = s"${ smallestPartition.rowsWritten } rows (${ formatSpace(smallestPartition.bytesWritten) })"
-    val largestStr = s"${ largestPartition.rowsWritten } rows (${ formatSpace(largestPartition.bytesWritten) })"
+    val (smallestStr, largestStr) = if (fileData.isEmpty)
+      ("N/A", "N/A")
+    else {
+      val smallestPartition = fileData.minBy(_.bytesWritten)
+      val largestPartition = fileData.maxBy(_.bytesWritten)
+      val smallestStr = s"${ smallestPartition.rowsWritten } rows (${ formatSpace(smallestPartition.bytesWritten) })"
+      val largestStr = s"${ largestPartition.rowsWritten } rows (${ formatSpace(largestPartition.bytesWritten) })"
+      (smallestStr, largestStr)
+    }
 
     val nRows = partitionCounts.sum
     info(s"wrote table with $nRows ${ plural(nRows, "row") } " +
