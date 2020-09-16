@@ -69,6 +69,8 @@ def get_comparisons(benchmarks1, benchmarks2, metric):
         if metric == 'median':
             return data.get('median')
         assert metric == 'best'
+        if data.get('times') is None:
+            return None
         return min(data.get('times'))
 
     d1_keys = set(benchmarks1['data'].keys())
