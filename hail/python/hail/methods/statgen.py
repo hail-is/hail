@@ -456,16 +456,42 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     ht = ht.annotate_globals(__Qty=cov_Qt @ ht.__y_nd)
     ht = ht.annotate_globals(__yyp=dot_rows_with_themselves(ht.__y_nd.T) - dot_rows_with_themselves(ht.__Qty.T))
 
-    ht = ht._group_within_partitions("grouped_fields", block_size)
 
     def process_block(block):
-        X = hl.nd.array(block.map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples)))).T
-        ...
+        X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples)))).T
+        sum_x = (X.T @ hl.nd.ones((n,)))._data_array()
+        Qtx = cov_Qt @ X
+        ytx = ht.__y_nd.T @ X
+        xyp = ytx - (ht.__Qty.T @ Qtx)
+        xxpRec = (dot_rows_with_themselves(X.T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
+        b = xyp * xxpRec
+        se = ((1.0 / ht.d) * (ht.__yyp.reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
+        t = b / se
+        p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.d, True, False))
+
+        # Recall, want to generate one row per row in block.
+        key_fields = [key_field for key_field in ht.key]
+        key_dict = {key_field: block[key_field] for key_field in key_fields}
+
+        linreg_fields_dict = {"sum_x": sum_x, "y_transpose_x": ytx.T._data_array(), "beta": b.T._data_array(),
+                              "standard_error": se.T._data_array(), "t_stat": t.T._data_array(), "p_value": p.T._data_array()}
+
+        # Need to pull off "struct of arrays to array of structs". How?
+        # Turn it into a giant zipped list, so that it can be iterated over all at once
+        linreg_field_names = [key for key, value in linreg_fields_dict]
+        linreg_field_data = [value for key, value in linreg_fields_dict]
+        linreg_structs = hl.zip(*linreg_field_data).map(lambda tup: hl.struct(**{linreg_field_names[i]: tup[i] for i in range(len(linreg_field_names))}))
+        import pdb; pdb.set_trace()
+
+        return hl.struct()
 
     def process_partition(part):
         grouped = part.grouped(block_size)
         return grouped.map(lambda block: process_block(block))
 
+    test = ht._map_partitions(process_partition)
+
+    ht = ht._group_within_partitions("grouped_fields", block_size)
     ht = ht.annotate(**{X_field_name: hl.nd.array(hl.map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples)), ht["grouped_fields"][entries_field_name])).T})
 
     sum_x_nd = ht[X_field_name].T @ hl.nd.ones((n,))
