@@ -7,6 +7,7 @@
 <h1>Benchmark System</h1>
 <div class="flex-col-align-left">
     <form autocomplete="off" method="get" action="{{ base_path }}/compare">
+        <div class="autoComplete">
         <label for="file1">File 1:</label>
         <input style="vertical-align:text-bottom;" name="file1" class="autoComplete" size=30 type="text" required
                {% if start %}
@@ -24,6 +25,7 @@
                placeholder="gs://..."
                {% endif %}
         ><br>
+        </div>
         <label for="metrics">Choose a metric:</label>
         <select id="metrics" name="metrics">
             <option value="best">best</option>
