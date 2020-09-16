@@ -41,17 +41,17 @@ def get_benchmarks(app, file_path):
     prod_of_means = 1
     for d in pre_data['benchmarks']:
         stats = dict()
-        stats['name'] = d['name']
-        stats['failed'] = d['failed']
+        stats['name'] = d.get('name')
+        stats['failed'] = d.get('failed')
         if not d['failed']:
-            prod_of_means *= d['mean']
+            prod_of_means *= d.get('mean')
             stats['f-stat'] = round_if_defined(d.get('f-stat'))
             stats['mean'] = round_if_defined(d.get('mean'))
             stats['median'] = round_if_defined(d.get('median'))
             stats['p-value'] = round_if_defined(d.get('p-value'))
             stats['stdev'] = round_if_defined(d.get('stdev'))
-            stats['times'] = d['times']
-            stats['trials'] = d['trials']
+            stats['times'] = d.get('times')
+            stats['trials'] = d.get('trials')
         data[stats['name']] = stats
     geometric_mean = get_geometric_mean(prod_of_means, len(pre_data['benchmarks']))
 
@@ -67,9 +67,9 @@ def get_benchmarks(app, file_path):
 def get_comparisons(benchmarks1, benchmarks2, metric):
     def get_metric(data):
         if metric == 'median':
-            return data['median']
+            return data.get('median')
         assert metric == 'best'
-        return min(data['times'])
+        return min(data.get('times'))
 
     d1_keys = set(benchmarks1['data'].keys())
     d2_keys = set(benchmarks2['data'].keys())
