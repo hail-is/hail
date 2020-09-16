@@ -28,7 +28,7 @@ class FileListEntry(abc.ABC):
         self._url = url
 
     def name(self) -> str:
-        parsed = urllib.parse.urlparse(url)
+        parsed = urllib.parse.urlparse(self._url)
         return os.path.basename(parsed.path)
 
     def url(self) -> str:
@@ -139,7 +139,7 @@ class LocalFileListEntry(FileListEntry):
     async def is_dir(self) -> bool:
         return await blocking_to_async(self._thread_pool, self._entry.is_dir)
 
-    async def status() -> LocalStatFileStatus:
+    async def status(self) -> LocalStatFileStatus:
         if self._status is None:
             self._status = LocalStatFileStatus(await blocking_to_async(self._entry.stat))
         return self._status
@@ -169,7 +169,7 @@ class LocalAsyncFS(AsyncFS):
 
     async def statfile(self, url: str) -> LocalStatFileStatus:
         path = self._get_path(url)
-        stat_result = await blocking_to_async(self._thread_pool, os.stat, url)
+        stat_result = await blocking_to_async(self._thread_pool, os.stat, path)
         if stat.S_ISDIR(stat_result.st_mode):
             raise FileNotFoundError(f'is directory: {url}')
         return LocalStatFileStatus(stat_result)

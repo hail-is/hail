@@ -224,7 +224,7 @@ async def test_listfiles(filesystem):
     await fs.touch(c)
 
     async def listfiles(dir, recursive):
-        return {(entry.url(), entry.is_file()) async for entry in fs.listfiles(dir, recursive)}
+        return {(entry.url(), await entry.is_file()) async for entry in fs.listfiles(dir, recursive)}
 
     assert await listfiles(f'{base}/foo', recursive=True) == {(a, True), (c, True)}
     assert await listfiles(f'{base}/foo', recursive=False) == {(a, True), (b, False)}

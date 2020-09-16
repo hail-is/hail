@@ -34,8 +34,8 @@ class PageIterator:
             self._request_params['pageToken'] = next_page_token
             self._page = await self._client.get(self._path, params=self._request_params, **self._request_kwargs)
             return self._page
-        else:
-            raise StopAsyncIteration
+
+        raise StopAsyncIteration
 
 
 class InsertObjectStream(WritableStream):
@@ -240,8 +240,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             name = f'{name}/'
         if recursive:
             return self._listfiles_recursive(bucket, name)
-        else:
-            return self._listfiles_flat(bucket, name)
+        return self._listfiles_flat(bucket, name)
 
     async def isfile(self, url: str) -> bool:
         try:
@@ -254,7 +253,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             raise
 
     async def isdir(self, url: str) -> bool:
-        async for entry in self.listfiles(url):
+        async for _ in self.listfiles(url):
             return True
         return False
 
