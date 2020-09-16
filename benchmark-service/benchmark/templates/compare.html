@@ -8,25 +8,22 @@
 <div class="flex-col-align-left">
     <form autocomplete="off" method="get" action="{{ base_path }}/compare">
         <label for="file1">File 1:</label>
-        <div class="autocomplete">
-        <input style="vertical-align:text-bottom;" name="file1" class="autoComplete" id="autoComplete1" size=30 type="text" required
+        <input style="vertical-align:text-bottom;" name="file1" class="autoComplete" size=30 type="text" required
                {% if start %}
                value = "{{ file1 }}"
                {% else %}
                placeholder="gs://..."
                {% endif %}
         ><br>
-        </div>
+
         <label for="file2">File 2:</label>
-        <div class="autocomplete">
-        <input style="vertical-align:text-bottom;" name="file2" class="autoComplete" id="autoComplete2" size=30 type="text" required
+        <input style="vertical-align:text-bottom;" name="file2" class="autoComplete" size=30 type="text" required
                {% if end %}
                value = "{{ file2 }}"
                {% else %}
                placeholder="gs://..."
                {% endif %}
         ><br>
-        </div>
         <label for="metrics">Choose a metric:</label>
         <select id="metrics" name="metrics">
             <option value="best">best</option>
