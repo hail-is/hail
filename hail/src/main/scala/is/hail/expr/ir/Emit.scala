@@ -1100,6 +1100,8 @@ class Emit[C](
             infoDGEQRFErrorTest("Failed to compute H and Tau.")
           ))
 
+          cb.append(computeHAndTau)
+
           val result = if (mode == "raw") {
             val rawPType = x.pType.asInstanceOf[PTuple]
             val rawOutputSrvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
@@ -1125,10 +1127,8 @@ class Emit[C](
               rawOutputSrvb.end()
             )
 
-            Code(
-              computeHAndTau,
-              constructHAndTauTuple
-            )
+            constructHAndTauTuple
+
           } else {
             val currRow = mb.genFieldThisRef[Int]()
             val currCol = mb.genFieldThisRef[Int]()
@@ -1170,10 +1170,7 @@ class Emit[C](
             )
 
             if (mode == "r") {
-              Code(
-                computeHAndTau,
-                computeR
-              )
+              computeR
             }
             else {
               val crPType = x.pType.asInstanceOf[PTuple]
@@ -1253,7 +1250,6 @@ class Emit[C](
               )
 
               Code(
-                computeHAndTau,
                 rNDArrayAddress := computeR,
                 computeCompleteOrReduced
               )
