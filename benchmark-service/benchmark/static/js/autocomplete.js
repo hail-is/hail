@@ -1,4 +1,3 @@
-    var files = {{ benchmark_file_list|tojson }};
 
     new autoComplete({
         data: {                              // Data src [Array, Function, Async] | (REQUIRED)
