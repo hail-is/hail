@@ -2,6 +2,7 @@ package is.hail
 
 import javax.net.ssl.SSLException
 import java.net.SocketException
+import java.io.EOFException
 
 import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
@@ -33,6 +34,8 @@ package object services {
         true
       case e: SocketException =>
         e.getMessage.contains("Connection reset")
+      case e: EOFException =>
+        e.getMessage.contains("SSL peer shut down incorrectly")
       case e: SSLException =>
         val cause = e.getCause
         cause != null && isTransientError(cause)
