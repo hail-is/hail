@@ -1059,49 +1059,42 @@ class Emit[C](
           val infoDGEQRFErrorTest = (extraErrorMsg: String) => (infoDGEQRFResult cne 0)
             .orEmpty(Code._fatal[Unit](const(s"LAPACK error DGEQRF. $extraErrorMsg Error code = ").concat(infoDGEQRFResult.toS)))
 
-          val computeHAndTau = Code(FastIndexedSeq(
-            aNumElements := pndValue.pt.numElements(shapeArray, mb),
+          // Computing H and Tau
+          cb.assign(aNumElements, pndValue.pt.numElements(shapeArray, mb))
+          cb.assign(aAddressDGEQRF, pndValue.pt.data.pType.allocate(region.code, aNumElements.toI))
+          cb.append(pndValue.pt.data.pType.stagedInitialize(aAddressDGEQRF, aNumElements.toI))
+          cb.append(Region.copyFrom(pndValue.pt.data.pType.firstElementOffset(dataAddress, (M * N).toI),
+            pndValue.pt.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI), (M * N) * 8L))
 
-            // Make some space for A, which will be overriden during DGEQRF
-            aAddressDGEQRF := pndValue.pt.data.pType.allocate(region.code, aNumElements.toI),
-            pndValue.pt.data.pType.stagedInitialize(aAddressDGEQRF, aNumElements.toI),
-            Region.copyFrom(pndValue.pt.data.pType.firstElementOffset(dataAddress, (M * N).toI),
-              pndValue.pt.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI), (M * N) * 8L),
+          cb.assign(tauAddress, tauPType.allocate(region.code, K.toI))
+          cb.append(tauPType.stagedInitialize(tauAddress, K.toI))
 
-            tauAddress := tauPType.allocate(region.code, K.toI),
-            tauPType.stagedInitialize(tauAddress, K.toI),
+          cb.assign(LWORKAddress, region.code.allocate(8L, 8L))
 
-            LWORKAddress := region.code.allocate(8L, 8L),
-
-            infoDGEQRFResult := Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
-              M.toI,
-              N.toI,
-              pndValue.pt.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
-              LDA.toI,
-              tauPType.firstElementOffset(tauAddress, K.toI),
-              LWORKAddress,
-              -1
-            ),
-            infoDGEQRFErrorTest("Failed size query."),
-
-            workAddress := Code.invokeStatic1[Memory, Long, Long]("malloc", LWORK.toL * 8L),
-
-            infoDGEQRFResult := Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
-              M.toI,
-              N.toI,
-              pndValue.pt.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
-              LDA.toI,
-              tauPType.firstElementOffset(tauAddress, K.toI),
-              workAddress,
-              LWORK
-            ),
-
-            Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()),
-            infoDGEQRFErrorTest("Failed to compute H and Tau.")
+          cb.assign(infoDGEQRFResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
+            M.toI,
+            N.toI,
+            pndValue.pt.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
+            LDA.toI,
+            tauPType.firstElementOffset(tauAddress, K.toI),
+            LWORKAddress,
+            -1
           ))
+          cb.append(infoDGEQRFErrorTest("Failed size query."))
 
-          cb.append(computeHAndTau)
-
+          cb.assign(workAddress, Code.invokeStatic1[Memory, Long, Long]("malloc", LWORK.toL * 8L))
+          cb.assign(infoDGEQRFResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
+            M.toI,
+            N.toI,
+            pndValue.pt.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
+            LDA.toI,
+            tauPType.firstElementOffset(tauAddress, K.toI),
+            workAddress,
+            LWORK
+          ))
+          cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
+          cb.append(infoDGEQRFErrorTest("Failed to compute H and Tau."))
+          
           val result = if (mode == "raw") {
             val rawPType = x.pType.asInstanceOf[PTuple]
             val rawOutputSrvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
@@ -1181,23 +1174,24 @@ class Emit[C](
               val qShapeBuilder = qPType.makeShapeBuilder(qShapeArray)
               val qStridesBuilder = qPType.makeColumnMajorStridesBuilder(qShapeArray, mb)
 
-              val rNDArrayAddress = mb.genFieldThisRef[Long]()
-              val qDataAddress = mb.genFieldThisRef[Long]()
+              val rNDArrayAddress = cb.newLocal[Long]("ndarray_qr_rNDAArrayAddress")
+              val qDataAddress = cb.newLocal[Long]("ndarray_qr_qDataAddress")
 
-              val infoDORGQRResult = mb.genFieldThisRef[Int]()
+              val infoDORGQRResult = cb.newLocal[Int]("ndarray_qr_DORGQR_info")
               val infoDORQRErrorTest = (extraErrorMsg: String) => (infoDORGQRResult cne 0)
                 .orEmpty(Code._fatal[Unit](const(s"LAPACK error DORGQR. $extraErrorMsg Error code = ").concat(infoDORGQRResult.toS)))
 
-              val qCondition = mb.genFieldThisRef[Boolean]()
-              val numColsToUse = mb.genFieldThisRef[Long]()
-              val aAddressDORGQR = mb.genFieldThisRef[Long]()
+              val qCondition = cb.newLocal[Boolean]("ndarray_qr_qCondition")
+              val numColsToUse = cb.newLocal[Long]("ndarray_qr_numColsToUse")
+              val aAddressDORGQR = cb.newLocal[Long]("ndarray_qr_dorgqr_a")
 
-              val qNumElements = mb.genFieldThisRef[Long]()
+              val qNumElements = cb.newLocal[Long]("ndarray_qr_qNumElements")
+
+              cb.assign(qCondition, const(mode == "complete") && (M > N))
+              cb.assign(numColsToUse, qCondition.mux(M, K))
+              cb.assign(qNumElements, M * numColsToUse)
 
               val computeCompleteOrReduced = Code(Code(FastIndexedSeq(
-                qCondition := const(mode == "complete") && (M > N),
-                numColsToUse := qCondition.mux(M, K),
-                qNumElements := M * numColsToUse,
                 qCondition.mux(
                   Code(
                     aAddressDORGQR := pndValue.pt.data.pType.allocate(region.code, qNumElements.toI),
