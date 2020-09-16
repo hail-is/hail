@@ -1094,7 +1094,7 @@ class Emit[C](
           ))
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
           cb.append(infoDGEQRFErrorTest("Failed to compute H and Tau."))
-          
+
           val result = if (mode == "raw") {
             val rawPType = x.pType.asInstanceOf[PTuple]
             val rawOutputSrvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
@@ -1123,9 +1123,6 @@ class Emit[C](
             constructHAndTauTuple
 
           } else {
-            val currRow = mb.genFieldThisRef[Int]()
-            val currCol = mb.genFieldThisRef[Int]()
-
             val (rPType, rRows, rCols) = if (mode == "r") {
               (x.pType.asInstanceOf[PNDArray], K, N)
             } else if (mode == "complete") {
@@ -1141,10 +1138,27 @@ class Emit[C](
             val rShapeBuilder = rPType.makeShapeBuilder(rShapeArray)
             val rStridesBuilder = rPType.makeColumnMajorStridesBuilder(rShapeArray, mb)
 
+            cb.assign(rDataAddress, rPType.data.pType.allocate(region.code, aNumElements.toI))
+            cb.append(rPType.data.pType.stagedInitialize(rDataAddress, (rRows * rCols).toI))
+
             // This block assumes that `rDataAddress` and `aAddressDGEQRF` point to column major arrays.
             // TODO: Abstract this into ndarray ptype/pcode interface methods.
-            val copyOutUpperTriangle =
-            Code.forLoop(currCol := 0, currCol < rCols.toI, currCol := currCol + 1,
+            val currRow = cb.newLocal[Int]("ndarray_qr_currRow")
+            val currCol = cb.newLocal[Int]("ndarray_qr_currCol")
+
+//            cb.forLoop({cb.assign(currCol, 0)}, currCol < rCols.toI, {cb.assign(currCol, currCol + 1)}, {
+//              cb.forLoop({cb.assign(currRow, 0)}, currRow < rRows.toI, {cb.assign(currRow, currRow + 1)}, {
+//                cb.append(Region.storeDouble(
+//                  pndValue.pt.data.pType.elementOffset(rDataAddress, aNumElements.toI, currCol * rRows.toI + currRow),
+//                  (currCol >= currRow).mux(
+//                    Region.loadDouble(pndValue.pt.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, currCol * M.toI + currRow)),
+//                    0.0
+//                  )
+//                ))
+//              })
+//            })
+
+            val copyOutUpperTriangle = Code.forLoop(currCol := 0, currCol < rCols.toI, currCol := currCol + 1,
               Code.forLoop(currRow := 0, currRow < rRows.toI, currRow := currRow + 1,
                 Region.storeDouble(
                   pndValue.pt.data.pType.elementOffset(rDataAddress, aNumElements.toI, currCol * rRows.toI + currRow),
@@ -1155,12 +1169,10 @@ class Emit[C](
                 )
               )
             )
-            val computeR = Code(
-              rDataAddress := rPType.data.pType.allocate(region.code, aNumElements.toI),
-              rPType.data.pType.stagedInitialize(rDataAddress, (rRows * rCols).toI),
-              copyOutUpperTriangle,
-              rPType.construct(rShapeBuilder, rStridesBuilder, rDataAddress, mb, region.code)
-            )
+
+            cb.append(copyOutUpperTriangle)
+
+            val computeR = rPType.construct(rShapeBuilder, rStridesBuilder, rDataAddress, mb, region.code)
 
             if (mode == "r") {
               computeR
@@ -1187,54 +1199,51 @@ class Emit[C](
 
               val qNumElements = cb.newLocal[Long]("ndarray_qr_qNumElements")
 
+
+              cb.assign(rNDArrayAddress, computeR)
               cb.assign(qCondition, const(mode == "complete") && (M > N))
               cb.assign(numColsToUse, qCondition.mux(M, K))
               cb.assign(qNumElements, M * numColsToUse)
 
+              cb.ifx(qCondition, {
+                cb.assign(aAddressDORGQR, pndValue.pt.data.pType.allocate(region.code, qNumElements.toI))
+                cb.append(qPType.data.pType.stagedInitialize(aAddressDORGQR, qNumElements.toI))
+                cb.append(Region.copyFrom(pndValue.pt.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
+                  qPType.data.pType.firstElementOffset(aAddressDORGQR, qNumElements.toI), aNumElements * 8L))
+              }, {
+                cb.assign(aAddressDORGQR, aAddressDGEQRF)
+              })
+
+              cb.assign(infoDORGQRResult, Code.invokeScalaObject8[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
+                M.toI,
+                numColsToUse.toI,
+                K.toI,
+                pndValue.pt.data.pType.firstElementOffset(aAddressDORGQR, aNumElements.toI),
+                LDA.toI,
+                tauPType.firstElementOffset(tauAddress, K.toI),
+                LWORKAddress,
+                -1
+              ))
+              cb.append(infoDORQRErrorTest("Failed size query."))
+              cb.append(workAddress := Code.invokeStatic1[Memory, Long, Long]("malloc", LWORK.toL * 8L))
+              cb.assign(infoDORGQRResult, Code.invokeScalaObject8[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
+                M.toI,
+                numColsToUse.toI,
+                K.toI,
+                pndValue.pt.data.pType.elementOffset(aAddressDORGQR, (M * numColsToUse).toI, 0),
+                LDA.toI,
+                tauPType.elementOffset(tauAddress, K.toI, 0),
+                workAddress,
+                LWORK
+              ))
+              cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
+              cb.append(infoDORQRErrorTest("Failed to compute Q."))
+              cb.assign(qDataAddress, qPType.data.pType.allocate(region.code, qNumElements.toI))
+              cb.append(qPType.data.pType.stagedInitialize(qDataAddress, qNumElements.toI))
+              cb.append(Region.copyFrom(pndValue.pt.data.pType.firstElementOffset(aAddressDORGQR),
+                qPType.data.pType.firstElementOffset(qDataAddress), (M * numColsToUse) * 8L))
+
               val computeCompleteOrReduced = Code(Code(FastIndexedSeq(
-                qCondition.mux(
-                  Code(
-                    aAddressDORGQR := pndValue.pt.data.pType.allocate(region.code, qNumElements.toI),
-                    qPType.data.pType.stagedInitialize(aAddressDORGQR, qNumElements.toI),
-                    Region.copyFrom(pndValue.pt.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
-                      qPType.data.pType.firstElementOffset(aAddressDORGQR, qNumElements.toI), aNumElements * 8L)
-                  ),
-                  aAddressDORGQR := aAddressDGEQRF
-                ),
-
-                // Query optimal size for work array
-                infoDORGQRResult := Code.invokeScalaObject8[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
-                  M.toI,
-                  numColsToUse.toI,
-                  K.toI,
-                  pndValue.pt.data.pType.firstElementOffset(aAddressDORGQR, aNumElements.toI),
-                  LDA.toI,
-                  tauPType.firstElementOffset(tauAddress, K.toI),
-                  LWORKAddress,
-                  -1
-                ),
-                infoDORQRErrorTest("Failed size query."),
-
-                workAddress := Code.invokeStatic1[Memory, Long, Long]("malloc", LWORK.toL * 8L),
-
-                infoDORGQRResult := Code.invokeScalaObject8[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
-                  M.toI,
-                  numColsToUse.toI,
-                  K.toI,
-                  pndValue.pt.data.pType.elementOffset(aAddressDORGQR, (M * numColsToUse).toI, 0),
-                  LDA.toI,
-                  tauPType.elementOffset(tauAddress, K.toI, 0),
-                  workAddress,
-                  LWORK
-                ),
-                Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()),
-                infoDORQRErrorTest("Failed to compute Q."),
-
-                qDataAddress := qPType.data.pType.allocate(region.code, qNumElements.toI),
-                qPType.data.pType.stagedInitialize(qDataAddress, qNumElements.toI),
-                Region.copyFrom(pndValue.pt.data.pType.firstElementOffset(aAddressDORGQR),
-                  qPType.data.pType.firstElementOffset(qDataAddress), (M * numColsToUse) * 8L),
-
                 crOutputSrvb.start(),
                 crOutputSrvb.addIRIntermediate(qPType)(qPType.construct(qShapeBuilder, qStridesBuilder, qDataAddress, mb, region.code)),
                 crOutputSrvb.advance(),
@@ -1243,10 +1252,7 @@ class Emit[C](
                 crOutputSrvb.end()
               )
 
-              Code(
-                rNDArrayAddress := computeR,
-                computeCompleteOrReduced
-              )
+              computeCompleteOrReduced
             }
           }
           PCode(pt, result)
