@@ -2016,7 +2016,7 @@ class Emit[C](
         val vars = args.map { a => coerce[Any](mb.newLocal()(typeToTypeInfo(a.pType))) }
         val ins = vars.zip(codeArgs.map(_.v)).map { case (l, i) => l := i }
         val value = Code(Code(ins), meth.invokeCode[Any](
-          ((mb.getCodeParam[Region](1): Param) +: vars.map(_.get: Param)): _*))
+          (CodeParam(region.code) +: vars.map(_.get: Param)): _*))
         strict(pt, value, codeArgs: _*)
       case x@ApplySpecial(_, typeArgs, args, rt) =>
         val codeArgs = args.map(a => emit(a))
@@ -2513,6 +2513,8 @@ class Emit[C](
     def emit(ir: IR, env: E = env): EmitCode =
       this.emitWithRegion(ir, mb, region, env, None)
 
+    def dEmit(ir: IR, env: E = env): EmitCode = emit(ir, env)
+
     def deforest(x: IR): NDArrayEmitter[C] = {
       val xType = coerce[PNDArray](x.pType)
       val nDims = xType.nDims
@@ -2529,9 +2531,10 @@ class Emit[C](
           new NDArrayEmitter[C](childEmitter.nDims, childEmitter.outputShape,
             childP.shape.pType, body.pType, setup, childEmitter.setupMissing, childEmitter.missing) {
             override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
+              assert(elemMB == mb)
               val elemRef = elemMB.newPresentEmitField("ndarray_map_element_name", elemPType)
               val bodyEnv = env.bind(elemName, elemRef)
-              val bodyt = emitSelf.emit(body, elemMB, bodyEnv, None)
+              val bodyt = dEmit(body, bodyEnv)
 
               Code(
                 elemRef := PCode(elemPType, childEmitter.outputElement(elemMB, idxVars)),
@@ -2555,12 +2558,13 @@ class Emit[C](
 
           new NDArrayEmitter[C](lP.shape.pType.size, shapeArray, lP.shape.pType, body.pType, setupShape, setupMissing, leftChildEmitter.missing || rightChildEmitter.missing) {
             override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
+              assert(elemMB == mb)
               val lElemRef = elemMB.newPresentEmitField(lName, lP.elementType)
               val rElemRef = elemMB.newPresentEmitField(rName, rP.elementType)
 
               val bodyEnv = env.bind(lName, lElemRef)
                 .bind(rName, rElemRef)
-              val bodyt = emitSelf.emit(body, elemMB, bodyEnv, None)
+              val bodyt = dEmit(body, bodyEnv)//emitSelf.emit(body, elemMB, bodyEnv, None)
 
               val lIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(elemMB, idxVars, nDims, leftChildEmitter.outputShape)
               val rIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(elemMB, idxVars, nDims, rightChildEmitter.outputShape)
