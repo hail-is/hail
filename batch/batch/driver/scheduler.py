@@ -383,6 +383,7 @@ LIMIT %s;
                 record['attempt_id'] = attempt_id
 
                 if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
+                    log.info(f'{scheduled_cores_mcpu} + {record["cores_mcpu"]} > {allocated_cores_mcpu}')
                     break
 
                 instance = get_instance(user, record['cores_mcpu'])
