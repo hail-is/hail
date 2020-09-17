@@ -40,7 +40,7 @@ curl -fsSL "https://github.com/GoogleCloudPlatform/docker-credential-gcr/release
 docker-credential-gcr configure-docker
 
 docker pull ubuntu:18.04
-docker pull google/cloud-sdk:269.0.0-alpine
+docker pull gcr.io/google.com/cloudsdktool/cloud-sdk:269.0.0-alpine
 
 service google-fluentd start
 
