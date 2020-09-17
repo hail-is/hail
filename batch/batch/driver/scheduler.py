@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import sortedcontainers
+import collections
 
 from hailtop.utils import (
     AsyncWorkerPool, WaitableSharedPool, retry_long_running, run_if_changed,
@@ -356,6 +357,10 @@ LIMIT %s;
                 if user != 'ci' or (user == 'ci' and instance.zone.startswith('us-central1')):
                     return instance
                 i += 1
+            histogram = collections.defaultdict(int)
+            for instance in self.inst_pool.healthy_instances_by_free_cores:
+                histogram[instance.free_cores_mcpu] += 1
+            log.info(f'schedule: no viable instances for {cores_mcpu}: {histogram}')
             return None
 
         should_wait = True
@@ -366,6 +371,8 @@ LIMIT %s;
 
             scheduled_cores_mcpu = 0
             share = user_share[user]
+
+            log.info(f'schedule: user-share: {user}: {allocated_cores_mcpu} {share}')
 
             remaining = Box(share)
             async for record in user_runnable_jobs(user, remaining):
