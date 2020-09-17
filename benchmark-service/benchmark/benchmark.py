@@ -92,11 +92,15 @@ def get_comparisons(benchmarks1, benchmarks2, metric):
 
 
 def fmt_time(t):
-    return round(t, 3)
+    if t is not None:
+        return round(t, 3)
+    return None
 
 
 def fmt_diff(ratio):
-    return round(ratio * 100, 3)
+    if ratio is not None:
+        return round(ratio * 100, 3)
+    return None
 
 
 def final_comparisons(comparisons):
