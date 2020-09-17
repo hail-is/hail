@@ -25,6 +25,7 @@ from hail.utils.java import Env, info, warning
 
 from . import relatedness
 from . import pca
+from ..backend.spark_backend import SparkBackend
 
 pc_relate = relatedness.pc_relate
 identity_by_descent = relatedness.identity_by_descent
@@ -307,7 +308,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
     -------
     :class:`.Table`
     """
-    if type(Env.backend()).__name__ != "SparkBackend":
+    if isinstance(Env.backend(), SparkBackend):
         _linear_regression_rows_nd(y, x, covariates, block_size, pass_through)
 
     mt = matrix_table_source('linear_regression_rows/x', x)
