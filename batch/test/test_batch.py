@@ -453,8 +453,8 @@ class Test(unittest.TestCase):
 
     def test_gcr_image(self):
         builder = self.client.create_batch()
-        j = builder.create_job(os.environ['HAIL_BASE_IMAGE'], ['echo', 'test'])
-        b = builder.submit()
+        j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['echo', 'test'])
+        builder.submit()
         status = j.wait()
 
         self.assertEqual(status['state'], 'Success', (status, j.log()))
@@ -582,19 +582,19 @@ echo $HAIL_BATCH_WORKER_IP
 
     def test_user_authentication_within_job(self):
         batch = self.client.create_batch()
-        cmd = ['bash', '-c', f'hailctl auth user']
+        cmd = ['bash', '-c', 'hailctl auth user']
         with_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=True)
         no_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=False)
-        b = batch.submit()
+        batch.submit()
 
         with_token_status = with_token.wait()
         assert with_token_status['state'] == 'Success', with_token_status
 
         username = get_userinfo()['username']
 
-        try: 
+        try:
             job_userinfo = json.loads(with_token.log()['main'].strip())
-        except: 
+        except Exception:
             job_userinfo = None
         assert job_userinfo is not None and job_userinfo["username"] == username, (username, with_token.log()['main'])
 
