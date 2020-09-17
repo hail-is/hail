@@ -187,9 +187,11 @@ class EmitStreamSuite extends HailSuite {
     val f = compile1[Int, Unit] { (mb, n) =>
       val r = checkedRange(0, n, "range", mb)
       var checkedInner: CheckedStream[Code[Int]] = null
-      val dummyRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
-      val outer = Stream.grouped(mb, _ => r.stream, 2, dummyRegion).map { inner =>
-        checkedInner = new CheckedStream(inner(dummyRegion), "inner", mb)
+      val rootRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
+      val eltRegion = rootRegion.createChildRegion(mb)
+      val innerStreamType = PCanonicalStream(PInt32())
+      val outer = Stream.grouped(mb, _ => r.stream, innerStreamType, 2, eltRegion).map { inner =>
+        checkedInner = new CheckedStream(inner(eltRegion), "inner", mb)
         checkedInner.stream
       }
       val checkedOuter = new CheckedStream(outer, "outer", mb)
@@ -211,9 +213,11 @@ class EmitStreamSuite extends HailSuite {
     val f = compile1[Int, Unit] { (mb, n) =>
       val r = checkedRange(0, n, "range", mb)
       var checkedInner: CheckedStream[Code[Int]] = null
-      val dummyRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
-      val outer = Stream.grouped(mb, _ => r.stream, 2, dummyRegion).map { inner =>
-        val take = Stream.zip(inner(dummyRegion), Stream.range(mb, 0, 1, 1))
+      val rootRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
+      val eltRegion = rootRegion.createChildRegion(mb)
+      val innerStreamType = PCanonicalStream(PInt32())
+      val outer = Stream.grouped(mb, _ => r.stream, innerStreamType, 2, eltRegion).map { inner =>
+        val take = Stream.zip(inner(eltRegion), Stream.range(mb, 0, 1, 1))
                          .map { case (i, count) => i }
         checkedInner = new CheckedStream(take, "inner", mb)
         checkedInner.stream
@@ -259,11 +263,12 @@ class EmitStreamSuite extends HailSuite {
   @Test def testES2kWayMerge() {
     def merge(k: Int) {
       val f = compile1[Int, Unit] { (mb, _) =>
-        val dummyRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
+        val rootRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
+        val eltRegion = rootRegion.createChildRegion(mb)
         val ranges = Array.tabulate(k)(i => checkedRange(0 + i, 5 + i, s"s$i", mb, print = false))
 
         val z = Stream.kWayMerge[Int](
-           mb, ranges.map(cs => (_: StagedRegion) => cs.stream), dummyRegion,
+           mb, ranges.map(cs => (_: StagedRegion) => cs.stream), eltRegion,
            (li, lv, ri, rv) => Code.memoize(lv, "lv", rv, "rv") { (lv, rv) =>
              lv < rv || (lv.ceq(rv) && li < ri)
            })

@@ -170,7 +170,7 @@ case class SplitPartitionNativeWriter(
     context: EmitCode,
     eltType: PStruct,
     mb: EmitMethodBuilder[_],
-    region: StagedRegion,
+    region: ParentStagedRegion,
     stream: SizedStream): EmitCode = {
     val enc1 = spec1.buildEmitEncoder(eltType, mb.ecb)
     val enc2 = spec2.buildEmitEncoder(eltType, mb.ecb)
