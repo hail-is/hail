@@ -468,10 +468,6 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         t = b / se
         p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.d, True, False))
 
-        # Recall, want to generate one row per row in block.
-        key_fields = [key_field for key_field in ht.key]
-        key_dict = {key_field: block[key_field] for key_field in key_fields}
-
         key_fields = [key_field for key_field in ht.key]
         key_dict = {key_field: block[key_field] for key_field in key_fields}
         linreg_fields_dict = {"sum_x": sum_x, "y_transpose_x": ytx.T._data_array(), "beta": b.T._data_array(),
