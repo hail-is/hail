@@ -136,13 +136,12 @@ class LocalBackend(Py4JBackend):
     def __init__(self, tmpdir, log, quiet, append, branching_factor,
                  skip_logging_configuration, optimizer_iterations):
         SPARK_HOME = os.environ['SPARK_HOME']
-        if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
-            hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
-        elif os.environ.get('HAIL_HOME'):
-            HAIL_HOME = os.environ['HAIL_HOME']
-            hail_jar_path = f'{HAIL_HOME}/hail/build/libs/hail-all-spark.jar'
-        else:
-            raise RuntimeError('local backend requires a packaged jar or HAIL_HOME to be set')
+        hail_jar_path = os.environ.get('HAIL_JAR')
+        if hail_jar_path is None:
+            if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
+                hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
+            else:
+                raise RuntimeError('local backend requires a packaged jar or HAIL_JAR to be set')
 
         port = launch_gateway(
             redirect_stdout=sys.stdout,

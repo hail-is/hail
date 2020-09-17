@@ -6,6 +6,7 @@ from decorator import decorator
 
 from hail.utils.java import Env
 import hail as hl
+from hail.backend.local_backend import LocalBackend
 
 _initialized = False
 
@@ -128,19 +129,11 @@ def skip_unless_spark_backend():
 
     return wrapper
 
-def fails_local_backend():
-    from hail.backend.local_backend import LocalBackend
 
-    @decorator
-    def wrapper(func, *args, **kwargs):
-        if isinstance(hl.utils.java.Env.backend(), LocalBackend):
-            with pytest.raises(BaseException):
-                return func(*args, **kwargs)
-        else:
-            return func(*args, **kwargs)
-
-    return wrapper
-
+fails_local_backend = pytest.mark.xfail(
+    isinstance(hl.utils.java.Env.backend(), LocalBackend),
+    reason="doesn't yet work on local backend",
+    strict=True)
 
 def run_with_cxx_compile():
     @decorator
