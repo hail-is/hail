@@ -1301,7 +1301,6 @@ class BGENTests(unittest.TestCase):
         with self.assertRaisesRegex(FatalError, 'Found multiple reference genomes were specified in the BGEN index files'):
             hl.import_bgen([bgen_file1, bgen_file2], ['GT'], sample_file=sample_file)
 
-    @fails_local_backend()
     def test_old_index_file_throws_error(self):
         sample_file = resource('random.sample')
         bgen_file = resource('random.bgen')

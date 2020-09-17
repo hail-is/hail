@@ -255,7 +255,6 @@ class Tests(unittest.TestCase):
         result = convert_struct_to_dict(mt.cols().collect()[-2])
         self.assertEqual(result, {'col_idx': 3, 'sum': 28, 'count': 2, 'foo': 3})
 
-    @fails_local_backend()
     def test_drop(self):
         mt = self.get_mt()
         mt = mt.annotate_globals(foo=5)

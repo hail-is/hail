@@ -2348,7 +2348,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.set([1, 0, -4, 6]))), -4)
         self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.set([1, 0, 4, 6]))), None)
 
-    @fails_local_backend()
     def test_sorted(self):
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, 3, 2], lambda x: x % 2)), [0, 4, 2, 1, 3])
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, 3, 2], lambda x: x % 2, reverse=True)), [1, 3, 0, 4, 2])
@@ -3012,7 +3011,6 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(res['p_value'] / 2.1565e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.91805817)
 
-    @fails_local_backend()
     def test_hardy_weinberg_test(self):
         res = hl.eval(hl.hardy_weinberg_test(1, 2, 1))
         self.assertAlmostEqual(res['p_value'], 0.65714285)

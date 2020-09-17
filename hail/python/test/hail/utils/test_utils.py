@@ -12,6 +12,8 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
+
+    @fails_local_backend()
     def test_hadoop_methods(self):
         data = ['foo', 'bar', 'baz']
         data.extend(map(str, range(100)))
