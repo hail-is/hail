@@ -307,6 +307,9 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
     -------
     :class:`.Table`
     """
+    if type(Env.backend()).__name__ != "SparkBackend":
+        _linear_regression_rows_nd(y, x, covariates, block_size, pass_through)
+
     mt = matrix_table_source('linear_regression_rows/x', x)
     check_entry_indexed('linear_regression_rows/x', x)
 
