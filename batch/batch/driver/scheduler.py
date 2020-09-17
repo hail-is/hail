@@ -360,12 +360,15 @@ LIMIT %s;
 
         should_wait = True
         for user, resources in user_resources.items():
+            log.info(f'user {user} resources {resources}')
             allocated_cores_mcpu = resources['allocated_cores_mcpu']
             if allocated_cores_mcpu == 0:
+                log.info(f'no allocated cores for user {user}')
                 continue
 
             scheduled_cores_mcpu = 0
             share = user_share[user]
+            log.info(f'user {user} has share {share}')
 
             remaining = Box(share)
             async for record in user_runnable_jobs(user, remaining):
@@ -376,9 +379,11 @@ LIMIT %s;
                 record['attempt_id'] = attempt_id
 
                 if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
+                    log.info(f'scheduled cores + cores_mcpu greater than allocated cores mcpu {scheduled_cores_mcpu + record["cores_mcpu"]} {allocated_cores_mcpu}')
                     break
 
                 instance = get_instance(user, record['cores_mcpu'])
+                log.info(f'got instance {instance} for user {user} trying to schedule {id}')
                 if instance:
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     scheduled_cores_mcpu += record['cores_mcpu']
@@ -395,6 +400,7 @@ LIMIT %s;
 
                 remaining.value -= 1
                 if remaining.value <= 0:
+                    log.info(f'no more remaining share for user {user}')
                     break
 
         await waitable_pool.wait()
