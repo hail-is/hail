@@ -913,6 +913,12 @@ def generate_random_gen():
 class BGENTests(unittest.TestCase):
 
     def setUp(self) -> None:
+
+        # don't throw errors on setUp, let individual tests fail with @fails_local_backend
+        from hail.backend.local_backend import LocalBackend
+        if isinstance(hl.current_backend(), LocalBackend):
+            return
+
         hl.index_bgen(resource('example.8bits.bgen'),
                       contig_recoding={'01': '1'},
                       reference_genome='GRCh37')
