@@ -5,7 +5,7 @@ from .base_expression import Expression, ExpressionException, to_expr, \
     unify_all, unify_types
 from .expression_typecheck import coercer_from_dtype, \
     expr_any, expr_array, expr_set, expr_bool, expr_numeric, expr_int32, \
-    expr_int64, expr_str, expr_dict, expr_interval, expr_tuple
+    expr_int64, expr_str, expr_dict, expr_interval, expr_tuple, expr_oneof
 from hail.expr.types import HailType, tint32, tint64, tfloat32, \
     tfloat64, tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr, \
     tndarray, tlocus, tinterval, is_numeric
@@ -2807,6 +2807,35 @@ class StringExpression(Expression):
         :class:`.StringExpression`
         """
         return self._method('reverse', tstr)
+
+    @typecheck_method(collection=expr_oneof(expr_array(), expr_set()))
+    def join(self, collection):
+        """Returns a string which is the concatenation of the strings in `collection`
+        separated by the string providing this method. Raises :class:`TypeError` if
+        the element type of `collection` is not :data:`.tstr`.
+
+        Examples
+        --------
+
+        >>> a = ['Bob', 'Charlie', 'Alice', 'Bob', 'Bob']
+
+        >>> hl.eval(hl.str(',').join(a))
+        'Bob,Charlie,Alice,Bob,Bob'
+
+        Parameters
+        ----------
+        collection : :class:`.ArrayExpression` or :class:`.SetExpression`
+            Collection.
+
+        Returns
+        -------
+        :class:`.StringExpression`
+            Joined string expression.
+        """
+        if collection.dtype.element_type != tstr:
+            raise TypeError(f"Expected str collection, {collection.dtype.element_type} found")
+
+        return collection._method("mkString", tstr, self)
 
     def _extra_summary_fields(self, agg_result):
         return {
