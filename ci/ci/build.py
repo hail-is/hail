@@ -332,7 +332,7 @@ retry docker pull $FROM_IMAGE
 {pull_published_latest}
 CPU_PERIOD=100000
 CPU_QUOTA=$(( $(grep -c ^processor /proc/cpuinfo) * $(cat /sys/fs/cgroup/cpu/cpu.shares) * $CPU_PERIOD / 1024 ))
-MEMORY=$(cat cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
+MEMORY=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
 docker build --memory="$MEMORY" --cpu-period="$CPU_PERIOD" --cpu-quota="$CPU_QUOTA" -t {shq(self.image)} \
   -f {rendered_dockerfile} \
   --cache-from $FROM_IMAGE {cache_from_published_latest} \
