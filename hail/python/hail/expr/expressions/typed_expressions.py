@@ -2835,7 +2835,7 @@ class StringExpression(Expression):
         if collection.dtype.element_type != tstr:
             raise TypeError(f"Expected str collection, {collection.dtype.element_type} found")
 
-        return collection._method("mkString", tstr, self)
+        return hl.delimit(collection, self)
 
     def _extra_summary_fields(self, agg_result):
         return {
