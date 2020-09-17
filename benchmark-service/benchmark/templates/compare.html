@@ -19,15 +19,13 @@
         </div>
         <label for="file2">File 2:</label>
         <div class="autocomplete">
-        <input style="vertical-align:text-bottom;" name="file2" class="autoComplete" size=30 type="text" required
+        <input style="vertical-align:text-bottom;" name="file2" class="autoComplete" id="autoComplete2" size=30 type="text" required
                {% if end %}
                value = "{{ file2 }}"
                {% else %}
                placeholder="gs://..."
                {% endif %}
-        >
-            <ul class="file_list autoComplete_list"></ul>
-            <br>
+        ><br>
         </div>
         <label for="metrics">Choose a metric:</label>
         <select id="metrics" name="metrics">
@@ -93,8 +91,8 @@
 
 {% endif %}
 
-<!--<script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/js/autoComplete.min.js"></script>-->
-<script src="{{ base_path }}/static/js/autocomplete.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/js/autoComplete.min.js"></script>
+<!--<script src="{{ base_path }}/static/js/autocomplete.min.js"></script>-->
 <script>
     var files = {{ benchmark_file_list|tojson }};
 </script>
