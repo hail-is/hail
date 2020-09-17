@@ -350,10 +350,12 @@ LIMIT %s;
 
         def get_instance(user, cores_mcpu):
             i = self.inst_pool.healthy_instances_by_free_cores.bisect_key_left(cores_mcpu)
+            log.info(f'starting get instance at {i} searching for user {user} with cores_mcpu {cores_mcpu} healthy instances {self.inst_pool.healthy_instances_by_free_cores}')
             while i < len(self.inst_pool.healthy_instances_by_free_cores):
                 instance = self.inst_pool.healthy_instances_by_free_cores[i]
                 assert cores_mcpu <= instance.free_cores_mcpu
                 if user != 'ci' or (user == 'ci' and instance.zone.startswith('us-central1')):
+                    log.info(f'found instance {instance} for user {user}')
                     return instance
                 i += 1
             return None
