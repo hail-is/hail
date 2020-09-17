@@ -330,7 +330,10 @@ gcloud -q auth configure-docker
 
 retry docker pull $FROM_IMAGE
 {pull_published_latest}
-docker build --memory="1.5g" --cpu-period=100000 --cpu-quota=100000 -t {shq(self.image)} \
+CPU_PERIOD=100000
+CPU_QUOTA=$(( $(grep -c ^processor /proc/cpuinfo) * $(cat /sys/fs/cgroup/cpu/cpu.shares) * $CPU_PERIOD / 1024 ))
+MEMORY=$(cat cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
+docker build --memory="$MEMORY" --cpu-period="$CPU_PERIOD" --cpu-quota="$CPU_QUOTA" -t {shq(self.image)} \
   -f {rendered_dockerfile} \
   --cache-from $FROM_IMAGE {cache_from_published_latest} \
   {context}
@@ -349,10 +352,6 @@ date
                                         'name': 'gcr-push-service-account-key',
                                         'mount_path': '/secrets/gcr-push-service-account-key'
                                     }],
-                                    resources={
-                                        'memory': '2G',
-                                        'cpu': '1'
-                                    },
                                     attributes={'name': self.name},
                                     input_files=input_files,
                                     parents=self.deps_parents())
