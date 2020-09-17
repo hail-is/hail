@@ -403,10 +403,3 @@ frequency `p`.
 
 To get the dimensions of the matrix table, use :meth:`.MatrixTable.count_rows`
 and :meth:`.MatrixTable.count_cols`.
-
-
-Export
-======
-
-To save a matrix table to a file, use the :meth:`.MatrixTable.write`. These
-files can be read with :func:`.read_matrix_table`.

@@ -998,7 +998,7 @@ class Table(ExprContainer):
                       parallel=nullable(ir.ExportType.checker),
                       delimiter=str)
     def export(self, output, types_file=None, header=True, parallel=None, delimiter='\t'):
-        """Export to a TSV file.
+        """Export to a text file.
 
         Examples
         --------
@@ -1013,9 +1013,16 @@ class Table(ExprContainer):
         read natively with any Hail method, as well as with Python's ``gzip.open``
         and R's ``read.table``.
 
+        Nested structures will be exported as JSON. In order to export nested struct
+        fields as separate fields in the resulting table, use :meth:`flatten` first.
+
         Warning
         -------
         Do not export to a path that is being read from in the same pipeline.
+
+        See Also
+        --------
+        :meth:`flatten`, :meth:`write`
 
         Parameters
         ----------
@@ -1246,6 +1253,10 @@ class Table(ExprContainer):
 
         .. include:: _templates/write_warning.rst
 
+        See Also
+        --------
+        :func:`.read_table`
+
         Parameters
         ----------
         output : str
@@ -1465,6 +1476,12 @@ class Table(ExprContainer):
         |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |
         |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |
         +-------+-------+-----+-------+-------+-------+-------+-------+
+
+        Notes
+        -----
+        The output can be passed piped to another output source using the `handler` argument:
+
+        >>> ht.show(handler=lambda x: logging.info(x))  # doctest: +SKIP
 
         Parameters
         ----------

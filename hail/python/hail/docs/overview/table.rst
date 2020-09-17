@@ -243,12 +243,3 @@ table and their types. The types themselves can be accessed using the fields
 key can be accessed with :attr:`.Table.key`. The :meth:`.Table.count` method
 returns the number of rows.
 
-Export
-======
-
-Hail provides multiple methods to export data to other formats. Tables can be
-exported to TSV files with the :meth:`.Table.export` method or written to disk
-in Hail's on-disk format with :meth:`.Table.write` (these files may be read in
-with :func:`.read_table`). Tables can also be exported to :mod:`pandas`
-DataFrames with :meth:`.Table.to_pandas` or to :mod:`.pyspark` Dataframes with
-:meth:`.Table.to_spark`.
