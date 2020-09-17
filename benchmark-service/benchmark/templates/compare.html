@@ -26,7 +26,7 @@
                placeholder="gs://..."
                {% endif %}
         >
-            <ul class="file_list"></ul>
+            <ul class="file_list autoComplete_list"></ul>
             <br>
         </div>
         <label for="metrics">Choose a metric:</label>
@@ -93,8 +93,8 @@
 
 {% endif %}
 
-<script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/js/autoComplete.min.js"></script>
-<!--<script src="{{ base_path }}/static/js/autocomplete.min.js"></script>-->
+<!--<script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/js/autoComplete.min.js"></script>-->
+<script src="{{ base_path }}/static/js/autocomplete.min.js"></script>
 <script>
     var files = {{ benchmark_file_list|tojson }};
 </script>
