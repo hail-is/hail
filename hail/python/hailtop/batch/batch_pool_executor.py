@@ -343,7 +343,7 @@ class BatchPoolExecutor:
         await self.gcs.write_gs_file_from_file_like_object(pickledfun_gcs, pipe)
         pickledfun_local = batch.read_input(pickledfun_gcs)
 
-        thread_limit = 1
+        thread_limit = "1"
         if self.cpus_per_job:
             j.cpu(self.cpus_per_job)
             thread_limit = str(int(max(1.0, cpu_spec_to_float(self.cpus_per_job))))
