@@ -1,5 +1,6 @@
 import logging
 import math
+from collections import deque
 
 log = logging.getLogger('utils')
 
@@ -116,3 +117,44 @@ def adjust_cores_for_packability(cores_in_mcpu):
     cores_in_mcpu = max(1, cores_in_mcpu)
     power = max(-2, math.ceil(math.log2(cores_in_mcpu / 1000)))
     return int(2**power * 1000)
+
+
+class WindowFractionCounter:
+    def __init__(self, window_size: int):
+        self._window_size = window_size
+        self._q = deque()
+        self._n_true = 0
+        self._seen = set()
+
+    def clear(self):
+        self._q.clear()
+        self._n_true = 0
+        self._seen = set()
+
+    def push(self, key: str, x: bool):
+        self.assert_valid()
+        if key in self._seen:
+            return
+        while len(self._q) >= self._window_size:
+            old_key, old = self._q.popleft()
+            self._seen.remove(old_key)
+            if old:
+                self._n_true -= 1
+        self._q.append((key, x))
+        self._seen.add(key)
+        if x:
+            self._n_true += 1
+        self.assert_valid()
+
+    def fraction(self) -> float:
+        self.assert_valid()
+        # (1, 1) prior
+        return (self._n_true + 1) / (len(self._q) + 2)
+
+    def __repr__(self):
+        self.assert_valid()
+        return f'{self._n_true}/{len(self._q)}'
+
+    def assert_valid(self):
+        assert len(self._q) <= self._window_size
+        assert 0 <= self._n_true <= self._window_size

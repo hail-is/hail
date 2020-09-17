@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import random
 import sortedcontainers
 import collections
 
@@ -8,6 +9,7 @@ from hailtop.utils import (
     time_msecs, secret_alnum_string)
 
 from ..batch import schedule_job, unschedule_job, mark_job_complete
+from ..utils import WindowFractionCounter
 
 log = logging.getLogger('driver')
 
@@ -15,6 +17,20 @@ log = logging.getLogger('driver')
 class Box:
     def __init__(self, value):
         self.value = value
+
+
+class ExceededSharesCounter:
+    def __init__(self):
+        self._global_counter = WindowFractionCounter(10)
+
+    def push(self, success: bool):
+        self._global_counter.push('exceeded_shares', success)
+
+    def rate(self) -> float:
+        return self._global_counter.fraction()
+
+    def __repr__(self):
+        return f'global {self._global_counter}'
 
 
 class Scheduler:
@@ -26,6 +42,7 @@ class Scheduler:
         self.db = app['db']
         self.inst_pool = app['inst_pool']
         self.async_worker_pool = AsyncWorkerPool(parallelism=100, queue_size=100)
+        self.exceeded_shares_counter = ExceededSharesCounter()
 
     async def async_init(self):
         asyncio.ensure_future(retry_long_running(
@@ -383,7 +400,10 @@ LIMIT %s;
                 record['attempt_id'] = attempt_id
 
                 if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
-                    break
+                    if random.random() > self.exceeded_shares_counter.rate():
+                        self.exceeded_shares_counter.push(True)
+                        break
+                    self.exceeded_shares_counter.push(False)
 
                 instance = get_instance(user, record['cores_mcpu'])
                 if instance:
