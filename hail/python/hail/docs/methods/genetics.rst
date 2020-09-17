@@ -1,6 +1,8 @@
 Genetics
 --------
 
+.. _methods_genetics:
+
 .. currentmodule:: hail.methods
 
 .. toctree::

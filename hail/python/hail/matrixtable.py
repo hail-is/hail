@@ -2504,6 +2504,10 @@ class MatrixTable(ExprContainer):
 
         .. include:: _templates/write_warning.rst
 
+        See Also
+        --------
+        :func:`.read_matrix_table`
+
         Parameters
         ----------
         output : str
@@ -2561,9 +2565,15 @@ class MatrixTable(ExprContainer):
              truncate=None,
              types=True,
              handler=None):
-        """Print the first few rows of the table to the console.
+        """Print the first few rows of the matrix table to the console.
 
         .. include:: _templates/experimental.rst
+
+        Notes
+        -----
+        The output can be passed piped to another output source using the `handler` argument:
+
+        >>> mt.show(handler=lambda x: logging.info(x))  # doctest: +SKIP
 
         Parameters
         ----------

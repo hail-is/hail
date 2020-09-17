@@ -779,7 +779,10 @@ class Expression(object):
              handler=None,
              n_rows=None,
              n_cols=None):
-        """Print the first few rows of the table to the console.
+        """Print the first few records of the expression to the console.
+
+        If the expression refers to a value on a keyed axis of a table or matrix
+        table, then the accompanying keys will be shown along with the records.
 
         Examples
         --------
@@ -805,9 +808,12 @@ class Expression(object):
         |    123 |
         +--------+
 
-        Warning
-        -------
-        Extremely experimental.
+        Notes
+        -----
+        The output can be passed piped to another output source using the `handler` argument:
+
+        >>> ht.foo.show(handler=lambda x: logging.info(x))  # doctest: +SKIP
+
 
         Parameters
         ----------
