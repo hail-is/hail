@@ -19,6 +19,7 @@
             /* if set to false, add an eventListener to the selector for event type
                "autoComplete" to handle the result */
             container: source => {
+                source.removeAttr('id');     // TODO: not sure about this
                 source.setAttribute("class", "file_list");
             },
             destination: document.querySelector(".autoComplete"),
