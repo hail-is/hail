@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import sortedcontainers
+import collections
 
 from hailtop.utils import (
     AsyncWorkerPool, WaitableSharedPool, retry_long_running, run_if_changed,
@@ -356,6 +357,10 @@ LIMIT %s;
                 if user != 'ci' or (user == 'ci' and instance.zone.startswith('us-central1')):
                     return instance
                 i += 1
+            histogram = collections.defaultdict(int)
+            for instance in self.inst_pool.healthy_instances_by_free_cores:
+                histogram[instance.free_cores_mcpu] += 1
+            log.info(f'no viable instances for {cores_mcpu}: {histogram}')
             return None
 
         should_wait = True
