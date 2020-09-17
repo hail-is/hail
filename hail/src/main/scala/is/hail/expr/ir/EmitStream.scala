@@ -1341,7 +1341,7 @@ object EmitStream {
         case ToStream(containerIR, _) =>
           COption.fromEmitCode(emitIR(containerIR)).mapCPS { (containerAddr, k) =>
             val (asetup, a) = EmitCodeBuilder.scoped(mb) { cb =>
-              containerAddr.asIndexable.memoize(cb, "ts_a")
+              containerAddr.asIndexable.memoizeField(cb, "ts_a")
             }
 
             val len = mb.genFieldThisRef[Int]("ts_len")
