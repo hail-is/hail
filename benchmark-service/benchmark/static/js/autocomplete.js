@@ -19,7 +19,7 @@
             /* if set to false, add an eventListener to the selector for event type
                "autoComplete" to handle the result */
             container: source => {
-                source.setAttribute("id", "file_list");
+                source.setAttribute("class", "file_list");
             },
             destination: document.querySelector(".autoComplete"),
             position: "afterend",
@@ -38,7 +38,7 @@
             result.setAttribute("class", "no_result");
             result.setAttribute("tabindex", "1");
             result.innerHTML = "No Results";
-            document.querySelector("#autoComplete_list").appendChild(result);
+            document.querySelector(".autoComplete_list").appendChild(result);
         },
         onSelection: feedback => {
         feedback.event.preventDefault();
