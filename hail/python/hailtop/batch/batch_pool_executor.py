@@ -139,7 +139,7 @@ class BatchPoolExecutor:
         self.finished_future_count = 0
         self._shutdown = False
         version = sys.version_info
-        self.image = image or f'hailgenetics/python-dill:{version.major}.{version.minor}'
+        self.image = image or f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
         self.cpus_per_job = cpus_per_job
         self.cleanup_bucket = cleanup_bucket
         self.wait_on_exit = wait_on_exit
