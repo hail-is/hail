@@ -122,10 +122,8 @@ class GCS:
 
     def _get_etag(self, uri: str):
         b = self._get_blob(uri)
-        if b.exists():
-            b.reload()
-            return b.etag
-        return None
+        b.reload()
+        return b.etag
 
     def _write_gs_file_from_string(self, uri: str, string: str, *args, **kwargs):
         b = self._get_blob(uri)

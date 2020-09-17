@@ -24,6 +24,7 @@ routes = web.RouteTableDef()
 
 socket = '/redis/redis.sock'
 
+
 @routes.get('/healthcheck')
 async def healthcheck(request):  # pylint: disable=unused-argument
     return web.Response()
@@ -67,11 +68,10 @@ async def get_file_or_none(app, username, userinfo, filepath, etag):
     filekey = make_redis_key(username, filepath)
     fs = userinfo['fs']
 
-    cached_etag = await app['redis_pool'].execute('HGET', filekey, 'etag', encoding='ascii')
-    if cached_etag is not None and cached_etag == etag:
-        result = await app['redis_pool'].execute('HGET', filekey, 'body')
+    cached_etag, result = await app['redis_pool'].execute('HMGET', filekey, 'etag', 'body')
+    if cached_etag is not None and cached_etag.decode('ascii') == etag:
         log.info(f"memory: Retrieved file {filepath} for user {username} with etag'{etag}'")
-        return cached_etag, result
+        return cached_etag.decode('ascii'), result
 
     log.info(f"memory: Couldn't retrieve file {filepath} for user {username}: current version not in cache.")
     if filekey not in app['files_in_progress']:
@@ -95,7 +95,7 @@ async def load_file(redis, files, file_key, fs, filepath):
 
 async def on_startup(app):
     app['thread_pool'] = concurrent.futures.ThreadPoolExecutor()
-    app['worker_pool'] = AsyncWorkerPool(parallelism=4, queue_size=10)
+    app['worker_pool'] = AsyncWorkerPool(parallelism=100, queue_size=10)
     app['files_in_progress'] = set()
     app['users'] = {}
     kube.config.load_incluster_config()

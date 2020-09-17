@@ -37,6 +37,6 @@ deploy: push
 	! [ -z $(NAMESPACE) ]  # set NAMESPACE
 	kubectl -n $(NAMESPACE) apply -f service-account.yaml
 	python3 ../ci/jinja2_render.py '{"default_ns":{"name":"$(NAMESPACE)"}}' service-account-batch-pods.yaml service-account-batch-pods.yaml.out
-	kubectl -n batch-pods apply -f service-account-batch-pods.yaml.out
+	kubectl -n $(BATCH_PODS_NS) apply -f service-account-batch-pods.yaml.out
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"memory_image":{"image":"$(MEMORY_IMAGE)"},"batch_pods_ns":{"name":"$(BATCH_PODS_NS)"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
