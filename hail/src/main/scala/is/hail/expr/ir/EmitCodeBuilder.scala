@@ -57,17 +57,23 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     s.store(this, v)
   }
 
-  def memoize[T](pc: PCode, name: String): PValue = pc.memoize(this, name)
+  def memoize(pc: PCode, name: String): PValue = pc.memoize(this, name)
 
-  def memoizeField[T](pc: PCode, name: String): PValue = {
+  def memoizeField(pc: PCode, name: String): PValue = {
     val f = emb.newPField(name, pc.pt)
-    append(f := pc)
+    assign(f, pc)
     f
   }
 
-  def memoize[T](ec: EmitCode, name: String): EmitValue = {
-    val l = emb.newEmitLocal(name, ec.pt)
-    append(l := ec)
+  def memoize(v: EmitCode, name: String): EmitValue = {
+    val l = emb.newEmitLocal(name, v.pt)
+    assign(l, v)
+    l
+  }
+
+  def memoize(v: IEmitCode, name: String): EmitValue = {
+    val l = emb.newEmitLocal(name, v.pt)
+    assign(l, v)
     l
   }
 

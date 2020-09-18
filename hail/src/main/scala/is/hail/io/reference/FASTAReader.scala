@@ -2,6 +2,7 @@ package is.hail.io.reference
 
 import java.util
 import java.util.Map.Entry
+import java.util.concurrent.locks.{Lock, ReentrantLock}
 
 import htsjdk.samtools.reference.{ReferenceSequenceFile, ReferenceSequenceFileFactory}
 import is.hail.backend.BroadcastValue
@@ -13,18 +14,29 @@ import is.hail.io.fs.FS
 import scala.language.postfixOps
 import scala.collection.concurrent
 
-class SerializableReferenceSequenceFile(val tmpdir: String, val fsBc: BroadcastValue[FS], val fastaFile: String, val indexFile: String) extends Serializable {
-  @transient lazy val value: ReferenceSequenceFile = {
-    val localFastaFile = FASTAReader.getLocalFastaFile(tmpdir, fsBc.value, fastaFile, indexFile)
-    ReferenceSequenceFileFactory.getReferenceSequenceFile(new java.io.File(uriPath(localFastaFile)))
-  }
+case class FASTAReaderConfig(val tmpdir: String, val fsBc: BroadcastValue[FS], val rg: ReferenceGenome,
+  val fastaFile: String, val indexFile: String, val blockSize: Int = 4096, val capacity: Int = 100
+) extends Serializable {
+  if (blockSize <= 0)
+    fatal(s"'blockSize' must be greater than 0. Found $blockSize.")
+  if (capacity <= 0)
+    fatal(s"'capacity' must be greater than 0. Found $capacity.")
+
+  def reader: FASTAReader = new FASTAReader(this)
 }
 
 object FASTAReader {
   private[this] val localFastaFiles: concurrent.Map[String, String] = new concurrent.TrieMap()
+  private[this] val localFastaLock: Lock = new ReentrantLock()
 
-  def getLocalFastaFile(tmpdir: String, fs: FS, fastaFile: String, indexFile: String): String =
-    localFastaFiles.getOrElseUpdate(fastaFile, FASTAReader.setup(tmpdir, fs, fastaFile, indexFile))
+  def getLocalFastaFile(tmpdir: String, fs: FS, fastaFile: String, indexFile: String): String = {
+    localFastaLock.lock()
+    try {
+      localFastaFiles.getOrElseUpdate(fastaFile, FASTAReader.setup(tmpdir, fs, fastaFile, indexFile))
+    } finally {
+      localFastaLock.unlock()
+    }
+  }
 
   def setup(tmpdir: String, fs: FS, fastaFile: String, indexFile: String): String = {
     val localFastaFile = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fasta-reader", "fasta")
@@ -40,27 +52,17 @@ object FASTAReader {
 
     localFastaFile
   }
-
-  def apply(ctx: ExecuteContext, rg: ReferenceGenome, fastaFile: String, indexFile: String,
-    blockSize: Int, capacity: Int): FASTAReader =
-    FASTAReader(ctx.localTmpdir, ctx.fs, rg, fastaFile, indexFile, blockSize, capacity)
-
-  def apply(tmpdir: String, fs: FS, rg: ReferenceGenome, fastaFile: String, indexFile: String,
-    blockSize: Int = 4096, capacity: Int = 100): FASTAReader = {
-    if (blockSize <= 0)
-      fatal(s"'blockSize' must be greater than 0. Found $blockSize.")
-    if (capacity <= 0)
-      fatal(s"'capacity' must be greater than 0. Found $capacity.")
-
-    new FASTAReader(tmpdir, fs.broadcast, rg, fastaFile, indexFile, blockSize, capacity)
-  }
 }
 
-class FASTAReader(val tmpdir: String, val fsBc: BroadcastValue[FS], val rg: ReferenceGenome,
-  val fastaFile: String, val indexFile: String, val blockSize: Int, val capacity: Int) extends Serializable {
+class FASTAReader(val cfg: FASTAReaderConfig) {
+  val FASTAReaderConfig(tmpdir, fsBc, rg, fastaFile, indexFile, blockSize, capacity) = cfg
 
-  val reader = new SerializableReferenceSequenceFile(tmpdir, fsBc, fastaFile, indexFile)
-  assert(reader.value.isIndexed)
+  private[this] def newReader(): ReferenceSequenceFile = {
+    val localFastaFile = FASTAReader.getLocalFastaFile(tmpdir, fsBc.value, fastaFile, indexFile)
+    ReferenceSequenceFileFactory.getReferenceSequenceFile(new java.io.File(uriPath(localFastaFile)))
+  }
+
+  private[this] var reader: ReferenceSequenceFile = newReader()
 
   @transient private[this] lazy val cache = new util.LinkedHashMap[Int, String](capacity, 0.75f, true) {
     override def removeEldestEntry(eldest: Entry[Int, String]): Boolean = size() > capacity
@@ -70,7 +72,14 @@ class FASTAReader(val tmpdir: String, val fsBc: BroadcastValue[FS], val rg: Refe
 
   private def getSequence(contig: String, start: Int, end: Int): String = {
     val maxEnd = rg.contigLength(contig)
-    reader.value.getSubsequenceAt(contig, start, if (end > maxEnd) maxEnd else end).getBaseString
+    try {
+      reader.getSubsequenceAt(contig, start, if (end > maxEnd) maxEnd else end).getBaseString
+    } catch {
+      // One retry, to refresh the file
+      case e: htsjdk.samtools.SAMException =>
+        reader = newReader()
+        reader.getSubsequenceAt(contig, start, if (end > maxEnd) maxEnd else end).getBaseString
+    }
   }
 
   private def fillBlock(blockIdx: Int): String = {

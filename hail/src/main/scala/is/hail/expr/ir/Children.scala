@@ -125,7 +125,7 @@ object Children {
       Array(array, init, seq, result)
     case RunAgg(body, result, _) =>
       Array(body, result)
-    case NDArrayRef(nd, idxs) =>
+    case NDArrayRef(nd, idxs, _) =>
       nd +: idxs
     case NDArraySlice(nd, slices) =>
       Array(nd, slices)
@@ -213,7 +213,6 @@ object Children {
     case BlockMatrixToValueApply(child, _) => Array(child)
     case BlockMatrixCollect(child) => Array(child)
     case BlockMatrixWrite(child, _) => Array(child)
-    case UnpersistBlockMatrix(child) => Array(child)
     case BlockMatrixMultiWrite(blockMatrices, _) => blockMatrices
     case CollectDistributedArray(ctxs, globals, _, _, body) => Array(ctxs, globals, body)
     case ReadPartition(path, _, _) => Array(path)

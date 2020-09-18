@@ -216,7 +216,7 @@ object LowerBlockMatrixIR {
       case x@BlockMatrixBroadcast(child, IndexedSeq(), _, _) =>
         val lowered = lower(child)
         val eltValue = lowered.globalVals.foldRight[IR](bindIR(lowered.blockContext(0 -> 0)) { ctx =>
-          NDArrayRef(lowered.blockBody(ctx), FastIndexedSeq(I64(0L), I64(0L)))
+          NDArrayRef(lowered.blockBody(ctx), FastIndexedSeq(I64(0L), I64(0L)), -1)
         }) { case ((f, v), accum) => Let(f, v, accum) }
 
         val elt = Ref(genUID(), eltValue.typ)
@@ -238,7 +238,7 @@ object LowerBlockMatrixIR {
         val nBlocks = java.lang.Math.min(child.typ.nRowBlocks, child.typ.nColBlocks)
         val idxs = Array.tabulate(nBlocks) { i => i -> i }
         val getDiagonal = { (ctx: IR, block: IR) =>
-          bindIR(block)(b => ToArray(mapIR(rangeIR(GetField(ctx, "new")))(i => NDArrayRef(b, FastIndexedSeq(i, i)))))
+          bindIR(block)(b => ToArray(mapIR(rangeIR(GetField(ctx, "new")))(i => NDArrayRef(b, FastIndexedSeq(i, i), -1))))
         }
 
         val vector = bindIR(lower(child).collectBlocks(relationalLetsAbove)(getDiagonal, idxs.filter(child.typ.hasBlock))) { existing =>
@@ -375,7 +375,7 @@ object LowerBlockMatrixIR {
         val lowered = lower(child)
 
         val elt = bindIR(lowered.blockContext(rowBlock -> colBlock)) { ctx =>
-          NDArrayRef(lowered.blockBody(ctx), FastIndexedSeq(I64(iInBlock), I64(jInBlock)))
+          NDArrayRef(lowered.blockBody(ctx), FastIndexedSeq(I64(iInBlock), I64(jInBlock)), -1)
         }
 
         lowered.globalVals.foldRight[IR](elt) { case ((f, v), accum) => Let(f, v, accum) }

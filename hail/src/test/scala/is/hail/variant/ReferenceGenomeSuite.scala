@@ -5,9 +5,10 @@ import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.types.virtual.TLocus
-import is.hail.io.reference.FASTAReader
-import is.hail.utils.Interval
+import is.hail.io.reference.{FASTAReader, FASTAReaderConfig}
+import is.hail.utils._
 import is.hail.{HailSuite, TestUtils}
+import htsjdk.samtools.reference.ReferenceSequenceFileFactory
 import org.testng.annotations.Test
 
 class ReferenceGenomeSuite extends HailSuite {
@@ -104,15 +105,21 @@ class ReferenceGenomeSuite extends HailSuite {
     val rg = ReferenceGenome("test", Array("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
     ReferenceGenome.addReference(rg)
 
-    val fr = FASTAReader(ctx, rg, fastaFile, indexFile, 3, 5)
-    val frGzip = FASTAReader(ctx, rg, fastaFileGzip, indexFile, 3, 5)
+    val fr = FASTAReaderConfig(ctx.localTmpdir, ctx.fs.broadcast, rg, fastaFile, indexFile, 3, 5).reader
+    val frGzip = FASTAReaderConfig(ctx.localTmpdir, ctx.fs.broadcast, rg, fastaFileGzip, indexFile, 3, 5).reader
+    val refReaderPath = FASTAReader.getLocalFastaFile(ctx.localTmpdir, ctx.fs, fastaFile, indexFile)
+    val refReaderPathGz = FASTAReader.getLocalFastaFile(ctx.localTmpdir, ctx.fs, fastaFileGzip, indexFile)
+    val refReader = ReferenceSequenceFileFactory.getReferenceSequenceFile(new java.io.File(uriPath(refReaderPath)))
+    val refReaderGz = ReferenceSequenceFileFactory.getReferenceSequenceFile(new java.io.File(uriPath(refReaderPathGz)))
 
     object Spec extends Properties("Fasta Random") {
       property("cache gives same base as from file") = forAll(Locus.gen(rg)) { l =>
         val contig = l.contig
         val pos = l.position
-        val expected = fr.reader.value.getSubsequenceAt(contig, pos, pos).getBaseString
-        fr.lookup(contig, pos, 0, 0) == expected && frGzip.lookup(contig, pos, 0, 0) == expected
+        val expected = refReader.getSubsequenceAt(contig, pos, pos).getBaseString
+        val expectedGz = refReaderGz.getSubsequenceAt(contig, pos, pos).getBaseString
+        assert(expected == expectedGz, "wat: fasta files don't have the same data")
+        fr.lookup(contig, pos, 0, 0) == expected && frGzip.lookup(contig, pos, 0, 0) == expectedGz
       }
 
       val ordering = TLocus(rg).ordering
@@ -125,7 +132,7 @@ class ReferenceGenomeSuite extends HailSuite {
           var pos = start
           while (ordering.lteq(pos, end) && pos != null) {
             val endPos = if (pos.contig != end.contig) rg.contigLength(pos.contig) else end.position
-            sb ++= fr.reader.value.getSubsequenceAt(pos.contig, pos.position, endPos).getBaseString
+            sb ++= refReader.getSubsequenceAt(pos.contig, pos.position, endPos).getBaseString
             pos =
               if (rg.contigsIndex.get(pos.contig) == rg.contigs.length - 1)
                 null

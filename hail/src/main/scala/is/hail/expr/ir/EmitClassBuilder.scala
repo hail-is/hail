@@ -983,15 +983,15 @@ class EmitMethodBuilder[C](
         Code(ec.setup, ec.m.mux(ms := true, Code(ms := false, vs := ec.pv)))
 
     def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit =
-      iec.consume(cb, {
-        if (_pt.required)
-          cb._fatal(s"Required EmitSettable cannot be missing ${ _pt }")
-        else
+      if (_pt.required)
+        cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${ _pt }"))
+      else
+        iec.consume(cb, {
           cb.assign(ms, true)
-      }, { value =>
-        cb.assign(ms, false)
-        cb.assign(vs, value)
-      })
+        }, { value =>
+          cb.assign(ms, false)
+          cb.assign(vs, value)
+        })
   }
 
   def newEmitLocal(pt: PType): EmitSettable =

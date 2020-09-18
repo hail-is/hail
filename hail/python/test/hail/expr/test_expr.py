@@ -311,6 +311,13 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval(string.first_match_in("([^:]*)[:\\t](\\d+)[\\-\\t](\\d+)")) == ['1', '25', '100'])
         self.assertIsNone(hl.eval(string.first_match_in(r"hello (\w+)!")))
 
+    def test_string_join(self):
+        self.assertEqual(hl.eval(hl.str(":").join(["foo", "bar", "baz"])), "foo:bar:baz")
+        self.assertEqual(hl.eval(hl.str(",").join(hl.empty_array(hl.tstr))), "")
+
+        with pytest.raises(TypeError, match="Expected str collection, int32 found"):
+            hl.eval(hl.str(",").join([1, 2, 3]))
+
     def test_cond(self):
         self.assertEqual(hl.eval('A' + hl.cond(True, 'A', 'B')), 'AA')
 

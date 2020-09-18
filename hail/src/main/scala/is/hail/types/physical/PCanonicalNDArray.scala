@@ -138,20 +138,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     Region.loadIRIntermediate(data.pType.elementType)(getElementAddress(indices, ndAddress, mb))
   }
 
-  def outOfBounds(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Boolean] = {
-    val shapeTuple = new CodePTuple(shape.pType, new Value[Long] {
-      def get: Code[Long] = shape.load(nd)
-    })
-    val outOfBounds = mb.genFieldThisRef[Boolean]()
-    Code(
-      outOfBounds := false,
-      Code.foreach(0 until nDims) { dimIndex =>
-        outOfBounds := outOfBounds || (indices(dimIndex) >= shapeTuple(dimIndex))
-      },
-      outOfBounds
-    )
-  }
-
   def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {
     val index = mb.genFieldThisRef[Long]()
     val elementsInProcessedDimensions = mb.genFieldThisRef[Long]()
@@ -261,7 +247,25 @@ class PCanonicalNDArraySettable(override val pt: PCanonicalNDArray, val a: Setta
   override def store(pv: PCode): Code[Unit] = a := pv.asInstanceOf[PCanonicalNDArrayCode].a
 
   override def outOfBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Boolean] = {
-    pt.outOfBounds(indices, a, mb)
+    val shape = this.shapes()
+    val outOfBounds = mb.genFieldThisRef[Boolean]()
+    Code(
+      outOfBounds := false,
+      Code.foreach(0 until pt.nDims) { dimIndex =>
+        outOfBounds := outOfBounds || (indices(dimIndex) >= shape(dimIndex))
+      },
+      outOfBounds
+    )
+  }
+
+  override def assertInBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_], errorId: Int): Code[Unit] = {
+    val shape = this.shapes()
+    Code.foreach(0 until pt.nDims) { dimIndex =>
+      val eMsg = const("Index ").concat(indices(dimIndex).toS)
+        .concat(s" is out of bounds for axis $dimIndex with size ")
+        .concat(shape(dimIndex).toS)
+      (indices(dimIndex) >= shape(dimIndex)).orEmpty(Code._fatal[Unit](eMsg, errorId))
+    }
   }
 
   override def shapes(): IndexedSeq[Value[Long]] = Array.tabulate(pt.nDims) { i =>

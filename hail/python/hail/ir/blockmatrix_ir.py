@@ -24,9 +24,6 @@ class BlockMatrixRead(BlockMatrixIR):
     def _compute_type(self):
         self._type = Env.backend().blockmatrix_type(self)
 
-    def unpersisted(self):
-        return self.reader.unpersisted(self)
-
 
 class BlockMatrixMap(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR, name=str, f=IR, needs_dense=bool)

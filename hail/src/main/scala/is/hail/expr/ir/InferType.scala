@@ -158,7 +158,7 @@ object InferType {
       case NDArrayAgg(nd, axes) =>
         val childType = coerce[TNDArray](nd.typ)
         TNDArray(childType.elementType, Nat(childType.nDims - axes.length))
-      case NDArrayRef(nd, idxs) =>
+      case NDArrayRef(nd, idxs, _) =>
         assert(idxs.forall(_.typ == TInt64))
         coerce[TNDArray](nd.typ).elementType
       case NDArraySlice(nd, slices) =>
@@ -241,7 +241,6 @@ object InferType {
       case _: BlockMatrixCollect => TNDArray(TFloat64, Nat(2))
       case _: BlockMatrixWrite => TVoid
       case _: BlockMatrixMultiWrite => TVoid
-      case _: UnpersistBlockMatrix => TVoid
       case TableGetGlobals(child) => child.typ.globalType
       case TableCollect(child) => TStruct("rows" -> TArray(child.typ.rowType), "global" -> child.typ.globalType)
       case TableToValueApply(child, function) => function.typ(child.typ)

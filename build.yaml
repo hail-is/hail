@@ -1664,6 +1664,8 @@ steps:
       script: /io/sql/add-worker-pd-ssd-data-disk.sql
     - name: add-aggregated-batch-resources-tokens
       script: /io/sql/add-aggregated-batch-resources-tokens.sql
+    - name: change-test-worker-pool-size
+      script: /io/sql/change_test_worker_pool_size.py
    inputs:
     - from: /repo/batch/sql
       to: /io/
@@ -2877,7 +2879,7 @@ steps:
      cd /io
      mkdir -p src/test
      tar xzf resources.tar.gz -C src/test
-     export PYSPARK_SUBMIT_ARGS="--driver-memory 3750m --executor-memory 3750m pyspark-shell"
+     export PYSPARK_SUBMIT_ARGS="--driver-memory 7500m --executor-memory 7500m pyspark-shell"
      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-services.xml
    inputs:
     - from: /resources.tar.gz

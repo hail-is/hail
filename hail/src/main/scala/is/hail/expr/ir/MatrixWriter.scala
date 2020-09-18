@@ -170,7 +170,7 @@ case class SplitPartitionNativeWriter(
     context: EmitCode,
     eltType: PStruct,
     mb: EmitMethodBuilder[_],
-    region: StagedRegion,
+    region: ParentStagedRegion,
     stream: SizedStream): EmitCode = {
     val enc1 = spec1.buildEmitEncoder(eltType, mb.ecb)
     val enc2 = spec2.buildEmitEncoder(eltType, mb.ecb)
@@ -192,7 +192,7 @@ case class SplitPartitionNativeWriter(
       def writeFile(codeRow: EmitCode): Code[Unit] = {
         val rowType = coerce[PStruct](codeRow.pt)
         EmitCodeBuilder.scopedVoid(mb) { cb =>
-          val pc = codeRow.toI(cb).handle(cb, cb._fatal("row can't be missing"))
+          val pc = codeRow.toI(cb).get(cb, "row can't be missing")
           val row = pc.memoize(cb, "row")
           if (hasIndex) {
             val keyRVB = new StagedRegionValueBuilder(mb, keyType, eltRegion.code)
@@ -286,24 +286,21 @@ case class MatrixSpecWriter(path: String, typ: MatrixType, rowRelPath: String, g
     cb: EmitCodeBuilder,
     region: Value[Region]): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
-    writeAnnotations.consume(cb, {
-      cb._fatal("write annotations can't be missing!")
-    }, { case pc: PBaseStructCode =>
-      val partCounts = cb.newLocal[Array[Long]]("partCounts")
-      val c = pc.memoize(cb, "matrixPartCounts")
-      val a = c.loadField(cb, "rows").handle(cb, {}).memoize(cb, "rowCounts").asInstanceOf[PIndexableValue]
+    val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asInstanceOf[PBaseStructCode]
+    val partCounts = cb.newLocal[Array[Long]]("partCounts")
+    val c = pc.memoize(cb, "matrixPartCounts")
+    val a = c.loadField(cb, "rows").get(cb).memoize(cb, "rowCounts").asInstanceOf[PIndexableValue]
 
-      val n = cb.newLocal[Int]("n", a.loadLength())
-      val i = cb.newLocal[Int]("i", 0)
-      cb.assign(partCounts, Code.newArray[Long](n))
-      cb.whileLoop(i < n, {
-        val count = a.loadElement(cb, i).handle(cb, cb._fatal("part count can't be missing!"))
-        cb += partCounts.update(i, count.tcode[Long])
-        cb.assign(i, i + 1)
-      })
-      cb += cb.emb.getObject(new MatrixSpecHelper(path, rowRelPath, globalRelPath, colRelPath, entryRelPath, refRelPath, typ, log))
-        .invoke[FS, Long, Array[Long], Unit]("write", cb.emb.getFS, c.loadField(cb, "cols").handle(cb, {}).tcode[Long], partCounts)
+    val n = cb.newLocal[Int]("n", a.loadLength())
+    val i = cb.newLocal[Int]("i", 0)
+    cb.assign(partCounts, Code.newArray[Long](n))
+    cb.whileLoop(i < n, {
+      val count = a.loadElement(cb, i).get(cb, "part count can't be missing!")
+      cb += partCounts.update(i, count.tcode[Long])
+      cb.assign(i, i + 1)
     })
+    cb += cb.emb.getObject(new MatrixSpecHelper(path, rowRelPath, globalRelPath, colRelPath, entryRelPath, refRelPath, typ, log))
+      .invoke[FS, Long, Array[Long], Unit]("write", cb.emb.getFS, c.loadField(cb, "cols").get(cb).tcode[Long], partCounts)
   }
 }
 

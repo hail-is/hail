@@ -2,7 +2,7 @@ from .export_type import ExportType
 from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, \
     JIRVectorReference
 from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
-    BlockMatrixMultiWrite, UnpersistBlockMatrix, TableToValueApply, \
+    BlockMatrixMultiWrite, TableToValueApply, \
     MatrixToValueApply, BlockMatrixToValueApply, \
     Literal, LiftMeOut, Join, JavaIR, I32, I64, F32, F64, Str, FalseIR, TrueIR, \
     Void, Cast, NA, IsNA, If, Coalesce, Let, AggLet, Ref, TopLevelReference, \
@@ -207,7 +207,6 @@ __all__ = [
     'MatrixMultiWrite',
     'BlockMatrixWrite',
     'BlockMatrixMultiWrite',
-    'UnpersistBlockMatrix',
     'TableToValueApply',
     'MatrixToValueApply',
     'BlockMatrixToValueApply',

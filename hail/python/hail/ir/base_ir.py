@@ -389,9 +389,6 @@ class BlockMatrixIR(BaseIR):
     def renderable_new_block(self, i: int) -> bool:
         return True
 
-    def unpersisted(self):
-        return self
-
 
 class JIRVectorReference(object):
     def __init__(self, jid, length, item_type):

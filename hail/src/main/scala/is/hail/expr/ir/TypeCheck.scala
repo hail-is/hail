@@ -138,7 +138,7 @@ object TypeCheck {
       case x@NDArrayConcat(nds, axis) =>
         assert(coerce[TArray](nds.typ).elementType.isInstanceOf[TNDArray])
         assert(axis < x.typ.nDims)
-      case x@NDArrayRef(nd, idxs) =>
+      case x@NDArrayRef(nd, idxs, _) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(nd.typ.asInstanceOf[TNDArray].nDims == idxs.length)
         assert(idxs.forall(_.typ == TInt64))
@@ -409,7 +409,6 @@ object TypeCheck {
       case BlockMatrixCollect(_) =>
       case BlockMatrixWrite(_, _) =>
       case BlockMatrixMultiWrite(_, _) =>
-      case UnpersistBlockMatrix(_) =>
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
         assert(ctxs.typ.isInstanceOf[TStream])
       case x@ReadPartition(context, rowType, reader) =>

@@ -156,7 +156,7 @@ object TestUtils {
     if (agg.isDefined || !env.isEmpty || !args.isEmpty)
       throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
     HailContext.sparkBackend("TestUtils.loweredExecute")
-               .jvmLowerAndExecute(x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter, allocStrat = EmitAllocationStrategy.ManyRegions)._1
+               .jvmLowerAndExecute(x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter)._1
   }
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
@@ -220,8 +220,7 @@ object TestUtils {
             FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
             aggIR,
             print = bytecodePrinter,
-            optimize = optimize,
-            allocStrat = EmitAllocationStrategy.ManyRegions)
+            optimize = optimize)
           assert(resultType2.virtualType == resultType)
 
           Region.scoped { region =>
@@ -254,8 +253,7 @@ object TestUtils {
             FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))),
             optimize = optimize,
-            print = bytecodePrinter,
-            allocStrat = EmitAllocationStrategy.ManyRegions)
+            print = bytecodePrinter)
           assert(resultType2.virtualType == resultType)
 
           Region.scoped { region =>
@@ -466,7 +464,7 @@ object TestUtils {
     val arrayIR = if (expected == null) nd else {
       val refs = Array.fill(nd.typ.asInstanceOf[TNDArray].nDims) { Ref(genUID(), TInt32) }
       Let("nd", nd,
-        dims.zip(refs).foldRight[IR](NDArrayRef(Ref("nd", nd.typ), refs.map(Cast(_, TInt64)))) {
+        dims.zip(refs).foldRight[IR](NDArrayRef(Ref("nd", nd.typ), refs.map(Cast(_, TInt64)), -1)) {
           case ((n, ref), accum) =>
             ToArray(StreamMap(rangeIR(n.toInt), ref.name, accum))
         })

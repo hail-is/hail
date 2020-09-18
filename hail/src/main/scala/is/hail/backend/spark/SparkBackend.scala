@@ -13,7 +13,7 @@ import is.hail.expr.ir._
 import is.hail.types.physical.{PStruct, PTuple, PType}
 import is.hail.types.virtual.{TStruct, TVoid, Type}
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
-import is.hail.io.fs.{HadoopFS}
+import is.hail.io.fs.HadoopFS
 import is.hail.utils._
 import is.hail.io.bgen.IndexBgen
 import org.json4s.DefaultFormats
@@ -30,8 +30,9 @@ import java.io.PrintWriter
 
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.VCFsReader
-import is.hail.linalg.RowMatrix
+import is.hail.linalg.{BlockMatrix, RowMatrix}
 import is.hail.stats.LinearMixedModel
+import is.hail.types.BlockMatrixType
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.storage.StorageLevel
 import org.json4s.JsonAST.{JInt, JObject}
@@ -226,6 +227,16 @@ class SparkBackend(
 
   val bmCache: SparkBlockMatrixCache = SparkBlockMatrixCache()
 
+  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = bmCache.persistBlockMatrix(id, value, storageLevel)
+
+  def unpersist(backendContext: BackendContext, id: String): Unit = unpersist(id)
+
+  def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix = bmCache.getPersistedBlockMatrix(id)
+
+  def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = bmCache.getPersistedBlockMatrixType(id)
+
+  def unpersist(id: String): Unit = bmCache.unpersistBlockMatrix(id)
+
   def withExecuteContext[T]()(f: ExecuteContext => T): T = {
     ExecuteContext.scoped(tmpdir, localTmpdir, this, fs)(f)
   }
@@ -262,10 +273,9 @@ class SparkBackend(
     optimize: Boolean,
     lowerTable: Boolean,
     lowerBM: Boolean,
-    print: Option[PrintWriter] = None,
-    allocStrat: EmitAllocationStrategy.T
+    print: Option[PrintWriter] = None
   ): (Any, ExecutionTimer) = withExecuteContext() { ctx =>
-    val (l, r) = _jvmLowerAndExecute(ctx, ir0, optimize, lowerTable, lowerBM, print, allocStrat)
+    val (l, r) = _jvmLowerAndExecute(ctx, ir0, optimize, lowerTable, lowerBM, print)
     (executionResultToAnnotation(ctx, l), r)
   }
 
@@ -275,8 +285,7 @@ class SparkBackend(
     optimize: Boolean,
     lowerTable: Boolean,
     lowerBM: Boolean,
-    print: Option[PrintWriter] = None,
-    allocStrat: EmitAllocationStrategy.T
+    print: Option[PrintWriter] = None
   ): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
     val typesToLower: DArrayLowering.Type = (lowerTable, lowerBM) match {
       case (true, true) => DArrayLowering.All
@@ -296,8 +305,7 @@ class SparkBackend(
             FastIndexedSeq[(String, PType)](),
             FastIndexedSeq(classInfo[Region]), UnitInfo,
             ir,
-            print = print,
-            allocStrat = allocStrat)
+            print = print)
         }
         ctx.timer.time("Run")(Left(f(0, ctx.r)(ctx.r)))
 
@@ -307,8 +315,7 @@ class SparkBackend(
             FastIndexedSeq[(String, PType)](),
             FastIndexedSeq(classInfo[Region]), LongInfo,
             MakeTuple.ordered(FastSeq(ir)),
-            print = print,
-            allocStrat = allocStrat)
+            print = print)
         }
         ctx.timer.time("Run")(Right((pt, f(0, ctx.r).apply(ctx.r))))
     }
@@ -316,23 +323,23 @@ class SparkBackend(
     (res, ctx.timer)
   }
 
-  def execute(ir: IR, optimize: Boolean, allocStrat: EmitAllocationStrategy.T = EmitAllocationStrategy.OneRegion): (Any, ExecutionTimer) =
+  def execute(ir: IR, optimize: Boolean): (Any, ExecutionTimer) =
     withExecuteContext() { ctx =>
       val queryID = Backend.nextID()
       log.info(s"starting execution of query $queryID} of initial size ${ IRSize(ir) }")
-      val (l, r) = _execute(ctx, ir, optimize, allocStrat)
+      val (l, r) = _execute(ctx, ir, optimize)
       val javaObjResult = ctx.timer.time("convertRegionValueToAnnotation")(executionResultToAnnotation(ctx, l))
       log.info(s"finished execution of query $queryID")
       (javaObjResult, r)
     }
 
-  private[this] def _execute(ctx: ExecuteContext, ir: IR, optimize: Boolean, allocStrat: EmitAllocationStrategy.T): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
+  private[this] def _execute(ctx: ExecuteContext, ir: IR, optimize: Boolean): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
     TypeCheck(ir)
     Validate(ir)
     try {
       val lowerTable = HailContext.getFlag("lower") != null
       val lowerBM = HailContext.getFlag("lower_bm") != null
-      _jvmLowerAndExecute(ctx, ir, optimize, lowerTable, lowerBM, allocStrat = allocStrat)
+      _jvmLowerAndExecute(ctx, ir, optimize, lowerTable, lowerBM)
     } catch {
       case _: LowererUnsupportedOperation =>
         (CompileAndEvaluate._apply(ctx, ir, optimize = optimize), ctx.timer)
@@ -359,13 +366,10 @@ class SparkBackend(
   }
 
   // Called from python
-  def encodeToBytes(ir: IR, bufferSpecString: String): (String, Array[Byte]) =
-    encodeToBytes(ir, bufferSpecString, EmitAllocationStrategy.OneRegion)
-
-  def encodeToBytes(ir: IR, bufferSpecString: String, allocStrat: EmitAllocationStrategy.T): (String, Array[Byte]) = {
+  def encodeToBytes(ir: IR, bufferSpecString: String): (String, Array[Byte]) = {
     val bs = BufferSpec.parseOrDefault(bufferSpecString)
     withExecuteContext() { ctx =>
-      _execute(ctx, ir, true, allocStrat = allocStrat)._1 match {
+      _execute(ctx, ir, true)._1 match {
         case Left(_) => throw new RuntimeException("expression returned void")
         case Right((t, off)) =>
           assert(t.size == 1)

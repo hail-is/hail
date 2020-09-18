@@ -140,7 +140,7 @@ class BatchPoolExecutor:
         self._shutdown = False
         version = sys.version_info
         self.image = image or f'hailgenetics/python-dill:{version.major}.{version.minor}'
-        self.cpus_per_job = cpus_per_job or 1
+        self.cpus_per_job = cpus_per_job
         self.cleanup_bucket = cleanup_bucket
         self.wait_on_exit = wait_on_exit
 
@@ -342,8 +342,11 @@ class BatchPoolExecutor:
         pickledfun_gcs = self.inputs + f'{name}/pickledfun'
         await self.gcs.write_gs_file_from_file_like_object(pickledfun_gcs, pipe)
         pickledfun_local = batch.read_input(pickledfun_gcs)
-        j.cpu(self.cpus_per_job)
-        thread_limit = str(int(max(1.0, cpu_spec_to_float(self.cpus_per_job))))
+
+        thread_limit = "1"
+        if self.cpus_per_job:
+            j.cpu(self.cpus_per_job)
+            thread_limit = str(int(max(1.0, cpu_spec_to_float(self.cpus_per_job))))
         j.env("OMP_NUM_THREADS", thread_limit)
         j.env("OPENBLAS_NUM_THREADS", thread_limit)
         j.env("MKL_NUM_THREADS", thread_limit)

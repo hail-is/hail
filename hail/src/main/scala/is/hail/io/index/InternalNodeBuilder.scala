@@ -48,7 +48,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   def loadFrom(cb: EmitCodeBuilder, ib: StagedIndexWriterUtils, idx: Value[Int]): Unit = {
     cb.assign(region, ib.getRegion(idx))
     cb.assign(node.a, ib.getArrayOffset(idx))
-    val aoff = node.loadField(cb, 0).handle(cb, ()).tcode[Long]
+    val aoff = node.loadField(cb, 0).get(cb).tcode[Long]
     ab.loadFrom(cb, aoff, ib.getLength(idx))
   }
 

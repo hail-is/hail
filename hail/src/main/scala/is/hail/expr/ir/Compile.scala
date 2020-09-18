@@ -25,8 +25,7 @@ object Compile {
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]], expectedCodeReturnType: TypeInfo[_],
     body: IR,
     optimize: Boolean = true,
-    print: Option[PrintWriter] = None,
-    allocStrat: EmitAllocationStrategy.T = EmitAllocationStrategy.OneRegion
+    print: Option[PrintWriter] = None
   ): (PType, (Int, Region) => F) = {
 
     val normalizeNames = new NormalizeNames(_.toString)
@@ -70,7 +69,7 @@ object Compile {
     assert(fb.mb.parameterTypeInfo == expectedCodeParamTypes, s"expected $expectedCodeParamTypes, got ${ fb.mb.parameterTypeInfo }")
     assert(fb.mb.returnTypeInfo == expectedCodeReturnType, s"expected $expectedCodeReturnType, got ${ fb.mb.returnTypeInfo }")
 
-    Emit(ctx, ir, fb, allocStrat = allocStrat)
+    Emit(ctx, ir, fb)
 
     val f = fb.resultWithIndex(print)
     codeCache += k -> CodeCacheValue(ir.pType, f)
@@ -189,8 +188,8 @@ object CompileIterator {
     val stepF = fb.apply_method
     val stepFECB = stepF.ecb
 
-    val eltRegion = StagedRegion(eltRegionField, allowSubregions = false)
     val outerRegion = StagedRegion(outerRegionField, allowSubregions = false)
+    val eltRegion = outerRegion.createChildRegion(stepF)
     val emitter = new Emit(ctx, stepFECB)
 
     val ir = LoweringPipeline.compileLowerer(true)(ctx, body).asInstanceOf[IR].noSharing
@@ -215,7 +214,7 @@ object CompileIterator {
       eosLabel.goto,
       { element =>
         EmitCodeBuilder.scopedVoid(stepF) { cb =>
-          val pc = element.toI(cb).handle(cb, cb._fatal("missing element!"))
+          val pc = element.toI(cb).get(cb)
           assert(pc.pt.isInstanceOf[PStruct])
           cb.assign(elementAddress, pc.tcode[Long])
           cb += Code._return[Boolean](true)

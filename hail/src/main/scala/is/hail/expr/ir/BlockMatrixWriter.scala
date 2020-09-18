@@ -93,14 +93,14 @@ case class BlockMatrixNativeMetadataWriter(path: String, stageLocally: Boolean, 
     region: Value[Region]): Unit = {
     val metaHelper = BMMetadataHelper(path, typ.blockSize, typ.nRows, typ.nCols, typ.linearizedDefinedBlocks)
 
-    val pc = writeAnnotations.handle(cb, cb._fatal("write annotations can't be missing!")).asIndexable
+    val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asIndexable
     val a = pc.memoize(cb, "filePaths")
     val partFiles = cb.newLocal[Array[String]]("partFiles")
     val n = cb.newLocal[Int]("n", a.loadLength())
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partFiles, Code.newArray[String](n))
     cb.whileLoop(i < n, {
-      val s = a.loadElement(cb, i).handle(cb, cb._fatal("file name can't be missing!")).asString
+      val s = a.loadElement(cb, i).get(cb, "file name can't be missing!").asString
       cb += partFiles.update(i, s.loadString())
       cb.assign(i, i + 1)
     })
@@ -120,7 +120,7 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
 case class BlockMatrixPersistWriter(id: String, storageLevel: String) extends BlockMatrixWriter {
   def pathOpt: Option[String] = None
   def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit =
-    HailContext.sparkBackend("BlockMatrixPersistWriter").bmCache.persistBlockMatrix(id, bm, storageLevel)
+    HailContext.backend.persist(ctx.backendContext, id, bm, storageLevel)
 }
 
 case class BlockMatrixRectanglesWriter(

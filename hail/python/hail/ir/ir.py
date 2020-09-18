@@ -729,14 +729,21 @@ class NDArrayMap(IR):
 
 
 class NDArrayRef(IR):
-    @typecheck_method(nd=IR, idxs=sequenceof(IR))
-    def __init__(self, nd, idxs):
+    @typecheck_method(nd=IR, idxs=sequenceof(IR), error_id=nullable(int), stack_trace=nullable(str))
+    def __init__(self, nd, idxs, error_id=None, stack_trace=None):
         super().__init__(nd, *idxs)
         self.nd = nd
         self.idxs = idxs
+        self._error_id = error_id
+        self._stack_trace = stack_trace
+        if error_id is None or stack_trace is None:
+            self.save_error_info()
 
     def copy(self, *args):
-        return NDArrayRef(args[0], args[1:])
+        return NDArrayRef(args[0], args[1:], self._error_id, self._stack_trace)
+
+    def head_str(self):
+        return str(self._error_id)
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
@@ -2314,24 +2321,6 @@ class BlockMatrixMultiWrite(IR):
     def _compute_type(self, env, agg_env):
         for x in self.block_matrices:
             x._compute_type()
-        self._type = tvoid
-
-    @staticmethod
-    def is_effectful() -> bool:
-        return True
-
-
-class UnpersistBlockMatrix(IR):
-    @typecheck_method(child=BlockMatrixIR)
-    def __init__(self, child):
-        super().__init__(child)
-        self.child = child
-
-    def copy(self, child):
-        return UnpersistBlockMatrix(child)
-
-    def _compute_type(self, env, agg_env):
-        self.child._compute_type()
         self._type = tvoid
 
     @staticmethod

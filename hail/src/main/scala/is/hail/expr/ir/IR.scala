@@ -383,7 +383,7 @@ final case class NDArrayReshape(nd: IR, shape: IR) extends NDArrayIR
 
 final case class NDArrayConcat(nds: IR, axis: Int) extends NDArrayIR
 
-final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR
+final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR], errorId: Int) extends IR
 final case class NDArraySlice(nd: IR, slices: IR) extends NDArrayIR
 final case class NDArrayFilter(nd: IR, keep: IndexedSeq[IR]) extends NDArrayIR
 
@@ -679,7 +679,7 @@ abstract class PartitionWriter {
     context: EmitCode,
     eltType: PStruct,
     mb: EmitMethodBuilder[_],
-    region: StagedRegion,
+    region: ParentStagedRegion,
     stream: SizedStream): EmitCode
 
   def ctxType: Type
@@ -705,8 +705,6 @@ final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) ext
 
 final case class ReadValue(path: IR, spec: AbstractTypedCodecSpec, requestedType: Type) extends IR
 final case class WriteValue(value: IR, path: IR, spec: AbstractTypedCodecSpec) extends IR
-
-final case class UnpersistBlockMatrix(child: BlockMatrixIR) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = {
