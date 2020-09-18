@@ -3,7 +3,8 @@ FROM bitnami/minideb:buster
 ENV LANG C.UTF-8
 ENV MAKEFLAGS -j2
 
-RUN install_packages \
+RUN echo 'deb http://ftp.us.debian.org/debian stretch main' >> /etc/apt/sources.list && \
+  install_packages \
     curl \
     git \
     liblapack3 \
@@ -11,7 +12,7 @@ RUN install_packages \
     python3 python3-pip \
     rsync \
     unzip bzip2 zip tar \
-    vim 
+    vim
 COPY hail_pip_version /
 RUN pip3 --no-cache-dir install \
       hail==$(cat /hail_pip_version) \

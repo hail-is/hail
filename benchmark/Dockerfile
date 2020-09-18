@@ -3,7 +3,8 @@ FROM bitnami/minideb:buster
 ENV LANG C.UTF-8
 
 
-RUN install_packages \
+RUN echo 'deb http://ftp.us.debian.org/debian stretch main' >> /etc/apt/sources.list && \
+  install_packages \
     git \
     htop \
     unzip bzip2 zip tar \
