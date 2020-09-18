@@ -1,5 +1,5 @@
 function auto_complete(place_holder, str_selector) {
-     new autoComplete({
+     return new autoComplete({
                    data: {                              // Data src [Array, Function, Async] | (REQUIRED)
                      src: files,
                      cache: true
