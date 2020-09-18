@@ -85,13 +85,12 @@ async def get_file_or_none(app, username, userinfo, filepath, etag):
 
 
 async def load_file(redis, files, file_key, fs, filepath):
-    if file_key in files:
-        try:
-            data = await fs.read_binary_gs_file(filepath)
-            etag = await fs.get_etag(filepath)
-            await redis.execute('HMSET', file_key, 'etag', etag.encode('ascii'), 'body', data)
-        finally:
-            files.remove(file_key)
+    try:
+        data = await fs.read_binary_gs_file(filepath)
+        etag = await fs.get_etag(filepath)
+        await redis.execute('HMSET', file_key, 'etag', etag.encode('ascii'), 'body', data)
+    finally:
+        files.remove(file_key)
 
 
 async def on_startup(app):
