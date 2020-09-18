@@ -666,4 +666,3 @@ echo "hello" | nc -q 1 $(hostname -i) 5000
             assert 'unauthorized network private' in err.message
         else:
             assert False
->>>>>>> b27e1f6fae... [batch] isolate networks for non ci jobs
