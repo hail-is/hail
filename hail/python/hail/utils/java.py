@@ -44,6 +44,7 @@ class Env:
     def hc() -> 'hail.context.HailContext':
         if not Env._hc:
             sys.stderr.write("Initializing Hail with default parameters...\n")
+            sys.stderr.flush()
 
             backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
             if backend_name == 'service':

@@ -12,7 +12,8 @@ import json
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers, get_userinfo
-from hailtop.utils import retry_response_returning_functions
+from hailtop.utils import (retry_response_returning_functions,
+                           external_requests_client_session)
 from hailtop.batch_client.client import BatchClient, Job
 
 from .utils import legacy_batch_status
@@ -416,22 +417,23 @@ class Test(unittest.TestCase):
         self.assertTrue(j.is_complete())
 
     def test_authorized_users_only(self):
+        session = external_requests_client_session()
         endpoints = [
-            (requests.get, '/api/v1alpha/billing_projects', 401),
-            (requests.get, '/api/v1alpha/billing_projects/foo', 401),
-            (requests.get, '/api/v1alpha/batches/0/jobs/0', 401),
-            (requests.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
-            (requests.get, '/api/v1alpha/batches', 401),
-            (requests.post, '/api/v1alpha/batches/create', 401),
-            (requests.post, '/api/v1alpha/batches/0/jobs/create', 401),
-            (requests.get, '/api/v1alpha/batches/0', 401),
-            (requests.delete, '/api/v1alpha/batches/0', 401),
-            (requests.patch, '/api/v1alpha/batches/0/close', 401),
+            (session.get, '/api/v1alpha/billing_projects', 401),
+            (session.get, '/api/v1alpha/billing_projects/foo', 401),
+            (session.get, '/api/v1alpha/batches/0/jobs/0', 401),
+            (session.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
+            (session.get, '/api/v1alpha/batches', 401),
+            (session.post, '/api/v1alpha/batches/create', 401),
+            (session.post, '/api/v1alpha/batches/0/jobs/create', 401),
+            (session.get, '/api/v1alpha/batches/0', 401),
+            (session.delete, '/api/v1alpha/batches/0', 401),
+            (session.patch, '/api/v1alpha/batches/0/close', 401),
             # redirect to auth/login
-            (requests.get, '/batches', 302),
-            (requests.get, '/batches/0', 302),
-            (requests.post, '/batches/0/cancel', 401),
-            (requests.get, '/batches/0/jobs/0', 302)]
+            (session.get, '/batches', 302),
+            (session.get, '/batches/0', 302),
+            (session.post, '/batches/0/cancel', 401),
+            (session.get, '/batches/0/jobs/0', 302)]
         for method, url, expected in endpoints:
             full_url = deploy_config.url('batch', url)
             r = retry_response_returning_functions(
@@ -551,9 +553,10 @@ echo $HAIL_BATCH_WORKER_IP
         ]
         url = deploy_config.url('batch', '/api/v1alpha/batches/create')
         headers = service_auth_headers(deploy_config, 'batch')
+        session = external_requests_client_session()
         for config in bad_configs:
             r = retry_response_returning_functions(
-                requests.post,
+                session.post,
                 url,
                 json=config,
                 allow_redirects=True,

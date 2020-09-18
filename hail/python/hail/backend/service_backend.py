@@ -1,5 +1,4 @@
 import os
-import requests
 
 from hail.utils import FatalError
 from hail.expr.types import dtype
@@ -9,7 +8,8 @@ from hail.expr.blockmatrix_type import tblockmatrix
 
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.auth import service_auth_headers
-from hailtop.utils import retry_response_returning_functions
+from hailtop.utils import (retry_response_returning_functions,
+                           external_requests_client_session)
 from hail.ir.renderer import CSERenderer
 
 from .backend import Backend
@@ -43,9 +43,10 @@ class ServiceBackend(Backend):
         if not deploy_config:
             deploy_config = get_deploy_config()
         self.url = deploy_config.base_url('query')
-        self.headers = service_auth_headers(deploy_config, 'query')
         self._fs = None
         self._logger = PythonOnlyLogger(skip_logging_configuration)
+        self.requests_session = external_requests_client_session(
+            headers=service_auth_headers(deploy_config, 'query'))
 
     @property
     def logger(self):
@@ -74,8 +75,8 @@ class ServiceBackend(Backend):
             'bucket': self._bucket
         }
         resp = retry_response_returning_functions(
-            requests.post,
-            f'{self.url}/execute', json=body, headers=self.headers)
+            self.requests_session.post,
+            f'{self.url}/execute', json=body)
         if resp.status_code == 400 or resp.status_code == 500:
             raise FatalError(resp.text)
         resp.raise_for_status()
@@ -89,8 +90,8 @@ class ServiceBackend(Backend):
     def _request_type(self, ir, kind):
         code = self._render(ir)
         resp = retry_response_returning_functions(
-            requests.post,
-            f'{self.url}/type/{kind}', json=code, headers=self.headers)
+            self.requests_session.post,
+            f'{self.url}/type/{kind}', json=code)
         if resp.status_code == 400 or resp.status_code == 500:
             raise FatalError(resp.text)
         resp.raise_for_status()
@@ -115,8 +116,8 @@ class ServiceBackend(Backend):
 
     def add_reference(self, config):
         resp = retry_response_returning_functions(
-            requests.post,
-            f'{self.url}/references/create', json=config, headers=self.headers)
+            self.requests_session.post,
+            f'{self.url}/references/create', json=config)
         if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -124,7 +125,7 @@ class ServiceBackend(Backend):
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         resp = retry_response_returning_functions(
-            requests.post,
+            self.requests_session.post,
             f'{self.url}/references/create/fasta',
             json={
                 'name': name,
@@ -134,7 +135,7 @@ class ServiceBackend(Backend):
                 'y_contigs': y_contigs,
                 'mt_contigs': mt_contigs,
                 'par': par
-            }, headers=self.headers)
+            })
         if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -142,10 +143,9 @@ class ServiceBackend(Backend):
 
     def remove_reference(self, name):
         resp = retry_response_returning_functions(
-            requests.delete,
+            self.requests_session.delete,
             f'{self.url}/references/delete',
-            json={'name': name},
-            headers=self.headers)
+            json={'name': name})
         if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -153,10 +153,9 @@ class ServiceBackend(Backend):
 
     def get_reference(self, name):
         resp = retry_response_returning_functions(
-            requests.get,
+            self.requests_session.get,
             f'{self.url}/references/get',
-            json={'name': name},
-            headers=self.headers)
+            json={'name': name})
         if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -169,10 +168,9 @@ class ServiceBackend(Backend):
 
     def add_sequence(self, name, fasta_file, index_file):
         resp = retry_response_returning_functions(
-            requests.post,
+            self.requests_session,
             f'{self.url}/references/sequence/set',
-            json={'name': name, 'fasta_file': fasta_file, 'index_file': index_file},
-            headers=self.headers)
+            json={'name': name, 'fasta_file': fasta_file, 'index_file': index_file})
         if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -180,10 +178,9 @@ class ServiceBackend(Backend):
 
     def remove_sequence(self, name):
         resp = retry_response_returning_functions(
-            requests.delete,
+            self.requests_session.delete,
             f'{self.url}/references/sequence/delete',
-            json={'name': name},
-            headers=self.headers)
+            json={'name': name})
         if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -191,11 +188,10 @@ class ServiceBackend(Backend):
 
     def add_liftover(self, name, chain_file, dest_reference_genome):
         resp = retry_response_returning_functions(
-            requests.post,
+            self.requests_session.post,
             f'{self.url}/references/liftover/add',
             json={'name': name, 'chain_file': chain_file,
-                  'dest_reference_genome': dest_reference_genome},
-            headers=self.headers)
+                  'dest_reference_genome': dest_reference_genome})
         if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -203,10 +199,9 @@ class ServiceBackend(Backend):
 
     def remove_liftover(self, name, dest_reference_genome):
         resp = retry_response_returning_functions(
-            requests.delete,
+            self.requests_session.delete,
             f'{self.url}/references/liftover/remove',
-            json={'name': name, 'dest_reference_genome': dest_reference_genome},
-            headers=self.headers)
+            json={'name': name, 'dest_reference_genome': dest_reference_genome})
         if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -214,10 +209,9 @@ class ServiceBackend(Backend):
 
     def parse_vcf_metadata(self, path):
         resp = retry_response_returning_functions(
-            requests.post,
+            self.requests_session.post,
             f'{self.url}/parse-vcf-metadata',
-            json={'path': path},
-            headers=self.headers)
+            json={'path': path})
         if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -226,7 +220,7 @@ class ServiceBackend(Backend):
 
     def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
         resp = retry_response_returning_functions(
-            requests.post,
+            self.requests_session.post,
             f'{self.url}/index-bgen',
             json={
                 'files': files,
@@ -234,8 +228,7 @@ class ServiceBackend(Backend):
                 'rg': rg,
                 'contig_recoding': contig_recoding,
                 'skip_invalid_loci': skip_invalid_loci
-            },
-            headers=self.headers)
+            })
         if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -244,15 +237,14 @@ class ServiceBackend(Backend):
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
         resp = retry_response_returning_functions(
-            requests.post,
+            self.requests_session.post,
             f'{self.url}/import-fam',
             json={
                 'path': path,
                 'quant_pheno': quant_pheno,
                 'delimiter': delimiter,
                 'missing': missing
-            },
-            headers=self.headers)
+            })
         if resp.status_code == 400 or resp.status_code == 500:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])

@@ -12,6 +12,8 @@ import socket
 import requests
 import google.auth.exceptions
 import time
+from requests.adapters import HTTPAdapter
+from urllib3.poolmanager import PoolManager
 
 from .time import time_msecs
 
@@ -403,6 +405,31 @@ def retry_response_returning_functions(fun, *args, **kwargs):
             fun, *args, **kwargs)
         delay = sync_sleep_and_backoff(delay)
     return response
+
+
+def external_requests_client_session(headers=None) -> requests.Session:
+    session = requests.Session()
+    adapter = TimeoutHTTPAdapter(max_retries=1, timeout=5)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    if headers:
+        session.headers = headers
+    return session
+
+
+class TimeoutHTTPAdapter(HTTPAdapter):
+    def __init__(self, max_retries, timeout):
+        self.max_retries = max_retries
+        self.timeout = timeout
+        super().__init__(max_retries=max_retries)
+
+    def init_poolmanager(self, connections, maxsize, block=False):
+        self.poolmanager = PoolManager(
+            num_pools=connections,
+            maxsize=maxsize,
+            block=block,
+            retries=self.max_retries,
+            timeout=self.timeout)
 
 
 async def collect_agen(agen):
