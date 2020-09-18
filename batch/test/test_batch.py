@@ -600,3 +600,69 @@ echo $HAIL_BATCH_WORKER_IP
 
         no_token_status = no_token.wait()
         assert no_token_status['state'] == 'Failed', no_token_status
+
+    def test_verify_access_to_public_internet(self):
+        builder = self.client.create_batch()
+        j = builder.create_job(os.environ['HAIL_CURL_IMAGE'],
+                               ['curl', '-fsSL', 'example.com'])
+        builder.submit()
+        status = j.wait()
+        assert status['state'] == 'Success', status
+
+    def test_verify_can_tcp_to_localhost(self):
+        builder = self.client.create_batch()
+        script = '''
+set -e
+nc -l -p 5000 &
+sleep 5
+echo "hello" | nc -q 1 localhost 5000
+'''.lstrip('\n')
+        j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
+                               command=['/bin/bash', '-c', script])
+        builder.submit()
+        status = j.wait()
+        assert status['state'] == 'Success', (j.log()['main'], status)
+        assert 'hello\n' == j.log()['main']
+
+    def test_verify_can_tcp_to_127_0_0_1(self):
+        builder = self.client.create_batch()
+        script = '''
+set -e
+nc -l -p 5000 &
+sleep 5
+echo "hello" | nc -q 1 127.0.0.1 5000
+'''.lstrip('\n')
+        j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
+                               command=['/bin/bash', '-c', script])
+        builder.submit()
+        status = j.wait()
+        assert status['state'] == 'Success', (j.log()['main'], status)
+        assert 'hello\n' == j.log()['main']
+
+    def test_verify_can_tcp_to_self_ip(self):
+        builder = self.client.create_batch()
+        script = '''
+set -e
+nc -l -p 5000 &
+sleep 5
+echo "hello" | nc -q 1 $(hostname -i) 5000
+'''.lstrip('\n')
+        j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
+                               command=['/bin/sh', '-c', script])
+        builder.submit()
+        status = j.wait()
+        assert status['state'] == 'Success', (j.log()['main'], status)
+        assert 'hello\n' == j.log()['main']
+
+    def test_verify_private_network_is_restricted(self):
+        builder = self.client.create_batch()
+        builder.create_job(os.environ['HAIL_CURL_IMAGE'],
+                           command=['curl', 'internal.hail', '--connect-timeout', '60'],
+                           network='private')
+        try:
+            builder.submit()
+        except aiohttp.ClientResponseError as err:
+            assert err.status == 400
+            assert 'unauthorized network private' in err.message
+        else:
+            assert False

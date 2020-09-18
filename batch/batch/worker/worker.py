@@ -301,6 +301,11 @@ class Container:
         if env:
             config['Env'] = env
 
+        network = self.spec.get('network')
+        if network is None:
+            network = 'private'
+        host_config['NetworkMode'] = network  # not documented, I used strace to inspect the packets
+
         config['HostConfig'] = host_config
 
         return config
@@ -699,6 +704,9 @@ class Job:
         timeout = job_spec.get('timeout')
         if timeout:
             main_spec['timeout'] = timeout
+        network = job_spec.get('network')
+        if network:
+            main_spec['network'] = network
         containers['main'] = Container(self, 'main', main_spec)
 
         if output_files:

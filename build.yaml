@@ -1773,6 +1773,12 @@ steps:
     - hail_run_image
     - deploy_query
  - kind: buildImage
+   name: netcat_ubuntu_image
+   dockerFile:
+     inline: |
+       FROM ubuntu:18.04
+       RUN apt-get update && apt-get install netcat -y
+ - kind: buildImage
    name: curl_image
    dockerFile:
      inline: |
@@ -1783,6 +1789,7 @@ steps:
    image:
      valueFrom: batch_image.image
    script: |
+     set -ex
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=0
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
@@ -1790,6 +1797,8 @@ steps:
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+     export HAIL_CURL_IMAGE={{ curl_image.image }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -1833,12 +1842,14 @@ steps:
     - batch_image
     - ci_utils_image
     - deploy_batch
+    - netcat_ubuntu_image
     - curl_image
  - kind: runImage
    name: test_batch_1
    image:
      valueFrom: batch_image.image
    script: |
+     set -ex
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=1
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
@@ -1846,6 +1857,8 @@ steps:
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+     export HAIL_CURL_IMAGE={{ curl_image.image }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -1889,12 +1902,14 @@ steps:
     - batch_image
     - ci_utils_image
     - deploy_batch
+    - netcat_ubuntu_image
     - curl_image
  - kind: runImage
    name: test_batch_2
    image:
      valueFrom: batch_image.image
    script: |
+     set -ex
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=2
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
@@ -1902,6 +1917,8 @@ steps:
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+     export HAIL_CURL_IMAGE={{ curl_image.image }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -1945,12 +1962,14 @@ steps:
     - batch_image
     - ci_utils_image
     - deploy_batch
+    - netcat_ubuntu_image
     - curl_image
  - kind: runImage
    name: test_batch_3
    image:
      valueFrom: batch_image.image
    script: |
+     set -ex
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=3
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
@@ -1958,6 +1977,8 @@ steps:
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+     export HAIL_CURL_IMAGE={{ curl_image.image }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2001,12 +2022,14 @@ steps:
     - batch_image
     - ci_utils_image
     - deploy_batch
+    - netcat_ubuntu_image
     - curl_image
  - kind: runImage
    name: test_batch_4
    image:
      valueFrom: batch_image.image
    script: |
+     set -ex
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=4
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
@@ -2014,6 +2037,8 @@ steps:
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+     export HAIL_CURL_IMAGE={{ curl_image.image }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2057,6 +2082,7 @@ steps:
     - batch_image
     - ci_utils_image
     - deploy_batch
+    - netcat_ubuntu_image
     - curl_image
  - kind: runImage
    name: create_ci_test_repo

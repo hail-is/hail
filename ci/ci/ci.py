@@ -305,10 +305,15 @@ async def deploy_status(request, userdata):  # pylint: disable=unused-argument
         if isinstance(batch, MergeFailureBatch):
             return batch.exception
         jobs = await collect_agen(batch.jobs())
-        return [
-            {**j,
-             'log': await batch_client.get_job_log(j['batch_id'], j['job_id'])}
-            for j in jobs if j['state'] != 'Success']
+
+        async def fetch_job_and_log(j):
+            full_job = await batch_client.get_job(j['batch_id'], j['job_id'])
+            log = await full_job.log()
+            return {**full_job._status, 'log': log}
+
+        return await asyncio.gather(*[fetch_job_and_log(j)
+                                      for j in jobs
+                                      if j['state'] in ('Error', 'Failed')])
     wb_configs = [{
         'branch': wb.branch.short_str(),
         'sha': wb.sha,
