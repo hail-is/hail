@@ -78,19 +78,20 @@ async def get_file_or_none(app, username, userinfo, filepath, etag):
         try:
             log.info(f"memory: Loading {filepath} to cache for user {username}")
             app['worker_pool'].call_nowait(load_file, app['redis_pool'], app['files_in_progress'], filekey, fs, filepath)
+            files.add(file_key)
         except asyncio.QueueFull:
             pass
     return None
 
 
 async def load_file(redis, files, file_key, fs, filepath):
-    try:
-        files.add(file_key)
-        data = await fs.read_binary_gs_file(filepath)
-        etag = await fs.get_etag(filepath)
-        await redis.execute('HMSET', file_key, 'etag', etag.encode('ascii'), 'body', data)
-    finally:
-        files.remove(file_key)
+    if file_key in files:
+        try:
+            data = await fs.read_binary_gs_file(filepath)
+            etag = await fs.get_etag(filepath)
+            await redis.execute('HMSET', file_key, 'etag', etag.encode('ascii'), 'body', data)
+        finally:
+            files.remove(file_key)
 
 
 async def on_startup(app):
