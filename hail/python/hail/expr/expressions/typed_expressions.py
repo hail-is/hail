@@ -526,8 +526,46 @@ class ArrayExpression(CollectionExpression):
         >>> hl.eval(names.filter(lambda x: x.startswith('D')).head())
         None
         """
+        return self.first()
+
+    def first(self):
+        """Returns the first element of the array, or missing if empty.
+
+        Returns
+        -------
+        :class:`.Expression`
+            Element.
+
+        Examples
+        --------
+        >>> hl.eval(names.first())
+        'Alice'
+
+        If the array has no elements, then the result is missing:
+        >>> hl.eval(names.filter(lambda x: x.startswith('D')).first())
+        None
+        """
         # FIXME: this should generate short-circuiting IR when that is possible
-        return hl.rbind(self, lambda x: hl.case().when(x.length() > 0, x[0]).or_missing())
+        return hl.rbind(self, lambda x: hl.or_missing(hl.len(x) > 0, x[0]))
+
+    def last(self):
+        """Returns the last element of the array, or missing if empty.
+
+        Returns
+        -------
+        :class:`.Expression`
+            Element.
+
+        Examples
+        --------
+        >>> hl.eval(names.last())
+        'Charlie'
+
+        If the array has no elements, then the result is missing:
+        >>> hl.eval(names.filter(lambda x: x.startswith('D')).last())
+        None
+        """
+        return hl.rbind(self, hl.len(self), lambda x, n: hl.or_missing(n > 0, x[n - 1]))
 
     @typecheck_method(x=oneof(func_spec(1, expr_any), expr_any))
     def index(self, x):
