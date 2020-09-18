@@ -52,8 +52,8 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(hl.impute_sex(ds.GT)._same(hl.impute_sex(ds.GT, aaf='aaf')))
 
-        backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
-        linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl._linear_regression_rows_nd]
+    backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
+    linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl._linear_regression_rows_nd]
 
     @fails_local_backend()
     def test_linreg_basic(self):
