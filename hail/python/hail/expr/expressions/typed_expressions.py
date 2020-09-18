@@ -546,7 +546,7 @@ class ArrayExpression(CollectionExpression):
         >>> hl.eval(names.filter(lambda x: x.startswith('D')).first())
         None
         """
-        return hl.or_missing(hl.len(self) > 0, self[0])
+        return hl.rbind(self, lambda x: hl.or_missing(hl.len(x) > 0, x[0]))
 
     def last(self):
         """Returns the last element of the array, or missing if empty.
@@ -565,7 +565,7 @@ class ArrayExpression(CollectionExpression):
         >>> hl.eval(names.filter(lambda x: x.startswith('D')).last())
         None
         """
-        return hl.rbind(hl.len(self), lambda n: hl.or_missing(n > 0, self[n - 1]))
+        return hl.rbind(self, hl.len(self), lambda x, n: hl.or_missing(n > 0, x[n - 1]))
 
     @typecheck_method(x=oneof(func_spec(1, expr_any), expr_any))
     def index(self, x):
