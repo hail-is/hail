@@ -694,6 +694,13 @@ class Emit[C](
             Class.forName("is.hail.expr.ir.package$"), "uuid4"))))
       case x@Literal(t, v) =>
         presentPC(mb.addLiteral(v, x.pType))
+      case x@EncodedLiteral(codec, value) =>
+        val is = new ByteArrayInputStream(value)
+        val cis = _const(is, new ClassInfo[InputStream]("InputStream"))
+        val ib = cb.newLocal[InputBuffer]("encoded_literal_ib")
+        cb.assign(ib, codec.buildCodeInputBuffer(cis))
+        val pc = codec.buildEmitDecoder(x.typ, cb.emb.ecb)(region.code, ib)
+        presentPC(pc)
       case True() =>
         presentC(const(true))
       case False() =>
