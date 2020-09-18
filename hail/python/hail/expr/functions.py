@@ -2,6 +2,8 @@ import builtins
 import functools
 from typing import Union, Optional, Any, Callable, Iterable, TypeVar
 
+from deprecated import deprecated
+
 import hail
 import hail as hl
 from hail.expr.expressions import Expression, ArrayExpression, SetExpression, \
@@ -3423,6 +3425,7 @@ def enumerate(a, start=0, *, index_first=True):
     return range(0, len(a)).map(lambda i: (i + start, a[i]) if index_first else (a[i], i + start))
 
 
+@deprecated(version='0.2.56', reason="Replaced by hl.enumerate")
 @typecheck(a=expr_array(), index_first=bool)
 def zip_with_index(a, index_first=True):
     """Deprecated in favor of :func:`.enumerate`.
