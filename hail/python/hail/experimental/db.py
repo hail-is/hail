@@ -31,14 +31,14 @@ class DatasetVersion:
         Parameters
         ----------
         doc : :obj:`dict`
-            Dictionary containing url and version.
+            Dictionary containing url and version keys.
 
         Returns
         -------
         :class:`DatasetVersion`
         """
-        assert 'url' in doc
-        assert 'version' in doc
+        assert 'url' in doc, doc
+        assert 'version' in doc, doc
         return DatasetVersion(doc['url'],
                               doc['version'])
 
@@ -65,7 +65,7 @@ class DatasetVersion:
         available_versions = []
         if region is not None:
             for version in versions:
-                if version.check_region(name, region):
+                if version.in_region(name, region):
                     version.url = version.url[region]
                     available_versions.append(version)
         return available_versions
@@ -74,7 +74,7 @@ class DatasetVersion:
         self.url = url
         self.version = version
 
-    def check_region(self, name, region):
+    def in_region(self, name, region):
         """To check if a `DatasetVersion` object is accessible in the desired
         region.
 
@@ -134,10 +134,10 @@ class Dataset:
         :class:`Dataset`
             If versions exist for region returns a `Dataset` object, else None.
         """
-        assert 'description' in doc
-        assert 'url' in doc
-        assert 'key_properties' in doc
-        assert 'versions' in doc
+        assert 'description' in doc, doc
+        assert 'url' in doc, doc
+        assert 'key_properties' in doc, doc
+        assert 'versions' in doc, doc
         versions = [DatasetVersion.from_json(x) for x in doc['versions']]
         versions = DatasetVersion.get_region(name, versions, region)
         if versions:
@@ -161,10 +161,12 @@ class Dataset:
         Returns
         -------
         :obj:`bool`
+            Whether or not `Dataset` is gene keyed.
         """
         return 'gene' in self.key_properties
 
     def index_compatible_version(self, key_expr):
+        # If not unique key then use all matches, otherwise give a single a value
         all_matches = 'unique' not in self.key_properties
         compatible_indexed_values = [
             index
