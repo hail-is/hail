@@ -546,6 +546,7 @@ class ArrayExpression(CollectionExpression):
         >>> hl.eval(names.filter(lambda x: x.startswith('D')).first())
         None
         """
+        # FIXME: this should generate short-circuiting IR when that is possible
         return hl.rbind(self, lambda x: hl.or_missing(hl.len(x) > 0, x[0]))
 
     def last(self):
