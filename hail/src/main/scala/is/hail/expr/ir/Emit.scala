@@ -3074,3 +3074,68 @@ abstract class NDArrayEmitter[C](
     columnMajorLoops
   }
 }
+
+abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Long]]])
+{
+  val nDims = outputShape.value.length
+
+  def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_]
+
+  def emit(cb: EmitCodeBuilder, targetType: PNDArray, region: Value[Region]): IEmitCode = {
+    outputShape.map(cb){ shapeArray: IndexedSeq[Value[Long]] =>
+      val dataSrvb = new StagedRegionValueBuilder(cb.emb, targetType.data.pType, region)
+      val dataAddress: Code[Long] =
+        Code(
+          dataSrvb.start(targetType.numElements(shapeArray, cb.emb).toI),
+          emitLoops(cb, shapeArray, targetType.elementType, dataSrvb),
+          dataSrvb.end())
+
+      def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
+        coerce[Unit](Code(
+          srvb.start(),
+          Code.foreach(shapeArray) { shapeElement =>
+            Code(
+              srvb.addLong(shapeElement),
+              srvb.advance()
+            )
+          }
+        ))
+      }
+
+      val ptr = targetType.construct(
+        shapeBuilder,
+        targetType.makeColumnMajorStridesBuilder(shapeArray, cb.emb),
+        dataAddress,
+        cb.emb,
+        region)
+
+      PCode(targetType, ptr)
+    }
+  }
+
+  private def emitLoops(cb: EmitCodeBuilder, outputShapeVariables: IndexedSeq[Value[Long]], outputElementPType: PType, srvb: StagedRegionValueBuilder): Code[Unit] = {
+    val mb = cb.emb
+    val idxVars = Array.tabulate(nDims) { i => cb.newField[Long](s"ndarray_emitter_idxVar_$i") }.toFastIndexedSeq
+    val storeElement = mb.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType))
+
+    val body =
+      Code(
+        storeElement.storeAny(outputElement(cb, idxVars)),
+        srvb.addIRIntermediate(outputElementPType)(storeElement),
+        srvb.advance()
+      )
+
+    val columnMajorLoops = idxVars.zipWithIndex.foldLeft(body) { case (innerLoops, (dimVar, dimIdx)) =>
+      Code(
+        dimVar := 0L,
+        Code.whileLoop(dimVar < outputShapeVariables(dimIdx),
+          innerLoops,
+          dimVar := dimVar + 1L
+        )
+      )
+    }
+
+    columnMajorLoops
+  }
+}
+
