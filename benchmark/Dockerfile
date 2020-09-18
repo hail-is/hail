@@ -11,7 +11,7 @@ RUN echo 'deb http://ftp.us.debian.org/debian stretch main' >> /etc/apt/sources.
     wget curl \
     rsync \
     emacs25-nox \
-    mysql-client \
+    default-mysql-client \
     xsltproc pandoc \
     jq \
     openjdk-8-jdk-headless \
