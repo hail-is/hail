@@ -1,4 +1,4 @@
-DOCKER_ROOT_IMAGE := ubuntu:18.04
+DOCKER_ROOT_IMAGE := bitnami/minideb:buster
 DOMAIN := hail.is
 INTERNAL_IP := 10.128.0.57
 IP := 35.188.91.25

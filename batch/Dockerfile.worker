@@ -1,21 +1,12 @@
-FROM python:3.7-slim-stretch
+FROM bitnami/minideb:buster
 
-RUN apt-get update && \
-  apt-get -y install \
-    curl \
-    gnupg \
-    xfsprogs && \
-  rm -rf /var/lib/apt/lists/*
+RUN install_packages curl gnupg xfsprogs python3.7 python3-pip
 
 RUN export GCSFUSE_REPO=gcsfuse-bionic && \
   echo "deb http://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list && \
   curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 
-RUN apt-get update && \
-  apt-get -y install \
-    fuse \
-    gcsfuse && \
-  rm -rf /var/lib/apt/lists/*
+RUN install_packages fuse gcsfuse
 
 COPY docker/requirements.txt .
 # re: pip install --upgrade pip: https://github.com/grpc/grpc/issues/22815

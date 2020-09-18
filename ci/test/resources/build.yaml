@@ -7,8 +7,8 @@ steps:
    name: inline_image
    dockerFile:
      inline: |
-       FROM ubuntu:18.04
-       RUN apt-get update && apt-get install -y git
+       FROM bitnami/minideb:buster
+       RUN install_packages git
    contextPath: .
  - kind: runImage
    name: run_inline_image

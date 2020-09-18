@@ -1776,8 +1776,8 @@ steps:
    name: curl_image
    dockerFile:
      inline: |
-       FROM ubuntu:18.04
-       RUN apt-get update && apt-get install curl -y
+       FROM bitnami/minideb:buster
+       RUN install_packages curl
  - kind: runImage
    name: test_batch_0
    image:

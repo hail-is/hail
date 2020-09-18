@@ -1,10 +1,9 @@
-FROM ubuntu:18.04
+FROM bitnami/minideb:buster
 
 ENV LANG C.UTF-8
 
 
-RUN apt-get update && \
-  apt-get -y install \
+RUN install_packages \
     git \
     htop \
     unzip bzip2 zip tar \
@@ -18,8 +17,7 @@ RUN apt-get update && \
     python \
     python3.7 python3-pip python3.7-dev \
     liblapack3 && \
-  update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1 && \
-  rm -rf /var/lib/apt/lists/*
+  update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1
 
 
 COPY requirements.txt .

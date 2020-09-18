@@ -1,8 +1,6 @@
-FROM debian:9.5
+FROM bitnami/minideb:buster
 
-RUN apt-get update -y && \
-    apt-get install -y nginx curl python-minimal && \
-    rm -rf /var/lib/apt/lists/*
+RUN install_packages nginx curl python-minimal
 
 RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
     mv /root/google-cloud-sdk /

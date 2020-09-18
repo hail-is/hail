@@ -2,9 +2,7 @@ FROM jupyter/scipy-notebook:c094bb7219f9
 MAINTAINER Hail Team <hail@broadinstitute.org>
 
 USER root
-RUN apt-get update && apt-get install -y \
-    openjdk-8-jre-headless \
-    && rm -rf /var/lib/apt/lists/*
+RUN install_packages openjdk-8-jre-headless
 USER jovyan
 
 RUN pip install --no-cache-dir \

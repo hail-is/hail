@@ -19,14 +19,14 @@ GENETICS_PUBLIC_IMAGE = gcr.io/$(PROJECT)/genetics-public:$(shell docker images 
 base: base-stmp
 
 base-stmp: Dockerfile.base core-site.xml requirements.txt ../pylintrc ../setup.cfg
-	-docker pull ubuntu:18.04
+	-docker pull bitnami/minideb:buster
 	-docker pull $(BASE_LATEST)
 	[ "$(shell bash stat-permissions.sh Dockerfile.base)" = "644" ]
 	[ "$(shell bash stat-permissions.sh core-site.xml)" = "644" ]
 	[ "$(shell bash stat-permissions.sh requirements.txt)" = "644" ]
 	[ "$(shell bash stat-permissions.sh ../pylintrc)" = "644" ]
 	[ "$(shell bash stat-permissions.sh ../setup.cfg)" = "644" ]
-	docker build -t base -f Dockerfile.base --cache-from base,$(BASE_LATEST),ubuntu:18.04 ..
+	docker build -t base -f Dockerfile.base --cache-from base,$(BASE_LATEST),bitnami/minideb:buster ..
 	touch base-stmp
 
 .PHONY: service-base
@@ -35,7 +35,7 @@ service-base: base-stmp
 	python3 ../ci/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile.service-base Dockerfile.service-base.out
 	[ "$(shell bash stat-permissions.sh Dockerfile.service-base.out)" = "644" ]
 	[ "$(shell bash stat-permissions.sh service-base-requirements.txt)" = "644" ]
-	docker build -t service-base -f Dockerfile.service-base.out --cache-from service-base,$(SERVICE_BASE_LATEST),base,ubuntu:18.04 ..
+	docker build -t service-base -f Dockerfile.service-base.out --cache-from service-base,$(SERVICE_BASE_LATEST),base,bitnami/minideb:buster ..
 
 .PHONY: hail-public-image
 hail-public-image:
@@ -44,7 +44,7 @@ hail-public-image:
 	cd hail && tar -cvf wheel-container.tar hail-*-py3-none-any.whl
 	-docker pull $(HAIL_PUBLIC_LATEST)
 	docker build hail -f hail/Dockerfile -t hail-public \
-     --cache-from hail-public,$(HAIL_PUBLIC_LATEST),ubuntu:18.04 \
+     --cache-from hail-public,$(HAIL_PUBLIC_LATEST),bitnami/minideb:buster \
      hail
 
 .PHONY: genetics-public-image

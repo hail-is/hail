@@ -1,8 +1,6 @@
 FROM {{ service_base_image.image }}
 
-RUN apt-get update && \
-  apt-get -y install docker.io && \
-  rm -rf /var/lib/apt/lists/*
+RUN install_packages docker.io
 
 RUN pip3 --no-cache-dir install twine
 

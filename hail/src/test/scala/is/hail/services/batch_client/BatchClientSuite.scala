@@ -19,7 +19,7 @@ class BatchClientSuite extends TestNGSuite {
       FastIndexedSeq(
         JObject(
           "always_run" -> JBool(false),
-          "image" -> JString("ubuntu:18.04"),
+          "image" -> JString("bitnami/minideb:buster"),
           "mount_docker_socket" -> JBool(false),
           "command" -> JArray(List(
             JString("/bin/bash"),

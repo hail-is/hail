@@ -6,9 +6,9 @@ GATEWAY_LATEST = gcr.io/$(PROJECT)/gateway:latest
 GATEWAY_IMAGE = gcr.io/$(PROJECT)/gateway:$(shell docker images -q --no-trunc gateway | sed -e 's,[^:]*:,,')
 
 build:
-	docker pull ubuntu:18.04
+	docker pull bitnami/minideb:buster
 	-docker pull $(GATEWAY_LATEST)
-	docker build -t gateway --cache-from gateway,$(GATEWAY_LATEST),ubuntu:18.04 .
+	docker build -t gateway --cache-from gateway,$(GATEWAY_LATEST),bitnami/minideb:buster .
 
 push: build
 	docker tag gateway $(GATEWAY_LATEST)

@@ -4,9 +4,7 @@ COPY python/requirements.txt .
 COPY python/dev-requirements.txt .
 RUN python3 -m pip install --no-cache-dir -r requirements.txt -r dev-requirements.txt
 
-RUN apt-get update && \
-  apt-get -y install \
-    liblz4-dev
+RUN install_packages liblz4-dev
 
 # FIXME belongs in hail-test image
 RUN mkdir -p plink && \

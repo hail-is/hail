@@ -6,9 +6,9 @@ INTERNAL_GATEWAY_LATEST = gcr.io/$(PROJECT)/internal-gateway:latest
 INTERNAL_GATEWAY_IMAGE = gcr.io/$(PROJECT)/internal-gateway:$(shell docker images -q --no-trunc internal-gateway | sed -e 's,[^:]*:,,')
 
 build:
-	docker pull ubuntu:18.04
+	docker pull bitnami/minideb:buster
 	-docker pull $(INTERNAL_GATEWAY_LATEST)
-	docker build -t internal-gateway --cache-from internal-gateway,$(INTERNAL_GATEWAY_LATEST),ubuntu:18.04 .
+	docker build -t internal-gateway --cache-from internal-gateway,$(INTERNAL_GATEWAY_LATEST),bitnami/minideb:buster .
 
 push: build
 	docker tag internal-gateway $(INTERNAL_GATEWAY_LATEST)

@@ -1,10 +1,9 @@
-FROM ubuntu:18.04
+FROM bitnami/minideb:buster
 
 ENV LANG C.UTF-8
 ENV MAKEFLAGS -j2
 
-RUN apt-get update && \
-  apt-get -y install \
+RUN install_packages \
     curl \
     git \
     liblapack3 \
@@ -12,8 +11,7 @@ RUN apt-get update && \
     python3 python3-pip \
     rsync \
     unzip bzip2 zip tar \
-    vim \
-  && rm -rf /var/lib/apt/lists/*
+    vim 
 COPY hail_pip_version /
 RUN pip3 --no-cache-dir install \
       hail==$(cat /hail_pip_version) \

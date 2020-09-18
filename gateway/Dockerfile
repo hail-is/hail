@@ -1,8 +1,6 @@
-FROM ubuntu:18.04
+FROM bitnami/minideb:buster
 
-RUN apt-get update -y && \
-    apt-get install -y nginx && \
-    rm -rf /var/lib/apt/lists/*
+RUN install_packages nginx
 
 RUN rm -f /etc/nginx/sites-enabled/default
 ADD gateway.nginx.conf /etc/nginx/conf.d/gateway.conf
