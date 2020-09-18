@@ -44,7 +44,7 @@ def get_benchmarks(app, file_path):
         stats['name'] = d.get('name')
         stats['failed'] = d.get('failed')
         if not d['failed']:
-            prod_of_means *= d.get('mean')
+            prod_of_means *= d.get('mean', 1)
             stats['f-stat'] = round_if_defined(d.get('f-stat'))
             stats['mean'] = round_if_defined(d.get('mean'))
             stats['median'] = round_if_defined(d.get('median'))
