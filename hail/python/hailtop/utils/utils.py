@@ -419,9 +419,9 @@ def external_requests_client_session(headers=None) -> requests.Session:
 
 class TimeoutHTTPAdapter(HTTPAdapter):
     def __init__(self, max_retries, timeout):
-        super().__init__(max_retries=max_retries)
         self.max_retries = max_retries
         self.timeout = timeout
+        super().__init__(max_retries=max_retries)
 
     def init_poolmanager(self, connections, maxsize, block=False):
         self.poolmanager = PoolManager(

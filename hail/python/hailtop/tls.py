@@ -111,7 +111,7 @@ def in_cluster_ssl_requests_client_session() -> requests.Session:
     session.mount('https://', TLSAdapter(ssl_config['cert'],
                                          ssl_config['key'],
                                          ssl_config['outgoing_trust'],
-                                         retries=1,
+                                         max_retries=1,
                                          timeout=5))
     return session
 

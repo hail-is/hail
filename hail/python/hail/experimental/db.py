@@ -1,7 +1,6 @@
 import json
 import os
 import pkg_resources
-import requests
 import hail as hl
 
 from hailtop.utils import (retry_response_returning_functions,

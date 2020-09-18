@@ -1,5 +1,4 @@
 import os
-import requests
 
 from hail.utils import FatalError
 from hail.expr.types import dtype
