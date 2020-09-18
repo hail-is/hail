@@ -107,7 +107,7 @@ class SimplifyControl(m: Method) {
     for (b <- blocks) {
       if (b.first != null &&
         b.first.isInstanceOf[GotoX]) {
-        u.sameSet(
+        u.union(
           blocks.index(b),
           blocks.index(b.first.asInstanceOf[GotoX].L))
       }
@@ -115,10 +115,8 @@ class SimplifyControl(m: Method) {
 
     val rootFinalTarget = mutable.Map[Int, Block]()
     blocks.indices.foreach { i =>
-      val r = u.find(i)
-      if (r == i) {
-        val t = finalTarget(blocks(r))
-        rootFinalTarget(r) = t
+      if (!blocks(i).first.isInstanceOf[GotoX]) {
+        rootFinalTarget(u.find(i)) = blocks(i)
       }
     }
 
