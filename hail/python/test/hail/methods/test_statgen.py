@@ -6,9 +6,7 @@ import numpy as np
 import hail as hl
 import hail.expr.aggregators as agg
 import hail.utils as utils
-from hail.backend.spark_backend import SparkBackend
 from hail.linalg import BlockMatrix
-from hail.utils.java import Env
 from ..helpers import (startTestHailContext, stopTestHailContext, resource,
                        skip_unless_spark_backend, fails_local_backend)
 
@@ -54,8 +52,8 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(hl.impute_sex(ds.GT)._same(hl.impute_sex(ds.GT, aaf='aaf')))
 
-    using_spark = isinstance(Env.backend(), SparkBackend)
-    linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if using_spark else [hl._linear_regression_rows_nd]
+        backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
+        linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl._linear_regression_rows_nd]
 
     @fails_local_backend()
     def test_linreg_basic(self):
