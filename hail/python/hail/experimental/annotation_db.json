@@ -85,15 +85,15 @@
     "versions": [
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/CADD.v1.4.GRCh37.ht",
-          "us": "gs://hail-datasets-us/datasets/1/CADD.v1.4.GRCh37.ht"
+          "eu": "gs://hail-datasets-eu/annotations/CADD.v1.4.GRCh37.ht",
+          "us": "gs://hail-datasets-us/annotations/CADD.v1.4.GRCh37.ht"
         },
         "version": "1.4-GRCh37"
       },
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/CADD.v1.4.GRCh38.ht",
-          "us": "gs://hail-datasets-us/datasets/1/CADD.v1.4.GRCh38.ht"
+          "eu": "gs://hail-datasets-eu/annotations/CADD.v1.4.GRCh38.ht",
+          "us": "gs://hail-datasets-us/annotations/CADD.v1.4.GRCh38.ht"
         },
         "version": "1.4-GRCh38"
       }
@@ -108,15 +108,15 @@
     "versions": [
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/DANN.GRCh37.ht",
-          "us": "gs://hail-datasets-us/datasets/1/DANN.GRCh37.ht"
+          "eu": "gs://hail-datasets-eu/annotations/DANN.GRCh37.ht",
+          "us": "gs://hail-datasets-us/annotations/DANN.GRCh37.ht"
         },
         "version": "GRCh37"
       },
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/DANN.GRCh38.ht",
-          "us": "gs://hail-datasets-us/datasets/1/DANN.GRCh38.ht"
+          "eu": "gs://hail-datasets-eu/annotations/DANN.GRCh38.ht",
+          "us": "gs://hail-datasets-us/annotations/DANN.GRCh38.ht"
         },
         "version": "GRCh38"
       }
@@ -131,17 +131,17 @@
     "versions": [
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh37.ht",
-          "us": "gs://hail-datasets-us/datasets/1/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh37.ht"
+          "eu": "gs://hail-datasets-eu/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh37.ht",
+          "us": "gs://hail-datasets-us/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh37.ht"
         },
-        "version": "95-GRCh37"
+        "version": "release_95-GRCh37"
       },
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh38.ht",
-          "us": "gs://hail-datasets-us/datasets/1/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh38.ht"
+          "eu": "gs://hail-datasets-eu/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh38.ht",
+          "us": "gs://hail-datasets-us/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh38.ht"
         },
-        "version": "95-GRCh38"
+        "version": "release_95-GRCh38"
       }
     ]
   },
@@ -154,17 +154,17 @@
     "versions": [
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/Ensembl_homo_sapiens_reference_genome.release_95.GRCh37.ht",
-          "us": "gs://hail-datasets-us/datasets/1/Ensembl_homo_sapiens_reference_genome.release_95.GRCh37.ht"
+          "eu": "gs://hail-datasets-eu/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh37.ht",
+          "us": "gs://hail-datasets-us/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh37.ht"
         },
-        "version": "95-GRCh37"
+        "version": "release_95-GRCh37"
       },
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/Ensembl_homo_sapiens_reference_genome.release_95.GRCh38.ht",
-          "us": "gs://hail-datasets-us/datasets/1/Ensembl_homo_sapiens_reference_genome.release_95.GRCh38.ht"
+          "eu": "gs://hail-datasets-eu/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh38.ht",
+          "us": "gs://hail-datasets-us/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh38.ht"
         },
-        "version": "95-GRCh38"
+        "version": "release_95-GRCh38"
       }
     ]
   },
@@ -262,8 +262,8 @@
     "versions": [
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/gene_specific_summary_2019-07.txt.gz.ht",
-          "us": "gs://hail-datasets-us/datasets/1/gene_specific_summary_2019-07.txt.gz.ht"
+          "eu": "gs://hail-datasets-eu/annotations/gene_specific_summary_2019-07.txt.gz.ht",
+          "us": "gs://hail-datasets-us/annotations/gene_specific_summary_2019-07.txt.gz.ht"
         },
         "version": "2019-07"
       }
@@ -276,15 +276,15 @@
     "versions": [
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/variant_summary_2019-07.GRCh37.txt.gz.ht",
-          "us": "gs://hail-datasets-us/datasets/1/variant_summary_2019-07.GRCh37.txt.gz.ht"
+          "eu": "gs://hail-datasets-eu/annotations/variant_summary_2019-07.GRCh37.txt.gz.ht",
+          "us": "gs://hail-datasets-us/annotations/variant_summary_2019-07.GRCh37.txt.gz.ht"
         },
         "version": "2019-07-GRCh37"
       },
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/variant_summary_2019-07.GRCh38.txt.gz.ht",
-          "us": "gs://hail-datasets-us/datasets/1/variant_summary_2019-07.GRCh38.txt.gz.ht"
+          "eu": "gs://hail-datasets-eu/annotations/variant_summary_2019-07.GRCh38.txt.gz.ht",
+          "us": "gs://hail-datasets-us/annotations/variant_summary_2019-07.GRCh38.txt.gz.ht"
         },
         "version": "2019-07-GRCh38"
       }
@@ -300,8 +300,8 @@
     "versions": [
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/dbnsfp/dbNSFP4.0_gene.complete.bgz.ht",
-          "us": "gs://hail-datasets-us/datasets/1/dbnsfp/dbNSFP4.0_gene.complete.bgz.ht"
+          "eu": "gs://hail-datasets-eu/annotations/dbnsfp/dbNSFP4.0_gene.complete.bgz.ht",
+          "us": "gs://hail-datasets-us/annotations/dbnsfp/dbNSFP4.0_gene.complete.bgz.ht"
         },
         "version": "4.0"
       }
@@ -314,15 +314,15 @@
     "versions": [
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/dbnsfp4.0a.GRCh37.ht",
-          "us": "gs://hail-datasets-us/datasets/1/dbnsfp4.0a.GRCh37.ht"
+          "eu": "gs://hail-datasets-eu/annotations/dbnsfp4.0a.GRCh37.ht",
+          "us": "gs://hail-datasets-us/annotations/dbnsfp4.0a.GRCh37.ht"
         },
         "version": "4.0-GRCh37"
       },
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/dbnsfp4.0a.GRCh38.ht",
-          "us": "gs://hail-datasets-us/datasets/1/dbnsfp4.0a.GRCh38.ht"
+          "eu": "gs://hail-datasets-eu/annotations/dbnsfp4.0a.GRCh38.ht",
+          "us": "gs://hail-datasets-us/annotations/dbnsfp4.0a.GRCh38.ht"
         },
         "version": "4.0-GRCh38"
       }
@@ -335,15 +335,15 @@
     "versions": [
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/gencode.v19.annotation.GRCh37.ht",
-          "us": "gs://hail-datasets-us/datasets/1/gencode.v19.annotation.GRCh37.ht"
+          "eu": "gs://hail-datasets-eu/annotations/gencode.v19.annotation.GRCh37.ht",
+          "us": "gs://hail-datasets-us/annotations/gencode.v19.annotation.GRCh37.ht"
         },
         "version": "GRCh37"
       },
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/gencode.v31.annotation.GRCh38.ht",
-          "us": "gs://hail-datasets-us/datasets/1/gencode.v31.annotation.GRCh38.ht"
+          "eu": "gs://hail-datasets-eu/annotations/gencode.v31.annotation.GRCh38.ht",
+          "us": "gs://hail-datasets-us/annotations/gencode.v31.annotation.GRCh38.ht"
         },
         "version": "GRCh38"
       }
@@ -356,15 +356,15 @@
     "versions": [
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/GERP_elements.GERP++.GRCh37.ht",
-          "us": "gs://hail-datasets-us/datasets/1/GERP_elements.GERP++.GRCh37.ht"
+          "eu": "gs://hail-datasets-eu/annotations/GERP_elements.GERP++.GRCh37.ht",
+          "us": "gs://hail-datasets-us/annotations/GERP_elements.GERP++.GRCh37.ht"
         },
         "version": "GRCh37"
       },
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/GERP_elements.GERP++.GRCh38.ht",
-          "us": "gs://hail-datasets-us/datasets/1/GERP_elements.GERP++.GRCh38.ht"
+          "eu": "gs://hail-datasets-eu/annotations/GERP_elements.GERP++.GRCh38.ht",
+          "us": "gs://hail-datasets-us/annotations/GERP_elements.GERP++.GRCh38.ht"
         },
         "version": "GRCh38"
       }
@@ -379,15 +379,15 @@
     "versions": [
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/GERP_scores.GERP++.GRCh37.ht",
-          "us": "gs://hail-datasets-us/datasets/1/GERP_scores.GERP++.GRCh37.ht"
+          "eu": "gs://hail-datasets-eu/annotations/GERP_scores.GERP++.GRCh37.ht",
+          "us": "gs://hail-datasets-us/annotations/GERP_scores.GERP++.GRCh37.ht"
         },
         "version": "GRCh37"
       },
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/GERP_scores.GERP++.GRCh38.ht",
-          "us": "gs://hail-datasets-us/datasets/1/GERP_scores.GERP++.GRCh38.ht"
+          "eu": "gs://hail-datasets-eu/annotations/GERP_scores.GERP++.GRCh38.ht",
+          "us": "gs://hail-datasets-us/annotations/GERP_scores.GERP++.GRCh38.ht"
         },
         "version": "GRCh38"
       }
@@ -448,8 +448,8 @@
     "versions": [
       {
         "url": {
-          "eu": "gs://hail-datasets-eu/datasets/1/gnomad_v2.1.1_lof_metrics_by_gene.ht",
-          "us": "gs://hail-datasets-us/datasets/1/gnomad_v2.1.1_lof_metrics_by_gene.ht"
+          "eu": "gs://hail-datasets-eu/annotations/gnomad_v2.1.1_lof_metrics_by_gene.ht",
+          "us": "gs://hail-datasets-us/annotations/gnomad_v2.1.1_lof_metrics_by_gene.ht"
         },
         "version": "2.1.1"
       }
