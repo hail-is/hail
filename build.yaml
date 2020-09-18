@@ -1235,7 +1235,6 @@ steps:
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
      export HAIL_TEST_BUCKET=hail-test-dmk9z
-     export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=2
      export HAIL_QUERY_BACKEND=local
