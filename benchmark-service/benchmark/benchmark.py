@@ -69,9 +69,10 @@ def get_comparisons(benchmarks1, benchmarks2, metric):
         if metric == 'median':
             return data.get('median')
         assert metric == 'best'
-        if data.get('times') is None:
-            return None
-        return min(data.get('times'))
+        times = data.get('times')
+        if times:
+            return min(times)
+        return None
 
     d1_keys = set(benchmarks1['data'].keys())
     d2_keys = set(benchmarks2['data'].keys())
@@ -167,8 +168,9 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 
 @router.get('/')
 @router.get('')
-@web_authenticated_developers_only(redirect=False)
-async def index(request, userdata):  # pylint: disable=unused-argument
+#@web_authenticated_developers_only(redirect=False)
+async def index(request):  # pylint: disable=unused-argument
+    userdata = {}
     app = request.app
     file = request.query.get('file')
     if file is None:
@@ -182,8 +184,9 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 
 @router.get('/compare')
-@web_authenticated_developers_only(redirect=False)
-async def compare(request, userdata):  # pylint: disable=unused-argument
+#@web_authenticated_developers_only(redirect=False)
+async def compare(request):  # pylint: disable=unused-argument
+    userdata = {}
     app = request.app
     file1 = request.query.get('file1')
     file2 = request.query.get('file2')

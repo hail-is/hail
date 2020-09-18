@@ -64,5 +64,7 @@
     var files = {{ benchmark_file_list|tojson }};
 </script>
 <script src="{{ base_path }}/static/js/autocomplete.js"></script>
-
+<script>
+    autoComplete("gs://...", ".autoComplete")
+</script>
 {% endblock %}
