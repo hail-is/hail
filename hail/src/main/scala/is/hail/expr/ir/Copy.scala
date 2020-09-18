@@ -12,6 +12,7 @@ object Copy {
       case True() => True()
       case False() => False()
       case Literal(typ, value) => Literal(typ, value)
+      case EncodedLiteral(codec, value) => EncodedLiteral(codec, value)
       case Void() => Void()
       case Cast(_, typ) =>
         assert(newChildren.length == 1)
