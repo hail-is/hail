@@ -15,6 +15,7 @@ object InferType {
       case Str(_) => TString
       case UUID4(_) => TString
       case Literal(t, _) => t
+      case EncodedLiteral(codec, _) => codec.encodedVirtualType
       case True() | False() => TBoolean
       case Void() => TVoid
       case Cast(_, t) => t
