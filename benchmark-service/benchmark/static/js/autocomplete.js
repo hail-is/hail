@@ -1,4 +1,4 @@
-function autoComplete(placeHolder, selector) {
+function autoComplete(place_holder, str_selector) {
     return new autoComplete({
                    data: {                              // Data src [Array, Function, Async] | (REQUIRED)
                      src: files,
@@ -9,8 +9,8 @@ function autoComplete(placeHolder, selector) {
                        if (a.match > b.match) return 1;
                        return 0;
                    },
-                   placeHolder: placeHolder,     // Place Holder text                 | (Optional)
-                   selector: selector,           // Input field selector              | (Optional)
+                   placeHolder: place_holder,     // Place Holder text                 | (Optional)
+                   selector: str_selector,           // Input field selector              | (Optional)
                    threshold: 2,                        // Min. Chars length to start Engine | (Optional)
                    debounce: 300,                       // Post duration for engine to start | (Optional)
                    searchEngine: "strict",              // Search Engine type/mode           | (Optional)
@@ -21,7 +21,7 @@ function autoComplete(placeHolder, selector) {
                        container: source => {
                            source.setAttribute("class", "file_list");
                        },
-                       destination: document.querySelector(selector),
+                       destination: document.querySelector(str_selector),
                        position: "afterend",
                        element: "ul"
                    },
@@ -42,7 +42,7 @@ function autoComplete(placeHolder, selector) {
                    },
                    onSelection: feedback => {
                    feedback.event.preventDefault();
-                   document.querySelector(selector).value = feedback.selection.value;
+                   document.querySelector(str_selector).value = feedback.selection.value;
              }
            });
 }

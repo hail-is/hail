@@ -10,12 +10,6 @@ def get_geometric_mean(prod_of_means, num_of_means):
     return prod_of_means ** (1.0 / num_of_means)
 
 
-def round_if_defined(x):
-    if x is not None:
-        return round(x, 6)
-    return None
-
-
 def parse_file_path(regex, name):
     match = regex.fullmatch(name)
     return match.groupdict()
