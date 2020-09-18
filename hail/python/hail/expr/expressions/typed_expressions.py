@@ -1,4 +1,7 @@
 from typing import Mapping, Dict, Sequence
+
+from deprecated import deprecated
+
 import hail as hl
 from .indices import Indices, Aggregation
 from .base_expression import Expression, ExpressionException, to_expr, \
@@ -509,6 +512,7 @@ class ArrayExpression(CollectionExpression):
         """
         return self._method("contains", tbool, item)
 
+    @deprecated(version="0.2.58", reason="Replaced by first")
     def head(self):
         """Returns the first element of the array, or missing if empty.
 
@@ -600,7 +604,7 @@ class ArrayExpression(CollectionExpression):
         else:
             def f(elt, x):
                 return elt == x
-        return hl.bind(lambda a: hl.range(0, a.length()).filter(lambda i: f(a[i], x)).head(), self)
+        return hl.bind(lambda a: hl.range(0, a.length()).filter(lambda i: f(a[i], x)).first(), self)
 
     @typecheck_method(item=expr_any)
     def append(self, item):
