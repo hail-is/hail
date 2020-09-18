@@ -91,6 +91,21 @@ final case class Literal(_typ: Type, value: Annotation) extends IR {
   // require(SafeRow.isSafe(value))
 }
 
+object EncodedLiteral {
+
+  def hailValueToByteArray(pt: PType, addr: Long, ctx: ExecuteContext): IR = {
+    val etype = EType.defaultFromPType(pt)
+    val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.defaultUncompressed)
+    val bytes = codec.encode(ctx, pt, addr)
+    EncodedLiteral(codec, bytes)
+  }
+}
+
+final case class EncodedLiteral(codec: TypedCodecSpec, value: Array[Byte]) extends IR {
+//  !CanEmit(codec.encodedVirtualType)
+//  require(value != null)
+}
+
 final case class I32(x: Int) extends IR
 final case class I64(x: Long) extends IR
 final case class F32(x: Float) extends IR
