@@ -1,4 +1,4 @@
-function autoComplete(place_holder, str_selector) {
+function auto_complete(place_holder, str_selector) {
      new autoComplete({
                    data: {                              // Data src [Array, Function, Async] | (REQUIRED)
                      src: files,
