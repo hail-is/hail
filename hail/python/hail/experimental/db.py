@@ -4,7 +4,8 @@ import pkg_resources
 import requests
 import hail as hl
 
-from hailtop.utils import retry_response_returning_functions
+from hailtop.utils import (retry_response_returning_functions,
+                           external_requests_client_session)
 
 from ..utils.java import Env
 from ..typecheck import typecheck_method, oneof
@@ -104,8 +105,9 @@ class DB:
                 with open(config_path) as f:
                     config = json.load(f)
             else:
+                session = external_requests_client_session()
                 response = retry_response_returning_functions(
-                    requests.get, url)
+                    session.get, url)
                 config = response.json()
             assert isinstance(config, dict)
         else:

@@ -110,7 +110,9 @@ def in_cluster_ssl_requests_client_session() -> requests.Session:
     ssl_config = _get_ssl_config()
     session.mount('https://', TLSAdapter(ssl_config['cert'],
                                          ssl_config['key'],
-                                         ssl_config['outgoing_trust']))
+                                         ssl_config['outgoing_trust'],
+                                         retries=1,
+                                         timeout=5))
     return session
 
 
@@ -124,15 +126,22 @@ def check_ssl_config(ssl_config: Dict[str, str]):
 
 
 class TLSAdapter(HTTPAdapter):
-    def __init__(self, ssl_cert, ssl_key, ssl_ca):
+    def __init__(self, ssl_cert, ssl_key, ssl_ca, max_retries, timeout):
         super().__init__()
         self.ssl_cert = ssl_cert
         self.ssl_key = ssl_key
         self.ssl_ca = ssl_ca
+        self.max_retries = max_retries
+        self.timeout = timeout
 
     def init_poolmanager(self, connections, maxsize, block=False):
         self.poolmanager = PoolManager(
+            num_pools=connections,
+            maxsize=maxsize,
+            block=block,
             key_file=self.ssl_key,
             cert_file=self.ssl_cert,
             ca_certs=self.ssl_ca,
-            assert_hostname=True)
+            assert_hostname=True,
+            retries=self.max_retries,
+            timeout=self.timeout)
