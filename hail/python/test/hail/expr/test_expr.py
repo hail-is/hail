@@ -2372,6 +2372,11 @@ class Tests(unittest.TestCase):
         assert hl.eval(a.head()) == 1
         assert hl.eval(a.filter(lambda x: x > 5).head()) is None
 
+    def test_array_tail(self):
+        a = hl.array([1, 2, 3])
+        assert hl.eval(a.tail()) == 3
+        assert hl.eval(a.filter(lambda x: x > 5).tail()) is None
+
     def test_array_index(self):
         a = hl.array([1,2,3])
         assert hl.eval(a.index(2) == 1)

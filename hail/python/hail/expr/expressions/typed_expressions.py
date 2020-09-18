@@ -529,6 +529,25 @@ class ArrayExpression(CollectionExpression):
         # FIXME: this should generate short-circuiting IR when that is possible
         return hl.rbind(self, lambda x: hl.case().when(x.length() > 0, x[0]).or_missing())
 
+    def tail(self):
+        """Returns the last element of the array, or missing if empty.
+
+        Returns
+        -------
+        :class:`.Expression`
+            Element.
+
+        Examples
+        --------
+        >>> hl.eval(names.head())
+        'Charlie'
+
+        If the array has no elements, then the result is missing:
+        >>> hl.eval(names.filter(lambda x: x.startswith('D')).tail())
+        None
+        """
+        return hl.rbind(self, hl.len(self), lambda x, n: hl.or_missing(n > 0, x[n - 1]))
+
     @typecheck_method(x=oneof(func_spec(1, expr_any), expr_any))
     def index(self, x):
         """Returns the first index of `x`, or missing.
