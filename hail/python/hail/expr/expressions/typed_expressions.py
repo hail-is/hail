@@ -539,7 +539,7 @@ class ArrayExpression(CollectionExpression):
 
         Examples
         --------
-        >>> hl.eval(names.head())
+        >>> hl.eval(names.tail())
         'Charlie'
 
         If the array has no elements, then the result is missing:
