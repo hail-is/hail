@@ -2564,7 +2564,7 @@ class Emit[C](
 
               val bodyEnv = env.bind(lName, lElemRef)
                 .bind(rName, rElemRef)
-              val bodyt = dEmit(body, bodyEnv)//emitSelf.emit(body, elemMB, bodyEnv, None)
+              val bodyt = dEmit(body, bodyEnv)
 
               val lIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(elemMB, idxVars, nDims, leftChildEmitter.outputShape)
               val rIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(elemMB, idxVars, nDims, rightChildEmitter.outputShape)
