@@ -402,6 +402,7 @@ LIMIT %s;
                 if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
                     if random.random() > self.exceeded_shares_counter.rate():
                         self.exceeded_shares_counter.push(True)
+                        self.scheduler_state_changed.set()
                         break
                     self.exceeded_shares_counter.push(False)
 
