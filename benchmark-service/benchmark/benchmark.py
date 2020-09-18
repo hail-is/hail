@@ -7,7 +7,7 @@ from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials,\
-    list_benchmark_files, round_if_defined
+    list_benchmark_files
 import json
 import re
 import plotly
@@ -41,17 +41,17 @@ def get_benchmarks(app, file_path):
     prod_of_means = 1
     for d in pre_data['benchmarks']:
         stats = dict()
-        stats['name'] = d.get('name')
-        stats['failed'] = d.get('failed')
+        stats['name'] = d['name']
+        stats['failed'] = d['failed']
         if not d['failed']:
-            prod_of_means *= d.get('mean', 1)
-            stats['f-stat'] = round_if_defined(d.get('f-stat'))
-            stats['mean'] = round_if_defined(d.get('mean'))
-            stats['median'] = round_if_defined(d.get('median'))
-            stats['p-value'] = round_if_defined(d.get('p-value'))
-            stats['stdev'] = round_if_defined(d.get('stdev'))
-            stats['times'] = d.get('times')
-            stats['trials'] = d.get('trials')
+            prod_of_means *= d['mean']
+            stats['f-stat'] = round(d['f-stat'], 6)
+            stats['mean'] = round(d['mean'], 6)
+            stats['median'] = round(d['median'], 6)
+            stats['p-value'] = round(d['p-value'], 6)
+            stats['stdev'] = round(d['stdev'], 6)
+            stats['times'] = d['times']
+            stats['trials'] = d['trials']
         data[stats['name']] = stats
     geometric_mean = get_geometric_mean(prod_of_means, len(pre_data['benchmarks']))
 
@@ -67,12 +67,9 @@ def get_benchmarks(app, file_path):
 def get_comparisons(benchmarks1, benchmarks2, metric):
     def get_metric(data):
         if metric == 'median':
-            return data.get('median')
+            return data['median']
         assert metric == 'best'
-        times = data.get('times')
-        if times:
-            return min(times)
-        return None
+        return min(data['times'])
 
     d1_keys = set(benchmarks1['data'].keys())
     d2_keys = set(benchmarks2['data'].keys())
@@ -93,15 +90,11 @@ def get_comparisons(benchmarks1, benchmarks2, metric):
 
 
 def fmt_time(t):
-    if t is not None:
-        return round(t, 3)
-    return None
+    return round(t, 3)
 
 
 def fmt_diff(ratio):
-    if ratio is not None:
-        return round(ratio * 100, 3)
-    return None
+    return round(ratio * 100, 3)
 
 
 def final_comparisons(comparisons):
