@@ -139,7 +139,13 @@ class BatchPoolExecutor:
         self.finished_future_count = 0
         self._shutdown = False
         version = sys.version_info
-        self.image = image or f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
+        if image is None:
+            if version.major != 3 or version.minor not in (6, 7, 8):
+                raise ValueError(
+                    f'You must specify an image if you are using a Python version other than 3.6, 3.7, or 3.8')
+            self.image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
+        else:
+            self.image = image
         self.cpus_per_job = cpus_per_job
         self.cleanup_bucket = cleanup_bucket
         self.wait_on_exit = wait_on_exit
