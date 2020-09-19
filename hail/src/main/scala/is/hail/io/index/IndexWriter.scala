@@ -86,7 +86,7 @@ object IndexWriter {
 class IndexWriter(keyType: PType, valueType: PType, comp: CompiledIndexWriter) extends AutoCloseable {
   private val region = Region()
   private val rvb = new RegionValueBuilder(region)
-  def +=(x: Annotation, offset: Long, annotation: Annotation): Unit = {
+  def appendRow(x: Annotation, offset: Long, annotation: Annotation): Unit = {
     rvb.start(keyType)
     rvb.addAnnotation(keyType.virtualType, x)
     val koff = rvb.end()
@@ -95,6 +95,8 @@ class IndexWriter(keyType: PType, valueType: PType, comp: CompiledIndexWriter) e
     val voff = rvb.end()
     comp.apply(koff, offset, voff)
   }
+
+  def trackedOS(): ByteTrackingOutputStream = comp.trackedOS()
 
   def close(): Unit = {
     region.close()
@@ -226,6 +228,7 @@ class IndexWriterUtils(path: String, fs: FS, meta: StagedIndexMetadata) {
 
 trait CompiledIndexWriter {
   def init(path: String): Unit
+  def trackedOS(): ByteTrackingOutputStream
   def apply(x: Long, offset: Long, annotation: Long): Unit
   def close(): Unit
 }
@@ -254,6 +257,10 @@ object StagedIndexWriter {
     }
     cb.newEmitMethod("close", FastIndexedSeq[ParamType](), typeInfo[Unit])
       .voidWithBuilder(siw.close)
+
+    cb.newEmitMethod("trackedOS", FastIndexedSeq[ParamType](), typeInfo[ByteTrackingOutputStream])
+      .emitWithBuilder[ByteTrackingOutputStream] { _ => Code.checkcast[ByteTrackingOutputStream](siw.utils.os) }
+
     val makeFB = fb.resultWithIndex()
 
     { path: String =>

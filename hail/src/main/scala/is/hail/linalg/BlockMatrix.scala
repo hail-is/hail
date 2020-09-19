@@ -20,7 +20,7 @@ import is.hail.io._
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.{ContextRDD, OriginUnionPartition, OriginUnionRDD}
 import is.hail.utils._
-import is.hail.utils.richUtils.{RichArray, RichContextRDD, RichDenseMatrixDouble}
+import is.hail.utils.richUtils.{ByteTrackingOutputStream, RichArray, RichContextRDD, RichDenseMatrixDouble}
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
 import org.apache.commons.lang3.StringUtils
@@ -353,15 +353,17 @@ object BlockMatrix {
       fs.mkDir(uri + "/parts")
     }
 
-    def writeBlock(ctx: RVDContext, it: Iterator[((Int, Int), BDM[Double])], os: OutputStream, iw: IndexWriter): Long = {
+    def writeBlock(ctx: RVDContext, it: Iterator[((Int, Int), BDM[Double])], os: OutputStream, iw: IndexWriter): (Long, Long) = {
+      val btos = new ByteTrackingOutputStream(os)
       assert(it.hasNext)
       val (_, lm) = it.next()
       assert(!it.hasNext)
 
-      lm.write(os, forceRowMajor, bufferSpec)
-      os.close()
+      lm.write(btos, forceRowMajor, bufferSpec)
+      val bytesWritten = btos.bytesWritten
+      btos.close()
 
-      1L
+      (1L, bytesWritten)
     }
 
     if (bms.isEmpty) {
@@ -388,20 +390,20 @@ object BlockMatrix {
       val trueIt = it(ctx)
       val rootPath = blockMatrixURI(rddIndex)
       val fileName = partFile(numDigits, partIndex, TaskContext.get)
-      val nameAndCountIt = RichContextRDD.writeParts(ctx, rootPath, fileName, null, (_) => null, false, fs, tmpdir, trueIt, writeBlock)
-      nameAndCountIt.map { case (name, count) => (name, rddIndex) }
+      val fileDataIterator = RichContextRDD.writeParts(ctx, rootPath, fileName, null, (_) => null, false, fs, tmpdir, trueIt, writeBlock)
+      fileDataIterator.map { fd => (fd, rddIndex) }
     }
 
     val rddNumberAndPartFiles = writerRDD.collect()
     val grouped = rddNumberAndPartFiles.groupBy(_._2)
     grouped.foreach { case (rddIndex, numberedPartFiles) =>
-      val partFiles = numberedPartFiles.map { case (partFileName, _) => partFileName }
+      val fileData = numberedPartFiles.map { case (partFileName, _) => partFileName }
       val metadataPath = blockMatrixURI(rddIndex.toInt) + metadataRelativePath
       using(new DataOutputStream(fs.create(metadataPath))) { os =>
         implicit val formats = defaultJSONFormats
         val (blockSize, nRows, nCols, maybeBlocks) = blockMatrixMetadataFields(rddIndex.toInt)
         jackson.Serialization.write(
-          BlockMatrixMetadata(blockSize, nRows, nCols, maybeBlocks, partFiles), os
+          BlockMatrixMetadata(blockSize, nRows, nCols, maybeBlocks, fileData.map(_.path)), os
         )
       }
 
@@ -854,30 +856,32 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
     fs.mkDir(uri)
 
-    def writeBlock(it: Iterator[((Int, Int), BDM[Double])], os: OutputStream): Int = {
+    def writeBlock(it: Iterator[((Int, Int), BDM[Double])], os: OutputStream): (Long, Long) = {
       assert(it.hasNext)
       val (_, lm) = it.next()
       assert(!it.hasNext)
 
-      lm.write(os, forceRowMajor, bufferSpec)
-      os.close()
+      val btos = new ByteTrackingOutputStream(os)
+      lm.write(btos, forceRowMajor, bufferSpec)
+      val bytesWritten = btos.bytesWritten
+      btos.close()
 
-      1
+      (1L, bytesWritten)
     }
 
-    val (partFiles, partitionCounts) = blocks.writePartitions(ctx, uri, stageLocally, writeBlock)
+    val fileData = blocks.writePartitions(ctx, uri, stageLocally, writeBlock)
 
     using(new DataOutputStream(fs.create(uri + metadataRelativePath))) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, nRows, nCols, gp.partitionIndexToBlockIndex, partFiles),
+        BlockMatrixMetadata(blockSize, nRows, nCols, gp.partitionIndexToBlockIndex, fileData.map(_.path)),
         os)
     }
 
     using(fs.create(uri + "/_SUCCESS"))(out => ())
 
-    val nBlocks = partitionCounts.length
-    assert(nBlocks == partitionCounts.sum)
+    val nBlocks = fileData.length
+    assert(nBlocks == fileData.map(_.rowsWritten).sum)
     info(s"wrote matrix with $nRows ${ plural(nRows, "row") } " +
       s"and $nCols ${ plural(nCols, "column") } " +
       s"as $nBlocks ${ plural(nBlocks, "block") } " +

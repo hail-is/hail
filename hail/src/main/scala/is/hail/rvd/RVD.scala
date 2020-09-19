@@ -793,11 +793,11 @@ class RVD(
 
   def storageLevel: StorageLevel = StorageLevel.NONE
 
-  def write(ctx: ExecuteContext, path: String, idxRelPath: String, stageLocally: Boolean, codecSpec: AbstractTypedCodecSpec): Array[Long] = {
-    val (partFiles, partitionCounts) = crdd.writeRows(ctx, path, idxRelPath, typ, stageLocally, codecSpec)
-    val spec = MakeRVDSpec(codecSpec, partFiles, partitioner, IndexSpec.emptyAnnotation(idxRelPath, typ.kType))
+  def write(ctx: ExecuteContext, path: String, idxRelPath: String, stageLocally: Boolean, codecSpec: AbstractTypedCodecSpec): Array[FileWriteMetadata] = {
+    val fileData = crdd.writeRows(ctx, path, idxRelPath, typ, stageLocally, codecSpec)
+    val spec = MakeRVDSpec(codecSpec, fileData.map(_.path), partitioner, IndexSpec.emptyAnnotation(idxRelPath, typ.kType))
     spec.write(ctx.fs, path)
-    partitionCounts
+    fileData
   }
 
   def writeRowsSplit(
@@ -806,7 +806,7 @@ class RVD(
     bufferSpec: BufferSpec,
     stageLocally: Boolean,
     targetPartitioner: RVDPartitioner
-  ): Array[Long] = {
+  ): Array[FileWriteMetadata] = {
     val localTmpdir = execCtx.localTmpdir
     val fs = execCtx.fs
     val fsBc = fs.broadcast
@@ -836,7 +836,7 @@ class RVD(
 
     val localTyp = typ
 
-    val partFilePartitionCounts: Array[(String, Long)] =
+    val fileData: Array[FileWriteMetadata] =
       if (targetPartitioner != null) {
         val nInputParts = partitioner.numPartitions
         val nOutputParts = targetPartitioner.numPartitions
@@ -915,7 +915,7 @@ class RVD(
                   def next(): Long = bit.next()
                 }
 
-                val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
+                RichContextRDDRegionValue.writeSplitRegion(
                   localTmpdir,
                   fsBc.value,
                   path,
@@ -928,8 +928,6 @@ class RVD(
                   makeIndexWriter,
                   makeRowsEnc,
                   makeEntriesEnc)
-
-                partFileAndCount
               }
             }
           }.collect()
@@ -954,14 +952,13 @@ class RVD(
         }.collect()
       }
 
-    val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
 
     RichContextRDDRegionValue.writeSplitSpecs(fs, path,
       rowsCodecSpec, entriesCodecSpec, rowsIndexSpec, entriesIndexSpec,
-      typ, rowsRVType, entriesRVType, partFiles,
+      typ, rowsRVType, entriesRVType, fileData.map(_.path),
       if (targetPartitioner != null) targetPartitioner else partitioner)
 
-    partitionCounts
+    fileData
   }
 
   // Joining
@@ -1449,7 +1446,7 @@ object RVD {
     path: String,
     bufferSpec: BufferSpec,
     stageLocally: Boolean
-  ): Array[Array[Long]] = {
+  ): Array[Array[FileWriteMetadata]] = {
     val first = rvds.head
     rvds.foreach {rvd =>
       if (rvd.typ != first.typ)
@@ -1495,7 +1492,7 @@ object RVD {
         val fs = fsBc.value
         val s = StringUtils.leftPad(originIdx.toString, fileDigits, '0')
         val fullPath = path + s + ".mt"
-        val (f, rowCount) = RichContextRDDRegionValue.writeSplitRegion(
+        val fileData = RichContextRDDRegionValue.writeSplitRegion(
           localTmpdir,
           fsBc.value,
           fullPath,
@@ -1508,7 +1505,7 @@ object RVD {
           makeIndexWriter,
           makeRowsEnc,
           makeEntriesEnc)
-        Iterator.single((f, rowCount, originIdx))
+        Iterator.single((fileData, originIdx))
       }
     }
 
@@ -1516,27 +1513,24 @@ object RVD {
       new OriginUnionRDD(first.crdd.rdd.sparkContext, rvds.map(_.crdd.rdd), partF))
       .collect()
 
-    val partFilesByOrigin = Array.fill[ArrayBuilder[String]](nRVDs)(new ArrayBuilder())
-    val partitionCountsByOrigin = Array.fill[ArrayBuilder[Long]](nRVDs)(new ArrayBuilder())
+    val fileDataByOrigin = Array.fill[ArrayBuilder[FileWriteMetadata]](nRVDs)(new ArrayBuilder())
 
-    for ((f, rowCount, oidx) <- partFilePartitionCounts) {
-      partFilesByOrigin(oidx) += f
-      partitionCountsByOrigin(oidx) += rowCount
+    for ((fd, oidx) <- partFilePartitionCounts) {
+      fileDataByOrigin(oidx) += fd
     }
 
-    val partFiles = partFilesByOrigin.map(_.result())
-    val partCounts = partitionCountsByOrigin.map(_.result())
+    val fileData = fileDataByOrigin.map(_.result())
 
-    sc.parallelize(partFiles.zipWithIndex, partFiles.length)
+    sc.parallelize(fileData.zipWithIndex, fileData.length)
       .foreach { case (partFiles, i) =>
         val fs = fsBc.value
         val s = StringUtils.leftPad(i.toString, fileDigits, '0')
         val basePath = path + s + ".mt"
         RichContextRDDRegionValue.writeSplitSpecs(fs, basePath,
           rowsCodecSpec, entriesCodecSpec, rowsIndexSpec, entriesIndexSpec,
-          localTyp, rowsRVType, entriesRVType, partFiles, partitionerBc.value)
+          localTyp, rowsRVType, entriesRVType, partFiles.map(_.path), partitionerBc.value)
       }
 
-    partCounts
+    fileData
   }
 }

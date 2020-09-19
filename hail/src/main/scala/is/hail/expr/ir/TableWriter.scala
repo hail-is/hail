@@ -96,10 +96,11 @@ case class TableNativeWriter(
 
     val globalsPath = path + "/globals"
     fs.mkDir(globalsPath)
-    AbstractRVDSpec.writeSingle(ctx, globalsPath, tv.globals.t, bufferSpec, Array(tv.globals.javaValue))
+    val Array(globalFileData) = AbstractRVDSpec.writeSingle(ctx, globalsPath, tv.globals.t, bufferSpec, Array(tv.globals.javaValue))
 
     val codecSpec = TypedCodecSpec(tv.rvd.rowPType, bufferSpec)
-    val partitionCounts = tv.rvd.write(ctx, path + "/rows", "../index", stageLocally, codecSpec)
+    val fileData = tv.rvd.write(ctx, path + "/rows", "../index", stageLocally, codecSpec)
+    val partitionCounts = fileData.map(_.rowsWritten)
 
     val referencesPath = path + "/references"
     fs.mkDir(referencesPath)
@@ -120,10 +121,29 @@ case class TableNativeWriter(
 
     using(fs.create(path + "/_SUCCESS"))(_ => ())
 
+    val partitionBytesWritten = fileData.map(_.bytesWritten)
+    val totalRowsBytes = partitionBytesWritten.sum
+    val globalBytesWritten = globalFileData.bytesWritten
+    val totalBytesWritten: Long = totalRowsBytes + globalBytesWritten
+    val (smallestStr, largestStr) = if (fileData.isEmpty)
+      ("N/A", "N/A")
+    else {
+      val smallestPartition = fileData.minBy(_.bytesWritten)
+      val largestPartition = fileData.maxBy(_.bytesWritten)
+      val smallestStr = s"${ smallestPartition.rowsWritten } rows (${ formatSpace(smallestPartition.bytesWritten) })"
+      val largestStr = s"${ largestPartition.rowsWritten } rows (${ formatSpace(largestPartition.bytesWritten) })"
+      (smallestStr, largestStr)
+    }
+
     val nRows = partitionCounts.sum
     info(s"wrote table with $nRows ${ plural(nRows, "row") } " +
       s"in ${ partitionCounts.length } ${ plural(partitionCounts.length, "partition") } " +
-      s"to $path")
+      s"to $path" +
+      s"\n    Total size: ${ formatSpace(totalBytesWritten) }" +
+      s"\n    * Rows: ${ formatSpace(totalRowsBytes) }" +
+      s"\n    * Globals: ${ formatSpace(globalBytesWritten) }" +
+      s"\n    * Smallest partition: $smallestStr" +
+      s"\n    * Largest partition:  $largestStr")
   }
 }
 
