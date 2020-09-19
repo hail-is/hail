@@ -127,6 +127,8 @@ steps:
        to: /repo/batch/
      - from: /io/repo/batch/test
        to: /repo/batch/
+     - from: /io/repo/memory/test
+       to: /repo/memory/
      - from: /io/repo/notebook/sql
        to: /repo/notebook/
      - from: /io/repo/monitoring/sql
@@ -618,6 +620,29 @@ steps:
     - default_ns
     - batch_pods_ns
     - deploy_query_sa
+ - kind: buildImage
+   name: memory_image
+   dockerFile: memory/Dockerfile
+   contextPath: .
+   publishAs: memory
+   dependsOn:
+     - service_base_image
+ - kind: deploy
+   name: deploy_memory_sa
+   namespace:
+     valueFrom: default_ns.name
+   config: memory/service-account.yaml
+   dependsOn:
+    - default_ns
+ - kind: deploy
+   name: deploy_memory_sa_batch_pods
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: memory/service-account-batch-pods.yaml
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - deploy_memory_sa
  - kind: buildImage
    name: shuffler_image
    dockerFile: shuffler/Dockerfile
@@ -1726,6 +1751,23 @@ steps:
     - deploy_query_sa
     - deploy_query_sa_batch_pods
     - create_certs
+ - kind: deploy
+   name: deploy_memory
+   namespace:
+     valueFrom: default_ns.name
+   config: memory/deployment.yaml
+   wait:
+    - kind: Service
+      name: memory
+      for: alive
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - deploy_batch
+    - memory_image
+    - deploy_memory_sa
+    - deploy_memory_sa_batch_pods
+    - create_certs
  - kind: runImage
    name: test_query
    image:
@@ -1784,6 +1826,48 @@ steps:
      inline: |
        FROM ubuntu:18.04
        RUN apt-get update && apt-get install curl -y
+ - kind: runImage
+   name: test_memory
+   image:
+     valueFrom: memory_image.image
+   resources:
+     memory: "3.75G"
+     cpu: "1"
+   script: |
+     export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+     export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     export PROJECT={{ global.project }}
+     hailctl config set batch/bucket hail-test-dmk9z
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
+   timeout: 600
+   secrets: 
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: ssl-config-memory-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
+   inputs:
+    - from: /repo/memory/test
+      to: /io/
+   dependsOn:
+    - create_deploy_config
+    - create_accounts
+    - default_ns
+    - batch_pods_ns
+    - copy_files
+    - memory_image
+    - deploy_memory
  - kind: runImage
    name: test_batch_0
    image:
