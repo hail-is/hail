@@ -12,8 +12,8 @@ from hailtop.utils import async_to_blocking
 class BlockingMemoryClient:
     def __init__(self, gcs_project=None, fs=None, deploy_config=None, session=None,
                  headers=None, _token=None):
-        self._client = MemoryClient()
-        async_to_blocking(self._client.async_init(gcs_project, fs, deploy_config, session, headers, _token))
+        self._client = MemoryClient(gcs_project, fs, deploy_config, session, headers, _token)
+        async_to_blocking(self._client.async_init())
 
     def _get_file_if_exists(self, filename):
         return async_to_blocking(self._client._get_file_if_exists(filename))
