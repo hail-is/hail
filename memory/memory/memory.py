@@ -65,20 +65,20 @@ def make_redis_key(username, filepath):
 
 
 async def get_file_or_none(app, username, userinfo, filepath, etag):
-    filekey = make_redis_key(username, filepath)
+    file_key = make_redis_key(username, filepath)
     fs = userinfo['fs']
 
-    cached_etag, result = await app['redis_pool'].execute('HMGET', filekey, 'etag', 'body')
+    cached_etag, result = await app['redis_pool'].execute('HMGET', file_key, 'etag', 'body')
     if cached_etag is not None and cached_etag.decode('ascii') == etag:
         log.info(f"memory: Retrieved file {filepath} for user {username} with etag'{etag}'")
         return cached_etag.decode('ascii'), result
 
     log.info(f"memory: Couldn't retrieve file {filepath} for user {username}: current version not in cache.")
-    if filekey not in app['files_in_progress']:
+    if file_key not in app['files_in_progress']:
         try:
             log.info(f"memory: Loading {filepath} to cache for user {username}")
-            app['worker_pool'].call_nowait(load_file, app['redis_pool'], app['files_in_progress'], filekey, fs, filepath)
-            files.add(file_key)
+            app['worker_pool'].call_nowait(load_file, app['redis_pool'], app['files_in_progress'], file_key, fs, filepath)
+            app['files_in_progress'].add(file_key)
         except asyncio.QueueFull:
             pass
     return None
