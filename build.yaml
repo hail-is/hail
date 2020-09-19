@@ -627,16 +627,6 @@ steps:
    publishAs: memory
    dependsOn:
      - service_base_image
- - kind: runImage
-   name: check_memory
-   image:
-     valueFrom: memory_image.image
-   script: |
-     set -ex
-     python3 -m flake8 memory
-     python3 -m pylint --rcfile pylintrc memory
-   dependsOn:
-     - memory_image
  - kind: deploy
    name: deploy_memory_sa
    namespace:

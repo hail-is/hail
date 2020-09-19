@@ -13,8 +13,8 @@ check-hail:
 	make -C hail/python check
 
 .PHONY: check-services
-check-services: check-auth check-batch check-ci check-gear check-notebook \
-  check-query check-router-resolver check-scorecard check-web-common
+check-services: check-auth check-batch check-ci check-gear check-memory \
+  check-notebook check-query check-router-resolver check-scorecard check-web-common
 
 .PHONY: check-auth
 check-auth:
@@ -35,6 +35,10 @@ check-ci:
 .PHONY: check-gear
 check-gear:
 	make -C gear check
+
+.PHONY: check-memory
+check-memory:
+	make -C memory check
 
 .PHONY: check-notebook
 check-notebook:
