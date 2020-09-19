@@ -289,9 +289,7 @@ class VCFTests(unittest.TestCase):
         hl.export_vcf(mt.rows(), tmp)
         assert hl.import_vcf(tmp)._same(mt)
 
-    @skip_unless_spark_backend()
-    def test_import_gvcfs(self):
-        path = resource('sample.vcf.bgz')
+    def import_gvcfs_sample_vcf(self, path):
         parts = [
             hl.Interval(start=hl.Struct(locus=hl.Locus('20', 1)),
                         end=hl.Struct(locus=hl.Locus('20', 13509135)),
@@ -321,6 +319,18 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(hl.filter_intervals(vcf2, interval_a).n_partitions(), 2)
         self.assertEqual(hl.filter_intervals(vcf2, interval_b).n_partitions(), 2)
         self.assertEqual(hl.filter_intervals(vcf2, interval_c).n_partitions(), 3)
+
+    @skip_unless_spark_backend()
+    def test_tabix_export(self):
+        mt = hl.import_vcf(resource('sample.vcf.bgz'))
+        tmp = new_temp_file(extension="bgz")
+        hl.export_vcf(mt, tmp, tabix=True)
+        self.import_gvcfs_sample_vcf(tmp)
+
+    @skip_unless_spark_backend()
+    def test_import_gvcfs(self):
+        path = resource('sample.vcf.bgz')
+        self.import_gvcfs_sample_vcf(path)
 
     @skip_unless_spark_backend()
     def test_import_gvcfs_subset(self):

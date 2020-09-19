@@ -308,9 +308,10 @@ case class MatrixVCFWriter(
   path: String,
   append: Option[String] = None,
   exportType: String = ExportType.CONCATENATED,
-  metadata: Option[VCFMetadata] = None
+  metadata: Option[VCFMetadata] = None,
+  tabix: Boolean = false
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportVCF(ctx, mv, path, append, exportType, metadata)
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportVCF(ctx, mv, path, append, exportType, metadata, tabix)
 }
 
 case class MatrixGENWriter(

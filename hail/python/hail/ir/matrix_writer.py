@@ -55,19 +55,22 @@ class MatrixVCFWriter(MatrixWriter):
     @typecheck_method(path=str,
                       append=nullable(str),
                       export_type=ExportType.checker,
-                      metadata=nullable(dictof(str, dictof(str, dictof(str, str)))))
-    def __init__(self, path, append, export_type, metadata):
+                      metadata=nullable(dictof(str, dictof(str, dictof(str, str)))),
+                      tabix=bool)
+    def __init__(self, path, append, export_type, metadata, tabix):
         self.path = path
         self.append = append
         self.export_type = export_type
         self.metadata = metadata
+        self.tabix = tabix
 
     def render(self):
         writer = {'name': 'MatrixVCFWriter',
                   'path': self.path,
                   'append': self.append,
                   'exportType': self.export_type,
-                  'metadata': self.metadata}
+                  'metadata': self.metadata,
+                  'tabix': self.tabix}
         return escape_str(json.dumps(writer))
 
     def __eq__(self, other):
@@ -75,7 +78,8 @@ class MatrixVCFWriter(MatrixWriter):
             other.path == self.path and \
             other.append == self.append and \
             other.export_type == self.export_type and \
-            other.metadata == self.metadata
+            other.metadata == self.metadata and \
+            other.tabix == self.tabix
 
 
 class MatrixGENWriter(MatrixWriter):

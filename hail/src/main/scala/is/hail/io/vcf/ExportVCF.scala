@@ -224,7 +224,7 @@ object ExportVCF {
     getAttributes(k1, attributes).flatMap(_.get(k2))
 
   def apply(ctx: ExecuteContext, mv: MatrixValue, path: String, append: Option[String],
-    exportType: String, metadata: Option[VCFMetadata]) {
+    exportType: String, metadata: Option[VCFMetadata], tabix: Boolean = false) {
     val fs = ctx.fs
 
     mv.typ.requireColKeyString()
@@ -460,6 +460,18 @@ object ExportVCF {
         sb.result()
       }
     }.writeTable(ctx, path, Some(header), exportType = exportType)
+
+    if (tabix) {
+      exportType match {
+        case ExportType.CONCATENATED =>
+          info(s"Writing tabix index for $path")
+          TabixVCF(fs.broadcast, path)
+        case ExportType.PARALLEL_SEPARATE_HEADER
+          | ExportType.PARALLEL_COMPOSABLE
+          | ExportType.PARALLEL_HEADER_IN_SHARD =>
+            throw new UnsupportedOperationException("tabix on parallel output is not supported")
+      }
+    }
   }
 }
 
