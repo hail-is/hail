@@ -4,7 +4,7 @@ import java.io.InputStream
 
 import htsjdk.samtools.util.FileExtensions
 import htsjdk.tribble.util.ParsingUtils
-import is.hail.io.compress.BGZipLineReader
+import is.hail.io.compress.BGzipLineReader
 import is.hail.io.fs.FS
 import is.hail.utils._
 import is.hail.backend.BroadcastValue
@@ -301,7 +301,7 @@ final class TabixLineIterator(
 {
   private var i: Int = -1
   private var isEof = false
-  private var lines = new BGZipLineReader(fsBc, filePath)
+  private var lines = new BGzipLineReader(fsBc, filePath)
 
   def next(): String = {
     var s: String = null

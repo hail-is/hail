@@ -6,7 +6,7 @@ import is.hail.backend.BroadcastValue
 import is.hail.io.fs.FS
 import is.hail.utils._
 
-final class BGZipLineReader(
+final class BGzipLineReader(
   private val fsBc: BroadcastValue[FS],
   private val filePath: String
 )
@@ -65,7 +65,7 @@ final class BGZipLineReader(
     var stop = end
     if (stop > start && buffer(stop) == '\r')
       stop -= 1
-    val len = end - start
+    val len = stop - start
     new String(buffer, start, len, StandardCharsets.UTF_8)
   }
 
@@ -103,6 +103,10 @@ final class BGZipLineReader(
         }
       } else { // found a newline
         str = decodeString(start, bufferCursor)
+      }
+
+      if (bufferEOF && str.isEmpty) {
+        return null
       }
 
       if (str != null) {
