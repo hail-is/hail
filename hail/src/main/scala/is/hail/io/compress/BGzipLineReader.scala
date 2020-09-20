@@ -83,6 +83,9 @@ final class BGzipLineReader(
       if (bufferCursor == bufferLen) { // no newline before end of buffer
         if (bufferEOF) {
           // `is` indicates end of file
+          if (start == bufferCursor) {
+            return null
+          }
           str = decodeString(start, bufferCursor)
         } else if (bufferLen == buffer.length) {
           // line overflows buffer, need to increase buffer size
@@ -103,10 +106,6 @@ final class BGzipLineReader(
         }
       } else { // found a newline
         str = decodeString(start, bufferCursor)
-      }
-
-      if (bufferEOF && str.isEmpty) {
-        return null
       }
 
       if (str != null) {
