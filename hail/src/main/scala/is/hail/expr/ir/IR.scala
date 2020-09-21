@@ -102,8 +102,8 @@ object EncodedLiteral {
 }
 
 final case class EncodedLiteral(codec: TypedCodecSpec, value: Array[Byte]) extends IR {
-//  !CanEmit(codec.encodedVirtualType)
-//  require(value != null)
+  !CanEmit(codec.encodedVirtualType)
+  require(value != null)
 }
 
 final case class I32(x: Int) extends IR
