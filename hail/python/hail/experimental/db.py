@@ -93,13 +93,12 @@ class DatasetVersion:
         """
         current_version = self.version
         available_regions = [k for k, v in self.url.items() if v is not None]
-        valid_region = True
-        if region not in available_regions:
+        valid_region = region in available_regions
+        if not valid_region:
             message = f'dataset: \'{name}\', version: {current_version}, exists but is not yet ' \
                       f'available in \'{region}\' region bucket, ' \
                       f'currently available in {available_regions} region bucket(s).'
             warnings.warn(message, UserWarning, stacklevel=1)
-            valid_region = False
         return valid_region
 
     def maybe_index(self, indexer_key_expr, all_matches):
