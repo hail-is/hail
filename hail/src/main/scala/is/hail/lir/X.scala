@@ -218,38 +218,38 @@ class Method private[lir] (
     while (s.nonEmpty) {
       val L = s.pop()
       if (!visited.contains(L)) {
-        if (L != null) {
-          if (L.method == null)
-            L.method = this
-          else {
-            /*
-            if (L.method ne this) {
-              println(s"${ L.method } $this")
-              // println(b.stack.mkString("\n"))
-            }
-             */
-            assert(L.method eq this)
-          }
+        assert(L.wellFormed)
 
-          blocksb += L
-
-          var x = L.first
-          while (x != null) {
-            x match {
-              case x: IfX =>
-                s.push(x.Ltrue)
-                s.push(x.Lfalse)
-              case x: GotoX =>
-                s.push(x.L)
-              case x: SwitchX =>
-                s.push(x.Ldefault)
-                x.Lcases.foreach(s.push)
-              case _ =>
-            }
-            x = x.next
+        if (L.method == null)
+          L.method = this
+        else {
+          /*
+          if (L.method ne this) {
+            println(s"${ L.method } $this")
+            // println(b.stack.mkString("\n"))
           }
-          visited += L
+           */
+          assert(L.method eq this)
         }
+
+        blocksb += L
+
+        var x = L.first
+        while (x != null) {
+          x match {
+            case x: IfX =>
+              s.push(x.Ltrue)
+              s.push(x.Lfalse)
+            case x: GotoX =>
+              s.push(x.L)
+            case x: SwitchX =>
+              s.push(x.Ldefault)
+              x.Lcases.foreach(s.push)
+            case _ =>
+          }
+          x = x.next
+        }
+        visited += L
       }
     }
 
@@ -360,6 +360,23 @@ class Block {
   var last: StmtX = _
 
   val uses: mutable.Set[(ControlX, Int)] = mutable.Set[(ControlX, Int)]()
+
+  def wellFormed: Boolean = {
+    if (first == null)
+      return false
+
+    last match {
+      case ctrl: ControlX =>
+        var i = 0
+        while (i < ctrl.targetArity()) {
+          if (ctrl.target(i) == null)
+            return false
+          i += 1
+        }
+        true
+      case _ => false
+    }
+  }
 
   def addUse(x: ControlX, i: Int): Unit = {
     val added = uses.add(x -> i)
