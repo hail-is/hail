@@ -86,6 +86,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(c.can_coerce(t))
             self.assertFalse(c.requires_conversion(t))
 
+    @fails_local_backend()
     def test_nested_type_to_spark(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(nested=hl.dict({"tup": hl.tuple([ht.idx])}))

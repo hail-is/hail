@@ -1165,6 +1165,202 @@ steps:
      - hail_run_image
      - build_hail
  - kind: runImage
+   name: test_hail_python_local_backend_0
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "2"
+   script: |
+     set -ex
+     cd /io
+     tar xzf test.tar.gz
+     tar xzf resources.tar.gz
+     tar xzf data.tar.gz
+     tar xvf wheel-container.tar
+     python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+     export HAIL_TEST_RESOURCES_DIR=./resources
+     export HAIL_DOCTEST_DATA_DIR=./data
+     export PYTEST_SPLITS=5
+     export PYTEST_SPLIT_INDEX=0
+     export HAIL_QUERY_BACKEND=local
+     python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+   inputs:
+     - from: /wheel-container.tar
+       to: /io/wheel-container.tar
+     - from: /test.tar.gz
+       to: /io/test.tar.gz
+     - from: /resources.tar.gz
+       to: /io/resources.tar.gz
+     - from: /data.tar.gz
+       to: /io/data.tar.gz
+   secrets:
+     - name: test-gsa-key
+       namespace:
+         valueFrom: batch_pods_ns.name
+       mountPath: /test-gsa-key
+   dependsOn:
+     - batch_pods_ns
+     - hail_run_image
+     - build_hail
+ - kind: runImage
+   name: test_hail_python_local_backend_1
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "2"
+   script: |
+     set -ex
+     cd /io
+     tar xzf test.tar.gz
+     tar xzf resources.tar.gz
+     tar xzf data.tar.gz
+     tar xvf wheel-container.tar
+     python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+     export HAIL_TEST_RESOURCES_DIR=./resources
+     export HAIL_DOCTEST_DATA_DIR=./data
+     export PYTEST_SPLITS=5
+     export PYTEST_SPLIT_INDEX=1
+     export HAIL_QUERY_BACKEND=local
+     python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+   inputs:
+     - from: /wheel-container.tar
+       to: /io/wheel-container.tar
+     - from: /test.tar.gz
+       to: /io/test.tar.gz
+     - from: /resources.tar.gz
+       to: /io/resources.tar.gz
+     - from: /data.tar.gz
+       to: /io/data.tar.gz
+   secrets:
+     - name: test-gsa-key
+       namespace:
+         valueFrom: batch_pods_ns.name
+       mountPath: /test-gsa-key
+   dependsOn:
+     - batch_pods_ns
+     - hail_run_image
+     - build_hail
+ - kind: runImage
+   name: test_hail_python_local_backend_2
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "2"
+   script: |
+     set -ex
+     cd /io
+     tar xzf test.tar.gz
+     tar xzf resources.tar.gz
+     tar xzf data.tar.gz
+     tar xvf wheel-container.tar
+     python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+     export HAIL_TEST_RESOURCES_DIR=./resources
+     export HAIL_DOCTEST_DATA_DIR=./data
+     export HAIL_TEST_BUCKET=hail-test-dmk9z
+     export PYTEST_SPLITS=5
+     export PYTEST_SPLIT_INDEX=2
+     export HAIL_QUERY_BACKEND=local
+     python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+   inputs:
+     - from: /wheel-container.tar
+       to: /io/wheel-container.tar
+     - from: /test.tar.gz
+       to: /io/test.tar.gz
+     - from: /resources.tar.gz
+       to: /io/resources.tar.gz
+     - from: /data.tar.gz
+       to: /io/data.tar.gz
+   secrets:
+     - name: test-gsa-key
+       namespace:
+         valueFrom: batch_pods_ns.name
+       mountPath: /test-gsa-key
+   dependsOn:
+     - batch_pods_ns
+     - hail_run_image
+     - build_hail
+ - kind: runImage
+   name: test_hail_python_local_backend_3
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "2"
+   script: |
+     set -ex
+     cd /io
+     tar xzf test.tar.gz
+     tar xzf resources.tar.gz
+     tar xzf data.tar.gz
+     tar xvf wheel-container.tar
+     python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+     export HAIL_TEST_RESOURCES_DIR=./resources
+     export HAIL_DOCTEST_DATA_DIR=./data
+     export PYTEST_SPLITS=5
+     export PYTEST_SPLIT_INDEX=3
+     export HAIL_QUERY_BACKEND=local
+     python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+   inputs:
+     - from: /wheel-container.tar
+       to: /io/wheel-container.tar
+     - from: /test.tar.gz
+       to: /io/test.tar.gz
+     - from: /resources.tar.gz
+       to: /io/resources.tar.gz
+     - from: /data.tar.gz
+       to: /io/data.tar.gz
+   secrets:
+     - name: test-gsa-key
+       namespace:
+         valueFrom: batch_pods_ns.name
+       mountPath: /test-gsa-key
+   dependsOn:
+     - batch_pods_ns
+     - hail_run_image
+     - build_hail
+ - kind: runImage
+   name: test_hail_python_local_backend_4
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "2"
+   script: |
+     set -ex
+     cd /io
+     tar xzf test.tar.gz
+     tar xzf resources.tar.gz
+     tar xzf data.tar.gz
+     tar xvf wheel-container.tar
+     python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+     export HAIL_TEST_RESOURCES_DIR=./resources
+     export HAIL_DOCTEST_DATA_DIR=./data
+     export PYTEST_SPLITS=5
+     export PYTEST_SPLIT_INDEX=4
+     export HAIL_QUERY_BACKEND=local
+     python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+   inputs:
+     - from: /wheel-container.tar
+       to: /io/wheel-container.tar
+     - from: /test.tar.gz
+       to: /io/test.tar.gz
+     - from: /resources.tar.gz
+       to: /io/resources.tar.gz
+     - from: /data.tar.gz
+       to: /io/data.tar.gz
+   secrets:
+     - name: test-gsa-key
+       namespace:
+         valueFrom: batch_pods_ns.name
+       mountPath: /test-gsa-key
+   dependsOn:
+     - batch_pods_ns
+     - hail_run_image
+     - build_hail
+ - kind: runImage
    name: test_python_docs
    image:
      valueFrom: hail_base_image.image

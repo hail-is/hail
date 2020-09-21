@@ -8,7 +8,7 @@ import hail.expr.aggregators as agg
 import hail.utils as utils
 from hail.linalg import BlockMatrix
 from ..helpers import (startTestHailContext, stopTestHailContext, resource,
-                       skip_unless_spark_backend)
+                       skip_unless_spark_backend, fails_local_backend)
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -16,6 +16,7 @@ tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
     @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
+    @fails_local_backend()
     def test_impute_sex_same_as_plink(self):
         ds = hl.import_vcf(resource('x-chromosome.vcf'))
 
@@ -53,6 +54,7 @@ class Tests(unittest.TestCase):
 
     linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd]
 
+    @fails_local_backend()
     def test_linreg_basic(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -88,6 +90,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(t1._same(t4a))
             self.assertTrue(t1._same(t4b))
 
+    @fails_local_backend()
     def test_linreg_pass_through(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -130,6 +133,7 @@ class Tests(unittest.TestCase):
                                       pass_through=[mt.filters.length()])
 
 
+    @fails_local_backend()
     def test_linreg_chained(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -203,6 +207,7 @@ class Tests(unittest.TestCase):
         assert t4._same(t5)
 
 
+    @fails_local_backend()
     def test_linear_regression_without_intercept(self):
         for linreg_function in self.linreg_functions:
             pheno = hl.import_table(resource('regressionLinear.pheno'),
@@ -227,6 +232,7 @@ class Tests(unittest.TestCase):
     # df = data.frame(y, x, c1, c2)
     # fit <- lm(y ~ x + c1 + c2, data=df)
     # summary(fit)["coefficients"]
+    @fails_local_backend()
     def test_linear_regression_with_cov(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -270,6 +276,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[9].standard_error))
             self.assertTrue(np.isnan(results[10].standard_error))
 
+    @fails_local_backend()
     def test_linear_regression_pl(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -305,6 +312,7 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
             self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
 
+    @fails_local_backend()
     def test_linear_regression_with_dosage(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -339,6 +347,7 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
             self.assertTrue(np.isnan(results[6].standard_error))
 
+    @fails_local_backend()
     def test_linear_regression_equivalence_between_ds_and_gt(self):
         """Test that linear regressions on data converted from dosage to genotype returns the same results"""
         ds_mt = hl.import_vcf(resource('small-ds.vcf'))
@@ -355,6 +364,7 @@ class Tests(unittest.TestCase):
             results_t = ds_results_t.annotate(**gt_results_t[ds_results_t.locus, ds_results_t.alleles])
             self.assertTrue(all(hl.approx_equal(results_t.ds_p_value, results_t.gt_p_value, nan_same=True).collect()))
 
+    @fails_local_backend()
     def test_linear_regression_with_import_fam_boolean(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -385,6 +395,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[9].standard_error))
             self.assertTrue(np.isnan(results[10].standard_error))
 
+    @fails_local_backend()
     def test_linear_regression_with_import_fam_quant(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -417,6 +428,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[9].standard_error))
             self.assertTrue(np.isnan(results[10].standard_error))
 
+    @fails_local_backend()
     def test_linear_regression_multi_pheno_same(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -455,6 +467,7 @@ class Tests(unittest.TestCase):
     # se <- waldtest["x", "Std. Error"]
     # zstat <- waldtest["x", "z value"]
     # pval <- waldtest["x", "Pr(>|z|)"]
+    @fails_local_backend()
     def test_logistic_regression_wald_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -491,6 +504,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
+    @fails_local_backend()
     def test_logistic_regression_wald_test_apply_multi_pheno(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -530,6 +544,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
+    @fails_local_backend()
     def test_logistic_regression_wald_test_multi_pheno_bgen_dosage(self):
         covariates = hl.import_table(resource('regressionLogisticMultiPheno.cov'),
                                      key='Sample',
@@ -561,6 +576,7 @@ class Tests(unittest.TestCase):
         #TODO test handling of missingness
 
 
+    @fails_local_backend()
     def test_logistic_regression_wald_test_pl(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -598,6 +614,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
+    @fails_local_backend()
     def test_logistic_regression_wald_dosage(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -647,6 +664,7 @@ class Tests(unittest.TestCase):
     # lrtest <- anova(logfitnull, logfit, test="LRT")
     # chi2 <- lrtest[["Deviance"]][2]
     # pval <- lrtest[["Pr(>Chi)"]][2]
+    @fails_local_backend()
     def test_logistic_regression_lrt(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -692,6 +710,7 @@ class Tests(unittest.TestCase):
     # scoretest <- anova(logfitnull, logfit, test="Rao")
     # chi2 <- scoretest[["Rao"]][2]
     # pval <- scoretest[["Pr(>Chi)"]][2]
+    @fails_local_backend()
     def test_logistic_regression_score(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -727,6 +746,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
+    @fails_local_backend()
     def test_logistic_regression_epacts(self):
         covariates = hl.import_table(resource('regressionLogisticEpacts.cov'),
                                      key='IND_ID',
@@ -812,6 +832,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(firth[16117953].beta, 0.5258, places=4)
         self.assertAlmostEqual(firth[16117953].p_value, 0.22562, places=4)
 
+    @fails_local_backend()
     def test_logreg_pass_through(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -842,6 +863,7 @@ class Tests(unittest.TestCase):
     # se <- waldtest["x", "Std. Error"]
     # zstat <- waldtest["x", "z value"]
     # pval <- waldtest["x", "Pr(>|z|)"]
+    @fails_local_backend()
     def test_poission_regression_wald_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -889,6 +911,7 @@ class Tests(unittest.TestCase):
     # lrtest <- anova(poisfitnull, poisfit, test="LRT")
     # chi2 <- lrtest[["Deviance"]][2]
     # pval <- lrtest[["Pr(>Chi)"]][2]
+    @fails_local_backend()
     def test_poission_regression_lrt(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -933,6 +956,7 @@ class Tests(unittest.TestCase):
     # scoretest <- anova(poisfitnull, poisfit, test="Rao")
     # chi2 <- scoretest[["Rao"]][2]
     # pval <- scoretest[["Pr(>Chi)"]][2]
+    @fails_local_backend()
     def test_poission_regression_score_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -968,6 +992,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
+    @fails_local_backend()
     def test_poisson_pass_through(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1108,6 +1133,7 @@ class Tests(unittest.TestCase):
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1.0, coord_expr=mt.cm).to_numpy(),
             [[1., -0.85280287, 0.], [-0.85280287, 1., 0.], [0., 0., 1.]]))
 
+    @fails_local_backend()
     def test_hwe_normalized_pca(self):
         mt = hl.balding_nichols_model(3, 100, 50)
         eigenvalues, scores, loadings = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=True)
@@ -1120,6 +1146,7 @@ class Tests(unittest.TestCase):
         _, _, loadings = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=False)
         self.assertEqual(loadings, None)
 
+    @fails_local_backend()
     def test_pca_against_numpy(self):
         mt = hl.import_vcf(resource('tiny_m.vcf'))
         mt = mt.filter_rows(hl.len(mt.alleles) == 2)
@@ -1168,6 +1195,7 @@ class Tests(unittest.TestCase):
         check(hail_scores, np_scores)
         check(hail_loadings, np_loadings)
 
+    @fails_local_backend()
     def test_blanczos_against_numpy(self):
 
         def concatToNumpy(field, horizontal=True):
@@ -1226,6 +1254,7 @@ class Tests(unittest.TestCase):
         np.testing.assert_allclose(eigens, np_eigenvalues, rtol=0.05)
         assert bound(np_loadings, loadings) > 0.9
 
+    @fails_local_backend()
     def test_blanczos_against_hail(self):
         k = 10
 
@@ -1268,6 +1297,7 @@ class Tests(unittest.TestCase):
         ds1 = ds1.drop('was_split', 'a_index')
         self.assertTrue(ds1._same(ds2))
 
+    @fails_local_backend()
     def test_split_multi_table(self):
         ds1 = hl.import_vcf(resource('split_test.vcf')).rows()
         ds1 = hl.split_multi(ds1)
@@ -1484,6 +1514,7 @@ class Tests(unittest.TestCase):
         test_stat(10, 100, 100, 0)
         test_stat(40, 400, 20, 12)
 
+    @fails_local_backend()
     def test_skat(self):
         ds2 = hl.import_vcf(resource('sample2.vcf'))
 
