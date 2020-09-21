@@ -131,7 +131,7 @@ def skip_unless_spark_backend():
 
 
 fails_local_backend = pytest.mark.xfail(
-    isinstance(hl.utils.java.Env.backend(), LocalBackend),
+    os.environ.get('HAIL_QUERY_BACKEND') == 'local',
     reason="doesn't yet work on local backend",
     strict=True)
 
