@@ -92,6 +92,9 @@ final case class Literal(_typ: Type, value: Annotation) extends IR {
 }
 
 object EncodedLiteral {
+  def apply(codec: TypedCodecSpec, value: Array[Byte]): EncodedLiteral = {
+    EncodedLiteral(codec, new WrappedByteArray(value))
+  }
 
   def hailValueToByteArray(pt: PType, addr: Long, ctx: ExecuteContext): IR = {
     val etype = EType.defaultFromPType(pt)
@@ -101,9 +104,23 @@ object EncodedLiteral {
   }
 }
 
-final case class EncodedLiteral(codec: TypedCodecSpec, value: Array[Byte]) extends IR {
-  !CanEmit(codec.encodedVirtualType)
+final case class EncodedLiteral(codec: TypedCodecSpec, value: WrappedByteArray) extends IR {
+  require(!CanEmit(codec.encodedVirtualType))
   require(value != null)
+}
+
+class WrappedByteArray(val ba: Array[Byte]) {
+  override def hashCode(): Int = java.util.Arrays.hashCode(ba)
+
+  override def equals(obj: Any): Boolean = {
+    if (!obj.isInstanceOf[WrappedByteArray]) {
+      false
+    }
+    else {
+      val other = obj.asInstanceOf[WrappedByteArray]
+      java.util.Arrays.equals(ba, other.ba)
+    }
+  }
 }
 
 final case class I32(x: Int) extends IR

@@ -290,6 +290,8 @@ class EmitClassBuilder[C](
 
   private[this] val literalsMap: mutable.Map[(PType, Any), PSettable] =
     mutable.Map[(PType, Any), PSettable]()
+  private[this] val encodedLiteralsMap: mutable.Map[EncodedLiteral, PSettable] =
+    mutable.Map[EncodedLiteral, PSettable]()
   private[this] lazy val encLitField: Settable[Array[Byte]] = genFieldThisRef[Array[Byte]]("encodedLiterals")
 
   lazy val partitionRegion: Settable[Region] = genFieldThisRef[Region]("partitionRegion")
