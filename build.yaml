@@ -1159,7 +1159,7 @@ steps:
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=0
      export HAIL_QUERY_BACKEND=local
-     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -1198,7 +1198,7 @@ steps:
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=1
      export HAIL_QUERY_BACKEND=local
-     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -1238,7 +1238,7 @@ steps:
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=2
      export HAIL_QUERY_BACKEND=local
-     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -1277,7 +1277,7 @@ steps:
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=3
      export HAIL_QUERY_BACKEND=local
-     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -1316,7 +1316,7 @@ steps:
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=4
      export HAIL_QUERY_BACKEND=local
-     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
