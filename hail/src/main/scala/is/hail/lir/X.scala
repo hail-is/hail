@@ -50,37 +50,7 @@ class Classx[C](val name: String, val superName: String) {
     classes += this
 
     for (m <- methods) {
-      val blocks = m.findBlocks()
-
-      val locals = m.findLocals(blocks)
-      for (l <- locals) {
-        // FIXME parameters, too
-        if (!l.isInstanceOf[Parameter]) {
-          if (l.method == null)
-            l.method = m
-          else {
-            /*
-            if (l.method ne m) {
-              // println(s"$l ${l.method} $m\n  ${l.stack.mkString("  \n")}")
-              println(s"$l ${l.method} $m")
-            }
-             */
-            assert(l.method eq m)
-          }
-        }
-      }
-    }
-
-    // check
-    for (m <- methods) {
-      val blocks = m.findBlocks()
-      for (b <- blocks) {
-        assert(b.first != null)
-        assert(b.last.isInstanceOf[ControlX])
-      }
-    }
-
-    for (m <- methods) {
+      m.verify()
       SimplifyControl(m)
     }
 
@@ -258,7 +228,7 @@ class Method private[lir] (
     new Blocks(blocks)
   }
 
-  def findLocals(blocks: Blocks): Locals = {
+  def findLocals(blocks: Blocks, verifyMethodAssignment: Boolean = false): Locals = {
     val localsb = new ArrayBuilder[Local]()
 
     var i = 0
@@ -276,6 +246,18 @@ class Method private[lir] (
     def visitLocal(l: Local): Unit = {
       if (!l.isInstanceOf[Parameter]) {
         if (!visited.contains(l)) {
+          if (!verifyMethodAssignment || l.method == null)
+            l.method = this
+          else {
+            /*
+            if (l.method ne m) {
+              // println(s"$l ${l.method} $m\n  ${l.stack.mkString("  \n")}")
+              println(s"$l ${l.method} $m")
+            }
+             */
+            assert(l.method eq this)
+          }
+
           localsb += l
           visited += l
         }
@@ -301,6 +283,12 @@ class Method private[lir] (
     }
 
     new Locals(localsb.result())
+  }
+
+  // Verify all blocks are well-formed, all blocks and locals have correct
+  // method set.
+  def verify(): Unit = {
+    findLocals(findBlocks(), verifyMethodAssignment = true)
   }
 
   def approxByteCodeSize(): Int = {
