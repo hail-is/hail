@@ -115,7 +115,7 @@ class Dataset:
     dataset names to configurations.
     """
     @staticmethod
-    def from_name_and_json(name, doc, region):
+    def from_name_and_json(name, doc, region, custom_config=False):
         """Create `Dataset` object from dictionary.
 
         Parameters
@@ -128,7 +128,10 @@ class Dataset:
         region : :obj: `str`
             GCP region from which to access data, available regions given in
             hl.experimental.DB._valid_regions, currently either 'us' or 'eu'.
-
+        custom_config : :obj: `bool`
+            Boolean indicating whether or not dataset is from a `DB` object
+            using a custom configuration or url. If `True`, method will not
+            check for region.
         Returns
         -------
         :class:`Dataset`
@@ -139,7 +142,8 @@ class Dataset:
         assert 'key_properties' in doc, doc
         assert 'versions' in doc, doc
         versions = [DatasetVersion.from_json(x) for x in doc['versions']]
-        versions = DatasetVersion.get_region(name, versions, region)
+        if not custom_config:
+            versions = DatasetVersion.get_region(name, versions, region)
         if versions:
             return Dataset(name,
                            doc['description'],
@@ -167,6 +171,7 @@ class Dataset:
 
     def index_compatible_version(self, key_expr):
         # If not unique key then use all matches, otherwise give a single a value
+        # Add documentation here soon
         all_matches = 'unique' not in self.key_properties
         compatible_indexed_values = [
             index
@@ -188,8 +193,8 @@ class DB:
     This class facilitates the annotation of genetic datasets with variant
     annotations. It accepts either an HTTP(S) URL to an Annotation DB
     configuration or a python :obj:`dict` describing an Annotation DB
-    configuration. User must specify the region ('us' or 'eu') in which the cluster is
-    running if connecting to the default Hail Annotation DB.
+    configuration. User must specify the region ('us' or 'eu') in which the
+    cluster is running if connecting to the default Hail Annotation DB.
 
     Examples
     --------
@@ -207,10 +212,10 @@ class DB:
                  region=None,
                  url=None,
                  config=None):
-        if region not in DB._valid_regions:
+        custom_config = config or url
+        if region not in DB._valid_regions and not (config or url):
             raise ValueError(f'Specify valid region parameter, received: region={region}. '
                              f'Valid regions are {DB._valid_regions}.')
-        self.region = region
         if config is not None and url is not None:
             raise ValueError(f'Only specify one of the parameters url and config, '
                              f'received: url={url} and config={config}')
@@ -229,9 +234,12 @@ class DB:
             if not isinstance(config, dict):
                 raise ValueError(f'expected a dict mapping dataset names to '
                                  f'configurations, but found {config}')
-        self.__by_name = {k: Dataset.from_name_and_json(k, v, self.region)
+        self.region = region
+        self.url = url
+        self.config = config
+        self.__by_name = {k: Dataset.from_name_and_json(k, v, region, custom_config)
                           for k, v in config.items()
-                          if Dataset.from_name_and_json(k, v, self.region) is not None}
+                          if Dataset.from_name_and_json(k, v, region, custom_config) is not None}
 
     def available_databases(self):
         """Retrieve list of names of available databases.
