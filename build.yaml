@@ -13,6 +13,7 @@ steps:
     - zulip-config
     - benchmark-gsa-key
     - billing-monitor-gsa-key
+    - asana-access-token
  - kind: deploy
    name: deploy_batch_sa
    namespace:

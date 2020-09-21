@@ -10,6 +10,7 @@
                 <th>needs review</th>
                 <th>changes requested</th>
                 <th>issues</th>
+                <th>asana</th>
             </tr>
             </thead>
             <tbody>
@@ -29,6 +30,11 @@
                 <td>
                     {% for issue in d['ISSUES'] %}
                     <a href="{{ issue.html_url }}">#{{ issue.id }}</a>
+                    {% endfor %}
+                </td>
+                <td>
+                    {% for task in d['ASANA'] %}
+                    <a href="{{ task.url }}">#{{ task.gid }}</a>
                     {% endfor %}
                 </td>
             </tr>
