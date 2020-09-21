@@ -1,11 +1,14 @@
 import json
+import os
+import re
 import hail as hl
+import pkg_resources
 
 
 def load_dataset(name,
                  version,
                  reference_genome,
-                 config_file='gs://hail-datasets/datasets.json'):
+                 region):
     """Load a genetic dataset from Hail's repository.
 
     Example
@@ -14,7 +17,8 @@ def load_dataset(name,
     >>> # Load 1000 Genomes autosomes MatrixTable with GRCh38 coordinates
     >>> mt_1kg = hl.experimental.load_dataset(name='1000_Genomes_autosomes',   # doctest: +SKIP
     ...                                       version='phase_3',
-    ...                                       reference_genome='GRCh38')
+    ...                                       reference_genome='GRCh38',
+    ...                                       region='us')
 
     Parameters
     ----------
@@ -25,36 +29,50 @@ def load_dataset(name,
         (see available versions in documentation).
     reference_genome : `GRCh37` or `GRCh38`
         Reference genome build.
+    region : `us` or `eu`
+        Specify region for GCP bucket.
 
     Returns
     -------
     :class:`.Table` or :class:`.MatrixTable`"""
 
-    with hl.hadoop_open(config_file, 'r') as f:
+    valid_regions = {'us', 'eu'}
+    if region not in valid_regions:
+        raise ValueError(f'Specify valid region parameter, received: region={region}. '
+                         f'Valid regions are {valid_regions}.')
+    if version is None:
+        version = reference_genome
+
+    config_path = pkg_resources.resource_filename(__name__, 'annotation_db.json')
+    assert os.path.exists(config_path), f'{config_path} does not exist'
+    with open(config_path) as f:
         datasets = json.load(f)
 
-    names = set([dataset['name'] for dataset in datasets])
+    names = set(dataset for dataset in datasets)
     if name not in names:
         raise ValueError('{} is not a dataset available in the repository.'.format(repr(name)))
 
-    versions = set([dataset['version'] for dataset in datasets if dataset['name'] == name])
-    if version not in versions:
+    version_ref_genomes = set(x['version'] for x in datasets[name]['versions'])
+    reference_genomes = set(re.findall("GRCh\d{2}$", x)[0] for x in version_ref_genomes)
+    versions = set(x.replace("-GRCh37", "").replace("-GRCh38", "") for x in version_ref_genomes)
+    if not any(version in x for x in versions):
         raise ValueError("""Version {0} not available for dataset {1}.
                             Available versions: {{{2}}}.""".format(repr(version),
                                                                    repr(name),
                                                                    repr('","'.join(versions))))
-
-    reference_genomes = set([dataset['reference_genome'] for dataset in datasets if dataset['name'] == name])
     if reference_genome not in reference_genomes:
         raise ValueError("""Reference genome build {0} not available for dataset {1}.
                             Available reference genome builds: {{'{2}'}}.""".format(repr(reference_genome),
                                                                                     repr(name),
-                                                                                    '\',\''.join((reference_genomes))))
+                                                                                    '\',\''.join(reference_genomes)))
+    if version is reference_genome:
+        get_version = reference_genome
+    else:
+        get_version = "-".join([version, reference_genome])
 
-    path = [dataset['path'] for dataset in datasets if all([dataset['name'] == name,
-                                                            dataset['version'] == version,
-                                                            dataset['reference_genome'] == reference_genome])][0].strip('/')
-
+    path = [dataset_version['url'][region]
+            for dataset_version in datasets[name]['versions']
+            if dataset_version['version'] == get_version][0]
     if path.endswith('.ht'):
         dataset = hl.read_table(path)
     else:
