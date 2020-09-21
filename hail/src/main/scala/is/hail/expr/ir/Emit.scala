@@ -961,7 +961,7 @@ class Emit[C](
                 mb,
                 region.code)
 
-              EmitCode(Code._empty, false, PCode(pt, res)).toI(cb)
+              IEmitCode.present(cb, PCode(pt, res))
             } else {
               val numericElementType = coerce[PNumeric](lPType.elementType)
               val eVti = typeToTypeInfo(numericElementType)
