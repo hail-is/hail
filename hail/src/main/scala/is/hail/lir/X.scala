@@ -71,10 +71,6 @@ class Classx[C](val name: String, val superName: String) {
       }
     }
 
-    for (m <- methods) {
-      m.removeDeadCode()
-    }
-
     // check
     for (m <- methods) {
       val blocks = m.findBlocks()
@@ -234,20 +230,14 @@ class Method private[lir] (
 
         blocksb += L
 
-        var x = L.first
-        while (x != null) {
-          x match {
-            case x: IfX =>
-              s.push(x.Ltrue)
-              s.push(x.Lfalse)
-            case x: GotoX =>
-              s.push(x.L)
-            case x: SwitchX =>
-              s.push(x.Ldefault)
-              x.Lcases.foreach(s.push)
-            case _ =>
-          }
-          x = x.next
+        assert(L.first != null)
+        val x = L.last.asInstanceOf[ControlX]
+        var i = 0
+        while (i < x.targetArity()) {
+          val target = x.target(i)
+          assert(target != null)
+          s.push(target)
+          i += 1
         }
         visited += L
       }
@@ -260,7 +250,7 @@ class Method private[lir] (
       // don't traverse a set that's being modified
       val uses2 = b.uses.toArray
       for ((u, i) <- uses2) {
-        if (!visited(u.parent))
+        if (u.parent == null || !visited(u.parent))
           u.setTarget(i, null)
       }
     }
@@ -311,19 +301,6 @@ class Method private[lir] (
     }
 
     new Locals(localsb.result())
-  }
-
-  def removeDeadCode(): Unit = {
-    val blocks = findBlocks()
-    for (b <- blocks) {
-      var x = b.first
-      while (x != null && !x.isInstanceOf[ControlX])
-        x = x.next
-      if (x != null) {
-        while (x.next != null)
-          x.next.remove()
-      }
-    }
   }
 
   def approxByteCodeSize(): Int = {
@@ -417,17 +394,20 @@ class Block {
 
   def append(x: StmtX): Unit = {
     assert(x.parent == null)
+    x.parent = this
     if (last == null) {
       first = x
       last = x
-    } else {
+    } else if (!last.isInstanceOf[ControlX]) {
       assert(x.prev == null)
       x.prev = last
       assert(last.next == null)
       last.next = x
       last = x
+    } else {
+      // if last is a ControlX, x is dead code, so just drop it
+      x.parent = null
     }
-    x.parent = this
   }
 
   def drop(): Unit = {
