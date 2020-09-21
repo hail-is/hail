@@ -160,8 +160,8 @@ class SimplifyControl(m: Method) {
     assert(m.findBlocks().forall { b =>
       !b.first.isInstanceOf[GotoX] &&
         (b.last match {
-          case i: IfX => !(i.Ltrue eq i.Lfalse)
-          case g: GotoX => g.L.uses.size > 1
+          case i: IfX => i.Ltrue ne i.Lfalse
+          case g: GotoX => g.L.uses.size > 1 || (g.L eq m.entry)
           case _ => true
         })
     })
