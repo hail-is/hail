@@ -338,20 +338,22 @@
           "eu": "gs://hail-datasets-eu/annotations/gencode.v19.annotation.GRCh37.ht",
           "us": "gs://hail-datasets-us/annotations/gencode.v19.annotation.GRCh37.ht"
         },
-        "version": "GRCh37"
+        "version": "v19-GRCh37"
       },
       {
         "url": {
           "eu": "gs://hail-datasets-eu/annotations/gencode.v31.annotation.GRCh38.ht",
           "us": "gs://hail-datasets-us/annotations/gencode.v31.annotation.GRCh38.ht"
         },
-        "version": "GRCh38"
+        "version": "v31-GRCh38"
       }
     ]
   },
   "gerp_elements": {
     "description": "GERP: identifies constrained elements in multiple alignments by quantifying substitution deficits.",
-    "key_properties": [],
+    "key_properties": [
+      "unique"
+    ],
     "url": "http://mendel.stanford.edu/SidowLab/downloads/gerp/",
     "versions": [
       {
@@ -359,14 +361,14 @@
           "eu": "gs://hail-datasets-eu/annotations/GERP_elements.GERP++.GRCh37.ht",
           "us": "gs://hail-datasets-us/annotations/GERP_elements.GERP++.GRCh37.ht"
         },
-        "version": "GRCh37"
+        "version": "hg19-GRCh37"
       },
       {
         "url": {
           "eu": "gs://hail-datasets-eu/annotations/GERP_elements.GERP++.GRCh38.ht",
           "us": "gs://hail-datasets-us/annotations/GERP_elements.GERP++.GRCh38.ht"
         },
-        "version": "GRCh38"
+        "version": "hg19-GRCh38"
       }
     ]
   },
@@ -457,7 +459,9 @@
   },
   "ldsc_baselineLD_annotations": {
     "description": "LDSC Baseline-LD Model: contains 75 annotations (additional annotations included in later versions) including functional regions, histone marks, GERP scores, LD-related annotations of population genetics forces, MAF bins, and more.",
-    "key_properties": [],
+    "key_properties": [
+      "unique"
+    ],
     "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6133304/",
     "versions": [
       {
