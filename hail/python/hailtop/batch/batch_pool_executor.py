@@ -142,7 +142,7 @@ class BatchPoolExecutor:
         if image is None:
             if version.major != 3 or version.minor not in (6, 7, 8):
                 raise ValueError(
-                    f'You must specify an image if you are using a Python version other than 3.6, 3.7, or 3.8')
+                    'You must specify an image if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})')
             self.image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
         else:
             self.image = image
@@ -295,6 +295,7 @@ class BatchPoolExecutor:
         >>> with BatchPoolExecutor() as bpe:  # doctest: +SKIP
         ...     future = bpe.submit(lambda x, y, z: x + y + z,
         ...                         "poly", "ethyl", z="ene")
+        ...     future.result()
         "polyethylene"
 
         Generate a product of two random matrices, on the cloud:
