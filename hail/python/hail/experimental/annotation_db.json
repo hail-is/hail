@@ -454,5 +454,47 @@
         "version": "2.1.1"
       }
     ]
+  },
+  "ldsc_baselineLD_annotations": {
+    "description": "LDSC Baseline-LD Model: contains 75 annotations (additional annotations included in later versions) including functional regions, histone marks, GERP scores, LD-related annotations of population genetics forces, MAF bins, and more.",
+    "key_properties": [],
+    "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6133304/",
+    "versions": [
+      {
+        "url": {
+          "eu": "gs://hail-datasets-eu/annotations/LDSC_baselineLD_v2.2_ld_scores.GRCh37.ht",
+          "us": "gs://hail-datasets-us/annotations/LDSC_baselineLD_v2.2_ld_scores.GRCh37.ht"
+        },
+        "version": "2.2-GRCh37"
+      }
+    ]
+  },
+  "ldsc_baselineLD_ldscores": {
+    "description": "LDSC Baseline-LD Model: contains 75 annotations (additional annotations included in later versions) including functional regions, histone marks, GERP scores, LD-related annotations of population genetics forces, MAF bins, and more.",
+    "key_properties": [],
+    "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6133304/",
+    "versions": [
+      {
+        "url": {
+          "eu": "gs://hail-datasets-us/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt",
+          "us": "gs://hail-datasets-eu/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt"
+        },
+        "version": "2.2-GRCh37"
+      }
+    ]
+  },
+  "ldsc_baseline_ldscores": {
+    "description": "LDSC Baseline Model: contains 53 annotations including functional regions, histone marks, GERP scores, LD-related annotations of population genetics forces, and MAF bins.",
+    "key_properties": [],
+    "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4626285/",
+    "versions": [
+      {
+        "url": {
+          "eu": "gs://hail-datasets-us/LDSC_baseline_v1.1_ld_scores.GRCh37.mt",
+          "us": "gs://hail-datasets-eu/LDSC_baseline_v1.1_ld_scores.GRCh37.mt"
+        },
+        "version": "1.1-GRCh37"
+      }
+    ]
   }
 }
