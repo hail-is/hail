@@ -695,11 +695,6 @@ class Emit[C](
       case x@Literal(t, v) =>
         presentPC(mb.addLiteral(v, x.pType))
       case x@EncodedLiteral(codec, value) =>
-//        val storedBytes = mb.addLiteral(value.ba, PCanonicalBinaryRequired).asInstanceOf[PBinaryValue]
-//        val stagedIs = Code.newInstance[ByteArrayInputStream, Array[Byte]](storedBytes.loadBytes())
-//        val ib = cb.newLocal[InputBuffer]("encoded_literal_ib")
-//        cb.assign(ib, codec.buildCodeInputBuffer(stagedIs))
-//        val pc = codec.buildEmitDecoder(x.typ, cb.emb.ecb)(region.code, ib)
         presentPC(mb.addEncodedLiteral(x))
       case True() =>
         presentC(const(true))

@@ -325,7 +325,6 @@ class EmitClassBuilder[C](
     }
 
     val preEncodedLiterals = encodedLiteralsMap.toArray
-    val otherEncLitFields = preEncodedLiterals.map(_ => genFieldThisRef[Array[Byte]]("otherEncLitField"))
 
     mb2.emit(Code(
       allEncodedFields := mb2.getCodeParam[Array[Array[Byte]]](1),
@@ -334,15 +333,13 @@ class EmitClassBuilder[C](
         dec(partitionRegion, ib)
       },
       Code(storeFields),
-      Code._println(allEncodedFields.length().toS.concat(" is the length")),
       { // Handle the prencoded literals, which only need to be decoded.
         Code(preEncodedLiterals.zipWithIndex.map{ case ((encLit, f), index) =>
           val (preEncLitRType, preEncLitDec) = encLit.codec.buildEmitDecoderF[Long](this)
           val spec = encLit.codec
-          val currentEncLitField = otherEncLitFields(index)
           Code(
-            currentEncLitField := allEncodedFields(index + 1),
-            off := Code.memoize(spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](currentEncLitField)), "pre_enc_lit_ib") {ib =>
+            encLitField := allEncodedFields(index + 1), // Because 0th index is for the regular literals
+            off := Code.memoize(spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField)), "pre_enc_lit_ib") {ib =>
               preEncLitDec(partitionRegion, ib)
             },
             f.store(preEncLitRType.load(off))
@@ -677,7 +674,7 @@ class EmitClassBuilder[C](
     makeRNGs()
     makeAddPartitionRegion()
 
-    val hasLiterals: Boolean = literalsMap.nonEmpty
+    val hasLiterals: Boolean = literalsMap.nonEmpty || encodedLiteralsMap.nonEmpty
 
     val literalsBc = if (hasLiterals)
       ctx.backend.broadcast(encodeLiterals())
