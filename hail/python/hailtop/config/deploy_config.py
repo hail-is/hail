@@ -26,7 +26,7 @@ class DeployConfig:
         if config_file is not None:
             log.info(f'deploy config file found at {config_file}')
             with open(config_file, 'r') as f:
-                config = json.loads(f.read())
+                config = json.load(f)
             log.info(f'deploy config location: {config["location"]}')
         else:
             log.info(f'deploy config file not found: {config_file}')
