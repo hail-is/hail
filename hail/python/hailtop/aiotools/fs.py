@@ -24,26 +24,24 @@ class FileStatus(abc.ABC):
 
 
 class FileListEntry(abc.ABC):
-    def __init__(self, url: str):
-        self._url = url
-
+    @abc.abstractmethod
     def name(self) -> str:
-        parsed = urllib.parse.urlparse(self._url)
-        return os.path.basename(parsed.path)
-
-    def url(self) -> str:
-        return self._url
-
-    @abc.abstractmethod
-    def is_file(self) -> bool:
         pass
 
     @abc.abstractmethod
-    def is_dir(self) -> bool:
+    async def url(self) -> str:
         pass
 
     @abc.abstractmethod
-    def status(self) -> FileStatus:
+    async def is_file(self) -> bool:
+        pass
+
+    @abc.abstractmethod
+    async def is_dir(self) -> bool:
+        pass
+
+    @abc.abstractmethod
+    async def status(self) -> FileStatus:
         pass
 
 
@@ -119,29 +117,31 @@ class LocalStatFileStatus(FileStatus):
 
 class LocalFileListEntry(FileListEntry):
     def __init__(self, thread_pool, base_url, entry):
+        assert '/' not in entry.name
         self._thread_pool = thread_pool
+        if not base_url.endswith('/'):
+            base_url = f'{base_url}/'
         self._base_url = base_url
         self._entry = entry
         self._status = None
 
     def name(self) -> str:
-        return self._entry.name
+        return f'{self._entry.name}'
 
-    def url(self) -> str:
-        b = self._base_url
-        if not b.endswith('/'):
-            b = b + '/'
-        return b + self._entry.name
+    async def url(self) -> str:
+        return f'{self._base_url}{self._entry.name}{"/" if await self.is_dir() else ""}'
 
     async def is_file(self) -> bool:
-        return not await blocking_to_async(self._thread_pool, self._entry.is_dir)
+        return not await self.is_dir()
 
     async def is_dir(self) -> bool:
         return await blocking_to_async(self._thread_pool, self._entry.is_dir)
 
     async def status(self) -> LocalStatFileStatus:
         if self._status is None:
-            self._status = LocalStatFileStatus(await blocking_to_async(self._entry.stat))
+            if await self.is_dir():
+                raise ValueError("directory has no file status")
+            self._status = LocalStatFileStatus(await blocking_to_async(self._thread_pool, self._entry.stat))
         return self._status
 
 
@@ -179,7 +179,7 @@ class LocalAsyncFS(AsyncFS):
             if await file.is_file():
                 yield file
             else:
-                async for subfile in self._listfiles_recursive(file.url()):
+                async for subfile in self._listfiles_recursive(await file.url()):
                     yield subfile
 
     async def _listfiles_flat(self, url: str) -> AsyncIterator[FileListEntry]:
@@ -191,8 +191,7 @@ class LocalAsyncFS(AsyncFS):
     def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
         if recursive:
             return self._listfiles_recursive(url)
-        else:
-            return self._listfiles_flat(url)
+        return self._listfiles_flat(url)
 
     async def mkdir(self, url: str) -> None:
         path = self._get_path(url)
