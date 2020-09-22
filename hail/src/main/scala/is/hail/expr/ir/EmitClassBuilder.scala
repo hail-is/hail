@@ -154,6 +154,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def addLiteral(v: Any, t: PType): PValue = ecb.addLiteral(v, t)
 
+  def addEncodedLiteral(encodedLiteral: EncodedLiteral) = ecb.addEncodedLiteral(encodedLiteral)
+
   def getPType(t: PType): Code[PType] = ecb.getPType(t)
 
   def getType(t: Type): Code[Type] = ecb.getType(t)
@@ -302,7 +304,12 @@ class EmitClassBuilder[C](
     literalsMap.getOrElseUpdate(t -> v, PSettable(fieldBuilder, t, "literal"))
   }
 
-  private[this] def encodeLiterals(): Array[Byte] = {
+  def addEncodedLiteral(encodedLiteral: EncodedLiteral): PValue = {
+    assert(encodedLiteral._pType.isCanonical)
+    encodedLiteralsMap.getOrElseUpdate(encodedLiteral, PSettable(fieldBuilder, encodedLiteral._pType, "encodedLiteral"))
+  }
+
+  private[this] def encodeLiterals(): Array[Array[Byte]] = {
     val literals = literalsMap.toArray
     val litType = PCanonicalTuple(true, literals.map(_._1._1): _*)
     val spec = TypedCodecSpec(litType, BufferSpec.defaultUncompressed)
@@ -310,18 +317,36 @@ class EmitClassBuilder[C](
     val (litRType, dec) = spec.buildEmitDecoderF[Long](this)
     assert(litRType == litType)
     cb.addInterface(typeInfo[FunctionWithLiterals].iname)
-    val mb2 = newEmitMethod("addLiterals", FastIndexedSeq[ParamType](typeInfo[Array[Byte]]), typeInfo[Unit])
+    val mb2 = newEmitMethod("addLiterals", FastIndexedSeq[ParamType](typeInfo[Array[Array[Byte]]]), typeInfo[Unit])
+    val allEncodedFields = mb2.newLocal[Array[Array[Byte]]]("encodeLiterals_allEncodedFields")
     val off = mb2.newLocal[Long]()
     val storeFields = literals.zipWithIndex.map { case (((_, _), f), i) =>
       f.store(litType.types(i).load(litType.fieldOffset(off, i)))
     }
 
+    val preEncodedLiterals = encodedLiteralsMap.toArray
+    val otherEncLitFields = preEncodedLiterals.map(_ => genFieldThisRef[Array[Byte]]("otherEncLitField"))
+
     mb2.emit(Code(
-      encLitField := mb2.getCodeParam[Array[Byte]](1),
+      allEncodedFields := mb2.getCodeParam[Array[Array[Byte]]](1),
+      encLitField := allEncodedFields(0),
       off := Code.memoize(spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField)), "enc_lit_ib") { ib =>
         dec(partitionRegion, ib)
       },
-      Code(storeFields)
+      Code(storeFields),
+      { // Handle the prencoded literals, which only need to be decoded.
+        Code(preEncodedLiterals.zipWithIndex.map{ case ((encLit, f), index) =>
+          val (preEncLitRType, preEncLitDec) = encLit.codec.buildEmitDecoderF[Long](this)
+          val spec = encLit.codec
+          val currentEncLitField = otherEncLitFields(index)
+          Code(
+            off := Code.memoize(spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](currentEncLitField)), "enc_lit_ib") {ib =>
+              preEncLitDec(partitionRegion, ib)
+            },
+            f.store(preEncLitRType.load(off))
+          )
+        })
+      }
     ))
 
     val baos = new ByteArrayOutputStream()
@@ -336,7 +361,7 @@ class EmitClassBuilder[C](
     }
     enc.flush()
     enc.close()
-    baos.toByteArray
+    Array(baos.toByteArray)
   }
 
   private[this] var _objectsField: Settable[Array[AnyRef]] = _
@@ -844,7 +869,7 @@ trait FunctionWithPartitionRegion {
 }
 
 trait FunctionWithLiterals {
-  def addLiterals(lit: Array[Byte]): Unit
+  def addLiterals(lit: Array[Array[Byte]]): Unit
 }
 
 trait FunctionWithSeededRandomness {
