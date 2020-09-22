@@ -334,13 +334,15 @@ class EmitClassBuilder[C](
         dec(partitionRegion, ib)
       },
       Code(storeFields),
+      Code._println(allEncodedFields.length().toS.concat(" is the length")),
       { // Handle the prencoded literals, which only need to be decoded.
         Code(preEncodedLiterals.zipWithIndex.map{ case ((encLit, f), index) =>
           val (preEncLitRType, preEncLitDec) = encLit.codec.buildEmitDecoderF[Long](this)
           val spec = encLit.codec
           val currentEncLitField = otherEncLitFields(index)
           Code(
-            off := Code.memoize(spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](currentEncLitField)), "enc_lit_ib") {ib =>
+            currentEncLitField := allEncodedFields(index + 1),
+            off := Code.memoize(spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](currentEncLitField)), "pre_enc_lit_ib") {ib =>
               preEncLitDec(partitionRegion, ib)
             },
             f.store(preEncLitRType.load(off))
@@ -361,7 +363,7 @@ class EmitClassBuilder[C](
     }
     enc.flush()
     enc.close()
-    Array(baos.toByteArray)
+    Array(baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)
   }
 
   private[this] var _objectsField: Settable[Array[AnyRef]] = _
