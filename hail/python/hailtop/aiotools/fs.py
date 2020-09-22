@@ -126,10 +126,11 @@ class LocalFileListEntry(FileListEntry):
         self._status = None
 
     def name(self) -> str:
-        return f'{self._entry.name}'
+        return self._entry.name
 
     async def url(self) -> str:
-        return f'{self._base_url}{self._entry.name}{"/" if await self.is_dir() else ""}'
+        trailing_slash = "/" if await self.is_dir() else ""
+        return f'{self._base_url}{self._entry.name}{trailing_slash}'
 
     async def is_file(self) -> bool:
         return not await self.is_dir()
