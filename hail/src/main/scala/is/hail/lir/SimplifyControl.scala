@@ -73,6 +73,14 @@ class SimplifyControl(m: Method) {
 
           // if there is one parent, it is L
           q += L
+
+          // if L is now a trivial jump, revisit parents to let them jump over L
+          if (L.first eq L.last) {
+            if (L eq m.entry)
+              m.setEntry(finalTarget(L))
+            else
+              L.uses.foreach(q += _._1.parent)
+          }
         }
 
       case x: GotoX =>
@@ -129,12 +137,16 @@ class SimplifyControl(m: Method) {
         i += 1
       }
     }
+
+    m.setEntry(finalTarget(m.entry))
   }
 
   def simplify(): Unit = {
     unify()
 
     val blocks = m.findBlocks()
+
+    assert(blocks.forall(!_.first.isInstanceOf[GotoX]))
 
     for (b <- blocks)
       q += b
@@ -144,5 +156,14 @@ class SimplifyControl(m: Method) {
       q -= b
       simplifyBlock(b)
     }
+
+    assert(m.findBlocks().forall { b =>
+      !b.first.isInstanceOf[GotoX] &&
+        (b.last match {
+          case i: IfX => i.Ltrue ne i.Lfalse
+          case g: GotoX => g.L.uses.size > 1 || (g.L eq m.entry)
+          case _ => true
+        })
+    })
   }
 }
