@@ -346,15 +346,6 @@ class SparkBackend(
     }
   }
 
-//  def executeLiteral(ir: IR): IR = {
-//    val t = ir.typ
-//    assert(t.isRealizable)
-//    val (value, timings) = execute(ir, optimize = true)
-//    timings.finish()
-//    timings.logInfo()
-//    Literal.coerce(t, value)
-//  }
-
   def executeLiteral(ir: IR): IR = {
     val t = ir.typ
     assert(t.isRealizable)
@@ -363,7 +354,7 @@ class SparkBackend(
       log.info(s"starting execution of query $queryID} of initial size ${ IRSize(ir) }")
       val (retVal, timer) = _execute(ctx, ir, true)
       val literalIR = retVal match {
-        case Left(x) => Literal(TVoid, x)
+        case Left(x) => throw new HailException("Can't create literal")
         case Right((pt, addr)) => GetFieldByIdx(EncodedLiteral.hailValueToByteArray(pt, addr, ctx), 0)
       }
 
