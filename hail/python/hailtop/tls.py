@@ -24,7 +24,7 @@ def _get_ssl_config() -> Dict[str, str]:
     if os.path.isfile(config_file):
         log.info(f'ssl config file found at {config_file}')
         with open(config_file, 'r') as f:
-            ssl_config = json.loads(f.read())
+            ssl_config = json.load(f)
         check_ssl_config(ssl_config)
         return ssl_config
     raise NoSSLConfigFound(f'no ssl config found at {config_file}')

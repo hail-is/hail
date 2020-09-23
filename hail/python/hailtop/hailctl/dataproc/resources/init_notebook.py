@@ -127,7 +127,7 @@ if role == 'Master':
     # spark monitor
     try:
         with open('/opt/conda/default/share/jupyter/kernels/python3/kernel.json', 'r') as f:
-            python3_kernel = json.loads(f.read())
+            python3_kernel = json.load(f)
     except:  # noqa: E722
         python3_kernel = {
             'argv': [
