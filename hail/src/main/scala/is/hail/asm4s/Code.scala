@@ -3,9 +3,9 @@ package is.hail.asm4s
 import java.io.PrintStream
 import java.lang.reflect
 
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
 import is.hail.utils._
-
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
 
@@ -978,6 +978,12 @@ class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
 
   def length(): Code[Int] =
     Code(lhs, lir.insn1(ARRAYLENGTH))
+}
+
+class CodeByteArray(val lhs: Code[Array[Byte]]) {
+  def storeToAddress(cb: EmitCodeBuilder, addr: Code[Long]): Unit = {
+    cb.append(Memory.)
+  }
 }
 
 object CodeLabel {

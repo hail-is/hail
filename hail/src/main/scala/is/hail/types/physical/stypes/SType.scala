@@ -4,7 +4,7 @@ import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{CodeLabel, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
 import is.hail.types.BaseType
-import is.hail.types.physical.mtypes.{MCode, MValue}
+import is.hail.types.physical.mtypes.{MCode, MInt32, MStruct, MType, MValue}
 
 case class IEmitSCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: SCode) {
   def memoize(cb: EmitCodeBuilder): EmitSValue = ???
@@ -23,11 +23,22 @@ trait SCode {
   def copyToRegion(cb: EmitCodeBuilder, region: Value[Region]): SCode = typ.coerceOrCopySValue(cb, region, this, deep = true)
 
   def castTo(cb: EmitCodeBuilder, region: Value[Region], newTyp: SType): SCode = newTyp.coerceOrCopySValue(cb, region, this, deep = false)
+
+  def asStruct: SStructCode = asInstanceOf[SStructCode]
+  def asString: SStringCode = asInstanceOf[SStringCode]
+
 }
 
 // replaces the current PValue
 trait SValue {
   def typ: SType
+
+  def asStruct: SStructValue = asInstanceOf[SStructValue]
+  def asString: SStringValue = asInstanceOf[SStringValue]
+}
+
+trait SPointer extends SType {
+  def mType: MType
 }
 
 trait SType {

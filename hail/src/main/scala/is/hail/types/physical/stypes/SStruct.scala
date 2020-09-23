@@ -1,7 +1,7 @@
 package is.hail.types.physical.stypes
-import is.hail.annotations.Region
+import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.Value
-import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.mtypes.{MType, MValue}
 
 trait SStruct extends SType {
@@ -19,6 +19,11 @@ trait SStruct extends SType {
 
     loadFrom(cb, region, baseToMCanonicalValue(cb, region, value))
   }
+
+  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = {
+    //
+    ???
+  }
 }
 
 trait SStructCode extends SCode {
@@ -33,5 +38,5 @@ trait SStructValue extends SValue {
 
   final def typ: SType = structType
 
-  def loadField(idx: Int): IEmitSCode
+  def loadField(cb: EmitCodeBuilder, region: Value[Region], idx: Int): IEmitSCode
 }

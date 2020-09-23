@@ -68,10 +68,12 @@ trait MType {
   }
 
   // value should have the same virtual type
-  def storeFromSValue(cb: EmitCodeBuilder, memory: UninitializedMValue, value: SValue): MValue
+  def storeFromSValue(cb: EmitCodeBuilder, memory: UninitializedMValue, value: SValue, region: Value[Region], deepCopy: Boolean): MValue
+//
 
-  // value should have the same virtual type, but can be different mtype
-  def storeFromMValue(cb: EmitCodeBuilder, memory: UninitializedMValue, value: MValue): MValue
-
-  def coerceOrCopyMValue(cb: EmitCodeBuilder, region: Value[Region], value: MValue, deep: Boolean): MValue
+  def pointerType: SType
+//  // value should have the same virtual type, but can be different mtype
+//  def storeFromMValue(cb: EmitCodeBuilder, memory: UninitializedMValue, value: MValue): MValue
+//
+//  def coerceOrCopyMValue(cb: EmitCodeBuilder, region: Value[Region], value: MValue, deep: Boolean): MValue
 }

@@ -1,12 +1,12 @@
 package is.hail.types.physical.mtypes
 
 import is.hail.annotations.{Region, UnsafeUtils}
-import is.hail.asm4s.{Code, Value}
+import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.BaseStruct
-import is.hail.types.physical.stypes.{SInt32Value, SStructPointer, SValue}
+import is.hail.types.physical.stypes.{SInt32Value, SStructPointer, SType, SValue}
 import is.hail.types.physical.{PBaseStruct, PType}
-import is.hail.utils.BytePacker
+import is.hail.utils._
 
 case class MField(typ: MType, name: String, idx: Int, required: Boolean)
 
@@ -46,42 +46,32 @@ object MCanonicalStruct {
 
 }
 
-class MCanonicalStruct(fields: IndexedSeq[MField]) extends MStruct {
+class MCanonicalStruct(val fields: IndexedSeq[MField]) extends MStruct {
 
   val (missingIdx: Array[Int], nMissing: Int) = BaseStruct.getMissingIndexAndCount(fields.map(_.required).toArray)
   val nMissingBytes: Int = UnsafeUtils.packBitsToBytes(nMissing)
   val byteOffsets: Array[Long] = new Array[Long](size)
   override val byteSize: Long = MCanonicalStruct.getByteSizeAndOffsets(fields, nMissingBytes, byteOffsets)
   override val alignment: Long = MCanonicalStruct.alignment(fields)
+
   def size: Int = fields.size
 
   def getField(cb: EmitCodeBuilder, idx: Int, mv: MValue): IEmitMCode = {
     IEmitMCode(cb,
       isFieldMissing(mv, idx),
-      ???
-      )
+      getField(mv, idx)
+    )
   }
 
-  def storeFromSValue(cb: EmitCodeBuilder, memory: UninitializedMValue, value: SValue): Unit = {
+  def storeFromSValue(cb: EmitCodeBuilder, memory: UninitializedMValue, value: SValue, region: Value[Region], deepCopy: Boolean): MValue = {
     value.typ match {
-      case SStructPointer =>
-        // fast path
+      case SStructPointer(t) if t == this =>
+      // fast path
       case _ =>
-        // store fields one at a time
+      // store fields one at a time
     }
-
-    cb.append(Region.storeInt(memory.addr, value.asInstanceOf[SInt32Value].intValue))
+    memory.toMValue
   }
-
-  def storeFromMValue(cb: EmitCodeBuilder, memory: UninitializedMValue, value: MValue): Unit = {
-    ???
-  }
-
-  def coerceOrCopyMValue(cb: EmitCodeBuilder, region: Value[Region], value: MValue, deep: Boolean): MValue = {
-    assert(value.typ == this)
-    value
-  }
-
 
   def isFieldDefined(mv: MValue, fieldIdx: Int): Code[Boolean] =
     !isFieldMissing(mv, fieldIdx)
@@ -92,4 +82,9 @@ class MCanonicalStruct(fields: IndexedSeq[MField]) extends MStruct {
     else
       Region.loadBit(mv.addr, missingIdx(fieldIdx).toLong)
 
+  def getField(mv: MValue, fieldIdx: Int): MCode = {
+    new MCode(mv.addr.get + byteOffsets(fieldIdx), fields(fieldIdx).typ)
+  }
+
+  override def pointerType: SStructPointer = SStructPointer(this)
 }
