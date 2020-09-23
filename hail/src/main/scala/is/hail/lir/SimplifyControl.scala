@@ -15,8 +15,7 @@ class SimplifyControl(m: Method) {
 
   def finalTarget(b0: Block): Block = {
     var b = b0
-    while (b.first != null &&
-      b.first.isInstanceOf[GotoX])
+    while (b.first.isInstanceOf[GotoX])
       b = b.first.asInstanceOf[GotoX].L
     b
   }

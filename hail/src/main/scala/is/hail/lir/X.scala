@@ -50,41 +50,7 @@ class Classx[C](val name: String, val superName: String) {
     classes += this
 
     for (m <- methods) {
-      val blocks = m.findBlocks()
-
-      val locals = m.findLocals(blocks)
-      for (l <- locals) {
-        // FIXME parameters, too
-        if (!l.isInstanceOf[Parameter]) {
-          if (l.method == null)
-            l.method = m
-          else {
-            /*
-            if (l.method ne m) {
-              // println(s"$l ${l.method} $m\n  ${l.stack.mkString("  \n")}")
-              println(s"$l ${l.method} $m")
-            }
-             */
-            assert(l.method eq m)
-          }
-        }
-      }
-    }
-
-    for (m <- methods) {
-      m.removeDeadCode()
-    }
-
-    // check
-    for (m <- methods) {
-      val blocks = m.findBlocks()
-      for (b <- blocks) {
-        assert(b.first != null)
-        assert(b.last.isInstanceOf[ControlX])
-      }
-    }
-
-    for (m <- methods) {
+      m.verify()
       SimplifyControl(m)
     }
 
@@ -218,38 +184,32 @@ class Method private[lir] (
     while (s.nonEmpty) {
       val L = s.pop()
       if (!visited.contains(L)) {
-        if (L != null) {
-          if (L.method == null)
-            L.method = this
-          else {
-            /*
-            if (L.method ne this) {
-              println(s"${ L.method } $this")
-              // println(b.stack.mkString("\n"))
-            }
-             */
-            assert(L.method eq this)
-          }
+        assert(L.wellFormed)
 
-          blocksb += L
-
-          var x = L.first
-          while (x != null) {
-            x match {
-              case x: IfX =>
-                s.push(x.Ltrue)
-                s.push(x.Lfalse)
-              case x: GotoX =>
-                s.push(x.L)
-              case x: SwitchX =>
-                s.push(x.Ldefault)
-                x.Lcases.foreach(s.push)
-              case _ =>
-            }
-            x = x.next
+        if (L.method == null)
+          L.method = this
+        else {
+          /*
+          if (L.method ne this) {
+            println(s"${ L.method } $this")
+            // println(b.stack.mkString("\n"))
           }
-          visited += L
+           */
+          assert(L.method eq this)
         }
+
+        blocksb += L
+
+        assert(L.first != null)
+        val x = L.last.asInstanceOf[ControlX]
+        var i = 0
+        while (i < x.targetArity()) {
+          val target = x.target(i)
+          assert(target != null)
+          s.push(target)
+          i += 1
+        }
+        visited += L
       }
     }
 
@@ -260,7 +220,7 @@ class Method private[lir] (
       // don't traverse a set that's being modified
       val uses2 = b.uses.toArray
       for ((u, i) <- uses2) {
-        if (!visited(u.parent))
+        if (u.parent == null || !visited(u.parent))
           u.setTarget(i, null)
       }
     }
@@ -268,7 +228,7 @@ class Method private[lir] (
     new Blocks(blocks)
   }
 
-  def findLocals(blocks: Blocks): Locals = {
+  def findLocals(blocks: Blocks, verifyMethodAssignment: Boolean = false): Locals = {
     val localsb = new ArrayBuilder[Local]()
 
     var i = 0
@@ -286,6 +246,18 @@ class Method private[lir] (
     def visitLocal(l: Local): Unit = {
       if (!l.isInstanceOf[Parameter]) {
         if (!visited.contains(l)) {
+          if (!verifyMethodAssignment || l.method == null)
+            l.method = this
+          else {
+            /*
+            if (l.method ne m) {
+              // println(s"$l ${l.method} $m\n  ${l.stack.mkString("  \n")}")
+              println(s"$l ${l.method} $m")
+            }
+             */
+            assert(l.method eq this)
+          }
+
           localsb += l
           visited += l
         }
@@ -313,17 +285,10 @@ class Method private[lir] (
     new Locals(localsb.result())
   }
 
-  def removeDeadCode(): Unit = {
-    val blocks = findBlocks()
-    for (b <- blocks) {
-      var x = b.first
-      while (x != null && !x.isInstanceOf[ControlX])
-        x = x.next
-      if (x != null) {
-        while (x.next != null)
-          x.next.remove()
-      }
-    }
+  // Verify all blocks are well-formed, all blocks and locals have correct
+  // method set.
+  def verify(): Unit = {
+    findLocals(findBlocks(), verifyMethodAssignment = true)
   }
 
   def approxByteCodeSize(): Int = {
@@ -361,6 +326,23 @@ class Block {
 
   val uses: mutable.Set[(ControlX, Int)] = mutable.Set[(ControlX, Int)]()
 
+  def wellFormed: Boolean = {
+    if (first == null)
+      return false
+
+    last match {
+      case ctrl: ControlX =>
+        var i = 0
+        while (i < ctrl.targetArity()) {
+          if (ctrl.target(i) == null)
+            return false
+          i += 1
+        }
+        true
+      case _ => false
+    }
+  }
+
   def addUse(x: ControlX, i: Int): Unit = {
     val added = uses.add(x -> i)
     assert(added)
@@ -385,6 +367,11 @@ class Block {
 
   def prepend(x: StmtX): Unit = {
     assert(x.parent == null)
+    if (x.isInstanceOf[ControlX])
+      // prepending a new control statement, so previous contents are dead code
+      while (last != null) {
+        last.remove()
+      }
     if (last == null) {
       first = x
       last = x
@@ -400,6 +387,9 @@ class Block {
 
   def append(x: StmtX): Unit = {
     assert(x.parent == null)
+    if (last.isInstanceOf[ControlX])
+      // if last is a ControlX, x is dead code, so just drop it
+      return
     if (last == null) {
       first = x
       last = x
