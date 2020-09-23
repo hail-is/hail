@@ -3063,11 +3063,9 @@ abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Lo
   def emit(cb: EmitCodeBuilder, targetType: PNDArray, region: Value[Region]): IEmitCode = {
     outputShape.map(cb){ shapeArray: IndexedSeq[Value[Long]] =>
       val dataSrvb = new StagedRegionValueBuilder(cb.emb, targetType.data.pType, region)
-      val dataAddress: Code[Long] =
-        Code(
-          dataSrvb.start(targetType.numElements(shapeArray, cb.emb).toI),
-          emitLoops(cb, shapeArray, targetType.elementType, dataSrvb),
-          dataSrvb.end())
+      cb.append(dataSrvb.start(targetType.numElements(shapeArray, cb.emb).toI))
+      emitLoops(cb, shapeArray, targetType.elementType, dataSrvb)
+      val dataAddress: Code[Long] = dataSrvb.end()
 
       def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
         coerce[Unit](Code(
@@ -3092,7 +3090,7 @@ abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Lo
     }
   }
 
-  private def emitLoops(cb: EmitCodeBuilder, outputShapeVariables: IndexedSeq[Value[Long]], outputElementPType: PType, srvb: StagedRegionValueBuilder): Code[Unit] = {
+  private def emitLoops(cb: EmitCodeBuilder, outputShapeVariables: IndexedSeq[Value[Long]], outputElementPType: PType, srvb: StagedRegionValueBuilder): Unit = {
     val mb = cb.emb
     val idxVars = Array.tabulate(nDims) { i => cb.newField[Long](s"ndarray_emitter_idxVar_$i") }.toFastIndexedSeq
     val storeElement = mb.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType))
@@ -3114,7 +3112,7 @@ abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Lo
       )
     }
 
-    columnMajorLoops
+    cb.append(columnMajorLoops)
   }
 }
 
