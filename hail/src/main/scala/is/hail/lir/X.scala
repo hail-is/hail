@@ -367,6 +367,11 @@ class Block {
 
   def prepend(x: StmtX): Unit = {
     assert(x.parent == null)
+    if (x.isInstanceOf[ControlX])
+      // prepending a new control statement, so previous contents are dead code
+      while (last != null) {
+        last.remove()
+      }
     if (last == null) {
       first = x
       last = x
@@ -382,20 +387,20 @@ class Block {
 
   def append(x: StmtX): Unit = {
     assert(x.parent == null)
-    x.parent = this
+    if (last.isInstanceOf[ControlX])
+      // if last is a ControlX, x is dead code, so just drop it
+      return
     if (last == null) {
       first = x
       last = x
-    } else if (!last.isInstanceOf[ControlX]) {
+    } else {
       assert(x.prev == null)
       x.prev = last
       assert(last.next == null)
       last.next = x
       last = x
-    } else {
-      // if last is a ControlX, x is dead code, so just drop it
-      x.parent = null
     }
+    x.parent = this
   }
 
   def drop(): Unit = {
