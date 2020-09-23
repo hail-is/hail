@@ -40,8 +40,6 @@ def load_dataset(name,
     if region not in valid_regions:
         raise ValueError(f'Specify valid region parameter, received: region={region}. '
                          f'Valid regions are {valid_regions}.')
-    if version is None:
-        version = reference_genome
 
     config_path = pkg_resources.resource_filename(__name__, 'annotation_db.json')
     assert os.path.exists(config_path), f'{config_path} does not exist'
@@ -53,19 +51,26 @@ def load_dataset(name,
         raise ValueError('{} is not a dataset available in the repository.'.format(repr(name)))
 
     version_ref_genomes = set(x['version'] for x in datasets[name]['versions'])
-    reference_genomes = set(re.findall("GRCh\d{2}$", x)[0] for x in version_ref_genomes)
-    versions = set(x.replace("-GRCh37", "").replace("-GRCh38", "") for x in version_ref_genomes)
-    if not any(version in x for x in versions):
+    versions = set(x.replace("GRCh37", "").replace("GRCh38", "").rstrip("-") for x in version_ref_genomes)
+    versions = [None if x is '' else x for x in versions]
+    if version not in versions:
         raise ValueError("""Version {0} not available for dataset {1}.
                             Available versions: {{{2}}}.""".format(repr(version),
                                                                    repr(name),
                                                                    repr('","'.join(versions))))
+    get_ref_genomes = [re.findall("GRCh\d{2}$", x) for x in version_ref_genomes]
+    reference_genomes = set(x[0] for x in get_ref_genomes if x)
+    if not reference_genomes:
+        reference_genomes = [None]
     if reference_genome not in reference_genomes:
         raise ValueError("""Reference genome build {0} not available for dataset {1}.
                             Available reference genome builds: {{'{2}'}}.""".format(repr(reference_genome),
                                                                                     repr(name),
                                                                                     '\',\''.join(reference_genomes)))
-    if version is reference_genome:
+
+    if version and not reference_genome:
+        get_version = version
+    elif reference_genome and not version:
         get_version = reference_genome
     else:
         get_version = "-".join([version, reference_genome])
