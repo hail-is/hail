@@ -3,11 +3,11 @@
 gerp_scores
 ===========
 
-*  **Versions:** [None]
+*  **Versions:** ['hg19']
 *  **Reference genome builds:** ['GRCh37', 'GRCh38']
 *  **Type:** :class:`Table`
 
-Schema (None, GRCh37)
+Schema (hg19, GRCh37)
 ~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: text

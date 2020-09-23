@@ -20,11 +20,11 @@ class AnnotationDBTests(unittest.TestCase):
             'unique_dataset': {'description': 'now with unique rows!',
                                'url': 'https://example.com',
                                'key_properties': ['unique'],
-                               'versions': [{'url': {'us': fname, 'eu': fname}, 'version': 'v1-GRCh37'}]},
+                               'versions': [{'url': fname, 'version': 'v1-GRCh37'}]},
             'nonunique_dataset': {'description': 'non-unique rows :(',
                                   'url': 'https://example.net',
                                   'key_properties': [],
-                                  'versions': [{'url': {'us': fname, 'eu': fname}, 'version': 'v1-GRCh37'}]}}
+                                  'versions': [{'url': fname, 'version': 'v1-GRCh37'}]}}
 
     @classmethod
     def tearDownAnnotationDBTests(cls):
@@ -35,7 +35,7 @@ class AnnotationDBTests(unittest.TestCase):
     tearDownClass = tearDownAnnotationDBTests
 
     def test_uniqueness(self):
-        db = hl.experimental.DB(region='us', config=AnnotationDBTests.db_json)
+        db = hl.experimental.DB(config=AnnotationDBTests.db_json)
         t = hl.utils.range_table(10)
         t = t.annotate(locus=hl.locus('1', t.idx + 1))
         t = db.annotate_rows_db(t, 'unique_dataset', 'nonunique_dataset')

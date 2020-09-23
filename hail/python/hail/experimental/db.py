@@ -50,16 +50,16 @@ class DatasetVersion:
         ----------
         name : :obj:`str`
             Name of dataset.
-        versions : :obj:`dict`
-            Dictionary containing url and version, where the value for url is
-            a dictionary containing the regions 'us' and 'eu'.
+        versions : :obj:`list of DatasetVersion`
+            List of DatasetVersion objects where the value for
+            DatasetVersion.url is a dictionary containing the regions 'us' and 'eu'.
         region : :obj: `str`
             GCP region from which to access data, available regions given in
             hl.experimental.DB._valid_regions, currently either 'us' or 'eu'.
 
         Returns
         -------
-        available_versions : :obj:`list`
+        available_versions : :obj:`list of DatasetVersion`
             List of available versions of a `Dataset` for region.
         """
         available_versions = []

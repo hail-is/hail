@@ -52,14 +52,14 @@ def load_dataset(name,
 
     version_ref_genomes = set(x['version'] for x in datasets[name]['versions'])
     versions = set(x.replace("GRCh37", "").replace("GRCh38", "").rstrip("-") for x in version_ref_genomes)
-    versions = [None if x is '' else x for x in versions]
+    versions = [None if x == '' else x for x in versions]
     if version not in versions:
         raise ValueError("""Version {0} not available for dataset {1}.
                             Available versions: {{{2}}}.""".format(repr(version),
                                                                    repr(name),
                                                                    repr('","'.join(versions))))
 
-    get_ref_genomes = [re.findall("GRCh\d{2}$", x) for x in version_ref_genomes]
+    get_ref_genomes = [re.findall("GRCh\\d{2}$", x) for x in version_ref_genomes]
     reference_genomes = set(x[0] for x in get_ref_genomes if x)
     if not reference_genomes:
         reference_genomes = [None]
