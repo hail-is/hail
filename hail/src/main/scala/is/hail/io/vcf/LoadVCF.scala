@@ -295,7 +295,9 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
   def nextField(): Unit = {
     if (pos == line.length)
       parseError("unexpected end of line")
-    assert(line(pos) == '\t')
+    if (line(pos) != '\t') {
+      parseError("expected tab character between fields")
+    }
     pos += 1 // tab
   }
 
