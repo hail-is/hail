@@ -58,6 +58,7 @@ def load_dataset(name,
                             Available versions: {{{2}}}.""".format(repr(version),
                                                                    repr(name),
                                                                    repr('","'.join(versions))))
+
     get_ref_genomes = [re.findall("GRCh\d{2}$", x) for x in version_ref_genomes]
     reference_genomes = set(x[0] for x in get_ref_genomes if x)
     if not reference_genomes:

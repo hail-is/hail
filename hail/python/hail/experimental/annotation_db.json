@@ -384,14 +384,14 @@
           "eu": "gs://hail-datasets-eu/annotations/GERP_scores.GERP++.GRCh37.ht",
           "us": "gs://hail-datasets-us/annotations/GERP_scores.GERP++.GRCh37.ht"
         },
-        "version": "GRCh37"
+        "version": "hg19-GRCh37"
       },
       {
         "url": {
           "eu": "gs://hail-datasets-eu/annotations/GERP_scores.GERP++.GRCh38.ht",
           "us": "gs://hail-datasets-us/annotations/GERP_scores.GERP++.GRCh38.ht"
         },
-        "version": "GRCh38"
+        "version": "hg19-GRCh38"
       }
     ]
   },

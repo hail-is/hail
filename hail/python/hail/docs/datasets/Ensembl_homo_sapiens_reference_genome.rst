@@ -3,8 +3,8 @@
 Ensembl_homo_sapiens_reference_genome
 =====================================
 
-*  **Versions:** release_95
-*  **Reference genome builds:** GRCh37, GRCh38
+*  **Versions:** ['release_95']
+*  **Reference genome builds:** ['GRCh37', 'GRCh38']
 *  **Type:** :class:`Table`
 
 Schema (release_95, GRCh37)
@@ -15,16 +15,15 @@ Schema (release_95, GRCh37)
     ----------------------------------------
     Global fields:
         'metadata': struct {
-            name: str,
-            version: str,
-            reference_genome: str,
-            n_rows: int64,
+            name: str, 
+            version: str, 
+            reference_genome: str, 
             n_partitions: int32
-        }
+        } 
     ----------------------------------------
     Row fields:
-        'locus': locus<GRCh37>
-        'reference_allele': str
+        'locus': locus<GRCh37> 
+        'reference_allele': str 
     ----------------------------------------
     Key: ['locus']
     ----------------------------------------

@@ -1,7 +1,7 @@
-.. _DANN:
+.. _gerp_scores:
 
-DANN
-====
+gerp_scores
+===========
 
 *  **Versions:** [None]
 *  **Reference genome builds:** ['GRCh37', 'GRCh38']
@@ -18,15 +18,14 @@ Schema (None, GRCh37)
             name: str, 
             version: str, 
             reference_genome: str, 
-            n_rows: int64, 
             n_partitions: int32
         } 
     ----------------------------------------
     Row fields:
         'locus': locus<GRCh37> 
-        'alleles': array<str> 
-        'score': float64 
+        'N': float64 
+        'S': float64 
     ----------------------------------------
-    Key: ['locus', 'alleles']
+    Key: ['locus']
     ----------------------------------------
 

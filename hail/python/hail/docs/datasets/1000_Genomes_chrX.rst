@@ -3,8 +3,8 @@
 1000_Genomes_chrX
 =================
 
-*  **Versions:** phase_3
-*  **Reference genome builds:** GRCh37, GRCh38
+*  **Versions:** ['phase_3']
+*  **Reference genome builds:** ['GRCh37', 'GRCh38']
 *  **Type:** :class:`MatrixTable`
 
 Schema (phase_3, GRCh37)
@@ -15,11 +15,11 @@ Schema (phase_3, GRCh37)
     ----------------------------------------
     Global fields:
         'metadata': struct {
-            name: str,
-            version: str,
-            reference_genome: str,
-            n_rows: int32,
-            n_cols: int32,
+            name: str, 
+            version: str, 
+            reference_genome: str, 
+            n_rows: int32, 
+            n_cols: int32, 
             n_partitions: int32
         }
     ----------------------------------------
@@ -37,22 +37,22 @@ Schema (phase_3, GRCh37)
         'second_order_relationship_ids': array<str>
         'third_order_relationship_ids': array<str>
         'sample_qc': struct {
-            call_rate: float64,
-            n_called: int64,
-            n_not_called: int64,
-            n_hom_ref: int64,
-            n_het: int64,
-            n_hom_var: int64,
-            n_non_ref: int64,
-            n_singleton: int64,
-            n_snp: int64,
-            n_insertion: int64,
-            n_deletion: int64,
-            n_transition: int64,
-            n_transversion: int64,
-            n_star: int64,
-            r_ti_tv: float64,
-            r_het_hom_var: float64,
+            call_rate: float64, 
+            n_called: int64, 
+            n_not_called: int64, 
+            n_hom_ref: int64, 
+            n_het: int64, 
+            n_hom_var: int64, 
+            n_non_ref: int64, 
+            n_singleton: int64, 
+            n_snp: int64, 
+            n_insertion: int64, 
+            n_deletion: int64, 
+            n_transition: int64, 
+            n_transversion: int64, 
+            n_star: int64, 
+            r_ti_tv: float64, 
+            r_het_hom_var: float64, 
             r_insertion_deletion: float64
         }
     ----------------------------------------
@@ -63,32 +63,32 @@ Schema (phase_3, GRCh37)
         'qual': float64
         'filters': set<str>
         'info': struct {
-            CIEND: int32,
-            CIPOS: int32,
-            CS: str,
-            END: int32,
-            IMPRECISE: bool,
-            MC: array<str>,
-            MEINFO: array<str>,
-            MEND: int32,
-            MLEN: int32,
-            MSTART: int32,
-            SVLEN: array<int32>,
-            SVTYPE: str,
-            TSD: str,
-            AC: int32,
-            AF: float64,
-            NS: int32,
-            AN: int32,
-            EAS_AF: float64,
-            EUR_AF: float64,
-            AFR_AF: float64,
-            AMR_AF: float64,
-            SAS_AF: float64,
-            DP: int32,
-            AA: str,
-            VT: str,
-            EX_TARGET: bool,
+            CIEND: int32, 
+            CIPOS: int32, 
+            CS: str, 
+            END: int32, 
+            IMPRECISE: bool, 
+            MC: array<str>, 
+            MEINFO: array<str>, 
+            MEND: int32, 
+            MLEN: int32, 
+            MSTART: int32, 
+            SVLEN: array<int32>, 
+            SVTYPE: str, 
+            TSD: str, 
+            AC: int32, 
+            AF: float64, 
+            NS: int32, 
+            AN: int32, 
+            EAS_AF: float64, 
+            EUR_AF: float64, 
+            AFR_AF: float64, 
+            AMR_AF: float64, 
+            SAS_AF: float64, 
+            DP: int32, 
+            AA: str, 
+            VT: str, 
+            EX_TARGET: bool, 
             MULTI_ALLELIC: bool
         }
         'a_index': int32
@@ -96,16 +96,16 @@ Schema (phase_3, GRCh37)
         'old_locus': locus<GRCh37>
         'old_alleles': array<str>
         'variant_qc': struct {
-            AC: array<int32>,
-            AF: array<float64>,
-            AN: int32,
-            homozygote_count: array<int32>,
-            n_called: int64,
-            n_not_called: int64,
-            call_rate: float32,
-            n_het: int64,
-            n_non_ref: int64,
-            het_freq_hwe: float64,
+            AC: array<int32>, 
+            AF: array<float64>, 
+            AN: int32, 
+            homozygote_count: array<int32>, 
+            n_called: int64, 
+            n_not_called: int64, 
+            call_rate: float32, 
+            n_het: int64, 
+            n_non_ref: int64, 
+            het_freq_hwe: float64, 
             p_value_hwe: float64
         }
     ----------------------------------------

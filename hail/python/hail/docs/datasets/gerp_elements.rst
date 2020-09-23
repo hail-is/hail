@@ -1,13 +1,13 @@
-.. _DANN:
+.. _gerp_elements:
 
-DANN
-====
+gerp_elements
+=============
 
-*  **Versions:** [None]
+*  **Versions:** ['hg19']
 *  **Reference genome builds:** ['GRCh37', 'GRCh38']
 *  **Type:** :class:`Table`
 
-Schema (None, GRCh37)
+Schema (hg19, GRCh37)
 ~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: text
@@ -18,15 +18,14 @@ Schema (None, GRCh37)
             name: str, 
             version: str, 
             reference_genome: str, 
-            n_rows: int64, 
             n_partitions: int32
         } 
     ----------------------------------------
     Row fields:
-        'locus': locus<GRCh37> 
-        'alleles': array<str> 
-        'score': float64 
+        'interval': interval<locus<GRCh37>> 
+        'S': float64 
+        'p_value': float64 
     ----------------------------------------
-    Key: ['locus', 'alleles']
+    Key: ['interval']
     ----------------------------------------
 
