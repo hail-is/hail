@@ -695,6 +695,7 @@ class Emit[C](
       case x@Literal(t, v) =>
         presentPC(mb.addLiteral(v, x.pType))
       case x@EncodedLiteral(codec, value) =>
+        assert(x.pType == codec.decodedPType())
         presentPC(mb.addEncodedLiteral(x))
       case True() =>
         presentC(const(true))

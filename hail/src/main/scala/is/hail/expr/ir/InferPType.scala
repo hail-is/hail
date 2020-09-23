@@ -126,6 +126,8 @@ object InferPType {
            | _: ApplyUnaryPrimOp | _: ApplyComparisonOp | _: WriteValue
            | _: NDArrayAgg | _: ShuffleWrite | _: AggStateValue | _: CombOpValue | _: InitFromSerializedValue =>
         requiredness(node).canonicalPType(node.typ)
+      case EncodedLiteral(codec, _) =>
+        codec.decodedPType()
       case CastRename(v, typ) => v.pType.deepRename(typ)
       case x: BaseRef if usesAndDefs.free.contains(RefEquality(x)) =>
         env.lookup(x.name)
