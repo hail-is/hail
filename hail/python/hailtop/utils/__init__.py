@@ -17,6 +17,7 @@ from .rates import (
     rate_instance_hour_to_fraction_msec
 )
 from .rate_limiter import RateLimit, RateLimiter
+from . import serialization
 
 __all__ = [
     'time_msecs',
@@ -61,5 +62,6 @@ __all__ = [
     'RateLimiter',
     'partition',
     'cost_str',
-    'external_requests_client_session'
+    'external_requests_client_session',
+    'serialization'
 ]
