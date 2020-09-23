@@ -52,9 +52,9 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(hl.impute_sex(ds.GT)._same(hl.impute_sex(ds.GT, aaf='aaf')))
 
-    linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd]
+    backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
+    linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl._linear_regression_rows_nd]
 
-    @fails_local_backend()
     def test_linreg_basic(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -207,7 +207,6 @@ class Tests(unittest.TestCase):
         assert t4._same(t5)
 
 
-    @fails_local_backend()
     def test_linear_regression_without_intercept(self):
         for linreg_function in self.linreg_functions:
             pheno = hl.import_table(resource('regressionLinear.pheno'),
@@ -232,7 +231,6 @@ class Tests(unittest.TestCase):
     # df = data.frame(y, x, c1, c2)
     # fit <- lm(y ~ x + c1 + c2, data=df)
     # summary(fit)["coefficients"]
-    @fails_local_backend()
     def test_linear_regression_with_cov(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -276,7 +274,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[9].standard_error))
             self.assertTrue(np.isnan(results[10].standard_error))
 
-    @fails_local_backend()
     def test_linear_regression_pl(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -312,7 +309,7 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
             self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
 
-    @fails_local_backend()
+    @fails_local_backend() # Because of import_gen
     def test_linear_regression_with_dosage(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -347,7 +344,6 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
             self.assertTrue(np.isnan(results[6].standard_error))
 
-    @fails_local_backend()
     def test_linear_regression_equivalence_between_ds_and_gt(self):
         """Test that linear regressions on data converted from dosage to genotype returns the same results"""
         ds_mt = hl.import_vcf(resource('small-ds.vcf'))
@@ -364,7 +360,6 @@ class Tests(unittest.TestCase):
             results_t = ds_results_t.annotate(**gt_results_t[ds_results_t.locus, ds_results_t.alleles])
             self.assertTrue(all(hl.approx_equal(results_t.ds_p_value, results_t.gt_p_value, nan_same=True).collect()))
 
-    @fails_local_backend()
     def test_linear_regression_with_import_fam_boolean(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -395,7 +390,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[9].standard_error))
             self.assertTrue(np.isnan(results[10].standard_error))
 
-    @fails_local_backend()
     def test_linear_regression_with_import_fam_quant(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -428,7 +422,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[9].standard_error))
             self.assertTrue(np.isnan(results[10].standard_error))
 
-    @fails_local_backend()
     def test_linear_regression_multi_pheno_same(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
