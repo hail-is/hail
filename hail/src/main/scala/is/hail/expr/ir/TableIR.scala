@@ -674,8 +674,8 @@ object TableFromBlockMatrixNativeReader {
 
   }
 
-  def apply(fs: FS, path: String, nPartitions: Option[Int] = None): TableFromBlockMatrixNativeReader =
-    TableFromBlockMatrixNativeReader(fs, TableFromBlockMatrixNativeReaderParameters(path, nPartitions))
+  def apply(fs: FS, path: String, nPartitions: Option[Int] = None, maximumCacheMemoryInBytes: Option[Int] = None): TableFromBlockMatrixNativeReader =
+    TableFromBlockMatrixNativeReader(fs, TableFromBlockMatrixNativeReaderParameters(path, nPartitions, maximumCacheMemoryInBytes))
 
   def fromJValue(fs: FS, jv: JValue): TableFromBlockMatrixNativeReader = {
     implicit val formats: Formats = TableReader.formats
