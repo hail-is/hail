@@ -104,7 +104,7 @@ class TableFromBlockMatrixNativeReader(TableReader):
         reader = {'name': 'TableFromBlockMatrixNativeReader',
                   'path': self.path,
                   'nPartitions': self.n_partitions,
-                  'maximumCacheMemoryInBytes': maximum_cache_memory_in_bytes}
+                  'maximumCacheMemoryInBytes': self.maximum_cache_memory_in_bytes}
         return escape_str(json.dumps(reader))
 
     def __eq__(self, other):
