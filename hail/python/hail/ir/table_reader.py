@@ -94,18 +94,21 @@ class TextTableReader(TableReader):
 
 
 class TableFromBlockMatrixNativeReader(TableReader):
-    @typecheck_method(path=str, n_partitions=nullable(int))
-    def __init__(self, path, n_partitions):
+    @typecheck_method(path=str, n_partitions=nullable(int), maximum_cache_memory_in_bytes=nullable(int))
+    def __init__(self, path, n_partitions, maximum_cache_memory_in_bytes):
         self.path = path
         self.n_partitions = n_partitions
+        self.maximum_cache_memory_in_bytes = maximum_cache_memory_in_bytes
 
     def render(self):
         reader = {'name': 'TableFromBlockMatrixNativeReader',
                   'path': self.path,
-                  'nPartitions': self.n_partitions}
+                  'nPartitions': self.n_partitions,
+                  'maximumCacheMemoryInBytes': maximum_cache_memory_in_bytes}
         return escape_str(json.dumps(reader))
 
     def __eq__(self, other):
         return isinstance(other, TableFromBlockMatrixNativeReader) and \
             other.path == self.path and \
-            other.n_partitions == self.n_partitions
+            other.n_partitions == self.n_partitions and \
+            other.maximum_cache_memory_in_bytes == self.maximum_cache_memory_in_bytes
