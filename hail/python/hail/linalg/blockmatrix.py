@@ -1702,7 +1702,7 @@ class BlockMatrix(object):
         maximum_cache_memory_in_bytes : int or None
             The amount of memory to reserve, per partition, to cache rows of the
             matrix in memory. This value must be at least large enough to hold
-            one row of th matrix in memory. If this value is exactly the size of
+            one row of the matrix in memory. If this value is exactly the size of
             one row, then a partition makes a network request for every row of
             every block. Larger values reduce the number of network requests. If
             memory permits, setting this value to the size of one output
@@ -1738,7 +1738,7 @@ class BlockMatrix(object):
         maximum_cache_memory_in_bytes : int or None
             The amount of memory to reserve, per partition, to cache rows of the
             matrix in memory. This value must be at least large enough to hold
-            one row of th matrix in memory. If this value is exactly the size of
+            one row of the matrix in memory. If this value is exactly the size of
             one row, then a partition makes a network request for every row of
             every block. Larger values reduce the number of network requests. If
             memory permits, setting this value to the size of one output
