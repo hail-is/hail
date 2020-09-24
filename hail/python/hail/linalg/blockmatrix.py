@@ -1718,6 +1718,9 @@ class BlockMatrix(object):
             Table where each row corresponds to a row in the block matrix.
         """
         path = new_temp_file()
+        if maximum_cache_memory_in_bytes > (1 << 31) - 1:
+            raise ValueError(
+                f'maximum_cache_memory_in_bytes must be less than 2^31 -1, was: {maximum_cache_memory_in_bytes}')
 
         self.write(path, overwrite=True, force_row_major=True)
         reader = TableFromBlockMatrixNativeReader(path, n_partitions, maximum_cache_memory_in_bytes)
