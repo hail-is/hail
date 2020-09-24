@@ -215,7 +215,7 @@ class Tests(unittest.TestCase):
         try:
             bm.to_table_row_major(2, maximum_cache_memory_in_bytes=15)._force_count()
         except Exception as exc:
-            assert 'BlockMatrixCachedPartFile must be able to hold at least one row of every block in memory' in exc.message
+            assert 'BlockMatrixCachedPartFile must be able to hold at least one row of every block in memory' in exc.args[0]
         else:
             assert False
 
