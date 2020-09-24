@@ -212,7 +212,7 @@ class DB:
                  url=None,
                  config=None):
         custom_config = config or url
-        if region not in DB._valid_regions and not (config or url):
+        if region not in DB._valid_regions:
             raise ValueError(f'Specify valid region parameter, received: region={region}. '
                              f'Valid regions are {DB._valid_regions}.')
         if config is not None and url is not None:
