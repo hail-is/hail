@@ -335,6 +335,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
     grouped = ht._group_within_partitions("groups", block_size * 2)
     A = grouped.select(ndarray=hl.nd.array(grouped.groups.map(lambda group: group.xs)))
+    A = A.persist()
 
     # Set Parameters
 
