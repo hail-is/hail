@@ -103,7 +103,9 @@ def test_modify_wheel_local_wheel(gcloud_run):
 
     remote_command = install_gcloud_args[install_gcloud_args.index("--") + 1]
     assert remote_command == ("sudo /opt/conda/default/bin/pip uninstall -y hail && " +
-        "sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/local-hail.whl")
+        "sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/local-hail.whl && " +
+        "unzip /tmp/local-hail.whl && " +
+        "grep 'Requires-Dist: ' hail*dist-info/METADATA | sed 's/Requires-Dist: //' | sed 's/ (//' | sed 's/)//' | grep -v 'pyspark' | xargs pip install")
 
 
 @pytest.mark.parametrize("wheel_arg", [
@@ -171,5 +173,7 @@ def test_update_hail_version(gcloud_run, monkeypatch, deploy_metadata):
     assert remote_command == (
         "sudo gsutil cp gs://hail-common/hailctl/dataproc/test-version/hail-test-version-py3-none-any.whl /tmp/ && " +
         "sudo /opt/conda/default/bin/pip uninstall -y hail && " +
-        "sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/hail-test-version-py3-none-any.whl"
+        "sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/hail-test-version-py3-none-any.whl && " +
+        "unzip /tmp/hail-test-version-py3-none-any.whl && " +
+        "grep 'Requires-Dist: ' hail*dist-info/METADATA | sed 's/Requires-Dist: //' | sed 's/ (//' | sed 's/)//' | grep -v 'pyspark' | xargs pip install"
     )
