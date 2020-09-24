@@ -655,6 +655,7 @@ class tndarray(HailType):
 
     def _convert_from_json(self, x):
         if is_numeric(self._element_type):
+            np_type = self.element_type.to_numpy()
             return np.ndarray(shape=x['shape'], buffer=np.array(x['data'], dtype=np_type), strides=x['strides'], dtype=np_type)
         else:
             raise TypeError("Hail cannot currently return ndarrays of non-numeric or boolean type.")
