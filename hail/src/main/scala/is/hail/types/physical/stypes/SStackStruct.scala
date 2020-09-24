@@ -22,7 +22,9 @@ case class SStackStruct(fields: IndexedSeq[SStackStructField[SType]]) extends SS
     )
   }
 
-  def coerceOrCopySValue(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deep: Boolean): SCode
+  override def coerceOrCopySValue(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deep: Boolean): SCode = {
+    ???
+  }
 }
 
 case class SStackStructCode(structType: SStackStruct, values: IndexedSeq[IEmitSCode]) extends SStructCode {

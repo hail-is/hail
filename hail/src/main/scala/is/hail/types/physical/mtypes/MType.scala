@@ -72,8 +72,7 @@ trait MType {
 //
 
   def pointerType: SType
-//  // value should have the same virtual type, but can be different mtype
-//  def storeFromMValue(cb: EmitCodeBuilder, memory: UninitializedMValue, value: MValue): MValue
-//
-//  def coerceOrCopyMValue(cb: EmitCodeBuilder, region: Value[Region], value: MValue, deep: Boolean): MValue
+
+  // most mtypes are represented inline
+  def loadNestedRepr(addr: Code[Long]): Code[Long] = addr
 }
