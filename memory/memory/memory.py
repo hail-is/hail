@@ -73,7 +73,7 @@ async def get_file_or_none(app, username, userinfo, filepath, etag):
         log.info(f"memory: Retrieved file {filepath} for user {username} with etag'{etag}'")
         return cached_etag.decode('ascii'), result
 
-    log.info(f"memory: Couldn't retrieve file {filepath} for user {username}: current version not in cache.")
+    log.info(f"memory: Couldn't retrieve file {filepath} for user {username}: current version not in cache (requested '{etag}', found '{cached_etag}').")
     if file_key not in app['files_in_progress']:
         try:
             log.info(f"memory: Loading {filepath} to cache for user {username}")
@@ -86,9 +86,12 @@ async def get_file_or_none(app, username, userinfo, filepath, etag):
 
 async def load_file(redis, files, file_key, fs, filepath):
     try:
+        log.info(f"memory: Reading {filepath} for user {username}")
         data = await fs.read_binary_gs_file(filepath)
         etag = await fs.get_etag(filepath)
+        log.info(f"memory: Read {filepath} with etag {etag}")
         await redis.execute('HMSET', file_key, 'etag', etag.encode('ascii'), 'body', data)
+        log.info(f"memory: Stored {filepath} ('{etag}') in cache.")
     finally:
         files.remove(file_key)
 
