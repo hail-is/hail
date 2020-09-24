@@ -5,7 +5,6 @@ import copy
 from functools import wraps
 import concurrent
 import asyncio
-import traceback
 import dictdiffer
 from aiohttp import web
 import aiohttp_session
