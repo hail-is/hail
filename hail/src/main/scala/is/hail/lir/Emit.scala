@@ -1,71 +1,38 @@
 package is.hail.lir
 
-import java.io.{PrintWriter, StringWriter}
+import java.io.PrintWriter
 
 import is.hail.utils._
-import org.objectweb.asm.{ClassReader, ClassWriter}
+import org.objectweb.asm.{ClassReader, ClassVisitor, ClassWriter, Label}
 import org.objectweb.asm.Opcodes._
-import org.objectweb.asm.tree._
 import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 object Emit {
-  def asBytes(cn: ClassNode, print: Option[PrintWriter]): Array[Byte] = {
-    val bytes = try {
-      for (method <- cn.methods.asScala) {
-        val count = method.instructions.size
-        log.info(s"instruction count: $count: ${ cn.name }.${ method.name }")
-        if (count > 8000)
-          log.warn(s"big method: $count: ${ cn.name }.${ method.name }")
-      }
-
-      val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
-      cn.accept(cw)
-      val b = cw.toByteArray
-      //       This next line should always be commented out!
-//      CheckClassAdapter.verify(new ClassReader(b), false, new PrintWriter(System.err))
-      b
-    } catch {
-      case e: Exception =>
-        val trace = new TraceClassVisitor(new PrintWriter(System.err))
-        val check = new CheckClassAdapter(trace)
-        cn.accept(check)
-        throw e
-    }
-    print.foreach { pw =>
-      val cr = new ClassReader(bytes)
-      val tcv = new TraceClassVisitor(null, new Textifier, pw)
-      cr.accept(tcv, 0)
-    }
-    bytes
-  }
-
-  def emit(cn: ClassNode, m: Method): Unit = {
+  def emitMethod(cv: ClassVisitor, m: Method, debugInformation: Boolean): Int = {
     val blocks = m.findBlocks()
     val static = if (m.isStatic) ACC_STATIC else 0
-    val debugInformation: Boolean = cn.sourceFile != null
 
-    val mn = new MethodNode(ACC_PUBLIC | static, m.name, m.desc, null, null)
-    cn.methods.add(mn)
+    val mv = cv.visitMethod(ACC_PUBLIC | static, m.name, m.desc, null, null)
+    mv.visitCode()
 
-    val labelNodes = blocks.map(L => L -> new LabelNode).toMap
+    val labels = blocks.map(L => L -> new Label).toMap
 
     val localIndex: mutable.Map[Local, Int] = mutable.Map[Local, Int]()
 
-    val start = new LabelNode
-    val end = new LabelNode
+    val start = new Label
+    val end = new Label
 
-    var n = 0
+    var nLocals = 0
     val parameterIndex = new Array[Int](m.parameterTypeInfo.length + (!m.isStatic).toInt)
     var i = 0
     while (i < parameterIndex.length) {
-      parameterIndex(i) = n
+      parameterIndex(i) = nLocals
       if (i == 0 && !m.isStatic)
-        n += 1 // this
+        nLocals += 1 // this
       else
-        n += m.parameterTypeInfo(i - (!m.isStatic).toInt).slots
+        nLocals += m.parameterTypeInfo(i - (!m.isStatic).toInt).slots
       i += 1
     }
 
@@ -73,22 +40,12 @@ object Emit {
 
     for (l <- locals) {
       if (!l.isInstanceOf[Parameter]) {
-        localIndex += (l -> n)
+        localIndex += (l -> nLocals)
 
-        // println(s"  assign $l $n ${ l.ti.desc }")
-
-        val ln = new LocalVariableNode(
-          if (l.name == null)
-            s"local$n"
-          else
-            l.name,
-          l.ti.desc, null, start, end, n)
-        mn.localVariables.add(ln)
-        n += l.ti.slots
+        // println(s"  assign $l $nLocals ${ l.ti.desc }")
+        nLocals += l.ti.slots
       }
     }
-
-    mn.maxLocals = n
 
     def getLocalIndex(l: Local): Int = {
       l match {
@@ -99,13 +56,14 @@ object Emit {
 
     var maxStack = 0
     var curLineNumber = -1
+    var instructionCount = 0
 
     def setLineNumber(n: Int): Unit = {
       if (debugInformation && n != curLineNumber) {
         curLineNumber = n
-        val L = new LabelNode()
-        mn.instructions.add(L)
-        mn.instructions.add(new LineNumberNode(curLineNumber, L))
+        val L = new Label()
+        mv.visitLabel(L)
+        mv.visitLineNumber(curLineNumber, L)
       }
     }
 
@@ -113,9 +71,8 @@ object Emit {
       x match {
         case x: NewInstanceX =>
           setLineNumber(x.lineNumber)
-
-          mn.instructions.add(new TypeInsnNode(NEW, x.ti.iname))
-          mn.instructions.add(new InsnNode(DUP))
+          mv.visitTypeInsn(NEW, x.ti.iname)
+          mv.visitInsn(DUP)
 
           var i = 0
           while (i < x.children.length) {
@@ -127,10 +84,9 @@ object Emit {
             maxStack = depth + 2
 
           setLineNumber(x.lineNumber)
-
-          mn.instructions.add(
-            new MethodInsnNode(INVOKESPECIAL,
-              x.ctor.owner, x.ctor.name, x.ctor.desc, x.ctor.isInterface))
+          mv.visitMethodInsn(
+            INVOKESPECIAL, x.ctor.owner, x.ctor.name, x.ctor.desc, x.ctor.isInterface)
+          instructionCount += 3
           return
         case _ =>
       }
@@ -146,54 +102,55 @@ object Emit {
       if (depth + 1 > maxStack)
         maxStack = depth + 1
 
+      instructionCount += 1
       x match {
         case x: IfX =>
-          mn.instructions.add(new JumpInsnNode(x.op, labelNodes(x.Ltrue)))
-          mn.instructions.add(new JumpInsnNode(GOTO, labelNodes(x.Lfalse)))
+          instructionCount += 1
+          mv.visitJumpInsn(x.op, labels(x.Ltrue))
+          mv.visitJumpInsn(GOTO, labels(x.Lfalse))
         case x: GotoX =>
-          mn.instructions.add(new JumpInsnNode(GOTO, labelNodes(x.L)))
+          mv.visitJumpInsn(GOTO, labels(x.L))
         case x: SwitchX =>
           assert(x.Lcases.nonEmpty)
-          mn.instructions.add(new TableSwitchInsnNode(0, x.Lcases.length - 1, labelNodes(x.Ldefault), x.Lcases.map(labelNodes): _*))
+          mv.visitTableSwitchInsn(0, x.Lcases.length - 1, labels(x.Ldefault), x.Lcases.map(labels): _*)
         case x: ReturnX =>
-          mn.instructions.add(new InsnNode(
-            if (x.children.length == 0)
-              RETURN
-            else
-              m.returnTypeInfo.returnOp))
+          if (x.children.length == 0)
+            mv.visitInsn(RETURN)
+          else
+            mv.visitInsn(m.returnTypeInfo.returnOp)
         case x: LoadX =>
-          mn.instructions.add(new VarInsnNode(x.l.ti.loadOp, getLocalIndex(x.l)))
+          mv.visitVarInsn(x.l.ti.loadOp, getLocalIndex(x.l))
         case x: StoreX =>
-          mn.instructions.add(new VarInsnNode(x.l.ti.storeOp, getLocalIndex(x.l)))
+          mv.visitVarInsn(x.l.ti.storeOp, getLocalIndex(x.l))
         case x: PutFieldX =>
-          mn.instructions.add(new FieldInsnNode(x.op, x.f.owner, x.f.name, x.f.ti.desc))
+          mv.visitFieldInsn(x.op, x.f.owner, x.f.name, x.f.ti.desc)
         case x: InsnX =>
-          mn.instructions.add(new InsnNode(x.op))
+          mv.visitInsn(x.op)
         case x: TypeInsnX =>
-          mn.instructions.add(new TypeInsnNode(x.op, x.t))
+          mv.visitTypeInsn(x.op, x.t)
         case x: MethodX =>
-          mn.instructions.add(new MethodInsnNode(x.op,
-            x.method.owner, x.method.name, x.method.desc, x.method.isInterface))
+          mv.visitMethodInsn(
+            x.op, x.method.owner, x.method.name, x.method.desc, x.method.isInterface)
         case x: MethodStmtX =>
-          mn.instructions.add(new MethodInsnNode(x.op,
-            x.method.owner, x.method.name, x.method.desc, x.method.isInterface))
+          mv.visitMethodInsn(
+            x.op, x.method.owner, x.method.name, x.method.desc, x.method.isInterface)
         case x: LdcX =>
-          mn.instructions.add(new LdcInsnNode(x.a))
+          mv.visitLdcInsn(x.a)
         case x: GetFieldX =>
-          mn.instructions.add(new FieldInsnNode(x.op, x.f.owner, x.f.name, x.f.ti.desc))
+          mv.visitFieldInsn(x.op, x.f.owner, x.f.name, x.f.ti.desc)
         case x: NewArrayX =>
-          mn.instructions.add(x.eti.newArray())
+          x.eti.newArray().accept(mv)
         case x: IincX =>
-          mn.instructions.add(new IincInsnNode(getLocalIndex(x.l), x.i))
+          mv.visitIincInsn(getLocalIndex(x.l), x.i)
         case x: StmtOpX =>
-          mn.instructions.add(new InsnNode(x.op))
+          mv.visitInsn(x.op)
         case x: ThrowX =>
-          mn.instructions.add(new InsnNode(ATHROW))
+          mv.visitInsn(ATHROW)
       }
     }
 
     def emitBlock(L: Block): Unit = {
-      mn.instructions.add(labelNodes(L))
+      mv.visitLabel(labels(L))
       var x = L.first
       while (x != null) {
         emitX(x, 0)
@@ -201,7 +158,7 @@ object Emit {
       }
     }
 
-    mn.instructions.add(start)
+    mv.visitLabel(start)
 
     emitBlock(m.entry)
     for (b <- blocks) {
@@ -209,36 +166,68 @@ object Emit {
         emitBlock(b)
     }
 
-    mn.instructions.add(end)
+    mv.visitLabel(end)
 
-    mn.maxStack = maxStack
+    for (l <- locals) {
+      if (!l.isInstanceOf[Parameter]) {
+        val n = localIndex(l)
+        val name = if (l.name == null) s"local$n" else l.name
+        mv.visitLocalVariable(name, l.ti.desc, null, start, end, n)
+      }
+    }
+
+    mv.visitMaxs(maxStack, nLocals)
+
+    mv.visitEnd()
+
+    instructionCount
   }
 
-  def apply(c: Classx[_], print: Option[PrintWriter]): Array[Byte] = {
-    val cn = new ClassNode()
-
-    cn.version = V1_8
-    cn.access = ACC_PUBLIC
-
-    c.sourceFile.foreach(cn.sourceFile = _)
-
-    cn.name = c.name
-    cn.superName = c.superName
-    for (intf <- c.interfaces)
-      cn.interfaces.add(intf)
+  def emitClass(c: Classx[_], cv: ClassVisitor, logMethodSizes: Boolean): Unit = {
+    cv.visit(V1_8, ACC_PUBLIC, c.name, null, c.superName, c.interfaces.toArray)
+    c.sourceFile.foreach(cv.visitSource(_, null))
 
     for (f <- c.fields) {
-      val fn = f match {
-        case f: Field => new FieldNode(ACC_PUBLIC, f.name, f.ti.desc, null, null)
-        case f: StaticField => new FieldNode(ACC_PUBLIC | ACC_STATIC, f.name, f.ti.desc, null, null)
+      f match {
+        case f: Field => cv.visitField(ACC_PUBLIC, f.name, f.ti.desc, null, null)
+        case f: StaticField => cv.visitField(ACC_PUBLIC | ACC_STATIC, f.name, f.ti.desc, null, null)
       }
-      cn.fields.add(fn)
     }
 
     for (m <- c.methods) {
-      emit(cn, m)
+      val instructionCount = emitMethod(cv, m, c.sourceFile.isDefined)
+      if (logMethodSizes) {
+        log.info(s"instruction count: $instructionCount: ${ c.name }.${ m.name }")
+        if (instructionCount > 8000)
+          log.warn(s"big method: $instructionCount: ${ c.name }.${ m.name }")
+      }
     }
 
-    asBytes(cn, print)
+    cv.visitEnd()
+  }
+
+  def apply(c: Classx[_], print: Option[PrintWriter]): Array[Byte] = {
+    val bytes = try {
+      val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
+
+      emitClass(c, cw, logMethodSizes = true)
+
+      val b = cw.toByteArray
+      //       This next line should always be commented out!
+//            CheckClassAdapter.verify(new ClassReader(b), false, new PrintWriter(System.err))
+      b
+    } catch {
+      case e: Exception =>
+        val trace = new TraceClassVisitor(new PrintWriter(System.err))
+        val check = new CheckClassAdapter(trace)
+        emitClass(c, check, logMethodSizes = false)
+        throw e
+    }
+    print.foreach { pw =>
+      val cr = new ClassReader(bytes)
+      val tcv = new TraceClassVisitor(null, new Textifier, pw)
+      cr.accept(tcv, 0)
+    }
+    bytes
   }
 }
