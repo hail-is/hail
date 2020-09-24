@@ -324,30 +324,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def checkedConvertFrom(mb: EmitMethodBuilder[_], r: Value[Region], srcAddress: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
-    assert(sourceType.elementType.isPrimitive && this.isOfType(sourceType))
-
-    if (sourceType.elementType.required == this.elementRequired)
-      return srcAddress
-
-    val a = mb.newLocal[Long]()
-
-    Code(
-      a := srcAddress,
-      sourceType.hasMissingValues(a).orEmpty(Code._fatal[Unit](msg)), {
-        val newOffset = mb.genFieldThisRef[Long]()
-
-        Code.memoize(sourceType.loadLength(a), "pcarr_check_conv_from_len") { len =>
-          Code(
-            newOffset := allocate(r, len),
-            stagedInitialize(newOffset, len),
-            Region.copyFrom(sourceType.firstElementOffset(a, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
-            newOffset)
-        }
-      }
-    )
-  }
-
   def copyFrom(region: Region, srcOff: Long): Long = {
     val destOff = allocate(region, loadLength(srcOff))
     Region.copyFrom(srcOff,  destOff, contentsByteSize(loadLength(srcOff)))

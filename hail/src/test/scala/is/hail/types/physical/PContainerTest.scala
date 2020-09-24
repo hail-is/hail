@@ -17,27 +17,6 @@ class PContainerTest extends PhysicalTestUtils {
     })
   }
 
-  def testConvert(sourceType: PArray, destType: PArray, data: IndexedSeq[Any], expectFalse: Boolean) {
-    val srcRegion = Region()
-    val src = ScalaToRegionValue(srcRegion, sourceType, data)
-
-    log.info(s"Testing $data")
-
-    val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "not_empty")
-    val codeRegion = fb.getCodeParam[Region](1)
-    val value = fb.getCodeParam[Long](2)
-
-    fb.emit(destType.checkedConvertFrom(fb.apply_method, codeRegion, value, sourceType, "ShouldHaveNoNull"))
-
-    val f = fb.result()()
-    val destRegion = Region()
-    if (expectFalse) {
-      val thrown = intercept[Exception](f(destRegion,src))
-      assert(thrown.getMessage == "ShouldHaveNoNull")
-    } else
-      f(destRegion,src)
-  }
-
   def testContainsNonZeroBits(sourceType: PArray, data: IndexedSeq[Any]) = {
     val srcRegion = Region()
     val src = ScalaToRegionValue(srcRegion, sourceType, data)

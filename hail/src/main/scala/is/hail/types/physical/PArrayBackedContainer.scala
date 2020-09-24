@@ -125,9 +125,6 @@ trait PArrayBackedContainer extends PContainer {
   def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean] =
     arrayRep.hasMissingValues(sourceOffset)
 
-  def checkedConvertFrom(mb: EmitMethodBuilder[_], r: Value[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long] =
-    arrayRep.checkedConvertFrom(mb, r, sourceOffset, sourceType, msg)
-
   def copyFrom(region: Region, srcOff: Long): Long =
     arrayRep.copyFrom(region, srcOff)
 
