@@ -92,8 +92,8 @@ trait WrappedModuleBuilder {
 class ModuleBuilder() {
   val classes = new mutable.ArrayBuffer[ClassBuilder[_]]()
 
-  def newClass[C](name: String)(implicit cti: TypeInfo[C]): ClassBuilder[C] = {
-    val c = new ClassBuilder[C](this, name)
+  def newClass[C](name: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): ClassBuilder[C] = {
+    val c = new ClassBuilder[C](this, name, sourceFile)
     if (cti != UnitInfo)
       c.addInterface(cti.iname)
     classes += c
@@ -208,11 +208,13 @@ trait WrappedClassBuilder[C] extends WrappedModuleBuilder {
 
 class ClassBuilder[C](
   val modb: ModuleBuilder,
-  val className: String) extends WrappedModuleBuilder {
+  val className: String,
+  val sourceFile: Option[String]
+) extends WrappedModuleBuilder {
 
   val ti: TypeInfo[C] = new ClassInfo[C](className)
 
-  val lclass = new lir.Classx[C](className, "java/lang/Object")
+  val lclass = new lir.Classx[C](className, "java/lang/Object", sourceFile)
 
   val methods: mutable.ArrayBuffer[MethodBuilder[C]] = new mutable.ArrayBuffer[MethodBuilder[C]](16)
   val fields: mutable.ArrayBuffer[FieldNode] = new mutable.ArrayBuffer[FieldNode](16)
