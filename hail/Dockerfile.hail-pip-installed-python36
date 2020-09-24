@@ -4,9 +4,11 @@ ENV LANG C.UTF-8
 
 RUN echo 'deb http://ftp.us.debian.org/debian stretch main' >> /etc/apt/sources.list && \
   install_packages \
-    openjdk-8-jdk-headless build-essential libssl-dev zlib1g-dev libbz2-dev \
-    libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
-    xz-utils tk-dev libffi-dev liblzma-dev \
+    openjdk-8-jdk-headless ca-certificates \
+    \
+    build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
+    libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
+    xz-utils tk-dev libffi-dev liblzma-dev
   && wget https://www.python.org/ftp/python/3.6.9/Python-3.6.9.tgz \
   && tar xvf Python-3.6.9.tgz \
   && cd Python-3.6.9 \
@@ -16,8 +18,8 @@ RUN echo 'deb http://ftp.us.debian.org/debian stretch main' >> /etc/apt/sources.
   && update-alternatives --install /usr/bin/python python /usr/bin/python3.6 1000
   && update-alternatives --install /usr/bin/python python3 /usr/bin/python3.6 1000
   && apt-get remove \
-       build-essential libssl-dev zlib1g-dev libbz2-dev \
-       libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
+       build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
+       libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
        xz-utils tk-dev libffi-dev liblzma-dev
 
 COPY hail/python/requirements.txt requirements.txt

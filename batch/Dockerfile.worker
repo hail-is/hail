@@ -1,6 +1,6 @@
 FROM bitnami/minideb:buster
 
-RUN install_packages curl gnupg xfsprogs python3.7 python3-pip
+RUN install_packages curl gnupg xfsprogs python3.7 python3-pip ca-certificates
 
 RUN export GCSFUSE_REPO=gcsfuse-bionic && \
   echo "deb http://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list && \

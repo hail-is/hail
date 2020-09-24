@@ -1,7 +1,7 @@
 FROM bitnami/minideb:buster
 
 # get add-apt-repository
-RUN install_packages nginx software-properties-common && \
+RUN install_packages nginx software-properties-common ca-certificates && \
     bash -c 'DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata' && \
     add-apt-repository -y ppa:certbot/certbot && \
     apt-get update -y && \

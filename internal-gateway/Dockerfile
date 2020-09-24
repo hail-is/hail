@@ -1,6 +1,6 @@
 FROM bitnami/minideb:buster
 
-RUN install_packages nginx
+RUN install_packages nginx ca-certificates
 
 RUN rm -f /etc/nginx/sites-enabled/default
 ADD nginx.conf /etc/nginx/

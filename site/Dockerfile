@@ -1,6 +1,6 @@
 FROM bitnami/minideb:buster
 
-RUN install_packages nginx curl python-minimal
+RUN install_packages nginx curl python-minimal ca-certificates
 
 RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
     mv /root/google-cloud-sdk /

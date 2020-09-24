@@ -12,7 +12,8 @@ RUN echo 'deb http://ftp.us.debian.org/debian stretch main' >> /etc/apt/sources.
     python3 python3-pip \
     rsync \
     unzip bzip2 zip tar \
-    vim
+    vim \
+    ca-certificates
 COPY hail_pip_version /
 RUN pip3 --no-cache-dir install \
       hail==$(cat /hail_pip_version) \

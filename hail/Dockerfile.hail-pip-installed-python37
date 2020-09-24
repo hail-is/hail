@@ -5,7 +5,7 @@ ENV LANG C.UTF-8
 RUN echo 'deb http://ftp.us.debian.org/debian stretch main' >> /etc/apt/sources.list && \
   install_packages \
     openjdk-8-jdk-headless \
-    python3 python3-pip
+    python3 python3-pip ca-certificates
 
 COPY hail/python/requirements.txt requirements.txt
 COPY hail/python/dev-requirements.txt dev-requirements.txt
