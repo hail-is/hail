@@ -1705,8 +1705,8 @@ class BlockMatrix(object):
             one row of th matrix in memory. If this value is exactly the size of
             one row, then a partition makes a network request for every row of
             every block. Larger values reduce the number of network requests. If
-            memory permits, setting this value to the size of one row permits
-            one network request per block per partition.
+            memory permits, setting this value to the size of one output
+            partition permits one network request per block per partition.
 
         Notes
         -----
@@ -1741,8 +1741,8 @@ class BlockMatrix(object):
             one row of th matrix in memory. If this value is exactly the size of
             one row, then a partition makes a network request for every row of
             every block. Larger values reduce the number of network requests. If
-            memory permits, setting this value to the size of one row permits
-            one network request per block per partition.
+            memory permits, setting this value to the size of one output
+            partition permits one network request per block per partition.
 
         Notes
         -----
