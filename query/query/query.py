@@ -172,23 +172,17 @@ async def get_flag(request, userdata):  # pylint: disable=unused-argument
     return java_to_web_response(jresp)
 
 
-@routes.get('/api/v1alpha/flags/set/{flag}/{value}')
+@routes.get('/api/v1alpha/flags/set/{flag}')
 @rest_authenticated_developers_only
 async def set_flag(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     f = request.match_info['flag']
-    v = request.match_info['value']
-    jresp = await blocking_to_async(app['thread_pool'], app['jbackend'].setFlag, f, v)
+    v = request.query.get('value')
+    if v is None:
+        jresp = await blocking_to_async(app['thread_pool'], app['jbackend'].unsetFlag, f)
+    else:
+        jresp = await blocking_to_async(app['thread_pool'], app['jbackend'].setFlag, f, v)
     return java_to_web_response(jresp)
-    
-@routes.get('/api/v1alpha/flags/unset/{flag}')
-@rest_authenticated_developers_only
-async def unset_flag(request, userdata):  # pylint: disable=unused-argument
-    app = request.app
-    f = request.match_info['flag']
-    jresp = await blocking_to_async(app['thread_pool'], app['jbackend'].unsetFlag, f)
-    return java_to_web_response(jresp)
-
 
 async def on_startup(app):
     thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=16)

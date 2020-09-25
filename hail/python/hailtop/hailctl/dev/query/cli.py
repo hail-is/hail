@@ -65,9 +65,9 @@ class QueryClient:
             await self._session.close()
             self._session = None
 
-    async def get_request(self, path, handler=None):
+    async def get_request(self, path, params=None, handler=None):
         async with self._session.get(
-                self._deploy_config.url('query', f'/api/v1alpha/{path}')) as resp:
+                self._deploy_config.url('query', f'/api/v1alpha/{path}'), params=params) as resp:
             if resp.status >= 400:
                 if handler is not None:
                     handler(resp.status, await resp.text())
@@ -77,11 +77,8 @@ class QueryClient:
             return await resp.json()
 
     async def set_flag(self, name, value):
-        return await self.get_request(f'flags/set/{name}/{value}')
-
-    async def unset_flag(self, name):
-        old = await self.get_request(f'flags/unset/{name}')
-        return old
+        params = {'value': value} if value is not None else None
+        return await self.get_request(f'flags/set/{name}', params=params)
 
     def _raise_flag_not_found(self, status, text):
         error = text.split('\n')[0].strip()
@@ -108,7 +105,7 @@ async def submit(args):
             old = await client.set_flag(args.name, args.value)
             print(f'Set {args.name} to {args.value}. Old value: {old}')
         elif args.action == 'unset' and args.resource == 'flag':
-            old = await client.unset_flag(args.name)
+            old = await client.set_flag(args.name, None)
             print(f'Unset {args.name}. Old value: {old}')
         elif args.action == 'get' and args.resource == 'flag':
             flags, invalid = await client.get_flag(args.name)
