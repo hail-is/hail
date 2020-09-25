@@ -87,7 +87,7 @@ def test_modify_wheel_remote_wheel(gcloud_run):
     remote_command = gcloud_args[gcloud_args.index("--") + 1]
     assert remote_command == ("sudo gsutil cp gs://some-bucket/hail.whl /tmp/ && " +
         "sudo /opt/conda/default/bin/pip uninstall -y hail && " +
-        "sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/hail.whl" +
+        "sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/hail.whl && " +
         "unzip /tmp/hail.whl && " +
         "grep 'Requires-Dist: ' hail*dist-info/METADATA | sed 's/Requires-Dist: //' | sed 's/ (//' | sed 's/)//' | grep -v 'pyspark' | xargs /opt/conda/default/bin/pip install")
 
