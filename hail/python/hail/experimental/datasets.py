@@ -63,6 +63,13 @@ def load_dataset(name,
                                                                                     repr(name),
                                                                                     '\',\''.join(reference_genomes)))
 
+    regions = set(k for dataset in datasets[name]['versions'] for k in dataset['url'].keys())
+    if region not in regions:
+        raise ValueError("""Region {0} not available for dataset {1}.
+                            Available regions: {{{2}}}.""".format(repr(region),
+                                                                  repr(name),
+                                                                  repr('","'.join(regions))))
+
     path = [dataset['url'][region]
             for dataset in datasets[name]['versions']
             if all([dataset['version'] == version,
