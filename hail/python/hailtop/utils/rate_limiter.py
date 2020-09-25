@@ -1,5 +1,5 @@
 from types import TracebackType
-from typing import Optional, Type
+from typing import Optional, Type, Deque
 import collections
 import time
 import asyncio
@@ -12,6 +12,8 @@ class RateLimit:
 
 
 class RateLimiter:
+    _items: Deque[float]
+
     def __init__(self, rate_limit: RateLimit):
         self._count = rate_limit.count
         self._window_seconds = rate_limit.window_seconds

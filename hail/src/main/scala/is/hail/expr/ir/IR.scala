@@ -1,12 +1,11 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Annotation, Region, UnsafeRow}
+import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.Value
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
 import is.hail.expr.ir.functions._
-import is.hail.types.{RStruct, RTable}
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -96,7 +95,9 @@ final case class I32(x: Int) extends IR
 final case class I64(x: Long) extends IR
 final case class F32(x: Float) extends IR
 final case class F64(x: Double) extends IR
-final case class Str(x: String) extends IR
+final case class Str(x: String) extends IR {
+  override def toString(): String = s"""Str("${StringEscapeUtils.escapeString(x)}")"""
+}
 final case class True() extends IR
 final case class False() extends IR
 final case class Void() extends IR
@@ -175,22 +176,22 @@ object MakeArray {
 final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
 
 object MakeStream {
-  def unify(args: Seq[IR], requestedType: TStream = null): MakeStream = {
+  def unify(args: Seq[IR], separateRegions: Boolean = false, requestedType: TStream = null): MakeStream = {
     assert(requestedType != null || args.nonEmpty)
 
     if (args.nonEmpty)
       if (args.forall(_.typ == args.head.typ))
-        return MakeStream(args, TStream(args.head.typ))
+        return MakeStream(args, TStream(args.head.typ), separateRegions)
 
     MakeStream(args.map { arg =>
       val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
       assert(upcast.typ == requestedType.elementType)
       upcast
-    }, requestedType)
+    }, requestedType, separateRegions)
   }
 }
 
-final case class MakeStream(args: Seq[IR], _typ: TStream) extends IR
+final case class MakeStream(args: Seq[IR], _typ: TStream, separateRegions: Boolean = false) extends IR
 
 object ArrayRef {
   def apply(a: IR, i: IR): ArrayRef = ArrayRef(a, i, Str(""))
@@ -199,7 +200,7 @@ object ArrayRef {
 final case class ArrayRef(a: IR, i: IR, msg: IR) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayZeros(length: IR) extends IR
-final case class StreamRange(start: IR, stop: IR, step: IR) extends IR
+final case class StreamRange(start: IR, stop: IR, step: IR, separateRegions: Boolean = false) extends IR
 
 object ArraySort {
   def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): ArraySort = {
@@ -229,7 +230,7 @@ final case class ToSet(a: IR) extends IR
 final case class ToDict(a: IR) extends IR
 final case class ToArray(a: IR) extends IR
 final case class CastToArray(a: IR) extends IR
-final case class ToStream(a: IR) extends IR
+final case class ToStream(a: IR, separateRegions: Boolean = false) extends IR
 
 final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, onKey: Boolean) extends IR
 
@@ -382,7 +383,7 @@ final case class NDArrayReshape(nd: IR, shape: IR) extends NDArrayIR
 
 final case class NDArrayConcat(nds: IR, axis: Int) extends NDArrayIR
 
-final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR
+final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR], errorId: Int) extends IR
 final case class NDArraySlice(nd: IR, slices: IR) extends NDArrayIR
 final case class NDArrayFilter(nd: IR, keep: IndexedSeq[IR]) extends NDArrayIR
 
@@ -403,11 +404,24 @@ object NDArrayQR {
     "complete" -> PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 2)))
 }
 
+object NDArraySVD {
+  def pTypes(computeUV: Boolean): PType = {
+    if (computeUV) {
+      PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 1), PCanonicalNDArray(PFloat64Required, 2))
+    }
+    else {
+      PCanonicalNDArray(PFloat64Required, 1)
+    }
+  }
+}
+
 object NDArrayInv {
   val pType = PCanonicalNDArray(PFloat64Required, 2)
 }
 
 final case class NDArrayQR(nd: IR, mode: String) extends IR
+
+final case class NDArraySVD(nd: IR, fullMatrices: Boolean, computeUV: Boolean) extends IR
 
 final case class NDArrayInv(nd: IR) extends IR
 
@@ -502,10 +516,11 @@ final case class In(i: Int, _typ: PType) extends IR
 
 // FIXME: should be type any
 object Die {
-  def apply(message: String, typ: Type): Die = Die(Str(message), typ)
+  def apply(message: String, typ: Type): Die = Die(Str(message), typ, -1)
+  def apply(message: String, typ: Type, errorId: Int): Die = Die(Str(message), typ, errorId)
 }
 
-final case class Die(message: IR, _typ: Type) extends IR
+final case class Die(message: IR, _typ: Type, errorId: Int) extends IR
 
 final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR]) extends IR {
   var conversion: (Seq[Type], Seq[IR]) => IR = _
@@ -652,7 +667,7 @@ abstract class PartitionReader {
     requestedType: Type,
     emitter: Emit[C],
     mb: EmitMethodBuilder[C],
-    region: Value[Region],
+    region: StagedRegion,
     env0: Emit.E,
     container: Option[AggContainer]): COption[SizedStream]
 
@@ -664,7 +679,7 @@ abstract class PartitionWriter {
     context: EmitCode,
     eltType: PStruct,
     mb: EmitMethodBuilder[_],
-    region: Value[Region],
+    region: ParentStagedRegion,
     stream: SizedStream): EmitCode
 
   def ctxType: Type
@@ -690,8 +705,6 @@ final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) ext
 
 final case class ReadValue(path: IR, spec: AbstractTypedCodecSpec, requestedType: Type) extends IR
 final case class WriteValue(value: IR, path: IR, spec: AbstractTypedCodecSpec) extends IR
-
-final case class UnpersistBlockMatrix(child: BlockMatrixIR) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = {

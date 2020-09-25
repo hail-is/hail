@@ -206,5 +206,5 @@ class MatrixTableSpec(
 }
 
 object FileFormat {
-  val version: SemanticVersion = SemanticVersion(1, 4, 0)
+  val version: SemanticVersion = SemanticVersion(1, 5, 0)
 }

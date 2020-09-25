@@ -2,7 +2,7 @@ package is.hail.types.encoded
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitMethodBuilder, ParamType}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, ParamType}
 import is.hail.types.{BaseStruct, BaseType}
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -158,130 +158,92 @@ final case class ETransposedArrayOfStructs(
     )
   }
 
-  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
-    val len = mb.newLocal[Int]("len")
-    val i = mb.newLocal[Int]("i")
-    val nMissing = mb.newLocal[Int]("nMissing")
-    val alen = mb.newLocal[Int]("alen")
-    val anMissing = mb.newLocal[Int]("anMissing")
-    val fmbytes = mb.newLocal[Long]("fmbytes")
-    val skipFields = Code(fields.map { f =>
-      val skip = f.typ.buildSkip(mb)
-      if (f.typ.required) {
-        Code(
-          i := 0,
-          Code.whileLoop(i < alen, Code(skip(r, in), i := i + 1)))
-      } else {
-        Code(
-          in.readBytes(r, fmbytes, anMissing),
-          i := 0,
-          Code.whileLoop(i < alen,
-            Code(
-              Region.loadBit(fmbytes, i.toL).mux(
-                Code._empty,
-                skip(r, in)),
-              i := i + 1)))
-      }
-    }.toArray)
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+    val len = cb.newLocal[Int]("len")
+    val i = cb.newLocal[Int]("i")
+    val nMissing = cb.newLocal[Int]("nMissing")
+    val alen = cb.newLocal[Int]("alen")
+    val anMissing = cb.newLocal[Int]("anMissing")
+    val mbytes = cb.newLocal[Long]("mbytes")
 
+    cb.assign(len, in.readInt())
+    cb.assign(nMissing, UnsafeUtils.packBitsToBytes(len))
+    cb.assign(mbytes, r.allocate(const(1), nMissing.toL))
     val prefix = Code(len := in.readInt(), nMissing := UnsafeUtils.packBitsToBytes(len))
     if (structRequired) {
-      Code(
-        prefix,
-        alen := len,
-        anMissing := UnsafeUtils.packBitsToBytes(alen),
-        fmbytes := r.allocate(const(1), nMissing.toL),
-        skipFields
-      )
+      cb.assign(alen, len)
     } else {
-      val mbytes = mb.newLocal[Long]("mbytes")
-      Code(
-        prefix,
-        mbytes := r.allocate(const(1), nMissing.toL),
-        in.readBytes(r, mbytes, nMissing),
-        i := 0,
-        alen := 0,
-        Code.whileLoop(i < len,
-          Code(
-            alen := alen + (!Region.loadBit(mbytes, i.toL)).toI,
-            i := i + const(1))),
-        anMissing := UnsafeUtils.packBitsToBytes(alen),
-        fmbytes := r.allocate(const(1), nMissing.toL),
-        skipFields
-      )
+      cb += in.readBytes(r, mbytes, nMissing)
+      cb.forLoop({
+        cb.assign(i, 0)
+        cb.assign(alen, 0)
+      }, i < len,
+        cb.assign(i, i + 1),
+        cb.assign(alen, alen + (!Region.loadBit(mbytes, i.toL)).toI))
+    }
+    cb.assign(anMissing, UnsafeUtils.packBitsToBytes(alen))
+
+    fields.foreach { f =>
+      val skip = f.typ.buildSkip(cb.emb)
+      if (f.typ.required) {
+        cb.forLoop(cb.assign(i, 0), i < alen, cb.assign(i, i + 1), cb += skip(r, in))
+      } else {
+        cb += in.readBytes(r, mbytes, anMissing)
+        cb.forLoop(cb.assign(i, 0), i < alen, cb.assign(i, i + 1),
+          cb.ifx(!Region.loadBit(mbytes, i.toL), cb += skip(r, in)))
+      }
     }
   }
 
-  def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
+  def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
     val arrayPType = pt.asInstanceOf[PArray]
     val elementPStruct = arrayPType.elementType.asInstanceOf[PBaseStruct]
+    val array = PCode(pt, v).asIndexable.memoize(cb, "array")
+    val len = array.loadLength()
 
-    val array = coerce[Long](v)
-    val len = mb.cb.genFieldThisRef[Int]("arrayLength")
-    val i = mb.newLocal[Int]("i")
-    val writeLen = out.writeInt(len)
+    cb += out.writeInt(len)
 
-    val writeMissingBytes =
-      if (!structRequired) {
-        out.writeBytes(array + const(arrayPType.lengthHeaderBytes), arrayPType.nMissingBytes(len))
-      } else
-        Code._empty
+    if (!structRequired) {
+      cb += out.writeBytes(array.tcode[Long] + const(arrayPType.lengthHeaderBytes),
+        arrayPType.nMissingBytes(len))
+    }
 
-    val writeFields = Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
-      val groupMB = mb.ecb.newEmitMethod(s"write_fields_group_$groupIdx", FastIndexedSeq[ParamType](LongInfo, classInfo[OutputBuffer]), UnitInfo)
-      val addr = groupMB.getCodeParam[Long](1)
-      val out2 = groupMB.getCodeParam[OutputBuffer](2)
+    val b = cb.newLocal[Int]("b", 0)
+    val j = cb.newLocal[Int]("j", 0)
+    val presentIdx = cb.newLocal[Int]("presentIdx", 0)
+    val pbss = cb.emb.newPLocal("struct", elementPStruct)
+    def pbsv: PBaseStructValue = pbss.asInstanceOf[PBaseStructValue]
+    fields.foreach { ef =>
+      val fidx = elementPStruct.fieldIdx(ef.name)
+      val pf = elementPStruct.fields(fidx)
+      val encodeFieldF = ef.typ.buildEncoder(pf.typ, cb.emb.ecb)
 
-      val b = groupMB.newLocal[Int]("b")
-      val j = groupMB.newLocal[Int]("j")
-      val presentIdx = groupMB.newLocal[Int]("presentIdx")
+      if (!ef.typ.required) {
+        cb.forLoop(cb.assign(j, 0), j < len, cb.assign(j, j + 1), {
+          array.loadElement(cb, j).consume(cb, { /* do nothing */ }, { pbsc =>
+            // FIXME may be bad if structs get memoized into their fields, otherwise
+            // probably fine
+            cb.assign(pbss, pbsc)
+            cb.assign(b, b | (pbsv.isFieldMissing(fidx).toI << (presentIdx & 7)))
+            cb.assign(presentIdx, presentIdx + 1)
+            cb.ifx((presentIdx & 7).ceq(0), {
+              out.writeByte(b.toB)
+              cb.assign(b, 0)
+            })
+          })
+        })
+      }
 
-      val encoders = fieldGroup.map { encodedField =>
-        val fidx = elementPStruct.fieldIdx(encodedField.name)
-        val pf = elementPStruct.fields(fidx)
-        val encodeField = encodedField.typ.buildEncoder(pf.typ, groupMB.ecb)
-        val elem = () => arrayPType.elementOffset(addr, len, j)
-
-        val writeMissingBytes = if (encodedField.typ.required)
-          Code._empty
-        else {
-          Code(
-          b := 0,
-          j := 0,
-          presentIdx := 0,
-          Code.whileLoop(j < len,
-            Code(
-              arrayPType.isElementDefined(addr, j).orEmpty(
-                Code(
-                  b := b | (elementPStruct.isFieldMissing(elem(), fidx).toI << (presentIdx & 7)),
-                  presentIdx := presentIdx + const(1),
-                  (presentIdx & 7).ceq(0).orEmpty(Code(out2.writeByte(b.toB), b := 0)))),
-              j := j + const(1))),
-          (presentIdx & 7).cne(0).orEmpty(out2.writeByte(b.toB)))
+      cb.forLoop(cb.assign(j, 0), j < len, cb.assign(j, j + 1), {
+        array.loadElement(cb, j).flatMap(cb) { pbsc =>
+          cb.assign(pbss, pbsc)
+          pbsv.loadField(cb, fidx)
         }
-
-        Code(
-          writeMissingBytes,
-          j := 0,
-          Code.whileLoop(j < len,
-            Code(
-            arrayPType.isElementDefined(addr, j).orEmpty(
-              elementPStruct.isFieldDefined(elem(), fidx).orEmpty(
-                encodeField(Region.loadIRIntermediate(pf.typ)(elementPStruct.fieldOffset(elem(), fidx)), out2))),
-              j := j + 1)))
-      }.toArray
-
-      groupMB.emit(Code(encoders))
-      groupMB.invokeCode(addr, out)
-    }.toArray)
-
-    Code(
-      i := 0,
-      len := arrayPType.loadLength(array),
-
-      writeLen,
-      writeMissingBytes,
-      writeFields)
+        .consume(cb, { /* do nothing */ }, { pc =>
+          cb += encodeFieldF(pc.code, out)
+        })
+      })
+    }
   }
 
   def _decodedPType(requestedType: Type): PType = requestedType match {

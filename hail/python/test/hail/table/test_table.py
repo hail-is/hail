@@ -403,6 +403,7 @@ class Tests(unittest.TestCase):
         ht = hl.import_vcf(resource('sample.vcf')).rows()
         assert ht.filter(ht.locus > hl.locus('20', 17434581)).count() == 100
 
+    @fails_local_backend()
     def test_interval_join(self):
         left = hl.utils.range_table(50, n_partitions=10)
         intervals = hl.utils.range_table(4)
@@ -412,6 +413,7 @@ class Tests(unittest.TestCase):
                                  .when(left.idx % 10 < 5, left.interval_matches.idx == left.idx // 10)
                                  .default(hl.is_missing(left.interval_matches))))
 
+    @fails_local_backend()
     def test_interval_product_join(self):
         left = hl.utils.range_table(50, n_partitions=8)
         intervals = hl.utils.range_table(25)
@@ -423,6 +425,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(left.all(hl.sorted(left.interval_matches.map(lambda x: x.i))
                                  == hl.range(0, hl.min(left.idx % 10, 10 - left.idx % 10))))
 
+    @fails_local_backend()
     def test_interval_product_join_long_key(self):
         left = hl.utils.range_table(50, n_partitions=8)
         intervals = hl.utils.range_table(25)
@@ -463,6 +466,7 @@ class Tests(unittest.TestCase):
         mt.select_entries(a=mt2[mt.row_idx, mt.col_idx].x,
                           b=mt2[mt.row_idx, mt.col_idx].x)
 
+    @fails_local_backend()
     def test_multi_way_zip_join(self):
         d1 = [{"id": 0, "name": "a", "data": 0.0},
               {"id": 1, "name": "b", "data": 3.14},
@@ -742,6 +746,7 @@ class Tests(unittest.TestCase):
         with pytest.raises(ValueError):
             t.explode(t.foo.bar, name='baz')
 
+    @fails_local_backend()
     def test_export(self):
         t = hl.utils.range_table(1).annotate(foo=3)
         tmp_file = new_temp_file()
@@ -750,6 +755,7 @@ class Tests(unittest.TestCase):
         with hl.hadoop_open(tmp_file, 'r') as f_in:
             assert f_in.read() == 'idx\tfoo\n0\t3\n'
 
+    @fails_local_backend()
     def test_export_delim(self):
         t = hl.utils.range_table(1).annotate(foo = 3)
         tmp_file = new_temp_file()
@@ -758,6 +764,7 @@ class Tests(unittest.TestCase):
         with hl.hadoop_open(tmp_file, 'r') as f_in:
             assert f_in.read() == 'idx,foo\n0,3\n'
 
+    @fails_local_backend()
     def test_write_stage_locally(self):
         t = hl.utils.range_table(5)
         f = new_temp_file(extension='ht')
@@ -768,6 +775,7 @@ class Tests(unittest.TestCase):
     def test_min_partitions(self):
         assert hl.import_table(resource('variantAnnotations.tsv'), min_partitions=50).n_partitions() == 50
 
+    @fails_local_backend()
     def test_read_back_same_as_exported(self):
         t, _ = create_all_values_datasets()
         tmp_file = new_temp_file(prefix="test", extension=".tsv")
@@ -775,6 +783,7 @@ class Tests(unittest.TestCase):
         t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
         self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
 
+    @fails_local_backend()
     def test_indexed_read(self):
         t = hl.utils.range_table(2000, 10)
         f = new_temp_file(extension='ht')
@@ -801,6 +810,7 @@ class Tests(unittest.TestCase):
         t = t.key_by(rev_idx=-t.idx)
         assert t.take(10) == [hl.Struct(idx=idx, rev_idx=-idx) for idx in range(19, 9, -1)]
 
+    @fails_local_backend()
     def test_filter_partitions(self):
         ht = hl.utils.range_table(23, n_partitions=8)
         self.assertEqual(ht.n_partitions(), 8)
@@ -854,6 +864,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
+    @fails_local_backend()
     def test_nested_union(self):
         N = 10
         M = 200
@@ -1040,6 +1051,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(inner_join.collect(), inner_join_expected)
         self.assertEqual(outer_join.collect(), outer_join_expected)
 
+    @fails_local_backend()
     def test_partitioning_rewrite(self):
         ht = hl.utils.range_table(10, 3)
         ht1 = ht.annotate(x=hl.rand_unif(0, 1))
@@ -1259,6 +1271,7 @@ class Tests(unittest.TestCase):
         hl.import_vcf(resource('sample.vcf')).rows().key_by('locus').write(path)
         hl.read_table(path).select()._force_count()
 
+    @fails_local_backend()
     def test_repartition_empty_key(self):
         data = [{'x': i} for i in range(1000)]
         ht = hl.Table.parallelize(data, hl.tstruct(x=hl.tint32), key=None, n_partitions=11)
@@ -1336,6 +1349,7 @@ def test_maybe_flexindex_table_by_expr_prefix_match():
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
 
 
+@fails_local_backend()
 def test_maybe_flexindex_table_by_expr_direct_interval_match():
     t1 = hl.utils.range_table(1)
     t1 = t1.key_by(interval=hl.interval(t1.idx, t1.idx+1))
@@ -1356,6 +1370,7 @@ def test_maybe_flexindex_table_by_expr_direct_interval_match():
     assert t1._maybe_flexindex_table_by_expr(hl.str(mt1.row_key)) is None
 
 
+@fails_local_backend()
 def test_maybe_flexindex_table_by_expr_prefix_interval_match():
     t1 = hl.utils.range_table(1)
     t1 = t1.key_by(interval=hl.interval(t1.idx, t1.idx+1))
@@ -1514,3 +1529,11 @@ def test_map_partitions_errors():
         ht._map_partitions(lambda rows: 5)
     with pytest.raises(ValueError, match='must preserve key fields'):
         ht._map_partitions(lambda rows: rows.map(lambda r: r.drop('idx')))
+
+@fails_local_backend()
+def test_map_partitions_indexed():
+    tmp_file = new_temp_file()
+    hl.utils.range_table(100, 8).write(tmp_file)
+    ht = hl.read_table(tmp_file, _intervals=[hl.Interval(start=hl.Struct(idx=11), end=hl.Struct(idx=55))])
+    ht = ht.key_by()._map_partitions(lambda partition: [hl.struct(foo=partition)])
+    assert [inner.idx for outer in ht.foo.collect() for inner in outer] == list(range(11, 55))

@@ -7,6 +7,11 @@ object LiftRelationalValues {
   def apply(ir0: IR): IR = {
 
     def rewrite(ir: BaseIR, ab: ArrayBuilder[(String, IR)]): BaseIR = ir match {
+      case RelationalLet(name, value, body) =>
+        val value2 = rewrite(value, ab).asInstanceOf[IR]
+        val ab2 = new ArrayBuilder[(String, IR)]
+        val body2 = rewrite(body, ab2).asInstanceOf[IR]
+        RelationalLet(name, value2, ab2.result().foldRight[IR](body2) { case ((name, value), acc) => RelationalLet(name, value, acc) })
       case LiftMeOut(child) =>
         val ref = RelationalRef(genUID(), child.typ)
         val newChild = rewrite(child, ab).asInstanceOf[IR]

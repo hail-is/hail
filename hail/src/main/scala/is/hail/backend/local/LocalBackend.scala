@@ -27,6 +27,9 @@ import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
 import java.io.PrintWriter
 
+import is.hail.linalg.BlockMatrix
+import is.hail.types.BlockMatrixType
+
 class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
 
 object LocalBackend {
@@ -118,13 +121,17 @@ class LocalBackend(
 
   def execute(ir: IR): (Any, ExecutionTimer) =
     withExecuteContext() { ctx =>
+      val queryID = Backend.nextID()
+      log.info(s"starting execution of query $queryID} of initial size ${ IRSize(ir) }")
       val (pt, a) = _execute(ctx, ir)
-      pt match {
+      log.info(s"finished execution of query $queryID")
+      val result = pt match {
         case PVoid =>
           (null, ctx.timer)
         case pt: PTuple =>
           (SafeRow(pt, a).get(0), ctx.timer)
       }
+      result
     }
 
   def executeJSON(ir: IR): String = {
@@ -135,6 +142,15 @@ class LocalBackend(
     timings.logInfo()
 
     Serialization.write(Map("value" -> jsonValue, "timings" -> timings.asMap()))(new DefaultFormats {})
+  }
+
+  def executeLiteral(ir: IR): IR = {
+    val t = ir.typ
+    assert(t.isRealizable)
+    val (value, timings) = execute(ir)
+    timings.finish()
+    timings.logInfo()
+    Literal.coerce(t, value)
   }
 
   def encodeToBytes(ir: IR, bufferSpecString: String): (String, Array[Byte]) = {
@@ -222,7 +238,7 @@ class LocalBackend(
     }
   }
 
-  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Seq[(String, Type)]): TableStage = {
+  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
     // Use a local sort for the moment to enable larger pipelines to run
     LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
   }
@@ -232,4 +248,12 @@ class LocalBackend(
 
   def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =
     LoadPlink.importFamJSON(fs, path, isQuantPheno, delimiter, missingValue)
+
+  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???
+
+  def unpersist(backendContext: BackendContext, id: String): Unit = ???
+
+  def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix = ???
+
+  def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = ???
 }

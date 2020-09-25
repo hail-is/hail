@@ -11,7 +11,8 @@ nd
 
 Notes
 _____
-This is a recently added, experimental module. We would love to hear what use cases you have for this as we expand this functionality
+This is a recently added, experimental module. We would love to hear what use cases you have for this as we expand this functionality.
+As much as possible, we try to mimic the numpy array interface.
 
 .. autosummary::
 
@@ -21,8 +22,10 @@ This is a recently added, experimental module. We would love to hear what use ca
     zeros
     ones
     qr
+    svd
     inv
     concatenate
+    hstack
     vstack
     eye
     identity
@@ -33,8 +36,10 @@ This is a recently added, experimental module. We would love to hear what use ca
 .. autofunction:: zeros
 .. autofunction:: ones
 .. autofunction:: qr
+.. autofunction:: svd
 .. autofunction:: inv
 .. autofunction:: concatenate
+.. autofunction:: hstack
 .. autofunction:: vstack
 .. autofunction:: eye
 .. autofunction:: identity

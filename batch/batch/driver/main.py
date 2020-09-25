@@ -11,6 +11,7 @@ import kubernetes_asyncio as kube
 import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
 from gear import (Database, setup_aiohttp_session,
+                  rest_authenticated_developers_only,
                   web_authenticated_developers_only, check_csrf_token,
                   transaction)
 from hailtop.hail_logging import AccessLogger
@@ -25,11 +26,10 @@ import uvloop
 
 from ..batch import mark_job_complete, mark_job_started
 from ..log_store import LogStore
-from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
-    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE, \
-    WORKER_LOGS_BUCKET_NAME, PROJECT
+from ..batch_configuration import (REFRESH_INTERVAL_IN_SECONDS,
+                                   DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE,
+                                   HAIL_SHOULD_CHECK_INVARIANTS, WORKER_LOGS_BUCKET_NAME, PROJECT)
 from ..globals import HTTP_CLIENT_MAX_SIZE
-from ..utils import cost_from_msec_mcpu
 
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
@@ -143,6 +143,17 @@ def active_instances_only(fun):
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
+
+
+@routes.get('/check_invariants')
+@rest_authenticated_developers_only
+async def get_check_invariants(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    data = {
+        'check_incremental_error': app['check_incremental_error'],
+        'check_resource_aggregation_error': app['check_resource_aggregation_error']
+    }
+    return web.json_response(data=data)
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/close')
@@ -325,45 +336,66 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
     def validate_int(name, value, predicate, description):
         try:
             i = int(value)
-        except ValueError:
+        except ValueError as e:
             set_message(session,
                         f'{name} invalid: {value}.  Must be an integer.',
                         'error')
-            raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+            raise web.HTTPFound(deploy_config.external_url('batch-driver', '/')) from e
         return validate(name, i, predicate, description)
 
     post = await request.post()
 
-    # FIXME can't adjust worker type, cores because we check if jobs
-    # can be scheduled in the front-end before inserting into the
-    # database
+    valid_worker_types = ('highcpu', 'standard', 'highmem')
+    worker_type = validate(
+        'Worker type',
+        post['worker_type'],
+        lambda v: v in valid_worker_types,
+        f'one of {", ".join(valid_worker_types)}')
 
-    # valid_worker_types = ('highcpu', 'standard', 'highmem')
-    # worker_type = validate(
-    #     'Worker type',
-    #     post['worker_type'],
-    #     lambda v: v in valid_worker_types,
-    #     f'one of {", ".join(valid_worker_types)}')
-
-    valid_worker_cores = (1, 2, 4, 8, 16, 32, 64, 96)
-    # worker_cores = validate_int(
-    #     'Worker cores',
-    #     post['worker_cores'],
-    #     lambda v: v in valid_worker_cores,
-    #     f'one of {", ".join(str(v) for v in valid_worker_cores)}')
+    if worker_type == 'standard':
+        valid_worker_cores = (1, 2, 4, 8, 16, 32, 64, 96)
+    else:
+        valid_worker_cores = (2, 4, 8, 16, 32, 64, 96)
+    worker_cores = validate_int(
+        f'{worker_type} worker cores',
+        post['worker_cores'],
+        lambda v: v in valid_worker_cores,
+        f'one of {", ".join(str(v) for v in valid_worker_cores)}')
 
     standing_worker_cores = validate_int(
-        'Standing worker cores',
+        f'{worker_type} standing worker cores',
         post['standing_worker_cores'],
         lambda v: v in valid_worker_cores,
-        f'one of {", ".join(str(v) for v in valid_worker_cores)}'
-    )
+        f'one of {", ".join(str(v) for v in valid_worker_cores)}')
 
-    # worker_disk_size_gb = validate_int(
-    #     'Worker disk size',
-    #     post['worker_disk_size_gb'],
-    #     lambda v: v > 0,
-    #     'a positive integer')
+    worker_disk_size_gb = validate_int(
+        'Worker disk size',
+        post['worker_disk_size_gb'],
+        lambda v: v > 0,
+        'a positive integer')
+
+    worker_local_ssd_data_disk = validate_int(
+        'Worker local SSD data disk (boolean)',
+        post['worker_local_ssd_data_disk'],
+        lambda v: v in (0, 1),
+        'boolean (0 or 1)')
+
+    worker_pd_ssd_data_disk_size_gb = validate_int(
+        'Worker PD SSD data disk size (in GB)',
+        post['worker_pd_ssd_data_disk_size_gb'],
+        lambda v: v >= 0,
+        'a nonnegative integer')
+
+    if worker_local_ssd_data_disk == 0 and worker_pd_ssd_data_disk_size_gb == 0:
+        set_message(session,
+                    'One of worker local SSD or PD SSD data disk must be non-zero.',
+                    'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+    if worker_local_ssd_data_disk == 1 and worker_pd_ssd_data_disk_size_gb > 0:
+        set_message(session,
+                    'Both worker local SSD and PD SSD data disk are non-zero.',
+                    'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
     max_instances = validate_int(
         'Max instances',
@@ -378,7 +410,8 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
         'a positive integer')
 
     await inst_pool.configure(
-        # worker_type, worker_cores, worker_disk_size_gb,
+        worker_type, worker_cores, worker_disk_size_gb,
+        worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
         standing_worker_cores,
         max_instances, pool_size)
 
@@ -404,7 +437,7 @@ async def get_user_resources(request, userdata):
                                  'user_resources.html', page_context)
 
 
-async def check_incremental_loop(db):
+async def check_incremental_loop(app, db):
     @transaction(db, read_only=True)
     async def check(tx):
         ready_cores = await tx.execute_and_fetchone('''
@@ -485,13 +518,13 @@ GROUP BY user;
     while True:
         try:
             await check()  # pylint: disable=no-value-for-parameter
-        except Exception:
+        except Exception as e:
+            app['check_incremental_error'] = e
             log.exception('while checking incremental')
-        # 10/s
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(10)
 
 
-async def check_resource_aggregation(db):
+async def check_resource_aggregation(app, db):
     def json_to_value(x):
         if x is None:
             return x
@@ -535,7 +568,7 @@ async def check_resource_aggregation(db):
     async def check(tx):
         attempt_resources = tx.execute_and_fetchall('''
 SELECT attempt_resources.batch_id, attempt_resources.job_id, attempt_resources.attempt_id,
-  JSON_OBJECTAGG(resource, quantity * COALESCE(end_time - start_time, 0)) as resources
+  JSON_OBJECTAGG(resource, quantity * GREATEST(COALESCE(end_time - start_time, 0), 0)) as resources
 FROM attempt_resources
 INNER JOIN attempts
 ON attempts.batch_id = attempt_resources.batch_id AND
@@ -554,19 +587,22 @@ LOCK IN SHARE MODE;
 
         agg_batch_resources = tx.execute_and_fetchall('''
 SELECT batch_id, JSON_OBJECTAGG(resource, `usage`) as resources
-FROM aggregated_batch_resources
-GROUP BY batch_id
+FROM (
+  SELECT batch_id, resource, SUM(`usage`) AS `usage`
+  FROM aggregated_batch_resources
+  GROUP BY batch_id, resource) AS t
+GROUP BY t.batch_id
 LOCK IN SHARE MODE;
 ''')
 
         attempt_resources = {(record['batch_id'], record['job_id'], record['attempt_id']): json_to_value(record['resources'])
-                             async for record in attempt_resources}  # pylint: disable=bad-continuation
+                             async for record in attempt_resources}
 
         agg_job_resources = {(record['batch_id'], record['job_id']): json_to_value(record['resources'])
-                             async for record in agg_job_resources}  # pylint: disable=bad-continuation
+                             async for record in agg_job_resources}
 
         agg_batch_resources = {record['batch_id']: json_to_value(record['resources'])
-                               async for record in agg_batch_resources}  # pylint: disable=bad-continuation
+                               async for record in agg_batch_resources}
 
         attempt_by_batch_resources = fold(attempt_resources, lambda k: k[0])
         attempt_by_job_resources = fold(attempt_resources, lambda k: (k[0], k[1]))
@@ -579,60 +615,9 @@ LOCK IN SHARE MODE;
     while True:
         try:
             await check()  # pylint: disable=no-value-for-parameter
-        except Exception:
+        except Exception as e:
+            app['check_resource_aggregation_error'] = e
             log.exception('while checking resource aggregation')
-        await asyncio.sleep(10)
-
-
-async def check_cost(db):
-    @transaction(db, read_only=True)
-    async def check(tx):
-        agg_job_resources = tx.execute_and_fetchall('''
-SELECT *
-FROM jobs
-LEFT JOIN (
-  SELECT batch_id, job_id, SUM(`usage` * rate) AS cost
-  FROM aggregated_job_resources
-  INNER JOIN resources ON aggregated_job_resources.resource = resources.resource
-  GROUP BY batch_id, job_id
-  LOCK IN SHARE MODE) AS t
-ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
-LOCK IN SHARE MODE;
-''')
-
-        agg_batch_resources = tx.execute_and_fetchall('''
-SELECT *
-FROM batches
-LEFT JOIN (
-  SELECT batch_id, SUM(`usage` * rate) AS cost
-  FROM aggregated_batch_resources
-  INNER JOIN resources ON aggregated_batch_resources.resource = resources.resource
-  GROUP BY batch_id
-  LOCK IN SHARE MODE) AS t
-ON batches.id = t.batch_id
-LOCK IN SHARE MODE;
-''')
-
-        def assert_cost_same(id, msec_mcpu, cost_resources):
-            cost_msec_mcpu = cost_from_msec_mcpu(msec_mcpu)
-            if cost_msec_mcpu is not None and cost_resources is not None:
-                if cost_msec_mcpu != 0:
-                    assert abs(cost_resources - cost_msec_mcpu) / cost_msec_mcpu <= 0.001, \
-                        (id, cost_msec_mcpu, cost_resources)
-                else:
-                    assert cost_resources == 0, (id, cost_msec_mcpu, cost_resources)
-
-        async for record in agg_job_resources:
-            assert_cost_same((record['batch_id'], record['job_id']), record['msec_mcpu'], record['cost'])
-
-        async for record in agg_batch_resources:
-            assert_cost_same(record['batch_id'], record['msec_mcpu'], record['cost'])
-
-    while True:
-        try:
-            await check()  # pylint: disable=no-value-for-parameter
-        except Exception:
-            log.exception('while checking cost')
         await asyncio.sleep(10)
 
 
@@ -710,9 +695,12 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     await scheduler.async_init()
     app['scheduler'] = scheduler
 
-    # asyncio.ensure_future(check_incremental_loop(db))
-    # asyncio.ensure_future(check_resource_aggregation(db))
-    # asyncio.ensure_future(check_cost(db))
+    app['check_incremental_error'] = None
+    app['check_resource_aggregation_error'] = None
+
+    if HAIL_SHOULD_CHECK_INVARIANTS:
+        asyncio.ensure_future(check_incremental_loop(app, db))
+        asyncio.ensure_future(check_resource_aggregation(app, db))
 
 
 async def on_cleanup(app):

@@ -930,7 +930,7 @@ object PruneDeadFields {
       case MakeArray(args, _) =>
         val eltType = requestedType.asInstanceOf[TArray].elementType
         unifyEnvsSeq(args.map(a => memoizeValueIR(a, eltType, memo)))
-      case MakeStream(args, _) =>
+      case MakeStream(args, _, _) =>
         val eltType = requestedType.asInstanceOf[TStream].elementType
         unifyEnvsSeq(args.map(a => memoizeValueIR(a, eltType, memo)))
       case ArrayRef(a, i, s) =>
@@ -1715,10 +1715,10 @@ object PruneDeadFields {
         val dep = requestedType.asInstanceOf[TArray]
         val args2 = args.map(a => rebuildIR(a, env, memo))
         MakeArray.unify(args2, TArray(dep.elementType))
-      case MakeStream(args, _) =>
+      case MakeStream(args, _, separateRegions) =>
         val dep = requestedType.asInstanceOf[TStream]
         val args2 = args.map(a => rebuildIR(a, env, memo))
-        MakeStream.unify(args2, TStream(dep.elementType))
+        MakeStream.unify(args2, separateRegions, requestedType = TStream(dep.elementType))
       case StreamMap(a, name, body) =>
         val a2 = rebuildIR(a, env, memo)
         StreamMap(a2, name, rebuildIR(body, env.bindEval(name, a2.typ.asInstanceOf[TStream].elementType), memo))

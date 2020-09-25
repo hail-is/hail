@@ -79,6 +79,22 @@ object LAPACK {
     INFOref.getValue()
   }
 
+
+  def dgesdd(JOBZ: String, M: Int, N: Int, A: Long, LDA: Int, S: Long, U: Long, LDU: Int, VT: Long, LDVT: Int, WORK: Long, LWORK: Int, IWORK: Long): Int = {
+    val Mref = new IntByReference(M)
+    val Nref= new IntByReference(N)
+    val LDAref = new IntByReference(LDA)
+    val LDUref = new IntByReference(LDU)
+    val LDVTref = new IntByReference(LDVT)
+    val LWORKRef = new IntByReference(LWORK)
+    val INFOref = new IntByReference(1)
+
+    libraryInstance.dgesdd(JOBZ, Mref, Nref, A, LDAref, S, U, LDUref, VT, LDVTref, WORK, LWORKRef, IWORK, INFOref)
+
+    INFOref.getValue()
+  }
+
+
   private def versionTest(libInstance: LAPACKLibrary): Try[String] = {
     val major = new IntByReference()
     val minor = new IntByReference()
@@ -96,5 +112,6 @@ trait LAPACKLibrary extends Library {
   def dorgqr(M: IntByReference, N: IntByReference, K: IntByReference, A: Long, LDA: IntByReference, TAU: Long, WORK: Long, LWORK: IntByReference, INFO: IntByReference)
   def dgetrf(M: IntByReference, N: IntByReference, A: Long, LDA: IntByReference, IPIV: Long, INFO: IntByReference)
   def dgetri(N: IntByReference, A: Long, LDA: IntByReference, IPIV: Long, WORK: Long, LWORK: IntByReference, INFO: IntByReference)
+  def dgesdd(JOBZ: String, M: IntByReference, N: IntByReference, A: Long, LDA: IntByReference, S: Long, U: Long, LDU: IntByReference, VT: Long, LDVT: IntByReference, WORK: Long, LWORK: IntByReference, IWORK: Long, INFO: IntByReference)
   def ilaver(MAJOR: IntByReference, MINOR: IntByReference, PATCH: IntByReference)
 }

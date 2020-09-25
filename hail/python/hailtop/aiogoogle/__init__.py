@@ -1,6 +1,7 @@
 from .auth import Credentials, ApplicationDefaultCredentials, \
     ServiceAccountCredentials, AccessToken, Session
-from .client import ContainerClient, ComputeClient, IAmClient, LoggingClient
+from .client import BigQueryClient, ContainerClient, ComputeClient, IAmClient, LoggingClient, \
+    InsertObjectStream, GetObjectStream, StorageClient, GoogleStorageAsyncFS
 
 __all__ = [
     'Credentials',
@@ -8,8 +9,13 @@ __all__ = [
     'ServiceAccountCredentials',
     'AccessToken',
     'Session',
+    'BigQueryClient',
     'ContainerClient',
     'ComputeClient',
     'IAmClient',
-    'LoggingClient'
+    'LoggingClient',
+    'InsertObjectStream',
+    'GetObjectStream',
+    'StorageClient',
+    'GoogleStorageAsyncFS'
 ]

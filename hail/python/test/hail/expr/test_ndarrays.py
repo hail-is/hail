@@ -1,11 +1,9 @@
-import hail as hl
-from hail.utils.java import FatalError
 import numpy as np
 from ..helpers import *
 import tempfile
 import pytest
 
-from hail.utils.java import FatalError
+from hail.utils.java import FatalError, HailUserError
 
 
 def assert_ndarrays(asserter, exprs_and_expecteds):
@@ -27,6 +25,7 @@ def assert_ndarrays_almost_eq(*expr_and_expected):
     assert_ndarrays(np.allclose, expr_and_expected)
 
 
+@fails_local_backend()
 def test_ndarray_ref():
 
     scalar = 5.0
@@ -57,11 +56,12 @@ def test_ndarray_ref():
         (h_cube[0, 0, hl.null(hl.tint32)], None)
     )
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array([1, 2, 3])[4])
-    assert "Index out of bounds" in str(exc)
+    assert "Index 4 is out of bounds for axis 0 with size 3" in str(exc)
 
 
+@fails_local_backend()
 def test_ndarray_slice():
     np_rect_prism = np.arange(24).reshape((2, 3, 4))
     rect_prism = hl.nd.array(np_rect_prism)
@@ -85,6 +85,7 @@ def test_ndarray_slice():
         (rect_prism[0:, :, 1:4:2] + rect_prism[:, :1, 1:4:2],
          np_rect_prism[0:, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
         (rect_prism[0, 0, -3:-1], np_rect_prism[0, 0, -3:-1]),
+        (rect_prism[-1, 0:1, 3:0:-1], np_rect_prism[-1, 0:1, 3:0:-1]),
 
         (flat[15:5:-1], np_flat[15:5:-1]),
         (flat[::-1], np_flat[::-1]),
@@ -139,9 +140,14 @@ def test_ndarray_slice():
     assert hl.eval(rect_prism[:, :, 0:hl.null(hl.tint32):1]) is None
     assert hl.eval(rect_prism[hl.null(hl.tint32), :, :]) is None
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError, match="Slice step cannot be zero"):
         hl.eval(flat[::0])
-    assert "Slice step cannot be zero" in str(exc)
+
+    with pytest.raises(HailUserError, match="Index 3 is out of bounds for axis 0 with size 2"):
+        hl.eval(mat[3, 1:3])
+
+    with pytest.raises(HailUserError, match="Index -4 is out of bounds for axis 0 with size 2"):
+        hl.eval(mat[-4, 0:3])
 
 
 def test_ndarray_transposed_slice():
@@ -155,6 +161,7 @@ def test_ndarray_transposed_slice():
     )
 
 
+@fails_local_backend()
 def test_ndarray_eval():
     data_list = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     mishapen_data_list1 = [[4], [1, 2, 3]]
@@ -197,11 +204,11 @@ def test_ndarray_eval():
         hl.nd.array(mishapen_data_list1)
     assert "inner dimensions do not match" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array(hl.array(mishapen_data_list1)))
     assert "inner dimensions do not match" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array(hl.array(mishapen_data_list2)))
     assert "inner dimensions do not match" in str(exc.value)
 
@@ -760,6 +767,43 @@ def test_ndarray_qr():
     assert "requires 2 dimensional" in str(exc)
 
 
+def test_svd():
+    def assert_evals_to_same_svd(nd_expr, np_array, full_matrices=True, compute_uv=True):
+        evaled = hl.eval(hl.nd.svd(nd_expr, full_matrices, compute_uv))
+        np_svd = np.linalg.svd(np_array, full_matrices, compute_uv)
+
+        # check shapes
+        for h, n in zip(evaled, np_svd):
+            assert h.shape == n.shape
+
+        k = min(np_array.shape)
+        rank = np.linalg.matrix_rank(np_array)
+
+        if compute_uv:
+            np.testing.assert_array_almost_equal(evaled[0][:, :rank], np_svd[0][:, :rank])
+            np.testing.assert_array_almost_equal(evaled[1], np_svd[1])
+            np.testing.assert_array_almost_equal(evaled[2][:rank, :], np_svd[2][:rank, :])
+
+        else:
+            np.testing.assert_array_equal(evaled, np_svd)
+
+    np_small_square = np.arange(4).reshape((2, 2))
+    small_square = hl.nd.array(np_small_square)
+    np_rank_2_wide_rectangle = np.arange(12).reshape((4, 3))
+    rank_2_wide_rectangle = hl.nd.array(np_rank_2_wide_rectangle)
+    np_rank_2_tall_rectangle = np_rank_2_wide_rectangle.T
+    rank_2_tall_rectangle = hl.nd.array(np_rank_2_tall_rectangle)
+
+    assert_evals_to_same_svd(small_square, np_small_square)
+    assert_evals_to_same_svd(small_square, np_small_square, compute_uv=False)
+
+    assert_evals_to_same_svd(rank_2_wide_rectangle, np_rank_2_wide_rectangle)
+    assert_evals_to_same_svd(rank_2_wide_rectangle, np_rank_2_wide_rectangle, full_matrices=False)
+
+    assert_evals_to_same_svd(rank_2_tall_rectangle, np_rank_2_tall_rectangle)
+    assert_evals_to_same_svd(rank_2_tall_rectangle, np_rank_2_tall_rectangle, full_matrices=False)
+
+
 def test_numpy_interop():
     v = [2, 3]
     w = [3, 5]
@@ -946,3 +990,30 @@ def test_eye():
 def test_identity():
     for i in range(13):
         assert(np.array_equal(hl.eval(hl.nd.identity(i)), np.identity(i)))
+
+
+def test_agg_ndarray_sum():
+    no_values = hl.utils.range_table(0).annotate(x=hl.nd.arange(5))
+    assert no_values.aggregate(hl.agg.ndarray_sum(no_values.x)) is None
+
+    increasing_0d = hl.utils.range_table(10)
+    increasing_0d = increasing_0d.annotate(x=hl.nd.array(increasing_0d.idx))
+    assert np.array_equal(increasing_0d.aggregate(hl.agg.ndarray_sum(increasing_0d.x)), np.array(45))
+
+    just_ones_1d = hl.utils.range_table(20).annotate(x=hl.nd.ones((7,)))
+    assert np.array_equal(just_ones_1d.aggregate(hl.agg.ndarray_sum(just_ones_1d.x)), np.full((7,), 20))
+
+    just_ones_2d = hl.utils.range_table(100).annotate(x=hl.nd.ones((2, 3)))
+    assert np.array_equal(just_ones_2d.aggregate(hl.agg.ndarray_sum(just_ones_2d.x)), np.full((2, 3), 100))
+
+    transposes = hl.utils.range_table(4).annotate(x=hl.nd.arange(16).reshape((4, 4)))
+    transposes = transposes.annotate(x = hl.if_else((transposes.idx % 2) == 0, transposes.x, transposes.x.T))
+    np_arange_4_by_4 = np.arange(16).reshape((4, 4))
+    transposes_result = (np_arange_4_by_4 * 2) + (np_arange_4_by_4.T * 2)
+    assert np.array_equal(transposes.aggregate(hl.agg.ndarray_sum(transposes.x)), transposes_result)
+
+    with pytest.raises(FatalError) as exc:
+        mismatched = hl.utils.range_table(5)
+        mismatched = mismatched.annotate(x=hl.nd.ones((mismatched.idx,)))
+        mismatched.aggregate(hl.agg.ndarray_sum(mismatched.x))
+    assert "Can't sum" in str(exc)

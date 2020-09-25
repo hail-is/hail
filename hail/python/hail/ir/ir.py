@@ -602,22 +602,42 @@ class ArrayZeros(IR):
 
 
 class StreamRange(IR):
-    @typecheck_method(start=IR, stop=IR, step=IR)
-    def __init__(self, start, stop, step):
+    @typecheck_method(start=IR, stop=IR, step=IR, separate_regions=bool)
+    def __init__(self, start, stop, step, separate_regions=False):
         super().__init__(start, stop, step)
         self.start = start
         self.stop = stop
         self.step = step
+        self.separate_regions = separate_regions
 
     @typecheck_method(start=IR, stop=IR, step=IR)
     def copy(self, start, stop, step):
         return StreamRange(start, stop, step)
+
+    def head_str(self):
+        return self.separate_regions
 
     def _compute_type(self, env, agg_env):
         self.start._compute_type(env, agg_env)
         self.stop._compute_type(env, agg_env)
         self.step._compute_type(env, agg_env)
         self._type = tstream(tint32)
+
+
+class StreamGrouped(IR):
+    @typecheck_method(stream=IR, group_size=IR)
+    def __init__(self, stream, group_size):
+        super().__init__(stream, group_size)
+        self.stream = stream
+        self.group_size = group_size
+
+    @typecheck_method(stream=IR, group_size=IR)
+    def copy(self, stream=IR, group_size=IR):
+        return StreamGrouped(stream, group_size)
+
+    def _compute_type(self, env, agg_env):
+        self.stream._compute_type(env, agg_env)
+        self._type = tstream(self.stream._type)
 
 
 class MakeNDArray(IR):
@@ -709,14 +729,21 @@ class NDArrayMap(IR):
 
 
 class NDArrayRef(IR):
-    @typecheck_method(nd=IR, idxs=sequenceof(IR))
-    def __init__(self, nd, idxs):
+    @typecheck_method(nd=IR, idxs=sequenceof(IR), error_id=nullable(int), stack_trace=nullable(str))
+    def __init__(self, nd, idxs, error_id=None, stack_trace=None):
         super().__init__(nd, *idxs)
         self.nd = nd
         self.idxs = idxs
+        self._error_id = error_id
+        self._stack_trace = stack_trace
+        if error_id is None or stack_trace is None:
+            self.save_error_info()
 
     def copy(self, *args):
-        return NDArrayRef(args[0], args[1:])
+        return NDArrayRef(args[0], args[1:], self._error_id, self._stack_trace)
+
+    def head_str(self):
+        return str(self._error_id)
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
@@ -817,7 +844,6 @@ class NDArrayQR(IR):
         self.nd = nd
         self.mode = mode
 
-    @typecheck_method(nd=IR, mode=str)
     def copy(self):
         return NDArrayQR(self.nd, self.mode)
 
@@ -835,6 +861,28 @@ class NDArrayQR(IR):
             self._type = tndarray(tfloat64, 2)
         else:
             raise ValueError("Cannot compute type for mode: " + self.mode)
+
+
+class NDArraySVD(IR):
+    @typecheck_method(nd=IR, full_matrices=bool, compute_uv=bool)
+    def __init__(self, nd, full_matrices, compute_uv):
+        super().__init__(nd)
+        self.nd = nd
+        self.full_matrices = full_matrices
+        self.compute_uv = compute_uv
+
+    def copy(self):
+        return NDArraySVD(self.nd, self.full_matrices, self.compute_uv)
+
+    def head_str(self):
+        return f'{self.full_matrices} {self.compute_uv}'
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        if self.compute_uv:
+            self._type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2))
+        else:
+            self._type = tndarray(tfloat64, 1)
 
 
 class NDArrayInv(IR):
@@ -994,14 +1042,18 @@ class CastToArray(IR):
 
 
 class ToStream(IR):
-    @typecheck_method(a=IR)
-    def __init__(self, a):
+    @typecheck_method(a=IR, separate_regions=bool)
+    def __init__(self, a, separate_regions=False):
         super().__init__(a)
         self.a = a
+        self.separate_regions = separate_regions
 
     @typecheck_method(a=IR)
     def copy(self, a):
         return ToStream(a)
+
+    def head_str(self):
+        return self.separate_regions
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
@@ -1888,21 +1940,26 @@ class GetTupleElement(IR):
 
 
 class Die(IR):
-    @typecheck_method(message=IR, typ=hail_type)
-    def __init__(self, message, typ):
+    @typecheck_method(message=IR, typ=hail_type, error_id=nullable(int), stack_trace=nullable(str))
+    def __init__(self, message, typ, error_id=None, stack_trace=None):
         super().__init__(message)
         self.message = message
         self._typ = typ
+        self._error_id = error_id
+        self._stack_trace = stack_trace
+
+        if error_id is None or stack_trace is None:
+            self.save_error_info()
 
     @property
     def typ(self):
         return self._typ
 
     def copy(self, message):
-        return Die(message, self._typ)
+        return Die(message, self._typ, self._error_id, self._stack_trace)
 
     def head_str(self):
-        return self._typ._parsable_string()
+        return f'{self._typ._parsable_string()} {self._error_id}'
 
     def _eq(self, other):
         return other._typ == self._typ
@@ -2264,24 +2321,6 @@ class BlockMatrixMultiWrite(IR):
     def _compute_type(self, env, agg_env):
         for x in self.block_matrices:
             x._compute_type()
-        self._type = tvoid
-
-    @staticmethod
-    def is_effectful() -> bool:
-        return True
-
-
-class UnpersistBlockMatrix(IR):
-    @typecheck_method(child=BlockMatrixIR)
-    def __init__(self, child):
-        super().__init__(child)
-        self.child = child
-
-    def copy(self, child):
-        return UnpersistBlockMatrix(child)
-
-    def _compute_type(self, env, agg_env):
-        self.child._compute_type()
         self._type = tvoid
 
     @staticmethod

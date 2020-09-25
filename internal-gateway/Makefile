@@ -1,10 +1,9 @@
+include ../config.mk
+
 .PHONY: build push deploy
 
-PROJECT = $(shell gcloud config get-value project)
 INTERNAL_GATEWAY_LATEST = gcr.io/$(PROJECT)/internal-gateway:latest
 INTERNAL_GATEWAY_IMAGE = gcr.io/$(PROJECT)/internal-gateway:$(shell docker images -q --no-trunc internal-gateway | sed -e 's,[^:]*:,,')
-DOMAIN ?= hail.is
-INTERNAL_IP ?= 10.128.0.57
 
 build:
 	docker pull ubuntu:18.04

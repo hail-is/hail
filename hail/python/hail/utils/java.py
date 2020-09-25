@@ -8,6 +8,14 @@ import hail
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
 
+    def __init__(self, msg, error_id=-1):
+        super().__init__(msg)
+        self._error_id = error_id
+
+
+class HailUserError(Exception):
+    """:class:`.HailUserError` is an error thrown by Hail when the user makes an error."""
+
 
 class Env:
     _jutils = None
@@ -33,9 +41,10 @@ class Env:
         return Env.py4j_backend('Env.jutils').utils_package_object()
 
     @staticmethod
-    def hc():
+    def hc() -> 'hail.context.HailContext':
         if not Env._hc:
             sys.stderr.write("Initializing Hail with default parameters...\n")
+            sys.stderr.flush()
 
             backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
             if backend_name == 'service':
@@ -54,7 +63,7 @@ class Env:
         return Env._hc
 
     @staticmethod
-    def backend():
+    def backend() -> 'hail.backend.Backend':
         return Env.hc()._backend
 
     @staticmethod

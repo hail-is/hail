@@ -114,7 +114,6 @@ class ValueIRTests(unittest.TestCase):
             ir.BlockMatrixWrite(block_matrix_read, ir.BlockMatrixNativeWriter('fake.bm', False, False, False)),
             ir.LiftMeOut(ir.I32(1)),
             ir.BlockMatrixWrite(block_matrix_read, ir.BlockMatrixPersistWriter('x', 'MEMORY_ONLY')),
-            ir.UnpersistBlockMatrix(block_matrix_read),
         ]
 
         return value_irs
@@ -300,7 +299,6 @@ class BlockMatrixIRTests(unittest.TestCase):
         add_two_bms = ir.BlockMatrixMap2(read, read, 'l', 'r', ir.ApplyBinaryPrimOp('+', ir.Ref('l'), ir.Ref('r')), "Union")
         negate_bm = ir.BlockMatrixMap(read, 'element', ir.ApplyUnaryPrimOp('-', ir.Ref('element')), False)
         sqrt_bm = ir.BlockMatrixMap(read, 'element', hl.sqrt(construct_expr(ir.Ref('element'), hl.tfloat64))._ir, False)
-        persisted = ir.BlockMatrixRead(ir.BlockMatrixPersistReader('x', read))
 
         scalar_to_bm = ir.ValueToBlockMatrix(scalar_ir, [1, 1], 1)
         col_vector_to_bm = ir.ValueToBlockMatrix(vector_ir, [2, 1], 1)
@@ -327,7 +325,6 @@ class BlockMatrixIRTests(unittest.TestCase):
 
         return [
             read,
-            persisted,
             add_two_bms,
             negate_bm,
             sqrt_bm,
@@ -349,8 +346,16 @@ class BlockMatrixIRTests(unittest.TestCase):
 
     @skip_unless_spark_backend()
     def test_parses(self):
-        for x in self.blockmatrix_irs():
-            Env.spark_backend('BlockMatrixIRTests.test_parses')._parse_blockmatrix_ir(str(x))
+        backend = Env.spark_backend('BlockMatrixIRTests.test_parses')
+
+        bmir = hl.linalg.BlockMatrix.fill(1, 1, 0.0)._bmir
+        backend.execute(ir.BlockMatrixWrite(bmir, ir.BlockMatrixPersistWriter('x', 'MEMORY_ONLY')))
+        persist = ir.BlockMatrixRead(ir.BlockMatrixPersistReader('x', bmir))
+
+        for x in (self.blockmatrix_irs() + [persist]):
+            backend._parse_blockmatrix_ir(str(x))
+
+        backend.unpersist_block_matrix('x')
 
 
 class ValueTests(unittest.TestCase):

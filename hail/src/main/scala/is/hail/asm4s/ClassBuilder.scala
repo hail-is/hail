@@ -92,8 +92,8 @@ trait WrappedModuleBuilder {
 class ModuleBuilder() {
   val classes = new mutable.ArrayBuffer[ClassBuilder[_]]()
 
-  def newClass[C](name: String)(implicit cti: TypeInfo[C]): ClassBuilder[C] = {
-    val c = new ClassBuilder[C](this, name)
+  def newClass[C](name: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): ClassBuilder[C] = {
+    val c = new ClassBuilder[C](this, name, sourceFile)
     if (cti != UnitInfo)
       c.addInterface(cti.iname)
     classes += c
@@ -208,11 +208,13 @@ trait WrappedClassBuilder[C] extends WrappedModuleBuilder {
 
 class ClassBuilder[C](
   val modb: ModuleBuilder,
-  val className: String) extends WrappedModuleBuilder {
+  val className: String,
+  val sourceFile: Option[String]
+) extends WrappedModuleBuilder {
 
   val ti: TypeInfo[C] = new ClassInfo[C](className)
 
-  val lclass = new lir.Classx[C](className, "java/lang/Object")
+  val lclass = new lir.Classx[C](className, "java/lang/Object", sourceFile)
 
   val methods: mutable.ArrayBuffer[MethodBuilder[C]] = new mutable.ArrayBuffer[MethodBuilder[C]](16)
   val fields: mutable.ArrayBuffer[FieldNode] = new mutable.ArrayBuffer[FieldNode](16)
@@ -466,7 +468,10 @@ class MethodBuilder[C](
   val returnTypeInfo: TypeInfo[_],
   val isStatic: Boolean = false
 ) extends WrappedClassBuilder[C] {
-  val methodName: String = _mname.substring(0, scala.math.min(_mname.length, 65535))
+  // very long method names, repeated hundreds of thousands of times can cause memory issues.
+  // If necessary to find the name of a method precisely, this can be set to around the constant
+  // limit of 65535 characters, but usually, this can be much smaller.
+  val methodName: String = _mname.substring(0, scala.math.min(_mname.length, 2000 /* 65535 */))
 
   if (methodName != "<init>" && !isJavaIdentifier(methodName))
     throw new IllegalArgumentException(s"Illegal method name, not Java identifier: $methodName")

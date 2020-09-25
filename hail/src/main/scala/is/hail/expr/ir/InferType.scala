@@ -28,7 +28,7 @@ object InferType {
       case RelationalLet(_, _, body) => body.typ
       case In(_, t) => t.virtualType
       case MakeArray(_, t) => t
-      case MakeStream(_, t) => t
+      case MakeStream(_, t, _) => t
       case MakeNDArray(data, shape, _) =>
         TNDArray(coerce[TArray](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
       case _: ArrayLen => TInt32
@@ -47,7 +47,7 @@ object InferType {
       case _: SerializeAggs => TVoid
       case _: DeserializeAggs => TVoid
       case _: Begin => TVoid
-      case Die(_, t) => t
+      case Die(_, t, _) => t
       case If(cond, cnsq, altr) =>
         assert(cond.typ == TBoolean)
         assert(cnsq.typ == altr.typ)
@@ -67,7 +67,7 @@ object InferType {
       case ApplyComparisonOp(op, l, r) =>
         assert(l.typ == r.typ)
         op match {
-          case _: Compare => TInt32
+          case _: Compare | _: CompareStructs => TInt32
           case _ => TBoolean
         }
       case a: ApplyIR => a.explicitNode.typ
@@ -95,7 +95,7 @@ object InferType {
       case CastToArray(a) =>
         val elt = coerce[TContainer](a.typ).elementType
         TArray(elt)
-      case ToStream(a) =>
+      case ToStream(a, _) =>
         val elt = coerce[TIterable](a.typ).elementType
         TStream(elt)
       case StreamLen(a) => TInt32
@@ -158,7 +158,7 @@ object InferType {
       case NDArrayAgg(nd, axes) =>
         val childType = coerce[TNDArray](nd.typ)
         TNDArray(childType.elementType, Nat(childType.nDims - axes.length))
-      case NDArrayRef(nd, idxs) =>
+      case NDArrayRef(nd, idxs, _) =>
         assert(idxs.forall(_.typ == TInt64))
         coerce[TNDArray](nd.typ).elementType
       case NDArraySlice(nd, slices) =>
@@ -182,6 +182,12 @@ object InferType {
           TNDArray(TFloat64, Nat(2))
         } else {
           throw new NotImplementedError(s"Cannot infer type for mode $mode")
+        }
+      case NDArraySVD(nd, _, compute_uv) =>
+        if (compute_uv) {
+          TTuple(TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(1)), TNDArray(TFloat64, Nat(2)))
+        } else {
+          TNDArray(TFloat64, Nat(1))
         }
       case NDArrayInv(_) =>
         TNDArray(TFloat64, Nat(2))
@@ -235,7 +241,6 @@ object InferType {
       case _: BlockMatrixCollect => TNDArray(TFloat64, Nat(2))
       case _: BlockMatrixWrite => TVoid
       case _: BlockMatrixMultiWrite => TVoid
-      case _: UnpersistBlockMatrix => TVoid
       case TableGetGlobals(child) => child.typ.globalType
       case TableCollect(child) => TStruct("rows" -> TArray(child.typ.rowType), "global" -> child.typ.globalType)
       case TableToValueApply(child, function) => function.typ(child.typ)

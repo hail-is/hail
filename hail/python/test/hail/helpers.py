@@ -1,10 +1,12 @@
 import os
 from timeit import default_timer as timer
 import unittest
+import pytest
 from decorator import decorator
 
 from hail.utils.java import Env
 import hail as hl
+from hail.backend.local_backend import LocalBackend
 
 _initialized = False
 
@@ -127,6 +129,11 @@ def skip_unless_spark_backend():
 
     return wrapper
 
+
+fails_local_backend = pytest.mark.xfail(
+    os.environ.get('HAIL_QUERY_BACKEND') == 'local',
+    reason="doesn't yet work on local backend",
+    strict=True)
 
 def run_with_cxx_compile():
     @decorator

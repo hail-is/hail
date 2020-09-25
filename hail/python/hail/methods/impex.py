@@ -1881,11 +1881,11 @@ def import_plink(bed, bim, fam,
         * `is_female` (:py:data:`.tstr`) -- Column 5 in the FAM file. Set to
           missing if value equals "-9", "0", or "N/A". Set to true if value
           equals "2". Set to false if value equals "1".
-        * `is_case` (:py:data:`.tstr`) -- Column 6 in the FAM file. Only
+        * `is_case` (:py:data:`.tbool`) -- Column 6 in the FAM file. Only
           present if `quant_pheno` equals False. Set to missing if value equals
           "-9", "0", "N/A", or the value specified by `missing`. Set to true if
           value equals "2". Set to false if value equals "1".
-        * `quant_pheno` (:py:data:`.tstr`) -- Column 6 in the FAM file. Only
+        * `quant_pheno` (:py:data:`.tfloat`) -- Column 6 in the FAM file. Only
           present if `quant_pheno` equals True. Set to missing if value equals
           `missing`.
 

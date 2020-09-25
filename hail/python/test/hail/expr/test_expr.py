@@ -64,6 +64,7 @@ class Tests(unittest.TestCase):
             evaled = hl.eval(hl.zeros(size))
             assert evaled == [0 for i in range(size)]
 
+    @fails_local_backend()
     def test_seeded_sampling(self):
         sampled1 = hl.utils.range_table(50, 6).filter(hl.rand_bool(0.5))
         sampled2 = hl.utils.range_table(50, 5).filter(hl.rand_bool(0.5))
@@ -310,6 +311,13 @@ class Tests(unittest.TestCase):
         string = hl.literal('1:25-100')
         self.assertTrue(hl.eval(string.first_match_in("([^:]*)[:\\t](\\d+)[\\-\\t](\\d+)")) == ['1', '25', '100'])
         self.assertIsNone(hl.eval(string.first_match_in(r"hello (\w+)!")))
+
+    def test_string_join(self):
+        self.assertEqual(hl.eval(hl.str(":").join(["foo", "bar", "baz"])), "foo:bar:baz")
+        self.assertEqual(hl.eval(hl.str(",").join(hl.empty_array(hl.tstr))), "")
+
+        with pytest.raises(TypeError, match="Expected str collection, int32 found"):
+            hl.eval(hl.str(",").join([1, 2, 3]))
 
     def test_cond(self):
         self.assertEqual(hl.eval('A' + hl.cond(True, 'A', 'B')), 'AA')
@@ -1065,6 +1073,7 @@ class Tests(unittest.TestCase):
         )
         mt.cols()._force_count()
 
+    @fails_local_backend()
     def test_aggregator_info_score(self):
         gen_file = resource('infoScoreTest.gen')
         sample_file = resource('infoScoreTest.sample')
@@ -1091,6 +1100,7 @@ class Tests(unittest.TestCase):
             violations.show()
             self.fail("disagreement between computed info score and truth")
 
+    @fails_local_backend()
     def test_aggregator_info_score_works_with_bgen_import(self):
         sample_file = resource('random.sample')
         bgen_file = resource('random.bgen')
@@ -1172,6 +1182,7 @@ class Tests(unittest.TestCase):
             .default(4))
         self.assertEqual(hl.eval(expr5), -1)
 
+    @fails_local_backend()
     def test_case(self):
         def make_case(x):
             x = hl.literal(x)
@@ -1192,7 +1203,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.case(missing_false=True).when(hl.null(hl.tbool), 1).default(2)), 2)
 
         error_case = hl.case().when(False, 1).or_error("foo")
-        self.assertRaises(hl.utils.java.FatalError, lambda: hl.eval(error_case))
+        with pytest.raises(hl.utils.java.HailUserError) as exc:
+            hl.eval(error_case)
+        assert '.or_error("foo")' in str(exc.value)
 
     def test_struct_ops(self):
         s = hl.struct(f1=1, f2=2, f3=3)
@@ -2323,6 +2336,13 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(hl.eval(hl.corr(hl.literal(x1, 'array<float>'), hl.literal(x2, 'array<float>'))),
                                pearsonr(x1[3:], x2[3:])[0])
 
+    def test_array_grouped(self):
+        x = hl.array([0, 1, 2, 3, 4])
+        assert hl.eval(x.grouped(1)) == [[0], [1], [2], [3], [4]]
+        assert hl.eval(x.grouped(2)) == [[0, 1], [2, 3], [4]]
+        assert hl.eval(x.grouped(5)) == [[0, 1, 2, 3, 4]]
+        assert hl.eval(x.grouped(100)) == [[0, 1, 2, 3, 4]]
+
     def test_array_find(self):
         self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.null(hl.tarray(hl.tint32)))), None)
         self.assertEqual(hl.eval(hl.find(lambda x: hl.null(hl.tbool), [1, 0, -4, 6])), None)
@@ -2355,6 +2375,16 @@ class Tests(unittest.TestCase):
         a = hl.array([1,2,3])
         assert hl.eval(a.head()) == 1
         assert hl.eval(a.filter(lambda x: x > 5).head()) is None
+
+    def test_array_first(self):
+        a = hl.array([1,2,3])
+        assert hl.eval(a.first()) == 1
+        assert hl.eval(a.filter(lambda x: x > 5).first()) is None
+
+    def test_array_last(self):
+        a = hl.array([1, 2, 3])
+        assert hl.eval(a.last()) == 3
+        assert hl.eval(a.filter(lambda x: x > 5).last()) is None
 
     def test_array_index(self):
         a = hl.array([1,2,3])
@@ -2495,6 +2525,7 @@ class Tests(unittest.TestCase):
         ds = hl.utils.range_matrix_table(3, 3)
         ds.col_idx.show(3)
 
+    @fails_local_backend()
     def test_export(self):
         for delimiter in ['\t', ',', '@']:
             for missing in ['NA', 'null']:
@@ -2538,6 +2569,7 @@ class Tests(unittest.TestCase):
                                 2, None, 6]
             assert expected_collect == actual.x.collect()
 
+    @fails_local_backend()
     def test_export_genetic_data(self):
         mt = hl.balding_nichols_model(1, 3, 3)
         mt = mt.key_cols_by(s = 's' + hl.str(mt.sample_idx))
@@ -2926,6 +2958,7 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(hl.mean(s), 3)
         self.assert_evals_to(hl.median(s), 3)
 
+    @fails_local_backend()
     def test_uniroot(self):
         tol = 1.220703e-4
 
@@ -2936,9 +2969,9 @@ class Tests(unittest.TestCase):
 
         with self.assertRaisesRegex(hl.utils.FatalError, "value of f\(x\) is missing"):
             hl.eval(hl.uniroot(lambda x: hl.null('float'), 0, 1))
-        with self.assertRaisesRegex(hl.utils.FatalError, 'opposite signs'):
+        with self.assertRaisesRegex(hl.utils.HailUserError, 'opposite signs'):
             hl.eval(hl.uniroot(lambda x: x ** 2 - 0.5, -1, 1))
-        with self.assertRaisesRegex(hl.utils.FatalError, 'min must be less than max'):
+        with self.assertRaisesRegex(hl.utils.HailUserError, 'min must be less than max'):
             hl.eval(hl.uniroot(lambda x: x, 1, -1))
 
         def multiple_roots(x):
@@ -3236,23 +3269,24 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.bit_rshift(hl.int64(-1), 64)) == -1
         assert hl.eval(hl.bit_rshift(hl.int64(-11), 64, logical=True)) == 0
 
+    @fails_local_backend()
     def test_bit_shift_errors(self):
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
                 hl.eval(hl.bit_lshift(1, -1))
 
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_rshift(1, -1))
 
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_rshift(1, -1, logical=True))
 
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_lshift(hl.int64(1), -1))
 
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_rshift(hl.int64(1), -1))
 
-        with pytest.raises(hl.utils.FatalError):
+        with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_rshift(hl.int64(1), -1, logical=True))
 
     def test_prev_non_null(self):
@@ -3377,3 +3411,47 @@ class Tests(unittest.TestCase):
             hl.tuple([1, 2, 'str'])
         ]
         assert hl.eval(hl._compare(hl.tuple(values), hl.tuple(hl.parse_json(hl.json(v), v.dtype) for v in values)) == 0)
+
+    def test_expr_persist(self):
+        # need to test laziness, so we will overwrite a file
+        ht2 = hl.utils.range_table(100)
+        with tempfile.TemporaryDirectory() as f:
+            hl.utils.range_table(10).write(f, overwrite=True)
+            ht = hl.read_table(f)
+            count1 = ht.aggregate(hl.agg.count(), _localize=False)._persist()
+            assert hl.eval(count1) == 10
+
+            hl.utils.range_table(100).write(f, overwrite=True)
+            assert hl.eval(count1) == 10
+
+    def test_struct_expression_expr_rename(self):
+        s = hl.struct(f1=1, f2=2, f3=3)
+
+        assert hl.eval(s.rename({'f1': 'foo'})) == hl.Struct(f2=2, f3=3, foo=1)
+        assert hl.eval(s.rename({'f3': 'fiddle', 'f1': 'hello'})) == \
+            hl.Struct(f2=2, fiddle=3, hello=1)
+        assert hl.eval(s.rename({'f3': 'fiddle', 'f1': 'hello', 'f2': 'ohai'})) == \
+            hl.Struct(fiddle=3, hello=1, ohai=2)
+        assert hl.eval(s.rename({'f3': 'fiddle', 'f1': 'hello', 'f2': 's p a c e'})) == \
+            hl.Struct(fiddle=3, hello=1, **{'s p a c e': 2})
+
+        try:
+            hl.eval(s.rename({'f1': 'f2'}))
+        except ValueError as err:
+            assert 'already in the struct' in err.args[0]
+        else:
+            assert False
+
+        try:
+            hl.eval(s.rename({'f4': 'f2'}))
+        except ValueError as err:
+            assert 'f4 is not a field of this struct' in err.args[0]
+        else:
+            assert False
+
+        try:
+            hl.eval(s.rename({'f1': 'f5', 'f2': 'f5'}))
+        except ValueError as err:
+            assert 'f5 is the new name of both' in err.args[0]
+        else:
+            assert False

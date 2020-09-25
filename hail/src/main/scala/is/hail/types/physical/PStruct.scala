@@ -47,6 +47,9 @@ trait PStruct extends PBaseStruct {
   val structFundamentalType: PStruct
   override lazy val fundamentalType: PStruct = structFundamentalType
 
+  val structEncodableType: PStruct
+  override lazy val encodableType: PStruct = structEncodableType
+
   def loadField(offset: Code[Long], fieldName: String): Code[Long]
 
   final def isFieldDefined(offset: Code[Long], fieldName: String): Code[Boolean] = !isFieldMissing(offset, fieldName)

@@ -65,6 +65,8 @@ REQUEST_TIME_POST_CANCEL_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch
 REQUEST_TIME_POST_DELETE_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/delete', verb='POST')
 REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET')
 REQUEST_TIME_GET_JOB_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id', verb="GET")
+REQUEST_TIME_GET_BILLING_PROJECTS = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects', verb="GET")
+REQUEST_TIME_GET_BILLING_PROJECT = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/{billing_project}', verb="GET")
 REQUEST_TIME_GET_BILLING_UI = REQUEST_TIME.labels(endpoint='/billing', verb="GET")
 REQUEST_TIME_GET_BILLING_PROJECTS_UI = REQUEST_TIME.labels(endpoint='/billing_projects', verb="GET")
 REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/user/remove', verb="POST")
@@ -512,6 +514,8 @@ async def create_jobs(request, userdata):
 
     worker_type = app['worker_type']
     worker_cores = app['worker_cores']
+    worker_local_ssd_data_disk = app['worker_local_ssd_data_disk']
+    worker_pd_ssd_data_disk_size_gb = app['worker_pd_ssd_data_disk_size_gb']
 
     batch_id = int(request.match_info['batch_id'])
 
@@ -611,12 +615,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         f'cpu cannot be 0')
 
                 cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
-                cores_mcpu = adjust_cores_for_storage_request(cores_mcpu, req_storage_bytes, worker_cores)
+                cores_mcpu = adjust_cores_for_storage_request(cores_mcpu, req_storage_bytes, worker_cores,
+                                                              worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
                 cores_mcpu = adjust_cores_for_packability(cores_mcpu)
 
                 if cores_mcpu > worker_cores * 1000:
                     total_memory_available = worker_memory_per_core_gb(worker_type) * worker_cores
-                    total_storage_available = total_worker_storage_gib()
+                    total_storage_available = total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
                         f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} storage={resources["storage"]}'
@@ -641,6 +646,19 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     'mount_path': '/gsa-key',
                     'mount_in_copy': True
                 })
+                if spec.get('mount_tokens', False):
+                    secrets.append({
+                        'namespace': BATCH_PODS_NAMESPACE,
+                        'name': userdata['tokens_secret_name'],
+                        'mount_path': '/user-tokens',
+                        'mount_in_copy': True
+                    })
+                    secrets.append({
+                        'namespace': DEFAULT_NAMESPACE,
+                        'name': 'gce-deploy-config',
+                        'mount_path': '/deploy-config',
+                        'mount_in_copy': True
+                    })
 
                 sa = spec.get('service_account')
                 check_service_account_permissions(user, sa)
@@ -659,6 +677,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         ready_cancellable_cores_mcpu += cores_mcpu
                 else:
                     state = 'Pending'
+
+                network = spec.get('network')
+                if user != 'ci' and not (network is None or network == 'public'):
+                    raise web.HTTPBadRequest(reason=f'unauthorized network {network}')
 
                 spec_writer.add(json.dumps(spec))
                 db_spec = batch_format_version.db_spec(spec)
@@ -1082,6 +1104,9 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
         raise web.HTTPNotFound()
     if len(attempts) == 1 and attempts[0]['attempt_id'] is None:
         return None
+
+    attempts.sort(key=lambda x: x['start_time'])
+
     for attempt in attempts:
         start_time = attempt['start_time']
         if start_time is not None:
@@ -1251,30 +1276,97 @@ async def ui_get_billing(request, userdata):
     return await render_template('batch', request, userdata, 'billing.html', page_context)
 
 
+async def _query_billing_projects(db, user=None, billing_project=None):
+    args = []
+
+    where_conditions = []
+
+    if user:
+        where_conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
+        args.append(user)
+
+    if billing_project:
+        where_conditions.append('billing_projects.name = %s')
+        args.append(billing_project)
+
+    if where_conditions:
+        where_condition = f'WHERE {" AND ".join(where_conditions)}'
+    else:
+        where_condition = ''
+
+    sql = f'''
+SELECT billing_projects.name as billing_project, users
+FROM (
+  SELECT billing_project, JSON_ARRAYAGG(`user`) as users
+  FROM billing_project_users
+  GROUP BY billing_project
+) AS t
+RIGHT JOIN billing_projects
+  ON t.billing_project = billing_projects.name
+{where_condition};
+'''
+
+    def record_to_dict(record):
+        if record['users'] is None:
+            record['users'] = []
+        else:
+            record['users'] = json.loads(record['users'])
+        return record
+
+    billing_projects = [record_to_dict(record)
+                        async for record
+                        in db.select_and_fetchall(sql, tuple(args))]
+
+    return billing_projects
+
+
 @routes.get('/billing_projects')
 @prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS_UI)
 @web_authenticated_developers_only()
 async def ui_get_billing_projects(request, userdata):
     db = request.app['db']
-
-    @transaction(db, read_only=True)
-    async def select(tx):
-        billing_projects = {}
-        async for record in tx.execute_and_fetchall(
-                'SELECT * FROM billing_projects LOCK IN SHARE MODE;'):
-            name = record['name']
-            billing_projects[name] = []
-        async for record in tx.execute_and_fetchall(
-                'SELECT * FROM billing_project_users LOCK IN SHARE MODE;'):
-            billing_project = record['billing_project']
-            user = record['user']
-            billing_projects[billing_project].append(user)
-        return billing_projects
-    billing_projects = await select()  # pylint: disable=no-value-for-parameter
+    billing_projects = await _query_billing_projects(db)
     page_context = {
         'billing_projects': billing_projects
     }
     return await render_template('batch', request, userdata, 'billing_projects.html', page_context)
+
+
+@routes.get('/api/v1alpha/billing_projects')
+@prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS)
+@rest_authenticated_users_only
+async def get_billing_projects(request, userdata):
+    db = request.app['db']
+
+    if not userdata['is_developer']:
+        user = userdata['username']
+    else:
+        user = None
+
+    billing_projects = await _query_billing_projects(db, user=user)
+
+    return web.json_response(data=billing_projects)
+
+
+@routes.get('/api/v1alpha/billing_projects/{billing_project}')
+@prom_async_time(REQUEST_TIME_GET_BILLING_PROJECT)
+@rest_authenticated_users_only
+async def get_billing_project(request, userdata):
+    db = request.app['db']
+    billing_project = request.match_info['billing_project']
+
+    if not userdata['is_developer']:
+        user = userdata['username']
+    else:
+        user = None
+
+    billing_projects = await _query_billing_projects(db, user=user, billing_project=billing_project)
+
+    if not billing_projects:
+        raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
+
+    assert len(billing_projects) == 1
+    return web.json_response(data=billing_projects[0])
 
 
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')
@@ -1441,12 +1533,15 @@ async def on_startup(app):
     row = await db.select_and_fetchone(
         '''
 SELECT worker_type, worker_cores, worker_disk_size_gb,
+  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
   instance_id, internal_token, n_tokens FROM globals;
 ''')
 
     app['worker_type'] = row['worker_type']
     app['worker_cores'] = row['worker_cores']
     app['worker_disk_size_gb'] = row['worker_disk_size_gb']
+    app['worker_local_ssd_data_disk'] = row['worker_local_ssd_data_disk']
+    app['worker_pd_ssd_data_disk_size_gb'] = row['worker_pd_ssd_data_disk_size_gb']
     app['n_tokens'] = row['n_tokens']
 
     instance_id = row['instance_id']

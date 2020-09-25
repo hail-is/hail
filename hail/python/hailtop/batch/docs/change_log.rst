@@ -3,6 +3,14 @@
 Change Log
 ==========
 
+**Version 0.2.56**
+
+- Fix ``LocalBackend.run()`` succeeding when intermediate command fails
+
+**Version 0.2.55**
+
+- Attempts are now sorted by attempt time in the Batch Service UI.
+
 **Version 0.2.53**
 
 - Implement and document ``BatchPoolExecutor``.

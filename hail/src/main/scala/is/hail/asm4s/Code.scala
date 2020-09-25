@@ -127,7 +127,10 @@ object Code {
 
   def foreach[A](it: Seq[A])(f: A => Code[Unit]): Code[Unit] = Code(it.map(f))
 
-  def newInstance[T <: AnyRef](parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T]): Code[T] = {
+  def newInstance[T <: AnyRef](parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T]): Code[T] =
+    newInstance(parameterTypes, args, 0)
+
+  def newInstance[T <: AnyRef](parameterTypes: Array[Class[_]], args: Array[Code[_]], lineNumber: Int)(implicit tct: ClassTag[T]): Code[T] = {
     val tti = classInfo[T]
 
     val tcls = tct.runtimeClass
@@ -140,8 +143,10 @@ object Code {
 
     val (start, end, argvs) = Code.sequenceValues(args)
     val linst = new lir.Local(null, "new_inst", tti)
-    end.append(lir.store(linst, lir.newInstance(tti,
-      Type.getInternalName(tcls), "<init>", Type.getConstructorDescriptor(c), tti, argvs)))
+    val newInstX = lir.newInstance(
+      tti, Type.getInternalName(tcls), "<init>",
+      Type.getConstructorDescriptor(c), tti, argvs, lineNumber)
+    end.append(lir.store(linst, newInstX, lineNumber))
 
     new VCode(start, end, lir.load(linst))
   }
@@ -169,7 +174,11 @@ object Code {
 
   def newInstance[T <: AnyRef, A1, A2, A3](a1: Code[A1], a2: Code[A2], a3: Code[A3])(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2],
     a3ct: ClassTag[A3], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
-    newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass), Array[Code[_]](a1, a2, a3))
+    newInstance(a1, a2, a3, 0)
+
+  def newInstance[T <: AnyRef, A1, A2, A3](a1: Code[A1], a2: Code[A2], a3: Code[A3], lineNumber: Int)(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
+    newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass), Array[Code[_]](a1, a2, a3), lineNumber)
 
   def newInstance[T <: AnyRef, A1, A2, A3, A4](a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4]
   )(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
@@ -295,7 +304,7 @@ object Code {
   def invokeStatic5[T, A1, A2, A3, A4, A5, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5]): Code[S] =
     invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5))(sct)
 
-  def _null[T >: Null](implicit tti: TypeInfo[T]): Code[T] = Code(lir.insn(ACONST_NULL, tti))
+  def _null[T >: Null](implicit tti: TypeInfo[T]): Code[T] = Code(lir.insn0(ACONST_NULL, tti))
 
   def _empty: Code[Unit] = Code[Unit](null: lir.ValueX)
 
@@ -311,21 +320,41 @@ object Code {
     }
   }
 
-  def _throw[T <: java.lang.Throwable, U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] = {
+  private def getEmitLineNum: Int = {
+    val st = Thread.currentThread().getStackTrace
+    val i = st.indexWhere(ste => ste.getFileName == "Emit.scala")
+    if (i == -1) 0 else st(i).getLineNumber
+  }
+
+  def _throw[T <: java.lang.Throwable, U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] =
+    _throw[T, U](cerr, getEmitLineNum)
+
+  def _throw[T <: java.lang.Throwable, U](cerr: Code[T], lineNumber: Int)(implicit uti: TypeInfo[U]): Code[U] = {
     if (uti eq UnitInfo) {
-      cerr.end.append(lir.throwx(cerr.v))
+      cerr.end.append(lir.throwx(cerr.v, lineNumber))
       val newC = new VCode(cerr.start, cerr.end, null)
       cerr.clear()
       newC
     } else
-      Code(cerr, lir.insn1(ATHROW, uti))
+      Code(cerr, lir.insn1(ATHROW, uti, lineNumber))
   }
 
   def _fatal[U](msg: Code[String])(implicit uti: TypeInfo[U]): Code[U] =
-    Code._throw[is.hail.utils.HailException, U](Code.newInstance[is.hail.utils.HailException, String, Option[String], Throwable](
+    _fatal[U](msg, getEmitLineNum)
+
+  def _fatal[U](msg: Code[String], lineNumber: Int)(implicit uti: TypeInfo[U]): Code[U] = {
+    val cerr = Code.newInstance[is.hail.utils.HailException, String, Option[String], Throwable](
       msg,
       Code.invokeStatic0[scala.Option[String], scala.Option[String]]("empty"),
-      Code._null[Throwable]))
+      Code._null[Throwable],
+      lineNumber)
+    Code._throw[is.hail.utils.HailException, U](cerr, lineNumber)
+  }
+
+  def _fatalWithID[U](msg: Code[String], errorId: Int)(implicit uti: TypeInfo[U]): Code[U] =
+    Code._throw[is.hail.utils.HailException, U](Code.newInstance[is.hail.utils.HailException, String, Int](
+      msg,
+      errorId))
 
   def _return[T](c: Code[T]): Code[Unit] = {
     c.end.append(if (c.v != null)

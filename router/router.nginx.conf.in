@@ -39,6 +39,18 @@ server {
 }
 
 server {
+    server_name monitoring.*;
+
+    location / {
+        proxy_pass https://monitoring/;
+        include /etc/nginx/proxy.conf;
+    }
+
+    listen 443 ssl;
+    listen [::]:443 ssl;
+}
+
+server {
     server_name ci.*;
 
     location ~ /(test-ci-[a-z0-9]+)/(.*) {
@@ -63,8 +75,8 @@ server {
         include /etc/nginx/proxy.conf;
     }
 
-    listen 80;
-    listen [::]:80;
+    listen 443 ssl;
+    listen [::]:443 ssl;
 }
 
 server {
@@ -252,6 +264,18 @@ server {
 
     location / {
         proxy_pass https://query/;
+        include /etc/nginx/proxy.conf;
+    }
+
+    listen 443 ssl;
+    listen [::]:443 ssl;
+}
+
+server {
+    server_name memory.*;
+
+    location / {
+        proxy_pass https://memory/;
         include /etc/nginx/proxy.conf;
     }
 

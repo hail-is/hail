@@ -3,8 +3,9 @@ from .hadoop_utils import hadoop_copy, hadoop_open, hadoop_exists, hadoop_is_dir
 from .struct import Struct
 from .linkedlist import LinkedList
 from .interval import Interval
-from .java import error, warning, info, FatalError
+from .java import error, warning, info, FatalError, HailUserError
 from .tutorial import get_1kg, get_movie_lens
+from .deduplicate import deduplicate
 
 __all__ = ['hadoop_open',
            'hadoop_copy',
@@ -29,6 +30,7 @@ __all__ = ['hadoop_open',
            'warning',
            'info',
            'FatalError',
+           'HailUserError',
            'range_table',
            'range_matrix_table',
            'HailSeedGenerator',
@@ -37,4 +39,5 @@ __all__ = ['hadoop_open',
            'get_movie_lens',
            'timestamp_path',
            '_dumps_partitions',
-           'default_handler']
+           'default_handler',
+           'deduplicate']

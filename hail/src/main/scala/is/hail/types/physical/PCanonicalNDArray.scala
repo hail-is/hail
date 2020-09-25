@@ -11,6 +11,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def _asIdent: String = s"ndarray_of_${elementType.asIdent}"
 
+  override def containsPointers: Boolean = true
+
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("PCNDArray[")
     elementType.pretty(sb, indent, compact)
@@ -53,11 +55,13 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   override lazy val fundamentalType: PType = representation.fundamentalType
 
-  def numElements(shape: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {
+  override lazy val encodableType: PType = PCanonicalNDArray(elementType.encodableType, nDims, required)
+
+  def numElements(shape: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {
     shape.foldLeft(1L: Code[Long])(_ * _)
   }
 
-  def makeShapeBuilder(shapeArray: IndexedSeq[Code[Long]]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+  def makeShapeBuilder(shapeArray: IndexedSeq[Value[Long]]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
     coerce[Unit](Code(
       srvb.start(),
       Code(shapeArray.map(shapeElement => Code(
@@ -67,7 +71,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     ))
   }
 
-  def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+  def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
     val runningProduct = mb.newLocal[Long]()
     val tempShapeStorage = mb.newLocal[Long]()
     Code(
@@ -84,7 +88,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+  def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
     val runningProduct = mb.newLocal[Long]()
     val tempShapeStorage = mb.newLocal[Long]()
     val computedStrides = (0 until nDims).map(_ => mb.genFieldThisRef[Long]())
@@ -107,7 +111,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  private def getElementAddress(indices: IndexedSeq[Code[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Long] = {
+  private def getElementAddress(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Long] = {
     val stridesTuple  = new CodePTuple(strides.pType, new Value[Long] {
       def get: Code[Long] = strides.load(nd)
     })
@@ -117,7 +121,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     coerce[Long](Code(
       dataStore := data.load(nd),
       bytesAway := 0L,
-      indices.zipWithIndex.foldLeft(Code._empty) { case (codeSoFar: Code[_], (requestedIndex: Code[Long], strideIndex: Int)) =>
+      indices.zipWithIndex.foldLeft(Code._empty) { case (codeSoFar: Code[_], (requestedIndex: Value[Long], strideIndex: Int)) =>
         Code(
           codeSoFar,
           bytesAway := bytesAway + requestedIndex * stridesTuple(strideIndex))
@@ -126,22 +130,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     ))
   }
 
-  def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_] = {
-    Region.loadIRIntermediate(data.pType.elementType)(getElementAddress(indices, ndAddress, mb))
+  def setElement(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: Code[_], mb: EmitMethodBuilder[_]): Code[Unit] = {
+    Region.storeIRIntermediate(this.elementType)(getElementAddress(indices, ndAddress, mb), newElement)
   }
 
-  def outOfBounds(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Boolean] = {
-    val shapeTuple = new CodePTuple(shape.pType, new Value[Long] {
-      def get: Code[Long] = shape.load(nd)
-    })
-    val outOfBounds = mb.genFieldThisRef[Boolean]()
-    Code(
-      outOfBounds := false,
-      Code.foreach(0 until nDims) { dimIndex =>
-        outOfBounds := outOfBounds || (indices(dimIndex) >= shapeTuple(dimIndex))
-      },
-      outOfBounds
-    )
+  def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_] = {
+    Region.loadIRIntermediate(data.pType.elementType)(getElementAddress(indices, ndAddress, mb))
   }
 
   def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {
@@ -180,8 +174,14 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     (createShape, newIndices)
   }
 
-  override def construct(shapeBuilder: StagedRegionValueBuilder => Code[Unit], stridesBuilder: StagedRegionValueBuilder => Code[Unit], data: Code[Long], mb: EmitMethodBuilder[_]): Code[Long] = {
-    val srvb = new StagedRegionValueBuilder(mb, this.representation)
+  override def construct(
+    shapeBuilder: StagedRegionValueBuilder => Code[Unit],
+    stridesBuilder: StagedRegionValueBuilder => Code[Unit],
+    data: Code[Long],
+    mb: EmitMethodBuilder[_],
+    region: Value[Region]
+  ): Code[Long] = {
+    val srvb = new StagedRegionValueBuilder(mb, this.representation, region)
 
     Code(Code(FastIndexedSeq(
       srvb.start(),
@@ -231,7 +231,7 @@ object PCanonicalNDArraySettable {
   }
 }
 
-class PCanonicalNDArraySettable(val pt: PCanonicalNDArray, val a: Settable[Long]) extends PNDArrayValue with PSettable {
+class PCanonicalNDArraySettable(override val pt: PCanonicalNDArray, val a: Settable[Long]) extends PNDArrayValue with PSettable {
   //FIXME: Rewrite apply to not require a methodBuilder, meaning also rewrite loadElementToIRIntermediate
   def apply(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Value[_] = {
     assert(indices.size == pt.nDims)
@@ -247,7 +247,44 @@ class PCanonicalNDArraySettable(val pt: PCanonicalNDArray, val a: Settable[Long]
   override def store(pv: PCode): Code[Unit] = a := pv.asInstanceOf[PCanonicalNDArrayCode].a
 
   override def outOfBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Boolean] = {
-    pt.outOfBounds(indices, a, mb)
+    val shape = this.shapes()
+    val outOfBounds = mb.genFieldThisRef[Boolean]()
+    Code(
+      outOfBounds := false,
+      Code.foreach(0 until pt.nDims) { dimIndex =>
+        outOfBounds := outOfBounds || (indices(dimIndex) >= shape(dimIndex))
+      },
+      outOfBounds
+    )
+  }
+
+  override def assertInBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_], errorId: Int): Code[Unit] = {
+    val shape = this.shapes()
+    Code.foreach(0 until pt.nDims) { dimIndex =>
+      val eMsg = const("Index ").concat(indices(dimIndex).toS)
+        .concat(s" is out of bounds for axis $dimIndex with size ")
+        .concat(shape(dimIndex).toS)
+      (indices(dimIndex) >= shape(dimIndex)).orEmpty(Code._fatalWithID[Unit](eMsg, errorId))
+    }
+  }
+
+  override def shapes(): IndexedSeq[Value[Long]] = Array.tabulate(pt.nDims) { i =>
+    new Value[Long] {
+      def get: Code[Long] = pt.loadShape(a, i)
+    }
+  }
+
+  override def strides(): IndexedSeq[Value[Long]] = Array.tabulate(pt.nDims) { i =>
+    new Value[Long] {
+      def get: Code[Long] = pt.loadStride(a, i)
+    }
+  }
+
+  override def sameShape(other: PNDArrayValue, mb: EmitMethodBuilder[_]): Code[Boolean] = {
+    val comparator = this.pt.shape.pType.codeOrdering(mb, other.pt.shape.pType)
+    val thisShape = this.pt.shape.load(this.a).asInstanceOf[Code[comparator.T]]
+    val otherShape = other.pt.shape.load(other.value.asInstanceOf[Value[Long]]).asInstanceOf[Code[comparator.T]]
+    comparator.equivNonnull(thisShape, otherShape)
   }
 }
 
@@ -268,4 +305,6 @@ class PCanonicalNDArrayCode(val pt: PCanonicalNDArray, val a: Code[Long]) extend
   override def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue = memoize(cb, name, cb.localBuilder)
 
   override def memoizeField(cb: EmitCodeBuilder, name: String): PValue = memoize(cb, name, cb.fieldBuilder)
+
+  override def shape: PBaseStructCode = PCode(this.pt.shape.pType, this.pt.shape.load(a)).asBaseStruct
 }

@@ -2,7 +2,7 @@ package is.hail.types.encoded
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitMethodBuilder, ParamType}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, ParamType}
 import is.hail.types.{BaseStruct, BaseType}
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -42,10 +42,12 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
   }
 
   override def _decodeCompatible(pt: PType): Boolean = {
-    if (!pt.isInstanceOf[PBaseStruct])
+    val pt2 = if (pt.isInstanceOf[PNDArray]) pt.asInstanceOf[PNDArray].representation else pt
+
+    if (!pt2.isInstanceOf[PBaseStruct])
       false
     else {
-      val ps = pt.asInstanceOf[PBaseStruct]
+      val ps = pt2.asInstanceOf[PBaseStruct]
       ps.required <= required &&
         ps.size <= size &&
         ps.fields.forall { f =>
@@ -90,90 +92,58 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       PCanonicalNDArray(elementType, t.nDims, required)
   }
 
-  override def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
-    val ft = pt.asInstanceOf[PBaseStruct]
-    val vs = coerce[Long](v)
-    val writeMissingBytes = if (ft.size == size) {
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+    val pv = PCode(pt, v).asBaseStruct.memoize(cb, "base_struct")
+    val ft = pv.pt
+    // write missing bytes
+    if (ft.size == size) {
       val missingBytes = UnsafeUtils.packBitsToBytes(ft.nMissing)
-      var c = Code._empty
       ft match {
         case ps: PCanonicalBaseStruct if ps.fieldRequired.sameElements(fields.map(_.typ.required)) =>
           if (nMissingBytes > 1)
-            c = Code(c, out.writeBytes(coerce[Long](v), missingBytes - 1))
+            cb += out.writeBytes(pv.tcode[Long], missingBytes - 1)
           if (nMissingBytes > 0)
-            c = Code(c, out.writeByte((Region.loadByte(vs + (missingBytes.toLong - 1)).toI & const(EType.lowBitMask(ft.nMissing & 0x7))).toB))
+            cb += out.writeByte((Region.loadByte(pv.tcode[Long] + (missingBytes.toLong - 1)).toI & const(EType.lowBitMask(ft.nMissing & 0x7))).toB)
         case _ =>
           fields.filter(f => !f.typ.required)
             .grouped(8)
             .foreach { group =>
-              c = Code(c, out.writeByte(group.zipWithIndex.map { case (f, i) =>
-                ft.isFieldMissing(vs, f.index).toI << i
-              }.reduce(_ | _).toB))
+              val byte = group.zipWithIndex.map { case (f, i) =>
+                pv.isFieldMissing(f.index).toI << i
+              }.reduce(_ | _).toB
+              cb += out.writeByte(byte)
             }
       }
-      c
     } else {
-      val groupSize = 64
-      var methodIdx = 0
-      var currentMB = mb.genEmitMethod(s"missingbits_group_$methodIdx", FastIndexedSeq[ParamType](LongInfo, classInfo[OutputBuffer]), UnitInfo)
-      var wrappedC: Code[Unit] = Code._empty
-      var methodC: Code[Unit] = Code._empty
-
       var j = 0
       var n = 0
       while (j < size) {
-        if (n % groupSize == 0) {
-          currentMB.emit(methodC)
-          methodC = Code._empty
-          wrappedC = Code(wrappedC, currentMB.invokeCode[Unit](v, out))
-          methodIdx += 1
-          currentMB = mb.genEmitMethod(s"missingbits_group_$methodIdx", FastIndexedSeq[ParamType](LongInfo, classInfo[OutputBuffer]), UnitInfo)
-        }
         var b: Code[Int] = 0
         var k = 0
         while (k < 8 && j < size) {
           val f = fields(j)
           if (!f.typ.required) {
-            val i = ft.fieldIdx(f.name)
-            b = b | (ft.isFieldMissing(currentMB.getCodeParam[Long](1), i).toI << k)
+            b = b | (pv.isFieldMissing(f.name).toI << k)
             k += 1
           }
           j += 1
         }
         if (k > 0) {
-          methodC = Code(methodC, currentMB.getCodeParam[OutputBuffer](2).writeByte(b.toB))
+          cb += out.writeByte(b.toB)
           n += 1
         }
       }
-      currentMB.emit(methodC)
-      wrappedC = Code(wrappedC, currentMB.invokeCode[Unit](v, out))
 
       assert(n == nMissingBytes)
-      wrappedC
     }
 
-    val writeFields = Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
-      val groupMB = mb.genEmitMethod(s"write_fields_group_$groupIdx", FastIndexedSeq[ParamType](LongInfo, classInfo[OutputBuffer]), UnitInfo)
-
-      val addr = groupMB.getCodeParam[Long](1)
-      val out2 = groupMB.getCodeParam[OutputBuffer](2)
-      groupMB.emit(Code(
-        fieldGroup.map { ef =>
-          val i = ft.fieldIdx(ef.name)
-          val pf = ft.fields(i)
-          val encodeField = ef.typ.buildEncoder(pf.typ, groupMB.ecb)
-          val v = Region.loadIRIntermediate(pf.typ)(ft.fieldOffset(addr, i))
-          ft.isFieldDefined(addr, i).mux(
-            encodeField(v, out2),
-            Code._empty
-          )
-        }
-      ))
-
-      groupMB.invokeCode[Unit](v, out)
-    }.toArray)
-
-    Code(writeMissingBytes, writeFields, Code._empty)
+    // Write fields
+    fields.foreach { ef =>
+      pv.loadField(cb, ef.name).consume(cb, { /* do nothing */ }, { pc =>
+        val encodeField = ef.typ.buildEncoder(pc.pt, cb.emb.ecb)
+        cb += encodeField(pc.code, out)
+      })
+    }
   }
 
   override def _buildFundamentalDecoder(
@@ -184,9 +154,11 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
   ): Code[Long] = {
     val addr = mb.newLocal[Long]("addr")
 
+    val pt2 = if (pt.isInstanceOf[PNDArray]) pt.asInstanceOf[PNDArray].representation else pt
+
     Code(
-      addr := pt.asInstanceOf[PBaseStruct].allocate(region),
-      _buildInplaceDecoder(pt, mb, region, addr, in),
+      addr := pt2.asInstanceOf[PBaseStruct].allocate(region),
+      _buildInplaceDecoder(pt2, mb, region, addr, in),
       addr.load()
     )
   }
@@ -199,7 +171,8 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     in: Value[InputBuffer]
   ): Code[Unit] = {
 
-    val t = pt.asInstanceOf[PBaseStruct]
+    val pt2 = if (pt.isInstanceOf[PNDArray]) pt.asInstanceOf[PNDArray].representation else pt
+    val t = pt2.asInstanceOf[PBaseStruct]
     val mbytes = mb.newLocal[Long]("mbytes")
 
     val readFields = coerce[Unit](Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
@@ -245,22 +218,17 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       readFields,
       Code._empty)
   }
-  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
-    val mbytes = mb.newLocal[Long]("mbytes")
-    val skipFields = fields.map { f =>
-      val skip = f.typ.buildSkip(mb)
-      if (f.typ.required)
-        skip(r, in)
-      else
-        Region.loadBit(mbytes, missingIdx(f.index).toLong).mux(
-          Code._empty,
-          skip(r, in))
-    }
 
-    Code(
-      mbytes := r.allocate(const(1), const(nMissingBytes)),
-      in.readBytes(r, mbytes, nMissingBytes),
-      Code(skipFields))
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+    val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1), const(nMissingBytes)))
+    cb += in.readBytes(r, mbytes, nMissingBytes)
+    fields.foreach { f =>
+      val skip = f.typ.buildSkip(cb.emb)
+      if (f.typ.required)
+        cb += skip(r, in)
+      else
+        cb.ifx(!Region.loadBit(mbytes, missingIdx(f.index).toLong), cb += skip(r, in))
+    }
   }
 
   def _asIdent: String = {

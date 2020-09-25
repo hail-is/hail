@@ -80,17 +80,19 @@ show(p)
                         <h4>Simplified Analysis</h4>
                         <p>Hail is an open-source Python library that simplifies genomic data analysis.
                         It provides powerful, easy-to-use data science tools that can be used to interrogate even
-                        biobank-scale genomic data (e.g UK Biobank, TopMed, FinnGen, and Biobank Japan).
+                        biobank-scale genomic data (e.g. UK Biobank, <a href="https://www.nature.com/immersive/d42859-020-00002-x/index.html">gnomAD</a>, TopMed, FinnGen, and Biobank Japan).
                     </p>
                     </section>
                     <section>
                         <h4>Genomic Dataframes</h4>
-                        <p>Modern data science is driven by table-like data structures, often called dataframes (see <a href="https://pandas.pydata.org">Pandas</a>).
-                            While convenient, they don't capture the structure of genetic data, which has row (variant) and
-                            column
-                            (genotype) groups.
-                            To remedy this, Hail introduces a distributed, dataframe-like structure called
-                            <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>.
+                        <p>Modern data science is driven by numeric matrices (see <a href="https://numpy.org/">Numpy</a>) and
+                           tables (see <a href="https://www.r-project.org/about.html">R</a> and <a href="https://pandas.pydata.org">Pandas</a>).
+                           While sufficient for many tasks, none of these tools adequately capture
+                           the structure of genetic data. Genetic data combines multiple axes (variants and samples) like
+                           matrices and structured entries (genotypes) like tables or dataframes.
+                           To support genomic analysis, Hail introduces a powerful,
+                           distributed data structure combining features of matrices and dataframes called
+                           <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>.
                         </p>
                     </section>
                     <section>
@@ -119,9 +121,13 @@ show(p)
                         home.
                     </li>
                         <li>
-                        Principal Investigators Benjamin Neale and Daniel MacArthur, whose
+                        Principal Investigator Benjamin Neale, whose
                         scientific leadership has been essential for solving the right
                         problems.
+                    </li>
+                        <li>
+                        Principal Investigator Daniel MacArthur and the other members 
+                        of the gnomAD council.
                     </li>
                         <li>
                         Jeremy Wertheimer, whose strategic advice and generous
@@ -136,6 +142,10 @@ show(p)
                     </li>
                         <li>The National Institute of Mental Health</li>
                         <li>The National Human Genome Research Institute</li>
+
+                    </ul>
+                    <p>We are grateful for generous past support from:</p>
+                    <ul>
                         <li>The Chan Zuckerburg Initiative</li>
                     </ul>
                     <p>
@@ -162,7 +172,7 @@ show(p)
                 function reveal(e) {
                     cachedCode.style.display = "block";
                     cachedImg.style.display = "none";
-                    cachedText.textContent = "hide code";
+                    cachedText.textContent = "show plot";
                 }
                 function hide(e) {
                     cachedCode.style.display = "none";

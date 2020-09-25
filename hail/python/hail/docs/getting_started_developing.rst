@@ -37,13 +37,15 @@ As above, but explicitly specifying the Scala and Spark versions::
 Building the Docs and Website
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Install build dependencies listed in the `docs style guide <https://github.com/hail-is/hail/blob/main/hail/python/hail/docs/style-guide.txt>`_.
+
 Build without testing the documentation examples::
 
-    make docs-no-test
+    make hail-docs-no-test
 
 Build while testing the documentation examples (significantly slower)::
 
-    make docs
+    make hail-docs
 
 Serve the built website on http://localhost:8000/ ::
 

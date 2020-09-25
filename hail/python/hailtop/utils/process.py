@@ -1,5 +1,7 @@
 import asyncio
 
+from .utils import async_to_blocking
+
 
 class CalledProcessError(Exception):
     def __init__(self, command, returncode, outerr):
@@ -13,7 +15,9 @@ class CalledProcessError(Exception):
                 f' Output:\n{self.outerr}')
 
 
-async def check_shell_output(script):
+async def check_shell_output(script, echo=False):
+    if echo:
+        print(script)
     proc = await asyncio.create_subprocess_exec(
         '/bin/bash', '-c', script,
         stdout=asyncio.subprocess.PIPE,
@@ -24,6 +28,15 @@ async def check_shell_output(script):
     return outerr
 
 
-async def check_shell(script):
+async def check_shell(script, echo=False):
     # discard output
-    await check_shell_output(script)
+    await check_shell_output(script, echo)
+
+
+def sync_check_shell_output(script, echo=False):
+    return async_to_blocking(check_shell_output(script, echo))
+
+
+def sync_check_shell(script, echo=False):
+    # discard output
+    sync_check_shell_output(script, echo)

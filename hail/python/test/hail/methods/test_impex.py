@@ -34,6 +34,7 @@ class VCFTests(unittest.TestCase):
     def test_info_char(self):
         self.assertEqual(hl.import_vcf(resource('infochar.vcf')).count_rows(), 1)
 
+    @fails_local_backend()
     def test_import_export_same(self):
         for i in range(10):
             mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
@@ -76,6 +77,7 @@ class VCFTests(unittest.TestCase):
             mt = hl.import_vcf(resource('malformed.vcf'))
             mt._force_count_rows()
 
+    @fails_local_backend()
     def test_not_identical_headers(self):
         t = new_temp_file(extension='vcf')
         mt = hl.import_vcf(resource('sample.vcf'))
@@ -241,6 +243,7 @@ class VCFTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             mt = hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint64)
 
+    @fails_local_backend()
     def test_export_vcf(self):
         dataset = hl.import_vcf(resource('sample.vcf.bgz'))
         vcf_metadata = hl.get_vcf_metadata(resource('sample.vcf.bgz'))
@@ -257,6 +260,7 @@ class VCFTests(unittest.TestCase):
         # are py4 JavaMaps, not dicts, so can't use assertDictEqual
         self.assertEqual(vcf_metadata, metadata_imported)
 
+    @fails_local_backend()
     def test_export_vcf_empty_format(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz')).select_entries()
         tmp = new_temp_file(extension="vcf")
@@ -264,6 +268,7 @@ class VCFTests(unittest.TestCase):
 
         assert hl.import_vcf(tmp)._same(mt)
 
+    @fails_local_backend()
     def test_export_vcf_no_gt(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz')).drop('GT')
         tmp = new_temp_file(extension="vcf")
@@ -271,6 +276,7 @@ class VCFTests(unittest.TestCase):
 
         assert hl.import_vcf(tmp)._same(mt)
 
+    @fails_local_backend()
     def test_export_vcf_no_alt_alleles(self):
         mt = hl.import_vcf(resource('gvcfs/HG0096_excerpt.g.vcf'), reference_genome='GRCh38')
         self.assertEqual(mt.filter_rows(hl.len(mt.alleles) == 1).count_rows(), 5)
@@ -280,6 +286,7 @@ class VCFTests(unittest.TestCase):
         mt2 = hl.import_vcf(tmp, reference_genome='GRCh38')
         self.assertTrue(mt._same(mt2))
 
+    @fails_local_backend()
     def test_export_sites_only_from_table(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz'))\
             .select_entries()\
@@ -337,12 +344,30 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(vcf2._same(filter1))
         self.assertEqual(len(parts), vcf2.n_partitions())
 
+    @skip_unless_spark_backend()
+    def test_import_gvcfs_long_line(self):
+        import bz2
+        path = resource('gvcfs/long_line.g.vcf.gz')
+        parts = [
+            hl.Interval(start=hl.Struct(locus=hl.Locus('1', 1)),
+                        end=hl.Struct(locus=hl.Locus('1', 1_000_000)),
+                        includes_end=True)
+        ]
+        [vcf] = hl.import_gvcfs([path], parts)
+        [data] = vcf.info.Custom.collect()
+        with bz2.open(resource('gvcfs/long_line.ref.bz2')) as ref:
+            ref_str = ref.read().decode('utf-8')
+            self.assertEqual(ref_str, data)
+
+    @fails_local_backend()
     def test_vcf_parser_golden_master__ex_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('ex.vcf'), 'GRCh37')
 
+    @fails_local_backend()
     def test_vcf_parser_golden_master__sample_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('sample.vcf'), 'GRCh37')
 
+    @fails_local_backend()
     def test_vcf_parser_golden_master__gvcf_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')
 
@@ -455,12 +480,14 @@ class VCFTests(unittest.TestCase):
         assert gl_gp == [hl.Struct(GL=[None, None, None], GP=[0.22, 0.5, 0.27]),
                          hl.Struct(GL=[None, None, None], GP=[None, None, None])]
 
+    @fails_local_backend()
     def test_same_bgzip(self):
         mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4)
         f = new_temp_file(extension='vcf.bgz')
         hl.export_vcf(mt, f)
         assert hl.import_vcf(f)._same(mt)
 
+    @fails_local_backend()
     def test_vcf_parallel_export(self):
         import glob
         def concat_files(outpath, inpaths):
@@ -487,6 +514,7 @@ class VCFTests(unittest.TestCase):
         assert hl.import_vcf(nf)._same(mt)
 
 
+    @fails_local_backend()
     def test_sorted(self):
         mt = hl.utils.range_matrix_table(10, 10, n_partitions=4).filter_cols(False)
         mt = mt.key_cols_by(s='dummy')
@@ -505,6 +533,7 @@ class VCFTests(unittest.TestCase):
                     assert pos >= last
                     last = pos
 
+    @fails_local_backend()
     def test_empty_read_write(self):
         mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4).filter_rows(False)
 
@@ -520,6 +549,7 @@ class VCFTests(unittest.TestCase):
         assert hl.import_vcf(out1)._same(mt)
         assert hl.import_vcf(out2)._same(mt)
 
+    @fails_local_backend()
     def test_format_header(self):
         mt = hl.import_vcf(resource('sample2.vcf'))
         metadata = hl.get_vcf_metadata(resource('sample2.vcf'))
@@ -540,6 +570,7 @@ class VCFTests(unittest.TestCase):
             '##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">',
         }
 
+    @fails_local_backend()
     def test_format_genotypes(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         f = new_temp_file(extension='vcf')
@@ -557,6 +588,7 @@ class VCFTests(unittest.TestCase):
             else:
                 assert False, 'expected pattern not found'
 
+    @fails_local_backend()
     def test_contigs_header(self):
         mt = hl.import_vcf(resource('sample.vcf')).filter_cols(False)
         f = new_temp_file(extension='vcf')
@@ -569,6 +601,7 @@ class VCFTests(unittest.TestCase):
             else:
                 assert False, 'expected pattern not found'
 
+    @fails_local_backend()
     def test_metadata_argument(self):
         mt = hl.import_vcf(resource('multipleChromosomes.vcf'))
         f = new_temp_file(extension='vcf')
@@ -607,6 +640,7 @@ class PLINKTests(unittest.TestCase):
                     i += 1
         self.assertEqual(nfam, i)
 
+    @fails_local_backend()
     def test_export_import_plink_same(self):
         mt = get_dataset()
         mt = mt.select_rows(rsid=hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':'),
@@ -623,6 +657,7 @@ class PLINKTests(unittest.TestCase):
         self.assertTrue(mt._same(mt_imported))
         self.assertTrue(mt.aggregate_rows(hl.agg.all(mt.cm_position == 15.0)))
 
+    @fails_local_backend()
     def test_import_plink_empty_fam(self):
         mt = get_dataset().filter_cols(False)
         bfile = '/tmp/test_empty_fam'
@@ -630,6 +665,7 @@ class PLINKTests(unittest.TestCase):
         with self.assertRaisesRegex(FatalError, "Empty FAM file"):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
+    @fails_local_backend()
     def test_import_plink_empty_bim(self):
         mt = get_dataset().filter_rows(False)
         bfile = '/tmp/test_empty_bim'
@@ -637,6 +673,7 @@ class PLINKTests(unittest.TestCase):
         with self.assertRaisesRegex(FatalError, "BIM file does not contain any variants"):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
+    @fails_local_backend()
     def test_import_plink_a1_major(self):
         mt = get_dataset()
         bfile = '/tmp/sample_plink'
@@ -662,6 +699,7 @@ class PLINKTests(unittest.TestCase):
                               (j.a1_vqc.homozygote_count[0] == j.a2_vqc.homozygote_count[1]) &
                               (j.a1_vqc.homozygote_count[1] == j.a2_vqc.homozygote_count[0])))
 
+    @fails_local_backend()
     def test_import_plink_contig_recoding_w_reference(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(resource('sample2.vcf'),
@@ -687,12 +725,14 @@ class PLINKTests(unittest.TestCase):
         self.assertEqual(plink.locus.dtype,
                          hl.tstruct(contig=hl.tstr, position=hl.tint32))
 
+    @fails_local_backend()
     def test_import_plink_skip_invalid_loci(self):
         mt = hl.import_plink(resource('skip_invalid_loci.bed'),
                              resource('skip_invalid_loci.bim'),
                              resource('skip_invalid_loci.fam'),
                              reference_genome='GRCh37',
-                             skip_invalid_loci=True)
+                             skip_invalid_loci=True,
+                             contig_recoding={'chr1': '1'})
         self.assertEqual(mt._force_count_rows(), 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
@@ -702,6 +742,7 @@ class PLINKTests(unittest.TestCase):
              ._force_count_rows())
 
     @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
+    @fails_local_backend()
     def test_export_plink(self):
         vcf_file = resource('sample.vcf')
         mt = hl.split_multi_hts(hl.import_vcf(vcf_file, min_partitions=10))
@@ -748,6 +789,7 @@ class PLINKTests(unittest.TestCase):
 
         self.assertTrue(same)
 
+    @fails_local_backend()
     def test_export_plink_exprs(self):
         ds = get_dataset()
         fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
@@ -871,28 +913,38 @@ def generate_random_gen():
 class BGENTests(unittest.TestCase):
 
     def setUp(self) -> None:
+
+        # don't throw errors on setUp, let individual tests fail with @fails_local_backend
+        from hail.backend.local_backend import LocalBackend
+        if isinstance(hl.current_backend(), LocalBackend):
+            return
+
         hl.index_bgen(resource('example.8bits.bgen'),
                       contig_recoding={'01': '1'},
                       reference_genome='GRCh37')
 
+    @fails_local_backend()
     def test_import_bgen_dosage_entry(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['dosage'])
         self.assertEqual(bgen.entry.dtype, hl.tstruct(dosage=hl.tfloat64))
         self.assertEqual(bgen.count_rows(), 199)
 
+    @fails_local_backend()
     def test_import_bgen_GT_GP_entries(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GT', 'GP'],
                               sample_file=resource('example.sample'))
         self.assertEqual(bgen.entry.dtype, hl.tstruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64)))
 
+    @fails_local_backend()
     def test_import_bgen_no_entries(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=[],
                               sample_file=resource('example.sample'))
         self.assertEqual(bgen.entry.dtype, hl.tstruct())
 
+    @fails_local_backend()
     def test_import_bgen_no_reference(self):
         hl.index_bgen(resource('example.8bits.bgen'),
                       contig_recoding={'01': '1'},
@@ -903,6 +955,7 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(bgen.locus.dtype, hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(bgen.count_rows(), 199)
 
+    @fails_local_backend()
     def test_import_bgen_skip_invalid_loci(self):
         # Note: the skip_invalid_loci.bgen has 16-bit probabilities, and Hail
         # will crash if the genotypes are decoded
@@ -923,6 +976,7 @@ class BGENTests(unittest.TestCase):
                                 sample_file=resource('skip_invalid_loci.sample'))
             mt.rows().count()
 
+    @fails_local_backend()
     def test_import_bgen_gavin_example(self):
         recoding = {'0{}'.format(i): str(i) for i in range(1, 10)}
 
@@ -936,6 +990,7 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(
             bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
+    @fails_local_backend()
     def test_import_bgen_random(self):
         sample_file = resource('random.sample')
         genmt = hl.import_gen(resource('random.gen'), sample_file)
@@ -946,6 +1001,7 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(
             bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
+    @fails_local_backend()
     def test_parallel_import(self):
         bgen_file = resource('parallelBgenExport.bgen')
         hl.index_bgen(bgen_file)
@@ -954,6 +1010,7 @@ class BGENTests(unittest.TestCase):
                             resource('parallelBgenExport.sample'))
         self.assertEqual(mt.count(), (16, 10))
 
+    @fails_local_backend()
     def test_import_bgen_dosage_and_gp_dosage_function_agree(self):
         recoding = {'0{}'.format(i): str(i) for i in range(1, 10)}
 
@@ -967,6 +1024,7 @@ class BGENTests(unittest.TestCase):
             (hl.is_missing(et.dosage) & hl.is_missing(et.gp_dosage)) |
             (hl.abs(et.dosage - et.gp_dosage) < 1e-6)))
 
+    @fails_local_backend()
     def test_import_bgen_row_fields(self):
         default_row_fields = hl.import_bgen(resource('example.8bits.bgen'),
                                             entry_fields=['dosage'])
@@ -1001,6 +1059,7 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(
             default_row_fields.drop('varid', 'rsid')._same(no_row_fields))
 
+    @fails_local_backend()
     def test_import_bgen_variant_filtering_from_literals(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1042,6 +1101,7 @@ class BGENTests(unittest.TestCase):
 
         self.assertTrue(expected._same(part_1))
 
+    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_literals(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1068,6 +1128,7 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(locus_object.rows().key_by('locus', 'alleles').select().collect(),
                          expected_result)
 
+    @fails_local_backend()
     def test_import_bgen_variant_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1083,6 +1144,7 @@ class BGENTests(unittest.TestCase):
 
         self.assertTrue(everything._same(actual))
 
+    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1101,6 +1163,7 @@ class BGENTests(unittest.TestCase):
 
         self.assertTrue(everything._same(actual_locus))
 
+    @fails_local_backend()
     def test_import_bgen_variant_filtering_from_table(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1116,6 +1179,7 @@ class BGENTests(unittest.TestCase):
 
         self.assertTrue(everything._same(actual))
 
+    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_table(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1135,6 +1199,7 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(result.rows().key_by('locus', 'alleles').select().collect(),
                         expected_result)
 
+    @fails_local_backend()
     def test_import_bgen_empty_variant_filter(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1156,12 +1221,14 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(actual.count_rows(), 0)
 
     # FIXME testing block_size (in MB) requires large BGEN
+    @fails_local_backend()
     def test_n_partitions(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['dosage'],
                               n_partitions=210)
         self.assertEqual(bgen.n_partitions(), 199) # only 199 variants in the file
 
+    @fails_local_backend()
     def test_drop(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['dosage'])
@@ -1174,6 +1241,7 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(dc._force_count_rows(), 199)
         self.assertEqual(dc._force_count_cols(), 0)
 
+    @fails_local_backend()
     def test_multiple_files(self):
         sample_file = resource('random.sample')
         genmt = hl.import_gen(resource('random.gen'), sample_file)
@@ -1184,6 +1252,7 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(
             bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
+    @fails_local_backend()
     def test_multiple_files_variant_filtering(self):
         bgen_file = [resource('random-b.bgen'), resource('random-c.bgen'), resource('random-a.bgen')]
         hl.index_bgen(bgen_file)
@@ -1213,6 +1282,7 @@ class BGENTests(unittest.TestCase):
 
         self.assertTrue(expected._same(actual))
 
+    @fails_local_backend()
     def test_multiple_files_disjoint(self):
         sample_file = resource('random.sample')
         bgen_file = [resource('random-b-disjoint.bgen'), resource('random-c-disjoint.bgen'), resource('random-a-disjoint.bgen')]
@@ -1220,6 +1290,7 @@ class BGENTests(unittest.TestCase):
         with self.assertRaisesRegex(FatalError, 'Each BGEN file must contain a region of the genome disjoint from other files'):
             hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file, n_partitions=3)
 
+    @fails_local_backend()
     def test_multiple_references_throws_error(self):
         sample_file = resource('random.sample')
         bgen_file1 = resource('random-b.bgen')
@@ -1246,6 +1317,7 @@ class BGENTests(unittest.TestCase):
             hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file)
         run_command(['rm', bgen_file + '.idx'])
 
+    @fails_local_backend()
     def test_specify_different_index_file(self):
         sample_file = resource('random.sample')
         bgen_file = resource('random.bgen')
@@ -1260,6 +1332,7 @@ class BGENTests(unittest.TestCase):
             index_file_map = {bgen_file: index_file}
             hl.index_bgen(bgen_file, index_file_map=index_file_map)
 
+    @fails_local_backend()
     def test_export_bgen(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GP'],
@@ -1272,6 +1345,7 @@ class BGENTests(unittest.TestCase):
                                sample_file=tmp + '.sample')
         assert bgen._same(bgen2)
 
+    @fails_local_backend()
     def test_export_bgen_parallel(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GP'],
@@ -1286,6 +1360,7 @@ class BGENTests(unittest.TestCase):
                                sample_file=tmp + '.sample')
         assert bgen._same(bgen2)
 
+    @fails_local_backend()
     def test_export_bgen_from_vcf(self):
         mt = hl.import_vcf(resource('sample.vcf'))
 
@@ -1305,6 +1380,7 @@ class BGENTests(unittest.TestCase):
 
 
 class GENTests(unittest.TestCase):
+    @fails_local_backend()
     def test_import_gen(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
@@ -1314,6 +1390,7 @@ class GENTests(unittest.TestCase):
         self.assertEqual(gen.count(), 199)
         self.assertEqual(gen.locus.dtype, hl.tlocus('GRCh37'))
 
+    @fails_local_backend()
     def test_import_gen_no_reference_specified(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
@@ -1323,6 +1400,7 @@ class GENTests(unittest.TestCase):
                          hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(gen.count_rows(), 199)
 
+    @fails_local_backend()
     def test_import_gen_skip_invalid_loci(self):
         mt = hl.import_gen(resource('skip_invalid_loci.gen'),
                            resource('skip_invalid_loci.sample'),
@@ -1335,6 +1413,7 @@ class GENTests(unittest.TestCase):
             hl.import_gen(resource('skip_invalid_loci.gen'),
                           resource('skip_invalid_loci.sample'))
 
+    @fails_local_backend()
     def test_export_gen(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
@@ -1357,6 +1436,7 @@ class GENTests(unittest.TestCase):
 
         self.assertTrue(gen._same(gen2, tolerance=3E-4, absolute=True))
 
+    @fails_local_backend()
     def test_export_gen_exprs(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
@@ -1378,6 +1458,7 @@ class GENTests(unittest.TestCase):
 
 
 class LocusIntervalTests(unittest.TestCase):
+    @fails_local_backend()
     def test_import_locus_intervals(self):
         interval_file = resource('annotinterall.interval_list')
         t = hl.import_locus_intervals(interval_file, reference_genome='GRCh37')
@@ -1542,6 +1623,7 @@ class ImportMatrixTableTests(unittest.TestCase):
                                      comment=['#', '%'])
         assert mt1._same(mt2)
 
+    @fails_local_backend()
     def test_headers_not_identical(self):
         self.assertRaisesRegex(
             hl.utils.FatalError,
@@ -1551,6 +1633,7 @@ class ImportMatrixTableTests(unittest.TestCase):
             row_fields={'f0': hl.tstr},
             row_key=['f0'])
 
+    @fails_local_backend()
     def test_too_few_entries(self):
         def boom():
             hl.import_matrix_table(resource("samplesmissing.txt"),
@@ -1562,6 +1645,7 @@ class ImportMatrixTableTests(unittest.TestCase):
             "unexpected end of line while reading entry 3",
             boom)
 
+    @fails_local_backend()
     def test_round_trip(self):
         for missing in ['.', '9']:
             for delimiter in [',', ' ']:
@@ -1627,6 +1711,7 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt = mt.key_rows_by(*row_key)
         assert mt._same(actual)
 
+    @fails_local_backend()
     def test_key_by_after_empty_key_import(self):
         fields = {'Chromosome':hl.tstr,
                   'Position': hl.tint32,
@@ -1639,6 +1724,7 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt = mt.key_rows_by('Chromosome', 'Position')
         assert 0.001 < abs(0.50965 - mt.aggregate_entries(hl.agg.mean(mt.x)))
 
+    @fails_local_backend()
     def test_key_by_after_empty_key_import(self):
         fields = {'Chromosome':hl.tstr,
                   'Position': hl.tint32,
@@ -1651,6 +1737,7 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt = mt.key_rows_by('Chromosome', 'Position')
         mt._force_count_rows()
 
+    @fails_local_backend()
     def test_devlish_nine_separated_eight_missing_file(self):
         fields = {'chr': hl.tstr,
                   '': hl.tint32,
@@ -1680,6 +1767,7 @@ class ImportMatrixTableTests(unittest.TestCase):
         actual = mt.alt.collect()
         assert actual == ['T', 'TGG', 'A', None]
 
+    @fails_local_backend()
     def test_empty_import_matrix_table(self):
         path = new_temp_file(extension='tsv.bgz')
         mt = hl.utils.range_matrix_table(0, 0)
@@ -1690,6 +1778,7 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt.x.export(path, header=False)
         assert hl.import_matrix_table(path, no_header=True)._force_count_rows() == 0
 
+    @fails_local_backend()
     def test_import_row_id_multiple_partitions(self):
         path = new_temp_file(extension='txt')
         (hl.utils.range_matrix_table(50, 50)
@@ -1708,6 +1797,7 @@ class ImportMatrixTableTests(unittest.TestCase):
 
 
 class ImportTableTests(unittest.TestCase):
+    @fails_local_backend()
     def test_import_table_force_bgz(self):
         f = new_temp_file(extension="bgz")
         t = hl.utils.range_table(10, 5)
@@ -1746,6 +1836,7 @@ class ImportTableTests(unittest.TestCase):
         assert ht.row.dtype == hl.dtype(
             'struct{A:int64, B:int32}')
 
+    @fails_local_backend()
     def test_import_export_identity(self):
         ht = hl.import_table(resource('sampleAnnotations.tsv'))
         f = new_temp_file()
@@ -1794,6 +1885,7 @@ class ImportTableTests(unittest.TestCase):
 
 
 class GrepTests(unittest.TestCase):
+    @fails_local_backend()
     def test_grep_show_false(self):
         expected = {'sampleAnnotations.tsv': ['HG00120\tCASE\t19599', 'HG00121\tCASE\t4832'],
                     'sample2_rename.tsv': ['HG00120\tB_HG00120', 'HG00121\tB_HG00121'],
@@ -1807,6 +1899,7 @@ class GrepTests(unittest.TestCase):
         assert hl.grep('HG0012[0-1]', resource('*.tsv'), show=False) == expected
 
 
+@fails_local_backend()
 def test_matrix_and_table_read_intervals_with_hidden_key():
     f1 = new_temp_file()
     f2 = new_temp_file()

@@ -1,6 +1,10 @@
 Genetics
 ========
 
+This page tailored how-to guides for small but commonly-used patterns
+appearing in genetics pipelines. For documentation on the suite of
+genetics functions built into Hail, see the :ref:`genetics methods page <methods_genetics>`.
+
 Formatting
 ~~~~~~~~~~
 

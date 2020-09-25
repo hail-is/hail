@@ -221,10 +221,16 @@ object Interpret {
             case LTEQ(t, _) => t.ordering.lteq(lValue, rValue)
             case GTEQ(t, _) => t.ordering.gteq(lValue, rValue)
             case Compare(t, _) => t.ordering.compare(lValue, rValue)
+            case CompareStructs(t, sf) => ExtendedOrdering.rowOrdering(t.fields.zip(sf).map { case (f, sf) =>
+              sf match {
+                case SortField(_, Ascending) => f.typ.ordering
+                case SortField(_, Descending) => f.typ.ordering.reverse
+              }
+            }.toArray).compare(lValue, rValue)
           }
 
       case MakeArray(elements, _) => elements.map(interpret(_, env, args)).toFastIndexedSeq
-      case MakeStream(elements, _) => elements.map(interpret(_, env, args)).toFastIndexedSeq
+      case MakeStream(elements, _, _) => elements.map(interpret(_, env, args)).toFastIndexedSeq
       case x@ArrayRef(a, i, s) =>
         val aValue = interpret(a, env, args)
         val iValue = interpret(i, env, args)
@@ -258,7 +264,7 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].length
-      case StreamRange(start, stop, step) =>
+      case StreamRange(start, stop, step, _) =>
         val startValue = interpret(start, env, args)
         val stopValue = interpret(stop, env, args)
         val stepValue = interpret(step, env, args)
@@ -739,9 +745,9 @@ object Interpret {
       case In(i, _) =>
         val (a, _) = args(i)
         a
-      case Die(message, typ) =>
+      case Die(message, typ, errorId) =>
         val message_ = interpret(message).asInstanceOf[String]
-        fatal(if (message_ != null) message_ else "<exception message missing>")
+        fatal(if (message_ != null) message_ else "<exception message missing>",  errorId)
       case ir@ApplyIR(function, _, functionArgs) =>
         interpret(ir.explicitNode, env, args)
       case ApplySpecial("lor", _, Seq(left_, right_), _) =>
@@ -821,9 +827,6 @@ object Interpret {
         writer(ctx, child.execute(ctx))
       case BlockMatrixMultiWrite(blockMatrices, writer) =>
         writer(ctx, blockMatrices.map(_.execute(ctx)))
-      case UnpersistBlockMatrix(BlockMatrixRead(BlockMatrixPersistReader(id))) =>
-        HailContext.sparkBackend("interpret UnpersistBlockMatrix").bmCache.unpersistBlockMatrix(id)
-      case _: UnpersistBlockMatrix =>
       case TableToValueApply(child, function) =>
         function.execute(ctx, child.execute(ctx))
       case BlockMatrixToValueApply(child, function) =>
@@ -947,6 +950,7 @@ object Interpret {
             val resF = f(0, r)
             resF.setAggState(rv.region, rv.offset)
             val res = SafeRow(rTyp, resF(r, globalsOffset))
+            resF.storeAggsToRegion()
             rv.region.invalidate()
             res
           }

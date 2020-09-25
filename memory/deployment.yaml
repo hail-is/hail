@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memory
+  labels:
+    app: memory
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: memory
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: memory
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+      serviceAccountName: memory
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      containers:
+        - name: redis
+          image: redis:6.0.6-alpine
+          command:
+           - redis-server
+           - --port 
+           - "0"
+           - --unixsocket
+           - /redis/redis.sock
+           - --timeout 
+           - "0"
+           - --maxmemory
+           - 2gb
+           - --maxmemory-policy
+           - allkeys-lru
+          volumeMounts:
+           - name: redis-socket
+             mountPath: /redis
+          resources:
+            requests:
+              memory: "2.5G"
+              cpu: "400m"
+            limits:
+              memory: "3.75G"
+              cpu: "1"
+          readinessProbe:
+            exec:
+              command:
+               - redis-cli
+               - -s 
+               - /redis/redis.sock
+               - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+        - name: memory
+          image: "{{ memory_image.image }}"
+          command:
+           - python3
+           - -m
+           - memory
+          env:
+           - name: HAIL_DOMAIN
+             value: "{{ global.domain }}"
+           - name: HAIL_DEPLOY_CONFIG_FILE
+             value: /deploy-config/deploy-config.json
+           - name: HAIL_BATCH_PODS_NAMESPACE
+             value: "{{ batch_pods_ns.name }}"
+           - name: HAIL_SHA
+             value: "{{ code.sha }}"
+          ports:
+           - containerPort: 5000
+          volumeMounts:
+           - name: redis-socket
+             mountPath: /redis
+           - name: deploy-config
+             mountPath: /deploy-config
+             readOnly: true
+           - name: session-secret-key
+             mountPath: /session-secret-key
+             readOnly: true
+           - name: ssl-config
+             mountPath: /ssl-config
+             readOnly: true
+          resources:
+            requests:
+              memory: "1.25G"
+              cpu: "400m"
+            limits:
+              memory: "3.75G"
+              cpu: "1"
+          readinessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+       - name: redis-socket
+         emptyDir: {}
+       - name: deploy-config
+         secret:
+           secretName: deploy-config
+       - name: session-secret-key
+         secret:
+           secretName: session-secret-key
+       - name: ssl-config
+         secret:
+           optional: false
+           secretName: ssl-config-memory

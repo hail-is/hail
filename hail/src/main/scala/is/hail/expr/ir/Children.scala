@@ -49,13 +49,13 @@ object Children {
       Array(l, r)
     case MakeArray(args, typ) =>
       args.toFastIndexedSeq
-    case MakeStream(args, typ) =>
+    case MakeStream(args, _, _) =>
       args.toFastIndexedSeq
     case ArrayRef(a, i, s) =>
       Array(a, i, s)
     case ArrayLen(a) =>
       Array(a)
-    case StreamRange(start, stop, step) =>
+    case StreamRange(start, stop, step, _) =>
       Array(start, stop, step)
     case ArrayZeros(length) =>
       Array(length)
@@ -77,7 +77,7 @@ object Children {
       Array(a)
     case CastToArray(a) =>
       Array(a)
-    case ToStream(a) =>
+    case ToStream(a, _) =>
       Array(a)
     case LowerBoundOnOrderedCollection(orderedCollection, elem, _) =>
       Array(orderedCollection, elem)
@@ -125,7 +125,7 @@ object Children {
       Array(array, init, seq, result)
     case RunAgg(body, result, _) =>
       Array(body, result)
-    case NDArrayRef(nd, idxs) =>
+    case NDArrayRef(nd, idxs, _) =>
       nd +: idxs
     case NDArraySlice(nd, slices) =>
       Array(nd, slices)
@@ -142,6 +142,8 @@ object Children {
     case NDArrayMatMul(l, r) =>
       Array(l, r)
     case NDArrayQR(nd, _) =>
+      Array(nd)
+    case NDArraySVD(nd, _, _) =>
       Array(nd)
     case NDArrayInv(nd) =>
       Array(nd)
@@ -183,7 +185,7 @@ object Children {
       Array(o)
     case In(i, typ) =>
       none
-    case Die(message, typ) =>
+    case Die(message, typ, errorId) =>
       Array(message)
     case ApplyIR(_, _, args) =>
       args.toFastIndexedSeq
@@ -211,7 +213,6 @@ object Children {
     case BlockMatrixToValueApply(child, _) => Array(child)
     case BlockMatrixCollect(child) => Array(child)
     case BlockMatrixWrite(child, _) => Array(child)
-    case UnpersistBlockMatrix(child) => Array(child)
     case BlockMatrixMultiWrite(blockMatrices, _) => blockMatrices
     case CollectDistributedArray(ctxs, globals, _, _, body) => Array(ctxs, globals, body)
     case ReadPartition(path, _, _) => Array(path)

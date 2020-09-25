@@ -3,6 +3,10 @@ steps:
    name: default_ns
    namespaceName: default
    public: true
+ - kind: createNamespace
+   name: batch_pods_ns
+   namespaceName: batch_pods
+   public: false
  - kind: buildImage
    name: inline_image
    dockerFile:
@@ -122,3 +126,30 @@ steps:
     - hello_image
     - check_hello
     - hello_database
+ - kind: runImage
+   name: test_connect_to_hello
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+     hailctl curl {{ default_ns.name }} \
+         hello /healthcheck \
+         -fsSL \
+         --retry 3 \
+         --retry-delay 5 \
+         -XGET
+   secrets:
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+   dependsOn:
+    - service_base_image
+    - default_ns
+    - deploy_hello
+    - batch_pods_ns

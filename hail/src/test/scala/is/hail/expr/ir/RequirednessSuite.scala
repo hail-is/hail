@@ -68,7 +68,7 @@ class RequirednessSuite extends HailSuite {
 
   def pint(r: Boolean): PInt32 = PInt32(r)
 
-  def pstream(r: Boolean, elt: Boolean): PStream = PCanonicalStream(pint(elt), r)
+  def pstream(r: Boolean, elt: Boolean): PStream = PCanonicalStream(pint(elt), required = r)
 
   def parray(r: Boolean, elt: Boolean): PArray = PCanonicalArray(pint(elt), r)
 
@@ -82,7 +82,7 @@ class RequirednessSuite extends HailSuite {
   def pnestednd(r: Boolean, aelt: Boolean): PNDArray =
     PCanonicalNDArray(parray(required, aelt), 2, r)
   def pnestedstream(r: Boolean, a: Boolean, aelt: Boolean): PStream =
-    PCanonicalStream(parray(a, aelt), r)
+    PCanonicalStream(parray(a, aelt), required = r)
   def pnestedarray(r: Boolean, a: Boolean, aelt: Boolean): PArray =
     PCanonicalArray(parray(a, aelt), r)
 
@@ -165,7 +165,7 @@ class RequirednessSuite extends HailSuite {
       PCanonicalArray(PInt32(optional), optional))
     // filter
     nodes += Array(StreamFilter(stream(optional, optional), "x", Ref("x", TInt32).ceq(0)),
-      PCanonicalStream(PInt32(optional), optional))
+      PCanonicalStream(PInt32(optional), required = optional))
     // StreamFold
     nodes += Array(StreamFold(
       nestedstream(optional, optional, optional),
@@ -184,7 +184,7 @@ class RequirednessSuite extends HailSuite {
         nestedstream(optional, optional, optional),
         I32(0), "a", "b",
         ArrayRef(Ref("b", tarray), Ref("a", TInt32))
-      ), PCanonicalStream(PInt32(optional), optional))
+      ), PCanonicalStream(PInt32(optional), required = optional))
     // TailLoop
     val param1 = Ref(genUID(), tarray)
     val param2 = Ref(genUID(), TInt32)

@@ -1,6 +1,6 @@
 import json
 import numpy as np
-from typing import Optional, Tuple, Callable
+from typing import Optional, Tuple, Callable, Any
 
 from hail.utils.java import Env
 from hail.utils import range_table, new_temp_file
@@ -12,16 +12,25 @@ from hail.table import Table
 import hail as hl
 
 
-def array(mt: MatrixTable, entry_field: str, *, block_size=None) -> 'DNDArray':
-    return DNDArray.from_matrix_table(mt, entry_field, block_size=block_size)
+def array(mt: MatrixTable,
+          entry_field: str,
+          *,
+          n_partitions: Optional[int] = None,
+          block_size: Optional[int] = None,
+          sort_columns: bool = False) -> 'DNDArray':
+    return DNDArray.from_matrix_table(mt,
+                                      entry_field,
+                                      n_partitions=n_partitions,
+                                      block_size=block_size,
+                                      sort_columns=sort_columns)
 
 
 def read(fname: str) -> 'DNDArray':
     # read without good partitioning, just to get the globals
     a = DNDArray(hl.read_table(fname))
     t = hl.read_table(fname, _intervals=[
-        hl.Interval(hl.Struct(**{a.r_field: i, a.c_field: j}),
-                    hl.Struct(**{a.r_field: i, a.c_field: j + 1}))
+        hl.Interval(hl.Struct(r=i, c=j),
+                    hl.Struct(r=i, c=j + 1))
         for i in range(a.n_block_rows)
         for j in range(a.n_block_cols)])
     return DNDArray(t)
@@ -52,10 +61,11 @@ class DNDArray:
     @staticmethod
     def from_matrix_table(
             mt: MatrixTable,
-            entrc_field: str,
+            entry_field: str,
             *,
             n_partitions: Optional[int] = None,
-            block_size: Optional[int] = None
+            block_size: Optional[int] = None,
+            sort_columns: bool = False
     ) -> 'DNDArray':
         if n_partitions is None:
             n_partitions = mt.n_partitions()
@@ -67,8 +77,6 @@ class DNDArray:
             t = range_table(0, 0)
             t = t.annotate(r=0, c=0, block=nd.array([]).reshape((0, 0)))
             t = t.select_globals(
-                r_field='r',
-                c_field='c',
                 n_rows=0,
                 n_cols=0,
                 n_block_rows=0,
@@ -84,6 +92,27 @@ class DNDArray:
         n_block_rows = (n_rows + block_size - 1) // block_size
         n_block_cols = (n_cols + block_size - 1) // block_size
         entries, cols, row_index, col_blocks = (Env.get_uid() for _ in range(4))
+
+        if sort_columns:
+            col_index = Env.get_uid()
+            col_order = mt.add_col_index(col_index)
+            col_order = col_order.key_cols_by().cols()
+            col_order = col_order.select(key=col_order.row.select(*mt.col_key),
+                                         index=col_order[col_index])
+            col_order = col_order.collect(_localize=False)
+            col_order = hl.sorted(col_order, key=lambda x: x.key)
+            col_order = col_order['index'].collect()[0]
+            mt = mt.choose_cols(col_order)
+        else:
+            col_keys = mt.col_key.collect(_localize=False)
+            out_of_order = hl.range(hl.len(col_keys) - 1).map(
+                lambda i: col_keys[i] > col_keys[i + 1])
+            out_of_order = out_of_order.collect()[0]
+            if any(out_of_order):
+                raise ValueError(
+                    'from_matrix_table: columns are not in sorted order. You may request a '
+                    'sort with sort_columns=True.')
+
         mt = (mt
               .select_globals()
               .select_rows()
@@ -91,7 +120,7 @@ class DNDArray:
               .add_row_index(row_index)
               .localize_entries(entries, cols))
         # FIXME: remove when ndarray support structs
-        mt = mt.annotate(**{entries: mt[entries][entrc_field]})
+        mt = mt.annotate(**{entries: mt[entries][entry_field]})
         mt = mt.annotate(
             **{col_blocks: hl.range(n_block_cols).map(
                 lambda c: hl.struct(
@@ -109,8 +138,6 @@ class DNDArray:
             ).map(lambda x: x.entries))
         mt = mt.select(block=hl.nd.array(mt.entries))
         mt = mt.select_globals(
-            r_field='r',
-            c_field='c',
             n_rows=n_rows,
             n_cols=n_cols,
             n_block_rows=n_block_rows,
@@ -134,8 +161,6 @@ class DNDArray:
         self.m: Table = t
 
         dimensions = t.globals.collect()[0]
-        self.r_field: str = dimensions.r_field
-        self.c_field: str = dimensions.c_field
         self.n_rows: int = dimensions.n_rows
         self.n_cols: int = dimensions.n_cols
         self.n_block_rows: int = dimensions.n_block_rows
@@ -157,14 +182,13 @@ class DNDArray:
         m = m.annotate(block=m.block.T)
         dimensions = m.globals.collect()[0]
         m = m.select_globals(
-            r_field=self.c_field,
-            c_field=self.r_field,
             n_rows=dimensions.n_cols,
             n_cols=dimensions.n_rows,
             n_block_rows=dimensions.n_block_cols,
             n_block_cols=dimensions.n_block_rows,
             block_size=dimensions.block_size)
-        m = m._key_by_assert_sorted(self.c_field, self.r_field)
+        m = m._key_by_assert_sorted('c', 'r')
+        m = m.rename({'r': 'c', 'c': 'r'})
         return DNDArray(m)
 
     def _block_inner_product(self,
@@ -211,8 +235,6 @@ class DNDArray:
             hl.struct(block=block_aggregate(o.product))._ir))
         o = o.select('block')
         o = o.select_globals(
-            r_field='r',
-            c_field='c',
             n_rows=n_rows,
             n_cols=n_cols,
             n_block_rows=n_block_rows,
@@ -221,23 +243,9 @@ class DNDArray:
         return DNDArray(o)
 
     def __matmul__(self, right: 'DNDArray') -> 'DNDArray':
-        # FIXME: use ndarray sum / fma
-        def block_product(left, right):
-            product = left @ right
-            n_rows, n_cols = product.shape
-            return hl.struct(
-                shape=product.shape,
-                block=hl.range(hl.int(n_rows * n_cols)).map(
-                    lambda absolute: product[absolute % n_rows, absolute // n_rows]))
-
-        def block_aggregate(prod):
-            shape = prod.shape
-            block = prod.block
-            return hl.nd.from_column_major(
-                hl.agg.array_sum(block),
-                hl.agg.take(shape, 1)[0])
-
-        return self._block_inner_product(right, block_product, block_aggregate)
+        return self._block_inner_product(right,
+                                         lambda left, right: left @ right,
+                                         hl.agg.ndarray_sum)
 
     def inner_product(self,
                       right: 'DNDArray',
@@ -251,11 +259,12 @@ class DNDArray:
             _, n_cols = right.shape
 
             def compute_element(absolute):
-                row = absolute % n_rows
-                col = absolute // n_rows
-                return hl.range(hl.int(n_inner)).map(
-                    lambda inner: multiply(left[row, inner], right[inner, col])
-                ).fold(add, zero)
+                return hl.rbind(
+                    absolute % n_rows,
+                    absolute // n_rows,
+                    lambda row, col: hl.range(hl.int(n_inner)).map(
+                        lambda inner: multiply(left[row, inner], right[inner, col])
+                    ).fold(add, zero))
 
             return hl.struct(
                 shape=(left.shape[0], right.shape[1]),
@@ -269,6 +278,76 @@ class DNDArray:
                 hl.agg.take(shape, 1)[0])
 
         return self._block_inner_product(right, block_product, block_aggregate)
+
+    def _block_map(self, fun: Callable[[Expression], Expression]) -> 'DNDArray':
+        o = self.m
+        o = o.annotate(block=fun(o.block))
+        return DNDArray(o)
+
+    def _block_pairwise_map(self,
+                            right: 'DNDArray',
+                            fun: Callable[[Expression, Expression], Expression]
+                            ) -> 'DNDArray':
+        left = self
+        assert left.block_size == right.block_size
+        assert left.n_rows == right.n_rows
+        assert left.n_cols == right.n_cols
+        assert left.n_block_rows == right.n_block_rows
+        assert left.n_block_cols == right.n_block_cols
+
+        o = left.m
+        o = o.annotate(
+            block=fun(o.block, right.m[o.r, o.c].block))
+
+        return DNDArray(o)
+
+    def __add__(self, right: Any) -> 'DNDArray':
+        assert not isinstance(right, Table)
+        assert not isinstance(right, MatrixTable)
+
+        if not isinstance(right, DNDArray):
+            return self._block_map(lambda left: left + right)
+
+        return self._block_pairwise_map(right, lambda left, right: left + right)
+
+    def __radd__(self, left: Any) -> 'DNDArray':
+        assert not isinstance(left, Table)
+        assert not isinstance(left, MatrixTable)
+        assert not isinstance(left, DNDArray)
+
+        return self._block_map(lambda right: left + right)
+
+    def __sub__(self, right: Any) -> 'DNDArray':
+        assert not isinstance(right, Table)
+        assert not isinstance(right, MatrixTable)
+
+        if not isinstance(right, DNDArray):
+            return self._block_map(lambda left: left - right)
+
+        return self._block_pairwise_map(right, lambda left, right: left - right)
+
+    def __rsub__(self, left: Any) -> 'DNDArray':
+        assert not isinstance(left, Table)
+        assert not isinstance(left, MatrixTable)
+        assert not isinstance(left, DNDArray)
+
+        return self._block_map(lambda right: left - right)
+
+    def __mul__(self, right: Any) -> 'DNDArray':
+        assert not isinstance(right, Table)
+        assert not isinstance(right, MatrixTable)
+
+        if not isinstance(right, DNDArray):
+            return self._block_map(lambda left: left * right)
+
+        return self._block_pairwise_map(right, lambda left, right: left * right)
+
+    def __rmul__(self, left: Any) -> 'DNDArray':
+        assert not isinstance(left, Table)
+        assert not isinstance(left, MatrixTable)
+        assert not isinstance(left, DNDArray)
+
+        return self._block_map(lambda right: left * right)
 
     def write(self, *args, **kwargs) -> 'DNDArray':
         return self.m.write(*args, **kwargs)
@@ -289,7 +368,7 @@ class DNDArray:
                    for _ in range(self.n_block_cols)]
                   for _ in range(self.n_block_rows)]
         for block in blocks:
-            result[block[self.r_field]][block[self.c_field]] = block.block
+            result[block.r][block.c] = block.block
 
         return np.concatenate(
             [np.concatenate(result[x], axis=1) for x in range(self.n_block_rows)],

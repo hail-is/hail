@@ -94,4 +94,4 @@ async def main():
         await cleanup_images.run()
 
 
-asyncio.run(main())
+asyncio.get_event_loop().run_until_complete(main())

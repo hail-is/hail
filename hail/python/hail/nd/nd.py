@@ -9,7 +9,7 @@ from hail.expr.expressions import (
     expr_int32, expr_int64, expr_tuple, expr_any, expr_array, expr_ndarray,
     expr_numeric, Int64Expression, cast_expr, construct_expr)
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
-from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat
+from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat, NDArraySVD
 
 tsequenceof_nd = oneof(sequenceof(expr_ndarray()), expr_array(expr_ndarray()))
 shape_type = oneof(expr_int64, tupleof(expr_int64), expr_tuple())
@@ -259,6 +259,34 @@ def qr(nd, mode="reduced"):
         return construct_expr(ir, tndarray(tfloat64, 2))
     elif mode in ["complete", "reduced"]:
         return construct_expr(ir, ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 2)))
+
+
+@typecheck(nd=expr_ndarray(), full_matrices=bool, compute_uv=bool)
+def svd(nd, full_matrices=True, compute_uv=True):
+    """Performs a singular value decomposition.
+
+    :param nd: :class:`.NDArrayExpression`
+        A 2 dimensional ndarray, shape(M, N).
+    :param full_matrices: `bool`
+        If True (default), u and vt have dimensions (M, M) and (N, N) respectively. Otherwise, they have dimensions
+        (M, K) and (K, N), where K = min(M, N)
+    :param compute_uv: `bool`
+        If True (default), compute the singular vectors u and v. Otherwise, only return a single ndarray, s.
+
+    Returns
+    -------
+    - u: :class:`.NDArrayExpression`
+        The left singular vectors.
+    - s: :class:`.NDArrayExpression`
+        The singular values.
+    - vt: :class:`.NDArrayExpression`
+        The right singular vectors.
+    """
+    float_nd = nd.map(lambda x: hl.float64(x))
+    ir = NDArraySVD(float_nd._ir, full_matrices, compute_uv)
+
+    return_type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2)) if compute_uv else tndarray(tfloat64, 1)
+    return construct_expr(ir, return_type)
 
 
 @typecheck(nd=expr_ndarray())

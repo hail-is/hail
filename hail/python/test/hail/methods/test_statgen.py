@@ -1,78 +1,22 @@
 import os
 import unittest
-from subprocess import DEVNULL, call as syscall
-
 import pytest
 import numpy as np
-import shutil
 
 import hail as hl
 import hail.expr.aggregators as agg
 import hail.utils as utils
 from hail.linalg import BlockMatrix
-from ..helpers import *
+from ..helpers import (startTestHailContext, stopTestHailContext, resource,
+                       skip_unless_spark_backend, fails_local_backend)
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    @skip_unless_spark_backend()
     @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
-    def test_ibd(self):
-        dataset = get_dataset()
-
-        def plinkify(ds, min=None, max=None):
-            vcf = utils.new_temp_file(prefix="plink", extension="vcf")
-            plinkpath = utils.new_temp_file(prefix="plink")
-            hl.export_vcf(ds, vcf)
-            threshold_string = "{} {}".format("--min {}".format(min) if min else "",
-                                              "--max {}".format(max) if max else "")
-
-            plink_command = "plink --double-id --allow-extra-chr --vcf {} --genome full --out {} {}" \
-                .format(utils.uri_path(vcf),
-                        utils.uri_path(plinkpath),
-                        threshold_string)
-            result_file = utils.uri_path(plinkpath + ".genome")
-
-            syscall(plink_command, shell=True, stdout=DEVNULL, stderr=DEVNULL)
-
-            ### format of .genome file is:
-            # _, fid1, iid1, fid2, iid2, rt, ez, z0, z1, z2, pihat, phe,
-            # dst, ppc, ratio, ibs0, ibs1, ibs2, homhom, hethet (+ separated)
-
-            ### format of ibd is:
-            # i (iid1), j (iid2), ibd: {Z0, Z1, Z2, PI_HAT}, ibs0, ibs1, ibs2
-            results = {}
-            with open(result_file) as f:
-                f.readline()
-                for line in f:
-                    row = line.strip().split()
-                    results[(row[1], row[3])] = (list(map(float, row[6:10])),
-                                                 list(map(int, row[14:17])))
-            return results
-
-        def compare(ds, min=None, max=None):
-            plink_results = plinkify(ds, min, max)
-            hail_results = hl.identity_by_descent(ds, min=min, max=max).collect()
-
-            for row in hail_results:
-                key = (row.i, row.j)
-                self.assertAlmostEqual(plink_results[key][0][0], row.ibd.Z0, places=4)
-                self.assertAlmostEqual(plink_results[key][0][1], row.ibd.Z1, places=4)
-                self.assertAlmostEqual(plink_results[key][0][2], row.ibd.Z2, places=4)
-                self.assertAlmostEqual(plink_results[key][0][3], row.ibd.PI_HAT, places=4)
-                self.assertEqual(plink_results[key][1][0], row.ibs0)
-                self.assertEqual(plink_results[key][1][1], row.ibs1)
-                self.assertEqual(plink_results[key][1][2], row.ibs2)
-
-        compare(dataset)
-        compare(dataset, min=0.0, max=1.0)
-        dataset = dataset.annotate_rows(dummy_maf=0.01)
-        hl.identity_by_descent(dataset, dataset['dummy_maf'], min=0.0, max=1.0)
-        hl.identity_by_descent(dataset, hl.float32(dataset['dummy_maf']), min=0.0, max=1.0)
-
-    @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
+    @fails_local_backend()
     def test_impute_sex_same_as_plink(self):
         ds = hl.import_vcf(resource('x-chromosome.vcf'))
 
@@ -108,7 +52,8 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(hl.impute_sex(ds.GT)._same(hl.impute_sex(ds.GT, aaf='aaf')))
 
-    linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd]
+    backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
+    linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl._linear_regression_rows_nd]
 
     def test_linreg_basic(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
@@ -145,6 +90,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(t1._same(t4a))
             self.assertTrue(t1._same(t4b))
 
+    @fails_local_backend()
     def test_linreg_pass_through(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -187,6 +133,7 @@ class Tests(unittest.TestCase):
                                       pass_through=[mt.filters.length()])
 
 
+    @fails_local_backend()
     def test_linreg_chained(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -362,6 +309,7 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
             self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
 
+    @fails_local_backend() # Because of import_gen
     def test_linear_regression_with_dosage(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -512,6 +460,7 @@ class Tests(unittest.TestCase):
     # se <- waldtest["x", "Std. Error"]
     # zstat <- waldtest["x", "z value"]
     # pval <- waldtest["x", "Pr(>|z|)"]
+    @fails_local_backend()
     def test_logistic_regression_wald_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -548,6 +497,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
+    @fails_local_backend()
     def test_logistic_regression_wald_test_apply_multi_pheno(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -587,6 +537,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
+    @fails_local_backend()
     def test_logistic_regression_wald_test_multi_pheno_bgen_dosage(self):
         covariates = hl.import_table(resource('regressionLogisticMultiPheno.cov'),
                                      key='Sample',
@@ -618,6 +569,7 @@ class Tests(unittest.TestCase):
         #TODO test handling of missingness
 
 
+    @fails_local_backend()
     def test_logistic_regression_wald_test_pl(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -655,6 +607,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
+    @fails_local_backend()
     def test_logistic_regression_wald_dosage(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -704,6 +657,7 @@ class Tests(unittest.TestCase):
     # lrtest <- anova(logfitnull, logfit, test="LRT")
     # chi2 <- lrtest[["Deviance"]][2]
     # pval <- lrtest[["Pr(>Chi)"]][2]
+    @fails_local_backend()
     def test_logistic_regression_lrt(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -749,6 +703,7 @@ class Tests(unittest.TestCase):
     # scoretest <- anova(logfitnull, logfit, test="Rao")
     # chi2 <- scoretest[["Rao"]][2]
     # pval <- scoretest[["Pr(>Chi)"]][2]
+    @fails_local_backend()
     def test_logistic_regression_score(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -784,6 +739,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
+    @fails_local_backend()
     def test_logistic_regression_epacts(self):
         covariates = hl.import_table(resource('regressionLogisticEpacts.cov'),
                                      key='IND_ID',
@@ -869,6 +825,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(firth[16117953].beta, 0.5258, places=4)
         self.assertAlmostEqual(firth[16117953].p_value, 0.22562, places=4)
 
+    @fails_local_backend()
     def test_logreg_pass_through(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -899,6 +856,7 @@ class Tests(unittest.TestCase):
     # se <- waldtest["x", "Std. Error"]
     # zstat <- waldtest["x", "z value"]
     # pval <- waldtest["x", "Pr(>|z|)"]
+    @fails_local_backend()
     def test_poission_regression_wald_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -946,6 +904,7 @@ class Tests(unittest.TestCase):
     # lrtest <- anova(poisfitnull, poisfit, test="LRT")
     # chi2 <- lrtest[["Deviance"]][2]
     # pval <- lrtest[["Pr(>Chi)"]][2]
+    @fails_local_backend()
     def test_poission_regression_lrt(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -990,6 +949,7 @@ class Tests(unittest.TestCase):
     # scoretest <- anova(poisfitnull, poisfit, test="Rao")
     # chi2 <- scoretest[["Rao"]][2]
     # pval <- scoretest[["Pr(>Chi)"]][2]
+    @fails_local_backend()
     def test_poission_regression_score_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1025,6 +985,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
+    @fails_local_backend()
     def test_poisson_pass_through(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1165,6 +1126,7 @@ class Tests(unittest.TestCase):
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1.0, coord_expr=mt.cm).to_numpy(),
             [[1., -0.85280287, 0.], [-0.85280287, 1., 0.], [0., 0., 1.]]))
 
+    @fails_local_backend()
     def test_hwe_normalized_pca(self):
         mt = hl.balding_nichols_model(3, 100, 50)
         eigenvalues, scores, loadings = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=True)
@@ -1177,6 +1139,7 @@ class Tests(unittest.TestCase):
         _, _, loadings = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=False)
         self.assertEqual(loadings, None)
 
+    @fails_local_backend()
     def test_pca_against_numpy(self):
         mt = hl.import_vcf(resource('tiny_m.vcf'))
         mt = mt.filter_rows(hl.len(mt.alleles) == 2)
@@ -1225,85 +1188,98 @@ class Tests(unittest.TestCase):
         check(hail_scores, np_scores)
         check(hail_loadings, np_loadings)
 
-    @skip_unless_spark_backend()
-    def test_pc_relate_against_R_truth(self):
-        mt = hl.import_vcf(resource('pc_relate_bn_input.vcf.bgz'))
-        hail_kin = hl.pc_relate(mt.GT, 0.00, k=2).checkpoint(utils.new_temp_file(extension='ht'))
+    @fails_local_backend()
+    def test_blanczos_against_numpy(self):
 
-        r_kin = hl.import_table(resource('pc_relate_r_truth.tsv.bgz'),
-                                types={'i': 'struct{s:str}',
-                                       'j': 'struct{s:str}',
-                                       'kin': 'float',
-                                       'ibd0': 'float',
-                                       'ibd1': 'float',
-                                       'ibd2': 'float'},
-                                key=['i', 'j'])
-        assert r_kin.select("kin")._same(hail_kin.select("kin"), tolerance=1e-3, absolute=True)
-        assert r_kin.select("ibd0")._same(hail_kin.select("ibd0"), tolerance=1.3e-2, absolute=True)
-        assert r_kin.select("ibd1")._same(hail_kin.select("ibd1"), tolerance=2.6e-2, absolute=True)
-        assert r_kin.select("ibd2")._same(hail_kin.select("ibd2"), tolerance=1.3e-2, absolute=True)
+        def concatToNumpy(field, horizontal=True):
+            blocks = field.collect()
+            if horizontal:
+                return np.concatenate(blocks, axis=0)
+            else:
+                return np.concatenate(blocks, axis=1)
+      
+        mt = hl.import_vcf(resource('tiny_m.vcf'))
+        mt = mt.filter_rows(hl.len(mt.alleles) == 2)
+        mt = mt.annotate_rows(AC=hl.agg.sum(mt.GT.n_alt_alleles()),
+                              n_called=hl.agg.count_where(hl.is_defined(mt.GT)))
+        mt = mt.filter_rows((mt.AC > 0) & (mt.AC < 2 * mt.n_called)).persist()
+        n_rows = mt.count_rows()
 
-    @skip_unless_spark_backend()
-    def test_pc_relate_simple_example(self):
-        gs = hl.literal(
-            [[0, 0, 0, 0, 1, 1, 1, 1],
-             [0, 0, 1, 1, 0, 0, 1, 1],
-             [0, 1, 0, 1, 0, 1, 0, 1],
-             [0, 0, 1, 1, 0, 0, 1, 1]])
-        scores = hl.literal([[0, 1], [1, 1], [1, 0], [0, 0]])
-        mt = hl.utils.range_matrix_table(n_rows=8, n_cols=4)
-        mt = mt.annotate_entries(GT=hl.unphased_diploid_gt_index_call(gs[mt.col_idx][mt.row_idx]))
-        mt = mt.annotate_cols(scores=scores[mt.col_idx])
-        pcr = hl.pc_relate(mt.GT, min_individual_maf=0, scores_expr=mt.scores)
+        def make_expr(mean):
+            return hl.cond(hl.is_defined(mt.GT),
+                           (mt.GT.n_alt_alleles() - mean) / hl.sqrt(mean * (2 - mean) * n_rows / 2),
+                           0)
 
-        expected = [
-            hl.Struct(i=0, j=1, kin=-0.14570713364640647,
-                      ibd0=1.4823511628401964, ibd1=-0.38187379109476693, ibd2=-0.10047737174542953),
-            hl.Struct(i=0, j=2, kin=0.16530591922102378,
-                      ibd0=0.5234783206257841, ibd1=0.2918196818643366, ibd2=0.18470199750987923),
-            hl.Struct(i=0, j=3, kin=-0.14570713364640647,
-                      ibd0=1.4823511628401964, ibd1=-0.38187379109476693, ibd2=-0.10047737174542953),
-            hl.Struct(i=1, j=2, kin=-0.14570713364640647,
-                      ibd0=1.4823511628401964, ibd1=-0.38187379109476693, ibd2=-0.10047737174542953),
-            hl.Struct(i=1, j=3, kin=0.14285714285714285,
-                      ibd0=0.7027734170591313, ibd1=0.02302459445316596, ibd2=0.2742019884877027),
-            hl.Struct(i=2, j=3, kin=-0.14570713364640647,
-                      ibd0=1.4823511628401964, ibd1=-0.38187379109476693, ibd2=-0.10047737174542953),
-        ]
-        ht_expected = hl.Table.parallelize(expected)
-        ht_expected = ht_expected.key_by(i=hl.struct(col_idx=ht_expected.i),
-                                         j=hl.struct(col_idx=ht_expected.j))
-        assert ht_expected._same(pcr)
+        k = 3
 
-    @skip_unless_spark_backend()
-    def test_pcrelate_paths(self):
-        mt = hl.balding_nichols_model(3, 50, 100)
-        _, scores3, _ = hl.hwe_normalized_pca(mt.GT, k=3, compute_loadings=False)
+        float_expr = make_expr(mt.AC / mt.n_called)
 
-        kin1 = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin', block_size=64)
-        kin2 = hl.pc_relate(mt.GT, 0.05, k=2, min_kinship=0.01, statistics='kin2', block_size=128).cache()
-        kin3 = hl.pc_relate(mt.GT, 0.02, k=3, min_kinship=0.1, statistics='kin20', block_size=64).cache()
-        kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores3[mt.col_key].scores[:2],
-                              statistics='kin', block_size=32)
+        eigens, scores_t, loadings_t = hl._blanczos_pca(float_expr, k=k, q_iterations=7, compute_loadings=True)
+        A = np.array(float_expr.collect()).reshape((3, 4)).T
+        scores = concatToNumpy(scores_t.scores)
+        loadings = concatToNumpy(loadings_t.loadings)
+        scores = np.reshape(scores, (len(scores) // k, k))
+        loadings = np.reshape(loadings, (len(loadings) // k, k))
 
-        assert kin1._same(kin_s1, tolerance=1e-4)
+        self.assertEqual(len(eigens), 3)
+        self.assertEqual(scores_t.count(), mt.count_cols())
+        self.assertEqual(loadings_t.count(), n_rows)
+        np.testing.assert_almost_equal(A @ loadings, scores)
 
-        assert kin1.count() == 50 * 49 / 2
+        assert len(scores_t.globals) == 0
+        assert len(loadings_t.globals) == 0
 
-        assert kin2.count() > 0
-        assert kin2.filter(kin2.kin < 0.01).count() == 0
+        # compute PCA with numpy
+        def normalize(a):
+            ms = np.mean(a, axis=0, keepdims=True)
+            return np.divide(np.subtract(a, ms), np.sqrt(2.0 * np.multiply(ms / 2.0, 1 - ms / 2.0) * a.shape[1]))
 
-        assert kin3.count() > 0
-        assert kin3.filter(kin3.kin < 0.1).count() == 0
+        g = np.pad(np.diag([1.0, 1, 2]), ((0, 1), (0, 0)), mode='constant')
+        g[1, 0] = 1.0 / 3
+        n = normalize(g)
+        U, s, V = np.linalg.svd(n, full_matrices=0)
+        np_loadings = V.transpose()
+        np_eigenvalues = np.multiply(s, s)
 
-    @skip_unless_spark_backend()
-    def test_pcrelate_issue_5263(self):
-        mt = hl.balding_nichols_model(3, 50, 100)
-        expected = hl.pc_relate(mt.GT, 0.10, k=2, statistics='all')
-        mt = mt.select_entries(GT2=mt.GT,
-                               GT=hl.call(hl.rand_bool(0.5), hl.rand_bool(0.5)))
-        actual = hl.pc_relate(mt.GT2, 0.10, k=2, statistics='all')
-        assert expected._same(actual, tolerance=1e-4)
+        def bound(vs, us):  # equation 12 from https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4827102/pdf/main.pdf
+            return 1/k * sum([np.linalg.norm(us.T @ vs[:,i]) for i in range(k)])
+
+        np.testing.assert_allclose(eigens, np_eigenvalues, rtol=0.05)
+        assert bound(np_loadings, loadings) > 0.9
+
+    @fails_local_backend()
+    def test_blanczos_against_hail(self):
+        k = 10
+
+        def concatToNumpy(field, horizontal=True):
+            blocks = field.collect()
+            if horizontal:
+                return np.concatenate(blocks, axis=0)
+            else:
+                return np.concatenate(blocks, axis=1)
+
+        hl.utils.get_1kg('data/')
+        hl.import_vcf('data/1kg.vcf.bgz').write('data/1kg.mt', overwrite=True)
+        dataset = hl.read_matrix_table('data/1kg.mt')
+
+        b_eigens, b_scores, b_loadings = hl._blanczos_pca(hl.int(hl.is_defined(dataset.GT)), k=k, q_iterations=3, compute_loadings=True)
+        b_scores = concatToNumpy(b_scores.scores)
+        b_loadings = concatToNumpy(b_loadings.loadings)
+        b_scores = np.reshape(b_scores, (len(b_scores) // k, k))
+        b_loadings = np.reshape(b_loadings, (len(b_loadings) // k, k))
+
+        h_eigens, h_scores, h_loadings = hl.pca(hl.int(hl.is_defined(dataset.GT)), k=k, compute_loadings=True)
+        h_scores = np.reshape(concatToNumpy(h_scores.scores), b_scores.shape)
+        h_loadings = np.reshape(concatToNumpy(h_loadings.loadings), b_loadings.shape)
+
+        # equation 12 from https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4827102/pdf/main.pdf
+        def bound(vs, us):
+            return 1/k * sum([np.linalg.norm(us.T @ vs[:,i]) for i in range(k)])
+
+        MEV = bound(h_loadings, b_loadings)
+
+        np.testing.assert_allclose(b_eigens, h_eigens, rtol=0.05)
+        assert MEV > 0.9
 
     def test_split_multi_hts(self):
         ds1 = hl.import_vcf(resource('split_test.vcf'))
@@ -1314,6 +1290,7 @@ class Tests(unittest.TestCase):
         ds1 = ds1.drop('was_split', 'a_index')
         self.assertTrue(ds1._same(ds2))
 
+    @fails_local_backend()
     def test_split_multi_table(self):
         ds1 = hl.import_vcf(resource('split_test.vcf')).rows()
         ds1 = hl.split_multi(ds1)
@@ -1344,7 +1321,6 @@ class Tests(unittest.TestCase):
         mt = hl.split_multi_hts(mt, permit_shuffle=True)
         mt._force_count_rows()
         assert mt.alleles.collect() == [['A', 'C'], ['A', 'G'], ['A', 'T']]
-
 
     def test_issue_4527(self):
         mt = hl.utils.range_matrix_table(1, 1)
@@ -1531,6 +1507,7 @@ class Tests(unittest.TestCase):
         test_stat(10, 100, 100, 0)
         test_stat(40, 400, 20, 12)
 
+    @fails_local_backend()
     def test_skat(self):
         ds2 = hl.import_vcf(resource('sample2.vcf'))
 

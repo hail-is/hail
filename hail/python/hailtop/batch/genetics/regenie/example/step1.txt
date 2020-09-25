@@ -1,0 +1,11 @@
+--step 1
+--bed regenie/example/example
+--exclude regenie/example/snplist_rm.txt
+--covarFile regenie/example/covariates.txt
+--phenoFile regenie/example/phenotype_bin.txt
+--remove regenie/example/fid_iid_to_remove.txt
+--bsize 100
+--bt
+--lowmem
+--lowmem-prefix tmp_rg
+--out out/fit_bin_out

@@ -9,7 +9,7 @@ import org.objectweb.asm.Opcodes._
 
 // FIXME move typeinfo stuff lir
 
-class Classx[C](val name: String, val superName: String) {
+class Classx[C](val name: String, val superName: String, val sourceFile: Option[String]) {
   val ti: TypeInfo[C] = new ClassInfo[C](name)
 
   val methods: mutable.ArrayBuffer[Method] = new mutable.ArrayBuffer()
@@ -50,41 +50,7 @@ class Classx[C](val name: String, val superName: String) {
     classes += this
 
     for (m <- methods) {
-      val blocks = m.findBlocks()
-
-      val locals = m.findLocals(blocks)
-      for (l <- locals) {
-        // FIXME parameters, too
-        if (!l.isInstanceOf[Parameter]) {
-          if (l.method == null)
-            l.method = m
-          else {
-            /*
-            if (l.method ne m) {
-              // println(s"$l ${l.method} $m\n  ${l.stack.mkString("  \n")}")
-              println(s"$l ${l.method} $m")
-            }
-             */
-            assert(l.method eq m)
-          }
-        }
-      }
-    }
-
-    for (m <- methods) {
-      m.removeDeadCode()
-    }
-
-    // check
-    for (m <- methods) {
-      val blocks = m.findBlocks()
-      for (b <- blocks) {
-        assert(b.first != null)
-        assert(b.last.isInstanceOf[ControlX])
-      }
-    }
-
-    for (m <- methods) {
+      m.verify()
       SimplifyControl(m)
     }
 
@@ -219,40 +185,32 @@ class Method private[lir] (
       val L = s.last
       s = s.init
       if (!visited.contains(L)) {
-        if (L != null) {
-          if (L.method == null)
-            L.method = this
-          else {
-            /*
-            if (L.method ne this) {
-              println(s"${ L.method } $this")
-              // println(b.stack.mkString("\n"))
-            }
-             */
-            assert(L.method eq this)
-          }
+        assert(L.wellFormed)
 
-          blocksb += L
-
-          var x = L.first
-          while (x != null) {
-            x match {
-              case x: IfX =>
-                s = x.Ltrue +: s
-                s = x.Lfalse +: s
-              case x: GotoX =>
-                s = x.L +: s
-              case x: SwitchX =>
-                s = x.Ldefault +: s
-                x.Lcases.foreach { lc =>
-                  s = lc +: s
-                }
-              case _ =>
-            }
-            x = x.next
+        if (L.method == null)
+          L.method = this
+        else {
+          /*
+          if (L.method ne this) {
+            println(s"${ L.method } $this")
+            // println(b.stack.mkString("\n"))
           }
-          visited += L
+           */
+          assert(L.method eq this)
         }
+
+        blocksb += L
+
+        assert(L.first != null)
+        val x = L.last.asInstanceOf[ControlX]
+        var i = 0
+        while (i < x.targetArity()) {
+          val target = x.target(i)
+          assert(target != null)
+          s = target +: s
+          i += 1
+        }
+        visited += L
       }
     }
 
@@ -263,7 +221,7 @@ class Method private[lir] (
       // don't traverse a set that's being modified
       val uses2 = b.uses.toArray
       for ((u, i) <- uses2) {
-        if (!visited(u.parent))
+        if (u.parent == null || !visited(u.parent))
           u.setTarget(i, null)
       }
     }
@@ -271,7 +229,7 @@ class Method private[lir] (
     new Blocks(blocks)
   }
 
-  def findLocals(blocks: Blocks): Locals = {
+  def findLocals(blocks: Blocks, verifyMethodAssignment: Boolean = false): Locals = {
     val localsb = new ArrayBuilder[Local]()
 
     var i = 0
@@ -289,6 +247,18 @@ class Method private[lir] (
     def visitLocal(l: Local): Unit = {
       if (!l.isInstanceOf[Parameter]) {
         if (!visited.contains(l)) {
+          if (!verifyMethodAssignment || l.method == null)
+            l.method = this
+          else {
+            /*
+            if (l.method ne m) {
+              // println(s"$l ${l.method} $m\n  ${l.stack.mkString("  \n")}")
+              println(s"$l ${l.method} $m")
+            }
+             */
+            assert(l.method eq this)
+          }
+
           localsb += l
           visited += l
         }
@@ -316,17 +286,10 @@ class Method private[lir] (
     new Locals(localsb.result())
   }
 
-  def removeDeadCode(): Unit = {
-    val blocks = findBlocks()
-    for (b <- blocks) {
-      var x = b.first
-      while (x != null && !x.isInstanceOf[ControlX])
-        x = x.next
-      if (x != null) {
-        while (x.next != null)
-          x.next.remove()
-      }
-    }
+  // Verify all blocks are well-formed, all blocks and locals have correct
+  // method set.
+  def verify(): Unit = {
+    findLocals(findBlocks(), verifyMethodAssignment = true)
   }
 
   def approxByteCodeSize(): Int = {
@@ -364,6 +327,23 @@ class Block {
 
   val uses: mutable.Set[(ControlX, Int)] = mutable.Set[(ControlX, Int)]()
 
+  def wellFormed: Boolean = {
+    if (first == null)
+      return false
+
+    last match {
+      case ctrl: ControlX =>
+        var i = 0
+        while (i < ctrl.targetArity()) {
+          if (ctrl.target(i) == null)
+            return false
+          i += 1
+        }
+        true
+      case _ => false
+    }
+  }
+
   def addUse(x: ControlX, i: Int): Unit = {
     val added = uses.add(x -> i)
     assert(added)
@@ -388,6 +368,11 @@ class Block {
 
   def prepend(x: StmtX): Unit = {
     assert(x.parent == null)
+    if (x.isInstanceOf[ControlX])
+      // prepending a new control statement, so previous contents are dead code
+      while (last != null) {
+        last.remove()
+      }
     if (last == null) {
       first = x
       last = x
@@ -403,6 +388,9 @@ class Block {
 
   def append(x: StmtX): Unit = {
     assert(x.parent == null)
+    if (last.isInstanceOf[ControlX])
+      // if last is a ControlX, x is dead code, so just drop it
+      return
     if (last == null) {
       first = x
       last = x
@@ -450,6 +438,8 @@ abstract class X {
   // var setParentStack: Array[StackTraceElement] = _
 
   var children: Array[ValueX] = new Array(0)
+
+  val lineNumber: Int
 
   def setArity(n: Int): Unit = {
     var i = n
@@ -621,7 +611,7 @@ abstract class ValueX extends X {
   }
 }
 
-class GotoX extends ControlX {
+class GotoX(val lineNumber: Int = 0) extends ControlX {
   private var _L: Block = _
 
   def L: Block = _L
@@ -645,7 +635,7 @@ class GotoX extends ControlX {
   }
 }
 
-class IfX(val op: Int) extends ControlX {
+class IfX(val op: Int, val lineNumber: Int = 0) extends ControlX {
   private var _Ltrue: Block = _
   private var _Lfalse: Block = _
 
@@ -686,7 +676,7 @@ class IfX(val op: Int) extends ControlX {
   }
 }
 
-class SwitchX() extends ControlX {
+class SwitchX(val lineNumber: Int = 0) extends ControlX {
   private var _Ldefault: Block = _
 
   private var _Lcases: Array[Block] = Array.empty[Block]
@@ -751,13 +741,13 @@ class SwitchX() extends ControlX {
   }
 }
 
-class StoreX(var l: Local) extends StmtX
+class StoreX(var l: Local, val lineNumber: Int = 0) extends StmtX
 
-class PutFieldX(val op: Int, val f: FieldRef) extends StmtX
+class PutFieldX(val op: Int, val f: FieldRef, val lineNumber: Int = 0) extends StmtX
 
-class IincX(var l: Local, val i: Int) extends StmtX
+class IincX(var l: Local, val i: Int, val lineNumber: Int = 0) extends StmtX
 
-class ReturnX() extends ControlX {
+class ReturnX(val lineNumber: Int = 0) extends ControlX {
   def targetArity(): Int = 0
 
   def target(i: Int): Block = throw new IndexOutOfBoundsException()
@@ -765,7 +755,7 @@ class ReturnX() extends ControlX {
   def setTarget(i: Int, b: Block): Unit = throw new IndexOutOfBoundsException()
 }
 
-class ThrowX() extends ControlX {
+class ThrowX(val lineNumber: Int = 0) extends ControlX {
   def targetArity(): Int = 0
 
   def target(i: Int): Block = throw new IndexOutOfBoundsException()
@@ -773,11 +763,11 @@ class ThrowX() extends ControlX {
   def setTarget(i: Int, b: Block): Unit = throw new IndexOutOfBoundsException()
 }
 
-class StmtOpX(val op: Int) extends StmtX
+class StmtOpX(val op: Int, val lineNumber: Int = 0) extends StmtX
 
-class MethodStmtX(val op: Int, val method: MethodRef) extends StmtX
+class MethodStmtX(val op: Int, val method: MethodRef, val lineNumber: Int = 0) extends StmtX
 
-class TypeInsnX(val op: Int, val t: String) extends ValueX {
+class TypeInsnX(val op: Int, val t: String, val lineNumber: Int = 0) extends ValueX {
   def ti: TypeInfo[_] = {
     assert(op == CHECKCAST)
     // FIXME, ClassInfo should take the internal name
@@ -785,7 +775,7 @@ class TypeInsnX(val op: Int, val t: String) extends ValueX {
   }
 }
 
-class InsnX(val op: Int, _ti: TypeInfo[_]) extends ValueX {
+class InsnX(val op: Int, _ti: TypeInfo[_], val lineNumber: Int = 0) extends ValueX {
   def ti: TypeInfo[_] = {
     if (_ti != null)
       return _ti
@@ -859,26 +849,26 @@ class InsnX(val op: Int, _ti: TypeInfo[_]) extends ValueX {
   }
 }
 
-class LoadX(var l: Local) extends ValueX {
+class LoadX(var l: Local, val lineNumber: Int = 0) extends ValueX {
   def ti: TypeInfo[_] = l.ti
 }
 
-class GetFieldX(val op: Int, val f: FieldRef) extends ValueX {
+class GetFieldX(val op: Int, val f: FieldRef, val lineNumber: Int = 0) extends ValueX {
   def ti: TypeInfo[_] = f.ti
 }
 
-class NewArrayX(val eti: TypeInfo[_]) extends ValueX {
+class NewArrayX(val eti: TypeInfo[_], val lineNumber: Int = 0) extends ValueX {
   def ti: TypeInfo[_] = arrayInfo(eti)
 }
 
-class NewInstanceX(val ti: TypeInfo[_], val ctor: MethodRef) extends ValueX
+class NewInstanceX(val ti: TypeInfo[_], val ctor: MethodRef, val lineNumber: Int = 0) extends ValueX
 
-class LdcX(val a: Any, val ti: TypeInfo[_]) extends ValueX {
+class LdcX(val a: Any, val ti: TypeInfo[_], val lineNumber: Int = 0) extends ValueX {
   assert(
     a.isInstanceOf[String] || a.isInstanceOf[Double] || a.isInstanceOf[Float] || a.isInstanceOf[Int] || a.isInstanceOf[Long],
     s"not a string, double, float, int, or long: $a")
 }
 
-class MethodX(val op: Int, val method: MethodRef) extends ValueX {
+class MethodX(val op: Int, val method: MethodRef, val lineNumber: Int = 0) extends ValueX {
   def ti: TypeInfo[_] = method.returnTypeInfo
 }

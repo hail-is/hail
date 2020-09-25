@@ -1,6 +1,6 @@
-.PHONY: deployment.yaml build push deploy clean test
+include ../config.mk
 
-PROJECT = $(shell gcloud config get-value project)
+.PHONY: deployment.yaml build push deploy clean test
 
 IMAGE = gcr.io/$(PROJECT)/site:$(shell docker images -q --no-trunc site | sed -e 's,[^:]*:,,')
 

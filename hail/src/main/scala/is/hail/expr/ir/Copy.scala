@@ -59,18 +59,18 @@ object Copy {
       case MakeArray(args, typ) =>
         assert(args.length == newChildren.length)
         MakeArray(newChildren.map(_.asInstanceOf[IR]), typ)
-      case MakeStream(args, typ) =>
+      case MakeStream(args, typ, separateRegions) =>
         assert(args.length == newChildren.length)
-        MakeStream(newChildren.map(_.asInstanceOf[IR]), typ)
+        MakeStream(newChildren.map(_.asInstanceOf[IR]), typ, separateRegions)
       case ArrayRef(_, _, _) =>
         assert(newChildren.length == 3)
         ArrayRef(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
       case ArrayLen(_) =>
         assert(newChildren.length == 1)
         ArrayLen(newChildren(0).asInstanceOf[IR])
-      case StreamRange(_, _, _) =>
+      case StreamRange(_, _, _, separateRegions) =>
         assert(newChildren.length == 3)
-        StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
+        StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], separateRegions)
       case ArrayZeros(_) =>
         assert(newChildren.length == 1)
         ArrayZeros(newChildren(0).asInstanceOf[IR])
@@ -86,8 +86,8 @@ object Copy {
       case NDArrayConcat(_, axis) =>
         assert(newChildren.length ==  1)
         NDArrayConcat(newChildren(0).asInstanceOf[IR], axis)
-      case NDArrayRef(_, _) =>
-        NDArrayRef(newChildren(0).asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]))
+      case NDArrayRef(_, _, errorId) =>
+        NDArrayRef(newChildren(0).asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]), errorId)
       case NDArraySlice(_, _) =>
         assert(newChildren.length ==  2)
         NDArraySlice(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
@@ -111,6 +111,9 @@ object Copy {
       case NDArrayQR(_, mode) =>
         assert(newChildren.length == 1)
         NDArrayQR(newChildren(0).asInstanceOf[IR], mode)
+      case NDArraySVD(_, fullMatrices, computeUV) =>
+        assert(newChildren.length == 1)
+        NDArraySVD(newChildren(0).asInstanceOf[IR], fullMatrices, computeUV)
       case NDArrayInv(_) =>
         assert(newChildren.length == 1)
         NDArrayInv(newChildren(0).asInstanceOf[IR])
@@ -132,9 +135,9 @@ object Copy {
       case CastToArray(_) =>
         assert(newChildren.length == 1)
         CastToArray(newChildren(0).asInstanceOf[IR])
-      case ToStream(_) =>
+      case ToStream(_, separateRegions) =>
         assert(newChildren.length == 1)
-        ToStream(newChildren(0).asInstanceOf[IR])
+        ToStream(newChildren(0).asInstanceOf[IR], separateRegions)
       case LowerBoundOnOrderedCollection(_, _, asKey) =>
         assert(newChildren.length == 2)
         LowerBoundOnOrderedCollection(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], asKey)
@@ -276,9 +279,9 @@ object Copy {
         assert(newChildren.length == 1)
         GetTupleElement(newChildren(0).asInstanceOf[IR], idx)
       case In(i, t) => In(i, t)
-      case Die(_, typ) =>
+      case Die(_, typ, errorId) =>
         assert(newChildren.length == 1)
-        Die(newChildren(0).asInstanceOf[IR], typ)
+        Die(newChildren(0).asInstanceOf[IR], typ, errorId)
       case x@ApplyIR(fn, typeArgs, args) =>
         val r = ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]))
         r.conversion = x.conversion
@@ -337,9 +340,6 @@ object Copy {
         BlockMatrixWrite(newChildren(0).asInstanceOf[BlockMatrixIR], writer)
       case BlockMatrixMultiWrite(_, writer) =>
         BlockMatrixMultiWrite(newChildren.map(_.asInstanceOf[BlockMatrixIR]), writer)
-      case UnpersistBlockMatrix(child) =>
-        assert(newChildren.length == 1)
-        UnpersistBlockMatrix(newChildren(0).asInstanceOf[BlockMatrixIR])
       case CollectDistributedArray(_, _, cname, gname, _) =>
         assert(newChildren.length == 3)
         CollectDistributedArray(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], cname, gname, newChildren(2).asInstanceOf[IR])

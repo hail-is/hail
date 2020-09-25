@@ -33,6 +33,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   override val types: Array[PType] = fields.map(_.typ).toArray
 
   lazy val structFundamentalType: PStruct = PSubsetStruct(ps.structFundamentalType, _fieldNames)
+  lazy val structEncodableType: PStruct = PSubsetStruct(ps.structEncodableType, _fieldNames)
   override val byteSize: Long = 8
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
@@ -162,11 +163,6 @@ class PSubsetStructSettable(val pt: PSubsetStruct, a: Settable[Long]) extends PB
       pt.isFieldMissing(a, fieldIdx),
       pt.fields(fieldIdx).typ.load(pt.fieldOffset(a, fieldIdx)))
   }
-
-  def apply[T](i: Int): Value[T] =
-    new Value[T] {
-      def get: Code[T] = coerce[T](Region.loadIRIntermediate(pt.types(i))(pt.loadField(a, i)))
-    }
 
   def isFieldMissing(fieldIdx: Int): Code[Boolean] =
     pt.isFieldMissing(a, fieldIdx)

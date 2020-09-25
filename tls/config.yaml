@@ -50,6 +50,12 @@ principals:
 - name: ci-tests
   domain: ci-tests
   kind: json
+- name: memory
+  domain: memory
+  kind: json
+- name: memory-tests
+  domain: memory-tests
+  kind: json
 - name: query
   domain: query
   kind: json
@@ -58,6 +64,9 @@ principals:
   kind: json
 - name: query-tests
   domain: query-tests
+  kind: json
+- name: shuffler
+  domain: shuffler
   kind: json
 - name: image-fetcher
   domain: image-fetcher
@@ -70,4 +79,10 @@ principals:
   kind: json
 - name: address-tests
   domain: address-tests
+  kind: json
+- name: monitoring
+  domain: monitoring
+  kind: json
+- name: monitoring-tests
+  domain: monitoring-tests
   kind: json

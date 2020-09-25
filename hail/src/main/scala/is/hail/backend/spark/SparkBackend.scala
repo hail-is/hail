@@ -13,7 +13,7 @@ import is.hail.expr.ir._
 import is.hail.types.physical.{PStruct, PTuple, PType}
 import is.hail.types.virtual.{TStruct, TVoid, Type}
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
-import is.hail.io.fs.{HadoopFS}
+import is.hail.io.fs.HadoopFS
 import is.hail.utils._
 import is.hail.io.bgen.IndexBgen
 import org.json4s.DefaultFormats
@@ -29,8 +29,9 @@ import java.io.PrintWriter
 
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.VCFsReader
-import is.hail.linalg.RowMatrix
+import is.hail.linalg.{BlockMatrix, RowMatrix}
 import is.hail.stats.LinearMixedModel
+import is.hail.types.BlockMatrixType
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.storage.StorageLevel
 import org.json4s.JsonAST.{JInt, JObject}
@@ -225,6 +226,16 @@ class SparkBackend(
 
   val bmCache: SparkBlockMatrixCache = SparkBlockMatrixCache()
 
+  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = bmCache.persistBlockMatrix(id, value, storageLevel)
+
+  def unpersist(backendContext: BackendContext, id: String): Unit = unpersist(id)
+
+  def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix = bmCache.getPersistedBlockMatrix(id)
+
+  def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = bmCache.getPersistedBlockMatrixType(id)
+
+  def unpersist(id: String): Unit = bmCache.unpersistBlockMatrix(id)
+
   def withExecuteContext[T]()(f: ExecuteContext => T): T = {
     ExecuteContext.scoped(tmpdir, localTmpdir, this, fs)(f)
   }
@@ -256,13 +267,25 @@ class SparkBackend(
     case Right((pt, off)) => SafeRow(pt, off).get(0)
   }
 
-  def jvmLowerAndExecute(ir0: IR, optimize: Boolean, lowerTable: Boolean, lowerBM: Boolean, print: Option[PrintWriter] = None): (Any, ExecutionTimer) =
-    withExecuteContext() { ctx =>
-      val (l, r) = _jvmLowerAndExecute(ctx, ir0, optimize, lowerTable, lowerBM, print)
-      (executionResultToAnnotation(ctx, l), r)
-    }
+  def jvmLowerAndExecute(
+    ir0: IR,
+    optimize: Boolean,
+    lowerTable: Boolean,
+    lowerBM: Boolean,
+    print: Option[PrintWriter] = None
+  ): (Any, ExecutionTimer) = withExecuteContext() { ctx =>
+    val (l, r) = _jvmLowerAndExecute(ctx, ir0, optimize, lowerTable, lowerBM, print)
+    (executionResultToAnnotation(ctx, l), r)
+  }
 
-  private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir0: IR, optimize: Boolean, lowerTable: Boolean, lowerBM: Boolean, print: Option[PrintWriter] = None): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
+  private[this] def _jvmLowerAndExecute(
+    ctx: ExecuteContext,
+    ir0: IR,
+    optimize: Boolean,
+    lowerTable: Boolean,
+    lowerBM: Boolean,
+    print: Option[PrintWriter] = None
+  ): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
     val typesToLower: DArrayLowering.Type = (lowerTable, lowerBM) match {
       case (true, true) => DArrayLowering.All
       case (true, false) => DArrayLowering.TableOnly
@@ -301,8 +324,12 @@ class SparkBackend(
 
   def execute(ir: IR, optimize: Boolean): (Any, ExecutionTimer) =
     withExecuteContext() { ctx =>
+      val queryID = Backend.nextID()
+      log.info(s"starting execution of query $queryID} of initial size ${ IRSize(ir) }")
       val (l, r) = _execute(ctx, ir, optimize)
-      (executionResultToAnnotation(ctx, l), r)
+      val javaObjResult = ctx.timer.time("convertRegionValueToAnnotation")(executionResultToAnnotation(ctx, l))
+      log.info(s"finished execution of query $queryID")
+      (javaObjResult, r)
     }
 
   private[this] def _execute(ctx: ExecuteContext, ir: IR, optimize: Boolean): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
@@ -318,6 +345,15 @@ class SparkBackend(
     }
   }
 
+  def executeLiteral(ir: IR): IR = {
+    val t = ir.typ
+    assert(t.isRealizable)
+    val (value, timings) = execute(ir, optimize = true)
+    timings.finish()
+    timings.logInfo()
+    Literal.coerce(t, value)
+  }
+
   def executeJSON(ir: IR): String = {
     val t = ir.typ
     val (value, timings) = execute(ir, optimize = true)
@@ -328,6 +364,7 @@ class SparkBackend(
     Serialization.write(Map("value" -> jsonValue, "timings" -> timings.asMap()))(new DefaultFormats {})
   }
 
+  // Called from python
   def encodeToBytes(ir: IR, bufferSpecString: String): (String, Array[Byte]) = {
     val bs = BufferSpec.parseOrDefault(bufferSpecString)
     withExecuteContext() { ctx =>
@@ -527,7 +564,7 @@ class SparkBackend(
     }
   }
 
-  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Seq[(String, Type)]): TableStage = {
+  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
     // Use a local sort for the moment to enable larger pipelines to run
     LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
   }

@@ -73,6 +73,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(f(hl.eval(mt.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
             self.assertTrue(f(hl.eval(ht.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
 
+    @fails_local_backend()
     def test_head(self):
         # no empty partitions
         mt1 = hl.utils.range_matrix_table(10, 10)
@@ -99,6 +100,7 @@ class Tests(unittest.TestCase):
         assert mt1.head(1, None).count() == (1, 10)
         assert mt1.head(None, 1).count() == (10, 1)
 
+    @fails_local_backend()
     def test_tail(self):
         # no empty partitions
         mt1 = hl.utils.range_matrix_table(10, 10)
@@ -140,6 +142,7 @@ class Tests(unittest.TestCase):
         assert tail(30, None) == expected(30, 29)
         assert tail(30, 10) == expected(30, 10)
 
+    @fails_local_backend()
     def test_tail_scan(self):
         mt = hl.utils.range_matrix_table(30, 40)
         mt = mt.annotate_rows(i = hl.scan.count())
@@ -162,6 +165,7 @@ class Tests(unittest.TestCase):
         mt = mt.filter_entries((mt.z1 < 5) & (mt.y1 == 3) & (mt.x1 == 5) & (mt.foo == 2))
         mt.count_rows()
 
+    @fails_local_backend()
     def test_aggregate(self):
         mt = self.get_mt()
 
@@ -422,6 +426,7 @@ class Tests(unittest.TestCase):
         assert mt.semi_join_cols(ht).count() == (3, 3)
         assert mt.anti_join_cols(ht).count() == (3, 7)
 
+    @fails_local_backend()
     def test_joins(self):
         mt = self.get_mt().select_rows(x1=1, y1=1)
         mt2 = mt.select_rows(x2=1, y2=2)
@@ -440,6 +445,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(rt.all(rt.y2 == 2))
         self.assertTrue(ct.all(ct.c2 == 2))
 
+    @fails_local_backend()
     def test_joins_with_key_structs(self):
         mt = self.get_mt()
 
@@ -474,6 +480,7 @@ class Tests(unittest.TestCase):
         rows = left.rows()
         self.assertTrue(rows.all(rows.matches.map(lambda x: x.idx) == hl.range(0, rows.row_idx)))
 
+    @fails_local_backend()
     def test_naive_coalesce(self):
         mt = self.get_mt(min_partitions=8)
         self.assertEqual(mt.n_partitions(), 8)
@@ -489,6 +496,7 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_rows(x = hl.cond(hl.literal([1,2,3])[mt.row_idx] < hl.rand_unif(10, 11), mt.globals, hl.struct()))
         mt._force_count_rows()
 
+    @fails_local_backend()
     def test_globals_lowering(self):
         mt = hl.utils.range_matrix_table(1, 1).annotate_globals(x=1)
         lit = hl.literal(hl.utils.Struct(x = 0))
@@ -662,6 +670,7 @@ class Tests(unittest.TestCase):
                 rt['value'] == "IB",
                 hl.is_missing(rt['value']))))
 
+    @fails_local_backend()
     def test_interval_join(self):
         left = hl.utils.range_matrix_table(50, 1, n_partitions=10)
         intervals = hl.utils.range_table(4)
@@ -672,6 +681,7 @@ class Tests(unittest.TestCase):
                                  .when(rows.row_idx % 10 < 5, rows.interval_matches.idx == rows.row_idx // 10)
                                  .default(hl.is_missing(rows.interval_matches))))
 
+    @fails_local_backend()
     def test_interval_product_join(self):
         left = hl.utils.range_matrix_table(50, 1, n_partitions=8)
         intervals = hl.utils.range_table(25)
@@ -785,6 +795,7 @@ class Tests(unittest.TestCase):
               (df.GT == df.entry_struct.GT)) &
              (df.AD == df.entry_struct.AD))))
 
+    @fails_local_backend()
     def test_filter_partitions(self):
         ds = self.get_mt(min_partitions=8)
         self.assertEqual(ds.n_partitions(), 8)
@@ -808,6 +819,7 @@ class Tests(unittest.TestCase):
         ds_small = ds.sample_rows(0.01)
         self.assertTrue(ds_small.count_rows() < ds.count_rows())
 
+    @fails_local_backend()
     def test_read_stored_cols(self):
         ds = self.get_mt()
         ds = ds.annotate_globals(x='foo')
@@ -832,6 +844,7 @@ class Tests(unittest.TestCase):
         t = hl.read_table(f + '/globals')
         self.assertTrue(ds.globals_table()._same(t))
 
+    @fails_local_backend()
     def test_indexed_read(self):
         mt = hl.utils.range_matrix_table(2000, 100, 10)
         f = new_temp_file(extension='mt')
@@ -850,6 +863,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt2.n_partitions(), 3)
         self.assertTrue(mt.filter_rows((mt.row_idx >= 150) & (mt.row_idx < 500))._same(mt2))
 
+    @fails_local_backend()
     def test_indexed_read_vcf(self):
         vcf = self.get_mt(10)
         f = new_temp_file(extension='mt')
@@ -864,6 +878,7 @@ class Tests(unittest.TestCase):
         q = (vcf.locus >= l3) & (vcf.locus < l4)
         self.assertTrue(vcf.filter_rows(p | q)._same(mt))
 
+    @fails_local_backend()
     def test_codecs_matrix(self):
         from hail.utils.java import scala_object
         supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
@@ -884,6 +899,7 @@ class Tests(unittest.TestCase):
             rt2 = hl.read_table(temp)
             self.assertTrue(rt._same(rt2))
 
+    @fails_local_backend()
     def test_fix3307_read_mt_wrong(self):
         mt = hl.import_vcf(resource('sample2.vcf'))
         mt = hl.split_multi_hts(mt)
@@ -1128,6 +1144,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.Table.parallelize([actual]),
                         hl.Table.parallelize([expected]))
 
+    @fails_local_backend()
     def test_hardy_weinberg_test(self):
         mt = hl.import_vcf(resource('HWE_test.vcf'))
         mt = mt.select_rows(**hl.agg.hardy_weinberg_test(mt.GT))
@@ -1163,6 +1180,7 @@ class Tests(unittest.TestCase):
         rt = mt.rows()
         self.assertTrue(rt.all(rt.hw == rt.hw2))
 
+    @fails_local_backend()
     def test_write_stage_locally(self):
         mt = self.get_mt()
         f = new_temp_file(extension='mt')
@@ -1209,6 +1227,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(matrix1.union_cols(matrix2)._same(expected))
 
+    @fails_local_backend()
     def test_row_joins_into_table(self):
         rt = hl.utils.range_matrix_table(9, 13, 3)
         mt1 = rt.key_rows_by(idx=rt.row_idx)
@@ -1373,6 +1392,7 @@ class Tests(unittest.TestCase):
         assert [[x * y for x in range(0, 10)] for y in range(0, 10)] == localized.entries.collect()
         assert range(0, 10) == localized.cols.collect()
 
+    @fails_local_backend()
     def test_multi_write(self):
         mt = self.get_mt()
         f = new_temp_file()
@@ -1471,6 +1491,7 @@ class Tests(unittest.TestCase):
         mt.show(handler=assert_res)
 
 
+    @fails_local_backend()
     def test_partitioned_write(self):
         mt = hl.utils.range_matrix_table(40, 3, 5)
 
@@ -1510,6 +1531,7 @@ class Tests(unittest.TestCase):
         ],
                    mt.filter_rows((mt.row_idx >= 5) & (mt.row_idx < 35)))
 
+    @fails_local_backend()
     def test_partitioned_write_coerce(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         parts = [
@@ -1536,16 +1558,19 @@ class Tests(unittest.TestCase):
         with pytest.raises(hl.utils.FatalError, match='metadata does not contain file version'):
             hl.read_matrix_table(resource('0.1-1fd5cc7.vds'))
 
+    @fails_local_backend()
     def test_legacy_files_with_required_globals(self):
         hl.read_table(resource('required_globals.ht'))._force_count()
         hl.read_matrix_table(resource('required_globals.mt'))._force_count_rows()
 
+    @fails_local_backend()
     def test_matrix_native_write_range(self):
         mt = hl.utils.range_matrix_table(11, 3, n_partitions=3)
         f = new_temp_file()
         mt.write(f)
         assert hl.read_matrix_table(f)._same(mt)
 
+    @fails_local_backend()
     def test_matrix_multi_write_range(self):
         mts = [
             hl.utils.range_matrix_table(11, 27, n_partitions=10),
@@ -1574,6 +1599,20 @@ class Tests(unittest.TestCase):
         mt = mt.group_cols_by(x=mt.col_idx // 10).aggregate(c=hl.agg.count())
         assert mt.entries().collect() == [hl.Struct(row_idx=0, x=0, c=0)]
 
+    def test_invalid_field_ref_error(self):
+        mt = hl.balding_nichols_model(2, 5, 5)
+        mt2 = hl.balding_nichols_model(2, 5, 5)
+        with pytest.raises(hl.expr.ExpressionException, match='Found fields from 2 objects:'):
+            mt.annotate_entries(x = mt.GT.n_alt_alleles() * mt2.af)
+
+    def test_invalid_field_ref_annotate(self):
+        mt = hl.balding_nichols_model(2, 5, 5)
+        mt2 = hl.balding_nichols_model(2, 5, 5)
+        with pytest.raises(hl.expr.ExpressionException, match='source mismatch'):
+            mt.annotate_entries(x = mt2.af)
+
+
+@fails_local_backend()
 def test_read_write_all_types():
     mt = create_all_values_matrix_table()
     tmp_file = new_temp_file()

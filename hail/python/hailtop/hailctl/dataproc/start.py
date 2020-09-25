@@ -110,7 +110,7 @@ MACHINE_MEM = {
     'm1-ultramem-160': 3844,
     'm1-megamem-96': 1433,
     'm2-ultramem-2084': 5888,
-    'm2-ultramem-4164': 11,
+    'm2-ultramem-4164': 11776,
     'c2-standard-4': 16,
     'c2-standard-8': 32,
     'c2-standard-16': 64,
@@ -153,14 +153,14 @@ def init_parser(parser):
                         help='Disk size of master machine, in GB (default: %(default)s).')
     parser.add_argument('--num-master-local-ssds', default=0, type=int,
                         help='Number of local SSDs to attach to the master machine (default: %(default)s).')
-    parser.add_argument('--num-preemptible-workers', '--n-pre-workers', '-p', default=0, type=int,
-                        help='Number of preemptible worker machines (default: %(default)s).')
+    parser.add_argument('--num-secondary-workers', '--num-preemptible-workers', '--n-pre-workers', '-p', default=0, type=int,
+                        help='Number of secondary (preemptible) worker machines (default: %(default)s).')
     parser.add_argument('--num-worker-local-ssds', default=0, type=int,
                         help='Number of local SSDs to attach to each worker machine (default: %(default)s).')
     parser.add_argument('--num-workers', '--n-workers', '-w', default=2, type=int,
                         help='Number of worker machines (default: %(default)s).')
-    parser.add_argument('--preemptible-worker-boot-disk-size', default=40, type=int,
-                        help='Disk size of preemptible machines, in GB (default: %(default)s).')
+    parser.add_argument('--secondary-worker-boot-disk-size', '--preemptible-worker-boot-disk-size', default=40, type=int,
+                        help='Disk size of secondary (preemptible) worker machines, in GB (default: %(default)s).')
     parser.add_argument('--worker-boot-disk-size', default=40, type=int,
                         help='Disk size of worker machines, in GB (default: %(default)s).')
     parser.add_argument('--worker-machine-type', '--worker',
@@ -179,7 +179,9 @@ def init_parser(parser):
     parser.add_argument('--configuration',
                         help='Google Cloud configuration to start cluster (defaults to currently set configuration).')
     parser.add_argument('--max-idle', type=str, help='If specified, maximum idle time before shutdown (e.g. 60m).')
-    parser.add_argument('--max-age', type=str, help='If specified, maximum age before shutdown (e.g. 60m).')
+    max_age_group = parser.add_mutually_exclusive_group()
+    max_age_group.add_argument('--expiration-time', type=str, help='If specified, time at which cluster is shutdown (e.g. 2020-01-01T00:00:00Z).')
+    max_age_group.add_argument('--max-age', type=str, help='If specified, maximum age before shutdown (e.g. 60m).')
     parser.add_argument('--bucket', type=str,
                         help='The Google Cloud Storage bucket to use for cluster staging (just the bucket name, no gs:// prefix).')
     parser.add_argument('--network', type=str, help='the network for all nodes in this cluster')
@@ -207,6 +209,9 @@ def init_parser(parser):
     parser.add_argument('--requester-pays-allow-annotation-db',
                         action='store_true',
                         help="Allows reading from any of the requester-pays buckets that hold data for the annotation database.")
+    parser.add_argument('--debug-mode',
+                        action='store_true',
+                        help="Enable debug features on created cluster (heap dump on out-of-memory error)")
 
 
 def main(args, pass_through_args):
@@ -221,6 +226,12 @@ def main(args, pass_through_args):
     conf.extend_flag('properties', DEFAULT_PROPERTIES)
     if args.properties:
         conf.parse_and_extend('properties', args.properties)
+
+    if args.debug_mode:
+        conf.extend_flag('properties', {
+            "spark:spark.driver.extraJavaOptions": "-Xss4M -XX:+HeapDumpOnOutOfMemoryError",
+            "spark:spark.executor.extraJavaOptions": "-Xss4M -XX:+HeapDumpOnOutOfMemoryError",
+        })
 
     # default to highmem machines if using VEP
     if not args.worker_machine_type:
@@ -307,10 +318,10 @@ def main(args, pass_through_args):
     conf.flags['master-machine-type'] = args.master_machine_type
     conf.flags['master-boot-disk-size'] = '{}GB'.format(args.master_boot_disk_size)
     conf.flags['num-master-local-ssds'] = args.num_master_local_ssds
-    conf.flags['num-preemptible-workers'] = args.num_preemptible_workers
+    conf.flags['num-secondary-workers'] = args.num_secondary_workers
     conf.flags['num-worker-local-ssds'] = args.num_worker_local_ssds
     conf.flags['num-workers'] = args.num_workers
-    conf.flags['preemptible-worker-boot-disk-size'] = disk_size(args.preemptible_worker_boot_disk_size)
+    conf.flags['secondary-worker-boot-disk-size'] = disk_size(args.secondary_worker_boot_disk_size)
     conf.flags['worker-boot-disk-size'] = disk_size(args.worker_boot_disk_size)
     conf.flags['worker-machine-type'] = args.worker_machine_type
     if args.region:
@@ -344,6 +355,8 @@ def main(args, pass_through_args):
         cmd.append('--max-idle={}'.format(args.max_idle))
     if args.max_age:
         cmd.append('--max-age={}'.format(args.max_age))
+    if args.expiration_time:
+        cmd.append('--expiration_time={}'.format(args.expiration_time))
 
     cmd.extend(pass_through_args)
 

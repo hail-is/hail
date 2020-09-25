@@ -15,8 +15,7 @@ class SimplifyControl(m: Method) {
 
   def finalTarget(b0: Block): Block = {
     var b = b0
-    while (b.first != null &&
-      b.first.isInstanceOf[GotoX])
+    while (b.first.isInstanceOf[GotoX])
       b = b.first.asInstanceOf[GotoX].L
     b
   }
@@ -73,6 +72,14 @@ class SimplifyControl(m: Method) {
 
           // if there is one parent, it is L
           q += L
+
+          // if L is now a trivial jump, revisit parents to let them jump over L
+          if (L.first eq L.last) {
+            if (L eq m.entry)
+              m.setEntry(finalTarget(L))
+            else
+              L.uses.foreach(q += _._1.parent)
+          }
         }
 
       case x: GotoX =>
@@ -107,7 +114,7 @@ class SimplifyControl(m: Method) {
     for (b <- blocks) {
       if (b.first != null &&
         b.first.isInstanceOf[GotoX]) {
-        u.sameSet(
+        u.union(
           blocks.index(b),
           blocks.index(b.first.asInstanceOf[GotoX].L))
       }
@@ -115,10 +122,8 @@ class SimplifyControl(m: Method) {
 
     val rootFinalTarget = mutable.Map[Int, Block]()
     blocks.indices.foreach { i =>
-      val r = u.find(i)
-      if (r == i) {
-        val t = finalTarget(blocks(r))
-        rootFinalTarget(r) = t
+      if (!blocks(i).first.isInstanceOf[GotoX]) {
+        rootFinalTarget(u.find(i)) = blocks(i)
       }
     }
 
@@ -131,12 +136,16 @@ class SimplifyControl(m: Method) {
         i += 1
       }
     }
+
+    m.setEntry(finalTarget(m.entry))
   }
 
   def simplify(): Unit = {
     unify()
 
     val blocks = m.findBlocks()
+
+    assert(blocks.forall(!_.first.isInstanceOf[GotoX]))
 
     for (b <- blocks)
       q += b
@@ -146,5 +155,14 @@ class SimplifyControl(m: Method) {
       q -= b
       simplifyBlock(b)
     }
+
+    assert(m.findBlocks().forall { b =>
+      !b.first.isInstanceOf[GotoX] &&
+        (b.last match {
+          case i: IfX => i.Ltrue ne i.Lfalse
+          case g: GotoX => g.L.uses.size > 1 || (g.L eq m.entry)
+          case _ => true
+        })
+    })
   }
 }

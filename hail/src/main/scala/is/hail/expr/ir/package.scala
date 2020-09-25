@@ -16,6 +16,8 @@ import java.util.UUID
 package object ir {
   type TokenIterator = BufferedIterator[Token]
 
+  type IEmitCode = IEmitCodeGen[PCode]
+
   var uidCounter: Long = 0
 
   def genUID(): String = {
@@ -27,34 +29,6 @@ package object ir {
   def uuid4(): String = UUID.randomUUID().toString
 
   def genSym(base: String): Sym = Sym.gen(base)
-
-  def typeToTypeInfo(t: PType): TypeInfo[_] = t.fundamentalType match {
-    case _: PInt32 => typeInfo[Int]
-    case _: PInt64 => typeInfo[Long]
-    case _: PFloat32 => typeInfo[Float]
-    case _: PFloat64 => typeInfo[Double]
-    case _: PBoolean => typeInfo[Boolean]
-    case PVoid => typeInfo[Unit]
-    case _: PBinary => typeInfo[Long]
-    case _: PStream => classInfo[Iterator[RegionValue]]
-    case _: PBaseStruct => typeInfo[Long]
-    case _: PNDArray => typeInfo[Long]
-    case _: PContainer => typeInfo[Long]
-    case _ => throw new RuntimeException(s"unsupported type found, $t")
-  }
-
-  def defaultValue(t: PType): Code[_] = defaultValue(typeToTypeInfo(t))
-
-  def defaultValue(ti: TypeInfo[_]): Code[_] = ti match {
-    case UnitInfo => Code._empty
-    case BooleanInfo => false
-    case IntInfo => 0
-    case LongInfo => 0L
-    case FloatInfo => 0.0f
-    case DoubleInfo => 0.0
-    case _: ClassInfo[_] => Code._null
-    case ti => throw new RuntimeException(s"unsupported type found: $ti")
-  }
 
   // Build consistent expression for a filter-condition with keep polarity,
   // using Let to manage missing-ness.
@@ -160,6 +134,13 @@ package object ir {
     val elt = Ref(genUID(), coerce[TStream](stream.typ).elementType)
     val accum = Ref(genUID(), zero.typ)
     StreamFold(stream, zero, accum.name, elt.name, f(accum, elt))
+  }
+
+  def sortIR(stream: IR)(f: (Ref, Ref) => IR): IR = {
+    val t = coerce[TStream](stream.typ).elementType
+    val l = Ref(genUID(), t)
+    val r = Ref(genUID(), t)
+    ArraySort(stream, l.name, r.name, f(l, r))
   }
 
   def streamSumIR(stream: IR): IR = {

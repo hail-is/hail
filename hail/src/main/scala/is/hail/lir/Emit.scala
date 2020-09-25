@@ -14,7 +14,7 @@ import scala.collection.mutable
 object Emit {
   def asBytes(cn: ClassNode, print: Option[PrintWriter]): Array[Byte] = {
     val bytes = try {
-      for (method <- cn.methods.asInstanceOf[java.util.List[MethodNode]].asScala) {
+      for (method <- cn.methods.asScala) {
         val count = method.instructions.size
         log.info(s"instruction count: $count: ${ cn.name }.${ method.name }")
         if (count > 8000)
@@ -45,9 +45,10 @@ object Emit {
   def emit(cn: ClassNode, m: Method): Unit = {
     val blocks = m.findBlocks()
     val static = if (m.isStatic) ACC_STATIC else 0
+    val debugInformation: Boolean = cn.sourceFile != null
 
     val mn = new MethodNode(ACC_PUBLIC | static, m.name, m.desc, null, null)
-    cn.methods.asInstanceOf[java.util.List[MethodNode]].add(mn)
+    cn.methods.add(mn)
 
     val labelNodes = blocks.map(L => L -> new LabelNode).toMap
 
@@ -82,7 +83,7 @@ object Emit {
           else
             l.name,
           l.ti.desc, null, start, end, n)
-        mn.localVariables.asInstanceOf[java.util.List[LocalVariableNode]].add(ln)
+        mn.localVariables.add(ln)
         n += l.ti.slots
       }
     }
@@ -97,18 +98,36 @@ object Emit {
     }
 
     var maxStack = 0
+    var curLineNumber = -1
+
+    def setLineNumber(n: Int): Unit = {
+      if (debugInformation && n != curLineNumber) {
+        curLineNumber = n
+        val L = new LabelNode()
+        mn.instructions.add(L)
+        mn.instructions.add(new LineNumberNode(curLineNumber, L))
+      }
+    }
+
     def emitX(x: X, depth: Int): Unit = {
       x match {
         case x: NewInstanceX =>
+          setLineNumber(x.lineNumber)
+
           mn.instructions.add(new TypeInsnNode(NEW, x.ti.iname))
           mn.instructions.add(new InsnNode(DUP))
+
           var i = 0
           while (i < x.children.length) {
             emitX(x.children(i), depth + 2 + i)
             i += 1
-	  }
-	  if (depth + 2 > maxStack)
-	    maxStack = depth + 2
+          }
+
+          if (depth + 2 > maxStack)
+            maxStack = depth + 2
+
+          setLineNumber(x.lineNumber)
+
           mn.instructions.add(
             new MethodInsnNode(INVOKESPECIAL,
               x.ctor.owner, x.ctor.name, x.ctor.desc, x.ctor.isInterface))
@@ -121,6 +140,8 @@ object Emit {
         emitX(x.children(i), depth + i)
         i += 1
       }
+
+      setLineNumber(x.lineNumber)
 
       if (depth + 1 > maxStack)
         maxStack = depth + 1
@@ -199,17 +220,19 @@ object Emit {
     cn.version = V1_8
     cn.access = ACC_PUBLIC
 
+    c.sourceFile.foreach(cn.sourceFile = _)
+
     cn.name = c.name
     cn.superName = c.superName
     for (intf <- c.interfaces)
-      cn.interfaces.asInstanceOf[java.util.List[String]].add(intf)
+      cn.interfaces.add(intf)
 
     for (f <- c.fields) {
       val fn = f match {
         case f: Field => new FieldNode(ACC_PUBLIC, f.name, f.ti.desc, null, null)
         case f: StaticField => new FieldNode(ACC_PUBLIC | ACC_STATIC, f.name, f.ti.desc, null, null)
       }
-      cn.fields.asInstanceOf[java.util.List[FieldNode]].add(fn)
+      cn.fields.add(fn)
     }
 
     for (m <- c.methods) {

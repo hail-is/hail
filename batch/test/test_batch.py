@@ -8,10 +8,12 @@ import time
 import unittest
 import aiohttp
 import requests
+import json
 
 from hailtop.config import get_deploy_config
-from hailtop.auth import service_auth_headers
-from hailtop.utils import retry_response_returning_functions
+from hailtop.auth import service_auth_headers, get_userinfo
+from hailtop.utils import (retry_response_returning_functions,
+                           external_requests_client_session)
 from hailtop.batch_client.client import BatchClient, Job
 
 from .utils import legacy_batch_status
@@ -39,6 +41,16 @@ class Test(unittest.TestCase):
 
     def tearDown(self):
         self.client.close()
+
+    def test_get_billing_project(self):
+        r = self.client.get_billing_project('test')
+        assert r['billing_project'] == 'test', r
+        assert r['users'] == ['test'], r
+
+    def test_list_billing_projects(self):
+        r = self.client.list_billing_projects()
+        assert len(r) == 1
+        assert r[0]['billing_project'] == 'test', r
 
     def test_job(self):
         builder = self.client.create_batch()
@@ -405,20 +417,23 @@ class Test(unittest.TestCase):
         self.assertTrue(j.is_complete())
 
     def test_authorized_users_only(self):
+        session = external_requests_client_session()
         endpoints = [
-            (requests.get, '/api/v1alpha/batches/0/jobs/0', 401),
-            (requests.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
-            (requests.get, '/api/v1alpha/batches', 401),
-            (requests.post, '/api/v1alpha/batches/create', 401),
-            (requests.post, '/api/v1alpha/batches/0/jobs/create', 401),
-            (requests.get, '/api/v1alpha/batches/0', 401),
-            (requests.delete, '/api/v1alpha/batches/0', 401),
-            (requests.patch, '/api/v1alpha/batches/0/close', 401),
+            (session.get, '/api/v1alpha/billing_projects', 401),
+            (session.get, '/api/v1alpha/billing_projects/foo', 401),
+            (session.get, '/api/v1alpha/batches/0/jobs/0', 401),
+            (session.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
+            (session.get, '/api/v1alpha/batches', 401),
+            (session.post, '/api/v1alpha/batches/create', 401),
+            (session.post, '/api/v1alpha/batches/0/jobs/create', 401),
+            (session.get, '/api/v1alpha/batches/0', 401),
+            (session.delete, '/api/v1alpha/batches/0', 401),
+            (session.patch, '/api/v1alpha/batches/0/close', 401),
             # redirect to auth/login
-            (requests.get, '/batches', 302),
-            (requests.get, '/batches/0', 302),
-            (requests.post, '/batches/0/cancel', 401),
-            (requests.get, '/batches/0/jobs/0', 302)]
+            (session.get, '/batches', 302),
+            (session.get, '/batches/0', 302),
+            (session.post, '/batches/0/cancel', 401),
+            (session.get, '/batches/0/jobs/0', 302)]
         for method, url, expected in endpoints:
             full_url = deploy_config.url('batch', url)
             r = retry_response_returning_functions(
@@ -440,8 +455,8 @@ class Test(unittest.TestCase):
 
     def test_gcr_image(self):
         builder = self.client.create_batch()
-        j = builder.create_job(os.environ['HAIL_BASE_IMAGE'], ['echo', 'test'])
-        b = builder.submit()
+        j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['echo', 'test'])
+        builder.submit()
         status = j.wait()
 
         self.assertEqual(status['state'], 'Success', (status, j.log()))
@@ -538,9 +553,10 @@ echo $HAIL_BATCH_WORKER_IP
         ]
         url = deploy_config.url('batch', '/api/v1alpha/batches/create')
         headers = service_auth_headers(deploy_config, 'batch')
+        session = external_requests_client_session()
         for config in bad_configs:
             r = retry_response_returning_functions(
-                requests.post,
+                session.post,
                 url,
                 json=config,
                 allow_redirects=True,
@@ -557,3 +573,99 @@ echo $HAIL_BATCH_WORKER_IP
             assert e.status == 400
         else:
             assert False, f'should receive a 400 Bad Request {batch.id}'
+
+    def test_verify_no_access_to_metadata_server(self):
+        builder = self.client.create_batch()
+        j = builder.create_job(os.environ['HAIL_CURL_IMAGE'],
+                               ['curl', '-fsSL', 'metadata.google.internal', '--max-time', '10'])
+        builder.submit()
+        status = j.wait()
+        assert status['state'] == 'Failed', status
+        assert "Connection timed out" in j.log()['main'], (j.log()['main'], status)
+
+    def test_user_authentication_within_job(self):
+        batch = self.client.create_batch()
+        cmd = ['bash', '-c', 'hailctl auth user']
+        with_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=True)
+        no_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=False)
+        batch.submit()
+
+        with_token_status = with_token.wait()
+        assert with_token_status['state'] == 'Success', with_token_status
+
+        username = get_userinfo()['username']
+
+        try:
+            job_userinfo = json.loads(with_token.log()['main'].strip())
+        except Exception:
+            job_userinfo = None
+        assert job_userinfo is not None and job_userinfo["username"] == username, (username, with_token.log()['main'])
+
+        no_token_status = no_token.wait()
+        assert no_token_status['state'] == 'Failed', no_token_status
+
+    def test_verify_access_to_public_internet(self):
+        builder = self.client.create_batch()
+        j = builder.create_job(os.environ['HAIL_CURL_IMAGE'],
+                               ['curl', '-fsSL', 'example.com'])
+        builder.submit()
+        status = j.wait()
+        assert status['state'] == 'Success', status
+
+    def test_verify_can_tcp_to_localhost(self):
+        builder = self.client.create_batch()
+        script = '''
+set -e
+nc -l -p 5000 &
+sleep 5
+echo "hello" | nc -q 1 localhost 5000
+'''.lstrip('\n')
+        j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
+                               command=['/bin/bash', '-c', script])
+        builder.submit()
+        status = j.wait()
+        assert status['state'] == 'Success', (j.log()['main'], status)
+        assert 'hello\n' == j.log()['main']
+
+    def test_verify_can_tcp_to_127_0_0_1(self):
+        builder = self.client.create_batch()
+        script = '''
+set -e
+nc -l -p 5000 &
+sleep 5
+echo "hello" | nc -q 1 127.0.0.1 5000
+'''.lstrip('\n')
+        j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
+                               command=['/bin/bash', '-c', script])
+        builder.submit()
+        status = j.wait()
+        assert status['state'] == 'Success', (j.log()['main'], status)
+        assert 'hello\n' == j.log()['main']
+
+    def test_verify_can_tcp_to_self_ip(self):
+        builder = self.client.create_batch()
+        script = '''
+set -e
+nc -l -p 5000 &
+sleep 5
+echo "hello" | nc -q 1 $(hostname -i) 5000
+'''.lstrip('\n')
+        j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
+                               command=['/bin/sh', '-c', script])
+        builder.submit()
+        status = j.wait()
+        assert status['state'] == 'Success', (j.log()['main'], status)
+        assert 'hello\n' == j.log()['main']
+
+    def test_verify_private_network_is_restricted(self):
+        builder = self.client.create_batch()
+        builder.create_job(os.environ['HAIL_CURL_IMAGE'],
+                           command=['curl', 'internal.hail', '--connect-timeout', '60'],
+                           network='private')
+        try:
+            builder.submit()
+        except aiohttp.ClientResponseError as err:
+            assert err.status == 400
+            assert 'unauthorized network private' in err.message
+        else:
+            assert False

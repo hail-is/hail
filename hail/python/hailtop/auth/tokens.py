@@ -21,7 +21,7 @@ class Tokens(collections.abc.MutableMapping):
         tokens_file = self.get_tokens_file()
         if os.path.isfile(tokens_file):
             with open(tokens_file, 'r') as f:
-                self._tokens = json.loads(f.read())
+                self._tokens = json.load(f)
             log.info(f'tokens loaded from {tokens_file}')
         else:
             log.info(f'tokens file not found: {tokens_file}')
@@ -61,7 +61,7 @@ to obtain new credentials.
     def write(self):
         # restrict permissions to user
         with os.fdopen(os.open(self.get_tokens_file(), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600), 'w') as f:
-            f.write(json.dumps(self._tokens))
+            json.dump(self._tokens, f)
 
 
 tokens = None

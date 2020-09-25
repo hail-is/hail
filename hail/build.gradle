@@ -22,7 +22,6 @@ repositories {
     mavenCentral()
     jcenter()
     maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
-    maven { url "https://repo.hortonworks.com/content/repositories/releases/" }
     maven { url "https://repo.spring.io/plugins-release/" }
 }
 
@@ -59,7 +58,7 @@ sourceSets {
 }
 
 compileJava {
-    options.compilerArgs << "-Xlint:all" << "-Werror" << "-XDenableSunApiLintControl"
+    options.compilerArgs << "-Xlint:all" << "-Werror" << "-XDenableSunApiLintControl" << "-Xlint:-sunapi"
 }
 tasks.withType(JavaCompile) {
     options.fork = true // necessary to make -XDenableSunApiLintControl work
@@ -70,6 +69,13 @@ task releaseJar(type: Exec) {
 }
 
 compileScala {
+    options.compilerArgs <<
+        "-Xlint:all" <<
+        "-Werror" <<
+        "-XDenableSunApiLintControl" <<
+        "-Xlint:-sunapi" <<
+        "-Xlint:-path" // Apparently we try to find some libraries that aren't always installed
+
     scalaCompileOptions.additionalParameters = [
         "-target:jvm-1.8",
         "-feature",
@@ -93,7 +99,7 @@ compileScala {
 
 project.ext {
     cachedBreezeVersion = null
-    
+
     sparkVersion = System.getProperty("spark.version", "2.4.5")
     scalaVersion = System.getProperty("scala.version", "2.11.12")
     scalaMajorVersion = (scalaVersion =~ /^\d+.\d+/)[0]
@@ -106,7 +112,7 @@ String breezeVersion() {
 	def module = artifact.getModuleVersion().getId()
 	if (module.getGroup() == 'org.scalanlp'
 	  && module.getName() == 'breeze_' + scalaMajorVersion) {
-	    cachedBreezeVersion = module.getVersion()	    
+	    cachedBreezeVersion = module.getVersion()
 	}
     }
     if (cachedBreezeVersion == null) {

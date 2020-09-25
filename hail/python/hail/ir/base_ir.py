@@ -4,6 +4,15 @@ from hail.utils.java import Env
 from .renderer import Renderer, PlainRenderer, Renderable
 
 
+counter = 0
+
+
+def get_next_int():
+    global counter
+    counter = counter + 1
+    return counter
+
+
 def _env_bind(env, bindings):
     if bindings:
         if env:
@@ -21,6 +30,8 @@ class BaseIR(Renderable):
         super().__init__()
         self._type = None
         self.children = children
+        self._error_id = None
+        self._stack_trace = None
 
     def __str__(self):
         r = PlainRenderer(stop_at_jir=False)
@@ -177,6 +188,40 @@ class BaseIR(Renderable):
     @property
     def free_scan_vars(self):
         return set()
+
+    def base_search(self, criteria):
+        others = [node for child in self.children if isinstance(child, BaseIR) for node in child.base_search(criteria)]
+        if criteria(self):
+            return others + [self]
+        return others
+
+    def save_error_info(self):
+        self._error_id = get_next_int()
+
+        import traceback
+        stack = traceback.format_stack()
+        i = len(stack)
+        while i > 0:
+            candidate = stack[i - 1]
+            if 'IPython' in candidate:
+                break
+            i -= 1
+
+        forbidden_phrases = [
+            '_ir_lambda_method',
+            'decorator.py',
+            'decorator-gen',
+            'typecheck/check',
+            'interactiveshell.py',
+            'expressions.construct_variable',
+            'traceback.format_stack()'
+        ]
+        filt_stack = [
+            candidate for candidate in stack[i:]
+            if not any(phrase in candidate for phrase in forbidden_phrases)
+        ]
+
+        self._stack_trace = '\n'.join(filt_stack)
 
 
 class IR(BaseIR):
@@ -343,9 +388,6 @@ class BlockMatrixIR(BaseIR):
 
     def renderable_new_block(self, i: int) -> bool:
         return True
-
-    def unpersisted(self):
-        return self
 
 
 class JIRVectorReference(object):

@@ -56,6 +56,8 @@ class ExecuteContext(
 
   private val tmpPaths = mutable.ArrayBuffer[String]()
 
+  val memo: mutable.Map[Any, Any] = new mutable.HashMap[Any, Any]()
+
   def createTmpPath(prefix: String, extension: String = null): String = {
     val path = ExecuteContext.createTmpPathNoCleanup(tmpdir, prefix, extension)
     tmpPaths += path

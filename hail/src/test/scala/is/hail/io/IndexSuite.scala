@@ -44,7 +44,7 @@ class IndexSuite extends HailSuite {
 
     val iw = IndexWriter.builder(ctx, keyType, annotationType, branchingFactor, attributes)(file)
     data.zip(annotations).zipWithIndex.foreach { case ((s, a), offset) =>
-      iw += (s, offset, a)
+      iw.appendRow(s, offset, a)
     }
     iw.close()
   }

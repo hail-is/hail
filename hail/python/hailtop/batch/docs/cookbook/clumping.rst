@@ -88,7 +88,7 @@ The following Docker command builds this image:
     docker build -t 1kg-gwas -f Dockerfile .
 
 Batch can only access images pushed to a Docker repository. You have two repositories available to
-you: the public Dockerhub repository and your project's private Google Container Repository (GCR).
+you: the public Docker Hub repository and your project's private Google Container Repository (GCR).
 It is **not** advisable to put credentials inside any Docker image, even if it is only pushed to a
 private repository.
 
@@ -193,7 +193,7 @@ The return value is the new :class:`.Job` created.
 A couple of things to note about this function:
 
  - We use the image ``hailgenetics/genetics`` which is a publicly available Docker
-   image from Dockerhub maintained by the Hail team that contains many useful bioinformatics
+   image from Docker Hub maintained by the Hail team that contains many useful bioinformatics
    tools including PLINK.
 
  - We explicitly tell PLINK to only use 1Gi of memory because PLINK defaults to using half

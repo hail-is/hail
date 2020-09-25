@@ -22,4 +22,4 @@ def lgt_to_gt(lgt, la):
     -----
     This function assumes diploid genotypes.
     """
-    return hl.call(la[lgt[0]], la[lgt[1]])
+    return hl.call(la[lgt[0]], la[lgt[1]], phased=lgt.phased)

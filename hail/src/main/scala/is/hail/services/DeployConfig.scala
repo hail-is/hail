@@ -1,15 +1,20 @@
 package is.hail.services
 
 import java.io.{File, FileInputStream}
+import java.net.{Socket, ConnectException}
 
 import is.hail.utils._
+import is.hail.services.tls._
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.apache.http.client.methods._
+import org.apache.log4j.Logger
 
 import scala.util.Random
 
 object DeployConfig {
+  private[this] val log = Logger.getLogger("DeployConfig")
+
   lazy val get: DeployConfig = fromConfigFile()
 
   def fromConfigFile(file0: String = null): DeployConfig = {
@@ -54,6 +59,7 @@ class DeployConfig(
   val location: String,
   val defaultNamespace: String,
   val serviceNamespace: Map[String, String]) {
+  import DeployConfig._
 
   def scheme(baseScheme: String = "http"): String = {
     if (location == "external" || location == "k8s")
@@ -115,5 +121,32 @@ class DeployConfig(
     val n = serviceAddresses.length
     assert(n > 0)
     serviceAddresses(Random.nextInt(n))
+  }
+
+  def socket(service: String): Socket = {
+    val (host, port) = location match {
+      case "k8s" | "gce" =>
+        address(service)
+      case "external" =>
+        throw new IllegalStateException(
+          s"Cannot open a socket from an external client to a service.")
+    }
+    log.info(s"attempting to connect ${service} at ${host}:${port}")
+    var s: Socket = null
+    var attempts = 0
+    while (s == null) {
+      try {
+        s = getSSLContext.getSocketFactory().createSocket(host, port)
+      } catch {
+        case e: ConnectException =>
+          if (attempts % 10 == 0) {
+            log.warn(s"retrying socket connect to ${host}:${port} after receiving ${e}")
+          }
+          attempts += 1
+      }
+    }
+    assert(s != null)
+    log.info(s"connected to ${service} at ${host}:${port}")
+    s
   }
 }

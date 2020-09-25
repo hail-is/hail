@@ -4,7 +4,7 @@ import hail as hl
 from hail.experimental.vcf_combiner import vcf_combiner as vc
 from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
-from ..helpers import resource, startTestHailContext, stopTestHailContext
+from ..helpers import resource, startTestHailContext, stopTestHailContext, fails_local_backend
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -22,6 +22,7 @@ all_samples = ['HG00308', 'HG00592', 'HG02230', 'NA18534', 'NA20760',
                'NA20796', 'HG00323', 'HG01384', 'NA18613', 'NA20802']
 
 
+@fails_local_backend()
 def test_1kg_chr22():
     out_file = new_temp_file(extension='mt')
 
@@ -32,7 +33,8 @@ def test_1kg_chr22():
                     tmp_path=Env.hc()._tmpdir,
                     branch_factor=2,
                     batch_size=2,
-                    reference_genome='GRCh38')
+                    reference_genome='GRCh38',
+                    use_exome_default_intervals=True)
 
     sample_data = dict()
     for sample, path in zip(sample_names, paths):
@@ -52,16 +54,22 @@ def test_1kg_chr22():
         assert n == true_n, sample
         assert n_variant == true_n_variant, sample
 
+def default_exome_intervals(rg):
+    return vc.calculate_even_genome_partitioning(rg, 2 ** 32)  # 4 billion, larger than any contig
+
+@fails_local_backend()
 def test_gvcf_1k_same_as_import_vcf():
     path = os.path.join(resource('gvcfs'), '1kg_chr22', f'HG00308.hg38.g.vcf.gz')
-    [mt] = hl.import_gvcfs([path], vc.default_exome_intervals('GRCh38'), reference_genome='GRCh38')
+    [mt] = hl.import_gvcfs([path], default_exome_intervals('GRCh38'), reference_genome='GRCh38')
     assert mt._same(hl.import_vcf(path, force_bgz=True, reference_genome='GRCh38').key_rows_by('locus'))
 
+@fails_local_backend()
 def test_gvcf_subset_same_as_import_vcf():
     path = os.path.join(resource('gvcfs'), 'subset', f'HG00187.hg38.g.vcf.gz')
-    [mt] = hl.import_gvcfs([path], vc.default_exome_intervals('GRCh38'), reference_genome='GRCh38')
+    [mt] = hl.import_gvcfs([path], default_exome_intervals('GRCh38'), reference_genome='GRCh38')
     assert mt._same(hl.import_vcf(path, force_bgz=True, reference_genome='GRCh38').key_rows_by('locus'))
 
+@fails_local_backend()
 def test_key_by_locus_alleles():
     out_file = new_temp_file(extension='mt')
 
@@ -71,13 +79,15 @@ def test_key_by_locus_alleles():
                     out_file=out_file,
                     tmp_path=Env.hc()._tmpdir,
                     reference_genome='GRCh38',
-                    key_by_locus_and_alleles=True)
+                    key_by_locus_and_alleles=True,
+                    use_exome_default_intervals=True)
 
     mt = hl.read_matrix_table(out_file)
     assert(list(mt.row_key) == ['locus', 'alleles'])
     mt._force_count_rows()
 
 
+@fails_local_backend()
 def test_non_ref_alleles_set_to_missing():
     path = os.path.join(resource('gvcfs'), 'non_ref_call.g.vcf.gz')
     out_file = new_temp_file(extension='mt')
@@ -86,7 +96,8 @@ def test_non_ref_alleles_set_to_missing():
                     tmp_path=Env.hc()._tmpdir,
                     branch_factor=2,
                     batch_size=2,
-                    reference_genome='GRCh38')
+                    reference_genome='GRCh38',
+                    use_exome_default_intervals=True)
 
     mt = hl.read_matrix_table(out_file)
     n_alleles = hl.len(mt.alleles)
@@ -94,6 +105,7 @@ def test_non_ref_alleles_set_to_missing():
     assert mt.aggregate_entries(
         hl.agg.all(gt_idx < (n_alleles * (n_alleles + 1)) / 2))
 
+@fails_local_backend()
 def test_contig_recoding():
     path1 = os.path.join(resource('gvcfs'), 'recoding', 'HG00187.hg38.g.vcf.gz')
     path2 = os.path.join(resource('gvcfs'), 'recoding', 'HG00187.hg38.recoded.g.vcf.gz')
@@ -101,11 +113,38 @@ def test_contig_recoding():
     out_file_1 = new_temp_file(extension='mt')
     out_file_2 = new_temp_file(extension='mt')
 
-    vc.run_combiner([path1, path1], out_file_1, Env.hc()._tmpdir, reference_genome='GRCh38')
-    vc.run_combiner([path2, path2], out_file_2, Env.hc()._tmpdir, reference_genome='GRCh38', contig_recoding={'22': 'chr22'})
+    vc.run_combiner([path1, path1], out_file_1,
+                    Env.hc()._tmpdir,
+                    reference_genome='GRCh38',
+                    use_exome_default_intervals=True)
+    vc.run_combiner([path2, path2], out_file_2,
+                    Env.hc()._tmpdir,
+                    reference_genome='GRCh38',
+                    contig_recoding={'22': 'chr22'},
+                    use_exome_default_intervals=True)
 
     mt1 = hl.read_matrix_table(out_file_1)
     mt2 = hl.read_matrix_table(out_file_2)
 
     assert mt1.count() == mt2.count()
     assert mt1._same(mt2)
+
+@fails_local_backend()
+def test_sample_override():
+    out_file = new_temp_file(extension='mt')
+
+    sample_names = all_samples[:5]
+    new_names = [f'S{i}' for i, _ in enumerate(sample_names)]
+    paths = [os.path.join(resource('gvcfs'), '1kg_chr22', f'{s}.hg38.g.vcf.gz') for s in sample_names]
+    header_path = paths[0]
+    vc.run_combiner(paths,
+                    out_file=out_file,
+                    tmp_path=Env.hc()._tmpdir,
+                    reference_genome='GRCh38',
+                    header=header_path,
+                    sample_names=new_names,
+                    key_by_locus_and_alleles=True,
+                    use_exome_default_intervals=True)
+    mt_cols = hl.read_matrix_table(out_file).key_cols_by().cols()
+    mt_names = mt_cols.aggregate(hl.agg.collect(mt_cols.s))
+    assert new_names == mt_names

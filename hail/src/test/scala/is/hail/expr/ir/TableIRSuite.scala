@@ -14,13 +14,6 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
 class TableIRSuite extends HailSuite {
-  def rangeKT: TableIR = TableKeyBy(TableRange(20, 4), FastIndexedSeq())
-
-  def collect(tir: TableIR): IR =
-    TableAggregate(tir, MakeStruct(FastSeq(
-      "rows" -> IRAggCollect(Ref("row", tir.typ.rowType)),
-      "global" -> Ref("global", tir.typ.globalType))))
-  def collectNoKey(tir: TableIR): IR = TableCollect(tir)
 
   implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.LoweredJVMCompile)
 
@@ -971,6 +964,25 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(x, Row(
       (0 until 10).map(i => Row(i, "foo")),
       0 until 5))
+  }
+
+  @Test def testTableScanCollect(): Unit = {
+    implicit val execStrats = ExecStrategy.allRelational
+    var tir: TableIR = TableRange(5, 3)
+    tir = TableMapRows(tir,
+      InsertFields(Ref("row", tir.typ.rowType),
+      FastSeq("scans" -> MakeTuple.ordered(FastSeq(ApplyScanOp(Count())(), ApplyScanOp(Collect())(GetField(Ref("row", tir.typ.rowType), "idx")))))))
+    val x = TableAggregate(tir,
+        ApplyAggOp(Collect())(Ref("row", tir.typ.rowType))
+      )
+
+    assertEvalsTo(x, FastIndexedSeq(
+      Row(0, Row(0L, FastIndexedSeq())),
+      Row(1, Row(1L, FastIndexedSeq(0))),
+      Row(2, Row(2L, FastIndexedSeq(0,1))),
+      Row(3, Row(3L, FastIndexedSeq(0,1,2))),
+      Row(4, Row(4L, FastIndexedSeq(0,1,2,3)))
+    ))
   }
 
   @Test def testIssue9016() {

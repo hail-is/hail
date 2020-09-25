@@ -2,7 +2,7 @@ package is.hail.types.encoded
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.BaseType
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -13,14 +13,12 @@ case object EBinaryOptional extends EBinary(false)
 case object EBinaryRequired extends EBinary(true)
 
 class EBinary(override val required: Boolean) extends EFundamentalType {
-  def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
     val addr = coerce[Long](v)
-    val len = mb.newLocal[Int]("len")
     val bT = pt.asInstanceOf[PBinary]
-    Code(
-      len := bT.loadLength(addr),
-      out.writeInt(len),
-      out.writeBytes(bT.bytesAddress(addr), len))
+    val len = cb.newLocal[Int]("len", bT.loadLength(addr))
+    cb += out.writeInt(len)
+    cb += out.writeBytes(bT.bytesAddress(addr), len)
   }
 
   def _buildFundamentalDecoder(
@@ -40,11 +38,8 @@ class EBinary(override val required: Boolean) extends EFundamentalType {
       barray.load())
   }
 
-  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
-    val len = mb.newLocal[Int]("len")
-    Code(
-      len := in.readInt(),
-      in.skipBytes(len))
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+    cb += in.skipBytes(in.readInt())
   }
 
   override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PBinary]

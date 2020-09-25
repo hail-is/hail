@@ -4,11 +4,13 @@ from .utils import (
     bounded_gather, grouped, sleep_and_backoff, is_transient_error,
     request_retry_transient_errors, request_raise_transient_errors,
     collect_agen, retry_all_errors, retry_transient_errors,
-    retry_long_running, run_if_changed, LoggingTimer,
+    retry_long_running, run_if_changed, run_if_changed_idempotent, LoggingTimer,
     WaitableSharedPool, RETRY_FUNCTION_SCRIPT, sync_retry_transient_errors,
     retry_response_returning_functions, first_extant_file, secret_alnum_string,
-    flatten, partition)
-from .process import CalledProcessError, check_shell, check_shell_output
+    flatten, partition, cost_str, external_requests_client_session)
+from .process import (
+    CalledProcessError, check_shell, check_shell_output, sync_check_shell,
+    sync_check_shell_output)
 from .tqdm import tqdm, TQDM_DEFAULT_DISABLE
 from .rates import (
     rate_cpu_hour_to_mcpu_msec, rate_gib_hour_to_mib_msec, rate_gib_month_to_mib_msec,
@@ -28,6 +30,8 @@ __all__ = [
     'CalledProcessError',
     'check_shell',
     'check_shell_output',
+    'sync_check_shell',
+    'sync_check_shell_output',
     'bounded_gather',
     'grouped',
     'is_transient_error',
@@ -36,6 +40,7 @@ __all__ = [
     'retry_transient_errors',
     'retry_long_running',
     'run_if_changed',
+    'run_if_changed_idempotent',
     'LoggingTimer',
     'WaitableSharedPool',
     'request_retry_transient_errors',
@@ -54,5 +59,7 @@ __all__ = [
     'rate_instance_hour_to_fraction_msec',
     'RateLimit',
     'RateLimiter',
-    'partition'
+    'partition',
+    'cost_str',
+    'external_requests_client_session'
 ]

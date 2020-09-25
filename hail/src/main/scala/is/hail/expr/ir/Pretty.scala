@@ -65,13 +65,13 @@ object Pretty {
       basePrettySeq(states, depth, prettyAggStateSignature)
 
     def prettyAggStateSignature(state: AggStateSig, depth: Int): Unit = {
+      sb.append('\n')
       sb.append(" " * depth)
       sb += '('
       sb.append(prettyClass(state))
       sb += ' '
       state.t.foreachBetween(typ => sb.append(typ.toString))(sb += ' ')
       if (state.n.isDefined) {
-        sb += '\n'
         prettyAggStateSignatures(state.n.get, depth + 2)
       }
       sb += ')'
@@ -116,6 +116,13 @@ object Pretty {
       sb += '('
 
       sb.append(prettyClass(ir) )
+
+      /**
+      ir match {
+        case ir: IR => if (ir._pType != null) sb.append(" " + ir.pType.toString)
+        case _ =>
+      }
+      */
 
       ir match {
         case MakeStruct(fields) =>
@@ -181,14 +188,14 @@ object Pretty {
           sb.append(i)
           sb += ' '
           prettyAggStateSignature(aggSig, depth + 2)
-          sb += ' '
+          sb += '\n'
           pretty(value, depth + 2)
         case CombOpValue(i, value, sig) =>
           sb += ' '
           sb.append(i)
-          sb += ' '
+          sb += '\n'
           prettyPhysicalAggSig(sig, depth + 2)
-          sb += ' '
+          sb += '\n'
           pretty(value, depth + 2)
         case SerializeAggs(i, i2, spec, aggSigs) =>
           sb += ' '
@@ -266,17 +273,21 @@ object Pretty {
             case AggLet(name, _, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
             case TailLoop(name, args, _) => prettyIdentifier(name) + " " + prettyIdentifiers(args.map(_._1).toFastIndexedSeq)
             case Recur(name, _, t) => prettyIdentifier(name) + " " + t.parsableString()
+            // case Ref(name, t) => prettyIdentifier(name) + Option(t).map(x => s" $x").getOrElse("")  // For debug purposes
             case Ref(name, _) => prettyIdentifier(name)
             case RelationalRef(name, t) => prettyIdentifier(name) + " " + t.parsableString()
             case RelationalLet(name, _, _) => prettyIdentifier(name)
             case ApplyBinaryPrimOp(op, _, _) => prettyClass(op)
             case ApplyUnaryPrimOp(op, _) => prettyClass(op)
-            case ApplyComparisonOp(op, _, _) => prettyClass(op)
+            case ApplyComparisonOp(op, _, _) => op.render()
             case GetField(_, name) => prettyIdentifier(name)
             case GetTupleElement(_, idx) => idx.toString
             case MakeTuple(fields) => prettyInts(fields.map(_._1).toFastIndexedSeq)
             case MakeArray(_, typ) => typ.parsableString()
-            case MakeStream(_, typ) => typ.parsableString()
+            case MakeStream(_, typ, separateRegions) =>
+              s"${ typ.parsableString() } ${prettyBooleanLiteral(separateRegions) }"
+            case StreamRange(_, _, _, separateRegions) => prettyBooleanLiteral(separateRegions)
+            case ToStream(_, separateRegions) => prettyBooleanLiteral(separateRegions)
             case StreamMap(_, name, _) => prettyIdentifier(name)
             case StreamMerge(_, _, key) => prettyIdentifiers(key)
             case StreamZip(_, names, _, behavior) => prettyIdentifier(behavior match {
@@ -308,6 +319,7 @@ object Pretty {
             case NDArrayReindex(_, indexExpr) => prettyInts(indexExpr)
             case NDArrayConcat(_, axis) => axis.toString
             case NDArrayAgg(_, axes) => prettyInts(axes)
+            case NDArrayRef(_, _, errorId) => s"$errorId"
             case ArraySort(_, l, r, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ApplyIR(function, typeArgs, _) => prettyIdentifier(function) + " " + prettyTypes(typeArgs) + " " + ir.typ.parsableString()
             case Apply(function, typeArgs, _, t) => prettyIdentifier(function) + " " + prettyTypes(typeArgs) + " " + t.parsableString()
@@ -316,7 +328,7 @@ object Pretty {
             case SelectFields(_, fields) => fields.map(prettyIdentifier).mkString("(", " ", ")")
             case LowerBoundOnOrderedCollection(_, _, onKey) => prettyBooleanLiteral(onKey)
             case In(i, typ) => s"$typ $i"
-            case Die(message, typ) => typ.parsableString()
+            case Die(message, typ, errorId) => s"${typ.parsableString()} $errorId"
             case CollectDistributedArray(_, _, cname, gname, _) =>
               s"${ prettyIdentifier(cname) } ${ prettyIdentifier(gname) }"
             case MatrixRead(typ, dropCols, dropRows, reader) =>

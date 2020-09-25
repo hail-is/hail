@@ -1,11 +1,10 @@
-PROJECT = $(shell gcloud config get-value project)
-DOMAIN ?= hail.is
+include ../config.mk
 
 ROUTER_RESOLVER_LATEST = gcr.io/$(PROJECT)/router-resolver:latest
 ROUTER_RESOLVER_IMAGE = gcr.io/$(PROJECT)/router-resolver:$(shell docker images -q --no-trunc router-resolver:latest | sed -e 's,[^:]*:,,')
 
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python:../gear
-PYTHON := PYTHONPATH=$(PYTHONPATH) python3
+EXTRA_PYTHONPATH := ../hail/python:../gear
+PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 
 .PHONY: check
 check:

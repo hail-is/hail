@@ -1,11 +1,13 @@
+include ../config.mk
+
 .PHONY: echo-ip gcloud-config build-out create-deployment build-out-k8s create-k8s-secrets create-k8s-certs-volume deploy-k8s \
 	delete-deployment tear-down create-address
 
-export PROJECT ?= hail-vdc-staging
-export REGION ?= us-central1
-export ZONE ?= $(REGION)-a
-export DOMAIN ?= staging.hail.is
-export IP ?= $(shell gcloud --project $(PROJECT) compute addresses describe --region $(REGION) site --format='value(address)')
+export PROJECT
+export REGION
+export ZONE
+export DOMAIN
+export IP
 
 # run letsencrypt, or take from letsencrypt-config.yaml
 RUN_LETSENCRYPT = 1

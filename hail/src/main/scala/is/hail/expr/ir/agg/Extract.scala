@@ -41,6 +41,7 @@ object AggStateSig {
         val Seq(_, _, labelType: PArray) = seqPTypes
         DownsampleStateSig(labelType)
       case ImputeType() => ImputeTypeStateSig()
+      case NDArraySum() => TypedStateSig(PCanonicalTuple(true, seqPTypes(0).setRequired(false)))
       case _ => throw new UnsupportedExtraction(op.toString)
     }
   }
@@ -149,6 +150,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
       val f2 = f(0, aggRegion)
       f2.setAggState(aggRegion, off)
       f2(aggRegion)
+      f2.storeAggsToRegion()
       f2.getSerializedAgg(0)
     }
   }
@@ -172,6 +174,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
         f2.setSerializedAgg(0, bytes1)
         f2.setSerializedAgg(1, bytes2)
         f2(r)
+        f2.storeAggsToRegion()
         f2.getSerializedAgg(0)
       }
     }
@@ -273,6 +276,7 @@ object Extract {
       LinearRegressionAggregator.resultType.virtualType
     case AggSignature(ApproxCDF(), _, _) => QuantilesAggregator.resultType.virtualType
     case AggSignature(Downsample(), _, Seq(_, _, label)) => DownsampleAggregator.resultType
+    case AggSignature(NDArraySum(), _, Seq(t)) => t
     case _ => throw new UnsupportedExtraction(aggSig.toString)  }
 
   def getAgg(sig: PhysicalAggSig): StagedAggregator = sig match {
@@ -297,6 +301,9 @@ object Extract {
       new ArrayElementwiseOpAggregator(nested.map(getAgg).toArray)
     case GroupedAggSig(k, nested) =>
       new GroupedAggregator(k, nested.map(getAgg).toArray)
+    case PhysicalAggSig(NDArraySum(), TypedStateSig(pt: PTuple)) =>{
+      new NDArraySumAggregator(pt.types(0).asInstanceOf[PNDArray])
+    }
   }
 
   def apply(ir: IR, resultName: String, r: RequirednessAnalysis, isScan: Boolean = false): Aggs = {

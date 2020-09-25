@@ -8,7 +8,7 @@ import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
-import is.hail.types.TableType
+import is.hail.types.{BlockMatrixType, TableType}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.encoded._
@@ -778,6 +778,37 @@ class IRSuite extends HailSuite {
     assertComparesTo(TFloat64, 1.0, 0.0, expected = true)
   }
 
+  @Test def testApplyComparisonOpCompareStructs() {
+    def assertComparesTo(t: TStruct, sf: IndexedSeq[SortField], x: Any, y: Any, expected: Int) {
+      assertEvalsTo(ApplyComparisonOp(CompareStructs(t, sf), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
+    }
+
+    val t1 = TStruct("x" -> TInt32, "y" -> TFloat64)
+    val ascAsc = FastIndexedSeq(SortField("x", Ascending), SortField("y", Ascending))
+    val ascDesc = FastIndexedSeq(SortField("x", Ascending), SortField("y", Descending))
+    val descAsc = FastIndexedSeq(SortField("x", Descending), SortField("y", Ascending))
+    val descDesc = FastIndexedSeq(SortField("x", Descending), SortField("y", Descending))
+
+    assertComparesTo(t1, ascAsc, Row(0, 0d), Row(0, 0d), 0)
+    assertComparesTo(t1, ascDesc, Row(0, 0d), Row(0, 0d), 0)
+    assertComparesTo(t1, descAsc, Row(0, 0d), Row(0, 0d), 0)
+    assertComparesTo(t1, descDesc, Row(0, 0d), Row(0, 0d), 0)
+
+    assertComparesTo(t1, ascAsc, Row(1, 0d), Row(0, 0d), 1)
+    assertComparesTo(t1, ascDesc, Row(1, 0d), Row(0, 0d), 1)
+    assertComparesTo(t1, descAsc, Row(1, 0d), Row(0, 0d), -1)
+    assertComparesTo(t1, descDesc, Row(1, 0d), Row(0, 0d), -1)
+
+    assertComparesTo(t1, ascAsc, Row(0, 1d), Row(0, 0d), 1)
+    assertComparesTo(t1, ascDesc, Row(0, 1d), Row(0, 0d), -1)
+    assertComparesTo(t1, descAsc, Row(0, 1d), Row(0, 0d), 1)
+    assertComparesTo(t1, descDesc, Row(0, 1d), Row(0, 0d), -1)
+  }
+
+  @Test def testDieCodeBUilder() {
+    assertFatal(Die("msg1", TInt32) + Die("msg2", TInt32), "msg1")
+  }
+
   @Test def testIf() {
     assertEvalsTo(If(True(), I32(5), I32(7)), 5)
     assertEvalsTo(If(False(), I32(5), I32(7)), 7)
@@ -1035,70 +1066,70 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testGetNestedPStream() {
-    var types = Seq(PCanonicalStream(PInt32(true), true))
+    var types = Seq(PCanonicalStream(PInt32(true), required = true))
     var res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(true), true))
+    assert(res == PCanonicalStream(PInt32(true), required = true))
 
-    types = Seq(PCanonicalStream(PInt32(true), false))
+    types = Seq(PCanonicalStream(PInt32(true), required = false))
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(true), false))
+    assert(res == PCanonicalStream(PInt32(true), required = false))
 
-    types = Seq(PCanonicalStream(PInt32(false), true))
+    types = Seq(PCanonicalStream(PInt32(false), required = true))
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(false), true))
+    assert(res == PCanonicalStream(PInt32(false), required = true))
 
-    types = Seq(PCanonicalStream(PInt32(false), false))
+    types = Seq(PCanonicalStream(PInt32(false), required = false))
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(false), false))
-
-    types = Seq(
-      PCanonicalStream(PInt32(true), true),
-      PCanonicalStream(PInt32(true), true)
-    )
-    res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(true), true))
+    assert(res == PCanonicalStream(PInt32(false), required = false))
 
     types = Seq(
-      PCanonicalStream(PInt32(false), true),
-      PCanonicalStream(PInt32(true), true)
+      PCanonicalStream(PInt32(true), required = true),
+      PCanonicalStream(PInt32(true), required = true)
     )
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(false), true))
+    assert(res == PCanonicalStream(PInt32(true), required = true))
 
     types = Seq(
-      PCanonicalStream(PInt32(false), true),
-      PCanonicalStream(PInt32(true), false)
+      PCanonicalStream(PInt32(false), required = true),
+      PCanonicalStream(PInt32(true), required = true)
     )
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(false), false))
+    assert(res == PCanonicalStream(PInt32(false), required = true))
 
     types = Seq(
-      PCanonicalStream(PCanonicalStream(PInt32(true), true), true),
-      PCanonicalStream(PCanonicalStream(PInt32(true), true), true)
+      PCanonicalStream(PInt32(false), required = true),
+      PCanonicalStream(PInt32(true), required = false)
     )
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PCanonicalStream(PInt32(true), true), true))
+    assert(res == PCanonicalStream(PInt32(false), required = false))
 
     types = Seq(
-      PCanonicalStream(PCanonicalStream(PInt32(true), true), true),
-      PCanonicalStream(PCanonicalStream(PInt32(false), true), true)
+      PCanonicalStream(PCanonicalStream(PInt32(true), required = true), required = true),
+      PCanonicalStream(PCanonicalStream(PInt32(true), required = true), required = true)
     )
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), true), true))
+    assert(res == PCanonicalStream(PCanonicalStream(PInt32(true), required = true), required = true))
 
     types = Seq(
-      PCanonicalStream(PCanonicalStream(PInt32(true), false), true),
-      PCanonicalStream(PCanonicalStream(PInt32(false), true), true)
+      PCanonicalStream(PCanonicalStream(PInt32(true), required = true), required = true),
+      PCanonicalStream(PCanonicalStream(PInt32(false), required = true), required = true)
     )
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), false), true))
+    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), required = true), required = true))
 
     types = Seq(
-      PCanonicalStream(PCanonicalStream(PInt32(true), false), false),
-      PCanonicalStream(PCanonicalStream(PInt32(false), true), true)
+      PCanonicalStream(PCanonicalStream(PInt32(true), required = false), required = true),
+      PCanonicalStream(PCanonicalStream(PInt32(false), required = true), required = true)
     )
     res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), false), false))
+    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), required = false), required = true))
+
+    types = Seq(
+      PCanonicalStream(PCanonicalStream(PInt32(true), required = false), required = false),
+      PCanonicalStream(PCanonicalStream(PInt32(false), required = true), required = true)
+    )
+    res  = InferPType.getCompatiblePType(types)
+    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), required = false), required = false))
   }
 
   @Test def testGetNestedElementPCanonicalDict() {
@@ -2004,7 +2035,7 @@ class IRSuite extends HailSuite {
     MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64)), MakeTuple.ordered(shape.map(I64)), rowMajor)
   }
 
-  def makeNDArrayRef(nd: IR, indxs: IndexedSeq[Long]): NDArrayRef = NDArrayRef(nd, indxs.map(I64))
+  def makeNDArrayRef(nd: IR, indxs: IndexedSeq[Long]): NDArrayRef = NDArrayRef(nd, indxs.map(I64), -1)
 
   val scalarRowMajor = makeNDArray(FastSeq(3.0), FastSeq(), True())
   val scalarColMajor = makeNDArray(FastSeq(3.0), FastSeq(), False())
@@ -2680,7 +2711,7 @@ class IRSuite extends HailSuite {
 
   @Test def testDie() {
     assertFatal(Die("mumblefoo", TFloat64), "mble")
-    assertFatal(Die(NA(TString), TFloat64), "message missing")
+    assertFatal(Die(NA(TString), TFloat64, -1), "message missing")
   }
 
   @Test def testDieInferPType() {
@@ -3058,12 +3089,16 @@ class IRSuite extends HailSuite {
       ApplyBinaryPrimOp(Add(), i, j),
       ApplyUnaryPrimOp(Negate(), i),
       ApplyComparisonOp(EQ(TInt32), i, j),
+      ApplyComparisonOp(CompareStructs(
+        TStruct("x" -> TInt32, "y" -> TFloat64),
+        FastIndexedSeq(SortField("x", Ascending), SortField("y", Descending))),
+        In(0, TStruct("x" -> TInt32, "y" -> TFloat64)), In(1, TStruct("x" -> TInt32, "y" -> TFloat64))),
       MakeArray(FastSeq(i, NA(TInt32), I32(-3)), TArray(TInt32)),
       MakeStream(FastSeq(i, NA(TInt32), I32(-3)), TStream(TInt32)),
       nd,
       NDArrayReshape(nd, MakeTuple.ordered(Seq(I64(4)))),
       NDArrayConcat(MakeArray(FastSeq(nd, nd), TArray(nd.typ)), 0),
-      NDArrayRef(nd, FastSeq(I64(1), I64(2))),
+      NDArrayRef(nd, FastSeq(I64(1), I64(2)), -1),
       NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
       NDArrayMap2(nd, nd, "l", "r", ApplyBinaryPrimOp(Add(), l, r)),
       NDArrayReindex(nd, FastIndexedSeq(0, 1)),
@@ -3163,7 +3198,6 @@ class IRSuite extends HailSuite {
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
       BlockMatrixWrite(blockMatrix, BlockMatrixPersistWriter("x", "MEMORY_ONLY")),
-      UnpersistBlockMatrix(blockMatrix),
       CollectDistributedArray(StreamRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32)),
       ReadPartition(Str("foo"),
         TStruct("foo" -> TInt32),
@@ -3389,9 +3423,7 @@ class IRSuite extends HailSuite {
       sparsify3,
       densify,
       RelationalLetBlockMatrix("x", I32(0), read),
-      slice,
-      BlockMatrixRead(BlockMatrixPersistReader("x"))
-    )
+      slice)
 
     blockMatrixIRs.map(ir => Array(ir))
   }
@@ -3449,6 +3481,17 @@ class IRSuite extends HailSuite {
     val s = Pretty(x, elideLiterals = false)
     val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
     assert(x2 == x)
+  }
+
+  def testBlockMatrixIRParserPersist() {
+    val bm = BlockMatrix.fill(1, 1, 0.0, 5)
+    backend.persist(ctx.backendContext, "x", bm, "MEMORY_ONLY")
+    val persist = BlockMatrixRead(BlockMatrixPersistReader("x", BlockMatrixType.fromBlockMatrix(bm)))
+
+    val s = Pretty(persist, elideLiterals = false)
+    val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
+    assert(x2 == persist)
+    backend.unpersist(ctx.backendContext, "x")
   }
 
   @Test def testCachedIR() {

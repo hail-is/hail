@@ -10,7 +10,9 @@ import is.hail.expr.ir.lowering.{DArrayLowering, LowerDistributedSort, LowererUn
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple, SortField}
 import is.hail.types.physical.{PBaseStruct, PType}
 import is.hail.io.fs.{FS, GoogleStorageFS}
+import is.hail.linalg.BlockMatrix
 import is.hail.services.batch_client.BatchClient
+import is.hail.types.BlockMatrixType
 import is.hail.types.virtual.Type
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
@@ -298,8 +300,16 @@ class ServiceBackend() extends Backend {
     }
   }
 
-  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Seq[(String, Type)]): TableStage = {
+  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
     // Use a local sort for the moment to enable larger pipelines to run
     LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
   }
+
+  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???
+
+  def unpersist(backendContext: BackendContext, id: String): Unit = ???
+
+  def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix = ???
+
+  def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = ???
 }

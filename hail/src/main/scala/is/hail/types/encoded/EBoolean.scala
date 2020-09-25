@@ -2,7 +2,7 @@ package is.hail.types.encoded
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.BaseType
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -13,8 +13,8 @@ case object EBooleanOptional extends EBoolean(false)
 case object EBooleanRequired extends EBoolean(true)
 
 class EBoolean(override val required: Boolean) extends EFundamentalType {
-  def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
-    out.writeBoolean(coerce[Boolean](v))
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+    cb += out.writeBoolean(coerce[Boolean](v))
   }
 
   def _buildFundamentalDecoder(
@@ -24,7 +24,7 @@ class EBoolean(override val required: Boolean) extends EFundamentalType {
     in: Value[InputBuffer]
   ): Code[Boolean] = in.readBoolean()
 
-  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = in.skipBoolean()
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = cb += in.skipBoolean()
 
   override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PBoolean]
 

@@ -200,18 +200,27 @@ package object utils extends Logging
     r
   }
 
-  def formatSpace(ds: Long) = {
+  def formatSpace(ds: Long, precision: Int = 2): String = {
     val absds = ds.abs
-    if (absds < 1e3)
-      s"${ ds }B"
-    else if (absds < 1e6)
-      s"${ ds.toDouble / 1e3 }KB"
-    else if (absds < 1e9)
-      s"${ ds.toDouble / 1e6 }MB"
-    else if (absds < 1e12)
-      s"${ ds.toDouble / 1e9 }GB"
+    val kib = 1024L
+    val mib = kib * 1024
+    val gib = mib * 1024
+    val tib = gib * 1024
+
+    val (div: Long, suffix: String) = if (absds < kib)
+      (1L, "B")
+    else if (absds < mib)
+      (kib, "KiB")
+    else if (absds < gib)
+      (mib, "MiB")
+    else if (absds < tib)
+      (gib, "GiB")
     else
-      s"${ ds.toDouble / 1e12 }TB"
+      (tib, "TiB")
+
+
+    val num = formatDouble(absds.toDouble / div.toDouble, precision)
+    s"$num $suffix"
   }
 
   def someIf[T](p: Boolean, x: => T): Option[T] =

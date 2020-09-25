@@ -192,12 +192,12 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
         addrVar := addr,
         stagedInitialize(addrVar, setMissing = true),
         Code(fields.zip(srcStruct.fields).map { case (dest, src) =>
-          assert(dest.typ.required <= src.typ.required, s"${dest.typ} <- ${src.typ}\n  src: $srcPType\n  dst: $this")
           val idx = dest.index
           assert(idx == src.index)
-          srcStruct.isFieldDefined(srcAddrVar, idx).orEmpty(Code(
+          srcStruct.isFieldDefined(srcAddrVar, idx).mux(Code(
             setFieldPresent(addrVar, idx),
-            dest.typ.constructAtAddress(mb, fieldOffset(addrVar, idx), region, src.typ, srcStruct.loadField(srcAddrVar, idx), deepCopy))
+            dest.typ.constructAtAddress(mb, fieldOffset(addrVar, idx), region, src.typ, srcStruct.loadField(srcAddrVar, idx), deepCopy)),
+            if (dest.typ.required) Code._fatal[Unit](s"required struct field ${dest.name} encountered missing value!") else Code._empty
           )
         }))
     }
@@ -251,11 +251,6 @@ class PCanonicalBaseStructSettable(
   def store(pv: PCode): Code[Unit] = {
     a := pv.asInstanceOf[PCanonicalBaseStructCode].a
   }
-
-  def apply[T](i: Int): Value[T] =
-    new Value[T] {
-      def get: Code[T] = coerce[T](Region.loadIRIntermediate(pt.types(i))(pt.loadField(a, i)))
-    }
 
   def isFieldMissing(fieldIdx: Int): Code[Boolean] = {
     this.pt.isFieldMissing(a, fieldIdx)

@@ -1,3 +1,4 @@
+from typing import Optional
 import asyncio
 
 from . import aioclient
@@ -145,7 +146,8 @@ class BatchBuilder:
                    port=None, resources=None, secrets=None,
                    service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False,
-                   timeout=None, gcsfuse=None, requester_pays_project=None):
+                   timeout=None, gcsfuse=None, requester_pays_project=None,
+                   mount_tokens=False, network: Optional[str] = None):
         if parents:
             parents = [parent._async_job for parent in parents]
 
@@ -156,7 +158,8 @@ class BatchBuilder:
             attributes=attributes, parents=parents,
             input_files=input_files, output_files=output_files, always_run=always_run,
             timeout=timeout, gcsfuse=gcsfuse,
-            requester_pays_project=requester_pays_project)
+            requester_pays_project=requester_pays_project, mount_tokens=mount_tokens,
+            network=network)
 
         return Job.from_async_job(async_job)
 
@@ -202,6 +205,12 @@ class BatchClient:
     def create_batch(self, attributes=None, callback=None):
         builder = self._async_client.create_batch(attributes=attributes, callback=callback)
         return BatchBuilder.from_async_builder(builder)
+
+    def get_billing_project(self, billing_project):
+        return async_to_blocking(self._async_client.get_billing_project(billing_project))
+
+    def list_billing_projects(self):
+        return async_to_blocking(self._async_client.list_billing_projects())
 
     def close(self):
         async_to_blocking(self._async_client.close())

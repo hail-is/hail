@@ -58,7 +58,7 @@ class SplitMethod(
     }
   }
 
-  private val spillsClass = new Classx(genName("C", s"${ m.name }Spills"), "java/lang/Object")
+  private val spillsClass = new Classx(genName("C", s"${ m.name }Spills"), "java/lang/Object", None)
   private val spillsCtor = {
     val ctor = spillsClass.newMethod("<init>", FastIndexedSeq(), UnitInfo)
     val L = new Block()
@@ -171,7 +171,7 @@ class SplitMethod(
           if (f != null) {
             x.replace(
               putField(f, getSpills(),
-                insn(IADD,
+                insn2(IADD)(
                   getField(f, getSpills()),
                   ldcInsn(x.i, IntInfo))))
           }

@@ -437,7 +437,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die | _: UUID4 =>
       case _: CombOpValue | _: AggStateValue =>
       case x if x.typ == TVoid =>
-      case ApplyComparisonOp(EQWithNA(_, _), _, _) | ApplyComparisonOp(NEQWithNA(_, _), _, _) | ApplyComparisonOp(Compare(_, _), _, _) =>
+      case ApplyComparisonOp(EQWithNA(_, _), _, _) | ApplyComparisonOp(NEQWithNA(_, _), _, _) | ApplyComparisonOp(Compare(_, _), _, _) | ApplyComparisonOp(CompareStructs(_, _), _, _) =>
       case ApplyComparisonOp(op, l, r) =>
         fatal(s"non-strict comparison op $op must have explicit case")
       case TableCount(t) =>
@@ -467,7 +467,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.unionFrom(defs(node).map(coerce[TypeWithRequiredness]))
       case MakeArray(args, _) =>
         coerce[RIterable](requiredness).elementType.unionFrom(args.map(lookup))
-      case MakeStream(args, _) =>
+      case MakeStream(args, _, _) =>
         coerce[RIterable](requiredness).elementType.unionFrom(args.map(lookup))
       case ArrayRef(a, i, _) =>
         val aReq = lookupAs[RIterable](a)
@@ -586,7 +586,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val ndsReq = lookupAs[RIterable](nds)
         requiredness.unionFrom(ndsReq.elementType)
         requiredness.union(ndsReq.required)
-      case NDArrayRef(nd, idxs) =>
+      case NDArrayRef(nd, idxs, _) =>
         val ndReq = lookupAs[RNDArray](nd)
         requiredness.unionFrom(ndReq.elementType)
         requiredness.union(ndReq.required && idxs.forall(lookup(_).required))
@@ -610,6 +610,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.unionFrom(lookup(l))
         requiredness.union(lookup(r).required)
       case NDArrayQR(_, mode) => requiredness.fromPType(NDArrayQR.pTypes(mode))
+      case NDArraySVD(_, _, computeUV) => requiredness.fromPType(NDArraySVD.pTypes(computeUV))
       case NDArrayInv(_) => requiredness.fromPType(NDArrayInv.pType)
       case MakeStruct(fields) =>
         fields.foreach { case (n, f) =>

@@ -5,9 +5,9 @@ import hail as hl
 from hail.expr.expressions import ExpressionException, Expression, \
     ArrayExpression, SetExpression, BooleanExpression, Int64Expression, \
     NumericExpression, DictExpression, StructExpression, Float64Expression, \
-    StringExpression, \
+    StringExpression, NDArrayNumericExpression, \
     expr_any, expr_oneof, expr_array, expr_set, expr_bool, expr_numeric, \
-    expr_int32, expr_int64, expr_float64, expr_call, expr_str, \
+    expr_int32, expr_int64, expr_float64, expr_call, expr_str, expr_ndarray, \
     unify_all, construct_expr, Indices, Aggregation, to_expr
 from hail.expr.types import hail_type, tint32, tint64, tfloat32, tfloat64, \
     tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr
@@ -778,6 +778,16 @@ def array_sum(expr) -> ArrayExpression:
     :class:`.ArrayExpression` with element type :py:data:`.tint64` or :py:data:`.tfloat64`
     """
     return array_agg(hl.agg.sum, expr)
+
+
+@typecheck(expr=expr_ndarray())
+def ndarray_sum(expr) -> NDArrayNumericExpression:
+    """ Compute the sum of all records of `expr` of the same shape.
+
+    :param expr:
+    :return:
+    """
+    return _agg_func("NDArraySum", [expr], expr.dtype)
 
 
 @typecheck(expr=expr_float64)

@@ -12,6 +12,8 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
+
+    @fails_local_backend()
     def test_hadoop_methods(self):
         data = ['foo', 'bar', 'baz']
         data.extend(map(str, range(100)))
@@ -80,6 +82,7 @@ class Tests(unittest.TestCase):
 
         self.assertFalse(hl.hadoop_exists(resource('./some2')))
 
+    @fails_local_backend()
     def test_hadoop_copy_log(self):
         r = new_local_temp_file('log')
         hl.copy_log(r)
@@ -109,6 +112,7 @@ class Tests(unittest.TestCase):
         self.assertTrue('owner' in stat2)
         self.assertTrue('modification_time' in stat2)
 
+    @fails_local_backend()
     def test_hadoop_ls(self):
         path1 = resource('ls_test/f_50')
         ls1 = hl.hadoop_ls(path1)

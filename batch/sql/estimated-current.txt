@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS `globals` (
   `worker_cores` BIGINT NOT NULL,
   `worker_type` VARCHAR(100) NOT NULL,
   `worker_disk_size_gb` BIGINT NOT NULL,
+  `worker_local_ssd_data_disk` BOOLEAN NOT NULL DEFAULT 1,
+  `worker_pd_ssd_data_disk_size_gb` BIGINT NOT NULL DEFAULT 0,
   `standing_worker_cores` BIGINT NOT NULL,
   `max_instances` BIGINT NOT NULL,
   `pool_size` BIGINT NOT NULL,
@@ -197,8 +199,9 @@ CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(25
 CREATE TABLE IF NOT EXISTS `aggregated_batch_resources` (
   `batch_id` BIGINT NOT NULL,
   `resource` VARCHAR(100) NOT NULL,
+  `token` INT NOT NULL,
   `usage` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`batch_id`, `resource`),
+  PRIMARY KEY (`batch_id`, `resource`, `token`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
@@ -259,6 +262,11 @@ BEGIN
   DECLARE job_cores_mcpu INT;
   DECLARE msec_diff BIGINT;
   DECLARE msec_mcpu_diff BIGINT;
+  DECLARE cur_n_tokens INT;
+  DECLARE rand_token INT;
+
+  SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
+  SET rand_token = FLOOR(RAND() * cur_n_tokens);
 
   SELECT cores_mcpu INTO job_cores_mcpu FROM jobs
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
@@ -276,28 +284,17 @@ BEGIN
   SET msec_mcpu = jobs.msec_mcpu + msec_mcpu_diff
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 
-  UPDATE aggregated_batch_resources
-  JOIN (SELECT batch_id, resource, quantity
-        FROM attempt_resources
-        WHERE batch_id = NEW.batch_id AND
-        job_id = NEW.job_id AND
-        attempt_id = NEW.attempt_id) AS t
-  ON aggregated_batch_resources.batch_id = t.batch_id AND
-    aggregated_batch_resources.resource = t.resource
-  SET `usage` = `usage` + msec_diff * t.quantity
-  WHERE aggregated_batch_resources.batch_id = NEW.batch_id;
+  INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
+  SELECT batch_id, resource, rand_token, msec_diff * quantity
+  FROM attempt_resources
+  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+  ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 
-  UPDATE aggregated_job_resources
-  JOIN (SELECT batch_id, job_id, resource, quantity
-        FROM attempt_resources
-        WHERE batch_id = NEW.batch_id AND
-        job_id = NEW.job_id AND
-        attempt_id = NEW.attempt_id) AS t
-  ON aggregated_job_resources.batch_id = t.batch_id AND
-    aggregated_job_resources.job_id = t.job_id AND
-    aggregated_job_resources.resource = t.resource
-  SET `usage` = `usage` + msec_diff * t.quantity
-  WHERE aggregated_job_resources.batch_id = NEW.batch_id AND aggregated_job_resources.job_id = NEW.job_id;
+  INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
+  SELECT batch_id, job_id, resource, msec_diff * quantity
+  FROM attempt_resources
+  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+  ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 END $$
 
 CREATE TRIGGER jobs_after_update AFTER UPDATE ON jobs
@@ -435,6 +432,11 @@ BEGIN
   DECLARE cur_start_time BIGINT;
   DECLARE cur_end_time BIGINT;
   DECLARE msec_diff BIGINT;
+  DECLARE cur_n_tokens INT;
+  DECLARE rand_token INT;
+
+  SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
+  SET rand_token = FLOOR(RAND() * cur_n_tokens);
 
   SELECT start_time, end_time INTO cur_start_time, cur_end_time
   FROM attempts
@@ -448,8 +450,8 @@ BEGIN
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 
-  INSERT INTO aggregated_batch_resources (batch_id, resource, `usage`)
-  VALUES (NEW.batch_id, NEW.resource, NEW.quantity * msec_diff)
+  INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
+  VALUES (NEW.batch_id, NEW.resource, rand_token, NEW.quantity * msec_diff)
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
 END $$

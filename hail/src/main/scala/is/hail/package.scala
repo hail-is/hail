@@ -15,11 +15,10 @@ package object hail {
       hail_revision: String,
       hail_branch: String,
       hail_build_date: String,
-      hail_repo_url: String,
       hail_spark_version: String,
       hail_pip_version: String) = {
 
-      loadFromResource[(String, String, String, String, String, String, String)]("build-info.properties") {
+      loadFromResource[(String, String, String, String, String, String)]("build-info.properties") {
         (is: InputStream) =>
           val unknownProp = "<unknown>"
           val props = new Properties()
@@ -29,7 +28,6 @@ package object hail {
             props.getProperty("revision", unknownProp),
             props.getProperty("branch", unknownProp),
             props.getProperty("date", unknownProp),
-            props.getProperty("url", unknownProp),
             props.getProperty("sparkVersion", unknownProp),
             props.getProperty("hailPipVersion", unknownProp)
             )
@@ -41,7 +39,6 @@ package object hail {
   val HAIL_REVISION = HailBuildInfo.hail_revision
   val HAIL_BRANCH = HailBuildInfo.hail_branch
   val HAIL_BUILD_DATE = HailBuildInfo.hail_build_date
-  val HAIL_REPO_URL = HailBuildInfo.hail_repo_url
   val HAIL_SPARK_VERSION = HailBuildInfo.hail_spark_version
   val HAIL_PIP_VERSION = HailBuildInfo.hail_pip_version
 

@@ -345,12 +345,12 @@ def unify_all(*exprs) -> Tuple[Indices, LinkedList]:
             from .expression_utils import get_refs
             for name, inds in get_refs(e, *[e for a in e._aggregations for e in a.exprs]).items():
                 sources[inds.source].append(str(name))
-                raise ExpressionException(
-                    "Cannot combine expressions from different source objects."
-                    "\n    Found fields from {n} objects:{fields}".format(
-                        n=len(sources),
-                        fields=''.join("\n        {}: {}".format(src, fds) for src, fds in sources.items())
-                    )) from None
+        raise ExpressionException(
+            "Cannot combine expressions from different source objects."
+            "\n    Found fields from {n} objects:{fields}".format(
+                n=len(sources),
+                fields=''.join("\n        {}: {}".format(src, fds) for src, fds in sources.items())
+            )) from None
     first, rest = exprs[0], exprs[1:]
     aggregations = first._aggregations
     for e in rest:
@@ -642,6 +642,10 @@ class Expression(object):
     def __len__(self):
         raise TypeError("'Expression' objects have no static length: use 'hl.len' for the length of collections")
 
+    def __contains__(self, item):
+        class_name = type(self).__name__
+        raise TypeError(f"`{class_name}` objects don't support the `in` operator.")
+
     def __hash__(self):
         return super(Expression, self).__hash__()
 
@@ -775,7 +779,10 @@ class Expression(object):
              handler=None,
              n_rows=None,
              n_cols=None):
-        """Print the first few rows of the table to the console.
+        """Print the first few records of the expression to the console.
+
+        If the expression refers to a value on a keyed axis of a table or matrix
+        table, then the accompanying keys will be shown along with the records.
 
         Examples
         --------
@@ -801,9 +808,12 @@ class Expression(object):
         |    123 |
         +--------+
 
-        Warning
-        -------
-        Extremely experimental.
+        Notes
+        -----
+        The output can be passed piped to another output source using the `handler` argument:
+
+        >>> ht.foo.show(handler=lambda x: logging.info(x))  # doctest: +SKIP
+
 
         Parameters
         ----------
@@ -1109,3 +1119,10 @@ class Expression(object):
 
     def _aggregation_method(self):
         return self._selector_and_agg_method()[1](self._indices.source)
+
+    def _persist(self):
+        src = self._indices.source
+        if src is not None:
+            raise ValueError("Can only persist a scalar (no Table/MatrixTable source)")
+        executed_jir = Env.backend().persist_ir(self._ir)
+        return expressions.construct_expr(executed_jir, self.dtype)

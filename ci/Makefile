@@ -1,10 +1,4 @@
-ZONE := us-central1-a
-PROJECT := $(shell gcloud config get-value project)
-DOMAIN ?= hail.is
-IP ?= 35.224.105.117
-KUBERNETES_SERVER_URL ?= https://104.198.230.143
-
-PROJECT := $(shell gcloud config get-value project)
+include ../config.mk
 
 CI_UTILS_LATEST = gcr.io/$(PROJECT)/ci-utils:latest
 CI_UTILS_IMAGE = gcr.io/$(PROJECT)/ci-utils:$(shell docker images -q --no-trunc ci-utils | sed -e 's,[^:]*:,,')
@@ -12,8 +6,8 @@ CI_UTILS_IMAGE = gcr.io/$(PROJECT)/ci-utils:$(shell docker images -q --no-trunc 
 CI_LATEST = gcr.io/$(PROJECT)/ci:latest
 CI_IMAGE = gcr.io/$(PROJECT)/ci:$(shell docker images -q --no-trunc ci | sed -e 's,[^:]*:,,')
 
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
-PYTHON := PYTHONPATH=$(PYTHONPATH)../batch:../hail/python:../gear:../web_common python3
+EXTRA_PYTHONPATH := ../batch:../hail/python:../gear:../web_common
+PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 
 .PHONY: check
 check:

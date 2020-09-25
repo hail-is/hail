@@ -2,6 +2,8 @@ import builtins
 import functools
 from typing import Union, Optional, Any, Callable, Iterable, TypeVar
 
+from deprecated import deprecated
+
 import hail
 import hail as hl
 from hail.expr.expressions import Expression, ArrayExpression, SetExpression, \
@@ -513,7 +515,7 @@ def rbind(*exprs, _ctx=None):
 
     *args, f = exprs
     args = [expr_any.check(arg, 'rbind', f'argument {index}')
-            for index, arg in enumerate(args)]
+            for index, arg in builtins.enumerate(args)]
 
     return hl.bind(f, *args, _ctx=_ctx)
 
@@ -1691,7 +1693,7 @@ def coalesce(*args):
         raise ValueError("'coalesce' requires at least one expression argument")
     *exprs, success = unify_exprs(*args)
     if not success:
-        arg_types = ''.join([f"\n    argument {i}: type '{arg.dtype}'" for i, arg in enumerate(exprs)])
+        arg_types = ''.join([f"\n    argument {i}: type '{arg.dtype}'" for i, arg in builtins.enumerate(exprs)])
         raise TypeError(f"'coalesce' requires all arguments to have the same type or compatible types"
                         f"{arg_types}")
     indices, aggregations = unify_all(*exprs)
@@ -2556,7 +2558,7 @@ def corr(x, y) -> Float64Expression:
 _base_regex = "^([ACGTNM])+$"
 _symbolic_regex = r"(^\.)|(\.$)|(^<)|(>$)|(\[)|(\])"
 _allele_types = ["Unknown", "SNP", "MNP", "Insertion", "Deletion", "Complex", "Star", "Symbolic"]
-_allele_enum = {i: v for i, v in enumerate(_allele_types)}
+_allele_enum = {i: v for i, v in builtins.enumerate(_allele_types)}
 _allele_ints = {v: k for k, v in _allele_enum.items()}
 
 
@@ -3348,6 +3350,11 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
     Examples
     --------
 
+    >>> hl.eval(hl.zip([1, 2, 3], [4, 5, 6]))
+    [(1, 4), (2, 5), (3, 6)]
+
+    If the arrays are different lengths, the behavior is decided by the `fill_missing` parameter.
+
     >>> hl.eval(hl.zip([1], [10, 20], [100, 200, 300]))
     [(1, 10, 100)]
 
@@ -3384,9 +3391,46 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
                           aggregations)
 
 
+@typecheck(a=expr_array(), start=expr_int32, index_first=bool)
+def enumerate(a, start=0, *, index_first=True):
+    """Returns an array of (index, element) tuples.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.enumerate(['A', 'B', 'C']))
+    [(0, 'A'), (1, 'B'), (2, 'C')]
+
+    >>> hl.eval(hl.enumerate(['A', 'B', 'C'], start=3))
+    [(3, 'A'), (4, 'B'), (5, 'C')]
+
+    >>> hl.eval(hl.enumerate(['A', 'B', 'C'], index_first=False))
+    [('A', 0), ('B', 1), ('C', 2)]
+
+
+    Parameters
+    ----------
+    a : :class:`.ArrayExpression`
+    start : :class:`.Int32Expression`
+        The index value from which the counter is started, 0 by default.
+    index_first: :obj:`bool`
+        If ``True``, the index is the first value of the element tuples. If
+        ``False``, the index is the second value.
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+        Array of (index, element) or (element, index) tuples.
+    """
+    return range(0, len(a)).map(lambda i: (i + start, a[i]) if index_first else (a[i], i + start))
+
+
+@deprecated(version='0.2.56', reason="Replaced by hl.enumerate")
 @typecheck(a=expr_array(), index_first=bool)
 def zip_with_index(a, index_first=True):
-    """Returns an array of (index, element) tuples.
+    """Deprecated in favor of :func:`.enumerate`.
+
+    Returns an array of (index, element) tuples.
 
     Examples
     --------
@@ -3410,7 +3454,7 @@ def zip_with_index(a, index_first=True):
     :class:`.ArrayExpression`
         Array of (index, element) or (element, index) tuples.
     """
-    return bind(lambda aa: range(0, len(aa)).map(lambda i: (i, aa[i]) if index_first else (aa[i], i)), a)
+    return enumerate(a, index_first=index_first)
 
 
 @typecheck(f=func_spec(1, expr_any),

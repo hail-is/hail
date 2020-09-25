@@ -1,0 +1,11 @@
+--step 2
+--bgen regenie/example/example.bgen
+--covarFile regenie/example/covariates.txt
+--phenoFile regenie/example/phenotype_bin.txt
+--remove regenie/example/fid_iid_to_remove.txt
+--bsize 200
+--bt
+--firth --approx
+--pThresh 0.01
+--pred fit_bin_out_pred.list
+--out out/test_bin_out_firth

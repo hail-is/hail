@@ -1,6 +1,7 @@
 package is.hail.linalg
 
 import java.io._
+import java.nio._
 
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, sum => breezeSum, _}
 import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sqrt => breezeSqrt}
@@ -19,7 +20,7 @@ import is.hail.io._
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.{ContextRDD, OriginUnionPartition, OriginUnionRDD}
 import is.hail.utils._
-import is.hail.utils.richUtils.{RichArray, RichContextRDD, RichDenseMatrixDouble}
+import is.hail.utils.richUtils.{ByteTrackingOutputStream, RichArray, RichContextRDD, RichDenseMatrixDouble}
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
 import org.apache.commons.lang3.StringUtils
@@ -88,9 +89,10 @@ class CollectMatricesRDD(@transient var bms: IndexedSeq[BlockMatrix]) extends RD
 object BlockMatrix {
   type M = BlockMatrix
   val defaultBlockSize: Int = 4096 // 32 * 1024 bytes
+  val bufferSpecBlockSize = 32 * 1024
   val bufferSpec: BufferSpec =
-    new BlockingBufferSpec(32 * 1024,
-      new LZ4FastBlockBufferSpec(32 * 1024,
+    new BlockingBufferSpec(bufferSpecBlockSize,
+      new LZ4FastBlockBufferSpec(bufferSpecBlockSize,
         new StreamBlockBufferSpec))
 
   def apply(gp: GridPartitioner, piBlock: (GridPartitioner, Int) => ((Int, Int), BDM[Double])): BlockMatrix =
@@ -343,23 +345,25 @@ object BlockMatrix {
     bms.zipWithIndex.foreach { case (bm, bIdx) =>
       val uri = blockMatrixURI(bIdx)
       if (overwrite)
-        fs.delete(prefix, recursive = true)
-      else if (fs.exists(prefix))
+        fs.delete(uri, recursive = true)
+      else if (fs.exists(uri))
         fatal(s"file already exists: $uri")
 
       fs.mkDir(uri)
       fs.mkDir(uri + "/parts")
     }
 
-    def writeBlock(ctx: RVDContext, it: Iterator[((Int, Int), BDM[Double])], os: OutputStream, iw: IndexWriter): Long = {
+    def writeBlock(ctx: RVDContext, it: Iterator[((Int, Int), BDM[Double])], os: OutputStream, iw: IndexWriter): (Long, Long) = {
+      val btos = new ByteTrackingOutputStream(os)
       assert(it.hasNext)
       val (_, lm) = it.next()
       assert(!it.hasNext)
 
-      lm.write(os, forceRowMajor, bufferSpec)
-      os.close()
+      lm.write(btos, forceRowMajor, bufferSpec)
+      val bytesWritten = btos.bytesWritten
+      btos.close()
 
-      1L
+      (1L, bytesWritten)
     }
 
     if (bms.isEmpty) {
@@ -386,20 +390,20 @@ object BlockMatrix {
       val trueIt = it(ctx)
       val rootPath = blockMatrixURI(rddIndex)
       val fileName = partFile(numDigits, partIndex, TaskContext.get)
-      val nameAndCountIt = RichContextRDD.writeParts(ctx, rootPath, fileName, null, (_) => null, false, fs, tmpdir, trueIt, writeBlock)
-      nameAndCountIt.map { case (name, count) => (name, rddIndex) }
+      val fileDataIterator = RichContextRDD.writeParts(ctx, rootPath, fileName, null, (_) => null, false, fs, tmpdir, trueIt, writeBlock)
+      fileDataIterator.map { fd => (fd, rddIndex) }
     }
 
     val rddNumberAndPartFiles = writerRDD.collect()
     val grouped = rddNumberAndPartFiles.groupBy(_._2)
     grouped.foreach { case (rddIndex, numberedPartFiles) =>
-      val partFiles = numberedPartFiles.map { case (partFileName, _) => partFileName }
+      val fileData = numberedPartFiles.map { case (partFileName, _) => partFileName }
       val metadataPath = blockMatrixURI(rddIndex.toInt) + metadataRelativePath
       using(new DataOutputStream(fs.create(metadataPath))) { os =>
         implicit val formats = defaultJSONFormats
         val (blockSize, nRows, nCols, maybeBlocks) = blockMatrixMetadataFields(rddIndex.toInt)
         jackson.Serialization.write(
-          BlockMatrixMetadata(blockSize, nRows, nCols, maybeBlocks, partFiles), os
+          BlockMatrixMetadata(blockSize, nRows, nCols, maybeBlocks, fileData.map(_.path)), os
         )
       }
 
@@ -417,9 +421,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   val nCols: Long) extends Serializable {
 
   import BlockMatrix._
-
-  private[linalg] val st: String = Thread.currentThread().getStackTrace.mkString("\n")
-
+  
   require(blocks.partitioner.isDefined)
   require(blocks.partitioner.get.isInstanceOf[GridPartitioner])
 
@@ -854,30 +856,32 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
     fs.mkDir(uri)
 
-    def writeBlock(it: Iterator[((Int, Int), BDM[Double])], os: OutputStream): Int = {
+    def writeBlock(it: Iterator[((Int, Int), BDM[Double])], os: OutputStream): (Long, Long) = {
       assert(it.hasNext)
       val (_, lm) = it.next()
       assert(!it.hasNext)
 
-      lm.write(os, forceRowMajor, bufferSpec)
-      os.close()
+      val btos = new ByteTrackingOutputStream(os)
+      lm.write(btos, forceRowMajor, bufferSpec)
+      val bytesWritten = btos.bytesWritten
+      btos.close()
 
-      1
+      (1L, bytesWritten)
     }
 
-    val (partFiles, partitionCounts) = blocks.writePartitions(ctx, uri, stageLocally, writeBlock)
+    val fileData = blocks.writePartitions(ctx, uri, stageLocally, writeBlock)
 
     using(new DataOutputStream(fs.create(uri + metadataRelativePath))) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, nRows, nCols, gp.partitionIndexToBlockIndex, partFiles),
+        BlockMatrixMetadata(blockSize, nRows, nCols, gp.partitionIndexToBlockIndex, fileData.map(_.path)),
         os)
     }
 
     using(fs.create(uri + "/_SUCCESS"))(out => ())
 
-    val nBlocks = partitionCounts.length
-    assert(nBlocks == partitionCounts.sum)
+    val nBlocks = fileData.length
+    assert(nBlocks == fileData.map(_.rowsWritten).sum)
     info(s"wrote matrix with $nRows ${ plural(nRows, "row") } " +
       s"and $nCols ${ plural(nCols, "column") } " +
       s"as $nBlocks ${ plural(nBlocks, "block") } " +
@@ -1314,7 +1318,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
   
   def filterRows(keep: Array[Long]): BlockMatrix = {
-    transpose().filterCols(keep).transpose()
+    new BlockMatrix(new BlockMatrixFilterRowsRDD(this, keep), blockSize, keep.length, nCols)
   }
 
   def filterCols(keep: Array[Long]): BlockMatrix = {
@@ -1537,25 +1541,27 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
   @transient override val partitioner: Option[Partitioner] = Some(newGP)
 }
 
-case class BlockMatrixFilterColsRDDPartition(index: Int, blockColRanges: Array[(Int, Array[Int], Array[Int])]) extends Partition
+case class BlockMatrixFilterOneDimRDDPartition(index: Int, blockRanges: Array[(Int, Array[Int], Array[Int])]) extends Partition
 
 // checked in Python: keep non-empty, increasing, valid range
 private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
   extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) {
 
+  private val childPartitionsBc = bm.blocks.sparkContext.broadcast(bm.blocks.partitions)
+
   private val originalGP = bm.gp
   private val blockSize = originalGP.blockSize
-  private val tempDenseGP = GridPartitioner(blockSize, originalGP.nRows, keep.length)
+  @transient private val tempDenseGP = GridPartitioner(blockSize, originalGP.nRows, keep.length)
 
-  private val allBlockColRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
+  @transient private val allBlockColRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
     BlockMatrixFilterRDD.computeAllBlockColRanges(keep, originalGP, tempDenseGP)
 
-  private val originalMaybeBlocksSet = originalGP.partitionIndexToBlockIndex.map(_.toSet)
+  @transient private val originalMaybeBlocksSet = originalGP.partitionIndexToBlockIndex.map(_.toSet)
 
   //Map the denseGP blocks to the blocks of parents they depend on, temporarily pretending they are all there.
   //Then delete the parents that aren't in originalGP.maybeBlocks, then delete the pairs
   //without parents at all.
-  private val blockParentMap = (0 until tempDenseGP.numPartitions).map { blockId =>
+  @transient private val blockParentMap = (0 until tempDenseGP.numPartitions).map { blockId =>
     val (blockRow, newBlockCol) = tempDenseGP.blockCoordinates(blockId)
     blockId -> allBlockColRanges(newBlockCol).map { case (blockCol, _, _) =>
       originalGP.coordinatesBlock(blockRow, blockCol)
@@ -1568,14 +1574,16 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
       (blockId, filteredParents)
   }.filter{case (_, parents) => !parents.isEmpty}.toMap
 
-  private val blockIndices = blockParentMap.keys.toFastIndexedSeq.sorted
-  private val newGPMaybeBlocks = if (blockIndices.length == tempDenseGP.maxNBlocks)  None else Some(blockIndices)
+  private val blockParentMapBc = bm.blocks.sparkContext.broadcast(blockParentMap)
+
+  @transient private val blockIndices = blockParentMap.keys.toFastIndexedSeq.sorted
+  @transient private val newGPMaybeBlocks = if (blockIndices.length == tempDenseGP.maxNBlocks)  None else Some(blockIndices)
   private val newGP = tempDenseGP.copy(partitionIndexToBlockIndex = newGPMaybeBlocks)
 
   protected def getPartitions: Array[Partition] = {
     Array.tabulate(newGP.numPartitions) { partitionIndex: Int =>
       val blockIndex = newGP.partitionToBlock(partitionIndex)
-      BlockMatrixFilterColsRDDPartition(partitionIndex, allBlockColRanges(newGP.blockBlockCol(blockIndex)))
+      BlockMatrixFilterOneDimRDDPartition(partitionIndex, allBlockColRanges(newGP.blockBlockCol(blockIndex)))
     }
   }
 
@@ -1598,17 +1606,17 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
     var j = 0
     var k = 0
 
-    val splitCast = split.asInstanceOf[BlockMatrixFilterColsRDDPartition]
+    val splitCast = split.asInstanceOf[BlockMatrixFilterOneDimRDDPartition]
 
     splitCast
-      .blockColRanges
+      .blockRanges
       .foreach { case (blockCol, startIndices, endIndices) =>
         val parentBI = originalGP.coordinatesBlock(blockRow, blockCol)
         var block = parentZeroBlock
 
-        if (blockParentMap(newGP.partitionToBlock(split.index)).contains(parentBI)) {
+        if (blockParentMapBc.value(newGP.partitionToBlock(split.index)).contains(parentBI)) {
           val parentPI = originalGP.blockToPartition(parentBI)
-          block = bm.blocks.iterator(bm.blocks.partitions(parentPI), context).next()._2
+          block = bm.blocks.iterator(childPartitionsBc.value(parentPI), context).next()._2
         }
         var colRangeIndex = 0
         while (colRangeIndex < startIndices.length) {
@@ -1625,6 +1633,101 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
     assert(j == newBlockNCols)
 
     Iterator.single(((blockRow, newBlockCol), newBlock))
+  }
+
+  @transient override val partitioner: Option[Partitioner] = Some(newGP)
+}
+
+// checked in Python: keep non-empty, increasing, valid range
+private class BlockMatrixFilterRowsRDD(bm: BlockMatrix, keep: Array[Long])
+  extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) {
+
+  private val childPartitionsBc = bm.blocks.sparkContext.broadcast(bm.blocks.partitions)
+
+  private val originalGP = bm.gp
+  private val blockSize = originalGP.blockSize
+  private val tempDenseGP = GridPartitioner(blockSize, keep.length, originalGP.nCols)
+
+  @transient private val allBlockRowRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
+    BlockMatrixFilterRDD.computeAllBlockRowRanges(keep, originalGP, tempDenseGP)
+
+  @transient private val originalMaybeBlocksSet = originalGP.partitionIndexToBlockIndex.map(_.toSet)
+
+  //Map the denseGP blocks to the blocks of parents they depend on, temporarily pretending they are all there.
+  //Then delete the parents that aren't in originalGP.maybeBlocks, then delete the pairs
+  //without parents at all.
+  @transient private val blockParentMap = (0 until tempDenseGP.numPartitions).map { blockId =>
+    val (newBlockRow, blockCol) = tempDenseGP.blockCoordinates(blockId)
+    blockId -> allBlockRowRanges(newBlockRow).map { case (blockRow, _, _) =>
+      originalGP.coordinatesBlock(blockRow, blockCol)
+    }
+  }.map{case (blockId, parents) =>
+    val filteredParents = originalMaybeBlocksSet match {
+      case None => parents
+      case Some(blockIdSet) => parents.filter(id => blockIdSet.contains(id))
+    }
+    (blockId, filteredParents)
+  }.filter{case (_, parents) => !parents.isEmpty}.toMap
+
+  private val blockParentMapBc = bm.blocks.sparkContext.broadcast(blockParentMap)
+
+  @transient private val blockIndices = blockParentMap.keys.toFastIndexedSeq.sorted
+  @transient private val newGPMaybeBlocks = if (blockIndices.length == tempDenseGP.maxNBlocks)  None else Some(blockIndices)
+  private val newGP = tempDenseGP.copy(partitionIndexToBlockIndex = newGPMaybeBlocks)
+
+  protected def getPartitions: Array[Partition] = {
+    Array.tabulate(newGP.numPartitions) { partitionIndex: Int =>
+      val blockIndex = newGP.partitionToBlock(partitionIndex)
+      BlockMatrixFilterOneDimRDDPartition(partitionIndex, allBlockRowRanges(newGP.blockBlockRow(blockIndex)))
+    }
+  }
+
+  override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
+    new NarrowDependency(bm.blocks) {
+      def getParents(partitionId: Int): Seq[Int] = {
+        val blockForPartition = newGP.partitionToBlock(partitionId)
+        val blockParents = blockParentMap(blockForPartition)
+        val partitionParents = blockParents.map(blockId => originalGP.blockToPartition(blockId)).toSet.toArray.sorted
+        partitionParents
+      }
+    })
+
+  def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
+    val blockIndex = newGP.partitionToBlock(split.index)
+    val (newBlockRow, blockCol) = newGP.blockCoordinates(blockIndex)
+    val (newBlockNRows, blockNCols) = newGP.blockDims(blockIndex)
+    val parentZeroBlock = BDM.zeros[Double](originalGP.blockSize, originalGP.blockSize)
+    val newBlock = BDM.zeros[Double](newBlockNRows, blockNCols)
+    var j = 0
+    var k = 0
+
+    val splitCast = split.asInstanceOf[BlockMatrixFilterOneDimRDDPartition]
+
+    splitCast
+      .blockRanges
+      .foreach { case (blockRow, startIndices, endIndices) =>
+        val parentBI = originalGP.coordinatesBlock(blockRow, blockCol)
+        var block = parentZeroBlock
+
+        if (blockParentMapBc.value(newGP.partitionToBlock(split.index)).contains(parentBI)) {
+          val parentPI = originalGP.blockToPartition(parentBI)
+          block = bm.blocks.iterator(childPartitionsBc.value(parentPI), context).next()._2
+        }
+        var rowRangeIndex = 0
+        while (rowRangeIndex < startIndices.length) {
+          val si = startIndices(rowRangeIndex)
+          val ei = endIndices(rowRangeIndex)
+          k = j + ei - si
+
+          newBlock(j until k, ::) := block(si until ei, 0 until newBlock.cols)
+
+          j = k
+          rowRangeIndex += 1
+        }
+      }
+    assert(j == newBlockNRows)
+
+    Iterator.single(((newBlockRow, blockCol), newBlock))
   }
 
   @transient override val partitioner: Option[Partitioner] = Some(newGP)
@@ -1996,14 +2099,25 @@ class WriteBlocksRDD(
   }
 }
 
+object BlockMatrixReadRowBlockedRDD {
+  val DEFAULT_MAXIMUM_CACHE_MEMORY_IN_BYTES = 32 * 1024 * 1024
+}
+
 class BlockMatrixReadRowBlockedRDD(
   fsBc: BroadcastValue[FS],
   path: String,
   partitionRanges: IndexedSeq[NumericRange.Exclusive[Long]],
-  metadata: BlockMatrixMetadata) extends RDD[RVDContext => Iterator[Long]](SparkBackend.sparkContext("BlockMatrixReadRowBlockedRDD"), Nil) {
+  metadata: BlockMatrixMetadata,
+  maybeMaximumCacheMemoryInBytes: Option[Int]
+) extends RDD[RVDContext => Iterator[Long]](SparkBackend.sparkContext("BlockMatrixReadRowBlockedRDD"), Nil) {
+  import BlockMatrixReadRowBlockedRDD._
 
-  val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = metadata
-  val gp = GridPartitioner(blockSize, nRows, nCols)
+  private[this] val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = metadata
+  private[this] val gp = GridPartitioner(blockSize, nRows, nCols)
+  private[this] val maximumCacheMemoryInBytes = maybeMaximumCacheMemoryInBytes.getOrElse(DEFAULT_MAXIMUM_CACHE_MEMORY_IN_BYTES)
+  private[this] val doublesPerFile = maximumCacheMemoryInBytes / (gp.nBlockCols * 8)
+  assert(doublesPerFile >= blockSize,
+    "BlockMatrixCachedPartFile must be able to hold at least one row of every block in memory")
 
   override def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[Long]] = {
     val pi = split.index
@@ -2013,51 +2127,131 @@ class BlockMatrixReadRowBlockedRDD(
       val region = ctx.region
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
+      val firstRow = rowsForPartition(0)
+      var blockRow = (firstRow / blockSize).toInt
+      val fs = fsBc.value
+      var pfs = Array.tabulate(gp.nBlockCols) { blockCol =>
+        new BlockMatrixCachedPartFile(
+          (firstRow % blockSize).toInt,
+          doublesPerFile,
+          fs,
+          path,
+          partFiles(gp.coordinatesBlock(blockRow, blockCol)))
+      }
 
       rowsForPartition.iterator.map { row =>
-        val pfs = partFilesForRow(row, partFiles)
-        val rowInPartFile = (row % blockSize).toInt
+        val nextBlockRow = (row / blockSize).toInt
+        if (nextBlockRow != blockRow) {
+          assert(row % blockSize == 0)
+          blockRow = nextBlockRow
+          pfs = Array.tabulate(gp.nBlockCols) { blockCol =>
+            new BlockMatrixCachedPartFile(
+              0,
+              doublesPerFile,
+              fs,
+              path,
+              partFiles(gp.coordinatesBlock(blockRow, blockCol)))
+          }
+        }
 
         rvb.start(PCanonicalStruct(("row_idx", PInt64()), ("entries", PCanonicalArray(PFloat64()))))
         rvb.startStruct()
         rvb.addLong(row)
+        assert(nCols < Int.MaxValue)
         rvb.startArray(nCols.toInt)
-        pfs.foreach { pFile => readPartFileRow(fsBc.value, rvb, rowInPartFile, pFile) }
+        var colsRemaining = nCols.toInt
+        pfs.foreach { pf =>
+          val colsAdded = pf.addRow(rvb, colsRemaining)
+          colsRemaining -= colsAdded
+        }
+        assert(colsRemaining == 0)
         rvb.endArray()
         rvb.endStruct()
-
         rvb.end()
       }
     }
   }
 
-  private def partFilesForRow(row: Long, partFiles: IndexedSeq[String]): Array[String] = {
-    val blockRow = (row / blockSize).toInt
-    Array.tabulate(gp.nBlockCols) { blockCol => partFiles(gp.coordinatesBlock(blockRow, blockCol)) }
-  }
-
-  private def readPartFileRow(fs: FS, rvb: RegionValueBuilder, rowIdx: Int, pFile: String) {
-    val filename = path + "/parts/" + pFile
-    val is = fs.open(filename)
-    val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
-
-    val rows = in.readInt()
-    val cols = in.readInt()
-    val isTranspose = in.readBoolean()
-    assert(isTranspose, "BlockMatrix must be saved in row-major format")
-
-    val entriesToSkip = rowIdx * cols
-    in.skipBytes(8 * entriesToSkip)
-
-    var i = 0
-    while (i < cols) {
-      rvb.addDouble(in.readDouble())
-      i += 1
-    }
-    is.close()
-  }
-
   override def getPartitions: Array[Partition] = {
     Array.tabulate(partitionRanges.length) { pi => new Partition { val index: Int = pi } }
+  }
+}
+
+class BlockMatrixCachedPartFile(
+  private[this] val startRow: Int,
+  _cacheCapacity: Int,
+  private[this] val fs: FS,
+  path: String,
+  pFile: String
+) {
+  private[this] val cacheCapacity = math.min(_cacheCapacity, BlockMatrix.bufferSpecBlockSize)
+  private[this] val cache = new Array[Double](cacheCapacity)
+  private[this] var cacheIndex = cacheCapacity
+  private[this] var cacheEnd = cacheCapacity
+  private[this] var fileIndex = 0
+  private[this] val filename = path + "/parts/" + pFile
+  private[this] var rows = -1
+  private[this] var cols = -1
+
+  private[this] var row = startRow
+
+  using(fs.open(filename)) { is =>
+    val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
+    rows = in.readInt()
+    assert(rows > 0)
+    cols = in.readInt()
+    assert(cols > 0)
+    assert(cols <= cacheCapacity)
+    val isTranspose = in.readBoolean()
+    assert(isTranspose, "BlockMatrix must be saved in row-major format")
+    in.skipBytes(startRow * cols * 8)
+    val doublesToRead = math.min(cacheCapacity, (rows - startRow) * cols)
+    in.readDoubles(cache, 0, doublesToRead)
+    cacheIndex = 0
+    cacheEnd = doublesToRead
+    fileIndex = startRow * cols + doublesToRead
+    log.info(s"fileIndex 1 $fileIndex")
+  }
+
+  private[this] def fillCache(): Unit = {
+    System.arraycopy(cache, cacheIndex, cache, 0, cacheEnd - cacheIndex)
+    val startWritingAt = cacheEnd - cacheIndex
+    cacheIndex = 0
+    using(fs.open(filename)) { is =>
+      val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
+
+      assert(rows == in.readInt())
+      assert(cols == in.readInt())
+      val isTranspose = in.readBoolean()
+      assert(isTranspose, "BlockMatrix must be saved in row-major format")
+
+      in.skipBytes(8 * fileIndex)
+      val doublesToRead = math.min(
+        cacheCapacity - startWritingAt,
+        rows * cols - fileIndex)
+      in.readDoubles(cache, startWritingAt, doublesToRead)
+      cacheEnd = doublesToRead + startWritingAt
+      var i = 0
+      fileIndex += doublesToRead
+      assert(doublesToRead > 0)
+    }
+  }
+
+  def addRow(rvb: RegionValueBuilder, colsRemaining: Int): Int = {
+    assert(cols <= colsRemaining)
+    if (cacheIndex + cols > cacheEnd) {
+      fillCache()
+    }
+
+    var i = cacheIndex
+    val endOfRow = cacheIndex + cols
+    while (i < endOfRow) {
+      rvb.addDouble(cache(i))
+      i += 1
+    }
+
+    row += 1
+    cacheIndex += cols
+    return cols
   }
 }

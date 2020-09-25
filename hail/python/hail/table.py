@@ -16,6 +16,7 @@ import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, dictof, anytype, \
     anyfunc, nullable, sequenceof, oneof, numeric, lazy, enumeration, \
     table_key_type, func_spec
+from hail.utils import deduplicate
 from hail.utils.placement_tree import PlacementTree
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import wrap_to_tuple, storage_level, plural, \
@@ -601,7 +602,7 @@ class Table(ExprContainer):
             Table with new global field(s).
         """
         caller = 'Table.annotate_globals'
-        check_annotate_exprs(caller, named_exprs, self._global_indices)
+        check_annotate_exprs(caller, named_exprs, self._global_indices, set())
         return self._select_globals('Table.annotate_globals', self.globals.annotate(**named_exprs))
 
     def select_globals(self, *exprs, **named_exprs) -> 'Table':
@@ -675,7 +676,7 @@ class Table(ExprContainer):
         :class:`.Table`
         """
         caller = 'Table.transmute_globals'
-        check_annotate_exprs(caller, named_exprs, self._global_indices)
+        check_annotate_exprs(caller, named_exprs, self._global_indices, set())
         fields_referenced = extract_refs_by_indices(named_exprs.values(), self._global_indices) - set(named_exprs.keys())
 
         return self._select_globals(caller,
@@ -742,7 +743,7 @@ class Table(ExprContainer):
             Table with transmuted fields.
         """
         caller = "Table.transmute"
-        check_annotate_exprs(caller, named_exprs, self._row_indices)
+        check_annotate_exprs(caller, named_exprs, self._row_indices, set())
         fields_referenced = extract_refs_by_indices(named_exprs.values(), self._row_indices) - set(named_exprs.keys())
         fields_referenced -= set(self.key)
 
@@ -775,7 +776,7 @@ class Table(ExprContainer):
             Table with new fields.
         """
         caller = "Table.annotate"
-        check_annotate_exprs(caller, named_exprs, self._row_indices)
+        check_annotate_exprs(caller, named_exprs, self._row_indices, set())
         return self._select(caller, self.row.annotate(**named_exprs))
 
     @typecheck_method(expr=expr_bool,
@@ -997,7 +998,7 @@ class Table(ExprContainer):
                       parallel=nullable(ir.ExportType.checker),
                       delimiter=str)
     def export(self, output, types_file=None, header=True, parallel=None, delimiter='\t'):
-        """Export to a TSV file.
+        """Export to a text file.
 
         Examples
         --------
@@ -1012,9 +1013,16 @@ class Table(ExprContainer):
         read natively with any Hail method, as well as with Python's ``gzip.open``
         and R's ``read.table``.
 
+        Nested structures will be exported as JSON. In order to export nested struct
+        fields as separate fields in the resulting table, use :meth:`flatten` first.
+
         Warning
         -------
         Do not export to a path that is being read from in the same pipeline.
+
+        See Also
+        --------
+        :meth:`flatten`, :meth:`write`
 
         Parameters
         ----------
@@ -1210,6 +1218,22 @@ class Table(ExprContainer):
         >>> table1 = table1.checkpoint('output/table_checkpoint.ht')
 
         """
+        if _codec_spec is None:
+            _codec_spec = """{
+  "name": "LEB128BufferSpec",
+  "child": {
+    "name": "BlockingBufferSpec",
+    "blockSize": 32768,
+    "child": {
+      "name": "LZ4FastBlockBufferSpec",
+      "blockSize": 32768,
+      "child": {
+        "name": "StreamBlockBufferSpec"
+      }
+    }
+  }
+}"""
+
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
             self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
         return hl.read_table(output, _intervals=_intervals, _filter_intervals=_filter_intervals)
@@ -1228,6 +1252,10 @@ class Table(ExprContainer):
         >>> table1.write('output/table1.ht')
 
         .. include:: _templates/write_warning.rst
+
+        See Also
+        --------
+        :func:`.read_table`
 
         Parameters
         ----------
@@ -1448,6 +1476,12 @@ class Table(ExprContainer):
         |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |
         |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |
         +-------+-------+-----+-------+-------+-------+-------+-------+
+
+        Notes
+        -----
+        The output can be passed piped to another output source using the `handler` argument:
+
+        >>> ht.show(handler=lambda x: logging.info(x))  # doctest: +SKIP
 
         Parameters
         ----------
@@ -2414,27 +2448,14 @@ class Table(ExprContainer):
             raise ValueError(f"'join': key mismatch:\n  "
                              f"  left:  [{', '.join(str(t) for t in left_key_types)}]\n  "
                              f"  right: [{', '.join(str(t) for t in right_key_types)}]")
-        seen = set(self._fields.keys())
+        left_fields = set(self._fields)
+        right_fields = set(right._fields)
 
-        renames = {}
-
-        for field in right._fields:
-            if field in seen and field not in right.key:
-                i = 1
-                while i < 100:
-                    mod = _mangle(field, i)
-                    if mod not in seen:
-                        renames[field] = mod
-                        seen.add(mod)
-                        break
-                    i += 1
-                else:
-                    raise RecursionError(f'cannot rename field {repr(field)} after 99'
-                                         f' mangling attempts')
-            else:
-                seen.add(field)
+        renames, _ = deduplicate(
+            right_fields, max_attempts=100, already_used=left_fields)
 
         if renames:
+            renames = dict(renames)
             right = right.rename(renames)
             info('Table.join: renamed the following fields on the right to avoid name conflicts:'
                  + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items()))
@@ -3482,7 +3503,7 @@ class Table(ExprContainer):
         body = f(expr)
         result_t = body.dtype
         if any(k not in result_t.element_type for k in self.key):
-            raise ValueError(f'Table._map_partitions must preserve key fields')
+            raise ValueError('Table._map_partitions must preserve key fields')
 
         body_ir = ir.Let('global', ir.Ref(globals_uid), ir.ToStream(body._ir))
         return Table(ir.TableMapPartitions(self._tir, globals_uid, rows_uid, body_ir))

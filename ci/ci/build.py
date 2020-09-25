@@ -330,7 +330,10 @@ gcloud -q auth configure-docker
 
 retry docker pull $FROM_IMAGE
 {pull_published_latest}
-docker build --memory="1.5g" --cpu-period=100000 --cpu-quota=100000 -t {shq(self.image)} \
+CPU_PERIOD=100000
+CPU_QUOTA=$(( $(grep -c ^processor /proc/cpuinfo) * $(cat /sys/fs/cgroup/cpu/cpu.shares) * $CPU_PERIOD / 1024 ))
+MEMORY=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
+docker build --memory="$MEMORY" --cpu-period="$CPU_PERIOD" --cpu-quota="$CPU_QUOTA" -t {shq(self.image)} \
   -f {rendered_dockerfile} \
   --cache-from $FROM_IMAGE {cache_from_published_latest} \
   {context}
@@ -349,10 +352,6 @@ date
                                         'name': 'gcr-push-service-account-key',
                                         'mount_path': '/secrets/gcr-push-service-account-key'
                                     }],
-                                    resources={
-                                        'memory': '2G',
-                                        'cpu': '1'
-                                    },
                                     attributes={'name': self.name},
                                     input_files=input_files,
                                     parents=self.deps_parents())
@@ -387,7 +386,8 @@ true
                                         'mount_path': '/secrets/gcr-push-service-account-key'
                                     }],
                                     parents=parents,
-                                    always_run=True)
+                                    always_run=True,
+                                    network='private')
 
 
 class RunImageStep(Step):
@@ -480,7 +480,8 @@ class RunImageStep(Step):
             service_account=self.service_account,
             parents=self.deps_parents(),
             always_run=self.always_run,
-            timeout=self.timeout)
+            timeout=self.timeout,
+            network='private')
 
     def cleanup(self, batch, scope, parents):
         pass
@@ -502,7 +503,11 @@ class CreateNamespaceStep(Step):
         self.job = None
 
         if is_test_deployment:
-            self._name = DEFAULT_NAMESPACE
+            assert self.namespace_name in ('default', 'batch_pods'), self.namespace_name
+            if self.namespace_name == 'default':
+                self._name = DEFAULT_NAMESPACE
+            else:
+                self._name = BATCH_PODS_NAMESPACE
             return
 
         if params.scope == 'deploy':
@@ -647,7 +652,8 @@ date
                                         'namespace': BATCH_PODS_NAMESPACE,
                                         'name': 'ci-agent'
                                     },
-                                    parents=self.deps_parents())
+                                    parents=self.deps_parents(),
+                                    network='private')
 
     def cleanup(self, batch, scope, parents):
         if scope in ['deploy', 'dev'] or is_test_deployment:
@@ -675,7 +681,8 @@ true
                                         'name': 'ci-agent'
                                     },
                                     parents=parents,
-                                    always_run=True)
+                                    always_run=True,
+                                    network='private')
 
 
 class DeployStep(Step):
@@ -792,7 +799,8 @@ date
                                         'namespace': BATCH_PODS_NAMESPACE,
                                         'name': 'ci-agent'
                                     },
-                                    parents=self.deps_parents())
+                                    parents=self.deps_parents(),
+                                    network='private')
 
     def cleanup(self, batch, scope, parents):  # pylint: disable=unused-argument
         if self.wait:
@@ -817,7 +825,8 @@ date
                                             'name': 'ci-agent'
                                         },
                                         parents=parents,
-                                        always_run=True)
+                                        always_run=True,
+                                        network='private')
 
 
 class CreateDatabaseStep(Step):
@@ -874,6 +883,8 @@ class CreateDatabaseStep(Step):
         if self.create_passwords_job:
             assert self.create_database_job is not None
             return [self.create_passwords_job, self.create_database_job]
+        if self.create_database_job:
+            return [self.create_database_job]
         return []
 
     @staticmethod
@@ -925,17 +936,19 @@ python3 create_database.py {shq(json.dumps(create_database_config))}
         if self.inputs:
             for i in self.inputs:
                 input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
-        password_files_input = [
-            (f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.admin_password_file}', self.admin_password_file),
-            (f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.user_password_file}', self.user_password_file)]
-        input_files.extend(password_files_input)
 
-        self.create_passwords_job = batch.create_job(
-            CI_UTILS_IMAGE,
-            command=['bash', '-c', create_passwords_script],
-            attributes={'name': self.name + "_create_passwords"},
-            output_files=[(x[1], x[0]) for x in password_files_input],
-            parents=self.deps_parents())
+        if not self.cant_create_database:
+            password_files_input = [
+                (f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.admin_password_file}', self.admin_password_file),
+                (f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.user_password_file}', self.user_password_file)]
+            input_files.extend(password_files_input)
+
+            self.create_passwords_job = batch.create_job(
+                CI_UTILS_IMAGE,
+                command=['bash', '-c', create_passwords_script],
+                attributes={'name': self.name + "_create_passwords"},
+                output_files=[(x[1], x[0]) for x in password_files_input],
+                parents=self.deps_parents())
 
         self.create_database_job = batch.create_job(
             CI_UTILS_IMAGE,
@@ -951,7 +964,8 @@ python3 create_database.py {shq(json.dumps(create_database_config))}
                 'name': 'ci-agent'
             },
             input_files=input_files,
-            parents=[self.create_passwords_job])
+            parents=[self.create_passwords_job] if self.create_passwords_job else self.deps_parents(),
+            network='private')
 
     def cleanup(self, batch, scope, parents):
         if scope in ['deploy', 'dev'] or self.cant_create_database:
@@ -990,4 +1004,5 @@ done
                 'name': 'ci-agent'
             },
             parents=parents,
-            always_run=True)
+            always_run=True,
+            network='private')

@@ -109,7 +109,7 @@ def hail_metadata(t_path):
         metadata_file = [x['path'] for x in rows_files if x['path'].endswith('metadata.json.gz')]
         if metadata_file:
             with hadoop_open(metadata_file[0], 'rb') as f:
-                rows_meta = json.loads(f.read())
+                rows_meta = json.load(f)
                 try:
                     partition_bounds = [
                         (x['start']['locus']['contig'], x['start']['locus']['position'],
@@ -151,7 +151,7 @@ def hail_metadata(t_path):
         raise FileNotFoundError('No metadata.json.gz file found.')
 
     with hadoop_open(metadata_file[0], 'rb') as f:
-        overall_meta = json.loads(f.read())
+        overall_meta = json.load(f)
         rows_per_partition = overall_meta['components']['partition_counts']['counts']
 
     if not rows_file:

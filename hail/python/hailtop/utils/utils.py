@@ -1,3 +1,4 @@
+from typing import Callable, TypeVar, Awaitable
 import os
 import errno
 import random
@@ -11,6 +12,8 @@ import socket
 import requests
 import google.auth.exceptions
 import time
+from requests.adapters import HTTPAdapter
+from urllib3.poolmanager import PoolManager
 
 from .time import time_msecs
 
@@ -33,6 +36,12 @@ def first_extant_file(*files):
         if f is not None and os.path.isfile(f):
             return f
     return None
+
+
+def cost_str(cost):
+    if cost is None:
+        return None
+    return f'${cost:.4f}'
 
 
 def secret_alnum_string(n=22, *, case=None):
@@ -181,6 +190,9 @@ class AsyncWorkerPool:
     async def call(self, f, *args, **kwargs):
         await self._queue.put((f, args, kwargs))
 
+    def call_nowait(self, f, *args, **kwargs):
+        self._queue.put_nowait((f, args, kwargs))
+
 
 class WaitableSharedPool:
     def __init__(self, worker_pool):
@@ -280,7 +292,7 @@ def is_transient_error(e):
     if isinstance(e, asyncio.TimeoutError):
         return True
     if isinstance(e, aiohttp.client_exceptions.ClientConnectorError):
-        return is_transient_error(e.os_error)
+        return hasattr(e, 'os_error') and is_transient_error(e.os_error)
     if (isinstance(e, OSError)
             and (e.errno == errno.ETIMEDOUT
                  or e.errno == errno.ECONNREFUSED
@@ -333,7 +345,10 @@ def retry_all_errors(msg=None, error_logging_interval=10):
     return _wrapper
 
 
-async def retry_transient_errors(f, *args, **kwargs):
+T = TypeVar('T')  # pylint: disable=invalid-name
+
+
+async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
     delay = 0.1
     errors = 0
     while True:
@@ -395,6 +410,31 @@ def retry_response_returning_functions(fun, *args, **kwargs):
     return response
 
 
+def external_requests_client_session(headers=None) -> requests.Session:
+    session = requests.Session()
+    adapter = TimeoutHTTPAdapter(max_retries=1, timeout=5)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    if headers:
+        session.headers = headers
+    return session
+
+
+class TimeoutHTTPAdapter(HTTPAdapter):
+    def __init__(self, max_retries, timeout):
+        self.max_retries = max_retries
+        self.timeout = timeout
+        super().__init__(max_retries=max_retries)
+
+    def init_poolmanager(self, connections, maxsize, block=False):
+        self.poolmanager = PoolManager(
+            num_pools=connections,
+            maxsize=maxsize,
+            block=block,
+            retries=self.max_retries,
+            timeout=self.timeout)
+
+
 async def collect_agen(agen):
     return [x async for x in agen]
 
@@ -423,6 +463,14 @@ async def run_if_changed(changed, f, *args, **kwargs):
     while True:
         changed.clear()
         should_wait = await f(*args, **kwargs)
+        if should_wait:
+            await changed.wait()
+
+
+async def run_if_changed_idempotent(changed, f, *args, **kwargs):
+    while True:
+        should_wait = await f(*args, **kwargs)
+        changed.clear()
         if should_wait:
             await changed.wait()
 

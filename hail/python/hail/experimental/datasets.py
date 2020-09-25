@@ -1,3 +1,5 @@
+import os
+import pkg_resources
 import json
 import hail as hl
 
@@ -5,16 +7,17 @@ import hail as hl
 def load_dataset(name,
                  version,
                  reference_genome,
-                 config_file='gs://hail-datasets/datasets.json'):
+                 region):
     """Load a genetic dataset from Hail's repository.
 
     Example
     -------
 
-    >>> # Load 1000 Genomes MatrixTable with GRCh38 coordinates
-    >>> mt_1kg = hl.experimental.load_dataset(name='1000_genomes',   # doctest: +SKIP
-    ...                                       version='phase3',
-    ...                                       reference_genome='GRCh38')
+    >>> # Load 1000 Genomes autosomes MatrixTable with GRCh38 coordinates
+    >>> mt_1kg = hl.experimental.load_dataset(name='1000_Genomes_autosomes',   # doctest: +SKIP
+    ...                                       version='phase_3',
+    ...                                       reference_genome='GRCh38',
+    ...                                       region='us')
 
     Parameters
     ----------
@@ -25,12 +28,21 @@ def load_dataset(name,
         (see available versions in documentation).
     reference_genome : `GRCh37` or `GRCh38`
         Reference genome build.
+    region : `us` or `eu`
+        Specify region for GCP bucket.
 
     Returns
     -------
     :class:`.Table` or :class:`.MatrixTable`"""
 
-    with hl.hadoop_open(config_file, 'r') as f:
+    valid_regions = {'us', 'eu'}
+    if region not in valid_regions:
+        raise ValueError(f'Specify valid region parameter, received: region={region}. '
+                         f'Valid regions are {valid_regions}.')
+
+    config_path = pkg_resources.resource_filename(__name__, 'datasets.json')
+    assert os.path.exists(config_path), f'{config_path} does not exist'
+    with open(config_path) as f:
         datasets = json.load(f)
 
     names = set([dataset['name'] for dataset in datasets])
@@ -54,6 +66,7 @@ def load_dataset(name,
     path = [dataset['path'] for dataset in datasets if all([dataset['name'] == name,
                                                             dataset['version'] == version,
                                                             dataset['reference_genome'] == reference_genome])][0].strip('/')
+    path = path.format(region=region)
 
     if path.endswith('.ht'):
         dataset = hl.read_table(path)

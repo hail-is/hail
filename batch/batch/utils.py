@@ -1,5 +1,6 @@
 import logging
 import math
+from collections import deque
 
 log = logging.getLogger('utils')
 
@@ -12,12 +13,6 @@ def coalesce(x, default):
     if x is not None:
         return x
     return default
-
-
-def cost_str(cost):
-    if cost is None:
-        return None
-    return f'${cost:.4f}'
 
 
 def cost_from_msec_mcpu(msec_mcpu):
@@ -89,26 +84,32 @@ def adjust_cores_for_memory_request(cores_in_mcpu, memory_in_bytes, worker_type)
     return max(cores_in_mcpu, min_cores_mcpu)
 
 
-def total_worker_storage_gib():
-    # local ssd is 375Gi
-    # reserve 25Gi for images
-    return 375 - 25
+def total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib):
+    reserved_image_size = 25
+    if worker_local_ssd_data_disk:
+        # local ssd is 375Gi
+        # reserve 25Gi for images
+        return 375 - reserved_image_size
+    return worker_pd_ssd_data_disk_size_gib - reserved_image_size
 
 
-def worker_storage_per_core_bytes(worker_cores):
-    return (total_worker_storage_gib() * 1024**3) // worker_cores
+def worker_storage_per_core_bytes(worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib):
+    return (total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib) * 1024**3) // worker_cores
 
 
-def storage_bytes_to_cores_mcpu(storage_in_bytes, worker_cores):
-    return round_up_division(storage_in_bytes * 1000, worker_storage_per_core_bytes(worker_cores))
+def storage_bytes_to_cores_mcpu(storage_in_bytes, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib):
+    return round_up_division(storage_in_bytes * 1000,
+                             worker_storage_per_core_bytes(worker_cores,
+                                                           worker_local_ssd_data_disk,
+                                                           worker_pd_ssd_data_disk_size_gib))
 
 
-def cores_mcpu_to_storage_bytes(cores_in_mcpu, worker_cores):
-    return (cores_in_mcpu * worker_storage_per_core_bytes(worker_cores)) // 1000
+def cores_mcpu_to_storage_bytes(cores_in_mcpu, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib):
+    return (cores_in_mcpu * worker_storage_per_core_bytes(worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib)) // 1000
 
 
-def adjust_cores_for_storage_request(cores_in_mcpu, storage_in_bytes, worker_cores):
-    min_cores_mcpu = storage_bytes_to_cores_mcpu(storage_in_bytes, worker_cores)
+def adjust_cores_for_storage_request(cores_in_mcpu, storage_in_bytes, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib):
+    min_cores_mcpu = storage_bytes_to_cores_mcpu(storage_in_bytes, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib)
     return max(cores_in_mcpu, min_cores_mcpu)
 
 
@@ -116,3 +117,44 @@ def adjust_cores_for_packability(cores_in_mcpu):
     cores_in_mcpu = max(1, cores_in_mcpu)
     power = max(-2, math.ceil(math.log2(cores_in_mcpu / 1000)))
     return int(2**power * 1000)
+
+
+class WindowFractionCounter:
+    def __init__(self, window_size: int):
+        self._window_size = window_size
+        self._q = deque()
+        self._n_true = 0
+        self._seen = set()
+
+    def clear(self):
+        self._q.clear()
+        self._n_true = 0
+        self._seen = set()
+
+    def push(self, key: str, x: bool):
+        self.assert_valid()
+        if key in self._seen:
+            return
+        while len(self._q) >= self._window_size:
+            old_key, old = self._q.popleft()
+            self._seen.remove(old_key)
+            if old:
+                self._n_true -= 1
+        self._q.append((key, x))
+        self._seen.add(key)
+        if x:
+            self._n_true += 1
+        self.assert_valid()
+
+    def fraction(self) -> float:
+        self.assert_valid()
+        # (1, 1) prior
+        return (self._n_true + 1) / (len(self._q) + 2)
+
+    def __repr__(self):
+        self.assert_valid()
+        return f'{self._n_true}/{len(self._q)}'
+
+    def assert_valid(self):
+        assert len(self._q) <= self._window_size
+        assert 0 <= self._n_true <= self._window_size

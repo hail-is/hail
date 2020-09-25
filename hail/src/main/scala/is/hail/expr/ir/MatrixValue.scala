@@ -7,7 +7,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.types.physical.{PArray, PCanonicalStruct, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types.{MatrixType, TableType}
-import is.hail.io.BufferSpec
+import is.hail.io.{BufferSpec, FileWriteMetadata}
 import is.hail.io.fs.FS
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{AbstractRVDSpec, RVD, _}
@@ -87,9 +87,10 @@ case class MatrixValue(
   def colsTableValue(ctx: ExecuteContext): TableValue =
     TableValue(ctx, typ.colsTableType, globals, colsRVD(ctx))
 
-  private def writeCols(ctx: ExecuteContext, path: String, bufferSpec: BufferSpec) {
+  private def writeCols(ctx: ExecuteContext, path: String, bufferSpec: BufferSpec): Long = {
     val fs = ctx.fs
-    val partitionCounts = AbstractRVDSpec.writeSingle(ctx, path + "/rows", colValues.t.elementType.asInstanceOf[PStruct], bufferSpec, colValues.javaValue)
+    val fileData = AbstractRVDSpec.writeSingle(ctx, path + "/rows", colValues.t.elementType.asInstanceOf[PStruct], bufferSpec, colValues.javaValue)
+    val partitionCounts = fileData.map(_.rowsWritten)
 
     val colsSpec = TableSpecParameters(
       FileFormat.version.rep,
@@ -102,11 +103,14 @@ case class MatrixValue(
     colsSpec.write(fs, path)
 
     using(fs.create(path + "/_SUCCESS"))(out => ())
+
+    fileData.map(_.bytesWritten).sum
   }
 
-  private def writeGlobals(ctx: ExecuteContext, path: String, bufferSpec: BufferSpec) {
+  private def writeGlobals(ctx: ExecuteContext, path: String, bufferSpec: BufferSpec): Long = {
     val fs = ctx.fs
-    val partitionCounts = AbstractRVDSpec.writeSingle(ctx, path + "/rows", globals.t, bufferSpec, Array(globals.javaValue))
+    val fileData = AbstractRVDSpec.writeSingle(ctx, path + "/rows", globals.t, bufferSpec, Array(globals.javaValue))
+    val partitionCounts = fileData.map(_.rowsWritten)
 
     AbstractRVDSpec.writeSingle(ctx, path + "/globals", PCanonicalStruct.empty(required = true), bufferSpec, Array[Annotation](Row()))
 
@@ -121,19 +125,22 @@ case class MatrixValue(
     globalsSpec.write(fs, path)
 
     using(fs.create(path + "/_SUCCESS"))(out => ())
+    fileData.map(_.bytesWritten).sum
   }
 
   private def finalizeWrite(
     ctx: ExecuteContext,
     path: String,
     bufferSpec: BufferSpec,
-    partitionCounts: Array[Long],
+    fileData: Array[FileWriteMetadata],
     consoleInfo: Boolean
   ): Unit = {
     val fs = ctx.fs
     val globalsPath = path + "/globals"
     fs.mkDir(globalsPath)
-    writeGlobals(ctx, globalsPath, bufferSpec)
+    val globalBytesWritten = writeGlobals(ctx, globalsPath, bufferSpec)
+
+    val partitionCounts = fileData.map(_.rowsWritten)
 
     val rowsSpec = TableSpecParameters(
       FileFormat.version.rep,
@@ -160,7 +167,7 @@ case class MatrixValue(
     using(fs.create(path + "/entries/_SUCCESS"))(out => ())
 
     fs.mkDir(path + "/cols")
-    writeCols(ctx, path + "/cols", bufferSpec)
+    val colBytesWritten = writeCols(ctx, path + "/cols", bufferSpec)
 
     val refPath = path + "/references"
     fs.mkDir(refPath)
@@ -185,11 +192,26 @@ case class MatrixValue(
     using(fs.create(path + "/_SUCCESS"))(_ => ())
 
     val nRows = partitionCounts.sum
-    val printer: String=>Unit = if (consoleInfo) info else log.info
+    val printer: String => Unit = if (consoleInfo) info else log.info
+
+    val partitionBytesWritten = fileData.map(_.bytesWritten)
+    val totalRowsEntriesBytes = partitionBytesWritten.sum
+    val totalBytesWritten: Long = totalRowsEntriesBytes + colBytesWritten + globalBytesWritten
+    val smallestPartition = fileData.minBy(_.bytesWritten)
+    val largestPartition = fileData.maxBy(_.bytesWritten)
+    val smallestStr = s"${ smallestPartition.rowsWritten } rows (${ formatSpace(smallestPartition.bytesWritten) })"
+    val largestStr = s"${ largestPartition.rowsWritten } rows (${ formatSpace(largestPartition.bytesWritten) })"
+
     printer(s"wrote matrix table with $nRows ${ plural(nRows, "row") } " +
       s"and $nCols ${ plural(nCols, "column") } " +
       s"in ${ partitionCounts.length } ${ plural(partitionCounts.length, "partition") } " +
-      s"to $path")
+      s"to $path" +
+      s"\n    Total size: ${ formatSpace(totalBytesWritten) }" +
+      s"\n    * Rows/entries: ${ formatSpace(totalRowsEntriesBytes) }" +
+      s"\n    * Columns: ${ formatSpace(colBytesWritten) }" +
+      s"\n    * Globals: ${ formatSpace(globalBytesWritten) }" +
+      s"\n    * Smallest partition: $smallestStr" +
+      s"\n    * Largest partition:  $largestStr")
   }
 
   def write(ctx: ExecuteContext,
@@ -221,9 +243,9 @@ case class MatrixValue(
       } else
         null
 
-    val partitionCounts = rvd.writeRowsSplit(ctx, path, bufferSpec, stageLocally, targetPartitioner)
+    val fileData = rvd.writeRowsSplit(ctx, path, bufferSpec, stageLocally, targetPartitioner)
 
-    finalizeWrite(ctx, path, bufferSpec, partitionCounts, consoleInfo = true)
+    finalizeWrite(ctx, path, bufferSpec, fileData, consoleInfo = true)
   }
 
   def colsRVD(ctx: ExecuteContext): RVD = {
@@ -314,9 +336,9 @@ object MatrixValue {
       fs.mkDir(path)
     }
 
-    val partitionCounts = RVD.writeRowsSplitFiles(ctx, mvs.map(_.rvd), prefix, bufferSpec, stageLocally)
-    for ((mv, path, partCounts) <- (mvs, paths, partitionCounts).zipped) {
-      mv.finalizeWrite(ctx, path, bufferSpec, partCounts, consoleInfo = false)
+    val fileData = RVD.writeRowsSplitFiles(ctx, mvs.map(_.rvd), prefix, bufferSpec, stageLocally)
+    for ((mv, path, fd) <- (mvs, paths, fileData).zipped) {
+      mv.finalizeWrite(ctx, path, bufferSpec, fd, consoleInfo = false)
     }
   }
 

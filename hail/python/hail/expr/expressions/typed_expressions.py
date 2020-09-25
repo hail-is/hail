@@ -1,17 +1,20 @@
 from typing import Mapping, Dict, Sequence
+
+from deprecated import deprecated
+
 import hail as hl
 from .indices import Indices, Aggregation
 from .base_expression import Expression, ExpressionException, to_expr, \
     unify_all, unify_types
 from .expression_typecheck import coercer_from_dtype, \
     expr_any, expr_array, expr_set, expr_bool, expr_numeric, expr_int32, \
-    expr_int64, expr_str, expr_dict, expr_interval, expr_tuple
+    expr_int64, expr_str, expr_dict, expr_interval, expr_tuple, expr_oneof
 from hail.expr.types import HailType, tint32, tint64, tfloat32, \
     tfloat64, tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr, \
     tndarray, tlocus, tinterval, is_numeric
 import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, func_spec, oneof, \
-    identity, nullable, tupleof, sliceof
+    identity, nullable, tupleof, sliceof, dictof
 from hail.utils.java import Env, warning
 from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import wrap_to_list, get_nice_field_error, get_nice_attr_error
@@ -399,6 +402,11 @@ class CollectionExpression(Expression):
             hl.agg.mean(length),
             hl.agg.explode(lambda elt: elt._all_summary_aggs(), self)))
 
+    def __contains__(self, element):
+        class_name = type(self).__name__
+        raise TypeError(f"Cannot use `in` operator on hail `{class_name}`s. Use the `contains` method instead."
+                        "`names.contains('Charlie')` instead of `'Charlie' in names`")
+
 
 class ArrayExpression(CollectionExpression):
     """Expression of type :class:`.tarray`.
@@ -504,6 +512,7 @@ class ArrayExpression(CollectionExpression):
         """
         return self._method("contains", tbool, item)
 
+    @deprecated(version="0.2.58", reason="Replaced by first")
     def head(self):
         """Returns the first element of the array, or missing if empty.
 
@@ -521,8 +530,46 @@ class ArrayExpression(CollectionExpression):
         >>> hl.eval(names.filter(lambda x: x.startswith('D')).head())
         None
         """
+        return self.first()
+
+    def first(self):
+        """Returns the first element of the array, or missing if empty.
+
+        Returns
+        -------
+        :class:`.Expression`
+            Element.
+
+        Examples
+        --------
+        >>> hl.eval(names.first())
+        'Alice'
+
+        If the array has no elements, then the result is missing:
+        >>> hl.eval(names.filter(lambda x: x.startswith('D')).first())
+        None
+        """
         # FIXME: this should generate short-circuiting IR when that is possible
-        return hl.rbind(self, lambda x: hl.case().when(x.length() > 0, x[0]).or_missing())
+        return hl.rbind(self, lambda x: hl.or_missing(hl.len(x) > 0, x[0]))
+
+    def last(self):
+        """Returns the last element of the array, or missing if empty.
+
+        Returns
+        -------
+        :class:`.Expression`
+            Element.
+
+        Examples
+        --------
+        >>> hl.eval(names.last())
+        'Charlie'
+
+        If the array has no elements, then the result is missing:
+        >>> hl.eval(names.filter(lambda x: x.startswith('D')).last())
+        None
+        """
+        return hl.rbind(self, hl.len(self), lambda x, n: hl.or_missing(n > 0, x[n - 1]))
 
     @typecheck_method(x=oneof(func_spec(1, expr_any), expr_any))
     def index(self, x):
@@ -557,7 +604,7 @@ class ArrayExpression(CollectionExpression):
         else:
             def f(elt, x):
                 return elt == x
-        return hl.bind(lambda a: hl.range(0, a.length()).filter(lambda i: f(a[i], x)).head(), self)
+        return hl.bind(lambda a: hl.range(0, a.length()).filter(lambda i: f(a[i], x)).first(), self)
 
     @typecheck_method(item=expr_any)
     def append(self, item):
@@ -671,6 +718,32 @@ class ArrayExpression(CollectionExpression):
 
         indices, aggregations = unify_all(self, zero, body)
         return construct_expr(x, tarray(body.dtype), indices, aggregations)
+
+    @typecheck_method(group_size=expr_int32)
+    def grouped(self, group_size):
+        """Partition an array into fixed size subarrays.
+
+        Examples
+        --------
+        >>> a = hl.array([0, 1, 2, 3, 4])
+
+        >>> hl.eval(a.grouped(2))
+        [[0, 1], [2, 3], [4]]
+
+        Parameters
+        ----------
+        group_size : :class:`.Int32Expression`
+            The number of elements per group.
+
+        Returns
+        -------
+        :class:`.ArrayExpression`.
+        """
+        indices, aggregations = unify_all(self, group_size)
+        stream_ir = ir.StreamGrouped(ir.ToStream(self._ir), group_size._ir)
+        mapping_identifier = Env.get_uid("stream_grouped_map_to_arrays")
+        mapped_to_arrays = ir.StreamMap(stream_ir, mapping_identifier, ir.ToArray(ir.Ref(mapping_identifier)))
+        return construct_expr(ir.ToArray(mapped_to_arrays), tarray(self._type), indices, aggregations)
 
 
 class ArrayStructExpression(ArrayExpression):
@@ -1564,6 +1637,9 @@ class StructExpression(Mapping[str, Expression], Expression):
     def __iter__(self):
         return iter(self._fields)
 
+    def __contains__(self, item):
+        return item in self._fields
+
     def __hash__(self):
         return object.__hash__(self)
 
@@ -1680,6 +1756,54 @@ class StructExpression(Mapping[str, Expression], Expression):
             return selected_expr
         else:
             return selected_expr.annotate(**named_exprs)
+
+    @typecheck_method(mapping=dictof(str, str))
+    def rename(self, mapping):
+        """Rename fields of the struct.
+
+        Examples
+        --------
+        >>> s = hl.struct(x='hello', y='goodbye', a='dogs')
+        >>> s.rename({'x' : 'y', 'y' : 'z'}).show()
+        +----------+----------+-----------+
+        | <expr>.a | <expr>.y | <expr>.z  |
+        +----------+----------+-----------+
+        | str      | str      | str       |
+        +----------+----------+-----------+
+        | "dogs"   | "hello"  | "goodbye" |
+        +----------+----------+-----------+
+
+        Parameters
+        ----------
+        mapping : :obj:`dict` of :obj:`str`, :obj:`str`
+            Mapping from old field names to new field names.
+
+        Notes
+        -----
+        Any field that does not appear as a key in `mapping` will not be
+        renamed.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+            Struct with renamed fields.
+        """
+        old_fields = set(self._fields)
+        new_to_old = dict()
+        for old, new in mapping.items():
+            if old not in old_fields:
+                raise ValueError(f'{old} is not a field of this struct: {self.dtype}.')
+            if new in old_fields and new not in mapping:
+                raise ValueError(f'{old} is renamed to {new} but {new} is already in the '
+                                 f'struct: {self.dtype}.')
+            if new in new_to_old:
+                raise ValueError(f'{new} is the new name of both {old} and {new_to_old[new]}.')
+            new_to_old[new] = old
+
+        return self.select(
+            *list(set(self._fields) - set(mapping)),
+            **{new: self._get_field(old) for old, new in mapping.items()}
+        )
 
     @typecheck_method(fields=str)
     def drop(self, *fields):
@@ -2344,6 +2468,10 @@ class StringExpression(Expression):
                                 "found expression of type '{}'".format(item.dtype))
             return self._index(tstr, item)
 
+    def __contains__(self, item):
+        raise TypeError("Cannot use `in` operator on hail `StringExpression`s. Use the `contains` method instead."
+                        "`my_string.contains('cat')` instead of `'cat' in my_string`")
+
     def __add__(self, other):
         """Concatenate strings.
 
@@ -2721,6 +2849,35 @@ class StringExpression(Expression):
         :class:`.StringExpression`
         """
         return self._method('reverse', tstr)
+
+    @typecheck_method(collection=expr_oneof(expr_array(), expr_set()))
+    def join(self, collection):
+        """Returns a string which is the concatenation of the strings in `collection`
+        separated by the string providing this method. Raises :class:`TypeError` if
+        the element type of `collection` is not :data:`.tstr`.
+
+        Examples
+        --------
+
+        >>> a = ['Bob', 'Charlie', 'Alice', 'Bob', 'Bob']
+
+        >>> hl.eval(hl.str(',').join(a))
+        'Bob,Charlie,Alice,Bob,Bob'
+
+        Parameters
+        ----------
+        collection : :class:`.ArrayExpression` or :class:`.SetExpression`
+            Collection.
+
+        Returns
+        -------
+        :class:`.StringExpression`
+            Joined string expression.
+        """
+        if collection.dtype.element_type != tstr:
+            raise TypeError(f"Expected str collection, {collection.dtype.element_type} found")
+
+        return hl.delimit(collection, self)
 
     def _extra_summary_fields(self, agg_result):
         return {
@@ -3583,8 +3740,8 @@ class NDArrayExpression(Expression):
         if n_sliced_dims > 0:
             slices = []
             for i, s in enumerate(item):
+                dlen = self.shape[i]
                 if isinstance(s, slice):
-                    dlen = self.shape[i]
 
                     if s.step is not None:
                         step = hl.case().when(s.step != 0, s.step) \
@@ -3618,7 +3775,11 @@ class NDArrayExpression(Expression):
 
                     slices.append(hl.tuple((start, stop, step)))
                 else:
-                    slices.append(s)
+                    adjusted_index = hl.if_else(s < 0, s + dlen, s)
+                    checked_int = hl.case().when((adjusted_index < dlen) & (adjusted_index >= 0), adjusted_index).or_error(
+                        hl.str("Index ") + hl.str(s) + hl.str(f" is out of bounds for axis {i} with size ") + hl.str(dlen)
+                    )
+                    slices.append(checked_int)
             return construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),
                                   tndarray(self._type.element_type, n_sliced_dims),
                                   self._indices,

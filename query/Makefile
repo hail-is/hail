@@ -1,7 +1,7 @@
-PROJECT := $(shell gcloud config get-value project)
+include ../config.mk
 
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python:../gear
-PYTHON := PYTHONPATH=$(PYTHONPATH) python3
+EXTRA_PYTHONPATH := ../hail/python:../gear
+PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 
 QUERY_LATEST = gcr.io/$(PROJECT)/query:latest
 QUERY_IMAGE = gcr.io/$(PROJECT)/query:$(shell docker images -q --no-trunc query | sed -e 's,[^:]*:,,')

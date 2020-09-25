@@ -71,6 +71,7 @@ executing arbitrary Python functions in the cloud.
     :template: class.rst
 
     batch_pool_executor.BatchPoolExecutor
+    batch_pool_executor.BatchPoolFuture
 
 
 Backends
