@@ -264,7 +264,7 @@ class PCanonicalNDArraySettable(override val pt: PCanonicalNDArray, val a: Setta
       val eMsg = const("Index ").concat(indices(dimIndex).toS)
         .concat(s" is out of bounds for axis $dimIndex with size ")
         .concat(shape(dimIndex).toS)
-      (indices(dimIndex) >= shape(dimIndex)).orEmpty(Code._fatal[Unit](eMsg, errorId))
+      (indices(dimIndex) >= shape(dimIndex)).orEmpty(Code._fatalWithID[Unit](eMsg, errorId))
     }
   }
 

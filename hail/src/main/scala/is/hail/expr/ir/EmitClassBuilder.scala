@@ -42,11 +42,11 @@ case class EmitParam(ec: EmitCode) extends Param
 case class CodeParam(c: Code[_]) extends Param
 
 class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
-  def newEmitClass[C](name: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
-    new EmitClassBuilder(this, modb.newClass(name))
+  def newEmitClass[C](name: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
+    new EmitClassBuilder(this, modb.newClass(name, sourceFile))
 
-  def genEmitClass[C](baseName: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
-    newEmitClass[C](genName("C", baseName))
+  def genEmitClass[C](baseName: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
+    newEmitClass[C](genName("C", baseName), sourceFile)
 
   private[this] var _staticFS: Settable[FS] = _
 
@@ -772,10 +772,10 @@ class EmitClassBuilder[C](
 
 object EmitFunctionBuilder {
   def apply[F](
-    ctx: ExecuteContext, baseName: String, paramTypes: IndexedSeq[ParamType], returnType: ParamType
+    ctx: ExecuteContext, baseName: String, paramTypes: IndexedSeq[ParamType], returnType: ParamType, sourceFile: Option[String] = None
   )(implicit fti: TypeInfo[F]): EmitFunctionBuilder[F] = {
     val modb = new EmitModuleBuilder(ctx, new ModuleBuilder())
-    val cb = modb.genEmitClass[F](baseName)
+    val cb = modb.genEmitClass[F](baseName, sourceFile)
     val apply = cb.newEmitMethod("apply", paramTypes, returnType)
     new EmitFunctionBuilder(apply)
   }
