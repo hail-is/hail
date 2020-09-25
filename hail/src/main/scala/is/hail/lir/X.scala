@@ -210,13 +210,14 @@ class Method private[lir] (
   def findBlocks(): Blocks = {
     val blocksb = new ArrayBuilder[Block]()
 
-    val s = new mutable.Stack[Block]()
+    var s = List[Block]()
     val visited = mutable.Set[Block]()
 
-    s.push(entry)
+    s = entry +: s
     
     while (s.nonEmpty) {
-      val L = s.pop()
+      val L = s.last
+      s = s.init
       if (!visited.contains(L)) {
         if (L != null) {
           if (L.method == null)
@@ -237,13 +238,15 @@ class Method private[lir] (
           while (x != null) {
             x match {
               case x: IfX =>
-                s.push(x.Ltrue)
-                s.push(x.Lfalse)
+                s = x.Ltrue +: s
+                s = x.Lfalse +: s
               case x: GotoX =>
-                s.push(x.L)
+                s = x.L +: s
               case x: SwitchX =>
-                s.push(x.Ldefault)
-                x.Lcases.foreach(s.push)
+                s = x.Ldefault +: s
+                x.Lcases.foreach { lc =>
+                  s = lc +: s
+                }
               case _ =>
             }
             x = x.next

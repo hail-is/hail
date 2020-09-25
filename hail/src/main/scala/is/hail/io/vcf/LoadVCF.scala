@@ -27,7 +27,6 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.annotation.meta.param
 import scala.annotation.switch
-import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.language.implicitConversions
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue}
@@ -1208,7 +1207,7 @@ object LoadVCF {
     floatType: TNumeric,
     arrayElementsRequired: Boolean = false
   ): (PStruct, VCFAttributes, Set[String]) = {
-    val (fields, attrs, flags) = lines
+    val (fields, attrs, flags) = lines.asScala
       .map { line => headerField(line, callFields, floatType, arrayElementsRequired) }
       .unzip3
 
@@ -1234,6 +1233,7 @@ object LoadVCF {
 
     val filterAttrs: VCFAttributes = header
       .getFilterLines
+      .asScala
       .toList
       // (ID, description)
       .map(line => (line.getID, Map("Description" -> line.getDescription)))

@@ -74,12 +74,13 @@ compileScala {
         "-target:jvm-1.8",
         "-feature",
         "-Xno-patmat-analysis",
-//        "-Xfatal-warnings",
-//        "-Xlint:_",
+        "-Xfatal-warnings",
+        "-Xlint:_",
         "-deprecation",
         "-unchecked",
         "-Xlint:-infer-any",
-        "-Xlint:-unsound-match"
+        "-Xlint:-unsound-match",
+        "-Xlint:-unused"
     ]
 
     scalaCompileOptions.forkOptions.with {
