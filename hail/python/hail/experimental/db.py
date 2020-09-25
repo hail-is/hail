@@ -128,7 +128,7 @@ class Dataset:
             GCP region from which to access data, available regions given in
             hl.experimental.DB._valid_regions, currently either 'us' or 'eu'.
         custom_config : :obj: `bool`
-            Boolean indicating whether or not dataset is from a `DB` object
+            Boolean indicating whether or not dataset is from a :class:`.DB` object
             using a custom configuration or url. If `True`, method will not
             check for region.
         Returns

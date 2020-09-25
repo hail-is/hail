@@ -20,4 +20,3 @@ hs_err_pid*.log
 *hail/python/hail/docs/tutorials/data*
 *hail/python/hailtop/pipeline/docs/output*
 .mypy_cache/
-
