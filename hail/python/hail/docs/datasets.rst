@@ -6,7 +6,7 @@
 Datasets
 ========
 
-.. warning:: 
+.. warning::
     All functionality described on this page is experimental.
     Datasets and method are subject to change.
 

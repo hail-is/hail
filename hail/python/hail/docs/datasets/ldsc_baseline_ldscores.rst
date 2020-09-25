@@ -3,8 +3,8 @@
 ldsc_baseline_ldscores
 ======================
 
-*  **Versions:** ['1.1']
-*  **Reference genome builds:** ['GRCh37']
+*  **Versions:** 1.1
+*  **Reference genome builds:** GRCh37
 *  **Type:** :class:`MatrixTable`
 
 Schema (1.1, GRCh37)
@@ -15,10 +15,10 @@ Schema (1.1, GRCh37)
     ----------------------------------------
     Global fields:
         'metadata': struct {
-            name: str, 
-            reference_genome: str, 
-            n_rows: int32, 
-            n_cols: int32, 
+            name: str,
+            reference_genome: str,
+            n_rows: int32,
+            n_cols: int32,
             n_partitions: int32
         }
     ----------------------------------------

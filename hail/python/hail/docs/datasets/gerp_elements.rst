@@ -3,8 +3,8 @@
 gerp_elements
 =============
 
-*  **Versions:** ['hg19']
-*  **Reference genome builds:** ['GRCh37', 'GRCh38']
+*  **Versions:** hg19
+*  **Reference genome builds:** GRCh37, GRCh38
 *  **Type:** :class:`Table`
 
 Schema (hg19, GRCh37)
@@ -15,16 +15,16 @@ Schema (hg19, GRCh37)
     ----------------------------------------
     Global fields:
         'metadata': struct {
-            name: str, 
-            version: str, 
-            reference_genome: str, 
+            name: str,
+            version: str,
+            reference_genome: str,
             n_partitions: int32
-        } 
+        }
     ----------------------------------------
     Row fields:
-        'interval': interval<locus<GRCh37>> 
-        'S': float64 
-        'p_value': float64 
+        'interval': interval<locus<GRCh37>>
+        'S': float64
+        'p_value': float64
     ----------------------------------------
     Key: ['interval']
     ----------------------------------------

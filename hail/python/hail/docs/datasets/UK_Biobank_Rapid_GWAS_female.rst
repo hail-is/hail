@@ -3,8 +3,8 @@
 UK_Biobank_Rapid_GWAS_female
 ============================
 
-*  **Versions:** ['v2']
-*  **Reference genome builds:** ['GRCh37']
+*  **Versions:** v2
+*  **Reference genome builds:** GRCh37
 *  **Type:** :class:`MatrixTable`
 
 Schema (v2, GRCh37)
@@ -15,11 +15,11 @@ Schema (v2, GRCh37)
     ----------------------------------------
     Global fields:
         'metadata': struct {
-            name: str, 
-            version: str, 
-            reference_genome: str, 
-            n_rows: int32, 
-            n_cols: int32, 
+            name: str,
+            version: str,
+            reference_genome: str,
+            n_rows: int32,
+            n_cols: int32,
             n_partitions: int32
         }
     ----------------------------------------
