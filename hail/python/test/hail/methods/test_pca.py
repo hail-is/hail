@@ -100,7 +100,7 @@ def test_blanczos_against_numpy():
     loadings = np.reshape(loadings, (len(loadings) // k, k))
 
     assert len(eigens) == 3
-    assert scores_t.count() ==  mt.count_cols()
+    assert scores_t.count() == mt.count_cols()
     assert loadings_t.count() == n_rows
     np.testing.assert_almost_equal(A @ loadings, scores)
 
@@ -159,3 +159,61 @@ def test_blanczos_against_hail():
 
     np.testing.assert_allclose(b_eigens, h_eigens, rtol=0.05)
     assert MEV > 0.9
+
+
+def test_spectra():
+    def make_spectral_matrix(index_func, k, m, n):
+        sigma_dim = min(m, n)
+        answer = np.zeros((m, n))
+        for j in range(sigma_dim):
+            answer[j, j] = index_func(j + 1, k)
+        return answer
+
+    def matrix_table_from_numpy(np_mat):
+        rows, cols = np_mat.shape
+        mt = hl.utils.range_matrix_table(rows, cols)
+        mt = mt.annotate_globals(entries_global = np_mat)
+        mt = mt.annotate_entries(ent = mt.entries_global[mt.row_idx, mt.col_idx])
+        return mt
+
+
+    # Defined for j >= 1
+    def spec1(j, k):
+        return 1/j
+
+    def spec2(j, k):
+        if j == 1:
+            return 1
+        if j <= k:
+            return 2 * 10**-5
+        else:
+            return (10**-5) * (k + 1)/j
+
+    def spec3(j, k):
+        if j <= k:
+            return 10**(-5(j-1)/(k-1))
+        else:
+            return (10**-5)(k+1)/j
+
+    spectral_functions = [spec1] #, spec2]
+
+    # k, m, n
+    dim_triplets = [(3, 10, 10)]#[(3, 1000, 1000), (10, 1000, 1000)]
+
+    for triplet in dim_triplets:
+        k, m, n = triplet
+        for spec_func in spectral_functions:
+            #import pdb; pdb.set_trace()
+            sigma = make_spectral_matrix(spec_func, k, m, n)
+            seed = 1025
+            np.random.seed(seed)
+            U = np.linalg.qr(np.random.normal(0, 1, (m, m)))[0]
+            V = np.linalg.qr(np.random.normal(0, 1, (n, n)))[0]
+            A = U @ sigma @ V
+            import pdb; pdb.set_trace()
+            mt_A = matrix_table_from_numpy(A)
+
+            singulars, scores, loadings = hl._blanczos_pca(mt_A.ent, k=k)
+            import pdb; pdb.set_trace()
+            np.testing.assert_allclose(singulars, np.diag(sigma)[:k])
+
