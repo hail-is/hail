@@ -106,7 +106,9 @@ def main(args, pass_through_args):
                 '--',
                 f'sudo gsutil cp {wheel} /tmp/ && '
                 'sudo /opt/conda/default/bin/pip uninstall -y hail && '
-                f'sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/{wheelfile}'
+                f'sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/{wheelfile} && '
+                f"unzip /tmp/{wheelfile} && "
+                "grep 'Requires-Dist: ' hail*dist-info/METADATA | sed 's/Requires-Dist: //' | sed 's/ (//' | sed 's/)//' | grep -v 'pyspark' | xargs /opt/conda/default/bin/pip install"
             ])
         else:
             cmds.extend([
@@ -124,7 +126,9 @@ def main(args, pass_through_args):
                     f'--zone={zone}',
                     '--',
                     'sudo /opt/conda/default/bin/pip uninstall -y hail && '
-                    f'sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/{wheelfile}'
+                    f'sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/{wheelfile} && '
+                    f"unzip /tmp/{wheelfile} && "
+                    "grep 'Requires-Dist: ' hail*dist-info/METADATA | sed 's/Requires-Dist: //' | sed 's/ (//' | sed 's/)//' | grep -v 'pyspark' | xargs /opt/conda/default/bin/pip install"
                 ]
             ])
 
