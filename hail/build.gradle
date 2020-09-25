@@ -74,8 +74,8 @@ compileScala {
         "-target:jvm-1.8",
         "-feature",
         "-Xno-patmat-analysis",
-        "-Xfatal-warnings",
-        "-Xlint:_",
+//        "-Xfatal-warnings",
+//        "-Xlint:_",
         "-deprecation",
         "-unchecked",
         "-Xlint:-infer-any",
@@ -110,6 +110,8 @@ String breezeVersion() {
     }
     if (cachedBreezeVersion == null) {
       throw new RuntimeException('Unable to determine breeze library version')
+    } else if (cachedBreezeVersion == "1.0") {
+      cachedBreezeVersion = "1.1" // Breeze 1.0 contains a known bug (https://github.com/scalanlp/breeze/issues/772)
     }
   }
   return cachedBreezeVersion
@@ -188,7 +190,7 @@ dependencies {
     }
 
     hailTest 'org.testng:testng:6.8.21'
-    hailTest 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
+    hailTest 'org.scalatest:scalatest_' + scalaMajorVersion + ':3.0.5'
 
     unbundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
     bundled group: 'commons-codec', name: 'commons-codec', version: '1.11'
