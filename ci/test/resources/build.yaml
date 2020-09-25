@@ -8,7 +8,7 @@ steps:
    dockerFile:
      inline: |
        FROM bitnami/minideb:buster
-       RUN install_packages git
+       RUN install_packages git ca-certificates
    contextPath: .
  - kind: runImage
    name: run_inline_image
