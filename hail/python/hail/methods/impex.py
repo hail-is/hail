@@ -387,7 +387,7 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
            parallel=nullable(ir.ExportType.checker),
            metadata=nullable(dictof(str, dictof(str, dictof(str, str)))),
            tabix=bool)
-def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=None, tabix=False):
+def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=None, *, tabix=False):
     """Export a :class:`.MatrixTable` or :class:`.Table` as a VCF file.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -495,15 +495,12 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         dictionary should be structured.
     tabix : :obj:`bool`, optional
         If true, writes a tabix index for the output VCF.
-        **Note**: This is currently only supported for
-        the ``parallel=None``.
+        **Note**: This feature is experimental, and the interface and defaults
+        may change in future versions.
     """
     if isinstance(dataset, Table):
         mt = MatrixTable.from_rows_table(dataset)
         dataset = mt.key_cols_by(sample="")
-
-    if tabix and parallel and parallel != ir.ExportType.CONCATENATED:
-        raise ValueError('tabix on parallel export is currently unsupported')
 
     require_col_key_str(dataset, 'export_vcf')
     require_row_key_variant(dataset, 'export_vcf')

@@ -465,11 +465,19 @@ object ExportVCF {
       exportType match {
         case ExportType.CONCATENATED =>
           info(s"Writing tabix index for $path")
-          TabixVCF(fs.broadcast, path)
-        case ExportType.PARALLEL_SEPARATE_HEADER
-          | ExportType.PARALLEL_COMPOSABLE
-          | ExportType.PARALLEL_HEADER_IN_SHARD =>
-            throw new UnsupportedOperationException("tabix on parallel output is not supported")
+          TabixVCF(ctx.fsBc, path)
+        case ExportType.PARALLEL_SEPARATE_HEADER | ExportType.PARALLEL_HEADER_IN_SHARD =>
+          val localFsBc = ctx.fsBc
+          val files = fs.glob(path + "/part-*").map(_.getPath.getBytes)
+          info(s"Writing tabix index for $path")
+          ctx.backend.parallelizeAndComputeWithIndex(ctx.backendContext, files) { (pathBytes, _) =>
+            TabixVCF(localFsBc, new String(pathBytes))
+            null
+          }
+        case ExportType.PARALLEL_COMPOSABLE =>
+          warn("Writing tabix index for `parallel=composable` is not supported. No index will be written.")
+        case _ =>
+          fatal(s"Unknown export type: $exportType")
       }
     }
   }
@@ -496,10 +504,8 @@ object TabixVCF {
        tabix.finalizeIndex(fileOffset)
      }
      val tabixPath = htsjdk.tribble.util.ParsingUtils.appendToPath(filePath, FileExtensions.TABIX_INDEX)
-     using ({
-       val os = fsBc.value.createNoCompression(tabixPath)
-       val bgzos = new BGzipOutputStream(os)
-       new htsjdk.tribble.util.LittleEndianOutputStream(bgzos)
-     }) { os => idx.write(os) }
+     using (new BGzipOutputStream(fsBc.value.createNoCompression(tabixPath))) { bgzos =>
+       using (new htsjdk.tribble.util.LittleEndianOutputStream(bgzos)) { os => idx.write(os) }
+     }
    }
 }
