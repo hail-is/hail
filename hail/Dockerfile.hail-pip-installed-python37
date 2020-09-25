@@ -9,7 +9,8 @@ RUN echo 'deb http://ftp.us.debian.org/debian stretch main' >> /etc/apt/sources.
 
 COPY hail/python/requirements.txt requirements.txt
 COPY hail/python/dev-requirements.txt dev-requirements.txt
-RUN python3 -m pip install -U setuptools -r requirements.txt -r dev-requirements.txt
+RUN python3 -m pip install -U setuptools && \
+    python3 -m pip install -U -r requirements.txt -r dev-requirements.txt
 
 COPY wheel-container.tar wheel-container.tar
 RUN tar -xf wheel-container.tar && \
