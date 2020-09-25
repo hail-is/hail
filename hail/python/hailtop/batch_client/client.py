@@ -186,8 +186,8 @@ class BatchClient:
     def billing_project(self):
         return self._async_client.billing_project
 
-    def list_batches(self, q=None):
-        for b in agen_to_blocking(self._async_client.list_batches(q=q)):
+    def list_batches(self, q=None, last_batch_id=None, limit=2**64):
+        for b in agen_to_blocking(self._async_client.list_batches(q=q, last_batch_id=last_batch_id, limit=limit)):
             yield Batch.from_async_batch(b)
 
     def get_job(self, batch_id, job_id):
