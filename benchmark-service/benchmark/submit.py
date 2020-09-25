@@ -12,7 +12,6 @@ from shlex import quote as shq
 from hailtop.utils import sync_check_shell
 from hailtop import batch as hb
 
-
 BENCHMARK_IMAGE = 'gcr.io/hail-vdc/base:latest'
 
 log = logging.getLogger('submit')
@@ -87,18 +86,15 @@ def submit(hail_code: Commit,
            n_replicates: int,
            n_iters: int):
 
-    # checkout benchmark code locally
     sync_check_shell(benchmark_code.checkout_script())
 
-    # install benchmark_hail in PYTHONPATH
     sys.path.insert(0, f'{benchmark_code.repo_dir()}/benchmark/python/benchmark_hail')
 
-    # import functions as necessary
     importlib.invalidate_caches
     from benchmark_hail.run.resources import all_resources
     from benchmark_hail.run.utils import list_benchmarks
 
-    output_file = f'gs://hail-benchmarks-2/benchmark/{hail_code.sha}.json'
+    output_file = f'gs://hail-benchmarks-2/benchmark/{hail_code.sha}-{benchmark_code.sha}.json'
 
     b = hb.Batch(name=f'benchmark-{hail_code.sha}',
                  backend=hb.ServiceBackend(billing_project='hail'),
@@ -114,12 +110,7 @@ def submit(hail_code: Commit,
     build_hail = b.new_job('build_hail_wheel')
     build_hail.command(f'''
  set -ex
- cd /io
- rm -rf repo
- mkdir repo
- cd repo
  { hail_code.checkout_script() }
-
  cd hail
  time ./gradlew --version
  time make jars python-version-info wheel
@@ -127,11 +118,7 @@ def submit(hail_code: Commit,
  time tar czf test.tar.gz -C python test
  time tar czf resources.tar.gz -C src/test resources
  time tar czf data.tar.gz -C python/hail/docs data
- (cd ../site && time tar czf ../hail/www-src.tar.gz www)
- time tar czf cluster-tests.tar.gz python/cluster-tests
  (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
- time TESTNG_SPLITS=5 python3 generate_splits.py
- time tar czf splits.tar.gz testng-splits-*.xml
  cp build/deploy/dist/hail-*-py3-none-any.whl {build_hail.wheel}
  cp build/libs/hail-all-spark.jar {build_hail.jars}
 ''')
@@ -180,10 +167,10 @@ def submit(hail_code: Commit,
 
     for name, replicate, groups in job_fs:
         j = b.new_job(name=f'{name}_{replicate}')
-        j.command(f'mv {build_hail.wheel} hail-*-py3-none-any.whl')
-        j.command('pip install hail-*-py3-none-any.whl')
-        j.command(f'mv {build_benchmark.wheel} benchmark_hail-$HAIL_VERSION-py3-none-any.whl')
-        j.command('pip install benchmark_hail-$HAIL_VERSION-py3-none-any.whl')
+        j.command(f'mv {build_hail.wheel} hail--py3-none-any.whl')
+        j.command('pip install hail--py3-none-any.whl')
+        j.command(f'mv {build_benchmark.wheel} benchmark_hail--py3-none-any.whl')
+        j.command('pip install benchmark_hail--py3-none-any.whl')
         j.command('mkdir -p benchmark-resources')
         for resource_group in groups:
             resource_job = resource_jobs[resource_group]
@@ -206,10 +193,10 @@ def submit(hail_code: Commit,
         i = 0
         while i < len(all_output):
             combine = b.new_job(f'combine_output_phase{phase_i}_job{job_i}')
-            combine.command(f'mv {build_hail.wheel} hail-*-py3-none-any.whl')
-            combine.command('pip install hail-*-py3-none-any.whl')
-            combine.command(f'mv {build_benchmark.wheel} benchmark_hail-$HAIL_VERSION-py3-none-any.whl')
-            combine.command('pip install benchmark_hail-$HAIL_VERSION-py3-none-any.whl')
+            combine.command(f'mv {build_hail.wheel} hail--py3-none-any.whl')
+            combine.command('pip install hail--py3-none-any.whl')
+            combine.command(f'mv {build_benchmark.wheel} benchmark_hail--py3-none-any.whl')
+            combine.command('pip install benchmark_hail--py3-none-any.whl')
             combine.command(
                 f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output[i:i + combine_branch_factor]))
             new_output.append(combine.ofile)
@@ -220,10 +207,10 @@ def submit(hail_code: Commit,
         all_output = new_output
 
     combine = b.new_job('final_combine_output')
-    combine.command(f'mv {build_hail.wheel} hail-*-py3-none-any.whl')
-    combine.command('pip install hail-*-py3-none-any.whl')
-    combine.command(f'mv {build_benchmark.wheel} benchmark_hail-$HAIL_VERSION-py3-none-any.whl')
-    combine.command('pip install benchmark_hail-$HAIL_VERSION-py3-none-any.whl')
+    combine.command(f'mv {build_hail.wheel} hail--py3-none-any.whl')
+    combine.command('pip install hail--py3-none-any.whl')
+    combine.command(f'mv {build_benchmark.wheel} benchmark_hail--py3-none-any.whl')
+    combine.command('pip install benchmark_hail--py3-none-any.whl')
     combine.command(f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output))
     combine.command(f'cat {combine.ofile}')
 
@@ -236,23 +223,26 @@ def submit(hail_code: Commit,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('hail_source',
+    parser.add_argument('--hail_source',
                         type=str,
-                        help='owner/name:sha for where the Hail code should be checked out from.')
-    parser.add_argument('benchmark_source',
+                        help='owner/name:sha for where the Hail code should be checked out from.',
+                        required=True)
+    parser.add_argument('--benchmark_source',
                         type=str,
-                        help='owner/name:sha for where the Benchmark code should be checked out from.')
-    parser.add_argument('replicates',
+                        help='owner/name:sha for where the Benchmark code should be checked out from.',
+                        required=True)
+    parser.add_argument('--replicates',
                         type=int,
                         default=1,
                         help='Number of replicates.')
-    parser.add_argument('iters',
+    parser.add_argument('--iters',
                         type=int,
                         default=1,
                         help='Number of iterations.')
-    parser.add_argument('tests',
+    parser.add_argument('--tests',
                         type=str,
-                        help='Benchmark tests to run.')
+                        help='Benchmark tests to run.',
+                        required=True)
 
     args = parser.parse_args()
 
