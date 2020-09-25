@@ -18,7 +18,7 @@ import is.hail.io.vcf._
 import is.hail.io.{AbstractTypedCodecSpec, Decoder}
 import is.hail.rvd.{AbstractIndexSpec, RVDContext}
 import is.hail.sparkextras.{ContextRDD, IndexReadRDD}
-import is.hail.utils.{log, _}
+import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark._
@@ -26,6 +26,7 @@ import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.json4s.Extraction
+import org.json4s.JsonAST.{JArray, JDouble, JLong, JNull, JObject, JString}
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable
@@ -625,18 +626,26 @@ class HailContext private(
   }
 }
 
+object HailFeatureFlags {
+  val defaults: Map[String, (String, String)] = Map[String, (String, String)](
+    ("lower", ("HAIL_DEV_LOWER" -> null)),
+    ("lower_bm", ("HAIL_DEV_LOWER_BM" -> null)),
+    ("max_leader_scans", ("HAIL_DEV_MAX_LEADER_SCANS" -> "1000")),
+    ("distributed_scan_comb_op", ("HAIL_DEV_DISTRIBUTED_SCAN_COMB_OP" -> null)),
+    ("jvm_bytecode_dump", ("HAIL_DEV_JVM_BYTECODE_DUMP" -> null)),
+    ("use_packed_int_encoding", ("HAIL_DEV_USE_PACKED_INT_ENCODING" -> null)),
+    ("use_column_encoding", ("HAIL_DEV_USE_COLUMN_ENCODING" -> null)),
+    ("use_spicy_ptypes", ("HAIL_USE_SPICY_PTYPES" -> null)),
+    ("log_service_timing", ("HAIL_DEV_LOG_SERVICE_TIMING" -> null)),
+    ("cache_service_input", ("HAIL_DEV_CACHE_SERVICE_INPUT" -> null))
+  )
+}
+
 class HailFeatureFlags {
   private[this] val flags: mutable.Map[String, String] =
-    mutable.Map[String, String](
-      "lower" -> sys.env.getOrElse("HAIL_DEV_LOWER", null),
-      "lower_bm" -> sys.env.getOrElse("HAIL_DEV_LOWER_BM", null),
-      "max_leader_scans" -> sys.env.getOrElse("HAIL_DEV_MAX_LEADER_SCANS", "1000"),
-      "distributed_scan_comb_op" -> sys.env.getOrElse("HAIL_DEV_DISTRIBUTED_SCAN_COMB_OP", null),
-      "jvm_bytecode_dump" -> sys.env.getOrElse("HAIL_DEV_JVM_BYTECODE_DUMP", null),
-      "use_packed_int_encoding" -> sys.env.getOrElse("HAIL_DEV_USE_PACKED_INT_ENCODING", null),
-      "use_column_encoding" -> sys.env.getOrElse("HAIL_DEV_USE_COLUMN_ENCODING", null),
-      "use_spicy_ptypes" -> sys.env.getOrElse("HAIL_USE_SPICY_PTYPES", null)
-    )
+    mutable.Map[String, String](HailFeatureFlags.defaults.mapValues { case (env, default) =>
+      sys.env.getOrElse(env, default)
+    }.toFastSeq: _*)
 
   val available: java.util.ArrayList[String] =
     new java.util.ArrayList[String](java.util.Arrays.asList[String](flags.keys.toSeq: _*))
@@ -648,4 +657,13 @@ class HailFeatureFlags {
   def get(flag: String): String = flags(flag)
 
   def exists(flag: String): Boolean = flags.contains(flag)
+
+  def toJSONEnv: JArray =
+    JArray(flags.filter { case (_, v) =>
+      v != null
+    }.map{ case (name, v) =>
+      JObject(
+        "name" -> JString(HailFeatureFlags.defaults(name)._1),
+        "value" -> JString(v))
+    }.toList)
 }

@@ -10,7 +10,7 @@ from hailtop.utils import blocking_to_async, retry_transient_errors
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger
-from gear import setup_aiohttp_session, rest_authenticated_users_only
+from gear import setup_aiohttp_session, rest_authenticated_users_only, rest_authenticated_developers_only
 
 uvloop.install()
 
@@ -153,6 +153,41 @@ async def get_reference(request, userdata):  # pylint: disable=unused-argument
     data = await request.json()
     result = await blocking_to_async(thread_pool, blocking_get_reference, app, data)
     return web.json_response(text=result)
+
+
+@routes.get('/api/v1alpha/flags/get')
+@rest_authenticated_developers_only
+async def get_flag(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    jresp = await blocking_to_async(app['thread_pool'], app['jbackend'].flags)
+    return java_to_web_response(jresp)
+
+
+@routes.get('/api/v1alpha/flags/get/{flag}')
+@rest_authenticated_developers_only
+async def get_flag(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    f = request.match_info['flag']
+    jresp = await blocking_to_async(app['thread_pool'], app['jbackend'].getFlag, f)
+    return java_to_web_response(jresp)
+
+
+@routes.get('/api/v1alpha/flags/set/{flag}/{value}')
+@rest_authenticated_developers_only
+async def set_flag(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    f = request.match_info['flag']
+    v = request.match_info['value']
+    jresp = await blocking_to_async(app['thread_pool'], app['jbackend'].setFlag, f, v)
+    return java_to_web_response(jresp)
+    
+@routes.get('/api/v1alpha/flags/unset/{flag}')
+@rest_authenticated_developers_only
+async def unset_flag(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    f = request.match_info['flag']
+    jresp = await blocking_to_async(app['thread_pool'], app['jbackend'].unsetFlag, f)
+    return java_to_web_response(jresp)
 
 
 async def on_startup(app):
