@@ -62,15 +62,9 @@ def test_pca_against_numpy():
     np_loadings = V.transpose().flatten()
     np_eigenvalues = np.multiply(s, s).flatten()
 
-    def check(hail_array, np_array):
-        assert len(hail_array) == len(np_array)
-        for i, (left, right) in enumerate(zip(hail_array, np_array)):
-            assert math.isclose(abs(left), abs(right), rel_tol=1e-5), f'mismatch at index {i}: hl={left}, np={right}'
-
-    check(eigen, np_eigenvalues)
-    check(hail_scores, np_scores)
-    check(hail_loadings, np_loadings)
-
+    np.testing.assert_allclose(eigen, np_eigenvalues, rtol=1e-5)
+    np.testing.assert_allclose(hail_scores, np_scores, rtol=1e-5)
+    np.testing.assert_allclose(hail_loadings, np_loadings, rtol=1e-5)
 
 @fails_local_backend()
 def test_blanczos_against_numpy():
