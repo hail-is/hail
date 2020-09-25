@@ -86,12 +86,12 @@ async def get_file_or_none(app, username, userinfo, filepath, etag):
 
 async def load_file(redis, files, file_key, fs, filepath):
     try:
-        log.info(f"memory: Reading {filepath} for user {username}")
+        log.info(f"memory: {file_key}: reading.")
         data = await fs.read_binary_gs_file(filepath)
         etag = await fs.get_etag(filepath)
-        log.info(f"memory: Read {filepath} with etag {etag}")
+        log.info(f"memory: {file_key}: read {filepath} with etag {etag}")
         await redis.execute('HMSET', file_key, 'etag', etag.encode('ascii'), 'body', data)
-        log.info(f"memory: Stored {filepath} ('{etag}') in cache.")
+        log.info(f"memory: {file_key}: stored {filepath} ('{etag}').")
     finally:
         files.remove(file_key)
 
