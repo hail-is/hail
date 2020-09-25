@@ -152,9 +152,9 @@ def submit(hail_code: Commit,
     for r in all_resources:
         j = b.new_job(f'create_resource_{r.name()}').cpu(4)
         j.command(f'mv {build_hail.wheel} hail-*-py3-none-any.whl')
-        j.command(f'pip install hail-*-py3-none-any.whl')  # ------------
+        j.command(f'pip install hail-*-py3-none-any.whl')
         j.command(f'mv {build_benchmark.wheel} benchmark_hail-$HAIL_VERSION-py3-none-any.whl')
-        j.command(f'pip install benchmark_hail-$HAIL_VERSION-py3-none-any.whl')  # -----------
+        j.command(f'pip install benchmark_hail-$HAIL_VERSION-py3-none-any.whl')
         j.command(f'hail-bench create-resources --data-dir benchmark-resources --group {r.name()}')
         j.command(f"time tar -cf {r.name()}.tar benchmark-resources/{r.name()} --exclude='*.crc'")
         j.command(f'ls -lh {r.name()}.tar')
