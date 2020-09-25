@@ -4,8 +4,10 @@ import warnings
 
 import hail as hl
 import pkg_resources
-import requests
-from hailtop.utils import retry_response_returning_functions
+
+from hailtop.utils import (retry_response_returning_functions,
+                           external_requests_client_session)
+from typing import List, Set, Iterable
 
 from . import lens
 from ..matrixtable import matrix_table_type
@@ -15,18 +17,12 @@ from ..utils.java import Env
 
 
 class DatasetVersion:
-    """A `DatasetVersion` instance.
-
-    To create a `DatasetVersion` instance with the url and version (e.g. GRCh37)
-    of a particular dataset specified in JSON configuration file or a provided
-    dict mapping dataset names to configurations. Facilitates creation of
-    Dataset objects with `Dataset.from_name_and_json()` method by providing
-    versions of datasets only if they are available in the specified region via
-    the `get_region()` method.
+    """
+    :class:`DatasetVersion` has two constructors: :func:`.from_json` and :func:`.get_region`.
     """
     @staticmethod
-    def from_json(doc):
-        """Create `DatasetVersion` object from dictionary.
+    def from_json(doc: dict) -> 'DatasetVersion':
+        """Create :class:`.DatasetVersion` object from dictionary.
 
         Parameters
         ----------
@@ -35,7 +31,7 @@ class DatasetVersion:
 
         Returns
         -------
-        :class:`DatasetVersion`
+        :class:`.DatasetVersion`
         """
         assert 'url' in doc, doc
         assert 'version' in doc, doc
@@ -43,48 +39,49 @@ class DatasetVersion:
                               doc['version'])
 
     @staticmethod
-    def get_region(name, versions, region):
-        """Get versions of a `Dataset` in the specified region, if they exist.
+    def get_region(name: str,
+                   versions: List['DatasetVersion'],
+                   region: str) -> List['DatasetVersion']:
+        """Get versions of a :class:`.Dataset` in the specified region, if they exist.
 
         Parameters
         ----------
         name : :obj:`str`
             Name of dataset.
-        versions : :obj:`list of DatasetVersion`
+        versions : :class:`list` of :class:`.DatasetVersion`
             List of DatasetVersion objects where the value for
             DatasetVersion.url is a dictionary containing the regions 'us' and 'eu'.
-        region : :obj: `str`
+        region : :obj:`str`
             GCP region from which to access data, available regions given in
-            hl.experimental.DB._valid_regions, currently either 'us' or 'eu'.
+            :func:`hail.experimental.DB._valid_regions`, currently either 'us' or 'eu'.
 
         Returns
         -------
-        available_versions : :obj:`list of DatasetVersion`
-            List of available versions of a `Dataset` for region.
+        available_versions : :class:`list` of :class:`.DatasetVersion`
+            List of available versions of a class:`.Dataset` for region.
         """
         available_versions = []
-        if region is not None:
-            for version in versions:
-                if version.in_region(name, region):
-                    version.url = version.url[region]
-                    available_versions.append(version)
+        for version in versions:
+            if version.in_region(name, region):
+                version.url = version.url[region]
+                available_versions.append(version)
         return available_versions
 
-    def __init__(self, url, version):
+    def __init__(self, url: dict, version: str):
         self.url = url
         self.version = version
 
-    def in_region(self, name, region):
-        """To check if a `DatasetVersion` object is accessible in the desired
+    def in_region(self, name: str, region: str) -> bool:
+        """To check if a :class:`.DatasetVersion` object is accessible in the desired
         region.
 
         Parameters
         ----------
         name : :obj:`str`
             Name of dataset.
-        region : :obj: `str`
+        region : :obj:`str`
             GCP region from which to access data, available regions given in
-            hl.experimental.DB._valid_regions, currently either 'us' or 'eu'.
+            :func:`hail.experimental.DB._valid_regions`, currently either 'us' or 'eu'.
 
         Returns
         -------
@@ -92,12 +89,18 @@ class DatasetVersion:
             Whether or not the dataset exists in the specified region.
         """
         current_version = self.version
-        available_regions = [k for k, v in self.url.items() if v is not None]
+        available_regions = [k for k in self.url.keys()]
         valid_region = region in available_regions
         if not valid_region:
-            message = f'dataset: \'{name}\', version: {current_version}, exists but is not yet ' \
-                      f'available in \'{region}\' region bucket, ' \
-                      f'currently available in {available_regions} region bucket(s).'
+            message = '\nName: {name}\n' \
+                      'Version: {current_version}\n' \
+                      'This dataset exists but is not yet available in the {region} region bucket.\n' \
+                      'Dataset is currently available in the {available} region bucket(s).\n' \
+                      'Reach out to the Hail team at https://discuss.hail.is/ to ' \
+                      'request this dataset in your region.'.format(name=repr(name),
+                                                                    current_version=repr(current_version),
+                                                                    region=repr(region),
+                                                                    available=repr(", ".join(available_regions)))
             warnings.warn(message, UserWarning, stacklevel=1)
         return valid_region
 
@@ -107,15 +110,17 @@ class DatasetVersion:
 
 
 class Dataset:
-    """A `Dataset` instance.
-
-    To create a `Dataset` object with name, description, url, key_properties, and
+    """
+    To create a dataset object with name, description, url, key_properties, and
     versions specified in JSON configuration file or a provided dict mapping
     dataset names to configurations.
     """
     @staticmethod
-    def from_name_and_json(name, doc, region, custom_config=False):
-        """Create `Dataset` object from dictionary.
+    def from_name_and_json(name: str,
+                           doc: dict,
+                           region: str,
+                           custom_config: bool = False) -> 'Dataset':
+        """Create :class:`.Dataset` object from dictionary.
 
         Parameters
         ----------
@@ -124,17 +129,17 @@ class Dataset:
         doc : :obj:`dict`
             Dictionary containing dataset description, url, key_properties, and
             versions.
-        region : :obj: `str`
+        region : :obj:`str`
             GCP region from which to access data, available regions given in
-            hl.experimental.DB._valid_regions, currently either 'us' or 'eu'.
-        custom_config : :obj: `bool`
+            :func:`hail.experimental.DB._valid_regions`, currently either 'us' or 'eu'.
+        custom_config : :obj:`bool`
             Boolean indicating whether or not dataset is from a :class:`.DB` object
             using a custom configuration or url. If `True`, method will not
             check for region.
         Returns
         -------
         :class:`Dataset`
-            If versions exist for region returns a `Dataset` object, else None.
+            If versions exist for region returns a :class:`.Dataset` object, else None.
         """
         assert 'description' in doc, doc
         assert 'url' in doc, doc
@@ -150,7 +155,12 @@ class Dataset:
                            set(doc['key_properties']),
                            versions)
 
-    def __init__(self, name, description, url, key_properties, versions):
+    def __init__(self,
+                 name: str,
+                 description: str,
+                 url: str,
+                 key_properties: Set[str],
+                 versions: List[DatasetVersion]):
         assert set(key_properties).issubset(DB._valid_key_properties)
         self.name = name
         self.description = description
@@ -158,13 +168,13 @@ class Dataset:
         self.key_properties = key_properties
         self.versions = versions
 
-    def is_gene_keyed(self):
-        """Check if `Dataset` is gene keyed.
+    def is_gene_keyed(self) -> bool:
+        """Check if :class:`Dataset` is gene keyed.
 
         Returns
         -------
         :obj:`bool`
-            Whether or not `Dataset` is gene keyed.
+            Whether or not dataset is gene keyed.
         """
         return 'gene' in self.key_properties
 
@@ -193,7 +203,8 @@ class DB:
     annotations. It accepts either an HTTP(S) URL to an Annotation DB
     configuration or a python :obj:`dict` describing an Annotation DB
     configuration. User must specify the region ('us' or 'eu') in which the
-    cluster is running if connecting to the default Hail Annotation DB.
+    cluster is running if connecting to the default Hail Annotation DB. Region
+    will default to 'us' if not otherwise specified.
 
     Examples
     --------
@@ -208,7 +219,7 @@ class DB:
 
     def __init__(self,
                  *,
-                 region=None,
+                 region='us',
                  url=None,
                  config=None):
         custom_config = config or url
@@ -220,13 +231,14 @@ class DB:
                              f'received: url={url} and config={config}')
         if config is None:
             if url is None:
-                config_path = pkg_resources.resource_filename(__name__, "annotation_db.json")
+                config_path = pkg_resources.resource_filename(__name__, "datasets.json")
                 assert os.path.exists(config_path), f'{config_path} does not exist'
                 with open(config_path) as f:
                     config = json.load(f)
             else:
+                session = external_requests_client_session()
                 response = retry_response_returning_functions(
-                    requests.get, url)
+                    session.get, url)
                 config = response.json()
             assert isinstance(config, dict)
         else:
@@ -240,7 +252,7 @@ class DB:
                           for k, v in config.items()
                           if Dataset.from_name_and_json(k, v, region, custom_config) is not None}
 
-    def available_databases(self):
+    def available_databases(self) -> List[str]:
         """Retrieve list of names of available databases.
 
         Returns
@@ -260,8 +272,8 @@ class DB:
             raise ValueError(
                 'annotation database can only annotate Hail MatrixTable or Table')
 
-    def dataset_by_name(self, name):
-        """Retrieve Dataset object by name.
+    def dataset_by_name(self, name: str) -> Dataset:
+        """Retrieve :class:`Dataset` object by name.
 
         Parameters
         ----------
@@ -284,7 +296,7 @@ class DB:
         gencode = self.__by_name['gencode'].index_compatible_version(rel.key)
         return gene_field, rel.annotate(**{gene_field: gencode.gene_name})
 
-    def _check_availability(self, names):
+    def _check_availability(self, names: Iterable) -> None:
         """Check if datasets given in `names` are available in the annotation
         database instance.
 
