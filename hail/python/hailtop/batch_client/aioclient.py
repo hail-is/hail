@@ -309,11 +309,12 @@ class SubmittedJob:
 
 
 class Batch:
-    def __init__(self, client, id, attributes, n_jobs):
+    def __init__(self, client, id, attributes, n_jobs, last_known_status=None):
         self._client = client
         self.id = id
         self.attributes = attributes
         self.n_jobs = n_jobs
+        self._last_known_status = last_known_status
 
     async def cancel(self):
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
@@ -336,7 +337,13 @@ class Batch:
 
     async def status(self):
         resp = await self._client._get(f'/api/v1alpha/batches/{self.id}')
-        return await resp.json()
+        self._last_known_status = await resp.json()
+        return self._last_known_status
+
+    async def last_known_status(self):
+        if self._last_known_status is None:
+            return await self.status()  # updates _last_known_status
+        return self._last_known_status
 
     async def wait(self, *, disable_progress_bar=TQDM_DEFAULT_DISABLE):
         i = 0
@@ -611,7 +618,8 @@ class BatchClient:
                 if n >= limit:
                     return
                 n += 1
-                yield Batch(self, batch['id'], attributes=batch.get('attributes'), n_jobs=int(batch['n_jobs']))
+                yield Batch(self, batch['id'], attributes=batch.get('attributes'),
+                            n_jobs=int(batch['n_jobs']), last_known_status=batch)
             last_batch_id = body.get('last_batch_id')
             if last_batch_id is None:
                 break
@@ -636,7 +644,8 @@ class BatchClient:
         return Batch(self,
                      b['id'],
                      attributes=b.get('attributes'),
-                     n_jobs=int(b['n_jobs']))
+                     n_jobs=int(b['n_jobs']),
+                     last_known_status=b)
 
     def create_batch(self, attributes=None, callback=None):
         return BatchBuilder(self, attributes, callback)

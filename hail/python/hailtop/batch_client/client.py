@@ -114,6 +114,9 @@ class Batch:
     def status(self):
         return async_to_blocking(self._async_batch.status())
 
+    def last_known_status(self):
+        return async_to_blocking(self._async_batch.last_known_status())
+
     def jobs(self, q=None):
         return agen_to_blocking(self._async_batch.jobs(q=q))
 
