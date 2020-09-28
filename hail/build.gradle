@@ -168,9 +168,13 @@ dependencies {
     unbundled 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
     unbundled 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
     bundled 'org.lz4:lz4-java:1.4.0'
-    bundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':+') {
+
+    // Breeze 1.0 has known bugs, so we should override
+    unbundled 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion()
+    bundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion()) {
         transitive = false
     }
+
     bundled 'com.github.fommil.netlib:all:1.1.2'
     bundled('com.github.samtools:htsjdk:2.21.0') {
         transitive = false
