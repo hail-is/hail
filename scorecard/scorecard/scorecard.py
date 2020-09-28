@@ -49,7 +49,9 @@ asana_to_github_user = {
     'Tim Poterba': 'tpoterba',
     'Arcturus Wang': 'catoverdrive',
     'Dania Abuhijleh': 'Dania-Abuhijleh',
-    'Patrick Schultz': 'patrick-schultz'
+    'Patrick Schultz': 'patrick-schultz',
+    'Chris Vittal': 'chrisvittal',
+    'Patrick Cummings': 'pwc2'
 }
 
 routes = web.RouteTableDef()
@@ -61,11 +63,15 @@ timestamp = None
 class AsanaClient:
     _session: Optional[ClientSession]
 
-    def __init__(self, *, session: Optional[ClientSession] = None, **kwargs):
+    def __init__(self, *, token: Optional[str] = None, **kwargs):
         self._base_url = 'https://app.asana.com/api/1.0'
-        if session is None:
-            session = ClientSession(**kwargs)
-        self._session = session
+
+        if token is None:
+            asana_token_file = os.environ.get('ASANA_TOKEN_PATH', '/asana/token.txt')
+            with open(asana_token_file, 'r') as f:
+                token = f.read().strip()
+
+        self._session = ClientSession(headers={'Authorization': f'Bearer {token}'})
 
     async def get(self, path: str, **kwargs) -> Any:
         async with await self._session.get(
@@ -101,7 +107,10 @@ async def get_tag_assignees(client, tag_gid):
     assignees = defaultdict(lambda: [])
 
     async def get_task_data(task_gid):
-        data = await client.get(f'/tasks/{task_gid}')
+        try:
+            data = await client.get(f'/tasks/{task_gid}')
+        except Exception:
+            return None
         return data['data']
 
     result = await client.get(f'/tags/{tag_gid}/tasks')
@@ -109,6 +118,9 @@ async def get_tag_assignees(client, tag_gid):
                                        for task in result['data']])
 
     for task in task_data:
+        if task is None:
+            continue
+
         gid = task['gid']
         name = task['name']
         assignee = task['assignee']
@@ -397,11 +409,7 @@ async def on_startup(app):
     gh_client = gidgethub.aiohttp.GitHubAPI(session, 'scorecard', oauth_token=token)
     app['gh_client'] = gh_client
 
-    asana_token_file = os.environ.get('ASANA_TOKEN_PATH', '/asana/token.txt')
-    with open(asana_token_file, 'r') as f:
-        token = f.read().strip()
-    asana_session = ClientSession(headers={'Authorization': f'Bearer {token}'})
-    asana_client = AsanaClient(session=asana_session)
+    asana_client = AsanaClient()
     app['asana_client'] = asana_client
 
     await update_data(gh_client, asana_client)
