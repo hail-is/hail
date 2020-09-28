@@ -194,10 +194,24 @@ def test_spectra():
         else:
             return (10**-5)*(k+1)/j
 
-    spectral_functions = [spec1, spec2, spec3]
+    def spec4(j, k):
+        if j <= k:
+            return 10**(-5*(j-1)/(k-1))
+        elif j == (k + 1):
+            return 10**-5
+        else:
+            return 0
+
+    def spec5(j, k):
+        if j <= k:
+            return 10**-5 + (1 - 10**-5)*(k - j)/(k - 1)
+        else:
+            return 10**-5 * math.sqrt((k + 1)/j)
+
+    spectral_functions = [spec1, spec2, spec3, spec4, spec5]
 
     # k, m, n
-    dim_triplets = [(3, 10, 10), (3, 1000, 1000), (10, 1000, 1000)]
+    dim_triplets = [(3, 1000, 1000), (10, 1000, 1000), (20, 1000, 1000), (10, 100, 200)]
 
     for triplet in dim_triplets:
         k, m, n = triplet
@@ -210,7 +224,7 @@ def test_spectra():
             A = U @ sigma @ V
             mt_A = matrix_table_from_numpy(A)
 
-            eigenvalues, scores, loadings = hl._blanczos_pca(mt_A.ent, k=k, compute_loadings=True, q_iterations=10)
+            eigenvalues, scores, loadings = hl._blanczos_pca(mt_A.ent, k=k, oversampling_param=k, compute_loadings=True, q_iterations=10)
             singulars = np.sqrt(eigenvalues)
-            np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01, err_msg=f"Failed on triplet {triplet} on spec_func{idx}")
+            np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01, err_msg=f"Failed on triplet {triplet} on spec{idx + 1}")
 
