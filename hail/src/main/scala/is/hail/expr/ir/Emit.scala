@@ -2491,13 +2491,14 @@ class Emit[C](
       PCode(pt, value))
   }
 
-  def deforestNDArray(x0: IR, mb: EmitMethodBuilder[C], region: StagedRegion, env: E): EmitCode = {
+  def deforestNDArray(x0: IR, cb: EmitCodeBuilder, region: StagedRegion, env: E): EmitCode = {
+    val mb = cb.emb
     def emit(ir: IR, env: E = env): EmitCode =
       this.emitWithRegion(ir, mb, region, env, None)
 
     def dEmit(ir: IR, env: E = env): EmitCode = emit(ir, env)
 
-    def deforest(x: IR): NDArrayEmitter[C] = {
+    def deforest(x: IR): NDArrayEmitter2 = {
       val xType = coerce[PNDArray](x.pType)
       val nDims = xType.nDims
 
@@ -2508,18 +2509,17 @@ class Emit[C](
 
 
           val childEmitter = deforest(child)
-          val setup = childEmitter.setupShape
 
-          new NDArrayEmitter[C](childEmitter.nDims, childEmitter.outputShape,
-            childP.shape.pType, body.pType, setup, childEmitter.setupMissing, childEmitter.missing) {
-            override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
+          new NDArrayEmitter2(childEmitter.outputShape) {
+            override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_] = {
+              val elemMB = cb.emb
               assert(elemMB == mb)
               val elemRef = elemMB.newPresentEmitField("ndarray_map_element_name", elemPType)
               val bodyEnv = env.bind(elemName, elemRef)
               val bodyt = dEmit(body, bodyEnv)
 
               Code(
-                elemRef := PCode(elemPType, childEmitter.outputElement(elemMB, idxVars)),
+                elemRef := PCode(elemPType, childEmitter.outputElement(cb, idxVars)),
                 bodyt.setup,
                 bodyt.m.orEmpty(Code._fatal[Unit]("NDArray map body cannot be missing")),
                 bodyt.v
@@ -2533,27 +2533,27 @@ class Emit[C](
           val leftChildEmitter = deforest(lChild)
           val rightChildEmitter = deforest(rChild)
 
-          val (newSetupShape, shapeArray) = NDArrayEmitter.unifyShapes2(mb, leftChildEmitter.outputShape, rightChildEmitter.outputShape)
+          val shapeArray = NDArrayEmitter.unifyShapes2(cb, leftChildEmitter.outputShape, rightChildEmitter.outputShape)
 
-          val setupMissing = Code(leftChildEmitter.setupMissing, rightChildEmitter.setupMissing)
-          val setupShape = Code(leftChildEmitter.setupShape, rightChildEmitter.setupShape, newSetupShape)
+//          val setupMissing = Code(leftChildEmitter.setupMissing, rightChildEmitter.setupMissing)
+//          val setupShape = Code(leftChildEmitter.setupShape, rightChildEmitter.setupShape, newSetupShape)
 
-          new NDArrayEmitter[C](lP.shape.pType.size, shapeArray, lP.shape.pType, body.pType, setupShape, setupMissing, leftChildEmitter.missing || rightChildEmitter.missing) {
-            override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
-              assert(elemMB == mb)
-              val lElemRef = elemMB.newPresentEmitField(lName, lP.elementType)
-              val rElemRef = elemMB.newPresentEmitField(rName, rP.elementType)
+          new NDArrayEmitter2(shapeArray) {
+            override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_] = {
+              assert(cb.emb == mb)
+              val lElemRef = cb.emb.newPresentEmitField(lName, lP.elementType)
+              val rElemRef = cb.emb.newPresentEmitField(rName, rP.elementType)
 
               val bodyEnv = env.bind(lName, lElemRef)
                 .bind(rName, rElemRef)
               val bodyt = dEmit(body, bodyEnv)
 
-              val lIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(elemMB, idxVars, nDims, leftChildEmitter.outputShape)
-              val rIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(elemMB, idxVars, nDims, rightChildEmitter.outputShape)
+              val lIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(cb, idxVars, nDims, leftChildEmitter.outputShape)
+              val rIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(cb, idxVars, nDims, rightChildEmitter.outputShape)
 
               Code(
-                lElemRef := PCode(lP, leftChildEmitter.outputElement(elemMB, lIdxVars2)),
-                rElemRef := PCode(rP, rightChildEmitter.outputElement(elemMB, rIdxVars2)),
+                lElemRef := PCode(lP, leftChildEmitter.outputElement(cb, lIdxVars2)),
+                rElemRef := PCode(rP, rightChildEmitter.outputElement(cb, rIdxVars2)),
                 bodyt.setup,
                 bodyt.m.orEmpty(Code._fatal[Unit]("NDArray map body cannot be missing")),
                 bodyt.v
@@ -2891,7 +2891,7 @@ class Emit[C](
 
 object NDArrayEmitter {
 
-  def zeroBroadcastedDims2(mb: EmitMethodBuilder[_], loopVars: IndexedSeq[Value[Long]], nDims: Int, shapeArray: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
+  def zeroBroadcastedDims2(cb: EmitCodeBuilder, loopVars: IndexedSeq[Value[Long]], nDims: Int, shapeArray: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
     val broadcasted = 0L
     val notBroadcasted = 1L
     Array.tabulate(nDims)(dim => new Value[Long] {
@@ -2932,6 +2932,31 @@ object NDArrayEmitter {
     }
 
     (sb.result(), shape)
+  }
+
+  def unifyShapes2(cb: EmitCodeBuilder, iLeftShape: IEmitCodeGen[IndexedSeq[Value[Long]]], iRightShape: IEmitCodeGen[IndexedSeq[Value[Long]]]): IEmitCodeGen[IndexedSeq[Value[Long]]] = {
+    val sb = SetupBuilder(cb.emb)
+
+    iLeftShape.flatMap(cb) {leftShape =>
+      iRightShape.map(cb) { rightShape =>
+        val shape = leftShape.zip(rightShape).zipWithIndex.map { case ((left, right), i) =>
+          val notSameAndNotBroadcastable = !((left ceq right) || (left ceq 1L) || (right ceq 1L))
+          sb.memoizeField(
+            notSameAndNotBroadcastable.mux(
+              Code._fatal[Long](rightShape.foldLeft[Code[String]](
+                leftShape.foldLeft[Code[String]](
+                  const("Incompatible NDArrayshapes: [ ")
+                )((accum, v) => accum.concat(v.toS).concat(" "))
+                  .concat("] vs [ ")
+              )((accum, v) => accum.concat(v.toS).concat(" "))
+                .concat("]")),
+              (left > right).mux(left, right)),
+            s"unify_shapes2_shape$i")
+          cb.append(sb.result())
+          shape
+        }
+      }
+    }
   }
 
   def matmulShape(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
