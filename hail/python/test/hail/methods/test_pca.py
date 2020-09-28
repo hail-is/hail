@@ -211,7 +211,7 @@ def test_spectra():
     spectral_functions = [spec1, spec2, spec3, spec4, spec5]
 
     # k, m, n
-    dim_triplets = [(3, 1000, 1000), (10, 1000, 1000), (20, 1000, 1000), (10, 100, 200)]
+    dim_triplets = [(10, 1000, 1000), (20, 1000, 1000), (10, 100, 200)]
 
     for triplet in dim_triplets:
         k, m, n = triplet
@@ -224,7 +224,7 @@ def test_spectra():
             A = U @ sigma @ V
             mt_A = matrix_table_from_numpy(A)
 
-            eigenvalues, scores, loadings = hl._blanczos_pca(mt_A.ent, k=k, oversampling_param=k, compute_loadings=True, q_iterations=10)
+            eigenvalues, scores, loadings = hl._blanczos_pca(mt_A.ent, k=k, oversampling_param=k, compute_loadings=True, q_iterations=4)
             singulars = np.sqrt(eigenvalues)
             hail_V = (np.array(scores.scores.collect()) / singulars).T
             hail_U = np.array(loadings.loadings.collect())
