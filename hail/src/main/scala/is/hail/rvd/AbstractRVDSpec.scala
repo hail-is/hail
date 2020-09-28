@@ -42,10 +42,14 @@ object AbstractRVDSpec {
     new ETypeSerializer
 
   def read(fs: FS, path: String): AbstractRVDSpec = {
-    val metadataFile = path + "/metadata.json.gz"
-    using(fs.open(metadataFile)) { in => JsonMethods.parse(in) }
-      .transformField { case ("orvdType", value) => ("rvdType", value) } // ugh
-      .extract[AbstractRVDSpec]
+    try {
+      val metadataFile = path + "/metadata.json.gz"
+      using(fs.open(metadataFile)) { in => JsonMethods.parse(in) }
+        .transformField { case ("orvdType", value) => ("rvdType", value) } // ugh
+        .extract[AbstractRVDSpec]
+    } catch {
+      case e: Exception => fatal(s"failed to read RVD spec $path", e)
+    }
   }
 
   def readLocal(
