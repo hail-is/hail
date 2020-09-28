@@ -678,13 +678,11 @@ gsutil -m cp dockerd.log gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/w
             log.warning(f'unknown event resource type {resource_type}')
             return
 
-        if 'last' in event['operation']:
-            event_type = 'GCE_OPERATION_DONE'
-        elif 'first' in event['operation']:
-            event_type = 'GCE_API_CALL'
+        operation_started = event['operation'].get('first', False)
+        if operation_started:
+            event_type = 'STARTED'
         else:
-            log.warning(f'unknown event_type {event["operation"]}')
-            event_type = None
+            event_type = 'COMPLETED'
 
         event_subtype = payload['methodName']
         resource = event['resource']
@@ -696,8 +694,8 @@ gsutil -m cp dockerd.log gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/w
             log.warning(f'event for unknown machine {name}')
             return
 
-        if 'compute.instances.insert' in event_subtype:
-            if event_type == 'GCE_OPERATION_DONE':
+        if event_subtype == 'v1.compute.instances.insert':
+            if event_type == 'COMPLETED':
                 severity = event['severity']
                 operation_type = 'insert'
                 success = (severity != 'ERROR')
@@ -708,14 +706,14 @@ gsutil -m cp dockerd.log gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/w
                 log.warning(f'event for unknown instance {name}')
                 return
 
-            if 'compute.instances.preempted' in event_subtype:
+            if event_subtype == 'v1.compute.instances.preempted':
                 log.info(f'event handler: handle preempt {instance}')
                 await self.handle_preempt_event(instance, timestamp)
-            elif 'compute.instances.delete' in event_subtype:
-                if event_type == 'GCE_OPERATION_DONE':
+            elif event_subtype == 'v1.compute.instances.delete':
+                if event_type == 'COMPLETED':
                     log.info(f'event handler: delete {instance} done')
                     await self.handle_delete_done_event(instance, timestamp)
-                elif event_type == 'GCE_API_CALL':
+                elif event_type == 'STARTED':
                     log.info(f'event handler: handle call delete {instance}')
                     await self.handle_call_delete_event(instance, timestamp)
 
