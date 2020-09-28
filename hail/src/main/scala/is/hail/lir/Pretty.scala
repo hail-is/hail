@@ -3,9 +3,9 @@ package is.hail.lir
 import org.objectweb.asm
 
 class Builder(var n: Int) {
-  val sb: StringBuilder = new StringBuilder()
+  var lineNumber: Int = 0
 
-  private var indented: Boolean = false
+  private val sb: StringBuilder = new StringBuilder()
 
   def indent(f: => Unit): Unit = {
     n += 2
@@ -14,126 +14,124 @@ class Builder(var n: Int) {
   }
 
   def +=(s: String): Unit = {
-    if (!indented) {
-      sb.append(" " * n)
-      indented = true
-    }
-
-    var i = 0
-    while (i < s.length) {
-      val c = s(i)
-      sb += c
-      if (c == '\n')
-        sb.append(" " * n)
-      i += 1
-    }
+    if (lineNumber > 0)
+      sb.append('\n')
+    sb.append(f"$lineNumber%-4d ")
+    lineNumber += 1
+    sb.append(" " * n)
+    sb.append(s)
   }
 
-  def result(): String = sb.result()
+  def appendToLastLine(s: String): Unit = {
+    sb.append(s)
+  }
+
+  def result(): String = {
+    sb.append('\n')
+    sb.result()
+  }
 }
 
 object Pretty {
-  def apply(c: Classx[_]): String = {
+  def apply(c: Classx[_], saveLineNumbers: Boolean = false): String = {
     val b = new Builder(0)
-    fmt(c, b)
+    fmt(c, b, saveLineNumbers)
     b.result()
   }
 
   def apply(m: Method): String = {
     val b = new Builder(0)
-    fmt(m, b)
+    fmt(m, b, false)
     b.result()
   }
 
   def apply(L: Block): String = {
     val b = new Builder(0)
-    fmt(L, b)
+    val label: Block => String = _.toString
+    fmt(L, label, b, false)
     b.result()
   }
 
   def apply(x: X): String = {
     val b = new Builder(0)
-    fmt(x, b)
+    val label: Block => String = _.toString
+    fmt(x, label, b)
     b.result()
   }
 
-  def fmt(c: Classx[_], b: Builder): Unit = {
+  def fmt(c: Classx[_], b: Builder, saveLineNumbers: Boolean): Unit = {
     // FIXME interfaces
     b += s"class ${ c.name } extends ${ c.superName }"
 
     b.indent {
-      b += "\n"
       for (f <- c.fields) {
-        b += s"field ${ f.name } ${ f.ti.desc }\n"
+        b += s"field ${ f.name } ${ f.ti.desc }"
       }
-    }
-
-    b.indent {
-      b += "\n"
+      b += ""
       for (m <- c.methods) {
-        fmt(m, b)
+        fmt(m, b, saveLineNumbers)
       }
     }
   }
 
-  def fmt(m: Method, b: Builder): Unit = {
+  def fmt(m: Method, b: Builder, saveLineNumbers: Boolean): Unit = {
     val blocks = m.findBlocks()
 
     b += s"def ${ m.name } (${ m.parameterTypeInfo.map(_.desc).mkString(",") })${ m.returnTypeInfo.desc }"
 
+    val label: Block => String = b => s"L${ blocks.index(b) }"
+
     b.indent {
-      b += "\n"
-      b += s"entry ${ m.entry }\n"
+      b += s"entry L${ blocks.index(m.entry) }"
       for (ell <- blocks) {
-        fmt(ell, b)
+        fmt(ell, label, b, saveLineNumbers)
       }
     }
 
-    b += "\n"
+    b += ""
   }
 
-  def fmt(L: Block, b: Builder): Unit = {
-    b += s"$L:"
+  def fmt(L: Block, label: Block => String, b: Builder, saveLineNumbers: Boolean): Unit = {
+    b += s"${ label(L) }:"
 
     b.indent {
       var x = L.first
       while (x != null) {
-        b += "\n"
-        fmt(x, b)
+        assert(saveLineNumbers)
+        if (saveLineNumbers)
+          x.lineNumber = b.lineNumber
+        fmt(x, label, b)
         x = x.next
       }
     }
-
-    b += "\n"
   }
 
-  def fmt(x: X, b: Builder): Unit = {
+  def fmt(x: X, label: Block => String, b: Builder): Unit = {
     val cl = x.getClass.getSimpleName
-    val h = header(x)
+    val h = header(x, label)
     if (h != "")
       b += s"($cl $h"
     else
       b += s"($cl"
     b.indent {
       for (c <- x.children) {
-        b += "\n"
         if (c != null)
-          fmt(c, b)
+          fmt(c, label, b)
         else
           b += "null"
       }
+      b.appendToLastLine(")")
     }
-    b += ")"
   }
 
-  def header(x: X): String = x match {
-    case x: IfX => s"${ asm.util.Printer.OPCODES(x.op) } ${ x.Ltrue } ${ x.Lfalse }"
+  def header(x: X, label: Block => String): String = x match {
+    case x: IfX => s"${ asm.util.Printer.OPCODES(x.op) } ${ label(x.Ltrue) } ${ label(x.Lfalse) }"
     case x: GotoX =>
       if (x.L != null)
-        x.L.toString
+        label(x.L)
       else
         "null"
-    case x: SwitchX => s"${ x.Ldefault } (${ x.Lcases.mkString(" ") })"
+    case x: SwitchX => s"${ label(x.Ldefault) } (${ x.Lcases.map(label).mkString(" ") })"
     case x: LdcX => s"${ x.a.toString } ${ x.ti }"
     case x: InsnX => asm.util.Printer.OPCODES(x.op)
     case x: StoreX => x.l.toString
