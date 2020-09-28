@@ -134,6 +134,7 @@ async def _query_batch_jobs(request, batch_id):
            `job_attributes`.`value` = %s))
 '''
             args = [k, v]
+            log.info(f'{args} {condition}')
         elif t.startswith('has:'):
             k = t[4:]
             condition = '''
