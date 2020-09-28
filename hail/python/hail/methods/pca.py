@@ -352,6 +352,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         G_i = G
 
         for j in range(0, q):
+            info(f"blanczos_pca: Beginning iteration {j}")
             temp = A.annotate(H_i=A.ndarray @ G_i)
             temp = temp.annotate(G_i_intermediate=temp.ndarray.T @ temp.H_i)
             result = temp.aggregate(hl.struct(Hi_chunks=hl.agg.collect(temp.H_i),
@@ -360,8 +361,10 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
             h_list.append(localized_H_i)
             G_i = result.G_i
 
+        info(f"blanczos_pca: Beginning iteration {q}")
         temp = A.annotate(H_i=A.ndarray @ G_i)
         result = temp.aggregate(hl.agg.collect(temp.H_i), _localize=False)._persist()
+        info(f"blanczos_pca: Iterations complete. Performing local QR")
         localized_H_i = hl.nd.vstack(result)
         h_list.append(localized_H_i)
         H = hl.nd.hstack(h_list)
@@ -372,7 +375,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         T = A.annotate(ndarray=A.Qt[:, A.rows_preceeding:A.rows_preceeding + A.part_size] @ A.ndarray)
         arr_T = T.aggregate(hl.agg.ndarray_sum(T.ndarray), _localize=False)
 
-        # hl.linalg.svd
+        info(f"blanczos_pca: QR Complete. Performing local SVD")
         U, S, W = hl.nd.svd(arr_T, full_matrices=False)._persist()
 
         V = Q @ U
