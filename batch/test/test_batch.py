@@ -200,7 +200,7 @@ class Test(unittest.TestCase):
             batches = self.client.list_batches(q)
             # list_batches returns all batches for all prev run tests
             actual = set([b.id for b in batches]).intersection({b1.id, b2.id})
-            self.assertEqual(actual, expected)
+            self.assertEqual(actual, expected, f'q={q}')
 
         assert_batch_ids({b1.id, b2.id})
 
@@ -239,7 +239,7 @@ class Test(unittest.TestCase):
 
         def assert_job_ids(expected, q=None):
             actual = set([j['job_id'] for j in b.jobs(q=q)])
-            assert actual == expected
+            assert actual == expected, f'{q}: {actual} != {expected}'
 
         assert_job_ids({j_success.job_id}, 'success')
         assert_job_ids({j_success.job_id, j_failure.job_id, j_error.job_id}, 'done')
