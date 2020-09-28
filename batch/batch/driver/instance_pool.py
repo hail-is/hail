@@ -697,9 +697,9 @@ gsutil -m cp dockerd.log gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/w
         if event_subtype == 'v1.compute.instances.insert':
             if event_type == 'COMPLETED':
                 severity = event['severity']
-                operation_type = 'insert'
+                operation_id = event['operation']['id']
                 success = (severity != 'ERROR')
-                self.zone_success_rate.push(resource['labels']['zone'], operation_type, success)
+                self.zone_success_rate.push(resource['labels']['zone'], operation_id, success)
         else:
             instance = self.name_instance.get(name)
             if not instance:
