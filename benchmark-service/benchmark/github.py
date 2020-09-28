@@ -6,6 +6,7 @@ import argparse
 import json
 from hailtop.utils import retry_long_running
 import hailtop.batch_client.aioclient as bc
+from google.cloud import storage
 
 log = logging.getLogger('benchmark')
 oauth_token = '22a4707d382b1a887640e11a0ff8eeb2b05cfd09'
@@ -26,9 +27,10 @@ START_POINT = '2020-08-24T00:00:00Z'
 # results file is in google storage
 running_commit_shas = {}
 result_commit_shas = {}
+batch_client = await bc.BatchClient(billing_project='hail')
 
 
-async def main():
+async def get_new_commits():
     async with aiohttp.ClientSession() as session:
         gh = gidgethub.aiohttp.GitHubAPI(session, 'hail-is/hail',
                                          oauth_token=oauth_token)
@@ -39,25 +41,45 @@ async def main():
         # parse the resulting data to get a list of commit shas
         list_of_shas = []
         new_commits = []
-        running_commits = {}
-        batch_client = await bc.BatchClient(billing_project='hail')
+        #batch_client = await bc.BatchClient(billing_project='hail')
         for commit in data:
             sha = commit.get('sha')
             list_of_shas.append(sha)
             # if (sha not in running_commits) and (sha not in result_commit_shas):
             #     new_commits.append(commit)
-            batches = batch_client.list_batches(q=f'sha={sha} running')
-            p = await batches.asend(None)
-            print(p)
-            # if batches is not None:
-            #     running_commits.add(commit)
-        print(list_of_shas)
+            # batches = batch_client.list_batches(q=f'sha={sha} running')
+            # p = await batches.__anext__()
+            # await batches.aclose()
+            #batches.close()
+            batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
+
+            def has_results_file():
+                name = f'{sha}'
+                storage_client = storage.Client()
+                bucket_name = 'my_bucket_name'
+                bucket = storage_client.bucket(bucket_name)
+                stats = storage.Blob(bucket=bucket, name=name).exists(storage_client)
+                return stats
+
+            if not batches and not has_results_file():  # no running batches and no results file
+                new_commits.append(commit)
+            #print(batches)
+        #print(list_of_shas)
+        return new_commits
 
 
-# async def query_github():
-#     ...
-#
-#
+async def submit_batch(commit):
+    # write a results file once successful in the batch
+    batch = batch_client.create_batch()
+    job = batch.create_job(command=True)
+
+
+async def query_github():
+    new_commits = await get_new_commits()
+    for commit in new_commits:
+        await submit_batch(commit)
+
+
 # async def github_polling_loop():
 #     while True:
 #         await query_github()
