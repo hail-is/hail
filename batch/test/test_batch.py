@@ -601,20 +601,8 @@ def test_verify_no_access_to_metadata_server(client):
 def test_user_authentication_within_job(client):
     batch = client.create_batch()
     cmd = ['bash', '-c', 'hailctl auth user']
-    with_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=True)
     no_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=False)
     batch.submit()
-
-    with_token_status = with_token.wait()
-    assert with_token_status['state'] == 'Success', f'{(with_token.log(), with_token_status)}'
-
-    username = get_userinfo()['username']
-
-    try:
-        job_userinfo = json.loads(with_token.log()['main'].strip())
-    except Exception:
-        job_userinfo = None
-    assert job_userinfo is not None and job_userinfo["username"] == username, (username, with_token.log()['main'])
 
     no_token_status = no_token.wait()
     assert no_token_status['state'] == 'Failed', f'{(no_token.log(), no_token_status)}'
