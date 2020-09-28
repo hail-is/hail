@@ -117,6 +117,7 @@ async def _query_batch_jobs(request, batch_id):
 
     q = request.query.get('q', '')
     terms = q.split()
+    log.info(f'jobsquery terms: {terms}')
     for t in terms:
         if t[0] == '!':
             negate = True
@@ -134,7 +135,7 @@ async def _query_batch_jobs(request, batch_id):
            `job_attributes`.`value` = %s))
 '''
             args = [k, v]
-            log.info(f'{args} {condition}')
+            log.info(f'jobsquery {args} {condition}')
         elif t.startswith('has:'):
             k = t[4:]
             condition = '''
@@ -208,6 +209,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
 ''', (user, batch_id))
     if not record:
         raise web.HTTPNotFound()
+
+    log.info(f'jobsquery {request.query.get("q")}')
 
     jobs, last_job_id = await _query_batch_jobs(request, batch_id)
     resp = {
