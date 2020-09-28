@@ -167,9 +167,13 @@ dependencies {
     }
     unbundled 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
     unbundled 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
+
+    // JSON4S 3.6.0 to 3.7.0-M5 have a known bug (https://github.com/json4s/json4s/issues/507)
+    unbundled 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.5.3'
+
     bundled 'org.lz4:lz4-java:1.4.0'
 
-    // Breeze 1.0 has known bugs, so we should override
+    // Breeze 1.0 has a known bugs (https://github.com/scalanlp/breeze/issues/772)
     unbundled 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion()
     bundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion()) {
         transitive = false
