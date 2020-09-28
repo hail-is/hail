@@ -9,7 +9,7 @@ import hailtop.batch_client.aioclient as bc
 from google.cloud import storage
 
 log = logging.getLogger('benchmark')
-oauth_token = '22a4707d382b1a887640e11a0ff8eeb2b05cfd09'
+oauth_token = ''
 START_POINT = '2020-08-24T00:00:00Z'
 
 # Figures out what commits have results already, which commits have running batches,
