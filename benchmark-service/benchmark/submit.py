@@ -221,11 +221,11 @@ def submit(hail_code: Commit,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--hail_source',
+    parser.add_argument('--hail-source',
                         type=str,
                         help='owner/name:sha for where the Hail code should be checked out from.',
                         required=True)
-    parser.add_argument('--benchmark_source',
+    parser.add_argument('--benchmark-source',
                         type=str,
                         help='owner/name:sha for where the Benchmark code should be checked out from.',
                         required=True)
@@ -250,6 +250,6 @@ if __name__ == '__main__':
 
     submit(hail_code=hail_code,
            benchmark_code=benchmark_code,
+           test_names=tests,
            n_replicates=args.replicates,
-           n_iters=args.iters,
-           test_names=tests)
+           n_iters=args.iters)
