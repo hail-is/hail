@@ -226,5 +226,10 @@ def test_spectra():
 
             eigenvalues, scores, loadings = hl._blanczos_pca(mt_A.ent, k=k, oversampling_param=k, compute_loadings=True, q_iterations=10)
             singulars = np.sqrt(eigenvalues)
+            hail_V = (np.array(scores.scores.collect()) / singulars).T
+            hail_U = np.array(loadings.loadings.collect())
+            approx_A = hail_U @ np.diag(singulars) @ hail_V
+            norm_of_diff = np.linalg.norm(A - approx_A, 2)
+            np.testing.assert_allclose(norm_of_diff, spec_func(k + 1, k), rtol=1e-02, err_msg=f"Norm test failed on triplet {triplet} on spec{idx + 1}")
             np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01, err_msg=f"Failed on triplet {triplet} on spec{idx + 1}")
 
