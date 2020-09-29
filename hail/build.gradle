@@ -99,6 +99,7 @@ compileScala {
 
 project.ext {
     cachedBreezeVersion = null
+    cachedJson4sVersion = null
 
     sparkVersion = System.getProperty("spark.version", "2.4.5")
     scalaVersion = System.getProperty("scala.version", "2.11.12")
@@ -122,6 +123,25 @@ String breezeVersion() {
     }
   }
   return cachedBreezeVersion
+}
+
+String json4sVersion() {
+    if (cachedJson4sVersion == null) {
+        def artifacts = configurations.justSpark.getResolvedConfiguration().getResolvedArtifacts()
+        artifacts.each { ResolvedArtifact artifact ->
+            def module = artifact.getModuleVersion().getId()
+            if (module.getGroup() == 'org.json4s'
+                    && module.getName() == 'json4s-jackson_' + scalaMajorVersion) {
+                cachedJson4sVersion = module.getVersion()
+            }
+        }
+        if (cachedJson4sVersion == null) {
+            throw new RuntimeException('Unable to determine json4s library version')
+        } else if (cachedJson4sVersion == "3.7.0-M5") {
+            cachedJson4sVersion = "3.6.10" // JSON4S 3.7.0-M5 contains a known bug (https://github.com/json4s/json4s/issues/507)
+        }
+    }
+    return cachedJson4sVersion
 }
 
 configurations {
@@ -168,9 +188,10 @@ dependencies {
     unbundled 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
     unbundled 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
 
-    // JSON4S 3.6.0 to 3.7.0-M5 have a known bug (https://github.com/json4s/json4s/issues/507)
-    unbundled('org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.5.3') {
-        force = true
+    // JSON4S 3.7.0-M5 has a known bug (https://github.com/json4s/json4s/issues/507)
+    unbundled 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':' + json4sVersion()
+    bundled('org.json4s:json4s-jackson_' + scalaMajorVersion + ':' + json4sVersion()) {
+        transitive = false
     }
 
     bundled 'org.lz4:lz4-java:1.4.0'
