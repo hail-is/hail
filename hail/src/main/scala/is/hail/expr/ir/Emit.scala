@@ -799,7 +799,7 @@ class Emit[C](
               val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
               val dataValue = dataCode.memoize(cb, "make_ndarray_data")
               val dataPtr = dataValue.get.tcode[Long]
-              val requiredData = dataPType.checkedConvertFrom(mb, region.code, dataPtr, coerce[PArray](dataContainer), "NDArray cannot have missing data")
+              val requiredData = dataPType.copyFromType(mb, region.code, dataContainer, dataPtr, false)
 
               (0 until nDims).foreach { index =>
                 cb.ifx(shapeTupleValue.isFieldMissing(index),

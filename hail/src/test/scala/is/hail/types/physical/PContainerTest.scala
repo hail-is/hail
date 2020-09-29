@@ -17,27 +17,6 @@ class PContainerTest extends PhysicalTestUtils {
     })
   }
 
-  def testConvert(sourceType: PArray, destType: PArray, data: IndexedSeq[Any], expectFalse: Boolean) {
-    val srcRegion = Region()
-    val src = ScalaToRegionValue(srcRegion, sourceType, data)
-
-    log.info(s"Testing $data")
-
-    val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "not_empty")
-    val codeRegion = fb.getCodeParam[Region](1)
-    val value = fb.getCodeParam[Long](2)
-
-    fb.emit(destType.checkedConvertFrom(fb.apply_method, codeRegion, value, sourceType, "ShouldHaveNoNull"))
-
-    val f = fb.result()()
-    val destRegion = Region()
-    if (expectFalse) {
-      val thrown = intercept[Exception](f(destRegion,src))
-      assert(thrown.getMessage == "ShouldHaveNoNull")
-    } else
-      f(destRegion,src)
-  }
-
   def testContainsNonZeroBits(sourceType: PArray, data: IndexedSeq[Any]) = {
     val srcRegion = Region()
     val src = ScalaToRegionValue(srcRegion, sourceType, data)
@@ -139,47 +118,7 @@ class PContainerTest extends PhysicalTestUtils {
         missing <- 1 to num
     } assert(testHasMissingValues(sourceType, nullInByte(num, missing)) == true)
   }
-
-  @Test def checkedConvertFromTest() {
-    val sourceType = PCanonicalArray(PInt64(false))
-    val destType = PCanonicalArray(PInt64(true))
-
-    testConvert(sourceType, destType, nullInByte(0, 0), false)
-
-    // 1 byte
-    testConvert(sourceType, destType, nullInByte(1, 0), false)
-    testConvert(sourceType, destType, nullInByte(1, 1), true)
-    testConvert(sourceType, destType, nullInByte(5, 5), true)
-
-    // 1 full byte
-    testConvert(sourceType, destType, nullInByte(8, 0), false)
-    testConvert(sourceType, destType, nullInByte(8, 1), true)
-    testConvert(sourceType, destType, nullInByte(8, 5), true)
-    testConvert(sourceType, destType, nullInByte(8, 8), true)
-
-    // 1 byte + remainder
-    testConvert(sourceType, destType, nullInByte(11, 0), false)
-    testConvert(sourceType, destType, nullInByte(13, 13), true)
-    testConvert(sourceType, destType, nullInByte(13, 9), true)
-    testConvert(sourceType, destType, nullInByte(13, 8), true)
-
-    // 1 Long
-    testConvert(sourceType, destType, nullInByte(64, 0), false)
-    testConvert(sourceType, destType, nullInByte(64, 1), true)
-    testConvert(sourceType, destType, nullInByte(64, 64), true)
-
-    // 1 Long + remainder
-    testConvert(sourceType, destType, nullInByte(67, 0), false)
-    testConvert(sourceType, destType, nullInByte(67, 67), true)
-    testConvert(sourceType, destType, nullInByte(67, 65), true)
-    testConvert(sourceType, destType, nullInByte(67, 64), true)
-
-    // 1 Long + 1 byte + remainder
-    testConvert(sourceType, destType, nullInByte(79, 0), false)
-    testConvert(sourceType, destType, nullInByte(79, 72), true)
-    testConvert(sourceType, destType, nullInByte(79, 8), true)
-  }
-
+  
   @Test def arrayCopyTest() {
     // Note: can't test where data is null due to ArrayStack.top semantics (ScalaToRegionValue: assert(size_ > 0))
     def runTests(deepCopy: Boolean, interpret: Boolean) {
