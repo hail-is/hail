@@ -138,7 +138,7 @@ String json4sVersion() {
         if (cachedJson4sVersion == null) {
             throw new RuntimeException('Unable to determine json4s library version')
         } else if (cachedJson4sVersion == "3.7.0-M5") {
-            cachedJson4sVersion = "3.6.10" // JSON4S 3.7.0-M5 contains a known bug (https://github.com/json4s/json4s/issues/507)
+            cachedJson4sVersion = "3.5.3" // JSON4S 3.7.0-M5 contains a known bug (https://github.com/json4s/json4s/issues/507)
         }
     }
     return cachedJson4sVersion
@@ -150,18 +150,20 @@ configurations {
     all {
         resolutionStrategy {
             componentSelection {
-	      withModule('org.scalanlp:breeze-natives_' + scalaMajorVersion) { ComponentSelection selection ->
-		  if (selection.candidate.getVersion() != breezeVersion()) {
-		    selection.reject()
-		  }
-	      }
-          withModule('org.json4s:json4s-jackson_' + scalaMajorVersion) { ComponentSelection selection ->
-          if (selection.candidate.getVersion() != json4sVersion()) {
-            selection.reject()
-          }
-          }
+                withModule('org.scalanlp:breeze-natives_' + scalaMajorVersion) { ComponentSelection selection ->
+                    if (selection.candidate.getVersion() != breezeVersion()) {
+                        selection.reject()
+                    }
+                }
+	        }
+            eachDependency { DependencyResolveDetails details ->
+                if (details.requested.group == 'org.json4s' &&
+                        details.requested.name == 'json4s-jackson_' + scalaMajorVersion &&
+                        details.requested.version == '3.7.0-M5') {
+                    details.useVersion('3.5.3')
+                }
+            }
 	    }
-	}
     }
 
     compile.extendsFrom bundled, unbundled
@@ -203,7 +205,9 @@ dependencies {
 
     // Breeze 1.0 has a known bugs (https://github.com/scalanlp/breeze/issues/772)
     unbundled 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion()
-    bundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion())
+    bundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion()) {
+        transitive = false
+    }
 
     bundled 'com.github.fommil.netlib:all:1.1.2'
     bundled('com.github.samtools:htsjdk:2.21.0') {
