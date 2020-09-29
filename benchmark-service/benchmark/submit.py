@@ -64,6 +64,7 @@ class Commit:
 
     def checkout_script(self):
         return f'''
+set -ex
 mkdir -p { shq(self.repo_dir()) }
 if [ ! -d { shq(self.repo_dir()) }/.git ]
 then
@@ -76,6 +77,7 @@ else
     git reset --hard
     git fetch -q origin
 fi
+pwd
 git checkout {self.sha}
 '''
 
