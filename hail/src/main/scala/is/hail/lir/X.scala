@@ -66,7 +66,6 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
     }
 
     val writeIRs = HailContext.getFlag("write_ir_files") != null
-    println(writeIRs)
 
     if (writeIRs) saveToFile(s"/tmp/hail/${name}.lir")
 
