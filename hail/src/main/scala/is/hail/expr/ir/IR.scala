@@ -611,6 +611,7 @@ object PartitionReader {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
       classOf[PartitionNativeReader],
+      classOf[PartitionNativeReaderIndexed],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec])
     ) + BufferSpec.shortTypeHints
@@ -663,7 +664,8 @@ abstract class PartitionReader {
 
   def rowPType(requestedType: Type): PType
 
-  def emitStream[C](context: IR,
+  def emitStream[C](ctx: ExecuteContext,
+    context: IR,
     requestedType: Type,
     emitter: Emit[C],
     mb: EmitMethodBuilder[C],
@@ -676,6 +678,7 @@ abstract class PartitionReader {
 
 abstract class PartitionWriter {
   def consumeStream(
+    ctx: ExecuteContext,
     context: EmitCode,
     eltType: PStruct,
     mb: EmitMethodBuilder[_],

@@ -3309,7 +3309,7 @@ class Table(ExprContainer):
             t = t.filter(~ _values_similar(t[left_value], t[right_value], tolerance, absolute))
             bad_rows = t.take(10)
             for r in bad_rows:
-                print(f'  Row mismatch:\n    L: {r[left_value]}\n    R: {r[right_value]}')
+                print(f'  Row mismatch at key={r._key}:\n    L: {r[left_value]}\n    R: {r[right_value]}')
             return False
 
         return True

@@ -164,6 +164,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
   def ifIndexed[T >: Null](obj: => T): T = if (hasIndex) obj else null
 
   def consumeStream(
+    ctx: ExecuteContext,
     context: EmitCode,
     eltType: PStruct,
     mb: EmitMethodBuilder[_],
@@ -175,7 +176,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb) }
 
     context.map { ctxCode: PCode =>
-      val ctx = mb.newLocal[Long]("ctx")
+      val pctx = mb.newLocal[Long]("ctx")
       val result = mb.newLocal[Long]("write_result")
 
       val filename = mb.newLocal[String]("filename")
@@ -210,8 +211,8 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
       }
 
       PCode(pResultType, EmitCodeBuilder.scopedCode(mb) { cb: EmitCodeBuilder =>
-        cb.assign(ctx, ctxCode.tcode[Long])
-        cb.assign(filename, pContextType.loadString(ctx))
+        cb.assign(pctx, ctxCode.tcode[Long])
+        cb.assign(filename, pContextType.loadString(pctx))
         if (hasIndex) {
           val indexFile = cb.newLocal[String]("indexFile")
           cb.assign(indexFile, const(index.get._1).concat(filename))
@@ -222,7 +223,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
         cb.assign(ob, spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)))
         cb.assign(n, 0L)
         cb += eltRegion.allocateRegion(Region.REGULAR)
-        cb += stream.getStream(eltRegion).forEach(mb, writeFile)
+        cb += stream.getStream(eltRegion).forEach(ctx, mb, writeFile)
         cb += eltRegion.free()
         cb += ob.writeByte(0.asInstanceOf[Byte])
         cb.assign(result, pResultType.allocate(region.code))
@@ -231,7 +232,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
         cb += ob.flush()
         cb += os.invoke[Unit]("close")
         cb += Region.storeIRIntermediate(filenameType)(
-          pResultType.fieldOffset(result, "filePath"), ctx)
+          pResultType.fieldOffset(result, "filePath"), pctx)
         cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
         result.get
       })

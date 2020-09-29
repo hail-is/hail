@@ -456,7 +456,7 @@ class Emit[C](
       this.emit(ir, mb, region, env, container, loopEnv)
 
     def emitStream(ir: IR, outerRegion: ParentStagedRegion, mb: EmitMethodBuilder[C] = mb): EmitCode =
-      EmitStream.emit(this, ir, mb, outerRegion, env, container)
+      EmitStream.emit(ctx, this, ir, mb, outerRegion, env, container)
 
     def emitVoid(ir: IR, cb: EmitCodeBuilder = cb, mb: EmitMethodBuilder[C] = mb, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir, mb, region, env, container, loopEnv)
@@ -512,7 +512,7 @@ class Emit[C](
           {},
           { s =>
             cb += eltRegion.allocateRegion(Region.REGULAR)
-            cb += s.asStream.stream.getStream(eltRegion).forEach(mb, forBody)
+            cb += s.asStream.stream.getStream(eltRegion).forEach(ctx, mb, forBody)
             cb += eltRegion.free()
           })
 
@@ -638,7 +638,7 @@ class Emit[C](
       this.emitI(ir, cb, region, env, container, loopEnv)
 
     def emitStream(ir: IR, outerRegion: ParentStagedRegion): IEmitCode =
-      EmitStream.emit(this, ir, mb, outerRegion, env, container).toI(cb)
+      EmitStream.emit(ctx, this, ir, mb, outerRegion, env, container).toI(cb)
 
     def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir: IR, mb, region, env, container, loopEnv)
@@ -1423,7 +1423,7 @@ class Emit[C](
           cb += tmpRegion.allocateRegion(Region.REGULAR)
           cb.assign(xAcc, emitI(zero, eltRegion).map(cb)(_.castTo(mb, eltRegion.code, accType)))
 
-          stream.asStream.stream.getStream(eltRegion).forEachI(cb, { elt =>
+          stream.asStream.stream.getStream(eltRegion).forEachI(ctx, cb, { elt =>
             // pre- and post-condition: 'xAcc' contains current accumulator,
             // whose heap memory is contained in 'eltRegion'. 'tmpRegion' is
             // empty.
@@ -1466,7 +1466,7 @@ class Emit[C](
           (accVars, acc).zipped.foreach { case (xAcc, (_, x)) =>
             cb.assign(xAcc, emitI(x, eltRegion).map(cb)(_.castTo(mb, eltRegion.code, xAcc.pt)))
           }
-          stream.asStream.stream.getStream(eltRegion).forEachI(cb, { elt =>
+          stream.asStream.stream.getStream(eltRegion).forEachI(ctx, cb, { elt =>
             // pre- and post-condition: 'accVars' contain current accumulators,
             // all of whose heap memory is contained in 'eltRegion'. 'tmpRegion'
             // is empty.
@@ -1544,7 +1544,7 @@ class Emit[C](
           .get(cb, "rows stream was missing in shuffle write")
           .asStream.stream.getStream(eltRegion)
         cb += eltRegion.allocateRegion(Region.REGULAR)
-        cb += rows.forEach(mb, { row: EmitCode =>
+        cb += rows.forEach(ctx, mb, { row: EmitCode =>
           Code(
             row.setup,
             row.m.mux(
@@ -1655,7 +1655,7 @@ class Emit[C](
     }
 
     def emitStream(ir: IR, outerRegion: ParentStagedRegion): EmitCode =
-      EmitStream.emit(this, ir, mb, outerRegion, env, container)
+      EmitStream.emit(ctx, this, ir, mb, outerRegion, env, container)
 
     def emitNDArrayColumnMajorStrides(ir: IR): EmitCode = {
       EmitCode.fromI(mb) { cb =>
@@ -1831,7 +1831,7 @@ class Emit[C](
         val optStream = emitStream(array, outerRegion)
         optStream.map { stream =>
           PCode(pt, Code(
-            EmitStream.write(mb, stream.asStream, vab, outerRegion),
+            EmitStream.write(ctx, mb, stream.asStream, vab, outerRegion),
             sort,
             distinct,
             sorter.toRegion()))
@@ -1844,7 +1844,7 @@ class Emit[C](
       case ToArray(a) =>
         val outerRegion = region.asParent(coerce[PStream](a.pType).separateRegions, "ToArray")
         emitStream(a, outerRegion).map { stream =>
-          EmitStream.toArray(mb, coerce[PArray](pt), stream.asStream, outerRegion)
+          EmitStream.toArray(ctx, mb, coerce[PArray](pt), stream.asStream, outerRegion)
         }
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
@@ -1927,7 +1927,7 @@ class Emit[C](
         val outerRegion = region.asParent(atyp.separateRegions, "GroupByKey")
         emitStream(collection, outerRegion).map { stream =>
           PCode(pt, Code(
-            EmitStream.write(mb, stream.asStream, eab, outerRegion),
+            EmitStream.write(ctx, mb, stream.asStream, eab, outerRegion),
             sorter.sort(sortF),
             sorter.pruneMissing,
             eab.size.ceq(0).mux(
@@ -1998,7 +1998,7 @@ class Emit[C](
                   count := 0,
                   setup,
                   eltRegion.allocateRegion(Region.REGULAR),
-                  stream(eltRegion).forEach(mb, _ => Code(count := count + 1, eltRegion.clear())),
+                  stream(eltRegion).forEach(ctx, mb, _ => Code(count := count + 1, eltRegion.clear())),
                   eltRegion.free(),
                   count.get
                 )
@@ -2322,7 +2322,7 @@ class Emit[C](
               setup,
               ctxab.invoke[Int, Unit]("ensureCapacity", len.getOrElse(16)),
               eltRegion.allocateRegion(Region.REGULAR),
-              stream(eltRegion).map(etToTuple(_, ctxType)).forEach(mb, { offset =>
+              stream(eltRegion).map(etToTuple(_, ctxType)).forEach(ctx, mb, { offset =>
                 Code(
                   baos.invoke[Unit]("reset"),
                   Code.memoize(offset, "cda_add_contexts_addr") { offset =>
@@ -2374,7 +2374,7 @@ class Emit[C](
           decodeResult))
         }
 
-        COption.toEmitCode(optRes, mb)
+        COption.toEmitCode(ctx, optRes, mb)
 
       case x@TailLoop(name, args, body) =>
         val label = CodeLabel()
@@ -2412,14 +2412,14 @@ class Emit[C](
           // dead code
           const(true), pt.defaultValue)
 
-      case x@WritePartition(stream, ctx, writer) =>
-        val ctxCode = emit(ctx)
+      case x@WritePartition(stream, pctx, writer) =>
+        val ctxCode = emit(pctx)
         val streamType = coerce[PStream](stream.pType)
         val eltType = coerce[PStruct](streamType.elementType)
         val outerRegion = region.asParent(streamType.separateRegions, "WritePartition")
-        COption.toEmitCode(
+        COption.toEmitCode(ctx,
           COption.fromEmitCode(emitStream(stream, outerRegion)).flatMap { s =>
-            COption.fromEmitCode(writer.consumeStream(ctxCode, eltType, mb, outerRegion, s.asStream.stream))
+            COption.fromEmitCode(writer.consumeStream(ctx, ctxCode, eltType, mb, outerRegion, s.asStream.stream))
           }, mb)
 
       case x =>

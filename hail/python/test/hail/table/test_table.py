@@ -793,6 +793,7 @@ class Tests(unittest.TestCase):
             hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
         ])
         self.assertEqual(t2.n_partitions(), 2)
+        self.assertEqual(t2.count(), 350)
         self.assertTrue(t.filter((t.idx >= 150) & (t.idx < 500))._same(t2))
 
         t2 = hl.read_table(f, _intervals=[

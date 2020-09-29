@@ -6,7 +6,8 @@ import is.hail.annotations._
 import is.hail.asm4s.AsmFunction3RegionLongLongLong
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir
-import is.hail.expr.ir.ExecuteContext
+import is.hail.expr.ir.{ExecuteContext, IR}
+import is.hail.expr.ir.lowering.TableStage
 import is.hail.types.encoded.{EType, ETypeSerializer}
 import is.hail.types.physical.{PCanonicalStruct, PInt64Optional, PInt64Required, PStruct, PType, PTypeSerializer}
 import is.hail.types.virtual.{TStructSerializer, _}
@@ -16,6 +17,7 @@ import is.hail.io.index.{InternalNodeBuilder, LeafNodeBuilder}
 import is.hail.utils._
 import is.hail.{HailContext, compatibility}
 import org.apache.spark.TaskContext
+import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
 
@@ -193,6 +195,31 @@ abstract class AbstractRVDSpec {
       val rvdType = RVDType(pType, requestedKey)
 
       RVD(rvdType, partitioner.coarsen(requestedKey.length), crdd)
+  }
+
+  def readTableStage(
+    ctx: ExecuteContext,
+    path: String,
+    requestedType: TStruct,
+    newPartitioner: Option[RVDPartitioner] = None,
+    filterIntervals: Boolean = false
+  ): IR => TableStage = newPartitioner match {
+    case Some(_) => fatal("attempted to read unindexed data as indexed")
+    case None =>
+
+      val rSpec = typedCodecSpec
+
+      val ctxType = TStruct("path" -> TString)
+      val contexts = ir.ToStream(ir.Literal(TArray(ctxType), absolutePartPaths(path).map(x => Row(x)).toFastIndexedSeq))
+
+      val body = (ctx: IR) => ir.ReadPartition(ir.GetField(ctx, "path"), requestedType, ir.PartitionNativeReader(rSpec))
+
+      (globals: IR) =>
+        TableStage(
+          globals,
+          partitioner,
+          contexts,
+          body)
   }
 
   def readLocalSingleRow(ctx: ExecuteContext, path: String, requestedType: TStruct): (PStruct, Long) =
@@ -395,6 +422,56 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
         super.read(ctx, path, requestedType, None, filterIntervals)
     }
   }
+
+  override def readTableStage(
+    ctx: ExecuteContext,
+    path: String,
+    requestedType: TStruct,
+    newPartitioner: Option[RVDPartitioner] = None,
+    filterIntervals: Boolean = false
+  ): IR => TableStage = newPartitioner match {
+    case Some(np) =>
+
+      val extendedNP = np.extendKey(partitioner.kType)
+      val tmpPartitioner = partitioner.intersect(extendedNP)
+
+      assert(key.nonEmpty)
+
+      val rSpec = typedCodecSpec
+      val reader = ir.PartitionNativeReaderIndexed(rSpec, indexSpec, partitioner.kType.fieldNames)
+
+      val absPath = uriPath(path)
+      val partPaths = tmpPartitioner.rangeBounds.map { b => partFiles(partitioner.lowerBoundInterval(b)) }
+
+
+      val kSize = partitioner.kType.size
+      absolutePartPaths(path)
+      assert(tmpPartitioner.rangeBounds.size == partPaths.length)
+      val contextsValues: IndexedSeq[Row] = tmpPartitioner.rangeBounds.zip(partPaths).map { case (interval, partPath) =>
+        Row(
+          s"${ absPath }/parts/${ partPath }",
+          s"${ absPath }/${ indexSpec.relPath }/parts/${ partPath }",
+          RVDPartitioner.intervalToIRRepresentation(interval, kSize))
+      }
+
+      assert(TArray(reader.contextType).typeCheck(contextsValues))
+
+      val contexts = ir.ToStream(ir.Literal(TArray(reader.contextType), contextsValues))
+
+      val body = (ctx: IR) => ir.ReadPartition(ctx, requestedType, reader)
+
+      { (globals: IR) =>
+        val ts = TableStage(
+          globals,
+          tmpPartitioner,
+          contexts,
+          body)
+        if (filterIntervals) ts else ts.repartitionNoShuffle(extendedNP)
+      }
+
+    case None =>
+      super.readTableStage(ctx, path, requestedType, newPartitioner, filterIntervals)
+  }
 }
 
 case class OrderedRVDSpec2(_key: IndexedSeq[String],
@@ -403,7 +480,7 @@ case class OrderedRVDSpec2(_key: IndexedSeq[String],
   _jRangeBounds: JValue,
   _attrs: Map[String, String]) extends AbstractRVDSpec {
 
-  // some lagacy OrderedRVDSpec2 were written out without the toplevel encoder required
+  // some legacy OrderedRVDSpec2 were written out without the toplevel encoder required
   private val codecSpec2 = _codecSpec match {
     case cs: TypedCodecSpec =>
       TypedCodecSpec(cs._eType.setRequired(true), cs._vType, cs._bufferSpec)
