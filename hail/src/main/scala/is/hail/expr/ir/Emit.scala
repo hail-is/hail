@@ -2535,9 +2535,6 @@ class Emit[C](
 
           val shapeArray = NDArrayEmitter.unifyShapes2(cb, leftChildEmitter.outputShape, rightChildEmitter.outputShape)
 
-//          val setupMissing = Code(leftChildEmitter.setupMissing, rightChildEmitter.setupMissing)
-//          val setupShape = Code(leftChildEmitter.setupShape, rightChildEmitter.setupShape, newSetupShape)
-
           new NDArrayEmitter2(shapeArray) {
             override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_] = {
               assert(cb.emb == mb)
