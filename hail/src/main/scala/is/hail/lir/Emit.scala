@@ -213,8 +213,8 @@ object Emit {
       emitClass(c, cw, logMethodSizes = true)
 
       val b = cw.toByteArray
-      //       This next line should always be commented out!
-//            CheckClassAdapter.verify(new ClassReader(b), false, new PrintWriter(System.err))
+      // This next line should always be commented out!
+//      CheckClassAdapter.verify(new ClassReader(b), false, new PrintWriter(System.err))
       b
     } catch {
       case e: Exception =>
