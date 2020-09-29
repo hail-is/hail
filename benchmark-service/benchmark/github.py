@@ -27,7 +27,7 @@ START_POINT = '2020-08-24T00:00:00Z'
 # results file is in google storage
 running_commit_shas = {}
 result_commit_shas = {}
-batch_client = bc.BatchClient(billing_project='hail')
+#batch_client = bc.BatchClient(billing_project='hail')
 bucket_name = 'benchmark'
 
 
@@ -50,7 +50,7 @@ async def get_new_commits():
             # p = await batches.__anext__()
             # await batches.aclose()
             #batches.close()
-            batch_c = await batch_client
+            batch_c = batch_client
             batches = [b async for b in batch_c.list_batches(q=f'sha={sha} running')]
 
             def has_results_file():
@@ -94,6 +94,8 @@ async def github_polling_loop():
 
 async def main():
     #asyncio.ensure_future(retry_long_running('github-polling-loop', github_polling_loop))
+    global batch_client
+    batch_client = await bc.BatchClient(billing_project='hail')
     await retry_long_running('github-polling-loop', github_polling_loop)
 
 
