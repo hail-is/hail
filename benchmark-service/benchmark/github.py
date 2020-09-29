@@ -28,7 +28,7 @@ START_POINT = '2020-08-24T00:00:00Z'
 running_commit_shas = {}
 result_commit_shas = {}
 #batch_client = bc.BatchClient(billing_project='hail')
-bucket_name = 'benchmark'
+bucket_name = 'hail-benchmarks'
 
 
 async def get_new_commits():
@@ -50,8 +50,7 @@ async def get_new_commits():
             # p = await batches.__anext__()
             # await batches.aclose()
             #batches.close()
-            batch_c = batch_client
-            batches = [b async for b in batch_c.list_batches(q=f'sha={sha} running')]
+            batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
 
             def has_results_file():
                 name = f'{sha}'
@@ -71,12 +70,11 @@ async def get_new_commits():
 async def submit_batch(commit):
     # write a results file once successful in the batch
     sha = commit.get('sha')
-    batch_c = await batch_client
-    batch = batch_c.create_batch()
+    batch = batch_client.create_batch()
     job = batch.create_job(image='ubuntu:18.04',
                            command=True,
                            output_files=[('/io/test/', f'gs://{bucket_name}/{sha}')])
-    batch.submit()
+    await batch.submit()
 
 
 async def query_github():
