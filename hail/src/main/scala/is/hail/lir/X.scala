@@ -45,6 +45,15 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
     method
   }
 
+  def saveToFile(path: String): Unit = {
+    val file = new java.io.File(path)
+    file.getParentFile.mkdirs()
+    using (new java.io.PrintWriter(file)) { out =>
+      Pretty(this, out, saveLineNumbers = true)
+    }
+    sourceFile = Some(path)
+  }
+
   def asBytes(print: Option[PrintWriter]): Array[(String, Array[Byte])] = {
     val classes = new mutable.ArrayBuffer[Classx[_]]()
     classes += this
@@ -54,14 +63,7 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
       SimplifyControl(m)
     }
 
-    val hailHome = System.getenv("HAIL_HOME")
-
-    sourceFile = Some(s"${hailHome}/hail/build/generated/${name}.lir")
-    val file = new java.io.File(sourceFile.get)
-    file.getParentFile.mkdirs()
-    using (new java.io.PrintWriter(file)) { out =>
-      Pretty(this, out, saveLineNumbers = true)
-    }
+    saveToFile(s"/tmp/hail/${name}.lir")
 
     for (m <- methods) {
       if (m.name != "<init>"
@@ -95,18 +97,19 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
 
       InitializeLocals(m, blocks, locals, liveness)
     }
-    
+
+    saveToFile(s"/tmp/hail/${name}.split.lir")
+
     // println(Pretty(this, saveLineNumbers = false))
-    classes.iterator
-      .map { c =>
+    classes.iterator.map { c =>
       val bytes = Emit(c,
         print
         // Some(new PrintWriter(System.out))
       )
 
-      val file = new java.io.File(s"${hailHome}/hail/build/generated/${c.name}.class")
-      file.getParentFile.mkdirs()
-      using (new java.io.FileOutputStream(file)) { fos =>
+      val classFile = new java.io.File(s"/tmp/hail/${c.name}.class")
+      classFile.getParentFile.mkdirs()
+      using (new java.io.FileOutputStream(classFile)) { fos =>
         fos.write(bytes)
       }
 

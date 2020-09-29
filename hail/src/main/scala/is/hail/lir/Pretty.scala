@@ -6,7 +6,7 @@ import org.objectweb.asm
 
 import is.hail.utils.StringEscapeUtils.escapeString
 
-class Builder(var n: Int, out: Writer) {
+class Builder(var n: Int, out: Writer, val printSourceLineNumbers: Boolean = false) {
   var lineNumber: Int = 0
 
   def indent(f: => Unit): Unit = {
@@ -15,11 +15,15 @@ class Builder(var n: Int, out: Writer) {
     n -= 2
   }
 
-  def +=(s: String): Unit = {
-    if (lineNumber > 0)
-      out.write('\n')
-    out.write(f"$lineNumber%-4d ")
+  def +=(s: String): Unit = appendWithSource(s, 0)
+
+  def appendWithSource(s: String, sourceNum: Int): Unit = {
     lineNumber += 1
+    if (lineNumber > 1) out.write('\n')
+    out.write(f"$lineNumber%-4d ")
+    if (printSourceLineNumbers) {
+      if (sourceNum == 0) out.write("     ") else out.write(f"$sourceNum%-4d ")
+    }
     out.write(" " * n)
     out.write(s)
   }
@@ -39,7 +43,8 @@ object Pretty {
   }
 
   def apply(c: Classx[_], out: Writer, saveLineNumbers: Boolean): Unit = {
-    val b = new Builder(0, out)
+    val printSourceLineNumbers = c.sourceFile.nonEmpty && saveLineNumbers
+    val b = new Builder(0, out, printSourceLineNumbers)
     fmt(c, b, saveLineNumbers)
     b += ""
   }
@@ -72,6 +77,11 @@ object Pretty {
 
   def fmt(c: Classx[_], b: Builder, saveLineNumbers: Boolean): Unit = {
     // FIXME interfaces
+    if (b.printSourceLineNumbers) {
+      c.sourceFile.foreach { sf =>
+        b += s"source file: ${ sf }"
+      }
+    }
     b += s"class ${ c.name } extends ${ c.superName }"
 
     b.indent {
@@ -115,14 +125,14 @@ object Pretty {
   }
 
   def fmt(x: X, label: Block => String, b: Builder, saveLineNumbers: Boolean): Unit = {
-    if (saveLineNumbers)
-      x.lineNumber = b.lineNumber
     val cl = x.getClass.getSimpleName
     val h = header(x, label)
     if (h != "")
-      b += s"($cl $h"
+      b.appendWithSource(s"($cl $h", x.lineNumber)
     else
-      b += s"($cl"
+      b.appendWithSource(s"($cl", x.lineNumber)
+    if (saveLineNumbers)
+      x.lineNumber = b.lineNumber
     b.indent {
       for (c <- x.children) {
         if (c != null)
