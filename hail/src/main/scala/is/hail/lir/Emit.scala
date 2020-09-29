@@ -213,6 +213,9 @@ object Emit {
       emitClass(c, cw, logMethodSizes = true)
 
       val b = cw.toByteArray
+      // For efficiency, the ClassWriter does no checking, and may generate invalid
+      // bytecode. This will verify the generated class file, printing errors
+      // to System.out.
       // This next line should always be commented out!
 //      CheckClassAdapter.verify(new ClassReader(b), false, new PrintWriter(System.err))
       b
