@@ -9,7 +9,7 @@ import org.objectweb.asm.Opcodes._
 
 // FIXME move typeinfo stuff lir
 
-class Classx[C](val name: String, val superName: String, val sourceFile: Option[String]) {
+class Classx[C](val name: String, val superName: String, var sourceFile: Option[String]) {
   val ti: TypeInfo[C] = new ClassInfo[C](name)
 
   val methods: mutable.ArrayBuffer[Method] = new mutable.ArrayBuffer()
@@ -54,6 +54,15 @@ class Classx[C](val name: String, val superName: String, val sourceFile: Option[
       SimplifyControl(m)
     }
 
+    val hailHome = System.getenv("HAIL_HOME")
+
+    sourceFile = Some(s"${hailHome}/hail/build/generated/${name}.lir")
+    val file = new java.io.File(sourceFile.get)
+    file.getParentFile.mkdirs()
+    using (new java.io.PrintWriter(file)) { out =>
+      Pretty(this, out, saveLineNumbers = true)
+    }
+
     for (m <- methods) {
       if (m.name != "<init>"
       && m.approxByteCodeSize() > SplitMethod.TargetMethodSize
@@ -94,6 +103,13 @@ class Classx[C](val name: String, val superName: String, val sourceFile: Option[
         print
         // Some(new PrintWriter(System.out))
       )
+
+      val file = new java.io.File(s"${hailHome}/hail/build/generated/${c.name}.class")
+      file.getParentFile.mkdirs()
+      using (new java.io.FileOutputStream(file)) { fos =>
+        fos.write(bytes)
+      }
+
       (c.name.replace("/", "."), bytes)
     }.toArray
   }

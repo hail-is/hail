@@ -1,11 +1,13 @@
 package is.hail.lir
 
+import java.io.{StringWriter, Writer}
+
 import org.objectweb.asm
 
-class Builder(var n: Int) {
-  var lineNumber: Int = 0
+import is.hail.utils.StringEscapeUtils.escapeString
 
-  private val sb: StringBuilder = new StringBuilder()
+class Builder(var n: Int, out: Writer) {
+  var lineNumber: Int = 0
 
   def indent(f: => Unit): Unit = {
     n += 2
@@ -15,48 +17,57 @@ class Builder(var n: Int) {
 
   def +=(s: String): Unit = {
     if (lineNumber > 0)
-      sb.append('\n')
-    sb.append(f"$lineNumber%-4d ")
+      out.write('\n')
+    out.write(f"$lineNumber%-4d ")
     lineNumber += 1
-    sb.append(" " * n)
-    sb.append(s)
+    out.write(" " * n)
+    out.write(s)
   }
 
   def appendToLastLine(s: String): Unit = {
-    sb.append(s)
-  }
-
-  def result(): String = {
-    sb.append('\n')
-    sb.result()
+    out.write(s)
   }
 }
 
 object Pretty {
-  def apply(c: Classx[_], saveLineNumbers: Boolean = false): String = {
-    val b = new Builder(0)
+  def apply(c: Classx[_]): String = apply(c, false)
+
+  def apply(c: Classx[_], saveLineNumbers: Boolean): String = {
+    val sw = new StringWriter()
+    apply(c, sw, saveLineNumbers)
+    sw.toString
+  }
+
+  def apply(c: Classx[_], out: Writer, saveLineNumbers: Boolean): Unit = {
+    val b = new Builder(0, out)
     fmt(c, b, saveLineNumbers)
-    b.result()
+    b += ""
   }
 
   def apply(m: Method): String = {
-    val b = new Builder(0)
+    val sw = new StringWriter()
+    val b = new Builder(0, sw)
     fmt(m, b, false)
-    b.result()
+    b += ""
+    sw.toString
   }
 
   def apply(L: Block): String = {
-    val b = new Builder(0)
+    val sw = new StringWriter()
+    val b = new Builder(0, sw)
     val label: Block => String = _.toString
     fmt(L, label, b, false)
-    b.result()
+    b += ""
+    sw.toString
   }
 
   def apply(x: X): String = {
-    val b = new Builder(0)
+    val sw = new StringWriter()
+    val b = new Builder(0, sw)
     val label: Block => String = _.toString
-    fmt(x, label, b)
-    b.result()
+    fmt(x, label, b, false)
+    b += ""
+    sw.toString
   }
 
   def fmt(c: Classx[_], b: Builder, saveLineNumbers: Boolean): Unit = {
@@ -97,16 +108,15 @@ object Pretty {
     b.indent {
       var x = L.first
       while (x != null) {
-        assert(saveLineNumbers)
-        if (saveLineNumbers)
-          x.lineNumber = b.lineNumber
-        fmt(x, label, b)
+        fmt(x, label, b, saveLineNumbers)
         x = x.next
       }
     }
   }
 
-  def fmt(x: X, label: Block => String, b: Builder): Unit = {
+  def fmt(x: X, label: Block => String, b: Builder, saveLineNumbers: Boolean): Unit = {
+    if (saveLineNumbers)
+      x.lineNumber = b.lineNumber
     val cl = x.getClass.getSimpleName
     val h = header(x, label)
     if (h != "")
@@ -116,7 +126,7 @@ object Pretty {
     b.indent {
       for (c <- x.children) {
         if (c != null)
-          fmt(c, label, b)
+          fmt(c, label, b, saveLineNumbers)
         else
           b += "null"
       }
@@ -132,7 +142,12 @@ object Pretty {
       else
         "null"
     case x: SwitchX => s"${ label(x.Ldefault) } (${ x.Lcases.map(label).mkString(" ") })"
-    case x: LdcX => s"${ x.a.toString } ${ x.ti }"
+    case x: LdcX =>
+      val lit = x.a match {
+        case s: String => s""""${escapeString(s)}""""
+        case a => a.toString
+      }
+      s"$lit ${ x.ti }"
     case x: InsnX => asm.util.Printer.OPCODES(x.op)
     case x: StoreX => x.l.toString
     case x: IincX => s"${ x.l.toString } ${ x.i }"
