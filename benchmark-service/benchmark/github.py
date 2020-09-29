@@ -27,7 +27,8 @@ START_POINT = '2020-08-24T00:00:00Z'
 # results file is in google storage
 running_commit_shas = {}
 result_commit_shas = {}
-batch_client = await bc.BatchClient(billing_project='hail')
+batch_client = bc.BatchClient(billing_project='hail')
+bucket_name = 'benchmark'
 
 
 async def get_new_commits():
@@ -45,18 +46,17 @@ async def get_new_commits():
         for commit in data:
             sha = commit.get('sha')
             list_of_shas.append(sha)
-            # if (sha not in running_commits) and (sha not in result_commit_shas):
-            #     new_commits.append(commit)
             # batches = batch_client.list_batches(q=f'sha={sha} running')
             # p = await batches.__anext__()
             # await batches.aclose()
             #batches.close()
-            batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
+            batch_c = await batch_client
+            batches = [b async for b in batch_c.list_batches(q=f'sha={sha} running')]
 
             def has_results_file():
                 name = f'{sha}'
                 storage_client = storage.Client()
-                bucket_name = 'my_bucket_name'
+                # bucket_name = 'my_bucket_name'
                 bucket = storage_client.bucket(bucket_name)
                 stats = storage.Blob(bucket=bucket, name=name).exists(storage_client)
                 return stats
@@ -70,8 +70,13 @@ async def get_new_commits():
 
 async def submit_batch(commit):
     # write a results file once successful in the batch
-    batch = batch_client.create_batch()
-    job = batch.create_job(command=True)
+    sha = commit.get('sha')
+    batch_c = await batch_client
+    batch = batch_c.create_batch()
+    job = batch.create_job(image='ubuntu:18.04',
+                           command=True,
+                           output_files=[('/io/test/', f'gs://{bucket_name}/{sha}')])
+    batch.submit()
 
 
 async def query_github():
@@ -80,15 +85,16 @@ async def query_github():
         await submit_batch(commit)
 
 
-# async def github_polling_loop():
-#     while True:
-#         await query_github()
-#         log.info(f'successfully queried github')
-#         await asyncio.sleep(60)
-#
-#
-# async def main():
-#     asyncio.ensure_future(retry_long_running('github-polling-loop', github_polling_loop))
+async def github_polling_loop():
+    while True:
+        await query_github()
+        log.info(f'successfully queried github')
+        await asyncio.sleep(60)
+
+
+async def main():
+    #asyncio.ensure_future(retry_long_running('github-polling-loop', github_polling_loop))
+    await retry_long_running('github-polling-loop', github_polling_loop)
 
 
 if __name__ == '__main__':
