@@ -3,40 +3,29 @@ import os
 import argparse
 import subprocess as sp
 
+from pathlib import Path
 from hailtop.utils import blocking_to_async
 
 
 class Flock:
     def __init__(self, path, pool=None, nonblock=False):
-        self.path = os.path.abspath(path)
+        self.path = Path(path).resolve()
+        self.lock_path = self.path.parent
         self.pool = pool
-
         self.flock_flags = fcntl.LOCK_EX
-        self.fds = []
-
         if nonblock:
             self.flock_flags |= fcntl.LOCK_NB
-
-        if os.path.isdir(self.path):
-            self.path = self.path.rstrip('/') + '/'
+        self.fd = -1
 
     def __enter__(self):
-        dirname, _ = os.path.split(self.path)
-
-        components = dirname.split('/')
-        for i in range(2, len(components) + 1):
-            path = '/'.join(components[:i])
-            os.makedirs(path, exist_ok=True)
-            fd = os.open(path, os.O_RDONLY)
-            self.fds.append(fd)
-            fcntl.flock(fd, self.flock_flags)
-
+        self.lock_path.mkdir(parents=True, exist_ok=True)
+        self.fd = os.open(self.lock_path, os.O_RDONLY)
+        fcntl.flock(self.fd, self.flock_flags)
         return self
 
     def __exit__(self, type, value, traceback):
-        for fd in reversed(self.fds):
-            fcntl.flock(fd, fcntl.LOCK_UN)
-            os.close(fd)
+        fcntl.flock(self.fd, fcntl.LOCK_UN)
+        os.close(self.fd)
 
     async def __aenter__(self):
         assert self.pool
