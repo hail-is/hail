@@ -1,7 +1,6 @@
 import asyncio
 import aiohttp
 import sys
-import json
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
@@ -98,6 +97,7 @@ class QueryClient:
                 except KeyError as e:
                     invalid.append(str(e))
             return flags, invalid
+
 
 async def submit(args):
     async with QueryClient() as client:
