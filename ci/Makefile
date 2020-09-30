@@ -16,7 +16,7 @@ check:
 
 .PHONY: build-ci-utils
 build-ci-utils:
-	make -C ../docker build
+	$(MAKE) -C ../docker build
 	-docker pull $(CI_UTILS_LATEST)
 	python3 jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile.ci-utils Dockerfile.ci-utils.out
 	docker build -t ci-utils -f Dockerfile.ci-utils.out --cache-from ci-utils,$(CI_UTILS_LATEST),base .
@@ -30,7 +30,7 @@ push-ci-utils: build-ci-utils
 
 .PHONY: build
 build:
-	make -C ../docker build
+	$(MAKE) -C ../docker build
 	-docker	pull $(CI_LATEST)
 	python3 jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
 	docker build -t ci -f Dockerfile.out --cache-from ci,$(CI_LATEST),service-base ..

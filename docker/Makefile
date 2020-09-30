@@ -39,7 +39,7 @@ service-base: base-stmp
 
 .PHONY: hail-public-image
 hail-public-image:
-	make -C ../hail wheel
+	$(MAKE) -C ../hail wheel
 	cp ../hail/build/deploy/dist/hail-*-py3-none-any.whl hail/
 	cd hail && tar -cvf wheel-container.tar hail-*-py3-none-any.whl
 	-docker pull $(HAIL_PUBLIC_LATEST)

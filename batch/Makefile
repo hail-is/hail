@@ -16,7 +16,7 @@ check:
 
 .PHONY: build
 build:
-	make -C ../docker build
+	$(MAKE) -C ../docker build
 	-docker pull $(BATCH_LATEST)
 	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
 	docker build -t batch -f Dockerfile.out --cache-from batch,$(BATCH_LATEST),service-base ..

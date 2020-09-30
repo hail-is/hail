@@ -13,8 +13,8 @@ check:
 
 .PHONY: build
 build:
-	make -C ../docker build
-	make -C ../hail shadowJar
+	$(MAKE) -C ../docker build
+	$(MAKE) -C ../hail shadowJar
 # janky
 	cp ../hail/build/libs/hail-all-spark.jar ./hail.jar
 	-docker pull $(QUERY_LATEST)

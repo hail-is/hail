@@ -14,7 +14,7 @@ check:
 
 .PHONY: build
 build:
-	make -C ../docker build
+	$(MAKE) -C ../docker build
 	-docker pull $(MONITORING_LATEST)
 	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
 	docker build -f Dockerfile.out -t monitoring --cache-from monitoring,$(MONITORING_LATEST),service-base ..

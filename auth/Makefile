@@ -13,7 +13,7 @@ check:
 
 .PHONY: build
 build:
-	make -C ../docker build
+	$(MAKE) -C ../docker build
 	-docker pull $(AUTH_LATEST)
 	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
 	docker build -f Dockerfile.out -t auth --cache-from auth,$(AUTH_LATEST),base ..

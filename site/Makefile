@@ -5,7 +5,7 @@ include ../config.mk
 IMAGE = gcr.io/$(PROJECT)/site:$(shell docker images -q --no-trunc site | sed -e 's,[^:]*:,,')
 
 build:
-	make -C www
+	$(MAKE) -C www
 	-rm -rf www-out
 	rsync --archive \
         --verbose \

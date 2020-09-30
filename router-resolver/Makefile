@@ -13,7 +13,7 @@ check:
 
 .PHONY: build
 build:
-	make -C ../docker build
+	$(MAKE) -C ../docker build
 	-docker pull $(ROUTER_RESOLVER_LATEST)
 	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
 	docker build -f Dockerfile.out -t router-resolver --cache-from router-resolver,$(ROUTER_RESOLVER_LATEST),service-base ..

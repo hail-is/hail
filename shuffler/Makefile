@@ -8,10 +8,10 @@ PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
 .PHONY: build
 build:
-	make -C ../docker build
+	$(MAKE) -C ../docker build
 	-docker pull $(SHUFFLER_LATEST)
 	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
-	make -C ../hail shadowJar
+	$(MAKE) -C ../hail shadowJar
 	cp ../hail/build/libs/hail-all-spark.jar hail.jar
 	docker build -t shuffler -f Dockerfile.out --cache-from shuffler,$(SHUFFLER_LATEST),service-base .
 

@@ -1,16 +1,16 @@
 .DEFAULT_GOAL := default
 
 default:
-	echo Do not use this makefile to build hail, for information on how to \
+	@echo Do not use this makefile to build hail, for information on how to \
 	     build hail see: https://hail.is/docs/0.2/
-	exit 1
+	@false
 
 .PHONY: check-all
 check-all: check-hail check-services check-benchmark-service
 
 .PHONY: check-hail
 check-hail:
-	make -C hail/python check
+	$(MAKE) -C hail/python check
 
 .PHONY: check-services
 check-services: check-auth check-batch check-ci check-gear check-memory \
@@ -18,44 +18,44 @@ check-services: check-auth check-batch check-ci check-gear check-memory \
 
 .PHONY: check-auth
 check-auth:
-	make -C auth check
+	$(MAKE) -C auth check
 
 .PHONY: check-batch
 check-batch:
-	make -C batch check
+	$(MAKE) -C batch check
 
 .PHONY: check-benchmark-service
 check-benchmark-service:
-	make -C benchmark-service check
+	$(MAKE) -C benchmark-service check
 
 .PHONY: check-ci
 check-ci:
-	make -C ci check
+	$(MAKE) -C ci check
 
 .PHONY: check-gear
 check-gear:
-	make -C gear check
+	$(MAKE) -C gear check
 
 .PHONY: check-memory
 check-memory:
-	make -C memory check
+	$(MAKE) -C memory check
 
 .PHONY: check-notebook
 check-notebook:
-	make -C notebook check
+	$(MAKE) -C notebook check
 
 .PHONY: check-query
 check-query:
-	make -C query check
+	$(MAKE) -C query check
 
 .PHONY: check-router-resolver
 check-router-resolver:
-	make -C router-resolver check
+	$(MAKE) -C router-resolver check
 
 .PHONY: check-scorecard
 check-scorecard:
-	make -C scorecard check
+	$(MAKE) -C scorecard check
 
 .PHONY: check-web-common
 check-web-common:
-	make -C web_common check
+	$(MAKE) -C web_common check
