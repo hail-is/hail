@@ -11,6 +11,7 @@ from hailtop.batch import Batch, ServiceBackend, LocalBackend
 from hailtop.batch.utils import arg_max
 from hailtop.utils import grouped
 from hailtop.config import get_user_config
+from hailtop.batch.functions import concatenate
 
 
 class LocalTests(unittest.TestCase):
@@ -335,6 +336,17 @@ class LocalTests(unittest.TestCase):
             b.write_output(j.ofile, output_file.name)
             b.run()
             assert self.read(output_file.name) == '123abcdef'
+
+    def test_concatenate(self):
+        b = self.batch()
+        files = []
+        for i in range(10):
+            j = b.new_job()
+            j.command(f'touch {j.ofile}')
+            files.append(j.ofile)
+        concatenate(b, files, branching_factor=2)
+        assert len(b._jobs) == 10 + (5 + 3 + 2 + 1)
+        b.run()
 
 
 class ServiceTests(unittest.TestCase):
