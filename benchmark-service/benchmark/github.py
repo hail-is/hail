@@ -7,9 +7,10 @@ import json
 from hailtop.utils import retry_long_running
 import hailtop.batch_client.aioclient as bc
 from google.cloud import storage
+import os
 
 log = logging.getLogger('benchmark')
-oauth_token = ''
+# oauth_token = ''
 START_POINT = '2020-08-24T00:00:00Z'
 
 # Figures out what commits have results already, which commits have running batches,
@@ -34,7 +35,7 @@ bucket_name = 'hail-benchmarks'
 async def get_new_commits():
     async with aiohttp.ClientSession() as session:
         gh = gidgethub.aiohttp.GitHubAPI(session, 'hail-is/hail',
-                                         oauth_token=oauth_token)
+                                         oauth_token=os.getenv("GH_AUTH"))
 
         request_string = f'/repos/hail-is/hail/commits?sha=ef7262d01f2bde422aaf09b6f84091ac0e439b1d&since={START_POINT}'
 
@@ -42,7 +43,6 @@ async def get_new_commits():
         # parse the resulting data to get a list of commit shas
         list_of_shas = []
         new_commits = []
-        #batch_client = await bc.BatchClient(billing_project='hail')
         for commit in data:
             sha = commit.get('sha')
             list_of_shas.append(sha)
@@ -51,6 +51,8 @@ async def get_new_commits():
             # await batches.aclose()
             #batches.close()
             batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
+
+            #print(json.dumps(commit, indent=1))
 
             def has_results_file():
                 name = f'{sha}'
@@ -74,13 +76,16 @@ async def submit_batch(commit):
     job = batch.create_job(image='ubuntu:18.04',
                            command=['/bin/true'],
                            output_files=[('/io/test/', f'gs://{bucket_name}/{sha}')])
-    await batch.submit()
+    await batch.submit(disable_progress_bar=True)
+    global START_POINT
+    START_POINT = commit.get('commit').get('date')
 
 
 async def query_github():
     new_commits = await get_new_commits()
     for commit in new_commits:
         await submit_batch(commit)
+        break
 
 
 async def github_polling_loop():
@@ -99,7 +104,6 @@ async def main():
 
 if __name__ == '__main__':
     # parser = argparse.ArgumentParser()
-    #
     # args = parser.parse_args()
     # message = args.message
 
