@@ -5,8 +5,7 @@ import requests
 from werkzeug.serving import make_server
 from flask import Response
 
-from hailtop.utils import (retry_response_returning_functions,
-                           external_requests_client_session)
+from hailtop import httpx
 
 
 class ServerThread(threading.Thread):
@@ -31,14 +30,14 @@ class ServerThread(threading.Thread):
         ping_url = 'http://{}:{}/ping'.format(self.host, self.port)
 
         up = False
-        session = external_requests_client_session()
-        while not up:
-            try:
-                retry_response_returning_functions(
-                    session.get, ping_url)
-                up = True
-            except requests.exceptions.ConnectionError:
-                time.sleep(0.01)
+        with httpx.blocking_client_session() as session:
+            while not up:
+                try:
+                    with session.get(ping_url) as resp:
+                        resp.text()
+                    up = True
+                except requests.exceptions.ConnectionError:
+                    time.sleep(0.01)
 
     def start(self):
         super().start()

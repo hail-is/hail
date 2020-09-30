@@ -1,11 +1,11 @@
+import aiohttp
 import asyncio
 import webbrowser
-import aiohttp
 import sys
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
-from hailtop.tls import get_context_specific_ssl_client_session
+from hailtop import httpx
 
 
 def init_parser(parser):
@@ -27,8 +27,10 @@ class CIClient:
 
     async def __aenter__(self):
         headers = service_auth_headers(self._deploy_config, 'ci')
-        self._session = get_context_specific_ssl_client_session(
-            timeout=aiohttp.ClientTimeout(total=60), headers=headers)
+        self._session = httpx.client_session(
+            raise_for_status=False,
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=60))
         return self
 
     async def __aexit__(self, exc_type, exc, tb):

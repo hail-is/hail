@@ -10,9 +10,8 @@ import json
 
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.auth import service_auth_headers, get_userinfo
-from hailtop.utils import (retry_response_returning_functions,
-                           external_requests_client_session)
-from hailtop.batch_client.client import BatchClient
+from hailtop import httpx
+from hailtop.batch_client.client import BatchClient, Job
 
 from .utils import legacy_batch_status
 from .failure_injecting_client_session import FailureInjectingClientSession
@@ -429,35 +428,34 @@ def test_log_after_failing_job(client):
 
 
 def test_authorized_users_only():
-    session = external_requests_client_session()
-    endpoints = [
-        (session.get, '/api/v1alpha/billing_projects', 401),
-        (session.get, '/api/v1alpha/billing_projects/foo', 401),
-        (session.post, '/api/v1alpha/billing_projects/foo/users/foo/add', 401),
-        (session.post, '/api/v1alpha/billing_projects/foo/users/foo/remove', 401),
-        (session.post, '/api/v1alpha/billing_projects/foo/create', 401),
-        (session.post, '/api/v1alpha/billing_projects/foo/close', 401),
-        (session.post, '/api/v1alpha/billing_projects/foo/reopen', 401),
-        (session.post, '/api/v1alpha/billing_projects/foo/delete', 401),
-        (session.post, '/api/v1alpha/billing_limits/foo/edit', 401),
-        (session.get, '/api/v1alpha/batches/0/jobs/0', 401),
-        (session.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
-        (session.get, '/api/v1alpha/batches', 401),
-        (session.post, '/api/v1alpha/batches/create', 401),
-        (session.post, '/api/v1alpha/batches/0/jobs/create', 401),
-        (session.get, '/api/v1alpha/batches/0', 401),
-        (session.delete, '/api/v1alpha/batches/0', 401),
-        (session.patch, '/api/v1alpha/batches/0/close', 401),
-        # redirect to auth/login
+    with httpx.blocking_client_session(raise_for_status=False) as session:
+        endpoints = [
+            (session.get, '/api/v1alpha/billing_projects', 401),
+            (session.get, '/api/v1alpha/billing_projects/foo', 401),
+            (session.post, '/api/v1alpha/billing_projects/foo/users/foo/add', 401),
+            (session.post, '/api/v1alpha/billing_projects/foo/users/foo/remove', 401),
+            (session.post, '/api/v1alpha/billing_projects/foo/create', 401),
+            (session.post, '/api/v1alpha/billing_projects/foo/close', 401),
+            (session.post, '/api/v1alpha/billing_projects/foo/reopen', 401),
+            (session.post, '/api/v1alpha/billing_projects/foo/delete', 401),
+            (session.post, '/api/v1alpha/billing_limits/foo/edit', 401),
+            (session.get, '/api/v1alpha/batches/0/jobs/0', 401),
+            (session.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
+            (session.get, '/api/v1alpha/batches', 401),
+            (session.post, '/api/v1alpha/batches/create', 401),
+            (session.post, '/api/v1alpha/batches/0/jobs/create', 401),
+            (session.get, '/api/v1alpha/batches/0', 401),
+            (session.delete, '/api/v1alpha/batches/0', 401),
+            (session.patch, '/api/v1alpha/batches/0/close', 401),
+            # redirect to auth/login
         (session.get, '/batches', 302),
-        (session.get, '/batches/0', 302),
-        (session.post, '/batches/0/cancel', 401),
-        (session.get, '/batches/0/jobs/0', 302)]
-    for method, url, expected in endpoints:
-        full_url = deploy_config.url('batch', url)
-        r = retry_response_returning_functions(
-            method, full_url, allow_redirects=False)
-        assert r.status_code == expected, (full_url, r, expected)
+            (session.get, '/batches/0', 302),
+            (session.post, '/batches/0/cancel', 401),
+            (session.get, '/batches/0/jobs/0', 302)]
+        for method, url, expected in endpoints:
+            full_url = deploy_config.url('batch', url)
+            with method(full_url, allow_redirects=False) as resp:
+                assert resp.status == expected, (full_url, resp.text(), expected)
 
 
 def test_gcr_image(client):
@@ -523,7 +521,8 @@ def test_restartable_insert(client):
         return False
 
     with FailureInjectingClientSession(every_third_time) as session:
-        client = BatchClient('test', session=session)
+        client = BatchClient('test')
+        client._async_client._session.session = session
         builder = client.create_batch()
 
         for _ in range(9):
@@ -565,15 +564,10 @@ def test_batch_create_validation():
     ]
     url = deploy_config.url('batch', '/api/v1alpha/batches/create')
     headers = service_auth_headers(deploy_config, 'batch')
-    session = external_requests_client_session()
-    for config in bad_configs:
-        r = retry_response_returning_functions(
-            session.post,
-            url,
-            json=config,
-            allow_redirects=True,
-            headers=headers)
-        assert r.status_code == 400, (config, r)
+    with httpx.blocking_client_session(raise_for_status=False) as session:
+        for config in bad_configs:
+            with session.post(url, json=config, headers=headers) as resp:
+                assert resp.status == 400, (config, resp.text())
 
 
 def test_duplicate_parents(client):

@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Dict
 import aiohttp
 import random
 import os
@@ -6,14 +6,14 @@ import json
 import logging
 from aiohttp import web
 from ..utils import retry_transient_errors, first_extant_file
-from ..tls import get_context_specific_ssl_client_session
+from ..tls import internal_client_ssl_context
 
 log = logging.getLogger('deploy_config')
 
 
 class DeployConfig:
     @staticmethod
-    def from_config(config):
+    def from_config(config: dict) -> 'DeployConfig':
         domain = config.get('domain', 'hail.is')
         return DeployConfig(config['location'], config['default_namespace'], domain)
 
@@ -25,7 +25,7 @@ class DeployConfig:
         }
 
     @staticmethod
-    def from_config_file(config_file=None):
+    def from_config_file(config_file=None) -> 'DeployConfig':
         config_file = first_extant_file(
             config_file,
             os.environ.get('HAIL_DEPLOY_CONFIG_FILE'),
@@ -45,7 +45,7 @@ class DeployConfig:
             }
         return DeployConfig.from_config(config)
 
-    def __init__(self, location, default_namespace, domain):
+    def __init__(self, location: str, default_namespace: str, domain: str):
         assert location in ('external', 'k8s', 'gce')
         self._location = location
         self._default_namespace = default_namespace
@@ -57,21 +57,26 @@ class DeployConfig:
     def default_namespace(self):
         return self._default_namespace
 
-    def location(self):
+    def location(self) -> str:
         return self._location
 
     def service_ns(self, service):  # pylint: disable=unused-argument
         return self._default_namespace
 
-    def scheme(self, base_scheme='http'):
-        # FIXME: should depend on ssl context
-        return (base_scheme + 's') if self._location in ('external', 'k8s') else base_scheme
+    def scheme(self, service: str, base_scheme: str = 'http', use_address: bool = False) -> str:
+        if use_address and service in DeployConfig.ADDRESS_SERVICES:
+            return base_scheme + 's'
+        if self._location != 'gce':
+            return base_scheme + 's'
+        return base_scheme
 
-    def domain(self, service):
+    def domain(self, service: str, use_address: bool = False) -> str:
         ns = self.service_ns(service)
         if self._location == 'k8s':
             return f'{service}.{ns}'
         if self._location == 'gce':
+            if use_address and service in DeployConfig.ADDRESS_SERVICES:
+                return f'{service}.{ns}'
             if ns == 'default':
                 return f'{service}.hail'
             return 'internal.hail'
@@ -80,25 +85,27 @@ class DeployConfig:
             return f'{service}.{self._domain}'
         return f'internal.{self._domain}'
 
-    def base_path(self, service):
+    def base_path(self, service: str) -> str:
         ns = self.service_ns(service)
         if ns == 'default':
             return ''
         return f'/{ns}/{service}'
 
-    def base_url(self, service, base_scheme='http'):
-        return f'{self.scheme(base_scheme)}://{self.domain(service)}{self.base_path(service)}'
+    def base_url(self, service: str, *, base_scheme: str = 'http', use_address: bool = False) -> str:
+        scheme = self.scheme(service, base_scheme=base_scheme, use_address=use_address)
+        domain = self.domain(service, use_address=use_address)
+        return f'{scheme}://{domain}{self.base_path(service)}'
 
-    def url(self, service, path, base_scheme='http'):
-        return f'{self.base_url(service, base_scheme=base_scheme)}{path}'
+    def url(self, service: str, path: str, *, base_scheme: str = 'http', use_address: bool = False) -> str:
+        return f'{self.base_url(service, base_scheme=base_scheme, use_address=use_address)}{path}'
 
-    def auth_session_cookie_name(self):
+    def auth_session_cookie_name(self) -> str:
         auth_ns = self.service_ns('auth')
         if auth_ns == 'default':
             return 'session'
         return 'sesh'
 
-    def external_url(self, service, path, base_scheme='http'):
+    def external_url(self, service: str, path: str, base_scheme: str = 'http') -> str:
         ns = self.service_ns(service)
         if ns == 'default':
             if service == 'www':
@@ -106,7 +113,7 @@ class DeployConfig:
             return f'{base_scheme}s://{service}.{self._domain}{path}'
         return f'{base_scheme}s://internal.{self._domain}/{ns}/{service}{path}'
 
-    def prefix_application(self, app, service, **kwargs):
+    def prefix_application(self, app, service: str, **kwargs):
         base_path = self.base_path(service)
         if not base_path:
             return app
@@ -123,31 +130,58 @@ class DeployConfig:
 
         return root_app
 
-    async def addresses(self, service: str) -> List[Tuple[str, int]]:
+    ADDRESS_SERVICES = ['shuffler', 'address']
+
+    async def addresses(self, domain: str) -> List[Tuple[str, int]]:
+        assert self._location != 'internal'
+
+        domain_parts = domain.split('.')
+        n_parts = len(domain_parts)
+        assert n_parts > 0
+        service = domain_parts[0]
+
+        if n_parts > 2 or service not in DeployConfig.ADDRESS_SERVICES:
+            return []
+        if n_parts == 2 and domain_parts[1] == 'hail':
+            # internal.hail, etc.
+            return []
+
+        if n_parts == 1:
+            namespace = self.service_ns(service)
+        elif n_parts == 2:
+            namespace = domain_parts[1]
+
         from ..auth import service_auth_headers  # pylint: disable=cyclic-import,import-outside-toplevel
-        namespace = self.service_ns(service)
         headers = service_auth_headers(self, namespace)
-        async with get_context_specific_ssl_client_session(
+        async with aiohttp.ClientSession(
+                connector=aiohttp.TCPConnector(
+                    ssl=internal_client_ssl_context()),
                 raise_for_status=True,
                 timeout=aiohttp.ClientTimeout(total=5),
                 headers=headers) as session:
             async with await retry_transient_errors(
                     session.get,
-                    self.url('address', f'/api/{service}')) as resp:
+                    self.url('address', f'/api/{service}', use_address=False)) as resp:
                 dicts = await resp.json()
                 return [(d['address'], d['port']) for d in dicts]
 
-    async def address(self, service: str) -> Tuple[str, int]:
+    async def maybe_address(self, service: str) -> Optional[Tuple[str, int]]:
         service_addresses = await self.addresses(service)
         n = len(service_addresses)
-        assert n > 0
+        if n == 0:
+            return None
         return service_addresses[random.randrange(0, n)]
 
+    async def address(self, service: str) -> Tuple[str, int]:
+        address = await self.maybe_address(service)
+        assert address is not None
+        return address
 
-deploy_config = None
+
+deploy_config: Optional[DeployConfig] = None
 
 
-def get_deploy_config():
+def get_deploy_config() -> DeployConfig:
     global deploy_config
 
     if not deploy_config:

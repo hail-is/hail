@@ -1,14 +1,13 @@
 import aiohttp
 
 from hailtop.utils import async_to_blocking
-from hailtop.tls import in_cluster_ssl_client_session
+from hailtop import httpx
 
 
 class FailureInjectingClientSession:
     def __init__(self, should_fail):
         self.should_fail = should_fail
-        self.real_session = in_cluster_ssl_client_session(raise_for_status=True,
-                                                          timeout=aiohttp.ClientTimeout(total=60))
+        self.real_session = httpx.client_session()
 
     def __enter__(self):
         return self
@@ -28,6 +27,13 @@ class FailureInjectingClientSession:
                     real_url=path),
                 history=())
 
+    async def _request(self, method, path, *args, **kwargs):
+        self.maybe_fail(method, path, kwargs.get('headers', {}))
+        return await self.real_session.request(method, path, *args, **kwargs)
+
     async def request(self, method, path, *args, **kwargs):
         self.maybe_fail(method, path, kwargs.get('headers', {}))
         return await self.real_session.request(method, path, *args, **kwargs)
+
+    async def post(self, path, *args, **kwargs):
+        return await self.request('POST', path, *args, **kwargs)

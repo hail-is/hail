@@ -12,9 +12,9 @@ from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh
 from hailtop.utils import collect_agen, humanize_timedelta_msecs
 from hailtop.batch_client.aioclient import BatchClient
 from hailtop.config import get_deploy_config
-from hailtop.tls import get_in_cluster_server_ssl_context
+from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
-from hailtop import aiotools
+from hailtop import aiotools, httpx
 from gear import (setup_aiohttp_session, rest_authenticated_developers_only,
                   web_authenticated_developers_only, check_csrf_token,
                   create_database_pool)
@@ -403,7 +403,7 @@ async def update_loop(app):
 
 async def on_startup(app):
     app['github_client'] = gh_aiohttp.GitHubAPI(
-        aiohttp.ClientSession(
+        httpx.client_session(
             timeout=aiohttp.ClientTimeout(total=60)),
         'ci',
         oauth_token=oauth_token)
@@ -438,4 +438,4 @@ def run():
                 host='0.0.0.0',
                 port=5000,
                 access_log_class=AccessLogger,
-                ssl_context=get_in_cluster_server_ssl_context())
+                ssl_context=internal_server_ssl_context())

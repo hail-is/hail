@@ -1,7 +1,7 @@
 package is.hail.services
 
 import java.io.{File, FileInputStream}
-import java.net.{Socket, ConnectException}
+import java.net.{Socket, ConnectException, InetAddress}
 
 import is.hail.utils._
 import is.hail.services.tls._
@@ -104,7 +104,7 @@ class DeployConfig(
 
   private[this] lazy val addressRequester = new Requester("address")
 
-  def addresses(service: String): Seq[(String, Int)] = {
+  def addresses(service: String): Seq[(InetAddress, Int)] = {
     implicit val formats: Formats = DefaultFormats
 
     val addressBaseUrl = baseUrl("address")
@@ -113,10 +113,16 @@ class DeployConfig(
       .asInstanceOf[JArray]
       .children
       .asInstanceOf[List[JObject]]
-    addresses.map(x => ((x \ "address").extract[String], (x \ "port").extract[Int]))
+
+    def inetAddress(ipAddress: String): InetAddress = {
+      val ipAddressBytes = InetAddress.getByName(ipAddress).getAddress()
+      InetAddress.getByAddress(service, ipAddressBytes)
+    }
+
+    addresses.map(x => (inetAddress((x \ "address").extract[String]), (x \ "port").extract[Int]))
   }
 
-  def address(service: String): (String, Int) = {
+  def address(service: String): (InetAddress, Int) = {
     val serviceAddresses = addresses(service)
     val n = serviceAddresses.length
     assert(n > 0)

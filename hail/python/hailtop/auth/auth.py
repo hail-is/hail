@@ -1,8 +1,8 @@
-import os
 import aiohttp
+import os
 from hailtop.config import get_deploy_config
-from hailtop.utils import async_to_blocking, request_retry_transient_errors
-from hailtop.tls import get_context_specific_ssl_client_session
+from hailtop.utils import async_to_blocking
+from hailtop import httpx
 
 from .tokens import get_tokens
 
@@ -11,8 +11,7 @@ async def async_get_userinfo(*, deploy_config=None, session_id=None, client_sess
     if deploy_config is None:
         deploy_config = get_deploy_config()
     if client_session is None:
-        client_session = get_context_specific_ssl_client_session(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5))
+        client_session = httpx.client_session()
 
     if session_id is None:
         headers = service_auth_headers(deploy_config, 'auth')
@@ -22,9 +21,8 @@ async def async_get_userinfo(*, deploy_config=None, session_id=None, client_sess
     userinfo_url = deploy_config.url('auth', '/api/v1alpha/userinfo')
     async with client_session as session:
         try:
-            resp = await request_retry_transient_errors(
-                session, 'GET', userinfo_url, headers=headers)
-            return await resp.json()
+            async with session.get(userinfo_url, headers=headers) as resp:
+                return await resp.json()
         except aiohttp.client_exceptions.ClientResponseError as err:
             if err.status == 401:
                 return None
@@ -67,14 +65,11 @@ async def async_copy_paste_login(copy_paste_token, namespace=None):
 
     headers = namespace_auth_headers(deploy_config, namespace, authorize_target=False)
 
-    async with aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60),
-            headers=headers) as session:
-        resp = await request_retry_transient_errors(
-            session, 'POST', deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
-            params={'copy_paste_token': copy_paste_token})
-        resp = await resp.json()
+    async with httpx.client_session(headers=headers) as session:
+        async with session.post(
+                deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
+                params={'copy_paste_token': copy_paste_token}) as resp:
+            resp = await resp.json()
     token = resp['token']
     username = resp['username']
 

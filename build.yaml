@@ -1785,6 +1785,10 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /deploy-config
+    - name: ssl-config-auth-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
    dependsOn:
     - default_ns
     - create_accounts
@@ -1832,6 +1836,10 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /deploy-config
+    - name: ssl-config-auth-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
    dependsOn:
     - default_ns
     - create_accounts
@@ -2978,6 +2986,10 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /user-tokens
+    - name: ssl-config-batch-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
     - name: test-gsa-key
       namespace:
         valueFrom: default_ns.name

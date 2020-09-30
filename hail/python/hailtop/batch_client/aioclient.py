@@ -11,8 +11,8 @@ from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
-from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, TQDM_DEFAULT_DISABLE
-from hailtop.tls import get_context_specific_ssl_client_session
+from hailtop.utils import bounded_gather, tqdm, TQDM_DEFAULT_DISABLE
+from hailtop import httpx
 
 from .globals import tasks, complete_states
 
@@ -587,8 +587,8 @@ class BatchBuilder:
 
 @asyncinit
 class BatchClient:
-    async def __init__(self, billing_project, deploy_config=None, session=None,
-                       headers=None, _token=None, token_file=None):
+    async def __init__(self, billing_project, deploy_config=None, headers=None,
+                       _token=None, token_file=None):
         self.billing_project = billing_project
 
         if not deploy_config:
@@ -596,11 +596,7 @@ class BatchClient:
 
         self.url = deploy_config.base_url('batch')
 
-        if session is None:
-            session = get_context_specific_ssl_client_session(
-                raise_for_status=True,
-                timeout=aiohttp.ClientTimeout(total=60))
-        self._session = session
+        self._session = httpx.client_session()
 
         h = {}
         if headers:
@@ -612,23 +608,19 @@ class BatchClient:
         self._headers = h
 
     async def _get(self, path, params=None):
-        return await request_retry_transient_errors(
-            self._session, 'GET',
+        return await self._session.get(
             self.url + path, params=params, headers=self._headers)
 
     async def _post(self, path, data=None, json=None):
-        return await request_retry_transient_errors(
-            self._session, 'POST',
+        return await self._session.post(
             self.url + path, data=data, json=json, headers=self._headers)
 
     async def _patch(self, path):
-        return await request_retry_transient_errors(
-            self._session, 'PATCH',
+        return await self._session.patch(
             self.url + path, headers=self._headers)
 
     async def _delete(self, path):
-        return await request_retry_transient_errors(
-            self._session, 'DELETE',
+        return await self._session.delete(
             self.url + path, headers=self._headers)
 
     async def list_batches(self, q=None, last_batch_id=None, limit=2**64):

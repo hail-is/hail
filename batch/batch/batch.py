@@ -8,7 +8,7 @@ import traceback
 from hailtop.utils import (
     time_msecs, sleep_and_backoff, is_transient_error,
     time_msecs_str, humanize_timedelta_msecs)
-from hailtop.tls import in_cluster_ssl_client_session
+from hailtop import httpx
 from gear import transaction
 
 from .globals import complete_states, tasks, STATUS_FORMAT_VERSION
@@ -123,12 +123,12 @@ GROUP BY batches.id;
 
     if record['user'] == 'ci':
         # only jobs from CI may use batch's TLS identity
-        make_client_session = in_cluster_ssl_client_session
+        client_session = httpx.client_session(retry_transient=False)
     else:
-        make_client_session = aiohttp.ClientSession
+        client_session = aiohttp.ClientSession(
+            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5))
     try:
-        async with make_client_session(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+        async with client_session as session:
             await session.post(callback, json=batch_record_to_dict(record))
             log.info(f'callback for batch {batch_id} successful')
     except Exception:
@@ -304,8 +304,9 @@ async def unschedule_job(app, record):
         if instance.state in ('inactive', 'deleted'):
             break
         try:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with httpx.client_session(
+                    retry_transient=False,
+                    timeout=aiohttp.ClientTimeout(total=60)) as session:
                 await session.delete(url)
                 await instance.mark_healthy()
                 break
@@ -476,8 +477,9 @@ async def schedule_job(app, record, instance):
         log.info(f'schedule job {id} on {instance}: made job config')
 
         try:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=2)) as session:
+            async with httpx.client_session(
+                    retry_transient=False,
+                    timeout=aiohttp.ClientTimeout(total=2)) as session:
                 url = (f'http://{instance.ip_address}:5000'
                        f'/api/v1alpha/batches/jobs/create')
                 await session.post(url, json=body)

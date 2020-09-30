@@ -5,8 +5,8 @@ from typing import Iterable, List, Optional, Set, Tuple, Union
 
 import hail as hl
 import pkg_resources
-from hailtop.utils import (retry_response_returning_functions,
-                           external_requests_client_session)
+
+from hailtop import httpx
 
 from .lens import MatrixRows, TableRows
 from ..expr import StructExpression
@@ -348,9 +348,8 @@ class DB:
                 with open(config_path) as f:
                     config = json.load(f)
             else:
-                session = external_requests_client_session()
-                response = retry_response_returning_functions(session.get, url)
-                config = response.json()
+                with httpx.blocking_client_session() as session, session.get(url) as resp:
+                    config = resp.json()
             assert isinstance(config, dict)
         else:
             if not isinstance(config, dict):

@@ -3,7 +3,7 @@ import datetime
 import os
 import asyncio
 import aiohttp
-from aiohttp import web, ClientSession
+from aiohttp import web
 import gidgethub.aiohttp
 import random
 import humanize
@@ -11,9 +11,9 @@ import logging
 from collections import defaultdict
 
 from hailtop.config import get_deploy_config
-from hailtop.tls import get_in_cluster_server_ssl_context
+from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
-from hailtop import aiotools
+from hailtop import aiotools, httpx
 from gear import setup_aiohttp_session, web_maybe_authenticated_user
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
@@ -60,7 +60,7 @@ timestamp = None
 
 
 class AsanaClient:
-    _session: Optional[ClientSession]
+    _session: Optional[httpx.ClientSession]
 
     def __init__(self, *, token: Optional[str] = None):
         self._base_url = 'https://app.asana.com/api/1.0'
@@ -70,19 +70,22 @@ class AsanaClient:
             with open(asana_token_file, 'r') as f:
                 token = f.read().strip()
 
-        self._session = ClientSession(headers={'Authorization': f'Bearer {token}'})
+        self._session = httpx.client_session(headers={'Authorization': f'Bearer {token}'})
 
     async def get(self, path: str, **kwargs) -> Any:
+        assert self._session is not None
         async with await self._session.get(
                 f'{self._base_url}{path}', **kwargs) as resp:
             return await resp.json()
 
     async def post(self, path: str, **kwargs) -> Any:
+        assert self._session is not None
         async with await self._session.post(
                 f'{self._base_url}{path}', **kwargs) as resp:
             return await resp.json()
 
     async def delete(self, path: str, **kwargs) -> None:
+        assert self._session is not None
         async with await self._session.delete(
                 f'{self._base_url}{path}', **kwargs) as resp:
             return await resp.json()
@@ -401,9 +404,7 @@ async def on_startup(app):
                                 '/secrets/scorecard-github-access-token.txt')
     with open(token_file, 'r') as f:
         token = f.read().strip()
-    session = aiohttp.ClientSession(
-        raise_for_status=True,
-        timeout=aiohttp.ClientTimeout(total=60))
+    session = httpx.client_session(timeout=aiohttp.ClientTimeout(total=60))
     gh_client = gidgethub.aiohttp.GitHubAPI(session, 'scorecard', oauth_token=token)
     app['gh_client'] = gh_client
 
@@ -438,4 +439,4 @@ def run():
                 host='0.0.0.0',
                 port=5000,
                 access_log_class=AccessLogger,
-                ssl_context=get_in_cluster_server_ssl_context())
+                ssl_context=internal_server_ssl_context())

@@ -10,7 +10,7 @@ from hail.expr.blockmatrix_type import tblockmatrix
 
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.auth import service_auth_headers
-from hailtop.utils import async_to_blocking, retry_transient_errors
+from hailtop import httpx
 from hail.ir.renderer import CSERenderer
 
 from .backend import Backend
@@ -22,10 +22,11 @@ class ServiceSocket:
         if not deploy_config:
             deploy_config = get_deploy_config()
         self.url = deploy_config.base_url('query')
-        self.session = aiohttp.ClientSession(headers=service_auth_headers(deploy_config, 'query'))
+        self.session = httpx.blocking_client_session(
+            headers=service_auth_headers(deploy_config, 'query'))
 
     def close(self):
-        async_to_blocking(self.session.close())
+        self.session.close()
         self.session = None
 
     def handle_response(self, resp):
@@ -36,16 +37,13 @@ class ServiceSocket:
         assert resp.type == aiohttp.WSMsgType.TEXT, resp.type
         return resp.data
 
-    async def async_request(self, endpoint, **data):
-        async with self.session.ws_connect(f'{self.url}/api/v1alpha/{endpoint}') as socket:
-            await socket.send_str(json.dumps(data))
-            result = json.loads(self.handle_response(await socket.receive()))
+    def request(self, endpoint, **data):
+        with self.session.ws_connect(f'{self.url}/api/v1alpha/{endpoint}') as socket:
+            socket.send_str(json.dumps(data))
+            result = json.loads(self.handle_response(socket.receive()))
             if result['status'] != 200:
                 raise FatalError(f'Error from server: {result["value"]}')
             return json.loads(result['value'])
-
-    def request(self, endpoint, **data):
-        return async_to_blocking(retry_transient_errors(self.async_request, endpoint, **data))
 
 
 class ServiceBackend(Backend):

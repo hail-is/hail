@@ -8,7 +8,7 @@ from .utils import (
     WaitableSharedPool, RETRY_FUNCTION_SCRIPT, sync_retry_transient_errors,
     retry_response_returning_functions, first_extant_file, secret_alnum_string,
     flatten, partition, cost_str, external_requests_client_session, url_basename,
-    url_join)
+    url_join, cost_str)
 from .process import (
     CalledProcessError, check_shell, check_shell_output, sync_check_shell,
     sync_check_shell_output)
@@ -45,14 +45,11 @@ __all__ = [
     'run_if_changed_idempotent',
     'LoggingTimer',
     'WaitableSharedPool',
-    'request_retry_transient_errors',
-    'request_raise_transient_errors',
     'collect_agen',
     'tqdm',
     'TQDM_DEFAULT_DISABLE',
     'RETRY_FUNCTION_SCRIPT',
     'sync_retry_transient_errors',
-    'retry_response_returning_functions',
     'first_extant_file',
     'secret_alnum_string',
     'rate_gib_hour_to_mib_msec',

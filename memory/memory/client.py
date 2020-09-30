@@ -6,8 +6,7 @@ import google.api_core.exceptions
 from hailtop.auth import service_auth_headers
 from hailtop.config import get_deploy_config
 from hailtop.google_storage import GCS
-from hailtop.tls import get_context_specific_ssl_client_session
-from hailtop.utils import request_retry_transient_errors
+from hailtop import httpx
 
 
 class MemoryClient:
@@ -31,8 +30,7 @@ class MemoryClient:
 
     async def async_init(self):
         if self._session is None:
-            self._session = get_context_specific_ssl_client_session(
-                raise_for_status=True,
+            self._session = httpx.client_session(
                 timeout=aiohttp.ClientTimeout(total=60))
         if 'Authorization' not in self._headers:
             self._headers.update(service_auth_headers(self._deploy_config, 'memory'))
@@ -45,10 +43,9 @@ class MemoryClient:
         params = {'q': filename, 'etag': etag}
         try:
             url = f'{self.url}/api/v1alpha/objects'
-            async with await request_retry_transient_errors(self._session,
-                                                            'get', url,
-                                                            params=params,
-                                                            headers=self._headers) as response:
+            async with await self._session.get(url,
+                                               params=params,
+                                               headers=self._headers) as response:
                 return await response.read()
         except aiohttp.ClientResponseError as e:
             if e.status == 404:

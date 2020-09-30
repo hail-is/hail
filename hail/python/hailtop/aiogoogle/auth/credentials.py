@@ -5,7 +5,8 @@ import time
 import logging
 from urllib.parse import urlencode
 import jwt
-from hailtop.utils import request_retry_transient_errors
+
+from ... import httpx
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ class Credentials(abc.ABC):
 
         return Credentials.from_file(credentials_file)
 
-    async def get_access_token(self, session):
+    async def get_access_token(self, session: httpx.ClientSession):
         pass
 
 
@@ -52,9 +53,8 @@ class ApplicationDefaultCredentials(Credentials):
     def __init__(self, credentials):
         self.credentials = credentials
 
-    async def get_access_token(self, session):
-        async with await request_retry_transient_errors(
-                session, 'POST',
+    async def get_access_token(self, session: httpx.ClientSession):
+        async with session.post(
                 'https://www.googleapis.com/oauth2/v4/token',
                 headers={
                     'content-type': 'application/x-www-form-urlencoded'
@@ -75,7 +75,7 @@ class ServiceAccountCredentials(Credentials):
     def __init__(self, key):
         self.key = key
 
-    async def get_access_token(self, session):
+    async def get_access_token(self, session: httpx.ClientSession):
         now = int(time.time())
         scope = 'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/appengine.admin https://www.googleapis.com/auth/compute'
         assertion = {
@@ -86,8 +86,7 @@ class ServiceAccountCredentials(Credentials):
             "iss": self.key['client_email']
         }
         encoded_assertion = jwt.encode(assertion, self.key['private_key'], algorithm='RS256')
-        async with await request_retry_transient_errors(
-                session, 'POST',
+        async with session.post(
                 'https://www.googleapis.com/oauth2/v4/token',
                 headers={
                     'content-type': 'application/x-www-form-urlencoded'

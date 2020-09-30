@@ -95,3 +95,6 @@ principals:
 - name: atgu
   domain: atgu
   kind: json
+- name: auth-tests
+  domain: auth-tests
+  kind: json
