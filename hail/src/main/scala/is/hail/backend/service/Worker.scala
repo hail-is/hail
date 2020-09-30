@@ -63,7 +63,7 @@ object Worker {
 
     val fs = retryTransientErrors {
       using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
-        new GoogleStorageFS(IOUtils.toString(is, Charset.defaultCharset().toString()))
+        new GoogleStorageFS(IOUtils.toString(is, Charset.defaultCharset().toString())).asCacheable()
       }
     }
 
@@ -73,19 +73,11 @@ object Worker {
       }
     }
 
-    var offset = 0L
-    var length = 0
-
-    retryTransientErrors {
-      using(fs.openNoCompression(s"$root/context.offsets")) { is =>
-        is.seek(i * 12)
-        offset = is.readLong()
-        length = is.readInt()
-      }
-    }
-
     val context = retryTransientErrors {
       using(fs.openNoCompression(s"$root/contexts")) { is =>
+        is.seek(i * 12)
+        val offset = is.readLong()
+        val length = is.readInt()
         is.seek(offset)
         val context = new Array[Byte](length)
         is.readFully(context)
