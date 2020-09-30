@@ -1986,7 +1986,7 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /deploy-config
-    - name: test-tokens
+    - name: test-dev-tokens
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
