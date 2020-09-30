@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import aiohttp
 import random
 import os
@@ -6,7 +6,7 @@ import json
 import logging
 from aiohttp import web
 from ..utils import retry_transient_errors, first_extant_file
-from ..tls import get_context_specific_ssl_client_session
+from ..tls import get_context_specific_client_ssl_context
 
 log = logging.getLogger('deploy_config')
 
@@ -110,11 +110,18 @@ class DeployConfig:
 
         return root_app
 
+    ADDRESS_HOSTS = ['shuffler', 'address']
+
     async def addresses(self, service: str) -> List[Tuple[str, int]]:
+        if service not in DeployConfig.ADDRESS_HOSTS:
+            return []
+
         from ..auth import service_auth_headers  # pylint: disable=cyclic-import,import-outside-toplevel
         namespace = self.service_ns(service)
         headers = service_auth_headers(self, namespace)
-        async with get_context_specific_ssl_client_session(
+        async with aiohttp.ClientSession(
+                connector=aiohttp.TCPConnector(
+                    ssl=get_context_specific_client_ssl_context()),
                 raise_for_status=True,
                 timeout=aiohttp.ClientTimeout(total=5),
                 headers=headers) as session:
@@ -124,11 +131,17 @@ class DeployConfig:
                 dicts = await resp.json()
                 return [(d['address'], d['port']) for d in dicts]
 
-    async def address(self, service: str) -> Tuple[str, int]:
+    async def maybe_address(self, service: str) -> Optional[Tuple[str, int]]:
         service_addresses = await self.addresses(service)
         n = len(service_addresses)
-        assert n > 0
+        if n == 0:
+            return None
         return service_addresses[random.randrange(0, n)]
+
+    async def address(self, service: str) -> Tuple[str, int]:
+        address = await self.maybe_address(service)
+        assert address is not None
+        return address
 
 
 deploy_config = None

@@ -1,13 +1,17 @@
-from typing import Dict
+from typing import Dict, Any, List, Union
 import aiohttp
 import logging
 import json
 import os
 import ssl
+import socket
 from ssl import Purpose
 import requests
 from requests.adapters import HTTPAdapter
+import urllib3
 from urllib3.poolmanager import PoolManager
+from requests.compat import urlparse, urlunparse
+from hailtop.config import get_deploy_config
 
 log = logging.getLogger('hailtop.ssl')
 server_ssl_context = None
@@ -73,14 +77,41 @@ def get_context_specific_client_ssl_context() -> ssl.SSLContext:
 
 def in_cluster_ssl_client_session(*args, **kwargs) -> aiohttp.ClientSession:
     assert 'connector' not in kwargs
-    kwargs['connector'] = aiohttp.TCPConnector(ssl=get_in_cluster_client_ssl_context())
+    kwargs['connector'] = aiohttp.TCPConnector(
+        ssl=get_in_cluster_client_ssl_context(),
+        resolver=HailResolver())
     return aiohttp.ClientSession(*args, **kwargs)
 
 
 def get_context_specific_ssl_client_session(*args, **kwargs) -> aiohttp.ClientSession:
     assert 'connector' not in kwargs
-    kwargs['connector'] = aiohttp.TCPConnector(ssl=get_context_specific_client_ssl_context())
+    kwargs['connector'] = aiohttp.TCPConnector(
+        ssl=get_context_specific_client_ssl_context(),
+        resolver=HailResolver())
     return aiohttp.ClientSession(*args, **kwargs)
+
+
+class HailResolver(aiohttp.abc.AbstractResolver):
+    """Use Hail in-cluster DNS with fallback."""
+    def __init__(self):
+        self.dns = aiohttp.AsyncResolver()
+        self.deploy_config = get_deploy_config()
+
+    async def resolve(self, host: str, port: int, family: int) -> List[Dict[str, Any]]:
+        if family == socket.AF_INET or family == socket.AF_INET6:
+            maybe_address_and_port = self.deploy_config.maybe_address(host)
+            if maybe_address_and_port is not None:
+                address, resolved_port = maybe_address_and_port
+                return [{'hostname': host,
+                         'host': address,
+                         'port': resolved_port,
+                         'family': family,
+                         'proto': 0,
+                         'flags': 0}]
+        return self.dns.resolve(host, port, family)
+
+    async def close(self) -> None:
+        self.dns.close()
 
 
 def in_cluster_ssl_requests_client_session() -> requests.Session:
@@ -104,7 +135,7 @@ def check_ssl_config(ssl_config: Dict[str, str]):
 
 
 class TLSAdapter(HTTPAdapter):
-    def __init__(self, ssl_cert, ssl_key, ssl_ca, max_retries, timeout):
+    def __init__(self, ssl_cert: str, ssl_key: str, ssl_ca: str, max_retries: int, timeout: Union[int, float]):
         super().__init__()
         self.ssl_cert = ssl_cert
         self.ssl_key = ssl_key
