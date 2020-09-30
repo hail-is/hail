@@ -133,7 +133,6 @@ def submit(hail_code: Commit,
  python3 -m pip -q install dist/benchmark_hail-$HAIL_VERSION-py3-none-any.whl
  cp dist/benchmark_hail-$HAIL_VERSION-py3-none-any.whl {build_benchmark.wheel}
 ''')
-    # removed * below
     resource_jobs = {}
     for r in all_resources:
         j = b.new_job(f'create_resource_{r.name()}').cpu(4)
@@ -163,7 +162,6 @@ def submit(hail_code: Commit,
     log.info(f'generating {n_passed_filter} * {n_replicates} = {n_passed_filter * n_replicates} individual benchmark jobs')
 
     random.shuffle(job_fs)
-    # removed -- below
     for name, replicate, groups in job_fs:
         j = b.new_job(name=f'{name}_{replicate}')
         j.command(f'mv {build_hail.wheel} hail--py3-none-any.whl')
@@ -191,7 +189,6 @@ def submit(hail_code: Commit,
         job_i = 1
         i = 0
         while i < len(all_output):
-            # removed -- below
             combine = b.new_job(f'combine_output_phase{phase_i}_job{job_i}')
             combine.command(f'mv {build_hail.wheel} hail--py3-none-any.whl')
             combine.command('pip install hail--py3-none-any.whl')
@@ -205,7 +202,6 @@ def submit(hail_code: Commit,
 
         phase_i += 1
         all_output = new_output
-    # -- removed double dash below
     combine = b.new_job('final_combine_output')
     combine.command(f'mv {build_hail.wheel} hail--py3-none-any.whl')
     combine.command('pip install hail--py3-none-any.whl')
