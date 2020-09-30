@@ -1,4 +1,7 @@
+import asyncio
 import os
+
+import aiohttp
 from aiohttp import web
 import logging
 from gear import setup_aiohttp_session, web_authenticated_developers_only
@@ -15,6 +18,11 @@ import plotly.express as px
 from scipy.stats.mstats import gmean, hmean
 import numpy as np
 import pandas as pd
+from hailtop.utils import retry_long_running
+import gidgethub
+
+with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+    oauth_token = f.read().strip()
 
 configure_logging()
 router = web.RouteTableDef()
@@ -25,6 +33,10 @@ log = logging.getLogger('benchmark')
 BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
 
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+START_POINT = '2020-09-24T00:00:00Z'
+
+main_commit_sha = 'ef7262d01f2bde422aaf09b6f84091ac0e439b1d'
 
 
 def get_benchmarks(app, file_path):
@@ -200,8 +212,32 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
+async def query_github(app):
+    github_client = app['github_client']
+    request_string = f'/repos/hail-is/hail/commits?sha={main_commit_sha}&since={START_POINT}'
+
+    data = await github_client.getitem(request_string)
+    new_commits = []
+    for commit in data:
+        sha = commit.get('sha')
+        new_commits.append(commit)
+        log.info(f'commit {sha}')
+    log.info('got new commits')
+
+
+async def github_polling_loop(app):
+    while True:
+        await query_github(app)
+        log.info(f'successfully queried github')
+        await asyncio.sleep(60)
+
+
 async def on_startup(app):
     app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
+    app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
+                                                       'hail-is/hail',
+                                                       oauth_token=oauth_token)
+    asyncio.ensure_future(retry_long_running('github_polling_loop', github_polling_loop, app))
 
 
 def run():
