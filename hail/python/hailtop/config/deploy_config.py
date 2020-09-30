@@ -13,11 +13,11 @@ log = logging.getLogger('deploy_config')
 
 class DeployConfig:
     @staticmethod
-    def from_config(config):
+    def from_config(config) -> 'DeployConfig':
         return DeployConfig(config['location'], config['default_namespace'], config['service_namespace'])
 
     @staticmethod
-    def from_config_file(config_file=None):
+    def from_config_file(config_file=None) -> 'DeployConfig':
         config_file = first_extant_file(
             config_file,
             os.environ.get('HAIL_DEPLOY_CONFIG_FILE'),
@@ -37,26 +37,26 @@ class DeployConfig:
             }
         return DeployConfig.from_config(config)
 
-    def __init__(self, location, default_namespace, service_namespace):
+    def __init__(self, location: str, default_namespace: str, service_namespace: str):
         assert location in ('external', 'k8s', 'gce')
         self._location = location
         self._default_namespace = default_namespace
         self._service_namespace = service_namespace
 
-    def with_service(self, service, ns):
+    def with_service(self, service, ns) -> 'DeployConfig':
         return DeployConfig(self._location, self._default_namespace, {**self._service_namespace, service: ns})
 
-    def location(self):
+    def location(self) -> str:
         return self._location
 
-    def service_ns(self, service):
+    def service_ns(self, service: str) -> str:
         return self._service_namespace.get(service, self._default_namespace)
 
-    def scheme(self, base_scheme='http'):
+    def scheme(self, base_scheme: str = 'http') -> str:
         # FIXME: should depend on ssl context
         return (base_scheme + 's') if self._location in ('external', 'k8s') else base_scheme
 
-    def domain(self, service):
+    def domain(self, service: str) -> str:
         ns = self.service_ns(service)
         if self._location == 'k8s':
             return f'{service}.{ns}'
@@ -69,31 +69,31 @@ class DeployConfig:
             return f'{service}.hail.is'
         return 'internal.hail.is'
 
-    def base_path(self, service):
+    def base_path(self, service: str) -> strr:
         ns = self.service_ns(service)
         if ns == 'default':
             return ''
         return f'/{ns}/{service}'
 
-    def base_url(self, service, base_scheme='http'):
+    def base_url(self, service: str, base_scheme: str = 'http') -> str:
         return f'{self.scheme(base_scheme)}://{self.domain(service)}{self.base_path(service)}'
 
-    def url(self, service, path, base_scheme='http'):
+    def url(self, service: str, path: str, base_scheme: str = 'http') -> str:
         return f'{self.base_url(service, base_scheme=base_scheme)}{path}'
 
-    def auth_session_cookie_name(self):
+    def auth_session_cookie_name(self) -> str:
         auth_ns = self.service_ns('auth')
         if auth_ns == 'default':
             return 'session'
         return 'sesh'
 
-    def external_url(self, service, path, base_scheme='http'):
+    def external_url(self, service: str, path: str, base_scheme: str = 'http') -> str:
         ns = self.service_ns(service)
         if ns == 'default':
             return f'{base_scheme}s://{service}.hail.is{path}'
         return f'{base_scheme}s://internal.hail.is/{ns}/{service}{path}'
 
-    def prefix_application(self, app, service, **kwargs):
+    def prefix_application(self, app, service: str, **kwargs):
         base_path = self.base_path(service)
         if not base_path:
             return app
@@ -144,10 +144,10 @@ class DeployConfig:
         return address
 
 
-deploy_config = None
+deploy_config: Optional[DeployConfig] = None
 
 
-def get_deploy_config():
+def get_deploy_config() -> DeployConfig:
     global deploy_config
 
     if not deploy_config:
