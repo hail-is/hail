@@ -27,6 +27,9 @@ import gidgethub
 import aiohttp
 import hailtop.batch_client.aioclient as bc
 
+with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+    oauth_token = f.read().strip()
+
 configure_logging()
 router = web.RouteTableDef()
 logging.basicConfig(level=logging.DEBUG)
