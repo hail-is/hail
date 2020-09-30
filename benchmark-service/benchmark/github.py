@@ -72,7 +72,7 @@ async def submit_batch(commit):
     sha = commit.get('sha')
     batch = batch_client.create_batch()
     job = batch.create_job(image='ubuntu:18.04',
-                           command=True,
+                           command=['/bin/true'],
                            output_files=[('/io/test/', f'gs://{bucket_name}/{sha}')])
     await batch.submit()
 
