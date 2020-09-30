@@ -10,7 +10,6 @@ from google.cloud import storage
 import os
 
 log = logging.getLogger('benchmark')
-# oauth_token = ''
 START_POINT = '2020-08-24T00:00:00Z'
 
 # Figures out what commits have results already, which commits have running batches,
@@ -64,8 +63,6 @@ async def get_new_commits():
 
             if not batches and not has_results_file():  # no running batches and no results file
                 new_commits.append(commit)
-            #print(batches)
-        #print(list_of_shas)
         return new_commits
 
 
@@ -74,8 +71,8 @@ async def submit_batch(commit):
     sha = commit.get('sha')
     batch = batch_client.create_batch()
     job = batch.create_job(image='ubuntu:18.04',
-                           command=['/bin/true'],
-                           output_files=[('/io/test/', f'gs://{bucket_name}/{sha}')])
+                           command=['touch', '/io/test'],
+                           output_files=[('/io/test', f'gs://{bucket_name}/benchmark/{sha}')])
     await batch.submit(disable_progress_bar=True)
     global START_POINT
     START_POINT = commit.get('commit').get('date')
