@@ -33,7 +33,7 @@ bucket_name = 'hail-benchmarks'
 main_commit_sha = 'ef7262d01f2bde422aaf09b6f84091ac0e439b1d'
 
 
-async def get_new_commits(github_client):
+async def get_new_commits(github_client, batch_client):
     async with aiohttp.ClientSession() as session:
         # gh = gidgethub.aiohttp.GitHubAPI(session, 'hail-is/hail',
         #                                  oauth_token=os.getenv("GH_AUTH"))
@@ -60,7 +60,7 @@ async def get_new_commits(github_client):
         return new_commits
 
 
-async def submit_batch(commit):
+async def submit_batch(commit, batch_client):
     sha = commit.get('sha')
     batch = batch_client.create_batch()
     job = batch.create_job(image='ubuntu:18.04',
@@ -71,18 +71,14 @@ async def submit_batch(commit):
     START_POINT = commit.get('commit').get('date')
 
 
-async def query_github(github_client):
-    new_commits = await get_new_commits(github_client)
+async def query_github(github_client, batch_client):
+    new_commits = await get_new_commits(github_client, batch_client)
     log.info('got new commits')
     for commit in new_commits:
-        await submit_batch(commit)
+        await submit_batch(commit, batch_client)
         sha = commit.get('sha')
         log.info(f'submitted a batch for commit {sha}')
         break
-
-
-global batch_client
-batch_client = await bc.BatchClient(billing_project='hail')
 
 # async def github_polling_loop():
 #     while True:

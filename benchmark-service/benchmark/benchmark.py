@@ -25,6 +25,7 @@ from hailtop.utils import retry_long_running
 import asyncio
 import gidgethub
 import aiohttp
+import hailtop.batch_client.aioclient as bc
 
 configure_logging()
 router = web.RouteTableDef()
@@ -221,8 +222,9 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
 
 async def github_polling_loop(app):
     github_client = app['github_client']
+    batch_client = app['batch_client']
     while True:
-        await query_github(github_client)
+        await query_github(github_client, batch_client)
         log.info(f'successfully queried github')
         await asyncio.sleep(60)
 
@@ -234,6 +236,7 @@ async def on_startup(app):
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
                                                        'hail-is/hail',
                                                        oauth_token=oauth_token)
+    app['batch_client'] = await bc.BatchClient(billing_project='hail')
     asyncio.ensure_future(retry_long_running('github_polling_loop', github_polling_loop, app))
 
 
