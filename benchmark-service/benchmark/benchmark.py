@@ -20,6 +20,8 @@ import numpy as np
 import pandas as pd
 import gidgethub
 import gidgethub.aiohttp
+from benchmark.github import github_polling_loop
+from hailtop.utils import retry_long_running
 
 configure_logging()
 router = web.RouteTableDef()
@@ -256,6 +258,9 @@ def run():
     router.static('/static', f'{BENCHMARK_ROOT}/static')
     app.add_routes(router)
     app.on_startup.append(on_startup)
+
+    await retry_long_running('github-polling-loop', github_polling_loop)
+
     web.run_app(deploy_config.prefix_application(app, 'benchmark'),
                 host='0.0.0.0',
                 port=5000,
