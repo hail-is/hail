@@ -120,7 +120,6 @@ def submit(hail_code: Commit,
  (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
  cp build/deploy/dist/hail-*-py3-none-any.whl {build_hail.wheel}
 ''')
-    # cp build/libs/hail-all-spark.jar {build_hail.jars}
 
     build_benchmark = b.new_job('build_benchmark_wheel')
     build_benchmark.command(f'''
