@@ -9,6 +9,7 @@ import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
 import com.google.cloud.storage.Storage.BlobListOption
 import com.google.cloud.storage.{Blob, BlobId, BlobInfo, Storage, StorageOptions}
+import is.hail.HailContext
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -97,13 +98,22 @@ class GoogleStorageFileStatus(path: String, modificationTime: java.lang.Long, si
 class GoogleStorageFS(serviceAccountKey: String) extends FS {
   import GoogleStorageFS._
 
-  @transient private lazy val storage: Storage = {
+  @transient private lazy val storage: Storage =
     StorageOptions.newBuilder()
       .setCredentials(
         ServiceAccountCredentials.fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes)))
       .build()
       .getService
+
+  def getEtag(filename: String): String = {
+    val (bucket, path) = getBucketPath(filename)
+    val blob = storage.get(bucket, path)
+    if (blob != null) blob.getEtag else null
   }
+
+  def asCacheable(): CacheableGoogleStorageFS = new CacheableGoogleStorageFS(serviceAccountKey, null)
+
+  def asCacheable(sessionID: String): CacheableGoogleStorageFS = new CacheableGoogleStorageFS(serviceAccountKey, sessionID)
 
   def openNoCompression(filename: String): SeekableDataInputStream = {
     val (bucket, path) = getBucketPath(filename)
@@ -357,4 +367,8 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
           def run(): Unit = delete(filename, recursive = false)
         }))
   }
+}
+
+class CacheableGoogleStorageFS(serviceAccountKey: String, @transient val sessionID: String) extends GoogleStorageFS(serviceAccountKey) with ServiceCacheableFS {
+  def getEtagOrNone(filename: String): Option[String] = Option(getEtag(filename))
 }

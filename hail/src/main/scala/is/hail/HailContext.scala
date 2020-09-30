@@ -26,7 +26,7 @@ import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.json4s.Extraction
-import org.json4s.JsonAST.{JArray, JDouble, JLong, JNull, JObject, JString}
+import org.json4s.JsonAST.{JArray, JObject, JString}
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable

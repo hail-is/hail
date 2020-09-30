@@ -12,7 +12,7 @@ import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerDistributedSort, LoweringPipeline, TableStage, TableStageDependency}
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, Literal, MakeArray, MakeTuple, OwningTempFileManager, ShuffleRead, ShuffleWrite, SortField, ToStream}
-import is.hail.io.fs.GoogleStorageFS
+import is.hail.io.fs.{FS, GoogleStorageFS, SeekableDataInputStream}
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDPartitioner
 import is.hail.services._
@@ -93,31 +93,31 @@ object Worker {
       }
     }
 
+    def open(path: String): SeekableDataInputStream = {
+      if (sys.env.getOrElse("HAIL_DEV_CACHE_SERVICE_INPUT", null) != null)
+        fs.openCachedNoCompression(path)
+      else
+        fs.openNoCompression(path)
+    }
+
     val f = retryTransientErrors {
-      using(new ObjectInputStream(fs.openNoCompression(s"$root/f"))) { is =>
+      using(new ObjectInputStream(open(s"$root/f"))) { is =>
         is.readObject().asInstanceOf[(Array[Byte], HailTaskContext) => Array[Byte]]
       }
     }
 
-    var offset = 0L
-    var length = 0
-
-    retryTransientErrors {
-      using(fs.openNoCompression(s"$root/context.offsets")) { is =>
-        is.seek(i * 12)
-        offset = is.readLong()
-        length = is.readInt()
-      }
-    }
-
     val context = retryTransientErrors {
-      using(fs.openNoCompression(s"$root/contexts")) { is =>
+      using(open(s"$root/contexts")) { is =>
+        is.seek(i * 12)
+        val offset = is.readLong()
+        val length = is.readInt()
         is.seek(offset)
         val context = new Array[Byte](length)
         is.readFully(context)
         context
       }
     }
+
     timer.end("readInputs")
     timer.start("executeFunction")
 
@@ -176,7 +176,7 @@ class ServiceBackend() extends Backend {
   def userContext[T](username: String, timer: ExecutionTimer)(f: (ExecuteContext) => T): T = {
     val user = users.get(username)
     assert(user != null, username)
-    ExecuteContext.scoped(user.tmpdir, "file:///tmp", this, user.fs, timer, null)(f)
+    ExecuteContext.scoped(user.tmpdir, "file:///tmp", this, user.fs.asCacheable(sessionID), timer, null)(f)
   }
 
   def defaultParallelism: Int = 10
@@ -208,8 +208,8 @@ class ServiceBackend() extends Backend {
 
     log.info(s"parallelizeAndComputeWithIndex: token $token: writing context offsets")
 
-    using(fs.createNoCompression(s"$root/context.offsets")) { os =>
-      var o = 0L
+    using(fs.createNoCompression(s"$root/contexts")) { os =>
+      var o = 12L * n
       var i = 0
       while (i < n) {
         val len = collection(i).length
@@ -218,11 +218,7 @@ class ServiceBackend() extends Backend {
         i += 1
         o += len
       }
-    }
-
-    log.info(s"parallelizeAndComputeWithIndex: token $token: writing contexts")
-
-    using(fs.createNoCompression(s"$root/contexts")) { os =>
+      log.info(s"parallelizeAndComputeWithIndex: token $token: writing contexts")
       collection.foreach { context =>
         os.write(context)
       }
@@ -233,6 +229,7 @@ class ServiceBackend() extends Backend {
     while (i < n) {
       jobs(i) = JObject(
           "always_run" -> JBool(false),
+          "env" -> HailContext.get.flags.toJSONEnv,
           "job_id" -> JInt(i),
           "parent_ids" -> JArray(List()),
           "process" -> JObject(
@@ -263,6 +260,7 @@ class ServiceBackend() extends Backend {
     log.info(s"parallelizeAndComputeWithIndex: token $token: reading results")
 
     val r = new Array[Array[Byte]](n)
+
     i = 0  // reusing
     while (i < n) {
       r(i) = using(fs.openNoCompression(s"$root/result.$i")) { is =>
@@ -284,9 +282,9 @@ class ServiceBackend() extends Backend {
     }
   }
 
-  def tableType(username: String, s: String): String = {
+  def tableType(username: String, sessionID: String, s: String): String = {
     ExecutionTimer.logTime("ServiceBackend.tableType") { timer =>
-      userContext(username, timer) { ctx =>
+      userContext(username, sessionID, timer) { ctx =>
         val x = IRParser.parse_table_ir(ctx, s)
         val t = x.typ
         val jv = JObject("global" -> JString(t.globalType.toString),
@@ -297,9 +295,9 @@ class ServiceBackend() extends Backend {
     }
   }
 
-  def matrixTableType(username: String, s: String): String = {
+  def matrixTableType(username: String, sessionID: String, s: String): String = {
     ExecutionTimer.logTime("ServiceBackend.matrixTableType") { timer =>
-      userContext(username, timer) { ctx =>
+      userContext(username, sessionID, timer) { ctx =>
         val x = IRParser.parse_matrix_ir(ctx, s)
         val t = x.typ
         val jv = JObject("global" -> JString(t.globalType.toString),
@@ -313,9 +311,9 @@ class ServiceBackend() extends Backend {
     }
   }
 
-  def blockMatrixType(username: String, s: String): String = {
+  def blockMatrixType(username: String, sessionID: String, s: String): String = {
     ExecutionTimer.logTime("ServiceBackend.blockMatrixType") { timer =>
-      userContext(username, timer) { ctx =>
+      userContext(username, sessionID, timer) { ctx =>
         val x = IRParser.parse_blockmatrix_ir(ctx, s)
         val t = x.typ
         val jv = JObject("element_type" -> JString(t.elementType.toString),
@@ -327,7 +325,7 @@ class ServiceBackend() extends Backend {
     }
   }
 
-  def referenceGenome(username: String, name: String): String = {
+  def referenceGenome(username: String, sessionID: String, name: String): String = {
     ReferenceGenome.getReference(name).toJSONString
   }
 
@@ -358,7 +356,7 @@ class ServiceBackend() extends Backend {
 
   def execute(username: String, sessionID: String, billingProject: String, bucket: String, code: String, token: String): String = {
     ExecutionTimer.logTime("ServiceBackend.execute") { timer =>
-      userContext(username, timer) { ctx =>
+      userContext(username, sessionID, timer) { ctx =>
         log.info(s"executing: ${token}")
         ctx.backendContext = new ServiceBackendContext(username, sessionID, billingProject, bucket)
 
