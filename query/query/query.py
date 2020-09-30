@@ -157,7 +157,7 @@ async def get_reference(request, userdata):  # pylint: disable=unused-argument
 
 @routes.get('/api/v1alpha/flags/get')
 @rest_authenticated_developers_only
-async def get_flag(request, userdata):  # pylint: disable=unused-argument
+async def get_flags(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     jresp = await blocking_to_async(app['thread_pool'], app['jbackend'].flags)
     return java_to_web_response(jresp)
@@ -183,6 +183,7 @@ async def set_flag(request, userdata):  # pylint: disable=unused-argument
     else:
         jresp = await blocking_to_async(app['thread_pool'], app['jbackend'].setFlag, f, v)
     return java_to_web_response(jresp)
+
 
 async def on_startup(app):
     thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=16)
