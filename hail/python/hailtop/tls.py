@@ -62,22 +62,6 @@ def get_in_cluster_client_ssl_context() -> ssl.SSLContext:
     return client_ssl_context
 
 
-def get_in_cluster_no_hostname_checks_client_ssl_context() -> ssl.SSLContext:
-    global no_hostname_checks_client_ssl_context
-    if no_hostname_checks_client_ssl_context is None:
-        ssl_config = _get_ssl_config()
-        no_hostname_checks_client_ssl_context = ssl.create_default_context(
-            purpose=Purpose.SERVER_AUTH,
-            cafile=ssl_config['outgoing_trust'])
-        no_hostname_checks_client_ssl_context.load_cert_chain(
-            ssl_config['cert'],
-            keyfile=ssl_config['key'],
-            password=None)
-        no_hostname_checks_client_ssl_context.verify_mode = ssl.CERT_REQUIRED
-        no_hostname_checks_client_ssl_context.check_hostname = False
-    return no_hostname_checks_client_ssl_context
-
-
 def get_context_specific_client_ssl_context() -> ssl.SSLContext:
     try:
         return get_in_cluster_client_ssl_context()
@@ -90,12 +74,6 @@ def get_context_specific_client_ssl_context() -> ssl.SSLContext:
 def in_cluster_ssl_client_session(*args, **kwargs) -> aiohttp.ClientSession:
     assert 'connector' not in kwargs
     kwargs['connector'] = aiohttp.TCPConnector(ssl=get_in_cluster_client_ssl_context())
-    return aiohttp.ClientSession(*args, **kwargs)
-
-
-def in_cluster_no_hostname_checks_ssl_client_connection(*args, **kwargs) -> aiohttp.ClientSession:
-    assert 'connector' not in kwargs
-    kwargs['connector'] = aiohttp.TCPConnector(ssl=get_in_cluster_no_hostname_checks_client_ssl_context())
     return aiohttp.ClientSession(*args, **kwargs)
 
 
