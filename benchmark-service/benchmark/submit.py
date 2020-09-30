@@ -137,8 +137,8 @@ def submit(hail_code: Commit,
     resource_jobs = {}
     for r in all_resources:
         j = b.new_job(f'create_resource_{r.name()}').cpu(4)
-        j.command(f'mv {build_hail.wheel} hail-py3-none-any.whl')
-        j.command('pip install hail-py3-none-any.whl')
+        j.command(f'mv {build_hail.wheel} hail--py3-none-any.whl')
+        j.command('pip install hail--py3-none-any.whl')
         j.command(f'mv {build_benchmark.wheel} benchmark_hail-$HAIL_VERSION-py3-none-any.whl')
         j.command('pip install benchmark_hail-$HAIL_VERSION-py3-none-any.whl')
         j.command(f'hail-bench create-resources --data-dir benchmark-resources --group {r.name()}')
@@ -166,10 +166,10 @@ def submit(hail_code: Commit,
     # removed -- below
     for name, replicate, groups in job_fs:
         j = b.new_job(name=f'{name}_{replicate}')
-        j.command(f'mv {build_hail.wheel} hail-py3-none-any.whl')
-        j.command('pip install hail-py3-none-any.whl')
-        j.command(f'mv {build_benchmark.wheel} benchmark_hail-py3-none-any.whl')
-        j.command('pip install benchmark_hail-py3-none-any.whl')
+        j.command(f'mv {build_hail.wheel} hail--py3-none-any.whl')
+        j.command('pip install hail--py3-none-any.whl')
+        j.command(f'mv {build_benchmark.wheel} benchmark_hail--py3-none-any.whl')
+        j.command('pip install benchmark_hail--py3-none-any.whl')
         j.command('mkdir -p benchmark-resources')
         for resource_group in groups:
             resource_job = resource_jobs[resource_group]
@@ -193,10 +193,10 @@ def submit(hail_code: Commit,
         while i < len(all_output):
             # removed -- below
             combine = b.new_job(f'combine_output_phase{phase_i}_job{job_i}')
-            combine.command(f'mv {build_hail.wheel} hail-py3-none-any.whl')
-            combine.command('pip install hail-py3-none-any.whl')
-            combine.command(f'mv {build_benchmark.wheel} benchmark_hail-py3-none-any.whl')
-            combine.command('pip install benchmark_hail-py3-none-any.whl')
+            combine.command(f'mv {build_hail.wheel} hail--py3-none-any.whl')
+            combine.command('pip install hail--py3-none-any.whl')
+            combine.command(f'mv {build_benchmark.wheel} benchmark_hail--py3-none-any.whl')
+            combine.command('pip install benchmark_hail--py3-none-any.whl')
             combine.command(
                 f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output[i:i + combine_branch_factor]))
             new_output.append(combine.ofile)
@@ -207,10 +207,10 @@ def submit(hail_code: Commit,
         all_output = new_output
     # -- removed double dash below
     combine = b.new_job('final_combine_output')
-    combine.command(f'mv {build_hail.wheel} hail-py3-none-any.whl')
-    combine.command('pip install hail-py3-none-any.whl')
-    combine.command(f'mv {build_benchmark.wheel} benchmark_hail-py3-none-any.whl')
-    combine.command('pip install benchmark_hail-py3-none-any.whl')
+    combine.command(f'mv {build_hail.wheel} hail--py3-none-any.whl')
+    combine.command('pip install hail--py3-none-any.whl')
+    combine.command(f'mv {build_benchmark.wheel} benchmark_hail--py3-none-any.whl')
+    combine.command('pip install benchmark_hail--py3-none-any.whl')
     combine.command(f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output))
     combine.command(f'cat {combine.ofile}')
 
