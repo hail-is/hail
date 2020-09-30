@@ -176,14 +176,13 @@ class Method private[lir] (
   def findBlocks(): Blocks = {
     val blocksb = new ArrayBuilder[Block]()
 
-    var s = List[Block]()
+    val s = new ArrayStack[Block]()
     val visited = mutable.Set[Block]()
 
-    s = entry +: s
+    s.push(entry)
     
     while (s.nonEmpty) {
-      val L = s.last
-      s = s.init
+      val L = s.pop()
       if (!visited.contains(L)) {
         assert(L.wellFormed)
 
@@ -207,7 +206,7 @@ class Method private[lir] (
         while (i < x.targetArity()) {
           val target = x.target(i)
           assert(target != null)
-          s = target +: s
+          s.push(target)
           i += 1
         }
         visited += L
