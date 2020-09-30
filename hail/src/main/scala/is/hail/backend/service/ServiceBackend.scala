@@ -2,6 +2,7 @@ package is.hail.backend.service
 
 import java.io.{DataOutputStream, FileInputStream, FileOutputStream, ObjectInputStream, ObjectOutputStream, PrintWriter, RandomAccessFile, StringWriter}
 
+import is.hail.HailContext
 import is.hail.annotations.{Region, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend.{Backend, BackendContext, BroadcastValue}
@@ -18,7 +19,7 @@ import is.hail.utils._
 import org.apache.commons.io.IOUtils
 import org.apache.log4j.LogManager
 import org.json4s.{DefaultFormats, Formats}
-import org.json4s.JsonAST.{JArray, JBool, JInt, JObject, JString}
+import org.json4s.JsonAST.{JArray, JBool, JInt, JNull, JObject, JString}
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable
@@ -297,6 +298,38 @@ class ServiceBackend() extends Backend {
           JObject(List("value" -> JSONAnnotationImpex.exportAnnotation(v.get(0), x.typ),
             "type" -> JString(x.typ.toString))))
       }
+    }
+  }
+
+  def flags(): Response = {
+    statusForException {
+      JsonMethods.compact(JObject(HailContext.get.flags.available.toArray().map { case f: String =>
+        val v = HailContext.getFlag(f)
+        f -> (if (v == null) JNull else JString(v))
+      }: _*))
+    }
+  }
+
+  def getFlag(name: String): Response = {
+    statusForException {
+      val v = HailContext.getFlag(name)
+      JsonMethods.compact(if (v == null) JNull else JString(v))
+    }
+  }
+
+  def setFlag(name: String, value: String): Response = {
+    statusForException {
+      val v = HailContext.getFlag(name)
+      HailContext.setFlag(name, value)
+      JsonMethods.compact(if (v == null) JNull else JString(v))
+    }
+  }
+
+  def unsetFlag(name: String): Response = {
+    statusForException {
+      val v = HailContext.getFlag(name)
+      HailContext.setFlag(name, null)
+      JsonMethods.compact(if (v == null) JNull else JString(v))
     }
   }
 
