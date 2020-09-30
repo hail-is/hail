@@ -775,6 +775,8 @@ object IRParser {
       case "Literal" =>
         val (t, v) = ir_value(env.typEnv)(it)
         done(Literal.coerce(t, v))
+      case "EncodedLiteral" =>
+        throw new UnsupportedOperationException("Not currently parsable")
       case "Void" => done(Void())
       case "Cast" =>
         val typ = type_expr(env.typEnv)(it)
