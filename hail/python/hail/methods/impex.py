@@ -385,8 +385,9 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
            output=str,
            append_to_header=nullable(str),
            parallel=nullable(ir.ExportType.checker),
-           metadata=nullable(dictof(str, dictof(str, dictof(str, str)))))
-def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=None):
+           metadata=nullable(dictof(str, dictof(str, dictof(str, str)))),
+           tabix=bool)
+def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=None, *, tabix=False):
     """Export a :class:`.MatrixTable` or :class:`.Table` as a VCF file.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -492,7 +493,10 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         Dictionary with information to fill in the VCF header. See
         :func:`get_vcf_metadata` for how this
         dictionary should be structured.
-
+    tabix : :obj:`bool`, optional
+        If true, writes a tabix index for the output VCF.
+        **Note**: This feature is experimental, and the interface and defaults
+        may change in future versions.
     """
     if isinstance(dataset, Table):
         mt = MatrixTable.from_rows_table(dataset)
@@ -521,7 +525,8 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     writer = ir.MatrixVCFWriter(output,
                                 append_to_header,
                                 parallel,
-                                metadata)
+                                metadata,
+                                tabix)
     Env.backend().execute(ir.MatrixWrite(dataset._mir, writer))
 
 

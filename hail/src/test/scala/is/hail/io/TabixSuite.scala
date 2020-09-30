@@ -3,6 +3,7 @@ package is.hail.io
 import htsjdk.tribble.readers.{TabixReader => HtsjdkTabixReader}
 import is.hail.HailSuite
 import is.hail.io.tabix._
+import is.hail.io.vcf.TabixVCF
 import org.testng.annotations.{BeforeTest, Test}
 import org.testng.asserts.SoftAssert
 
@@ -87,8 +88,7 @@ class TabixSuite extends HailSuite {
     }
   }
 
-  @Test def testLineIterator2() {
-    val vcfFile = "src/test/resources/sample.vcf.bgz"
+  def _testLineIterator2(vcfFile: String) {
     val chr = "20"
     val htsjdkrdr = new HtsjdkTabixReader(vcfFile)
     val hailrdr = new TabixReader(vcfFile, fs)
@@ -122,5 +122,17 @@ class TabixSuite extends HailSuite {
         }
       }
     }
+  }
+
+  @Test def testLineIterator2() {
+    _testLineIterator2("src/test/resources/sample.vcf.bgz")
+  }
+
+  @Test def testWriter() {
+    val vcfFile = "src/test/resources/sample.vcf.bgz"
+    val path = ctx.createTmpPath("test-tabix-write", "bgz")
+    fs.copy(vcfFile, path)
+    TabixVCF(fsBc, vcfFile)
+    _testLineIterator2(vcfFile)
   }
 }
