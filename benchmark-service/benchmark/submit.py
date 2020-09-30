@@ -115,7 +115,7 @@ def submit(hail_code: Commit,
  { hail_code.checkout_script() }
  cd hail
  time ./gradlew --version
- time make jars python-version-info wheel
+ time make wheel
  time (cd python && zip -r hail.zip hail hailtop)
  (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
  cp build/deploy/dist/hail-*-py3-none-any.whl {build_hail.wheel}
