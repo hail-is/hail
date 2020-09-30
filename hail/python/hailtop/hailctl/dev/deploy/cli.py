@@ -11,8 +11,8 @@ from hailtop.tls import get_context_specific_ssl_client_session
 def init_parser(parser):
     parser.add_argument("--branch", "-b", type=str,
                         help="Fully-qualified branch, e.g., hail-is/hail:feature.", required=True)
-    parser.add_argument("--steps", "-s", type=str,
-                        help="Comma-separated list of steps to run.", required=True)
+    parser.add_argument("--steps", "-s", nargs='+', action='append',
+                        help="Comma or space-separated list of steps to run.", required=True)
     parser.add_argument("--open", "-o",
                         action="store_true",
                         help="Open the deploy batch page in a web browser.")
@@ -56,9 +56,9 @@ class CIClient:
 
 async def submit(args):
     deploy_config = get_deploy_config()
-    steps = args.steps.split(',')
-    steps = [s.strip() for s in steps]
-    steps = [s for s in steps if s]
+    steps = [s.strip() for steps in args.steps  # let's unpack this shall we?
+             for step in steps
+             for s in step.split(',') if s.strip()]
     async with CIClient(deploy_config) as ci_client:
         batch_id = await ci_client.dev_deploy_branch(args.branch, steps)
         url = deploy_config.url('ci', f'/batches/{batch_id}')
