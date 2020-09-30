@@ -18,10 +18,13 @@ import plotly.express as px
 from scipy.stats.mstats import gmean, hmean
 import numpy as np
 import pandas as pd
-import gidgethub
 import gidgethub.aiohttp
 from benchmark.github import github_polling_loop
+from benchmark.github import query_github
 from hailtop.utils import retry_long_running
+import asyncio
+import gidgethub
+import aiohttp
 
 configure_logging()
 router = web.RouteTableDef()
@@ -216,27 +219,12 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
-async def query_github(app):
-    global START_POINT
-    github_client = app['github_client']
-    request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
-
-    data = await github_client.getitem(request_string)
-    new_commits = []
-    for commit in data:
-        sha = commit.get('sha')
-        new_commits.append(commit)
-        log.info(f'commit {sha}')
-        START_POINT = commit['commit']['author'].get('date')
-        log.info(f'start point is now {START_POINT}')
-    log.info('got new commits')
-
-
 async def github_polling_loop(app):
+    github_client = app['github_client']
     while True:
-        await query_github(app)
-        log.info('successfully queried github')
-        await asyncio.sleep(600)
+        await query_github(github_client)
+        log.info(f'successfully queried github')
+        await asyncio.sleep(60)
 
 
 async def on_startup(app):
@@ -258,8 +246,6 @@ def run():
     router.static('/static', f'{BENCHMARK_ROOT}/static')
     app.add_routes(router)
     app.on_startup.append(on_startup)
-
-    await retry_long_running('github-polling-loop', github_polling_loop)
 
     web.run_app(deploy_config.prefix_application(app, 'benchmark'),
                 host='0.0.0.0',

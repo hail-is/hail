@@ -12,7 +12,7 @@ from hailtop.hail_logging import configure_logging
 
 configure_logging()
 log = logging.getLogger('benchmark')
-START_POINT = '2020-08-24T00:00:00Z'
+START_POINT = '2020-09-24T00:00:00Z'
 
 # Figures out what commits have results already, which commits have running batches,
 #   and which commits we need to submit benchmarks for.
@@ -33,43 +33,34 @@ bucket_name = 'hail-benchmarks'
 main_commit_sha = 'ef7262d01f2bde422aaf09b6f84091ac0e439b1d'
 
 
-async def get_new_commits():
+async def get_new_commits(github_client):
     async with aiohttp.ClientSession() as session:
-        gh = gidgethub.aiohttp.GitHubAPI(session, 'hail-is/hail',
-                                         oauth_token=os.getenv("GH_AUTH"))
+        # gh = gidgethub.aiohttp.GitHubAPI(session, 'hail-is/hail',
+        #                                  oauth_token=os.getenv("GH_AUTH"))
 
         request_string = f'/repos/hail-is/hail/commits?sha={main_commit_sha}&since={START_POINT}'
 
-        data = await gh.getitem(request_string)
-        # parse the resulting data to get a list of commit shas
+        data = await github_client.getitem(request_string)
         list_of_shas = []
         new_commits = []
         for commit in data:
             sha = commit.get('sha')
             list_of_shas.append(sha)
-            # batches = batch_client.list_batches(q=f'sha={sha} running')
-            # p = await batches.__anext__()
-            # await batches.aclose()
-            #batches.close()
             batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
-
-            #print(json.dumps(commit, indent=1))
 
             def has_results_file():
                 name = f'gs://{bucket_name}/benchmark-test/{sha}'
                 storage_client = storage.Client()
-                # bucket_name = 'my_bucket_name'
                 bucket = storage_client.bucket(bucket_name)
                 stats = storage.Blob(bucket=bucket, name=name).exists(storage_client)
                 return stats
 
-            if not batches and not has_results_file():  # no running batches and no results file
+            if not batches and not has_results_file():
                 new_commits.append(commit)
         return new_commits
 
 
 async def submit_batch(commit):
-    # write a results file once successful in the batch
     sha = commit.get('sha')
     batch = batch_client.create_batch()
     job = batch.create_job(image='ubuntu:18.04',
@@ -80,8 +71,8 @@ async def submit_batch(commit):
     START_POINT = commit.get('commit').get('date')
 
 
-async def query_github():
-    new_commits = await get_new_commits()
+async def query_github(github_client):
+    new_commits = await get_new_commits(github_client)
     log.info('got new commits')
     for commit in new_commits:
         await submit_batch(commit)
@@ -90,27 +81,30 @@ async def query_github():
         break
 
 
-async def github_polling_loop():
-    while True:
-        await query_github()
-        log.info(f'successfully queried github')
-        await asyncio.sleep(60)
+global batch_client
+batch_client = await bc.BatchClient(billing_project='hail')
 
-
-async def main():
-    #asyncio.ensure_future(retry_long_running('github-polling-loop', github_polling_loop))
-    global batch_client
-    batch_client = await bc.BatchClient(billing_project='hail')
-    await retry_long_running('github-polling-loop', github_polling_loop)
-
-
-if __name__ == '__main__':
-    # parser = argparse.ArgumentParser()
-    # args = parser.parse_args()
-    # message = args.message
-
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
-    loop.run_until_complete(loop.shutdown_asyncgens())
-    loop.close()
+# async def github_polling_loop():
+#     while True:
+#         await query_github()
+#         log.info(f'successfully queried github')
+#         await asyncio.sleep(60)
+#
+#
+# async def main():
+#     #asyncio.ensure_future(retry_long_running('github-polling-loop', github_polling_loop))
+#     global batch_client
+#     batch_client = await bc.BatchClient(billing_project='hail')
+#     await retry_long_running('github-polling-loop', github_polling_loop)
+#
+#
+# if __name__ == '__main__':
+#     # parser = argparse.ArgumentParser()
+#     # args = parser.parse_args()
+#     # message = args.message
+#
+#     loop = asyncio.get_event_loop()
+#     loop.run_until_complete(main())
+#     loop.run_until_complete(loop.shutdown_asyncgens())
+#     loop.close()
 
