@@ -79,24 +79,22 @@ class QueryClient:
         params = {'value': value} if value is not None else None
         return await self.get_request(f'flags/set/{name}', params=params)
 
-    def _raise_flag_not_found(self, status, text):
-        error = text.split('\n')[0].strip()
-        if status == 500 and 'java.util.NoSuchElementException: key not found: ' in error:
-            raise KeyError(error[49:])
-
     async def get_flag(self, names):
         if len(names) == 0:
             all = await self.get_request('flags/get')
             return all, []
-        else:
-            flags = {}
-            invalid = []
-            for name in names:
-                try:
-                    flags[name] = await self.get_request(f'flags/get/{name}', handler=self._raise_flag_not_found)
-                except KeyError as e:
-                    invalid.append(str(e))
-            return flags, invalid
+        flags = {}
+        invalid = []
+        for name in names:
+            try:
+                def raise_flag_not_found(status, text):
+                    error = text.split('\n')[0].strip()
+                    if status == 500 and 'java.util.NoSuchElementException: key not found: ' in error:
+                        raise KeyError(error[49:])
+                flags[name] = await self.get_request(f'flags/get/{name}', handler=raise_flag_not_found)
+            except KeyError as e:
+                invalid.append(str(e))
+        return flags, invalid
 
 
 async def submit(args):
