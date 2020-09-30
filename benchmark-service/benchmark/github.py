@@ -8,7 +8,9 @@ from hailtop.utils import retry_long_running
 import hailtop.batch_client.aioclient as bc
 from google.cloud import storage
 import os
+from hailtop.hail_logging import configure_logging
 
+configure_logging()
 log = logging.getLogger('benchmark')
 START_POINT = '2020-08-24T00:00:00Z'
 
@@ -27,8 +29,8 @@ START_POINT = '2020-08-24T00:00:00Z'
 # results file is in google storage
 running_commit_shas = {}
 result_commit_shas = {}
-#batch_client = bc.BatchClient(billing_project='hail')
 bucket_name = 'hail-benchmarks'
+main_commit_sha = 'ef7262d01f2bde422aaf09b6f84091ac0e439b1d'
 
 
 async def get_new_commits():
@@ -36,7 +38,7 @@ async def get_new_commits():
         gh = gidgethub.aiohttp.GitHubAPI(session, 'hail-is/hail',
                                          oauth_token=os.getenv("GH_AUTH"))
 
-        request_string = f'/repos/hail-is/hail/commits?sha=ef7262d01f2bde422aaf09b6f84091ac0e439b1d&since={START_POINT}'
+        request_string = f'/repos/hail-is/hail/commits?sha={main_commit_sha}&since={START_POINT}'
 
         data = await gh.getitem(request_string)
         # parse the resulting data to get a list of commit shas
@@ -54,7 +56,7 @@ async def get_new_commits():
             #print(json.dumps(commit, indent=1))
 
             def has_results_file():
-                name = f'{sha}'
+                name = f'gs://{bucket_name}/benchmark-test/{sha}'
                 storage_client = storage.Client()
                 # bucket_name = 'my_bucket_name'
                 bucket = storage_client.bucket(bucket_name)
@@ -71,8 +73,8 @@ async def submit_batch(commit):
     sha = commit.get('sha')
     batch = batch_client.create_batch()
     job = batch.create_job(image='ubuntu:18.04',
-                           command=['touch', '/io/test'],
-                           output_files=[('/io/test', f'gs://{bucket_name}/benchmark/{sha}')])
+                           command=['/bin/bash', '-c', 'touch /io/test; sleep 300'],
+                           output_files=[('/io/test', f'gs://{bucket_name}/benchmark-test/{sha}')])
     await batch.submit(disable_progress_bar=True)
     global START_POINT
     START_POINT = commit.get('commit').get('date')
@@ -80,8 +82,11 @@ async def submit_batch(commit):
 
 async def query_github():
     new_commits = await get_new_commits()
+    log.info('got new commits')
     for commit in new_commits:
         await submit_batch(commit)
+        sha = commit.get('sha')
+        log.info(f'submitted a batch for commit {sha}')
         break
 
 
