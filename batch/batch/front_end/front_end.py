@@ -16,7 +16,7 @@ import google.oauth2.service_account
 import google.api_core.exceptions
 from hailtop.utils import (time_msecs, time_msecs_str, humanize_timedelta_msecs,
                            request_retry_transient_errors, run_if_changed,
-                           retry_long_running, LoggingTimer)
+                           retry_long_running, LoggingTimer, cost_str)
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes,
                                         parse_storage_in_bytes)
 from hailtop.config import get_deploy_config
@@ -378,7 +378,7 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
     return web.json_response(job_log)
 
 
-async def _query_batches(request, user):
+async def _query_batches(request, user, transform):
     db = request.app['db']
 
     where_conditions = ['user = %s', 'NOT deleted']
@@ -463,16 +463,14 @@ LIMIT 50;
 '''
     sql_args = where_args
 
-    batches = [batch_record_to_dict(batch)
-               async for batch
-               in db.select_and_fetchall(sql, sql_args)]
+    batches = [transform(batch) async for batch in db.select_and_fetchall(sql, sql_args)]
 
     if len(batches) == 50:
         last_batch_id = batches[-1]['id']
     else:
         last_batch_id = None
 
-    return (batches, last_batch_id)
+    return batches, last_batch_id
 
 
 @routes.get('/api/v1alpha/batches')
@@ -480,7 +478,7 @@ LIMIT 50;
 @rest_authenticated_users_only
 async def get_batches(request, userdata):
     user = userdata['username']
-    batches, last_batch_id = await _query_batches(request, user)
+    batches, last_batch_id = await _query_batches(request, user, batch_record_to_dict)
     body = {
         'batches': batches
     }
@@ -1040,7 +1038,28 @@ async def ui_delete_batch(request, userdata):
 @web_authenticated_users_only()
 async def ui_batches(request, userdata):
     user = userdata['username']
-    batches, last_batch_id = await _query_batches(request, user)
+
+    def humanize_batch(record):
+
+        def _time_msecs_str(t):
+            if t:
+                return time_msecs_str(t)
+            return None
+
+        record = batch_record_to_dict(record)
+        record['time_created'] = _time_msecs_str(record['time_created'])
+        record['time_closed'] = _time_msecs_str(record['time_closed'])
+        record['time_completed'] = _time_msecs_str(record['time_completed'])
+        if record['time_closed'] and record['time_completed']:
+            duration = humanize_timedelta_msecs(record['time_completed'] - record['time_closed'])
+        else:
+            duration = None
+        record['duration'] = duration
+        record['cost'] = cost_str(record['cost'])
+
+        return record
+
+    batches, last_batch_id = await _query_batches(request, user, humanize_batch)
     page_context = {
         'batches': batches,
         'q': request.query.get('q'),

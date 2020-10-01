@@ -34,20 +34,6 @@ def batch_record_to_dict(record):
     else:
         state = 'running'
 
-    def _time_msecs_str(t):
-        if t:
-            return time_msecs_str(t)
-        return None
-
-    time_created = _time_msecs_str(record['time_created'])
-    time_closed = _time_msecs_str(record['time_closed'])
-    time_completed = _time_msecs_str(record['time_completed'])
-
-    if record['time_closed'] and record['time_completed']:
-        duration = humanize_timedelta_msecs(record['time_completed'] - record['time_closed'])
-    else:
-        duration = None
-
     d = {
         'id': record['id'],
         'billing_project': record['billing_project'],
@@ -59,21 +45,15 @@ def batch_record_to_dict(record):
         'n_succeeded': record['n_succeeded'],
         'n_failed': record['n_failed'],
         'n_cancelled': record['n_cancelled'],
-        'time_created': time_created,
-        'time_closed': time_closed,
-        'time_completed': time_completed,
-        'duration': duration
+        'time_created': record['time_created'],
+        'time_closed': record['time_closed'],
+        'time_completed': record['time_completed'],
     }
-
     attributes = json.loads(record['attributes'])
     if attributes:
         d['attributes'] = attributes
-
-    msec_mcpu = record['msec_mcpu']
-    d['msec_mcpu'] = msec_mcpu
-
-    cost = format_version.cost(record['msec_mcpu'], record['cost'])
-    d['cost'] = cost_str(cost)
+    d['msec_mcpu'] = record['msec_mcpu']
+    d['cost'] = format_version.cost(record['msec_mcpu'], record['cost'])
 
     return d
 
