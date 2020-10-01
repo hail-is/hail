@@ -214,15 +214,13 @@ object StringFunctions extends RegistryFunctions {
 
     registerIEmitCode2("firstMatchIn", TString, TString, TArray(TString), {
       case(_: Type, _: PType, _: PType) => PCanonicalArray(PCanonicalString(true))
-    }) { case (cb: EmitCodeBuilder, region: Value[Region], rt: PArray, s: IEmitCode, r: IEmitCode) =>
-
-      s.flatMap(cb) { case sc: PStringCode =>
-        r.flatMap(cb) { case rc: PStringCode =>
-          val s = cb.newLocal("s", sc.loadString())
-          val r = cb.newLocal("r", rc.loadString())
+    }) { case (cb: EmitCodeBuilder, region: Value[Region], rt: PArray,
+               s: (() => IEmitCode), r: (() => IEmitCode)) =>
+      s().flatMap(cb) { case sc: PStringCode =>
+        r().flatMap(cb) { case rc: PStringCode =>
           val out = cb.newLocal[IndexedSeq[String]]("out",
             Code.invokeScalaObject2[String, String, IndexedSeq[String]](
-              thisClass, "firstMatchIn", s, r))
+              thisClass, "firstMatchIn", sc.loadString(), rc.loadString()))
           IEmitCode(cb, out.isNull, {
             val len = cb.newLocal[Int]("len", out.invoke[Int]("size"))
             val srvb: StagedRegionValueBuilder = new StagedRegionValueBuilder(cb.emb, rt, region)

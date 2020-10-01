@@ -421,7 +421,7 @@ abstract class RegistryFunctions {
     calculateReturnPType: (Type, Seq[PType]) => PType,
     typeParameters: Array[Type] = Array.empty
   )(
-    impl: (EmitCodeBuilder, Value[Region], PType, Array[IEmitCode]) => IEmitCode
+    impl: (EmitCodeBuilder, Value[Region], PType, Array[() => IEmitCode]) => IEmitCode
   ) {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessAwareJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
@@ -430,15 +430,12 @@ abstract class RegistryFunctions {
           r: Value[Region],
           rpt: PType,
           typeParameters: Seq[Type],
-          args: IEmitCode*
-        ): IEmitCode = {
-          assert(unify(typeParameters, args.map(_.pt.virtualType), rpt.virtualType))
-          impl(cb, r, rpt, args.toArray)
-        }
+          args: () => IEmitCode*
+        ): IEmitCode = impl(cb, r, rpt, args.toArray)
 
         override def apply(r: EmitRegion, rpt: PType, typeParameters: Seq[Type], args: EmitCode*): EmitCode = {
           EmitCode.fromI(r.mb) { cb =>
-            apply(cb, r.region, rpt, typeParameters, args.map(_.toI(cb)): _*)
+            apply(cb, r.region, rpt, typeParameters, args.map { ec => (() => ec.toI(cb)) }: _*)
           }
         }
       })
@@ -582,13 +579,13 @@ abstract class RegistryFunctions {
     }
 
   def registerIEmitCode1(name: String, mt1: Type, rt: Type, pt: (Type, PType) => PType)
-    (impl: (EmitCodeBuilder, Value[Region], PType, IEmitCode) => IEmitCode): Unit =
+    (impl: (EmitCodeBuilder, Value[Region], PType, () => IEmitCode) => IEmitCode): Unit =
     registerIEmitCode(name, Array(mt1), rt, unwrappedApply(pt)) { case (cb, r, rt, Array(a1)) =>
       impl(cb, r, rt, a1)
     }
 
   def registerIEmitCode2(name: String, mt1: Type, mt2: Type, rt: Type, pt: (Type, PType, PType) => PType)
-    (impl: (EmitCodeBuilder, Value[Region], PType, IEmitCode, IEmitCode) => IEmitCode): Unit =
+    (impl: (EmitCodeBuilder, Value[Region], PType, () => IEmitCode, () => IEmitCode) => IEmitCode): Unit =
     registerIEmitCode(name, Array(mt1, mt2), rt, unwrappedApply(pt)) { case (cb, r, rt, Array(a1, a2)) =>
       impl(cb, r, rt, a1, a2)
     }
@@ -771,7 +768,7 @@ abstract class UnseededMissingnessAwareJVMFunction (
     r: Value[Region],
     rpt: PType,
     typeParameters: Seq[Type],
-    args: IEmitCode*
+    args: () => IEmitCode*
   ): IEmitCode = {
     ???
   }
