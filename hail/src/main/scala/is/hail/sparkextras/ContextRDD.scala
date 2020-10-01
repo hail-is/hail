@@ -150,7 +150,7 @@ class ContextRDD[T: ClassTag](
 
   private[this] def sparkManagedContext(): RVDContext = {
     val c = RVDContext.default
-    TaskContext.get().addTaskCompletionListener { (_: TaskContext) =>
+    TaskContext.get().addTaskCompletionListener[Unit] { (_: TaskContext) =>
       c.close()
     }
     c

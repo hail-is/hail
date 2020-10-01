@@ -27,7 +27,7 @@ object RichContextRDD {
         val context = TaskContext.get
         val partPath = ExecuteContext.createTmpPathNoCleanup(localTmpdir, "write-partitions-part")
         val idxPath = partPath + ".idx"
-        context.addTaskCompletionListener { (context: TaskContext) =>
+        context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
           fs.delete(partPath, recursive = false)
           fs.delete(idxPath, recursive = true)
         }

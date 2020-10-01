@@ -22,7 +22,6 @@ import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext, TaskContex
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
-import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
@@ -479,7 +478,7 @@ class SparkBackend(
         forceGZ,
         TextInputFilterAndReplace(Option(find), Option(filter), Option(replace)),
         partitionsJSON, partitionsTypeStr,
-        Option(externalSampleIds).map(_.map(_.asScala.toArray).toArray),
+        Option(externalSampleIds).map(_.asScala.map(_.asScala.toArray).toArray),
         Option(externalHeader))
 
       val irs = reader.read(ctx)

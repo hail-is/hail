@@ -263,7 +263,7 @@ install-dev-deps:
 
 .PHONY: install-deps
 install-deps: install-dev-deps
-	$(PIP) install -U -r python/requirements.txt
+	sed "s/^pyspark.*/pyspark==$(SPARK_VERSION)/" python/requirements.txt | xargs $(PIP) install -U
 
 .PHONY: benchmark
 benchmark: $(WHEEL)

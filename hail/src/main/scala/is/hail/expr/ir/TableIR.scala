@@ -1108,9 +1108,8 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     val leftTV = left.execute(ctx)
     val rightTV = right.execute(ctx)
 
-    val newGlobals = BroadcastRow(ctx,
-      Row.merge(leftTV.globals.javaValue, rightTV.globals.javaValue),
-      newGlobalType)
+    val combinedRow = Row.fromSeq(leftTV.globals.javaValue.toSeq ++ rightTV.globals.javaValue.toSeq)
+    val newGlobals = BroadcastRow(ctx, combinedRow, newGlobalType)
 
     val leftRVDType = leftTV.rvd.typ.copy(key = left.typ.key.take(joinKey))
     val rightRVDType = rightTV.rvd.typ.copy(key = right.typ.key.take(joinKey))

@@ -176,7 +176,7 @@ class Method private[lir] (
   def findBlocks(): Blocks = {
     val blocksb = new ArrayBuilder[Block]()
 
-    val s = new mutable.Stack[Block]()
+    val s = new ArrayStack[Block]()
     val visited = mutable.Set[Block]()
 
     s.push(entry)
