@@ -963,7 +963,6 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableMapPartitions() {
-    implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
 
     val table =
       TableKeyBy(

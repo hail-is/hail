@@ -415,7 +415,7 @@ object PruneDeadFields {
         val reqRowsType = TStream(requestedType.rowType)
         val bodyDep = memoizeValueIR(body, reqRowsType, memo)
         val depGlobalType = unifySeq(child.typ.globalType,
-          bodyDep.eval.lookupOption(gName).map(_.result()).getOrElse(Array()))
+          bodyDep.eval.lookupOption(gName).map(_.result()).getOrElse(Array()) :+ requestedType.globalType)
         val depRowType = unifySeq(child.typ.rowType,
           bodyDep.eval.lookupOption(pName)
             .map(_.result().map(_.asInstanceOf[TStream].elementType))
