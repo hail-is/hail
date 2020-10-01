@@ -116,6 +116,7 @@ Libraries for services:
 * $HAIL/hail/python/hailtop/auth: user authorization library
 * $HAIL/hail/python/hailtop/config: user and deployment configuration library
 * $HAIL/hail/python/hailtop/tls.py: TLS utilities for services
+* $HAIL/hail/python/hailtop/httpx.py: HTTP(S) client utilities for services
 * $HAIL/hail/python/hailtop/utils: various
 * $HAIL/tls: for TLS configuration and deployment
 * $HAIL/web_common: service HTML templates

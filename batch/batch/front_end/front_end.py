@@ -20,7 +20,8 @@ from hailtop.utils import (time_msecs, time_msecs_str, humanize_timedelta_msecs,
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes,
                                         parse_storage_in_bytes)
 from hailtop.config import get_deploy_config
-from hailtop.tls import get_in_cluster_server_ssl_context, in_cluster_ssl_client_session
+from hailtop.tls import get_in_cluster_server_ssl_context
+from hailtop.httpx import in_cluster_ssl_client_session
 from hailtop.hail_logging import AccessLogger
 from gear import (Database, setup_aiohttp_session,
                   rest_authenticated_users_only, web_authenticated_users_only,

@@ -5,7 +5,7 @@ import aiohttp
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
-from hailtop.tls import in_cluster_ssl_client_session
+from hailtop.httpx import in_cluster_ssl_client_session
 import hailtop.utils as utils
 
 pytestmark = pytest.mark.asyncio

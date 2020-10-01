@@ -7,7 +7,7 @@ from aiohttp import web
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import get_tokens, namespace_auth_headers
-from hailtop.tls import get_context_specific_ssl_client_session
+from hailtop.httpx import get_context_specific_ssl_client_session
 
 
 def init_parser(parser):

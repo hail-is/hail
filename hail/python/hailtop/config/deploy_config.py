@@ -69,7 +69,7 @@ class DeployConfig:
             return f'{service}.hail.is'
         return 'internal.hail.is'
 
-    def base_path(self, service: str) -> strr:
+    def base_path(self, service: str) -> str:
         ns = self.service_ns(service)
         if ns == 'default':
             return ''

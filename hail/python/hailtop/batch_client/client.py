@@ -2,10 +2,7 @@ from typing import Optional
 import asyncio
 
 from . import aioclient
-
-
-def async_to_blocking(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+from hailtop.utils import async_to_blocking
 
 
 def sync_anext(ait):

@@ -8,7 +8,7 @@ import functools
 import sys
 import time
 
-from hailtop.utils import secret_alnum_string, partition
+from hailtop.utils import (secret_alnum_string, partition, async_to_blocking)
 import hailtop.batch_client.aioclient as low_level_batch_client
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 
@@ -36,10 +36,6 @@ def chunk(fn):
     def chunkedfn(*args):
         return [fn(*arglist) for arglist in zip(*args)]
     return chunkedfn
-
-
-def async_to_blocking(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
 
 
 class BatchPoolExecutor:

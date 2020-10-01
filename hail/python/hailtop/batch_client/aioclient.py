@@ -12,7 +12,7 @@ from asyncinit import asyncinit
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
 from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, TQDM_DEFAULT_DISABLE
-from hailtop.tls import get_context_specific_ssl_client_session
+from hailtop.httpx import get_context_specific_ssl_client_session
 
 from .globals import tasks, complete_states
 
