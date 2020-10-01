@@ -2,19 +2,62 @@ package is.hail.types.physical.stypes
 
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{CodeLabel, TypeInfo, Value}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.BaseType
 import is.hail.types.physical.mtypes.{MCode, MInt32, MStruct, MType, MValue}
 
 case class IEmitSCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: SCode) {
   def memoize(cb: EmitCodeBuilder): EmitSValue = ???
+
+  def consume[T](cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (SCode) => T): T = {
+    val Lafter = CodeLabel()
+    cb.define(Lmissing)
+    ifMissing
+    if (cb.isOpenEnded) cb.goto(Lafter)
+    cb.define(Lpresent)
+    val ret = ifPresent(pc)
+    cb.define(Lafter)
+    ret
+  }
+
+  def map(cb: EmitCodeBuilder)(f: (SCode) => SCode): IEmitSCode = {
+    val Lpresent2 = CodeLabel()
+    cb.define(Lpresent)
+    val pc2 = f(pc)
+    cb.goto(Lpresent2)
+    IEmitSCode(Lmissing, Lpresent2, pc2)
+  }
+
+  def mapMissing(cb: EmitCodeBuilder)(ifMissing: => Unit): IEmitSCode = {
+    val Lmissing2 = CodeLabel()
+    cb.define(Lmissing)
+    ifMissing
+    cb.goto(Lmissing2)
+    IEmitSCode(Lmissing2, Lpresent, pc)
+  }
+
+  def flatMap(cb: EmitCodeBuilder)(f: (SCode) => IEmitSCode): IEmitSCode = {
+    cb.define(Lpresent)
+    val ec2 = f(pc)
+    cb.define(ec2.Lmissing)
+    cb.goto(Lmissing)
+    IEmitSCode(Lmissing, ec2.Lpresent, ec2.pc)
+  }
+
+  def handle(cb: EmitCodeBuilder, ifMissing: => Unit): SCode = {
+    cb.define(Lmissing)
+    ifMissing
+    cb.define(Lpresent)
+    pc
+  }
+
 }
 
 case class EmitSValue(missing: Boolean, value: SValue) {
   def toI: IEmitSCode = ???
 }
 
-// replaces the current PCode
+// replaces the current SCode
 trait SCode {
   def typ: SType
 
@@ -26,6 +69,8 @@ trait SCode {
 
   def asStruct: SStructCode = asInstanceOf[SStructCode]
   def asString: SStringCode = asInstanceOf[SStringCode]
+  def asInt32: SInt32Code = asInstanceOf[SInt32Code]
+  def asBoolean: SBooleanCode = asInstanceOf[SBooleanCode]
 
 }
 
@@ -35,6 +80,8 @@ trait SValue {
 
   def asStruct: SStructValue = asInstanceOf[SStructValue]
   def asString: SStringValue = asInstanceOf[SStringValue]
+  def asInt32: SInt32Value = asInstanceOf[SInt32Value]
+  def asBoolean: SBooleanValue = asInstanceOf[SBooleanValue]
 }
 
 trait SPointer extends SType {
