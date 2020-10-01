@@ -17,10 +17,8 @@ from gear import setup_aiohttp_session, web_maybe_authenticated_user
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
 from types import TracebackType
-from typing import Any, Optional, TypeVar, Type
+from typing import Any, Optional, Type
 
-
-ClientType = TypeVar('ClientType', bound='AsanaClient')
 
 log = logging.getLogger('scorecard')
 
@@ -93,7 +91,7 @@ class AsanaClient:
             await self._session.close()
             self._session = None
 
-    async def __aenter__(self: ClientType) -> ClientType:
+    async def __aenter__(self: 'AsanaClient') -> 'AsanaClient':
         return self
 
     async def __aexit__(self,
