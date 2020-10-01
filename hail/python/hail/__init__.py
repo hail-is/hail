@@ -1,13 +1,9 @@
 import pkg_resources
 import sys
-import pyspark
 
 if sys.version_info < (3, 6):
     raise EnvironmentError('Hail requires Python 3.6 or later, found {}.{}'.format(
         sys.version_info.major, sys.version_info.minor))
-if pyspark.__version__ < '3' and sys.version_info > (3, 8):
-    raise EnvironmentError('Hail with spark {} requires Python 3.6 or 3.7, found {}.{}'.format(
-        pyspark.__version__, sys.version_info.major, sys.version_info.minor))
 
 __pip_version__ = pkg_resources.resource_string(__name__, 'hail_pip_version').decode().strip()
 del pkg_resources

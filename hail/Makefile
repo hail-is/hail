@@ -8,7 +8,7 @@ MAKEFLAGS += --no-builtin-rules
 REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
-SCALA_VERSION = 2.11.12
+SCALA_VERSION := 2.11.12
 SPARK_VERSION := 2.4.5
 HAIL_MAJOR_MINOR_VERSION := 0.2
 HAIL_PATCH_VERSION := 57
