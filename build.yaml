@@ -1889,6 +1889,8 @@ steps:
       script: /io/sql/add-aggregated-batch-resources-tokens.sql
     - name: change-test-worker-pool-size
       script: /io/sql/change_test_worker_pool_size.py
+    - name: add-test-dev-to-billing-project-users
+      script: /io/sql/add-test-dev-to-billing-project-users.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
