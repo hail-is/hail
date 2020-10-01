@@ -5,7 +5,7 @@ from .batch_pool_executor import BatchPoolExecutor
 from .backend import LocalBackend, ServiceBackend, Backend
 from .exceptions import BatchException
 from .utils import concatenate, plink_merge
-from .resource import Resource, ResourceGroup
+from .resource import Resource, ResourceFile, ResourceGroup
 
 __all__ = ['Batch',
            'LocalBackend',
@@ -17,6 +17,7 @@ __all__ = ['Batch',
            'genetics',
            'plink_merge',
            'Resource',
+           'ResourceFile',
            'ResourceGroup'
            ]
 
