@@ -635,12 +635,10 @@ class Job:
         if job_spec.get('mount_docker_socket'):
             main_volume_mounts.append('/var/run/docker.sock:/var/run/docker.sock')
 
-        self.mount_io = (input_files or output_files)
-        if self.mount_io:
-            volume_mount = f'{self.io_host_path()}:/io'
-            input_volume_mounts.append(volume_mount)
-            main_volume_mounts.append(volume_mount)
-            output_volume_mounts.append(volume_mount)
+        io_volume_mount = f'{self.io_host_path()}:/io'
+        input_volume_mounts.append(io_volume_mount)
+        main_volume_mounts.append(io_volume_mount)
+        output_volume_mounts.append(io_volume_mount)
 
         gcsfuse = job_spec.get('gcsfuse')
         self.gcsfuse = gcsfuse
