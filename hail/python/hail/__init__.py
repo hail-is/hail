@@ -1,8 +1,8 @@
 import pkg_resources
 import sys
 
-if not (3, 6) < sys.version_info < (3, 8):
-    raise EnvironmentError('Hail requires Python 3.6 or 3.7, found {}.{}'.format(
+if sys.version_info < (3, 6):
+    raise EnvironmentError('Hail requires Python 3.6 or later, found {}.{}'.format(
         sys.version_info.major, sys.version_info.minor))
 
 __pip_version__ = pkg_resources.resource_string(__name__, 'hail_pip_version').decode().strip()
@@ -16,10 +16,10 @@ __doc__ = r"""
  /_/ /_/\_,_/_/_/
 ===================
 
-For API documentation, visit the website: www.hail.is
+For API documentation, visit the website: https://www.hail.is
 
 For help, visit either:
- - the forum (discuss.hail.is)
+ - the forum: https://discuss.hail.is
  - or our Zulip chatroom: https://hail.zulipchat.com
 
 To report a bug, please open an issue: https://github.com/hail-is/hail/issues
