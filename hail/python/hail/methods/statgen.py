@@ -424,6 +424,8 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     if not is_chained:
         y_field_names = [y_field_names]
 
+    num_y_lists = len(y_field_names)
+
     def all_defined(struct_root, field_names):
         defined_array = hl.array([hl.is_defined(struct_root[field_name]) for field_name in field_names])
         return defined_array.all(lambda a: a)
@@ -474,6 +476,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     ht = ht.annotate_globals(kept_samples=list_of_indices_to_keep,
                              __y_nd=y_nd,
+                             __y_nds=y_nds,
                              __cov_nd=cov_nd,
                              __cov_nds=cov_nds)
     k = builtins.len(covariates)
@@ -483,24 +486,27 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     cov_Qts = hl.if_else(k > 0,
                          ht.__cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
                          ht.ns.map(lambda n: hl.nd.zeros((0, n))))
-    ht = ht.annotate_globals(__Qty=cov_Qt @ ht.__y_nd)
-    ht = ht.annotate_globals(__yyp=dot_rows_with_themselves(ht.__y_nd.T) - dot_rows_with_themselves(ht.__Qty.T))
+    ht = ht.annotate_globals(__Qtys=hl.range(num_y_lists).map(lambda i: cov_Qts[i] @ ht.__y_nds[i]))
+    ht = ht.annotate_globals(__yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(ht.__y_nds[i].T) - dot_rows_with_themselves(ht.__Qtys[i].T)))
 
     def process_block(block):
-        X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[0])))).T
-        sum_x = (X.T @ hl.nd.ones((ht.ns[0],)))._data_array()
+        Xs = hl.range(num_y_lists).map(lambda i:
+            hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[i])))).T
+        )
+        X = Xs[0]
+        sum_xs = hl.range(num_y_lists).map(lambda i: (Xs[i].T @ hl.nd.ones((ht.ns[i],)))._data_array())
         Qtx = cov_Qt @ X
-        ytx = ht.__y_nd.T @ X
-        xyp = ytx - (ht.__Qty.T @ Qtx)
+        ytxs = hl.range(num_y_lists).map(lambda i: ht.__y_nds[i].T @ Xs[i])
+        xyp = ytxs[0] - (ht.__Qtys[0].T @ Qtx)
         xxpRec = (dot_rows_with_themselves(X.T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
         b = xyp * xxpRec
-        se = ((1.0 / ht.ds[0]) * (ht.__yyp.reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
+        se = ((1.0 / ht.ds[0]) * (ht.__yyps[0].reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
         t = b / se
         p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.ds[0], True, False))
 
         key_fields = [key_field for key_field in ht.key]
         key_dict = {key_field: block[key_field] for key_field in key_fields}
-        linreg_fields_dict = {"sum_x": sum_x, "y_transpose_x": ytx.T._data_array(), "beta": b.T._data_array(),
+        linreg_fields_dict = {"sum_x": sum_xs[0], "y_transpose_x": ytxs[0].T._data_array(), "beta": b.T._data_array(),
                               "standard_error": se.T._data_array(), "t_stat": t.T._data_array(), "p_value": p.T._data_array()}
         combined_dict = {**key_dict, **linreg_fields_dict}
 
