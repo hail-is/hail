@@ -378,9 +378,10 @@ steps:
              await db.async_close()
      async_to_blocking(main())
      EOF
-     # batch, auth gsa keys
+     # batch, benchmark, auth gsa keys
      kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "auth-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "benchmark-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
      # create ci
      N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers ci-tokens | wc -l | tr -d '[:space:]')
      if [[ $N = 0 ]]; then
@@ -409,6 +410,15 @@ steps:
          kubectl -n {{ batch_pods_ns.name }} create secret generic test-dev-tokens --from-file=/user-tokens/tokens.json
      fi
      # created test-dev
+     # create benchmark
+     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers benchmark-tokens | wc -l | tr -d '[:space:]')
+     if [[ $N = 0 ]]; then
+         # if benchmark does not exist
+         rm -f /user-tokens/tokens.json
+         python3 create-session.py '{"state":"active","username":"benchmark","gsa_email":"benchmark@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"benchmark-gsa-key","tokens_secret_name":"benchmark-tokens"}'
+         kubectl -n {{ batch_pods_ns.name }} create secret generic benchmark-tokens --from-file=/user-tokens/tokens.json
+     fi
+     # created benchmark
    scopes:
     - test
     - dev
