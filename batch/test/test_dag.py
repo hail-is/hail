@@ -141,7 +141,6 @@ def test_callback(client):
         callback_body.pop('time_created')
         callback_body.pop('time_closed')
         callback_body.pop('time_completed')
-        callback_body.pop('duration')
         assert (callback_body == {
             'id': b.id,
             'billing_project': 'test',
