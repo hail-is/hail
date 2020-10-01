@@ -196,22 +196,16 @@ def job_record_to_dict(record, name):
         exit_code = None
         duration = None
 
-    result = {
+    return {
         'batch_id': record['batch_id'],
         'job_id': record['job_id'],
         'name': name,
         'state': record['state'],
         'exit_code': exit_code,
-        'duration': duration
+        'duration': duration,
+        'msec_mcpu': record['msec_mcpu'],
+        'cost': format_version.cost(record['msec_mcpu'], record['cost']),
     }
-
-    msec_mcpu = record['msec_mcpu']
-    result['msec_mcpu'] = msec_mcpu
-
-    cost = format_version.cost(record['msec_mcpu'], record['cost'])
-    result['cost'] = cost_str(cost)
-
-    return result
 
 
 async def unschedule_job(app, record):

@@ -87,7 +87,7 @@ async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
 
 
-async def _query_batch_jobs(request, batch_id):
+async def _query_batch_jobs(request, batch_id, transform):
     state_query_values = {
         'pending': ['Pending'],
         'ready': ['Ready'],
@@ -180,7 +180,7 @@ LIMIT 50;
 '''
     sql_args = where_args
 
-    jobs = [job_record_to_dict(record, record['name'])
+    jobs = [transform(record, record['name'])
             async for record
             in db.select_and_fetchall(sql, sql_args)]
 
@@ -208,7 +208,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    jobs, last_job_id = await _query_batch_jobs(request, batch_id)
+    jobs, last_job_id = await _query_batch_jobs(request, batch_id, job_record_to_dict)
     resp = {
         'jobs': jobs
     }
@@ -992,9 +992,13 @@ async def ui_batch(request, userdata):
 
     batch = await _get_batch(app, batch_id, user)
 
-    jobs, last_job_id = await _query_batch_jobs(request, batch_id)
-    for j in jobs:
-        j['duration'] = humanize_timedelta_msecs(j['duration'])
+    def humanize_jobs(record, name):
+        job = job_record_to_dict(record, name)
+        job['duration'] = humanize_timedelta_msecs(job['duration'])
+        job['cost'] = cost_str(job['cost'])
+        return job
+
+    jobs, last_job_id = await _query_batch_jobs(request, batch_id, humanize_jobs)
     batch['jobs'] = jobs
 
     page_context = {
