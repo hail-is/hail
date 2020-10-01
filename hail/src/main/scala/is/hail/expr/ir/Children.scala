@@ -15,6 +15,7 @@ object Children {
     case True() => none
     case False() => none
     case Literal(_, _) => none
+    case EncodedLiteral(_, _) => none
     case Void() => none
     case Cast(v, typ) =>
       Array(v)

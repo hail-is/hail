@@ -139,6 +139,8 @@ object PSettable {
   def apply(sb: SettableBuilder, _pt: PType, name: String): PSettable = _pt match {
     case pt: PCanonicalArray =>
       PCanonicalIndexableSettable(sb, pt, name)
+    case pt: PCanonicalBinary =>
+      PCanonicalBinarySettable(sb,pt, name)
     case pt: PCanonicalSet =>
       PCanonicalIndexableSettable(sb, pt, name)
     case pt: PCanonicalDict =>

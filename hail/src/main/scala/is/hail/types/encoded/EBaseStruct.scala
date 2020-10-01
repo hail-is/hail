@@ -146,77 +146,57 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     }
   }
 
-  override def _buildFundamentalDecoder(
-    pt: PType,
-    mb: EmitMethodBuilder[_],
+  def _buildFundamentalDecoder(
+    cb: EmitCodeBuilder,
+    _pt: PType,
     region: Value[Region],
     in: Value[InputBuffer]
   ): Code[Long] = {
-    val addr = mb.newLocal[Long]("addr")
+    val pt = if (_pt.isInstanceOf[PNDArray]) _pt.asInstanceOf[PNDArray].representation
+             else _pt.asInstanceOf[PBaseStruct]
 
-    val pt2 = if (pt.isInstanceOf[PNDArray]) pt.asInstanceOf[PNDArray].representation else pt
-
-    Code(
-      addr := pt2.asInstanceOf[PBaseStruct].allocate(region),
-      _buildInplaceDecoder(pt2, mb, region, addr, in),
-      addr.load()
-    )
+    val addr = cb.newLocal[Long]("addr", pt.allocate(region))
+    _buildInplaceDecoder(cb, pt, region, addr, in)
+    addr
   }
 
   override def _buildInplaceDecoder(
-    pt: PType,
-    mb: EmitMethodBuilder[_],
+    cb: EmitCodeBuilder,
+    _pt: PType,
     region: Value[Region],
     addr: Value[Long],
     in: Value[InputBuffer]
-  ): Code[Unit] = {
+  ): Unit = {
+    val pt = if (_pt.isInstanceOf[PNDArray]) _pt.asInstanceOf[PNDArray].representation
+             else _pt.asInstanceOf[PBaseStruct]
+    val mbytes = cb.newLocal[Long]("mbytes", region.allocate(const(1), const(nMissingBytes)))
+    cb += in.readBytes(region, mbytes, nMissingBytes)
 
-    val pt2 = if (pt.isInstanceOf[PNDArray]) pt.asInstanceOf[PNDArray].representation else pt
-    val t = pt2.asInstanceOf[PBaseStruct]
-    val mbytes = mb.newLocal[Long]("mbytes")
-
-    val readFields = coerce[Unit](Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
-      val groupMB = mb.genEmitMethod(s"read_fields_group_$groupIdx", FastIndexedSeq[ParamType](classInfo[Region], LongInfo, LongInfo, classInfo[InputBuffer]), UnitInfo)
-      val regionArg = groupMB.getCodeParam[Region](1)
-      val addrArg = groupMB.getCodeParam[Long](2)
-      val mbytesArg = groupMB.getCodeParam[Long](3)
-      val inArg = groupMB.getCodeParam[InputBuffer](4)
-      groupMB.emit(Code(fieldGroup.map { f =>
-        if (t.hasField(f.name)) {
-          val rf = t.field(f.name)
-          val readElemF = f.typ.buildInplaceDecoder(rf.typ, mb.ecb)
-          val rFieldAddr = t.fieldOffset(addrArg, rf.index)
-          if (f.typ.required) {
-            var c = readElemF(regionArg, rFieldAddr, inArg)
-            if (!rf.typ.required) {
-              c = Code(t.setFieldPresent(addrArg, rf.index), c)
-            }
-            c
-          } else {
-            Region.loadBit(mbytesArg, const(missingIdx(f.index).toLong)).mux(
-              t.setFieldMissing(addrArg, rf.index),
-              Code(
-                t.setFieldPresent(addrArg, rf.index),
-                readElemF(regionArg, rFieldAddr, inArg)))
-          }
+    fields.foreach { f =>
+      if (pt.hasField(f.name)) {
+        val rf = pt.field(f.name)
+        val readElemF = f.typ.buildInplaceDecoder(rf.typ, cb.emb.ecb)
+        val rFieldAddr = pt.fieldOffset(addr, rf.index)
+        if (f.typ.required) {
+          cb += readElemF(region, rFieldAddr, in)
+          if (!rf.typ.required)
+            cb += pt.setFieldPresent(addr, rf.index)
         } else {
-          val skip = f.typ.buildSkip(groupMB)
-          if (f.typ.required)
-            skip(regionArg, inArg)
-          else
-            Region.loadBit(mbytesArg, const(missingIdx(f.index).toLong)).mux(
-              Code._empty,
-              skip(regionArg, inArg))
+          cb.ifx(Region.loadBit(mbytes, const(missingIdx(f.index).toLong)), {
+            cb += pt.setFieldMissing(addr, rf.index)
+          }, {
+            cb += pt.setFieldPresent(addr, rf.index)
+            cb += readElemF(region, rFieldAddr, in)
+          })
         }
-      }))
-      groupMB.invokeCode[Unit](region, addr, mbytes, in)
-    }.toArray))
-
-    Code(
-      mbytes := region.allocate(const(1), const(nMissingBytes)),
-      in.readBytes(region, mbytes, nMissingBytes),
-      readFields,
-      Code._empty)
+      } else {
+        val skip = f.typ.buildSkip(cb.emb)
+        if (f.typ.required)
+          cb += skip(region, in)
+        else
+          cb.ifx(!Region.loadBit(mbytes, const(missingIdx(f.index).toLong)), cb += skip(region, in))
+      }
+    }
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {

@@ -62,7 +62,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     -----
 
     We have used the same implementation as `PLINK v1.7
-    <http://pngu.mgh.harvard.edu/~purcell/plink/summary.shtml#sexcheck>`__.
+    <https://zzz.bwh.harvard.edu/plink/summary.shtml#sexcheck>`__.
 
     Let `gr` be the the reference genome of the type of the `locus` key (as
     given by :meth:`.TLocus.reference_genome`)

@@ -37,6 +37,7 @@ object TypeCheck {
       case Str(x) =>
       case UUID4(_) =>
       case Literal(_, _) =>
+      case EncodedLiteral(_, _) =>
       case Void() =>
       case Cast(v, typ) => if (!Casts.valid(v.typ, typ))
         throw new RuntimeException(s"invalid cast:\n  " +

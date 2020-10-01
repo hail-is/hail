@@ -2,7 +2,7 @@ package is.hail.types.encoded
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.expr.ir.{EmitCodeBuilder}
 import is.hail.types.BaseType
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -88,64 +88,49 @@ final case class EArray(val elementType: EType, override val required: Boolean =
   }
 
   def _buildFundamentalDecoder(
+    cb: EmitCodeBuilder,
     pt: PType,
-    mb: EmitMethodBuilder[_],
     region: Value[Region],
     in: Value[InputBuffer]
   ): Code[Long] = {
     val t = pt.asInstanceOf[PArray]
-    val len = mb.newLocal[Int]("len")
-    val i = mb.newLocal[Int]("i")
-    val array = mb.newLocal[Long]("array")
-    val readElemF = elementType.buildInplaceDecoder(t.elementType, mb.ecb)
 
-    val readMissing: Code[Unit] = pt match {
+    val len = cb.newLocal[Int]("len", in.readInt())
+    val array = cb.newLocal[Long]("array", t.allocate(region, len))
+    cb += t.storeLength(array, len)
+
+    val i = cb.newLocal[Int]("i")
+    val readElemF = elementType.buildInplaceDecoder(t.elementType, cb.emb.ecb)
+
+    pt match {
       case t: PCanonicalArray if t.elementType.required == elementType.required =>
-        if (elementType.required)
-          Code._empty
-        else in.readBytes(region, array + const(t.lengthHeaderBytes), t.nMissingBytes(len))
+        if (!elementType.required)
+          cb += in.readBytes(region, array + const(t.lengthHeaderBytes), t.nMissingBytes(len))
       case _ =>
         if (elementType.required) {
-          EmitCodeBuilder.scopedVoid(mb) { cb =>
-            cb.assign(i, 0)
-            cb.whileLoop(i < len, {
-              cb += t.setElementPresent(array, i)
-              cb.assign(i, i + 1)
-            })
-          }
+          cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1),
+            cb += t.setElementPresent(array, i))
         } else {
-          val missingBitsAddr = mb.newLocal[Long]("missingBitsAddr")
-          EmitCodeBuilder.scopedVoid(mb) { cb =>
-            cb.assign(missingBitsAddr, region.allocate(1L, t.nMissingBytes(len).toL))
-            cb.assign(i, 0)
-            cb += in.readBytes(region, missingBitsAddr, t.nMissingBytes(len))
-            cb.whileLoop(i < len, {
-              cb.ifx(Region.loadBit(missingBitsAddr, i.toL),
-                cb += t.setElementMissing(array, i),
-                cb += t.setElementPresent(array, i))
-              cb.assign(i, i + 1)
-            })
-          }
+          val missingBitsAddr = cb.newLocal[Long]("missingBitsAddr",
+            region.allocate(1L, t.nMissingBytes(len).toL))
+          cb += in.readBytes(region, missingBitsAddr, t.nMissingBytes(len))
+          cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1),
+            cb.ifx(Region.loadBit(missingBitsAddr, i.toL),
+              cb += t.setElementMissing(array, i),
+              cb += t.setElementPresent(array, i)))
         }
     }
 
-    Code(
-      len := in.readInt(),
-      array := t.allocate(region, len),
-      t.storeLength(array, len),
-      readMissing,
-      i := 0,
-      Code.whileLoop(
-        i < len,
-        Code(
-          if (elementType.required)
-            readElemF(region, t.elementOffset(array, len, i), in)
-          else
-            t.isElementDefined(array, i).mux(
-              readElemF(region, t.elementOffset(array, len, i), in),
-              Code._empty),
-          i := i + const(1))),
-      array.load())
+    cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), {
+      val elemAddr = t.elementOffset(array, len, i)
+      if (elementType.required)
+        cb += readElemF(region, elemAddr, in)
+      else
+        cb.ifx(t.isElementDefined(array, i),
+          cb += readElemF(region, elemAddr, in))
+    })
+
+    array.load()
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
