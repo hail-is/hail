@@ -129,8 +129,6 @@ steps:
        to: /repo/batch/
      - from: /io/repo/memory/test
        to: /repo/memory/
-     - from: /io/repo/query/test
-       to: /repo/query/
      - from: /io/repo/notebook/sql
        to: /repo/notebook/
      - from: /io/repo/monitoring/sql
@@ -1979,14 +1977,22 @@ steps:
      tar xvf wheel-container.tar
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      hailctl config set batch/bucket hail-test-dmk9z
-     HAIL_BILLING_PROJECT=test HAIL_DONT_RETRY_500=1 HAIL_QUERY_BACKEND=service python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
+     cat > test.py <<EOF
+     import hail as hl
+     t = hl.utils.range_table(50, 3)
+     t = t.filter((t.idx % 3 == 0) | ((t.idx / 7) % 3 == 0))
+     n = t.count()
+     print(f'n {n}')
+     assert n == 17
+     EOF
+     HAIL_BILLING_PROJECT=test HAIL_DONT_RETRY_500=1 HAIL_QUERY_BACKEND=service python3 test.py
    timeout: 600
    secrets:
     - name: gce-deploy-config
       namespace:
         valueFrom: default_ns.name
       mountPath: /deploy-config
-    - name: test-dev-tokens
+    - name: test-tokens
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
@@ -1997,8 +2003,6 @@ steps:
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
-     - from: /repo/query/test
-       to: /io/test
    dependsOn:
     - default_ns
     - batch_pods_ns
