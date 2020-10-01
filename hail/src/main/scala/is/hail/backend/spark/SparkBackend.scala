@@ -348,10 +348,21 @@ class SparkBackend(
   def executeLiteral(ir: IR): IR = {
     val t = ir.typ
     assert(t.isRealizable)
-    val (value, timings) = execute(ir, optimize = true)
-    timings.finish()
-    timings.logInfo()
-    Literal.coerce(t, value)
+    val (literalIR, timer) = withExecuteContext() { ctx =>
+      val queryID = Backend.nextID()
+      log.info(s"starting execution of query $queryID} of initial size ${ IRSize(ir) }")
+      val (retVal, timer) = _execute(ctx, ir, true)
+      val literalIR = retVal match {
+        case Left(x) => throw new HailException("Can't create literal")
+        case Right((pt, addr)) => GetFieldByIdx(EncodedLiteral.hailValueToByteArray(pt, addr, ctx), 0)
+      }
+
+      log.info(s"finished execution of query $queryID")
+      (literalIR, timer)
+    }
+    timer.finish()
+    timer.logInfo()
+    literalIR
   }
 
   def executeJSON(ir: IR): String = {
