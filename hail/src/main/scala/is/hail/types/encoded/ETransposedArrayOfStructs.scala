@@ -49,7 +49,8 @@ final case class ETransposedArrayOfStructs(
     case _ => false
   }
 
-  def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] = {
+  def _buildDecoder(cb: EmitCodeBuilder, pt: PType, region: Value[Region], in: Value[InputBuffer]): Code[_] = {
+    val mb = cb.emb
     val arrayPType = pt.asInstanceOf[PArray]
     val elementPStruct = arrayPType.elementType.asInstanceOf[PBaseStruct]
 

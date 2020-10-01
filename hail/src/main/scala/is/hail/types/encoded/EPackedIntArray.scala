@@ -24,54 +24,45 @@ final case class EPackedIntArray(
   def _decodedPType(requestedType: Type): PType = EArray(EInt32(elementsRequired), required)._decodedPType(requestedType)
 
 
-  def _buildFundamentalDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] = {
+  def _buildFundamentalDecoder(
+    cb: EmitCodeBuilder,
+    pt: PType,
+    region: Value[Region],
+    in: Value[InputBuffer]
+  ): Code[_] = {
     val pa = pt.asInstanceOf[PArray]
 
-    val i = mb.newLocal[Int]("i")
-    val len = mb.newLocal[Int]("len")
-    val n = mb.newLocal[Int]("n")
-    val dlen = mb.newLocal[Int]("dlen")
-    val klen = mb.newLocal[Int]("klen")
-    val array = mb.newLocal[Long]("array")
-    val keys = mb.newLocal[Array[Byte]]("keys")
-    val data = mb.newLocal[Array[Byte]]("data")
-    val unpacker = mb.newLocal[IntPacker]("unpacker")
+    val len = cb.newLocal[Int]("len", in.readInt())
+    val array = cb.newLocal[Long]("array", pa.allocate(region, len))
+    cb += pa.storeLength(array, len)
+    if (!elementsRequired)
+      cb += in.readBytes(region, array + const(pa.lengthHeaderBytes), pa.nMissingBytes(len))
+    val dlen = cb.newLocal[Int]("dlen", in.readInt())
 
-    Code(Code(FastIndexedSeq(
-      unpacker := getPacker(mb),
-      len := in.readInt(),
-      array := pa.allocate(region, len),
-      pa.storeLength(array, len),
+    val i = cb.newLocal[Int]("i")
+    val n = cb.newLocal[Int]("n", 0)
+    if (elementsRequired)
+      cb.assign(n, len)
+    else
+      cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1),
+        cb.assign(n, n + pa.isElementDefined(array, i).toI))
+
+    val klen = cb.newLocal[Int]("klen", (n + const(3)) / const(4))
+    cb.assign(dlen, dlen - klen)
+    val unpacker = cb.newLocal[IntPacker]("unpacker", getPacker(cb.emb))
+    cb += unpacker.load().ensureSpace(klen, dlen)
+    cb += in.read(unpacker.load().keys, 0, klen)
+    cb += in.read(unpacker.load().data, 0, dlen)
+    cb += unpacker.load().resetUnpack()
+    cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), {
+      val unpack = unpacker.invoke[Long, Unit]("unpack", pa.elementOffset(array, len, i))
       if (elementsRequired)
-        Code._empty
+        cb += unpack
       else
-        in.readBytes(region, array + const(pa.lengthHeaderBytes), pa.nMissingBytes(len)),
-      dlen := in.readInt(),
-      if (elementsRequired)
-        n := len
-      else
-        Code(
-          i := 0,
-          n := 0,
-          Code.whileLoop(i < len,
-            Code(
-              n := n + pa.isElementDefined(array, i).toI,
-              i := i + 1))),
-      klen := (n + const(3)) / const(4),
-      dlen := dlen - klen,
-      unpacker.load().ensureSpace(klen, dlen),
-      in.read(unpacker.load().keys, 0, klen),
-      in.read(unpacker.load().data, 0, dlen),
-      unpacker.load().resetUnpack(),
-      i := 0,
-      Code.whileLoop(i < len,
-        Code(
-          pa.isElementDefined(array, i).mux(
-            unpacker.invoke[Long, Unit]("unpack", pa.elementOffset(array, len, i)),
-            Code._empty),
-          i := i + 1
-        )))),
-      array)
+        cb.ifx(pa.isElementDefined(array, i), cb += unpack)
+    })
+
+    array
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {

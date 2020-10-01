@@ -60,20 +60,24 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
   }
 
   def _buildDecoder(
+    cb: EmitCodeBuilder,
     pt: PType,
-    mb: EmitMethodBuilder[_],
     region: Value[Region],
     in: Value[InputBuffer]
   ): Code[Long] = {
     val t = pt.asInstanceOf[PCanonicalNDArray]
-    val nRows = mb.newLocal[Long]("rows")
-    val nCols = mb.newLocal[Long]("cols")
-    val transpose = mb.newLocal[Boolean]("transpose")
-    val n = mb.newLocal[Int]("length")
-    val data = mb.newLocal[Long]("data")
+    val readElemF = elementType.buildInplaceDecoder(t.elementType, cb.emb.ecb)
 
-    val readElemF = elementType.buildInplaceDecoder(t.elementType, mb.ecb)
-    val i = mb.newLocal[Int]("i")
+    val nRows = cb.newLocal[Long]("rows", in.readInt().toL)
+    val nCols = cb.newLocal[Long]("cols", in.readInt().toL)
+    val transpose = cb.newLocal[Boolean]("transpose", in.readBoolean())
+    val n = cb.newLocal[Int]("length", nRows.toI * nCols.toI)
+    val data = cb.newLocal[Long]("data", t.data.pType.allocate(region, n))
+    cb += t.data.pType.stagedInitialize(data, n, setMissing=true)
+
+    val i = cb.newLocal[Int]("i")
+    cb.forLoop(cb.assign(i, 0), i < n, cb.assign(i, i + 1),
+      cb += readElemF(region, t.data.pType.elementOffset(data, n, i), in))
 
     val shapeBuilder = t.makeShapeBuilder(FastIndexedSeq(nRows, nCols))
     val stridesBuilder = { srvb: StagedRegionValueBuilder =>
@@ -85,16 +89,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
         srvb.advance())
     }
 
-    Code(
-      nRows := in.readInt().toL,
-      nCols := in.readInt().toL,
-      n := nRows.toI * nCols.toI,
-      transpose := in.readBoolean(),
-      data := t.data.pType.allocate(region, n),
-      t.data.pType.stagedInitialize(data, n, setMissing=true),
-      Code.forLoop(i := 0, i < n, i := i + 1,
-        readElemF(region, t.data.pType.elementOffset(data, n, i), in)),
-      t.construct(shapeBuilder, stridesBuilder, data, mb, region))
+    t.construct(shapeBuilder, stridesBuilder, data, cb.emb, region)
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
