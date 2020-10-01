@@ -45,7 +45,7 @@ class Test(unittest.TestCase):
     def test_get_billing_project(self):
         r = self.client.get_billing_project('test')
         assert r['billing_project'] == 'test', r
-        assert r['users'] == ['test'], r
+        assert set(r['users']) == {'test', 'test-dev'}, r
 
     def test_list_billing_projects(self):
         r = self.client.list_billing_projects()

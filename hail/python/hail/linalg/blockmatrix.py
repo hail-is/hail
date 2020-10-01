@@ -1671,8 +1671,8 @@ class BlockMatrix(object):
             t = t.key_by('i', 'j')
         return t
 
-    @typecheck_method(n_partitions=nullable(int))
-    def to_table_row_major(self, n_partitions=None):
+    @typecheck_method(n_partitions=nullable(int), maximum_cache_memory_in_bytes=nullable(int))
+    def to_table_row_major(self, n_partitions=None, maximum_cache_memory_in_bytes=None):
         """Returns a table where each row represents a row in the block matrix.
 
         The resulting table has the following fields:
@@ -1699,6 +1699,14 @@ class BlockMatrix(object):
         ----------
         n_partitions : int or None
             Number of partitions of the table.
+        maximum_cache_memory_in_bytes : int or None
+            The amount of memory to reserve, per partition, to cache rows of the
+            matrix in memory. This value must be at least large enough to hold
+            one row of the matrix in memory. If this value is exactly the size of
+            one row, then a partition makes a network request for every row of
+            every block. Larger values reduce the number of network requests. If
+            memory permits, setting this value to the size of one output
+            partition permits one network request per block per partition.
 
         Notes
         -----
@@ -1710,13 +1718,16 @@ class BlockMatrix(object):
             Table where each row corresponds to a row in the block matrix.
         """
         path = new_temp_file()
+        if maximum_cache_memory_in_bytes and maximum_cache_memory_in_bytes > (1 << 31) - 1:
+            raise ValueError(
+                f'maximum_cache_memory_in_bytes must be less than 2^31 -1, was: {maximum_cache_memory_in_bytes}')
 
         self.write(path, overwrite=True, force_row_major=True)
-        reader = TableFromBlockMatrixNativeReader(path, n_partitions)
+        reader = TableFromBlockMatrixNativeReader(path, n_partitions, maximum_cache_memory_in_bytes)
         return Table(TableRead(reader))
 
-    @typecheck_method(n_partitions=nullable(int))
-    def to_matrix_table_row_major(self, n_partitions=None):
+    @typecheck_method(n_partitions=nullable(int), maximum_cache_memory_in_bytes=nullable(int))
+    def to_matrix_table_row_major(self, n_partitions=None, maximum_cache_memory_in_bytes=None):
         """Returns a matrix table with row key of `row_idx` and col key `col_idx`, whose
         entries are structs of a single field `element`.
 
@@ -1724,6 +1735,14 @@ class BlockMatrix(object):
         ----------
         n_partitions : int or None
             Number of partitions of the matrix table.
+        maximum_cache_memory_in_bytes : int or None
+            The amount of memory to reserve, per partition, to cache rows of the
+            matrix in memory. This value must be at least large enough to hold
+            one row of the matrix in memory. If this value is exactly the size of
+            one row, then a partition makes a network request for every row of
+            every block. Larger values reduce the number of network requests. If
+            memory permits, setting this value to the size of one output
+            partition permits one network request per block per partition.
 
         Notes
         -----
@@ -1734,7 +1753,7 @@ class BlockMatrix(object):
         :class:`.MatrixTable`
             Matrix table where each entry corresponds to an entry in the block matrix.
         """
-        t = self.to_table_row_major(n_partitions)
+        t = self.to_table_row_major(n_partitions, maximum_cache_memory_in_bytes)
         t = t.transmute(entries=t.entries.map(lambda i: hl.struct(element=i)))
         t = t.annotate_globals(cols=hl.array([hl.struct(col_idx=hl.int64(i)) for i in range(self.n_cols)]))
         return t._unlocalize_entries('entries', 'cols', ['col_idx'])

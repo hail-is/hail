@@ -85,7 +85,8 @@ compileScala {
         "-deprecation",
         "-unchecked",
         "-Xlint:-infer-any",
-        "-Xlint:-unsound-match"
+        "-Xlint:-unsound-match",
+        "-Xlint:-unused"
     ]
 
     scalaCompileOptions.forkOptions.with {
@@ -127,13 +128,22 @@ configurations {
     all {
         resolutionStrategy {
             componentSelection {
-	      withModule('org.scalanlp:breeze-natives_' + scalaMajorVersion) { ComponentSelection selection ->
-		  if (selection.candidate.getVersion() != breezeVersion()) {
-		    selection.reject()
-		  }
-	      }
+                withModule('org.scalanlp:breeze-natives_' + scalaMajorVersion) { ComponentSelection selection ->
+                    if (selection.candidate.getVersion() != breezeVersion()) {
+                        selection.reject()
+                    }
+                }
+	        }
+            eachDependency { DependencyResolveDetails details ->
+                if (details.requested.group == 'org.json4s') {
+                    // JSON4S 3.6.0+ contain a known bug (https://github.com/json4s/json4s/issues/507)
+                    details.useVersion('3.5.3')
+                } else if (details.requested.group == 'org.scalanlp' && details.requested.version == '1.0') {
+                    // Breeze 1.0 contains a known bug (https://github.com/scalanlp/breeze/issues/772)
+                    details.useVersion('1.1')
+                }
+            }
 	    }
-	}
     }
 
     compile.extendsFrom bundled, unbundled
@@ -164,10 +174,15 @@ dependencies {
     }
     unbundled 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
     unbundled 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
+
     bundled 'org.lz4:lz4-java:1.4.0'
-    bundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':+') {
-        transitive = false
+
+    // Breeze 1.0 has a known bug (https://github.com/scalanlp/breeze/issues/772)
+    unbundled 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion()
+    bundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion()) {
+        exclude module: 'commons-math3'
     }
+
     bundled 'com.github.fommil.netlib:all:1.1.2'
     bundled('com.github.samtools:htsjdk:2.21.0') {
         transitive = false
@@ -194,7 +209,7 @@ dependencies {
     }
 
     hailTest 'org.testng:testng:6.8.21'
-    hailTest 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
+    hailTest 'org.scalatest:scalatest_' + scalaMajorVersion + ':3.0.5'
 
     unbundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
     bundled group: 'commons-codec', name: 'commons-codec', version: '1.11'

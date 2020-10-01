@@ -5,6 +5,7 @@ import copy
 from functools import wraps
 import concurrent
 import asyncio
+import dictdiffer
 from aiohttp import web
 import aiohttp_session
 import kubernetes_asyncio as kube
@@ -16,7 +17,7 @@ from gear import (Database, setup_aiohttp_session,
                   transaction)
 from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
-from hailtop.utils import time_msecs, RateLimit
+from hailtop.utils import time_msecs, RateLimit, serialization
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop import aiogoogle
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
@@ -519,7 +520,7 @@ GROUP BY user;
         try:
             await check()  # pylint: disable=no-value-for-parameter
         except Exception as e:
-            app['check_incremental_error'] = e
+            app['check_incremental_error'] = serialization.exception_to_dict(e)
             log.exception('while checking incremental')
         await asyncio.sleep(10)
 
@@ -568,7 +569,7 @@ async def check_resource_aggregation(app, db):
     async def check(tx):
         attempt_resources = tx.execute_and_fetchall('''
 SELECT attempt_resources.batch_id, attempt_resources.job_id, attempt_resources.attempt_id,
-  JSON_OBJECTAGG(resource, quantity * COALESCE(end_time - start_time, 0)) as resources
+  JSON_OBJECTAGG(resource, quantity * GREATEST(COALESCE(end_time - start_time, 0), 0)) as resources
 FROM attempt_resources
 INNER JOIN attempts
 ON attempts.batch_id = attempt_resources.batch_id AND
@@ -608,15 +609,18 @@ LOCK IN SHARE MODE;
         attempt_by_job_resources = fold(attempt_resources, lambda k: (k[0], k[1]))
         job_by_batch_resources = fold(agg_job_resources, lambda k: k[0])
 
-        assert attempt_by_batch_resources == agg_batch_resources, (attempt_by_batch_resources, agg_batch_resources)
-        assert attempt_by_job_resources == agg_job_resources, (attempt_by_job_resources, agg_job_resources)
-        assert job_by_batch_resources == agg_batch_resources, (job_by_batch_resources, agg_batch_resources)
+        assert attempt_by_batch_resources == agg_batch_resources, (
+            dictdiffer.diff(attempt_by_batch_resources, agg_batch_resources), attempt_by_batch_resources, agg_batch_resources)
+        assert attempt_by_job_resources == agg_job_resources, (
+            dictdiffer.diff(attempt_by_job_resources, agg_job_resources), attempt_by_job_resources, agg_job_resources)
+        assert job_by_batch_resources == agg_batch_resources, (
+            dictdiffer.diff(job_by_batch_resources, agg_batch_resources), job_by_batch_resources, agg_batch_resources)
 
     while True:
         try:
             await check()  # pylint: disable=no-value-for-parameter
         except Exception as e:
-            app['check_resource_aggregation_error'] = e
+            app['check_resource_aggregation_error'] = serialization.exception_to_dict(e)
             log.exception('while checking resource aggregation')
         await asyncio.sleep(10)
 

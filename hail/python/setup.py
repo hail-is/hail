@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 from setuptools import setup, find_packages
 
 with open('hail/hail_pip_version') as f:
@@ -11,7 +12,12 @@ with open("README.md", "r") as fh:
 dependencies = []
 with open('requirements.txt', 'r') as f:
     for line in f:
-        dependencies.append(line.strip())
+        if line.startswith('pyspark') and os.path.exists('../env/SPARK_VERSION'):
+            with open('../env/SPARK_VERSION', 'r') as file:
+                spark_version = file.read()
+            dependencies.append(f'pyspark=={spark_version}')
+        else:
+            dependencies.append(line.strip())
 
 setup(
     name="hail",

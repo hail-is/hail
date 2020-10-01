@@ -210,6 +210,19 @@ class Tests(unittest.TestCase):
                 self.assertTrue(expected._same(actual))
 
     @fails_local_backend()
+    def test_to_table_maximum_cache_memory_in_bytes_limits(self):
+        bm = BlockMatrix._create(5, 2, [float(i) for i in range(10)], 2)
+        try:
+            bm.to_table_row_major(2, maximum_cache_memory_in_bytes=15)._force_count()
+        except Exception as exc:
+            assert 'BlockMatrixCachedPartFile must be able to hold at least one row of every block in memory' in exc.args[0]
+        else:
+            assert False
+
+        bm = BlockMatrix._create(5, 2, [float(i) for i in range(10)], 2)
+        bm.to_table_row_major(2, maximum_cache_memory_in_bytes=16)._force_count()
+
+    @fails_local_backend()
     def test_to_matrix_table(self):
         n_partitions = 2
         rows, cols = 2, 5

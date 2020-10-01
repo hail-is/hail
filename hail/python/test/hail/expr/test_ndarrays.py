@@ -329,6 +329,13 @@ def test_ndarray_map():
 
     assert hl.eval(hl.null(hl.tndarray(hl.tfloat, 1)).map(lambda x: x * 2)) is None
 
+    s = hl.nd.array(["hail", "is", "great"])
+    s_lens = s.map(lambda e: hl.len(e))
+    assert np.array_equal(hl.eval(s_lens), np.array([4, 2, 5]))
+
+    structs = hl.nd.array([hl.struct(x=5, y=True), hl.struct(x=9, y=False)])
+    assert np.array_equal(hl.eval(structs.map(lambda e: e.y)), np.array([True, False]))
+
 
 def test_ndarray_map2():
 

@@ -4,8 +4,8 @@ ifndef HAIL_WHEEL
 $(error HAIL_WHEEL is not set!)
 endif
 
-ifndef HAIL_VERSION
-$(error HAIL_VERSION is not set!)
+ifndef HAIL_PIP_VERSION
+$(error HAIL_PIP_VERSION is not set!)
 endif
 
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
@@ -13,10 +13,10 @@ SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 HAIL_PYTHON3 ?= python3
 PIP := $(HAIL_PYTHON3) -m pip
 
-BENCHMARK_WHEEL := python/dist/benchmark_hail-$(HAIL_VERSION)-py3-none-any.whl
+BENCHMARK_WHEEL := python/dist/benchmark_hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 .PHONY: wheel
 wheel:
-	cd python/ && HAIL_BENCHMARK_VERSION=$(HAIL_VERSION) $(HAIL_PYTHON3) setup.py -q bdist_wheel
+	cd python/ && HAIL_BENCHMARK_VERSION=$(HAIL_PIP_VERSION) $(HAIL_PYTHON3) setup.py -q bdist_wheel
 
 .PHONY: install
 install: wheel
@@ -57,7 +57,7 @@ pushed_image: image_sha
 
 BENCHMARK_ITERS ?= 3
 BENCHMARK_REPLICATES ?= 5
-HAIL_WHEEL_DESCRIPTOR ?= $(HAIL_VERSION)-$(SHORT_REVISION)
+HAIL_WHEEL_DESCRIPTOR ?= $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 BENCHMARK_BUCKET ?= gs://hail-benchmarks-2
 .PHONY: benchmark
 benchmark: pushed_image install

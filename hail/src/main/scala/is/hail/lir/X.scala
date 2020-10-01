@@ -9,7 +9,7 @@ import org.objectweb.asm.Opcodes._
 
 // FIXME move typeinfo stuff lir
 
-class Classx[C](val name: String, val superName: String) {
+class Classx[C](val name: String, val superName: String, val sourceFile: Option[String]) {
   val ti: TypeInfo[C] = new ClassInfo[C](name)
 
   val methods: mutable.ArrayBuffer[Method] = new mutable.ArrayBuffer()
@@ -176,7 +176,7 @@ class Method private[lir] (
   def findBlocks(): Blocks = {
     val blocksb = new ArrayBuilder[Block]()
 
-    val s = new mutable.Stack[Block]()
+    val s = new ArrayStack[Block]()
     val visited = mutable.Set[Block]()
 
     s.push(entry)
@@ -438,6 +438,8 @@ abstract class X {
 
   var children: Array[ValueX] = new Array(0)
 
+  val lineNumber: Int
+
   def setArity(n: Int): Unit = {
     var i = n
     while (i < children.length) {
@@ -608,7 +610,7 @@ abstract class ValueX extends X {
   }
 }
 
-class GotoX extends ControlX {
+class GotoX(val lineNumber: Int = 0) extends ControlX {
   private var _L: Block = _
 
   def L: Block = _L
@@ -632,7 +634,7 @@ class GotoX extends ControlX {
   }
 }
 
-class IfX(val op: Int) extends ControlX {
+class IfX(val op: Int, val lineNumber: Int = 0) extends ControlX {
   private var _Ltrue: Block = _
   private var _Lfalse: Block = _
 
@@ -673,7 +675,7 @@ class IfX(val op: Int) extends ControlX {
   }
 }
 
-class SwitchX() extends ControlX {
+class SwitchX(val lineNumber: Int = 0) extends ControlX {
   private var _Ldefault: Block = _
 
   private var _Lcases: Array[Block] = Array.empty[Block]
@@ -738,13 +740,13 @@ class SwitchX() extends ControlX {
   }
 }
 
-class StoreX(var l: Local) extends StmtX
+class StoreX(var l: Local, val lineNumber: Int = 0) extends StmtX
 
-class PutFieldX(val op: Int, val f: FieldRef) extends StmtX
+class PutFieldX(val op: Int, val f: FieldRef, val lineNumber: Int = 0) extends StmtX
 
-class IincX(var l: Local, val i: Int) extends StmtX
+class IincX(var l: Local, val i: Int, val lineNumber: Int = 0) extends StmtX
 
-class ReturnX() extends ControlX {
+class ReturnX(val lineNumber: Int = 0) extends ControlX {
   def targetArity(): Int = 0
 
   def target(i: Int): Block = throw new IndexOutOfBoundsException()
@@ -752,7 +754,7 @@ class ReturnX() extends ControlX {
   def setTarget(i: Int, b: Block): Unit = throw new IndexOutOfBoundsException()
 }
 
-class ThrowX() extends ControlX {
+class ThrowX(val lineNumber: Int = 0) extends ControlX {
   def targetArity(): Int = 0
 
   def target(i: Int): Block = throw new IndexOutOfBoundsException()
@@ -760,11 +762,11 @@ class ThrowX() extends ControlX {
   def setTarget(i: Int, b: Block): Unit = throw new IndexOutOfBoundsException()
 }
 
-class StmtOpX(val op: Int) extends StmtX
+class StmtOpX(val op: Int, val lineNumber: Int = 0) extends StmtX
 
-class MethodStmtX(val op: Int, val method: MethodRef) extends StmtX
+class MethodStmtX(val op: Int, val method: MethodRef, val lineNumber: Int = 0) extends StmtX
 
-class TypeInsnX(val op: Int, val t: String) extends ValueX {
+class TypeInsnX(val op: Int, val t: String, val lineNumber: Int = 0) extends ValueX {
   def ti: TypeInfo[_] = {
     assert(op == CHECKCAST)
     // FIXME, ClassInfo should take the internal name
@@ -772,7 +774,7 @@ class TypeInsnX(val op: Int, val t: String) extends ValueX {
   }
 }
 
-class InsnX(val op: Int, _ti: TypeInfo[_]) extends ValueX {
+class InsnX(val op: Int, _ti: TypeInfo[_], val lineNumber: Int = 0) extends ValueX {
   def ti: TypeInfo[_] = {
     if (_ti != null)
       return _ti
@@ -846,26 +848,26 @@ class InsnX(val op: Int, _ti: TypeInfo[_]) extends ValueX {
   }
 }
 
-class LoadX(var l: Local) extends ValueX {
+class LoadX(var l: Local, val lineNumber: Int = 0) extends ValueX {
   def ti: TypeInfo[_] = l.ti
 }
 
-class GetFieldX(val op: Int, val f: FieldRef) extends ValueX {
+class GetFieldX(val op: Int, val f: FieldRef, val lineNumber: Int = 0) extends ValueX {
   def ti: TypeInfo[_] = f.ti
 }
 
-class NewArrayX(val eti: TypeInfo[_]) extends ValueX {
+class NewArrayX(val eti: TypeInfo[_], val lineNumber: Int = 0) extends ValueX {
   def ti: TypeInfo[_] = arrayInfo(eti)
 }
 
-class NewInstanceX(val ti: TypeInfo[_], val ctor: MethodRef) extends ValueX
+class NewInstanceX(val ti: TypeInfo[_], val ctor: MethodRef, val lineNumber: Int = 0) extends ValueX
 
-class LdcX(val a: Any, val ti: TypeInfo[_]) extends ValueX {
+class LdcX(val a: Any, val ti: TypeInfo[_], val lineNumber: Int = 0) extends ValueX {
   assert(
     a.isInstanceOf[String] || a.isInstanceOf[Double] || a.isInstanceOf[Float] || a.isInstanceOf[Int] || a.isInstanceOf[Long],
     s"not a string, double, float, int, or long: $a")
 }
 
-class MethodX(val op: Int, val method: MethodRef) extends ValueX {
+class MethodX(val op: Int, val method: MethodRef, val lineNumber: Int = 0) extends ValueX {
   def ti: TypeInfo[_] = method.returnTypeInfo
 }

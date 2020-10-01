@@ -71,41 +71,35 @@ package object lir {
     x
   }
 
-  def store(l: Local): (ValueX) => StmtX = (c) => store(l, c)
-
-  def store(l: Local, c: ValueX): StmtX = {
-    val x = new StoreX(l)
+  def store(l: Local, c: ValueX, lineNumber: Int = 0): StmtX = {
+    val x = new StoreX(l, lineNumber)
     setChildren(x, c)
     x
   }
 
   def iincInsn(l: Local, i: Int): StmtX = new IincX(l, i)
 
-  def insn1(op: Int): (ValueX) => ValueX = (c) => insn(op, c)
+  def insn0(op: Int): ValueX = insn(op, null, FastIndexedSeq.empty)
 
-  def insn1(op: Int, _ti: TypeInfo[_]): (ValueX) => ValueX = (c) => insn(op, _ti, c)
+  def insn0(op: Int, _ti: TypeInfo[_]): ValueX = insn(op, _ti, FastIndexedSeq.empty)
 
-  def insn2(op: Int): (ValueX, ValueX) => ValueX = (c1, c2) => insn(op, c1, c2)
+  def insn1(op: Int): (ValueX) => ValueX = (c) =>
+    insn(op, null, FastIndexedSeq(c))
 
-  def insn3(op: Int): (ValueX, ValueX, ValueX) => ValueX = (c1, c2, c3) => insn(op, c1, c2, c3)
+  def insn1(op: Int, _ti: TypeInfo[_], lineNumber: Int = 0): (ValueX) => ValueX = (c) =>
+    insn(op, _ti, FastIndexedSeq(c), lineNumber)
 
-  def insn(op: Int, _ti: TypeInfo[_], args: IndexedSeq[ValueX]): ValueX = {
-    val x = new InsnX(op, _ti)
+  def insn2(op: Int): (ValueX, ValueX) => ValueX = (c1, c2) =>
+    insn(op, null, FastIndexedSeq(c1, c2))
+
+  def insn3(op: Int): (ValueX, ValueX, ValueX) => ValueX = (c1, c2, c3) =>
+    insn(op, null, FastIndexedSeq(c1, c2, c3))
+
+  def insn(op: Int, _ti: TypeInfo[_], args: IndexedSeq[ValueX], lineNumber: Int = 0): ValueX = {
+    val x = new InsnX(op, _ti, lineNumber)
     setChildren(x, args)
     x
   }
-
-  def insn(op: Int): ValueX = insn(op, null, FastIndexedSeq.empty)
-
-  def insn(op: Int, _ti: TypeInfo[_]): ValueX = insn(op, _ti, FastIndexedSeq.empty)
-
-  def insn(op: Int, c: ValueX): ValueX = insn(op, null, FastIndexedSeq(c))
-
-  def insn(op: Int, _ti: TypeInfo[_], c: ValueX): ValueX = insn(op, _ti, FastIndexedSeq(c))
-
-  def insn(op: Int, c1: ValueX, c2: ValueX): ValueX = insn(op, null, FastIndexedSeq(c1, c2))
-
-  def insn(op: Int, c1: ValueX, c2: ValueX, c3: ValueX): ValueX = insn(op, null, FastIndexedSeq(c1, c2, c3))
 
   def stmtOp3(op: Int): (ValueX, ValueX, ValueX) => StmtX = (c1, c2, c3) => stmtOp(op, c1, c2, c3)
 
@@ -115,8 +109,8 @@ package object lir {
     x
   }
 
-  def throwx(c: ValueX): ControlX = {
-    val x = new ThrowX()
+  def throwx(c: ValueX, lineNumber: Int = 0): ControlX = {
+    val x = new ThrowX(lineNumber)
     setChildren(x, c)
     x
   }
@@ -240,14 +234,25 @@ package object lir {
     ti: TypeInfo[_],
     owner: String, name: String, desc: String, returnTypeInfo: TypeInfo[_],
     args: IndexedSeq[ValueX]
+  ): ValueX =
+    newInstance(ti, owner, name, desc, returnTypeInfo, args, 0)
+
+  def newInstance(
+    ti: TypeInfo[_],
+    owner: String, name: String, desc: String, returnTypeInfo: TypeInfo[_],
+    args: IndexedSeq[ValueX],
+    lineNumber: Int
   ): ValueX = {
-    val x = new NewInstanceX(ti, new MethodLit(owner, name, desc, isInterface = false, returnTypeInfo))
+    val x = new NewInstanceX(ti, new MethodLit(owner, name, desc, isInterface = false, returnTypeInfo), lineNumber)
     setChildren(x, args)
     x
   }
 
-  def newInstance(ti: TypeInfo[_], method: Method, args: IndexedSeq[ValueX]): ValueX = {
-    val x = new NewInstanceX(ti, method)
+  def newInstance(ti: TypeInfo[_], method: Method, args: IndexedSeq[ValueX]): ValueX =
+    newInstance(ti, method, args, 0)
+
+  def newInstance(ti: TypeInfo[_], method: Method, args: IndexedSeq[ValueX], lineNumber: Int): ValueX = {
+    val x = new NewInstanceX(ti, method, lineNumber)
     setChildren(x, args)
     x
   }
@@ -270,7 +275,7 @@ package object lir {
     case LongInfo => ldcInsn(0L, ti)
     case FloatInfo => ldcInsn(0.0f, ti)
     case DoubleInfo => ldcInsn(0.0, ti)
-    case _: ClassInfo[_] => insn(ACONST_NULL, ti)
-    case _: ArrayInfo[_] => insn(ACONST_NULL, ti)
+    case _: ClassInfo[_] => insn0(ACONST_NULL, ti)
+    case _: ArrayInfo[_] => insn0(ACONST_NULL, ti)
   }
 }

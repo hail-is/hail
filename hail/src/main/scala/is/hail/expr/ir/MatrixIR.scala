@@ -60,7 +60,7 @@ object MatrixLiteral {
     MatrixLiteral(typ,
       TableLiteral(
         TableValue(ctx, tt,
-          BroadcastRow(ctx, Row.merge(globals, Row(colValues)), typ.canonicalTableType.globalType),
+          BroadcastRow(ctx, Row.fromSeq(globals.toSeq :+ colValues), typ.canonicalTableType.globalType),
           rvd)))
   }
 }
