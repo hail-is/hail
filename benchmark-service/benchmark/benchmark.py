@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 from hailtop.utils import retry_long_running
 import gidgethub
+import gidgethub.aiohttp
 
 configure_logging()
 router = web.RouteTableDef()
