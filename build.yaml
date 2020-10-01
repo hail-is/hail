@@ -604,7 +604,7 @@ steps:
      cpu: "4"
    script: |
      set -ex
-     cd /io
+     cd /
      rm -rf repo
      mkdir repo
      cd repo
