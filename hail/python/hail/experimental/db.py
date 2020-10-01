@@ -136,6 +136,7 @@ class Dataset:
             Boolean indicating whether or not dataset is from a :class:`.DB` object
             using a custom configuration or url. If `True`, method will not
             check for region.
+
         Returns
         -------
         :class:`Dataset`
