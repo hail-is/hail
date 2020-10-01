@@ -178,7 +178,9 @@ dependencies {
     bundled 'org.lz4:lz4-java:1.4.0'
 
     // Breeze 1.0 has a known bug (https://github.com/scalanlp/breeze/issues/772)
-    unbundled 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion()
+    unbundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion()) {
+        exclude module: 'commons-math3'
+    }
     bundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion())
 
     bundled 'com.github.fommil.netlib:all:1.1.2'
