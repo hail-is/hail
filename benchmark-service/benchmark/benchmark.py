@@ -21,9 +21,6 @@ import pandas as pd
 from hailtop.utils import retry_long_running
 import gidgethub
 
-with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
-    oauth_token = f.read().strip()
-
 configure_logging()
 router = web.RouteTableDef()
 logging.basicConfig(level=logging.DEBUG)
@@ -233,6 +230,8 @@ async def github_polling_loop(app):
 
 
 async def on_startup(app):
+    with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+        oauth_token = f.read().strip()
     app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
                                                        'hail-is/hail',
