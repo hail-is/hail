@@ -33,6 +33,10 @@ def parser():
         'config-location',
         help='Print the location of the config file',
         description='Print the location of the config file')
+    list_parser = subparsers.add_parser(
+        'list',
+        help='lists every config variable in the section (default: all sections)',
+        description='lists every config variable in the section (default: all sections)')
 
     set_parser.set_defaults(module='set')
     set_parser.add_argument("parameter", type=str,
@@ -50,7 +54,21 @@ def parser():
 
     config_location_parser.set_defaults(module='config-location')
 
+    list_parser.set_defaults(module='list')
+    list_parser.add_argument('section', type=str, nargs='?',
+                             help='Section to list (default: all sections)')
+
     return main_parser
+
+
+def list_config(config, section: str):
+    if section:
+        for key, value in config.items(section):
+            print(f'{key}={value}')
+    else:
+        for sname, items in config.items():
+            for key, value in items.items():
+                print(f'{sname}/{key}={value}')
 
 
 def main(args):
@@ -65,6 +83,9 @@ def main(args):
         sys.exit(0)
 
     config = get_user_config()
+    if args.module == 'list':
+        list_config(config, args.section)
+        sys.exit(0)
 
     path = args.parameter.split('/')
     if len(path) == 1:
