@@ -1,28 +1,32 @@
-.. _Ensembl_homo_sapiens_low_complexity_regions:
+.. _gencode:
 
-Ensembl_homo_sapiens_low_complexity_regions
-===========================================
+gencode
+=======
 
-*  **Versions:** release_95
+*  **Versions:** v19, v31
 *  **Reference genome builds:** GRCh37, GRCh38
 *  **Type:** :class:`Table`
 
-Schema (release_95, GRCh37)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Schema (v19, GRCh37)
+~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: text
 
     ----------------------------------------
     Global fields:
-        'metadata': struct {
-            name: str,
-            version: str,
-            reference_genome: str,
-            n_partitions: int32
-        }
+        None
     ----------------------------------------
     Row fields:
         'interval': interval<locus<GRCh37>>
+        'ID': str
+        'gene_id': str
+        'gene_name': str
+        'gene_type': str
+        'level': str
+        'type': str
+        'gene_score': str
+        'gene_strand': str
+        'gene_phase': str
     ----------------------------------------
     Key: ['interval']
     ----------------------------------------

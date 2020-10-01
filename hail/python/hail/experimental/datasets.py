@@ -45,28 +45,37 @@ def load_dataset(name,
     with open(config_path) as f:
         datasets = json.load(f)
 
-    names = set([dataset['name'] for dataset in datasets])
+    names = set([dataset for dataset in datasets])
     if name not in names:
         raise ValueError('{} is not a dataset available in the repository.'.format(repr(name)))
 
-    versions = set([dataset['version'] for dataset in datasets if dataset['name'] == name])
+    versions = set(dataset['version'] for dataset in datasets[name]['versions'])
     if version not in versions:
         raise ValueError("""Version {0} not available for dataset {1}.
                             Available versions: {{{2}}}.""".format(repr(version),
                                                                    repr(name),
                                                                    repr('","'.join(versions))))
 
-    reference_genomes = set([dataset['reference_genome'] for dataset in datasets if dataset['name'] == name])
+    reference_genomes = set(dataset['reference_genome'] for dataset in datasets[name]['versions'])
     if reference_genome not in reference_genomes:
         raise ValueError("""Reference genome build {0} not available for dataset {1}.
                             Available reference genome builds: {{'{2}'}}.""".format(repr(reference_genome),
                                                                                     repr(name),
-                                                                                    '\',\''.join((reference_genomes))))
+                                                                                    '\',\''.join(reference_genomes)))
 
-    path = [dataset['path'] for dataset in datasets if all([dataset['name'] == name,
-                                                            dataset['version'] == version,
-                                                            dataset['reference_genome'] == reference_genome])][0].strip('/')
-    path = path.format(region=region)
+    regions = set(k for dataset in datasets[name]['versions'] for k in dataset['url'].keys())
+    if region not in regions:
+        raise ValueError("""Region {0} not available for dataset {1}.
+                            Available regions: {{{2}}}.""".format(repr(region),
+                                                                  repr(name),
+                                                                  repr('","'.join(regions))))
+
+    path = [dataset['url'][region]
+            for dataset in datasets[name]['versions']
+            if all([dataset['version'] == version,
+                    dataset['reference_genome'] == reference_genome])]
+    assert len(path) == 1
+    path = path[0]
 
     if path.endswith('.ht'):
         dataset = hl.read_table(path)

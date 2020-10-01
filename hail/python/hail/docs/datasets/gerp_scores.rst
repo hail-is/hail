@@ -1,14 +1,14 @@
-.. _Ensembl_homo_sapiens_reference_genome:
+.. _gerp_scores:
 
-Ensembl_homo_sapiens_reference_genome
-=====================================
+gerp_scores
+===========
 
-*  **Versions:** release_95
+*  **Versions:** hg19
 *  **Reference genome builds:** GRCh37, GRCh38
 *  **Type:** :class:`Table`
 
-Schema (release_95, GRCh37)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Schema (hg19, GRCh37)
+~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: text
 
@@ -23,7 +23,8 @@ Schema (release_95, GRCh37)
     ----------------------------------------
     Row fields:
         'locus': locus<GRCh37>
-        'reference_allele': str
+        'N': float64
+        'S': float64
     ----------------------------------------
     Key: ['locus']
     ----------------------------------------

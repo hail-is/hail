@@ -6,7 +6,7 @@
 Datasets
 ========
 
-.. warning:: 
+.. warning::
     All functionality described on this page is experimental.
     Datasets and method are subject to change.
 
@@ -37,6 +37,19 @@ Name                                                Versions   Reference Genomes
 :ref:`UK_Biobank_Rapid_GWAS_both_sexes`             v2          GRCh37
 :ref:`UK_Biobank_Rapid_GWAS_female`                 v2          GRCh37
 :ref:`UK_Biobank_Rapid_GWAS_male`                   v2          GRCh37
+:ref:`clinvar_gene_summary`                         2019-07     None
+:ref:`clinvar_variant_summary`                      2019-07     GRCh37, GRCh38
+:ref:`dbNSFP_genes`                                 4.0         None
+:ref:`dbNSFP_variants`                              4.0         GRCh37, GRCh38
+:ref:`gencode`                                      v19, v31    GRCh37, GRCh38
+:ref:`gerp_elements`                                hg19        GRCh37, GRCh38
+:ref:`gerp_scores`                                  hg19        GRCh37, GRCh38
+:ref:`gnomad_exome_sites`                           2.1.1       GRCh37, GRCh38
+:ref:`gnomad_genome_sites`                          2.1.1       GRCh37, GRCh38
+:ref:`gnomad_lof_metrics`                           2.1.1       GRCh37, GRCh38
+:ref:`ldsc_baselineLD_annotations`                  2.2         GRCh37
+:ref:`ldsc_baselineLD_ldscores`                     2.2         GRCh37
+:ref:`ldsc_baseline_ldscores`                       1.1         GRCh37
 =================================================== ========== =================
 
 .. toctree::
@@ -56,3 +69,16 @@ Name                                                Versions   Reference Genomes
     datasets/UK_Biobank_Rapid_GWAS_both_sexes.rst
     datasets/UK_Biobank_Rapid_GWAS_female.rst
     datasets/UK_Biobank_Rapid_GWAS_male.rst
+    datasets/clinvar_gene_summary.rst
+    datasets/clinvar_variant_summary.rst
+    datasets/dbNSFP_genes.rst
+    datasets/dbNSFP_variants.rst
+    datasets/gencode.rst
+    datasets/gerp_elements.rst
+    datasets/gerp_scores.rst
+    datasets/gnomad_exome_sites.rst
+    datasets/gnomad_genome_sites.rst
+    datasets/gnomad_lof_metrics.rst
+    datasets/ldsc_baselineLD_annotations.rst
+    datasets/ldsc_baselineLD_ldscores.rst
+    datasets/ldsc_baseline_ldscores.rst
