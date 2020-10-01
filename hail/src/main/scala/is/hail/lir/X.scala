@@ -2,6 +2,8 @@ package is.hail.lir
 
 import java.io.PrintWriter
 
+import is.hail.HailContext
+
 import scala.collection.mutable
 import is.hail.asm4s._
 import is.hail.utils._
@@ -63,7 +65,10 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
       SimplifyControl(m)
     }
 
-    saveToFile(s"/tmp/hail/${name}.lir")
+    val writeIRs = HailContext.getFlag("write_ir_files") != null
+    println(writeIRs)
+
+    if (writeIRs) saveToFile(s"/tmp/hail/${name}.lir")
 
     for (m <- methods) {
       if (m.name != "<init>"
@@ -98,7 +103,7 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
       InitializeLocals(m, blocks, locals, liveness)
     }
 
-    saveToFile(s"/tmp/hail/${name}.split.lir")
+    if (writeIRs) saveToFile(s"/tmp/hail/${name}.split.lir")
 
     // println(Pretty(this, saveLineNumbers = false))
     classes.iterator.map { c =>
@@ -107,10 +112,12 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
         // Some(new PrintWriter(System.out))
       )
 
-      val classFile = new java.io.File(s"/tmp/hail/${c.name}.class")
-      classFile.getParentFile.mkdirs()
-      using (new java.io.FileOutputStream(classFile)) { fos =>
-        fos.write(bytes)
+      if (writeIRs) {
+        val classFile = new java.io.File(s"/tmp/hail/${c.name}.class")
+        classFile.getParentFile.mkdirs()
+        using (new java.io.FileOutputStream(classFile)) { fos =>
+          fos.write(bytes)
+        }
       }
 
       (c.name.replace("/", "."), bytes)
