@@ -611,7 +611,8 @@ steps:
      {{ code.checkout_script }}
      cd hail
      time retry ./gradlew --version
-     time retry SPARK_VERSION=3.0.0 make jars python-version-info wheel
+     export SPARK_VERSION="3.0.0"
+     time retry make jars python-version-info wheel
    dependsOn:
      - hail_build_image
  - kind: buildImage
