@@ -384,9 +384,6 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         raise ValueError("'linear_regression_rows_nd': found no values for 'y'")
     is_chained = y_is_list and isinstance(y[0], list)
 
-    if is_chained:
-        raise ValueError("linear_regression_rows_nd does not currently support chained linear regression.")
-
     if is_chained and any(len(lst) == 0 for lst in y):
         raise ValueError("'linear_regression_rows': found empty inner list for 'y'")
 
@@ -424,6 +421,9 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     entries_field_name = 'ent'
     sample_field_name = "by_sample"
 
+    if not is_chained:
+        y_field_names = [y_field_names]
+
     def all_defined(struct_root, field_names):
         defined_array = hl.array([hl.is_defined(struct_root[field_name]) for field_name in field_names])
         return defined_array.all(lambda a: a)
@@ -440,17 +440,45 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     def dot_rows_with_themselves(matrix):
         return (matrix * matrix) @ hl.nd.ones(matrix.shape[1])
 
+    def combine_ndarrays(list_of_ndarrays):
+        prepended_shapes = [hl.tuple(1, *nd.shape) for nd in list_of_ndarrays]
+        reshaped = [nd.reshape(new_shape) for nd, new_shape in zip(list_of_ndarrays, prepended_shapes)]
+        return hl.nd.vstack(list_of_ndarrays)
+
+    def array_from_struct(struct, field_names):
+        return hl.array([struct[field_name] for field_name in field_names])
+
     ht_local = mt._localize_entries(entries_field_name, sample_field_name)
 
     ht = ht_local.transmute(**{entries_field_name: ht_local[entries_field_name][x_field_name]})
 
-    ys_and_covs_to_keep_with_indices = hl.enumerate(ht[sample_field_name]).filter(lambda struct_with_index: all_defined(struct_with_index[1], y_field_names + cov_field_names))
-    indices_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[0])
-    ys_and_covs_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[1])
+    # Need to actually do this once per list in y_fields
+    list_of_ys_and_covs_to_keep_with_indices = [hl.enumerate(ht[sample_field_name]).filter(
+        lambda struct_with_index: all_defined(struct_with_index[1], one_y_field_name_set + cov_field_names))
+    for one_y_field_name_set in y_field_names]
 
-    cov_nd = hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[cov_name] for cov_name in cov_field_names]))) if cov_field_names else hl.nd.zeros((hl.len(indices_to_keep), 0))
+    def make_one_cov_matrix(ys_and_covs_to_keep_with_indices):
+        ys_and_covs_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[1])
+
+        return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, cov_field_names))) if cov_field_names else hl.nd.zeros((hl.len(ys_and_covs_to_keep), 0))
+
+    def make_one_y_matrix(ys_and_covs_to_keep_with_indices, one_y_field_name_set):
+        ys_and_covs_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[1])
+
+        return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, one_y_field_name_set)))
+
+    list_of_indices_to_keep = [inner_list.map(lambda pair: pair[0]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
+
+    indices_to_keep = list_of_indices_to_keep[0]
+
+    cov_nds = [make_one_cov_matrix(ys_and_covs_to_keep_with_indices) for ys_and_covs_to_keep_with_indices in list_of_ys_and_covs_to_keep_with_indices]
+    cov_nd = cov_nds[0]
+
+    y_nds = [make_one_y_matrix(ys_and_covs_to_keep_with_indices, one_y_field_name_set) for ys_and_covs_to_keep_with_indices, one_y_field_name_set in zip(list_of_ys_and_covs_to_keep_with_indices, y_field_names)]
+    y_nd = y_nds[0]
+
     ht = ht.annotate_globals(kept_samples=indices_to_keep,
-                             __y_nd=hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[y_name] for y_name in y_field_names]))),
+                             __y_nd=y_nd,
                              __cov_nd=cov_nd)
     k = builtins.len(covariates)
     n = hl.len(ht.kept_samples)
