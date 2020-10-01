@@ -929,7 +929,10 @@ LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 16 > {self.user_password_fil
         create_database_script = f'''
 set -ex
 
-python3 create_database.py {shq(json.dumps(create_database_config))}
+create_database_config={shq(json.dumps(create_database_config, indent=2))}
+python3 create_database.py <<EOF
+$create_database_config
+EOF
 '''
 
         input_files = []
