@@ -4,7 +4,6 @@ import argparse
 
 from . import config
 from . import deploy
-from . import query
 
 
 def parser():
@@ -27,13 +26,6 @@ def parser():
 
     deploy.cli.init_parser(deploy_parser)
 
-    query_parser = subparsers.add_parser(
-        'query',
-        help='Set dev settings on query service',
-        description='Set dev settings on query service')
-
-    query.cli.init_parser(query_parser)
-
     return main_parser
 
 
@@ -51,10 +43,6 @@ def main(args):
             cli.main(args)
         elif module == 'config':
             from .config import cli  # pylint: disable=import-outside-toplevel
-            args, _ = p.parse_known_args(args=args)
-            cli.main(args)
-        elif module == 'query':
-            from .query import cli  # pylint: disable=import-outside-toplevel
             args, _ = p.parse_known_args(args=args)
             cli.main(args)
         elif module in ('-h', '--help', 'help'):
