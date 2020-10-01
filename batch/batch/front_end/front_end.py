@@ -1047,13 +1047,13 @@ async def ui_batches(request, userdata):
             return None
 
         record = batch_record_to_dict(record)
-        record['time_created'] = _time_msecs_str(record['time_created'])
-        record['time_closed'] = _time_msecs_str(record['time_closed'])
-        record['time_completed'] = _time_msecs_str(record['time_completed'])
         if record['time_closed'] and record['time_completed']:
             duration = humanize_timedelta_msecs(record['time_completed'] - record['time_closed'])
         else:
             duration = None
+        record['time_created'] = _time_msecs_str(record['time_created'])
+        record['time_closed'] = _time_msecs_str(record['time_closed'])
+        record['time_completed'] = _time_msecs_str(record['time_completed'])
         record['duration'] = duration
         record['cost'] = cost_str(record['cost'])
 
