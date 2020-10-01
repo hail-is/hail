@@ -93,8 +93,8 @@ def submit(hail_code: Commit,
     sys.path.insert(0, f'{benchmark_code.repo_dir()}/benchmark/python/benchmark_hail')
 
     importlib.invalidate_caches  # pylint: disable=pointless-statement
-    from benchmark_hail.run.resources import all_resources  # pylint: disable=import-error
-    from benchmark_hail.run.utils import list_benchmarks  # pylint: disable=import-error
+    from benchmark_hail.run.resources import all_resources  # pylint: disable=import-error, import-outside-toplevel
+    from benchmark_hail.run.utils import list_benchmarks  # pylint: disable=import-error, import-outside-toplevel
 
     output_file = f'gs://hail-benchmarks-2/benchmark/{hail_code.sha}-{benchmark_code.sha}.json'
 
