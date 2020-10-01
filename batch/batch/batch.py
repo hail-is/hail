@@ -5,9 +5,7 @@ import aiohttp
 import base64
 import traceback
 
-from hailtop.utils import (
-    time_msecs, sleep_and_backoff, is_transient_error,
-    time_msecs_str, humanize_timedelta_msecs, cost_str)
+from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error
 from hailtop.tls import in_cluster_ssl_client_session
 
 from .globals import complete_states, tasks, STATUS_FORMAT_VERSION
