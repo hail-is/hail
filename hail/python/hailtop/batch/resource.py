@@ -3,7 +3,7 @@ import abc
 from shlex import quote as shq
 from typing import Optional, Set
 
-from .utils import BatchException
+from .exceptions import BatchException
 from . import job  # pylint: disable=cyclic-import
 
 
@@ -95,7 +95,7 @@ class InputResourceFile(ResourceFile):
     >>> b.run()
     """
 
-    def __init__(self, value):
+    def __init__(self, value, source):
         self._input_path = None
         super().__init__(value)
 

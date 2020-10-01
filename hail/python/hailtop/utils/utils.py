@@ -62,6 +62,13 @@ def secret_alnum_string(n=22, *, case=None):
     return ''.join([secrets.choice(alphabet) for _ in range(n)])
 
 
+def digits_needed(i: int):
+    assert i >= 0
+    if i < 10:
+        return 1
+    return 1 + digits_needed(i // 10)
+
+
 def grouped(n, ls):
     while len(ls) != 0:
         group = ls[:n]
