@@ -575,7 +575,7 @@ steps:
        to: /hail.jar
      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
        to: /hail-test.jar
-     - from: build/debug_libs/hail-all-spark-test.jar
+     - from: /io/repo/hail/build/debug_libs/hail-all-spark-test.jar
        to: /hail-debug-test.jar
      - from: /io/repo/hail/testng-build.xml
        to: /testng-build.xml
