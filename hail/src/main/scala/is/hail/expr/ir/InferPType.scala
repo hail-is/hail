@@ -120,7 +120,7 @@ object InferPType {
     }
     node._pType = node match {
       case x if x.typ == TVoid => PVoid
-      case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | _: UUID4 | _: Literal | _: EncodedLiteral | _: True | _: False
+      case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | _: UUID4 | _: Literal | _: True | _: False
            | _: Cast | _: NA | _: Die | _: IsNA | _: ArrayZeros | _: ArrayLen | _: StreamLen
            | _: LowerBoundOnOrderedCollection | _: ApplyBinaryPrimOp
            | _: ApplyUnaryPrimOp | _: ApplyComparisonOp | _: WriteValue
