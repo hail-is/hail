@@ -2,7 +2,7 @@ package is.hail.types.encoded
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.expr.ir.{EmitCodeBuilder}
 import is.hail.types.BaseType
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -16,8 +16,10 @@ class EFloat64(override val required: Boolean) extends EFundamentalType {
   def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
     cb += out.writeDouble(coerce[Double](v))
   }
-def _buildFundamentalDecoder( pt: PType,
-    mb: EmitMethodBuilder[_],
+
+  def _buildFundamentalDecoder(
+    cb: EmitCodeBuilder,
+    pt: PType,
     region: Value[Region],
     in: Value[InputBuffer]
   ): Code[Double] = in.readDouble()

@@ -2,7 +2,7 @@ package is.hail.types.encoded
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.expr.ir.{EmitCodeBuilder}
 import is.hail.types.BaseType
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -22,20 +22,17 @@ class EBinary(override val required: Boolean) extends EFundamentalType {
   }
 
   def _buildFundamentalDecoder(
+    cb: EmitCodeBuilder,
     pt: PType,
-    mb: EmitMethodBuilder[_],
     region: Value[Region],
     in: Value[InputBuffer]
   ): Code[_] = {
-    val len = mb.newLocal[Int]("len")
-    val barray = mb.newLocal[Long]("barray")
     val bT = pt.asInstanceOf[PBinary]
-    Code(
-      len := in.readInt(),
-      barray := bT.allocate(region, len),
-      bT.storeLength(barray, len),
-      in.readBytes(region, bT.bytesAddress(barray), len),
-      barray.load())
+    val len = cb.newLocal[Int]("len", in.readInt())
+    val barray = cb.newLocal[Long]("barray", bT.allocate(region, len))
+    cb += bT.storeLength(barray, len)
+    cb += in.readBytes(region, bT.bytesAddress(barray), len)
+    barray.load()
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {

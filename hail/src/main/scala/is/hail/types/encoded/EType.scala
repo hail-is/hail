@@ -76,10 +76,11 @@ abstract class EType extends BaseType with Serializable with Requiredness {
       FastIndexedSeq[ParamType](typeInfo[Region], classInfo[InputBuffer]),
       typeToTypeInfo(pt)) { mb =>
 
-      val region: Value[Region] = mb.getCodeParam[Region](1)
-      val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](2)
-      val dec = _buildDecoder(pt, mb, region, in)
-      mb.emit(dec)
+      mb.emitWithBuilder { cb =>
+        val region: Value[Region] = mb.getCodeParam[Region](1)
+        val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](2)
+        _buildDecoder(cb, pt, region, in)
+      }
     }
   }
 
@@ -95,11 +96,13 @@ abstract class EType extends BaseType with Serializable with Requiredness {
       FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Long], classInfo[InputBuffer]),
       UnitInfo)({ mb =>
 
-      val region: Value[Region] = mb.getCodeParam[Region](1)
-      val addr: Value[Long] = mb.getCodeParam[Long](2)
-      val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](3)
-      val dec = _buildInplaceDecoder(pt.encodableType, mb, region, addr, in)
-      mb.emit(dec)
+      mb.emitWithBuilder { cb =>
+        val region: Value[Region] = mb.getCodeParam[Region](1)
+        val addr: Value[Long] = mb.getCodeParam[Long](2)
+        val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](3)
+        _buildInplaceDecoder(cb, pt.encodableType, region, addr, in)
+        Code._empty
+      }
     })
   }
 
@@ -119,18 +122,18 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit
 
-  def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_]
+  def _buildDecoder(cb: EmitCodeBuilder, pt: PType, region: Value[Region], in: Value[InputBuffer]): Code[_]
 
   def _buildInplaceDecoder(
+    cb: EmitCodeBuilder,
     pt: PType,
-    mb: EmitMethodBuilder[_],
     region: Value[Region],
     addr: Value[Long],
     in: Value[InputBuffer]
-  ): Code[_] = {
+  ): Unit = {
     assert(!pt.isInstanceOf[PBaseStruct]) // should be overridden for structs
-    val decoded = _buildDecoder(pt, mb, region, in)
-    Region.storeIRIntermediate(pt)(addr, decoded)
+    val decoded = _buildDecoder(cb, pt, region, in)
+    cb += Region.storeIRIntermediate(pt)(addr, decoded)
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit
@@ -179,13 +182,13 @@ trait EFundamentalType extends EType {
   def _decodeCompatible(pt: PType): Boolean = _compatible(pt)
   def _encodeCompatible(pt: PType): Boolean = _compatible(pt)
   def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit
-  def _buildFundamentalDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_]
+  def _buildFundamentalDecoder(cb: EmitCodeBuilder, pt: PType, region: Value[Region], in: Value[InputBuffer]): Code[_]
 
   final def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit =
     _buildFundamentalEncoder(cb, pt.encodableType, v, out)
 
-  final def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] =
-    _buildFundamentalDecoder(pt.encodableType, mb, region, in)
+  final def _buildDecoder(cb: EmitCodeBuilder, pt: PType, region: Value[Region], in: Value[InputBuffer]): Code[_] =
+    _buildFundamentalDecoder(cb, pt.encodableType, region, in)
 
   final override def decodeCompatible(pt: PType): Boolean = _decodeCompatible(pt.encodableType)
 
