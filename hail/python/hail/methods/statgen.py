@@ -457,47 +457,46 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         lambda struct_with_index: all_defined(struct_with_index[1], one_y_field_name_set + cov_field_names))
     for one_y_field_name_set in y_field_names]
 
-    def make_one_cov_matrix(ys_and_covs_to_keep_with_indices):
-        ys_and_covs_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[1])
-
+    def make_one_cov_matrix(ys_and_covs_to_keep):
         return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, cov_field_names))) if cov_field_names else hl.nd.zeros((hl.len(ys_and_covs_to_keep), 0))
 
-    def make_one_y_matrix(ys_and_covs_to_keep_with_indices, one_y_field_name_set):
-        ys_and_covs_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[1])
-
+    def make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set):
         return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, one_y_field_name_set)))
 
+    list_of_ys_and_covs_to_keep = [inner_list.map(lambda pair: pair[1]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
     list_of_indices_to_keep = [inner_list.map(lambda pair: pair[0]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
 
-    indices_to_keep = list_of_indices_to_keep[0]
-
-    cov_nds = [make_one_cov_matrix(ys_and_covs_to_keep_with_indices) for ys_and_covs_to_keep_with_indices in list_of_ys_and_covs_to_keep_with_indices]
+    cov_nds = [make_one_cov_matrix(ys_and_covs_to_keep) for ys_and_covs_to_keep in list_of_ys_and_covs_to_keep]
     cov_nd = cov_nds[0]
 
-    y_nds = [make_one_y_matrix(ys_and_covs_to_keep_with_indices, one_y_field_name_set) for ys_and_covs_to_keep_with_indices, one_y_field_name_set in zip(list_of_ys_and_covs_to_keep_with_indices, y_field_names)]
+    y_nds = [make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set) for ys_and_covs_to_keep, one_y_field_name_set in zip(list_of_ys_and_covs_to_keep, y_field_names)]
     y_nd = y_nds[0]
 
-    ht = ht.annotate_globals(kept_samples=indices_to_keep,
+    ht = ht.annotate_globals(kept_samples=list_of_indices_to_keep,
                              __y_nd=y_nd,
-                             __cov_nd=cov_nd)
+                             __cov_nd=cov_nd,
+                             __cov_nds=cov_nds)
     k = builtins.len(covariates)
-    n = hl.len(ht.kept_samples)
-    ht = ht.annotate_globals(d=n - k - 1)
-    cov_Qt = hl.if_else(k > 0, hl.nd.qr(ht.__cov_nd)[0].T, hl.nd.zeros((0, n)))
+    ht = ht.annotate_globals(ns=ht.kept_samples.map(lambda one_sample_set: hl.len(one_sample_set)))
+    ht = ht.annotate_globals(ds=ht.ns.map(lambda n: n - k - 1))
+    cov_Qt = hl.if_else(k > 0, hl.nd.qr(ht.__cov_nd)[0].T, hl.nd.zeros((0, ht.ns[0])))
+    cov_Qts = hl.if_else(k > 0,
+                         ht.__cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
+                         ht.ns.map(lambda n: hl.nd.zeros((0, n))))
     ht = ht.annotate_globals(__Qty=cov_Qt @ ht.__y_nd)
     ht = ht.annotate_globals(__yyp=dot_rows_with_themselves(ht.__y_nd.T) - dot_rows_with_themselves(ht.__Qty.T))
 
     def process_block(block):
-        X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples)))).T
-        sum_x = (X.T @ hl.nd.ones((n,)))._data_array()
+        X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[0])))).T
+        sum_x = (X.T @ hl.nd.ones((ht.ns[0],)))._data_array()
         Qtx = cov_Qt @ X
         ytx = ht.__y_nd.T @ X
         xyp = ytx - (ht.__Qty.T @ Qtx)
         xxpRec = (dot_rows_with_themselves(X.T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
         b = xyp * xxpRec
-        se = ((1.0 / ht.d) * (ht.__yyp.reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
+        se = ((1.0 / ht.ds[0]) * (ht.__yyp.reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
         t = b / se
-        p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.d, True, False))
+        p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.ds[0], True, False))
 
         key_fields = [key_field for key_field in ht.key]
         key_dict = {key_field: block[key_field] for key_field in key_fields}
