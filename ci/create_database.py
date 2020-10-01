@@ -11,8 +11,8 @@ from hailtop.utils import check_shell, check_shell_output
 from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
 from gear import Database
 
-assert len(sys.argv) == 2
-create_database_config = json.loads(sys.argv[1])
+assert len(sys.argv) == 1
+create_database_config = json.load(sys.stdin)
 
 
 def generate_token(size=12):
@@ -148,7 +148,7 @@ async def shutdown():
             await check_shell(f'''
 kubectl -n {s["namespace"]} delete --ignore-not-found=true deployment {s["name"]}
 ''')
-    
+
     did_shutdown = True
 
 
