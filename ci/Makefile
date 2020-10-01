@@ -13,6 +13,7 @@ PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 check:
 	$(PYTHON) -m flake8 ci
 	$(PYTHON) -m pylint --rcfile ../pylintrc ci --score=n
+	../check-sql.sh
 
 .PHONY: build-ci-utils
 build-ci-utils:
