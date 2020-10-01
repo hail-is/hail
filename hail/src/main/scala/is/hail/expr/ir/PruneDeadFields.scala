@@ -1430,9 +1430,6 @@ object PruneDeadFields {
         val body2 = rebuildIR(body, BindingEnv(Env(
           gName -> child2.typ.globalType,
           pName -> TStream(child2.typ.rowType))), memo)
-        val s = s"Rebuilding TableMapPartitions: child = ${child2.typ}\n" +
-          s"body = ${body2.typ}"
-        info(s)
         TableMapPartitions(child2, gName, pName, body2)
       case TableMapRows(child, newRow) =>
         val child2 = rebuild(child, memo)
