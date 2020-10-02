@@ -97,7 +97,7 @@ def plink_merge(b: Batch, bfiles: List[ResourceGroup],
     return _combine(_plink_merge, b, 'plink-merge', bfiles, branching_factor=branching_factor)
 
 
-def _combine(combop, b, name, xs, branching_factor = 100):
+def _combine(combop, b, name, xs, branching_factor=100):
     assert isinstance(branching_factor, int) and branching_factor >= 1
     n_levels = int(math.log(len(xs), branching_factor) + 0.5)
     level_digits = digits_needed(n_levels)

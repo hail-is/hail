@@ -95,7 +95,7 @@ class InputResourceFile(ResourceFile):
     >>> b.run()
     """
 
-    def __init__(self, value, source):
+    def __init__(self, value):
         self._input_path = None
         super().__init__(value)
 
