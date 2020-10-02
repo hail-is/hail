@@ -749,8 +749,7 @@ class Job:
                 await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/')
                 await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={self.storage_in_bytes} bhard={self.storage_in_bytes} {self.project_name}" /host/')
 
-                if self.mount_io:
-                    os.makedirs(self.io_host_path())
+                os.makedirs(self.io_host_path())
 
                 if self.secrets:
                     for secret in self.secrets:
