@@ -370,7 +370,7 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
         delay = await sleep_and_backoff(delay)
 
 
-def sync_retry_transient_errors(f, *args, **kwargs):
+def sync_retry_transient_errors(f: Callable[..., T], *args, **kwargs) -> T:
     delay = 0.1
     errors = 0
     while True:
@@ -391,16 +391,6 @@ async def request_retry_transient_errors(session, method, url, **kwargs):
     return await retry_transient_errors(session.request, method, url, **kwargs)
 
 
-async def request_raise_transient_errors(session, method, url, **kwargs):
-    try:
-        return await session.request(method, url, **kwargs)
-    except Exception as e:
-        if is_transient_error(e):
-            log.exception('request failed with transient exception: {method} {url}')
-            raise web.HTTPServiceUnavailable()
-        raise
-
-
 def retry_response_returning_functions(fun, *args, **kwargs):
     delay = 0.1
     errors = 0
@@ -415,31 +405,6 @@ def retry_response_returning_functions(fun, *args, **kwargs):
             fun, *args, **kwargs)
         delay = sync_sleep_and_backoff(delay)
     return response
-
-
-def external_requests_client_session(headers=None, timeout=5) -> requests.Session:
-    session = requests.Session()
-    adapter = TimeoutHTTPAdapter(max_retries=1, timeout=timeout)
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
-    if headers:
-        session.headers = headers
-    return session
-
-
-class TimeoutHTTPAdapter(HTTPAdapter):
-    def __init__(self, max_retries, timeout):
-        self.max_retries = max_retries
-        self.timeout = timeout
-        super().__init__(max_retries=max_retries)
-
-    def init_poolmanager(self, connections, maxsize, block=False):
-        self.poolmanager = PoolManager(
-            num_pools=connections,
-            maxsize=maxsize,
-            block=block,
-            retries=self.max_retries,
-            timeout=self.timeout)
 
 
 async def collect_agen(agen):

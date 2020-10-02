@@ -5,8 +5,9 @@ from typing import List, Set, Iterable, Optional, Union, Tuple
 
 import hail as hl
 import pkg_resources
-from hailtop.utils import (retry_response_returning_functions,
-                           external_requests_client_session)
+
+from hailtop.httpx import blocking_client_session
+from hailtop.utils import sync_retry_transient_errors
 
 from .lens import MatrixRows, TableRows
 from ..expr import StructExpression
@@ -252,10 +253,9 @@ class DB:
                 with open(config_path) as f:
                     config = json.load(f)
             else:
-                session = external_requests_client_session()
-                response = retry_response_returning_functions(
-                    session.get, url)
-                config = response.json()
+                with blocking_client_session() as session, \
+                     sync_retry_transient_errors(session.get, url, raise_for_status=True) as resp:
+                    config = resp.json()
             assert isinstance(config, dict)
         else:
             if not isinstance(config, dict):

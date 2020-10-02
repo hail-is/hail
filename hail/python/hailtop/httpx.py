@@ -1,30 +1,27 @@
-from typing import Dict, Any, List, Union, Tuple, Optional, Type, TracebackType
+from typing import Dict, Any, List, Tuple, Optional, Type
+from types import TracebackType
+import ssl
 import aiohttp
 import socket
 import logging
-from urllib3.poolmanager import PoolManager
 from hailtop.config import get_deploy_config
-from .tls import (get_in_cluster_client_ssl_context,
-                  get_context_specific_client_ssl_context,
-                  _get_ssl_config)
+from .tls import internal_client_ssl_context, external_client_ssl_context
 from .utils import async_to_blocking
 
 log = logging.getLogger('hailtop.httpx')
 
 
-def in_cluster_ssl_client_session(*args, **kwargs) -> aiohttp.ClientSession:
+def client_session(*args, **kwargs) -> aiohttp.ClientSession:
     assert 'connector' not in kwargs
-    kwargs['connector'] = aiohttp.TCPConnector(
-        ssl=get_in_cluster_client_ssl_context(),
-        resolver=HailResolver())
-    return aiohttp.ClientSession(*args, **kwargs)
-
-
-def get_context_specific_ssl_client_session(*args, **kwargs) -> aiohttp.ClientSession:
-    assert 'connector' not in kwargs
-    kwargs['connector'] = aiohttp.TCPConnector(
-        ssl=get_context_specific_client_ssl_context(),
-        resolver=HailResolver())
+    if get_deploy_config().location() == 'external':
+        kwargs['connector'] = aiohttp.TCPConnector(
+            ssl=external_client_ssl_context())
+    else:
+        kwargs['connector'] = aiohttp.TCPConnector(
+            ssl=internal_client_ssl_context(),
+            resolver=HailResolver())
+    if 'timeout' not in kwargs:
+        kwargs['timeout'] = aiohttp.ClientTimeout(total=5)
     return aiohttp.ClientSession(*args, **kwargs)
 
 
@@ -67,7 +64,7 @@ class BlockingClientResponse:
              content_type: Optional[str] = 'application/json') -> Any:
         return async_to_blocking(self.client_response.json())
 
-    def __del__(self) -> str:
+    def __del__(self):
         self.client_response.__del__()
 
     def history(self) -> Tuple[aiohttp.ClientResponse, ...]:
@@ -75,6 +72,10 @@ class BlockingClientResponse:
 
     def __repr__(self) -> str:
         return f'BlcokingClientRepsonse({repr(self.client_response)})'
+
+    @property
+    def status(self) -> int:
+        return self.client_response.status
 
     def raise_for_status(self) -> None:
         self.client_response.raise_for_status()
@@ -103,7 +104,7 @@ class BlockingClientSession:
                 url: aiohttp.typedefs.StrOrURL,
                 **kwargs: Any) -> 'BlockingContextManager':
         return BlockingContextManager(self.session.request(
-            self, method, url, **kwargs))
+            method, url, **kwargs))
 
     def get(self,
             url: aiohttp.typedefs.StrOrURL,
@@ -111,7 +112,7 @@ class BlockingClientSession:
             allow_redirects: bool = True,
             **kwargs: Any) -> 'BlockingContextManager':
         return BlockingContextManager(self.session.get(
-            self, url, allow_redirects=allow_redirects, **kwargs))
+            url, allow_redirects=allow_redirects, **kwargs))
 
     def options(self,
                 url: aiohttp.typedefs.StrOrURL,
@@ -119,7 +120,7 @@ class BlockingClientSession:
                 allow_redirects: bool = True,
                 **kwargs: Any) -> 'BlockingContextManager':
         return BlockingContextManager(self.session.options(
-            self, url, allow_redirects=allow_redirects, **kwargs))
+            url, allow_redirects=allow_redirects, **kwargs))
 
     def head(self,
              url: aiohttp.typedefs.StrOrURL,
@@ -127,14 +128,14 @@ class BlockingClientSession:
              allow_redirects: bool = False,
              **kwargs: Any) -> 'BlockingContextManager':
         return BlockingContextManager(self.session.head(
-            self, url, allow_redirects=allow_redirects, **kwargs))
+            url, allow_redirects=allow_redirects, **kwargs))
 
     def post(self,
              url: aiohttp.typedefs.StrOrURL,
              *,
              data: Any = None, **kwargs: Any) -> 'BlockingContextManager':
         return BlockingContextManager(self.session.post(
-            self, url, **kwargs))
+            url, **kwargs))
 
     def put(self,
             url: aiohttp.typedefs.StrOrURL,
@@ -142,7 +143,7 @@ class BlockingClientSession:
             data: Any = None,
             **kwargs: Any) -> 'BlockingContextManager':
         return BlockingContextManager(self.session.put(
-            self, url, data=data, **kwargs))
+            url, data=data, **kwargs))
 
     def patch(self,
               url: aiohttp.typedefs.StrOrURL,
@@ -150,22 +151,23 @@ class BlockingClientSession:
               data: Any = None,
               **kwargs: Any) -> 'BlockingContextManager':
         return BlockingContextManager(self.session.patch(
-            self, url, data=data, **kwargs))
+            url, data=data, **kwargs))
 
     def delete(self,
                url: aiohttp.typedefs.StrOrURL,
                **kwargs: Any) -> 'BlockingContextManager':
-        return BlockingContextManager(self.session.delete(self, url, **kwargs))
+        return BlockingContextManager(self.session.delete(
+            url, **kwargs))
 
     def close(self) -> None:
         async_to_blocking(self.session.close())
 
     @property
     def closed(self) -> bool:
-        return self.session.closed()
+        return self.session.closed
 
     @property
-    def cookie_jar(self) -> aiohttp.AbstractCookieJar:
+    def cookie_jar(self) -> aiohttp.abc.AbstractCookieJar:
         return self.session.cookie_jar
 
     @property
@@ -183,6 +185,5 @@ class BlockingClientSession:
         self.close()
 
 
-def blocking_in_cluster_ssl_client_session(*args, **kwargs) -> BlockingClientSession:
-    async_session = in_cluster_ssl_client_session(*args, **kwargs)
-    return BlockingClientSession(async_session)
+def blocking_client_session(*args, **kwargs) -> BlockingClientSession:
+    return BlockingClientSession(client_session(*args, **kwargs))

@@ -35,7 +35,7 @@ def check_ssl_config(ssl_config: Dict[str, str]):
     log.info('using tls and verifying client and server certificates')
 
 
-def get_in_cluster_server_ssl_context() -> ssl.SSLContext:
+def internal_server_ssl_context() -> ssl.SSLContext:
     global server_ssl_context
     if server_ssl_context is None:
         ssl_config = _get_ssl_config()
@@ -52,7 +52,7 @@ def get_in_cluster_server_ssl_context() -> ssl.SSLContext:
     return server_ssl_context
 
 
-def get_in_cluster_client_ssl_context() -> ssl.SSLContext:
+def internal_client_ssl_context() -> ssl.SSLContext:
     global client_ssl_context
     if client_ssl_context is None:
         ssl_config = _get_ssl_config()
@@ -67,10 +67,5 @@ def get_in_cluster_client_ssl_context() -> ssl.SSLContext:
     return client_ssl_context
 
 
-def get_context_specific_client_ssl_context() -> ssl.SSLContext:
-    try:
-        return get_in_cluster_client_ssl_context()
-    except NoSSLConfigFound:
-        log.info('no ssl config file found, using external configuration. This '
-                 'context cannot connect directly to services inside the cluster.')
-        return ssl.create_default_context(purpose=Purpose.SERVER_AUTH)
+def external_client_ssl_context() -> ssl.SSLContext:
+    return ssl.create_default_context(purpose=Purpose.SERVER_AUTH)
