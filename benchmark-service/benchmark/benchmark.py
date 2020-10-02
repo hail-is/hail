@@ -211,6 +211,7 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
 
 
 async def query_github(app):
+    global START_POINT
     github_client = app['github_client']
     request_string = f'/repos/hail-is/hail/commits?sha={main_commit_sha}&since={START_POINT}'
 
@@ -220,7 +221,6 @@ async def query_github(app):
         sha = commit.get('sha')
         new_commits.append(commit)
         log.info(f'commit {sha}')
-        global START_POINT
         START_POINT = commit.get('commit').get('date')
         log.info(f'start point is now {START_POINT}')
     log.info('got new commits')
