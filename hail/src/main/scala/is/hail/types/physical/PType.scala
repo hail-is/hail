@@ -464,11 +464,6 @@ abstract class PType extends Serializable with Requiredness {
 
   def defaultValue: PCode = PCode(this, is.hail.types.physical.defaultValue(this))
 
-
-  final def typeCheck(a: Any): Boolean = a == null || _typeCheck(a)
-
-  def _typeCheck(a: Any): Boolean = virtualType._typeCheck(a)
-
   def load(src: Code[Long]): PCode = PCode(this, Region.loadIRIntermediate(this)(src))
 
   def ti: TypeInfo[_] = typeToTypeInfo(this)
