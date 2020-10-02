@@ -234,12 +234,12 @@ async def github_polling_loop(app):
 
 
 async def on_startup(app):
-    with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token'), 'r') as f:
+    with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
         oauth_token = f.read().strip()
     app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
                                                        'hail-is/hail',
-                                                       oauth_token='/secrets/oauth-token')
+                                                       oauth_token='/secrets/oauth-token/oauth-token')
     asyncio.ensure_future(retry_long_running('github_polling_loop', github_polling_loop, app))
 
 
