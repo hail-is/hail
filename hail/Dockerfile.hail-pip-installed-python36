@@ -12,7 +12,7 @@ RUN echo 'deb http://ftp.us.debian.org/debian stretch main' >> /etc/apt/sources.
   && wget https://www.python.org/ftp/python/3.6.9/Python-3.6.9.tgz \
   && tar xvf Python-3.6.9.tgz \
   && cd Python-3.6.9 \
-  && ./configure --enaeble-optimizations --enable-shared --with-ensurepip=install \
+  && ./configure --enable-optimizations --enable-shared --with-ensurepip=install \
   && make -j4 \
   && sudo make altinstall \
   && update-alternatives --install /usr/bin/python python /usr/bin/python3.6 1000 \
