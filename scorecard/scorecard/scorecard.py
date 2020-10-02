@@ -61,7 +61,7 @@ timestamp = None
 class AsanaClient:
     _session: Optional[ClientSession]
 
-    def __init__(self, *, token: Optional[str] = None, **kwargs):
+    def __init__(self, *, token: Optional[str] = None):
         self._base_url = 'https://app.asana.com/api/1.0'
 
         if token is None:
@@ -334,7 +334,7 @@ def get_issue_data(repo_name, issue):
 
 async def get_asana_data(asana_client):
     result = defaultdict(lambda: [])
-    for tag_name, tag_gid in asana_tags.items():
+    for _, tag_gid in asana_tags.items():
         tag_assignees = await get_tag_assignees(asana_client, tag_gid)
         for assignee, data in tag_assignees.items():
             result[assignee].extend(data)
