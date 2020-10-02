@@ -19,8 +19,7 @@ from scipy.stats.mstats import gmean, hmean
 import numpy as np
 import pandas as pd
 import gidgethub.aiohttp
-from benchmark.github import github_polling_loop
-from benchmark.github import query_github
+from benchmark.github import query_github, submit_batch
 from hailtop.utils import retry_long_running
 import asyncio
 import gidgethub
@@ -225,6 +224,7 @@ async def submit(request, userdata):
     app = request.app
     github_client = app['github_client']
     batch_client = app['batch_client']
+    submit_batch(, batch_client)
 
 
 async def github_polling_loop(app):
