@@ -211,7 +211,7 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
 async def query_github(app):
     global START_POINT
     github_client = app['github_client']
-    request_string = f'/repos/hail-is/hail/commits?sha=main&since={START_POINT}'
+    request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
 
     data = await github_client.getitem(request_string)
     new_commits = []
