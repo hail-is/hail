@@ -34,6 +34,8 @@ spec:
             value: "{{ code.sha }}"
           ports:
             - containerPort: 5000
+          - name: HAIL_CI_OAUTH_TOKEN
+            value: /secrets/oauth-token
           resources:
             requests:
               memory: "250M"
