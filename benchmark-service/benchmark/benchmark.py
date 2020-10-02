@@ -32,7 +32,7 @@ BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)(
 
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
-START_POINT = '2020-09-24T00:00:00Z'
+START_POINT = '2020-10-01T00:00:00Z'
 
 main_commit_sha = 'ef7262d01f2bde422aaf09b6f84091ac0e439b1d'
 
@@ -229,7 +229,7 @@ async def query_github(app):
 async def github_polling_loop(app):
     while True:
         await query_github(app)
-        log.info(f'successfully queried github')
+        log.info('successfully queried github')
         await asyncio.sleep(60)
 
 
