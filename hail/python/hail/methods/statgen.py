@@ -491,9 +491,11 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     def process_block(block):
 
+        # Processes one block group based on given idx. Returns a single struct.
         def process_y_group(idx):
             X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))).T
-            sum_x = (X.T @ hl.nd.ones((ns[idx],)))
+            n = ns[idx]
+            sum_x = (X.T @ hl.nd.ones((n,)))
             Qtx = ht.__cov_Qts[idx] @ X
             ytx = ht.__y_nds[idx].T @ X
             xyp = ytx - (ht.__Qtys[idx].T @ Qtx)
@@ -502,19 +504,23 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
             se = ((1.0 / ht.ds[idx]) * (ht.__yyps[idx].reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
             t = b / se
             p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.ds[idx], True, False))
-            return hl.struct(sum_x=sum_x._data_array(), y_transpose_x=ytx.T._data_array(), beta=b.T._data_array(),
+            return hl.struct(n=n, sum_x=sum_x._data_array(), y_transpose_x=ytx.T._data_array(), beta=b.T._data_array(),
                              standard_error=se.T._data_array(), t_stat=t.T._data_array(), p_value=p.T._data_array())
 
         # This list will always be length of number of y_lists.
+        # Each entry of this refers to one y group. Within each entry is an entire array that needs to be split across the
+        # rows.
         per_y_list = hl.range(num_y_lists).map(lambda i: process_y_group(i))
+        import pdb; pdb.set_trace()
 
         if not is_chained:
             # Need to unwrap
             per_y_list = per_y_list[0]
 
+
         key_fields = [key_field for key_field in ht.key]
         key_dict = {key_field: block[key_field] for key_field in key_fields}
-        linreg_fields_dict = {"sum_x": per_y_list.sum_x, "y_transpose_x": per_y_list.y_transpose_x, "beta": per_y_list.beta,
+        linreg_fields_dict = {"n": per_y_list.n, "sum_x": per_y_list.sum_x, "y_transpose_x": per_y_list.y_transpose_x, "beta": per_y_list.beta,
                               "standard_error": per_y_list.standard_error, "t_stat": per_y_list.t_stat, "p_value": per_y_list.p_value}
         combined_dict = {**key_dict, **linreg_fields_dict}
 

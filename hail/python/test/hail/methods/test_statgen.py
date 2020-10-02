@@ -53,7 +53,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.impute_sex(ds.GT)._same(hl.impute_sex(ds.GT, aaf='aaf')))
 
     backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
-    linreg_functions = [hl._linear_regression_rows_nd] if backend_name == "spark" else [hl._linear_regression_rows_nd]
+    linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl._linear_regression_rows_nd]
 
     def test_linreg_basic(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
@@ -132,7 +132,6 @@ class Tests(unittest.TestCase):
             hl.linear_regression_rows([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
                                       pass_through=[mt.filters.length()])
 
-
     def test_linreg_chained(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -145,65 +144,68 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_cols(pheno=phenos[mt.s].Pheno, cov=covs[mt.s])
         mt = mt.annotate_entries(x=mt.GT.n_alt_alleles()).cache()
 
-        t1 = hl.linear_regression_rows(y=[[mt.pheno], [mt.pheno]], x=mt.x, covariates=[1, mt.cov.Cov1, mt.cov.Cov2])
-        def all_eq(*args):
-            pred = True
-            for a in args:
-                if isinstance(a, hl.expr.Expression) \
-                        and isinstance(a.dtype, hl.tarray) \
-                        and isinstance(a.dtype.element_type, hl.tarray):
-                    pred = pred & (hl.all(lambda x: x,
-                        hl.map(lambda elt: ((hl.is_nan(elt[0]) & hl.is_nan(elt[1])) | (elt[0] == elt[1])),
-                               hl.zip(a[0], a[1]))))
-                else:
-                    pred = pred & ((hl.is_nan(a[0]) & hl.is_nan(a[1])) | (a[0] == a[1]))
-            return pred
+        for linreg_function in self.linreg_functions:
 
-        assert t1.aggregate(hl.agg.all(
-            all_eq(t1.n,
-                   t1.sum_x,
-                   t1.y_transpose_x,
-                   t1.beta,
-                   t1.standard_error,
-                   t1.t_stat,
-                   t1.p_value)))
+            t1 = linreg_function(y=[[mt.pheno], [mt.pheno]], x=mt.x, covariates=[1, mt.cov.Cov1, mt.cov.Cov2])
+            import pdb; pdb.set_trace()
+            def all_eq(*args):
+                pred = True
+                for a in args:
+                    if isinstance(a, hl.expr.Expression) \
+                            and isinstance(a.dtype, hl.tarray) \
+                            and isinstance(a.dtype.element_type, hl.tarray):
+                        pred = pred & (hl.all(lambda x: x,
+                            hl.map(lambda elt: ((hl.is_nan(elt[0]) & hl.is_nan(elt[1])) | (elt[0] == elt[1])),
+                                   hl.zip(a[0], a[1]))))
+                    else:
+                        pred = pred & ((hl.is_nan(a[0]) & hl.is_nan(a[1])) | (a[0] == a[1]))
+                return pred
 
-        mt2 = mt.filter_cols(mt.cov.Cov2 >= 0)
-        mt3 = mt.filter_cols(mt.cov.Cov2 <= 0)
+            assert t1.aggregate(hl.agg.all(
+                all_eq(t1.n,
+                       t1.sum_x,
+                       t1.y_transpose_x,
+                       t1.beta,
+                       t1.standard_error,
+                       t1.t_stat,
+                       t1.p_value)))
 
-        # test that chained linear regression can replicate separate calls with different missingness
-        t2 = hl.linear_regression_rows(y=mt2.pheno, x=mt2.x, covariates=[1, mt2.cov.Cov1])
-        t3 = hl.linear_regression_rows(y=mt3.pheno, x=mt3.x, covariates=[1, mt3.cov.Cov1])
+            mt2 = mt.filter_cols(mt.cov.Cov2 >= 0)
+            mt3 = mt.filter_cols(mt.cov.Cov2 <= 0)
 
-        chained = hl.linear_regression_rows(y=[[hl.case().when(mt.cov.Cov2 >= 0, mt.pheno).or_missing()],
-                                               [hl.case().when(mt.cov.Cov2 <= 0, mt.pheno).or_missing()]],
-                                            x=mt.x,
-                                            covariates=[1, mt.cov.Cov1])
-        chained = chained.annotate(r0=t2[chained.key], r1=t3[chained.key])
-        assert chained.aggregate(hl.agg.all(
-            all_eq([chained.n[0], chained.r0.n],
-                   [chained.n[1], chained.r1.n],
-                   [chained.sum_x[0], chained.r0.sum_x],
-                   [chained.sum_x[1], chained.r1.sum_x],
-                   [chained.y_transpose_x[0][0], chained.r0.y_transpose_x],
-                   [chained.y_transpose_x[1][0], chained.r1.y_transpose_x],
-                   [chained.beta[0][0], chained.r0.beta],
-                   [chained.beta[1][0], chained.r1.beta],
-                   [chained.standard_error[0][0], chained.r0.standard_error],
-                   [chained.standard_error[1][0], chained.r1.standard_error],
-                   [chained.t_stat[0][0], chained.r0.t_stat],
-                   [chained.t_stat[1][0], chained.r1.t_stat],
-                   [chained.p_value[0][0], chained.r0.p_value],
-                   [chained.p_value[1][0], chained.r1.p_value])))
+            # test that chained linear regression can replicate separate calls with different missingness
+            t2 = hl.linear_regression_rows(y=mt2.pheno, x=mt2.x, covariates=[1, mt2.cov.Cov1])
+            t3 = hl.linear_regression_rows(y=mt3.pheno, x=mt3.x, covariates=[1, mt3.cov.Cov1])
 
-        # test differential missingness against each other
-        phenos = [hl.case().when(mt.cov.Cov2 >= -1, mt.pheno).or_missing(),
-                  hl.case().when(mt.cov.Cov2 <= 1, mt.pheno).or_missing()]
-        t4 = hl.linear_regression_rows(phenos, mt.x, covariates=[1])
-        t5 = hl.linear_regression_rows([phenos], mt.x, covariates=[1])
+            chained = hl.linear_regression_rows(y=[[hl.case().when(mt.cov.Cov2 >= 0, mt.pheno).or_missing()],
+                                                   [hl.case().when(mt.cov.Cov2 <= 0, mt.pheno).or_missing()]],
+                                                x=mt.x,
+                                                covariates=[1, mt.cov.Cov1])
+            chained = chained.annotate(r0=t2[chained.key], r1=t3[chained.key])
+            assert chained.aggregate(hl.agg.all(
+                all_eq([chained.n[0], chained.r0.n],
+                       [chained.n[1], chained.r1.n],
+                       [chained.sum_x[0], chained.r0.sum_x],
+                       [chained.sum_x[1], chained.r1.sum_x],
+                       [chained.y_transpose_x[0][0], chained.r0.y_transpose_x],
+                       [chained.y_transpose_x[1][0], chained.r1.y_transpose_x],
+                       [chained.beta[0][0], chained.r0.beta],
+                       [chained.beta[1][0], chained.r1.beta],
+                       [chained.standard_error[0][0], chained.r0.standard_error],
+                       [chained.standard_error[1][0], chained.r1.standard_error],
+                       [chained.t_stat[0][0], chained.r0.t_stat],
+                       [chained.t_stat[1][0], chained.r1.t_stat],
+                       [chained.p_value[0][0], chained.r0.p_value],
+                       [chained.p_value[1][0], chained.r1.p_value])))
 
-        t5 = t5.annotate(**{x: t5[x][0] for x in ['n', 'sum_x', 'y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']})
-        assert t4._same(t5)
+            # test differential missingness against each other
+            phenos = [hl.case().when(mt.cov.Cov2 >= -1, mt.pheno).or_missing(),
+                      hl.case().when(mt.cov.Cov2 <= 1, mt.pheno).or_missing()]
+            t4 = hl.linear_regression_rows(phenos, mt.x, covariates=[1])
+            t5 = hl.linear_regression_rows([phenos], mt.x, covariates=[1])
+
+            t5 = t5.annotate(**{x: t5[x][0] for x in ['n', 'sum_x', 'y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']})
+            assert t4._same(t5)
 
 
     def test_linear_regression_without_intercept(self):
