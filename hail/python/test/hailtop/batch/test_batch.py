@@ -592,3 +592,12 @@ class ServiceTests(unittest.TestCase):
         j2.command(f'echo "world"')
 
         assert b.run().status()['state'] == 'failure'
+
+    def test_input_directory(self):
+        b = self.batch()
+        input1 = b.read_input(self.gcs_input_dir)
+        input2 = b.read_input(self.gcs_input_dir.rstrip('/') + '/')
+        j = b.new_job()
+        j.command(f'ls {input1}')
+        j.command(f'ls {input2}')
+        assert b.run().status()['state'] == 'success'

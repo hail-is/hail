@@ -538,17 +538,21 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
 
 
 def copy_command(src, dst, requester_pays_project=None):
-    if not dst.startswith('gs://'):
-        mkdirs = f'mkdir -p {shq(os.path.dirname(dst))} && '
-    else:
-        mkdirs = ''
-
     if requester_pays_project:
         requester_pays_project = f'-u {requester_pays_project}'
     else:
         requester_pays_project = ''
 
-    return f'{mkdirs}retry gsutil {requester_pays_project} -m cp -R {shq(src)} {shq(dst)}'
+    if not dst.startswith('gs://'):
+        mkdirs_file = f'mkdir -p {shq(os.path.dirname(dst))} && '
+        mkdirs_dir = f'mkdir -p {shq(dst)} && '
+    else:
+        mkdirs_file = ''
+        mkdirs_dir = ''
+
+    cp = f'retry gsutil {requester_pays_project} -m cp -R {shq(src)} {shq(dst)}'
+
+    return f'{mkdirs_file}{cp} || {mkdirs_dir}{cp}'
 
 
 def copy(files, name, requester_pays_project):
