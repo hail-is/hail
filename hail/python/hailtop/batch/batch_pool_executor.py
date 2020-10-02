@@ -453,7 +453,7 @@ class BatchPoolFuture:
         self.fetch_lock = asyncio.Lock()
         executor._add_future(self)
 
-    async def cancel(self):
+    def cancel(self):
         """Cancel this job if it has not yet been cancelled.
 
         ``True`` is returned if the job is cancelled. ``False`` is returned if
