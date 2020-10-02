@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 import aiohttp
 import random
 import os
@@ -6,7 +6,7 @@ import json
 import logging
 from aiohttp import web
 from ..utils import retry_transient_errors, first_extant_file
-from ..tls import get_context_specific_client_ssl_context
+from ..tls import internal_client_ssl_context
 
 log = logging.getLogger('deploy_config')
 
@@ -37,13 +37,13 @@ class DeployConfig:
             }
         return DeployConfig.from_config(config)
 
-    def __init__(self, location: str, default_namespace: str, service_namespace: str):
+    def __init__(self, location: str, default_namespace: str, service_namespace: Dict[str, str]):
         assert location in ('external', 'k8s', 'gce')
         self._location = location
         self._default_namespace = default_namespace
         self._service_namespace = service_namespace
 
-    def with_service(self, service, ns) -> 'DeployConfig':
+    def with_service(self, service: str, ns: str) -> 'DeployConfig':
         return DeployConfig(self._location, self._default_namespace, {**self._service_namespace, service: ns})
 
     def location(self) -> str:
@@ -113,6 +113,8 @@ class DeployConfig:
     ADDRESS_HOSTS = ['shuffler', 'address']
 
     async def addresses(self, service: str) -> List[Tuple[str, int]]:
+        assert self._location != 'internal'
+
         if service not in DeployConfig.ADDRESS_HOSTS:
             return []
 
@@ -121,7 +123,7 @@ class DeployConfig:
         headers = service_auth_headers(self, namespace)
         async with aiohttp.ClientSession(
                 connector=aiohttp.TCPConnector(
-                    ssl=get_context_specific_client_ssl_context()),
+                    ssl=internal_client_ssl_context()),
                 raise_for_status=True,
                 timeout=aiohttp.ClientTimeout(total=5),
                 headers=headers) as session:

@@ -1,6 +1,5 @@
 from typing import Dict, Any, List, Tuple, Optional, Type
 from types import TracebackType
-import ssl
 import aiohttp
 import socket
 import logging
@@ -21,7 +20,7 @@ def client_session(*args, **kwargs) -> aiohttp.ClientSession:
             ssl=internal_client_ssl_context(),
             resolver=HailResolver())
     if 'timeout' not in kwargs:
-        kwargs['timeout'] = aiohttp.ClientTimeout(total=5)
+        kwargs['timeout'] = aiohttp.ClientTimeout(total=15)
     return aiohttp.ClientSession(*args, **kwargs)
 
 
@@ -56,13 +55,15 @@ class BlockingClientResponse:
         return async_to_blocking(self.client_response.read())
 
     def text(self, encoding: Optional[str] = None, errors: str = 'strict') -> str:
-        return async_to_blocking(self.client_response.text())
+        return async_to_blocking(self.client_response.text(
+            encoding=encoding, errors=errors))
 
     def json(self, *,
              encoding: str = None,
              loads: aiohttp.typedefs.JSONDecoder = aiohttp.typedefs.DEFAULT_JSON_DECODER,
              content_type: Optional[str] = 'application/json') -> Any:
-        return async_to_blocking(self.client_response.json())
+        return async_to_blocking(self.client_response.json(
+            encoding=encoding, loads=loads, content_type=content_type))
 
     def __del__(self):
         self.client_response.__del__()
@@ -135,7 +136,7 @@ class BlockingClientSession:
              *,
              data: Any = None, **kwargs: Any) -> 'BlockingContextManager':
         return BlockingContextManager(self.session.post(
-            url, **kwargs))
+            url, data=data, **kwargs))
 
     def put(self,
             url: aiohttp.typedefs.StrOrURL,

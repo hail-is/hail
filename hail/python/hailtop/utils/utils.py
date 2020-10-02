@@ -5,15 +5,12 @@ import random
 import logging
 import asyncio
 import aiohttp
-from aiohttp import web
 import urllib3
 import secrets
 import socket
 import requests
 import google.auth.exceptions
 import time
-from requests.adapters import HTTPAdapter
-from urllib3.poolmanager import PoolManager
 
 from .time import time_msecs
 

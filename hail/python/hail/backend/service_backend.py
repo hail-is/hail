@@ -91,8 +91,8 @@ class ServiceBackend(Backend):
     def _request_type(self, ir, kind):
         code = self._render(ir)
         with sync_retry_transient_errors(
-            self.session.post,
-            f'{self.url}/type/{kind}', json=code) as resp:
+                self.session.post,
+                f'{self.url}/type/{kind}', json=code) as resp:
             if resp.status == 400 or resp.status == 500:
                 raise FatalError(resp.text)
             resp.raise_for_status()

@@ -1,5 +1,4 @@
 from typing import Optional
-import asyncio
 
 from . import aioclient
 from hailtop.utils import async_to_blocking

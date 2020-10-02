@@ -1,10 +1,9 @@
 import asyncio
-import aiohttp
 import sys
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
-from hailtop.tls import get_context_specific_ssl_client_session
+from hailtop import httpx
 
 
 def init_parser(parser):
@@ -52,8 +51,7 @@ class QueryClient:
 
     async def __aenter__(self):
         headers = service_auth_headers(self._deploy_config, 'query')
-        self._session = get_context_specific_ssl_client_session(
-            timeout=aiohttp.ClientTimeout(total=60), headers=headers)
+        self._session = httpx.client_session(headers=headers)
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
