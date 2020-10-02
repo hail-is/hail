@@ -140,6 +140,18 @@ def test_no_exception_when_exiting_context():
         assert False
 
 
+def test_bad_image_gives_good_error():
+    with BatchPoolExecutor(project='hail-vdc',
+                           image='hailgenetics/not-a-valid-image:123abc') as bpe:
+        future = bpe.submit(lambda: 3)
+    try:
+        future.exception()
+    except ValueError as exc:
+        assert 'submitted job failed:' in exc.args[0]
+    else:
+        assert False
+
+
 def sleep_forever():
     while True:
         time.sleep(3600)

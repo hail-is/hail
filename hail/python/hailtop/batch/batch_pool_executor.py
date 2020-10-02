@@ -9,7 +9,7 @@ import sys
 import time
 
 from hailtop.utils import secret_alnum_string, partition
-import hailtop.batch_client.client as low_level_batch_client
+import hailtop.batch_client.aioclient as low_level_batch_client
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 
 from .batch import Batch
@@ -377,9 +377,13 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
         output_gcs = self.outputs + f'{name}/output'
         batch.write_output(j.ofile, output_gcs)
         backend_batch = batch.run(wait=False,
-                                  disable_progress_bar=True)
+                                  disable_progress_bar=True)._async_batch
 
-        return BatchPoolFuture(self, backend_batch, output_gcs)
+        return BatchPoolFuture(self,
+                               backend_batch,
+                               low_level_batch_client.Job.submitted_job(
+                                   backend_batch, 1),
+                               output_gcs)
 
     def __exit__(self,
                  exc_type: Optional[Type[BaseException]],
@@ -438,9 +442,11 @@ class BatchPoolFuture:
     def __init__(self,
                  executor: BatchPoolExecutor,
                  batch: low_level_batch_client.Batch,
+                 job: low_level_batch_client.Job,
                  output_gcs: str):
         self.executor = executor
         self.batch = batch
+        self.job = job
         self.output_gcs = output_gcs
         self.value: Any = NO_VALUE
         self._exception: Optional[BaseException] = None
@@ -448,13 +454,21 @@ class BatchPoolFuture:
         executor._add_future(self)
 
     def cancel(self):
-        """Cancels this job if it has not yet been cancelled.
+        """Cancel this job if it has not yet been cancelled.
+
+        ``True`` is returned if the job is cancelled. ``False`` is returned if
+        the job has already completed.
+        """
+        return async_to_blocking(self.async_cancel())
+
+    async def async_cancel(self):
+        """Asynchronously cancel this job.
 
         ``True`` is returned if the job is cancelled. ``False`` is returned if
         the job has already completed.
         """
         if self.value == NO_VALUE:
-            self.batch.cancel()
+            await self.batch.cancel()
             self.value = CANCELLED
             self.executor._finish_future()
             return True
@@ -523,10 +537,15 @@ class BatchPoolFuture:
             if self.value != NO_VALUE:
                 return
             try:
-                await asyncio.wait_for(self.batch._async_batch.wait(disable_progress_bar=True),
-                                       timeout=timeout)
+                await asyncio.wait_for(self.job.wait(), timeout=timeout)
             except asyncio.TimeoutError as e:
                 raise concurrent.futures.TimeoutError() from e
+            main_container_status = self.job._status['status']['container_statuses']['main']
+            if main_container_status['state'] == 'error':
+                self.value = None
+                self._exception = ValueError(
+                    f"submitted job failed:\n{main_container_status['error']}")
+                return
             try:
                 value, traceback = dill.loads(
                     await self.executor.gcs.read_binary_gs_file(self.output_gcs))
