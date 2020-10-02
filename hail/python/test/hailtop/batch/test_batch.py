@@ -8,10 +8,10 @@ import google.oauth2.service_account
 import google.cloud.storage
 
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
-from hailtop.batch.utils import arg_max
+from hailtop.batch.globals import arg_max
 from hailtop.utils import grouped
 from hailtop.config import get_user_config
-from hailtop.batch.functions import concatenate
+from hailtop.batch.utils import concatenate
 
 
 class LocalTests(unittest.TestCase):
