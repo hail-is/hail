@@ -480,34 +480,42 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
                              __cov_nd=cov_nd,
                              __cov_nds=cov_nds)
     k = builtins.len(covariates)
-    ht = ht.annotate_globals(ns=ht.kept_samples.map(lambda one_sample_set: hl.len(one_sample_set)))
-    ht = ht.annotate_globals(ds=ht.ns.map(lambda n: n - k - 1))
-    cov_Qt = hl.if_else(k > 0, hl.nd.qr(ht.__cov_nd)[0].T, hl.nd.zeros((0, ht.ns[0])))
+    ns = ht.index_globals().kept_samples.map(lambda one_sample_set: hl.len(one_sample_set))
+    ht = ht.annotate_globals(ds=ns.map(lambda n: n - k - 1))
     cov_Qts = hl.if_else(k > 0,
                          ht.__cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
-                         ht.ns.map(lambda n: hl.nd.zeros((0, n))))
-    ht = ht.annotate_globals(__Qtys=hl.range(num_y_lists).map(lambda i: cov_Qts[i] @ ht.__y_nds[i]))
+                         ns.map(lambda n: hl.nd.zeros((0, n))))
+    ht = ht.annotate_globals(__cov_Qts=cov_Qts)
+    ht = ht.annotate_globals(__Qtys=hl.range(num_y_lists).map(lambda i: ht.__cov_Qts[i] @ ht.__y_nds[i]))
     ht = ht.annotate_globals(__yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(ht.__y_nds[i].T) - dot_rows_with_themselves(ht.__Qtys[i].T)))
 
     def process_block(block):
-        Xs = hl.range(num_y_lists).map(lambda i:
-            hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[i])))).T
-        )
-        X = Xs[0]
-        sum_xs = hl.range(num_y_lists).map(lambda i: (Xs[i].T @ hl.nd.ones((ht.ns[i],)))._data_array())
-        Qtx = cov_Qt @ X
-        ytxs = hl.range(num_y_lists).map(lambda i: ht.__y_nds[i].T @ Xs[i])
-        xyp = ytxs[0] - (ht.__Qtys[0].T @ Qtx)
-        xxpRec = (dot_rows_with_themselves(X.T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
-        b = xyp * xxpRec
-        se = ((1.0 / ht.ds[0]) * (ht.__yyps[0].reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
-        t = b / se
-        p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.ds[0], True, False))
+
+        def process_y_group(idx):
+            X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))).T
+            sum_x = (X.T @ hl.nd.ones((ns[idx],)))
+            Qtx = ht.__cov_Qts[idx] @ X
+            ytx = ht.__y_nds[idx].T @ X
+            xyp = ytx - (ht.__Qtys[idx].T @ Qtx)
+            xxpRec = (dot_rows_with_themselves(X.T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
+            b = xyp * xxpRec
+            se = ((1.0 / ht.ds[idx]) * (ht.__yyps[idx].reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
+            t = b / se
+            p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.ds[idx], True, False))
+            return hl.struct(sum_x=sum_x._data_array(), y_transpose_x=ytx.T._data_array(), beta=b.T._data_array(),
+                             standard_error=se.T._data_array(), t_stat=t.T._data_array(), p_value=p.T._data_array())
+
+        # This list will always be length of number of y_lists.
+        per_y_list = hl.range(num_y_lists).map(lambda i: process_y_group(i))
+
+        if not is_chained:
+            # Need to unwrap
+            per_y_list = per_y_list[0]
 
         key_fields = [key_field for key_field in ht.key]
         key_dict = {key_field: block[key_field] for key_field in key_fields}
-        linreg_fields_dict = {"sum_x": sum_xs[0], "y_transpose_x": ytxs[0].T._data_array(), "beta": b.T._data_array(),
-                              "standard_error": se.T._data_array(), "t_stat": t.T._data_array(), "p_value": p.T._data_array()}
+        linreg_fields_dict = {"sum_x": per_y_list.sum_x, "y_transpose_x": per_y_list.y_transpose_x, "beta": per_y_list.beta,
+                              "standard_error": per_y_list.standard_error, "t_stat": per_y_list.t_stat, "p_value": per_y_list.p_value}
         combined_dict = {**key_dict, **linreg_fields_dict}
 
         # Need to pull off "struct of arrays to array of structs". How?
