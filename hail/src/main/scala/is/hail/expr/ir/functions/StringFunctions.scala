@@ -212,38 +212,32 @@ object StringFunctions extends RegistryFunctions {
       case (_: Type, _: PType, _: PType) => PCanonicalString()
     })(thisClass, "arrayMkString")
 
-    registerEmitCode2("firstMatchIn", TString, TString, TArray(TString), {
+    registerIEmitCode2("firstMatchIn", TString, TString, TArray(TString), {
       case(_: Type, _: PType, _: PType) => PCanonicalArray(PCanonicalString(true))
-    }) {
-      case (er: EmitRegion, rt: PArray, s: EmitCode, r: EmitCode) =>
-      val out: LocalRef[IndexedSeq[String]] = er.mb.newLocal[IndexedSeq[String]]()
-
-      val srvb: StagedRegionValueBuilder = new StagedRegionValueBuilder(er, rt)
-      val len: LocalRef[Int] = er.mb.newLocal[Int]()
-      val elt: LocalRef[String] = er.mb.newLocal[String]()
-
-      val setup = Code(s.setup, r.setup)
-      val missing = s.m || r.m || Code(
-        out := Code.invokeScalaObject2[String, String, IndexedSeq[String]](
-          thisClass, "firstMatchIn",
-          asm4s.coerce[String](wrapArg(er, s.pt)(s.value[Long])),
-          asm4s.coerce[String](wrapArg(er, r.pt)(r.value[Long]))),
-        out.isNull)
-      val value =
-        out.ifNull(
-          defaultValue(rt),
-          Code(
-            len := out.invoke[Int]("size"),
-            srvb.start(len),
-            Code.whileLoop(srvb.arrayIdx < len,
-              elt := out.invoke[Int, String]("apply", srvb.arrayIdx),
-              elt.ifNull(
-                srvb.setMissing(),
-                srvb.addString(elt)),
-              srvb.advance()),
-            srvb.end()))
-
-      EmitCode(setup, missing, PCode(rt, value))
+    }) { case (cb: EmitCodeBuilder, region: Value[Region], rt: PArray,
+               s: (() => IEmitCode), r: (() => IEmitCode)) =>
+      s().flatMap(cb) { case sc: PStringCode =>
+        r().flatMap(cb) { case rc: PStringCode =>
+          val out = cb.newLocal[IndexedSeq[String]]("out",
+            Code.invokeScalaObject2[String, String, IndexedSeq[String]](
+              thisClass, "firstMatchIn", sc.loadString(), rc.loadString()))
+          IEmitCode(cb, out.isNull, {
+            val len = cb.newLocal[Int]("len", out.invoke[Int]("size"))
+            val srvb: StagedRegionValueBuilder = new StagedRegionValueBuilder(cb.emb, rt, region)
+            val elt = cb.newLocal[String]("elt")
+            val value = Code(
+                srvb.start(len),
+                Code.whileLoop(srvb.arrayIdx < len,
+                  elt := out.invoke[Int, String]("apply", srvb.arrayIdx),
+                  elt.ifNull(
+                    srvb.setMissing(),
+                    srvb.addString(elt)),
+                  srvb.advance()),
+                srvb.end())
+            PCode(rt, value)
+          })
+        }
+      }
     }
 
     registerEmitCode2("hamming", TString, TString, TInt32, {
