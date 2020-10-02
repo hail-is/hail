@@ -17,8 +17,7 @@ class Tokens(collections.abc.MutableMapping):
             return os.path.expanduser('~/.hail/tokens.json')
         return '/user-tokens/tokens.json'
 
-    def __init__(self):
-        tokens_file = self.get_tokens_file()
+    def __init__(self, tokens_file):
         if os.path.isfile(tokens_file):
             with open(tokens_file, 'r') as f:
                 self._tokens = json.load(f)
@@ -64,12 +63,15 @@ to obtain new credentials.
             json.dump(self._tokens, f)
 
 
-tokens = None
+tokens = {}
 
 
-def get_tokens():
+def get_tokens(file=None):
     global tokens
 
-    if not tokens:
-        tokens = Tokens()
-    return tokens
+    if file is None:
+        file = Tokens.get_tokens_file()
+
+    if file not in tokens:
+        tokens[file] = Tokens(file)
+    return tokens[file]
