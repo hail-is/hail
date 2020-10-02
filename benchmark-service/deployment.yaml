@@ -32,10 +32,10 @@ spec:
             value: /deploy-config/deploy-config.json
           - name: HAIL_SHA
             value: "{{ code.sha }}"
-          ports:
-            - containerPort: 5000
           - name: HAIL_CI_OAUTH_TOKEN
             value: /secrets/oauth-token/oauth-token
+          ports:
+            - containerPort: 5000
           resources:
             requests:
               memory: "250M"
