@@ -1591,6 +1591,19 @@ class Tests(unittest.TestCase):
         j = r.join(truth, how='outer')
         self.assertTrue(j.all((j.confidence == j.confidence_1) & (hl.abs(j.p_de_novo - j.p_de_novo_1) < 1e-4)))
 
+    def test_de_novo_error(self):
+        mt = hl.import_vcf(resource('denovo.vcf'))
+        ped = hl.Pedigree.read(resource('denovo.fam'))
+
+        with pytest.raises(hl.utils.HailUserError, match='pop_frequency_prior'):
+            hl.de_novo(mt, ped, pop_frequency_prior=2.0).count()
+
+    def test_de_novo_ignore_computed_af_runs(self):
+        mt = hl.import_vcf(resource('denovo.vcf'))
+        ped = hl.Pedigree.read(resource('denovo.fam'))
+
+        hl.de_novo(mt, ped, pop_frequency_prior=mt.info.ESP, ignore_in_sample_allele_frequency=True).count()
+
     def test_warn_if_no_intercept(self):
         mt = hl.balding_nichols_model(1, 1, 1).add_row_index().add_col_index()
         intercept = hl.float64(1.0)
