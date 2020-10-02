@@ -52,28 +52,22 @@ object IntervalFunctions extends RegistryFunctions {
           PCode(rt, vv))
     }
 
-    registerEmitCode1("start", TInterval(tv("T")), tv("T"),
+    registerIEmitCode1("start", TInterval(tv("T")), tv("T"),
       (_: Type, x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
-      case (r, rt, interval) =>
-        val intervalT = interval.pt.asInstanceOf[PInterval]
-        val iv = r.mb.newLocal[Long]()
-        EmitCode(
-          Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
-          interval.m || !Code(iv := interval.value[Long], intervalT.startDefined(iv)),
-          PCode(rt, Region.loadIRIntermediate(intervalT.pointType)(intervalT.startOffset(iv)))
-        )
+      case (cb, r, rt, interval) =>
+        interval().flatMap(cb) { case pi: PIntervalCode =>
+          val pv = pi.memoize(cb, "interval")
+          pv.loadStart(cb)
+        }
     }
 
-    registerEmitCode1("end", TInterval(tv("T")), tv("T"),
+    registerIEmitCode1("end", TInterval(tv("T")), tv("T"),
       (_: Type, x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
-      case (r, rt, interval) =>
-        val intervalT = interval.pt.asInstanceOf[PInterval]
-        val iv = r.mb.newLocal[Long]()
-        EmitCode(
-          Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
-          interval.m || !Code(iv := interval.value[Long], intervalT.endDefined(iv)),
-          PCode(rt, Region.loadIRIntermediate(intervalT.pointType)(intervalT.endOffset(iv)))
-        )
+      case (cb, r, rt, interval) =>
+        interval().flatMap(cb) { case pi: PIntervalCode =>
+          val pv = pi.memoize(cb, "interval")
+          pv.loadEnd(cb)
+        }
     }
 
     registerPCode1("includesStart", TInterval(tv("T")), TBoolean, (_: Type, x: PType) =>
