@@ -34,7 +34,7 @@ BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 START_POINT = '2020-10-01T00:00:00Z'
 
-main_commit_sha = 'ef7262d01f2bde422aaf09b6f84091ac0e439b1d'
+#main_commit_sha = 'ef7262d01f2bde422aaf09b6f84091ac0e439b1d'
 
 
 def get_benchmarks(app, file_path):
@@ -213,7 +213,7 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
 async def query_github(app):
     global START_POINT
     github_client = app['github_client']
-    request_string = f'/repos/hail-is/hail/commits?sha={main_commit_sha}&since={START_POINT}'
+    request_string = f'/repos/hail-is/hail/commits?sha=main&since={START_POINT}'
 
     data = await github_client.getitem(request_string)
     new_commits = []
@@ -234,12 +234,12 @@ async def github_polling_loop(app):
 
 
 async def on_startup(app):
-    with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
-        oauth_token = f.read().strip()
+    # with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+    #     oauth_token = f.read().strip()
     app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
                                                        'hail-is/hail',
-                                                       oauth_token=oauth_token)
+                                                       oauth_token='/secrets/oauth-token/oauth-token')
     asyncio.ensure_future(retry_long_running('github_polling_loop', github_polling_loop, app))
 
 
