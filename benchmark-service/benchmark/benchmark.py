@@ -220,6 +220,9 @@ async def query_github(app):
         sha = commit.get('sha')
         new_commits.append(commit)
         log.info(f'commit {sha}')
+        global START_POINT
+        START_POINT = commit.get('commit').get('date')
+        log.info(f'start point is now {START_POINT}')
     log.info('got new commits')
 
 
