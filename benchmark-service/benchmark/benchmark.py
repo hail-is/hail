@@ -239,7 +239,7 @@ async def on_startup(app):
     app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
                                                        'hail-is/hail',
-                                                       oauth_token='/secrets/oauth-token/oauth-token')
+                                                       oauth_token='/secrets/oauth-token')
     asyncio.ensure_future(retry_long_running('github_polling_loop', github_polling_loop, app))
 
 
