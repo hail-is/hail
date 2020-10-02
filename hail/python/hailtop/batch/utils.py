@@ -103,7 +103,7 @@ def _combine(combop, b, name, xs, branching_factor=100):
     level_digits = digits_needed(n_levels)
 
     level = 0
-    while level <= n_levels:
+    while level < n_levels:
         branch_digits = digits_needed(len(xs) // branching_factor + min(len(xs) % branching_factor, 1))
         grouped_xs = grouped(branching_factor, xs)
         xs = [combop(b, f'{name}-{level:0{level_digits}}-{i:0{branch_digits}}', xs) for i, xs in enumerate(grouped_xs)]
