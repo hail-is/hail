@@ -34,8 +34,6 @@ BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 START_POINT = '2020-10-01T00:00:00Z'
 
-#main_commit_sha = 'ef7262d01f2bde422aaf09b6f84091ac0e439b1d'
-
 
 def get_benchmarks(app, file_path):
     gs_reader = app['gs_reader']
@@ -239,7 +237,7 @@ async def on_startup(app):
     app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
                                                        'hail-is/hail',
-                                                       oauth_token='/secrets/oauth-token/oauth-token')
+                                                       oauth_token=oauth_token)
     asyncio.ensure_future(retry_long_running('github_polling_loop', github_polling_loop, app))
 
 
