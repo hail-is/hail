@@ -8,7 +8,7 @@ from .batch import Batch
 from .resource import ResourceGroup, ResourceFile
 
 
-def concatenate(b: Batch, files: List[ResourceFile], branching_factor: int = 100) -> ResourceFile:
+def concatenate(b: Batch, files: List[ResourceFile], image: str = None, branching_factor: int = 100) -> ResourceFile:
     """
     Concatenate files using tree aggregation.
 
@@ -35,6 +35,8 @@ def concatenate(b: Batch, files: List[ResourceFile], branching_factor: int = 100
         List of files to concatenate.
     branching_factor:
         Grouping factor when concatenating files.
+    image:
+        Image to use. Must have the cat command.
 
     Returns
     -------
@@ -43,7 +45,8 @@ def concatenate(b: Batch, files: List[ResourceFile], branching_factor: int = 100
 
     def _concatenate(b, name, xs):
         j = b.new_job(name=name)
-        j.image('ubuntu:18.04')
+        if image:
+            j.image(image)
         j.command(f'cat {" ".join(xs)} > {j.ofile}')
         return j.ofile
 
@@ -57,7 +60,7 @@ def concatenate(b: Batch, files: List[ResourceFile], branching_factor: int = 100
 
 
 def plink_merge(b: Batch, bfiles: List[ResourceGroup],
-                image: str = 'hailgenetics/genetics:0.2.37', branching_factor: int = 100) -> ResourceGroup:
+                image: str = None, branching_factor: int = 100) -> ResourceGroup:
     """
     Merge binary PLINK files using tree aggregation.
 
@@ -82,7 +85,8 @@ def plink_merge(b: Batch, bfiles: List[ResourceGroup],
         if len(xs) == 1:
             return xs[0]
         j = b.new_job(name=name)
-        j.image(image)
+        if image:
+            j.image(image)
         for f in xs[1:]:
             j.command(f'echo "{f.bed} {f.bim} {f.fam}" >> merge_list')
         j.command(f'plink --bfile {xs[0]} --merge-list merge_list --out {j.ofile}')
