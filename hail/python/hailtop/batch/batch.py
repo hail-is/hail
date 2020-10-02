@@ -172,7 +172,7 @@ class Batch:
 
     def _new_input_resource_file(self, input_path, value=None):
         if value is None:
-            value = f'{secret_alnum_string(5)}/{os.path.basename(input_path)}'
+            value = f'{secret_alnum_string(5)}/{os.path.basename(input_path.rstrip("/"))}'
         irf = _resource.InputResourceFile(value)
         irf._add_input_path(input_path)
         self._resource_map[irf._uid] = irf  # pylint: disable=no-member
@@ -277,7 +277,7 @@ class Batch:
         """
 
         root = secret_alnum_string(5)
-        new_resources = {name: self._new_input_resource_file(file, value=f'{root}/{os.path.basename(file)}')
+        new_resources = {name: self._new_input_resource_file(file, value=f'{root}/{os.path.basename(file.rstrip("/"))}')
                          for name, file in kwargs.items()}
         rg = _resource.ResourceGroup(None, root, **new_resources)
         self._resource_map.update({rg._uid: rg})
