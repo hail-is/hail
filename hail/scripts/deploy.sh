@@ -81,7 +81,7 @@ cloud_sha_location=gs://hail-common/builds/0.2/latest-hash/cloudtools-5-spark-2.
 printf "$GIT_VERSION" | gsutil cp  - $cloud_sha_location
 gsutil acl set public-read $cloud_sha_location
 
-# deploy annotation db json
-annotation_db_json_url=gs://hail-common/annotationdb/$HAIL_VERSION/annotation_db.json
-gsutil cp python/hail/experimental/annotation_db.json $annotation_db_json_url
-gsutil -m retention temp set $annotation_db_json_url
+# deploy datasets (annotation db) json
+datasets_json_url=gs://hail-common/annotationdb/$HAIL_VERSION/datasets.json
+gsutil cp python/hail/experimental/datasets.json $datasets_json_url
+gsutil -m retention temp set $datasets_json_url
