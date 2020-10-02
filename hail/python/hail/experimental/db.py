@@ -33,8 +33,8 @@ class DatasetVersion:
         -------
         :class:`.DatasetVersion`
         """
-        assert 'url' in doc, doc
-        assert 'version' in doc, doc
+        assert 'url' in doc
+        assert 'version' in doc
         return DatasetVersion(doc['url'],
                               doc['version'])
 
@@ -142,16 +142,14 @@ class Dataset:
         :class:`Dataset`
             If versions exist for region returns a :class:`.Dataset` object, else None.
         """
-        assert 'description' in doc, doc
-        assert 'url' in doc, doc
+        assert 'description' in doc
+        assert 'url' in doc
         if 'annotation_db' in doc:
             assert 'key_properties' in doc['annotation_db']
-            key_props = set(doc['annotation_db']['key_properties'])
+            key_properties = set(doc['annotation_db']['key_properties'])
         else:
-            assert 'key_properties' in doc
-            key_props = set(doc['key_properties'])
-        assert 'annotation_db' in doc, doc
-        assert 'versions' in doc, doc
+            key_properties = set()
+        assert 'versions' in doc
         versions = [DatasetVersion.from_json(x) for x in doc['versions']]
         if not custom_config:
             versions = DatasetVersion.get_region(name, versions, region)
@@ -159,7 +157,7 @@ class Dataset:
             return Dataset(name,
                            doc['description'],
                            doc['url'],
-                           key_props,
+                           key_properties,
                            versions)
 
     def __init__(self,
