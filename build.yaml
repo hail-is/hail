@@ -2171,6 +2171,8 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+     export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2196,6 +2198,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
         valueFrom: default_ns.name
@@ -2231,6 +2237,8 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+     export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2256,6 +2264,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
         valueFrom: default_ns.name
@@ -2291,6 +2303,8 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+     export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2316,6 +2330,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
         valueFrom: default_ns.name
@@ -2351,6 +2369,8 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+     export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2376,6 +2396,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
         valueFrom: default_ns.name
@@ -2411,6 +2435,8 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+     export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2436,6 +2462,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
         valueFrom: default_ns.name

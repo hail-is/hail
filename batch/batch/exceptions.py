@@ -7,7 +7,7 @@ class BatchUserError(Exception):
         self.message = message
         self.ui_error_type = severity
 
-    def api_response(self):
+    def http_response(self):
         return web.HTTPForbidden(reason=self.message)
 
 
@@ -15,7 +15,15 @@ class NonExistentBillingProjectError(BatchUserError):
     def __init__(self, billing_project):
         super().__init__(f'Billing project {billing_project} does not exist.', 'error')
 
-    def api_response(self):
+    def http_response(self):
+        return web.HTTPNotFound(reason=self.message)
+
+
+class NonExistentUserError(BatchUserError):
+    def __init__(self, user, billing_project):
+        super().__init__(f'User {user} is not in billing project {billing_project} does not exist.', 'error')
+
+    def http_response(self):
         return web.HTTPNotFound(reason=self.message)
 
 
