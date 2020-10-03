@@ -20,7 +20,7 @@ def client_session(*args, **kwargs) -> aiohttp.ClientSession:
             ssl=internal_client_ssl_context(),
             resolver=HailResolver())
     if 'timeout' not in kwargs:
-        kwargs['timeout'] = aiohttp.ClientTimeout(total=15)
+        kwargs['timeout'] = aiohttp.ClientTimeout(total=5)
     return aiohttp.ClientSession(*args, **kwargs)
 
 

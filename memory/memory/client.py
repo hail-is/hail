@@ -6,7 +6,7 @@ import google.api_core.exceptions
 from hailtop.auth import service_auth_headers
 from hailtop.config import get_deploy_config
 from hailtop.google_storage import GCS
-from hailtop.httpx import get_context_specific_ssl_client_session
+from hailtop.httpx import client_session
 from hailtop.utils import request_retry_transient_errors
 
 
@@ -31,9 +31,7 @@ class MemoryClient:
 
     async def async_init(self):
         if self._session is None:
-            self._session = get_context_specific_ssl_client_session(
-                raise_for_status=True,
-                timeout=aiohttp.ClientTimeout(total=60))
+            self._session = client_session(raise_for_status=True)
         if 'Authorization' not in self._headers:
             self._headers.update(service_auth_headers(self._deploy_config, 'memory'))
 
