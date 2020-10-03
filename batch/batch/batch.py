@@ -101,12 +101,12 @@ GROUP BY batches.id;
 
     if record['user'] == 'ci':
         # only jobs from CI may use batch's TLS identity
-        make_client_session = httpx.client_session
+        client_session = httpx.client_session(retry_transient=False)
     else:
-        make_client_session = aiohttp.ClientSession
+        client_session = aiohttp.ClientSession(
+            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)
     try:
-        async with make_client_session(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+        async with client_session as session:
             await session.post(callback, json=batch_record_to_dict(record))
             log.info(f'callback for batch {batch_id} successful')
     except Exception:

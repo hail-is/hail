@@ -459,9 +459,8 @@ def test_authorized_users_only():
             (session.get, '/batches/0/jobs/0', 302)]
         for method, url, expected in endpoints:
             full_url = deploy_config.url('batch', url)
-            with sync_retry_transient_errors(
-                    session.request, method, full_url, allow_redirects=False) as resp:
-                assert resp.status == expected, (full_url, r, expected)
+            with session.request(method, full_url, allow_redirects=False) as resp:
+                assert resp.status == expected, (full_url, resp.text(), expected)
 
 
 def test_bad_token():
@@ -585,13 +584,11 @@ def test_batch_create_validation():
     headers = service_auth_headers(deploy_config, 'batch')
     with blocking_client_session() as session:
         for config in bad_configs:
-            with sync_retry_transient_errors(
-                    session.post,
-                    url,
-                    json=config,
-                    allow_redirects=True,
-                    headers=headers) as resp:
-                assert resp.status == 400, (config, r)
+            with session.post(url,
+                              json=config,
+                              allow_redirects=True,
+                              headers=headers) as resp:
+                assert resp.status == 400, (config, resp)
 
 
 def test_duplicate_parents(client):

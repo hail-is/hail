@@ -568,9 +568,7 @@ class BatchClient:
         self.url = deploy_config.base_url('batch')
 
         if session is None:
-            session = httpx.client_session(
-                raise_for_status=True,
-                timeout=aiohttp.ClientTimeout(total=60))
+            session = httpx.client_session()
         self._session = session
 
         h = {}
@@ -583,23 +581,19 @@ class BatchClient:
         self._headers = h
 
     async def _get(self, path, params=None):
-        return await request_retry_transient_errors(
-            self._session, 'GET',
+        return await self._session.get(
             self.url + path, params=params, headers=self._headers)
 
     async def _post(self, path, data=None, json=None):
-        return await request_retry_transient_errors(
-            self._session, 'POST',
+        return await self._session.post(
             self.url + path, data=data, json=json, headers=self._headers)
 
     async def _patch(self, path):
-        return await request_retry_transient_errors(
-            self._session, 'PATCH',
+        return await self._session.patch(
             self.url + path, headers=self._headers)
 
     async def _delete(self, path):
-        return await request_retry_transient_errors(
-            self._session, 'DELETE',
+        return await self._session.delete(
             self.url + path, headers=self._headers)
 
     async def list_batches(self, q=None, last_batch_id=None, limit=2**64):

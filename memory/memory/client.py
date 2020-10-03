@@ -45,10 +45,9 @@ class MemoryClient:
         params = {'q': filename, 'etag': etag}
         try:
             url = f'{self.url}/api/v1alpha/objects'
-            async with await request_retry_transient_errors(self._session,
-                                                            'get', url,
-                                                            params=params,
-                                                            headers=self._headers) as response:
+            async with await self._session.get(url,
+                                               params=params,
+                                               headers=self._headers) as response:
                 return await response.read()
         except aiohttp.ClientResponseError as e:
             if e.status == 404:

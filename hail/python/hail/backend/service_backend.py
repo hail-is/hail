@@ -76,9 +76,7 @@ class ServiceBackend(Backend):
             'billing_project': self._billing_project,
             'bucket': self._bucket
         }
-        with sync_retry_transient_errors(
-                self.session.post,
-                f'{self.url}/execute', json=body) as resp:
+        with self.session.post(f'{self.url}/execute', json=body) as resp:
             if resp.status == 400 or resp.status == 500:
                 raise FatalError(resp.text)
             resp.raise_for_status()
@@ -91,9 +89,7 @@ class ServiceBackend(Backend):
 
     def _request_type(self, ir, kind):
         code = self._render(ir)
-        with sync_retry_transient_errors(
-                self.session.post,
-                f'{self.url}/type/{kind}', json=code) as resp:
+        with self.session.post(f'{self.url}/type/{kind}', json=code) as resp:
             if resp.status == 400 or resp.status == 500:
                 raise FatalError(resp.text)
             resp.raise_for_status()
@@ -117,17 +113,14 @@ class ServiceBackend(Backend):
         return tblockmatrix._from_json(resp)
 
     def add_reference(self, config):
-        with sync_retry_transient_errors(
-                self.session.post,
-                f'{self.url}/references/create', json=config) as resp:
+        with self.session.post(f'{self.url}/references/create', json=config) as resp:
             if resp.status == 400 or resp.status == 500:
                 resp_json = resp.json()
                 raise FatalError(resp_json['message'])
             resp.raise_for_status()
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
-        with sync_retry_transient_errors(
-                self.session.post,
+        with self.session.post(
                 f'{self.url}/references/create/fasta',
                 json={
                     'name': name,
@@ -144,20 +137,14 @@ class ServiceBackend(Backend):
             resp.raise_for_status()
 
     def remove_reference(self, name):
-        with sync_retry_transient_errors(
-                self.session.delete,
-                f'{self.url}/references/delete',
-                json={'name': name}) as resp:
+        with self.session.delete(f'{self.url}/references/delete', json={'name': name}) as resp:
             if resp.status == 400 or resp.status == 500:
                 resp_json = resp.json()
                 raise FatalError(resp_json['message'])
             resp.raise_for_status()
 
     def get_reference(self, name):
-        with sync_retry_transient_errors(
-                self.session.get,
-                f'{self.url}/references/get',
-                json={'name': name}) as resp:
+        with self.session.get(f'{self.url}/references/get', json={'name': name}) as resp:
             if resp.status == 400 or resp.status == 500:
                 resp_json = resp.json()
                 raise FatalError(resp_json['message'])
@@ -179,8 +166,7 @@ class ServiceBackend(Backend):
             resp.raise_for_status()
 
     def remove_sequence(self, name):
-        with sync_retry_transient_errors(
-                self.session.delete,
+        with self.session.delete(
                 f'{self.url}/references/sequence/delete',
                 json={'name': name}) as resp:
             if resp.status == 400 or resp.status == 500:
@@ -189,8 +175,7 @@ class ServiceBackend(Backend):
             resp.raise_for_status()
 
     def add_liftover(self, name, chain_file, dest_reference_genome):
-        with sync_retry_transient_errors(
-                self.session.post,
+        with self.session.post(
                 f'{self.url}/references/liftover/add',
                 json={'name': name, 'chain_file': chain_file,
                       'dest_reference_genome': dest_reference_genome}) as resp:
@@ -200,8 +185,7 @@ class ServiceBackend(Backend):
             resp.raise_for_status()
 
     def remove_liftover(self, name, dest_reference_genome):
-        with sync_retry_transient_errors(
-                self.session.delete,
+        with self.session.delete(
                 f'{self.url}/references/liftover/remove',
                 json={'name': name, 'dest_reference_genome': dest_reference_genome}) as resp:
             if resp.status == 400 or resp.status == 500:
@@ -210,8 +194,7 @@ class ServiceBackend(Backend):
             resp.raise_for_status()
 
     def parse_vcf_metadata(self, path):
-        with sync_retry_transient_errors(
-                self.session.post,
+        with self.session.post(
                 f'{self.url}/parse-vcf-metadata',
                 json={'path': path}) as resp:
             if resp.status == 400 or resp.status == 500:
@@ -221,8 +204,7 @@ class ServiceBackend(Backend):
             return resp.json()
 
     def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
-        with sync_retry_transient_errors(
-                self.session.post,
+        with self.session.post(
                 f'{self.url}/index-bgen',
                 json={
                     'files': files,
@@ -238,8 +220,7 @@ class ServiceBackend(Backend):
             return resp.json()
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
-        with sync_retry_transient_errors(
-                self.session.post,
+        with self.session.post(
                 f'{self.url}/import-fam',
                 json={
                     'path': path,

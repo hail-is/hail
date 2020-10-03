@@ -21,10 +21,8 @@ async def test_invariants():
     async with client_session(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60)) as session:
-
-        resp = await utils.request_retry_transient_errors(
-            session, 'GET', url, headers=headers)
-        data = await resp.json()
+        async with session.get(url, headers=headers) as resp:
+            data = await resp.json()
 
         assert data['check_incremental_error'] is None, data
         assert data['check_resource_aggregation_error'] is None, data

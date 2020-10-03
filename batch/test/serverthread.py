@@ -34,8 +34,8 @@ class ServerThread(threading.Thread):
         with blocking_client_session() as session:
             while not up:
                 try:
-                    sync_retry_transient_errors(
-                        session.get, ping_url)
+                    with session.get(ping_url) as resp:
+                        resp.text()
                     up = True
                 except requests.exceptions.ConnectionError:
                     time.sleep(0.01)

@@ -5,12 +5,15 @@ import socket
 import logging
 from hailtop.config import get_deploy_config
 from .tls import internal_client_ssl_context, external_client_ssl_context
-from .utils import async_to_blocking
+from .utils import async_to_blocking, retry_transient_errors
 
 log = logging.getLogger('hailtop.httpx')
 
 
-def client_session(*args, **kwargs) -> aiohttp.ClientSession:
+def client_session(*args,
+                   retry_transient=True,
+                   raise_for_status=True,
+                   **kwargs) -> aiohttp.ClientSession:
     assert 'connector' not in kwargs
     if get_deploy_config().location() == 'external':
         kwargs['connector'] = aiohttp.TCPConnector(
@@ -21,7 +24,101 @@ def client_session(*args, **kwargs) -> aiohttp.ClientSession:
             resolver=HailResolver())
     if 'timeout' not in kwargs:
         kwargs['timeout'] = aiohttp.ClientTimeout(total=5)
-    return aiohttp.ClientSession(*args, **kwargs)
+    kwargs['raise_for_status'] = raise_for_status
+    session = aiohttp.ClientSession(*args, **kwargs)
+    if retry_transient:
+        session = RetryingClientSession(session)
+    return session
+
+
+class RetryingClientSession:
+    def __init__(self, session: aiohttp.ClientSession):
+        self.session = session
+
+    async def request(self,
+                      method: str,
+                      url: aiohttp.typedefs.StrOrURL,
+                      **kwargs: Any) -> aiohttp.client._RequestContextManager:
+        return await retry_transient_errors(self.session.request,
+                                            method, url, **kwargs)
+
+    def get(self,
+            url: aiohttp.typedefs.StrOrURL,
+            *,
+            allow_redirects: bool = True,
+            **kwargs: Any) -> 'BlockingContextManager':
+        return await retry_transient_errors(self.session.get,
+                                            url, allow_redirects=allow_redirects, **kwargs))
+
+    def options(self,
+                url: aiohttp.typedefs.StrOrURL,
+                *,
+                allow_redirects: bool = True,
+                **kwargs: Any) -> 'BlockingContextManager':
+        return await retry_transient_errors(
+            self.session.options, url, allow_redirects=allow_redirects, **kwargs))
+
+    def head(self,
+             url: aiohttp.typedefs.StrOrURL,
+             *,
+             allow_redirects: bool = False,
+             **kwargs: Any) -> 'BlockingContextManager':
+        return await retry_transient_errors(
+            self.session.head, url, allow_redirects=allow_redirects, **kwargs))
+
+    def post(self,
+             url: aiohttp.typedefs.StrOrURL,
+             *,
+             data: Any = None, **kwargs: Any) -> 'BlockingContextManager':
+        return await retry_transient_errors(
+            self.session.post, url, data=data, **kwargs))
+
+    def put(self,
+            url: aiohttp.typedefs.StrOrURL,
+            *,
+            data: Any = None,
+            **kwargs: Any) -> 'BlockingContextManager':
+        return await retry_transient_errors(
+            self.session.put, url, data=data, **kwargs))
+
+    def patch(self,
+              url: aiohttp.typedefs.StrOrURL,
+              *,
+              data: Any = None,
+              **kwargs: Any) -> 'BlockingContextManager':
+        return await retry_transient_errors(
+            self.session.patch, url, data=data, **kwargs))
+
+    def delete(self,
+               url: aiohttp.typedefs.StrOrURL,
+               **kwargs: Any) -> 'BlockingContextManager':
+        return await retry_transient_errors(
+            self.session.delete, url, **kwargs))
+
+    def close(self) -> None:
+        async_to_blocking(self.session.close())
+
+    @property
+    def closed(self) -> bool:
+        return self.session.closed
+
+    @property
+    def cookie_jar(self) -> aiohttp.abc.AbstractCookieJar:
+        return self.session.cookie_jar
+
+    @property
+    def version(self) -> Tuple[int, int]:
+        return self.session.version
+
+    def __enter__(self) -> 'BlockingClientSession':
+        self.session = async_to_blocking(self.session.__aenter__)
+        return self
+
+    def __exit__(self,
+                 exc_type: Optional[Type[BaseException]],
+                 exc_val: Optional[BaseException],
+                 exc_tb: Optional[TracebackType]) -> None:
+        self.close()
 
 
 class HailResolver(aiohttp.abc.AbstractResolver):

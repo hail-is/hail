@@ -968,8 +968,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
     async with httpx.client_session(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60)) as session:
-        await request_retry_transient_errors(
-            session, 'PATCH',
+        await session.patch(
             deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
             headers=app['driver_headers'])
 
@@ -1508,8 +1507,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 async def cancel_batch_loop_body(app):
     async with httpx.client_session(raise_for_status=True) as session:
-        await request_retry_transient_errors(
-            session, 'POST',
+        await session.post(
             deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
             headers=app['driver_headers'])
 
@@ -1519,8 +1517,7 @@ async def cancel_batch_loop_body(app):
 
 async def delete_batch_loop_body(app):
     async with httpx.client_session(raise_for_status=True) as session:
-        await request_retry_transient_errors(
-            session, 'POST',
+        await session.post(
             deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
             headers=app['driver_headers'])
 

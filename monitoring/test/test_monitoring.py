@@ -25,9 +25,8 @@ async def test_billing_monitoring():
         async def wait_forever():
             data = None
             while data is None:
-                resp = await utils.request_retry_transient_errors(
-                    session, 'GET', f'{monitoring_deploy_config_url}', headers=headers)
-                data = await resp.json()
+                async with session.get(f'{monitoring_deploy_config_url}', headers=headers) as resp:
+                    data = await resp.json()
                 await asyncio.sleep(5)
             return data
 
