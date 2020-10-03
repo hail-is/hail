@@ -7,7 +7,6 @@ import hail as hl
 import pkg_resources
 
 from hailtop.httpx import blocking_client_session
-from hailtop.utils import sync_retry_transient_errors
 
 from .lens import MatrixRows, TableRows
 from ..expr import StructExpression
