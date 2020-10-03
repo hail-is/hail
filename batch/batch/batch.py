@@ -8,7 +8,7 @@ import traceback
 from hailtop.utils import (
     time_msecs, sleep_and_backoff, is_transient_error,
     time_msecs_str, humanize_timedelta_msecs, cost_str)
-from hailtop.httpx import in_cluster_ssl_client_session
+from hailtop import httpx
 
 from .globals import complete_states, tasks, STATUS_FORMAT_VERSION
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
@@ -101,7 +101,7 @@ GROUP BY batches.id;
 
     if record['user'] == 'ci':
         # only jobs from CI may use batch's TLS identity
-        make_client_session = in_cluster_ssl_client_session
+        make_client_session = httpx.client_session
     else:
         make_client_session = aiohttp.ClientSession
     try:

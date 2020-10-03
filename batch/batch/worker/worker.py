@@ -22,7 +22,8 @@ from hailtop.utils import (time_msecs, request_retry_transient_errors,
                            RETRY_FUNCTION_SCRIPT, sleep_and_backoff, retry_all_errors, check_shell,
                            CalledProcessError, blocking_to_async, check_shell_output,
                            retry_long_running, run_if_changed)
-from hailtop.httpx import get_context_specific_ssl_client_session
+
+from hailtop.httpx import client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
                                         parse_memory_in_bytes)
 # import uvloop
@@ -1065,7 +1066,7 @@ class Worker:
                     idle_duration = time_msecs() - self.last_updated
                 log.info(f'idle {idle_duration} ms, exiting')
 
-                async with get_context_specific_ssl_client_session(
+                async with client_session(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     # Don't retry.  If it doesn't go through, the driver
                     # monitoring loops will recover.  If the driver is
@@ -1119,8 +1120,7 @@ class Worker:
         delay_secs = 0.1
         while True:
             try:
-                async with get_context_specific_ssl_client_session(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                async with client_session(raise_for_status=True) as session:
                     await session.post(
                         deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
                         json=body, headers=self.headers)
@@ -1174,8 +1174,7 @@ class Worker:
             'status': status
         }
 
-        async with get_context_specific_ssl_client_session(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+        async with client_session(raise_for_status=True) as session:
             await request_retry_transient_errors(
                 session, 'POST',
                 deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started'),
@@ -1188,7 +1187,7 @@ class Worker:
             log.exception(f'error while posting {job} started')
 
     async def activate(self):
-        async with get_context_specific_ssl_client_session(
+        async with client_session(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             resp = await request_retry_transient_errors(
                 session, 'POST',
