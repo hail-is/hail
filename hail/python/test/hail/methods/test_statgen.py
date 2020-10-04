@@ -1595,7 +1595,7 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(resource('denovo.vcf'))
         ped = hl.Pedigree.read(resource('denovo.fam'))
 
-        with pytest.raises(hl.utils.HailUserError, match='pop_frequency_prior'):
+        with pytest.raises(Exception, match='pop_frequency_prior'):
             hl.de_novo(mt, ped, pop_frequency_prior=2.0).count()
 
     def test_de_novo_ignore_computed_af_runs(self):
