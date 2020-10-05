@@ -35,7 +35,8 @@ from ..globals import HTTP_CLIENT_MAX_SIZE
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
 from .k8s_cache import K8sCache
-from ..utils import query_billing_projects
+
+from ..utils import query_billing_projects, unreserved_worker_data_disk_size_gib
 from ..exceptions import OpenBatchError, NonExistentBatchError
 
 uvloop.install()
@@ -402,6 +403,15 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
                     'Both worker local SSD and PD SSD data disk are non-zero.',
                     'error')
         raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+    if worker_local_ssd_data_disk == 0:
+        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, worker_cores)
+        if unreserved_disk_storage_gb < 0:
+            min_disk_storage = worker_pd_ssd_data_disk_size_gb - unreserved_disk_storage_gb
+            set_message(session,
+                        f'PD SSD must be at least {min_disk_storage} GB',
+                        'error')
+            raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
     max_instances = validate_int(
         'Max instances',

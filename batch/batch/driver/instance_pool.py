@@ -21,7 +21,7 @@ from ..batch_configuration import DEFAULT_NAMESPACE, PROJECT, \
 
 from .instance import Instance
 from ..worker_config import WorkerConfig
-from ..utils import WindowFractionCounter
+from ..utils import WindowFractionCounter, unreserved_worker_data_disk_size_gib
 
 log = logging.getLogger('instance_pool')
 
@@ -333,6 +333,9 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
             }
             worker_data_disk_name = 'sdb'
 
+        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(self.worker_local_ssd_data_disk, self.worker_pd_ssd_data_disk_size_gb, cores)
+        assert unreserved_disk_storage_gb >= 0
+
         config = {
             'name': machine_name,
             'machineType': f'projects/{PROJECT}/zones/{zone}/machineTypes/n1-{self.worker_type}-{cores}',
@@ -405,8 +408,9 @@ iptables -I DOCKER-USER -i public -d 172.16.0.0/12 -j DROP
 iptables -I DOCKER-USER -i public -d 192.168.0.0/16 -j DROP
 
 WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
+UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
 
-# format local SSD
+# format worker data disk
 sudo mkfs.xfs -m reflink=1 /dev/$WORKER_DATA_DISK_NAME
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
 sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_NAME
@@ -532,9 +536,11 @@ docker run \
     -e WORKER_LOGS_BUCKET_NAME=$WORKER_LOGS_BUCKET_NAME \
     -e INSTANCE_ID=$INSTANCE_ID \
     -e PROJECT=$PROJECT \
+    -e ZONE=$ZONE \
     -e WORKER_CONFIG=$WORKER_CONFIG \
     -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
     -e WORKER_DATA_DISK_MOUNT=/mnt/disks/$WORKER_DATA_DISK_NAME \
+    -e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /usr/bin/docker:/usr/bin/docker \
     -v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \

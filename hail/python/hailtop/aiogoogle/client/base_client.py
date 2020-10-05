@@ -30,8 +30,8 @@ class BaseClient:
 
     async def delete(self, path: str, **kwargs) -> None:
         async with await self._session.delete(
-                f'{self._base_url}{path}', **kwargs):
-            pass
+                f'{self._base_url}{path}', **kwargs) as resp:
+            return await resp.json()
 
     async def close(self) -> None:
         if self._session is not None:

@@ -185,11 +185,9 @@ spec:
            value: "{{ code.sha }}"
 {% if not deploy %}
          - name: HAIL_BATCH_JOB_DEFAULT_CPU
-           value: "0.1"
-         - name: HAIL_BATCH_JOB_DEFAULT_MEMORY
-           value: "375M"
+           value: "0.25"
          - name: HAIL_BATCH_JOB_DEFAULT_STORAGE
-           value: "1G"
+           value: "0Gi"
 {% endif %}
 {% if deploy %}
          - name: HAIL_BATCH_BUCKET_NAME

@@ -13,6 +13,7 @@ import requests
 import google.auth.exceptions
 import time
 import weakref
+import math
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
@@ -37,6 +38,11 @@ def first_extant_file(*files):
         if f is not None and os.path.isfile(f):
             return f
     return None
+
+
+def is_power_of_two(x):
+    power = math.log2(x)
+    return math.ceil(power) == math.floor(power)
 
 
 def cost_str(cost):

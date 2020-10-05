@@ -1,6 +1,7 @@
 import re
 
-from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
+from hailtop.batch_client.parse import (STORAGE_REGEX, STORAGE_REGEXPAT,
+                                        MEMORY_REGEX, MEMORY_REGEXPAT,
                                         CPU_REGEX, CPU_REGEXPAT)
 
 # rough schema (without requiredness, value validation):
@@ -24,8 +25,8 @@ from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
 #   'requester_pays_project': str,
 #   'network': str,
 #   'resoures': {
-#     'memory': str,
 #     'cpu': str,
+#     'memory': str,
 #     'storage': str
 #   },
 #   'secrets': [{
@@ -50,7 +51,7 @@ ENV_VAR_KEYS = {'name', 'value'}
 
 SECRET_KEYS = {'namespace', 'name', 'mount_path'}
 
-RESOURCES_KEYS = {'memory', 'cpu', 'storage'}
+RESOURCES_KEYS = {'cpu', 'memory', 'storage'}
 
 FILE_KEYS = {'from', 'to'}
 
@@ -250,8 +251,8 @@ def validate_job(i, job):
         pvc_size = job['pvc_size']
         if not isinstance(pvc_size, str):
             raise ValidationError(f'jobs[{i}].pvc_size not str')
-        if not MEMORY_REGEX.fullmatch(pvc_size):
-            raise ValidationError(f'jobs[{i}].pvc_size must match regex: {MEMORY_REGEXPAT}')
+        if not STORAGE_REGEX.fullmatch(pvc_size):
+            raise ValidationError(f'jobs[{i}].pvc_size must match regex: {STORAGE_REGEXPAT}')
 
     if 'requester_pays_project' in job:
         requester_pays_project = job['requester_pays_project']
@@ -273,13 +274,6 @@ def validate_job(i, job):
             if k not in RESOURCES_KEYS:
                 raise ValidationError(f'unknown key in jobs[{i}].resources: {k}')
 
-        if 'memory' in resources:
-            memory = resources['memory']
-            if not isinstance(memory, str):
-                raise ValidationError(f'jobs[{i}].resources.memory is not str')
-            if not MEMORY_REGEX.fullmatch(memory):
-                raise ValidationError(f'jobs[{i}].resources.memory must match regex: {MEMORY_REGEXPAT}')
-
         if 'cpu' in resources:
             cpu = resources['cpu']
             if not isinstance(cpu, str):
@@ -287,12 +281,19 @@ def validate_job(i, job):
             if not CPU_REGEX.fullmatch(cpu):
                 raise ValidationError(f'jobs[{i}].resources.cpu must match regex: {CPU_REGEXPAT}')
 
+        if 'memory' in resources:
+            memory = resources['memory']
+            if not isinstance(memory, str):
+                raise ValidationError(f'jobs[{i}].resources.memory is not str')
+            if not MEMORY_REGEX.fullmatch(memory):
+                raise ValidationError(f'jobs[{i}].resources.memory must match regex: {MEMORY_REGEXPAT}')
+
         if 'storage' in resources:
             storage = resources['storage']
             if not isinstance(storage, str):
                 raise ValidationError(f'jobs[{i}].resources.storage is not str')
-            if not MEMORY_REGEX.fullmatch(storage):
-                raise ValidationError(f'jobs[{i}].resources.storage must match regex: {MEMORY_REGEXPAT}')
+            if not STORAGE_REGEX.fullmatch(storage):
+                raise ValidationError(f'jobs[{i}].resources.storage must match regex: {STORAGE_REGEXPAT}')
 
     if 'secrets' in job:
         secrets = job['secrets']

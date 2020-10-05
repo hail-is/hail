@@ -6,6 +6,8 @@ from .globals import WORKER_CONFIG_VERSION
 MACHINE_TYPE_REGEX = re.compile('projects/(?P<project>[^/]+)/zones/(?P<zone>[^/]+)/machineTypes/(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)')
 DISK_TYPE_REGEX = re.compile('(projects/(?P<project>[^/]+)/)?zones/(?P<zone>[^/]+)/diskTypes/(?P<disk_type>.+)')
 
+MAX_WORKER_STORAGE_GB = 64 * 1024
+
 
 def parse_machine_type_str(name):
     match = MACHINE_TYPE_REGEX.fullmatch(name)
@@ -109,12 +111,12 @@ class WorkerConfig:
 
     def is_valid_configuration(self, valid_resources):
         is_valid = True
-        dummy_resources = self.resources(0, 0)
+        dummy_resources = self.resources(0, 0, 0)
         for resource in dummy_resources:
             is_valid &= resource['name'] in valid_resources
         return is_valid
 
-    def resources(self, cpu_in_mcpu, memory_in_bytes):
+    def resources(self, cpu_in_mcpu, memory_in_bytes, storage_in_gb):
         assert memory_in_bytes % (1024 * 1024) == 0
         resources = []
 
@@ -126,6 +128,10 @@ class WorkerConfig:
 
         resources.append({'name': f'memory/{self.instance_family}-{preemptible}/1',
                           'quantity': memory_in_bytes // 1024 // 1024})
+
+        # storage is in units of MiB
+        resources.append({'name': 'disk/pd-ssd/1',
+                          'quantity': storage_in_gb * 1024})
 
         quantities = defaultdict(lambda: 0)
         for disk in self.disks:

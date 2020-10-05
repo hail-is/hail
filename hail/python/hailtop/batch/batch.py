@@ -54,8 +54,7 @@ class Batch:
         Docker image to use by default if not specified by a job.
     default_memory:
         Memory setting to use by default if not specified by a job. Only
-        applicable if a docker image is specified for the :class:`.LocalBackend`
-        or the :class:`.ServiceBackend`. Value is in GB.
+        applicable if a docker image is specified for the :class:`.LocalBackend`.
     default_cpu:
         CPU setting to use by default if not specified by a job. Only
         applicable if a docker image is specified for the :class:`.LocalBackend`
@@ -85,7 +84,6 @@ class Batch:
                  attributes: Optional[Dict[str, str]] = None,
                  requester_pays_project: Optional[str] = None,
                  default_image: Optional[str] = None,
-                 default_memory: Optional[str] = None,
                  default_cpu: Optional[str] = None,
                  default_storage: Optional[str] = None,
                  default_timeout: Optional[Union[float, int]] = None,
@@ -107,7 +105,7 @@ class Batch:
         self.requester_pays_project = requester_pays_project
 
         self._default_image = default_image
-        self._default_memory = default_memory
+        self._default_memory = None
         self._default_cpu = default_cpu
         self._default_storage = default_storage
         self._default_timeout = default_timeout

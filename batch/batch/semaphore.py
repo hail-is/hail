@@ -5,6 +5,10 @@ import logging
 log = logging.getLogger('semaphore')
 
 
+class FIFOWeightedSemaphoreFull(Exception):
+    pass
+
+
 class ANullContextManager:
     async def __aenter__(self):
         pass
@@ -23,10 +27,12 @@ class FIFOWeightedSemaphoreContextManager:
         self.sem = sem
         self.weight = weight
 
-    async def __aenter__(self):
-        await self.sem.acquire(self.weight)
+    async def __aenter__(self, nowait=False):
+        await self.sem.acquire(self.weight, nowait=nowait)
 
     async def __aexit__(self, exc_type, exc, tb):
+        if isinstance(exc_type, FIFOWeightedSemaphoreFull):
+            return
         self.sem.release(self.weight)
 
 
@@ -35,10 +41,14 @@ class FIFOWeightedSemaphore:
         self.value = value
         self.queue = collections.deque()
 
-    async def acquire(self, weight):
+    async def acquire(self, weight, nowait=False):
+        log.info(f'queue {self.queue} value {self.value} weight {weight}')
         if not self.queue and self.value >= weight:
             self.value -= weight
             return
+
+        if nowait and self.value < weight:
+            raise FIFOWeightedSemaphoreFull(f'not enough space to acquire semaphore: weight={weight} value={self.value}')
 
         event = asyncio.Event()
         self.queue.append((event, weight))

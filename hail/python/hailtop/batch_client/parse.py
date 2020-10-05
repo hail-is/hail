@@ -8,6 +8,9 @@ MEMORY_REGEX: Pattern = re.compile(MEMORY_REGEXPAT)
 CPU_REGEXPAT: str = r'[+]?((?:[0-9]*[.])?[0-9]+)([m])?'
 CPU_REGEX: Pattern = re.compile(CPU_REGEXPAT)
 
+STORAGE_REGEXPAT: str = r'[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?'
+STORAGE_REGEX: Pattern = re.compile(MEMORY_REGEXPAT)
+
 IMAGE_REGEX: Pattern = re.compile(r"(?:.+/)?([^:]+)(:(.+))?")
 
 
@@ -41,12 +44,17 @@ def parse_memory_in_bytes(memory_string: str) -> Optional[int]:
     return None
 
 
+def parse_storage_in_bytes(storage_string: str) -> Optional[int]:
+    return parse_memory_in_bytes(storage_string)
+
+
+def parse_storage_in_gb(storage_string: str) -> Optional[int]:
+    bytes = parse_storage_in_bytes(storage_string)
+    return math.ceil(bytes / 1024**3)
+
+
 def parse_image_tag(image_string: str) -> Optional[str]:
     match = IMAGE_REGEX.fullmatch(image_string)
     if match:
         return match.group(3)
     return None
-
-
-def parse_storage_in_bytes(storage_string):
-    return parse_memory_in_bytes(storage_string)

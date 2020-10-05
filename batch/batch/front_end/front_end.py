@@ -17,8 +17,7 @@ import google.api_core.exceptions
 from hailtop.utils import (time_msecs, time_msecs_str, humanize_timedelta_msecs,
                            request_retry_transient_errors, run_if_changed,
                            retry_long_running, LoggingTimer, cost_str)
-from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes,
-                                        parse_storage_in_bytes)
+from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_storage_in_gb)
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context, in_cluster_ssl_client_session
 from hailtop.hail_logging import AccessLogger
@@ -32,10 +31,9 @@ from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
 
 # import uvloop
 
-from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_gb,
-                     cost_from_msec_mcpu, adjust_cores_for_packability, coalesce,
-                     adjust_cores_for_storage_request, total_worker_storage_gib,
-                     query_billing_projects)
+from ..utils import (cores_mcpu_to_memory_bytes,
+                     cost_from_msec_mcpu, coalesce,
+                     is_valid_core_count, query_billing_projects)
 from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
                           NonExistentUserError, ClosedBillingProjectError,
@@ -47,6 +45,7 @@ from ..batch_configuration import (BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME,
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
+from ..worker_config import MAX_WORKER_STORAGE_GB
 
 from .validate import ValidationError, validate_batch, validate_jobs
 
@@ -96,7 +95,7 @@ deploy_config = get_deploy_config()
 
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75Gi')
-BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '10Gi')
+BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '0Gi')
 
 
 @routes.get('/healthcheck')
@@ -548,8 +547,6 @@ async def create_jobs(request, userdata):
 
     worker_type = app['worker_type']
     worker_cores = app['worker_cores']
-    worker_local_ssd_data_disk = app['worker_local_ssd_data_disk']
-    worker_pd_ssd_data_disk_size_gb = app['worker_pd_ssd_data_disk_size_gb']
 
     batch_id = int(request.match_info['batch_id'])
 
@@ -629,37 +626,31 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     spec['resources'] = resources
                 if 'cpu' not in resources:
                     resources['cpu'] = BATCH_JOB_DEFAULT_CPU
-                if 'memory' not in resources:
-                    resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
                 if 'storage' not in resources:
                     # FIXME: pvc_size is deprecated
-                    pvc_size = spec.get('pvc_size')
-                    if pvc_size:
-                        resources['storage'] = pvc_size
+                    storage = spec.get('pvc_size')
+                    if storage:
+                        resources['storage'] = storage
                     else:
                         resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
 
-                req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
-                req_memory_bytes = parse_memory_in_bytes(resources['memory'])
-                req_storage_bytes = parse_storage_in_bytes(resources['storage'])
+                cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
+                memory_bytes = cores_mcpu_to_memory_bytes(cores_mcpu, worker_type)
+                storage_gb = parse_storage_in_gb(resources['storage'])
 
-                if req_cores_mcpu == 0:
+                if not is_valid_core_count(cores_mcpu, worker_cores):
                     raise web.HTTPBadRequest(
                         reason=f'bad resource request for job {id}: '
-                        f'cpu cannot be 0')
+                        f'cpu must be a power of two between 0.25 and {worker_cores}. Found {resources["cpu"]}'
+                    )
 
-                cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
-                cores_mcpu = adjust_cores_for_storage_request(cores_mcpu, req_storage_bytes, worker_cores,
-                                                              worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
-                cores_mcpu = adjust_cores_for_packability(cores_mcpu)
-
-                if cores_mcpu > worker_cores * 1000:
-                    total_memory_available = worker_memory_per_core_gb(worker_type) * worker_cores
-                    total_storage_available = total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
+                if storage_gb != 0 and not 10 <= storage_gb <= MAX_WORKER_STORAGE_GB:
                     raise web.HTTPBadRequest(
-                        reason=f'resource requests for job {id} are unsatisfiable: '
-                        f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} storage={resources["storage"]}'
-                        f'maximum: cpu={worker_cores}, memory={total_memory_available}G, storage={total_storage_available}G')
+                        reason=f'bad resource request for job {id}: '
+                        f'storage must be at least 10Gi and no more than 64Ti. Found {resources["storage"]}'
+                    )
+
+                resources['memory'] = str(memory_bytes)
 
                 secrets = spec.get('secrets')
                 if not secrets:
