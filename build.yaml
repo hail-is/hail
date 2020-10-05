@@ -219,7 +219,7 @@ steps:
    image:
      valueFrom: base_image.image
    script: |
-     kubectl -n {{ default_ns.name }} get -o json secret {{ test_database_instance.admin_secret_name }} | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+     kubectl -n {{ default_ns.name }} get -o json secret {{ test_database_instance.admin_secret_name }} | jq '{apiVersion, kind, type, data, metadata: {name: "database-server-config"}}' | kubectl -n {{ default_ns.name }} apply -f -
    serviceAccount:
      name: admin
      namespace:
