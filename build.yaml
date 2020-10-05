@@ -2036,7 +2036,7 @@ steps:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
      - from: /repo/query/test
-       to: /io/test
+       to: /io/
    dependsOn:
     - default_ns
     - batch_pods_ns
