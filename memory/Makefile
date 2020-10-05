@@ -19,7 +19,7 @@ check:
 
 .PHONY: build
 build:
-	make -C ../docker build
+	$(MAKE) -C ../docker build
 	-docker pull $(MEMORY_LATEST)
 	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
 	docker build -t memory -f Dockerfile.out --cache-from memory,$(MEMORY_LATEST),service-base ..

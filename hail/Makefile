@@ -345,8 +345,8 @@ native-lib-reset-prebuilt:
 	$(MAKE) -C src/main/c reset-prebuilt
 
 clean: clean-env native-lib-clean
-	make -C python/hail/docs clean
-	make -C python/hailtop/batch/docs clean
+	$(MAKE) -C python/hail/docs clean
+	$(MAKE) -C python/hailtop/batch/docs clean
 	./gradlew clean $(GRADLE_ARGS)
 	rm -rf build/
 	rm -rf $(PYTHON_JAR)
