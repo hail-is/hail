@@ -74,7 +74,7 @@ Methods
     split_multi
     split_multi_hts
     transmission_disequilibrium_test
-    ~family_methods.trio_matrix
+    trio_matrix
     variant_qc
     vep
 

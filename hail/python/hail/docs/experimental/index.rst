@@ -38,14 +38,14 @@ Genetics Methods
     load_dataset
     ld_score
     ld_score_regression
-    ~expressions.write_expression
-    ~expressions.read_expression
+    write_expression
+    read_expression
     filtering_allele_frequency
     hail_metadata
     plot_roc_curve
-    ~phase_by_transmission.phase_by_transmission
-    ~phase_by_transmission.phase_trio_matrix_by_transmission
-    ~phase_by_transmission.explode_trio_matrix
+    phase_by_transmission
+    phase_trio_matrix_by_transmission
+    explode_trio_matrix
     import_gtf
     get_gene_intervals
     export_entries_by_col

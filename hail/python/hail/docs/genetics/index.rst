@@ -14,8 +14,8 @@ genetics
     :toctree: ./
     :template: class.rst
 
-    ~call.Call
-    ~locus.Locus
-    ~pedigree.Pedigree
-    ~reference_genome.ReferenceGenome
-    ~pedigree.Trio
+    Call
+    Locus
+    Pedigree
+    ReferenceGenome
+    Trio
