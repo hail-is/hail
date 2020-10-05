@@ -34,6 +34,7 @@ BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 START_POINT = '2020-10-01T00:00:00Z'
 
+main_sha = 'd839bd6f05a8338a0709153db76331e52460267e'
 
 def get_benchmarks(app, file_path):
     gs_reader = app['gs_reader']
@@ -211,7 +212,7 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
 async def query_github(app):
     global START_POINT
     github_client = app['github_client']
-    request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
+    request_string = f'/repos/hail-is/hail/commits?sha={main_sha}&since={START_POINT}'
 
     data = await github_client.getitem(request_string)
     new_commits = []
