@@ -29,26 +29,6 @@ sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
 sourceSets.test.runtimeClasspath += files("prebuilt/lib")
 
-task nativeLib(type: Exec) {
-    commandLine 'sh', '-c', 'echo "use make native-lib; gradle is being phased out"; exit 1'
-}
-
-task nativeLibTest(type: Exec) {
-    commandLine 'sh', '-c', 'echo "use make native-lib-test; gradle is being phased out"; exit 1'
-}
-
-task nativeLibClean(type: Exec) {
-    commandLine 'sh', '-c', 'echo "use make native-lib-clean; gradle is being phased out"; exit 1'
-}
-
-task nativeLibPrebuilt(type: Exec) {
-    commandLine 'sh', '-c', 'echo "use make native-lib-prebuilt; gradle is being phased out"; exit 1'
-}
-
-task nativeLibResetPrebuilt(type: Exec) {
-    commandLine 'sh', '-c', 'echo "use make native-lib-reset-prebuilt; gradle is being phased out"; exit 1'
-}
-
 sourceSets {
     main {
         resources {
@@ -64,8 +44,12 @@ tasks.withType(JavaCompile) {
     options.fork = true // necessary to make -XDenableSunApiLintControl work
 }
 
-task releaseJar(type: Exec) {
-    commandLine 'sh', '-c', 'echo "use HAIL_COMPILE_NATIVES=1 make shadowJar; gradle is being phased out"; exit 1'
+project.ext {
+    cachedBreezeVersion = null
+
+    sparkVersion = System.getProperty("spark.version", "2.4.5")
+    scalaVersion = System.getProperty("scala.version", "2.11.12")
+    scalaMajorVersion = (scalaVersion =~ /^\d+.\d+/)[0]
 }
 
 compileScala {
@@ -88,20 +72,16 @@ compileScala {
         "-Xlint:-unsound-match"
     ]
 
+    if (scalaMajorVersion == "2.12") {
+        scalaCompileOptions.additionalParameters += "-Xlint:-unused"
+    }
+
     scalaCompileOptions.forkOptions.with {
         jvmArgs = ["-Xms512M",
                    "-Xmx4096M",
                    "-Xss4M",
                    "-XX:MaxMetaspaceSize=1024M"]
     }
-}
-
-project.ext {
-    cachedBreezeVersion = null
-
-    sparkVersion = System.getProperty("spark.version", "2.4.5")
-    scalaVersion = System.getProperty("scala.version", "2.11.12")
-    scalaMajorVersion = (scalaVersion =~ /^\d+.\d+/)[0]
 }
 
 String breezeVersion() {
@@ -267,18 +247,6 @@ test {
 
 test.dependsOn(checkSettings)
 
-task testPython(type: Exec, dependsOn: shadowJar) {
-    commandLine 'sh', '-c', 'echo "use make pytest; gradle is being phased out"; exit 1'
-}
-
-task doctest(type: Exec) {
-    commandLine 'sh', '-c', 'echo "use make doctest; gradle is being phased out"; exit 1'
-}
-
-task testAll(type: Exec) {
-    commandLine 'sh', '-c', 'echo "use make test; gradle is being phased out"; exit 1'
-}
-
 tasks.withType(ShadowJar) {
     manifest {
         attributes 'Implementation-Title': 'Hail',
@@ -317,20 +285,4 @@ task shadowTestJar(type: ShadowJar) {
     classifier = 'spark-test'
     from project.sourceSets.main.output, project.sourceSets.test.output
     configurations = [project.configurations.hailTestJar]
-}
-
-task archiveZip(type: Exec) {
-    commandLine 'sh', '-c', 'echo "zips are no longer supported, use a python wheel"; exit 1'
-}
-
-task cleanDocs(type: Exec) {
-    commandLine 'sh', '-c', 'echo "use make clean; gradle is being phased out"; exit 1'
-}
-
-task makeDocs(type: Exec) {
-    commandLine 'sh', '-c', 'echo "use make docs; gradle is being phased out"; exit 1'
-}
-
-task makeDocsNoTest(type: Exec) {
-    commandLine 'sh', '-c', 'echo "use make docs-no-test; gradle is being phased out"; exit 1'
 }
