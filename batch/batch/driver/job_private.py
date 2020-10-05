@@ -252,7 +252,9 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
                                               job_private=True)
 
         memory_in_bytes = worker_memory_per_core_bytes(worker_type)
-        resources = worker_config.resources(cores_mcpu, memory_in_bytes)
+        resources = worker_config.resources(cpu_in_mcpu=cores_mcpu,
+                                            memory_in_bytes=memory_in_bytes,
+                                            storage_in_gib=0)  # this is 0 because there's no addtl disk beyond data disk
 
         return (instance, resources)
 

@@ -112,13 +112,15 @@ class WorkerConfig:
 
     def is_valid_configuration(self, valid_resources):
         is_valid = True
-        dummy_resources = self.resources(0, 0)
+        dummy_resources = self.resources(0, 0, 0)
         for resource in dummy_resources:
             is_valid &= resource['name'] in valid_resources
         return is_valid
 
-    def resources(self, cpu_in_mcpu, memory_in_bytes):
-        assert memory_in_bytes % (1024 * 1024) == 0
+    def resources(self, cpu_in_mcpu, memory_in_bytes, storage_in_gib):
+        assert memory_in_bytes % (1024 * 1024) == 0, memory_in_bytes
+        assert isinstance(storage_in_gib, int), storage_in_gib
+
         resources = []
 
         preemptible = 'preemptible' if self.preemptible else 'nonpreemptible'
@@ -129,6 +131,10 @@ class WorkerConfig:
 
         resources.append({'name': f'memory/{self.instance_family}-{preemptible}/1',
                           'quantity': memory_in_bytes // 1024 // 1024})
+
+        # storage is in units of MiB
+        resources.append({'name': 'disk/pd-ssd/1',
+                          'quantity': storage_in_gib * 1024})
 
         quantities = defaultdict(lambda: 0)
         for disk in self.disks:

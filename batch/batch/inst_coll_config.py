@@ -5,9 +5,9 @@ from typing import Dict, Optional, Any
 
 from gear import Database
 
-from .globals import MAX_PERSISTENT_SSD_SIZE_BYTES
+from .globals import MAX_PERSISTENT_SSD_SIZE_GIB
 from .utils import (adjust_cores_for_memory_request, adjust_cores_for_packability,
-                    adjust_cores_for_storage_request, round_storage_bytes_to_gib)
+                    round_storage_bytes_to_gib, cores_mcpu_to_memory_bytes)
 
 
 log = logging.getLogger('inst_coll_config')
@@ -19,6 +19,14 @@ MACHINE_TYPE_REGEX = re.compile('(?P<machine_family>[^-]+)-(?P<machine_type>[^-]
 def machine_type_to_dict(machine_type: str) -> Optional[Dict[str, Any]]:
     match = MACHINE_TYPE_REGEX.search(machine_type)
     return match.groupdict()
+
+
+def requested_storage_bytes_to_actual_storage_gib(storage_bytes):
+    if storage_bytes > MAX_PERSISTENT_SSD_SIZE_GIB * 1024**3:
+        return None
+    if storage_bytes == 0:
+        return storage_bytes
+    return max(10, round_storage_bytes_to_gib(storage_bytes))
 
 
 class InstanceCollectionConfig:
@@ -53,14 +61,17 @@ class PoolConfig(InstanceCollectionConfig):
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
 
-    def resources_to_cores_mcpu(self, cores_mcpu, memory_bytes, storage_bytes):
+    def convert_requests_to_resources(self, cores_mcpu, memory_bytes, storage_bytes):
+        storage_gib = requested_storage_bytes_to_actual_storage_gib(storage_bytes)
+
         cores_mcpu = adjust_cores_for_memory_request(cores_mcpu, memory_bytes, self.worker_type)
-        cores_mcpu = adjust_cores_for_storage_request(cores_mcpu, storage_bytes, self.worker_cores,
-                                                      self.worker_local_ssd_data_disk, self.worker_pd_ssd_data_disk_size_gb)
         cores_mcpu = adjust_cores_for_packability(cores_mcpu)
 
+        memory_bytes = cores_mcpu_to_memory_bytes(cores_mcpu, self.worker_type)
+
         if cores_mcpu <= self.worker_cores * 1000:
-            return cores_mcpu
+            return (cores_mcpu, memory_bytes, storage_gib)
+
         return None
 
 
@@ -77,15 +88,16 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
         self.max_live_instances = max_live_instances
 
     def convert_requests_to_resources(self, machine_type, storage_bytes):
-        if storage_bytes > MAX_PERSISTENT_SSD_SIZE_BYTES:
-            return None
-        storage_gib = max(10, round_storage_bytes_to_gib(storage_bytes))
+        # minimum storage for a GCE instance is 10Gi
+        storage_gib = max(10, requested_storage_bytes_to_actual_storage_gib(storage_bytes))
 
         machine_type_dict = machine_type_to_dict(machine_type)
         cores = int(machine_type_dict['cores'])
         cores_mcpu = cores * 1000
 
-        return (self.name, cores_mcpu, storage_gib)
+        memory_bytes = cores_mcpu_to_memory_bytes(cores_mcpu, machine_type_dict['machine_type'])
+
+        return (self.name, cores_mcpu, memory_bytes, storage_gib)
 
 
 class InstanceCollectionConfigs:
@@ -119,10 +131,11 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
     def select_pool(self, worker_type, cores_mcpu, memory_bytes, storage_bytes):
         for pool in self.name_pool_config.values():
             if pool.worker_type == worker_type:
-                maybe_cores_mcpu = pool.resources_to_cores_mcpu(cores_mcpu, memory_bytes, storage_bytes)
-                if maybe_cores_mcpu is not None:
-                    return (pool.name, maybe_cores_mcpu)
+                result = pool.convert_requests_to_resources(cores_mcpu, memory_bytes, storage_bytes)
+                if result:
+                    actual_cores_mcpu, actual_memory_bytes, acutal_storage_gib = result
+                    return (pool.name, actual_cores_mcpu, actual_memory_bytes, acutal_storage_gib)
         return None
 
-    def select_job_private(self, machine_type, storage_bytes):  # pylint: disable=no-self-use
+    def select_job_private(self, machine_type, storage_bytes):
         return self.jpim_config.convert_requests_to_resources(machine_type, storage_bytes)

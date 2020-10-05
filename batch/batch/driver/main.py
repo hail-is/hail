@@ -42,7 +42,7 @@ from .instance_collection_manager import InstanceCollectionManager
 from .job import mark_job_complete, mark_job_started
 from .k8s_cache import K8sCache
 from .pool import Pool
-from ..utils import query_billing_projects
+from ..utils import query_billing_projects, unreserved_worker_data_disk_size_gib
 from ..exceptions import BatchUserError
 
 uvloop.install()
@@ -454,6 +454,15 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
                     'Worker cannot both use local SSD and have a non-zero PD SSD data disk.',
                     'error')
         raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
+
+    if not worker_local_ssd_data_disk:
+        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, worker_cores)
+        if unreserved_disk_storage_gb < 0:
+            min_disk_storage = worker_pd_ssd_data_disk_size_gb - unreserved_disk_storage_gb
+            set_message(session,
+                        f'PD SSD must be at least {min_disk_storage} GB',
+                        'error')
+            raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
     max_instances = validate_int(
         session,

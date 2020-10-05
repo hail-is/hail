@@ -125,30 +125,45 @@ machines with 10 GB of persistent SSD boot disk and 375 GB of local SSD. The cos
 
    = $0.001685 per core per hour
 
+   - Storage
+
+     .. code-block:: text
+
+         Average number of days per month = 365.25 / 12 = 30.4375
+
+         Cost per GB per month = $0.17
+
+         Cost per GB per hour = $0.17 / 30.4375 / 24
+
+
 - IP network cost
    = $0.00025 per core per hour
 
 - Service cost
    = $0.01 per core per hour
 
+
 The sum of these costs is **$0.021935** per core/hour for standard workers, **$0.024388** per core/hour
-for highmem workers, and **$0.019393** per core/hour for highcpu workers.
+for highmem workers, and **$0.019393** per core/hour for highcpu workers. There is also an additional
+cost of **$0.00023** per GB per hour of extra storage requested.
 
 At any given moment as many as four cores of the cluster may come from a 4 core machine if the worker type
-is standard. If a job is scheduled on this machine, then the cost per core hour is **$0.02774**.
+is standard. If a job is scheduled on this machine, then the cost per core hour is **$0.02774** plus
+**$0.00023** per GB per hour storage of extra storage requested.
 
 
 .. note::
 
-    The amount of CPU reserved for a job can be rounded up if the equivalent memory and/or storage request
-    requires a larger fraction of the worker. Currently, each 1 core requested
-    gets 3.75 GB of memory and 21.875 GB of storage for standard worker types. Therefore, if a user requests
-    1 CPU and 7 GB of memory, the user will get 2 cores for their job and will be billed for 2 cores.
+    The amount of CPU reserved for a job can be rounded up if the equivalent memory requires a larger fraction of
+    the worker. Currently, each 1 core requested gets 3.75 Gi of memory for standard worker types. Therefore, if
+    a user requests 1 CPU and 7 Gi of memory, the user will get 2 cores for their job and will be billed for 2 cores.
 
 .. note::
 
-    The amount of CPU reserved for a job is rounded up to powers of two with a minimum of 0.25 cores.
-    For example, a job requesting 5 cores will be rounded up to 8 cores.
+    The storage for the root file system (`/`) is 5 Gi per job for jobs with at least 1 core. If a job requests less
+    than 1 core, then it receives that fraction of 5 Gi. If you need more storage than this,
+    you can request more storage explicitly with the :meth:`.Job.storage` method. The minimum storage request is 10 GB
+    which can be incremented in units of 1 GB maxing out at 64 TB. The additional storage is mounted at `/io`.
 
 .. note::
 

@@ -219,7 +219,6 @@ class LocalBackend(Backend):
             quoted_job_script = shq(joined_env + defs + cmd)
 
             if job._image:
-
                 memory = f'-m {job._memory}' if job._memory else ''
                 cpu = f'--cpus={job._cpu}' if job._cpu else ''
 
