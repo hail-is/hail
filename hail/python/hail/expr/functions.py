@@ -1055,7 +1055,7 @@ def gp_dosage(gp) -> Float64Expression:
 
     Parameters
     ----------
-    gp : :class:`.ArrayFloat64Expression`
+    gp : :class:`.Expression` of type :class:`.tarray` of :obj:`.tfloat64`
         Length 3 array of bi-allelic genotype probabilities
 
     Returns
@@ -1466,7 +1466,7 @@ def is_nan(x) -> BooleanExpression:
 
     Notes
     -----
-    Note that :meth:`.is_missing` will return ``False`` on ``nan`` since ``nan``
+    Note that :func:`~.is_missing` will return ``False`` on ``nan`` since ``nan``
     is a defined value. Additionally, this method will return missing if `x` is
     missing.
 
@@ -2019,7 +2019,7 @@ def ppois(x, lamb, lower_tail=True, log_p=False) -> Float64Expression:
 
 @typecheck(p=expr_float64, df=expr_float64)
 def qchisqtail(p, df) -> Float64Expression:
-    """Inverts :meth:`.pchisqtail`.
+    """Inverts :func:`~.pchisqtail`.
 
     Examples
     --------
@@ -2048,7 +2048,7 @@ def qchisqtail(p, df) -> Float64Expression:
 
 @typecheck(p=expr_float64)
 def qnorm(p) -> Float64Expression:
-    """Inverts :meth:`.pnorm`.
+    """Inverts :func:`~.pnorm`.
 
     Examples
     --------
@@ -2075,7 +2075,7 @@ def qnorm(p) -> Float64Expression:
 
 @typecheck(p=expr_float64, lamb=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
 def qpois(p, lamb, lower_tail=True, log_p=False) -> Float64Expression:
-    r"""Inverts :meth:`.ppois`.
+    r"""Inverts :func:`~.ppois`.
 
     Examples
     --------
@@ -2094,7 +2094,7 @@ def qpois(p, lamb, lower_tail=True, log_p=False) -> Float64Expression:
     lamb : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Rate parameter of Poisson distribution.
     lower_tail : bool or :class:`.BooleanExpression`
-        Corresponds to `lower_tail` parameter in inverse :meth:`.ppois`.
+        Corresponds to `lower_tail` parameter in inverse :func:`.ppois`.
     log_p : bool or :class:`.BooleanExpression`
         Exponentiate `p` before testing.
 
@@ -2139,7 +2139,7 @@ def range(start, stop=None, step=1) -> ArrayNumericExpression:
 
     Returns
     -------
-    :class:`.ArrayInt32Expression`
+    :class:`.ArrayNumericExpression`
     """
     if stop is None:
         stop = start
@@ -3032,7 +3032,7 @@ def gq_from_pl(pl) -> Int32Expression:
 
     Parameters
     ----------
-    pl : :class:`.ArrayInt32Expression`
+    pl : :class:`.Expression` of type :class:`.tarray` of :obj:`.tint32`.
 
     Returns
     -------
@@ -3479,7 +3479,7 @@ def map(f: Callable, collection):
 
     Returns
     -------
-    :class:`.ArrayExpression` or :class:`SetExpression`.
+    :class:`.ArrayExpression` or :class:`.SetExpression`.
         Collection where each element has been transformed by `f`.
     """
     return collection.map(f)
@@ -4040,7 +4040,7 @@ def tuple(iterable: Iterable) -> TupleExpression:
 
     Parameters
     ----------
-    args : :obj:`Iterable` of :class:`.Expression`
+    iterable : an iterable of :class:`.Expression`
         Tuple elements.
 
     Returns
@@ -5251,7 +5251,7 @@ def liftover(x, dest_reference_genome, min_match=0.95, include_strand=False):
 
     Parameters
     ----------
-    x : :class:`.Expression` of type :py:data:`.tlocus` or :py:data:`.tinterval` of :py:data:`.tlocus`
+    x : :class:`.Expression` of type :class:`.tlocus` or :class:`.tinterval` of :class:`.tlocus`
         Locus or locus interval to lift over.
     dest_reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Reference genome to convert to.

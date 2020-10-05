@@ -178,7 +178,7 @@ def hadoop_stat(path: str) -> Dict:
 
     Returns
     -------
-    :obj:`Dict`
+    :obj:`dict`
     """
     return Env.fs().stat(path)
 
@@ -209,7 +209,7 @@ def hadoop_ls(path: str) -> List[Dict]:
 
     Returns
     -------
-    :obj:`List[Dict]`
+    :obj:`list` [:obj:`dict`]
     """
     return Env.fs().ls(path)
 

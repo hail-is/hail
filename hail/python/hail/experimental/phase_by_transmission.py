@@ -42,7 +42,7 @@ def phase_by_transmission(
 
     Note
     ----
-    :meth:`.experimental.phase_trio_matrix_by_transmission` provides a convenience wrapper for phasing a trio matrix.
+    :func:`~.phase_trio_matrix_by_transmission` provides a convenience wrapper for phasing a trio matrix.
 
     Parameters
     ----------
@@ -304,7 +304,7 @@ def explode_trio_matrix(tm: hl.MatrixTable, col_keys: List[str] = ['s'], keep_tr
     Note
     ----
     This assumes that the input MatrixTable is a trio MatrixTable (similar to
-    the result of :meth:`.methods.trio_matrix`) Its entry schema has to contain
+    the result of :func:`~.trio_matrix`) Its entry schema has to contain
     'proband_entry`, `father_entry` and `mother_entry` all with the same type.
     Its column schema has to contain 'proband`, `father` and `mother` all with
     the same type.

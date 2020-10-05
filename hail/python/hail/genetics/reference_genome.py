@@ -297,7 +297,7 @@ class ReferenceGenome(object):
         Notes
         -----
 
-        Use :meth:`~hail.ReferenceGenome.read` to reimport the exported
+        Use :meth:`~hail.genetics.ReferenceGenome.read` to reimport the exported
         reference genome in a new HailContext session.
 
         Parameters

@@ -264,10 +264,14 @@ class Pedigree(object):
          - If the father is not in the list of samples provided, `pat_id` is set to ``None``.
          - If the mother is not in the list of samples provided, `mat_id` is set to ``None``.
 
-        :param samples: list of sample IDs to keep
-        :type samples: list of str
+        Parameters
+        ----------
+        samples: :obj:`list` [:obj:`str`]
+            Sample IDs to keep.
 
-        :rtype: :class:`.Pedigree`
+        Returns
+        -------
+        :class:`.Pedigree`
         """
         sample_set = set(samples)
 
@@ -294,10 +298,10 @@ class Pedigree(object):
 
         .. caution::
 
-            Phenotype information is not preserved in the Pedigree data structure in Hail.
-            Reading and writing a PLINK .fam file will result in loss of this information.
-            Use the key table method :meth:`~hail.KeyTable.import_fam` to manipulate this
-            information.
+            Phenotype information is not preserved in the Pedigree data
+            structure in Hail.  Reading and writing a PLINK .fam file will
+            result in loss of this information.  Use the key table method
+            :func:`~.import_fam` to manipulate this information.
 
         :param path: output path
         :type path: str

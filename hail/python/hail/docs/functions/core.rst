@@ -39,5 +39,10 @@ Core language functions
 
 .. currentmodule:: hail.expr.builders
 
-.. autoclass:: CaseBuilder
-.. autoclass:: SwitchBuilder
+.. autosummary::
+    :nosignatures:
+    :toctree: ./
+    :template: class.rst
+
+    CaseBuilder
+    SwitchBuilder

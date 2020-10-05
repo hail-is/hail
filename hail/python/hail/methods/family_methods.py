@@ -198,7 +198,7 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
     as follows, where PAR is the `pseudoautosomal region
     <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`__ (PAR) of X and Y
     defined by the reference genome and the autosome is defined by
-    :meth:`~hail.genetics.Locus.in_autosome`.
+    :meth:`~.LocusExpression.in_autosome`.
 
     - Auto -- in autosome or in PAR or female child
     - HemiX -- in non-PAR of X and male child
@@ -386,7 +386,7 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
 
     :func:`transmission_disequilibrium_test` only considers complete trios (two
     parents and a proband with defined sex) and only returns results for the
-    autosome, as defined by :meth:`~hail.genetics.Locus.in_autosome`, and
+    autosome, as defined by :meth:`~.LocusExpression.in_autosome`, and
     chromosome X. Transmissions and non-transmissions are counted only for the
     configurations of genotypes and copy state in the table below, in order to
     filter out Mendel errors and configurations where transmission is
@@ -435,7 +435,7 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
     | HomVar | HomVar | Het    | HemiX      | 1 | 0 |
     +--------+--------+--------+------------+---+---+
 
-    :func:`tdt` produces a table with the following columns:
+    :func:`.transmission_disequilibrium_test` produces a table with the following columns:
 
      - `locus` (:class:`.tlocus`) -- Locus.
      - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Alleles.

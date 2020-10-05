@@ -1106,10 +1106,10 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
     five fields:
 
     - `n_variants` (:obj:`int`): Number of variants present in the matrix table.
-    - `allele_types` (:obj:`Dict[str, int]`): Number of alternate alleles in
+    - `allele_types` (:obj:`dict` [:obj:`str`, :obj:`int`]): Number of alternate alleles in
       each allele allele category.
-    - `contigs` (:obj:`Dict[str, int]`): Number of variants on each contig.
-    - `allele_counts` (:obj:`Dict[int, int]`): Number of variants broken down
+    - `contigs` (:obj:`dict` [:obj:`str`, :obj:`int`]): Number of variants on each contig.
+    - `allele_counts` (:obj:`dict` [:obj:`int`, :obj:`int`]): Number of variants broken down
       by number of alleles (biallelic is 2, for example).
     - `r_ti_tv` (:obj:`float`): Ratio of transition alternate alleles to
       transversion alternate alleles.

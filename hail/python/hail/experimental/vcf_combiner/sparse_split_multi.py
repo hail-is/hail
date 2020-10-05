@@ -7,7 +7,7 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
     Analogous to :func:`.split_multi_hts` (splits entry fields) for sparse
     representations.
 
-    Takes a dataset formatted like the output of :func:`.vcf_combiner`. The
+    Takes a dataset formatted like the output of :func:`.run_combiner`. The
     splitting will add `was_split` and `a_index` fields, as :func:`.split_multi`
     does. This function drops the `LA` (local alleles) field, as it re-computes
     entry fields based on the new, split globals alleles.
@@ -59,7 +59,7 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
 
     - `PL` array elements are calculated from the minimum `LPL` value for all
       allele pairs that downcode to the desired one. (This logic is identical to
-      the `PL` logic in :func:`.split_mult_hts`.) If a row has an alternate
+      the `PL` logic in :func:`~.split_multi_hts`.) If a row has an alternate
       allele but it is not present in `LA`, the `PL` field is set to missing.
       The `PL` for `ref/<NON_REF>` in that case can be drawn from `RGQ`.
 

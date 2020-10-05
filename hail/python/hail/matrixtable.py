@@ -916,8 +916,8 @@ class MatrixTable(ExprContainer):
         ...                                    hl.agg.call_stats(dataset.GT, dataset.alleles))
         >>> dataset_result = dataset.annotate_rows(call_stats = high_quality_calls)
 
-        Add functional annotations from a :class:`.Table` keyed by :class:`.TVariant`:, and another
-        :class:`.MatrixTable`.
+        Add functional annotations from a :class:`.Table`, `v_metadata`, and a
+        :class:`.MatrixTable`, `dataset2_AF`, both keyed by locus and alleles.
 
         >>> dataset_result = dataset.annotate_rows(consequence = v_metadata[dataset.locus, dataset.alleles].consequence,
         ...                                        dataset2_AF = dataset2.index_rows(dataset.row_key).info.AF)
@@ -1774,11 +1774,11 @@ class MatrixTable(ExprContainer):
         Adds a new row field, `row_field`, and a new column field, `col_field`,
         each of which are structs with the following fields:
 
-         - *n_filtered* (:data:`.int64`) - Number of filtered entries per row
+         - *n_filtered* (:data:`.tint64`) - Number of filtered entries per row
            or column.
-         - *n_remaining* (:data:`.int64`) - Number of entries not filtered per
+         - *n_remaining* (:data:`.tint64`) - Number of entries not filtered per
            row or column.
-         - *fraction_filtered* (:data:`.float32`) - Number of filtered entries
+         - *fraction_filtered* (:data:`.tfloat32`) - Number of filtered entries
            divided by the total number of filtered and remaining entries.
 
         See Also
@@ -2775,7 +2775,7 @@ class MatrixTable(ExprContainer):
 
         Notes
         -----
-        :meth:`index_rows(exprs)` is equivalent to ``rows().index(exprs)``
+        ``index_rows(exprs)`` is equivalent to ``rows().index(exprs)``
         or ``rows()[exprs]``.
 
         The type of the resulting struct is the same as the type of
@@ -2814,7 +2814,7 @@ class MatrixTable(ExprContainer):
 
         Notes
         -----
-        :meth:`index_cols(exprs)` is equivalent to ``cols().index(exprs)``
+        ``index_cols(cols)`` is equivalent to ``cols().index(exprs)``
         or ``cols()[exprs]``.
 
         The type of the resulting struct is the same as the type of
@@ -4004,7 +4004,7 @@ class MatrixTable(ExprContainer):
               'alleles': array<str>
 
         and three sample IDs: `A`, `B` and `C`.  Then the result of
-        :func:`.make_table`:
+        :meth:`.make_table`:
 
         >>> ht = mt.make_table() # doctest: +SKIP
 

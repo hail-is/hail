@@ -84,7 +84,7 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
         Number of digits to write after the decimal point.
     gp : :class:`.ArrayExpression` of type :py:data:`.tfloat64`, optional
         Expression for the genotype probabilities to output. If ``None``, the
-        entry field `GP` is used if defined and is of type :py:data:`.tarray`
+        entry field `GP` is used if defined and is of type :class:`.tarray`
         with element type :py:data:`.tfloat64`. The array length must be 3.
         The values at indices 0, 1, and 2 are exported as the probabilities of
         homozygous reference, heterozygous, and homozygous variant,
@@ -182,7 +182,7 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
     gp : :class:`.ArrayExpression` of type :py:data:`.tfloat64`, optional
         Expression for genotype probabilities.  If ``None``, entry
         field `GP` is used if it exists and is of type
-        :py:data:`.tarray` with element type :py:data:`.tfloat64`.
+        :class:`.tarray` with element type :py:data:`.tfloat64`.
     varid : :class:`.StringExpression`, optional
         Expression for the variant ID. If ``None``, the row field
         `varid` is used if defined and is of type :py:data:`.tstr`.
@@ -489,7 +489,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         ``'separate_header'``, return a separate VCF header file and a set of
         VCF files (one per partition) without the header. If ``None``,
         concatenate the header and all partitions into one VCF file.
-    metadata : :obj:`dict[str, dict[str, dict[str, str]]]`, optional
+    metadata : :obj:`dict` [:obj:`str`, :obj:`dict` [:obj:`str`, obj:`dict` [obj:`str`, obj:`str`]]]`, optional
         Dictionary with information to fill in the VCF header. See
         :func:`get_vcf_metadata` for how this
         dictionary should be structured.
@@ -568,7 +568,7 @@ def import_locus_intervals(path,
       `reference_genome` is defined, the point type of the interval will be
       :class:`.tlocus` parameterized by the `reference_genome`. Otherwise,
       the point type is a :class:`.tstruct` with two fields: `contig` with
-      type :py:data:`.tstr` and `position` with type :py:data:`.tint32`.
+      type :obj:`.tstr` and `position` with type :py:data:`.tint32`.
 
     A file in the third format (with a "target" column) produces a table with two
     fields:
@@ -1104,9 +1104,9 @@ def import_bgen(path,
         Variants to filter to. The underlying type of the input (row key in the case of a :class:`.Table`)
         must be either a :class:`.tlocus`, a struct with one field `locus`, or a struct with two fields:
         `locus` and `alleles`. The type of `locus` can either be a :class:`.tlocus` or a :class:`.tstruct`
-        with two fields: `contig` of type :class:`.tstr` and `position` of type :class:`.tint`. If the
+        with two fields: `contig` of type :obj:`.tstr` and `position` of type :obj:`.tint`. If the
         type of `locus` is :class:`.tlocus`, the reference genome must match that used to index the BGEN
-        file(s). The type of `alleles` is a :class:`.tarray` of :class:`.tstr`.
+        file(s). The type of `alleles` is a :class:`.tarray` of :obj:`.tstr`.
     _row_fields : :obj:`list` of :class:`str`
         List of non-key row fields to create.
         Options: ``'varid'``, ``'rsid'``
@@ -1486,7 +1486,7 @@ def import_table(paths,
         comment characters or patterns should be passed as a list.
     delimiter : :class:`str`
         Field delimiter regex.
-    missing : :class:`str` or :obj:`List[str]`
+    missing : :class:`str` or :obj:`list` [:obj:`str`]
         Identifier(s) to be treated as missing.
     types : :obj:`dict` mapping :class:`str` to :class:`.HailType`
         Dictionary defining field types.

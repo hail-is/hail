@@ -40,7 +40,7 @@ def array_windows(a, radius):
 
     Returns
     -------
-    (:class:`numpy.ndarray` of :obj:`int`, :class:`np.ndarray` of :obj:`int`)
+    (:class:`numpy.ndarray` of :obj:`int`, :class:`numpy.ndarray` of :obj:`int`)
         Tuple of start indices array and stop indices array.
     """
     if radius < 0:
@@ -161,7 +161,7 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
 
     Returns
     -------
-    (:class:`numpy.ndarray` of :obj:`int`, :class:`np.ndarray` of :obj:`int`)
+    (:class:`numpy.ndarray` of :obj:`int`, :class:`numpy.ndarray` of :obj:`int`)
         Tuple of start indices array and stop indices array.
     """
     if radius < 0:

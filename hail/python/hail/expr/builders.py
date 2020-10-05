@@ -42,8 +42,9 @@ class SwitchBuilder(ConditionalBuilder):
     Notes
     -----
     All expressions appearing as the `then` parameters to
-    :meth:`~.SwitchBuilder.when` or :meth:`~.SwitchBuilder.default` method
-    calls must be the same type.
+    :meth:`~hail.expr.builders.SwitchBuilder.when` or
+    :meth:`~hail.expr.builders.SwitchBuilder.default` method calls must be the
+    same type.
 
     See Also
     --------
@@ -193,8 +194,9 @@ class CaseBuilder(ConditionalBuilder):
     Notes
     -----
     All expressions appearing as the `then` parameters to
-    :meth:`~.CaseBuilder.when` or :meth:`~.CaseBuilder.default` method calls
-    must be the same type.
+    :meth:`~hail.expr.builders.CaseBuilder.when` or
+    :meth:`~hail.expr.builders.CaseBuilder.default` method calls must be the
+    same type.
 
     Parameters
     ----------
@@ -299,7 +301,7 @@ class CaseBuilder(ConditionalBuilder):
 
         Parameters
         ----------
-        message : :class:`.Expression` of type :data:`tstr`
+        message : :class:`.Expression` of type :obj:`.tstr`
 
         Returns
         -------

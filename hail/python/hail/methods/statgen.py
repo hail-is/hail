@@ -65,7 +65,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     <https://zzz.bwh.harvard.edu/plink/summary.shtml#sexcheck>`__.
 
     Let `gr` be the the reference genome of the type of the `locus` key (as
-    given by :meth:`.TLocus.reference_genome`)
+    given by :attr:`.tlocus.reference_genome`)
 
     1. Filter the dataset to loci on the X contig defined by `gr`.
 
@@ -112,7 +112,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     call : :class:`.CallExpression`
         A genotype call for each row and column. The source dataset's row keys
         must be [[locus], alleles] with types :class:`.tlocus` and
-        :class:`.ArrayStringExpression`. Moreover, the alleles array must have
+        :class:`.tarray` of :obj:`.tstr`. Moreover, the alleles array must have
         exactly two elements (i.e. the variant must be biallelic).
     aaf_threshold : :obj:`float`
         Minimum alternate allele frequency threshold.
@@ -249,7 +249,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
     - **p_value** (:py:data:`.tfloat64`) -- :math:`p`-value.
 
     If `y` is a list of expressions, then the last five fields instead have type
-    :py:data:`.tarray` of :py:data:`.tfloat64`, with corresponding indexing of
+    :class:`.tarray` of :py:data:`.tfloat64`, with corresponding indexing of
     the list and each array.
 
     If `y` is a list of lists of expressions, then `n` and `sum_x` are of type
@@ -920,7 +920,7 @@ def linear_mixed_model(y,
 
     If `k` is set, the model is full-rank. For correct results, the indices of
     `k` **must be aligned** with columns of the source of `y`.
-    Set `p_path` if you plan to use the model in :meth:`.linear_mixed_regression_rows`.
+    Set `p_path` if you plan to use the model in :func:`.linear_mixed_regression_rows`.
     `k` must be positive semi-definite; symmetry is not checked as only the
     lower triangle is used. See :meth:`.LinearMixedModel.from_kinship` for more
     details.
@@ -2001,7 +2001,7 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     defined by `entry_expr` and missing values mean-imputed per row.
     The ``(i, j)`` element of the resulting block matrix is the correlation
     between rows ``i`` and ``j`` (as 0-indexed by order in the matrix table;
-    see :meth:`add_row_index`).
+    see :meth:`~hail.MatrixTable.add_row_index`).
 
     The correlation of two vectors is defined as the
     `Pearson correlation coeffecient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__
@@ -2011,7 +2011,7 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     This method has two stages:
 
     - writing the row-normalized block matrix to a temporary file on persistent
-      disk with :meth:`BlockMatrix.from_entry_expr`. The parallelism is
+      disk with :meth:`.BlockMatrix.from_entry_expr`. The parallelism is
       ``n_rows / block_size``.
 
     - reading and multiplying this block matrix by its transpose. The
@@ -2019,10 +2019,10 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
 
     Warning
     -------
-    See all warnings on :meth:`BlockMatrix.from_entry_expr`. In particular,
+    See all warnings on :meth:`.BlockMatrix.from_entry_expr`. In particular,
     for large matrices, it may be preferable to run the two stages separately,
     saving the row-normalized block matrix to a file on external storage with
-    :meth:`BlockMatrix.write_from_entry_expr`.
+    :meth:`.BlockMatrix.write_from_entry_expr`.
 
     The resulting number of matrix elements is the square of the number of rows
     in the matrix table, so computing the full matrix may be infeasible. For
@@ -2125,7 +2125,7 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
     without windowing.
 
     More precisely, variants are 0-indexed by their order in the matrix table
-    (see :meth:`add_row_index`). Each variant is regarded as a vector of
+    (see :meth:`~hail.MatrixTable.add_row_index`). Each variant is regarded as a vector of
     elements defined by `entry_expr`, typically the number of alternate alleles
     or genotype dosage. Missing values are mean-imputed within variant.
 
@@ -2508,7 +2508,7 @@ def filter_alleles(mt: MatrixTable,
     mt : :class:`.MatrixTable`
         Dataset.
     f : callable
-        Function from (allele: :class:`StringExpression`, allele_index:
+        Function from (allele: :class:`.StringExpression`, allele_index:
         :class:`.Int32Expression`) to :class:`.BooleanExpression`
 
     Returns
@@ -2716,7 +2716,7 @@ def filter_alleles_hts(mt: MatrixTable,
     ----------
     mt : :class:`.MatrixTable`
     f : callable
-        Function from (allele: :class:`StringExpression`, allele_index:
+        Function from (allele: :class:`.StringExpression`, allele_index:
         :class:`.Int32Expression`) to :class:`.BooleanExpression`
     subset : :obj:`.bool`
         Subset PL field if ``True``, otherwise downcode PL field. The

@@ -58,9 +58,8 @@ an expression representing the computation of ``x + y``, but not the actual
 value.
 
 To peek at the value of this computation, there are two options:
-:meth:`.Expression.eval`, which returns a Python value, and
-:meth:`.Expression.show`, which prints a human-readable representation of an
-expression.
+:func:`~hail.expr.eval`, which returns a Python value, and :meth:`.Expression.show`,
+which prints a human-readable representation of an expression.
 
     >>> hl.eval(z)
     11
@@ -154,7 +153,7 @@ and ``~``.
     >>> ~s1
     <BooleanExpression of type bool>
 
-Remember that you can use :meth:`.Expression.eval` to evaluate the expression.
+Remember that you can use :func:`~hail.expr.eval`: to evaluate the expression.
 
     >>> hl.eval(~s1)
     True
@@ -215,12 +214,12 @@ For example, we might want to return ``1`` if ``x < -1``, ``2`` if
     ...   .or_missing())
     <Int32Expression of type int32>
 
-Notice that this expression ends with a call to :meth:`.CaseBuilder.or_missing`,
+Notice that this expression ends with a call to :meth:`~hail.expr.builders.CaseBuilder.or_missing`,
 which means that if none of the conditions are met, a missing value is returned.
 
 Cases started with :func:`.case` can end with a call to
-:meth:`.CaseBuilder.or_missing`, :meth:`.CaseBuilder.default`, or
-:meth:`.CaseBuilder.or_error`, depending on what you want to happen if none
+:meth:`~hail.expr.builders.CaseBuilder.or_missing`, :meth:`~hail.expr.builders.CaseBuilder.default`, or
+:meth:`~hail.expr.builders.CaseBuilder.or_error`, depending on what you want to happen if none
 of the *when* clauses are met.
 
 It's important to note that missingness propagates up in Hail, so if the value
@@ -241,8 +240,8 @@ Finally, Hail has the :func:`.switch` function to build a conditional tree based
 on the value of an expression. In the example below, ``csq`` is a
 :class:`.StringExpression` representing the functional consequence of a
 mutation. If ``csq`` does not match one of the cases specified by
-:meth:`.SwitchBuilder.when`, it is set to missing with
-:meth:`.SwitchBuilder.or_missing`. Other switch statements are documented in the
+:meth:`~hail.expr.builders.SwitchBuilder.when`, it is set to missing with
+:meth:`~hail.expr.builders.SwitchBuilder.or_missing`. Other switch statements are documented in the
 :class:`.SwitchBuilder` class.
 
     >>> csq = hl.str('nonsense')
@@ -279,7 +278,7 @@ don't satisfy a condition:
     <Float64Expression of type float64>
 
 The Python representation of a missing value is ``None``. For example, if
-we define ``cnull`` to be a missing value with type :class:`.tcall`, calling
+we define ``cnull`` to be a missing value with type :obj:`.tcall`, calling
 the method `is_het` will return ``None`` and not ``False``.
 
     >>> cnull = hl.null('call')

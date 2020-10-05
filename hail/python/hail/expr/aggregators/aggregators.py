@@ -2,19 +2,19 @@ import difflib
 from functools import wraps, update_wrapper
 
 import hail as hl
-from hail.expr.expressions import ExpressionException, Expression, \
-    ArrayExpression, SetExpression, BooleanExpression, Int64Expression, \
-    NumericExpression, DictExpression, StructExpression, Float64Expression, \
-    StringExpression, NDArrayNumericExpression, \
-    expr_any, expr_oneof, expr_array, expr_set, expr_bool, expr_numeric, \
-    expr_int32, expr_int64, expr_float64, expr_call, expr_str, expr_ndarray, \
-    unify_all, construct_expr, Indices, Aggregation, to_expr
-from hail.expr.types import hail_type, tint32, tint64, tfloat32, tfloat64, \
-    tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr
+from hail.expr import (ExpressionException, Expression, ArrayExpression,
+                       SetExpression, BooleanExpression, Int64Expression, NumericExpression,
+                       DictExpression, StructExpression, Float64Expression, StringExpression,
+                       NDArrayNumericExpression, expr_any, expr_oneof, expr_array, expr_set,
+                       expr_bool, expr_numeric, expr_int32, expr_int64, expr_float64, expr_call,
+                       expr_str, expr_ndarray, unify_all, construct_expr, Indices, Aggregation,
+                       to_expr)
+from hail.expr.types import (hail_type, tint32, tint64, tfloat32, tfloat64,
+                             tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr)
 from hail.expr.functions import rbind, float32, _quantile_from_cdf
 import hail.ir as ir
-from hail.typecheck import TypeChecker, typecheck_method, typecheck, \
-    sequenceof, func_spec, identity, nullable, oneof
+from hail.typecheck import (TypeChecker, typecheck_method, typecheck,
+                            sequenceof, func_spec, identity, nullable, oneof)
 from hail.utils import wrap_to_list
 from hail.utils.java import Env
 

@@ -31,7 +31,7 @@ palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e
 
 def output_notebook():
     """Configure the Bokeh output state to generate output in notebook
-    cells when :func:`show` is called.  Calls
+    cells when :func:`bokeh.io.show` is called.  Calls
     :func:`bokeh.io.output_notebook`.
 
     """
@@ -64,7 +64,7 @@ def cdf(data, k=350, legend=None, title=None, normalize=True, log=False):
     data : :class:`.Struct` or :class:`.Float64Expression`
         Sequence of data to plot.
     k : int
-        Accuracy parameter (passed to :func:`approx_cdf`).
+        Accuracy parameter (passed to :func:`~.approx_cdf`).
     legend : str
         Label of data on the x-axis.
     title : str
@@ -293,7 +293,7 @@ def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, 
     log : bool
         Plot the log10 of the bin counts.
     interactive : bool
-        If `True`, return a handle to pass to :func:`.show`.
+        If `True`, return a handle to pass to :func:`bokeh.io.show`.
 
     Returns
     -------
@@ -362,8 +362,8 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
 
     Notes
     -----
-    `data` can be a :class:`.Float64Expression`, or the result of the :func:`.agg.hist`
-    or :func:`.agg.approx_cdf` aggregators.
+    `data` can be a :class:`.Float64Expression`, or the result of the :func:`~.aggregators.hist`
+    or :func:`~.aggregators.approx_cdf` aggregators.
 
     Parameters
     ----------
@@ -858,8 +858,8 @@ def scatter(
     - a tuple (str, :class:`.NumericExpression`) from the same :class:`.Table`. If passed as a tuple the first element is used as the hover label.
 
     If no label or a single label is provided, then returns :class:`bokeh.plotting.figure.Figure`
-    Otherwise returns a :class:`bokeh.plotting.figure.Column` containing:
-    - a :class:`bokeh.models.widgets.Select` dropdown selection widget for labels
+    Otherwise returns a :class:`bokeh.models.layouts.Column` containing:
+    - a :class:`bokeh.models.widgets.inputs.Select` dropdown selection widget for labels
     - a :class:`bokeh.plotting.figure.Figure` containing the interactive scatter plot
 
     Points will be colored by one of the labels defined in the ``label`` using the color scheme defined in
@@ -915,7 +915,7 @@ def scatter(
 
     Returns
     -------
-    :class:`bokeh.plotting.figure.Figure` if no label or a single label was given, otherwise :class:`bokeh.plotting.figure.Column`
+    :class:`bokeh.plotting.figure.Figure` if no label or a single label was given, otherwise :class:`bokeh.models.layouts.Column`
     """
     hover_fields = {} if hover_fields is None else hover_fields
     label = {} if label is None else {'label': label} if isinstance(label, Expression) else label
@@ -1006,7 +1006,7 @@ def joint_plot(
        - a :class:`.NumericExpression` from the same :class:`.Table`.
        - a tuple (str, :class:`.NumericExpression`) from the same :class:`.Table`. If passed as a tuple the first element is used as the hover label.
 
-       This function returns a :class:`bokeh.plotting.figure.Column` containing two :class:`bokeh.plotting.figure.Row`:
+       This function returns a :class:`bokeh.models.layouts.Column` containing two :class:`bokeh.plotting.figure.Row`:
        - The first row contains the X-axis marginal density and a selection widget if multiple entries are specified in the ``label``
        - The second row contains the scatter plot and the y-axis marginal density
 
@@ -1065,7 +1065,7 @@ def joint_plot(
 
         Returns
         -------
-        :class:`bokeh.plotting.figure.Column`
+        :class:`bokeh.models.layouts.Column`
         """
     # Collect data
     hover_fields = {} if hover_fields is None else hover_fields
@@ -1233,8 +1233,8 @@ def qq(
     - a tuple (str, :class:`.NumericExpression`). If passed as a tuple the first element is used as the hover label.
 
     If no label or a single label is provided, then returns :class:`bokeh.plotting.figure.Figure`
-    Otherwise returns a :class:`bokeh.plotting.figure.Column` containing:
-    - a :class:`bokeh.models.widgets.Select` dropdown selection widget for labels
+    Otherwise returns a :class:`bokeh.models.layouts.Column` containing:
+    - a :class:`bokeh.models.widgets.inputs.Select` dropdown selection widget for labels
     - a :class:`bokeh.plotting.figure.Figure` containing the interactive qq plot
 
     Points will be colored by one of the labels defined in the ``label`` using the color scheme defined in
@@ -1288,7 +1288,7 @@ def qq(
 
     Returns
     -------
-    :class:`bokeh.plotting.figure.Figure` if no label or a single label was given, otherwise :class:`bokeh.plotting.figure.Column`
+    :class:`bokeh.plotting.figure.Figure` if no label or a single label was given, otherwise :class:`bokeh.models.layouts.Column`
     """
     hover_fields = {} if hover_fields is None else hover_fields
     label = {} if label is None else {'label': label} if isinstance(label, Expression) else label

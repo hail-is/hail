@@ -91,13 +91,13 @@ def ld_score_regression(weight_expr,
     Notes
     -----
     The ``exprs`` provided as arguments to :func:`.ld_score_regression`
-    must all be from the same object, either a :class:`Table` or a
-    :class:`MatrixTable`.
+    must all be from the same object, either a :class:`~.Table` or a
+    :class:`~.MatrixTable`.
 
     **If the arguments originate from a table:**
 
     *  The table must be keyed by fields ``locus`` of type
-       :class:`.tlocus` and ``alleles``, a :py:data:`.tarray` of
+       :class:`.tlocus` and ``alleles``, a :class:`.tarray` of
        :py:data:`.tstr` elements.
     *  ``weight_expr``, ``ld_score_expr``, ``chi_sq_exprs``, and
        ``n_samples_exprs`` are must be row-indexed fields.
@@ -119,7 +119,7 @@ def ld_score_regression(weight_expr,
        (rows) by phenotypes (columns).
     *  The rows of the matrix table must be keyed by fields
        ``locus`` of type :class:`.tlocus` and ``alleles``,
-       a :py:data:`.tarray` of :py:data:`.tstr` elements.
+       a :class:`.tarray` of :py:data:`.tstr` elements.
     *  The columns of the matrix table must be keyed by a field
        of type :py:data:`.tstr` that uniquely identifies phenotypes
        represented in the matrix table. The column key must be a single
@@ -134,7 +134,7 @@ def ld_score_regression(weight_expr,
        :func:`.ld_score_regression` will have values corresponding to the
        column keys of the input matrix table.
 
-    This function returns a :class:`Table` with one row per set of summary
+    This function returns a :class:`~.Table` with one row per set of summary
     statistics passed to the ``chi_sq_exprs`` argument. The following
     row-indexed fields are included in the table:
 
@@ -197,7 +197,7 @@ def ld_score_regression(weight_expr,
 
     Returns
     -------
-    :class:`.Table`
+    :class:`~.Table`
         Table keyed by ``phenotype`` with intercept and heritability estimates
         for each phenotype passed to the function."""
 

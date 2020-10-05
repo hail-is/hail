@@ -470,7 +470,7 @@ class Table(ExprContainer):
         ----------
         rows
             List of row values, or expression of type ``array<struct{...}>``.
-        schema : str or :class:`.HailType:`, optional
+        schema : str or a hail type (see :ref:`hail_types`), optional
             Value type.
         key : Union[str, List[str]]], optional
             Key field(s).
@@ -2722,7 +2722,7 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        exprs : varargs of :class:`.Ascending` or :class:`.Descending` or :class:`.Expression` or :class:`str`
+        exprs : varargs of :func:`~.asc`, :func:`.desc`, :class:`.Expression`, or :class:`str`
             Fields to sort by.
 
         Returns

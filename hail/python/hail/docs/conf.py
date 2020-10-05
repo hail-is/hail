@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.abspath('./_ext'))
 
 # -- General configuration ------------------------------------------------
 
-# nitpicky = True
+nitpicky = True
 
 # If your documentation needs a minimal Sphinx version, state it here.
 #
@@ -90,6 +90,7 @@ autosummary_generate = ['api.rst',
                         ]
 # autoclass_content = "both"
 autodoc_default_flags = ['members', 'undoc-members']
+autodoc_typehints = 'none'
 
 napoleon_use_rtype = False
 napoleon_use_param = False
@@ -99,6 +100,7 @@ intersphinx_mapping = {
     'PySpark': ('https://spark.apache.org/docs/latest/api/python/', None),
     'Bokeh': ('https://docs.bokeh.org/en/1.2.0/', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
+    'scipy': ('https://docs.scipy.org/doc/scipy-1.3.3/reference', None),
     'pandas': ('https://pandas.pydata.org/docs/', None)}
 
 # Add any paths that contain templates here, relative to this directory.

@@ -1,3 +1,5 @@
+.. _hail_types:
+
 Types
 =====
 
@@ -66,5 +68,9 @@ a :class:`.tstruct` with each option:
 .. autoclass:: tstruct
 .. autoclass:: ttuple
 .. autodata:: hail.expr.types.tcall
+
 .. autoclass:: tlocus
+
+    .. autoattribute:: reference_genome
+
 .. autoclass:: tinterval

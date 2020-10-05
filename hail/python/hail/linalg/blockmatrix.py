@@ -511,6 +511,7 @@ class BlockMatrix(object):
 
     @property
     def element_type(self):
+        """The type of the elements"""
         return self._bmir.typ.element_type
 
     @property
@@ -1910,7 +1911,7 @@ class BlockMatrix(object):
         partition_size: :obj:`int`, optional
             Number of rows to group per partition for export.
             Default given by block size of the block matrix.
-        entries: :class:`str
+        entries: :class:`str`
             Describes which entries to export. One of:
             ``'full'``, ``'lower'``, ``'strict_lower'``, ``'upper'``, ``'strict_upper'``.
         """
