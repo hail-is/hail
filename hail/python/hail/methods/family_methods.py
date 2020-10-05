@@ -519,7 +519,8 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
            min_p=numeric,
            max_parent_ab=numeric,
            min_child_ab=numeric,
-           min_dp_ratio=numeric)
+           min_dp_ratio=numeric,
+           ignore_in_sample_allele_frequency=bool)
 def de_novo(mt: MatrixTable,
             pedigree: Pedigree,
             pop_frequency_prior,
@@ -528,7 +529,8 @@ def de_novo(mt: MatrixTable,
             min_p: float = 0.05,
             max_parent_ab: float = 0.05,
             min_child_ab: float = 0.20,
-            min_dp_ratio: float = 0.10) -> Table:
+            min_dp_ratio: float = 0.10,
+            ignore_in_sample_allele_frequency: bool = False) -> Table:
     r"""Call putative *de novo* events from trio data.
 
     .. include:: ../_templates/req_tstring.rst
@@ -565,7 +567,9 @@ def de_novo(mt: MatrixTable,
      - `prior` (``float64``) -- Site frequency prior. It is the maximum of:
        the computed dataset alternate allele frequency, the
        `pop_frequency_prior` parameter, and the global prior
-       ``1 / 3e7``.
+       ``1 / 3e7``. If the `ignore_in_sample_allele_frequency` parameter is ``True``,
+       then the computed allele frequency is not included in the calculation, and the
+       prior is the maximum of the `pop_frequency_prior` and ``1 / 3e7``.
      - `proband` (``struct``) -- Proband column fields from `mt`.
      - `father` (``struct``) -- Father column fields from `mt`.
      - `mother` (``struct``) -- Mother column fields from `mt`.
@@ -733,7 +737,8 @@ def de_novo(mt: MatrixTable,
         Minimum proband allele balance/
     min_dp_ratio
         Minimum ratio between proband read depth and parental read depth.
-
+    ignore_in_sample_allele_frequency
+        Ignore in-sample allele frequency in computing site prior. Experimental.
     Returns
     -------
     :class:`.Table`
@@ -747,14 +752,30 @@ def de_novo(mt: MatrixTable,
         raise ValueError(f"'de_novo': expected 'MatrixTable' to have at least {required_entry_fields}, "
                          f"missing {missing_fields}")
 
-    mt = mt.annotate_rows(__prior=pop_frequency_prior,
-                          __alt_alleles=hl.agg.sum(mt.GT.n_alt_alleles()),
-                          __total_alleles=2 * hl.agg.sum(hl.is_defined(mt.GT)))
-    # subtract 1 from __alt_alleles to correct for the observed genotype
-    mt = mt.annotate_rows(__site_freq=hl.max((mt.__alt_alleles - 1) / mt.__total_alleles, mt.__prior, MIN_POP_PRIOR))
+    pop_frequency_prior = hl.case() \
+        .when((pop_frequency_prior >= 0) & (pop_frequency_prior <= 1), pop_frequency_prior) \
+        .or_error(hl.str("de_novo: expect 0 <= pop_frequency_prior <= 1, found " + hl.str(pop_frequency_prior)))
+
+    if ignore_in_sample_allele_frequency:
+        # this mode is used when families larger than a single trio are observed, in which
+        # an allele might be de novo in a parent and transmitted to a child in the dataset.
+        # The original model does not handle this case correctly, and so this experimental
+        # mode can be used to treat each trio as if it were the only one in the dataset.
+        mt = mt.annotate_rows(__prior=pop_frequency_prior,
+                              __alt_alleles=hl.int64(1),
+                              __site_freq=hl.max(pop_frequency_prior, MIN_POP_PRIOR))
+    else:
+        n_alt_alleles = hl.agg.sum(mt.GT.n_alt_alleles())
+        total_alleles = 2 * hl.agg.sum(hl.is_defined(mt.GT))
+        # subtract 1 from __alt_alleles to correct for the observed genotype
+        mt = mt.annotate_rows(__prior=pop_frequency_prior,
+                              __alt_alleles=n_alt_alleles,
+                              __site_freq=hl.max((n_alt_alleles - 1) / total_alleles,
+                                                 pop_frequency_prior,
+                                                 MIN_POP_PRIOR))
+
     mt = require_biallelic(mt, 'de_novo')
 
-    # FIXME check that __site_freq is between 0 and 1 when possible in expr
     tm = trio_matrix(mt, pedigree, complete_trios=True)
 
     autosomal = tm.locus.in_autosome_or_par() | (tm.locus.in_x_nonpar() & tm.is_female)
