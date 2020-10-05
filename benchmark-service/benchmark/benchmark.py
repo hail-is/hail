@@ -36,6 +36,7 @@ START_POINT = '2020-10-01T00:00:00Z'
 
 main_sha = 'd839bd6f05a8338a0709153db76331e52460267e'
 
+
 def get_benchmarks(app, file_path):
     gs_reader = app['gs_reader']
     try:
