@@ -90,7 +90,7 @@ autosummary_generate = ['api.rst',
                         ]
 # autoclass_content = "both"
 autodoc_default_flags = ['members', 'undoc-members']
-autodoc_typehints = 'none'
+autodoc_typehints = 'none'  # https://github.com/hail-is/hail/pull/9403#issuecomment-703776111
 
 napoleon_use_rtype = False
 napoleon_use_param = False

@@ -41,6 +41,8 @@ python/hail/docs/hail.expr.StructExpression.rst
 python/hail/docs/hail.expr.TupleExpression.rst
 python/hail/docs/linalg/hail.linalg.BlockMatrix.rst
 python/hail/docs/stats/hail.stats.LinearMixedModel.rst
+python/hail/docs/functions/hail.expr.builders.CaseBuilder.rst
+python/hail/docs/functions/hail.expr.builders.SwitchBuilder.rst
 src/main/c/.cxx.vsn
 src/main/c/headers
 src/main/c/lib
