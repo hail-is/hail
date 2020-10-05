@@ -5,7 +5,7 @@ gnomad_lof_metrics
 
 *  **Versions:** 2.1.1
 *  **Reference genome builds:** None
-*  **Type:** :class:`Table`
+*  **Type:** :class:`.Table`
 
 Schema (2.1.1, None)
 ~~~~~~~~~~~~~~~~~~~~
