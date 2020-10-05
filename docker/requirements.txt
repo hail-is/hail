@@ -51,3 +51,4 @@ uvloop==0.14.0
 Werkzeug==0.15.4
 wheel>=0.31.0
 zulip==0.6.3
+six>1.14.0
