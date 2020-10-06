@@ -1761,8 +1761,8 @@ steps:
    image:
      valueFrom: test_benchmark_image.image
    script: |
-       set -ex
-       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
+     set -ex
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
    secrets:
     - name: gce-deploy-config
       namespace:
