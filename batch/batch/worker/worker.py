@@ -639,12 +639,10 @@ class Job:
         if job_spec.get('mount_docker_socket'):
             main_volume_mounts.append('/var/run/docker.sock:/var/run/docker.sock')
 
-        self.mount_io = (input_files or output_files)
-        if self.mount_io:
-            volume_mount = f'{self.io_host_path()}:/io'
-            input_volume_mounts.append(volume_mount)
-            main_volume_mounts.append(volume_mount)
-            output_volume_mounts.append(volume_mount)
+        io_volume_mount = f'{self.io_host_path()}:/io'
+        input_volume_mounts.append(io_volume_mount)
+        main_volume_mounts.append(io_volume_mount)
+        output_volume_mounts.append(io_volume_mount)
 
         gcsfuse = job_spec.get('gcsfuse')
         self.gcsfuse = gcsfuse
@@ -755,8 +753,7 @@ class Job:
                 await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/')
                 await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={self.storage_in_bytes} bhard={self.storage_in_bytes} {self.project_name}" /host/')
 
-                if self.mount_io:
-                    os.makedirs(self.io_host_path())
+                os.makedirs(self.io_host_path())
 
                 if self.secrets:
                     for secret in self.secrets:
