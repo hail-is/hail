@@ -34,7 +34,7 @@ prometheus_async==19.2.0
 prometheus_client==0.7.1
 pyjwt==1.7.1
 pylint==2.6.0
-PyMySQL==0.9.3
+PyMySQL==0.9.2
 pytest==4.6.3
 pytest-asyncio==0.10.0
 pytest-html==1.20.0
