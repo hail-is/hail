@@ -570,7 +570,8 @@ steps:
      cd hail
      time retry ./gradlew --version
      time retry make jars wheel HAIL_DEBUG_MODE=1
-     time tar -cvf build/deploy/dist/debug-wheel-container.tar build/deploy/dist/hail-*-py3-none-any.whl
+     (cd build/deploy/dist/ && tar -cvf debug-wheel-container.tar hail-*-py3-none-any.whl)
+     cd /io/repo/hail
      mkdir build/debug_libs
      mv build/libs/hail-all-spark.jar build/debug_libs/
      mv build/libs/hail-all-spark-test.jar build/debug_libs/
