@@ -92,3 +92,14 @@ at `<https://batch.hail.is>`__.
     backend.Backend
     backend.LocalBackend
     backend.ServiceBackend
+
+
+Utilities
+~~~~~~~~~
+
+.. autosummary::
+    :toctree: api/utils/
+    :nosignatures:
+
+    utils.concatenate
+    utils.plink_merge

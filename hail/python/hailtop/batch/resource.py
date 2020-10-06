@@ -3,7 +3,7 @@ import abc
 from shlex import quote as shq
 from typing import Optional, Set
 
-from .utils import BatchException
+from .exceptions import BatchException
 from . import job  # pylint: disable=cyclic-import
 
 

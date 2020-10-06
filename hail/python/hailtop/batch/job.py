@@ -2,7 +2,7 @@ import re
 from typing import Union, Optional, Dict, List, Set, Tuple
 
 from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
-from .utils import BatchException
+from .exceptions import BatchException
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
