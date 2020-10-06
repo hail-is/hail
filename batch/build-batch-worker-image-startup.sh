@@ -103,23 +103,8 @@ rm /etc/google-fluentd/google-fluentd.conf.bak
 
 service google-fluentd start
 
-# only allow udp/53 (dns) to metadata server
-# -I inserts at the head of the chain, so the ACCEPT rule runs first
-iptables -I DOCKER-USER -d 169.254.169.254 -j DROP
-iptables -I DOCKER-USER -d 169.254.169.254 -p udp -m udp --destination-port 53 -j ACCEPT
-
-docker network create public --opt com.docker.network.bridge.name=public
-docker network create private --opt com.docker.network.bridge.name=private
-# make the internal network not route-able
-iptables -I DOCKER-USER -i public -d 10.0.0.0/8 -j DROP
-# make other docker containers not route-able
-iptables -I DOCKER-USER -i public -d 172.16.0.0/12 -j DROP
-# not used, but ban it anyway!
-iptables -I DOCKER-USER -i public -d 192.168.0.0/16 -j DROP
-
 # add docker daemon debug logging
 jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
 mv daemon.json.tmp /etc/docker/daemon.json
-
 
 shutdown -h now
