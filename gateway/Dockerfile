@@ -1,6 +1,7 @@
 FROM ubuntu:18.04
 
-RUN apt-get update -y && \
+RUN echo "APT::Acquire::Retries \"3\";" > /etc/apt/apt.conf.d/80-retries && \
+    apt-get update -y && \
     apt-get install -y nginx && \
     rm -rf /var/lib/apt/lists/*
 
