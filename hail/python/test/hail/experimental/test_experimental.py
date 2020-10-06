@@ -92,6 +92,7 @@ class Tests(unittest.TestCase):
         ht = x.annotate(fp=hl.cond(~x.tp, hl.rand_bool(0.2), False))
         _, aucs = hl.experimental.plot_roc_curve(ht, ['score1', 'score2', 'score3'])
 
+    @pytest.mark.unchecked_allocator
     @fails_local_backend()
     def test_ld_score_regression(self):
 
