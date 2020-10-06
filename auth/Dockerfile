@@ -6,7 +6,8 @@ RUN pip3 install --upgrade \
 
 COPY auth/setup.py auth/MANIFEST.in /auth/
 COPY auth/auth /auth/auth/
-RUN pip3 install --no-cache-dir /auth && \
-  rm -rf /auth
+RUN pip3 install --use-feature=2020-resolver --upgrade --no-cache-dir /auth && \
+  rm -rf /auth && \
+  python3 -m pip check
 
 EXPOSE 5000

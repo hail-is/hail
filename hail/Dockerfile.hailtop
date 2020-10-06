@@ -2,6 +2,6 @@ FROM {{ base_image.image }}
 
 COPY python/setup-hailtop.py /hailtop/setup.py
 COPY python/hailtop /hailtop/hailtop/
-RUN python3 -m pip install --no-cache-dir /hailtop && \
+RUN python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir /hailtop && \
   rm -rf /hailtop && \
   python3 -m pip check

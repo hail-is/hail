@@ -20,20 +20,23 @@ RUN apt-get update && \
 COPY docker/requirements.txt .
 # re: pip install --upgrade pip: https://github.com/grpc/grpc/issues/22815
 RUN python3 -m pip install --upgrade pip && \
-    python3 -m pip install --no-cache-dir -U -r requirements.txt && \
+    python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir -r requirements.txt && \
     python3 -m pip check
 
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/
-RUN python3 -m pip install --no-deps --no-cache-dir /hailtop \
-  && rm -rf /hailtop
+RUN python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir --no-deps /hailtop \
+  && rm -rf /hailtop && \
+  python3 -m pip check
 
 COPY gear/setup.py /gear/setup.py
 COPY gear/gear /gear/gear/
-RUN python3 -m pip install --no-deps --no-cache-dir /gear \
-  && rm -rf /gear
+RUN python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir --no-deps /gear \
+  && rm -rf /gear && \
+  python3 -m pip check
 
 COPY batch/setup.py batch/MANIFEST.in /batch/
 COPY batch/batch /batch/batch/
-RUN pip3 install --no-cache-dir /batch && \
-  rm -rf /batch
+RUN pip3 install --use-feature=2020-resolver --upgrade --no-cache-dir /batch && \
+  rm -rf /batch && \
+  python3 -m pip check
