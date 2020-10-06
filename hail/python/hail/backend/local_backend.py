@@ -17,30 +17,9 @@ from hail.expr.types import dtype
 from hail.ir import JavaIR
 from hail.ir.renderer import CSERenderer
 from hail.utils.java import FatalError, Env, scala_package_object, scala_object
-from .py4j_backend import Py4JBackend
+from .py4j_backend import Py4JBackend, handle_java_exception
 from ..fs.local_fs import LocalFS
 from ..hail_logging import Logger
-
-
-def handle_java_exception(f):
-    def deco(*args, **kwargs):
-        try:
-            return f(*args, **kwargs)
-        except py4j.protocol.Py4JJavaError as e:
-            s = e.java_exception.toString()
-
-            # py4j catches NoSuchElementExceptions to stop array iteration
-            if s.startswith('java.util.NoSuchElementException'):
-                raise
-
-            tpl = Env.jutils().handleForPython(e.java_exception)
-            deepest, full = tpl._1(), tpl._2()
-            raise FatalError('%s\n\nJava stack trace:\n%s\n'
-                             'Hail version: %s\n'
-                             'Error summary: %s' % (deepest, full, hail.__version__, deepest)) from None
-
-    return deco
-
 
 _installed = False
 _original = None
