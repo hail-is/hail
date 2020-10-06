@@ -1776,15 +1776,15 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /ssl-config
-    timeout: 300
-    dependsOn:
-      - test_benchmark_image
-      - create_deploy_config
-      - create_accounts
-      - default_ns
-      - batch_pods_ns
-      - create_certs
-      - deploy_benchmark
+   timeout: 300
+   dependsOn:
+    - test_benchmark_image
+    - create_deploy_config
+    - create_accounts
+    - default_ns
+    - batch_pods_ns
+    - create_certs
+    - deploy_benchmark
  - kind: runImage
    name: test_auth_copy_paste_login
    image:
