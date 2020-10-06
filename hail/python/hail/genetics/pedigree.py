@@ -300,8 +300,8 @@ class Pedigree(object):
 
             Phenotype information is not preserved in the Pedigree data
             structure in Hail.  Reading and writing a PLINK .fam file will
-            result in loss of this information.  Use the key table method
-            :func:`~.import_fam` to manipulate this information.
+            result in loss of this information.  Use :func:`~.import_fam` to
+            manipulate this information.
 
         :param path: output path
         :type path: str
