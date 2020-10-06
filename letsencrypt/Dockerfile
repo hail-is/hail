@@ -1,14 +1,12 @@
 FROM ubuntu:18.04
 
-RUN apt-get update -y
-
 # get add-apt-repository
 RUN echo "APT::Acquire::Retries \"3\";" > /etc/apt/apt.conf.d/80-retries && \
-    apt-get update -y && \
+    apt-get update && \
     apt-get install -y nginx software-properties-common && \
     bash -c 'DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata' && \
     add-apt-repository -y ppa:certbot/certbot && \
-    apt-get update -y && \
+    apt-get update && \
     apt-get install -y python-certbot-nginx wget && \
     rm -rf /var/lib/apt/lists/*
 
