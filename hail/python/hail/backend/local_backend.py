@@ -9,14 +9,13 @@ import pkg_resources
 import py4j
 from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
 
-import hail
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.expr.matrix_type import tmatrix
 from hail.expr.table_type import ttable
 from hail.expr.types import dtype
 from hail.ir import JavaIR
 from hail.ir.renderer import CSERenderer
-from hail.utils.java import FatalError, Env, scala_package_object, scala_object
+from hail.utils.java import FatalError, HailUserError, scala_package_object, scala_object
 from .py4j_backend import Py4JBackend, handle_java_exception
 from ..fs.local_fs import LocalFS
 from ..hail_logging import Logger
@@ -222,11 +221,33 @@ class LocalBackend(Py4JBackend):
     def execute(self, ir, timed=False):
         jir = self._to_java_value_ir(ir)
         # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
-        result = json.loads(self._jhc.backend().executeJSON(jir))
-        value = ir.typ._from_json(result['value'])
-        timings = result['timings']
+        try:
+            result = json.loads(self._jhc.backend().executeJSON(jir))
+            value = ir.typ._from_json(result['value'])
+            timings = result['timings']
 
-        return (value, timings) if timed else value
+            return (value, timings) if timed else value
+        except FatalError as e:
+            error_id = e._error_id
+
+            def criteria(hail_ir):
+                return hail_ir._error_id is not None and hail_ir._error_id == error_id
+
+            error_sources = ir.base_search(criteria)
+            better_stack_trace = None
+            if error_sources:
+                better_stack_trace = error_sources[0]._stack_trace
+
+            if better_stack_trace:
+                error_message = str(e)
+                message_and_trace = (f'{error_message}\n'
+                                     '------------\n'
+                                     'Hail stack trace:\n'
+                                     f'{better_stack_trace}')
+                raise HailUserError(message_and_trace) from None
+
+            raise e
+
 
     def value_type(self, ir):
         jir = self._to_java_value_ir(ir)
