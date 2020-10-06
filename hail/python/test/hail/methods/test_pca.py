@@ -161,6 +161,7 @@ def test_blanczos_against_hail():
     assert MEV > 0.9
 
 
+@fails_local_backend()
 def test_spectra():
     def make_spectral_matrix(index_func, k, m, n):
         sigma_dim = min(m, n)
