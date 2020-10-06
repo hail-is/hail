@@ -87,6 +87,21 @@
         <p>No issues.</p>
         {% endif %}
 
+        <h2>Asana Tasks</h2>
+        {% if user_data['ASANA'] %}
+        <table class="data-table">
+            <tbody>
+            {% for task in user_data['ASANA'] %}
+            <tr>
+                <td><a href="{{ task.url }}">{{ task.name }}</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No Asana tasks.</p>
+        {% endif %}
+
         <p>
             <small>last updated {{ updated }}</small>
         </p>

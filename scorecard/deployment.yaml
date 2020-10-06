@@ -51,7 +51,15 @@ spec:
           - name: ssl-config-scorecard
             mountPath: /ssl-config
             readOnly: true
+          - name: asana-access-token
+            mountPath: /asana
+            readOnly: true
         readinessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+         livenessProbe:
             tcpSocket:
               port: 5000
             initialDelaySeconds: 5
@@ -72,3 +80,7 @@ spec:
           secret:
             optional: false
             secretName: ssl-config-scorecard
+        - name: asana-access-token
+          secret:
+            optional: false
+            secretName: asana-access-token
