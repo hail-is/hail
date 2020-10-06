@@ -1,12 +1,11 @@
 FROM {{ service_base_image.image }}
 
-RUN pip3 install --upgrade \
+RUN hail-pip-install \
       google-auth-oauthlib==0.4.1 \
-      google-auth==1.20.0
+      google-auth==1.21.1
 
 COPY auth/setup.py auth/MANIFEST.in /auth/
 COPY auth/auth /auth/auth/
-RUN pip3 install --no-cache-dir /auth && \
-  rm -rf /auth
+RUN hail-pip-install /auth && rm -rf /auth
 
 EXPOSE 5000

@@ -34,7 +34,7 @@ prometheus_async==19.2.0
 prometheus_client==0.7.1
 pyjwt==1.7.1
 pylint==2.6.0
-PyMySQL==0.9.3
+PyMySQL==0.9.2
 pytest==4.6.3
 pytest-asyncio==0.10.0
 pytest-html==1.20.0
@@ -55,4 +55,3 @@ wheel>=0.31.0
 # yarl 1.6.0 broke query string parsing in aiohttp 3.6.[012] https://github.com/aio-libs/aiohttp/issues/4972#issuecomment-700290809
 yarl<1.6.0
 zulip==0.6.3
-six>1.14.0

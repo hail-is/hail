@@ -1,3 +1,4 @@
+import subprocess
 import os
 import base64
 import concurrent
@@ -182,10 +183,19 @@ async def on_startup(app):
     thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=16)
     app['thread_pool'] = thread_pool
 
-    port = launch_gateway(
-        jarpath='/spark-2.4.0-bin-hadoop2.7/jars/py4j-0.10.7.jar',
-        classpath='/spark-2.4.0-bin-hadoop2.7/jars/*:/hail.jar',
-        die_on_exit=True)
+    spark_home = os.environ.get('SPARK_HOME')
+    if spark_home is None:
+        find_spark_home = subprocess.run('find_spark_home.py',
+                                         capture_output=True,
+                                         check=False)
+        if find_spark_home.returncode != 0:
+            raise ValueError(f'''SPARK_HOME is not set and find_spark_home.py returned non-zero exit code:
+STDOUT:
+{find_spark_home.stdout}
+STDERR:
+{find_spark_home.stderr}''')
+        spark_home = find_spark_home.stdout.decode().strip()
+    port = launch_gateway(die_on_exit=True, classpath=f'{spark_home}/jars/*:/hail.jar')
     gateway = JavaGateway(
         gateway_parameters=GatewayParameters(port=port),
         auto_convert=True)

@@ -24,7 +24,7 @@ build:
 	-docker pull gcr.io/$(PROJECT)/python:3.7-slim-stretch
 	-docker pull $(BATCH_WORKER_LATEST)
 	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}}' Dockerfile.worker Dockerfile.worker.out
-	docker build -t batch-worker -f Dockerfile.worker --cache-from batch-worker,$(BATCH_WORKER_LATEST),gcr.io/$(PROJECT)/python:3.7-slim-stretch ..
+	docker build -t batch-worker -f Dockerfile.worker.out --cache-from batch-worker,$(BATCH_WORKER_LATEST),gcr.io/$(PROJECT)/python:3.7-slim-stretch ..
 
 .PHONY: push
 push: build

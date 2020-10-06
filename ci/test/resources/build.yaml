@@ -38,10 +38,17 @@ steps:
    dependsOn:
     - inline_image
  - kind: buildImage
+   name: hail_ubuntu_image
+   dockerFile: docker/hail-ubuntu/Dockerfile
+   contextPath: docker/hail-ubuntu
+   publishAs: hail-ubuntu
+ - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
    contextPath: .
    publishAs: base
+   dependsOn:
+    - hail_ubuntu_image
  - kind: buildImage
    name: service_base_image
    dockerFile: docker/Dockerfile.service-base

@@ -2,7 +2,7 @@ FROM {{ service_base_image.image }}
 
 COPY python/requirements.txt .
 COPY python/dev-requirements.txt .
-RUN python3 -m pip install --no-cache-dir -r requirements.txt -r dev-requirements.txt
+RUN hail-pip-install -r requirements.txt -r dev-requirements.txt
 
 RUN apt-get update && \
   apt-get -y install \
