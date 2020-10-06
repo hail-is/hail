@@ -8,7 +8,6 @@ from threading import Thread
 import py4j
 import pyspark
 
-import hail
 from hail.utils.java import FatalError, HailUserError, Env, scala_package_object, scala_object
 from hail.expr.types import dtype
 from hail.expr.table_type import ttable
@@ -269,36 +268,6 @@ class SparkBackend(Py4JBackend):
 
     def _to_java_blockmatrix_ir(self, ir):
         return self._to_java_ir(ir, self._parse_blockmatrix_ir)
-
-    def execute(self, ir, timed=False):
-        jir = self._to_java_value_ir(ir)
-        # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
-        try:
-            result = json.loads(self._jhc.backend().executeJSON(jir))
-            value = ir.typ._from_json(result['value'])
-            timings = result['timings']
-
-            return (value, timings) if timed else value
-        except FatalError as e:
-            error_id = e._error_id
-
-            def criteria(hail_ir):
-                return hail_ir._error_id is not None and hail_ir._error_id == error_id
-
-            error_sources = ir.base_search(criteria)
-            better_stack_trace = None
-            if error_sources:
-                better_stack_trace = error_sources[0]._stack_trace
-
-            if better_stack_trace:
-                error_message = str(e)
-                message_and_trace = (f'{error_message}\n'
-                                     '------------\n'
-                                     'Hail stack trace:\n'
-                                     f'{better_stack_trace}')
-                raise HailUserError(message_and_trace) from None
-
-            raise e
 
     def value_type(self, ir):
         jir = self._to_java_value_ir(ir)

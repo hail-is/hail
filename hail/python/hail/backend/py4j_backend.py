@@ -1,10 +1,11 @@
 import abc
+import json
 
 import py4j
 
 import hail
 from hail.ir.renderer import CSERenderer
-from hail.utils.java import FatalError, Env
+from hail.utils.java import FatalError, Env, HailUserError
 from .backend import Backend
 
 
@@ -65,3 +66,34 @@ class Py4JBackend(Backend):
             argument_names, [pt._parsable_string() for pt in argument_types],
             return_type._parsable_string(),
             jbody)
+
+    def execute(self, ir, timed=False):
+        jir = self._to_java_value_ir(ir)
+        # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
+        try:
+            result = json.loads(self._jhc.backend().executeJSON(jir))
+            value = ir.typ._from_json(result['value'])
+            timings = result['timings']
+
+            return (value, timings) if timed else value
+        except FatalError as e:
+            error_id = e._error_id
+
+            def criteria(hail_ir):
+                return hail_ir._error_id is not None and hail_ir._error_id == error_id
+
+            error_sources = ir.base_search(criteria)
+            better_stack_trace = None
+            if error_sources:
+                better_stack_trace = error_sources[0]._stack_trace
+
+            if better_stack_trace:
+                error_message = str(e)
+                message_and_trace = (f'{error_message}\n'
+                                     '------------\n'
+                                     'Hail stack trace:\n'
+                                     f'{better_stack_trace}')
+                raise HailUserError(message_and_trace) from None
+
+            raise e
+
