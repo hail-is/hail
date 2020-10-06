@@ -340,7 +340,7 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-9',
+                    'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-10',
                     'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(self.worker_disk_size_gb)
                 }
@@ -384,25 +384,6 @@ nohup /bin/bash run.sh >run.log 2>&1 &
                     'value': rf'''
 #!/bin/bash
 set -x
-
-# only allow udp/53 (dns) to metadata server
-# -I inserts at the head of the chain, so the ACCEPT rule runs first
-iptables -I DOCKER-USER -d 169.254.169.254 -j DROP
-iptables -I DOCKER-USER -d 169.254.169.254 -p udp -m udp --destination-port 53 -j ACCEPT
-
-docker network create public --opt com.docker.network.bridge.name=public
-docker network create private --opt com.docker.network.bridge.name=private
-# make the internal network not route-able
-iptables -I DOCKER-USER -i public -d 10.0.0.0/8 -j DROP
-# make other docker containers not route-able
-iptables -I DOCKER-USER -i public -d 172.16.0.0/12 -j DROP
-# not used, but ban it anyway!
-iptables -I DOCKER-USER -i public -d 192.168.0.0/16 -j DROP
-
-# add docker daemon debug logging
-jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
-mv daemon.json.tmp /etc/docker/daemon.json
-kill -SIGHUP $(pidof dockerd)
 
 WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
 
@@ -455,67 +436,6 @@ NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name 
 ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
 
 BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
-
-# Setup fluentd
-touch /worker.log
-touch /run.log
-
-sudo rm /etc/google-fluentd/config.d/*  # remove unused config files
-
-sudo tee /etc/google-fluentd/config.d/syslog.conf <<EOF
-<source>
-  @type tail
-  format syslog
-  path /var/log/syslog
-  pos_file /var/lib/google-fluentd/pos/syslog.pos
-  read_from_head true
-  tag syslog
-</source>
-EOF
-
-sudo tee /etc/google-fluentd/config.d/worker-log.conf <<EOF {{
-<source>
-    @type tail
-    format json
-    path /worker.log
-    pos_file /var/lib/google-fluentd/pos/worker-log.pos
-    read_from_head true
-    tag worker.log
-</source>
-
-<filter worker.log>
-    @type record_transformer
-    enable_ruby
-    <record>
-        severity \${{ record["levelname"] }}
-        timestamp \${{ record["asctime"] }}
-    </record>
-</filter>
-EOF
-
-sudo tee /etc/google-fluentd/config.d/run-log.conf <<EOF
-<source>
-    @type tail
-    format none
-    path /run.log
-    pos_file /var/lib/google-fluentd/pos/run-log.pos
-    read_from_head true
-    tag run.log
-</source>
-EOF
-
-sudo cp /etc/google-fluentd/google-fluentd.conf /etc/google-fluentd/google-fluentd.conf.bak
-head -n -1 /etc/google-fluentd/google-fluentd.conf.bak | sudo tee /etc/google-fluentd/google-fluentd.conf
-sudo tee -a /etc/google-fluentd/google-fluentd.conf <<EOF
-  labels {{
-    "namespace": "$NAMESPACE",
-    "instance_id": "$INSTANCE_ID"
-  }}
-</match>
-EOF
-rm /etc/google-fluentd/google-fluentd.conf.bak
-
-sudo service google-fluentd restart
 
 # retry once
 docker pull $BATCH_WORKER_IMAGE || \
