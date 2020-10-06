@@ -544,7 +544,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
               val ctxMemo = ctxStruct.asBaseStruct.memoize(cb, "pnri_ctx_struct")
               cb.assign(idxr, getIndexReader(ctxMemo
                 .loadField(cb, "indexPath")
-                .handle(cb, cb._fatal(""))
+                .get(cb)
                 .asString
                 .loadString()))
               cb.assign(it,
@@ -558,7 +558,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
                   InputMetrics](makeDecCode,
                   region.code,
                   mb.open(ctxMemo.loadField(cb, "partitionPath")
-                    .handle(cb, cb._fatal(""))
+                    .get(cb)
                     .asString
                     .loadString(), true),
                   idxr,
@@ -660,25 +660,6 @@ class TableNativeReader(
       params.options.map(opts => new RVDPartitioner(specPart.kType, opts.intervals))
 
     spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType.rowType, partitioner, filterIntervals).apply(globals)
-//
-//    val rowsPath = spec.rowsComponent.absolutePath(params.path)
-//    if (! (rowsSpec.key startsWith requestedType.key))
-//      throw new LowererUnsupportedOperation("Can't lower a table if sort is needed after read.")
-//
-//    val partitioner = rowsSpec.partitioner
-//
-//    val rSpec = rowsSpec.typedCodecSpec
-//
-//    val ctxType = TStruct("path" -> TString)
-//    val contexts = MakeStream(rowsSpec.absolutePartPaths(rowsPath).map(partPath => MakeStruct(FastIndexedSeq("path" -> Str(partPath)))), TStream(ctxType))
-//
-//    val body = (ctx: IR) => ReadPartition(GetField(ctx, "path"), requestedType.rowType, PartitionNativeReader(rSpec))
-//
-//    TableStage(
-//      globals,
-//      partitioner,
-//      contexts,
-//      body)
   }
 }
 
