@@ -10,13 +10,13 @@ import is.hail.utils._
 
 import scala.language.{existentials, higherKinds}
 
-case class EmitStreamContext(mb: EmitMethodBuilder[_])
+case class EmitStreamContext(mb: EmitMethodBuilder[_], ectx: ExecuteContext)
 
 abstract class COption[+A] { self =>
   def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl]
 
-  def cases(mb: EmitMethodBuilder[_])(none: Code[Unit], some: A => Code[Unit]): Code[Unit] = {
-    implicit val ctx = EmitStreamContext(mb)
+  def cases(mb: EmitMethodBuilder[_], ctx: ExecuteContext)(none: Code[Unit], some: A => Code[Unit]): Code[Unit] = {
+    implicit val sctx: EmitStreamContext = EmitStreamContext(mb, ctx)
     val L = CodeLabel()
     Code(
       self(Code(none, L.goto), (a) => Code(some(a), L.goto)),
@@ -130,8 +130,8 @@ object COption {
     }
   }
 
-  def toEmitCode(opt: COption[PCode], mb: EmitMethodBuilder[_]): EmitCode = {
-    implicit val ctx = EmitStreamContext(mb)
+  def toEmitCode(ctx: ExecuteContext, opt: COption[PCode], mb: EmitMethodBuilder[_]): EmitCode = {
+    implicit val sctx = EmitStreamContext(mb, ctx)
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
     var value: PCode = null
@@ -150,8 +150,8 @@ abstract class Stream[+A] { self =>
 
   def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A]
 
-  def fold(mb: EmitMethodBuilder[_], init: => Code[Unit], f: (A) => Code[Unit], ret: => Code[Ctrl]): Code[Ctrl] = {
-    implicit val ctx = EmitStreamContext(mb)
+  def fold(ctx: ExecuteContext, mb: EmitMethodBuilder[_], init: => Code[Unit], f: (A) => Code[Unit], ret: => Code[Ctrl]): Code[Ctrl] = {
+    implicit val sctx = EmitStreamContext(mb, ctx)
     val Ltop = CodeLabel()
     val Lafter = CodeLabel()
     val s = self(Lafter.goto, (a) => Code(f(a), Ltop.goto: Code[Ctrl]))
@@ -167,21 +167,21 @@ abstract class Stream[+A] { self =>
       ret)
   }
 
-  def forEachCPS(mb: EmitMethodBuilder[_], f: (A, Code[Ctrl]) => Code[Ctrl]): Code[Unit] =
-    mapCPS[Unit]((_, a, k) => f(a, k(()))).run(mb)
+  def forEachCPS(ctx: ExecuteContext, mb: EmitMethodBuilder[_], f: (A, Code[Ctrl]) => Code[Ctrl]): Code[Unit] =
+    mapCPS[Unit]((_, a, k) => f(a, k(()))).run(ctx, mb)
 
-  def forEach(mb: EmitMethodBuilder[_], f: A => Code[Unit]): Code[Unit] =
-    mapCPS[Unit]((_, a, k) => Code(f(a), k(()))).run(mb)
+  def forEach(ctx: ExecuteContext, mb: EmitMethodBuilder[_], f: A => Code[Unit]): Code[Unit] =
+    mapCPS[Unit]((_, a, k) => Code(f(a), k(()))).run(ctx, mb)
 
-  def forEachI(cb: EmitCodeBuilder, f: A => Unit): Unit = {
+  def forEachI(ctx: ExecuteContext, cb: EmitCodeBuilder, f: A => Unit): Unit = {
     val savedCode = cb.code
     cb.code = Code._empty
-    val streamCode = forEach(cb.emb, a => { f(a); cb.code })
+    val streamCode = forEach(ctx, cb.emb, a => { f(a); cb.code })
     cb.code = Code(savedCode, streamCode)
   }
 
-  def run(mb: EmitMethodBuilder[_]): Code[Unit] = {
-    implicit val ctx = EmitStreamContext(mb)
+  def run(ctx: ExecuteContext, mb: EmitMethodBuilder[_]): Code[Unit] = {
+    implicit val sctx = EmitStreamContext(mb, ctx)
     val Leos = CodeLabel()
     val Lpull = CodeLabel()
     val source = self(eos = Leos.goto, push = _ => Lpull.goto)
@@ -869,15 +869,17 @@ object EmitStream {
   import Stream._
 
   def write(
+    ctx: ExecuteContext,
     mb: EmitMethodBuilder[_],
     pcStream: PCanonicalStreamCode,
     ab: StagedArrayBuilder,
     destRegion: ParentStagedRegion
   ): Code[Unit] = {
-    _write(mb, pcStream.stream, ab, destRegion)
+    _write(ctx, mb, pcStream.stream, ab, destRegion)
   }
 
   private def _write(
+    ctx: ExecuteContext,
     mb: EmitMethodBuilder[_],
     sstream: SizedStream,
     ab: StagedArrayBuilder,
@@ -890,7 +892,7 @@ object EmitStream {
       ssSetup,
       ab.clear,
       ab.ensureCapacity(optLen.getOrElse(16)),
-      stream(eltRegion).forEach(mb, { elt => Code(
+      stream(eltRegion).forEach(ctx, mb, { elt => Code(
         elt.setup,
         elt.m.mux(
           ab.addMissing(),
@@ -901,6 +903,7 @@ object EmitStream {
   }
 
   def toArray(
+    ctx: ExecuteContext,
     mb: EmitMethodBuilder[_],
     aTyp: PArray,
     pcStream: PCanonicalStreamCode,
@@ -914,7 +917,7 @@ object EmitStream {
         val i = mb.newLocal[Int]("sta_i")
         val vab = new StagedArrayBuilder(aTyp.elementType, mb, 0)
         val ptr = Code(
-          _write(mb, ss, vab, destRegion),
+          _write(ctx, mb, ss, vab, destRegion),
           xLen := vab.size,
           srvb.start(xLen),
           i := const(0),
@@ -933,7 +936,7 @@ object EmitStream {
             eltRegion.allocateRegion(Region.REGULAR),
             ss.setup,
             srvb.start(len),
-            ss.stream(eltRegion).forEach(mb, { et =>
+            ss.stream(eltRegion).forEach(ctx, mb, { et =>
               Code(FastSeq(
                 et.setup,
                 et.m.mux(
@@ -1277,6 +1280,7 @@ object EmitStream {
   }
 
   private[ir] def emit[C](
+    ctx: ExecuteContext,
     emitter: Emit[C],
     streamIR0: IR,
     mb: EmitMethodBuilder[C],
@@ -1291,7 +1295,7 @@ object EmitStream {
         _emitStream(streamIR, outerRegion, env)
 
       def emitStreamToEmitCode(streamIR: IR, outerRegion: ParentStagedRegion = outerRegion, env: Emit.E = env): EmitCode =
-        COption.toEmitCode(
+        COption.toEmitCode(ctx,
           _emitStream(streamIR, outerRegion, env).map { stream =>
             PCanonicalStreamCode(streamIR.pType.asInstanceOf[PCanonicalStream], stream)
           }, mb)
@@ -1401,7 +1405,7 @@ object EmitStream {
           COption.present(sized(Code._empty, stream, Some(elements.length)))
 
         case x@ReadPartition(context, rowType, reader) =>
-          reader.emitStream(context, rowType, emitter, mb, outerRegion, env, container)
+          reader.emitStream(ctx, context, rowType, emitter, mb, outerRegion, env, container)
 
         case In(n, PCanonicalStream(eltType, _, _)) =>
           val xIter = mb.genFieldThisRef[Iterator[java.lang.Long]]("streamInIterator")
@@ -1658,7 +1662,7 @@ object EmitStream {
                       // allEOS and anyEOS
                       val checkedElts: IndexedSeq[Code[Unit]] =
                         elts.zip(eltVars).map { case (optEC, eltVar) =>
-                          optEC.cases(mb)(
+                          optEC.cases(mb, ctx)(
                             anyEOS := true,
                             ec => Code(
                               allEOS := false,
@@ -1723,7 +1727,7 @@ object EmitStream {
                                      k(COption.fromEmitCode(elt)))
                               }
 
-                          COption.toEmitCode(optElt, mb)
+                          COption.toEmitCode(ctx, optElt, mb)
                         }
                       val bodyEnv = env.bind(names.zip(eltVars): _*)
                       val body = emitIR(bodyIR, env = bodyEnv, region = eltRegion)
@@ -1785,7 +1789,7 @@ object EmitStream {
             val newEnv = env.bind(curKey -> xKey, curVals -> xElts)
             val joint = joinIR.pType match {
               case _: PCanonicalStream =>
-                emit(emitter, joinIR, mb, outerRegion, newEnv, container)
+                emit(ctx, emitter, joinIR, mb, outerRegion, newEnv, container)
               case _ =>
                 emitIR(joinIR, env = newEnv, region = eltRegion)
             }
@@ -1885,7 +1889,7 @@ object EmitStream {
 
           valueType match {
             case _: PCanonicalStream =>
-              val valuet = emit(emitter, valueIR, mb, outerRegion, env, container)
+              val valuet = emit(ctx, emitter, valueIR, mb, outerRegion, env, container)
               val bodyEnv = env.bind(name -> new EmitUnrealizableValue(valueType, valuet))
 
               emitStream(bodyIR, env = bodyEnv)
@@ -2008,7 +2012,7 @@ object EmitStream {
           def joinF: ((EmitCode, EmitCode)) => EmitCode = { case (lelt, relt) =>
             val joint = joinIR.pType match {
               case _: PCanonicalStream =>
-                emit(emitter, joinIR, mb, outerRegion, newEnv, container)
+                emit(ctx, emitter, joinIR, mb, outerRegion, newEnv, container)
               case _ =>
                 emitIR (joinIR, newEnv)
             }
@@ -2139,7 +2143,7 @@ object EmitStream {
       }
     }
 
-    COption.toEmitCode(
+    COption.toEmitCode(ctx,
       _emitStream(streamIR0, outerRegion, env0).map { stream =>
         PCanonicalStreamCode(coerce[PCanonicalStream](streamIR0.pType), stream)
       }, mb)

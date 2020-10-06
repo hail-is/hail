@@ -167,6 +167,7 @@ case class SplitPartitionNativeWriter(
   def ifIndexed[T >: Null](obj: => T): T = if (hasIndex) obj else null
 
   def consumeStream(
+    ctx: ExecuteContext,
     context: EmitCode,
     eltType: PStruct,
     mb: EmitMethodBuilder[_],
@@ -220,8 +221,8 @@ case class SplitPartitionNativeWriter(
       }
 
       PCode(pResultType, EmitCodeBuilder.scopedCode(mb) { cb: EmitCodeBuilder =>
-        val ctx = ctxCode.memoize(cb, "context")
-        cb.assign(filename1, pContextType.loadString(ctx.tcode[Long]))
+        val pctx = ctxCode.memoize(cb, "context")
+        cb.assign(filename1, pContextType.loadString(pctx.tcode[Long]))
         if (hasIndex) {
           val indexFile = cb.newLocal[String]("indexFile")
           cb.assign(indexFile, const(index.get._1).concat(filename1))
@@ -235,7 +236,7 @@ case class SplitPartitionNativeWriter(
         cb.assign(ob2, spec2.buildCodeOutputBuffer(Code.checkcast[OutputStream](os2)))
         cb.assign(n, 0L)
         cb += eltRegion.allocateRegion(Region.REGULAR)
-        cb += stream.getStream(eltRegion).forEach(mb, writeFile)
+        cb += stream.getStream(eltRegion).forEach(ctx, mb, writeFile)
         cb += eltRegion.free()
         cb += ob1.writeByte(0.asInstanceOf[Byte])
         cb += ob2.writeByte(0.asInstanceOf[Byte])
@@ -247,7 +248,7 @@ case class SplitPartitionNativeWriter(
         cb += os1.invoke[Unit]("close")
         cb += os2.invoke[Unit]("close")
         cb += Region.storeIRIntermediate(filenameType)(
-          pResultType.fieldOffset(result, "filePath"), ctx.tcode[Long])
+          pResultType.fieldOffset(result, "filePath"), pctx.tcode[Long])
         cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
         result.get
       })

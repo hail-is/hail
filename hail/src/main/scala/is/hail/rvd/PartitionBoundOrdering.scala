@@ -1,11 +1,28 @@
 package is.hail.rvd
 
-import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering}
+import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering, SafeRow}
+import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual._
-import is.hail.utils.IntervalEndpoint
+import is.hail.utils._
 import org.apache.spark.sql.Row
 
 object PartitionBoundOrdering {
+
+  def regionValueToJavaObject(t: PType, addr: Long): Interval = {
+    val Row(left, right, includesLeft: Boolean, includesRight: Boolean) = SafeRow.read(t, addr)
+
+    def transformRow(rowWithLen: Any): Row = {
+      val Row(r: Row, len: Int) = rowWithLen
+      r.truncate(len)
+    }
+    val x = Interval(
+      transformRow(left),
+      transformRow(right),
+      includesLeft,
+      includesRight)
+    x
+  }
+
   def apply(_kType: Type): ExtendedOrdering = {
     val kType = _kType.asInstanceOf[TBaseStruct]
     val fieldOrd = kType.types.map(_.ordering)

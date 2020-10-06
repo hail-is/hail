@@ -783,7 +783,6 @@ class Tests(unittest.TestCase):
         t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
         self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
 
-    @fails_local_backend()
     def test_indexed_read(self):
         t = hl.utils.range_table(2000, 10)
         f = new_temp_file(extension='ht')
@@ -793,6 +792,7 @@ class Tests(unittest.TestCase):
             hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
         ])
         self.assertEqual(t2.n_partitions(), 2)
+        self.assertEqual(t2.count(), 350)
         self.assertTrue(t.filter((t.idx >= 150) & (t.idx < 500))._same(t2))
 
         t2 = hl.read_table(f, _intervals=[
@@ -1530,7 +1530,6 @@ def test_map_partitions_errors():
     with pytest.raises(ValueError, match='must preserve key fields'):
         ht._map_partitions(lambda rows: rows.map(lambda r: r.drop('idx')))
 
-@fails_local_backend()
 def test_map_partitions_indexed():
     tmp_file = new_temp_file()
     hl.utils.range_table(100, 8).write(tmp_file)

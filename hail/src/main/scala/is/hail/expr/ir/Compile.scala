@@ -197,14 +197,14 @@ object CompileIterator {
     InferPType(ir, Env.empty[PType])
     val returnType = ir.pType.asInstanceOf[PStream].elementType.asInstanceOf[PStruct].setRequired(true)
 
-    val optStream = EmitStream.emit(emitter, ir, stepF, outerRegion, Env.empty, None)
+    val optStream = EmitStream.emit(ctx, emitter, ir, stepF, outerRegion, Env.empty, None)
 
     val elementAddress = stepF.genFieldThisRef[Long]("elementAddr")
 
     val didSetup = stepF.genFieldThisRef[Boolean]("didSetup")
     stepF.cb.emitInit(didSetup := false)
 
-    implicit val ecc: EmitStreamContext = EmitStreamContext(stepF)
+    implicit val ecc: EmitStreamContext = EmitStreamContext(stepF, ctx)
 
     val pullLabel = CodeLabel()
     val eosField = stepF.genFieldThisRef[Boolean]("eos")

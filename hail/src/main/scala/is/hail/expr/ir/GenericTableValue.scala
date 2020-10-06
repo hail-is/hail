@@ -25,7 +25,8 @@ class PartitionIteratorLongReader(
 
   def rowPType(requestedType: Type): PType = bodyPType(requestedType.asInstanceOf[TStruct])
 
-  def emitStream[C](context: IR,
+  def emitStream[C](ctx: ExecuteContext,
+    context: IR,
     requestedType: Type,
     emitter: Emit[C],
     mb: EmitMethodBuilder[C],

@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, DataInputStream, DataOutputStream}
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, DataInputStream, DataOutputStream, InputStream}
 
 import is.hail.HailContext
 import is.hail.annotations._
@@ -15,11 +15,13 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io._
 import is.hail.io.fs.FS
+import is.hail.io.index.{IndexReadIterator, IndexReader, IndexReaderBuilder}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import org.apache.spark.TaskContext
+import org.apache.spark.executor.InputMetrics
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
 import org.json4s.JsonAST.{JNothing, JString}
@@ -443,14 +445,17 @@ object TableNativeReader {
   }
 }
 
-case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends PartitionReader {
+trait AbstractNativeReader extends PartitionReader {
+  def spec: AbstractTypedCodecSpec
+  def rowPType(requestedType: Type): PType = spec.decodedPType(requestedType)
   def fullRowType: Type = spec.encodedVirtualType
+}
 
+case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractNativeReader {
   def contextType: Type = TString
 
-  def rowPType(requestedType: Type): PType = spec.decodedPType(requestedType)
-
-  def emitStream[C](context: IR,
+  def emitStream[C](ctx: ExecuteContext,
+    context: IR,
     requestedType: Type,
     emitter: Emit[C],
     mb: EmitMethodBuilder[C],
@@ -488,6 +493,100 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends Partition
   def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
+case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec: AbstractIndexSpec, key: IndexedSeq[String]) extends AbstractNativeReader {
+  def contextType: Type = TStruct(
+    "partitionPath" -> TString,
+    "indexPath" -> TString,
+    "interval" -> RVDPartitioner.intervalIRRepresentation(spec.encodedVirtualType.asInstanceOf[TStruct].select(key)._1))
+
+  def emitStream[C](ctx: ExecuteContext,
+    context: IR,
+    requestedType: Type,
+    emitter: Emit[C],
+    mb: EmitMethodBuilder[C],
+    region: StagedRegion,
+    env: Emit.E,
+    container: Option[AggContainer]): COption[SizedStream] = {
+
+    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = region, container: Option[AggContainer] = container): EmitCode =
+      emitter.emitWithRegion(ir, mb, region, env, container)
+
+    val (eltType, makeDec) = spec.buildDecoder(ctx, requestedType)
+
+    val (keyType, annotationType) = indexSpec.types
+    val (leafPType: PStruct, leafDec) = indexSpec.leafCodec.buildDecoder(ctx, indexSpec.leafCodec.encodedVirtualType)
+    val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(ctx, indexSpec.internalNodeCodec.encodedVirtualType)
+    val mkIndexReader = IndexReaderBuilder.withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
+
+    val makeIndexCode = mb.getObject[Function3[FS, String, Int, IndexReader]](mkIndexReader)
+    val makeDecCode = mb.getObject[(InputStream => Decoder)](makeDec)
+    COption.fromEmitCode(emitIR(context)).map { ctxStruct =>
+      val getIndexReader: Code[String] => Code[IndexReader] = { (indexPath: Code[String]) =>
+          Code.checkcast[IndexReader](
+            makeIndexCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef]("apply", mb.getFS, indexPath, Code.boxInt(8)))
+      }
+
+      val hasNext = mb.newLocal[Boolean]("pnr_hasNext")
+      val next = mb.newLocal[Long]("pnr_next")
+      val idxr = mb.genFieldThisRef[IndexReader]("pnri_idx_reader")
+      val it = mb.genFieldThisRef[IndexReadIterator]("pnri_idx_iterator")
+      val stream = Stream.unfold[Code[Long]](
+        (_, k) =>
+          Code(
+            hasNext := it.invoke[Boolean]("hasNext"),
+            hasNext.orEmpty(next := it.invoke[Long]("_next")),
+            k(COption(!hasNext, next))))
+        .map(
+          pc => EmitCode.present(eltType, pc),
+          setup0 = None,
+          setup = Some(
+            EmitCodeBuilder.scopedVoid(mb) { cb =>
+              val ctxMemo = ctxStruct.asBaseStruct.memoize(cb, "pnri_ctx_struct")
+              cb.assign(idxr, getIndexReader(ctxMemo
+                .loadField(cb, "indexPath")
+                .get(cb)
+                .asString
+                .loadString()))
+              cb.assign(it,
+                Code.newInstance7[IndexReadIterator,
+                  (InputStream) => Decoder,
+                  Region,
+                  InputStream,
+                  IndexReader,
+                  String,
+                  Interval,
+                  InputMetrics](makeDecCode,
+                  region.code,
+                  mb.open(ctxMemo.loadField(cb, "partitionPath")
+                    .get(cb)
+                    .asString
+                    .loadString(), true),
+                  idxr,
+                  Code._null[String],
+                  ctxMemo.loadField(cb, "interval")
+                    .consumeCode[Interval](cb,
+                      Code._fatal[Interval](""),
+                      { pc =>
+                        val pcm = pc.memoize(cb, "pnri_interval")
+                        Code.invokeScalaObject2[PType, Long, Interval](
+                          PartitionBoundOrdering.getClass,
+                          "regionValueToJavaObject",
+                          mb.getPType(pcm.pt),
+                          coerce[Long](pcm.code))
+                      }
+                    ),
+                  Code._null[InputMetrics]
+                ))
+            }),
+          close = Some(it.invoke[Unit]("close")))
+
+      SizedStream.unsized(eltRegion => stream)
+    }
+  }
+
+  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+}
+
 case class TableNativeReaderParameters(
   path: String,
   options: Option[NativeReaderOptions])
@@ -500,7 +599,7 @@ class TableNativeReader(
 
   val filterIntervals: Boolean = params.options.map(_.filterIntervals).getOrElse(false)
 
-  def partitionCounts: Option[IndexedSeq[Long]] = if (filterIntervals) None else Some(spec.partitionCounts)
+  def partitionCounts: Option[IndexedSeq[Long]] = if (params.options.isDefined) None else Some(spec.partitionCounts)
 
   def fullType: TableType = spec.table_type
 
@@ -553,26 +652,14 @@ class TableNativeReader(
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val globals = lowerGlobals(ctx, requestedType.globalType)
-
     val rowsSpec = spec.rowsSpec
-    val rowsPath = spec.rowsComponent.absolutePath(params.path)
-    if (! (rowsSpec.key startsWith requestedType.key))
-      throw new LowererUnsupportedOperation("Can't lower a table if sort is needed after read.")
+    val specPart = rowsSpec.partitioner
+    val partitioner = if (filterIntervals)
+      params.options.map(opts => RVDPartitioner.union(specPart.kType, opts.intervals, specPart.kType.size - 1))
+    else
+      params.options.map(opts => new RVDPartitioner(specPart.kType, opts.intervals))
 
-    val partitioner = rowsSpec.partitioner
-
-    val rSpec = rowsSpec.typedCodecSpec
-
-    val ctxType = TStruct("path" -> TString)
-    val contexts = MakeStream(rowsSpec.absolutePartPaths(rowsPath).map(partPath => MakeStruct(FastIndexedSeq("path" -> Str(partPath)))), TStream(ctxType))
-
-    val body = (ctx: IR) => ReadPartition(GetField(ctx, "path"), requestedType.rowType, PartitionNativeReader(rSpec))
-
-    TableStage(
-      globals,
-      partitioner,
-      contexts,
-      body)
+    spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType.rowType, partitioner, filterIntervals).apply(globals)
   }
 }
 

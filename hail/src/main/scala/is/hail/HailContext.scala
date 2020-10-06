@@ -226,79 +226,12 @@ object HailContext {
     bounds: Option[Interval],
     metrics: InputMetrics = null
   ): Iterator[Long] =
-    if (bounds.isEmpty) {
-      idxr.close()
-      HailContext.readRowsPartition(makeDec)(ctx.r, in, metrics)
-    } else {
-      new Iterator[Long] {
-        private val region = ctx.region
-        private val idx = idxr.queryByInterval(bounds.get).buffered
-
-        private val trackedIn = new ByteTrackingInputStream(in)
-        private val field = offsetField.map { f =>
-          idxr.annotationType.asInstanceOf[TStruct].fieldIdx(f)
-        }
-        private val dec =
-          try {
-            if (idx.hasNext) {
-              val dec = makeDec(trackedIn)
-              val i = idx.head
-              val off = field.map { j =>
-                i.annotation.asInstanceOf[Row].getAs[Long](j)
-              }.getOrElse(i.recordOffset)
-              dec.seek(off)
-              dec
-            } else {
-              in.close()
-              null
-            }
-          } catch {
-            case e: Exception =>
-              idxr.close()
-              in.close()
-              throw e
-          }
-
-        private var cont: Byte = if (dec != null) dec.readByte() else 0
-        if (cont == 0) {
-          idxr.close()
-          if (dec != null) dec.close()
-        }
-
-        def hasNext: Boolean = cont != 0 && idx.hasNext
-
-        def next(): Long = {
-          if (!hasNext)
-            throw new NoSuchElementException("next on empty iterator")
-
-          try {
-            idx.next()
-            val res = dec.readRegionValue(region)
-            cont = dec.readByte()
-            if (metrics != null) {
-              ExposedMetrics.incrementRecord(metrics)
-              ExposedMetrics.incrementBytes(metrics, trackedIn.bytesReadAndClear())
-            }
-
-            if (cont == 0) {
-              dec.close()
-              idxr.close()
-            }
-
-            res
-          } catch {
-            case e: Exception =>
-              dec.close()
-              idxr.close()
-              throw e
-          }
-        }
-
-        override def finalize(): Unit = {
-          idxr.close()
-          if (dec != null) dec.close()
-        }
-      }
+    bounds match {
+      case Some(b) =>
+        new IndexReadIterator(makeDec, ctx.r, in, idxr, offsetField.orNull, b, metrics)
+      case None =>
+        idxr.close()
+        HailContext.readRowsPartition(makeDec)(ctx.r, in, metrics)
     }
 
   def readSplitRowsPartition(
