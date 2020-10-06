@@ -3498,7 +3498,6 @@ class Table(ExprContainer):
             key_names = list(self.key)
             return groups.map(lambda group:
                               group[0].select(*key_names, **{name: group}))
-                              #hl.struct(**{key_name: group[0][key_name] for key_name in key_names}).annotate(**{name: group}))
 
         return self._map_partitions(grouping_func)
 
