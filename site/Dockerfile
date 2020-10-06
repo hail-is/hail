@@ -1,6 +1,6 @@
 FROM debian:9.5
 
-RUN apt-get update -y && \
+RUN apt-get update && \
     apt-get install -y nginx curl python-minimal && \
     rm -rf /var/lib/apt/lists/*
 
