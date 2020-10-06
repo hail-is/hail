@@ -16,6 +16,7 @@ RUN python3 -m pip install -U -r requirements.txt -r dev-requirements.txt
 
 COPY wheel-container.tar wheel-container.tar
 RUN tar -xf wheel-container.tar && \
-    python3 -m pip install hail-*-py3-none-any.whl
+    python3 -m pip install hail-*-py3-none-any.whl && \
+    python3 -m pip check
 
 COPY pylintrc setup.cfg /
