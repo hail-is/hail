@@ -227,7 +227,7 @@ async def github_polling_loop(app):
     while True:
         await query_github(app)
         log.info('successfully queried github')
-        await asyncio.sleep(60)
+        await asyncio.sleep(600)
 
 
 async def on_startup(app):
