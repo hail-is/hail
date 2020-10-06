@@ -574,6 +574,7 @@ steps:
      mkdir build/debug_libs
      mv build/libs/hail-all-spark.jar build/debug_libs/
      mv build/libs/hail-all-spark-test.jar build/debug_libs/
+     mv build/deploy/dist/debug-wheel-container.tar build/debug_libs
      time retry make jars python-version-info wheel
      time (cd python && zip -r hail.zip hail hailtop)
      time tar czf test.tar.gz -C python test
@@ -599,7 +600,7 @@ steps:
        to: /hail.zip
      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
        to: /wheel-container.tar
-     - from: /io/repo/hail/build/deploy/dist/debug-wheel-container.tar
+     - from: /io/repo/hail/build/debug_libs/debug-wheel-container.tar
        to: /debug-wheel-container.tar
      - from: /io/repo/hail/test.tar.gz
        to: /test.tar.gz
