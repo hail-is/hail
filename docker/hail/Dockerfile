@@ -16,7 +16,7 @@ RUN echo "APT::Acquire::Retries \"3\";" > /etc/apt/apt.conf.d/80-retries && \
     vim \
   && rm -rf /var/lib/apt/lists/*
 COPY hail_pip_version /
-RUN pip3 --no-cache-dir install \
+RUN python3 -m pip --use-feature=2020-resolver --upgrade --no-cache-dir install \
       hail==$(cat /hail_pip_version) \
       ipython \
       matplotlib \
@@ -24,7 +24,8 @@ RUN pip3 --no-cache-dir install \
       pandas \
       scikit-learn \
       scipy \
-    && rm -rf hail-*-py3-none-any.whl
+    && python3 -m pip check && \
+    rm -rf hail-*-py3-none-any.whl
 RUN export SPARK_HOME=$(find_spark_home.py) && \
     curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar \
          >$SPARK_HOME/jars/gcs-connector-hadoop2-2.0.1.jar && \
