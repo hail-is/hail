@@ -27,24 +27,18 @@ RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
     /google-cloud-sdk/bin/gcloud -q components install beta kubectl
 ENV PATH $PATH:/google-cloud-sdk/bin
 
-RUN wget -nv -O spark-2.4.0-bin-hadoop2.7.tgz https://archive.apache.org/dist/spark/spark-2.4.0/spark-2.4.0-bin-hadoop2.7.tgz && \
-  tar xzf spark-2.4.0-bin-hadoop2.7.tgz && \
-  rm spark-2.4.0-bin-hadoop2.7.tgz
-
-# Regarding explicitly selecting 2.0.1: https://github.com/hail-is/hail/issues/8343
-RUN wget -nv -O /spark-2.4.0-bin-hadoop2.7/jars/gcs-connector-hadoop2-2.0.1.jar https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar
-COPY docker/core-site.xml /spark-2.4.0-bin-hadoop2.7/conf/core-site.xml
-
-ENV SPARK_HOME /spark-2.4.0-bin-hadoop2.7
-ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
-
 COPY docker/requirements.txt .
 # re: pip install --upgrade pip: https://github.com/grpc/grpc/issues/22815
 RUN python3 -m pip install --upgrade pip && \
     python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir -r requirements.txt && \
     python3 -m pip check
 
-ENV PYTHONPATH "${PYTHONPATH:+${PYTHONPATH}:}$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.7-src.zip"
+ENV SPARK_HOME /usr/local/lib/python3.7/dist-packages/pyspark
+ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 ENV PYSPARK_PYTHON python3
+
+# Regarding explicitly selecting 2.0.1: https://github.com/hail-is/hail/issues/8343
+RUN wget -nv -O ${SPARK_HOME}/jars/gcs-connector-hadoop2-2.0.1.jar https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar
+COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
 
 COPY pylintrc setup.cfg /
