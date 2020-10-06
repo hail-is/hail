@@ -86,3 +86,6 @@ principals:
 - name: monitoring-tests
   domain: monitoring-tests
   kind: json
+- name: benchmark-tests
+  domain: benchmark-tests
+  kind: json

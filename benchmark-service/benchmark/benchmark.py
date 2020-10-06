@@ -219,12 +219,23 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
-@router.post('/api/v1alpha/submit?repo=...,...')
-async def submit(request, userdata):
+@router.post('/api/v1alpha/create_benchmark')
+async def submit(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     github_client = app['github_client']
     batch_client = app['batch_client']
-    submit_batch(, batch_client)
+    commit = request.query.get('commit')
+    batch_id = await submit_batch(commit, batch_client)
+    return batch_id
+
+
+@router.get('/api/v1alpha/benchmark/{batch_id}')
+async def batch_status(request, userdata):
+    app = request.app
+    batch_client = app['batch_client']
+    batch_id = request.match_info['batch_id']
+    batch_status = await batch_client.get_batch(batch_id).status()
+    return batch_status
 
 
 async def github_polling_loop(app):
