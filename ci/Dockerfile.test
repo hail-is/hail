@@ -2,11 +2,12 @@ FROM {{ base_image.image }}
 
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/
-RUN python3 -m pip install --no-cache-dir /hailtop \
-  && rm -rf /hailtop
+RUN python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir /hailtop \
+  && rm -rf /hailtop && \
+  python3 -m pip check
 
 COPY ci/test/ /test/
-RUN python3 -m pip install --no-cache-dir \
+RUN python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir \
   pytest-instafail==0.4.1 \
   pytest-asyncio==0.10.0 && \
   python3 -m pip check
