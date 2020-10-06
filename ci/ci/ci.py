@@ -168,18 +168,6 @@ async def post_retry_pr(request, userdata):  # pylint: disable=unused-argument
         deploy_config.external_url('ci', f'/watched_branches/{wb.index}/pr/{pr.number}'))
 
 
-@routes.get('/batches')
-@web_authenticated_developers_only()
-async def get_batches(request, userdata):
-    batch_client = request.app['batch_client']
-    batches = [b async for b in batch_client.list_batches()]
-    statuses = [await b.status() for b in batches]
-    page_context = {
-        'batches': statuses
-    }
-    return await render_template('ci', request, userdata, 'batches.html', page_context)
-
-
 @routes.get('/batches/{batch_id}')
 @web_authenticated_developers_only()
 async def get_batch(request, userdata):
