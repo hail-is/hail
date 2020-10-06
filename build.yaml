@@ -569,7 +569,7 @@ steps:
      {{ code.checkout_script }}
      cd hail
      time retry ./gradlew --version
-     time retry make jars HAIL_DEBUG_MODE=1
+     time retry make jars wheel HAIL_DEBUG_MODE=1
      mkdir build/debug_libs
      mv build/libs/hail-all-spark.jar build/debug_libs/
      mv build/libs/hail-all-spark-test.jar build/debug_libs/
