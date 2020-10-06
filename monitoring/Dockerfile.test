@@ -3,4 +3,5 @@ FROM {{ service_base_image.image }}
 COPY monitoring/test/ /test/
 RUN python3 -m pip install --no-cache-dir \
   pytest-instafail==0.4.1 \
-  pytest-asyncio==0.10.0
+  pytest-asyncio==0.10.0 && \
+  python3 -m pip check
