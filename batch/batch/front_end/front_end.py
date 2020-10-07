@@ -823,7 +823,7 @@ LOCK IN SHARE MODE;
 ''',
             (billing_project, user))
         rows = [row async for row in rows]
-        if len(rows) != 1:
+        if len(rows) != 1 or rows[0]['project_closed'] is None:
             assert len(rows) == 0
             raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
         if rows[0]['project_closed']:
@@ -1527,7 +1527,7 @@ FROM billing_projects WHERE name = %s FOR UPDATE;
             raise RuntimeError(f'Billing project {billing_project} has open or running batches.')
 
         await tx.execute_update(
-            'UPDATE billing_projects SET closed = TRUE WHERE name = %s;',
+            'UPDATE billing_projects SET closed = 1 WHERE name = %s;',
             (billing_project, ))
     await close_project()  # pylint: disable=no-value-for-parameter
 
@@ -1543,13 +1543,14 @@ async def post_close_billing_projects(request, userdata):  # pylint: disable=unu
     session = await aiohttp_session.get_session(request)
     try:
         await _close_billing_project(db, billing_project)
-        set_message(session, f'Closed billing project {billing_project}.', 'info')
     except KeyError as e:
         set_message(session, f'Billing project {str(e)} does not exist.', 'error')
     except RuntimeError as e:
         set_message(session, str(e), 'error')
     except ValueError as e:
         set_message(session, str(e), 'info')
+    else:
+        set_message(session, f'Closed billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
@@ -1566,7 +1567,7 @@ async def _reopen_billing_project(db, billing_project):
             raise ValueError(f'Billing project {billing_project} is already open.')
 
         await tx.execute_update(
-            'UPDATE billing_projects SET closed = FALSE WHERE name = %s;',
+            'UPDATE billing_projects SET closed = 0 WHERE name = %s;',
             (billing_project, ))
     await open_project()  # pylint: disable=no-value-for-parameter
 
@@ -1582,11 +1583,12 @@ async def post_reopen_billing_projects(request, userdata):  # pylint: disable=un
     session = await aiohttp_session.get_session(request)
     try:
         await _reopen_billing_project(db, billing_project)
-        set_message(session, f'Re-opened billing project {billing_project}.', 'info')
     except KeyError as e:
         set_message(session, f'Billing project {str(e)} does not exist.', 'error')
     except ValueError as e:
         set_message(session, str(e), 'info')
+    else:
+        set_message(session, f'Re-opened billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
