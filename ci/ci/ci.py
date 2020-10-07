@@ -114,7 +114,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     batch = pr.batch
     if batch:
         if hasattr(batch, 'id'):
-            status = await batch.status()
+            status = await batch.last_known_status()
             jobs = await collect_agen(batch.jobs())
             for j in jobs:
                 j['duration'] = humanize_timedelta_msecs(j['duration'])
@@ -129,7 +129,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     batches = batch_client.list_batches(
         f'test=1 pr={pr.number}')
     batches = sorted([b async for b in batches], key=lambda b: b.id, reverse=True)
-    page_context['history'] = [await b.status() for b in batches]
+    page_context['history'] = [await b.last_known_status() for b in batches]
 
     return await render_template('ci', request, userdata, 'pr.html', page_context)
 
@@ -173,7 +173,7 @@ async def post_retry_pr(request, userdata):  # pylint: disable=unused-argument
 async def get_batches(request, userdata):
     batch_client = request.app['batch_client']
     batches = [b async for b in batch_client.list_batches()]
-    statuses = [await b.status() for b in batches]
+    statuses = [await b.last_known_status() for b in batches]
     page_context = {
         'batches': statuses
     }
@@ -186,7 +186,7 @@ async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     batch_client = request.app['batch_client']
     b = await batch_client.get_batch(batch_id)
-    status = await b.status()
+    status = await b.last_known_status()
     jobs = await collect_agen(b.jobs())
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])

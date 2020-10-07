@@ -27,7 +27,7 @@ def main(args, passthrough_args, client):  # pylint: disable=unused-argument
         sys.exit(1)
 
     batch_list = client.list_batches(q=args.query, last_batch_id=args.before, limit=args.limit)
-    statuses = [batch.status() for batch in batch_list]
+    statuses = [batch.last_known_status() for batch in batch_list]
     if args.o in ('json', 'yaml'):
         print(make_formatter(args.o)(statuses))
         return

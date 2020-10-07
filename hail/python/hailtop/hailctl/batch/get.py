@@ -16,4 +16,4 @@ def main(args, pass_through_args, client):  # pylint: disable=unused-argument
 
     batch = maybe_batch
 
-    print(make_formatter(args.o)(batch.status()))
+    print(make_formatter(args.o)(batch.last_known_status()))
