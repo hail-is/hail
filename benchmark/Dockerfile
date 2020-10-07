@@ -23,15 +23,17 @@ RUN echo "APT::Acquire::Retries \"3\";" > /etc/apt/apt.conf.d/80-retries && \
 
 
 COPY requirements.txt .
-RUN pip3 -q install -r requirements.txt
-
-RUN pip3 -q install aiomysql
-
+RUN python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir --upgrade pip && \
+  python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir -r requirements.txt && \
+  python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir aiomysql && \
+  python3 -m pip check
 
 ARG HAIL_WHEEL
 COPY $HAIL_WHEEL .
-RUN pip3 -q install $HAIL_WHEEL
+RUN python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir --quiet $HAIL_WHEEL && \
+  python3 -m pip check
 
 ARG BENCHMARK_WHEEL
 COPY $BENCHMARK_WHEEL .
-RUN pip3 -q install $BENCHMARK_WHEEL
+RUN python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir --quiet $BENCHMARK_WHEEL && \
+  python3 -m pip check

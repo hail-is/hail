@@ -29,7 +29,7 @@ ENV PATH $PATH:/google-cloud-sdk/bin
 
 COPY docker/requirements.txt .
 # re: pip install --upgrade pip: https://github.com/grpc/grpc/issues/22815
-RUN python3 -m pip install --upgrade pip && \
+RUN python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir pip && \
     python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir -r requirements.txt && \
     python3 -m pip check
 
