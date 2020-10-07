@@ -131,7 +131,7 @@ def null(t: Union[HailType, str]):
 
     Parameters
     ----------
-    t : :obj:`str` or :class:`.HailType`
+    t : :class:`str` or :class:`.HailType`
         Type of the missing expression.
 
     Returns
@@ -872,7 +872,7 @@ def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'
         Chromosome.
     pos : int or :class:`.Expression` of type :py:data:`.tint32`
         Base position along the chromosome.
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
 
     Returns
@@ -904,7 +904,7 @@ def locus_from_global_position(global_pos,
     ----------
     global_pos : int or :class:`.Expression` of type :py:data:`.tint64`
         Global base position along the reference genome.
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Reference genome to use for converting the global position to a contig and local position.
 
     Returns
@@ -934,7 +934,7 @@ def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') ->
     ----------
     s : str or :class:`.StringExpression`
         String to parse.
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
 
     Returns
@@ -967,7 +967,7 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     ----------
     s : :class:`.StringExpression`
         String to parse.
-    reference_genome: :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome: :class:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
 
     Returns
@@ -1055,7 +1055,7 @@ def gp_dosage(gp) -> Float64Expression:
 
     Parameters
     ----------
-    gp : :class:`.ArrayFloat64Expression`
+    gp : :class:`.Expression` of type :class:`.tarray` of :obj:`.tfloat64`
         Length 3 array of bi-allelic genotype probabilities
 
     Returns
@@ -1212,7 +1212,7 @@ def locus_interval(contig,
         If ``True``, interval includes start point.
     includes_end : :class:`.BooleanExpression`
         If ``True``, interval includes end point.
-    reference_genome : :obj:`str` or :class:`.hail.genetics.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.hail.genetics.ReferenceGenome`
         Reference genome to use.
     invalid_missing : :class:`.BooleanExpression`
         If ``True``, invalid intervals are set to NA rather than causing an exception.
@@ -1288,7 +1288,7 @@ def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'def
     ----------
     s : str or :class:`.StringExpression`
         String to parse.
-    reference_genome : :obj:`str` or :class:`.hail.genetics.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.hail.genetics.ReferenceGenome`
         Reference genome to use.
     invalid_missing : :class:`.BooleanExpression`
         If ``True``, invalid intervals are set to NA rather than causing an exception.
@@ -1466,7 +1466,7 @@ def is_nan(x) -> BooleanExpression:
 
     Notes
     -----
-    Note that :meth:`.is_missing` will return ``False`` on ``nan`` since ``nan``
+    Note that :func:`~.is_missing` will return ``False`` on ``nan`` since ``nan``
     is a defined value. Additionally, this method will return missing if `x` is
     missing.
 
@@ -2019,7 +2019,7 @@ def ppois(x, lamb, lower_tail=True, log_p=False) -> Float64Expression:
 
 @typecheck(p=expr_float64, df=expr_float64)
 def qchisqtail(p, df) -> Float64Expression:
-    """Inverts :meth:`.pchisqtail`.
+    """Inverts :func:`~.pchisqtail`.
 
     Examples
     --------
@@ -2048,7 +2048,7 @@ def qchisqtail(p, df) -> Float64Expression:
 
 @typecheck(p=expr_float64)
 def qnorm(p) -> Float64Expression:
-    """Inverts :meth:`.pnorm`.
+    """Inverts :func:`~.pnorm`.
 
     Examples
     --------
@@ -2075,7 +2075,7 @@ def qnorm(p) -> Float64Expression:
 
 @typecheck(p=expr_float64, lamb=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
 def qpois(p, lamb, lower_tail=True, log_p=False) -> Float64Expression:
-    r"""Inverts :meth:`.ppois`.
+    r"""Inverts :func:`~.ppois`.
 
     Examples
     --------
@@ -2094,7 +2094,7 @@ def qpois(p, lamb, lower_tail=True, log_p=False) -> Float64Expression:
     lamb : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Rate parameter of Poisson distribution.
     lower_tail : bool or :class:`.BooleanExpression`
-        Corresponds to `lower_tail` parameter in inverse :meth:`.ppois`.
+        Corresponds to `lower_tail` parameter in inverse :func:`.ppois`.
     log_p : bool or :class:`.BooleanExpression`
         Exponentiate `p` before testing.
 
@@ -2139,7 +2139,7 @@ def range(start, stop=None, step=1) -> ArrayNumericExpression:
 
     Returns
     -------
-    :class:`.ArrayInt32Expression`
+    :class:`.ArrayNumericExpression`
     """
     if stop is None:
         stop = start
@@ -3032,7 +3032,7 @@ def gq_from_pl(pl) -> Int32Expression:
 
     Parameters
     ----------
-    pl : :class:`.ArrayInt32Expression`
+    pl : :class:`.Expression` of type :class:`.tarray` of :obj:`.tint32`.
 
     Returns
     -------
@@ -3479,7 +3479,7 @@ def map(f: Callable, collection):
 
     Returns
     -------
-    :class:`.ArrayExpression` or :class:`SetExpression`.
+    :class:`.ArrayExpression` or :class:`.SetExpression`.
         Collection where each element has been transformed by `f`.
     """
     return collection.map(f)
@@ -4040,7 +4040,7 @@ def tuple(iterable: Iterable) -> TupleExpression:
 
     Parameters
     ----------
-    args : :obj:`Iterable` of :class:`.Expression`
+    iterable : an iterable of :class:`.Expression`
         Tuple elements.
 
     Returns
@@ -4084,7 +4084,7 @@ def empty_set(t: Union[HailType, builtins.str]) -> SetExpression:
 
     Parameters
     ----------
-    t : :obj:`str` or :class:`.HailType`
+    t : :class:`str` or :class:`.HailType`
         Type of the set elements.
 
     Returns
@@ -4135,7 +4135,7 @@ def empty_array(t: Union[HailType, builtins.str]) -> ArrayExpression:
 
     Parameters
     ----------
-    t : :obj:`str` or :class:`.HailType`
+    t : :class:`str` or :class:`.HailType`
         Type of the array elements.
 
     Returns
@@ -4258,9 +4258,9 @@ def empty_dict(key_type: Union[HailType, builtins.str], value_type: Union[HailTy
 
     Parameters
     ----------
-    key_type : :obj:`str` or :class:`.HailType`
+    key_type : :class:`str` or :class:`.HailType`
         Type of the keys.
-    value_type : :obj:`str` or :class:`.HailType`
+    value_type : :class:`str` or :class:`.HailType`
         Type of the values.
     Returns
     -------
@@ -4971,7 +4971,7 @@ def get_sequence(contig, position, before=0, after=0, reference_genome='default'
     after : :class:`.Expression` of type :py:data:`.tint32`, optional
         Number of bases to include after the locus of interest. Truncates at
         contig boundary.
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Reference genome to use. Must have a reference sequence available.
 
     Returns
@@ -5002,7 +5002,7 @@ def is_valid_contig(contig, reference_genome='default') -> BooleanExpression:
     Parameters
     ----------
     contig : :class:`.Expression` of type :py:data:`.tstr`
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
 
     Returns
     -------
@@ -5025,7 +5025,7 @@ def contig_length(contig, reference_genome='default') -> Int32Expression:
     Parameters
     ----------
     contig : :class:`.Expression` of type :py:data:`.tstr`
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
 
     Returns
     -------
@@ -5053,7 +5053,7 @@ def is_valid_locus(contig, position, reference_genome='default') -> BooleanExpre
     ----------
     contig : :class:`.Expression` of type :py:data:`.tstr`
     position : :class:`.Expression` of type :py:data:`.tint`
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
 
     Returns
     -------
@@ -5251,9 +5251,9 @@ def liftover(x, dest_reference_genome, min_match=0.95, include_strand=False):
 
     Parameters
     ----------
-    x : :class:`.Expression` of type :py:data:`.tlocus` or :py:data:`.tinterval` of :py:data:`.tlocus`
+    x : :class:`.Expression` of type :class:`.tlocus` or :class:`.tinterval` of :class:`.tlocus`
         Locus or locus interval to lift over.
-    dest_reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    dest_reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Reference genome to convert to.
     min_match : :obj:`float`
         Minimum ratio of bases that must remap.

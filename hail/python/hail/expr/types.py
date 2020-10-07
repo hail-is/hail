@@ -121,7 +121,7 @@ def dtype(type_str):
 
     Parameters
     ----------
-    type_str : :obj:`str`
+    type_str : :class:`str`
         String representation of type.
 
     Returns
@@ -200,7 +200,7 @@ class HailType(object):
 
         Returns
         -------
-        :obj:`str`
+        :class:`str`
         """
         b = []
         b.append(' ' * indent)
@@ -579,7 +579,7 @@ class tndarray(HailType):
 
     .. include:: _templates/experimental.rst
 
-    In Python, these are represented as NumPy :obj:`ndarray`.
+    In Python, these are represented as NumPy :obj:`numpy.ndarray`.
 
     Notes
     -----
@@ -596,7 +596,7 @@ class tndarray(HailType):
 
     See Also
     --------
-    :class:`.NDArrayExpression`, :func:`.ndarray`
+    :class:`.NDArrayExpression`, :obj:`.nd.array`
     """
 
     @typecheck_method(element_type=hail_type, ndim=oneof(NatBase, int))
@@ -1058,7 +1058,7 @@ class tstruct(HailType, Mapping):
 
         Returns
         -------
-        :obj:`tuple` of :obj:`str`
+        :obj:`tuple` of :class:`str`
             Tuple of struct field names.
         """
         return self._fields
@@ -1233,7 +1233,7 @@ class tunion(HailType, Mapping):
 
         Returns
         -------
-        :obj:`tuple` of :obj:`str`
+        :obj:`tuple` of :class:`str`
             Tuple of union case names
         """
         return self._cases
@@ -1470,7 +1470,7 @@ class tlocus(HailType):
 
     Parameters
     ----------
-    reference_genome: :class:`.ReferenceGenome` or :obj:`str`
+    reference_genome: :class:`.ReferenceGenome` or :class:`str`
         Reference genome to use.
 
     See Also

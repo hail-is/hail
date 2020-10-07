@@ -1,5 +1,4 @@
 import hail as hl
-from hail.table import Table
 from hail.linalg import BlockMatrix
 from hail.typecheck import typecheck, nullable, sequenceof, oneof
 from hail.expr.expressions import expr_float64, expr_numeric, expr_locus
@@ -18,7 +17,7 @@ def ld_score(entry_expr,
              radius,
              coord_expr=None,
              annotation_exprs=None,
-             block_size=None) -> Table:
+             block_size=None) -> hl.Table:
     """Calculate LD scores.
 
     Example

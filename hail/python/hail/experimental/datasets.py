@@ -21,9 +21,9 @@ def load_dataset(name,
 
     Parameters
     ----------
-    name : :obj:`str`
+    name : :class:`str`
         Name of the dataset to load.
-    version : :obj:`str`
+    version : :class:`str`
         Version of the named dataset to load
         (see available versions in documentation).
     reference_genome : `GRCh37` or `GRCh38`

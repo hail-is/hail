@@ -65,9 +65,9 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
 
     Parameters
     ----------
-    path : :obj:`str`
+    path : :class:`str`
         Path to file.
-    mode : :obj:`str`
+    mode : :class:`str`
         File access mode.
     buffer_size : :obj:`int`
         Buffer size, in bytes.
@@ -106,9 +106,9 @@ def hadoop_copy(src, dest):
 
     Parameters
     ----------
-    src: :obj:`str`
+    src: :class:`str`
         Source file URI.
-    dest: :obj:`str`
+    dest: :class:`str`
         Destination file URI.
     """
     return Env.fs().copy(src, dest)
@@ -119,7 +119,7 @@ def hadoop_exists(path: str) -> bool:
 
     Parameters
     ----------
-    path : :obj:`str`
+    path : :class:`str`
 
     Returns
     -------
@@ -133,7 +133,7 @@ def hadoop_is_file(path: str) -> bool:
 
     Parameters
     ----------
-    path : :obj:`str`
+    path : :class:`str`
 
     Returns
     -------
@@ -147,7 +147,7 @@ def hadoop_is_dir(path: str) -> bool:
 
     Parameters
     ----------
-    path : :obj:`str`
+    path : :class:`str`
 
     Returns
     -------
@@ -167,18 +167,18 @@ def hadoop_stat(path: str) -> Dict:
 
     - is_dir (:obj:`bool`) -- Path is a directory.
     - size_bytes (:obj:`int`) -- Size in bytes.
-    - size (:obj:`str`) -- Size as a readable string.
-    - modification_time (:obj:`str`) -- Time of last file modification.
-    - owner (:obj:`str`) -- Owner.
-    - path (:obj:`str`) -- Path.
+    - size (:class:`str`) -- Size as a readable string.
+    - modification_time (:class:`str`) -- Time of last file modification.
+    - owner (:class:`str`) -- Owner.
+    - path (:class:`str`) -- Path.
 
     Parameters
     ----------
-    path : :obj:`str`
+    path : :class:`str`
 
     Returns
     -------
-    :obj:`Dict`
+    :obj:`dict`
     """
     return Env.fs().stat(path)
 
@@ -198,18 +198,18 @@ def hadoop_ls(path: str) -> List[Dict]:
 
     - is_dir (:obj:`bool`) -- Path is a directory.
     - size_bytes (:obj:`int`) -- Size in bytes.
-    - size (:obj:`str`) -- Size as a readable string.
-    - modification_time (:obj:`str`) -- Time of last file modification.
-    - owner (:obj:`str`) -- Owner.
-    - path (:obj:`str`) -- Path.
+    - size (:class:`str`) -- Size as a readable string.
+    - modification_time (:class:`str`) -- Time of last file modification.
+    - owner (:class:`str`) -- Owner.
+    - path (:class:`str`) -- Path.
 
     Parameters
     ----------
-    path : :obj:`str`
+    path : :class:`str`
 
     Returns
     -------
-    :obj:`List[Dict]`
+    :obj:`list` [:obj:`dict`]
     """
     return Env.fs().ls(path)
 
@@ -240,6 +240,6 @@ def copy_log(path: str) -> None:
 
     Parameters
     ----------
-    path: :obj:`str`
+    path: :class:`str`
     """
     Env.fs().copy_log(path)

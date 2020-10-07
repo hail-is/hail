@@ -21,6 +21,7 @@ As much as possible, we try to mimic the numpy array interface.
     full
     zeros
     ones
+    diagonal
     qr
     svd
     inv
@@ -35,6 +36,7 @@ As much as possible, we try to mimic the numpy array interface.
 .. autofunction:: full
 .. autofunction:: zeros
 .. autofunction:: ones
+.. autofunction:: diagonal
 .. autofunction:: qr
 .. autofunction:: svd
 .. autofunction:: inv

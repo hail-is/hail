@@ -47,7 +47,7 @@ def king(call_expr, *, block_size=None):
       :math:`s`. Homozygous-reference genotypes are represented as 0,
       heterozygous genotypes are represented as 1, and homozygous-alternate
       genotypes are represented as 2. :math:`X_{i,s}` is calculated by invoking
-      :meth:`CallExpression.n_alt_alleles` on the `call_expr`.
+      :meth:`~.CallExpression.n_alt_alleles` on the `call_expr`.
 
     The three counts above, :math:`N^{Aa}`, :math:`N^{Aa,Aa}`, and
     :math:`N^{AA,aa}`, exclude variants where one or both individuals have

@@ -470,7 +470,7 @@ class Table(ExprContainer):
         ----------
         rows
             List of row values, or expression of type ``array<struct{...}>``.
-        schema : str or :class:`.HailType:`, optional
+        schema : str or a hail type (see :ref:`hail_types`), optional
             Value type.
         key : Union[str, List[str]]], optional
             Key field(s).
@@ -534,7 +534,7 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        keys : varargs of type :obj:`str`
+        keys : varargs of type :class:`str`
             Field(s) to key by.
 
         Returns
@@ -631,7 +631,7 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        exprs : variable-length args of :obj:`str` or :class:`.Expression`
+        exprs : variable-length args of :class:`str` or :class:`.Expression`
             Arguments that specify field names or nested field reference expressions.
         named_exprs : keyword args of :class:`.Expression`
             Field names and the expressions to compute them.
@@ -905,7 +905,7 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        exprs : variable-length args of :obj:`str` or :class:`.Expression`
+        exprs : variable-length args of :class:`str` or :class:`.Expression`
             Arguments that specify field names or nested field reference expressions.
         named_exprs : keyword args of :class:`.Expression`
             Field names and the expressions to compute them.
@@ -952,7 +952,7 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        exprs : varargs of :obj:`str` or :class:`.Expression`
+        exprs : varargs of :class:`str` or :class:`.Expression`
             Names of fields to drop or field reference expressions.
 
         Returns
@@ -1026,19 +1026,19 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        output : :obj:`str`
+        output : :class:`str`
             URI at which to write exported file.
-        types_file : :obj:`str`, optional
+        types_file : :class:`str`, optional
             URI at which to write file containing field type information.
         header : :obj:`bool`
             Include a header in the file.
-        parallel : :obj:`str`, optional
+        parallel : :class:`str`, optional
             If None, a single file is produced, otherwise a
             folder of file shards is produced. If 'separate_header',
             the header file is output separately from the file shards. If
             'header_per_shard', each file shard has a header. If set to None
             the export will be slower.
-        delimiter : :obj:`str`
+        delimiter : :class:`str`
             Field delimiter.
         """
         parallel = ir.ExportType.default(parallel)
@@ -2433,7 +2433,7 @@ class Table(ExprContainer):
         ----------
         right : :class:`.Table`
             Table to join.
-        how : :obj:`str`
+        how : :class:`str`
             Join type. One of "inner", "left", "right", "outer"
 
         Returns
@@ -2520,7 +2520,7 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        mapping : :obj:`dict` of :obj:`str`, :obj:`str`
+        mapping : :obj:`dict` of :class:`str`, :obj:`str`
             Mapping from old field names to new field names.
 
         Notes
@@ -2722,7 +2722,7 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        exprs : varargs of :class:`.Ascending` or :class:`.Descending` or :class:`.Expression` or :obj:`str`
+        exprs : varargs of :func:`~.asc`, :func:`.desc`, :class:`.Expression`, or :class:`str`
             Fields to sort by.
 
         Returns
@@ -2843,9 +2843,9 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        field : :obj:`str` or :class:`.Expression`
+        field : :class:`str` or :class:`.Expression`
             Top-level field name or expression.
-        name : :obj:`str` or None
+        name : :class:`str` or None
             If not `None`, rename the exploded field to `name`.
 
         Returns
@@ -3069,9 +3069,9 @@ class Table(ExprContainer):
         ----------
         columns : Sequence[str]
             Fields to be used as columns.
-        entry_field_name : :obj:`str` or None
+        entry_field_name : :class:`str` or None
             Field name for the entries of the matrix table.
-        col_field_name : :obj:`str`
+        col_field_name : :class:`str`
             Field name for the columns of the matrix table.
 
         Returns
@@ -3203,7 +3203,7 @@ class Table(ExprContainer):
         df : :class:`.pyspark.sql.DataFrame`
             PySpark DataFrame.
 
-        key : :obj:`str` or :obj:`list` of :obj:`str`
+        key : :class:`str` or :obj:`list` of :obj:`str`
             Key fields.
 
         Returns
@@ -3267,7 +3267,7 @@ class Table(ExprContainer):
         ----------
         df : :class:`.pandas.DataFrame`
             Pandas DataFrame.
-        key : :obj:`str` or :obj:`list` of :obj:`str`
+        key : :class:`str` or :obj:`list` of :obj:`str`
             Key fields.
 
         Returns
@@ -3358,7 +3358,7 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        name : :obj:`str`
+        name : :class:`str`
             Field name for all values per key.
 
         Returns
@@ -3472,11 +3472,11 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        tables : :obj:`List[Table]`
+        tables : :class:`list` of :class:`Table`
             A list of tables to combine
-        data_field_name : :obj:`str`
+        data_field_name : :class:`str`
             The name of the resulting data field
-        global_field_name : :obj:`str`
+        global_field_name : :class:`str`
             The name of the resulting global field
 
         """

@@ -22,9 +22,9 @@ def write_expression(expr, path, overwrite=False):
    Parameters
    ----------
 
-   expr : :class:`Expression`
+   expr : :class:`~.Expression`
        Expression to write.
-   path : :obj:`str`
+   path : :class:`str`
        Path to which to write expression.
        Suggested extension: .he (hail expression).
    overwrite : :obj:`bool`
@@ -44,7 +44,7 @@ def write_expression(expr, path, overwrite=False):
 
 @typecheck(path=str)
 def read_expression(path):
-    """Read an :class:`Expression` written with :meth:`.experimental.write_expression`.
+    """Read an :class:`~.Expression` written with :func:`.experimental.write_expression`.
 
    Example
    -------
@@ -55,11 +55,11 @@ def read_expression(path):
    Parameters
    ----------
 
-   path : :obj:`str`
+   path : :class:`str`
        File to read.
 
    Returns
    -------
-   :class:`Expression`
+   :class:`~.Expression`
     """
     return hl.read_table(path).index_globals().expr

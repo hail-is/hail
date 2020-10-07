@@ -5,7 +5,7 @@ UK_Biobank_Rapid_GWAS_both_sexes
 
 *  **Versions:** v2
 *  **Reference genome builds:** GRCh37
-*  **Type:** :class:`MatrixTable`
+*  **Type:** :class:`hail.MatrixTable`
 
 Schema (v2, GRCh37)
 ~~~~~~~~~~~~~~~~~~~

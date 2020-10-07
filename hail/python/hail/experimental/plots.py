@@ -24,22 +24,22 @@ def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title=
     ----------
     ht : :class:`.Table`
         Table with required data
-    scores : :obj:`str` or :obj:`list` of :obj:`.str`
+    scores : :class:`str` or :obj:`list` of :obj:`.str`
         Top-level location of scores in ht against which to generate PR curves.
-    tp_label : :obj:`str`
+    tp_label : :class:`str`
         Top-level location of true positives in ht.
-    fp_label : :obj:`str`
+    fp_label : :class:`str`
         Top-level location of false positives in ht.
-    colors : :obj:`dict` of :obj:`str`
+    colors : :obj:`dict` of :class:`str`
         Optional colors to use (score -> desired color).
-    title : :obj:`str`
+    title : :class:`str`
         Title of plot.
-    hover_mode : :obj:`str`
+    hover_mode : :class:`str`
         Hover mode; one of 'mouse' (default), 'vline' or 'hline'
 
     Returns
     -------
-    :obj:`tuple` of :class:`.Figure` and :obj:`list` of :obj:`str`
+    :obj:`tuple` of :class:`bokeh.plotting.figure.Figure` and :obj:`list` of :class:`str`
         Figure, and list of AUCs corresponding to scores.
     """
     if colors is None:
@@ -91,7 +91,7 @@ def hail_metadata(t_path):
 
     Returns
     -------
-    :class:`bokeh.plotting.figure.Figure` or :class:`bokeh.models.widgets.panels.Tabs` or :class:`bokeh.models.layouts.Column`
+    :class:`bokeh.plotting.figure.Figure` or :class:`bokeh.models.layouts.Column`
     """
     def get_rows_data(rows_files):
         file_sizes = []

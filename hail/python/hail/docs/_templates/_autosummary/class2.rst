@@ -4,7 +4,6 @@
 
 .. autoclass:: {{ objname }}()
     :members:
-    :show-inheritance:
     :special-members:
     :inherited-members:
     :no-undoc-members:

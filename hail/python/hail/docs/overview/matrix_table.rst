@@ -394,10 +394,10 @@ Interacting with Matrix Tables Locally
 
 Some useful methods to interact with matrix tables locally are
 :meth:`.MatrixTable.describe`, :meth:`.MatrixTable.head`, and
-:meth:`.MatrixTable.sample`. `describe` prints out the schema for all row
+:meth:`.MatrixTable.sample_rows`. `describe` prints out the schema for all row
 fields, column fields, entry fields, and global fields as well as the row keys
 and column keys. `head` returns a new matrix table with only the first N rows.
-`sample` returns a new matrix table where the rows are randomly sampled with
+`sample_rows` returns a new matrix table where the rows are randomly sampled with
 frequency `p`.
 
 

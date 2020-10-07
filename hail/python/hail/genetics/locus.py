@@ -7,11 +7,11 @@ class Locus(object):
 
     Parameters
     ----------
-    contig : :obj:`str`
+    contig : :class:`str`
         Chromosome identifier.
     position : :obj:`int`
         Chromosomal position (1-indexed).
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
 
     Note
@@ -65,7 +65,7 @@ class Locus(object):
 
         :param str string: String to parse.
         :param reference_genome: Reference genome to use. Default is :func:`~hail.default_reference`.
-        :type reference_genome: :obj:`str` or :class:`.ReferenceGenome`
+        :type reference_genome: :class:`str` or :class:`.ReferenceGenome`
 
         :rtype: :class:`.Locus`
         """

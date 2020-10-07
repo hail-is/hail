@@ -93,7 +93,7 @@ def loop(f: Callable, typ, *args):
     f : function ( (marker, *args) -> :class:`.Expression`
         Function of one callable marker, denoting where the recursive call (or calls) is located,
         and many `args`, the loop variables.
-    typ : :obj:`str` or :class:`.HailType`
+    typ : :class:`str` or :class:`.HailType`
         Type the loop returns.
     args : variable-length args of :class:`.Expression`
         Expressions to initialize the loop values.

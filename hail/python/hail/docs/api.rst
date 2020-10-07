@@ -46,6 +46,8 @@ Top-Level Functions
 ~~~~~~~~~~~~~~~~~~~
 
 .. autofunction:: hail.init
+.. autofunction:: hail.asc
+.. autofunction:: hail.desc
 .. autofunction:: hail.stop
 .. autofunction:: hail.spark_context
 .. autofunction:: hail.default_reference

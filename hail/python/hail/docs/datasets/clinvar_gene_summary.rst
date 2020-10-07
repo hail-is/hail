@@ -5,7 +5,7 @@ clinvar_gene_summary
 
 *  **Versions:** 2019-07
 *  **Reference genome builds:** None
-*  **Type:** :class:`Table`
+*  **Type:** :class:`.Table`
 
 Schema (2019-07, None)
 ~~~~~~~~~~~~~~~~~~~~~~

@@ -5,7 +5,7 @@ Ensembl_homo_sapiens_reference_genome
 
 *  **Versions:** release_95
 *  **Reference genome builds:** GRCh37, GRCh38
-*  **Type:** :class:`Table`
+*  **Type:** :class:`hail.Table`
 
 Schema (release_95, GRCh37)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

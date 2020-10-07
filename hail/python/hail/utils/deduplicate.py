@@ -20,16 +20,16 @@ def deduplicate(
 
     Parameters
     ----------
-    ids : list of :obj:`str`
+    ids : list of :class:`str`
         The list of strings, possibly containing duplicates.
 
     Returns
     -------
-    list of pairs of :obj:`str` and :obj:`str`
+    list of pairs of :class:`str` and :obj:`str`
         A string and the deduplicated string, for each occurrence after the
         first.
 
-    list of :obj:`str`
+    list of :class:`str`
         A list, equal in length to `ids`, without duplicates.
     """
     uniques = set(already_used) if already_used else set()

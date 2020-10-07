@@ -30,7 +30,7 @@ class ReferenceGenome(object):
      - GRCm38, Genome Reference Consortium Mouse Build 38
      - CanFam3, Canis lupus familiaris (dog)
 
-    You can access these reference genome objects using :func:`.get_reference`:
+    You can access these reference genome objects using :func:`~hail.get_reference`:
 
     >>> rg = hl.get_reference('GRCh37')
     >>> rg = hl.get_reference('GRCh38')
@@ -38,9 +38,9 @@ class ReferenceGenome(object):
     >>> rg = hl.get_reference('CanFam3')
 
     Note that constructing a new reference genome, either by using the class
-    constructor or by using :meth:`.ReferenceGenome.read` will add the
-    reference genome to the list of known references; it is possible to access
-    the reference genome using :func:`.get_reference` anytime afterwards.
+    constructor or by using `read` will add the reference genome to the list of
+    known references; it is possible to access the reference genome using
+    :func:`~hail.get_reference` anytime afterwards.
 
     Note
     ----
@@ -49,19 +49,19 @@ class ReferenceGenome(object):
 
     Parameters
     ----------
-    name : :obj:`str`
+    name : :class:`str`
         Name of reference. Must be unique and NOT one of Hail's
         predefined references: ``'GRCh37'``, ``'GRCh38'``, ``'GRCm38'``,
         ``'CanFam3'`` and ``'default'``.
-    contigs : :obj:`list` of :obj:`str`
+    contigs : :obj:`list` of :class:`str`
         Contig names.
-    lengths : :obj:`dict` of :obj:`str` to :obj:`int`
+    lengths : :obj:`dict` of :class:`str` to :obj:`int`
         Dict of contig names to contig lengths.
-    x_contigs : :obj:`str` or :obj:`list` of :obj:`str`
+    x_contigs : :class:`str` or :obj:`list` of :obj:`str`
         Contigs to be treated as X chromosomes.
-    y_contigs : :obj:`str` or :obj:`list` of :obj:`str`
+    y_contigs : :class:`str` or :obj:`list` of :obj:`str`
         Contigs to be treated as Y chromosomes.
-    mt_contigs : :obj:`str` or :obj:`list` of :obj:`str`
+    mt_contigs : :class:`str` or :obj:`list` of :obj:`str`
         Contigs to be treated as mitochondrial DNA.
     par : :obj:`list` of :obj:`tuple` of (str, int, int)
         List of tuples with (contig, start, end)
@@ -142,7 +142,7 @@ class ReferenceGenome(object):
 
         Returns
         -------
-        :obj:`str`
+        :class:`str`
         """
         return self._config['name']
 
@@ -152,7 +152,7 @@ class ReferenceGenome(object):
 
         Returns
         -------
-        :obj:`list` of :obj:`str`
+        :obj:`list` of :class:`str`
         """
         return self._contigs
 
@@ -162,7 +162,7 @@ class ReferenceGenome(object):
 
         Returns
         -------
-        :obj:`dict` of :obj:`str` to :obj:`int`
+        :obj:`dict` of :class:`str` to :obj:`int`
         """
         return self._lengths
 
@@ -172,7 +172,7 @@ class ReferenceGenome(object):
 
         Returns
         -------
-        :obj:`list` of :obj:`str`
+        :obj:`list` of :class:`str`
         """
         return self._config['xContigs']
 
@@ -182,7 +182,7 @@ class ReferenceGenome(object):
 
         Returns
         -------
-        :obj:`list` of :obj:`str`
+        :obj:`list` of :class:`str`
         """
         return self._config['yContigs']
 
@@ -192,7 +192,7 @@ class ReferenceGenome(object):
 
         Returns
         -------
-        :obj:`list` of :obj:`str`
+        :obj:`list` of :class:`str`
         """
         return self._config['mtContigs']
 
@@ -213,7 +213,7 @@ class ReferenceGenome(object):
 
         Parameters
         ----------
-        contig : :obj:`str`
+        contig : :class:`str`
             Contig name.
 
         Returns
@@ -274,7 +274,7 @@ class ReferenceGenome(object):
 
         Parameters
         ----------
-        path : :obj:`str`
+        path : :class:`str`
             Path to JSON file.
 
         Returns
@@ -297,12 +297,12 @@ class ReferenceGenome(object):
         Notes
         -----
 
-        Use :class:`~hail.ReferenceGenome.read` to reimport the exported
+        Use :meth:`~hail.genetics.ReferenceGenome.read` to reimport the exported
         reference genome in a new HailContext session.
 
         Parameters
         ----------
-        output : :obj:`str`
+        output : :class:`str`
             Path of JSON file to write.
         """
         with hl.utils.hadoop_open(output, 'w') as f:
@@ -315,7 +315,7 @@ class ReferenceGenome(object):
 
         Examples
         --------
-        Access the GRCh37 reference genome using :func:`.get_reference`:
+        Access the GRCh37 reference genome using :func:`~hail.get_reference`:
 
         >>> rg = hl.get_reference('GRCh37') # doctest: +SKIP
 
@@ -352,9 +352,9 @@ class ReferenceGenome(object):
 
         Parameters
         ----------
-        fasta_file : :obj:`str`
+        fasta_file : :class:`str`
             Path to FASTA file. Can be compressed (GZIP) or uncompressed.
-        index_file : :obj:`None` or :obj:`str`
+        index_file : :obj:`None` or :class:`str`
             Path to FASTA index file. Must be uncompressed. If `None`, replace
             the fasta_file's extension with `fai`.
         """
@@ -391,17 +391,17 @@ class ReferenceGenome(object):
 
         Parameters
         ----------
-        name: :obj:`str`
+        name: :class:`str`
             Name for new reference genome.
-        fasta_file : :obj:`str`
+        fasta_file : :class:`str`
             Path to FASTA file. Can be compressed (GZIP) or uncompressed.
-        index_file : :obj:`str`
+        index_file : :class:`str`
             Path to FASTA index file. Must be uncompressed.
-        x_contigs : :obj:`str` or :obj:`list` of :obj:`str`
+        x_contigs : :class:`str` or :obj:`list` of :obj:`str`
             Contigs to be treated as X chromosomes.
-        y_contigs : :obj:`str` or :obj:`list` of :obj:`str`
+        y_contigs : :class:`str` or :obj:`list` of :obj:`str`
             Contigs to be treated as Y chromosomes.
-        mt_contigs : :obj:`str` or :obj:`list` of :obj:`str`
+        mt_contigs : :class:`str` or :obj:`list` of :obj:`str`
             Contigs to be treated as mitochondrial DNA.
         par : :obj:`list` of :obj:`tuple` of (str, int, int)
             List of tuples with (contig, start, end)
@@ -424,7 +424,7 @@ class ReferenceGenome(object):
 
         Parameters
         ----------
-        dest_reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+        dest_reference_genome : :class:`str` or :class:`.ReferenceGenome`
 
         Returns
         -------
@@ -438,7 +438,7 @@ class ReferenceGenome(object):
 
         Parameters
         ----------
-        dest_reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+        dest_reference_genome : :class:`str` or :class:`.ReferenceGenome`
         """
         if dest_reference_genome.name in self._liftovers:
             del self._liftovers[dest_reference_genome.name]
@@ -451,7 +451,7 @@ class ReferenceGenome(object):
 
         Examples
         --------
-        Access GRCh37 and GRCh38 using :func:`.get_reference`:
+        Access GRCh37 and GRCh38 using :func:`~hail.get_reference`:
 
         >>> rg37 = hl.get_reference('GRCh37') # doctest: +SKIP
         >>> rg38 = hl.get_reference('GRCh38') # doctest: +SKIP
@@ -482,9 +482,9 @@ class ReferenceGenome(object):
 
         Parameters
         ----------
-        chain_file : :obj:`str`
+        chain_file : :class:`str`
             Path to chain file. Can be compressed (GZIP) or uncompressed.
-        dest_reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+        dest_reference_genome : :class:`str` or :class:`.ReferenceGenome`
             Reference genome to convert to.
         """
 

@@ -231,7 +231,7 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        path: :obj:`str`
+        path: :class:`str`
             Path to input file.
 
         Returns
@@ -282,7 +282,7 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        uri: :obj:`str`, optional
+        uri: :class:`str`, optional
             URI of binary input file.
         n_rows: :obj:`int`
             Number of rows.
@@ -400,7 +400,7 @@ class BlockMatrix(object):
             If true and ``center=False``, divide by the row magnitude.
             If true and ``center=True``, divide the centered value by the
             centered row magnitude.
-        axis: :obj:`str`
+        axis: :class:`str`
             One of "rows" or "cols": axis by which to normalize or center.
         block_size: :obj:`int`, optional
             Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
@@ -511,6 +511,7 @@ class BlockMatrix(object):
 
     @property
     def element_type(self):
+        """The type of the elements"""
         return self._bmir.typ.element_type
 
     @property
@@ -583,7 +584,7 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        path: :obj:`str`
+        path: :class:`str`
             Path for output file.
         overwrite : :obj:`bool`
             If ``True``, overwrite an existing file at the destination.
@@ -609,7 +610,7 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        path: :obj:`str`
+        path: :class:`str`
             Path for output file.
         overwrite : :obj:`bool`
             If ``True``, overwrite an existing file at the destination.
@@ -684,7 +685,7 @@ class BlockMatrix(object):
         ----------
         entry_expr: :class:`.Float64Expression`
             Entry expression for numeric matrix entries.
-        path: :obj:`str`
+        path: :class:`str`
             Path for output.
         overwrite : :obj:`bool`
             If ``True``, overwrite an existing file at the destination.
@@ -697,7 +698,7 @@ class BlockMatrix(object):
             If true and ``center=False``, divide by the row magnitude.
             If true and ``center=True``, divide the centered value by the
             centered row magnitude.
-        axis: :obj:`str`
+        axis: :class:`str`
             One of "rows" or "cols": axis by which to normalize or center.
         block_size: :obj:`int`, optional
             Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
@@ -1086,9 +1087,9 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        starts: :obj:`list` of :obj:`int`, or :class:`ndarray` of :obj:`int32` or :obj:`int64`
+        starts: :obj:`list` of :obj:`int`, or :class:`numpy.ndarray` of :obj:`int`
             Start indices for each row (inclusive).
-        stops: :obj:`list` of :obj:`int`, or :class:`ndarray` of :obj:`int32` or :obj:`int64`
+        stops: :obj:`list` of :obj:`int`, or :class:`numpy.ndarray` of :obj:`int`
             Stop indices for each row (exclusive).
         blocks_only: :obj:`bool`
             If ``False``, set all elements outside row intervals to zero.
@@ -1157,7 +1158,7 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        uri: :obj:`str`, optional
+        uri: :class:`str`, optional
             URI of binary output file.
 
         See Also
@@ -1474,7 +1475,7 @@ class BlockMatrix(object):
         b: :class:`numpy.ndarray` or :class:`BlockMatrix`
         splits: :obj:`int` (keyword only argument)
             The number of smaller multiplications to do.
-        path_prefix: :obj:`str` (keyword only argument)
+        path_prefix: :class:`str` (keyword only argument)
             The prefix of the path to write the block matrices to. If unspecified, writes to a tmpdir.
 
         Returns
@@ -1677,7 +1678,7 @@ class BlockMatrix(object):
 
         The resulting table has the following fields:
             - **row_idx** (:py:data.`tint64`, key field) -- Row index
-            - **entries** (:py:data:`.tarray<tfloat64>`) -- Entries for the row
+            - **entries** (:py:class:`.tarray` of :py:data:`.tfloat64`) -- Entries for the row
 
         Examples
         --------
@@ -1886,18 +1887,18 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        path_in: :obj:`str`
+        path_in: :class:`str`
             Path to input block matrix, stored row-major on disk.
-        path_out: :obj:`str`
+        path_out: :class:`str`
             Path for export.
             Use extension ``.gz`` for gzip or ``.bgz`` for block gzip.
-        delimiter: :obj:`str`
+        delimiter: :class:`str`
             Column delimiter.
-        header: :obj:`str`, optional
+        header: :class:`str`, optional
             If provided, `header` is prepended before the first row of data.
         add_index: :obj:`bool`
             If ``True``, add an initial column with the absolute row index.
-        parallel: :obj:`str`, optional
+        parallel: :class:`str`, optional
             If ``'header_per_shard'``, create a folder with one file per
             partition, each with a header if provided.
             If ``'separate_header'``, create a folder with one file per
@@ -1910,7 +1911,7 @@ class BlockMatrix(object):
         partition_size: :obj:`int`, optional
             Number of rows to group per partition for export.
             Default given by block size of the block matrix.
-        entries: :obj:`str
+        entries: :class:`str`
             Describes which entries to export. One of:
             ``'full'``, ``'lower'``, ``'strict_lower'``, ``'upper'``, ``'strict_upper'``.
         """
@@ -2069,12 +2070,12 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        path_out: :obj:`str`
+        path_out: :class:`str`
             Path for folder of exported files.
         rectangles: :obj:`list` of :obj:`list` of :obj:`int`
             List of rectangles of the form
             ``[row_start, row_stop, col_start, col_stop]``.
-        delimiter: :obj:`str`
+        delimiter: :class:`str`
             Column delimiter.
         binary: :obj:`bool`
             If true, export elements as raw bytes in row major order.
@@ -2152,9 +2153,9 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        path_out: :obj:`str`
+        path_out: :class:`str`
             Path for folder of exported files.
-        delimiter: :obj:`str`
+        delimiter: :class:`str`
             Column delimiter.
         binary: :obj:`bool`
             If true, export elements as raw bytes in row major order.
@@ -2222,7 +2223,7 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        path: :obj:`str`
+        path: :class:`str`
             Path to directory where rectangles were written.
         binary: :obj:`bool`
             If true, reads the files as binary, otherwise as text delimited.
@@ -2378,13 +2379,13 @@ class BlockMatrix(object):
 
         Returns
         -------
-        u: :class:`ndarray` or :class:`BlockMatrix`
+        u: :class:`numpy.ndarray` or :class:`BlockMatrix`
             Left singular vectors :math:`U`, as a block matrix if :math:`n > m` and
             :math:`\sqrt[3]{nmr}` exceeds `complexity_bound`.
             Only returned if `compute_uv` is True.
-        s: :class:`ndarray`
+        s: :class:`numpy.ndarray`
             Singular values from :math:`\Sigma` in descending order.
-        vt: :class:`ndarray` or :class:`BlockMatrix`
+        vt: :class:`numpy.ndarray` or :class:`BlockMatrix`
             Right singular vectors :math:`V^T``, as a block matrix if :math:`n \leq m` and
             :math:`\sqrt[3]{nmr}` exceeds `complexity_bound`.
             Only returned if `compute_uv` is True.

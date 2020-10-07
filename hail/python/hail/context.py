@@ -172,17 +172,17 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     ----------
     sc : pyspark.SparkContext, optional
         Spark context. By default, a Spark context will be created.
-    app_name : :obj:`str`
+    app_name : :class:`str`
         Spark application name.
-    master : :obj:`str`, optional
+    master : :class:`str`, optional
         URL identifying the Spark leader (master) node or `local[N]` for local clusters.
-    local : :obj:`str`
+    local : :class:`str`
        Local-mode core limit indicator. Must either be `local[N]` where N is a
        positive integer or `local[*]`. The latter indicates Spark should use all
        cores available. `local[*]` does not respect most containerization CPU
        limits. This option is only used if `master` is unset and `spark.master`
        is not set in the Spark configuration.
-    log : :obj:`str`
+    log : :class:`str`
         Local path for Hail log file. Does not currently support distributed
         file systems like Google Storage, S3, or HDFS.
     quiet : :obj:`bool`
@@ -193,21 +193,21 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         Minimum file block size in MB.
     branching_factor : :obj:`int`
         Branching factor for tree aggregation.
-    tmp_dir : :obj:`str`, optional
+    tmp_dir : :class:`str`, optional
         Networked temporary directory.  Must be a network-visible file
         path.  Defaults to /tmp in the default scheme.
-    default_reference : :obj:`str`
+    default_reference : :class:`str`
         Default reference genome. Either ``'GRCh37'``, ``'GRCh38'``,
         ``'GRCm38'``, or ``'CanFam3'``.
     idempotent : :obj:`bool`
         If ``True``, calling this function is a no-op if Hail has already been initialized.
     global_seed : :obj:`int`, optional
         Global random seed.
-    spark_conf : :obj:`dict[str, str]`, optional
+    spark_conf : :obj:`dict` of :class:`str` to :class`str`, optional
         Spark configuration parameters.
     skip_logging_configuration : :obj:`bool`
         Skip logging configuration in java and python.
-    local_tmpdir : :obj:`str`, optional
+    local_tmpdir : :class:`str`, optional
         Local temporary directory.  Used on driver and executor nodes.
         Must use the file scheme.  Defaults to TMPDIR, or /tmp.
     """
@@ -385,7 +385,7 @@ def default_reference():
     return Env.hc().default_reference
 
 
-def get_reference(name) -> 'hail.ReferenceGenome':
+def get_reference(name) -> ReferenceGenome:
     """Returns the reference genome corresponding to `name`.
 
     Notes
@@ -404,7 +404,7 @@ def get_reference(name) -> 'hail.ReferenceGenome':
 
     Parameters
     ----------
-    name : :obj:`str`
+    name : :class:`str`
         Name of a previously loaded reference genome or one of Hail's built-in
         references: ``'GRCh37'``, ``'GRCh38'``, ``'GRCm38'``, ``'CanFam3'``, and
         ``'default'``.

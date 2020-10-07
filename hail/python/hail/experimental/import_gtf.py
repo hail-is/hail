@@ -47,7 +47,7 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_part
        points of the ``interval`` field will be of type :class:`.tlocus`.
        Otherwise, the start and end points of the ``interval`` field will be of
        type :class:`.tstruct` with fields ``seqname`` (type :class:`str`) and
-       ``position`` (type :class:`.tint32`).
+       ``position`` (type :obj:`.tint32`).
 
        Furthermore, if the ``reference_genome`` parameter is specified and
        ``skip_invalid_contigs`` is ``True``, this import function will skip
@@ -94,9 +94,9 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_part
        Parameters
        ----------
 
-       path : :obj:`str`
+       path : :class:`str`
            File to import.
-       reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+       reference_genome : :class:`str` or :class:`.ReferenceGenome`, optional
            Reference genome to use.
        skip_invalid_contigs : :obj:`bool`
            If ``True`` and `reference_genome` is not ``None``, skip lines where
@@ -211,17 +211,17 @@ def get_gene_intervals(gene_symbols=None, gene_ids=None, transcript_ids=None,
     Parameters
     ----------
 
-    gene_symbols : :obj:`list` of :obj:`str`, optional
+    gene_symbols : :obj:`list` of :class:`str`, optional
        Gene symbols (e.g. PCSK9).
-    gene_ids : :obj:`list` of :obj:`str`, optional
+    gene_ids : :obj:`list` of :class:`str`, optional
        Gene IDs (e.g. ENSG00000223972).
-    transcript_ids : :obj:`list` of :obj:`str`, optional
+    transcript_ids : :obj:`list` of :class:`str`, optional
        Transcript IDs (e.g. ENSG00000223972).
     verbose : :obj:`bool`
        If ``True``, print which genes and transcripts were matched in the GTF file.
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`, optional
        Reference genome to use (passed along to import_gtf).
-    gtf_file : :obj:`str`
+    gtf_file : :class:`str`
        GTF file to load. If none is provided, but `reference_genome` is one of
        `GRCh37` or `GRCh38`, a default will be used (on Google Cloud Platform).
 
@@ -257,7 +257,7 @@ def _load_gencode_gtf(gtf_file=None, reference_genome=None):
     ----------
     reference_genome : :class:`.ReferenceGenome`, optional
        Reference genome to use (passed along to import_gtf).
-    gtf_file : :obj:`str`
+    gtf_file : :class:`str`
        GTF file to load. If none is provided, but `reference_genome` is one of
        `GRCh37` or `GRCh38`, a default will be used (on Google Cloud Platform).
 

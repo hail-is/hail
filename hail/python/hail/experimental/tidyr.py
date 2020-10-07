@@ -19,9 +19,9 @@ def gather(ht, key, value, *fields) -> Table:
     ----------
     ht : :class:`.Table`
         A Hail table.
-    key : :obj:`str`
+    key : :class:`str`
         The name of the key field in the gathered table.
-    value : :obj:`str`
+    value : :class:`str`
         The name of the value field in the gathered table.
     fields : variable-length args of obj:`str`
         Names of fields to gather in ``ht``.
@@ -70,11 +70,11 @@ def spread(ht, field, value, key=None) -> Table:
     ----------
     ht : :class:`.Table`
         A Hail table.
-    field : :obj:`str`
+    field : :class:`str`
         The name of the factor field in `ht`.
-    value : :obj:`str`
+    value : :class:`str`
         The name of the value field in `ht`.
-    key : optional, obj:`str` or list of :obj:`str`
+    key : optional, obj:`str` or list of :class:`str`
         The name of any fields to group by, in addition to the
         row key fields of ``ht``.
 
@@ -131,11 +131,11 @@ def separate(ht, field, into, delim) -> Table:
     ----------
     ht : :class:`.Table`
         A Hail table.
-    field : :obj:`str`
+    field : :class:`str`
         The name of the field to separate in ``ht``.
-    into : list of :obj:`str`
+    into : list of :class:`str`
         The names of the fields to create by separating ``field``.
-    delimiter : :obj:`str` or :obj:`int`
+    delimiter : :class:`str` or :obj:`int`
         The character or position by which to separate ``field``.
 
     Returns

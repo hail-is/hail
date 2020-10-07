@@ -5,7 +5,7 @@ DANN
 
 *  **Versions:** None
 *  **Reference genome builds:** GRCh37, GRCh38
-*  **Type:** :class:`Table`
+*  **Type:** :class:`hail.Table`
 
 Schema (None, GRCh37)
 ~~~~~~~~~~~~~~~~~~~~~

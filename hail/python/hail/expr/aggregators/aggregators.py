@@ -2,19 +2,19 @@ import difflib
 from functools import wraps, update_wrapper
 
 import hail as hl
-from hail.expr.expressions import ExpressionException, Expression, \
-    ArrayExpression, SetExpression, BooleanExpression, Int64Expression, \
-    NumericExpression, DictExpression, StructExpression, Float64Expression, \
-    StringExpression, NDArrayNumericExpression, \
-    expr_any, expr_oneof, expr_array, expr_set, expr_bool, expr_numeric, \
-    expr_int32, expr_int64, expr_float64, expr_call, expr_str, expr_ndarray, \
-    unify_all, construct_expr, Indices, Aggregation, to_expr
-from hail.expr.types import hail_type, tint32, tint64, tfloat32, tfloat64, \
-    tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr
+from hail.expr import (ExpressionException, Expression, ArrayExpression,
+                       SetExpression, BooleanExpression, Int64Expression, NumericExpression,
+                       DictExpression, StructExpression, Float64Expression, StringExpression,
+                       NDArrayNumericExpression, expr_any, expr_oneof, expr_array, expr_set,
+                       expr_bool, expr_numeric, expr_int32, expr_int64, expr_float64, expr_call,
+                       expr_str, expr_ndarray, unify_all, construct_expr, Indices, Aggregation,
+                       to_expr)
+from hail.expr.types import (hail_type, tint32, tint64, tfloat32, tfloat64,
+                             tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr)
 from hail.expr.functions import rbind, float32, _quantile_from_cdf
 import hail.ir as ir
-from hail.typecheck import TypeChecker, typecheck_method, typecheck, \
-    sequenceof, func_spec, identity, nullable, oneof
+from hail.typecheck import (TypeChecker, typecheck_method, typecheck,
+                            sequenceof, func_spec, identity, nullable, oneof)
 from hail.utils import wrap_to_list
 from hail.utils.java import Env
 
@@ -1064,7 +1064,7 @@ def filter(condition, aggregation) -> Expression:
 
     Returns
     -------
-    :class:`.Aggregable`
+    :class:`.Expression`
         Aggregable expression.
     """
 
@@ -1198,7 +1198,7 @@ def call_stats(call, alleles) -> StructExpression:
     Parameters
     ----------
     call : :class:`.CallExpression`
-    alleles : :class:`.ArrayStringExpression` or :class:`.Int32Expression`
+    alleles : :class:`.ArrayExpression` of strings or :class:`.Int32Expression`
         Variant alleles array, or number of alleles (including reference).
 
     Returns
@@ -1330,7 +1330,7 @@ def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
     -------
     :class:`.ArrayExpression`
         Expression for downsampled coordinate points (x, y). The element type of the array is
-        :py:data:`.ttuple` of :py:data:`.tfloat64`, :py:data:`.tfloat64`, and :py:data:`.tarray` of :py:data:`.tstring`
+        :class:`.ttuple` of :py:data:`.tfloat64`, :py:data:`.tfloat64`, and :class:`.tarray` of :py:data:`.tstr`
     """
     if label is None:
         label = hl.null(hl.tarray(hl.tstr))

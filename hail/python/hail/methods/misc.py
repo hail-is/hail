@@ -77,8 +77,8 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
     be perfectly maximal.
 
     `tie_breaker` is a Python function taking two arguments---say `l` and
-    `r`---each of which is an :class:`Expression` of the same type as `i` and
-    `j`. `tie_breaker` returns a :class:`NumericExpression`, which defines an
+    `r`---each of which is an :class:`~.Expression` of the same type as `i` and
+    `j`. `tie_breaker` returns a :class:`~.NumericExpression`, which defines an
     ordering on nodes. A pair of nodes can be ordered in one of three ways, and
     `tie_breaker` must encode the relationship as follows:
 
@@ -267,7 +267,7 @@ def rename_duplicates(dataset, name='unique_id') -> MatrixTable:
     ----------
     dataset : :class:`.MatrixTable`
         Dataset.
-    name : :obj:`str`
+    name : :class:`str`
         Name of new field.
 
     Returns
@@ -320,7 +320,7 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
     ----------
     ds : :class:`.MatrixTable` or :class:`.Table`
         Dataset to filter.
-    intervals : :class:`.ArrayExpression` of type :py:data:`.tinterval`
+    intervals : :class:`.ArrayExpression` of type :class:`.tinterval`
         Intervals to filter on.  The point type of the interval must
         be a prefix of the key or equal to the first field of the key.
     keep : :obj:`bool`

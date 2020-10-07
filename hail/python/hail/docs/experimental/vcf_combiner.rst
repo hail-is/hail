@@ -195,7 +195,7 @@ Functions
 ~~~~~~~~~
 
 There are a number of functions for working with sparse data. Of particular
-importance is :func:`densify`, which transforms a sparse matrix table to a dense
+importance is :func:`~.densify`, which transforms a sparse matrix table to a dense
 project-VCF-like matrix table on the fly. While computationally expensive, this
 operation is necessary for many downstream analyses, and should be thought of as
 roughly costing as much as reading a matrix table created by importing a dense

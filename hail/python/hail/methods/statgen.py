@@ -65,7 +65,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     <https://zzz.bwh.harvard.edu/plink/summary.shtml#sexcheck>`__.
 
     Let `gr` be the the reference genome of the type of the `locus` key (as
-    given by :meth:`.TLocus.reference_genome`)
+    given by :attr:`.tlocus.reference_genome`)
 
     1. Filter the dataset to loci on the X contig defined by `gr`.
 
@@ -112,7 +112,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     call : :class:`.CallExpression`
         A genotype call for each row and column. The source dataset's row keys
         must be [[locus], alleles] with types :class:`.tlocus` and
-        :class:`.ArrayStringExpression`. Moreover, the alleles array must have
+        :class:`.tarray` of :obj:`.tstr`. Moreover, the alleles array must have
         exactly two elements (i.e. the variant must be biallelic).
     aaf_threshold : :obj:`float`
         Minimum alternate allele frequency threshold.
@@ -122,7 +122,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
         Samples are called females if F < female_threshold.
     male_threshold : :obj:`float`
         Samples are called males if F > male_threshold.
-    aaf : :obj:`str` or :obj:`None`
+    aaf : :class:`str` or :obj:`None`
         A field defining the alternate allele frequency for each row. If
         ``None``, AAF will be computed from `call`.
 
@@ -249,7 +249,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
     - **p_value** (:py:data:`.tfloat64`) -- :math:`p`-value.
 
     If `y` is a list of expressions, then the last five fields instead have type
-    :py:data:`.tarray` of :py:data:`.tfloat64`, with corresponding indexing of
+    :class:`.tarray` of :py:data:`.tfloat64`, with corresponding indexing of
     the list and each array.
 
     If `y` is a list of lists of expressions, then `n` and `sum_x` are of type
@@ -301,7 +301,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
     block_size : :obj:`int`
         Number of row regressions to perform simultaneously per core. Larger blocks
         require more memory but may improve performance.
-    pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
+    pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
         Additional row fields to include in the resulting table.
 
     Returns
@@ -713,7 +713,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         Non-empty list of column-indexed covariate expressions.
-    pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
+    pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
         Additional row fields to include in the resulting table.
 
     Returns
@@ -797,7 +797,7 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         Non-empty list of column-indexed covariate expressions.
-    pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
+    pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
         Additional row fields to include in the resulting table.
 
     Returns
@@ -920,7 +920,7 @@ def linear_mixed_model(y,
 
     If `k` is set, the model is full-rank. For correct results, the indices of
     `k` **must be aligned** with columns of the source of `y`.
-    Set `p_path` if you plan to use the model in :meth:`.linear_mixed_regression_rows`.
+    Set `p_path` if you plan to use the model in :func:`.linear_mixed_regression_rows`.
     `k` must be positive semi-definite; symmetry is not checked as only the
     lower triangle is used. See :meth:`.LinearMixedModel.from_kinship` for more
     details.
@@ -952,10 +952,10 @@ def linear_mixed_model(y,
         row-standardized to variance :math:`1 / m` to form the entries of
         :math:`Z^T`. If `mean_impute` is false, must have no missing values.
         Exactly one of `z_t` and `k` must be set.
-    k: :class:`ndarray`, optional
+    k: :class:`numpy.ndarray`, optional
         Kinship matrix :math:`K`.
         Exactly one of `z_t` and `k` must be set.
-    p_path: :obj:`str`, optional
+    p_path: :class:`str`, optional
         Path at which to write the projection :math:`P` as a block matrix.
         Required if `z_t` is set.
     overwrite: :obj:`bool`
@@ -970,7 +970,7 @@ def linear_mixed_model(y,
     -------
     model: :class:`.LinearMixedModel`
         Linear mixed model ready to be fit.
-    p: :class:`ndarray` or :class:`.BlockMatrix`
+    p: :class:`numpy.ndarray` or :class:`.BlockMatrix`
         Matrix :math:`P` whose rows are the eigenvectors of :math:`K`.
         The type is block matrix if the model is low rank (i.e., if `z_t` is set
         and :math:`n > m`).
@@ -1131,10 +1131,10 @@ def linear_mixed_regression_rows(entry_expr,
         If mean_impute is false, must have no missing values.
     model: :class:`.LinearMixedModel`
         Fit linear mixed model with ``path_p`` set.
-    pa_t_path: :obj:`str`, optional
+    pa_t_path: :class:`str`, optional
         Path at which to store the transpose of :math:`PA`.
         If not set, a temporary file is used.
-    a_t_path: :obj:`str`, optional
+    a_t_path: :class:`str`, optional
         Path at which to store the transpose of :math:`A`.
         If not set, a temporary file is used.
     mean_impute: :obj:`bool`
@@ -1142,7 +1142,7 @@ def linear_mixed_regression_rows(entry_expr,
     partition_size: :obj:`int`
         Number of rows to process per partition.
         Default given by block size of :math:`P`.
-    pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
+    pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
         Additional row fields to include in the resulting table.
 
     Returns
@@ -1719,7 +1719,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
         If ``True``, variants are assumed to be left
         aligned and have unique loci. This avoids a shuffle. If the assumption
         is violated, an error is generated.
-    vep_root : :obj:`str`
+    vep_root : :class:`str`
         Top-level location of vep data. All variable-length VEP fields
         (intergenic_consequences, motif_feature_consequences,
         regulatory_feature_consequences, and transcript_consequences)
@@ -2001,7 +2001,7 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     defined by `entry_expr` and missing values mean-imputed per row.
     The ``(i, j)`` element of the resulting block matrix is the correlation
     between rows ``i`` and ``j`` (as 0-indexed by order in the matrix table;
-    see :meth:`add_row_index`).
+    see :meth:`~hail.MatrixTable.add_row_index`).
 
     The correlation of two vectors is defined as the
     `Pearson correlation coeffecient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__
@@ -2011,7 +2011,7 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     This method has two stages:
 
     - writing the row-normalized block matrix to a temporary file on persistent
-      disk with :meth:`BlockMatrix.from_entry_expr`. The parallelism is
+      disk with :meth:`.BlockMatrix.from_entry_expr`. The parallelism is
       ``n_rows / block_size``.
 
     - reading and multiplying this block matrix by its transpose. The
@@ -2019,10 +2019,10 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
 
     Warning
     -------
-    See all warnings on :meth:`BlockMatrix.from_entry_expr`. In particular,
+    See all warnings on :meth:`.BlockMatrix.from_entry_expr`. In particular,
     for large matrices, it may be preferable to run the two stages separately,
     saving the row-normalized block matrix to a file on external storage with
-    :meth:`BlockMatrix.write_from_entry_expr`.
+    :meth:`.BlockMatrix.write_from_entry_expr`.
 
     The resulting number of matrix elements is the square of the number of rows
     in the matrix table, so computing the full matrix may be infeasible. For
@@ -2125,7 +2125,7 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
     without windowing.
 
     More precisely, variants are 0-indexed by their order in the matrix table
-    (see :meth:`add_row_index`). Each variant is regarded as a vector of
+    (see :meth:`~hail.MatrixTable.add_row_index`). Each variant is regarded as a vector of
     elements defined by `entry_expr`, typically the number of alternate alleles
     or genotype dosage. Missing values are mean-imputed within variant.
 
@@ -2338,7 +2338,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
         Representing a random function.  Ancestral allele frequency
         distribution.  Default is :func:`.rand_unif` over the range
         `[0.1, 0.9]` with seed 0.
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Reference genome to use.
     mixture : :obj:`bool`
         Treat `pop_dist` as the parameters of a Dirichlet distribution,
@@ -2508,7 +2508,7 @@ def filter_alleles(mt: MatrixTable,
     mt : :class:`.MatrixTable`
         Dataset.
     f : callable
-        Function from (allele: :class:`StringExpression`, allele_index:
+        Function from (allele: :class:`.StringExpression`, allele_index:
         :class:`.Int32Expression`) to :class:`.BooleanExpression`
 
     Returns
@@ -2716,7 +2716,7 @@ def filter_alleles_hts(mt: MatrixTable,
     ----------
     mt : :class:`.MatrixTable`
     f : callable
-        Function from (allele: :class:`StringExpression`, allele_index:
+        Function from (allele: :class:`.StringExpression`, allele_index:
         :class:`.Int32Expression`) to :class:`.BooleanExpression`
     subset : :obj:`.bool`
         Subset PL field if ``True``, otherwise downcode PL field. The

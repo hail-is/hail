@@ -650,7 +650,7 @@ def _clean_fields(mt, str_expr):
     ----------
     mt : :class:`.MatrixTable`
         :class:`.MatrixTable` with fields to be removed.
-    str_expr : :obj:`str`
+    str_expr : :class:`str`
         string to filter names of fields to remove.
 
     Returns
@@ -694,9 +694,9 @@ def agg_fields(tb, coef_dict=None, str_expr=None, axis='rows'):
         Coefficients to multiply each field. The coefficients are specified by
         `coef_dict` value, the row (or col) field name is specified by `coef_dict` key.
         If not included, coefficients are assumed to be 1.
-    str_expr : :obj:`str`, optional
+    str_expr : :class:`str`, optional
         String expression to match against row (or col) field names.
-    axis : :obj:`str`
+    axis : :class:`str`
         Either 'rows' or 'cols'. If 'rows', this aggregates across row fields.
         If 'cols', this aggregates across col fields. If tb is a Table, axis = 'rows'.
 
@@ -734,14 +734,14 @@ def get_coef_dict(tb, str_expr=None, ref_coef_dict=None, axis='rows'):
     ----------
     tb : :class:`.MatrixTable` or :class:`.Table`
         :class:`.MatrixTable` or :class:`.Table` containing row (or col) for `coef_dict`.
-    str_expr : :obj:`str`, optional
+    str_expr : :class:`str`, optional
         String expression pattern to match against row (or col) fields. If left
         unspecified, the intersection of field names is only between existing
         row (or col) fields in `mt` and keys of `ref_coef_dict`.
     ref_coef_dict : :obj:`dict`, optional
         Reference coefficient dictionary with keys that are row (or col) field
         names from which to subset. If not included, coefficients are assumed to be 1.
-    axis : :obj:`str`
+    axis : :class:`str`
         Field type in which to search for field names. Options: 'rows', 'cols'
 
     Returns

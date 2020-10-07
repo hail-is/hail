@@ -1,8 +1,6 @@
 import hail as hl
 from hail.expr.expressions import expr_float64, expr_numeric, analyze
 from hail.typecheck import typecheck, oneof, sequenceof, nullable
-from hail.table import Table
-from hail.matrixtable import MatrixTable
 from hail.utils import wrap_to_list, new_temp_file
 
 
@@ -21,7 +19,7 @@ def ld_score_regression(weight_expr,
                         n_samples_exprs,
                         n_blocks=200,
                         two_step_threshold=30,
-                        n_reference_panel_variants=None) -> Table:
+                        n_reference_panel_variants=None) -> hl.Table:
     r"""Estimate SNP-heritability and level of confounding biases from genome-wide association study
     (GWAS) summary statistics.
 
@@ -93,13 +91,13 @@ def ld_score_regression(weight_expr,
     Notes
     -----
     The ``exprs`` provided as arguments to :func:`.ld_score_regression`
-    must all be from the same object, either a :class:`Table` or a
-    :class:`MatrixTable`.
+    must all be from the same object, either a :class:`~.Table` or a
+    :class:`~.MatrixTable`.
 
     **If the arguments originate from a table:**
 
     *  The table must be keyed by fields ``locus`` of type
-       :class:`.tlocus` and ``alleles``, a :py:data:`.tarray` of
+       :class:`.tlocus` and ``alleles``, a :class:`.tarray` of
        :py:data:`.tstr` elements.
     *  ``weight_expr``, ``ld_score_expr``, ``chi_sq_exprs``, and
        ``n_samples_exprs`` are must be row-indexed fields.
@@ -121,7 +119,7 @@ def ld_score_regression(weight_expr,
        (rows) by phenotypes (columns).
     *  The rows of the matrix table must be keyed by fields
        ``locus`` of type :class:`.tlocus` and ``alleles``,
-       a :py:data:`.tarray` of :py:data:`.tstr` elements.
+       a :class:`.tarray` of :py:data:`.tstr` elements.
     *  The columns of the matrix table must be keyed by a field
        of type :py:data:`.tstr` that uniquely identifies phenotypes
        represented in the matrix table. The column key must be a single
@@ -136,7 +134,7 @@ def ld_score_regression(weight_expr,
        :func:`.ld_score_regression` will have values corresponding to the
        column keys of the input matrix table.
 
-    This function returns a :class:`Table` with one row per set of summary
+    This function returns a :class:`~.Table` with one row per set of summary
     statistics passed to the ``chi_sq_exprs`` argument. The following
     row-indexed fields are included in the table:
 
@@ -199,7 +197,7 @@ def ld_score_regression(weight_expr,
 
     Returns
     -------
-    :class:`.Table`
+    :class:`~.Table`
         Table keyed by ``phenotype`` with intercept and heritability estimates
         for each phenotype passed to the function."""
 
@@ -220,7 +218,7 @@ def ld_score_regression(weight_expr,
             ds._row_indices)
 
     # format input dataset
-    if isinstance(ds, MatrixTable):
+    if isinstance(ds, hl.MatrixTable):
         if len(chi_sq_exprs) != 1:
             raise ValueError("""Only one chi_sq_expr allowed if originating
                 from a matrix table.""")
@@ -261,7 +259,7 @@ def ld_score_regression(weight_expr,
                             & hl.is_defined(ds.__x))
 
     else:
-        assert isinstance(ds, Table)
+        assert isinstance(ds, hl.Table)
         for y in chi_sq_exprs:
             analyze('ld_score_regression/chi_squared_expr', y, ds._row_indices)
         for n in n_samples_exprs:

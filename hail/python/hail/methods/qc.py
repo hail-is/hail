@@ -72,7 +72,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     ----------
     mt : :class:`.MatrixTable`
         Dataset.
-    name : :obj:`str`
+    name : :class:`str`
         Name for resulting field.
 
     Returns
@@ -237,7 +237,7 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     ----------
     mt : :class:`.MatrixTable`
         Dataset.
-    name : :obj:`str`
+    name : :class:`str`
         Name for resulting field.
 
     Returns
@@ -568,11 +568,11 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
     ----------
     dataset : :class:`.MatrixTable` or :class:`.Table`
         Dataset.
-    config : :obj:`str`
+    config : :class:`str`
         Path to VEP configuration file.
     block_size : :obj:`int`
         Number of rows to process per VEP invocation.
-    name : :obj:`str`
+    name : :class:`str`
         Name for resulting row field.
     csq : :obj:`bool`
         If ``True``, annotates with the VCF CSQ field as a :py:data:`.tstr`.
@@ -926,11 +926,11 @@ def nirvana(dataset: Union[MatrixTable, Table], config, block_size=500000, name=
     ----------
     dataset : :class:`.MatrixTable` or :class:`.Table`
         Dataset.
-    config : :obj:`str`
+    config : :class:`str`
         Path to Nirvana configuration file.
     block_size : :obj:`int`
         Number of rows to process per Nirvana invocation.
-    name : :obj:`str`
+    name : :class:`str`
         Name for resulting row field.
 
     Returns
@@ -1106,10 +1106,10 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
     five fields:
 
     - `n_variants` (:obj:`int`): Number of variants present in the matrix table.
-    - `allele_types` (:obj:`Dict[str, int]`): Number of alternate alleles in
+    - `allele_types` (:obj:`dict` [:obj:`str`, :obj:`int`]): Number of alternate alleles in
       each allele allele category.
-    - `contigs` (:obj:`Dict[str, int]`): Number of variants on each contig.
-    - `allele_counts` (:obj:`Dict[int, int]`): Number of variants broken down
+    - `contigs` (:obj:`dict` [:obj:`str`, :obj:`int`]): Number of variants on each contig.
+    - `allele_counts` (:obj:`dict` [:obj:`int`, :obj:`int`]): Number of variants broken down
       by number of alleles (biallelic is 2, for example).
     - `r_ti_tv` (:obj:`float`): Ratio of transition alternate alleles to
       transversion alternate alleles.

@@ -45,7 +45,7 @@ def strftime(format, time, zone_id):
 
     Returns
     -------
-    :class:`StringExpression`
+    :class:`~.StringExpression`
         A string of the specified format based on the requested time.
     """
     return _func("strftime", hl.tstr, format, time, zone_id)
@@ -92,7 +92,7 @@ def strptime(time, format, zone_id):
 
     Returns
     -------
-    :class:`Int64Expression`
+    :class:`~.Int64Expression`
         The Unix timestamp associated with the given time string.
     """
     return _func("strptime", hl.tint64, time, format, zone_id)

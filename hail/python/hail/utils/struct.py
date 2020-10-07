@@ -124,7 +124,7 @@ class Struct(Mapping):
 
         Parameters
         ----------
-        fields : varargs of :obj:`str`
+        fields : varargs of :class:`str`
             Field names to keep.
         named_exprs : keyword args
             New field.
@@ -149,7 +149,7 @@ class Struct(Mapping):
 
         Parameters
         ----------
-        fields: varargs of :obj:`str`
+        fields: varargs of :class:`str`
             Fields to drop.
 
         Returns

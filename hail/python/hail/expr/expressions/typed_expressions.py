@@ -577,7 +577,7 @@ class ArrayExpression(CollectionExpression):
 
         Parameters
         ----------
-        x : :class:`.Expression` or :obj:`Callable`
+        x : :class:`.Expression` or :obj:`typing.Callable`
             Value to find, or function from element to Boolean expression.
 
         Returns
@@ -799,7 +799,7 @@ class ArrayStructExpression(ArrayExpression):
 
         Parameters
         ----------
-        item : :obj:`str`
+        item : :class:`str`
             Field name
 
         Returns
@@ -1287,7 +1287,7 @@ class SetStructExpression(SetExpression):
 
         Parameters
         ----------
-        item : :obj:`str`
+        item : :class:`str`
             Field name
 
         Returns
@@ -1615,7 +1615,7 @@ class StructExpression(Mapping[str, Expression], Expression):
 
         Parameters
         ----------
-        item : :obj:`str`
+        item : :class:`str`
             Field name.
 
         Returns
@@ -1644,6 +1644,13 @@ class StructExpression(Mapping[str, Expression], Expression):
         return object.__hash__(self)
 
     def __eq__(self, other):
+        """Check each field for equality.
+
+        Parameters
+        ----------
+        other : :class:`.Expression`
+            An expression of the same type.
+        """
         return Expression.__eq__(self, other)
 
     def __ne__(self, other):
@@ -1725,7 +1732,7 @@ class StructExpression(Mapping[str, Expression], Expression):
 
         Parameters
         ----------
-        fields : varargs of :obj:`str`
+        fields : varargs of :class:`str`
             Field names to keep.
         named_exprs : keyword args of :class:`.Expression`
             New field expressions.
@@ -1775,7 +1782,7 @@ class StructExpression(Mapping[str, Expression], Expression):
 
         Parameters
         ----------
-        mapping : :obj:`dict` of :obj:`str`, :obj:`str`
+        mapping : :obj:`dict` of :class:`str`, :obj:`str`
             Mapping from old field names to new field names.
 
         Notes
@@ -1817,7 +1824,7 @@ class StructExpression(Mapping[str, Expression], Expression):
 
         Parameters
         ----------
-        fields: varargs of :obj:`str`
+        fields: varargs of :class:`str`
             Fields to drop.
 
         Returns
@@ -1838,6 +1845,7 @@ class StructExpression(Mapping[str, Expression], Expression):
         return self.select(*to_keep)
 
     def flatten(self):
+        """Recursively eliminate struct fields by adding their fields to this struct."""
         def _flatten(prefix, s):
             if isinstance(s, StructExpression):
                 return [(k, v) for (f, e) in s.items() for (k, v) in _flatten(prefix + '.' + f, e)]
@@ -1851,6 +1859,22 @@ class StructExpression(Mapping[str, Expression], Expression):
 
     def _summary_aggs(self):
         return hl.struct(**{k: f._all_summary_aggs() for k, f in self.items()})
+
+    def get(self, k, default=None):
+        """See :meth:`StructExpression.__getitem__`"""
+        return super().get(k, default)
+
+    def items(self):
+        """A list of pairs of field name and expression for said field."""
+        return super().items()
+
+    def keys(self):
+        """The list of field names."""
+        return super().keys()
+
+    def values(self):
+        """A list of expressions for each field."""
+        return super().values()
 
 
 class TupleExpression(Expression, Sequence):
@@ -1915,6 +1939,22 @@ class TupleExpression(Expression, Sequence):
 
     def _summary_aggs(self):
         return hl.tuple([self[i]._all_summary_aggs() for i in range(len(self))])
+
+    def count(self, value):
+        """Do not use this method.
+
+        This only exists for compatibility with the Python Sequence abstract
+        base class.
+        """
+        return super().count()
+
+    def index(self, value, start=0, stop=None):
+        """Do not use this method.
+
+        This only exists for compatibility with the Python Sequence abstract
+        base class.
+        """
+        return super().index()
 
 
 class NumericExpression(Expression):
@@ -3159,12 +3199,12 @@ class CallExpression(Expression):
 
         Parameters
         ----------
-        alleles: :class:`.Int32Expression` or :class:`.ArrayStringExpression`.
+        alleles: :class:`.Int32Expression` or :class:`.ArrayExpression` of :obj:`.tstr`.
             Number of total alleles, including the reference, or array of variant alleles.
 
         Returns
         -------
-        :class:`.ArrayInt32Expression`
+        :class:`.ArrayExpression` of :obj:`.tint32`
             An array of summed one-hot encodings of allele indices.
         """
 
@@ -3546,7 +3586,7 @@ class IntervalExpression(Expression):
 
         Parameters
         ----------
-        interval : :class:`.Expression` with type :py:data:`.tinterval`
+        interval : :class:`.Expression` with type :class:`.tinterval`
             Interval object with the same point type.
 
         Returns
@@ -3662,7 +3702,7 @@ class NDArrayExpression(Expression):
         a[i_0, ..., i_n-1, i_n] = a.T[i_n, i_n-1, ..., i_0].
         Same as `self.transpose()`.
 
-        See also :func:`.transpose`.
+        See also :meth:`.transpose`.
 
         Returns
         -------
