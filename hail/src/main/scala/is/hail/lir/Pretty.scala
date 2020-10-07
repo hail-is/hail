@@ -1,11 +1,13 @@
 package is.hail.lir
 
+import java.io.{StringWriter, Writer}
+
 import org.objectweb.asm
 
-class Builder(var n: Int) {
-  val sb: StringBuilder = new StringBuilder()
+import is.hail.utils.StringEscapeUtils.escapeString
 
-  private var indented: Boolean = false
+class Builder(var n: Int, out: Writer, val printSourceLineNumbers: Boolean = false) {
+  var lineNumber: Int = 0
 
   def indent(f: => Unit): Unit = {
     n += 2
@@ -13,128 +15,149 @@ class Builder(var n: Int) {
     n -= 2
   }
 
-  def +=(s: String): Unit = {
-    if (!indented) {
-      sb.append(" " * n)
-      indented = true
-    }
+  def +=(s: String): Unit = appendWithSource(s, 0)
 
-    var i = 0
-    while (i < s.length) {
-      val c = s(i)
-      sb += c
-      if (c == '\n')
-        sb.append(" " * n)
-      i += 1
+  def appendWithSource(s: String, sourceNum: Int): Unit = {
+    lineNumber += 1
+    if (lineNumber > 1) out.write('\n')
+    out.write(f"$lineNumber%-4d ")
+    if (printSourceLineNumbers) {
+      if (sourceNum == 0) out.write("     ") else out.write(f"$sourceNum%-4d ")
     }
+    out.write(" " * n)
+    out.write(s)
   }
 
-  def result(): String = sb.result()
+  def appendToLastLine(s: String): Unit = {
+    out.write(s)
+  }
 }
 
 object Pretty {
-  def apply(c: Classx[_]): String = {
-    val b = new Builder(0)
-    fmt(c, b)
-    b.result()
+  def apply(c: Classx[_]): String = apply(c, false)
+
+  def apply(c: Classx[_], saveLineNumbers: Boolean): String = {
+    val sw = new StringWriter()
+    apply(c, sw, saveLineNumbers)
+    sw.toString
+  }
+
+  def apply(c: Classx[_], out: Writer, saveLineNumbers: Boolean): Unit = {
+    val printSourceLineNumbers = c.sourceFile.nonEmpty && saveLineNumbers
+    val b = new Builder(0, out, printSourceLineNumbers)
+    fmt(c, b, saveLineNumbers)
+    b += ""
   }
 
   def apply(m: Method): String = {
-    val b = new Builder(0)
-    fmt(m, b)
-    b.result()
+    val sw = new StringWriter()
+    val b = new Builder(0, sw)
+    fmt(m, b, false)
+    b += ""
+    sw.toString
   }
 
   def apply(L: Block): String = {
-    val b = new Builder(0)
-    fmt(L, b)
-    b.result()
+    val sw = new StringWriter()
+    val b = new Builder(0, sw)
+    val label: Block => String = _.toString
+    fmt(L, label, b, false)
+    b += ""
+    sw.toString
   }
 
   def apply(x: X): String = {
-    val b = new Builder(0)
-    fmt(x, b)
-    b.result()
+    val sw = new StringWriter()
+    val b = new Builder(0, sw)
+    val label: Block => String = _.toString
+    fmt(x, label, b, false)
+    b += ""
+    sw.toString
   }
 
-  def fmt(c: Classx[_], b: Builder): Unit = {
+  def fmt(c: Classx[_], b: Builder, saveLineNumbers: Boolean): Unit = {
     // FIXME interfaces
+    if (b.printSourceLineNumbers) {
+      c.sourceFile.foreach { sf =>
+        b += s"source file: ${ sf }"
+      }
+    }
     b += s"class ${ c.name } extends ${ c.superName }"
 
     b.indent {
-      b += "\n"
       for (f <- c.fields) {
-        b += s"field ${ f.name } ${ f.ti.desc }\n"
+        b += s"field ${ f.name } ${ f.ti.desc }"
       }
-    }
-
-    b.indent {
-      b += "\n"
+      b += ""
       for (m <- c.methods) {
-        fmt(m, b)
+        fmt(m, b, saveLineNumbers)
       }
     }
   }
 
-  def fmt(m: Method, b: Builder): Unit = {
+  def fmt(m: Method, b: Builder, saveLineNumbers: Boolean): Unit = {
     val blocks = m.findBlocks()
 
     b += s"def ${ m.name } (${ m.parameterTypeInfo.map(_.desc).mkString(",") })${ m.returnTypeInfo.desc }"
 
+    val label: Block => String = b => s"L${ blocks.index(b) }"
+
     b.indent {
-      b += "\n"
-      b += s"entry ${ m.entry }\n"
+      b += s"entry L${ blocks.index(m.entry) }"
       for (ell <- blocks) {
-        fmt(ell, b)
+        fmt(ell, label, b, saveLineNumbers)
       }
     }
 
-    b += "\n"
+    b += ""
   }
 
-  def fmt(L: Block, b: Builder): Unit = {
-    b += s"$L:"
+  def fmt(L: Block, label: Block => String, b: Builder, saveLineNumbers: Boolean): Unit = {
+    b += s"${ label(L) }:"
 
     b.indent {
       var x = L.first
       while (x != null) {
-        b += "\n"
-        fmt(x, b)
+        fmt(x, label, b, saveLineNumbers)
         x = x.next
       }
     }
-
-    b += "\n"
   }
 
-  def fmt(x: X, b: Builder): Unit = {
+  def fmt(x: X, label: Block => String, b: Builder, saveLineNumbers: Boolean): Unit = {
     val cl = x.getClass.getSimpleName
-    val h = header(x)
+    val h = header(x, label)
     if (h != "")
-      b += s"($cl $h"
+      b.appendWithSource(s"($cl $h", x.lineNumber)
     else
-      b += s"($cl"
+      b.appendWithSource(s"($cl", x.lineNumber)
+    if (saveLineNumbers)
+      x.lineNumber = b.lineNumber
     b.indent {
       for (c <- x.children) {
-        b += "\n"
         if (c != null)
-          fmt(c, b)
+          fmt(c, label, b, saveLineNumbers)
         else
           b += "null"
       }
+      b.appendToLastLine(")")
     }
-    b += ")"
   }
 
-  def header(x: X): String = x match {
-    case x: IfX => s"${ asm.util.Printer.OPCODES(x.op) } ${ x.Ltrue } ${ x.Lfalse }"
+  def header(x: X, label: Block => String): String = x match {
+    case x: IfX => s"${ asm.util.Printer.OPCODES(x.op) } ${ label(x.Ltrue) } ${ label(x.Lfalse) }"
     case x: GotoX =>
       if (x.L != null)
-        x.L.toString
+        label(x.L)
       else
         "null"
-    case x: SwitchX => s"${ x.Ldefault } (${ x.Lcases.mkString(" ") })"
-    case x: LdcX => s"${ x.a.toString } ${ x.ti }"
+    case x: SwitchX => s"${ label(x.Ldefault) } (${ x.Lcases.map(label).mkString(" ") })"
+    case x: LdcX =>
+      val lit = x.a match {
+        case s: String => s""""${escapeString(s)}""""
+        case a => a.toString
+      }
+      s"$lit ${ x.ti }"
     case x: InsnX => asm.util.Printer.OPCODES(x.op)
     case x: StoreX => x.l.toString
     case x: IincX => s"${ x.l.toString } ${ x.i }"
