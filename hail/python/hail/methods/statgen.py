@@ -417,7 +417,6 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
-    # NEW STUFF
     entries_field_name = 'ent'
     sample_field_name = "by_sample"
 
@@ -442,11 +441,6 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     def dot_rows_with_themselves(matrix):
         return (matrix * matrix) @ hl.nd.ones(matrix.shape[1])
 
-    def combine_ndarrays(list_of_ndarrays):
-        prepended_shapes = [hl.tuple(1, *nd.shape) for nd in list_of_ndarrays]
-        reshaped = [nd.reshape(new_shape) for nd, new_shape in zip(list_of_ndarrays, prepended_shapes)]
-        return hl.nd.vstack(list_of_ndarrays)
-
     def array_from_struct(struct, field_names):
         return hl.array([struct[field_name] for field_name in field_names])
 
@@ -454,13 +448,12 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     ht = ht_local.transmute(**{entries_field_name: ht_local[entries_field_name][x_field_name]})
 
-    # Need to actually do this once per list in y_fields
-    list_of_ys_and_covs_to_keep_with_indices = [hl.enumerate(ht[sample_field_name]).filter(
-        lambda struct_with_index: all_defined(struct_with_index[1], one_y_field_name_set + cov_field_names))
-    for one_y_field_name_set in y_field_names]
+    list_of_ys_and_covs_to_keep_with_indices = \
+        [hl.enumerate(ht[sample_field_name]).filter(lambda struct_with_index: all_defined(struct_with_index[1], one_y_field_name_set + cov_field_names)) for one_y_field_name_set in y_field_names]
 
     def make_one_cov_matrix(ys_and_covs_to_keep):
-        return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, cov_field_names))) if cov_field_names else hl.nd.zeros((hl.len(ys_and_covs_to_keep), 0))
+        return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, cov_field_names))) \
+            if cov_field_names else hl.nd.zeros((hl.len(ys_and_covs_to_keep), 0))
 
     def make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set):
         return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, one_y_field_name_set)))
@@ -469,15 +462,12 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     list_of_indices_to_keep = [inner_list.map(lambda pair: pair[0]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
 
     cov_nds = [make_one_cov_matrix(ys_and_covs_to_keep) for ys_and_covs_to_keep in list_of_ys_and_covs_to_keep]
-    cov_nd = cov_nds[0]
 
-    y_nds = [make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set) for ys_and_covs_to_keep, one_y_field_name_set in zip(list_of_ys_and_covs_to_keep, y_field_names)]
-    y_nd = y_nds[0]
+    y_nds = [make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set)
+             for ys_and_covs_to_keep, one_y_field_name_set in zip(list_of_ys_and_covs_to_keep, y_field_names)]
 
     ht = ht.annotate_globals(kept_samples=list_of_indices_to_keep,
-                             __y_nd=y_nd,
                              __y_nds=y_nds,
-                             __cov_nd=cov_nd,
                              __cov_nds=cov_nds)
     k = builtins.len(covariates)
     ns = ht.index_globals().kept_samples.map(lambda one_sample_set: hl.len(one_sample_set))
