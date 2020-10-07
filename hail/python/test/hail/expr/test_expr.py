@@ -3267,7 +3267,6 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.bit_rshift(hl.int64(-1), 64)) == -1
         assert hl.eval(hl.bit_rshift(hl.int64(-11), 64, logical=True)) == 0
 
-    @fails_local_backend()
     def test_bit_shift_errors(self):
         with pytest.raises(hl.utils.HailUserError):
                 hl.eval(hl.bit_lshift(1, -1))
