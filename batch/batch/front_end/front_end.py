@@ -73,6 +73,8 @@ REQUEST_TIME_GET_BILLING_PROJECTS_UI = REQUEST_TIME.labels(endpoint='/billing_pr
 REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/user/remove', verb="POST")
 REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/add', verb="POST")
 REQUEST_TIME_POST_CREATE_BILLING_PROJECT_UI = REQUEST_TIME.labels(endpoint='/billing_projects/create', verb="POST")
+REQUEST_TIME_POST_CLOSE_BILLING_PROJECT_UI = REQUEST_TIME.labels(endpoint='/billing_projects/{billing_project}/close', verb="POST")
+REQUEST_TIME_POST_REOPEN_BILLING_PROJECT_UI = REQUEST_TIME.labels(endpoint='/billing_projects/{billing_project}/reopen', verb="POST")
 
 routes = web.RouteTableDef()
 
@@ -811,7 +813,11 @@ async def create_batch(request, userdata):
     async def insert(tx):
         rows = tx.execute_and_fetchall(
             '''
-SELECT * FROM billing_project_users
+SELECT *, (
+  SELECT closed from billing_projects 
+  WHERE name = billing_project_users.billing_project 
+  LOCK IN SHARE MODE) AS project_closed 
+FROM billing_project_users
 WHERE billing_project = %s AND user = %s
 LOCK IN SHARE MODE;
 ''',
@@ -820,6 +826,8 @@ LOCK IN SHARE MODE;
         if len(rows) != 1:
             assert len(rows) == 0
             raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
+        if rows[0]['project_closed']:
+            raise web.HTTPForbidden(reason=f'Billing project {billing_project} is closed.')
 
         maybe_batch = await tx.execute_and_fetchone(
             '''
@@ -1302,8 +1310,9 @@ async def _query_billing_projects(db, user=None, billing_project=None):
         where_condition = ''
 
     sql = f'''
-SELECT billing_projects.name as billing_project, users
-FROM (
+SELECT billing_projects.name as billing_project, 
+billing_projects.closed as closed, 
+users FROM (
   SELECT billing_project, JSON_ARRAYAGG(`user`) as users
   FROM billing_project_users
   GROUP BY billing_project
@@ -1334,7 +1343,8 @@ async def ui_get_billing_projects(request, userdata):
     db = request.app['db']
     billing_projects = await _query_billing_projects(db)
     page_context = {
-        'billing_projects': billing_projects
+        'billing_projects': [dict(p, size=len(p['users'])) for p in billing_projects if not p['closed']],
+        'closed_projects': [p for p in billing_projects if p['closed']]
     }
     return await render_template('batch', request, userdata, 'billing_projects.html', page_context)
 
@@ -1440,7 +1450,7 @@ FROM billing_projects
 LEFT JOIN (SELECT * FROM billing_project_users
     WHERE billing_project = %s AND user = %s FOR UPDATE) AS t
   ON billing_projects.name = t.billing_project
-WHERE billing_projects.name = %s;
+WHERE billing_projects.name = %s AND NOT billing_projects.closed;
 ''',
             (billing_project, user, billing_project))
         if row is None:
@@ -1494,6 +1504,89 @@ VALUES (%s);
             (billing_project,))
     await insert()  # pylint: disable=no-value-for-parameter
     set_message(session, f'Added billing project {billing_project}.', 'info')
+    return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+
+async def _close_billing_project(db, billing_project):
+    @transaction(db)
+    async def close_project(tx):
+        row = await tx.execute_and_fetchone(
+            '''
+SELECT name, closed,
+  (SELECT id FROM batches WHERE 
+    billing_project = billing_projects.name AND 
+    state != 'complete' LIMIT 1) AS batch
+FROM billing_projects WHERE name = %s FOR UPDATE;
+    ''',
+            (billing_project,))
+        if not row:
+            raise KeyError(billing_project)
+        assert row['name'] == billing_project
+        if row['closed']:
+            raise ValueError(f'Billing project {billing_project} is already closed.')
+        if row['batch'] is not None:
+            raise RuntimeError(f'Billing project {billing_project} has open or running batches.')
+
+        await tx.execute_update(
+            'UPDATE billing_projects SET closed = TRUE WHERE name = %s;',
+            (billing_project, ))
+    await close_project()  # pylint: disable=no-value-for-parameter
+
+
+@routes.post('/billing_projects/{billing_project}/close')
+@prom_async_time(REQUEST_TIME_POST_CLOSE_BILLING_PROJECT_UI)
+@check_csrf_token
+@web_authenticated_developers_only(redirect=False)
+async def post_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    billing_project = request.match_info['billing_project']
+
+    session = await aiohttp_session.get_session(request)
+    try:
+        await _close_billing_project(db, billing_project)
+        set_message(session, f'Closed billing project {billing_project}.', 'info')
+    except KeyError as e:
+        set_message(session, f'Billing project {str(e)} does not exist.', 'error')
+    except RuntimeError as e:
+        set_message(session, str(e), 'error')
+    except ValueError as e:
+        set_message(session, str(e), 'info')
+    return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+
+
+async def _reopen_billing_project(db, billing_project):
+    @transaction(db)
+    async def open_project(tx):
+        row = await tx.execute_and_fetchone(
+            'SELECT name, closed FROM billing_projects WHERE name = %s FOR UPDATE;',
+            (billing_project,))
+        if not row:
+            raise KeyError(billing_project)
+        assert row['name'] == billing_project
+        if not row['closed']:
+            raise ValueError(f'Billing project {billing_project} is already open.')
+
+        await tx.execute_update(
+            'UPDATE billing_projects SET closed = FALSE WHERE name = %s;',
+            (billing_project, ))
+    await open_project()  # pylint: disable=no-value-for-parameter
+
+
+@routes.post('/billing_projects/{billing_project}/reopen')
+@prom_async_time(REQUEST_TIME_POST_REOPEN_BILLING_PROJECT_UI)
+@check_csrf_token
+@web_authenticated_developers_only(redirect=False)
+async def post_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    billing_project = request.match_info['billing_project']
+
+    session = await aiohttp_session.get_session(request)
+    try:
+        await _reopen_billing_project(db, billing_project)
+        set_message(session, f'Re-opened billing project {billing_project}.', 'info')
+    except KeyError as e:
+        set_message(session, f'Billing project {str(e)} does not exist.', 'error')
+    except ValueError as e:
+        set_message(session, str(e), 'info')
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 

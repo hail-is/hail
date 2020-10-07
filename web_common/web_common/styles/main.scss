@@ -242,6 +242,28 @@ a {
             background-color: #f2f2f2;
         }
     }
+
+    tbody tr:hover {
+        background-color: #ddd;
+    }
+}
+
+.grouped-data-table {
+    min-width: 600px;
+
+    th {
+        white-space: nowrap;
+        padding: 3px 10px;
+        color: $white;
+        background-color: #888;
+    }
+
+    tbody {
+        &:nth-of-type(even) {
+            background-color: #f2f2f2;
+        }
+    }
+
     tbody tr:hover {
         background-color: #ddd;
     }

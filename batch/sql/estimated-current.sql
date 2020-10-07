@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS `resources` (
 
 CREATE TABLE IF NOT EXISTS `billing_projects` (
   `name` VARCHAR(100) NOT NULL,
+  `closed` BOOLEAN NOT NULL DEFAULT FALSE,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 
