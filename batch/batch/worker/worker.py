@@ -577,7 +577,7 @@ retry gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
 def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays_project):
     sh_expression = copy(files, name, requester_pays_project)
     copy_spec = {
-        'image': 'google/cloud-sdk:269.0.0-alpine',
+        'image': 'gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine',
         'name': name,
         'command': ['/bin/bash', '-c', sh_expression],
         'cpu': cpu,

@@ -417,7 +417,7 @@ class ServiceBackend(Backend):
             if dry_run:
                 commands.append(write_cmd)
             else:
-                j = bc_batch.create_job(image='google/cloud-sdk:237.0.0-alpine',
+                j = bc_batch.create_job(image='gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine',
                                         command=['/bin/bash', '-c', write_cmd],
                                         attributes={'name': 'write_external_inputs'})
                 jobs_to_command[j] = write_cmd
@@ -501,7 +501,7 @@ class ServiceBackend(Backend):
 {rm_cmd}
 '''
             j = bc_batch.create_job(
-                image='google/cloud-sdk:237.0.0-alpine',
+                image='gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine',
                 command=['/bin/bash', '-c', cmd],
                 parents=parents,
                 attributes={'name': 'remove_tmpdir'},
