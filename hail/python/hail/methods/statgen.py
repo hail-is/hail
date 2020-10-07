@@ -507,29 +507,29 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
             return hl.struct(n=n, sum_x=sum_x._data_array(), y_transpose_x=ytx.T._data_array(), beta=b.T._data_array(),
                              standard_error=se.T._data_array(), t_stat=t.T._data_array(), p_value=p.T._data_array())
 
-        # This list will always be length of number of y_lists.
-        # Each entry of this refers to one y group. Within each entry is an entire array that needs to be split across the
-        # rows.
+
         per_y_list = hl.range(num_y_lists).map(lambda i: process_y_group(i))
-        import pdb; pdb.set_trace()
-
-        if not is_chained:
-            # Need to unwrap
-            per_y_list = per_y_list[0]
-
 
         key_fields = [key_field for key_field in ht.key]
         key_dict = {key_field: block[key_field] for key_field in key_fields}
-        linreg_fields_dict = {"n": per_y_list.n, "sum_x": per_y_list.sum_x, "y_transpose_x": per_y_list.y_transpose_x, "beta": per_y_list.beta,
-                              "standard_error": per_y_list.standard_error, "t_stat": per_y_list.t_stat, "p_value": per_y_list.p_value}
-        combined_dict = {**key_dict, **linreg_fields_dict}
 
-        # Need to pull off "struct of arrays to array of structs". How?
-        # Turn it into a giant zipped list, so that it can be iterated over all at once
-        combined_field_names = [key for key, value in combined_dict.items()]
-        combined_field_data = [value for key, value in combined_dict.items()]
-        linreg_structs = hl.zip(*combined_field_data).map(lambda tup: hl.struct(**{combined_field_names[i]: tup[i] for i in range(len(combined_field_names))}))
-        return linreg_structs
+        rows_in_block = hl.len(block)
+
+        def build_row(row_idx):
+            # For every field we care about, map across all y's, getting the row_idxth one from each.
+            idxth_keys = {key: value[row_idx] for key, value in key_dict.items()}
+            row_field_names = ['sum_x', 'y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
+            row_fields = {
+                field_name: per_y_list.map(lambda one_y: one_y[field_name][row_idx]) for field_name in row_field_names
+            }
+            if not is_chained:
+                row_fields = {key: value[0] for key, value in row_fields.items()}
+
+            return hl.struct(**{**idxth_keys, **row_fields})
+
+        new_rows = hl.range(rows_in_block).map(build_row)
+
+        return new_rows
 
     def process_partition(part):
         grouped = part.grouped(block_size)
