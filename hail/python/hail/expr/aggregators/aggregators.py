@@ -158,7 +158,7 @@ class AggFunc(object):
 
         return construct_expr(ir.AggGroupBy(group._ir, aggregation._ir, self._as_scan),
                               tdict(group.dtype, aggregation.dtype),
-                              Indices(indices.source, aggregation._indices.axes),
+                              Indices(indices.source, indices.axes),
                               aggregations)
 
     def array_agg(self, array, f):

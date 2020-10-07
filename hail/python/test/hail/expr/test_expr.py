@@ -754,6 +754,11 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
+    def test_aggregator_scope_mt(self):
+        mt = hl.utils.range_matrix_table(10, 10).annotate_entries(ent_field = 1)
+        with pytest.raises(hl.expr.ExpressionException, match="unexpected indices"):
+            mt.aggregate_cols(hl.agg.group_by(mt.ent_field, hl.agg.sum(mt.col_idx)))
+
     def test_aggregator_bindings(self):
         t = hl.utils.range_table(5)
         with self.assertRaises(hl.expr.ExpressionException):
