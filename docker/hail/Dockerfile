@@ -16,7 +16,7 @@ RUN echo "APT::Acquire::Retries \"3\";" > /etc/apt/apt.conf.d/80-retries && \
     vim \
   && rm -rf /var/lib/apt/lists/*
 COPY hail_pip_version /
-RUN python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir pip && \
+RUN python3 -m pip install --upgrade --no-cache-dir pip && \
     python3 -m pip --use-feature=2020-resolver --upgrade --no-cache-dir install \
       hail==$(cat /hail_pip_version) \
       ipython \
