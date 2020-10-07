@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS `billing_project_users` (
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
+INSERT INTO `billing_project_users` (`billing_project`, `user`)
+VALUES ('test', 'test-dev');
+
 CREATE TABLE IF NOT EXISTS `instances` (
   `name` VARCHAR(100) NOT NULL,
   `state` VARCHAR(40) NOT NULL,
