@@ -410,16 +410,16 @@ def retry_response_returning_functions(fun, *args, **kwargs):
         errors += 1
         if errors % 10 == 0:
             log.warning(f'encountered {errors} bad status codes, most recent '
-                        f'one was {response.status_code}', exc_info=True)
+                        f'one was {response.status_code}')
         response = sync_retry_transient_errors(
             fun, *args, **kwargs)
         delay = sync_sleep_and_backoff(delay)
     return response
 
 
-def external_requests_client_session(headers=None) -> requests.Session:
+def external_requests_client_session(headers=None, timeout=5) -> requests.Session:
     session = requests.Session()
-    adapter = TimeoutHTTPAdapter(max_retries=1, timeout=5)
+    adapter = TimeoutHTTPAdapter(max_retries=1, timeout=timeout)
     session.mount('http://', adapter)
     session.mount('https://', adapter)
     if headers:
