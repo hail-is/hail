@@ -814,9 +814,9 @@ async def create_batch(request, userdata):
         rows = tx.execute_and_fetchall(
             '''
 SELECT *, (
-  SELECT closed from billing_projects 
-  WHERE name = billing_project_users.billing_project 
-  LOCK IN SHARE MODE) AS project_closed 
+  SELECT closed from billing_projects
+  WHERE name = billing_project_users.billing_project
+  LOCK IN SHARE MODE) AS project_closed
 FROM billing_project_users
 WHERE billing_project = %s AND user = %s
 LOCK IN SHARE MODE;
@@ -1310,8 +1310,8 @@ async def _query_billing_projects(db, user=None, billing_project=None):
         where_condition = ''
 
     sql = f'''
-SELECT billing_projects.name as billing_project, 
-billing_projects.closed as closed, 
+SELECT billing_projects.name as billing_project,
+billing_projects.closed as closed,
 users FROM (
   SELECT billing_project, JSON_ARRAYAGG(`user`) as users
   FROM billing_project_users
@@ -1506,15 +1506,16 @@ VALUES (%s);
     set_message(session, f'Added billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
+
 async def _close_billing_project(db, billing_project):
     @transaction(db)
     async def close_project(tx):
         row = await tx.execute_and_fetchone(
             '''
 SELECT name, closed,
-  (SELECT 1 FROM batches WHERE 
+  (SELECT 1 FROM batches WHERE
     time_completed IS NULL AND
-    billing_project = billing_projects.name 
+    billing_project = billing_projects.name
     LIMIT 1) AS batch
 FROM billing_projects WHERE name = %s FOR UPDATE;
     ''',
