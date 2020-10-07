@@ -75,6 +75,7 @@ own Hail script.
     <th>name</th>
     <th>description</th>
     <th>version</th>
+    <th>reference genome</th>
     </tr>
     </table>
     </div>

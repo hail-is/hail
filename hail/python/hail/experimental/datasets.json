@@ -1,7 +1,6 @@
 {
   "1000_Genomes_autosomes": {
     "description": "1000 Genomes Project: the largest public catalogue of human variation and genotype data.",
-    "key_properties": [],
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
@@ -24,7 +23,6 @@
   },
   "1000_Genomes_chrMT": {
     "description": "1000 Genomes Project: the largest public catalogue of human variation and genotype data.",
-    "key_properties": [],
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
@@ -39,7 +37,6 @@
   },
   "1000_Genomes_chrX": {
     "description": "1000 Genomes Project: the largest public catalogue of human variation and genotype data.",
-    "key_properties": [],
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
@@ -62,7 +59,6 @@
   },
   "1000_Genomes_chrY": {
     "description": "1000 Genomes Project: the largest public catalogue of human variation and genotype data.",
-    "key_properties": [],
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
@@ -84,10 +80,12 @@
     ]
   },
   "CADD": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Combined Annotation Dependent Depletion (CADD): an algorithm designed to annotate both coding and non-coding variants.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "https://cadd.gs.washington.edu/",
     "versions": [
       {
@@ -109,10 +107,12 @@
     ]
   },
   "DANN": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "DANN: a deep learning approach for annotating the pathogenicity of genetic variants.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4341060/",
     "versions": [
       {
@@ -134,10 +134,12 @@
     ]
   },
   "Ensembl_homo_sapiens_low_complexity_regions": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Ensembl: a genome browser for vertebrate genomes that supports research in comparative genomics, evolution, sequence variation and transcriptional regulation.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "https://useast.ensembl.org/index.html",
     "versions": [
       {
@@ -159,10 +161,12 @@
     ]
   },
   "Ensembl_homo_sapiens_reference_genome": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Ensembl: a genome browser for vertebrate genomes that supports research in comparative genomics, evolution, sequence variation and transcriptional regulation.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "https://useast.ensembl.org/index.html",
     "versions": [
       {
@@ -185,7 +189,6 @@
   },
   "GTEx_RNA_seq_gene_TPMs": {
     "description": "Genotype-Tissue Expression (GTEx): an ongoing effort to build a comprehensive public resource to study tissue-specific gene expression and regulation.",
-    "key_properties": [],
     "url": "https://gtexportal.org/home/",
     "versions": [
       {
@@ -200,7 +203,6 @@
   },
   "GTEx_RNA_seq_gene_read_counts": {
     "description": "Genotype-Tissue Expression (GTEx): an ongoing effort to build a comprehensive public resource to study tissue-specific gene expression and regulation.",
-    "key_properties": [],
     "url": "https://gtexportal.org/home/",
     "versions": [
       {
@@ -215,7 +217,6 @@
   },
   "GTEx_RNA_seq_junction_read_counts": {
     "description": "Genotype-Tissue Expression (GTEx): an ongoing effort to build a comprehensive public resource to study tissue-specific gene expression and regulation.",
-    "key_properties": [],
     "url": "https://gtexportal.org/home/",
     "versions": [
       {
@@ -230,7 +231,6 @@
   },
   "UK_Biobank_Rapid_GWAS_both_sexes": {
     "description": "UK Biobank GWAS: GWAS analysis of 7,221 phenotypes across 6 continental ancestry groups in the UK Biobank.",
-    "key_properties": [],
     "url": "http://www.nealelab.is/uk-biobank",
     "versions": [
       {
@@ -245,7 +245,6 @@
   },
   "UK_Biobank_Rapid_GWAS_female": {
     "description": "UK Biobank GWAS: GWAS analysis of 7,221 phenotypes across 6 continental ancestry groups in the UK Biobank.",
-    "key_properties": [],
     "url": "http://www.nealelab.is/uk-biobank",
     "versions": [
       {
@@ -260,7 +259,6 @@
   },
   "UK_Biobank_Rapid_GWAS_male": {
     "description": "UK Biobank GWAS: GWAS analysis of 7,221 phenotypes across 6 continental ancestry groups in the UK Biobank.",
-    "key_properties": [],
     "url": "http://www.nealelab.is/uk-biobank",
     "versions": [
       {
@@ -274,11 +272,13 @@
     ]
   },
   "clinvar_gene_summary": {
+    "annotation_db": {
+      "key_properties": [
+        "gene",
+        "unique"
+      ]
+    },
     "description": "Clinvar: aggregates information about genomic variation and its relationship to human health.",
-    "key_properties": [
-      "gene",
-      "unique"
-    ],
     "url": "https://www.ncbi.nlm.nih.gov/clinvar/",
     "versions": [
       {
@@ -292,8 +292,10 @@
     ]
   },
   "clinvar_variant_summary": {
+    "annotation_db": {
+      "key_properties": []
+    },
     "description": "Clinvar: aggregates information about genomic variation and its relationship to human health.",
-    "key_properties": [],
     "url": "https://www.ncbi.nlm.nih.gov/clinvar/",
     "versions": [
       {
@@ -315,11 +317,13 @@
     ]
   },
   "dbNSFP_genes": {
+    "annotation_db": {
+      "key_properties": [
+        "gene",
+        "unique"
+      ]
+    },
     "description": "dbNSFP: a database developed for functional prediction and annotation of all nsSNVs in the human genome.",
-    "key_properties": [
-      "gene",
-      "unique"
-    ],
     "url": "https://sites.google.com/site/jpopgen/dbNSFP",
     "versions": [
       {
@@ -333,8 +337,10 @@
     ]
   },
   "dbNSFP_variants": {
+    "annotation_db": {
+      "key_properties": []
+    },
     "description": "dbNSFP: a database developed for functional prediction and annotation of all nsSNVs in the human genome.",
-    "key_properties": [],
     "url": "https://sites.google.com/site/jpopgen/dbNSFP",
     "versions": [
       {
@@ -356,8 +362,10 @@
     ]
   },
   "gencode": {
+    "annotation_db": {
+      "key_properties": []
+    },
     "description": "GENCODE: aims to identify all gene features in the human genome using a combination of computational analysis, manual annotation, and experimental validation.",
-    "key_properties": [],
     "url": "https://www.gencodegenes.org/",
     "versions": [
       {
@@ -379,10 +387,12 @@
     ]
   },
   "gerp_elements": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "GERP: identifies constrained elements in multiple alignments by quantifying substitution deficits.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "http://mendel.stanford.edu/SidowLab/downloads/gerp/",
     "versions": [
       {
@@ -404,10 +414,12 @@
     ]
   },
   "gerp_scores": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "GERP: identifies constrained elements in multiple alignments by quantifying substitution deficits.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "http://mendel.stanford.edu/SidowLab/downloads/gerp/",
     "versions": [
       {
@@ -429,10 +441,12 @@
     ]
   },
   "gnomad_exome_sites": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: a resource with the goal of aggregating and harmonizing both exome and genome sequencing data from a wide variety of large-scale sequencing projects.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
@@ -452,10 +466,12 @@
     ]
   },
   "gnomad_genome_sites": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: a resource with the goal of aggregating and harmonizing both exome and genome sequencing data from a wide variety of large-scale sequencing projects.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
@@ -475,10 +491,12 @@
     ]
   },
   "gnomad_lof_metrics": {
+    "annotation_db": {
+      "key_properties": [
+        "gene"
+      ]
+    },
     "description": "gnomAD: a resource with the goal of aggregating and harmonizing both exome and genome sequencing data from a wide variety of large-scale sequencing projects.",
-    "key_properties": [
-      "gene"
-    ],
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
@@ -492,10 +510,12 @@
     ]
   },
   "ldsc_baselineLD_annotations": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "LDSC Baseline-LD Model: contains 75 annotations (additional annotations included in later versions) including functional regions, histone marks, GERP scores, LD-related annotations of population genetics forces, MAF bins, and more.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6133304/",
     "versions": [
       {
@@ -510,7 +530,6 @@
   },
   "ldsc_baselineLD_ldscores": {
     "description": "LDSC Baseline-LD Model: contains 75 annotations (additional annotations included in later versions) including functional regions, histone marks, GERP scores, LD-related annotations of population genetics forces, MAF bins, and more.",
-    "key_properties": [],
     "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6133304/",
     "versions": [
       {
@@ -525,7 +544,6 @@
   },
   "ldsc_baseline_ldscores": {
     "description": "LDSC Baseline Model: contains 53 annotations including functional regions, histone marks, GERP scores, LD-related annotations of population genetics forces, and MAF bins.",
-    "key_properties": [],
     "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4626285/",
     "versions": [
       {
