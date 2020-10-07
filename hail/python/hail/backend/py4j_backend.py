@@ -96,4 +96,3 @@ class Py4JBackend(Backend):
                 raise HailUserError(message_and_trace) from None
 
             raise e
-

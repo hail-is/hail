@@ -8,7 +8,7 @@ from threading import Thread
 import py4j
 import pyspark
 
-from hail.utils.java import FatalError, HailUserError, Env, scala_package_object, scala_object
+from hail.utils.java import Env, scala_package_object, scala_object
 from hail.expr.types import dtype
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
