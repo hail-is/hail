@@ -19,11 +19,11 @@ class AnnotationDBTests(unittest.TestCase):
         cls.db_json = {
             'unique_dataset': {'description': 'now with unique rows!',
                                'url': 'https://example.com',
-                               'key_properties': ['unique'],
+                               'annotation_db': {'key_properties': ['unique']},
                                'versions': [{'url': fname, 'version': 'v1-GRCh37'}]},
             'nonunique_dataset': {'description': 'non-unique rows :(',
                                   'url': 'https://example.net',
-                                  'key_properties': [],
+                                  'annotation_db': {'key_properties': []},
                                   'versions': [{'url': fname, 'version': 'v1-GRCh37'}]}}
 
     @classmethod

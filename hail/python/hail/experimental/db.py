@@ -144,7 +144,11 @@ class Dataset:
         """
         assert 'description' in doc, doc
         assert 'url' in doc, doc
-        assert 'key_properties' in doc, doc
+        if 'annotation_db' in doc:
+            assert 'key_properties' in doc['annotation_db'], doc['annotation_db']
+            key_properties = set(doc['annotation_db']['key_properties'])
+        else:
+            key_properties = set()
         assert 'versions' in doc, doc
         versions = [DatasetVersion.from_json(x) for x in doc['versions']]
         if not custom_config:
@@ -153,7 +157,7 @@ class Dataset:
             return Dataset(name,
                            doc['description'],
                            doc['url'],
-                           set(doc['key_properties']),
+                           key_properties,
                            versions)
 
     def __init__(self,
@@ -273,7 +277,7 @@ class DB:
             raise ValueError(
                 'annotation database can only annotate Hail MatrixTable or Table')
 
-    def dataset_by_name(self, name: str) -> Dataset:
+    def dataset_by_name(self, name: str) -> 'Dataset':
         """Retrieve :class:`Dataset` object by name.
 
         Parameters
