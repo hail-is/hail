@@ -490,6 +490,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     ht = ht.annotate_globals(__yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(ht.__y_nds[i].T) - dot_rows_with_themselves(ht.__Qtys[i].T)))
 
     def process_block(block):
+        rows_in_block = hl.len(block)
 
         # Processes one block group based on given idx. Returns a single struct.
         def process_y_group(idx):
@@ -504,28 +505,24 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
             se = ((1.0 / ht.ds[idx]) * (ht.__yyps[idx].reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
             t = b / se
             p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.ds[idx], True, False))
-            return hl.struct(n=n, sum_x=sum_x._data_array(), y_transpose_x=ytx.T._data_array(), beta=b.T._data_array(),
+            return hl.struct(n=hl.range(rows_in_block).map(lambda i: n), sum_x=sum_x._data_array(), y_transpose_x=ytx.T._data_array(), beta=b.T._data_array(),
                              standard_error=se.T._data_array(), t_stat=t.T._data_array(), p_value=p.T._data_array())
-
 
         per_y_list = hl.range(num_y_lists).map(lambda i: process_y_group(i))
 
         key_fields = [key_field for key_field in ht.key]
-        key_dict = {key_field: block[key_field] for key_field in key_fields}
-
-        rows_in_block = hl.len(block)
 
         def build_row(row_idx):
             # For every field we care about, map across all y's, getting the row_idxth one from each.
-            idxth_keys = {key: value[row_idx] for key, value in key_dict.items()}
-            row_field_names = ['sum_x', 'y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
-            row_fields = {
-                field_name: per_y_list.map(lambda one_y: one_y[field_name][row_idx]) for field_name in row_field_names
+            idxth_keys = {field: block[field][row_idx] for field in key_fields}
+            computed_row_field_names = ['n', 'sum_x', 'y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
+            computed_row_fields = {
+                field_name: per_y_list.map(lambda one_y: one_y[field_name][row_idx]) for field_name in computed_row_field_names
             }
             if not is_chained:
-                row_fields = {key: value[0] for key, value in row_fields.items()}
+                computed_row_fields = {key: value[0] for key, value in computed_row_fields.items()}
 
-            return hl.struct(**{**idxth_keys, **row_fields})
+            return hl.struct(**{**idxth_keys, **computed_row_fields})
 
         new_rows = hl.range(rows_in_block).map(build_row)
 

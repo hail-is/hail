@@ -147,7 +147,7 @@ class Tests(unittest.TestCase):
         for linreg_function in self.linreg_functions:
 
             t1 = linreg_function(y=[[mt.pheno], [mt.pheno]], x=mt.x, covariates=[1, mt.cov.Cov1, mt.cov.Cov2])
-            import pdb; pdb.set_trace()
+
             def all_eq(*args):
                 pred = True
                 for a in args:
