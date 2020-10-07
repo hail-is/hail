@@ -1512,9 +1512,10 @@ async def _close_billing_project(db, billing_project):
         row = await tx.execute_and_fetchone(
             '''
 SELECT name, closed,
-  (SELECT id FROM batches WHERE 
-    billing_project = billing_projects.name AND 
-    state != 'complete' LIMIT 1) AS batch
+  (SELECT 1 FROM batches WHERE 
+    time_completed IS NULL AND
+    billing_project = billing_projects.name 
+    LIMIT 1) AS batch
 FROM billing_projects WHERE name = %s FOR UPDATE;
     ''',
             (billing_project,))
