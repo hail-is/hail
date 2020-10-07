@@ -231,6 +231,7 @@ class Tests(unittest.TestCase):
     # df = data.frame(y, x, c1, c2)
     # fit <- lm(y ~ x + c1 + c2, data=df)
     # summary(fit)["coefficients"]
+    @pytest.mark.unchecked_allocator
     def test_linear_regression_with_cov(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
