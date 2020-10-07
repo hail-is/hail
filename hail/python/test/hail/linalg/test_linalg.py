@@ -905,7 +905,6 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.linalg.utils.array_windows(np.array([]), -1))
         self.assertRaises(ValueError, lambda: hl.linalg.utils.array_windows(np.array(['str']), 1))
 
-    @fails_local_backend()
     def test_locus_windows(self):
         def assert_eq(a, b):
             self.assertTrue(np.array_equal(a, np.array(b)))
