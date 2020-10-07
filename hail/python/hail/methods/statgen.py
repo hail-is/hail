@@ -408,12 +408,12 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
-    row_fields = _get_regression_row_fields(mt, pass_through, 'linear_regression_rows_nd')
+    row_field_names = _get_regression_row_fields(mt, pass_through, 'linear_regression_rows_nd')
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
     mt = mt._select_all(col_exprs=dict(**y_dict,
                                        **dict(zip(cov_field_names, covariates))),
-                        row_exprs=row_fields,
+                        row_exprs=row_field_names,
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
@@ -510,19 +510,23 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
         per_y_list = hl.range(num_y_lists).map(lambda i: process_y_group(i))
 
-        key_fields = [key_field for key_field in ht.key]
+        key_field_names = [key_field for key_field in ht.key]
 
         def build_row(row_idx):
             # For every field we care about, map across all y's, getting the row_idxth one from each.
-            idxth_keys = {field: block[field][row_idx] for field in key_fields}
+            idxth_keys = {field_name: block[field_name][row_idx] for field_name in key_field_names}
             computed_row_field_names = ['n', 'sum_x', 'y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
             computed_row_fields = {
                 field_name: per_y_list.map(lambda one_y: one_y[field_name][row_idx]) for field_name in computed_row_field_names
             }
+            pass_through_rows = {
+                field_name: block[field_name][row_idx] for field_name in row_field_names
+            }
+
             if not is_chained:
                 computed_row_fields = {key: value[0] for key, value in computed_row_fields.items()}
 
-            return hl.struct(**{**idxth_keys, **computed_row_fields})
+            return hl.struct(**{**idxth_keys, **computed_row_fields, **pass_through_rows})
 
         new_rows = hl.range(rows_in_block).map(build_row)
 
