@@ -16,7 +16,7 @@ import google.oauth2.service_account
 import google.api_core.exceptions
 from hailtop.utils import (time_msecs, time_msecs_str, humanize_timedelta_msecs,
                            request_retry_transient_errors, run_if_changed,
-                           retry_long_running, LoggingTimer)
+                           retry_long_running, LoggingTimer, cost_str)
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes,
                                         parse_storage_in_bytes)
 from hailtop.config import get_deploy_config
@@ -1256,13 +1256,19 @@ async def ui_get_billing(request, userdata):
         billing_by_user[user] = billing_by_user.get(user, 0) + cost
         billing_by_project[billing_project] = billing_by_project.get(billing_project, 0) + cost
 
-    billing_by_project = [{'billing_project': billing_project, 'cost': f'${cost:.4f}'} for billing_project, cost in billing_by_project.items()]
+    billing_by_project = [{'billing_project': billing_project,
+                           'cost': cost_str(cost)}
+                          for billing_project, cost in billing_by_project.items()]
     billing_by_project.sort(key=lambda record: record['billing_project'])
 
-    billing_by_user = [{'user': user, 'cost': f'${cost:.4f}'} for user, cost in billing_by_user.items()]
+    billing_by_user = [{'user': user,
+                        'cost': cost_str(cost)}
+                       for user, cost in billing_by_user.items()]
     billing_by_user.sort(key=lambda record: record['user'])
 
-    billing_by_project_user = [{'billing_project': record['billing_project'], 'user': record['user'], 'cost': f'${record["cost"]:.4f}'}
+    billing_by_project_user = [{'billing_project': record['billing_project'],
+                                'user': record['user'],
+                                'cost': cost_str(record['cost'])}
                                for record in billing]
     billing_by_project_user.sort(key=lambda record: (record['billing_project'], record['user']))
 
