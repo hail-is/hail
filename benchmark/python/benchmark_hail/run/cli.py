@@ -48,6 +48,14 @@ def main(args_):
     parser.add_argument('--dry-run',
                         action='store_true',
                         help='Print benchmarks to execute, but do not run.')
+    parser.add_argument('--profile', '-p',
+                        choices=['cpu', 'alloc'],
+                        nargs='?', const='cpu',
+                        help='Run with async-profiler.')
+    parser.add_argument('--prof-fmt', '-f',
+                        choices=['html', 'flame', 'jfr'],
+                        default='html',
+                        help='Choose profiler output.')
 
     args = parser.parse_args(args_)
 
@@ -59,8 +67,10 @@ def main(args_):
         records.append(stats)
 
     data_dir = args.data_dir or os.environ.get('HAIL_BENCHMARK_DIR') or '/tmp/hail_benchmark_data'
+    profiler_path = os.environ.get('ASYNC_PROFILER_HOME')
     config = RunConfig(args.n_iter, handler, noisy=not args.quiet, timeout=args.timeout, dry_run=args.dry_run,
-                       data_dir=data_dir, cores=args.cores, verbose=args.verbose, log=args.log)
+                       data_dir=data_dir, cores=args.cores, verbose=args.verbose, log=args.log,
+                       profiler_path=profiler_path, profile=args.profile, prof_fmt=args.prof_fmt)
     if args.tests:
         run_list(args.tests.split(','), config)
     if args.pattern:

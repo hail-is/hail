@@ -71,7 +71,8 @@ class Benchmark:
 
 
 class RunConfig:
-    def __init__(self, n_iter, handler, noisy, timeout, dry_run, data_dir, cores, verbose, log):
+    def __init__(self, n_iter, handler, noisy, timeout, dry_run, data_dir, cores, verbose, log,
+                 profiler_path, profile, prof_fmt):
         self.n_iter = n_iter
         self.handler = handler
         self.noisy = noisy
@@ -81,6 +82,9 @@ class RunConfig:
         self.cores = cores
         self.hail_verbose = verbose
         self.log = log
+        self.profiler_path = profiler_path
+        self.profile = profile
+        self.prof_fmt = prof_fmt
 
 
 _registry = {}
@@ -117,7 +121,31 @@ def _ensure_initialized():
 def initialize(config):
     global _initialized, _mt, _init_args
     assert not _initialized
-    _init_args = {'master': f'local[{config.cores}]', 'quiet': not config.hail_verbose, 'log': config.log}
+    _init_args = { 'master': f'local[{config.cores}]', 'quiet': not config.hail_verbose, 'log': config.log }
+
+    if config.profile is not None:
+        if config.prof_fmt == 'html':
+            filetype = 'html'
+            fmt_arg = 'tree=total'
+        elif config.prof_fmt == 'flame':
+            filetype = 'svg'
+            fmt_arg = 'svg=total'
+        else:
+            filetype = 'jfr'
+            fmt_arg = 'jfr'
+
+        prof_args = (
+            f'-agentpath:{config.profiler_path}/build/libasyncProfiler.so=start,'
+            f'event={config.profile},'
+            f'{fmt_arg},'
+            f'file=bench-profile-{config.profile}-%t.{filetype},'
+            'interval=1ms,'
+            'framebuf=15000000')
+
+        _init_args['spark_conf'] = {
+            'spark.driver.extraJavaOptions': prof_args,
+            'spark.executor.extraJavaOptions': prof_args}
+
     hl.init(**_init_args)
     _initialized = True
 
