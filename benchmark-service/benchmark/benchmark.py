@@ -23,6 +23,7 @@ from benchmark.github import query_github, submit_batch
 from hailtop.utils import retry_long_running
 import asyncio
 import gidgethub
+import gidgethub.aiohttp
 import aiohttp
 import hailtop.batch_client.aioclient as bc
 

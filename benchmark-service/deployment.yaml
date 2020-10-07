@@ -56,8 +56,8 @@ spec:
             - name: benchmark-gsa-key
               mountPath: /benchmark-gsa-key
               readOnly: true
-            - mountPath: /secrets/oauth-token
-              name: hail-ci-0-1-github-oauth-token
+            - name: hail-ci-0-1-github-oauth-token
+              mountPath: /secrets/oauth-token
               readOnly: true
           readinessProbe:
             tcpSocket:
