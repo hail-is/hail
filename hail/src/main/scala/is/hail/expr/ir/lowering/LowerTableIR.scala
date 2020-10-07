@@ -884,19 +884,6 @@ object LowerTableIR {
               )
             }
 
-        case TableGroupWithinPartitions(child, groupedStructName, n) =>
-          val loweredChild = lower(child)
-          val keyFields = FastIndexedSeq(child.typ.keyType.fieldNames: _*)
-          loweredChild.mapPartition(Some(child.typ.key)) { part =>
-            mapIR(StreamGrouped(part, n)) { group =>
-              bindIR(ToArray(group)) { groupRef =>
-                InsertFields(
-                  SelectFields(ArrayRef(groupRef, 0), keyFields),
-                  FastSeq(groupedStructName -> groupRef))
-              }
-            }
-          }
-
         case TableKeyBy(child, newKey, isSorted: Boolean) =>
           val loweredChild = lower(child)
 

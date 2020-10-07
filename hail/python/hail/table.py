@@ -3493,7 +3493,13 @@ class Table(ExprContainer):
             [t._tir for t in tables], data_field_name, global_field_name))
 
     def _group_within_partitions(self, name, n):
-        return Table(ir.TableGroupWithinPartitions(self._tir, name, n))
+        def grouping_func(part):
+            groups = part.grouped(n)
+            key_names = list(self.key)
+            return groups.map(lambda group:
+                              group[0].select(*key_names, **{name: group}))
+
+        return self._map_partitions(grouping_func)
 
     @typecheck_method(f=func_spec(1, expr_array(expr_struct())))
     def _map_partitions(self, f):

@@ -391,12 +391,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         rReq.valueFields.foreach(n => joined.field(n).unionFrom(rReq.field(n)))
         joined.union(false)
         requiredness.unionGlobals(lReq.globalType)
-      case TableGroupWithinPartitions(child, name, n) =>
-        val cReq = lookup(child)
-        requiredness.unionKeys(cReq)
-        val valueStruct = coerce[RStruct](coerce[RIterable](requiredness.field(name)).elementType)
-        cReq.valueFields.foreach(n => valueStruct.field(n).unionFrom(cReq.field(n)))
-        requiredness.unionGlobals(cReq.globalType)
       case TableMapPartitions(child, globalName, partitionStreamName, body) =>
         requiredness.unionRows(lookupAs[RIterable](body).elementType.asInstanceOf[RStruct])
         requiredness.unionGlobals(lookup(child))

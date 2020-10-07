@@ -313,11 +313,6 @@ class RequirednessSuite extends HailSuite {
       globalType)
 
     nodes += Array(
-      TableGroupWithinPartitions(table, "grouped", 5),
-      PCanonicalStruct(required, "grouped" -> PCanonicalArray(rowType, required)),
-      globalType)
-
-    nodes += Array(
       TableUnion(FastSeq(
         table.deepCopy(),
         TableMapRows(table, insertIR(row, "a" -> nestedarray(optional, optional, required))))),

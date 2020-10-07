@@ -415,7 +415,7 @@ object PruneDeadFields {
         val reqRowsType = TStream(requestedType.rowType)
         val bodyDep = memoizeValueIR(body, reqRowsType, memo)
         val depGlobalType = unifySeq(child.typ.globalType,
-          bodyDep.eval.lookupOption(gName).map(_.result()).getOrElse(Array()))
+          bodyDep.eval.lookupOption(gName).map(_.result()).getOrElse(Array()) :+ requestedType.globalType)
         val depRowType = unifySeq(child.typ.rowType,
           bodyDep.eval.lookupOption(pName)
             .map(_.result().map(_.asInstanceOf[TStream].elementType))
@@ -450,8 +450,6 @@ object PruneDeadFields {
             rowType = unify(child.typ.rowType, keyDep.rowType, exprDep.rowType),
             globalType = unify(child.typ.globalType, keyDep.globalType, exprDep.globalType, requestedType.globalType)),
           memo)
-      case TableGroupWithinPartitions(child, name, n) =>
-        memoizeTableIR(child, child.typ, memo)
       case MatrixColsTable(child) =>
         val mtDep = minimal(child.typ).copy(
           globalType = requestedType.globalType,
