@@ -24,8 +24,8 @@ def get_userinfo(deploy_config=None):
     return async_to_blocking(async_get_userinfo(deploy_config))
 
 
-def namespace_auth_headers(deploy_config, ns, authorize_target=True, *, _token_file=None):
-    tokens = get_tokens(_token_file)
+def namespace_auth_headers(deploy_config, ns, authorize_target=True, *, token_file=None):
+    tokens = get_tokens(token_file)
     headers = {}
     if authorize_target:
         headers['Authorization'] = f'Bearer {tokens.namespace_token_or_error(ns)}'
@@ -34,9 +34,9 @@ def namespace_auth_headers(deploy_config, ns, authorize_target=True, *, _token_f
     return headers
 
 
-def service_auth_headers(deploy_config, service, authorize_target=True, *, _token_file=None):
+def service_auth_headers(deploy_config, service, authorize_target=True, *, token_file=None):
     ns = deploy_config.service_ns(service)
-    return namespace_auth_headers(deploy_config, ns, authorize_target, _token_file=_token_file)
+    return namespace_auth_headers(deploy_config, ns, authorize_target, token_file=token_file)
 
 
 def copy_paste_login(copy_paste_token, namespace=None):
