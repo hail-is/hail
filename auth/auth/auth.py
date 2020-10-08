@@ -365,4 +365,4 @@ def run():
                 host='0.0.0.0',
                 port=5000,
                 access_log_class=AccessLogger,
-                ssl_context=server_ssl_context())
+                ssl_context=internal_server_ssl_context())

@@ -8,7 +8,7 @@ import kubernetes_asyncio as kube
 from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
 from hailtop.utils import blocking_to_async, retry_transient_errors
 from hailtop.config import get_deploy_config
-from hailtop.tls import server_ssl_context
+from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
 from gear import setup_aiohttp_session, rest_authenticated_users_only, rest_authenticated_developers_only
 
@@ -230,4 +230,4 @@ def run():
         host='0.0.0.0',
         port=5000,
         access_log_class=AccessLogger,
-        ssl_context=server_ssl_context())
+        ssl_context=internal_server_ssl_context())
