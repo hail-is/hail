@@ -35,6 +35,9 @@ from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_gb,
                      cost_from_msec_mcpu, adjust_cores_for_packability, coalesce,
                      adjust_cores_for_storage_request, total_worker_storage_gib)
 from ..batch import batch_record_to_dict, job_record_to_dict
+from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
+                          DeletedBillingProjectError,
+                          UncloseableBillingProjectError)
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import (BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME,
@@ -88,6 +91,16 @@ BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '10
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
+
+
+async def _handle_ui_error(session, f, *args, **kwargs):
+    try:
+        await f(*args, **kwargs)
+    except BatchUserError as e:
+        set_message(session, e.message, e.ui_error_type)
+        return True
+    else:
+        return False
 
 
 async def _query_batch_jobs(request, batch_id):
@@ -1535,12 +1548,14 @@ FROM billing_projects WHERE name = %s FOR UPDATE;
     ''',
             (billing_project,))
         if not row:
-            raise KeyError(billing_project)
+            raise NonExistentBillingProjectError(billing_project)
         assert row['name'] == billing_project
-        if row['status'] in {'closed', 'deleted'}:
-            raise ValueError(f'Billing project {billing_project} is already closed or deleted.')
+        if row['status'] == 'deleted':
+            raise DeletedBillingProjectError(billing_project)
+        if row['status'] == 'closed':
+            raise BatchUserError(f'Billing project {billing_project} is already closed or deleted.', 'info')
         if row['batch'] is not None:
-            raise RuntimeError(f'Billing project {billing_project} has open or running batches.')
+            raise BatchUserError(f'Billing project {billing_project} has open or running batches.', 'error')
 
         await tx.execute_update(
             "UPDATE billing_projects SET status = 'closed' WHERE name = %s;",
@@ -1557,15 +1572,8 @@ async def post_close_billing_projects(request, userdata):  # pylint: disable=unu
     billing_project = request.match_info['billing_project']
 
     session = await aiohttp_session.get_session(request)
-    try:
-        await _close_billing_project(db, billing_project)
-    except KeyError as e:
-        set_message(session, f'Billing project {str(e)} does not exist.', 'error')
-    except RuntimeError as e:
-        set_message(session, str(e), 'error')
-    except ValueError as e:
-        set_message(session, str(e), 'info')
-    else:
+    errored = await _handle_ui_error(session, _close_billing_project, db, billing_project)
+    if not errored:
         set_message(session, f'Closed billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
@@ -1577,12 +1585,12 @@ async def _reopen_billing_project(db, billing_project):
             'SELECT name, status FROM billing_projects WHERE name = %s FOR UPDATE;',
             (billing_project,))
         if not row:
-            raise KeyError(billing_project)
+            raise NonExistentBillingProjectError(billing_project)
         assert row['name'] == billing_project
         if row['status'] == 'open':
-            raise ValueError(f'Billing project {billing_project} is already open.')
+            raise BatchUserError(f'Billing project {billing_project} is already open.', 'info')
         if row['status'] == 'deleted':
-            raise RuntimeError(f'Billing project {billing_project} is deleted and cannot be reopened.')
+            raise DeletedBillingProjectError(billing_project)
 
         await tx.execute_update(
             "UPDATE billing_projects SET status = 'open' WHERE name = %s;",
@@ -1599,15 +1607,8 @@ async def post_reopen_billing_projects(request, userdata):  # pylint: disable=un
     billing_project = request.match_info['billing_project']
 
     session = await aiohttp_session.get_session(request)
-    try:
-        await _reopen_billing_project(db, billing_project)
-    except KeyError as e:
-        set_message(session, f'Billing project {str(e)} does not exist.', 'error')
-    except ValueError as e:
-        set_message(session, str(e), 'info')
-    except RuntimeError as e:
-        set_message(session, str(e), 'error')
-    else:
+    errored = await _handle_ui_error(session, _reopen_billing_project, db, billing_project)
+    if not errored:
         set_message(session, f'Re-opened billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
