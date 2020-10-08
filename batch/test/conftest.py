@@ -28,8 +28,3 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if not digest(item.name) % n_splits == split_index:
             item.add_marker(skip_this)
-
-
-def pytest_sessionfinish(session, exitstatus):
-    if exitstatus == 5:  # no matching tests
-        session.exitstatus = 0
