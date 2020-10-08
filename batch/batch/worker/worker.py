@@ -18,9 +18,9 @@ import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
-from hailtop.utils import (time_msecs, request_retry_transient_errors,
-                           RETRY_FUNCTION_SCRIPT, sleep_and_backoff, retry_all_errors, check_shell,
-                           CalledProcessError, blocking_to_async, check_shell_output,
+from hailtop.utils import (time_msecs, RETRY_FUNCTION_SCRIPT, sleep_and_backoff,
+                           retry_all_errors, check_shell, CalledProcessError,
+                           blocking_to_async, check_shell_output,
                            retry_long_running, run_if_changed)
 
 from hailtop import httpx
