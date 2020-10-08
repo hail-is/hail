@@ -9,11 +9,12 @@ from .utils import async_to_blocking, retry_transient_errors
 
 log = logging.getLogger('hailtop.httpx')
 
+HailAsyncClientSession = Union[aiohttp.ClientSession, 'RetryingClientSession']
 
 def client_session(*args,
                    retry_transient=True,
                    raise_for_status=True,
-                   **kwargs) -> Union[aiohttp.ClientSession, 'RetryingClientSession']:
+                   **kwargs) -> HailAsyncClientSession:
     assert 'connector' not in kwargs
     if get_deploy_config().location() == 'external':
         kwargs['connector'] = aiohttp.TCPConnector(
@@ -208,7 +209,7 @@ class BlockingContextManager:
 
 
 class BlockingClientSession:
-    def __init__(self, session: aiohttp.ClientSession):
+    def __init__(self, session: HailAsyncClientSession):
         self.session = session
 
     def request(self,
