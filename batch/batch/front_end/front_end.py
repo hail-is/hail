@@ -965,7 +965,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
         raise
 
-    async with httpx.client_session(raise_for_status=True) as session:
+    async with httpx.client_session(
+            raise_for_status=True,
+            timeout=aiohttp.ClientTimeout(total=60)) as session:
         await request_retry_transient_errors(
             session, 'PATCH',
             deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),

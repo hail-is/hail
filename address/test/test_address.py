@@ -13,7 +13,8 @@ deploy_config = get_deploy_config()
 async def test_connect_to_address_on_pod_ip():
     async with httpx.client_session(
             raise_for_status=True,
-            headers=service_auth_headers(deploy_config, 'address')) as session:
+            headers=service_auth_headers(deploy_config, 'address'),
+            timeout=aiohttp.ClientTimeout(total=60)) as session:
         await request_retry_transient_errors(
             session,
             'GET',

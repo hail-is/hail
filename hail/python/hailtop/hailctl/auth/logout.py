@@ -1,3 +1,4 @@
+import aiohttp
 import asyncio
 
 from hailtop.config import get_deploy_config
@@ -19,7 +20,10 @@ async def async_main():
         return
 
     headers = service_auth_headers(deploy_config, 'auth')
-    async with httpx.client_session(raise_for_status=True, headers=headers) as session:
+    async with httpx.client_session(
+            raise_for_status=True,
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=60)) as session:
         async with session.post(deploy_config.url('auth', '/api/v1alpha/logout')):
             pass
     auth_ns = deploy_config.service_ns('auth')

@@ -1,3 +1,4 @@
+import aiohttp
 import asyncio
 import webbrowser
 import sys
@@ -26,7 +27,9 @@ class CIClient:
 
     async def __aenter__(self):
         headers = service_auth_headers(self._deploy_config, 'ci')
-        self._session = httpx.client_session(headers=headers)
+        self._session = httpx.client_session(
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=60))
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
