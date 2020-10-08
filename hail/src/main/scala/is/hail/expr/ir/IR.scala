@@ -89,6 +89,7 @@ final case class Literal(_typ: Type, value: Annotation) extends IR {
   require(value != null)
   // expensive, for debugging
   // require(SafeRow.isSafe(value))
+  // assert(_typ.typeCheck(value), s"literal invalid:\n  ${_typ}\n  $value")
 }
 
 object EncodedLiteral {
@@ -644,6 +645,7 @@ object PartitionReader {
     override val typeHints = ShortTypeHints(List(
       classOf[PartitionNativeReader],
       classOf[PartitionNativeReaderIndexed],
+      classOf[PartitionZippedNativeReader],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec])
     ) + BufferSpec.shortTypeHints

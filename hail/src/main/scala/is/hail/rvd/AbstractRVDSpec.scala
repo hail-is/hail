@@ -1,19 +1,16 @@
 package is.hail.rvd
 
-import java.io.InputStream
-
 import is.hail.annotations._
 import is.hail.asm4s.AsmFunction3RegionLongLongLong
-import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir
-import is.hail.expr.ir.{ExecuteContext, IR}
+import is.hail.expr.{JSONAnnotationImpex, ir}
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.types.encoded.{EType, ETypeSerializer}
-import is.hail.types.physical.{PCanonicalStruct, PInt64Optional, PInt64Required, PStruct, PType, PTypeSerializer}
-import is.hail.types.virtual.{TStructSerializer, _}
+import is.hail.expr.ir.{ExecuteContext, IR, PartitionZippedNativeReader}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.io.index.{InternalNodeBuilder, LeafNodeBuilder}
+import is.hail.types.encoded.ETypeSerializer
+import is.hail.types.physical.{PCanonicalStruct, PInt64Optional, PStruct, PType, PTypeSerializer}
+import is.hail.types.virtual.{TStructSerializer, _}
 import is.hail.utils._
 import is.hail.{HailContext, compatibility}
 import org.apache.spark.TaskContext
@@ -109,6 +106,71 @@ object AbstractRVDSpec {
     spec.write(fs, path)
 
     Array(FileWriteMetadata(path, part0Count, bytesWritten))
+  }
+
+  def readZippedLowered(
+    ctx: ExecuteContext,
+    specLeft: AbstractRVDSpec,
+    specRight: AbstractRVDSpec,
+    pathLeft: String,
+    pathRight: String,
+    newPartitioner: Option[RVDPartitioner],
+    filterIntervals: Boolean,
+    requestedType: Type,
+    leftRType: TStruct, rightRType: TStruct,
+    requestedKey: IndexedSeq[String]
+  ): IR => TableStage = {
+    require(specRight.key.isEmpty)
+    val partitioner = specLeft.partitioner
+
+    val extendedNewPartitioner = newPartitioner.map(_.extendKey(partitioner.kType))
+    val tmpPartitioner = extendedNewPartitioner match {
+      case Some(np) => np.intersect(partitioner)
+      case None => partitioner
+    }
+
+    val (indexSpecLeft, indexSpecRight) = (specLeft, specRight) match {
+      case (l: Indexed, r: Indexed) if specLeft.key.nonEmpty => (Some(l.indexSpec), Some(r.indexSpec))
+      case _ => (None, None)
+    }
+
+    val reader = PartitionZippedNativeReader(specLeft.typedCodecSpec, specRight.typedCodecSpec, indexSpecLeft, indexSpecRight, requestedKey)
+
+    val absPathLeft = uriPath(pathLeft)
+    val absPathRight = uriPath(pathRight)
+    val partsAndIntervals: IndexedSeq[(String, Interval)] = if (specLeft.key.isEmpty) {
+      specLeft.partFiles.map { p => (p, null) }
+    } else {
+      val partFiles = specLeft.partFiles
+      tmpPartitioner.rangeBounds.map { b => (partFiles(partitioner.lowerBoundInterval(b)), b) }
+    }
+
+    val kSize = specLeft.key.size
+
+    val contextsValues: IndexedSeq[Row] = partsAndIntervals.map { case (partPath, interval) =>
+      Row(
+        s"${ absPathLeft }/parts/${ partPath }",
+        s"${ absPathRight }/parts/${ partPath }",
+        indexSpecLeft.map(indexSpec => s"${ absPathLeft }/${ indexSpec.relPath }/parts/${ partPath }").orNull,
+        RVDPartitioner.intervalToIRRepresentation(interval, kSize))
+    }
+
+    val contexts = ir.ToStream(ir.Literal(TArray(reader.contextType), contextsValues))
+
+    val body = (ctx: IR) => ir.ReadPartition(ctx, requestedType, reader)
+
+    { (globals: IR) =>
+      val ts = TableStage(
+        globals,
+        tmpPartitioner,
+        contexts,
+        body)
+      extendedNewPartitioner match {
+        case Some(np) if filterIntervals =>
+          ts.repartitionNoShuffle(np)
+        case _ => ts
+      }
+    }
   }
 
   def readZipped(

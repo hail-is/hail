@@ -15,7 +15,7 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io._
 import is.hail.io.fs.FS
-import is.hail.io.index.{IndexReadIterator, IndexReader, IndexReaderBuilder}
+import is.hail.io.index.{IndexReadIterator, IndexReader, IndexReaderBuilder, MaybeIndexedReadZippedIterator}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
@@ -587,6 +587,173 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
   def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
+case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRight: AbstractTypedCodecSpec,
+  indexSpecLeft: Option[AbstractIndexSpec], indexSpecRight: Option[AbstractIndexSpec],
+  key: IndexedSeq[String]) extends PartitionReader {
+
+  require(!(indexSpecLeft.isEmpty ^ indexSpecRight.isEmpty))
+
+  def contextType: Type = {
+    TStruct(
+      "leftPartitionPath" -> TString,
+      "rightPartitionPath" -> TString,
+      "indexPath" -> TString,
+      "interval" -> RVDPartitioner.intervalIRRepresentation(specLeft.encodedVirtualType.asInstanceOf[TStruct].select(key)._1)
+    )
+  }
+
+  private[this] def splitRequestedTypes(requestedType: Type): (TStruct, TStruct) = {
+    val reqStruct = requestedType.asInstanceOf[TStruct]
+    val leftStruct = reqStruct.filterSet(specLeft.encodedVirtualType.asInstanceOf[TStruct].fieldNames.toSet)._1
+    val rightStruct = reqStruct.filterSet(specRight.encodedVirtualType.asInstanceOf[TStruct].fieldNames.toSet)._1
+    (leftStruct, rightStruct)
+  }
+
+  def rowPType(requestedType: Type): PType = {
+    val (leftStruct, rightStruct) = splitRequestedTypes(requestedType)
+    specLeft.decodedPType(leftStruct).asInstanceOf[PStruct].insertFields(specRight.decodedPType(rightStruct).asInstanceOf[PStruct].fields.map(f => (f.name, f.typ)))
+  }
+
+  def fullRowType: TStruct = specLeft.encodedVirtualType.asInstanceOf[TStruct] ++ specRight.encodedVirtualType.asInstanceOf[TStruct]
+
+  def emitStream[C](ctx: ExecuteContext,
+    context: IR,
+    requestedType: Type,
+    emitter: Emit[C],
+    mb: EmitMethodBuilder[C],
+    region: StagedRegion,
+    env: Emit.E,
+    container: Option[AggContainer]): COption[SizedStream] = {
+
+    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = region, container: Option[AggContainer] = container): EmitCode =
+      emitter.emitWithRegion(ir, mb, region, env, container)
+
+    val (leftRType, rightRType) = splitRequestedTypes(requestedType)
+
+    val (leftPType: PStruct, makeLeftDec) = specLeft.buildDecoder(ctx, leftRType)
+    val (rightPType: PStruct, makeRightDec) = specRight.buildDecoder(ctx, rightRType)
+
+    // copied from TableNativeReader, but hard to pass it through to here and slightly different signature
+    // plan is to remove the interpreted readers when we can evaluate TableStage to TableValue
+    def fieldInserter(ctx: ExecuteContext, pLeft: PStruct, pRight: PStruct): (PStruct, Function2[java.lang.Integer, Region, AsmFunction3RegionLongLongLong]) = {
+      val (t: PStruct, mk) = ir.Compile[AsmFunction3RegionLongLongLong](ctx,
+        FastIndexedSeq("left" -> pLeft, "right" -> pRight),
+        FastIndexedSeq(typeInfo[Region], LongInfo, LongInfo), LongInfo,
+        InsertFields(Ref("left", pLeft.virtualType),
+          pRight.fieldNames.map(f =>
+            f -> GetField(Ref("right", pRight.virtualType), f))))
+      (t, { (pidx: java.lang.Integer, r) => mk(pidx, r)})
+    }
+
+    val (eltType: PStruct, makeInserter) = fieldInserter(ctx, leftPType, rightPType)
+    val makeInserterCode = mb.getObject[Function2[java.lang.Integer, Region, AsmFunction3RegionLongLongLong]](makeInserter)
+
+    val makeIndexCode = indexSpecLeft.map { indexSpec =>
+      val (keyType, annotationType) = indexSpec.types
+      val (leafPType: PStruct, leafDec) = indexSpec.leafCodec.buildDecoder(ctx, indexSpec.leafCodec.encodedVirtualType)
+      val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(ctx, indexSpec.internalNodeCodec.encodedVirtualType)
+      val mkIndexReader = IndexReaderBuilder.withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
+
+      mb.getObject[Function3[FS, String, Int, IndexReader]](mkIndexReader)
+    }
+    val makeLeftDecCode = mb.getObject[(InputStream => Decoder)](makeLeftDec)
+    val makeRightDecCode = mb.getObject[(InputStream => Decoder)](makeRightDec)
+
+    val leftOffsetField = indexSpecLeft.flatMap(_.offsetField)
+    val rightOffsetField = indexSpecRight.flatMap(_.offsetField)
+
+    COption.fromEmitCode(emitIR(context)).map { ctxStruct =>
+
+      def getIndexReader(cb: EmitCodeBuilder, ctxMemo: PBaseStructValue): Code[IndexReader] = {
+        makeIndexCode match {
+          case Some(makeIndex) =>
+            val indexPath = ctxMemo
+              .loadField(cb, "indexPath")
+              .handle(cb, cb._fatal(""))
+              .asString
+              .loadString()
+            Code.checkcast[IndexReader](
+              makeIndex.invoke[AnyRef, AnyRef, AnyRef, AnyRef]("apply", mb.getFS, indexPath, Code.boxInt(8)))
+          case None =>
+            Code._null[IndexReader]
+        }
+      }
+
+      def getInterval(cb: EmitCodeBuilder, ctxMemo: PBaseStructValue): Code[Interval] = {
+        makeIndexCode match {
+          case Some(_) =>
+            ctxMemo.loadField(cb, "interval")
+              .consumeCode[Interval](cb,
+                Code._fatal[Interval](""),
+                { pc =>
+                  val pcm = pc.memoize(cb, "pnri_interval")
+                  Code.invokeScalaObject2[PType, Long, Interval](
+                    PartitionBoundOrdering.getClass,
+                    "regionValueToJavaObject",
+                    mb.getPType(pcm.pt),
+                    coerce[Long](pcm.code))
+                }
+              )
+          case None => Code._null[Interval]
+        }
+      }
+
+      val hasNext = mb.newLocal[Boolean]("pnr_hasNext")
+      val next = mb.newLocal[Long]("pnr_next")
+      val it = mb.genFieldThisRef[MaybeIndexedReadZippedIterator]("pnri_idx_iterator")
+      val stream = Stream.unfold[Code[Long]](
+        (_, k) =>
+          Code(
+            hasNext := it.invoke[Boolean]("hasNext"),
+            hasNext.orEmpty(next := it.invoke[Long]("_next")),
+            k(COption(!hasNext, next))))
+        .map(
+          pc => EmitCode.present(eltType, pc),
+          setup0 = None,
+          setup = Some(
+            EmitCodeBuilder.scopedVoid(mb) { cb =>
+              val ctxMemo = ctxStruct.asBaseStruct.memoize(cb, "pnri_ctx_struct")
+              cb.assign(it,
+                Code.newInstance11[MaybeIndexedReadZippedIterator,
+                  (InputStream) => Decoder,
+                  (InputStream) => Decoder,
+                  AsmFunction3RegionLongLongLong,
+                  Region,
+                  InputStream,
+                  InputStream,
+                  IndexReader,
+                  String,
+                  String,
+                  Interval,
+                  InputMetrics](
+                  makeLeftDecCode,
+                  makeRightDecCode,
+                  Code.checkcast[AsmFunction3RegionLongLongLong](makeInserterCode.invoke[AnyRef, AnyRef, AnyRef]("apply", Code.boxInt(0), region.code)),
+                  region.code,
+                  mb.open(ctxMemo.loadField(cb, "leftPartitionPath")
+                    .handle(cb, cb._fatal(""))
+                    .asString
+                    .loadString(), true),
+                  mb.open(ctxMemo.loadField(cb, "rightPartitionPath")
+                    .handle(cb, cb._fatal(""))
+                    .asString
+                    .loadString(), true),
+                  getIndexReader(cb, ctxMemo),
+                  leftOffsetField.map[Code[String]](const(_)).getOrElse(Code._null[String]),
+                  rightOffsetField.map[Code[String]](const(_)).getOrElse(Code._null[String]),
+                  getInterval(cb, ctxMemo),
+                  Code._null[InputMetrics]
+                ))
+            }),
+          close = Some(it.invoke[Unit]("close")))
+
+      SizedStream.unsized(eltRegion => stream)
+    }
+  }
+
+  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+}
+
 case class TableNativeReaderParameters(
   path: String,
   options: Option[NativeReaderOptions])
@@ -752,6 +919,37 @@ case class TableNativeZippedReader(
 
     TableValue(ctx, tr.typ, BroadcastRow(ctx, RegionValue(ctx.r, globalsOffset), globalPType.setRequired(true).asInstanceOf[PStruct]), rvd)
   }
+
+  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
+    val globalsSpec = specLeft.globalsSpec
+    val globalsPath = specLeft.globalsComponent.absolutePath(pathLeft)
+    ArrayRef(ToArray(ReadPartition(Str(globalsSpec.absolutePartPaths(globalsPath).head), requestedGlobalsType, PartitionNativeReader(globalsSpec.typedCodecSpec))), 0)
+  }
+
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+    val globals = lowerGlobals(ctx, requestedType.globalType)
+    val rowsSpec = specLeft.rowsSpec
+    val specPart = rowsSpec.partitioner
+    val partitioner = if (filterIntervals)
+      options.map(opts => RVDPartitioner.union(specPart.kType, opts.intervals, specPart.kType.size - 1))
+    else
+      options.map(opts => new RVDPartitioner(specPart.kType, opts.intervals))
+
+    def splitRequestedTypes(requestedType: Type): (TStruct, TStruct) = {
+      val reqStruct = requestedType.asInstanceOf[TStruct]
+      val leftStruct = reqStruct.filterSet(specLeft.table_type.rowType.fieldNames.toSet)._1
+      val rightStruct = reqStruct.filterSet(specRight.table_type.rowType.fieldNames.toSet)._1
+      (leftStruct, rightStruct)
+    }
+    val (reqLeft, reqRight) = splitRequestedTypes(requestedType.rowType)
+
+    AbstractRVDSpec.readZippedLowered(ctx,
+      specLeft.rowsSpec, specRight.rowsSpec,
+      pathLeft + "/rows", pathRight + "/rows",
+      partitioner, options.exists(_.filterIntervals),
+      requestedType.rowType, reqLeft, reqRight, requestedType.key).apply(globals)
+  }
+
 }
 
 object TableFromBlockMatrixNativeReader {
