@@ -21,7 +21,7 @@ from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes
                                         parse_storage_in_bytes)
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
-from hailtop.httpx import client_session
+from hailtop import httpx
 from hailtop.hail_logging import AccessLogger
 from gear import (Database, setup_aiohttp_session,
                   rest_authenticated_users_only, web_authenticated_users_only,
@@ -965,7 +965,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
         raise
 
-    async with client_session(raise_for_status=True) as session:
+    async with httpx.client_session(raise_for_status=True) as session:
         await request_retry_transient_errors(
             session, 'PATCH',
             deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
@@ -1505,7 +1505,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 
 async def cancel_batch_loop_body(app):
-    async with client_session(raise_for_status=True) as session:
+    async with httpx.client_session(raise_for_status=True) as session:
         await request_retry_transient_errors(
             session, 'POST',
             deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
@@ -1516,7 +1516,7 @@ async def cancel_batch_loop_body(app):
 
 
 async def delete_batch_loop_body(app):
-    async with client_session(raise_for_status=True) as session:
+    async with httpx.client_session(raise_for_status=True) as session:
         await request_retry_transient_errors(
             session, 'POST',
             deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
