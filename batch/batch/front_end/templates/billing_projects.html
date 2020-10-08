@@ -7,8 +7,7 @@
     <thead>
       <tr>
         <th colspan="2">Billing Project</th>
-        <th>User</th>
-        <th></th>
+        <th colspan="2">User</th>
       </tr>
     </thead>
       {% for billing_project in billing_projects %}
@@ -51,10 +50,11 @@
         <input type="hidden" name="_csrf" value="{{ csrf_token }}">
         <tr>
           <td><input type="text" name="billing_project"></td>
-          <td></td>
           <td>
             <button>Add</button>
           </td>
+          <td></td>
+          <td></td>
         </tr>
       </form>
     </tbody>
