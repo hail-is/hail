@@ -1543,7 +1543,7 @@ FROM billing_projects WHERE name = %s FOR UPDATE;
             raise RuntimeError(f'Billing project {billing_project} has open or running batches.')
 
         await tx.execute_update(
-            'UPDATE billing_projects SET closed = 1 WHERE name = %s;',
+            "UPDATE billing_projects SET status = 'closed' WHERE name = %s;",
             (billing_project, ))
     await close_project()  # pylint: disable=no-value-for-parameter
 
@@ -1582,7 +1582,7 @@ async def _reopen_billing_project(db, billing_project):
         if row['status'] == 'open':
             raise ValueError(f'Billing project {billing_project} is already open.')
         if row['status'] == 'deleted':
-            raise ValueError(f'Billing project {billing_project} is deleted and cannot be reopened.')
+            raise RuntimeError(f'Billing project {billing_project} is deleted and cannot be reopened.')
 
         await tx.execute_update(
             "UPDATE billing_projects SET status = 'open' WHERE name = %s;",
@@ -1605,6 +1605,8 @@ async def post_reopen_billing_projects(request, userdata):  # pylint: disable=un
         set_message(session, f'Billing project {str(e)} does not exist.', 'error')
     except ValueError as e:
         set_message(session, str(e), 'info')
+    except RuntimeError as e:
+        set_message(session, str(e), 'error')
     else:
         set_message(session, f'Re-opened billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
