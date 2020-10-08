@@ -1,3 +1,4 @@
+import aiohttp
 import os
 
 from hail.utils import FatalError
@@ -47,7 +48,7 @@ class ServiceBackend(Backend):
         self._logger = PythonOnlyLogger(skip_logging_configuration)
         self.session = blocking_client_session(
             headers=service_auth_headers(deploy_config, 'query'),
-            timeout=600)
+            timeout=aiohttp.ClientTimeout(total=600))
 
     @property
     def logger(self):
