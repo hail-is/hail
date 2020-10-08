@@ -2165,7 +2165,6 @@ steps:
              --log-cli-level=INFO \
              -s \
              -vv \
-             -m "not test_scope_only" \
              --instafail \
              -k "not test_scale and not test_invariants" \
              --durations=0 \
@@ -2226,7 +2225,6 @@ steps:
              --log-cli-level=INFO \
              -s \
              -vv \
-             -m "not test_scope_only" \
              --instafail \
              -k "not test_scale and not test_invariants" \
              --durations=0 \
@@ -2287,7 +2285,6 @@ steps:
              --log-cli-level=INFO \
              -s \
              -vv \
-             -m "not test_scope_only" \
              --instafail \
              -k "not test_scale and not test_invariants" \
              --durations=0 \
@@ -2348,7 +2345,6 @@ steps:
              --log-cli-level=INFO \
              -s \
              -vv \
-             -m "not test_scope_only" \
              --instafail \
              -k "not test_scale and not test_invariants" \
              --durations=0 \
@@ -2409,7 +2405,6 @@ steps:
              --log-cli-level=INFO \
              -s \
              -vv \
-             -m "not test_scope_only" \
              --instafail \
              -k "not test_scale and not test_invariants" \
              --durations=0 \
@@ -2419,70 +2414,6 @@ steps:
       to: /io/
    port: 5000
    timeout: 1200
-   secrets:
-    - name: gce-deploy-config
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /deploy-config
-    - name: test-tokens
-      namespace:
-        valueFrom: batch_pods_ns.name
-      mountPath: /user-tokens
-    - name: ssl-config-batch-tests
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /ssl-config
-    - name: test-gsa-key
-      namespace:
-        valueFrom: batch_pods_ns.name
-      mountPath: /test-gsa-key
-   dependsOn:
-    - create_deploy_config
-    - create_accounts
-    - default_ns
-    - batch_pods_ns
-    - copy_files
-    - base_image
-    - batch_image
-    - ci_utils_image
-    - deploy_batch
-    - netcat_ubuntu_image
-    - curl_image
- - kind: runImage
-   name: test_batch_test_only
-   image:
-     valueFrom: batch_image.image
-   script: |
-     set -ex
-     export PYTEST_SPLITS=5
-     export PYTEST_SPLIT_INDEX=4
-     export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
-     export HAIL_BASE_IMAGE={{ base_image.image }}
-     export CI_UTILS_IMAGE={{ ci_utils_image.image }}
-     export HAIL_CURL_IMAGE={{ curl_image.image }}
-     export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
-     export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
-     export HAIL_CURL_IMAGE={{ curl_image.image }}
-     hailctl config set batch/bucket hail-test-dmk9z
-     python3 -m pytest \
-             --log-date-format="%Y-%m-%dT%H:%M:%S" \
-             --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
-             --log-cli-level=INFO \
-             -s \
-             -vv \
-             -m "test_scope_only" \
-             --instafail \
-             -k "not test_scale and not test_invariants" \
-             --durations=0 \
-             /io/test/
-   inputs:
-    - from: /repo/batch/test
-      to: /io/
-   port: 5000
-   timeout: 1200
-   scopes:
-    - dev
-    - test
    secrets:
     - name: gce-deploy-config
       namespace:
@@ -3365,7 +3296,6 @@ steps:
     - test_batch_2
     - test_batch_3
     - test_batch_4
-    - test_batch_test_only
     - test_ci
     - test_hailtop_batch_0
     - test_hailtop_batch_1
