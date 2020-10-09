@@ -3,6 +3,7 @@ FROM {{ base_image.image }}
 RUN apt-get update && \
   apt-get -y install \
     build-essential \
+    python3-dev \
   && rm -rf /var/lib/apt/lists/*
 
 COPY docker/service-base-requirements.txt .
