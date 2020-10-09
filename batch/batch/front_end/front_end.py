@@ -1243,9 +1243,9 @@ LEFT JOIN aggregated_batch_resources
 LEFT JOIN resources
   ON resources.resource = aggregated_batch_resources.resource
 LEFT JOIN billing_projects
-  ON billing_projects.name = batches.billing_project 
-WHERE `time_completed` >= %s AND 
-  `time_completed` <= %s AND 
+  ON billing_projects.name = batches.billing_project
+WHERE `time_completed` >= %s AND
+  `time_completed` <= %s AND
   billing_projects.`status` != 'deleted'
 GROUP BY billing_project, `user`;
 '''
@@ -1450,7 +1450,6 @@ WHERE billing_project = %s AND user = %s;
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
-
 async def _add_user_to_billing_project(db, billing_project, user):
     @transaction(db)
     async def insert(tx):
@@ -1481,6 +1480,7 @@ VALUES (%s, %s);
         ''',
             (billing_project, user))
         await insert()
+
 
 @routes.post('/billing_projects/{billing_project}/users/add')
 @prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_UI)
