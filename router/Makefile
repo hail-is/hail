@@ -5,9 +5,9 @@ ROUTER_IMAGE = gcr.io/$(PROJECT)/router:$(shell docker images -q --no-trunc rout
 
 .PHONY: build
 build:
-	docker pull ubuntu:18.04
+	$(MAKE) -C ../docker hail-ubuntu
 	-docker pull $(ROUTER_LATEST)
-	docker build -t router --cache-from router,$(ROUTER_LATEST),ubuntu:18.04 .
+	docker build -t router --cache-from router,$(ROUTER_LATEST),hail-ubuntu .
 
 .PHONY: push
 push: build
