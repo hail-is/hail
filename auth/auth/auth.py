@@ -8,7 +8,7 @@ import google.oauth2.id_token
 import google_auth_oauthlib.flow
 from hailtop.config import get_deploy_config
 from hailtop.utils import secret_alnum_string
-from hailtop.tls import server_ssl_context
+from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
 from gear import (
     setup_aiohttp_session,
