@@ -49,6 +49,8 @@ abstract class PCode { self =>
     (Code(dst := r.allocate(pt.byteSize, pt.alignment), store(mb, r, dst)), dst)
   }
 
+  def asPrimitive: PPrimitiveCode = asInstanceOf[PPrimitiveCode]
+
   def asIndexable: PIndexableCode = asInstanceOf[PIndexableCode]
 
   def asBaseStruct: PBaseStructCode = asInstanceOf[PBaseStructCode]

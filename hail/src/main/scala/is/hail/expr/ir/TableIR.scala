@@ -445,6 +445,63 @@ object TableNativeReader {
   }
 }
 
+
+case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
+  override def contextType: Type = TInt32
+
+  override def rowPType(requestedType: Type): PType = rvd.rowPType.subsetTo(requestedType)
+
+  override def fullRowType: Type = rvd.rowType
+
+  def emitStream[C](ctx: ExecuteContext,
+    context: IR,
+    requestedType: Type,
+    emitter: Emit[C],
+    mb: EmitMethodBuilder[C],
+    outerRegion: StagedRegion,
+    env0: Emit.E,
+    container: Option[AggContainer]): COption[SizedStream] = {
+    val ctxIdx = emitter.emitWithRegion(context, mb, outerRegion, env0, container)
+
+    val (upcastPType, upcast) = Compile[AsmFunction2RegionLongLong](ctx,
+      FastIndexedSeq(("elt", rvd.rowPType)),
+      FastIndexedSeq(classInfo[Region], LongInfo),
+      LongInfo,
+      PruneDeadFields.upcast(Ref("elt", rvd.rowType), requestedType))
+
+    val upcastCode = mb.getObject[Function2[Int, Region, AsmFunction2RegionLongLong]](upcast)
+
+    assert(upcastPType == rowPType(requestedType),
+      s"ptype mismatch:\n  upcast: $upcastPType\n  computed: ${ rowPType(requestedType) }")
+
+    COption.fromEmitCode(ctxIdx).map { idx =>
+      val iterator = mb.genFieldThisRef[Iterator[Long]]("rvdreader_iterator")
+      val hasNext = mb.genFieldThisRef[Boolean]("rvdreader_hasNext")
+      val next = mb.genFieldThisRef[Long]("rvdreader_next")
+
+      val upcastF = mb.genFieldThisRef[AsmFunction2RegionLongLong]("rvdreader_upcast")
+
+      val broadcastRVD = mb.getObject[BroadcastRVD](BroadcastRVD(ctx.backend.asSpark("RVDReader"), rvd))
+      SizedStream.unsized { eltRegion =>
+        Stream.unfold[Code[Long]](
+          (_, k) =>
+            Code(
+              hasNext := iterator.invoke[Boolean]("hasNext"),
+              hasNext.orEmpty(next := upcastF.invoke[Region, Long, Long]("apply", eltRegion.code, Code.longValue(iterator.invoke[java.lang.Long]("next")))),
+              k(COption(!hasNext, next))))
+          .map(
+            pc => EmitCode.present(upcastPType, pc),
+            setup0 = None,
+            setup = Some(Code(iterator := broadcastRVD.invoke[Int, Region, Region, Iterator[Long]](
+              "computePartition", idx.asPrimitive.primCode[Int], eltRegion.code, outerRegion.code),
+              upcastF := Code.checkcast[AsmFunction2RegionLongLong](upcastCode.invoke[AnyRef, AnyRef, AnyRef]("apply", Code.boxInt(0), outerRegion.code)))))
+      }
+    }
+  }
+
+  def toJValue: JValue = JString("<PartitionRVDReader>") // cannot be parsed, but need a printout for Pretty
+}
+
 trait AbstractNativeReader extends PartitionReader {
   def spec: AbstractTypedCodecSpec
   def rowPType(requestedType: Type): PType = spec.decodedPType(requestedType)

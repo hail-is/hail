@@ -82,4 +82,6 @@ class PPrimitiveCode(val pt: PType, val code: Code[_]) extends PCode {
   def memoize(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeImpl(cb, name)
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeFieldImpl(cb, name)
+
+  def primCode[T]: Code[T] = coerce[T](code)
 }
