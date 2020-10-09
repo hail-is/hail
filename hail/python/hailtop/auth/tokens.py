@@ -75,14 +75,17 @@ to obtain new credentials.
 
 
 tokens = {}
+default_tokens = None
 
 
 def get_tokens(file=None):
     global tokens
-
+    global default_tokens
+    
     if file is None:
-        file = Tokens.get_tokens_file()
-
+        if default_tokens is None:
+            default_tokens = Tokens.default_tokens()
+        return default_tokens
     if file not in tokens:
         tokens[file] = Tokens(file)
     return tokens[file]
