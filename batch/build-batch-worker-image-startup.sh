@@ -42,67 +42,6 @@ docker-credential-gcr configure-docker
 docker pull ubuntu:18.04
 docker pull gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine
 
-# Setup fluentd
-touch /worker.log
-touch /run.log
-
-sudo rm /etc/google-fluentd/config.d/*  # remove unused config files
-
-sudo tee /etc/google-fluentd/config.d/syslog.conf <<EOF
-<source>
-  @type tail
-  format syslog
-  path /var/log/syslog
-  pos_file /var/lib/google-fluentd/pos/syslog.pos
-  read_from_head true
-  tag syslog
-</source>
-EOF
-
-sudo tee /etc/google-fluentd/config.d/worker-log.conf <<EOF {{
-<source>
-    @type tail
-    format json
-    path /worker.log
-    pos_file /var/lib/google-fluentd/pos/worker-log.pos
-    read_from_head true
-    tag worker.log
-</source>
-
-<filter worker.log>
-    @type record_transformer
-    enable_ruby
-    <record>
-        severity \${{ record["levelname"] }}
-        timestamp \${{ record["asctime"] }}
-    </record>
-</filter>
-EOF
-
-sudo tee /etc/google-fluentd/config.d/run-log.conf <<EOF
-<source>
-    @type tail
-    format none
-    path /run.log
-    pos_file /var/lib/google-fluentd/pos/run-log.pos
-    read_from_head true
-    tag run.log
-</source>
-EOF
-
-sudo cp /etc/google-fluentd/google-fluentd.conf /etc/google-fluentd/google-fluentd.conf.bak
-head -n -1 /etc/google-fluentd/google-fluentd.conf.bak | sudo tee /etc/google-fluentd/google-fluentd.conf
-sudo tee -a /etc/google-fluentd/google-fluentd.conf <<EOF
-  labels {{
-    "namespace": "$NAMESPACE",
-    "instance_id": "$INSTANCE_ID"
-  }}
-</match>
-EOF
-rm /etc/google-fluentd/google-fluentd.conf.bak
-
-service google-fluentd start
-
 # add docker daemon debug logging
 jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
 mv daemon.json.tmp /etc/docker/daemon.json
