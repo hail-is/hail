@@ -42,8 +42,8 @@ def internal_server_ssl_context() -> ssl.SSLContext:
             purpose=Purpose.CLIENT_AUTH,
             cafile=ssl_config['incoming_trust'])
         _server_ssl_context.load_cert_chain(ssl_config['cert'],
-                                           keyfile=ssl_config['key'],
-                                           password=None)
+                                            keyfile=ssl_config['key'],
+                                            password=None)
         _server_ssl_context.verify_mode = ssl.CERT_OPTIONAL
         # FIXME: mTLS
         # _server_ssl_context.verify_mode = ssl.CERT_REQURIED
@@ -59,8 +59,8 @@ def internal_client_ssl_context() -> ssl.SSLContext:
             purpose=Purpose.SERVER_AUTH,
             cafile=ssl_config['outgoing_trust'])
         _client_ssl_context.load_cert_chain(ssl_config['cert'],
-                                           keyfile=ssl_config['key'],
-                                           password=None)
+                                            keyfile=ssl_config['key'],
+                                            password=None)
         _client_ssl_context.verify_mode = ssl.CERT_REQUIRED
         _client_ssl_context.check_hostname = True
     return _client_ssl_context
