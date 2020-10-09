@@ -1,9 +1,6 @@
 FROM {{ hail_ubuntu_image.image }}
 
-ENV LANG C.UTF-8
-
-RUN apt-get update && \
-  apt-get -y install \
+RUN hail-apt-get-install
     git \
     htop \
     unzip bzip2 zip tar \
@@ -14,8 +11,7 @@ RUN apt-get update && \
     xsltproc pandoc \
     jq \
     openjdk-8-jdk-headless \
-    liblapack3 \
-  && rm -rf /var/lib/apt/lists/*
+    liblapack3
 
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux
 RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \

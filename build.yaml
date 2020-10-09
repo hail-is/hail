@@ -2106,7 +2106,7 @@ steps:
    dockerFile:
      inline: |
        FROM {{ hail_ubuntu_image.image }}
-       RUN apt-get update && apt-get install netcat -y
+       RUN hail-apt-get-install netcat
    dependsOn:
     - hail_ubuntu_image
  - kind: buildImage
@@ -2114,7 +2114,7 @@ steps:
    dockerFile:
      inline: |
        FROM {{ hail_ubuntu_image.image }}
-       RUN apt-get update && apt-get install curl -y
+       RUN hail-apt-get-install curl
    dependsOn:
     - hail_ubuntu_image
  - kind: runImage
