@@ -7,6 +7,7 @@ ROUTER_IMAGE = gcr.io/$(PROJECT)/router:$(shell docker images -q --no-trunc rout
 build:
 	$(MAKE) -C ../docker hail-ubuntu
 	-docker pull $(ROUTER_LATEST)
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' Dockerfile Dockerfile.out
 	docker build -t router --cache-from router,$(ROUTER_LATEST),hail-ubuntu .
 
 .PHONY: push

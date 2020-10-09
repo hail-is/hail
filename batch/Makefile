@@ -23,7 +23,8 @@ build:
 	docker build -t batch -f Dockerfile.out --cache-from batch,$(BATCH_LATEST),service-base ..
 	-docker pull python:3.7-slim-stretch
 	-docker pull $(BATCH_WORKER_LATEST)
-	docker build -t batch-worker -f Dockerfile.worker --cache-from batch-worker,$(BATCH_WORKER_LATEST),python:3.7-slim-stretch ..
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' Dockerfile.worker Dockerfile.worker.out
+	docker build -t batch-worker -f Dockerfile.worker.out --cache-from batch-worker,$(BATCH_WORKER_LATEST),python:3.7-slim-stretch ..
 
 .PHONY: push
 push: build
