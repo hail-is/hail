@@ -17,7 +17,7 @@ $(STATIC_CONFIG): %: %.in
 build: letsencrypt.sh
 	$(MAKE) -C ../docker hail-ubuntu
 	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' Dockerfile Dockerfile.out
-	docker build -t letsencrypt --cache-from letsencrypt,$(LETSENCRYPT_LATEST),hail-ubuntu .
+	docker build -t letsencrypt -f Dockerfile.out --cache-from letsencrypt,$(LETSENCRYPT_LATEST),hail-ubuntu .
 
 push: build
 	docker tag letsencrypt $(LETSENCRYPT_LATEST)

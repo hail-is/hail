@@ -9,7 +9,7 @@ build:
 	$(MAKE) -C ../docker hail-ubuntu
 	-docker pull $(INTERNAL_GATEWAY_LATEST)
 	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' Dockerfile Dockerfile.out
-	docker build -t internal-gateway --cache-from internal-gateway,$(INTERNAL_GATEWAY_LATEST),hail-ubuntu .
+	docker build -t internal-gateway -f Dockerfile.out --cache-from internal-gateway,$(INTERNAL_GATEWAY_LATEST),hail-ubuntu .
 
 push: build
 	docker tag internal-gateway $(INTERNAL_GATEWAY_LATEST)
