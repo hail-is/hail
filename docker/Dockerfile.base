@@ -1,6 +1,6 @@
 FROM {{ hail_ubuntu_image.image }}
 
-RUN hail-apt-get-install
+RUN hail-apt-get-install \
     git \
     htop \
     unzip bzip2 zip tar \
