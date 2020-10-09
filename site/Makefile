@@ -47,8 +47,9 @@ push: build
 	docker push $(IMAGE)
 
 deploy: push
+	$(MAKE) -C ../docker hail-ubuntu
 	test $(NAMESPACE)
-	python3 ../ci/jinja2_render.py '{"global": {"domain":"hail.is"},"default_ns":{"name":"$(NAMESPACE)"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"site_image":{"image":"$(IMAGE)"}}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"global": {"domain":"hail.is"},"default_ns":{"name":"$(NAMESPACE)"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"site_image":{"image":"$(IMAGE)"},"hail_ubuntu_image":{"image":"hail-ubuntu"}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
 
 clean:

@@ -1,15 +1,10 @@
 FROM {{ hail_ubuntu_image.image }}
 
-RUN apt-get update -y
-
 # get add-apt-repository
-RUN apt-get update -y && \
-    apt-get install -y nginx software-properties-common && \
+RUN hail-apt-get-install nginx software-properties-common && \
     bash -c 'DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata' && \
     add-apt-repository -y ppa:certbot/certbot && \
-    apt-get update -y && \
-    apt-get install -y python-certbot-nginx wget && \
-    rm -rf /var/lib/apt/lists/*
+    hail-apt-get-install python-certbot-nginx wget
 
 RUN wget -O /usr/local/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/v1.11.3/bin/linux/amd64/kubectl && \
     chmod +x /usr/local/bin/kubectl

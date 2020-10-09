@@ -2,8 +2,7 @@ FROM {{ hail_ubuntu_image.image }}
 
 ENV MAKEFLAGS -j2
 
-RUN apt-get update && \
-  apt-get -y install \
+RUN hail-apt-get-install \
     curl \
     git \
     liblapack3 \
@@ -11,8 +10,7 @@ RUN apt-get update && \
     python3 python3-pip \
     rsync \
     unzip bzip2 zip tar \
-    vim \
-  && rm -rf /var/lib/apt/lists/*
+    vim
 COPY hail_pip_version /
 RUN hail-pip-install \
       hail==$(cat /hail_pip_version) \

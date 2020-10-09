@@ -1,13 +1,10 @@
 FROM {{ hail_ubuntu_image.image }}
 
 ENV LANG C.UTF-8
-
-RUN apt-get update && \
-  apt-get -y install \
+RUN hail-apt-get-install \
     openjdk-8-jdk-headless \
     python3.6 python3-pip \
-  && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 1 \
-  && rm -rf /var/lib/apt/lists/*
+  && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 1
 
 COPY hail/python/requirements.txt requirements.txt
 COPY hail/python/dev-requirements.txt dev-requirements.txt
