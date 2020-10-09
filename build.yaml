@@ -3226,7 +3226,7 @@ steps:
      cd /io
      mkdir -p src/test
      tar xzf resources.tar.gz -C src/test
-     java -Xms 7250M -Xmx 7250M \
+     java -Xms7500M -Xmx7500M \
           -cp hail-test.jar:$SPARK_HOME/jars/* \
           org.testng.TestNG \
           -listener is.hail.LogTestListener \
