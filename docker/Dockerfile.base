@@ -27,10 +27,7 @@ RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
 ENV PATH $PATH:/google-cloud-sdk/bin
 
 COPY docker/requirements.txt .
-# re: pip install --upgrade pip: https://github.com/grpc/grpc/issues/22815
-RUN python3 -m pip install --upgrade --no-cache-dir pip && \
-    python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir -r requirements.txt && \
-    python3 -m pip check
+RUN hail-pip-install -r requirements.txt
 
 ENV SPARK_HOME /usr/local/lib/python3.7/dist-packages/pyspark
 ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"

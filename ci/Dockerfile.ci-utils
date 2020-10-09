@@ -4,8 +4,7 @@ RUN apt-get update && \
   apt-get -y install docker.io && \
   rm -rf /var/lib/apt/lists/*
 
-RUN python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir twine && \
-  python3 -m pip check
+RUN hail-pip-install twine
 
 COPY jinja2_render.py .
 COPY wait-for.py .

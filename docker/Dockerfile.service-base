@@ -6,22 +6,16 @@ RUN apt-get update && \
   && rm -rf /var/lib/apt/lists/*
 
 COPY docker/service-base-requirements.txt .
-RUN python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir -r service-base-requirements.txt && \
-    python3 -m pip check
+RUN hail-pip-install -r service-base-requirements.txt
 
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/
-RUN python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir --no-deps /hailtop \
-  && rm -rf /hailtop
+RUN hail-pip-install /hailtop && rm -rf /hailtop
 
 COPY gear/setup.py /gear/setup.py
 COPY gear/gear /gear/gear/
-RUN python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir --no-deps /gear \
-  && rm -rf /gear && \
-  python3 -m pip check
+RUN hail-pip-install /gear && -rf /gear
 
 COPY web_common/setup.py web_common/MANIFEST.in /web_common/
 COPY web_common/web_common /web_common/web_common/
-RUN python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir /web_common && \
-  rm -rf /web_common && \
-  python3 -m pip check
+RUN hail-pip-install /web_common && rm -rf /web_common
