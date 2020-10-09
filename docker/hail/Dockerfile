@@ -3,8 +3,7 @@ FROM ubuntu:18.04
 ENV LANG C.UTF-8
 ENV MAKEFLAGS -j2
 
-RUN echo "APT::Acquire::Retries \"3\";" > /etc/apt/apt.conf.d/80-retries && \
-  apt-get update && \
+RUN apt-get update && \
   apt-get -y install \
     curl \
     git \
