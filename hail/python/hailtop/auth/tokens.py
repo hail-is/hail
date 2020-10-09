@@ -81,7 +81,7 @@ default_tokens = None
 def get_tokens(file=None):
     global tokens
     global default_tokens
-    
+
     if file is None:
         if default_tokens is None:
             default_tokens = Tokens.default_tokens()
