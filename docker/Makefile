@@ -21,7 +21,7 @@ GENETICS_PUBLIC_IMAGE = gcr.io/$(PROJECT)/genetics-public:$(shell docker images 
 .PHONY: hail-ubuntu
 hail-ubuntu: hail-ubuntu-stmp
 
-hail-ubuntu-stmp: hail-ubuntu/Dockerfile hail-ubuntu/hail-pip-install hail-ubuntu/pip.conf
+hail-ubuntu-stmp: hail-ubuntu/Dockerfile hail-ubuntu/hail-pip-install hail-ubuntu/pip.conf hail-ubuntu/hail-apt-get-install
 	-docker pull ubuntu:18.04
 	-docker pull $(HAIL_UBUNTU_LATEST)
 	docker build -t hail-ubuntu -f hail-ubuntu/Dockerfile --cache-from hail-ubuntu,$(HAIL_UBUNTU_LATEST),ubuntu:18.04 hail-ubuntu

@@ -1,13 +1,11 @@
 FROM {{ hail_public_image.image }}
 
-RUN apt-get update && \
-  apt-get -y install \
+RUN hail-apt-get-install \
     cmake \
     libbz2-dev \
     libcurl4-openssl-dev \
     liblzma-dev \
-    zlib1g-dev \
-  && rm -rf /var/lib/apt/lists/*
+    zlib1g-dev
 
 RUN mkdir samtools && \
     (cd samtools && \
@@ -38,12 +36,10 @@ RUN mkdir gcta && \
      unzip gcta_1.93.1beta.zip && \
      rm -rf gcta_1.93.1beta.zip)
 
-RUN apt-get update && \
-  apt-get -y install \
+RUN hail-apt-get-install \
     libgsl-dev \
     liblapacke-dev \
-    libopenblas-dev \
-  && rm -rf /var/lib/apt/lists/*
+    libopenblas-dev
 
 RUN mkdir eigenstrat && \
     (cd eigenstrat && \
