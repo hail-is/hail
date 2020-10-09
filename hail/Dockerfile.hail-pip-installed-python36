@@ -1,6 +1,4 @@
-FROM ubuntu:18.04
-
-ENV LANG C.UTF-8
+FROM {{ hail_ubuntu_image.image }}
 
 RUN apt-get update && \
   apt-get -y install \

@@ -1,4 +1,9 @@
 steps:
+ - kind: buildImage
+   name: hail_ubuntu_image
+   dockerFile: docker/hail-ubuntu/Dockerfile
+   contextPath: docker/hail-ubuntu
+   publishAs: hail-ubuntu
  - kind: createNamespace
    name: default_ns
    namespaceName: default
@@ -76,6 +81,8 @@ steps:
    dockerFile: docker/Dockerfile.base
    contextPath: .
    publishAs: base
+   dependsOn:
+    - hail_ubuntu_image
  - kind: buildImage
    name: service_base_image
    dockerFile: docker/Dockerfile.service-base
@@ -507,7 +514,7 @@ steps:
    contextPath: router
    publishAs: router
    dependsOn:
-     - base_image
+     - hail_ubuntu_image
  - kind: buildImage
    name: batch_image
    dockerFile: batch/Dockerfile
@@ -941,6 +948,7 @@ steps:
    publishAs: hail-base
    dependsOn:
     - build_hail
+    - hail_ubuntu_image
    inputs:
     - from: /wheel-container.tar
       to: /wheel-container.tar
@@ -951,6 +959,7 @@ steps:
    publishAs: hail-base
    dependsOn:
     - build_hail
+    - hail_ubuntu_image
    inputs:
     - from: /wheel-container.tar
       to: /wheel-container.tar
@@ -2096,14 +2105,18 @@ steps:
    name: netcat_ubuntu_image
    dockerFile:
      inline: |
-       FROM ubuntu:18.04
+       FROM {{ hail_ubuntu_image.image }}
        RUN apt-get update && apt-get install netcat -y
+   dependsOn:
+    - hail_ubuntu_image
  - kind: buildImage
    name: curl_image
    dockerFile:
      inline: |
-       FROM ubuntu:18.04
+       FROM {{ hail_ubuntu_image.image }}
        RUN apt-get update && apt-get install curl -y
+   dependsOn:
+    - hail_ubuntu_image
  - kind: runImage
    name: test_memory
    image:
@@ -2974,6 +2987,8 @@ steps:
    dockerFile: blog/Dockerfile.nginx
    contextPath: blog
    publishAs: blog_nginx
+   dependsOn:
+    - hail_ubuntu_image
  - kind: deploy
    name: deploy_blog
    namespace:
@@ -3105,6 +3120,7 @@ steps:
    publishAs: hail-public
    dependsOn:
     - copy_files
+    - hail_ubuntu_image
    inputs:
      - from: /hail_pip_version
        to: /hail_pip_version

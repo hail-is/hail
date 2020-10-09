@@ -2,8 +2,6 @@ FROM {{ service_base_image.image }}
 
 COPY address/setup.py address/MANIFEST.in /address/
 COPY address/address /address/address/
-RUN pip3 install --use-feature=2020-resolver --upgrade --no-cache-dir /address && \
-  rm -rf /address && \
-  python3 -m pip check
+RUN hail_pip_install /address && rm -rf /address
 
 EXPOSE 5000

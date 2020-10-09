@@ -1,6 +1,5 @@
-FROM ubuntu:18.04
+FROM {{ hail_ubuntu_image.image }}
 
-ENV LANG C.UTF-8
 ENV MAKEFLAGS -j2
 
 RUN apt-get update && \

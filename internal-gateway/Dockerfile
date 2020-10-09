@@ -1,4 +1,4 @@
-FROM ubuntu:18.04
+FROM {{ hail_ubuntu_image.image }}
 
 RUN apt-get update -y && \
     apt-get install -y nginx && \
