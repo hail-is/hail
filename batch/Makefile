@@ -55,6 +55,6 @@ create-build-worker-image-instance:
 
 .PHONY: create-worker-image
 create-worker-image:
-	-gcloud -q compute --project $(PROJECT) images delete batch-worker-11
-	gcloud -q compute --project $(PROJECT) images create batch-worker-11 --source-disk=build-batch-worker-image --source-disk-zone=$(ZONE)
+	-gcloud -q compute --project $(PROJECT) images delete batch-worker-12
+	gcloud -q compute --project $(PROJECT) images create batch-worker-12 --source-disk=build-batch-worker-image --source-disk-zone=$(ZONE)
 	gcloud -q compute --project $(PROJECT) instances delete --zone=$(ZONE) build-batch-worker-image
