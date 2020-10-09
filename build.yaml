@@ -104,6 +104,9 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
+     {% if 'target_sha' in code %}
+     export HAIL_TARGET_SHA={{ code.target_sha }}
+     {% endif %}
      make -k check-services
    dependsOn:
      - service_base_image
