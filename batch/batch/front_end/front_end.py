@@ -36,8 +36,7 @@ from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_gb,
                      adjust_cores_for_storage_request, total_worker_storage_gib)
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
-                          DeletedBillingProjectError,
-                          UncloseableBillingProjectError)
+                          ClosedBillingProjectError)
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import (BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME,
@@ -827,7 +826,7 @@ async def create_batch(request, userdata):
         rows = tx.execute_and_fetchall(
             '''
 SELECT *, (
-  SELECT status from billing_projects
+  SELECT `status` from billing_projects
   WHERE name = billing_project_users.billing_project
   LOCK IN SHARE MODE) AS project_status
 FROM billing_project_users
@@ -1247,7 +1246,7 @@ LEFT JOIN billing_projects
   ON billing_projects.name = batches.billing_project 
 WHERE `time_completed` >= %s AND 
   `time_completed` <= %s AND 
-  billing_projects.status != 'deleted'
+  billing_projects.`status` != 'deleted'
 GROUP BY billing_project, `user`;
 '''
 
@@ -1311,7 +1310,7 @@ async def ui_get_billing(request, userdata):
 async def _query_billing_projects(db, user=None, billing_project=None):
     args = []
 
-    where_conditions = ["billing_projects.status != 'deleted'"]
+    where_conditions = ["billing_projects.`status` != 'deleted'"]
 
     if user:
         where_conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
@@ -1328,7 +1327,7 @@ async def _query_billing_projects(db, user=None, billing_project=None):
 
     sql = f'''
 SELECT billing_projects.name as billing_project,
-billing_projects.status as status,
+billing_projects.`status` as `status`,
 users FROM (
   SELECT billing_project, JSON_ARRAYAGG(`user`) as users
   FROM billing_project_users
@@ -1419,7 +1418,7 @@ async def post_billing_projects_remove_user(request, userdata):  # pylint: disab
         row = await tx.execute_and_fetchone(
             '''
 SELECT billing_projects.name as billing_project,
-billing_projects.status as status,
+billing_projects.`status` as `status`,
 user FROM billing_projects
 LEFT JOIN (SELECT * FROM billing_project_users
     WHERE billing_project = %s AND user = %s FOR UPDATE) AS t
@@ -1451,6 +1450,38 @@ WHERE billing_project = %s AND user = %s;
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
+
+async def _add_user_to_billing_project(db, billing_project, user):
+    @transaction(db)
+    async def insert(tx):
+        row = await tx.execute_and_fetchone(
+            '''
+SELECT billing_projects.name as billing_project,
+billing_projects.`status` as `status`,
+user FROM billing_projects
+LEFT JOIN (SELECT * FROM billing_project_users
+WHERE billing_project = %s AND user = %s FOR UPDATE) AS t
+ON billing_projects.name = t.billing_project
+WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted';
+        ''',
+            (billing_project, user, billing_project))
+        if row is None:
+            raise NonExistentBillingProjectError(billing_project)
+
+        if row['status'] == 'closed':
+            raise ClosedBillingProjectError(billing_project)
+
+        if row['user'] is not None:
+            raise BatchUserError(f'User {user} is already member of billing project {billing_project}.', 'info')
+
+        await tx.execute_insertone(
+            '''
+INSERT INTO billing_project_users(billing_project, user)
+VALUES (%s, %s);
+        ''',
+            (billing_project, user))
+        await insert()
+
 @routes.post('/billing_projects/{billing_project}/users/add')
 @prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_UI)
 @check_csrf_token
@@ -1463,39 +1494,9 @@ async def post_billing_projects_add_user(request, userdata):  # pylint: disable=
 
     session = await aiohttp_session.get_session(request)
 
-    @transaction(db)
-    async def insert(tx):
-        row = await tx.execute_and_fetchone(
-            '''
-SELECT billing_projects.name as billing_project,
-billing_projects.status as status,
-user FROM billing_projects
-LEFT JOIN (SELECT * FROM billing_project_users
-    WHERE billing_project = %s AND user = %s FOR UPDATE) AS t
-  ON billing_projects.name = t.billing_project
-WHERE billing_projects.name = %s AND NOT billing_projects.closed;
-''',
-            (billing_project, user, billing_project))
-        if row is None:
-            set_message(session, f'No such billing project {billing_project}.', 'error')
-            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
-
-        if row['status'] in {'closed', 'deleted'}:
-            set_message(session, f'Billing project {billing_project} has been closed or deleted and cannot be modified.', 'error')
-            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
-
-        if row['user'] is not None:
-            set_message(session, f'User {user} is already member of billing project {billing_project}.', 'info')
-            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
-
-        await tx.execute_insertone(
-            '''
-INSERT INTO billing_project_users(billing_project, user)
-VALUES (%s, %s);
-''',
-            (billing_project, user))
-    await insert()  # pylint: disable=no-value-for-parameter
-    set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')
+    errored = await _handle_ui_error(session, _add_user_to_billing_project, db, billing_project, user)
+    if not errored:
+        set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
@@ -1514,13 +1515,13 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
     async def insert(tx):
         row = await tx.execute_and_fetchone(
             '''
-SELECT 1 FROM billing_projects
+SELECT `status` FROM billing_projects
 WHERE name = %s
 FOR UPDATE;
 ''',
             (billing_project))
         if row is not None:
-            set_message(session, f'Billing project {billing_project} already exists.', 'error')
+            set_message(session, f"Billing project {billing_project} (status: {row['status']}) already exists.", 'error')
             raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
         await tx.execute_insertone(
@@ -1539,26 +1540,24 @@ async def _close_billing_project(db, billing_project):
     async def close_project(tx):
         row = await tx.execute_and_fetchone(
             '''
-SELECT name, status,
+SELECT name, `status`,
   (SELECT 1 FROM batches WHERE
     time_completed IS NULL AND
     billing_project = billing_projects.name
     LIMIT 1) AS batch
-FROM billing_projects WHERE name = %s FOR UPDATE;
+FROM billing_projects WHERE name = %s and `status` != 'deleted' FOR UPDATE;
     ''',
             (billing_project,))
         if not row:
             raise NonExistentBillingProjectError(billing_project)
         assert row['name'] == billing_project
-        if row['status'] == 'deleted':
-            raise DeletedBillingProjectError(billing_project)
         if row['status'] == 'closed':
             raise BatchUserError(f'Billing project {billing_project} is already closed or deleted.', 'info')
         if row['batch'] is not None:
             raise BatchUserError(f'Billing project {billing_project} has open or running batches.', 'error')
 
         await tx.execute_update(
-            "UPDATE billing_projects SET status = 'closed' WHERE name = %s;",
+            "UPDATE billing_projects SET `status` = 'closed' WHERE name = %s;",
             (billing_project, ))
     await close_project()  # pylint: disable=no-value-for-parameter
 
@@ -1582,18 +1581,16 @@ async def _reopen_billing_project(db, billing_project):
     @transaction(db)
     async def open_project(tx):
         row = await tx.execute_and_fetchone(
-            'SELECT name, status FROM billing_projects WHERE name = %s FOR UPDATE;',
+            "SELECT name, `status` FROM billing_projects WHERE name = %s AND `status` != 'deleted' FOR UPDATE;",
             (billing_project,))
         if not row:
             raise NonExistentBillingProjectError(billing_project)
         assert row['name'] == billing_project
         if row['status'] == 'open':
             raise BatchUserError(f'Billing project {billing_project} is already open.', 'info')
-        if row['status'] == 'deleted':
-            raise DeletedBillingProjectError(billing_project)
 
         await tx.execute_update(
-            "UPDATE billing_projects SET status = 'open' WHERE name = %s;",
+            "UPDATE billing_projects SET `status` = 'open' WHERE name = %s;",
             (billing_project, ))
     await open_project()  # pylint: disable=no-value-for-parameter
 

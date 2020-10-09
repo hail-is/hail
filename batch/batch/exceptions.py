@@ -9,7 +9,7 @@ class BatchUserError(Exception):
         return web.HTTPForbidden(reason=self.message)
 
 
-class NonExistentBillingProjectError(Exception):
+class NonExistentBillingProjectError(BatchUserError):
     def __init__(self, billing_project):
         super().__init__(f'Billing project {billing_project} does not exist.', 'error')
 
@@ -17,6 +17,6 @@ class NonExistentBillingProjectError(Exception):
         return web.HTTPNotFound(reason=self.message)
 
 
-class DeletedBillingProjectError(Exception):
+class ClosedBillingProjectError(BatchUserError):
     def __init__(self, billing_project):
-        super().__init__(f'Billing project {billing_project} is deleted and can no longer be modified.', 'error')
+        super().__init__(f'Billing project {billing_project} is closed and cannot be modified.', 'error')
