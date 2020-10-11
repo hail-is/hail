@@ -1182,7 +1182,6 @@ class Tests(unittest.TestCase):
             .default(4))
         self.assertEqual(hl.eval(expr5), -1)
 
-    @fails_local_backend()
     def test_case(self):
         def make_case(x):
             x = hl.literal(x)
@@ -2958,7 +2957,6 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(hl.mean(s), 3)
         self.assert_evals_to(hl.median(s), 3)
 
-    @fails_local_backend()
     def test_uniroot(self):
         tol = 1.220703e-4
 
@@ -3269,7 +3267,6 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.bit_rshift(hl.int64(-1), 64)) == -1
         assert hl.eval(hl.bit_rshift(hl.int64(-11), 64, logical=True)) == 0
 
-    @fails_local_backend()
     def test_bit_shift_errors(self):
         with pytest.raises(hl.utils.HailUserError):
                 hl.eval(hl.bit_lshift(1, -1))
