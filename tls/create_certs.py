@@ -166,7 +166,7 @@ async def create_principal(principal, domain, kind, key, cert, key_store, unmana
     outgoing_trust = await create_trust(principal, 'outgoing')
     configs = create_config(principal, incoming_trust, outgoing_trust, key, cert, key_store, kind)
     with tempfile.NamedTemporaryFile() as k8s_secret:
-        check_shell(
+        await check_shell(
             ['kubectl', 'create', 'secret', 'generic', f'ssl-config-{principal}',
              f'--namespace={namespace}',
              f'--from-file={key}',
@@ -179,7 +179,7 @@ async def create_principal(principal, domain, kind, key, cert, key_store, unmana
              *[f'--from-file={c}' for c in configs],
              '--dry-run', '-o', 'yaml'],
             stdout=k8s_secret)
-        check_shell(['kubectl', 'apply', '-f', k8s_secret.name])
+        await check_shell(['kubectl', 'apply', '-f', k8s_secret.name])
 
 
 async def main():
