@@ -50,8 +50,8 @@ object Compile {
 
     val fb = EmitFunctionBuilder[F](ctx, "Compiled",
       CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) =>
-        EmitParamType(pt)
-      }, returnType, Some("Emit.scala"))
+        pt.asEmitParam
+      }, returnType.asEmitParam, Some("Emit.scala"))
 
     /*
     {
@@ -112,8 +112,8 @@ object CompileWithAggregators {
     val returnType = ir.pType
     val fb = EmitFunctionBuilder[F](ctx, "CompiledWithAggs",
       CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) =>
-        EmitParamType(pt)
-      }, returnType, Some("Emit.scala"))
+        pt.asEmitParam
+      }, returnType.asEmitParam, Some("Emit.scala"))
 
     /*
     {

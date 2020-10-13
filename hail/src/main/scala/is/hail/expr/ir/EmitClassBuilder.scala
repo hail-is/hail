@@ -20,27 +20,6 @@ import org.apache.spark.TaskContext
 import scala.collection.mutable
 import scala.language.existentials
 
-sealed trait ParamType  {
-  def nCodes: Int
-}
-
-case class EmitParamType(pt: PType) extends ParamType {
-  def nCodes: Int = pt.nCodes
-
-  override def toString: String = s"EmitParam($pt, $nCodes)"
-}
-
-case class CodeParamType(ti: TypeInfo[_]) extends ParamType {
-  def nCodes: Int = 1
-
-  override def toString: String = s"CodeParam($ti)"
-}
-
-sealed trait Param
-
-case class EmitParam(ec: EmitCode) extends Param
-case class CodeParam(c: Code[_]) extends Param
-
 class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   def newEmitClass[C](name: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
     new EmitClassBuilder(this, modb.newClass(name, sourceFile))
@@ -897,10 +876,10 @@ class EmitMethodBuilder[C](
 
   // this, ...
   private val emitParamCodeIndex = emitParamTypes.scanLeft((!mb.isStatic).toInt) {
-    case (i, CodeParamType(_)) =>
-      i + 1
     case (i, EmitParamType(pt)) =>
       i + pt.nCodes + (if (pt.required) 0 else 1)
+    case (i, paramType) =>
+      i + paramType.nCodes
   }
 
   def getCodeParam[T: TypeInfo](emitIndex: Int): Settable[T] = {
@@ -910,6 +889,26 @@ class EmitMethodBuilder[C](
       val static = (!mb.isStatic).toInt
       assert(emitParamTypes(emitIndex - static).isInstanceOf[CodeParamType])
       mb.getArg[T](emitParamCodeIndex(emitIndex - static))
+    }
+  }
+
+  def getPCodeParam(emitIndex: Int): PValue = {
+    assert(mb.isStatic || emitIndex != 0)
+    val static = (!mb.isStatic).toInt
+    val _pt = emitParamTypes(emitIndex - static).asInstanceOf[PCodeParamType].pt
+    assert(!_pt.isInstanceOf[PStream])
+
+    val ts = _pt.codeTupleTypes()
+    val codeIndex = emitParamCodeIndex(emitIndex - static)
+
+    // FIXME this isn't great, but it shouldn't fail
+    new PValue {
+      val pt: PType = _pt
+
+      def get: PCode =
+        pt.fromCodeTuple(ts.zipWithIndex.map { case (t, i) =>
+          mb.getArg(codeIndex + i)(t).get
+        })
     }
   }
 
@@ -959,6 +958,7 @@ class EmitMethodBuilder[C](
   def getParamsList(): IndexedSeq[Param] = {
     emitParamTypes.toFastIndexedSeq.zipWithIndex.map {
       case (CodeParamType(ti), i) => CodeParam(this.getCodeParam(i + 1)(ti)): Param
+      case (PCodeParamType(pt), i) => PCodeParam(this.getPCodeParam(i + 1)): Param
       case (EmitParamType(pt), i) => EmitParam(this.getEmitParam(i + 1)): Param
     }
   }

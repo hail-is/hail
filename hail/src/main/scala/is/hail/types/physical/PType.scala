@@ -470,6 +470,10 @@ abstract class PType extends Serializable with Requiredness {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(ti)
 
+  def asParam: PCodeParamType = PCodeParamType(this)
+
+  def asEmitParam: EmitParamType = EmitParamType(this)
+
   def nCodes: Int = 1
 
   def codeReturnType(): TypeInfo[_] = ???

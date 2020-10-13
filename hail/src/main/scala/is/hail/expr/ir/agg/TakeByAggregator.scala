@@ -383,7 +383,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   val seqOp: (EmitCodeBuilder, EmitCode, EmitCode) => Unit = {
     val mb = kb.genEmitMethod("take_by_seqop",
-      FastIndexedSeq[ParamType](valueType, keyType),
+      FastIndexedSeq[ParamType](valueType.asEmitParam, keyType.asEmitParam),
       UnitInfo)
 
     val value = mb.getEmitParam(1)
