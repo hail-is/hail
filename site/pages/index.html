@@ -170,28 +170,18 @@ show(p)
       cachedText.textContent = defText;
     }
   </script>
-  <script src="/vendors/vanta/threeR115.min.js" async="true"></script>
    <!-- https://github.com/hail-is/hail/pull/8928#issuecomment-639218007 -->
   <script type="module" crossorigin="use-credentials">
-    function checkViz() {
-      if(window.THREE) {
-        import("/vendors/vanta/viz.min.js").then(module => {
-          new module.default({
-            el: "#hero-background",
-            points: 10,
-            maxDistance: 23,
-            spacing: 20,
-            backgroundColor: "#fff",
-            color: "#283870",
-          });
-        })
-        return;
-      }
-
-      setTimeout(checkViz, 16);
+    requirejs(["/vendors/vanta/threeR115.min.js"], function(threejs) {
+      new threejs.default({
+        el: "#hero-background",
+        points: 10,
+        maxDistance: 23,
+        spacing: 20,
+        backgroundColor: "#fff",
+        color: "#283870",
+      });
     }
-
-    checkViz();
   </script>
 </span>
 
