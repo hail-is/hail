@@ -173,6 +173,15 @@ show(p)
    <!-- https://github.com/hail-is/hail/pull/8928#issuecomment-639218007 -->
   <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
   <script type="module" crossorigin="use-credentials">
+    requirejs.config({
+      config: {
+        text: {
+          onXhr: function (xhr, url) {
+            xhr.withCredentials = true
+          }
+        }
+      }
+    })
     requirejs(["/vendors/vanta/threeR115.min.js"], function(threejs) {
       new threejs.default({
         el: "#hero-background",
