@@ -1526,14 +1526,15 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
+
+     make -C site render
+
      make -C hail python/hail/hail_version
      HAIL_CACHE_VERSION=$(cat hail/python/hail/hail_version)
-     make -C site/www
      find site/www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
+
      rsync --archive \
            --verbose \
-           --exclude='*.xslt' \
-           --exclude='*.md' \
            site/www/* \
            /io/www
      cd /io/www && tar -cvzf /io/site-www.tar.gz *
