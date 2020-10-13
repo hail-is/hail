@@ -15,12 +15,14 @@ class CalledProcessError(Exception):
                 f' Output:\n{self.outerr}')
 
 
-async def check_shell_output(script, echo=False):
+async def check_shell_output(script, *, echo=False, stdout=None):
+    if stdout is None:
+        stdout = asyncio.subprocess.PIPE
     if echo:
         print(script)
     proc = await asyncio.create_subprocess_exec(
         '/bin/bash', '-c', script,
-        stdout=asyncio.subprocess.PIPE,
+        stdout=stdout,
         stderr=asyncio.subprocess.PIPE)
     outerr = await proc.communicate()
     if proc.returncode != 0:
@@ -28,9 +30,9 @@ async def check_shell_output(script, echo=False):
     return outerr
 
 
-async def check_shell(script, echo=False):
+async def check_shell(script, *, echo=False, stdout=None):
     # discard output
-    await check_shell_output(script, echo)
+    await check_shell_output(script, echo=echo, stdout=stdout)
 
 
 def sync_check_shell_output(script, echo=False):
