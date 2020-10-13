@@ -1,11 +1,11 @@
+import asyncio
 import argparse
 import json
 import yaml
 import shutil
-import subprocess as sp
 import tempfile
 
-from hailtop.utils import sync_check_shell
+from hailtop.utils import check_shell
 
 parser = argparse.ArgumentParser(prog='create_certs.py',
                                  description='create hail certs')
@@ -22,11 +22,11 @@ root_key_file = args.root_key_file
 root_cert_file = args.root_cert_file
 
 
-def echo_check_call(cmd):
-    sync_check_shell(' '.join(cmd), echo=True)
+async def echo_check_call(cmd):
+    await check_shell(' '.join(cmd), echo=True)
 
 
-def create_key_and_cert(p):
+async def create_key_and_cert(p):
     name = p['name']
     domain = p['domain']
     unmanaged = p.get('unmanaged', False)
@@ -42,12 +42,12 @@ def create_key_and_cert(p):
         f'{domain}.{namespace}.svc.cluster.local'
     ]
 
-    echo_check_call([
+    await echo_check_call([
         'openssl', 'genrsa',
         '-out', key_file,
         '4096'
     ])
-    echo_check_call([
+    await echo_check_call([
         'openssl', 'req',
         '-new',
         '-subj', f'/CN={names[0]}',
@@ -61,8 +61,8 @@ def create_key_and_cert(p):
     # https://security.stackexchange.com/questions/150078/missing-x509-extensions-with-an-openssl-generated-certificate
     extfile.write(f'subjectAltName = {",".join("DNS:" + n for n in names)}\n')
     extfile.close()
-    echo_check_call(['cat', extfile.name])
-    echo_check_call([
+    await echo_check_call(['cat', extfile.name])
+    await echo_check_call([
         'openssl', 'x509',
         '-req',
         '-in', csr_file,
@@ -73,7 +73,7 @@ def create_key_and_cert(p):
         '-out', cert_file,
         '-days', '365'
     ])
-    echo_check_call([
+    await echo_check_call([
         'openssl',
         'pkcs12',
         '-export',
@@ -86,14 +86,14 @@ def create_key_and_cert(p):
     return {'key': key_file, 'cert': cert_file, 'key_store': key_store_file}
 
 
-def create_trust(principal, trust_type):  # pylint: disable=unused-argument
+async def create_trust(principal, trust_type):  # pylint: disable=unused-argument
     trust_file = f'{principal}-{trust_type}.pem'
     trust_store_file = f'{principal}-{trust_type}-store.jks'
     with open(trust_file, 'w') as out:
         # FIXME: mTLS, only trust certain principals
         with open(root_cert_file, 'r') as root_cert:
             shutil.copyfileobj(root_cert, out)
-    echo_check_call([
+    await echo_check_call([
         'keytool',
         '-noprompt',
         '-import',
@@ -159,14 +159,14 @@ def create_config(principal, incoming_trust, outgoing_trust, key, cert, key_stor
     return create_nginx_config(principal, incoming_trust, outgoing_trust, key, cert)
 
 
-def create_principal(principal, domain, kind, key, cert, key_store, unmanaged):
+async def create_principal(principal, domain, kind, key, cert, key_store, unmanaged):
     if unmanaged and namespace != 'default':
         return
-    incoming_trust = create_trust(principal, 'incoming')
-    outgoing_trust = create_trust(principal, 'outgoing')
+    incoming_trust = await create_trust(principal, 'incoming')
+    outgoing_trust = await create_trust(principal, 'outgoing')
     configs = create_config(principal, incoming_trust, outgoing_trust, key, cert, key_store, kind)
     with tempfile.NamedTemporaryFile() as k8s_secret:
-        sp.check_call(
+        check_shell(
             ['kubectl', 'create', 'secret', 'generic', f'ssl-config-{principal}',
              f'--namespace={namespace}',
              f'--from-file={key}',
@@ -179,21 +179,30 @@ def create_principal(principal, domain, kind, key, cert, key_store, unmanaged):
              *[f'--from-file={c}' for c in configs],
              '--dry-run', '-o', 'yaml'],
             stdout=k8s_secret)
-        sp.check_call(['kubectl', 'apply', '-f', k8s_secret.name])
+        check_shell(['kubectl', 'apply', '-f', k8s_secret.name])
 
 
-assert 'principals' in arg_config, arg_config
+async def main():
+    assert 'principals' in arg_config, arg_config
 
-principal_by_name = {
-    p['name']: {**p,
-                **create_key_and_cert(p)}
-    for p in arg_config['principals']
-}
-for name, p in principal_by_name.items():
-    create_principal(name,
-                     p['domain'],
-                     p['kind'],
-                     p['key'],
-                     p['cert'],
-                     p['key_store'],
-                     p.get('unmanaged', False))
+    async def key_and_cert(p):
+        return (p, await create_key_and_cert(p))
+
+    principals_with_key_and_cert = await asyncio.gather(*[
+        key_and_cert(p) for p in arg_config['principals']])
+    principal_by_name = {
+        p[0]['name']: {**p[0],
+                    **p[1]}
+        for p in principals_with_key_and_cert
+    }
+    await asyncio.gather(*[
+        create_principal(name,
+                         p['domain'],
+                         p['kind'],
+                         p['key'],
+                         p['cert'],
+                         p['key_store'],
+                         p.get('unmanaged', False))
+        for name, p in principal_by_name.items()])
+
+asyncio.get_event_loop().run_until_complete(main())
