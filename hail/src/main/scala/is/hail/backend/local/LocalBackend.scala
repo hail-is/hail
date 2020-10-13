@@ -122,7 +122,7 @@ class LocalBackend(
   def execute(ir: IR): (Any, ExecutionTimer) =
     withExecuteContext() { ctx =>
       val queryID = Backend.nextID()
-      log.info(s"starting execution of query $queryID} of initial size ${ IRSize(ir) }")
+      log.info(s"starting execution of query $queryID of initial size ${ IRSize(ir) }")
       val (pt, a) = _execute(ctx, ir)
       log.info(s"finished execution of query $queryID")
       val result = pt match {

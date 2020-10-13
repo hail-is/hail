@@ -151,7 +151,7 @@ object AbstractRVDSpec {
       Row(
         s"${ absPathLeft }/parts/${ partPath }",
         s"${ absPathRight }/parts/${ partPath }",
-        indexSpecLeft.map(indexSpec => s"${ absPathLeft }/${ indexSpec.relPath }/parts/${ partPath }").orNull,
+        indexSpecLeft.map(indexSpec => s"${ absPathLeft }/${ indexSpec.relPath }/${ partPath }.idx").orNull,
         RVDPartitioner.intervalToIRRepresentation(interval, kSize))
     }
 
@@ -512,7 +512,7 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
       val contextsValues: IndexedSeq[Row] = tmpPartitioner.rangeBounds.zip(partPaths).map { case (interval, partPath) =>
         Row(
           s"${ absPath }/parts/${ partPath }",
-          s"${ absPath }/${ indexSpec.relPath }/parts/${ partPath }",
+          s"${ absPath }/${ indexSpec.relPath }/${ partPath }.idx",
           RVDPartitioner.intervalToIRRepresentation(interval, kSize))
       }
 
