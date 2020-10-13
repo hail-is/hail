@@ -3,6 +3,8 @@ package is.hail.expr.ir
 import is.hail.asm4s.{Code, TypeInfo}
 import is.hail.types.physical.{PCode, PType}
 
+import scala.language.existentials
+
 sealed trait ParamType  {
   def nCodes: Int
 }
