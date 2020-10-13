@@ -59,6 +59,9 @@ spec:
             - name: hail-ci-0-1-github-oauth-token
               mountPath: /secrets/oauth-token
               readOnly: true
+            - mountPath: /user-tokens
+              name: benchmark-tokens
+              readOnly: true
           readinessProbe:
             tcpSocket:
               port: 5000
@@ -80,3 +83,6 @@ spec:
         - name: hail-ci-0-1-github-oauth-token
           secret:
             secretName: hail-ci-0-1-github-oauth-token
+        - name: benchmark-tokens
+          secret:
+            secretName: benchmark-tokens
