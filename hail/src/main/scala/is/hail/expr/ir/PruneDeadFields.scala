@@ -1291,12 +1291,10 @@ object PruneDeadFields {
           sType.fieldOption(fname).map(f => memoizeValueIR(fir, f.typ, memo))
         })
       case InsertFields(old, fields, _) =>
-        val oldStruct = old.typ.asInstanceOf[TStruct]
-        val reqStruct = requestedType.asInstanceOf[TStruct]
+        val sType = requestedType.asInstanceOf[TStruct]
         val insFieldNames = fields.map(_._1).toSet
-        val rightDep = ir.typ.asInstanceOf[TStruct].filter(f =>
-          insFieldNames.contains(f.name) && (reqStruct.hasField(f.name) || oldStruct.hasField(f.name))
-        )._1
+        val rightDep = sType.filter(f => insFieldNames.contains(f.name))._1
+        val rightDepFields = rightDep.fieldNames.toSet
         val leftDep = TStruct(
           old.typ.asInstanceOf[TStruct]
             .fields
@@ -1304,7 +1302,7 @@ object PruneDeadFields {
               if (rightDep.hasField(f.name))
                 Some(f.name -> minimal(f.typ))
               else
-                reqStruct.fieldOption(f.name).map(f.name -> _.typ)
+                sType.fieldOption(f.name).map(f.name -> _.typ)
             }: _*)
         unifyEnvsSeq(
           FastSeq(memoizeValueIR(old, leftDep, memo)) ++
@@ -1853,24 +1851,19 @@ object PruneDeadFields {
             None
         })
       case InsertFields(old, fields, fieldOrder) =>
-        val oldStruct = old.typ.asInstanceOf[TStruct]
         val depStruct = requestedType.asInstanceOf[TStruct]
         val depFields = depStruct.fieldNames.toSet
         val rebuiltChild = rebuildIR(old, env, memo)
         val preservedChildFields = rebuiltChild.typ.asInstanceOf[TStruct].fieldNames.toSet
-        if (depFields.isEmpty) {
-          MakeStruct(Seq())
-        } else {
-          InsertFields(rebuiltChild,
-            fields.flatMap { case (f, fir) =>
-              if (depFields.contains(f) || oldStruct.hasField(f))
-                Some(f -> rebuildIR(fir, env, memo))
-              else {
-                log.info(s"Prune: InsertFields: eliminating field '$f'")
-                None
-              }
-            }, fieldOrder.map(fds => fds.filter(f => depFields.contains(f) || preservedChildFields.contains(f))))
-        }
+        InsertFields(rebuiltChild,
+          fields.flatMap { case (f, fir) =>
+            if (depFields.contains(f))
+              Some(f -> rebuildIR(fir, env, memo))
+            else {
+              log.info(s"Prune: InsertFields: eliminating field '$f'")
+              None
+            }
+          }, fieldOrder.map(fds => fds.filter(f => depFields.contains(f) || preservedChildFields.contains(f))))
       case SelectFields(old, fields) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
         val old2 = rebuildIR(old, env, memo)
