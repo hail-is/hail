@@ -103,10 +103,10 @@ object TypeCheck {
           case _: Compare | _: CompareStructs => assert(x.typ == TInt32)
           case _ => assert(x.typ == TBoolean)
         }
-      case x@MakeArray(args, typ) =>
+      case ma@MakeArray(args, typ) =>
         assert(typ != null)
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
-          s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
+          s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() } Stack trace of MakeArray:\n${ma.stackTrace}")
         }
       case x@MakeStream(args, typ, _) =>
         assert(typ != null)

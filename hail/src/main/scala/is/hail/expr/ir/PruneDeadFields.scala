@@ -1647,7 +1647,7 @@ object PruneDeadFields {
 
   def rebuildIR(ir: IR, env: BindingEnv[Type], memo: RebuildMutableState): IR = {
     val requestedType = memo.requestedType.lookup(ir).asInstanceOf[Type]
-    ir match {
+    val res = ir match {
       case NA(_) => NA(requestedType)
       case CastRename(v, _typ) =>
         val v2 = rebuildIR(v, env, memo)
@@ -1860,7 +1860,7 @@ object PruneDeadFields {
           preservedChildFields.contains(fieldName) && !depFields.contains(fieldName)
         }
 
-        val (wrappedChild, childFieldSet) = if (insertOverwritesUnrequestedButPreservedField) {
+        val (wrappedChild, childFieldSet) = if (true) {//(insertOverwritesUnrequestedButPreservedField) {
           val selectedChildFields = preservedChildFields.filter(s => depFields.contains(s))
           (SelectFields(rebuiltChild, rebuiltChild.typ.asInstanceOf[TStruct].fieldNames.filter(selectedChildFields.contains(_))), selectedChildFields)
         } else {
@@ -1963,6 +1963,11 @@ object PruneDeadFields {
           case bmir: BlockMatrixIR => bmir //NOTE Currently no BlockMatrixIRs would have dead fields
         })
     }
+
+    assert(isSupertype(res.typ, ir.typ))
+    assert(isSupertype(requestedType, res.typ), s"${requestedType} != ${res.typ}")
+
+    res
   }
 
   def upcast(ir: IR, rType: Type): IR = {

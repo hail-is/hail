@@ -207,7 +207,9 @@ object MakeArray {
   }
 }
 
-final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
+final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR {
+  val stackTrace = Thread.currentThread().getStackTrace.mkString("\n")
+}
 
 object MakeStream {
   def unify(args: Seq[IR], separateRegions: Boolean = false, requestedType: TStream = null): MakeStream = {
