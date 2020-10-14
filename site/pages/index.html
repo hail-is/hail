@@ -172,8 +172,10 @@ show(p)
   </script>
   <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
   <script>
-    requirejs(["https://cdnjs.cloudflare.com/ajax/libs/three.js/r115/three.min.js"], function(threejs) {
-      new threejs.default({
+    requirejs(["https://cdnjs.cloudflare.com/ajax/libs/three.js/r121/three.min.js",
+               "https://cdn.jsdelivr.net/npm/vanta@0.5.21/dist/vanta.birds.min.js"],
+               function(threejs, vanta) {
+      new vanta.default({
         el: "#hero-background",
         points: 10,
         maxDistance: 23,
