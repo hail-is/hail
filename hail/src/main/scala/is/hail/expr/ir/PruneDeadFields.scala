@@ -57,9 +57,16 @@ object PruneDeadFields {
               false
           }
         case (t1: TTuple, t2: TTuple) =>
-            t1.size == t2.size &&
-            t1.types.zip(t2.types)
-              .forall { case (elt1, elt2) => isSupertype(elt1, elt2) }
+          var idx = -1
+          t1.fields.forall { f =>
+            val t2field = t2.fields(t2.fieldIndex(f.index))
+            if (t2field.index > idx) {
+              idx = t2field.index
+              isSupertype(f.typ, t2field.typ)
+            } else {
+              false
+            }
+          }
         case (t1: Type, t2: Type) => t1 == t2
         case _ => fatal(s"invalid comparison: $superType / $subType")
       }

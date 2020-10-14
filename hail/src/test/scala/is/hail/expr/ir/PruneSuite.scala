@@ -36,6 +36,17 @@ class PruneSuite extends HailSuite {
       TStruct("c" -> TArray(TStruct.empty))) == TStruct("a" -> TStruct("ab" -> TStruct.empty), "c" -> TArray(TStruct.empty)))
   }
 
+  @Test def testIsSupertype(): Unit = {
+    val emptyTuple = TTuple.empty
+    val tuple1Int = TTuple(TInt32)
+    val tuple2Ints = TTuple(TInt32, TInt32)
+    val tuple2IntsFirstRemoved = TTuple(IndexedSeq(TupleField(1, TInt32)))
+
+    assert(PruneDeadFields.isSupertype(emptyTuple, tuple2Ints))
+    assert(PruneDeadFields.isSupertype(tuple1Int, tuple2Ints))
+    assert(PruneDeadFields.isSupertype(tuple2IntsFirstRemoved, tuple2Ints))
+  }
+
   def checkMemo(ir: BaseIR, requestedType: BaseType, expected: Array[BaseType]) {
     val irCopy = ir.deepCopy()
     assert(PruneDeadFields.isSupertype(requestedType, irCopy.typ),
