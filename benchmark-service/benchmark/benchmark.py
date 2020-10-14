@@ -181,10 +181,10 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
     return await render_template('benchmark', request, userdata, 'name.html', context)
 
 
-@router.get('/')
-@router.get('')
+@router.get('/lookup')
+# @router.get('')
 @web_authenticated_developers_only(redirect=False)
-async def index(request, userdata):  # pylint: disable=unused-argument
+async def lookup(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     file = request.query.get('file')
     if file is None:
@@ -194,7 +194,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
     context = {'file': file,
                'benchmarks': benchmarks_context,
                'benchmark_file_list': list_benchmark_files(app['gs_reader'])}
-    return await render_template('benchmark', request, userdata, 'index.html', context)
+    return await render_template('benchmark', request, userdata, 'lookup.html', context)
 
 
 @router.get('/compare')
