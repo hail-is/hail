@@ -1541,6 +1541,7 @@ class BroadcastRVD(backend: SparkBackend, rvd: RVD) extends Serializable {
 
   def computePartition(idx: Int, region: Region, partitionRegion: Region): Iterator[Long] = {
     val ctx = new RVDContext(partitionRegion, region)
-    crdd.iterator(bcPartitions.value(idx), TaskContext.get()).flatMap(_.apply(ctx))
+    val it = crdd.iterator(bcPartitions.value(idx), TaskContext.get())
+    it.flatMap(_.apply(ctx))
   }
 }

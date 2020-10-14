@@ -410,7 +410,7 @@ object TypeCheck {
       case BlockMatrixCollect(_) =>
       case BlockMatrixWrite(_, _) =>
       case BlockMatrixMultiWrite(_, _) =>
-      case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
+      case CollectDistributedArray(ctxs, globals, cname, gname, body, _) =>
         assert(ctxs.typ.isInstanceOf[TStream])
       case x@ReadPartition(context, rowType, reader) =>
         assert(rowType.isRealizable)

@@ -1,12 +1,11 @@
 package is.hail.backend.spark
 
-import is.hail.annotations.UnsafeRow
+import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.expr.ir.IRParser
 import is.hail.types.encoded.EType
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.HailContext
-import is.hail.annotations.{Region, SafeRow}
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir._
@@ -18,7 +17,7 @@ import is.hail.utils._
 import is.hail.io.bgen.IndexBgen
 import org.json4s.DefaultFormats
 import org.json4s.jackson.{JsonMethods, Serialization}
-import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext, TaskContext}
+import org.apache.spark.{Dependency, NarrowDependency, Partition, ProgressBarBuilder, ShuffleDependency, SparkConf, SparkContext, TaskContext}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
@@ -30,9 +29,11 @@ import java.io.PrintWriter
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.VCFsReader
 import is.hail.linalg.{BlockMatrix, RowMatrix}
+import is.hail.rvd.RVD
 import is.hail.stats.LinearMixedModel
 import is.hail.types.BlockMatrixType
 import is.hail.variant.ReferenceGenome
+import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.json4s.JsonAST.{JInt, JObject}
 
@@ -206,13 +207,19 @@ object SparkBackend {
     theSparkBackend = new SparkBackend(tmpdir, localTmpdir, sc1)
     theSparkBackend
   }
-  
+
   def stop(): Unit = synchronized {
     if (theSparkBackend != null) {
       theSparkBackend.sc.stop()
       theSparkBackend = null
     }
   }
+}
+
+// This indicates a narrow (non-shuffle) dependency on _rdd. It works since narrow dependency `getParents`
+// is only used to compute preferred locations, which is something we don't need to worry about
+class AnonymousDependency[T](val _rdd: RDD[T]) extends NarrowDependency[T](_rdd) {
+  override def getParents(partitionId: Int): Seq[Int] = Seq.empty
 }
 
 class SparkBackend(
@@ -242,14 +249,13 @@ class SparkBackend(
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
 
-  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]])(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]] = {
-    val rdd = sc.parallelize(collection, numSlices = collection.length)
-    rdd.mapPartitionsWithIndex { (i, it) =>
-      HailTaskContext.setTaskContext(new SparkTaskContext(TaskContext.get))
-      val elt = it.next()
-      assert(!it.hasNext)
-      Iterator.single(f(elt, i))
-    }.collect()
+  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]],
+    dependency: Option[TableStageDependency] = None)(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]] = {
+
+    val sparkDeps = dependency.toIndexedSeq
+      .flatMap(dep => dep.deps.map(rvdDep => new AnonymousDependency(rvdDep.asInstanceOf[RVDDependency].rvd.crdd.rdd)))
+
+    new SparkBackendComputeRDD(sc, collection, f, sparkDeps).collect()
   }
 
   def defaultParallelism: Int = sc.defaultParallelism
@@ -577,10 +583,51 @@ class SparkBackend(
   }
 
   def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
-    // Use a local sort for the moment to enable larger pipelines to run
-    LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
+
+    val (globals, rvd) = TableStageToRVD(ctx, stage, relationalLetsAbove)
+
+    if (sortFields.forall(_.sortOrder == Ascending)) {
+      return RVDToTableStage(rvd.changeKey(ctx, sortFields.map(_.field)), globals.toEncodedLiteral())
+    }
+
+    val rowType = rvd.rowType
+    val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
+      val i = rowType.fieldIdx(n)
+      val f = rowType.fields(i)
+      val fo = f.typ.ordering
+      if (so == Ascending) fo else fo.reverse
+    }.toArray
+
+    val ord: Ordering[Annotation] = ExtendedOrdering.rowOrdering(sortColIndexOrd).toOrdering
+
+    val act = implicitly[ClassTag[Annotation]]
+
+    val codec = TypedCodecSpec(rvd.rowPType, BufferSpec.wireSpec)
+    val rdd = rvd.keyedEncodedRDD(ctx, codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
+    val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(ctx, rowType, rdd.map(_._2))
+    RVDToTableStage(RVD.unkeyed(rowPType, orderedCRDD), globals.toEncodedLiteral())
   }
 
   def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =
     LoadPlink.importFamJSON(fs, path, isQuantPheno, delimiter, missingValue)
+}
+
+case class SparkBackendComputeRDDPartition(data: Array[Byte], index: Int) extends Partition
+
+class SparkBackendComputeRDD(
+  sc: SparkContext,
+  @transient private val collection: Array[Array[Byte]],
+  f: (Array[Byte], Int) => Array[Byte],
+  deps: Seq[Dependency[_]])
+  extends RDD[Array[Byte]](sc, deps) {
+
+  override def getPartitions: Array[Partition] = {
+    Array.tabulate(collection.length)(i => SparkBackendComputeRDDPartition(collection(i), i))
+  }
+
+  override def compute(partition: Partition, context: TaskContext): Iterator[Array[Byte]] = {
+    val sp = partition.asInstanceOf[SparkBackendComputeRDDPartition]
+    HailTaskContext.setTaskContext(new SparkTaskContext(TaskContext.get))
+    Iterator.single(f(sp.data, sp.index))
+  }
 }

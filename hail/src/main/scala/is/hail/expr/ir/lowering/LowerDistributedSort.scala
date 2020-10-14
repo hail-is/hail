@@ -49,6 +49,7 @@ object LowerDistributedSort {
       return TableStage(
         globals = Literal(resultPType.fieldType("global").virtualType, rowsAndGlobal.get(1)),
         partitioner = RVDPartitioner.empty(kType),
+        TableStageDependency.none,
         MakeStream(FastSeq(), TStream(TStruct())),
         _ => MakeStream(FastSeq(), TStream(stage.rowType))
       )
@@ -67,6 +68,7 @@ object LowerDistributedSort {
     TableStage(
       globals = Literal(resultPType.fieldType("global").virtualType, rowsAndGlobal.get(1)),
       partitioner = partitioner,
+      TableStageDependency.none,
       contexts = mapIR(
         StreamGrouped(
           ToStream(Literal(rowsType.virtualType, sortedRows)),

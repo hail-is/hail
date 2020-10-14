@@ -22,6 +22,15 @@ trait AbstractTypedCodecSpec extends Spec {
 
   def buildEncoder(ctx: ExecuteContext, t: PType): (OutputStream) => Encoder
 
+  def encodeValue(ctx: ExecuteContext, t: PType, valueAddr: Long): Array[Byte] = {
+    val makeEnc = buildEncoder(ctx, t)
+    val baos = new ByteArrayOutputStream()
+    val enc = makeEnc(baos)
+    enc.writeRegionValue(valueAddr)
+    enc.flush()
+    baos.toByteArray
+  }
+
   def decodedPType(requestedType: Type): PType
 
   def decodedPType(): PType = encodedType.decodedPType(encodedVirtualType)

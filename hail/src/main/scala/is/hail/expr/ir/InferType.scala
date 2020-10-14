@@ -247,7 +247,7 @@ object InferType {
       case TableToValueApply(child, function) => function.typ(child.typ)
       case MatrixToValueApply(child, function) => function.typ(child.typ)
       case BlockMatrixToValueApply(child, function) => function.typ(child.typ)
-      case CollectDistributedArray(_, _, _, _, body) => TArray(body.typ)
+      case CollectDistributedArray(_, _, _, _, body, _) => TArray(body.typ)
       case ReadPartition(_, rowType, _) => TStream(rowType)
       case WritePartition(value, writeCtx, writer) => writer.returnType
       case _: WriteMetadata => TVoid

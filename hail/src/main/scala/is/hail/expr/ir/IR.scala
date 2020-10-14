@@ -6,11 +6,12 @@ import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
 import is.hail.expr.ir.functions._
+import is.hail.expr.ir.lowering.TableStageDependency
+import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
+import is.hail.rvd.RVDSpecMaker
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
-import is.hail.rvd.RVDSpecMaker
 import is.hail.utils.{FastIndexedSeq, _}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
@@ -620,7 +621,7 @@ final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWrite
 
 final case class BlockMatrixMultiWrite(blockMatrices: IndexedSeq[BlockMatrixIR], writer: BlockMatrixMultiWriter) extends IR
 
-final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR) extends IR {
+final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR, tsd: Option[TableStageDependency] = None) extends IR {
   val bufferSpec: BufferSpec = BufferSpec.defaultUncompressed
 
   lazy val contextPTuple: PTuple = PCanonicalTuple(required = true, coerce[PStream](contexts.pType).elementType)

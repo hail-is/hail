@@ -105,8 +105,8 @@ object InferPType {
     case NDArrayMap(nd, `name`, _) => coerce[PNDArray](nd.pType).elementType
     case NDArrayMap2(left, _, `name`, _, _) => coerce[PNDArray](left.pType  ).elementType
     case NDArrayMap2(_, right, _, `name`, _) => coerce[PNDArray](right.pType).elementType
-    case x@CollectDistributedArray(_, _, `name`, _, _) => x.decodedContextPType
-    case x@CollectDistributedArray(_, _, _, `name`, _) => x.decodedGlobalPType
+    case x@CollectDistributedArray(_, _, `name`, _, _, _) => x.decodedContextPType
+    case x@CollectDistributedArray(_, _, _, `name`, _, _) => x.decodedGlobalPType
     case x@ShuffleWith(_, _, _, _, `name`, _, _) => x.shufflePType
     case _ => throw new RuntimeException(s"$name not found in definition \n${ Pretty(defNode) }")
   }
