@@ -215,7 +215,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
         cb.assign(filename, pContextType.loadString(pctx))
         if (hasIndex) {
           val indexFile = cb.newLocal[String]("indexFile")
-          cb.assign(indexFile, const(index.get._1).concat(filename))
+          cb.assign(indexFile, const(index.get._1).concat(filename).concat(".idx"))
           indexWriter.init(cb, indexFile)
         }
         cb.assign(filename, const(partPrefix).concat(filename))
