@@ -1535,7 +1535,7 @@ object RVD {
   }
 }
 
-case class BroadcastRVD(@transient val backend: SparkBackend, @transient val rvd: RVD) extends Serializable {
+class BroadcastRVD(backend: SparkBackend, rvd: RVD) extends Serializable {
   private[this] val crdd = rvd.crdd
   private[this] val bcPartitions = backend.broadcast(rvd.crdd.partitions)
 

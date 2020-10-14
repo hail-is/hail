@@ -83,5 +83,9 @@ class PPrimitiveCode(val pt: PType, val code: Code[_]) extends PCode {
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeFieldImpl(cb, name)
 
-  def primCode[T]: Code[T] = coerce[T](code)
+  def primCode[T](implicit ti: TypeInfo[T]): Code[T] = {
+    val IndexedSeq(typeInfo) = pt.codeTupleTypes()
+    assert(ti == typeInfo)
+    code.asInstanceOf[Code[T]]
+  }
 }
