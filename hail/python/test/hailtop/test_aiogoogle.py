@@ -21,11 +21,11 @@ async def filesystem(request):
             fs = GoogleStorageAsyncFS()
         async with fs:
             if request.param.endswith('file'):
-                base = f'/tmp/{token}'
+                base = f'/tmp/{token}/'
             else:
                 assert request.param.endswith('gs')
                 bucket = os.environ['HAIL_TEST_BUCKET']
-                base = f'gs://{bucket}/{token}'
+                base = f'gs://{bucket}/tmp/{token}/'
 
             await fs.mkdir(base)
             yield (fs, base)
@@ -48,8 +48,7 @@ async def file_data(request):
 async def test_write_read(filesystem, file_data):
     fs, base = filesystem
 
-    token = secrets.token_hex(16)
-    file = f'{base}/{token}'
+    file = f'{base}foo'
 
     async with await fs.create(file) as f:
         for b in file_data:
@@ -66,8 +65,7 @@ async def test_write_read(filesystem, file_data):
 async def test_isfile(filesystem):
     fs, base = filesystem
 
-    token = secrets.token_hex(16)
-    file = f'{base}/{token}'
+    file = f'{base}foo'
 
     # doesn't exist yet
     assert not await fs.isfile(file)
@@ -81,13 +79,21 @@ async def test_isfile(filesystem):
 async def test_isdir(filesystem):
     fs, base = filesystem
 
-    token = secrets.token_hex(16)
-    dir = f'{base}/{token}'
+    # mkdir with trailing slash
+    dir = f'{base}dir/'
     await fs.mkdir(dir)
 
-    await fs.touch(f'{dir}/foo')
+    await fs.touch(f'{dir}foo')
 
     # can't test this until after creating foo
+    assert await fs.isdir(dir)
+
+    # mkdir without trailing slash
+    dir2 = f'{base}dir2'
+    await fs.mkdir(dir2)
+
+    await fs.touch(f'{dir2}/foo')
+
     assert await fs.isdir(dir)
 
 
@@ -95,15 +101,13 @@ async def test_isdir(filesystem):
 async def test_isdir_subdir_only(filesystem):
     fs, base = filesystem
 
-    token1 = secrets.token_hex(16)
-    dir = f'{base}/{token1}'
+    dir = f'{base}dir/'
     await fs.mkdir(dir)
 
-    token2 = secrets.token_hex(16)
-    subdir = f'{dir}/{token2}'
+    subdir = f'{dir}subdir/'
     await fs.mkdir(subdir)
 
-    await fs.touch(f'{subdir}/foo')
+    await fs.touch(f'{subdir}foo')
 
     # can't test this until after creating foo
     assert await fs.isdir(dir)
@@ -114,8 +118,7 @@ async def test_isdir_subdir_only(filesystem):
 async def test_remove(filesystem):
     fs, base = filesystem
 
-    token = secrets.token_hex(16)
-    file = f'{base}/{token}'
+    file = f'{base}foo'
 
     await fs.touch(file)
     assert await fs.isfile(file)
@@ -129,12 +132,11 @@ async def test_remove(filesystem):
 async def test_rmtree(filesystem):
     fs, base = filesystem
 
-    token = secrets.token_hex(16)
-    dir = f'{base}/{token}'
+    dir = f'{base}foo/'
 
     await fs.mkdir(dir)
-    await fs.touch(f'{dir}/a')
-    await fs.touch(f'{dir}/b')
+    await fs.touch(f'{dir}a')
+    await fs.touch(f'{dir}b')
 
     assert await fs.isdir(dir)
 
@@ -171,3 +173,72 @@ async def test_get_object_headers():
             assert 'ETag' in headers
             assert headers['X-Goog-Hash'] == 'crc32c=z8SuHQ==,md5=rL0Y20zC+Fzt72VPzMSk2A=='
             assert await f.read() == b'foo'
+
+
+@pytest.mark.asyncio
+async def test_statfile_nonexistent_file(filesystem):
+    fs, base = filesystem
+
+    with pytest.raises(FileNotFoundError):
+        await fs.statfile(f'{base}foo')
+
+
+@pytest.mark.asyncio
+async def test_statfile_directory(filesystem):
+    fs, base = filesystem
+
+    await fs.mkdir(f'{base}dir/')
+    await fs.touch(f'{base}dir/foo')
+
+    with pytest.raises(FileNotFoundError):
+        # statfile raises FileNotFound on directories
+        await fs.statfile(f'{base}dir')
+
+
+@pytest.mark.asyncio
+async def test_statfile(filesystem):
+    fs, base = filesystem
+
+    n = 37
+    file = f'{base}bar'
+    async with await fs.create(file) as f:
+        await f.write(secrets.token_bytes(n))
+
+    status = await fs.statfile(file)
+    assert await status.size() == n
+
+@pytest.mark.asyncio
+async def test_listfiles(filesystem):
+    fs, base = filesystem
+
+    # create the following directory structure in base:
+    # foobar
+    # foo/a
+    # foo/b/c
+    a = f'{base}foo/a'
+    b = f'{base}foo/b/'
+    c = f'{base}foo/b/c'
+    await fs.touch(f'{base}foobar')
+    await fs.mkdir(f'{base}foo/')
+    await fs.touch(a)
+    await fs.mkdir(b)
+    await fs.touch(c)
+
+    async def listfiles(dir, recursive):
+        return {(await entry.url(), await entry.is_file()) async for entry in fs.listfiles(dir, recursive)}
+
+    assert await listfiles(f'{base}foo/', recursive=True) == {(a, True), (c, True)}
+    assert await listfiles(f'{base}foo/', recursive=False) == {(a, True), (b, False)}
+
+    # without trailing slash
+    assert await listfiles(f'{base}foo', recursive=True) == {(a, True), (c, True)}
+    assert await listfiles(f'{base}foo', recursive=False) == {(a, True), (b, False)}
+
+    # test FileListEntry.status raises on directory
+    async for entry in fs.listfiles(f'{base}foo/', recursive=False):
+        if await entry.is_dir():
+            with pytest.raises(ValueError):
+                await entry.status()
+        else:
+            stat = await entry.status()
+            assert await stat.size() == 0
