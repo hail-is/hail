@@ -220,14 +220,18 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
-@router.post('/api/v1alpha/create_benchmark')
+@router.post('/api/v1alpha/benchmark/create_benchmark')
 async def submit(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     github_client = app['github_client']
     batch_client = app['batch_client']
-    commit = request.query.get('commit')
+    # commit = request.query.post('commit')
+    body = await request.json()
+    commit = body['commit']
     batch_id = await submit_batch(commit, batch_client)
-    return batch_id
+    return web.HTTPFound(
+        deploy_config.external_url('benchmark', f'/api/v1alpha/benchmark/{batch_id}'))
+    #return batch_id
 
 
 @router.get('/api/v1alpha/benchmark/{batch_id}')
