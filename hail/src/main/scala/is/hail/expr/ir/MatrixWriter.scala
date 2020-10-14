@@ -90,7 +90,7 @@ case class MatrixNativeWriter(
     val rowWriter = SplitPartitionNativeWriter(
       rowSpec, s"$path/rows/rows/parts/",
       entrySpec, s"$path/entries/rows/parts/",
-      Some(s"$path/index/parts/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
+      Some(s"$path/index/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
 
     lowered.mapContexts { oldCtx =>
       val d = digitsNeeded(lowered.numPartitions)

@@ -325,7 +325,7 @@ class SparkBackend(
   def execute(ir: IR, optimize: Boolean): (Any, ExecutionTimer) =
     withExecuteContext() { ctx =>
       val queryID = Backend.nextID()
-      log.info(s"starting execution of query $queryID} of initial size ${ IRSize(ir) }")
+      log.info(s"starting execution of query $queryID of initial size ${ IRSize(ir) }")
       val (l, r) = _execute(ctx, ir, optimize)
       val javaObjResult = ctx.timer.time("convertRegionValueToAnnotation")(executionResultToAnnotation(ctx, l))
       log.info(s"finished execution of query $queryID")
