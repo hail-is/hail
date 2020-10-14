@@ -584,7 +584,7 @@ steps:
      time tar czf test.tar.gz -C python test
      time tar czf resources.tar.gz -C src/test resources
      time tar czf data.tar.gz -C python/hail/docs data
-     (cd .. && time tar czf ../hail/site-src.tar.gz site)
+     (cd .. && time tar czf hail/site-src.tar.gz site)
      time tar czf cluster-tests.tar.gz python/cluster-tests
      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
      time TESTNG_SPLITS=5 python3 generate_splits.py
