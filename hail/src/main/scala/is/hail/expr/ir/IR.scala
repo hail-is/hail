@@ -93,7 +93,7 @@ final case class Literal(_typ: Type, value: Annotation) extends IR {
 }
 
 object EncodedLiteral {
-  def apply(codec: TypedCodecSpec, value: Array[Byte]): EncodedLiteral = {
+  def apply(codec: AbstractTypedCodecSpec, value: Array[Byte]): EncodedLiteral = {
     EncodedLiteral(codec, new WrappedByteArray(value))
   }
 
@@ -105,7 +105,7 @@ object EncodedLiteral {
   }
 }
 
-final case class EncodedLiteral(codec: TypedCodecSpec, value: WrappedByteArray) extends IR {
+final case class EncodedLiteral(codec: AbstractTypedCodecSpec, value: WrappedByteArray) extends IR {
   require(!CanEmit(codec.encodedVirtualType))
   require(value != null)
 }
@@ -643,6 +643,7 @@ final case class CollectDistributedArray(contexts: IR, globals: IR, cname: Strin
 object PartitionReader {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
+      classOf[PartitionRVDReader],
       classOf[PartitionNativeReader],
       classOf[PartitionNativeReaderIndexed],
       classOf[PartitionZippedNativeReader],

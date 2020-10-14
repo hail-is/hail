@@ -340,6 +340,7 @@ class SparkBackend(
       val lowerBM = HailContext.getFlag("lower_bm") != null
       _jvmLowerAndExecute(ctx, ir, optimize, lowerTable, lowerBM)
     } catch {
+      case e: LowererUnsupportedOperation if HailContext.getFlag("lower_only") != null => throw e
       case _: LowererUnsupportedOperation =>
         (CompileAndEvaluate._apply(ctx, ir, optimize = optimize), ctx.timer)
     }

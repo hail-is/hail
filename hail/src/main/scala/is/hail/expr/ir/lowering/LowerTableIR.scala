@@ -1064,6 +1064,9 @@ object LowerTableIR {
             Let(globalName, loweredChild.globals, Let(partitionStreamName, part, body))
           }
 
+        case TableLiteral(typ, rvd, enc, encodedGlobals) =>
+          RVDToTableStage(rvd, EncodedLiteral(enc, encodedGlobals))
+
         case node =>
           throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(node) }")
       }

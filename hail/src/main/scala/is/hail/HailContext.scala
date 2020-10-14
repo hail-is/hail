@@ -469,6 +469,7 @@ class HailContext private(
 object HailFeatureFlags {
   val defaults: Map[String, (String, String)] = Map[String, (String, String)](
     ("lower", ("HAIL_DEV_LOWER" -> null)),
+    ("lower_only", ("HAIL_DEV_LOWER_ONLY" -> null)),
     ("lower_bm", ("HAIL_DEV_LOWER_BM" -> null)),
     ("max_leader_scans", ("HAIL_DEV_MAX_LEADER_SCANS" -> "1000")),
     ("distributed_scan_comb_op", ("HAIL_DEV_DISTRIBUTED_SCAN_COMB_OP" -> null)),

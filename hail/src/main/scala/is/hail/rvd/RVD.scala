@@ -1534,3 +1534,13 @@ object RVD {
     fileData
   }
 }
+
+class BroadcastRVD(backend: SparkBackend, rvd: RVD) extends Serializable {
+  private[this] val crdd = rvd.crdd
+  private[this] val bcPartitions = backend.broadcast(rvd.crdd.partitions)
+
+  def computePartition(idx: Int, region: Region, partitionRegion: Region): Iterator[Long] = {
+    val ctx = new RVDContext(partitionRegion, region)
+    crdd.iterator(bcPartitions.value(idx), TaskContext.get()).flatMap(_.apply(ctx))
+  }
+}
