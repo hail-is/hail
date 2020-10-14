@@ -481,7 +481,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
 
       val upcastF = mb.genFieldThisRef[AsmFunction2RegionLongLong]("rvdreader_upcast")
 
-      val broadcastRVD = mb.getObject[BroadcastRVD](BroadcastRVD(ctx.backend.asSpark("RVDReader"), rvd))
+      val broadcastRVD = mb.getObject[BroadcastRVD](new BroadcastRVD(ctx.backend.asSpark("RVDReader"), rvd))
       SizedStream.unsized { eltRegion =>
         Stream.unfold[Code[Long]](
           (_, k) =>
