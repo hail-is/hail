@@ -6,8 +6,7 @@ import logging
 from gear import setup_aiohttp_session, web_authenticated_developers_only
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
-from hailtop.hail_logging import AccessLogger, configure_logging
-from hailtop.utils import retry_long_running
+from hailtop.hail_logging import AccessLogger
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials,\
     list_benchmark_files, round_if_defined
@@ -27,9 +26,7 @@ import gidgethub.aiohttp
 import aiohttp
 import hailtop.batch_client.aioclient as bc
 
-configure_logging()
 router = web.RouteTableDef()
-logging.basicConfig(level=logging.DEBUG)
 deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
