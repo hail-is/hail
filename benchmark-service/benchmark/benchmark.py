@@ -236,8 +236,8 @@ async def batch_status(request):  # pylint: disable=unused-argument
     app = request.app
     batch_client = app['batch_client']
     batch_id = request.match_info['batch_id']
-    batch_status = await batch_client.get_batch(batch_id).status()
-    return batch_status
+    batch = await batch_client.get_batch(batch_id)
+    return batch.status()
 
 
 async def github_polling_loop(app):
