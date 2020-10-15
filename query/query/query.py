@@ -29,6 +29,16 @@ def java_to_web_response(jresp):
     return web.json_response(status=status, text=value)
 
 
+def java_to_ws_response(jresp):
+    status = jresp.status()
+    value = jresp.value()
+    log.info(f'response status {status} value {value}')
+    if status in (400, 500):
+        return {'error': value}
+    assert status == 200, status
+    return {'status': status, 'result': value}
+
+
 async def add_user(app, userdata):
     username = userdata['username']
     users = app['users']
@@ -52,107 +62,90 @@ async def healthcheck(request):  # pylint: disable=unused-argument
     return web.Response()
 
 
-def blocking_execute(jbackend, username, session_id, billing_project, bucket, code):
-    return jbackend.execute(username, session_id, billing_project, bucket, code)
+def blocking_execute(jbackend, userdata, body):
+    return jbackend.execute(userdata['username'], userdata['session_id'], body['billing_project'], body['bucket'], body['code'])
 
 
-@routes.post('/execute')
+def blocking_value_type(jbackend, userdata, body):
+    return jbackend.valueType(userdata['username'], body['code'])
+
+
+def blocking_table_type(jbackend, userdata, body):
+    return jbackend.tableType(userdata['username'], body['code'])
+
+
+def blocking_matrix_type(jbackend, userdata, body):
+    return jbackend.matrixTableType(userdata['username'], body['code'])
+
+
+def blocking_blockmatrix_type(jbackend, userdata, body):
+    return jbackend.blockMatrixType(userdata['username'], body['code'])
+
+
+def blocking_get_reference(jbackend, userdata, body):   # pylint: disable=unused-argument
+    return jbackend.referenceGenome(userdata['username'], body['name'])
+
+
+async def handle_ws_response(request, userdata, cmd_str, f):
+    log.info('connecting websocket')
+    app = request.app
+    thread_pool = app['thread_pool']
+    jbackend = app['jbackend']
+
+    await add_user(app, userdata)
+    log.info('connecting websocket')
+    ws = web.WebSocketResponse(max_msg_size=0)
+    try:
+        await ws.prepare(request)
+        app['sockets'].add(ws)
+        log.info(f'websocket prepared: {ws}')
+        body = await ws.receive_json()
+
+        log.info(f"{cmd_str}: {body}")
+        await ws.send_str(cmd_str)
+        jresp = await blocking_to_async(thread_pool, f, jbackend, userdata, body)
+        await ws.send_json(java_to_ws_response(jresp))
+        return ws
+    finally:
+        await ws.close()
+        log.info('websocket connection closed')
+        app['sockets'].remove(ws)
+
+
+@routes.get('/api/v1alpha/execute')
 @rest_authenticated_users_only
 async def execute(request, userdata):
-    app = request.app
-    thread_pool = app['thread_pool']
-    jbackend = app['jbackend']
-    body = await request.json()
-    billing_project = body['billing_project']
-    bucket = body['bucket']
-    code = body['code']
-    log.info(f'execute: {code}')
-    await add_user(app, userdata)
-    jresp = await blocking_to_async(thread_pool, blocking_execute, jbackend, userdata['username'], userdata['session_id'], billing_project, bucket, code)
-    return java_to_web_response(jresp)
+    return await handle_ws_response(request, userdata, 'execute', blocking_execute)
 
 
-def blocking_value_type(jbackend, username, code):
-    return jbackend.valueType(username, code)
-
-
-@routes.post('/type/value')
+@routes.get('/api/v1alpha/type/value')
 @rest_authenticated_users_only
 async def value_type(request, userdata):
-    app = request.app
-    thread_pool = app['thread_pool']
-    jbackend = app['jbackend']
-    code = await request.json()
-    log.info(f'value type: {code}')
-    await add_user(app, userdata)
-    jresp = await blocking_to_async(thread_pool, blocking_value_type, jbackend, userdata['username'], code)
-    return java_to_web_response(jresp)
+    return await handle_ws_response(request, userdata, 'type/value', blocking_value_type)
 
 
-def blocking_table_type(jbackend, username, code):
-    return jbackend.tableType(username, code)
-
-
-@routes.post('/type/table')
+@routes.get('/api/v1alpha/type/table')
 @rest_authenticated_users_only
 async def table_type(request, userdata):
-    app = request.app
-    thread_pool = app['thread_pool']
-    jbackend = app['jbackend']
-    code = await request.json()
-    log.info(f'table type: {code}')
-    await add_user(app, userdata)
-    jresp = await blocking_to_async(thread_pool, blocking_table_type, jbackend, userdata['username'], code)
-    return java_to_web_response(jresp)
+    return await handle_ws_response(request, userdata, 'type/table', blocking_table_type)
 
 
-def blocking_matrix_type(jbackend, username, code):
-    return jbackend.matrixTableType(username, code)
-
-
-@routes.post('/type/matrix')
+@routes.get('/api/v1alpha/type/matrix')
 @rest_authenticated_users_only
 async def matrix_type(request, userdata):
-    app = request.app
-    thread_pool = app['thread_pool']
-    jbackend = app['jbackend']
-    code = await request.json()
-    log.info(f'matrix type: {code}')
-    await add_user(app, userdata)
-    jresp = await blocking_to_async(thread_pool, blocking_matrix_type, jbackend, userdata['username'], code)
-    return java_to_web_response(jresp)
+    return await handle_ws_response(request, userdata, 'type/matrix', blocking_matrix_type)
 
 
-def blocking_blockmatrix_type(jbackend, username, code):
-    return jbackend.blockMatrixType(username, code)
-
-
-@routes.post('/type/blockmatrix')
+@routes.get('/api/v1alpha/type/blockmatrix')
 @rest_authenticated_users_only
 async def blockmatrix_type(request, userdata):
-    app = request.app
-    thread_pool = app['thread_pool']
-    jbackend = app['jbackend']
-    code = await request.json()
-    log.info(f'blockmatrix type: {code}')
-    await add_user(app, userdata)
-    jresp = await blocking_to_async(thread_pool, blocking_blockmatrix_type, jbackend, userdata['username'], code)
-    return java_to_web_response(jresp)
+    return await handle_ws_response(request, userdata, 'type/blockmatrix', blocking_blockmatrix_type)
 
 
-def blocking_get_reference(app, data):
-    hail_pkg = app['hail_pkg']
-    return hail_pkg.variant.ReferenceGenome.getReference(data['name']).toJSONString()
-
-
-@routes.get('/references/get')
+@routes.get('/api/v1alpha/references/get')
 @rest_authenticated_users_only
 async def get_reference(request, userdata):  # pylint: disable=unused-argument
-    app = request.app
-    thread_pool = app['thread_pool']
-    data = await request.json()
-    result = await blocking_to_async(thread_pool, blocking_get_reference, app, data)
-    return web.json_response(text=result)
+    return await handle_ws_response(request, userdata, 'references/get', blocking_get_reference)
 
 
 @routes.get('/api/v1alpha/flags/get')
@@ -209,6 +202,7 @@ async def on_startup(app):
     app['jhc'] = jhc
 
     app['users'] = set()
+    app['sockets'] = set()
 
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()

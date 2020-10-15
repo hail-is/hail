@@ -265,6 +265,10 @@ server {
     location / {
         proxy_pass https://query/;
         include /etc/nginx/proxy.conf;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
     }
 
     listen 443 ssl;

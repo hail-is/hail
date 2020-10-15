@@ -15,6 +15,7 @@ import is.hail.services.batch_client.BatchClient
 import is.hail.types.BlockMatrixType
 import is.hail.types.physical.{PBaseStruct, PType}
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 import org.apache.commons.io.IOUtils
 import org.apache.log4j.LogManager
 import org.json4s.JsonAST._
@@ -282,6 +283,12 @@ class ServiceBackend() extends Backend {
           JsonMethods.compact(jv)
         }
       }
+    }
+  }
+
+  def referenceGenome(username: String, name: String): Response = {
+    statusForException {
+      ReferenceGenome.getReference(name).toJSONString
     }
   }
 
