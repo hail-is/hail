@@ -49,7 +49,7 @@ def load_dataset(name: str,
     valid_clouds = {'gcp', 'aws'}
     if cloud not in valid_clouds:
         raise ValueError(f'Specify valid cloud parameter, received: cloud={repr(cloud)}. '
-                         f'Valid cloud values are {valid_clouds}.')
+                         f'Valid cloud platforms are {valid_clouds}.')
 
     config_path = pkg_resources.resource_filename(__name__, 'datasets.json')
     assert os.path.exists(config_path), f'{config_path} does not exist'

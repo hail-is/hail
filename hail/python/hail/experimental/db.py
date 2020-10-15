@@ -7,7 +7,7 @@ import pkg_resources
 
 from hailtop.utils import (retry_response_returning_functions,
                            external_requests_client_session)
-from typing import List, Set, Iterable
+from typing import List, Set, Iterable, Optional, Union
 
 from . import lens
 from ..matrixtable import matrix_table_type
@@ -21,13 +21,21 @@ class DatasetVersion:
     :class:`DatasetVersion` has two constructors: :func:`.from_json` and :func:`.get_region`.
     """
     @staticmethod
-    def from_json(doc: dict) -> 'DatasetVersion':
+    def from_json(doc: dict, cloud: str, custom_config: bool) -> 'DatasetVersion':
         """Create :class:`.DatasetVersion` object from dictionary.
 
         Parameters
         ----------
         doc : :obj:`dict`
-            Dictionary containing url and version keys.
+            Dictionary containing url and version keys. Value for url is a either
+            a :obj:`str` with a url, or a :obj:`dict` containing key: value pairs,
+            like region: url.
+        cloud : :obj:`str`
+            Cloud platform to access dataset, either 'gcp' or 'aws'. Not used
+            here if using a custom configuration.
+        custom_config : :obj:`bool`
+            Boolean indicating whether or not dataset is from a :class:`.DB` object
+            using a custom configuration or url.
 
         Returns
         -------
@@ -35,8 +43,16 @@ class DatasetVersion:
         """
         assert 'url' in doc, doc
         assert 'version' in doc, doc
-        return DatasetVersion(doc['url'],
-                              doc['version'])
+        assert 'reference_genome' in doc, doc
+        if not custom_config:
+            assert cloud in doc['url'], doc['url']
+            url = doc['url'][cloud]
+        else:
+            url = doc['url']
+
+        return DatasetVersion(url,
+                              doc['version'],
+                              doc['reference_genome'])
 
     @staticmethod
     def get_region(name: str,
@@ -50,9 +66,10 @@ class DatasetVersion:
             Name of dataset.
         versions : :class:`list` of :class:`.DatasetVersion`
             List of DatasetVersion objects where the value for
-            DatasetVersion.url is a dictionary containing the regions 'us' and 'eu'.
+            DatasetVersion.url is a either a :obj:`str` with a url, or a :obj:`dict`
+            containing key: value pairs, like region: url.
         region : :obj:`str`
-            GCP region from which to access data, available regions given in
+            Region from which to access data, available regions given in
             :func:`hail.experimental.DB._valid_regions`, currently either 'us' or 'eu'.
 
         Returns
@@ -67,9 +84,10 @@ class DatasetVersion:
                 available_versions.append(version)
         return available_versions
 
-    def __init__(self, url: dict, version: str):
+    def __init__(self, url: Union[dict, str], version: str, reference_genome: str):
         self.url = url
         self.version = version
+        self.reference_genome = reference_genome
 
     def in_region(self, name: str, region: str) -> bool:
         """To check if a :class:`.DatasetVersion` object is accessible in the desired
@@ -80,7 +98,7 @@ class DatasetVersion:
         name : :obj:`str`
             Name of dataset.
         region : :obj:`str`
-            GCP region from which to access data, available regions given in
+            Region from which to access data, available regions given in
             :func:`hail.experimental.DB._valid_regions`, currently either 'us' or 'eu'.
 
         Returns
@@ -112,14 +130,15 @@ class DatasetVersion:
 class Dataset:
     """
     To create a dataset object with name, description, url, key_properties, and
-    versions specified in JSON configuration file or a provided dict mapping
+    versions specified in JSON configuration file or a provided :obj:`dict` mapping
     dataset names to configurations.
     """
     @staticmethod
     def from_name_and_json(name: str,
                            doc: dict,
                            region: str,
-                           custom_config: bool = False) -> 'Dataset':
+                           cloud: str,
+                           custom_config: bool) -> Optional['Dataset']:
         """Create :class:`.Dataset` object from dictionary.
 
         Parameters
@@ -130,8 +149,10 @@ class Dataset:
             Dictionary containing dataset description, url, key_properties, and
             versions.
         region : :obj:`str`
-            GCP region from which to access data, available regions given in
+            Region from which to access data, available regions given in
             :func:`hail.experimental.DB._valid_regions`, currently either 'us' or 'eu'.
+        cloud : :obj:`str`
+            Cloud platform to access dataset, either 'gcp' or 'aws'.
         custom_config : :obj:`bool`
             Boolean indicating whether or not dataset is from a :class:`.DB` object
             using a custom configuration or url. If `True`, method will not
@@ -142,15 +163,18 @@ class Dataset:
         :class:`Dataset`
             If versions exist for region returns a :class:`.Dataset` object, else None.
         """
+        # if 'annotation_db' in doc:
+        #     assert 'key_properties' in doc['annotation_db'], doc['annotation_db']
+        #     key_properties = set(doc['annotation_db']['key_properties'])
+        # else:
+        #     key_properties = set()
+        assert 'annotation_db' in doc, doc
+        assert 'key_properties' in doc['annotation_db'], doc['annotation_db']
         assert 'description' in doc, doc
         assert 'url' in doc, doc
-        if 'annotation_db' in doc:
-            assert 'key_properties' in doc['annotation_db'], doc['annotation_db']
-            key_properties = set(doc['annotation_db']['key_properties'])
-        else:
-            key_properties = set()
         assert 'versions' in doc, doc
-        versions = [DatasetVersion.from_json(x) for x in doc['versions']]
+        key_properties = set(x for x in doc['annotation_db']['key_properties'] if x is not None)
+        versions = [DatasetVersion.from_json(x, cloud, custom_config) for x in doc['versions']]
         if not custom_config:
             versions = DatasetVersion.get_region(name, versions, region)
         if versions:
@@ -208,29 +232,35 @@ class DB:
     annotations. It accepts either an HTTP(S) URL to an Annotation DB
     configuration or a python :obj:`dict` describing an Annotation DB
     configuration. User must specify the region ('us' or 'eu') in which the
-    cluster is running if connecting to the default Hail Annotation DB. Region
-    will default to 'us' if not otherwise specified.
+    cluster is running if connecting to the default Hail Annotation DB. User must
+    also specify the cloud platform that they are using ('gcp' or 'aws'). Region
+    will default to 'us' and cloud platform to 'gcp' if not otherwise specified.
 
     Examples
     --------
     Create an annotation database connecting to the default Hail Annotation DB:
 
-    >>> db = hl.experimental.DB(region='us')
+    >>> db = hl.experimental.DB(region='us', cloud='gcp')
     >>> mt = db.annotate_rows_db(mt, 'gnomad_lof_metrics') # doctest: +SKIP
     """
 
     _valid_key_properties = {'gene', 'unique'}
     _valid_regions = {'us', 'eu'}
+    _valid_clouds = {'gcp', 'aws'}
 
     def __init__(self,
                  *,
-                 region='us',
-                 url=None,
-                 config=None):
-        custom_config = config or url
+                 region: str = 'us',
+                 cloud: str = 'gcp',
+                 url: Optional[str] = None,
+                 config: Optional[dict] = None):
+        custom_config = bool(config or url)
         if region not in DB._valid_regions:
             raise ValueError(f'Specify valid region parameter, received: region={region}. '
                              f'Valid regions are {DB._valid_regions}.')
+        if cloud not in DB._valid_clouds:
+            raise ValueError(f'Specify valid cloud parameter, received: cloud={cloud}. '
+                             f'Valid cloud platforms are {DB._valid_clouds}.')
         if config is not None and url is not None:
             raise ValueError(f'Only specify one of the parameters url and config, '
                              f'received: url={url} and config={config}')
@@ -240,6 +270,7 @@ class DB:
                 assert os.path.exists(config_path), f'{config_path} does not exist'
                 with open(config_path) as f:
                     config = json.load(f)
+                config = {k: v for k, v in config.items() if 'annotation_db' in v}
             else:
                 session = external_requests_client_session()
                 response = retry_response_returning_functions(
@@ -251,19 +282,20 @@ class DB:
                 raise ValueError(f'expected a dict mapping dataset names to '
                                  f'configurations, but found {config}')
         self.region = region
+        self.cloud = cloud
         self.url = url
         self.config = config
-        self.__by_name = {k: Dataset.from_name_and_json(k, v, region, custom_config)
+        self.__by_name = {k: Dataset.from_name_and_json(k, v, region, cloud, custom_config)
                           for k, v in config.items()
-                          if Dataset.from_name_and_json(k, v, region, custom_config) is not None}
+                          if Dataset.from_name_and_json(k, v, region, cloud, custom_config) is not None}
 
-    def available_databases(self) -> List[str]:
-        """Retrieve list of names of available databases.
+    def available_annotations(self) -> List[str]:
+        """Retrieve list of names of available annotation datasets.
 
         Returns
         -------
         :obj:`list`
-            List of available databases.
+            List of available annotation datasets.
         """
         return sorted(self.__by_name.keys())
 
@@ -326,12 +358,12 @@ class DB:
         --------
         Annotate a matrix table with the `gnomad_lof_metrics`:
 
-        >>> db = hl.experimental.DB(region='us')
+        >>> db = hl.experimental.DB(region='us', cloud='gcp')
         >>> mt = db.annotate_rows_db(mt, 'gnomad_lof_metrics') # doctest: +SKIP
 
         Annotate a table with `clinvar_gene_summary`, `CADD`, and `DANN`:
 
-        >>> db = hl.experimental.DB(region='us')
+        >>> db = hl.experimental.DB(region='us', cloud='gcp')
         >>> mt = db.annotate_rows_db(mt, 'clinvar_gene_summary', 'CADD', 'DANN') # doctest: +SKIP
 
         Notes
