@@ -225,6 +225,7 @@ async def submit(request):  # pylint: disable=unused-argument
     # commit = request.query.post('commit')
     body = await request.json()
     commit = body['commit']
+    print(commit)
     batch_id = await submit_batch(commit, batch_client)
     return web.HTTPFound(
         deploy_config.external_url('benchmark', f'/api/v1alpha/benchmark/{batch_id}'))
