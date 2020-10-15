@@ -1645,19 +1645,6 @@ steps:
     - auth_image
     - create_dummy_oauth2_client_secret
     - create_certs
- - kind: deploy
-   name: deploy_benchmark
-   namespace:
-     valueFrom: default_ns.name
-   config: benchmark-service/deployment.yaml
-   dependsOn:
-    - default_ns
-    - benchmark_image
-    - deploy_router
-    - create_certs
-    - deploy_auth
-    - create_accounts
-    - deploy_batch
  - kind: runImage
    name: check_monitoring
    image:
@@ -1757,35 +1744,6 @@ steps:
     - batch_pods_ns
     - create_certs
     - deploy_monitoring
- - kind: runImage
-   name: test_benchmark
-   image:
-     valueFrom: test_benchmark_image.image
-   script: |
-     set -ex
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
-   secrets:
-    - name: gce-deploy-config
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /deploy-config
-    - name: test-dev-tokens
-      namespace:
-        valueFrom: batch_pods_ns.name
-      mountPath: /user-tokens
-    - name: ssl-config-benchmark-tests
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /ssl-config
-   timeout: 300
-   dependsOn:
-    - test_benchmark_image
-    - create_deploy_config
-    - create_accounts
-    - default_ns
-    - batch_pods_ns
-    - create_certs
-    - deploy_benchmark
  - kind: runImage
    name: test_auth_copy_paste_login
    image:
@@ -2054,6 +2012,48 @@ steps:
     - batch_database
     - deploy_auth
     - create_certs
+ - kind: deploy
+   name: deploy_benchmark
+   namespace:
+     valueFrom: default_ns.name
+   config: benchmark-service/deployment.yaml
+   dependsOn:
+    - default_ns
+    - benchmark_image
+    - deploy_router
+    - create_certs
+    - deploy_auth
+    - create_accounts
+    - deploy_batch
+ - kind: runImage
+   name: test_benchmark
+   image:
+     valueFrom: test_benchmark_image.image
+   script: |
+     set -ex
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
+   secrets:
+     - name: gce-deploy-config
+       namespace:
+         valueFrom: default_ns.name
+       mountPath: /deploy-config
+     - name: test-dev-tokens
+       namespace:
+         valueFrom: batch_pods_ns.name
+       mountPath: /user-tokens
+     - name: ssl-config-benchmark-tests
+       namespace:
+         valueFrom: default_ns.name
+       mountPath: /ssl-config
+   timeout: 300
+   dependsOn:
+     - test_benchmark_image
+     - create_deploy_config
+     - create_accounts
+     - default_ns
+     - batch_pods_ns
+     - create_certs
+     - deploy_benchmark
  - kind: deploy
    name: deploy_query
    namespace:
