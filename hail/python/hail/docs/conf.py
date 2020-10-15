@@ -105,8 +105,8 @@ intersphinx_mapping = {
 
 # Add any paths that contain templates here, relative to this directory.
 site_templates = os.environ.get('HAIL_SITE_DIR', '../../../../site/') + 'templates'
-if os.path.isdir(site_tempaltes):
-    raise ValueError(f'{site_templates} should point to the site service Jinja2 templates folder')
+if not os.path.isdir(site_templates):
+    raise ValueError(f'{os.path.abspath(site_templates)} should point to the site service Jinja2 templates folder')
 templates_path = ['_templates', '_templates/_autosummary', site_templates]
 
 # The suffix(es) of source filenames.
