@@ -221,7 +221,7 @@ object InferType {
       case GetField(o, name) =>
         val t = coerce[TStruct](o.typ)
         if (t.index(name).isEmpty)
-          throw new RuntimeException(s"$name not in $t")
+          throw new RuntimeException(s"$name not in $t, IR = ${ir}")
         t.field(name).typ
       case MakeTuple(values) =>
         TTuple(values.map { case (i, value) => TupleField(i, value.typ) }.toFastIndexedSeq)

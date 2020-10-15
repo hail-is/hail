@@ -1599,16 +1599,25 @@ object PruneDeadFields {
              |left: ${leftRequestedType}
              |right: ${rightRequestedType}
              |""".stripMargin)
-        val left2 = upcast(rebuild(left, memo), requestedType, upcastGlobals = false)
-        val right2 = upcast(rebuild(right, memo), requestedType, upcastGlobals = false)
 
-        assert(left2.typ.colType == right2.typ.colType)
+        val left2 = rebuild(left, memo)
+        val right2 = rebuild(right, memo)
 
-        MatrixUnionCols(
-          left2,
-          right2,
-          joinType
-        )
+        if (left2.typ.colType == right2.typ.colType) {
+          MatrixUnionCols(
+            left2,
+            right2,
+            joinType
+          )
+        } else {
+          MatrixUnionCols(
+            upcast(left2, requestedType, upcastRows = false, upcastGlobals = false),
+            upcast(right2, requestedType, upcastRows = false, upcastGlobals = false),
+            joinType
+          )
+        }
+
+
       case MatrixAnnotateRowsTable(child, table, root, product) =>
         // if the field is not used, this node can be elided entirely
         if (!requestedType.rowType.hasField(root))
@@ -1987,7 +1996,7 @@ object PruneDeadFields {
     }
 
     assert(isSupertype(res.typ, ir.typ))
-    assert(isSupertype(requestedType, res.typ), s"${requestedType} != ${res.typ}")
+    assert(isSupertype(requestedType, res.typ), s"${requestedType} not super of ${res.typ}")
 
     res
   }
