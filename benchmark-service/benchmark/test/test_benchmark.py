@@ -121,7 +121,7 @@ async def test_submit():
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60)) as session:
         resp = await utils.request_retry_transient_errors(
-                session, 'POST', f'{create_benchmark_url}', headers=headers, json={'commit': f'{commit}'})
+                session, 'POST', f'{create_benchmark_url}', headers=headers, json={'commit': commit})
         #return resp
 
         batch_id = int(resp.text())
