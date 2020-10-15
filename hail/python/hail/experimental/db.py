@@ -1,17 +1,17 @@
 import json
 import os
 import warnings
+from typing import List, Set, Iterable, Optional, Union, Tuple
 
 import hail as hl
 import pkg_resources
-
 from hailtop.utils import (retry_response_returning_functions,
                            external_requests_client_session)
-from typing import List, Set, Iterable, Optional, Union
 
-from . import lens
-from ..matrixtable import matrix_table_type
-from ..table import table_type
+from .lens import MatrixRows, TableRows
+from ..expr import StructExpression
+from ..matrixtable import matrix_table_type, MatrixTable
+from ..table import table_type, Table
 from ..typecheck import typecheck_method, oneof
 from ..utils.java import Env
 
@@ -55,9 +55,7 @@ class DatasetVersion:
                               doc['reference_genome'])
 
     @staticmethod
-    def get_region(name: str,
-                   versions: List['DatasetVersion'],
-                   region: str) -> List['DatasetVersion']:
+    def get_region(name: str, versions: List['DatasetVersion'], region: str) -> List['DatasetVersion']:
         """Get versions of a :class:`.Dataset` in the specified region, if they exist.
 
         Parameters
@@ -84,7 +82,10 @@ class DatasetVersion:
                 available_versions.append(version)
         return available_versions
 
-    def __init__(self, url: Union[dict, str], version: str, reference_genome: str):
+    def __init__(self,
+                 url: Union[dict, str],
+                 version: str,
+                 reference_genome: str):
         self.url = url
         self.version = version
         self.reference_genome = reference_genome
@@ -122,7 +123,7 @@ class DatasetVersion:
             warnings.warn(message, UserWarning, stacklevel=1)
         return valid_region
 
-    def maybe_index(self, indexer_key_expr, all_matches):
+    def maybe_index(self, indexer_key_expr: StructExpression, all_matches: bool) -> Optional[StructExpression]:
         return hl.read_table(self.url)._maybe_flexindex_table_by_expr(
             indexer_key_expr, all_matches=all_matches)
 
@@ -163,11 +164,6 @@ class Dataset:
         :class:`Dataset`
             If versions exist for region returns a :class:`.Dataset` object, else None.
         """
-        # if 'annotation_db' in doc:
-        #     assert 'key_properties' in doc['annotation_db'], doc['annotation_db']
-        #     key_properties = set(doc['annotation_db']['key_properties'])
-        # else:
-        #     key_properties = set()
         assert 'annotation_db' in doc, doc
         assert 'key_properties' in doc['annotation_db'], doc['annotation_db']
         assert 'description' in doc, doc
@@ -207,7 +203,7 @@ class Dataset:
         """
         return 'gene' in self.key_properties
 
-    def index_compatible_version(self, key_expr):
+    def index_compatible_version(self, key_expr: StructExpression) -> StructExpression:
         # If not unique key then use all matches, otherwise give a single a value
         # Add documentation here soon
         all_matches = 'unique' not in self.key_properties
@@ -270,7 +266,6 @@ class DB:
                 assert os.path.exists(config_path), f'{config_path} does not exist'
                 with open(config_path) as f:
                     config = json.load(f)
-                config = {k: v for k, v in config.items() if 'annotation_db' in v}
             else:
                 session = external_requests_client_session()
                 response = retry_response_returning_functions(
@@ -281,6 +276,7 @@ class DB:
             if not isinstance(config, dict):
                 raise ValueError(f'expected a dict mapping dataset names to '
                                  f'configurations, but found {config}')
+        config = {k: v for k, v in config.items() if 'annotation_db' in v}
         self.region = region
         self.cloud = cloud
         self.url = url
@@ -289,7 +285,7 @@ class DB:
                           for k, v in config.items()
                           if Dataset.from_name_and_json(k, v, region, cloud, custom_config) is not None}
 
-    def available_annotations(self) -> List[str]:
+    def available_datasets(self) -> List[str]:
         """Retrieve list of names of available annotation datasets.
 
         Returns
@@ -300,16 +296,16 @@ class DB:
         return sorted(self.__by_name.keys())
 
     @staticmethod
-    def _row_lens(rel):
-        if isinstance(rel, hl.MatrixTable):
-            return lens.MatrixRows(rel)
-        elif isinstance(rel, hl.Table):
-            return lens.TableRows(rel)
+    def _row_lens(rel: Union[Table, MatrixTable]) -> Union[TableRows, MatrixRows]:
+        if isinstance(rel, MatrixTable):
+            return MatrixRows(rel)
+        elif isinstance(rel, Table):
+            return TableRows(rel)
         else:
             raise ValueError(
                 'annotation database can only annotate Hail MatrixTable or Table')
 
-    def dataset_by_name(self, name: str) -> 'Dataset':
+    def dataset_by_name(self, name: str) -> Dataset:
         """Retrieve :class:`Dataset` object by name.
 
         Parameters
@@ -328,7 +324,7 @@ class DB:
                 f'known dataset names with available_databases()')
         return self.__by_name[name]
 
-    def _annotate_gene_name(self, rel):
+    def _annotate_gene_name(self, rel: Union[TableRows, MatrixRows]) -> Tuple[str, Union[TableRows, MatrixRows]]:
         gene_field = Env.get_uid()
         gencode = self.__by_name['gencode'].index_compatible_version(rel.key)
         return gene_field, rel.annotate(**{gene_field: gencode.gene_name})
@@ -347,10 +343,10 @@ class DB:
             raise ValueError(f'datasets: {unavailable} not available in the {self.region} region.')
 
     @typecheck_method(rel=oneof(table_type, matrix_table_type), names=str)
-    def annotate_rows_db(self, rel, *names):
+    def annotate_rows_db(self, rel: Union[Table, MatrixTable], *names: str) -> Union[Table, MatrixTable]:
         """Add annotations from datasets specified by name.
 
-        List datasets with at :meth:`.available_databases`. An interactive query
+        List datasets with at :meth:`.available_datasets`. An interactive query
         builder is available in the
         `Hail Annotation Database documentation </docs/0.2/annotation_database_ui.html>`_.
 

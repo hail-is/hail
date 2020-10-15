@@ -69,7 +69,7 @@ function copy() {
 
 
 function updateTextArea() {
-    var text = "db = hl.experimental.DB()\nmt = db.annotate_rows_db(mt";
+    var text = "db = hl.experimental.DB(region='us', cloud='gcp')\nmt = db.annotate_rows_db(mt";
     $('input[type=checkbox]:checked').filter(".checkboxadd").each(function () {
         text += ', "' + $(this).val() + '"';
         $('#result').val(text + ')');

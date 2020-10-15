@@ -9,8 +9,8 @@ import pkg_resources
 def load_dataset(name: str,
                  version: str,
                  reference_genome: str,
-                 region: str,
-                 cloud: str) -> Union[hl.Table, hl.MatrixTable]:
+                 region: str = 'us',
+                 cloud: str = 'gcp') -> Union[hl.Table, hl.MatrixTable]:
     """Load a genetic dataset from Hail's repository.
 
     Example
@@ -28,14 +28,17 @@ def load_dataset(name: str,
     name : :class:`str`
         Name of the dataset to load.
     version : :class:`str`
-        Version of the named dataset to load
+        Version of the named dataset to load.
         (see available versions in documentation).
     reference_genome : :class:`str`
         Reference genome build, 'GRCh37' or 'GRCh38'.
     region : :class:`str`
         Specify region for bucket, 'us' or 'eu'.
+        Default is 'us'.
+        Note: 'eu' region is currently only available when cloud set to 'gcp'.
     cloud : :class:`str`
         Specify if using Google Cloud Platform or Amazon Web Services, 'gcp' or 'aws'.
+        Default is 'gcp'.
 
     Returns
     -------
