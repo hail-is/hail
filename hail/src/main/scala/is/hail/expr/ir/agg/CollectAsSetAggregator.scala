@@ -48,12 +48,11 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
       Region.storeAddress(dest, StagedRegionValueBuilder.deepCopyFromOffset(er, storageType, src))
   }
 
-  def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
-    kcomp(k1, k2)
+  def compKeys(k1: EmitCode, k2: EmitCode): Code[Int] =
+    Code(k1.setup, k2.setup, kcomp(k1.m -> k1.v, k2.m -> k2.v))
 
-  def loadCompKey(off: Value[Long]): (Code[Boolean], Code[_]) = {
-    isKeyMissing(off) -> isKeyMissing(off).mux(defaultValue(typ), loadKey(off))
-  }
+  def loadCompKey(off: Value[Long]): EmitCode =
+    EmitCode(Code._empty, isKeyMissing(off), PCode(typ, loadKey(off)))
 }
 
 class AppendOnlySetState(val kb: EmitClassBuilder[_], t: PType) extends PointerBasedRVAState {

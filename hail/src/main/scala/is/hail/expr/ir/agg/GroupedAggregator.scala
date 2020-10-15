@@ -20,12 +20,14 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     val off = mb.getCodeParam[Long](1)
     val m = mb.getCodeParam[Boolean](2)
     val v = mb.getCodeParam(3)(compType.ti)
-    mb.emit(compKeys(isKeyMissing(off) -> loadKey(off), m.get -> v.get))
+    val ev1 = EmitCode(Code._empty, isKeyMissing(off), PCode(compType, loadKey(off)))
+    val ev2 = EmitCode(Code._empty, m, PCode(compType, v))
+    mb.emit(compKeys(ev1, ev2))
     mb
   }
 
-  override def compWithKey(off: Code[Long], k: (Code[Boolean], Code[_])): Code[Int] =
-    compLoader.invokeCode[Int](off, k._1, k._2)
+  override def compWithKey(off: Code[Long], k: EmitCode): Code[Int] =
+    Code(k.setup, compLoader.invokeCode[Int](off, k.m, k.v)) // FIXME EmitParameter
 
   val regionIdx: Value[Int] = new Value[Int] {
     def get: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))
@@ -86,11 +88,11 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
       container.store(cb)
     }
 
-  def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
-    kcomp(k1, k2)
+  def compKeys(k1: EmitCode, k2: EmitCode): Code[Int] =
+    Code(k1.setup, k2.setup, kcomp(k1.m -> k1.v, k2.m -> k2.v))
 
-  def loadCompKey(off: Value[Long]): (Code[Boolean], Code[_]) =
-    isKeyMissing(off) -> isKeyMissing(off).mux(defaultValue(kt), loadKey(off))
+  def loadCompKey(off: Value[Long]): EmitCode =
+    EmitCode(Code._empty, isKeyMissing(off), PCode(compType, loadKey(off)))
 
 }
 
