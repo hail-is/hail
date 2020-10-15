@@ -232,7 +232,7 @@ async def submit(request, userdata):  # pylint: disable=unused-argument
 
 
 @router.get('/api/v1alpha/benchmark/{batch_id}')
-async def batch_status(request, userdata):
+async def batch_status(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     batch_client = app['batch_client']
     batch_id = request.match_info['batch_id']
