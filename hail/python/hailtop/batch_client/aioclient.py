@@ -559,7 +559,7 @@ class BatchBuilder:
 @asyncinit
 class BatchClient:
     async def __init__(self, billing_project, deploy_config=None, session=None,
-                       headers=None, _token=None):
+                       headers=None, _token=None, token_file=None):
         self.billing_project = billing_project
 
         if not deploy_config:
@@ -579,7 +579,7 @@ class BatchClient:
         if _token:
             h['Authorization'] = f'Bearer {_token}'
         else:
-            h.update(service_auth_headers(deploy_config, 'batch'))
+            h.update(service_auth_headers(deploy_config, 'batch', token_file=token_file))
         self._headers = h
 
     async def _get(self, path, params=None):
