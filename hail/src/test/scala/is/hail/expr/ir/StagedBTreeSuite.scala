@@ -36,12 +36,11 @@ class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
   def deepCopy(er: EmitRegion, src: Code[Long], dest: Code[Long]): Code[Unit] =
     copy(src, dest)
 
-  def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
-    comp(k1, k2)
+  def compKeys(k1: EmitCode, k2: EmitCode): Code[Int] =
+    Code(k1.setup, k2.setup, comp((k1.m, k1.v), (k2.m, k2.v)))
 
-  def loadCompKey(off: Value[Long]): (Code[Boolean], Code[_]) =
-    storageType.isFieldMissing(off, 0) -> storageType.isFieldMissing(off, 0).mux(
-      0L, Region.loadLong(storageType.fieldOffset(off, 0)))
+  def loadCompKey(off: Value[Long]): EmitCode =
+    EmitCode(Code._empty, storageType.isFieldMissing(off, 0), PCode(compType, Region.loadLong(storageType.fieldOffset(off, 0))))
 }
 
 object BTreeBackedSet {
@@ -136,9 +135,9 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       cb += sab.clear
       btree.foreach(cb) { (cb, koff) =>
         cb += Code.memoize(koff, "koff") { koff =>
-          val (m, v) = key.loadCompKey(koff)
-          m.mux(sab.addMissing(),
-            sab.add(v))
+          val ec = key.loadCompKey(koff)
+          ec.m.mux(sab.addMissing(),
+            sab.add(ec.v))
         }
       }
       cb += (returnArray := Code.newArray[java.lang.Long](sab.size))
@@ -168,15 +167,14 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
     fb.emitWithBuilder { cb =>
       cb += (root := fb.getCodeParam[Long](1))
       cb += (ob2 := ob)
-      btree.bulkStore(cb, ob2) { (cb, ob, off) =>
-        cb += Code.memoize(ob, "ob", off, "off") { (ob, off) =>
-          val (km, kv) = key.loadCompKey(off)
-          Code.memoize(km, "km") { km =>
-            Code(
-              ob.writeBoolean(km),
-              (!km).orEmpty(ob.writeLong(coerce[Long](kv))))
-          }
-        }
+      btree.bulkStore(cb, ob2) { (cb, obc, offc) =>
+        val ob = cb.newLocal("ob", obc)
+        val off = cb.newLocal("off", offc)
+        val ev = cb.memoize(key.loadCompKey(off), "ev")
+        cb += ob.writeBoolean(ev.m)
+        cb.ifx(!ev.m, {
+          cb += ob.writeLong(ev.value[Long])
+        })
       }
       ob2.flush()
     }
