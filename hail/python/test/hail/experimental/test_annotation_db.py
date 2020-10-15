@@ -20,11 +20,11 @@ class AnnotationDBTests(unittest.TestCase):
             'unique_dataset': {'description': 'now with unique rows!',
                                'url': 'https://example.com',
                                'annotation_db': {'key_properties': ['unique']},
-                               'versions': [{'url': fname, 'version': 'v1-GRCh37'}]},
+                               'versions': [{'url': fname, 'version': 'v1', 'reference_genome': 'GRCh37'}]},
             'nonunique_dataset': {'description': 'non-unique rows :(',
                                   'url': 'https://example.net',
                                   'annotation_db': {'key_properties': []},
-                                  'versions': [{'url': fname, 'version': 'v1-GRCh37'}]}}
+                                  'versions': [{'url': fname, 'version': 'v1', 'reference_genome': 'GRCh37'}]}}
 
     @classmethod
     def tearDownAnnotationDBTests(cls):
