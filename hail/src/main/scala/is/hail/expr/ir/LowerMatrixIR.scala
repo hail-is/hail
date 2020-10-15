@@ -461,7 +461,9 @@ object LowerMatrixIR {
               }
           }))
 
-      case MatrixUnionCols(left, right, joinType) =>
+      case x@MatrixUnionCols(left, right, joinType) =>
+        TypeCheck(x)
+
         val rightEntries = genUID()
         val rightCols = genUID()
         val ll = lower(left, ab).distinct()

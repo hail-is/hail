@@ -1589,6 +1589,26 @@ object PruneDeadFields {
           upcast(rebuild(child, memo), requestedType,
             upcastGlobals = false)
         })
+      case MatrixUnionCols(left, right, joinType) =>
+        val requestedType = memo.requestedType.lookup(mir).asInstanceOf[MatrixType]
+        val leftRequestedType = memo.requestedType.lookup(left).asInstanceOf[MatrixType]
+        val rightRequestedType = memo.requestedType.lookup(right).asInstanceOf[MatrixType]
+        log.info(
+          s"""MATRIX UNION COLS REQUESTED:
+             |Overall: ${requestedType}
+             |left: ${leftRequestedType}
+             |right: ${rightRequestedType}
+             |""".stripMargin)
+        val left2 = upcast(rebuild(left, memo), requestedType, upcastGlobals = false)
+        val right2 = upcast(rebuild(right, memo), requestedType, upcastGlobals = false)
+
+        assert(left2.typ.colType == right2.typ.colType)
+
+        MatrixUnionCols(
+          left2,
+          right2,
+          joinType
+        )
       case MatrixAnnotateRowsTable(child, table, root, product) =>
         // if the field is not used, this node can be elided entirely
         if (!requestedType.rowType.hasField(root))
@@ -1724,7 +1744,9 @@ object PruneDeadFields {
       case MakeArray(args, _) =>
         val dep = requestedType.asInstanceOf[TArray]
         val args2 = args.map(a => rebuildIR(a, env, memo))
-        MakeArray.unify(args2, TArray(dep.elementType))
+        val unified = MakeArray.unify(args2, TArray(dep.elementType))
+        unified.args.map(_.typ).forall(t => t == unified.typ.asInstanceOf[TArray].elementType)
+        unified
       case MakeStream(args, _, separateRegions) =>
         val dep = requestedType.asInstanceOf[TStream]
         val args2 = args.map(a => rebuildIR(a, env, memo))
@@ -1860,11 +1882,11 @@ object PruneDeadFields {
           preservedChildFields.contains(fieldName) && !depFields.contains(fieldName)
         }
 
-        val (wrappedChild, childFieldSet) = if (true) {//(insertOverwritesUnrequestedButPreservedField) {
+        val wrappedChild = if (insertOverwritesUnrequestedButPreservedField) {
           val selectedChildFields = preservedChildFields.filter(s => depFields.contains(s))
-          (SelectFields(rebuiltChild, rebuiltChild.typ.asInstanceOf[TStruct].fieldNames.filter(selectedChildFields.contains(_))), selectedChildFields)
+          SelectFields(rebuiltChild, rebuiltChild.typ.asInstanceOf[TStruct].fieldNames.filter(selectedChildFields.contains(_)))
         } else {
-          (rebuiltChild, preservedChildFields)
+          rebuiltChild
         }
 
         InsertFields(wrappedChild,
@@ -1875,7 +1897,7 @@ object PruneDeadFields {
               log.info(s"Prune: InsertFields: eliminating field '$f'")
               None
             }
-          }, fieldOrder.map(fds => fds.filter(f => depFields.contains(f) || childFieldSet.contains(f))))
+          }, fieldOrder.map(fds => fds.filter(f => depFields.contains(f) || wrappedChild.typ.asInstanceOf[TStruct].hasField(f))))
       case SelectFields(old, fields) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
         val old2 = rebuildIR(old, env, memo)

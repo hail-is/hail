@@ -106,7 +106,7 @@ object TypeCheck {
       case ma@MakeArray(args, typ) =>
         assert(typ != null)
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
-          s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() } Stack trace of MakeArray:\n${ma.stackTrace}")
+          s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() } \n Bad arg was ${args(i)} \n Bad IR was ${ma} \n Bad arg stack = ${args(i).asInstanceOf[GetField].stackTrace} \n Stack trace of MakeArray:\n${ma.stackTrace}")
         }
       case x@MakeStream(args, typ, _) =>
         assert(typ != null)
@@ -453,6 +453,10 @@ object TypeCheck {
         assert(EmitStream.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
         val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
         child.typ.key.foreach { k => if (!newRowType.hasField(k)) throw new RuntimeException(s"prev key: ${child.typ.key}, new row: ${newRowType}")}
+
+
+      case MatrixUnionCols(left, right, joinType) =>
+        assert(left.typ.colType == right.typ.colType, s"${left.typ.colType} != ${right.typ.colType}")
 
       case _: TableIR =>
       case _: MatrixIR =>

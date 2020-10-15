@@ -14,7 +14,7 @@ object Optimize {
     var ir = ir0
     var last: BaseIR = null
     var iter = 0
-    val maxIter = HailContext.get.optimizerIterations
+    val maxIter = 1//HailContext.get.optimizerIterations
 
     def runOpt(f: BaseIR => BaseIR, iter: Int, optContext: String): Unit = {
       ir = ctx.timer.time(optContext)(f(ir).asInstanceOf[T])
@@ -24,10 +24,10 @@ object Optimize {
       while (iter < maxIter && ir != last) {
         last = ir
         runOpt(FoldConstants(ctx, _), iter, "FoldConstants")
-        runOpt(ExtractIntervalFilters(_), iter, "ExtractIntervalFilters")
-        runOpt(Simplify(_), iter, "Simplify")
-        runOpt(ForwardLets(_), iter, "ForwardLets")
-        runOpt(ForwardRelationalLets(_), iter, "ForwardRelationalLets")
+//        runOpt(ExtractIntervalFilters(_), iter, "ExtractIntervalFilters")
+//        runOpt(Simplify(_), iter, "Simplify")
+//        runOpt(ForwardLets(_), iter, "ForwardLets")
+//        runOpt(ForwardRelationalLets(_), iter, "ForwardRelationalLets")
         runOpt(PruneDeadFields(_), iter, "PruneDeadFields")
 
         iter += 1

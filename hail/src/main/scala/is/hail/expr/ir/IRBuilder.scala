@@ -30,6 +30,13 @@ object IRBuilder {
   implicit def arrayToProxy(seq: Seq[IRProxy]): IRProxy = (env: E) => {
     val irs = seq.map(_ (env))
     val elType = irs.head.typ
+    val irTyps = irs.map(_.typ)
+    assert(irTyps.forall(t => t == elType),
+      s"""
+        |Types were ${irTyps}
+        |IRs were: ${irs}
+        |Origins were ${irs.map(_.asInstanceOf[GetField].stackTrace)}
+        |""".stripMargin)
     MakeArray(irs, TArray(elType))
   }
 

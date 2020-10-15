@@ -519,6 +519,7 @@ object InsertFields {
   def apply(old: IR, fields: Seq[(String, IR)]): InsertFields = InsertFields(old, fields, None)
 }
 final case class InsertFields(old: IR, fields: Seq[(String, IR)], fieldOrder: Option[IndexedSeq[String]]) extends IR {
+  fieldOrder.foreach(fo => assert(fo.size == fields.size))
 
   override def typ: TStruct = coerce[TStruct](super.typ)
 
@@ -534,7 +535,9 @@ object GetFieldByIdx {
   }
 }
 
-final case class GetField(o: IR, name: String) extends IR
+final case class GetField(o: IR, name: String) extends IR {
+  val stackTrace = Thread.currentThread().getStackTrace.mkString("\n")
+}
 
 object MakeTuple {
   def ordered(types: Seq[IR]): MakeTuple = MakeTuple(types.iterator.zipWithIndex.map { case (ir, i) => (i, ir) }.toFastIndexedSeq)

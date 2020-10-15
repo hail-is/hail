@@ -1221,7 +1221,10 @@ class Tests(unittest.TestCase):
         expected = expected.annotate_entries(ridx=expected.row_idx,
                                              cidx=expected.col_idx % 3)
 
-        self.assertTrue(matrix1.union_cols(matrix2)._same(expected))
+        unioned = matrix1.union_cols(matrix2)
+        import pdb; pdb.set_trace()
+
+        self.assertTrue(unioned._same(expected))
 
     @fails_local_backend()
     def test_row_joins_into_table(self):
