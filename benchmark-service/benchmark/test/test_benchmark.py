@@ -14,7 +14,101 @@ pytestmark = pytest.mark.asyncio
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-commit = "{'author': { 'name': 'John Compitello', 'email': 'johnc@broadinstitute.org', 'date': '2020-09-11T13:56:57Z'}, 'committer': {'name': 'GitHub','email': 'noreply@github.com','date': '2020-09-11T13:56:57Z'}, 'message': 'emitI: NDArrayShape and NDArrayReindex (#9431)\n\n* Move NDArrayShape into emitI, add function to get shape PCode from PNDArrayCode\n\n* Cleaned up NDArrayReindex a bit, I'm going to want to find a new construct interface at some point though\n\n* Move all the emitDeforestedArray calls to emitI\n\n* Delete the old unused emitDeforestedNDArray method from regular emit', 'tree': {'sha': 'fc3f7c697b9ffff9b44546c459cfc7eebbd2fcf5', 'url': '[https://api.github.com/repos/hail-is/hail/git/trees/fc3f7c697b9ffff9b44546c459cfc7eebbd2fcf5](https://api.github.com/repos/hail-is/hail/git/trees/fc3f7c697b9ffff9b44546c459cfc7eebbd2fcf5)'}, 'url': '[https://api.github.com/repos/hail-is/hail/git/commits/ef7262d01f2bde422aaf09b6f84091ac0e439b1d](https://api.github.com/repos/hail-is/hail/git/commits/ef7262d01f2bde422aaf09b6f84091ac0e439b1d)', 'comment_count': 0, 'verification': {'verified': True, 'reason': 'valid', 'signature': '-----BEGIN PGP SIGNATURE-----\n\nwsBcBAABCAAQBQJfW4IpCRBK7hj4Ov3rIwAAdHIIAHhCCkG1NoSIENxP/iPVhWjZ\n7PYRJn6nYyPR7fSyXsQVLOr/p/k4bFwDarjz1DglVCk+nlDF777hnYhGIsHKmdud\nd5kke5lE7wUTUtgYwAGDFOROdIcq8ihkezoB2JREpJ9mdilRtvNfS1cl5YUbdwT+\nGuRXqTnvLaVqhNrDpCthIU+9LHAhLRn44uNRlel824ttFWp5GTWUaeYUZEmZ3cLQ\n7sgshhy8LSVqgh81sgUyBhymuTJdPDW6nev3FlFx+eCbt8M3sQArn/KmA04mIHY1\nNR41txCRBHzn7f0DPLDV05yW9zhPRYO6sc9/fbuc1jeAK1iQDOF7ZZA8co8ZcmM=\n=7aoX\n-----END PGP SIGNATURE-----\n', 'payload': 'tree fc3f7c697b9ffff9b44546c459cfc7eebbd2fcf5\nparent b24b393755d58b712c5029a3b4f8c6cf3e1b9b25\nauthor John Compitello [johnc@broadinstitute.org](mailto:johnc@broadinstitute.org) 1599832617 -0400\ncommitter GitHub [noreply@github.com](mailto:noreply@github.com) 1599832617 -0400\n\nemitI: NDArrayShape and NDArrayReindex (#9431)\n\n* Move NDArrayShape into emitI, add function to get shape PCode from PNDArrayCode\n\n* Cleaned up NDArrayReindex a bit, I'm going to want to find a new construct interface at some point though\n\n* Move all the emitDeforestedArray calls to emitI\n\n* Delete the old unused emitDeforestedNDArray method from regular emit'}}, 'url': '[https://api.github.com/repos/hail-is/hail/commits/ef7262d01f2bde422aaf09b6f84091ac0e439b1d](https://api.github.com/repos/hail-is/hail/commits/ef7262d01f2bde422aaf09b6f84091ac0e439b1d)', 'html_url': '[https://github.com/hail-is/hail/commit/ef7262d01f2bde422aaf09b6f84091ac0e439b1d](https://github.com/hail-is/hail/commit/ef7262d01f2bde422aaf09b6f84091ac0e439b1d)', 'comments_url': '[https://api.github.com/repos/hail-is/hail/commits/ef7262d01f2bde422aaf09b6f84091ac0e439b1d/comments](https://api.github.com/repos/hail-is/hail/commits/ef7262d01f2bde422aaf09b6f84091ac0e439b1d/comments)', 'author': {'login': 'johnc1231', 'id': 13773586, 'node_id': 'MDQ6VXNlcjEzNzczNTg2', 'avatar_url': '[https://avatars3.githubusercontent.com/u/13773586?v=4](https://avatars3.githubusercontent.com/u/13773586?v=4)', 'gravatar_id': '', 'url': '[https://api.github.com/users/johnc1231](https://api.github.com/users/johnc1231)', 'html_url': '[https://github.com/johnc1231](https://github.com/johnc1231)', 'followers_url': '[https://api.github.com/users/johnc1231/followers](https://api.github.com/users/johnc1231/followers)', 'following_url': '[https://api.github.com/users/johnc1231/following{/other_user}](https://api.github.com/users/johnc1231/following%7B/other_user%7D)', 'gists_url': '[https://api.github.com/users/johnc1231/gists{/gist_id}](https://api.github.com/users/johnc1231/gists%7B/gist_id%7D)', 'starred_url': '[https://api.github.com/users/johnc1231/starred{/owner}{/repo}](https://api.github.com/users/johnc1231/starred%7B/owner%7D%7B/repo%7D)', 'subscriptions_url': '[https://api.github.com/users/johnc1231/subscriptions](https://api.github.com/users/johnc1231/subscriptions)', 'organizations_url': '[https://api.github.com/users/johnc1231/orgs](https://api.github.com/users/johnc1231/orgs)', 'repos_url': '[https://api.github.com/users/johnc1231/repos](https://api.github.com/users/johnc1231/repos)', 'events_url': '[https://api.github.com/users/johnc1231/events{/privacy}](https://api.github.com/users/johnc1231/events%7B/privacy%7D)', 'received_events_url': '[https://api.github.com/users/johnc1231/received_events](https://api.github.com/users/johnc1231/received_events)', 'type': 'User', 'site_admin': False}, 'committer': {'login': 'web-flow', 'id': 19864447, 'node_id': 'MDQ6VXNlcjE5ODY0NDQ3', 'avatar_url': '[https://avatars3.githubusercontent.com/u/19864447?v=4](https://avatars3.githubusercontent.com/u/19864447?v=4)', 'gravatar_id': '', 'url': '[https://api.github.com/users/web-flow](https://api.github.com/users/web-flow)', 'html_url': '[https://github.com/web-flow](https://github.com/web-flow)', 'followers_url': '[https://api.github.com/users/web-flow/followers](https://api.github.com/users/web-flow/followers)', 'following_url': '[https://api.github.com/users/web-flow/following{/other_user}](https://api.github.com/users/web-flow/following%7B/other_user%7D)', 'gists_url': '[https://api.github.com/users/web-flow/gists{/gist_id}](https://api.github.com/users/web-flow/gists%7B/gist_id%7D)', 'starred_url': '[https://api.github.com/users/web-flow/starred{/owner}{/repo}](https://api.github.com/users/web-flow/starred%7B/owner%7D%7B/repo%7D)', 'subscriptions_url': '[https://api.github.com/users/web-flow/subscriptions](https://api.github.com/users/web-flow/subscriptions)', 'organizations_url': '[https://api.github.com/users/web-flow/orgs](https://api.github.com/users/web-flow/orgs)', 'repos_url': '[https://api.github.com/users/web-flow/repos](https://api.github.com/users/web-flow/repos)', 'events_url': '[https://api.github.com/users/web-flow/events{/privacy}](https://api.github.com/users/web-flow/events%7B/privacy%7D)', 'received_events_url': '[https://api.github.com/users/web-flow/received_events](https://api.github.com/users/web-flow/received_events)', 'type': 'User', 'site_admin': False}"
+commit = {
+    "url": "https://api.github.com/repos/octocat/Hello-World/commits/6dcb09b5b57875f334f61aebed695e2e4193db5e",
+    "sha": "6dcb09b5b57875f334f61aebed695e2e4193db5e",
+    "node_id": "MDY6Q29tbWl0NmRjYjA5YjViNTc4NzVmMzM0ZjYxYWViZWQ2OTVlMmU0MTkzZGI1ZQ==",
+    "html_url": "https://github.com/octocat/Hello-World/commit/6dcb09b5b57875f334f61aebed695e2e4193db5e",
+    "comments_url": "https://api.github.com/repos/octocat/Hello-World/commits/6dcb09b5b57875f334f61aebed695e2e4193db5e/comments",
+    "commit": {
+        "url": "https://api.github.com/repos/octocat/Hello-World/git/commits/6dcb09b5b57875f334f61aebed695e2e4193db5e",
+        "author": {
+            "name": "Monalisa Octocat",
+            "email": "support@github.com",
+            "date": "2011-04-14T16:00:49Z"
+        },
+        "committer": {
+            "name": "Monalisa Octocat",
+            "email": "support@github.com",
+            "date": "2011-04-14T16:00:49Z"
+        },
+        "message": "Fix all the bugs",
+        "tree": {
+            "url": "https://api.github.com/repos/octocat/Hello-World/tree/6dcb09b5b57875f334f61aebed695e2e4193db5e",
+            "sha": "6dcb09b5b57875f334f61aebed695e2e4193db5e"
+        },
+        "comment_count": 0,
+        "verification": {
+            "verified": False,
+            "reason": "unsigned",
+            "signature": False,
+            "payload": False
+        }
+    },
+    "author": {
+        "login": "octocat",
+        "id": 1,
+        "node_id": "MDQ6VXNlcjE=",
+        "avatar_url": "https://github.com/images/error/octocat_happy.gif",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/octocat",
+        "html_url": "https://github.com/octocat",
+        "followers_url": "https://api.github.com/users/octocat/followers",
+        "following_url": "https://api.github.com/users/octocat/following{/other_user}",
+        "gists_url": "https://api.github.com/users/octocat/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/octocat/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/octocat/subscriptions",
+        "organizations_url": "https://api.github.com/users/octocat/orgs",
+        "repos_url": "https://api.github.com/users/octocat/repos",
+        "events_url": "https://api.github.com/users/octocat/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/octocat/received_events",
+        "type": "User",
+        "site_admin": False
+    },
+    "committer": {
+        "login": "octocat",
+        "id": 1,
+        "node_id": "MDQ6VXNlcjE=",
+        "avatar_url": "https://github.com/images/error/octocat_happy.gif",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/octocat",
+        "html_url": "https://github.com/octocat",
+        "followers_url": "https://api.github.com/users/octocat/followers",
+        "following_url": "https://api.github.com/users/octocat/following{/other_user}",
+        "gists_url": "https://api.github.com/users/octocat/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/octocat/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/octocat/subscriptions",
+        "organizations_url": "https://api.github.com/users/octocat/orgs",
+        "repos_url": "https://api.github.com/users/octocat/repos",
+        "events_url": "https://api.github.com/users/octocat/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/octocat/received_events",
+        "type": "User",
+        "site_admin": False
+    },
+    "parents": [
+        {
+            "url": "https://api.github.com/repos/octocat/Hello-World/commits/6dcb09b5b57875f334f61aebed695e2e4193db5e",
+            "sha": "6dcb09b5b57875f334f61aebed695e2e4193db5e"
+        }
+    ],
+    "stats": {
+        "additions": 104,
+        "deletions": 4,
+        "total": 108
+    },
+    "files": [
+        {
+            "filename": "file1.txt",
+            "additions": 10,
+            "deletions": 2,
+            "changes": 12,
+            "status": "modified",
+            "raw_url": "https://github.com/octocat/Hello-World/raw/7ca483543807a51b6079e54ac4cc392bc29ae284/file1.txt",
+            "blob_url": "https://github.com/octocat/Hello-World/blob/7ca483543807a51b6079e54ac4cc392bc29ae284/file1.txt",
+            "patch": "@@ -29,7 +29,7 @@\n....."
+        }
+    ]
+}
 
 
 async def test_submit():
