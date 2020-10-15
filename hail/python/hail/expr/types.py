@@ -1026,6 +1026,27 @@ class tstruct(HailType, Mapping):
 
     In Python, these are represented as :class:`.Struct`.
 
+    Hail's :class:`.tstruct` type is commonly used to compose types together to form nested
+    structures. Structs can contain any combination of types, and are ordered mappings
+    from field name to field type. Each field name must be unique.
+
+    Structs are very common in Hail. Each component of a :class:`.Table` and :class:`.MatrixTable`
+    is a struct:
+
+    - :meth:`.Table.row`
+    - :meth:`.Table.globals`
+    - :meth:`.MatrixTable.row`
+    - :meth:`.MatrixTable.col`
+    - :meth:`.MatrixTable.entry`
+    - :meth:`.MatrixTable.globals`
+
+    Structs appear below the top-level component types as well. Consider the following join:
+
+    >>> new_table = table1.annotate(table2_fields = table2.index(table1.key))
+
+    This snippet adds a field to ``table1`` called ``table2_fields``. In the new table,
+    ``table2_fields`` will be a struct containing all the non-key fields from ``table2``.
+
     Parameters
     ----------
     field_types : keyword args of :class:`.HailType`
