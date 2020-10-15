@@ -85,7 +85,7 @@ In general, you won't need to mention types explicitly.
 
 There are a few situations where you may want to specify types explicitly:
 
-- To specify column types in :func:`import_table` if the `impute` flag does not
+- To specify column types in :func:`~.import_table` if the `impute` flag does not
   infer the type you want.
 - When converting a Python value to a Hail expression with :func:`.literal`,
   if you don't wish to rely on the inferred type.
