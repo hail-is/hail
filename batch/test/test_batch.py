@@ -588,7 +588,7 @@ def test_batch_create_validation():
                               json=config,
                               allow_redirects=True,
                               headers=headers) as resp:
-                assert resp.status == 400, (config, resp)
+                assert resp.status == 400, (config, resp.text())
 
 
 def test_duplicate_parents(client):
