@@ -32,7 +32,7 @@ class HailResolver(aiohttp.abc.AbstractResolver):
 
     async def resolve(self, host: str, port: int, family: int) -> List[Dict[str, Any]]:
         if family in (socket.AF_INET, socket.AF_INET6):
-            maybe_address_and_port = self.deploy_config.maybe_address(host)
+            maybe_address_and_port = await self.deploy_config.maybe_address(host)
             if maybe_address_and_port is not None:
                 address, resolved_port = maybe_address_and_port
                 return [{'hostname': host,
