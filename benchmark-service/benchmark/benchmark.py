@@ -222,6 +222,15 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
+@router.get('/submit')
+async def submit(request, userdata):
+    app = request.app
+    reponame = request.query.get('reponame')
+    branchname = request.query.get('branchname')
+    iterations = request.query.get('iterations')
+    regex = request.query.get('regex')
+
+
 async def update_commits(app):
     global benchmark_data
     github_client = app['github_client']
