@@ -11,6 +11,7 @@ log = logging.getLogger('hailtop.httpx')
 
 HailAsyncClientSession = Union[aiohttp.ClientSession, 'RetryingClientSession']
 
+
 def client_session(*args,
                    retry_transient=True,
                    raise_for_status=True,
