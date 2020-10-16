@@ -1474,7 +1474,7 @@ steps:
      unzip -q -d python /io/hail.zip
 
      tar xzf /io/site-src.tar.gz
-     export HAIL_SITE_DIR=$(pwd)/site
+     export HAIL_SITE_DIR=$(pwd)/site/
 
      sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
        < python/hail/docs/change_log.md \
