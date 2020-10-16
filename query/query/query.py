@@ -209,7 +209,7 @@ STDERR:
     py4j_jar = py4j_jars[0]
     port = launch_gateway(
         jarpath=py4j_jar,
-        classpath='{spark_home}/jars/*:/hail.jar',
+        classpath=f'{spark_home}/jars/*:/hail.jar',
         die_on_exit=True)
     gateway = JavaGateway(
         gateway_parameters=GatewayParameters(port=port),
