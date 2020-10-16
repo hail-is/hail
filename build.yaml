@@ -2836,6 +2836,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: ssl-config-batch-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
     - name: test-gsa-key
       namespace:
         valueFrom: batch_pods_ns.name

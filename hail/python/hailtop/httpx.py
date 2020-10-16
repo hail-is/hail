@@ -31,7 +31,7 @@ class HailResolver(aiohttp.abc.AbstractResolver):
         self.deploy_config = get_deploy_config()
 
     async def resolve(self, host: str, port: int, family: int) -> List[Dict[str, Any]]:
-        if family in (socket.AF_INET, socket.AF_INET6):
+        if family in (0, socket.AF_INET, socket.AF_INET6):
             maybe_address_and_port = await self.deploy_config.maybe_address(host)
             if maybe_address_and_port is not None:
                 address, resolved_port = maybe_address_and_port
@@ -87,13 +87,13 @@ class BlockingContextManager:
         self.context_manager = context_manager
 
     async def __enter__(self) -> BlockingClientResponse:
-        return async_to_blocking(self.context_manager.__aenter__)
+        return async_to_blocking(self.context_manager.__aenter__())
 
     async def __exit__(self,
                        exc_type: Optional[Type[BaseException]],
                        exc: Optional[BaseException],
                        tb: Optional[TracebackType]) -> None:
-        async_to_blocking(self.context_manager.__aexit__)
+        async_to_blocking(self.context_manager.__aexit__())
 
 
 class BlockingClientSession:
@@ -176,7 +176,7 @@ class BlockingClientSession:
         return self.session.version
 
     def __enter__(self) -> 'BlockingClientSession':
-        self.session = async_to_blocking(self.session.__aenter__)
+        self.session = async_to_blocking(self.session.__aenter__())
         return self
 
     def __exit__(self,
