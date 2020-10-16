@@ -52,15 +52,18 @@ class DeployConfig:
     def service_ns(self, service: str) -> str:
         return self._service_namespace.get(service, self._default_namespace)
 
-    def scheme(self, base_scheme: str = 'http') -> str:
-        # FIXME: should depend on ssl context
-        return (base_scheme + 's') if self._location in ('external', 'k8s') else base_scheme
+    def scheme(self, service: str, base_scheme: str = 'http') -> str:
+        if self._location == 'gce' and service not in DeployConfig.ADDRESS_SERVICES:
+            return base_scheme
+        return base_scheme + 's'
 
     def domain(self, service: str) -> str:
         ns = self.service_ns(service)
         if self._location == 'k8s':
             return f'{service}.{ns}'
         if self._location == 'gce':
+            if service in DeployConfig.ADDRESS_SERVICES:
+                return f'{service}.{ns}'
             if ns == 'default':
                 return f'{service}.hail'
             return 'internal.hail'
@@ -76,7 +79,7 @@ class DeployConfig:
         return f'/{ns}/{service}'
 
     def base_url(self, service: str, base_scheme: str = 'http') -> str:
-        return f'{self.scheme(base_scheme)}://{self.domain(service)}{self.base_path(service)}'
+        return f'{self.scheme(service, base_scheme)}://{self.domain(service)}{self.base_path(service)}'
 
     def url(self, service: str, path: str, base_scheme: str = 'http') -> str:
         return f'{self.base_url(service, base_scheme=base_scheme)}{path}'
@@ -110,16 +113,28 @@ class DeployConfig:
 
         return root_app
 
-    ADDRESS_HOSTS = ['shuffler', 'address']
+    ADDRESS_SERVICES = ['shuffler', 'address']
 
-    async def addresses(self, service: str) -> List[Tuple[str, int]]:
+    async def addresses(self, domain: str) -> List[Tuple[str, int]]:
         assert self._location != 'internal'
 
-        if service not in DeployConfig.ADDRESS_HOSTS:
+        domain_parts = domain.split('.')
+        n_parts = len(domain_parts)
+        assert n_parts > 0
+        service = domain_parts[0]
+
+        if n_parts > 2 or service not in DeployConfig.ADDRESS_SERVICES:
+            return []
+        if n_parts == 2 and domain_parts[1] == 'hail':
+            # internal.hail, etc.
             return []
 
+        if n_parts == 1:
+            namespace = self.service_ns(service)
+        elif n_parts == 2:
+            namespace = domain_parts[1]
+
         from ..auth import service_auth_headers  # pylint: disable=cyclic-import,import-outside-toplevel
-        namespace = self.service_ns(service)
         headers = service_auth_headers(self, namespace)
         async with aiohttp.ClientSession(
                 connector=aiohttp.TCPConnector(

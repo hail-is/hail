@@ -18,4 +18,4 @@ async def test_connect_to_address_on_pod_ip():
         await request_retry_transient_errors(
             session,
             'GET',
-            f'https://address/{deploy_config.base_path("address")}/api/address')
+            deploy_config.url('address', '/api/address'))
