@@ -41,10 +41,10 @@ class HailResolver(aiohttp.abc.AbstractResolver):
                          'family': family,
                          'proto': 0,
                          'flags': 0}]
-        return self.dns.resolve(host, port, family)
+        return await self.dns.resolve(host, port, family)
 
     async def close(self) -> None:
-        self.dns.close()
+        await self.dns.close()
 
 
 class BlockingClientResponse:
