@@ -20,22 +20,19 @@ class DatasetVersion:
     """
     :class:`DatasetVersion` has two constructors: :func:`.from_json` and :func:`.get_region`.
     """
+
     @staticmethod
-    def from_json(doc: dict, cloud: str, custom_config: bool) -> 'DatasetVersion':
+    def from_json(doc: dict, cloud: str) -> 'DatasetVersion':
         """Create :class:`.DatasetVersion` object from dictionary.
 
         Parameters
         ----------
         doc : :obj:`dict`
-            Dictionary containing url and version keys. Value for url is a either
-            a :obj:`str` with a url, or a :obj:`dict` containing key: value pairs,
-            like region: url.
+            Dictionary containing url and version keys. Value for url is a
+            :obj:`dict` containing key: value pairs, like region: url.
         cloud : :obj:`str`
             Cloud platform to access dataset, either 'gcp' or 'aws'. Not used
             here if using a custom configuration.
-        custom_config : :obj:`bool`
-            Boolean indicating whether or not dataset is from a :class:`.DB` object
-            using a custom configuration or url.
 
         Returns
         -------
@@ -44,13 +41,8 @@ class DatasetVersion:
         assert 'url' in doc, doc
         assert 'version' in doc, doc
         assert 'reference_genome' in doc, doc
-        if not custom_config:
-            assert cloud in doc['url'], doc['url']
-            url = doc['url'][cloud]
-        else:
-            url = doc['url']
-
-        return DatasetVersion(url,
+        assert cloud in doc['url'], doc['url']
+        return DatasetVersion(doc['url'][cloud],
                               doc['version'],
                               doc['reference_genome'])
 
@@ -63,9 +55,8 @@ class DatasetVersion:
         name : :obj:`str`
             Name of dataset.
         versions : :class:`list` of :class:`.DatasetVersion`
-            List of DatasetVersion objects where the value for
-            DatasetVersion.url is a either a :obj:`str` with a url, or a :obj:`dict`
-            containing key: value pairs, like region: url.
+            List of DatasetVersion objects where the value for DatasetVersion.url
+            is a :obj:`dict` containing key: value pairs, like region: url.
         region : :obj:`str`
             Region from which to access data, available regions given in
             :func:`hail.experimental.DB._valid_regions`, currently either 'us' or 'eu'.
@@ -134,12 +125,12 @@ class Dataset:
     versions specified in JSON configuration file or a provided :obj:`dict` mapping
     dataset names to configurations.
     """
+
     @staticmethod
     def from_name_and_json(name: str,
                            doc: dict,
                            region: str,
-                           cloud: str,
-                           custom_config: bool) -> Optional['Dataset']:
+                           cloud: str) -> Optional['Dataset']:
         """Create :class:`.Dataset` object from dictionary.
 
         Parameters
@@ -154,10 +145,6 @@ class Dataset:
             :func:`hail.experimental.DB._valid_regions`, currently either 'us' or 'eu'.
         cloud : :obj:`str`
             Cloud platform to access dataset, either 'gcp' or 'aws'.
-        custom_config : :obj:`bool`
-            Boolean indicating whether or not dataset is from a :class:`.DB` object
-            using a custom configuration or url. If `True`, method will not
-            check for region.
 
         Returns
         -------
@@ -170,15 +157,14 @@ class Dataset:
         assert 'url' in doc, doc
         assert 'versions' in doc, doc
         key_properties = set(x for x in doc['annotation_db']['key_properties'] if x is not None)
-        versions = [DatasetVersion.from_json(x, cloud, custom_config) for x in doc['versions']]
-        if not custom_config:
-            versions = DatasetVersion.get_region(name, versions, region)
-        if versions:
+        versions = [DatasetVersion.from_json(x, cloud) for x in doc['versions']]
+        versions_in_region = DatasetVersion.get_region(name, versions, region)
+        if versions_in_region:
             return Dataset(name,
                            doc['description'],
                            doc['url'],
                            key_properties,
-                           versions)
+                           versions_in_region)
 
     def __init__(self,
                  name: str,
@@ -250,7 +236,6 @@ class DB:
                  cloud: str = 'gcp',
                  url: Optional[str] = None,
                  config: Optional[dict] = None):
-        custom_config = bool(config or url)
         if region not in DB._valid_regions:
             raise ValueError(f'Specify valid region parameter, received: region={region}. '
                              f'Valid regions are {DB._valid_regions}.')
@@ -281,9 +266,9 @@ class DB:
         self.cloud = cloud
         self.url = url
         self.config = config
-        self.__by_name = {k: Dataset.from_name_and_json(k, v, region, cloud, custom_config)
+        self.__by_name = {k: Dataset.from_name_and_json(k, v, region, cloud)
                           for k, v in config.items()
-                          if Dataset.from_name_and_json(k, v, region, cloud, custom_config) is not None}
+                          if Dataset.from_name_and_json(k, v, region, cloud) is not None}
 
     def available_datasets(self) -> List[str]:
         """Retrieve list of names of available annotation datasets.
