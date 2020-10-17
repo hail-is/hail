@@ -148,13 +148,14 @@ class LocalBackend(
     Serialization.write(Map("value" -> jsonValue, "timings" -> timings.asMap()))(new DefaultFormats {})
   }
 
-  def executeLiteral(ir: IR): IR = {
+  def executeLiteral(id: Long): Long = {
+    val ir = irMap(id).asInstanceOf[IR]
     val t = ir.typ
     assert(t.isRealizable)
     val (value, timings) = execute(ir)
     timings.finish()
     timings.logInfo()
-    Literal.coerce(t, value)
+    addIR(Literal.coerce(t, value))
   }
 
   def encodeToBytes(id: Long, bufferSpecString: String): (String, Array[Byte]) = {

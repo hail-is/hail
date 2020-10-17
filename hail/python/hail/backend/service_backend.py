@@ -62,7 +62,6 @@ class ServiceBackend(Backend):
 
     def _render(self, ir):
         r = CSERenderer()
-        assert len(r.jirs) == 0
         return r(ir)
 
     def execute(self, ir, timed=False):
