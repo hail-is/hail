@@ -181,18 +181,6 @@ class LocalBackend(Py4JBackend):
     def fs(self):
         return self._fs
 
-    def _to_java_value_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_value_ir)
-
-    def _to_java_table_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_table_ir)
-
-    def _to_java_matrix_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_matrix_ir)
-
-    def _to_java_blockmatrix_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_blockmatrix_ir)
-
     def add_reference(self, config):
         self._hail_package.variant.ReferenceGenome.fromJSON(json.dumps(config))
 
