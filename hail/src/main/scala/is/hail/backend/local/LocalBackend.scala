@@ -13,7 +13,7 @@ import is.hail.types.physical.{PTuple, PType, PVoid}
 import is.hail.types.virtual.TVoid
 import is.hail.types.physical.{PTuple, PType}
 import is.hail.types.virtual.{TVoid, Type}
-import is.hail.backend.{Backend, BackendContext, BroadcastValue}
+import is.hail.backend.{Backend, BackendContext, BroadcastValue, Py4JBackend}
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.utils._
 import is.hail.io.bgen.IndexBgen
@@ -51,7 +51,7 @@ object LocalBackend {
 
 class LocalBackend(
   val tmpdir: String
-) extends Backend {
+) extends Py4JBackend {
   // FIXME don't rely on hadoop
   val hadoopConf = new hadoop.conf.Configuration()
   hadoopConf.set(
@@ -77,7 +77,10 @@ class LocalBackend(
 
   def defaultParallelism: Int = 1
 
-  def stop(): Unit = LocalBackend.stop()
+  override def stop(): Unit = {
+    super.stop()
+    LocalBackend.stop()
+  }
 
   private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir0: IR, print: Option[PrintWriter] = None): (PType, Long) = {
     val ir = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, ir0).asInstanceOf[IR]
@@ -134,7 +137,8 @@ class LocalBackend(
       result
     }
 
-  def executeJSON(ir: IR): String = {
+  def executeJSON(id: Long): String = {
+    val ir = irMap(id).asInstanceOf[IR]
     val t = ir.typ
     val (value, timings) = execute(ir)
     val jsonValue = JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
@@ -153,7 +157,8 @@ class LocalBackend(
     Literal.coerce(t, value)
   }
 
-  def encodeToBytes(ir: IR, bufferSpecString: String): (String, Array[Byte]) = {
+  def encodeToBytes(id: Long, bufferSpecString: String): (String, Array[Byte]) = {
+    val ir = irMap(id).asInstanceOf[IR]
     val bs = BufferSpec.parseOrDefault(bufferSpecString)
     withExecuteContext() { ctx =>
       assert(ir.typ != TVoid)
@@ -212,32 +217,6 @@ class LocalBackend(
     }
   }
 
-  def parse_value_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): IR = {
-    withExecuteContext() { ctx =>
-      IRParser.parse_value_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
-    }
-  }
-
-  def parse_table_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): TableIR = {
-    withExecuteContext() { ctx =>
-      IRParser.parse_table_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
-    }
-  }
-
-  def parse_matrix_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): MatrixIR = {
-    withExecuteContext() { ctx =>
-      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
-    }
-  }
-
-  def parse_blockmatrix_ir(
-    s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]
-  ): BlockMatrixIR = {
-    withExecuteContext() { ctx =>
-      IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
-    }
-  }
-
   def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
     // Use a local sort for the moment to enable larger pipelines to run
     LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
@@ -249,11 +228,11 @@ class LocalBackend(
   def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =
     LoadPlink.importFamJSON(fs, path, isQuantPheno, delimiter, missingValue)
 
-  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???
+  def persistBlockMatrix(id: String, value: BlockMatrix, storageLevel: String): Unit = ???
 
-  def unpersist(backendContext: BackendContext, id: String): Unit = ???
+  def pyUnpersistBlockMatrix(id: String): Unit = ???
 
-  def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix = ???
+  def getPersistedBlockMatrix(id: String): BlockMatrix = ???
 
-  def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = ???
+  def getPersistedBlockMatrixType(id: String): BlockMatrixType = ???
 }

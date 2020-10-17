@@ -1,11 +1,13 @@
 package is.hail.expr.ir.functions
 
+import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.types._
 import is.hail.utils._
 import is.hail.asm4s.coerce
+import is.hail.backend.Py4JBackend
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -63,8 +65,10 @@ object IRFunctionRegistry {
     argNames: java.util.ArrayList[String],
     argTypeStrs: java.util.ArrayList[String],
     returnType: String,
-    body: IR
+    bodyID: Long
   ): Unit = {
+    val body = HailContext.backend.asInstanceOf[Py4JBackend].irMap(bodyID).asInstanceOf[IR]
+
     requireJavaIdentifier(name)
 
     val typeParameters = typeParamStrs.asScala.map(IRParser.parseType).toFastIndexedSeq

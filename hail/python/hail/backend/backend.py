@@ -2,9 +2,11 @@ import abc
 
 
 class Backend(abc.ABC):
-    @abc.abstractmethod
+    def __init__(self):
+        self._running = True
+
     def stop(self):
-        pass
+        self._running = False
 
     @abc.abstractmethod
     def execute(self, ir, timed=False):

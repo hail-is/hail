@@ -9,12 +9,7 @@ import py4j
 import pyspark
 
 from hail.utils.java import Env, scala_package_object, scala_object
-from hail.expr.types import dtype
-from hail.expr.table_type import ttable
-from hail.expr.matrix_type import tmatrix
-from hail.expr.blockmatrix_type import tblockmatrix
-from hail.ir.renderer import CSERenderer
-from hail.ir import JavaIR
+from hail.ir import JavaTable, JavaMatrix
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 
@@ -120,6 +115,8 @@ class SparkBackend(Py4JBackend):
     def __init__(self, idempotent, sc, spark_conf, app_name, master,
                  local, log, quiet, append, min_block_size,
                  branching_factor, tmpdir, local_tmpdir, skip_logging_configuration, optimizer_iterations):
+        super().__init__()
+
         if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
@@ -221,21 +218,7 @@ class SparkBackend(Py4JBackend):
         self.sc.stop()
         self.sc = None
         uninstall_exception_handler()
-
-    def _parse_value_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_value_ir(
-            code,
-            {k: t._parsable_string() for k, t in ref_map.items()},
-            ir_map)
-
-    def _parse_table_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_table_ir(code, ref_map, ir_map)
-
-    def _parse_matrix_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_matrix_ir(code, ref_map, ir_map)
-
-    def _parse_blockmatrix_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_blockmatrix_ir(code, ref_map, ir_map)
+        super().stop()
 
     @property
     def logger(self):
@@ -250,58 +233,28 @@ class SparkBackend(Py4JBackend):
             self._fs = HadoopFS(self._utils_package_object, self._jbackend.fs())
         return self._fs
 
-    def _to_java_ir(self, ir, parse):
-        if not hasattr(ir, '_jir'):
-            r = CSERenderer(stop_at_jir=True)
-            # FIXME parse should be static
-            ir._jir = parse(r(ir), ir_map=r.jirs)
-        return ir._jir
-
-    def _to_java_value_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_value_ir)
-
-    def _to_java_table_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_table_ir)
-
-    def _to_java_matrix_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_matrix_ir)
-
-    def _to_java_blockmatrix_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_blockmatrix_ir)
-
-    def value_type(self, ir):
-        jir = self._to_java_value_ir(ir)
-        return dtype(jir.typ().toString())
-
-    def table_type(self, tir):
-        jir = self._to_java_table_ir(tir)
-        return ttable._from_java(jir.typ())
-
-    def matrix_type(self, mir):
-        jir = self._to_java_matrix_ir(mir)
-        return tmatrix._from_java(jir.typ())
-
     def persist_table(self, t, storage_level):
-        return Table._from_java(self._jbackend.pyPersistTable(storage_level, self._to_java_table_ir(t._tir)))
+        return Table(
+            JavaTable(self._jbackend.pyPersistTable(storage_level, self._to_java_table_ir(t._tir)), self))
 
     def unpersist_table(self, t):
-        return Table._from_java(self._to_java_table_ir(t._tir).pyUnpersist())
+        return Table(
+            JavaTable(self._jbackend.pyUnpersistTable(self._to_java_table_ir(t._tir)), self))
 
     def persist_matrix_table(self, mt, storage_level):
-        return MatrixTable._from_java(self._jbackend.pyPersistMatrix(storage_level, self._to_java_matrix_ir(mt._mir)))
+        return MatrixTable(
+            JavaMatrix(self._jbackend.pyPersistMatrix(storage_level, self._to_java_matrix_ir(mt._mir)), self))
 
     def unpersist_matrix_table(self, mt):
-        return MatrixTable._from_java(self._to_java_matrix_ir(mt._mir).pyUnpersist())
+        return MatrixTable(
+            JavaMatrix(self._jbackend.pyUnpersistMatrix(self._to_java_matrix_ir(mt._mir)), self))
 
     def unpersist_block_matrix(self, id):
-        self._jhc.backend().unpersist(id)
-
-    def blockmatrix_type(self, bmir):
-        jir = self._to_java_blockmatrix_ir(bmir)
-        return tblockmatrix._from_java(jir.typ())
+        self._jbackend.pyUnpersistBlockMatrix(id)
 
     def from_spark(self, df, key):
-        return Table._from_java(self._jbackend.pyFromDF(df._jdf, key))
+        return Table(
+            JavaTable(self._jbackend.pyFromDF(df._jdf, key), self))
 
     def to_spark(self, t, flatten):
         t = t.expand_types()
@@ -352,19 +305,3 @@ class SparkBackend(Py4JBackend):
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
         return json.loads(self._jbackend.pyImportFam(path, quant_pheno, delimiter, missing))
-
-    def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
-
-        r = CSERenderer(stop_at_jir=True)
-        code = r(body._ir)
-        jbody = (self._parse_value_ir(code, ref_map=dict(zip(argument_names, argument_types)), ir_map=r.jirs))
-
-        Env.hail().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
-            name,
-            [ta._parsable_string() for ta in type_parameters],
-            argument_names, [pt._parsable_string() for pt in argument_types],
-            return_type._parsable_string(),
-            jbody)
-
-    def persist_ir(self, ir):
-        return JavaIR(self._jhc.backend().executeLiteral(self._to_java_value_ir(ir)))

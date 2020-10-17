@@ -60,9 +60,6 @@ class ServiceBackend(Backend):
             self._fs = GoogleCloudStorageFS()
         return self._fs
 
-    def stop(self):
-        pass
-
     def _render(self, ir):
         r = CSERenderer()
         assert len(r.jirs) == 0

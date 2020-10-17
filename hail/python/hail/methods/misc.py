@@ -151,11 +151,17 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
     edges.write(edges_path)
     edges = hl.read_table(edges_path)
 
+    backend = Env.spark_backend('maximal_independent_set')
+
+    # edges has to live to the call of pyMaximalIndependentSet
+    edges_ir = edges.collect(_localize=False)._ir
     mis_nodes = construct_expr(
-        ir.JavaIR(Env.hail().utils.Graph.pyMaximalIndependentSet(
-            Env.spark_backend('maximal_independent_set')._to_java_value_ir(edges.collect(_localize=False)._ir),
-            node_t._parsable_string(),
-            tie_breaker_str)),
+        ir.JavaIR(
+            Env.hail().utils.Graph.pyMaximalIndependentSet(
+                backend._to_java_value_ir(edges_ir),
+                node_t._parsable_string(),
+                tie_breaker_str),
+            backend),
         hl.tset(node_t))
 
     nodes = edges.select(node=[edges.__i, edges.__j])

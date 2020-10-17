@@ -205,14 +205,12 @@ case class MatrixType(
     firstKeyField.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]
   }
 
-  def pyJson: JObject = {
+  def toJSON: JObject =
     JObject(
       "row" -> JString(rowType.toString),
       "row_key" -> JArray(rowKey.toList.map(JString(_))),
       "col" -> JString(colType.toString),
       "col_key" -> JArray(colKey.toList.map(JString(_))),
       "entry" -> JString(entryType.toString),
-      "global" -> JString(globalType.toString)
-    )
-  }
+      "global" -> JString(globalType.toString))
 }

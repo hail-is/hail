@@ -8,6 +8,7 @@ from hail.table import Table
 from hail.typecheck import typecheck_method, nullable, tupleof, oneof, numeric
 from hail.utils.java import Env, info
 from hail.utils.misc import plural
+from hail.ir import JavaTable
 
 
 class LinearMixedModel(object):
@@ -743,8 +744,8 @@ class LinearMixedModel(object):
         else:
             maybe_ja_t = Env.hail().linalg.RowMatrix.readBlockMatrix(jfs, a_t_path, partition_size)
 
-        return Table._from_java(backend._jbackend.pyFitLinearMixedModel(
-            self._scala_model, jpa_t, maybe_ja_t))
+        return Table(
+            JavaTable(backend._jbackend.pyFitLinearMixedModel(self._scala_model, jpa_t, maybe_ja_t), backend))
 
     @typecheck_method(pa=np.ndarray, a=nullable(np.ndarray), return_pandas=bool)
     def fit_alternatives_numpy(self, pa, a=None, return_pandas=False):

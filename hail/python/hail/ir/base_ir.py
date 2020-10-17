@@ -33,6 +33,9 @@ class BaseIR(Renderable):
         self._error_id = None
         self._stack_trace = None
 
+        self._jir_id = None
+        self._backend = None
+
     def __str__(self):
         r = PlainRenderer(stop_at_jir=False)
         return r(self)
@@ -222,6 +225,10 @@ class BaseIR(Renderable):
         ]
 
         self._stack_trace = '\n'.join(filt_stack)
+
+    def __del__(self):
+        if self._jir_id is not None:
+            self._backend.unlink_ir(self._jir_id)
 
 
 class IR(BaseIR):

@@ -120,7 +120,7 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
 case class BlockMatrixPersistWriter(id: String, storageLevel: String) extends BlockMatrixWriter {
   def pathOpt: Option[String] = None
   def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit =
-    HailContext.backend.persist(ctx.backendContext, id, bm, storageLevel)
+    HailContext.backend.persistBlockMatrix(id, bm, storageLevel)
 }
 
 case class BlockMatrixRectanglesWriter(

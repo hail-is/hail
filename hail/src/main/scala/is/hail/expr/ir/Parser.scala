@@ -19,6 +19,7 @@ import org.json4s.{Formats, JObject}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Positional
@@ -142,11 +143,11 @@ case class TypeParserEnvironment(
 case class IRParserEnvironment(
   ctx: ExecuteContext,
   refMap: Map[String, Type] = Map.empty,
-  irMap: Map[String, BaseIR] = Map.empty,
+  irMap: mutable.Map[Long, BaseIR] = mutable.Map.empty,
   typEnv: TypeParserEnvironment = TypeParserEnvironment.default
 ) {
-  def update(newRefMap: Map[String, Type] = Map.empty, newIRMap: Map[String, BaseIR] = Map.empty): IRParserEnvironment =
-    copy(refMap = refMap ++ newRefMap, irMap = irMap ++ newIRMap)
+  def update(newRefMap: Map[String, Type] = Map.empty): IRParserEnvironment =
+    copy(refMap = refMap ++ newRefMap)
 
   def withRefMap(newRefMap: Map[String, Type]): IRParserEnvironment = {
     assert(refMap.isEmpty || newRefMap.isEmpty)
@@ -1350,8 +1351,8 @@ object IRParser {
           body <- ir_value_expr(env + (cname -> coerce[TStream](ctxs.typ).elementType) + (gname -> globals.typ))(it)
         } yield CollectDistributedArray(ctxs, globals, cname, gname, body)
       case "JavaIR" =>
-        val name = identifier(it)
-        done(env.irMap(name).asInstanceOf[IR])
+        val id = int64_literal(it)
+        done(env.irMap(id).asInstanceOf[IR])
       case "ReadPartition" =>
         val rowType = coerce[TStruct](type_expr(env.typEnv)(it))
         import PartitionReader.formats
@@ -1605,8 +1606,8 @@ object IRParser {
           body <- table_ir(env)(it)
         } yield RelationalLetTable(name, value, body)
       case "JavaTable" =>
-        val name = identifier(it)
-        done(env.irMap(name).asInstanceOf[TableIR])
+        val id = int64_literal(it)
+        done(env.irMap(id).asInstanceOf[TableIR])
     }
   }
 
@@ -1791,8 +1792,8 @@ object IRParser {
           body <- matrix_ir(env)(it)
         } yield RelationalLetMatrixTable(name, value, body)
       case "JavaMatrix" =>
-        val name = identifier(it)
-        done(env.irMap(name).asInstanceOf[MatrixIR])
+        val id = int64_literal(it)
+        done(env.irMap(id).asInstanceOf[MatrixIR])
       case "JavaMatrixVectorRef" =>
         val id = int32_literal(it)
         val idx = int32_literal(it)
@@ -1935,8 +1936,8 @@ object IRParser {
           body <- blockmatrix_ir(env)(it)
         } yield RelationalLetBlockMatrix(name, value, body)
       case "JavaBlockMatrix" =>
-        val name = identifier(it)
-        done(env.irMap(name).asInstanceOf[BlockMatrixIR])
+        val id = int64_literal(it)
+        done(env.irMap(id).asInstanceOf[BlockMatrixIR])
     }
   }
 

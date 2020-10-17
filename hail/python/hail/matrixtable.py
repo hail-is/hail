@@ -535,10 +535,6 @@ class MatrixTable(ExprContainer):
     >>> print(entry_stats.global_gq_mean)
     """
 
-    @staticmethod
-    def _from_java(jmir):
-        return MatrixTable(ir.JavaMatrix(jmir))
-
     def __init__(self, mir):
         super(MatrixTable, self).__init__()
 

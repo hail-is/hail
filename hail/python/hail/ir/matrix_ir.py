@@ -636,15 +636,16 @@ class MatrixFilterIntervals(MatrixIR):
 
 
 class JavaMatrix(MatrixIR):
-    def __init__(self, jir):
+    def __init__(self, jir_id, backend):
         super().__init__()
-        self._jir = jir
+        self._jir_id = jir_id
+        self._backend = backend
 
     def render_head(self, r):
         return f'(JavaMatrix {r.add_jir(self._jir)}'
 
     def _compute_type(self):
-        self._type = hl.tmatrix._from_java(self._jir.typ())
+        self._type = self._backend.matrix_type(self)
 
 
 class JavaMatrixVectorRef(MatrixIR):

@@ -214,7 +214,7 @@ object BlockMatrixPersistReader {
   def fromJValue(ctx: BackendContext, jv: JValue): BlockMatrixPersistReader = {
     implicit val formats: Formats = BlockMatrixReader.formats
     val params = jv.extract[BlockMatrixNativePersistParameters]
-    BlockMatrixPersistReader(params.id, HailContext.backend.getPersistedBlockMatrixType(ctx, params.id))
+    BlockMatrixPersistReader(params.id, HailContext.backend.getPersistedBlockMatrixType(params.id))
   }
 }
 
@@ -222,7 +222,7 @@ case class BlockMatrixPersistReader(id: String, typ: BlockMatrixType) extends Bl
   def pathsUsed: Seq[String] = FastSeq()
   lazy val fullType: BlockMatrixType = typ
   def apply(ctx: ExecuteContext): BlockMatrix = {
-    HailContext.backend.getPersistedBlockMatrix(ctx.backendContext, id)
+    HailContext.backend.getPersistedBlockMatrix(id)
   }
 }
 

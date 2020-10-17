@@ -4,7 +4,7 @@ from collections import defaultdict
 import decorator
 
 import hail
-from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \
+from hail.expr.types import HailType, hail_type, tint32, tint64, \
     tfloat32, tfloat64, tstr, tbool, tarray, tstream, tndarray, tset, tdict, \
     tstruct, ttuple, tinterval, tvoid
 from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
@@ -2490,22 +2490,22 @@ class Join(IR):
 
 
 class JavaIR(IR):
-    def __init__(self, jir):
-        super(JavaIR, self).__init__()
-        self._jir = jir
+    def __init__(self, jir_id, backend):
         super().__init__()
+        self._jir_id = jir_id
+        self._backend = backend
 
     def copy(self):
-        return JavaIR(self._jir)
+        return JavaIR(self._jir_id, self._backend)
 
     def render_head(self, r):
-        return f'(JavaIR{r.add_jir(self._jir)}'
+        return f'(JavaIR {self._jir_id}'
 
     def _eq(self, other):
         return self._jir == other._jir
 
     def _compute_type(self, env, agg_env):
-        self._type = dtype(self._jir.typ().toString())
+        self._type = self._backend.value_type(self)
 
 
 def subst(ir, env, agg_env):

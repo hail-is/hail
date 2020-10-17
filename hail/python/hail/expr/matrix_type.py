@@ -3,20 +3,9 @@ import pprint
 from hail.typecheck import typecheck_method, sequenceof
 from hail.utils.java import escape_parsable
 from hail.expr.types import dtype, tstruct
-from hail.utils.java import jiterable_to_list
 
 
 class tmatrix(object):
-    @staticmethod
-    def _from_java(jtt):
-        return tmatrix(
-            dtype(jtt.globalType().toString()),
-            dtype(jtt.colType().toString()),
-            jiterable_to_list(jtt.colKey()),
-            dtype(jtt.rowType().toString()),
-            jiterable_to_list(jtt.rowKey()),
-            dtype(jtt.entryType().toString()))
-
     @staticmethod
     def _from_json(json):
         return tmatrix(

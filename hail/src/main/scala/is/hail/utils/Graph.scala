@@ -1,7 +1,9 @@
 package is.hail.utils
 
+import is.hail.HailContext
 import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.asm4s._
+import is.hail.backend.Py4JBackend
 import is.hail.types.physical.{PCanonicalTuple, PTuple, PType}
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple}
 import is.hail.types.virtual._
@@ -34,14 +36,16 @@ object Graph {
     m
   }
 
-  def pyMaximalIndependentSet(edgesIR: IR, nodeTypeStr: String, tieBreaker: String): IR = {
+  def pyMaximalIndependentSet(edgesID: Long, nodeTypeStr: String, tieBreaker: String): Long = {
+    val py4jBackend = HailContext.backend.asInstanceOf[Py4JBackend]
     val nodeType = IRParser.parseType(nodeTypeStr)
     ExecuteContext.scoped() { ctx =>
+      val edgesIR = py4jBackend.irMap(edgesID).asInstanceOf[IR]
       val edges = Interpret[IndexedSeq[Row]](ctx, edgesIR).toArray
 
       val resultType = TSet(nodeType)
       val result = maximalIndependentSet(ctx, edges, nodeType, Option(tieBreaker))
-      Literal(resultType, result)
+      py4jBackend.addIR(Literal(resultType, result))
     }
   }
 

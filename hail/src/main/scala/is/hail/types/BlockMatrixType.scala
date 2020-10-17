@@ -3,6 +3,7 @@ package is.hail.types
 import is.hail.utils._
 import is.hail.types.virtual.{TFloat64, Type}
 import is.hail.linalg.BlockMatrix
+import org.json4s.{JArray, JBool, JInt, JObject, JString}
 
 object BlockMatrixSparsity {
   private val builder: ArrayBuilder[(Int, Int)] = new ArrayBuilder[(Int, Int)]
@@ -188,4 +189,11 @@ case class BlockMatrixType(
     newline()
     sb += '}'
   }
+
+  def toJSON: JObject =
+    JObject(
+      "element_type" -> JString(elementType.toString),
+      "shape" -> JArray(shape.toList.map(JInt(_))),
+      "is_row_vector" -> JBool(isRowVector),
+      "block_size" -> JInt(blockSize))
 }

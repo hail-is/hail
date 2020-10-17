@@ -2,17 +2,9 @@ import pprint
 from hail.typecheck import typecheck_method, sequenceof
 from hail.utils.java import escape_parsable
 from hail.expr.types import dtype, tstruct
-from hail.utils.java import jiterable_to_list
 
 
 class ttable(object):
-    @staticmethod
-    def _from_java(jtt):
-        return ttable(
-            dtype(jtt.globalType().toString()),
-            dtype(jtt.rowType().toString()),
-            jiterable_to_list(jtt.key()))
-
     @staticmethod
     def _from_json(json):
         return ttable(

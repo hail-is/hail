@@ -1,18 +1,9 @@
 import pprint
 from hail.typecheck import typecheck_method, sequenceof
-from hail.utils.java import jiterable_to_list
 from hail.expr.types import dtype, hail_type
 
 
 class tblockmatrix(object):
-    @staticmethod
-    def _from_java(jtbm):
-        return tblockmatrix(
-            dtype(jtbm.elementType().toString()),
-            jiterable_to_list(jtbm.shape()),
-            jtbm.isRowVector(),
-            jtbm.blockSize())
-
     @staticmethod
     def _from_json(json):
         return tblockmatrix(dtype(json['element_type']),

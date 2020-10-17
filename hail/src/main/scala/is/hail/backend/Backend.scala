@@ -11,7 +11,6 @@ import is.hail.utils._
 import scala.reflect.ClassTag
 
 object Backend {
-
   private var id: Long = 0L
   def nextID(): String = {
     id += 1
@@ -28,13 +27,13 @@ abstract class Backend {
 
   def broadcast[T: ClassTag](value: T): BroadcastValue[T]
 
-  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit
+  def persistBlockMatrix(id: String, value: BlockMatrix, storageLevel: String): Unit
 
-  def unpersist(backendContext: BackendContext, id: String): Unit
+  def pyUnpersistBlockMatrix(id: String): Unit
 
-  def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix
+  def getPersistedBlockMatrix(id: String): BlockMatrix
 
-  def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType
+  def getPersistedBlockMatrixType(id: String): BlockMatrixType
 
   def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]])(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]]
 

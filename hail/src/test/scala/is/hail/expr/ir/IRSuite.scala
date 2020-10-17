@@ -26,6 +26,7 @@ import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.testng.annotations.{DataProvider, Test}
 
+import scala.collection.mutable
 import scala.language.{dynamics, implicitConversions}
 
 object IRSuite {
@@ -3484,47 +3485,47 @@ class IRSuite extends HailSuite {
 
   def testBlockMatrixIRParserPersist() {
     val bm = BlockMatrix.fill(1, 1, 0.0, 5)
-    backend.persist(ctx.backendContext, "x", bm, "MEMORY_ONLY")
+    backend.persistBlockMatrix("x", bm, "MEMORY_ONLY")
     val persist = BlockMatrixRead(BlockMatrixPersistReader("x", BlockMatrixType.fromBlockMatrix(bm)))
 
     val s = Pretty(persist, elideLiterals = false)
     val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
     assert(x2 == persist)
-    backend.unpersist(ctx.backendContext, "x")
+    backend.pyUnpersistBlockMatrix("x")
   }
 
   @Test def testCachedIR() {
     val cached = Literal(TSet(TInt32), Set(1))
-    val s = s"(JavaIR __uid1)"
+    val s = s"(JavaIR 0)"
     val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_value_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+      IRParser.parse_value_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = mutable.Map[Long, BaseIR](0L -> cached)))
     }
     assert(x2 eq cached)
   }
 
   @Test def testCachedTableIR() {
     val cached = TableRange(1, 1)
-    val s = s"(JavaTable __uid1)"
+    val s = s"(JavaTable 0)"
     val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_table_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+      IRParser.parse_table_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = mutable.Map[Long, BaseIR](0L -> cached)))
     }
     assert(x2 eq cached)
   }
 
   @Test def testCachedMatrixIR() {
     val cached = MatrixIR.range(3, 7, None)
-    val s = s"(JavaMatrix __uid1)"
+    val s = s"(JavaMatrix 0)"
     val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = mutable.Map[Long, BaseIR](0L -> cached)))
     }
     assert(x2 eq cached)
   }
 
   @Test def testCachedBlockMatrixIR() {
     val cached = new BlockMatrixLiteral(BlockMatrix.fill(3, 7, 1))
-    val s = s"(JavaBlockMatrix __uid1)"
+    val s = s"(JavaBlockMatrix 0)"
     val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+      IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = mutable.Map[Long, BaseIR](0L -> cached)))
     }
     assert(x2 eq cached)
   }
@@ -3534,7 +3535,7 @@ class IRSuite extends HailSuite {
     val id = hc.addIrVector(Array(cached))
     val s = s"(JavaMatrixVectorRef $id 0)"
     val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map.empty))
+      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = mutable.Map.empty))
     }
     assert(cached eq x2)
 

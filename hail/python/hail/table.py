@@ -332,10 +332,6 @@ class Table(ExprContainer):
     >>> table1.show()
     """
 
-    @staticmethod
-    def _from_java(jtir):
-        return Table(ir.JavaTable(jtir))
-
     def __init__(self, tir):
         super(Table, self).__init__()
 

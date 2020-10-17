@@ -131,13 +131,6 @@ def jindexed_seq_args(x):
     return jindexed_seq(args)
 
 
-def jiterable_to_list(it):
-    if it is not None:
-        return list(Env.jutils().iterableToArrayList(it))
-    else:
-        return None
-
-
 _parsable_str = re.compile(r'[\w_]+')
 
 
@@ -150,10 +143,6 @@ def escape_parsable(s):
 
 def unescape_parsable(s):
     return bytes(s.replace('\\`', '`'), 'utf-8').decode('unicode_escape')
-
-
-def jarray_to_list(a):
-    return list(a) if a else None
 
 
 def error(msg):

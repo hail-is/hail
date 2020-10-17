@@ -711,12 +711,13 @@ class BlockMatrixToTable(TableIR):
 
 
 class JavaTable(TableIR):
-    def __init__(self, jir):
+    def __init__(self, jir_id, backend):
         super().__init__()
-        self._jir = jir
+        self._jir_id = jir_id
+        self._backend = backend
 
     def render_head(self, r):
         return f'(JavaTable {r.add_jir(self._jir)}'
 
     def _compute_type(self):
-        self._type = hl.ttable._from_java(self._jir.typ())
+        self._type = self._backend.table_type(self)

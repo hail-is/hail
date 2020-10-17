@@ -9,12 +9,6 @@ import pkg_resources
 import py4j
 from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
 
-from hail.expr.blockmatrix_type import tblockmatrix
-from hail.expr.matrix_type import tmatrix
-from hail.expr.table_type import ttable
-from hail.expr.types import dtype
-from hail.ir import JavaIR
-from hail.ir.renderer import CSERenderer
 from hail.utils.java import scala_package_object, scala_object
 from .py4j_backend import Py4JBackend, handle_java_exception
 from ..fs.local_fs import LocalFS
@@ -113,6 +107,8 @@ class Log4jLogger(Logger):
 class LocalBackend(Py4JBackend):
     def __init__(self, tmpdir, log, quiet, append, branching_factor,
                  skip_logging_configuration, optimizer_iterations):
+        super().__init__()
+
         SPARK_HOME = os.environ['SPARK_HOME']
         hail_jar_path = os.environ.get('HAIL_JAR')
         if hail_jar_path is None:
@@ -173,21 +169,7 @@ class LocalBackend(Py4JBackend):
         self._jhc = None
         # FIXME stop gateway?
         uninstall_exception_handler()
-
-    def _parse_value_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_value_ir(
-            code,
-            {k: t._parsable_string() for k, t in ref_map.items()},
-            ir_map)
-
-    def _parse_table_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_table_ir(code, ref_map, ir_map)
-
-    def _parse_matrix_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_matrix_ir(code, ref_map, ir_map)
-
-    def _parse_blockmatrix_ir(self, code, ref_map={}, ir_map={}):
-        return self._jbackend.parse_blockmatrix_ir(code, ref_map, ir_map)
+        super().stop()
 
     @property
     def logger(self):
@@ -198,13 +180,6 @@ class LocalBackend(Py4JBackend):
     @property
     def fs(self):
         return self._fs
-
-    def _to_java_ir(self, ir, parse):
-        if not hasattr(ir, '_jir'):
-            r = CSERenderer(stop_at_jir=True)
-            # FIXME parse should be static
-            ir._jir = parse(r(ir), ir_map=r.jirs)
-        return ir._jir
 
     def _to_java_value_ir(self, ir):
         return self._to_java_ir(ir, self._parse_value_ir)
@@ -217,22 +192,6 @@ class LocalBackend(Py4JBackend):
 
     def _to_java_blockmatrix_ir(self, ir):
         return self._to_java_ir(ir, self._parse_blockmatrix_ir)
-
-    def value_type(self, ir):
-        jir = self._to_java_value_ir(ir)
-        return dtype(jir.typ().toString())
-
-    def table_type(self, tir):
-        jir = self._to_java_table_ir(tir)
-        return ttable._from_java(jir.typ())
-
-    def matrix_type(self, mir):
-        jir = self._to_java_matrix_ir(mir)
-        return tmatrix._from_java(jir.typ())
-
-    def blockmatrix_type(self, bmir):
-        jir = self._to_java_blockmatrix_ir(bmir)
-        return tblockmatrix._from_java(jir.typ())
 
     def add_reference(self, config):
         self._hail_package.variant.ReferenceGenome.fromJSON(json.dumps(config))
@@ -271,6 +230,3 @@ class LocalBackend(Py4JBackend):
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
         return json.loads(self._jbackend.pyImportFam(path, quant_pheno, delimiter, missing))
-
-    def persist_ir(self, ir):
-        return JavaIR(self._jhc.backend().executeLiteral(self._to_java_value_ir(ir)))
