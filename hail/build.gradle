@@ -198,6 +198,8 @@ dependencies {
     bundled 'com.indeed:util-serialization:1.0.31'
     bundled 'com.indeed:util-mmap:1.0.31'
     bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.14'
+
+    bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.3.2'
 }
 
 task(checkSettings) doLast {

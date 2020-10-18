@@ -115,8 +115,6 @@ class SparkBackend(Py4JBackend):
     def __init__(self, idempotent, sc, spark_conf, app_name, master,
                  local, log, quiet, append, min_block_size,
                  branching_factor, tmpdir, local_tmpdir, skip_logging_configuration, optimizer_iterations):
-        super().__init__()
-
         if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
@@ -149,10 +147,10 @@ class SparkBackend(Py4JBackend):
         else:
             pyspark.SparkContext._ensure_initialized()
 
-        self._gateway = pyspark.SparkContext._gateway
-        self._jvm = pyspark.SparkContext._jvm
+        gateway = pyspark.SparkContext._gateway
+        jvm = pyspark.SparkContext._jvm
 
-        hail_package = getattr(self._jvm, 'is').hail
+        hail_package = getattr(jvm, 'is').hail
 
         self._hail_package = hail_package
         self._utils_package_object = scala_package_object(hail_package.utils)
@@ -160,22 +158,22 @@ class SparkBackend(Py4JBackend):
         jsc = sc._jsc.sc() if sc else None
 
         if idempotent:
-            self._jbackend = hail_package.backend.spark.SparkBackend.getOrCreate(
+            jbackend = hail_package.backend.spark.SparkBackend.getOrCreate(
                 jsc, app_name, master, local, True, min_block_size, tmpdir, local_tmpdir)
             self._jhc = hail_package.HailContext.getOrCreate(
-                self._jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
+                jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
         else:
-            self._jbackend = hail_package.backend.spark.SparkBackend.apply(
+            jbackend = hail_package.backend.spark.SparkBackend.apply(
                 jsc, app_name, master, local, True, min_block_size, tmpdir, local_tmpdir)
             self._jhc = hail_package.HailContext.apply(
-                self._jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
+                jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
 
-        self._jsc = self._jbackend.sc()
+        self._jsc = jbackend.sc()
         if sc:
             self.sc = sc
         else:
-            self.sc = pyspark.SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
-        self._jspark_session = self._jbackend.sparkSession()
+            self.sc = pyspark.SparkContext(gateway=gateway, jsc=jvm.JavaSparkContext(self._jsc))
+        self._jspark_session = jbackend.sparkSession()
         self._spark_session = pyspark.sql.SparkSession(self.sc, self._jspark_session)
 
         # This has to go after creating the SparkSession. Unclear why.
@@ -194,6 +192,8 @@ class SparkBackend(Py4JBackend):
         self._fs = None
         self._logger = None
 
+        super().__init__(gateway, jbackend)
+
         if not quiet:
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
             if self._jsc.uiWebUrl().isDefined():
@@ -201,16 +201,7 @@ class SparkBackend(Py4JBackend):
 
             connect_logger(self._utils_package_object, 'localhost', 12888)
 
-            self._jbackend.startProgressBar()
-
-    def jvm(self):
-        return self._jvm
-
-    def hail_package(self):
-        return self._hail_package
-
-    def utils_package_object(self):
-        return self._utils_package_object
+            jbackend.startProgressBar()
 
     def stop(self):
         self._jhc.stop()

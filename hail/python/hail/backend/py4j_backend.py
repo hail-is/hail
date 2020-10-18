@@ -1,14 +1,20 @@
-import abc
+from typing import Dict
+import os
 import json
+import secrets
+import socket
+import struct
 
 import py4j
+import py4j.java_gateway
 
 import hail
-from hail.expr.types import dtype
+from hail.utils.java import scala_package_object
+from hail.expr.types import dtype, HailType
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
-from hail.ir import JavaIR
+from hail.ir import BaseIR, IR, JavaIR
 from hail.ir.renderer import CSERenderer
 from hail.utils.java import FatalError, Env, HailUserError
 from .backend import Backend
@@ -43,27 +49,146 @@ def handle_java_exception(f):
     return deco
 
 
+class EndOfStream(Exception):
+    pass
+
+class UNIXSocketConnection:
+    PARSE_VALUE_IR = 1
+    VALUE_TYPE = 2
+    EXECUTE = 3
+    REMOVE_IR = 4
+    NOOP = 5
+
+    def __init__(self, jbackend):
+        self._jbackend = jbackend
+
+        token = secrets.token_hex(16)
+        address = f'/tmp/hail.uds.{token}'
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.bind(address)
+        sock.listen(1)
+        jsock = jbackend.connectUNIXSocket(address)
+        conn, _ = sock.accept()
+        jbackend.startUNIXSocketThread(jsock)
+        os.unlink(address)
+        self._conn = conn
+
+    def write_int(self, v: int):
+        self._conn.sendall(struct.pack('<i', v))
+
+    def write_long(self, v: int):
+        self._conn.sendall(struct.pack('<q', v))
+
+    def write_bytes(self, b: bytes):
+        n = len(b)
+        self.write_int(n)
+        self._conn.sendall(b)
+
+    def write_str(self, s: str):
+        self.write_bytes(s.encode('utf-8'))
+
+    def read(self, n) -> bytes:
+        b = bytearray()
+        left = n
+        while left > 0:
+            t = self._conn.recv(left)
+            if not t:
+                raise EndOfStream()
+            left -= len(t)
+            b.extend(t)
+        return b
+
+    def read_byte(self) -> int:
+        b = self.read(1)
+        return b[0]
+
+    def read_bool(self) -> bool:
+        return self.read_byte() != 0
+
+    def read_int(self) -> int:
+        b = self.read(4)
+        return struct.unpack('<i', b)[0]
+
+    def read_long(self) -> int:
+        b = self.read(8)
+        return struct.unpack('<q', b)[0]
+
+    def read_bytes(self) -> bytes:
+        n = self.read_int()
+        return self.read(n)
+
+    def read_str(self) -> str:
+        b = self.read_bytes()
+        return b.decode('utf-8')
+
+    def close(self):
+        self._conn.close()
+
+    def parse_value_ir(self, ir_str: str, type_env_str: str) -> int:
+        print('parse_value_ir')
+        self.write_int(self.PARSE_VALUE_IR)
+        self.write_str(ir_str)
+        self.write_str(type_env_str)
+        succeeded = self.read_bool()
+        if not succeeded:
+            self._jbackend.reraiseSavedException()
+        return self.read_long()
+
+    def value_type(self, id: int) -> str:
+        print('value_type')
+        self.write_int(self.VALUE_TYPE)
+        self.write_long(id)
+        succeeded = self.read_bool()
+        if not succeeded:
+            self._jbackend.reraiseSavedException()
+        return self.read_str()
+
+    def execute(self, id: int) -> str:
+        print('execute')
+        self.write_int(self.EXECUTE)
+        self.write_long(id)
+        succeeded = self.read_bool()
+        if not succeeded:
+            self._jbackend.reraiseSavedException()
+        return self.read_str()
+
+    def remove_ir(self, id: int):
+        print('remove_ir')
+        self.write_int(self.REMOVE_IR)
+        self.write_long(id)
+        succeeded = self.read_bool()
+        if not succeeded:
+            self._jbackend.reraiseSavedException()
+
+
 class Py4JBackend(Backend):
-    def __init__(self):
+    def __init__(self, gateway: py4j.java_gateway.JavaGateway, jbackend: py4j.java_gateway.JavaObject):
         super().__init__()
+        self._gateway = gateway
+        self._jvm = gateway.jvm
 
-    @abc.abstractmethod
-    def jvm(self):
-        pass
+        hail_package = getattr(self._jvm, 'is').hail
 
-    @abc.abstractmethod
+        self._hail_package = hail_package
+        self._utils_package_object = scala_package_object(hail_package.utils)
+
+        self._jbackend = jbackend
+        self._conn = UNIXSocketConnection(jbackend)
+
+    def jvm(self) -> py4j.java_gateway.JVMView:
+        return self._jvm
+
     def hail_package(self):
-        pass
+        return self._hail_package
 
-    @abc.abstractmethod
     def utils_package_object(self):
-        pass
+        return self._utils_package_object
 
     # FIXME why is this one different?
     def _parse_value_ir(self, code, ref_map={}):
-        return self._jbackend.pyParseValueIR(
+        return self._conn.parse_value_ir(
             code,
-            {k: t._parsable_string() for k, t in ref_map.items()})
+            json.dumps({k: t._parsable_string() for k, t in ref_map.items()}))
 
     def _parse_table_ir(self, code, ref_map={}):
         return self._jbackend.pyParseTableIR(code, ref_map)
@@ -74,7 +199,7 @@ class Py4JBackend(Backend):
     def _parse_blockmatrix_ir(self, code, ref_map={}):
         return self._jbackend.pyParseBlockMatrixIR(code, ref_map)
 
-    def _to_java_ir(self, ir, ref_map, parse):
+    def _to_java_ir(self, ir: BaseIR, ref_map: Dict[str, HailType], parse):
         if ir._jir_id is None:
             r = CSERenderer(stop_at_jir=True)
             # FIXME parse should be static
@@ -96,11 +221,11 @@ class Py4JBackend(Backend):
 
     def unlink_ir(self, id: int):
         if self._running:
-            self._jbackend.removeIR(id)
+            self._conn.remove_ir(id)
 
     def value_type(self, ir):
         jir_id = self._to_java_value_ir(ir)
-        return dtype(self._jbackend.pyValueType(jir_id))
+        return dtype(self._conn.value_type(jir_id))
 
     def table_type(self, tir):
         jir_id = self._to_java_table_ir(tir)
@@ -124,11 +249,11 @@ class Py4JBackend(Backend):
             return_type._parsable_string(),
             body_jir_id)
 
-    def execute(self, ir, timed=False):
+    def execute(self, ir: IR, timed: bool = False):
         jir_id = self._to_java_value_ir(ir)
         # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
         try:
-            result = json.loads(self._jbackend.executeJSON(jir_id))
+            result = json.loads(self._conn.execute(jir_id))
             value = ir.typ._from_json(result['value'])
             timings = result['timings']
 
