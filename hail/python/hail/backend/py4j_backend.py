@@ -126,7 +126,6 @@ class UNIXSocketConnection:
         self._conn.close()
 
     def parse_value_ir(self, ir_str: str, type_env_str: str) -> int:
-        print('parse_value_ir')
         self.write_int(self.PARSE_VALUE_IR)
         self.write_str(ir_str)
         self.write_str(type_env_str)
@@ -136,7 +135,6 @@ class UNIXSocketConnection:
         return self.read_long()
 
     def value_type(self, id: int) -> str:
-        print('value_type')
         self.write_int(self.VALUE_TYPE)
         self.write_long(id)
         succeeded = self.read_bool()
@@ -145,7 +143,6 @@ class UNIXSocketConnection:
         return self.read_str()
 
     def execute(self, id: int) -> str:
-        print('execute')
         self.write_int(self.EXECUTE)
         self.write_long(id)
         succeeded = self.read_bool()
@@ -154,7 +151,6 @@ class UNIXSocketConnection:
         return self.read_str()
 
     def remove_ir(self, id: int):
-        print('remove_ir')
         self.write_int(self.REMOVE_IR)
         self.write_long(id)
         succeeded = self.read_bool()

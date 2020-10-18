@@ -107,8 +107,6 @@ class Log4jLogger(Logger):
 class LocalBackend(Py4JBackend):
     def __init__(self, tmpdir, log, quiet, append, branching_factor,
                  skip_logging_configuration, optimizer_iterations):
-        super().__init__()
-
         SPARK_HOME = os.environ['SPARK_HOME']
         hail_jar_path = os.environ.get('HAIL_JAR')
         if hail_jar_path is None:
@@ -123,18 +121,14 @@ class LocalBackend(Py4JBackend):
             jarpath=f'{SPARK_HOME}/jars/py4j-0.10.7.jar',
             classpath=f'{SPARK_HOME}/jars/*:{hail_jar_path}',
             die_on_exit=True)
-        self._gateway = JavaGateway(
+        gateway = JavaGateway(
             gateway_parameters=GatewayParameters(port=port, auto_convert=True))
-        self._jvm = self._gateway.jvm
 
-        hail_package = getattr(self._jvm, 'is').hail
+        hail_package = getattr(gateway.jvm, 'is').hail
 
-        self._hail_package = hail_package
-        self._utils_package_object = scala_package_object(hail_package.utils)
-
-        self._jbackend = hail_package.backend.local.LocalBackend.apply(tmpdir)
+        jbackend = hail_package.backend.local.LocalBackend.apply(tmpdir)
         self._jhc = hail_package.HailContext.apply(
-            self._jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
+            jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
 
         # This has to go after creating the SparkSession. Unclear why.
         # Maybe it does its own patch?
@@ -149,20 +143,14 @@ class LocalBackend(Py4JBackend):
                                f"  JAR:    {jar_version}\n"
                                f"  Python: {py_version}")
 
+        super().__init__(gateway, jbackend)
+
         self._fs = LocalFS()
         self._logger = None
 
         if not quiet:
-            connect_logger(self._utils_package_object, 'localhost', 12888)
-
-    def jvm(self):
-        return self._jvm
-
-    def hail_package(self):
-        return self._hail_package
-
-    def utils_package_object(self):
-        return self._utils_package_object
+            utils_package_object = scala_package_object(hail_package.utils)
+            connect_logger(utils_package_object, 'localhost', 12888)
 
     def stop(self):
         self._jhc.stop()
@@ -174,7 +162,7 @@ class LocalBackend(Py4JBackend):
     @property
     def logger(self):
         if self._logger is None:
-            self._logger = Log4jLogger(self._utils_package_object)
+            self._logger = Log4jLogger(self.utils_package_object())
         return self._logger
 
     @property
