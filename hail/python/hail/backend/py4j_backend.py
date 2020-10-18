@@ -246,13 +246,16 @@ class Py4JBackend(Backend):
             return_type._parsable_string(),
             body_jir_id)
 
-    def execute(self, ir: IR, timed: bool = False):
+    def execute(self, ir: IR, *, timed: bool = False, raw: bool = False):
         jir_id = self._to_java_value_ir(ir)
         # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
         try:
             result = json.loads(self._conn.execute(jir_id))
-            value = ir.typ._from_json(result['value'])
+
             timings = result['timings']
+            value = json.loads(result['value'])
+            if not raw:
+                value = ir.typ._convert_from_json_na(value)
 
             return (value, timings) if timed else value
         except FatalError as e:

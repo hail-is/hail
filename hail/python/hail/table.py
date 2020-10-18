@@ -1138,8 +1138,8 @@ class Table(ExprContainer):
                                              override_protected_indices={self._global_indices})
         return GroupedTable(self, self.row.annotate(**computed_key).select(*key))
 
-    @typecheck_method(expr=expr_any, _localize=bool)
-    def aggregate(self, expr, _localize=True):
+    @typecheck_method(expr=expr_any, _localize=bool, _raw=bool)
+    def aggregate(self, expr, _localize: bool = True, _raw: bool = False):
         """Aggregate over rows into a local value.
 
         Examples
@@ -1171,7 +1171,7 @@ class Table(ExprContainer):
         agg_ir = ir.TableAggregate(base._tir, expr._ir)
 
         if _localize:
-            return Env.backend().execute(agg_ir)
+            return Env.backend().execute(agg_ir, raw=_raw)
 
         return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
 
@@ -1881,8 +1881,8 @@ class Table(ExprContainer):
         """
         return Env.backend().unpersist_table(self)
 
-    @typecheck_method(_localize=bool)
-    def collect(self, _localize=True):
+    @typecheck_method(_localize=bool, _raw=bool)
+    def collect(self, _localize: bool = True, _raw: bool = False):
         """Collect the rows of the table into a local list.
 
         Examples
@@ -1913,7 +1913,7 @@ class Table(ExprContainer):
         rows_ir = ir.GetField(ir.TableCollect(t._tir), 'rows')
         e = construct_expr(rows_ir, hl.tarray(t.row.dtype))
         if _localize:
-            return Env.backend().execute(e._ir)
+            return Env.backend().execute(e._ir, raw=_raw)
         else:
             return e
 

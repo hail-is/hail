@@ -64,7 +64,7 @@ class ServiceBackend(Backend):
         r = CSERenderer()
         return r(ir)
 
-    def execute(self, ir, timed=False):
+    def execute(self, ir, *, timed: bool = False, raw: bool = False):
         code = self._render(ir)
         body = {
             'code': code,
@@ -79,9 +79,10 @@ class ServiceBackend(Backend):
         resp.raise_for_status()
         resp_json = resp.json()
         typ = dtype(resp_json['type'])
-        value = typ._convert_from_json_na(resp_json['value'])
+        value = resp_json['value']
+        if not raw:
+            value = typ._convert_from_json_na(value)
         # FIXME put back timings
-
         return (value, None) if timed else value
 
     def _request_type(self, ir, kind):
