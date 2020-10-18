@@ -52,6 +52,7 @@ def handle_java_exception(f):
 class EndOfStream(Exception):
     pass
 
+
 class UNIXSocketConnection:
     PARSE_VALUE_IR = 1
     VALUE_TYPE = 2
