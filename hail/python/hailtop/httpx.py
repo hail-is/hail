@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Tuple, Optional, Type, Union
+from typing import (Dict, Any, List, Tuple, Optional, Type, Union, Awaitable)
 from types import TracebackType
 import aiohttp
 import socket
@@ -34,81 +34,88 @@ def client_session(*args,
 
 
 class ResponseManager:
-    def __init__(self, response):
-        self.response = response
+    def __init__(self, response_coroutine: Awaitable[aiohttp.ClientResponse]):
+        self.response_coroutine = response_coroutine
+        self.response: Optional[aiohttp.ClientResponse] = None
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> aiohttp.ClientResponse:
+        self.response = await self.response_coroutine
         return self.response
+
+    async def __await__(self) -> aiohttp.ClientResponse:
+        assert self.response is None
+        return await self.response_coroutine
 
     async def __aexit__(self,
                         exc_type: Optional[Type[BaseException]],
                         exc: Optional[BaseException],
                         tb: Optional[TracebackType]) -> None:
-        self.response.close()
+        assert self.response is not None
+        self.response.release()
 
 
 class RetryingClientSession:
     def __init__(self, session: aiohttp.ClientSession):
         self.session = session
 
-    async def request(self,
-                      method: str,
-                      url: aiohttp.typedefs.StrOrURL,
-                      **kwargs: Any) -> ResponseManager:
-        return ResponseManager(await retry_transient_errors(
+    def request(self,
+                method: str,
+                url: aiohttp.typedefs.StrOrURL,
+                **kwargs: Any) -> ResponseManager:
+        return ResponseManager(retry_transient_errors(
             self.session._request, method, url, **kwargs))
 
-    async def get(self,
-                  url: aiohttp.typedefs.StrOrURL,
-                  *,
-                  allow_redirects: bool = True,
-                  **kwargs: Any) -> ResponseManager:
-        return await self.request(
+    def get(self,
+            url: aiohttp.typedefs.StrOrURL,
+            *,
+            allow_redirects: bool = True,
+            **kwargs: Any) -> ResponseManager:
+        return self.request(
             aiohttp.hdrs.METH_GET, url, allow_redirects=allow_redirects, **kwargs)
 
-    async def options(self,
-                      url: aiohttp.typedefs.StrOrURL,
-                      *,
-                      allow_redirects: bool = True,
-                      **kwargs: Any) -> ResponseManager:
-        return await self.request(
+    def options(self,
+                url: aiohttp.typedefs.StrOrURL,
+                *,
+                allow_redirects: bool = True,
+                **kwargs: Any) -> ResponseManager:
+        return self.request(
             aiohttp.hdrs.METH_OPTIONS, url, allow_redirects=allow_redirects, **kwargs)
 
-    async def head(self,
-                   url: aiohttp.typedefs.StrOrURL,
-                   *,
-                   allow_redirects: bool = False,
-                   **kwargs: Any) -> ResponseManager:
-        return await self.request(
+    def head(self,
+             url: aiohttp.typedefs.StrOrURL,
+             *,
+             allow_redirects: bool = False,
+             **kwargs: Any) -> ResponseManager:
+        return self.request(
             aiohttp.hdrs.METH_HEAD, url, allow_redirects=allow_redirects, **kwargs)
 
-    async def post(self,
-                   url: aiohttp.typedefs.StrOrURL,
-                   *,
-                   data: Any = None, **kwargs: Any) -> ResponseManager:
-        return await self.request(
+    def post(self,
+             url: aiohttp.typedefs.StrOrURL,
+             *,
+             data: Any = None, **kwargs: Any) -> ResponseManager:
+        return self.request(
             aiohttp.hdrs.METH_POST, url, data=data, **kwargs)
 
-    async def put(self,
-                  url: aiohttp.typedefs.StrOrURL,
-                  *,
-                  data: Any = None,
-                  **kwargs: Any) -> ResponseManager:
-        return await self.request(
+    def put(self,
+            url: aiohttp.typedefs.StrOrURL,
+            *,
+            data: Any = None,
+            **kwargs: Any) -> ResponseManager:
+        return self.request(
             aiohttp.hdrs.METH_PUT, url, data=data, **kwargs)
 
-    async def patch(self,
-                    url: aiohttp.typedefs.StrOrURL,
-                    *,
-                    data: Any = None,
-                    **kwargs: Any) -> ResponseManager:
-        return await self.request(
+    def patch(self,
+              url: aiohttp.typedefs.StrOrURL,
+              *,
+              data: Any = None,
+              **kwargs: Any) -> ResponseManager:
+        return self.request(
             aiohttp.hdrs.METH_PATCH, url, data=data, **kwargs)
 
-    async def delete(self,
-                     url: aiohttp.typedefs.StrOrURL,
-                     **kwargs: Any) -> ResponseManager:
-        return await self.request(
+    def delete(self,
+               url: aiohttp.typedefs.StrOrURL,
+               **kwargs: Any) -> ResponseManager:
+        return self.request(
             aiohttp.hdrs.METH_DELETE, url, **kwargs)
 
     async def close(self) -> None:
