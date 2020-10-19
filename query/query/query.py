@@ -191,26 +191,7 @@ async def on_startup(app):
     thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=16)
     app['thread_pool'] = thread_pool
 
-    spark_home = os.environ.get('SPARK_HOME')
-    if spark_home is None:
-        find_spark_home = subprocess.run('find_spark_home.py',
-                                         capture_output=True,
-                                         check=False)
-        if find_spark_home.returncode != 0:
-            raise ValueError(f'''SPARK_HOME is not set and find_spark_home.py returned non-zero exit code:
-STDOUT:
-{find_spark_home.stdout}
-STDERR:
-{find_spark_home.stderr}''')
-        spark_home = find_spark_home.stdout.decode().strip()
-    py4j_jars = glob.glob(spark_home + '/jars/py4j*.jar')
-    if len(py4j_jars) != 1:
-        raise ValueError(f'Could not find a unique py4j jar. Found: {py4j_jars}')
-    py4j_jar = py4j_jars[0]
-    port = launch_gateway(
-        jarpath=py4j_jar,
-        classpath=f'{spark_home}/jars/*:/hail.jar',
-        die_on_exit=True)
+    port = launch_gateway(die_on_exit=True)
     gateway = JavaGateway(
         gateway_parameters=GatewayParameters(port=port),
         auto_convert=True)
