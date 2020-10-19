@@ -27,7 +27,7 @@ async def test_deploy():
             deploy_state = None
             failure_information = None
             while deploy_state is None:
-                with session.get(f'{ci_deploy_status_url}', headers=headers) as resp:
+                async with session.get(f'{ci_deploy_status_url}', headers=headers) as resp:
                     deploy_statuses = await resp.json()
                 log.info(f'deploy_statuses:\n{json.dumps(deploy_statuses, indent=2)}')
                 assert len(deploy_statuses) == 1, deploy_statuses

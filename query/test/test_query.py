@@ -2,6 +2,7 @@ import pytest
 import hail as hl
 from hailtop.hailctl.dev.query import cli
 
+
 def test_simple_table():
     t = hl.utils.range_table(50, 3)
     t = t.filter((t.idx % 3 == 0) | ((t.idx / 7) % 3 == 0))

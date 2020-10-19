@@ -13,9 +13,9 @@ async def async_get_userinfo(deploy_config=None, headers=None):
     if headers is None:
         headers = service_auth_headers(deploy_config, 'auth')
     userinfo_url = deploy_config.url('auth', '/api/v1alpha/userinfo')
-    async with httpx.client_session() as session, \
-               session.get(userinfo_url, headers=headers) as resp:
-        return await resp.json()
+    async with httpx.client_session() as session:
+        async with session.get(userinfo_url, headers=headers) as resp:
+            return await resp.json()
 
 
 def get_userinfo(deploy_config=None):

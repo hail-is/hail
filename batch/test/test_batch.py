@@ -621,7 +621,7 @@ def test_user_authentication_within_job(client):
     batch.submit()
 
     with_token_status = with_token.wait()
-    assert with_token_status['state'] == 'Success', with_token_status
+    assert with_token_status['state'] == 'Success', (with_token_status, with_token.log())
 
     username = get_userinfo()['username']
 
