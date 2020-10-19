@@ -1222,7 +1222,8 @@ class Tests(unittest.TestCase):
                                              cidx=expected.col_idx % 3)
 
         unioned = matrix1.union_cols(matrix2)
-        import pdb; pdb.set_trace()
+        # Just a temp test, less complicated than `_same`
+        collected = unioned.aggregate_rows(hl.agg.collect(unioned.row_idx))
 
         self.assertTrue(unioned._same(expected))
 

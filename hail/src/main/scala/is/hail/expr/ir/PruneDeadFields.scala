@@ -261,6 +261,11 @@ object PruneDeadFields {
 
   def memoizeTableIR(tir: TableIR, requestedType: TableType, memo: ComputeMutableState) {
     memo.requestedType.bind(tir, requestedType)
+
+    assert(isSupertype(requestedType, tir.typ), s"""Types: Requested: ${requestedType}, Actual: ${tir.typ}
+                                                   |ir: ${tir}
+                                                   |""".stripMargin)
+
     tir match {
       case TableRead(_, _, _) =>
       case TableLiteral(_, _, _, _) =>
@@ -433,6 +438,7 @@ object PruneDeadFields {
           globalType = depGlobalType.asInstanceOf[TStruct])
         memoizeTableIR(child, dep, memo)
       case TableMapRows(child, newRow) =>
+        assert(isSupertype(requestedType.rowType, newRow.typ))
         val rowDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
         val dep = TableType(
           key = requestedType.key,
@@ -546,14 +552,19 @@ object PruneDeadFields {
         val irDep = memoizeAndGetDep(pred, pred.typ, child.typ, memo)
         memoizeMatrixIR(child, unify(child.typ, requestedType, irDep), memo)
       case MatrixUnionCols(left, right, joinType) =>
+        val leftReqRowType = unify(left.typ.rowType, requestedType.rowType, selectKey(left.typ.rowType, left.typ.rowKey))
+        info(s"left = ${leftReqRowType}")
         val leftRequestedType = requestedType.copy(
           rowKey = left.typ.rowKey,
-          rowType = unify(left.typ.rowType, requestedType.rowType, selectKey(left.typ.rowType, left.typ.rowKey))
+          rowType = leftReqRowType
         )
+        val rightReqRowType = selectKey(right.typ.rowType, right.typ.rowKey)
+        info(s"right = ${rightReqRowType}")
         val rightRequestedType = requestedType.copy(
           globalType = TStruct.empty,
           rowKey = right.typ.rowKey,
-          rowType = selectKey(right.typ.rowType, right.typ.rowKey))
+          rowType = rightReqRowType
+        )
         memoizeMatrixIR(left, leftRequestedType, memo)
         memoizeMatrixIR(right, rightRequestedType, memo)
       case MatrixMapEntries(child, newEntries) =>
@@ -781,6 +792,14 @@ object PruneDeadFields {
   }
 
   def memoizeAndGetDep(ir: IR, requestedType: Type, base: TableType, memo: ComputeMutableState): TableType = {
+    assert(isSupertype(requestedType, ir.typ),
+      s"""Types: Requested: ${requestedType}, Actual: ${ir.typ}
+         |ir: ${ir}
+         |""".stripMargin)
+    assert(isSupertype(requestedType, ir.typ),
+      s"""Types: Requested: ${requestedType}, Actual: ${ir.typ}
+         |ir: ${ir}
+         |""".stripMargin)
     val depEnv = memoizeValueIR(ir, requestedType, memo)
     val depEnvUnified = concatEnvs(FastIndexedSeq(depEnv.eval) ++ FastIndexedSeq(depEnv.agg, depEnv.scan).flatten)
 
@@ -850,6 +869,11 @@ object PruneDeadFields {
     * which only contains "a".
     */
   def memoizeValueIR(ir: IR, requestedType: Type, memo: ComputeMutableState): BindingEnv[ArrayBuilder[Type]] = {
+    assert(isSupertype(requestedType, ir.typ),
+      s"""Types: Requested: ${requestedType}, Actual: ${ir.typ}
+         |ir: ${ir}
+         |""".stripMargin)
+
     memo.requestedType.bind(ir, requestedType)
     ir match {
       case IsNA(value) => memoizeValueIR(value, minimal(value.typ), memo)
@@ -1290,8 +1314,9 @@ object PruneDeadFields {
           // ignore unreachable fields, these are eliminated on the upwards pass
           sType.fieldOption(fname).map(f => memoizeValueIR(fir, f.typ, memo))
         })
-      case InsertFields(old, fields, _) =>
+      case myIf@InsertFields(old, fields, _) =>
         val sType = requestedType.asInstanceOf[TStruct]
+        assert(isSupertype(sType, myIf.typ), s"Requested: ${sType}, Actual: ${myIf.typ}")
         val insFieldNames = fields.map(_._1).toSet
         val rightDep = sType.filter(f => insFieldNames.contains(f.name))._1
         val rightDepFields = rightDep.fieldNames.toSet
@@ -1357,9 +1382,11 @@ object PruneDeadFields {
         BindingEnv.empty
       case TableAggregate(child, query) =>
         val queryDep = memoizeAndGetDep(query, query.typ, child.typ, memo)
+        val newRowType = unify(child.typ.rowType, queryDep.rowType, selectKey(child.typ.rowType, child.typ.key))
+        assert(isSupertype(newRowType, child.typ.rowType))
         val dep = TableType(
           key = child.typ.key,
-          rowType = unify(child.typ.rowType, queryDep.rowType, selectKey(child.typ.rowType, child.typ.key)),
+          rowType = newRowType,
           globalType = queryDep.globalType
         )
         memoizeTableIR(child, dep, memo)
@@ -1603,7 +1630,7 @@ object PruneDeadFields {
         val left2 = rebuild(left, memo)
         val right2 = rebuild(right, memo)
 
-        if (left2.typ.colType == right2.typ.colType) {
+        if (left2.typ.colType == right2.typ.colType && left2.typ.entryType == right2.typ.entryType) {
           MatrixUnionCols(
             left2,
             right2,
@@ -1611,8 +1638,8 @@ object PruneDeadFields {
           )
         } else {
           MatrixUnionCols(
-            upcast(left2, requestedType, upcastRows = false, upcastGlobals = false),
-            upcast(right2, requestedType, upcastRows = false, upcastGlobals = false),
+            upcast(left2, requestedType, upcastRows=false, upcastGlobals = false),
+            upcast(right2, requestedType, upcastRows=false, upcastGlobals = false),
             joinType
           )
         }
@@ -1881,7 +1908,7 @@ object PruneDeadFields {
           else
             None
         })
-      case InsertFields(old, fields, fieldOrder) =>
+      case myIf@InsertFields(old, fields, fieldOrder) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
         val depFields = depStruct.fieldNames.toSet
         val rebuiltChild = rebuildIR(old, env, memo)
@@ -1898,7 +1925,7 @@ object PruneDeadFields {
           rebuiltChild
         }
 
-        InsertFields(wrappedChild,
+        val res = InsertFields(wrappedChild,
           fields.flatMap { case (f, fir) =>
             if (depFields.contains(f))
               Some(f -> rebuildIR(fir, env, memo))
@@ -1907,6 +1934,21 @@ object PruneDeadFields {
               None
             }
           }, fieldOrder.map(fds => fds.filter(f => depFields.contains(f) || wrappedChild.typ.asInstanceOf[TStruct].hasField(f))))
+
+        assert(isSupertype(depStruct, myIf.typ),
+          s"""
+            |requested: ${depStruct}
+            |myIf: ${myIf.typ}
+            |
+            |myIf child type: ${old.typ}
+            |
+            |myIf to be inserted: ${myIf.fields.map(_._1)}
+            |
+            |myIfIR: ${myIf}
+            |
+            |""".stripMargin)
+
+        res
       case SelectFields(old, fields) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
         val old2 = rebuildIR(old, env, memo)
@@ -1996,7 +2038,16 @@ object PruneDeadFields {
     }
 
     assert(isSupertype(res.typ, ir.typ))
-    assert(isSupertype(requestedType, res.typ), s"${requestedType} not super of ${res.typ}")
+    assert(isSupertype(requestedType, res.typ),
+      s"""requested ${requestedType} not super of result ${res.typ}.
+         |OldIR: ${ir}
+         |
+         |OldIR: Inserted fields: ${ir.asInstanceOf[InsertFields].fields.map(p => p._1)}
+         |
+         |OldIR: Field order: ${ir.asInstanceOf[InsertFields].fieldOrder}
+         |
+         |NewIR: ${res}
+         |""".stripMargin)
 
     res
   }
