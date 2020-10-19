@@ -117,14 +117,14 @@ async def test_submit():
     headers = service_auth_headers(deploy_config, 'benchmark')
     create_benchmark_url = deploy_config.url('benchmark', '/api/v1alpha/benchmark/create_benchmark')
     # testing locally: where you've used in_cluster_ssl_client_session you need to use get_context_specific_ssl_client_session
-    async with get_context_specific_ssl_client_session(
+    async with in_cluster_ssl_client_session(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60)) as session:
         resp = await utils.request_retry_transient_errors(
                 session, 'POST', f'{create_benchmark_url}', headers=headers, json={'commit': commit})
-        #return resp
+        # return resp
 
-        #batch_id = await resp.json()
+        # batch_id = await resp.json()
         batch_id = int(resp.text())
         batch_url = deploy_config.url('benchmark', f'/api/v1alpha/benchmark/batches/{batch_id}')
     # async with get_context_specific_ssl_client_session(
