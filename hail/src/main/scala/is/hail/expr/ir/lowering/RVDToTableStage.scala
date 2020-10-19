@@ -4,12 +4,12 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.annotations.{BroadcastRow, Region, RegionValue}
 import is.hail.asm4s._
-import is.hail.expr.ir.{Compile, CompileIterator, ExecuteContext, GetField, IR, In, Let, MakeStruct, PartitionRVDReader, ReadPartition, StreamArgType, StreamRange, ToArray}
+import is.hail.expr.ir.{Compile, CompileIterator, ExecuteContext, GetField, IR, In, Let, MakeStruct, PartitionRVDReader, ReadPartition, StreamRange, ToArray, _}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
-import is.hail.rvd.{RVD, RVDContext, RVDType}
+import is.hail.rvd.{RVD, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.types.physical.{PArray, PStruct}
-import is.hail.utils.{FastIndexedSeq, FastSeq, box}
+import is.hail.utils.{FastIndexedSeq, FastSeq}
 
 object RVDToTableStage {
   def apply(rvd: RVD, globals: IR): TableStage = {
@@ -24,7 +24,15 @@ object RVDToTableStage {
 }
 
 object TableStageToRVD {
-  def apply(ctx: ExecuteContext, ts: TableStage, relationalBindings: Map[String, IR]): (BroadcastRow, RVD) = {
+  def apply(ctx: ExecuteContext, _ts: TableStage, relationalBindings: Map[String, IR]): (BroadcastRow, RVD) = {
+
+    val ts = TableStage(letBindings = _ts.letBindings,
+      broadcastVals = _ts.broadcastVals,
+      globals = _ts.globals,
+      partitioner = _ts.partitioner,
+      dependency = _ts.dependency,
+      contexts = mapIR(_ts.contexts) { c => MakeStruct(FastSeq("context" -> c)) },
+      partition = { ctx: Ref => _ts.partition(GetField(ctx, "context")) })
 
     val sparkContext = ctx.backend
       .asSpark("TableStageToRVD")
