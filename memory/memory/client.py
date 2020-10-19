@@ -31,7 +31,6 @@ class MemoryClient:
     async def async_init(self):
         if self._session is None:
             self._session = httpx.client_session(
-                raise_for_status=True,
                 timeout=aiohttp.ClientTimeout(total=60))
         if 'Authorization' not in self._headers:
             self._headers.update(service_auth_headers(self._deploy_config, 'memory'))

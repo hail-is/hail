@@ -1066,9 +1066,7 @@ class Worker:
                     idle_duration = time_msecs() - self.last_updated
                 log.info(f'idle {idle_duration} ms, exiting')
 
-                async with httpx.client_session(
-                        retry_transient=False,
-                        raise_for_status=True) as session:
+                async with httpx.client_session(retry_transient=False) as session:
                     # Don't retry.  If it doesn't go through, the driver
                     # monitoring loops will recover.  If the driver is
                     # gone (e.g. testing a PR), this would go into an
@@ -1121,11 +1119,7 @@ class Worker:
         delay_secs = 0.1
         while True:
             try:
-                # TO REVIEWER: should this retry transient issues (like 504s)?
-                # It previously did not, but seems reasonable to retry?
-                async with httpx.client_session(
-                        retry_transient=False,
-                        raise_for_status=True) as session:
+                async with httpx.client_session(retry_transient=False) as session:
                     await session.post(
                         deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
                         json=body, headers=self.headers)
@@ -1179,7 +1173,7 @@ class Worker:
             'status': status
         }
 
-        async with httpx.client_session(raise_for_status=True) as session:
+        async with httpx.client_session() as session:
             await session.post(
                 deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started'),
                 json=body, headers=self.headers)
@@ -1192,7 +1186,6 @@ class Worker:
 
     async def activate(self):
         async with httpx.client_session(
-                raise_for_status=True,
                 timeout=aiohttp.ClientTimeout(total=60)) as session:
             async with session.post(
                     deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),

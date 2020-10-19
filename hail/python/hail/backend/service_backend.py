@@ -10,7 +10,6 @@ from hail.expr.blockmatrix_type import tblockmatrix
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.auth import service_auth_headers
 from hailtop.httpx import blocking_client_session
-from hailtop.utils import sync_retry_transient_errors
 from hail.ir.renderer import CSERenderer
 
 from .backend import Backend
@@ -47,6 +46,7 @@ class ServiceBackend(Backend):
         self._fs = None
         self._logger = PythonOnlyLogger(skip_logging_configuration)
         self.session = blocking_client_session(
+            raise_for_status=False,
             headers=service_auth_headers(deploy_config, 'query'),
             timeout=aiohttp.ClientTimeout(total=600))
 
@@ -157,8 +157,7 @@ class ServiceBackend(Backend):
         return []
 
     def add_sequence(self, name, fasta_file, index_file):
-        with sync_retry_transient_errors(
-                self.session,
+        with self.session.post(
                 f'{self.url}/references/sequence/set',
                 json={'name': name, 'fasta_file': fasta_file, 'index_file': index_file}) as resp:
             if resp.status == 400 or resp.status == 500:

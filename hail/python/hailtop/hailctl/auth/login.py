@@ -98,7 +98,6 @@ async def async_main(args):
         auth_ns = deploy_config.service_ns('auth')
     headers = namespace_auth_headers(deploy_config, auth_ns, authorize_target=False)
     async with httpx.client_session(
-            raise_for_status=True,
             headers=headers,
             timeout=aiohttp.ClientTimeout(total=60)) as session:
         await auth_flow(deploy_config, auth_ns, session)

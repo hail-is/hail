@@ -21,7 +21,6 @@ async def async_main():
 
     headers = service_auth_headers(deploy_config, 'auth')
     async with httpx.client_session(
-            raise_for_status=True,
             headers=headers,
             timeout=aiohttp.ClientTimeout(total=60)) as session:
         async with session.post(deploy_config.url('auth', '/api/v1alpha/logout')):

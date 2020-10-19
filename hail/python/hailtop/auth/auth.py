@@ -1,7 +1,7 @@
 import os
 import aiohttp
 from hailtop.config import get_deploy_config
-from hailtop.utils import async_to_blocking, request_retry_transient_errors
+from hailtop.utils import async_to_blocking
 from hailtop import httpx
 
 from .tokens import get_tokens
@@ -50,14 +50,11 @@ async def async_copy_paste_login(copy_paste_token, namespace=None):
         auth_ns = deploy_config.service_ns('auth')
     headers = namespace_auth_headers(deploy_config, auth_ns, authorize_target=False)
 
-    async with aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60),
-            headers=headers) as session:
-        resp = await request_retry_transient_errors(
-            session, 'POST', deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
-            params={'copy_paste_token': copy_paste_token})
-        resp = await resp.json()
+    async with httpx.client_session(headers=headers) as session:
+        async with session.post(
+                deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
+                params={'copy_paste_token': copy_paste_token}) as resp:
+            resp = await resp.json()
     token = resp['token']
     username = resp['username']
 

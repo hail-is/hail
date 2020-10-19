@@ -5,7 +5,7 @@ import aiohttp
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
-from hailtop.httpx import client_session
+from hailtop import httpx
 import hailtop.utils as utils
 
 pytestmark = pytest.mark.asyncio
@@ -18,8 +18,7 @@ async def test_invariants():
     deploy_config = get_deploy_config()
     url = deploy_config.url('batch-driver', '/check_invariants')
     headers = service_auth_headers(deploy_config, 'batch-driver')
-    async with client_session(
-            raise_for_status=True,
+    async with httpx.client_session(
             timeout=aiohttp.ClientTimeout(total=60)) as session:
         async with session.get(url, headers=headers) as resp:
             data = await resp.json()

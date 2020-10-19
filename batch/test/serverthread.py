@@ -6,7 +6,6 @@ from werkzeug.serving import make_server
 from flask import Response
 
 from hailtop.httpx import blocking_client_session
-from hailtop.utils import sync_retry_transient_errors
 
 
 class ServerThread(threading.Thread):

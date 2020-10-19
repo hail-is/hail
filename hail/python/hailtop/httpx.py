@@ -10,13 +10,10 @@ from .utils import async_to_blocking, retry_transient_errors
 
 log = logging.getLogger('hailtop.httpx')
 
-HailAsyncClientSession = Union[aiohttp.ClientSession, 'RetryingClientSession']
-
-
 def client_session(*args,
-                   retry_transient=True,
-                   raise_for_status=True,
-                   **kwargs) -> HailAsyncClientSession:
+                   retry_transient: bool = True,
+                   raise_for_status: bool = True,
+                   **kwargs) -> 'ClientSession':
     assert 'connector' not in kwargs
     if get_deploy_config().location() == 'external':
         kwargs['connector'] = aiohttp.TCPConnector(
@@ -28,10 +25,9 @@ def client_session(*args,
     if 'timeout' not in kwargs:
         kwargs['timeout'] = aiohttp.ClientTimeout(total=5)
     kwargs['raise_for_status'] = raise_for_status
-    session = aiohttp.ClientSession(*args, **kwargs)
-    if retry_transient:
-        return RetryingClientSession(session)
-    return session
+    return ClientSession(
+        aiohttp.ClientSession(*args, **kwargs),
+        retry_transient=retry_transient)
 
 
 class ResponseManager:
@@ -55,16 +51,22 @@ class ResponseManager:
         self.response.release()
 
 
-class RetryingClientSession:
-    def __init__(self, session: aiohttp.ClientSession):
+class ClientSession:
+    def __init__(self, session: aiohttp.ClientSession, retry_transient: bool):
         self.session = session
+        self.retry_transient = retry_transient
 
     def request(self,
                 method: str,
                 url: aiohttp.typedefs.StrOrURL,
                 **kwargs: Any) -> ResponseManager:
-        return ResponseManager(retry_transient_errors(
-            self.session._request, method, url, **kwargs))
+        retry_transient = kwargs.get('retry_transient', self.retry_transient)
+        if retry_transient:
+            coroutine = retry_transient_errors(
+                self.session._request, method, url, **kwargs)
+        else:
+            coroutine = self.session._request(method, url, **kwargs)
+        return ResponseManager(coroutine)
 
     def get(self,
             url: aiohttp.typedefs.StrOrURL,
@@ -134,7 +136,7 @@ class RetryingClientSession:
     def version(self) -> Tuple[int, int]:
         return self.session.version
 
-    async def __aenter__(self) -> 'RetryingClientSession':
+    async def __aenter__(self) -> 'ClientSession':
         self.session = await self.session.__aenter__()
         return self
 

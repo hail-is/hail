@@ -384,26 +384,6 @@ def sync_retry_transient_errors(f: Callable[..., T], *args, **kwargs) -> T:
         delay = sync_sleep_and_backoff(delay)
 
 
-async def request_retry_transient_errors(session, method, url, **kwargs):
-    return await retry_transient_errors(session.request, method, url, **kwargs)
-
-
-def retry_response_returning_functions(fun, *args, **kwargs):
-    delay = 0.1
-    errors = 0
-    response = sync_retry_transient_errors(
-        fun, *args, **kwargs)
-    while response.status_code in RETRYABLE_HTTP_STATUS_CODES:
-        errors += 1
-        if errors % 10 == 0:
-            log.warning(f'encountered {errors} bad status codes, most recent '
-                        f'one was {response.status_code}')
-        response = sync_retry_transient_errors(
-            fun, *args, **kwargs)
-        delay = sync_sleep_and_backoff(delay)
-    return response
-
-
 async def collect_agen(agen):
     return [x async for x in agen]
 

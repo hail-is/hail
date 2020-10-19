@@ -252,7 +252,7 @@ class DB:
                 with open(config_path) as f:
                     config = json.load(f)
             else:
-                with blocking_client_session() as session, session.get(url, raise_for_status=True) as resp:
+                with blocking_client_session() as session, session.get(url) as resp:
                     config = resp.json()
             assert isinstance(config, dict)
         else:

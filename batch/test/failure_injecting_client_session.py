@@ -1,14 +1,13 @@
 import aiohttp
 
 from hailtop.utils import async_to_blocking
-from hailtop.httpx import client_session
+from hailtop import httpx
 
 
 class FailureInjectingClientSession:
     def __init__(self, should_fail):
         self.should_fail = should_fail
-        self.real_session = client_session(raise_for_status=True,
-                                           timeout=aiohttp.ClientTimeout(total=60))
+        self.real_session = httpx.client_session()
 
     def __enter__(self):
         return self

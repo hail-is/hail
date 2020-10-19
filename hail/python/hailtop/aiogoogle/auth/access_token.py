@@ -1,5 +1,7 @@
 import time
 
+from ... import httpx
+
 
 class AccessToken:
     def __init__(self, credentials):
@@ -7,7 +9,7 @@ class AccessToken:
         self._access_token = None
         self._expires_at = None
 
-    async def auth_headers(self, session):
+    async def auth_headers(self, session: httpx.ClientSession):
         now = time.time()
         if self._access_token is None or now > self._expires_at:
             self._access_token = await self.credentials.get_access_token(session)

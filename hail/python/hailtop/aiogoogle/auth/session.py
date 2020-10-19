@@ -2,9 +2,11 @@ from types import TracebackType
 from typing import Optional, Type, TypeVar
 import abc
 import aiohttp
-from hailtop.utils import request_retry_transient_errors, RateLimit, RateLimiter
+from hailtop.utils import RateLimit, RateLimiter
 from .credentials import Credentials
 from .access_token import AccessToken
+
+from ... import httpx
 
 SessionType = TypeVar('SessionType', bound='BaseSession')
 
@@ -60,25 +62,25 @@ class RateLimitedSession(BaseSession):
 
 
 class Session(BaseSession):
-    _session: Optional[aiohttp.ClientSession]
+    _session: Optional[httpx.ClientSession]
     _access_token: Optional[AccessToken]
 
     def __init__(self, *, credentials: Credentials = None, **kwargs):
         if credentials is None:
             credentials = Credentials.default_credentials()
 
-        if 'raise_for_status' not in kwargs:
-            kwargs['raise_for_status'] = True
-        self._session = aiohttp.ClientSession(**kwargs)
+        self._session = httpx.client_session(**kwargs)
         self._access_token = AccessToken(credentials)
 
     async def request(self, method: str, url: str, **kwargs):
+        assert self._access_token is not None
+        assert self._session is not None
         auth_headers = await self._access_token.auth_headers(self._session)
         if 'headers' in kwargs:
             kwargs['headers'].update(auth_headers)
         else:
             kwargs['headers'] = auth_headers
-        return await request_retry_transient_errors(self._session, method, url, **kwargs)
+        return self._session.request(method, url, **kwargs)
 
     async def close(self) -> None:
         if self._session is not None:

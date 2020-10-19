@@ -15,7 +15,7 @@ deploy_config = get_deploy_config()
 async def _userdata_from_session_id(session_id):
     headers = {'Authorization': f'Bearer {session_id}'}
     try:
-        async with httpx.client_session(raise_for_status=True) as session:
+        async with httpx.client_session() as session:
             async with session.get(
                     deploy_config.url('auth', '/api/v1alpha/userinfo'),
                     headers=headers) as resp:

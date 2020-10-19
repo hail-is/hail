@@ -282,8 +282,9 @@ async def unschedule_job(app, record):
         if instance.state in ('inactive', 'deleted'):
             break
         try:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with httpx.client_session(
+                    retry_transient=False,
+                    timeout=aiohttp.ClientTimeout(total=60)) as session:
                 await session.delete(url)
                 await instance.mark_healthy()
                 break
@@ -454,8 +455,9 @@ async def schedule_job(app, record, instance):
         log.info(f'schedule job {id} on {instance}: made job config')
 
         try:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=2)) as session:
+            async with httpx.client_session(
+                    retry_transient=False,
+                    timeout=aiohttp.ClientTimeout(total=2)) as session:
                 url = (f'http://{instance.ip_address}:5000'
                        f'/api/v1alpha/batches/jobs/create')
                 await session.post(url, json=body)
