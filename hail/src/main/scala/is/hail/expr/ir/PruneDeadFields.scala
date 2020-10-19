@@ -1338,7 +1338,11 @@ object PruneDeadFields {
         )
       case SelectFields(old, fields) =>
         val sType = requestedType.asInstanceOf[TStruct]
-        memoizeValueIR(old, TStruct(fields.flatMap(f => sType.fieldOption(f).map(f -> _.typ)): _*), memo)
+        val oldReqType = TStruct(old.typ.asInstanceOf[TStruct]
+          .fieldNames
+          .flatMap(fn => sType.fieldOption(fn).map(fd => (fd.name, fd.typ))): _*)
+
+        memoizeValueIR(old, oldReqType, memo)
       case GetField(o, name) =>
         memoizeValueIR(o, TStruct(name -> requestedType), memo)
       case MakeTuple(fields) =>
