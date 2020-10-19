@@ -1,4 +1,5 @@
-from typing import (Dict, Any, List, Tuple, Optional, Type, Union, Awaitable)
+from typing import (Dict, Any, List, Tuple, Optional, Type, Union, Awaitable,
+                    Generator)
 from types import TracebackType
 import aiohttp
 import socket
@@ -42,9 +43,9 @@ class ResponseManager:
         self.response = await self.response_coroutine
         return self.response
 
-    async def __await__(self) -> aiohttp.ClientResponse:
+    def __await__(self) -> Generator[Any, None, aiohttp.ClientResponse]:
         assert self.response is None
-        return await self.response_coroutine
+        return self.response_coroutine.__await__()
 
     async def __aexit__(self,
                         exc_type: Optional[Type[BaseException]],

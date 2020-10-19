@@ -7,7 +7,6 @@ from hailtop.auth import service_auth_headers
 from hailtop.config import get_deploy_config
 from hailtop.google_storage import GCS
 from hailtop import httpx
-from hailtop.utils import request_retry_transient_errors
 
 
 class MemoryClient:
