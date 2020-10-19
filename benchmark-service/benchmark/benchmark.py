@@ -229,10 +229,11 @@ async def submit(request):  # pylint: disable=unused-argument
     batch_id = await submit_batch(commit, batch_client)
     return web.HTTPFound(
         deploy_config.external_url('benchmark', f'/api/v1alpha/benchmark/{batch_id}'))
+    #return web.json_response({'batch_id': batch_id})
     # return batch_id
 
 
-@router.get('/api/v1alpha/benchmark/{batch_id}')
+@router.get('/api/v1alpha/benchmark/batches/{batch_id}')
 async def batch_status(request):  # pylint: disable=unused-argument
     app = request.app
     batch_client = app['batch_client']
