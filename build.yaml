@@ -1562,6 +1562,7 @@ steps:
    dependsOn:
      - base_image
      - build_site_www
+     - hail_ubuntu_image
  - kind: deploy
    name: deploy_site
    namespace:
