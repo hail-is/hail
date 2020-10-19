@@ -584,7 +584,7 @@ steps:
      time tar czf test.tar.gz -C python test
      time tar czf resources.tar.gz -C src/test resources
      time tar czf data.tar.gz -C python/hail/docs data
-     (cd ../site && time tar czf ../hail/www-src.tar.gz www)
+     (cd .. && time tar czf hail/site-src.tar.gz site)
      time tar czf cluster-tests.tar.gz python/cluster-tests
      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
      time TESTNG_SPLITS=5 python3 generate_splits.py
@@ -614,8 +614,8 @@ steps:
        to: /splits.tar.gz
      - from: /io/repo/hail/data.tar.gz
        to: /data.tar.gz
-     - from: /io/repo/hail/www-src.tar.gz
-       to: /www-src.tar.gz
+     - from: /io/repo/hail/site-src.tar.gz
+       to: /site-src.tar.gz
      - from: /io/repo/hail/cluster-tests.tar.gz
        to: /cluster-tests.tar.gz
    dependsOn:
@@ -1468,21 +1468,28 @@ steps:
      set -ex
      export HAIL_SHORT_VERSION='0.2'
      export SPHINXOPTS='-tchecktutorial'
+
      mkdir -p {{ token }}/python
      cd {{ token }}
      unzip -q -d python /io/hail.zip
-     tar xzf /io/www-src.tar.gz
+
+     tar xzf /io/site-src.tar.gz
+     export HAIL_SITE_DIR=$(pwd)/site/
+
      sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
        < python/hail/docs/change_log.md \
        | pandoc -o python/hail/docs/change_log.rst
+
      make -C python/hail/docs BUILDDIR=_build clean html
      make -C python/hailtop/batch/docs BUILDDIR=_build clean html
+
      mkdir -p www/docs
-     rm -f www/*.md
      mv python/hail/docs/_build/html www/docs/0.2
      mv python/hailtop/batch/docs/_build/html www/docs/batch
+
      HAIL_CACHE_VERSION=$(cat python/hail/hail_version)
      find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
+
      tar czf /io/www.tar.gz www
    resources:
      memory: "7.5G"
@@ -1490,8 +1497,8 @@ steps:
    inputs:
     - from: /hail.zip
       to: /io/hail.zip
-    - from: /www-src.tar.gz
-      to: /io/www-src.tar.gz
+    - from: /site-src.tar.gz
+      to: /io/site-src.tar.gz
    outputs:
     - from: /io/www.tar.gz
       to: /www.tar.gz
@@ -1526,14 +1533,15 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
+
+     make -C site render
+
      make -C hail python/hail/hail_version
      HAIL_CACHE_VERSION=$(cat hail/python/hail/hail_version)
-     make -C site/www
      find site/www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
+
      rsync --archive \
            --verbose \
-           --exclude='*.xslt' \
-           --exclude='*.md' \
            site/www/* \
            /io/www
      cd /io/www && tar -cvzf /io/site-www.tar.gz *

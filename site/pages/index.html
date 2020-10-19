@@ -1,0 +1,634 @@
+{% extends "base.html" %}
+{% block title %} Index {% endblock %}
+{% block meta_description %} Hail Index Page {% endblock %}
+{% block content %}
+
+<span id='home'>
+  <div id="hero">
+    <div id="hero-background"></div>
+    <div id="all-hero-content">
+      <div id="hero-content">
+        <h1 id="logo-title">Powering genomic analysis, at every scale</h1>
+        <div class="logo-subtitle">An open-source library for scalable genomic data exploration</div>
+        <div style="display: flex;" id="hero-button-container">
+          <a class="button" href="#install">Install</a>
+          <a class="button" href="#features">Features</a>
+          <a class="button" href="/gethelp.html">Get Help</a>
+        </div>
+      </div>
+
+      <div id="hero-content-right">
+        <pre class="right language-python" style="display:flex;min-width: 500px;">
+          <img id="reveal-img" src="/hail-tutorial-gwas-plot-cropped-opt.png" style="cursor: pointer;width:600px;height:360px;" onclick="reveal(this);" />
+          <code id="reveal-code" class="language-python" style="display:none;width:600px;height:360px; cursor: pointer;" onclick="hide(this);">import hail as hl
+
+mt = hl.read_matrix_table('resources/post_qc.mt')
+mt = mt.filter_rows(hl.agg.call_stats(mt.GT, mt.alleles).AF[1] > 0.01)
+pca_scores = hl.hwe_normalized_pca(mt.GT, k = 5, True)[1]
+mt = mt.annotate_cols(pca = pca_scores[mt.s])
+
+gwas = hl.linear_regression_rows(
+y=mt.pheno.caffeine_consumption,
+x=mt.GT.n_alt_alleles(),
+covariates=[1.0, mt.pheno.is_female,
+mt.pca.scores[0], mt.pca.scores[1],
+mt.pca.scores[2]])
+
+p = hl.plot.manhattan(gwas.p_value)
+show(p)
+          </code>
+        </pre>
+
+        <div class="logo-subtitle small">GWAS with Hail (click to <span id='reveal-text'>show code</span>)</div>
+      </div>
+    </div>
+  </div>
+  <div id="install" class="about dark" style="z-index:1">
+    <div class="header-wrap" style="justify-content: center;">
+      <h1>Install</h1>
+    </div>
+    <div class="about-content columns" style="align-self: center;">
+      <section style="flex-direction:column;margin:auto;">
+        <div style="background:white;padding:20px; color:black;text-align:center;margin:20px 0px;display:block;font-family:'Courier New', Courier, monospace">
+          pip install hail</div>
+        <p>
+          Hail requires Python 3 and the
+          <a href="https://adoptopenjdk.net/index.html" target="_blank">Java 8
+            JRE</a>
+        </p>
+        <p>GNU/Linux wil also need C and C++ standard libraries if not already installed</p>
+        <p>
+          <a href="/docs/0.2/getting_started.html">Detailed instructions</a>
+        </p>
+      </section>
+    </div>
+  </div>
+  <div id="features" class="about">
+    <div class="content">
+      <div class="header-wrap" styel="justify-content: space-between">
+        <h1>Features</h1>
+      </div>
+      <div class="about-content columns">
+        <section>
+          <h4>Simplified Analysis</h4>
+          <p>Hail is an open-source Python library that simplifies genomic data analysis.
+            It provides powerful, easy-to-use data science tools that can be used to interrogate even
+            biobank-scale genomic data (e.g. UK Biobank, <a href="https://www.nature.com/immersive/d42859-020-00002-x/index.html">gnomAD</a>, TopMed, FinnGen, and Biobank Japan).
+          </p>
+        </section>
+        <section>
+          <h4>Genomic Dataframes</h4>
+          <p>Modern data science is driven by numeric matrices (see <a href="https://numpy.org/">Numpy</a>) and
+            tables (see <a href="https://www.r-project.org/about.html">R</a> and <a href="https://pandas.pydata.org">Pandas</a>).
+            While sufficient for many tasks, none of these tools adequately capture
+            the structure of genetic data. Genetic data combines multiple axes (variants and samples) like
+            matrices and structured entries (genotypes) like tables or dataframes.
+            To support genomic analysis, Hail introduces a powerful,
+            distributed data structure combining features of matrices and dataframes called
+            <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>.
+          </p>
+        </section>
+        <section>
+          <h4>Input Unification</h4>
+          <p>The <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">Hail
+              MatrixTable</a> unifies a wide range of input formats (e.g. vcf, bgen, plink, tsv, gtf, bed files),
+            and supports scalable queries, even on petabyte-size datasets.
+            By leveraging MatrixTable, Hail provides an integrated, scalable analysis platform for science.
+          </p>
+        </section>
+      </div>
+      <a class="button" href="/tutorial.html" style='align-self:flex-end; margin-top:1rem;'>Learn More ></a>
+    </div>
+  </div>
+  <div class="about dark">
+    <div class="content">
+      <div class="header-wrap">
+        <h1>Acknowledgments</h1>
+      </div>
+      <div class="about-content">
+        <p>The Hail team has several sources of funding at the Broad Institute:</p>
+        <ul>
+          <li>
+            The Stanley Center for Psychiatric Research, which together with
+            Neale Lab has provided an incredibly supportive and stimulating
+            home.
+          </li>
+          <li>
+            Principal Investigator Benjamin Neale, whose
+            scientific leadership has been essential for solving the right
+            problems.
+          </li>
+          <li>
+            Principal Investigator Daniel MacArthur and the other members
+            of the gnomAD council.
+          </li>
+          <li>
+            Jeremy Wertheimer, whose strategic advice and generous
+            philanthropy have been essential for growing the impact of Hail.
+          </li>
+        </ul>
+        <p>We are grateful for generous support from:</p>
+        <ul>
+          <li>
+            The National Institute of Diabetes and Digestive and Kidney
+            Diseases
+          </li>
+          <li>The National Institute of Mental Health</li>
+          <li>The National Human Genome Research Institute</li>
+
+        </ul>
+        <p>We are grateful for generous past support from:</p>
+        <ul>
+          <li>The Chan Zuckerburg Initiative</li>
+        </ul>
+        <p>
+          We would like to thank
+          <a href="https://zulipchat.com/" target="_blank">Zulip</a>
+          for supporting open-source
+          by providing free hosting, and YourKit, LLC for generously providing free licenses for
+          <a href="https://www.yourkit.com/java/profiler/">YourKit Java Profiler</a>
+          for open-source
+          development.
+        </p>
+      </div>
+    </div>
+  </div>
+  <script>
+    const cachedImg = document.getElementById("reveal-img");
+    const cachedCode = document.getElementById("reveal-code");
+    const cachedText = document.getElementById("reveal-text");
+    const defText = cachedText.textContent;
+
+    function reveal(e) {
+      cachedCode.style.display = "block";
+      cachedImg.style.display = "none";
+      cachedText.textContent = "show plot";
+    }
+    function hide(e) {
+      cachedCode.style.display = "none";
+      cachedImg.style.display = "initial";
+      cachedText.textContent = defText;
+    }
+  </script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+  <script>
+    requirejs(["https://cdnjs.cloudflare.com/ajax/libs/three.js/r121/three.min.js"],
+              function(THREE) {
+                /*Created by Hail Team copyright 2020. Based on VantaJS, original license follows:*/
+                /*Copyright 2020 Teng Bao
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+                */
+
+                /* from helpers.js*/
+                function ri(start, end) {
+                  if (start == null) start = 0;
+                  if (end == null) end = 1;
+                  return Math.floor(start + (Math.random() * ((end - start) + 1)));
+                }
+
+                function getBrightness(threeColor) {
+                  return (0.299 * threeColor.r) + (0.587 * threeColor.g) + (0.114 * threeColor.b);
+                }
+
+                function getPixelRatio() {
+                  return (!window.devicePixelRatio || window.devicePixelRatio < 2) ? 2 : window.devicePixelRatio
+                }
+
+                /*pruned/extended _base.js + vanta.net.js, focused on performance improvement, drops cpu usage by 75%, reduces memory usage, and introduces hover effects*/
+                class Viz {
+                  constructor(userOptions = {}) {
+                    if (!THREE.WebGLRenderer) {
+                      console.error("ThreeJS has not been loaded, or WebGL is unsupported");
+                      return;
+                    }
+
+                    this.options = Object.assign({
+                      color: 0xff3f81,
+                      backgroundColor: 0xfffffff,
+                      points: 10,
+                      maxDistance: 20,
+                      spacing: 15,
+                      showDots: true
+                    }, userOptions);
+
+                    this.el = document.querySelector(this.options.el);
+                    if (!this.el) {
+                      console.error(`Cannot find ${this.options.el}`);
+                      return;
+                    }
+
+                    if (!this.el.style.position == 'absolute') {
+                      this.el.style.position = 'absolute';
+                    }
+                    this.el.style.opacity = 0;
+                    this.hidden = true;
+
+                    this.mouse = { "x": 0, "y": 0, "rawY": 0, "updated": false, "updatedCount": -1, "ran": false };
+
+                    this.highlightColor = new THREE.Color('purple');
+                    this.cachedColor = new THREE.Color(0x000000);
+                    this.options.color = new THREE.Color(this.options.color);
+                    this.options.backgroundColor = new THREE.Color(this.options.backgroundColor);
+                    this.diffColor = this.options.color.clone().sub(this.options.backgroundColor);
+                    this.colorB = getBrightness(new THREE.Color(this.options.color));
+                    this.bgB = getBrightness(new THREE.Color(this.options.backgroundColor));
+
+                    this.elOffset = this.el.offsetTop;
+                    this.elOnscreen = false;
+                    this.isScrolling = false;
+                    this.resizeTimeout = null;
+                    this.postInit = false;
+                    this.points = [];
+
+                    this.animationTimeout = null;
+                    this.animationLoop = this.animationLoop.bind(this);
+
+                    window.requestAnimationFrame(() => {
+                      let canvas = document.createElement('canvas');
+                      let context = canvas.getContext('webgl', { alpha: true, antialias: true });
+                      this.renderer = new THREE.WebGLRenderer({ canvas: canvas, context: context });
+
+                      this.el.appendChild(this.renderer.domElement);
+                    });
+
+                    const intersectionThreshold = 0.6;
+                    const intersectionCallback = (entries) => {
+                      if (entries.length > 1) {
+                        console.warn("should be observing a single element, ignoring all but first");
+                      }
+
+                      // entries[0].isIntersecting incorrect in firefox
+                      this.elOnscreen = entries[0].intersectionRatio > intersectionThreshold;
+                      this.interval = 1000 / 12;
+                      if (this.elOnscreen) {
+                        if (!this.postInit) {
+                          try {
+                            window.requestAnimationFrame(() => {
+                              this.init();
+                              this.listen();
+                              this.then = Date.now();
+                              this.animationLoop();
+                              this.postInit = true;
+                            });
+                          } catch (e) {
+                            if (this.renderer && this.renderer.domElement) {
+                              this.el.removeChild(this.renderer.domElement)
+                            }
+                            log.error(e);
+                            return
+                          }
+
+                          return;
+                        }
+
+                        this.animationLoop();
+                        return;
+                      }
+                    };
+
+                    let observer = new IntersectionObserver(intersectionCallback, { threshold: intersectionThreshold });
+
+                    window.requestAnimationFrame(() => observer.observe(this.renderer.domElement));
+
+                  }
+
+                  listen() {
+                    this.elOffset = this.el.offsetTop;
+
+                    this.isScrolling = false;
+                    this.resizeTimeout = null;
+
+                    window.addEventListener('resize', (e) => this.resize(e));
+                    window.addEventListener('scroll', () => {
+                      if (this.isScrolling != null) {
+                        window.clearTimeout(this.isScrolling);
+                      }
+
+                      this.isScrolling = setTimeout(() => this.isScrolling = null, 100);
+                    });
+
+                    let timeout = null;
+                    this.mouse.dontshow = false;
+                    window.addEventListener('mousemove', (e) => {
+                      if (timeout != null) {
+                        clearTimeout(timeout);
+                      }
+
+                      timeout = setTimeout(() => {
+                        this.onMouseMove2(e)
+                        timeout = null;
+                      }, this.mouse.dontshow ? 32 : 4);
+                    }, false);
+
+                    const d = document.getElementById('hero-content');
+                    const n = document.getElementById('hail-navbar');
+
+                    d.onmouseover = () => {
+                      if (timeout != null) {
+                        clearTimeout(timeout);
+                      }
+                      this.mouse.updated = false;
+                      this.mouse.updatedCount = 0;
+                      this.mouse.dontshow = true;
+                    }
+
+                    d.onmouseout = () => {
+                      if (timeout != null) {
+                        clearTimeout(timeout);
+                      }
+                      this.mouse.updated = true;
+                      this.mouse.updatedCount = 0;
+                      this.mouse.dontshow = false;
+                    }
+
+                    n.onmouseover = () => {
+                      if (timeout != null) {
+                        clearTimeout(timeout);
+                      }
+                      this.mouse.updated = false;
+                      this.mouse.updatedCount = 0;
+                      this.mouse.dontshow = true;
+                    }
+
+                    n.onmouseout = () => {
+                      if (timeout != null) {
+                        clearTimeout(timeout);
+                      }
+                      this.mouse.updated = true;
+                      this.mouse.updatedCount = 0;
+                      this.mouse.dontshow = false;
+                    }
+                  }
+
+                  resize(e) {
+                    if (this.resizeTimeout != null) {
+                      clearTimeout(this.resizeTimeout);
+                    }
+                    this.resizeTimeout = setTimeout(() => {
+                      this.hidden = true;
+                      if (this.camera) {
+                        this.camera.aspect = this.el.offsetWidth / this.el.offsetHeight;
+                        if (typeof this.camera.updateProjectionMatrix === "function") {
+                          this.camera.updateProjectionMatrix()
+                        }
+                      }
+                      if (this.renderer) {
+                        this.renderer.setSize(this.el.offsetWidth, this.el.offsetHeight)
+                        this.renderer.setPixelRatio(getPixelRatio())
+                      }
+                      this.animationLoop();
+                      this.resizeTimeout = null;
+                    }, 128);
+                  }
+
+                  animationLoop(tInterval = 33) {
+                    if (!this.hidden && !this.mouse.updated) {
+                      if (this.animationTimeout != null) {
+                        clearTimeout(this.animationTimeout)
+                        this.animationTimeout = null;
+                      }
+                      return;
+                    }
+
+                    if (this.startedAnimation || !this.elOnscreen) {
+                      if (this.animationTimeout != null) {
+                        clearTimeout(this.animationTimeout)
+                        this.animationTimeout = null;
+                      }
+                      return;
+                    }
+
+                    if (this.animationTimeout != null) {
+                      clearTimeout(this.animationTimeout);
+                    }
+
+                    const now = Date.now();
+                    const delta = now - this.then;
+
+                    if (!this.isScrolling) {
+                      if (this.hidden || delta > this.interval) {
+                        this.onUpdate()
+                        if (this.scene && this.camera) {
+                          this.renderer.render(this.scene, this.camera)
+                        }
+                        this.mouse.updated = false;
+                      }
+                    }
+
+                    if (this.hidden) {
+                      this.startedAnimation = true;
+
+                      window.requestAnimationFrame(() => {
+                        this.el.style.opacity = .5;
+                        this.hidden = false;
+                        this.startedAnimation = false;
+
+                        this.then = now - 1000 - (delta % this.interval);
+
+                        this.animationTimeout = window.setTimeout(() => {
+                          this.animationLoop(tInterval);
+                          this.animationTimeout = null;
+                        }, tInterval);
+                      });
+
+                      return;
+                    }
+
+                    this.then = now - (delta % this.interval);
+                  }
+
+                  onMouseMove2(e) {
+                    if (!this.elOnscreen || this.mouse.dontshow) {
+                      return;
+                    }
+
+                    if (!this.mouse.ran) {
+                      this.mouse.ran = true;
+                      return;
+                    }
+
+                    if (!this.rayCaster) {
+                      this.rayCaster = new THREE.Raycaster()
+                    }
+
+                    const ox = e.pageX;
+                    const oy = e.pageY - this.elOffset;
+                    const x = (ox / this.el.offsetWidth) * 2 - 1;
+
+                    const y = - (oy / this.el.offsetHeight) * 2 + 1;
+
+                    if (x !== this.mouse.x || y !== this.mouse.y) {
+                      this.mouse.x = x;
+                      this.mouse.y = y;
+                      this.mouse.updated = true;
+                      this.mouse.updatedCount = 0;
+
+                      this.rayCaster.setFromCamera(new THREE.Vector2(this.mouse.x, this.mouse.y), this.camera);
+
+                      this.animationLoop();
+                    }
+                  }
+
+                  genPoint(x, y, z) {
+                    const geometry = new THREE.SphereGeometry(0.2, 12, 12);
+                    const material = new THREE.MeshLambertMaterial({
+                      color: this.options.color,
+                      transparent: true,
+                      opacity: .35
+                    });
+                    const sphere = new THREE.Mesh(geometry, material);
+                    sphere.position.set(x, y, z);
+                    sphere.r = 0.00025 * ((Math.random() * 4) - 2); // rotation rate, larger is faster
+                    return sphere;
+                  }
+
+                  init() {
+                    const group = new THREE.Group();
+                    group.position.set(0, 0, 0);
+
+                    let { points, spacing } = this.options;
+
+                    const numPoints = points * points * 2;
+                    this.linePositions = new Float32Array(numPoints * numPoints * 3);
+                    this.lineColors = new Float32Array(numPoints * numPoints * 3);
+
+                    const geometry = new THREE.BufferGeometry();
+                    geometry.setAttribute('position', new THREE.BufferAttribute(this.linePositions, 3));
+                    geometry.setAttribute('color', new THREE.BufferAttribute(this.lineColors, 3));
+                    geometry.computeBoundingSphere();
+                    geometry.setDrawRange(0, 0);
+                    const material = new THREE.LineBasicMaterial({
+                      vertexColors: THREE.VertexColors
+                    });
+                    material.linewidth = 0.25;
+
+                    this.linesMesh = new THREE.LineSegments(geometry, material);
+                    this.linesMesh.renderOrder = 2;
+                    group.add(this.linesMesh);
+
+                    for (let i = 0; i <= points; i++) {
+                      for (let j = 0; j <= points; j++) {
+                        const y = ri(-3, 3)
+                        const x = ((i - (points / 2)) * spacing) + ri(-5, 5);
+                        let z = ((j - (points / 2)) * spacing) + ri(-5, 5);
+                        if (i % 2) { z += spacing * 0.5 };
+
+                        const p1 = this.genPoint(x, y - ri(5, 15), z);
+                        const p2 = this.genPoint(x + ri(-5, 5), y + ri(5, 15), z + ri(-5, 5));
+                        group.add(p1, p2);
+                        this.points.push(p1, p2);
+                      }
+                    }
+
+                    this.renderer.setSize(this.el.offsetWidth, this.el.offsetHeight)
+                    this.renderer.setPixelRatio(getPixelRatio())
+
+                    this.camera = new THREE.PerspectiveCamera(25, this.el.offsetWidth / (this.el.offsetHeight), .01, 10000);
+
+                    this.camera.position.set(50, 100, 150);
+                    this.camera.lookAt(0, 0, 0);
+
+                    this.scene = new THREE.Scene();
+                    this.scene.add(this.camera)
+                    this.scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+                    this.scene.add(group);
+                  }
+
+                  onUpdate() {
+                    let vertexpos = 0;
+                    let colorpos = 0;
+                    let numConnected = 0;
+
+                    let dist, distToMouse, lineColor, p, p2, ang;
+                    let affected1 = 0;
+
+                    for (let i = 0; i < this.points.length; i++) {
+                      p = this.points[i];
+
+                      if (this.rayCaster) {
+                        if (this.mouse.updated) {
+                          distToMouse = (12 - this.rayCaster.ray.distanceToPoint(p.position)) * 0.25;
+                          if (distToMouse > 1) {
+                            affected1 = 1;
+                            p.material.color = this.highlightColor;
+                          } else {
+                            affected1 = 0;
+                            p.material.color = this.options.color;
+                          }
+                        }
+                        else if (p.material.color !== this.options.color) {
+                          p.material.color = this.options.color;
+                        }
+                      }
+
+                      if (p.r !== 0) {
+                        ang = Math.atan2(p.position.z, p.position.x) + p.r;
+                        dist = Math.sqrt((p.position.z ** 2) + (p.position.x ** 2));
+                        p.position.x = dist * Math.cos(ang);
+                        p.position.z = dist * Math.sin(ang);
+                      }
+
+                      for (let j = i; j < this.points.length; j++) {
+                        p2 = this.points[j]
+
+                        dist = Math.sqrt(((p.position.x - p2.position.x) ** 2) + ((p.position.y - p2.position.y) ** 2) + ((p.position.z - p2.position.z) ** 2))
+                        if (dist >= this.options.maxDistance) {
+                          continue;
+                        }
+
+                        if (affected1) {
+                          lineColor = this.highlightColor;
+                        } else {
+                          let alpha = ((1.0 - (dist / this.options.maxDistance)));
+                          if (alpha < 0) {
+                            alpha = 0;
+                          } else if (alpha > 1) {
+                            alpha = 1;
+                          }
+
+                          lineColor = this.options.backgroundColor.clone().lerp(this.options.color, alpha);
+                        }
+
+                        this.linePositions[vertexpos++] = p.position.x;
+                        this.linePositions[vertexpos++] = p.position.y;
+                        this.linePositions[vertexpos++] = p.position.z;
+                        this.linePositions[vertexpos++] = p2.position.x;
+                        this.linePositions[vertexpos++] = p2.position.y;
+                        this.linePositions[vertexpos++] = p2.position.z;
+
+                        this.lineColors[colorpos++] = lineColor.r;
+                        this.lineColors[colorpos++] = lineColor.g;
+                        this.lineColors[colorpos++] = lineColor.b;
+                        this.lineColors[colorpos++] = lineColor.r;
+                        this.lineColors[colorpos++] = lineColor.g;
+                        this.lineColors[colorpos++] = lineColor.b;
+
+                        numConnected++;
+                      }
+                    }
+
+                    this.linesMesh.geometry.setDrawRange(0, numConnected * 2);
+                    this.linesMesh.geometry.attributes.position.needsUpdate = true;
+
+                    this.linesMesh.geometry.attributes.color.needsUpdate = true;
+                  }
+                }
+
+                new Viz({
+                  el: "#hero-background",
+                  points: 10,
+                  maxDistance: 23,
+                  spacing: 20,
+                  backgroundColor: "#fff",
+                  color: "#283870",
+                });
+              })
+  </script>
+</span>
+
+{% endblock %}
