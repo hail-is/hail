@@ -136,6 +136,8 @@ async def test_submit():
                 resp2 = await utils.request_retry_transient_errors(
                     session, 'GET', f'{batch_url}', headers=headers)
                 batch_status = await resp2.json()
+                log.info(f'batch_status:\n{json.dumps(batch_status, indent=2)}')
+                assert batch_status
                 await asyncio.sleep(5)
             return batch_status
 

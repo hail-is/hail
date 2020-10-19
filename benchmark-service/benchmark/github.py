@@ -69,6 +69,7 @@ async def submit_batch(commit, batch_client):
     await batch.submit(disable_progress_bar=True)
     global START_POINT
     START_POINT = commit.get('commit').get('date')
+    log.info(f'LOOK HERE: {job.batch_id}')
     return job.batch_id
 
 
