@@ -1,7 +1,6 @@
 from types import TracebackType
 from typing import Optional, Type, TypeVar
 import abc
-import aiohttp
 from hailtop.utils import RateLimit, RateLimiter
 from .credentials import Credentials
 from .access_token import AccessToken

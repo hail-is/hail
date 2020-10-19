@@ -1,4 +1,4 @@
-from typing import (Dict, Any, List, Tuple, Optional, Type, Union, Awaitable,
+from typing import (Dict, Any, List, Tuple, Optional, Type, Awaitable,
                     Generator)
 from types import TracebackType
 import aiohttp
@@ -9,6 +9,7 @@ from .tls import internal_client_ssl_context, external_client_ssl_context
 from .utils import async_to_blocking, retry_transient_errors
 
 log = logging.getLogger('hailtop.httpx')
+
 
 def client_session(*args,
                    retry_transient: bool = True,
@@ -28,6 +29,10 @@ def client_session(*args,
     return ClientSession(
         aiohttp.ClientSession(*args, **kwargs),
         retry_transient=retry_transient)
+
+
+def blocking_client_session(*args, **kwargs) -> 'BlockingClientSession':
+    return BlockingClientSession(client_session(*args, **kwargs))
 
 
 class ResponseManager:
@@ -220,7 +225,7 @@ class BlockingContextManager:
 
 
 class BlockingClientSession:
-    def __init__(self, session: HailAsyncClientSession):
+    def __init__(self, session: ClientSession):
         self.session = session
 
     def request(self,
@@ -307,7 +312,3 @@ class BlockingClientSession:
                  exc_val: Optional[BaseException],
                  exc_tb: Optional[TracebackType]) -> None:
         self.close()
-
-
-def blocking_client_session(*args, **kwargs) -> BlockingClientSession:
-    return BlockingClientSession(client_session(*args, **kwargs))

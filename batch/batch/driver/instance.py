@@ -1,4 +1,3 @@
-import aiohttp
 import datetime
 import logging
 import secrets
