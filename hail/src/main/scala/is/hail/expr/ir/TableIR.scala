@@ -9,7 +9,7 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, TableToTableFunction}
-import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
+import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -328,7 +328,7 @@ object LoweredTableReader {
             },
             key.length)
 
-          TableStage(globals, partitioner,
+          TableStage(globals, partitioner, TableStageDependency.none,
             ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
             body)
         }
@@ -358,7 +358,7 @@ object LoweredTableReader {
               Interval(selectPK(partData.getAs[Row](1)), selectPK(partData.getAs[Row](2)), includesStart = true, includesEnd = true)
             }, pkType.size)
 
-          val pkPartitioned = TableStage(globals, partitioner,
+          val pkPartitioned = TableStage(globals, partitioner, TableStageDependency.none,
             ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
             body)
 
@@ -384,7 +384,7 @@ object LoweredTableReader {
           val partitioner = RVDPartitioner.unkeyed(sortedPartData.length)
 
           ctx.backend.lowerDistributedSort(ctx,
-            TableStage(globals, partitioner,
+            TableStage(globals, partitioner, TableStageDependency.none,
               ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
               body),
             keyType.fieldNames.map(f => SortField(f, Ascending)),

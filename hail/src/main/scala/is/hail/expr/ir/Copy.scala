@@ -341,9 +341,9 @@ object Copy {
         BlockMatrixWrite(newChildren(0).asInstanceOf[BlockMatrixIR], writer)
       case BlockMatrixMultiWrite(_, writer) =>
         BlockMatrixMultiWrite(newChildren.map(_.asInstanceOf[BlockMatrixIR]), writer)
-      case CollectDistributedArray(_, _, cname, gname, _) =>
+      case CollectDistributedArray(_, _, cname, gname, _, tsd) =>
         assert(newChildren.length == 3)
-        CollectDistributedArray(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], cname, gname, newChildren(2).asInstanceOf[IR])
+        CollectDistributedArray(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], cname, gname, newChildren(2).asInstanceOf[IR], tsd)
       case ReadPartition(context, rowType, reader) =>
         assert(newChildren.length == 1)
         ReadPartition(newChildren(0).asInstanceOf[IR], rowType, reader)

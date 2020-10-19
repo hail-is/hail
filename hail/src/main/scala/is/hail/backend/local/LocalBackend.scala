@@ -1,34 +1,30 @@
 package is.hail.backend.local
 
-import is.hail.annotations.UnsafeRow
+import java.io.PrintWriter
+
+import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.expr.ir.IRParser
-import is.hail.types.encoded.EType
-import is.hail.io.{BufferSpec, TypedCodecSpec}
-import is.hail.annotations.{Region, SafeRow}
-import is.hail.expr.{JSONAnnotationImpex, Validate}
+import is.hail.backend.{Backend, BackendContext, BroadcastValue}
 import is.hail.expr.ir.lowering._
-import is.hail.expr.ir._
+import is.hail.expr.ir.{IRParser, _}
+import is.hail.expr.{JSONAnnotationImpex, Validate}
+import is.hail.io.bgen.IndexBgen
+import is.hail.io.fs.{FS, HadoopFS}
+import is.hail.io.plink.LoadPlink
+import is.hail.io.{BufferSpec, TypedCodecSpec}
+import is.hail.linalg.BlockMatrix
+import is.hail.types.BlockMatrixType
+import is.hail.types.encoded.EType
 import is.hail.types.physical.{PTuple, PType, PVoid}
 import is.hail.types.virtual.TVoid
-import is.hail.types.physical.{PTuple, PType}
-import is.hail.types.virtual.{TVoid, Type}
-import is.hail.backend.{Backend, BackendContext, BroadcastValue}
-import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.utils._
-import is.hail.io.bgen.IndexBgen
-import is.hail.io.plink.LoadPlink
 import is.hail.variant.ReferenceGenome
 import org.apache.hadoop
 import org.json4s.DefaultFormats
 import org.json4s.jackson.{JsonMethods, Serialization}
 
-import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
-import java.io.PrintWriter
-
-import is.hail.linalg.BlockMatrix
-import is.hail.types.BlockMatrixType
+import scala.reflect.ClassTag
 
 class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
 
@@ -69,7 +65,8 @@ class LocalBackend(
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)
 
-  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]])(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]],
+    dependency: Option[TableStageDependency] = None)(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]] = {
     collection.zipWithIndex.map { case (c, i) =>
       f(c, i)
     }

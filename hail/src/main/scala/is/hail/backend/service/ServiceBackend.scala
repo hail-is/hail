@@ -1,26 +1,25 @@
 package is.hail.backend.service
 
-import java.io.{DataOutputStream, FileInputStream, FileOutputStream, ObjectInputStream, ObjectOutputStream, PrintWriter, RandomAccessFile, StringWriter}
+import java.io._
 
 import is.hail.HailContext
 import is.hail.annotations.{Region, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend.{Backend, BackendContext, BroadcastValue}
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerDistributedSort, LowererUnsupportedOperation, LoweringPipeline, TableStage}
+import is.hail.expr.ir.lowering.{DArrayLowering, LowerDistributedSort, LoweringPipeline, TableStage, TableStageDependency}
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple, SortField}
-import is.hail.types.physical.{PBaseStruct, PType}
-import is.hail.io.fs.{FS, GoogleStorageFS}
+import is.hail.io.fs.GoogleStorageFS
 import is.hail.linalg.BlockMatrix
 import is.hail.services.batch_client.BatchClient
 import is.hail.types.BlockMatrixType
-import is.hail.types.virtual.Type
+import is.hail.types.physical.{PBaseStruct, PType}
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
 import org.apache.log4j.LogManager
-import org.json4s.{DefaultFormats, Formats}
-import org.json4s.JsonAST.{JArray, JBool, JInt, JNull, JObject, JString}
+import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
+import org.json4s.{DefaultFormats, Formats}
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -117,7 +116,8 @@ class ServiceBackend() extends Backend {
     def value: T = _value
   }
 
-  def parallelizeAndComputeWithIndex(_backendContext: BackendContext, collection: Array[Array[Byte]])(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(_backendContext: BackendContext, collection: Array[Array[Byte]],
+    dependency: Option[TableStageDependency] = None)(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]] = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
 
     val user = users(backendContext.username)

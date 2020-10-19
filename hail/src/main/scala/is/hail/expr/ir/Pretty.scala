@@ -330,7 +330,7 @@ object Pretty {
             case LowerBoundOnOrderedCollection(_, _, onKey) => prettyBooleanLiteral(onKey)
             case In(i, typ) => s"$typ $i"
             case Die(message, typ, errorId) => s"${typ.parsableString()} $errorId"
-            case CollectDistributedArray(_, _, cname, gname, _) =>
+            case CollectDistributedArray(_, _, cname, gname, _, _) =>
               s"${ prettyIdentifier(cname) } ${ prettyIdentifier(gname) }"
             case MatrixRead(typ, dropCols, dropRows, reader) =>
               (if (typ == reader.fullMatrixType) "None" else typ.parsableString()) + " " +

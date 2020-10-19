@@ -210,14 +210,14 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newAggBody <- normalize(aggBody, bodyEnv.bindEval(indexName, newIndexName))
           newKnownLength <- knownLength.mapRecur(normalize(_, env))
         } yield AggArrayPerElement(newA, newElementName, newIndexName, newAggBody, newKnownLength, isScan)
-      case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
+      case CollectDistributedArray(ctxs, globals, cname, gname, body, tsd) =>
         val newC = gen()
         val newG = gen()
         for {
           newCtxs <- normalize(ctxs)
           newGlobals <- normalize(globals)
           newBody <- normalize(body, BindingEnv.eval(cname -> newC, gname -> newG))
-        } yield CollectDistributedArray(newCtxs, newGlobals, newC, newG, newBody)
+        } yield CollectDistributedArray(newCtxs, newGlobals, newC, newG, newBody, tsd)
       case RelationalLet(name, value, body) =>
         for {
           newValue <- normalize(value, BindingEnv.empty)

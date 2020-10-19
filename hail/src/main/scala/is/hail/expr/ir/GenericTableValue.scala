@@ -5,7 +5,7 @@ import is.hail.annotations.{BroadcastRow, Region, UnsafeRow}
 import is.hail.asm4s.Code
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.EmitStream.SizedStream
-import is.hail.expr.ir.lowering.TableStage
+import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.types.TableType
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.{TArray, TStruct, Type}
@@ -143,7 +143,7 @@ class GenericTableValue(
     }
     if (p != null) {
       val contextsIR = ToStream(Literal(TArray(contextType), contexts))
-      TableStage(globalsIR, p, contextsIR, requestedBody)
+      TableStage(globalsIR, p, TableStageDependency.none, contextsIR, requestedBody)
     } else {
       getLTVCoercer(ctx).coerce(
         globalsIR,
