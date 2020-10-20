@@ -376,7 +376,7 @@ async def dev_deploy_branch(request, userdata):
         batch_id = await unwatched_branch.deploy(batch_client, steps)
     except Exception as e:  # pylint: disable=broad-except
         message = traceback.format_exc()
-        raise web.HTTPBadGateway(
+        raise web.HTTPBadRequest(
             text=f'starting the deploy failed due to\n{message}') from e
     return web.json_response({'sha': sha, 'batch_id': batch_id})
 
