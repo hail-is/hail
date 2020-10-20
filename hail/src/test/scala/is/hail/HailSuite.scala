@@ -47,21 +47,29 @@ class HailSuite extends TestNGSuite {
 
   def fsBc: BroadcastValue[FS] = fs.broadcast
 
+  var timer: ExecutionTimer = _
+
   var ctx: ExecuteContext = _
 
   @BeforeMethod
   def setupContext(context: ITestContext): Unit = {
+    assert(timer == null)
+    timer = new ExecutionTimer("HailSuite")
     assert(ctx == null)
-    ctx = new ExecuteContext(backend.tmpdir, backend.localTmpdir, backend, fs, Region(), new ExecutionTimer)
+    ctx = new ExecuteContext(backend.tmpdir, backend.localTmpdir, backend, fs, Region(), timer)
   }
 
   @AfterMethod
   def tearDownContext(context: ITestContext): Unit = {
     ctx.close()
     ctx = null
+    timer.finish()
+    timer = null
   }
 
   def withExecuteContext[T]()(f: ExecuteContext => T): T = {
-    hc.sparkBackend("HailSuite.withExecuteContext").withExecuteContext()(f)
+    ExecutionTimer.logTime("HailSuite.withExecuteContext") { timer =>
+      hc.sparkBackend("HailSuite.withExecuteContext").withExecuteContext(timer)(f)
+    }
   }
 }
