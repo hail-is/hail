@@ -711,7 +711,7 @@ class EmitClassBuilder[C](
             }
           }
         }
-        val f = theClass.newInstance().asInstanceOf[C]
+        val f = theClass.getDeclaredConstructor().newInstance().asInstanceOf[C]
         f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
         if (useBackend)
           f.asInstanceOf[FunctionWithBackend].setBackend(backend)
