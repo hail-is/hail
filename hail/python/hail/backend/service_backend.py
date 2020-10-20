@@ -149,8 +149,7 @@ class ServiceBackend(Backend):
                 resp_json = resp.json()
                 raise FatalError(resp_json['message'])
             resp.raise_for_status()
-            ref = resp.json()
-            assert ref is not None, (resp, name)
+            return resp.json()
 
     def load_references_from_dataset(self, path):
         # FIXME
