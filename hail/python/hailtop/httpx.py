@@ -25,10 +25,11 @@ def client_session(*args,
             resolver=HailResolver())
     if 'timeout' not in kwargs:
         kwargs['timeout'] = aiohttp.ClientTimeout(total=5)
-    kwargs['raise_for_status'] = raise_for_status
+    kwargs['raise_for_status'] = False
     return ClientSession(
         aiohttp.ClientSession(*args, **kwargs),
-        retry_transient=retry_transient)
+        retry_transient=retry_transient,
+        raise_for_status=raise_for_status)
 
 
 def blocking_client_session(*args, **kwargs) -> 'BlockingClientSession':
@@ -57,9 +58,30 @@ class ResponseManager:
 
 
 class ClientSession:
-    def __init__(self, session: aiohttp.ClientSession, retry_transient: bool):
+    def __init__(self, session: aiohttp.ClientSession, retry_transient: bool, raise_for_status: bool):
         self.session = session
         self.retry_transient = retry_transient
+        self.raise_for_status = raise_for_status
+
+    async def _request_and_raise_for_status(self,
+                                            method: str,
+                                            url: aiohttp.typedefs.StrOrURL,
+                                            **kwargs: Any) -> aiohttp.ClientResponse:
+        response = await self.session._request(method, url, **kwargs)
+        raise_for_status = kwargs.get('raise_for_status', self.raise_for_status)
+        if raise_for_status and response.status >= 400:
+            message = response.reason or ''
+            try:
+                message = message + '\n' + await response.text()
+            except Exception as exc:
+                message = message + f'\ncould not fetch text due to: {exc}'
+            raise aiohttp.ClientResponseError(
+                response.request_info,
+                response.history,
+                status=response.status,
+                message=message,
+                headers=response.headers)
+        return response
 
     def request(self,
                 method: str,
@@ -68,9 +90,9 @@ class ClientSession:
         retry_transient = kwargs.get('retry_transient', self.retry_transient)
         if retry_transient:
             coroutine = retry_transient_errors(
-                self.session._request, method, url, **kwargs)
+                self._request_and_raise_for_status, method, url, **kwargs)
         else:
-            coroutine = self.session._request(method, url, **kwargs)
+            coroutine = self._request_and_raise_for_status(method, url, **kwargs)
         return ResponseManager(coroutine)
 
     def get(self,
