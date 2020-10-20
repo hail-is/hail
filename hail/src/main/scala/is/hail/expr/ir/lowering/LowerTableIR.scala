@@ -1103,7 +1103,7 @@ object LowerTableIR {
       case TableToValueApply(child, ForceCountTable()) =>
         val stage = lower(child)
         invoke("sum", TInt64,
-          stage.mapCollect(relationalLetsAbove)(rows => Cast(StreamLen(mapIR(rows)(row => Consume(row))), TInt64))          )
+          stage.mapCollect(relationalLetsAbove)(rows => foldIR(mapIR(rows)(row => Consume(row)), 0L)(_ + _)))
 
       case TableGetGlobals(child) =>
         lower(child).getGlobals()
