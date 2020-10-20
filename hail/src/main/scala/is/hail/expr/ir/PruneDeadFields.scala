@@ -10,8 +10,6 @@ import scala.collection.mutable
 
 object PruneDeadFields {
 
-  var pruneCount = 0
-
   case class ComputeMutableState(requestedType: Memo[BaseType], relationalRefs: mutable.HashMap[String, ArrayBuilder[Type]]) {
     def rebuildState: RebuildMutableState = RebuildMutableState(requestedType, mutable.HashMap.empty)
   }
@@ -84,9 +82,6 @@ object PruneDeadFields {
   }
 
   def apply(ir: BaseIR): BaseIR = {
-    pruneCount += 1
-    println(s"PRUNE COUNT = ${pruneCount}")
-
     try {
       val irCopy = ir.deepCopy()
       val ms = ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
