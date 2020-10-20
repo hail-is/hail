@@ -123,7 +123,7 @@ object InferPType {
       case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | _: UUID4 | _: Literal | _: True | _: False
            | _: Cast | _: NA | _: Die | _: IsNA | _: ArrayZeros | _: ArrayLen | _: StreamLen
            | _: LowerBoundOnOrderedCollection | _: ApplyBinaryPrimOp
-           | _: ApplyUnaryPrimOp | _: ApplyComparisonOp | _: WriteValue
+           | _: ApplyUnaryPrimOp | _: ApplyComparisonOp | _: WriteValue | _: Consume
            | _: NDArrayAgg | _: ShuffleWrite | _: AggStateValue | _: CombOpValue | _: InitFromSerializedValue =>
         requiredness(node).canonicalPType(node.typ)
       case EncodedLiteral(codec, _) =>
