@@ -460,7 +460,7 @@ object Pretty {
             case WriteValue(_, _, spec) => prettyStringLiteral(spec.toString)
             case x@ShuffleWith(_, _, _, _, name, _, _) =>
               s"${ x.shuffleType.parsableString() } ${ prettyIdentifier(name) }"
-
+            case MatrixUnionCols(l, r, joinType) => joinType
             case _ => ""
           }
 
