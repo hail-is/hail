@@ -162,7 +162,7 @@ class HailResolver(aiohttp.abc.AbstractResolver):
         if self.dns is None:
             # the AsyncResolver must be created from an async function:
             # https://github.com/aio-libs/aiohttp/issues/3573#issuecomment-456742539
-            self.dns = aiohttp.AsyncResolver()
+            self.dns = aiohttp.DefaultResolver()
         if family in (0, socket.AF_INET, socket.AF_INET6):
             maybe_address_and_port = await self.deploy_config.maybe_address(host)
             if maybe_address_and_port is not None:
