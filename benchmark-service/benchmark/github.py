@@ -14,19 +14,6 @@ configure_logging()
 log = logging.getLogger('benchmark')
 START_POINT = '2020-09-24T00:00:00Z'
 
-# Figures out what commits have results already, which commits have running batches,
-#   and which commits we need to submit benchmarks for.
-# Checks whether a results file for each commit exists in Google Storage or is in a currently running Batch.
-# If not, then we submit a batch for that commit.
-
-# you're using a file as a key-value store of whether a job has been completed.
-# To get whether a batch has been run, use list_batches(q=f'sha={sha} running')
-
-# get a list and then iterate through it asking if the commits have batches or not?
-# query for running batches. And then get the commits for those batches from the result that is returned
-# We want to write a result file once it's successful. In the batch. But that will come later.
-# I think this will use the lower level batch client. Best to use the async version hailtop.batch_client.aioclient
-# results file is in google storage
 running_commit_shas = {}
 result_commit_shas = {}
 bucket_name = 'hail-benchmarks'
@@ -80,28 +67,3 @@ async def query_github(github_client, batch_client):
         sha = commit.get('sha')
         log.info(f'submitted a batch for commit {sha}')
         break
-
-# async def github_polling_loop():
-#     while True:
-#         await query_github()
-#         log.info(f'successfully queried github')
-#         await asyncio.sleep(60)
-#
-#
-# async def main():
-#     #asyncio.ensure_future(retry_long_running('github-polling-loop', github_polling_loop))
-#     global batch_client
-#     batch_client = await bc.BatchClient(billing_project='hail')
-#     await retry_long_running('github-polling-loop', github_polling_loop)
-#
-#
-# if __name__ == '__main__':
-#     # parser = argparse.ArgumentParser()
-#     # args = parser.parse_args()
-#     # message = args.message
-#
-#     loop = asyncio.get_event_loop()
-#     loop.run_until_complete(main())
-#     loop.run_until_complete(loop.shutdown_asyncgens())
-#     loop.close()
-

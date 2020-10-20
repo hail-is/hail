@@ -116,7 +116,6 @@ async def test_submit():
     deploy_config = get_deploy_config()
     headers = service_auth_headers(deploy_config, 'benchmark')
     create_benchmark_url = deploy_config.url('benchmark', '/api/v1alpha/benchmark/create_benchmark')
-    # testing locally: where you've used in_cluster_ssl_client_session you need to use get_context_specific_ssl_client_session
     async with get_context_specific_ssl_client_session(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60)) as session:
@@ -129,9 +128,6 @@ async def test_submit():
         batch_info = json.loads(resp_text)
         batch_id = batch_info['batch_status']['id']
         batch_url = deploy_config.url('benchmark', f'/api/v1alpha/benchmark/batches/{batch_id}')
-    # async with get_context_specific_ssl_client_session(
-    #         raise_for_status=True,
-    #         timeout=aiohttp.ClientTimeout(total=60)) as session:
 
         async def wait_forever():
             batch_status = None
@@ -151,18 +147,3 @@ async def test_submit():
         assert batch_status['batch_status']['n_succeeded'] > 0
         # assert batch_status == 'success'
         print(f'{batch_status}')
-
-    # async with in_cluster_ssl_client_session(
-    #         raise_for_status=True,
-    #         timeout=aiohttp.ClientTimeout(total=60)) as session:
-    #     async def wait_forever():
-    #         batch_status = None
-    #         while batch_status is None:
-    #             resp = await utils.request_retry_transient_errors(
-    #                 session, 'POST', f'{create_benchmark_url}', headers=headers, params={'', ''})
-    #             batch_status = await resp.json()
-    #             await asyncio.sleep(5)
-    #         return batch_status
-    #
-    #     batch_status = await asyncio.wait_for(wait_forever(), timeout=30 * 60)
-    #     assert batch_status == 'success'
