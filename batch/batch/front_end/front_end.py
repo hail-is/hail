@@ -825,19 +825,19 @@ async def create_batch(request, userdata):
     async def insert(tx):
         rows = tx.execute_and_fetchall(
             '''
-SELECT *, (
-  SELECT `status` from billing_projects
-  WHERE name = billing_project_users.billing_project
-  LOCK IN SHARE MODE) AS project_status
+SELECT billing_project_users.*, billing_projects.status as project_status
 FROM billing_project_users
+INNER JOIN billing_projects
+ON billing_projects.name = billing_project_users.billing_project
 WHERE billing_project = %s AND user = %s
 LOCK IN SHARE MODE;
 ''',
             (billing_project, user))
         rows = [row async for row in rows]
-        if len(rows) != 1 or rows[0]['project_status'] is None:
+        if len(rows) != 1:
             assert len(rows) == 0
             raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
+        assert rows[0]['project_status'] is not None
         if rows[0]['project_status'] in {'closed', 'deleted'}:
             raise web.HTTPForbidden(reason=f'Billing project {billing_project} is closed or deleted.')
 
@@ -1327,8 +1327,9 @@ async def _query_billing_projects(db, user=None, billing_project=None):
 
     sql = f'''
 SELECT billing_projects.name as billing_project,
-billing_projects.`status` as `status`,
-users FROM (
+    billing_projects.`status` as `status`,
+    users 
+FROM (
   SELECT billing_project, JSON_ARRAYAGG(`user`) as users
   FROM billing_project_users
   GROUP BY billing_project
@@ -1359,7 +1360,7 @@ async def ui_get_billing_projects(request, userdata):
     db = request.app['db']
     billing_projects = await _query_billing_projects(db)
     page_context = {
-        'billing_projects': [dict(p, size=len(p['users'])) for p in billing_projects if p['status'] == 'open'],
+        'billing_projects': [{**p, 'size': len(p['users'])} for p in billing_projects if p['status'] == 'open'],
         'closed_projects': [p for p in billing_projects if p['status'] == 'closed']
     }
     return await render_template('batch', request, userdata, 'billing_projects.html', page_context)
@@ -1456,12 +1457,13 @@ async def _add_user_to_billing_project(db, billing_project, user):
         row = await tx.execute_and_fetchone(
             '''
 SELECT billing_projects.name as billing_project,
-billing_projects.`status` as `status`,
-user FROM billing_projects
+    billing_projects.`status` as `status`,
+    user 
+FROM billing_projects
 LEFT JOIN (SELECT * FROM billing_project_users
 WHERE billing_project = %s AND user = %s FOR UPDATE) AS t
 ON billing_projects.name = t.billing_project
-WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted';
+WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted' LOCK IN SHARE MODE;
         ''',
             (billing_project, user, billing_project))
         if row is None:
@@ -1540,12 +1542,12 @@ async def _close_billing_project(db, billing_project):
     async def close_project(tx):
         row = await tx.execute_and_fetchone(
             '''
-SELECT name, `status`,
-  (SELECT 1 FROM batches WHERE
-    time_completed IS NULL AND
-    billing_project = billing_projects.name
-    LIMIT 1) AS batch
-FROM billing_projects WHERE name = %s and `status` != 'deleted' FOR UPDATE;
+SELECT name, `status`, batches.id as batch_id
+FROM billing_projects
+LEFT JOIN batches
+ON billing_projects.name = batches.billing_project
+WHERE name = %s and `status` != 'deleted' AND batches.time_completed IS NULL 
+FOR UPDATE LIMIT 1;
     ''',
             (billing_project,))
         if not row:
