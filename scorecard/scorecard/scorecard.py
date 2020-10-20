@@ -259,7 +259,7 @@ def get_user(user):
             else:
                 assert state == 'APPROVED'
 
-            if pr['status'] == 'failure' and user == pr['user']:
+            if pr['status']['state'] == 'failure' and user == pr['user']:
                 user_data['FAILING'].append(pr)
 
         for issue in repo_data['issues']:
@@ -305,7 +305,7 @@ async def get_pr_data(gh_client, fq_repo, repo_name, pr):
                 log.warning(f'unknown review state {review_state} on review {review} in pr {pr}')
 
     sha = pr['head']['sha']
-    status = await gh_client.getitem(f'/repos/{fq_repo}/commits/{sha}')
+    status = await gh_client.getitem(f'/repos/{fq_repo}/commits/{sha}/status')
 
     return {
         'repo': repo_name,
@@ -363,7 +363,6 @@ async def update_data(gh_client, asana_client):
                 new_github_data[repo_name]['prs'].append(pr_data)
 
             async for issue in gh_client.getiter(f'/repos/{fq_repo}/issues?state=open'):
-                print(issue)
                 if 'pull_request' not in issue:
                     issue_data = get_issue_data(repo_name, issue)
                     new_github_data[repo_name]['issues'].append(issue_data)
