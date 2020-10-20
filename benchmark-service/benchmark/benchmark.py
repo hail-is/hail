@@ -184,13 +184,14 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 @router.get('/')
 @router.get('')
 async def index(request):
+    userdata = {}
     # lists the commits in order (just do the last 50 for now and we can worry about pagination later)
     # with the sha and a link to a lookup-like page for that commit.
     # want commit sha, name of commit, commiter author, date, status (running, complete, or pending
     app = request.app
     list_of_commits = last_couple_commits(app)
     context = {'commits': list_of_commits}
-    return await render_template('benchmark', request, 'index.html', context)
+    return await render_template('benchmark', request, userdata, 'index.html', context)
 
 
 @router.get('/lookup')
