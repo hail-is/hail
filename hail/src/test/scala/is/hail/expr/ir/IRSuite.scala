@@ -1501,9 +1501,54 @@ class IRSuite extends HailSuite {
     assertPType(notAllRequired, PCanonicalDict(PInt32(false), PCanonicalString(false), true))
   }
 
+  @Test def testPP() {
+    val w = 9
+    val pp = new is.hail.lir.OppenPP5(w)
+    import pp._
+    var d = group(concat(text("hello"), concat(line(), text("a"))))
+    d = group(concat(d, concat(line(), text("b"))))
+    d = group(concat(d, concat(line(), text("c"))))
+    d = group(concat(d, concat(line(), text("d"))))
+    d = nest(6, d)
+    println("-" * w)
+    println(pretty(d))
+    println("-" * w)
+  }
+
+  @Test def testPPI() {
+    val w = 9
+    val s = is.hail.lir.OppenPPI(w) { pp =>
+      pp.nest(6) {
+        pp.group {
+          pp.group {
+            pp.group {
+              pp.group {
+                pp.text("hello")
+                pp.line()
+                pp.text("a")
+              }
+              pp.line()
+              pp.text("b")
+            }
+            pp.line()
+            pp.text("c")
+          }
+          pp.line()
+          pp.text("d")
+        }
+      }
+    }
+    println("-" * w)
+    println(s)
+    println("-" * w)
+  }
+
   @Test def testMakeStruct() {
     assertEvalsTo(MakeStruct(FastSeq()), Row())
     assertEvalsTo(MakeStruct(FastSeq("a" -> NA(TInt32), "b" -> 4, "c" -> 0.5)), Row(null, 4, 0.5))
+    println(Pretty(MakeStruct(FastSeq("a" -> NA(TInt32), "b" -> 4, "c" -> 0.5))))
+    println()
+    println(Pretty(MakeStruct(FastSeq("a" -> NA(TInt32), "b" -> 4, "c" -> 0.5)), flat = true))
     //making sure wide structs get emitted without failure
     assertEvalsTo(GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1"), 1)
   }
@@ -1625,6 +1670,9 @@ class IRSuite extends HailSuite {
     assertEvalsTo(StreamLen(zip(ArrayZipBehavior.ExtendNA, range6, range8)), 8)
     assertEvalsTo(StreamLen(zip(ArrayZipBehavior.AssertSameLength, range8, range8)), 8)
     assertEvalsTo(StreamLen(zip(ArrayZipBehavior.AssumeSameLength, range8, range8)), 8)
+
+    println(Pretty(StreamLen(zip(ArrayZipBehavior.AssumeSameLength, range8, range8))))
+    println(Pretty(StreamLen(zip(ArrayZipBehavior.AssumeSameLength, range8, range8)), flat = true))
 
     // https://github.com/hail-is/hail/issues/8359
     is.hail.TestUtils.assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range6, range8): IR, "zip: length mismatch": String)

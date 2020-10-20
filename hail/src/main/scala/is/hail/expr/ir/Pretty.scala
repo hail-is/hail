@@ -33,7 +33,7 @@ object Pretty {
 
   val MAX_VALUES_TO_LOG: Int = 25
 
-  def apply(ir: BaseIR, elideLiterals: Boolean = true, maxLen: Int = -1): String = {
+  def apply(ir: BaseIR, flat: Boolean = false, elideLiterals: Boolean = true, maxLen: Int = -1): String = {
     val sb = new StringBuilder
 
     def prettyIntOpt(x: Option[Int]): String = x.map(_.toString).getOrElse("None")
@@ -108,7 +108,8 @@ object Pretty {
       sb += ')'
     }
 
-    def pretty(ir: BaseIR, depth: Int) {
+    def _pretty(ir: BaseIR, depth: Int, separator: Char, visit: (BaseIR, Int) => Unit) {
+
       if (maxLen > 0 && sb.size > maxLen)
         return
 
@@ -127,15 +128,15 @@ object Pretty {
       ir match {
         case MakeStruct(fields) =>
           if (fields.nonEmpty) {
-            sb += '\n'
+            sb += separator
             fields.foreachBetween { case (n, a) =>
               sb.append(" " * (depth + 2))
               sb += '('
               sb.append(n)
-              sb += '\n'
-              pretty(a, depth + 4)
+              sb += separator
+              visit(a, 4)
               sb += ')'
-            }(sb += '\n')
+            }(sb += separator)
           }
         case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
           sb += ' '
@@ -189,14 +190,14 @@ object Pretty {
           sb += ' '
           prettyAggStateSignature(aggSig, depth + 2)
           sb += '\n'
-          pretty(value, depth + 2)
+          visit(value, 2)
         case CombOpValue(i, value, sig) =>
           sb += ' '
           sb.append(i)
           sb += '\n'
           prettyPhysicalAggSig(sig, depth + 2)
           sb += '\n'
-          pretty(value, depth + 2)
+          visit(value, 2)
         case SerializeAggs(i, i2, spec, aggSigs) =>
           sb += ' '
           sb.append(i)
@@ -218,25 +219,25 @@ object Pretty {
         case RunAgg(body, result, signature) =>
           prettyAggStateSignatures(signature, depth + 2)
           sb += '\n'
-          pretty(body, depth + 2)
+          visit(body, 2)
           sb += '\n'
-          pretty(result, depth + 2)
+          visit(result, 2)
         case RunAggScan(a, name, init, seq, res, signature) =>
           sb += ' '
           sb.append(prettyIdentifier(name))
           sb += ' '
           prettyAggStateSignatures(signature, depth + 2)
           sb += '\n'
-          pretty(a, depth + 2)
+          visit(a, 2)
           sb += '\n'
-          pretty(init, depth + 2)
+          visit(init, 2)
           sb += '\n'
-          pretty(seq, depth + 2)
+          visit(seq, 2)
           sb += '\n'
-          pretty(res, depth + 2)
+          visit(res, 2)
         case InsertFields(old, fields, fieldOrder) =>
           sb += '\n'
-          pretty(old, depth + 2)
+          visit(old, 2)
           sb.append('\n')
           sb.append(" " * (depth + 2))
           sb.append(prettyStringsOpt(fieldOrder))
@@ -247,7 +248,7 @@ object Pretty {
               sb += '('
               sb.append(prettyIdentifier(n))
               sb += '\n'
-              pretty(a, depth + 4)
+              visit(a, 4)
               sb += ')'
             }(sb += '\n')
           }
@@ -471,15 +472,31 @@ object Pretty {
 
           val children = ir.children
           if (children.nonEmpty) {
-            sb += '\n'
-            children.foreachBetween(c => pretty(c, depth + 2))(sb += '\n')
+            sb += separator
+            children.foreachBetween(c => visit(c, 2))(sb += separator)
           }
       }
 
       sb += ')'
     }
 
-    pretty(ir, 0)
+    def pretty(ir: BaseIR, depth: Int): Unit =
+      _pretty(ir, depth, '\n', (childIR, increaseIndentation) => pretty(childIR, depth + increaseIndentation))
+
+    var nameCounter = 0
+    def prettyFlat(ir: BaseIR): Ref = {
+      val newChildren = ir.children.map(prettyFlat)
+      nameCounter += 1
+      sb.append(s"x$nameCounter := ")
+      _pretty(ir.copy(newChildren), 0, ' ', (childIR, increaseIndentation) => sb.append(childIR.asInstanceOf[Ref].name))
+      sb += '\n'
+      Ref(s"x$nameCounter", null)
+    }
+
+    if (flat)
+      prettyFlat(ir)
+    else
+      pretty(ir, 0)
 
     sb.result()
   }

@@ -1,23 +1,20 @@
 package is.hail.expr.ir
 
 import java.io._
-import java.net._
 
+import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.asm4s._
-import is.hail.backend.{BackendContext, HailTaskContext}
+import is.hail.backend.BackendContext
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.functions.StringFunctions
-import is.hail.types.physical._
-import is.hail.types.virtual._
-import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
+import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.services.shuffler._
-import is.hail.{HailContext, lir}
+import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.utils._
-import org.apache.log4j.Logger
 
 import scala.collection.mutable
 import scala.language.{existentials, postfixOps}
