@@ -105,9 +105,9 @@ class ServiceBackend() extends Backend {
     users -= username
   }
 
-  def userContext[T](username: String)(f: (ExecuteContext) => T): T = {
+  def userContext[T](username: String, timer: ExecutionTimer)(f: (ExecuteContext) => T): T = {
     val user = users(username)
-    ExecuteContext.scoped(user.tmpdir, "file:///tmp", this, user.fs)(f)
+    ExecuteContext.scoped(user.tmpdir, "file:///tmp", this, user.fs, timer)(f)
   }
 
   def defaultParallelism: Int = 10
@@ -227,76 +227,86 @@ class ServiceBackend() extends Backend {
 
   def valueType(username: String, s: String): Response = {
     statusForException {
-      userContext(username) { ctx =>
-        val x = IRParser.parse_value_ir(ctx, s)
-        x.typ.toString
+      ExecutionTimer.logTime("ServiceBackend.valueType") { timer =>
+        userContext(username, timer) { ctx =>
+          val x = IRParser.parse_value_ir(ctx, s)
+          x.typ.toString
+        }
       }
     }
   }
 
   def tableType(username: String, s: String): Response = {
     statusForException {
-      userContext(username) { ctx =>
-        val x = IRParser.parse_table_ir(ctx, s)
-        val t = x.typ
-        val jv = JObject("global" -> JString(t.globalType.toString),
-          "row" -> JString(t.rowType.toString),
-          "row_key" -> JArray(t.key.map(f => JString(f)).toList))
-        JsonMethods.compact(jv)
+      ExecutionTimer.logTime("ServiceBackend.tableType") { timer =>
+        userContext(username, timer) { ctx =>
+          val x = IRParser.parse_table_ir(ctx, s)
+          val t = x.typ
+          val jv = JObject("global" -> JString(t.globalType.toString),
+            "row" -> JString(t.rowType.toString),
+            "row_key" -> JArray(t.key.map(f => JString(f)).toList))
+          JsonMethods.compact(jv)
+        }
       }
     }
   }
 
   def matrixTableType(username: String, s: String): Response = {
     statusForException {
-      userContext(username) { ctx =>
-        val x = IRParser.parse_matrix_ir(ctx, s)
-        val t = x.typ
-        val jv = JObject("global" -> JString(t.globalType.toString),
-          "col" -> JString(t.colType.toString),
-          "col_key" -> JArray(t.colKey.map(f => JString(f)).toList),
-          "row" -> JString(t.rowType.toString),
-          "row_key" -> JArray(t.rowKey.map(f => JString(f)).toList),
-          "entry" -> JString(t.entryType.toString))
-        JsonMethods.compact(jv)
+      ExecutionTimer.logTime("ServiceBackend.matrixTableType") { timer =>
+        userContext(username, timer) { ctx =>
+          val x = IRParser.parse_matrix_ir(ctx, s)
+          val t = x.typ
+          val jv = JObject("global" -> JString(t.globalType.toString),
+            "col" -> JString(t.colType.toString),
+            "col_key" -> JArray(t.colKey.map(f => JString(f)).toList),
+            "row" -> JString(t.rowType.toString),
+            "row_key" -> JArray(t.rowKey.map(f => JString(f)).toList),
+            "entry" -> JString(t.entryType.toString))
+          JsonMethods.compact(jv)
+        }
       }
     }
   }
 
   def blockMatrixType(username: String, s: String): Response = {
     statusForException {
-      userContext(username) { ctx =>
-        val x = IRParser.parse_blockmatrix_ir(ctx, s)
-        val t = x.typ
-        val jv = JObject("element_type" -> JString(t.elementType.toString),
-          "shape" -> JArray(t.shape.map(s => JInt(s)).toList),
-          "is_row_vector" -> JBool(t.isRowVector),
-          "block_size" -> JInt(t.blockSize))
-        JsonMethods.compact(jv)
+      ExecutionTimer.logTime("ServiceBackend.blockMatrixType") { timer =>
+        userContext(username, timer) { ctx =>
+          val x = IRParser.parse_blockmatrix_ir(ctx, s)
+          val t = x.typ
+          val jv = JObject("element_type" -> JString(t.elementType.toString),
+            "shape" -> JArray(t.shape.map(s => JInt(s)).toList),
+            "is_row_vector" -> JBool(t.isRowVector),
+            "block_size" -> JInt(t.blockSize))
+          JsonMethods.compact(jv)
+        }
       }
     }
   }
 
   def execute(username: String, sessionID: String, billingProject: String, bucket: String, code: String): Response = {
     statusForException {
-      userContext(username) { ctx =>
-        ctx.backendContext = new ServiceBackendContext(username, sessionID, billingProject, bucket)
+      ExecutionTimer.logTime("ServiceBackend.execute") { timer =>
+        userContext(username, timer) { ctx =>
+          ctx.backendContext = new ServiceBackendContext(username, sessionID, billingProject, bucket)
 
-        var x = IRParser.parse_value_ir(ctx, code)
-        x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, x)
-          .asInstanceOf[IR]
-        val (pt, f) = Compile[AsmFunction1RegionLong](ctx,
-          FastIndexedSeq[(String, PType)](),
-          FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
-          MakeTuple.ordered(FastIndexedSeq(x)),
-          optimize = true)
+          var x = IRParser.parse_value_ir(ctx, code)
+          x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, x)
+            .asInstanceOf[IR]
+          val (pt, f) = Compile[AsmFunction1RegionLong](ctx,
+            FastIndexedSeq[(String, PType)](),
+            FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
+            MakeTuple.ordered(FastIndexedSeq(x)),
+            optimize = true)
 
-        val a = f(0, ctx.r)(ctx.r)
-        val v = new UnsafeRow(pt.asInstanceOf[PBaseStruct], ctx.r, a)
+          val a = f(0, ctx.r)(ctx.r)
+          val v = new UnsafeRow(pt.asInstanceOf[PBaseStruct], ctx.r, a)
 
-        JsonMethods.compact(
-          JObject(List("value" -> JSONAnnotationImpex.exportAnnotation(v.get(0), x.typ),
-            "type" -> JString(x.typ.toString))))
+          JsonMethods.compact(
+            JObject(List("value" -> JSONAnnotationImpex.exportAnnotation(v.get(0), x.typ),
+              "type" -> JString(x.typ.toString))))
+        }
       }
     }
   }

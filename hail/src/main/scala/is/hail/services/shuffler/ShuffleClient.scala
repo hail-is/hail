@@ -126,7 +126,6 @@ class ShuffleClient (
   keyEncodingPType: Option[PType]
 ) extends AutoCloseable {
   private[this] val log = Logger.getLogger(getClass.getName())
-  private[this] val ctx = new ExecuteContext("/tmp", "file:///tmp", null, null, Region(), new ExecutionTimer())
 
   def this(shuffleType: TShuffle) = this(shuffleType, null, None, None)
 
@@ -139,7 +138,13 @@ class ShuffleClient (
   def this(shuffleType: TShuffle, uuid: Array[Byte]) =
     this(shuffleType, uuid, None, None)
 
-  val codecs = new ShuffleCodecSpec(ctx, shuffleType, rowEncodingPType, keyEncodingPType)
+  val codecs = {
+    ExecutionTimer.logTime("ShuffleClient.codecs") { timer =>
+      using(new ExecuteContext("/tmp", "file:///tmp", null, null, Region(), timer)) { ctx =>
+        new ShuffleCodecSpec(ctx, shuffleType, rowEncodingPType, keyEncodingPType)
+      }
+    }
+  }
 
   private[this] val s = ShuffleClient.socket()
   private[this] val in = shuffleBufferSpec.buildInputBuffer(s.getInputStream())
@@ -290,6 +295,6 @@ class ShuffleClient (
     out.writeByte(Wire.EOS)
     out.flush()
     assert(in.readByte() == Wire.EOS)
-    using(s) { _ => using(ctx) { _ => () } }  // close both with proper exception suppression notices
+    using(s) { _ => () }  // close with proper exception suppression notices
   }
 }
