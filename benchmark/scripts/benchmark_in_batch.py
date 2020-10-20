@@ -81,7 +81,7 @@ if __name__ == '__main__':
 
     benchmark_lower_env_var = ''
     if os.environ.get('BENCHMARK_LOWER'):
-        benchmark_lower_env_var = f'HAIL_DEV_LOWER="1" '
+        benchmark_lower_env_var = f' HAIL_DEV_LOWER="1" '
     if os.environ.get('BENCHMARK_LOWER_ONLY'):
         benchmark_lower_env_var = f'{benchmark_lower_env_var} HAIL_DEV_LOWER_ONLY="1" '
 
