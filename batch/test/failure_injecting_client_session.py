@@ -32,4 +32,4 @@ class FailureInjectingClientSession:
         return await self.real_session.request(method, path, *args, **kwargs)
 
     async def post(self, path, *args, **kwargs):
-        return await self.request(self, 'POST', path, *args, **kwargs)
+        return await self.request('POST', path, *args, **kwargs)
