@@ -125,7 +125,9 @@ async def test_submit():
         # return resp
 
         # batch_id = await resp.json()
-        batch_id = int(resp.text())
+        resp_text = await resp.text()
+        batch_info = json.loads(resp_text)
+        batch_id = batch_info['batch_status']['id']
         batch_url = deploy_config.url('benchmark', f'/api/v1alpha/benchmark/batches/{batch_id}')
     # async with get_context_specific_ssl_client_session(
     #         raise_for_status=True,
@@ -133,17 +135,21 @@ async def test_submit():
 
         async def wait_forever():
             batch_status = None
-            while batch_status is None:
+            complete = None
+            while complete is None or complete is False:
                 resp2 = await utils.request_retry_transient_errors(
                     session, 'GET', f'{batch_url}', headers=headers)
                 batch_status = await resp2.json()
                 log.info(f'batch_status:\n{json.dumps(batch_status, indent=2)}')
-                assert batch_status
+                print(f'status: {batch_status}')
+                # assert batch_status['batch_status']['n_succeeded'] > 0
                 await asyncio.sleep(5)
+                complete = batch_status['batch_status']['complete']
             return batch_status
 
         batch_status = await asyncio.wait_for(wait_forever(), timeout=30 * 60)
-        assert batch_status == 'success'
+        assert batch_status['batch_status']['n_succeeded'] > 0
+        # assert batch_status == 'success'
         print(f'{batch_status}')
 
     # async with in_cluster_ssl_client_session(
