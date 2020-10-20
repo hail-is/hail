@@ -58,6 +58,10 @@ def internal_client_ssl_context() -> ssl.SSLContext:
         _client_ssl_context = ssl.create_default_context(
             purpose=Purpose.SERVER_AUTH,
             cafile=ssl_config['outgoing_trust'])
+        # setting cafile in `create_default_context` ignores the system default
+        # certificates. We must explicitly request them again with
+        # load_default_certs.
+        _client_ssl_context.load_default_certs()
         _client_ssl_context.load_cert_chain(ssl_config['cert'],
                                             keyfile=ssl_config['key'],
                                             password=None)
