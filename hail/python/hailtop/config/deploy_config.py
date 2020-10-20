@@ -57,12 +57,12 @@ class DeployConfig:
             return base_scheme
         return base_scheme + 's'
 
-    def domain(self, service: str) -> str:
+    def domain(self, service: str, use_address: bool = False) -> str:
         ns = self.service_ns(service)
         if self._location == 'k8s':
             return f'{service}.{ns}'
         if self._location == 'gce':
-            if service in DeployConfig.ADDRESS_SERVICES:
+            if use_address and service in DeployConfig.ADDRESS_SERVICES:
                 return f'{service}.{ns}'
             if ns == 'default':
                 return f'{service}.hail'
@@ -78,11 +78,11 @@ class DeployConfig:
             return ''
         return f'/{ns}/{service}'
 
-    def base_url(self, service: str, base_scheme: str = 'http') -> str:
-        return f'{self.scheme(service, base_scheme)}://{self.domain(service)}{self.base_path(service)}'
+    def base_url(self, service: str, *, base_scheme: str = 'http', use_address: bool = False) -> str:
+        return f'{self.scheme(service, base_scheme)}://{self.domain(service, use_address=use_address)}{self.base_path(service)}'
 
-    def url(self, service: str, path: str, base_scheme: str = 'http') -> str:
-        return f'{self.base_url(service, base_scheme=base_scheme)}{path}'
+    def url(self, service: str, path: str, *, base_scheme: str = 'http', use_address: bool = False) -> str:
+        return f'{self.base_url(service, base_scheme=base_scheme, use_address=use_address)}{path}'
 
     def auth_session_cookie_name(self) -> str:
         auth_ns = self.service_ns('auth')
@@ -144,7 +144,7 @@ class DeployConfig:
                 headers=headers) as session:
             async with await retry_transient_errors(
                     session.get,
-                    self.url('address', f'/api/{service}')) as resp:
+                    self.url('address', f'/api/{service}'), use_address=False) as resp:
                 dicts = await resp.json()
                 return [(d['address'], d['port']) for d in dicts]
 

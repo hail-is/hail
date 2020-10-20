@@ -13,4 +13,4 @@ async def test_connect_to_address_on_pod_ip():
     async with httpx.client_session(
             headers=service_auth_headers(deploy_config, 'address'),
             timeout=aiohttp.ClientTimeout(total=60)) as session:
-        await session.get(deploy_config.url('address', '/api/address'))
+        await session.get(deploy_config.url('address', '/api/address', use_address=True))
