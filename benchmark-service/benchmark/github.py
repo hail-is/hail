@@ -54,6 +54,7 @@ async def submit_batch(commit, batch_client):
                            command=['/bin/bash', '-c', 'touch /io/test; sleep 300'],
                            output_files=[('/io/test', f'gs://{bucket_name}/benchmark-test/{sha}')])
     await batch.submit(disable_progress_bar=True)
+    log.info(f'submitting batch for commit {sha}')
     global START_POINT
     START_POINT = commit.get('commit').get('date')
     return job.batch_id
