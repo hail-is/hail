@@ -35,9 +35,9 @@ object LoweringPipeline {
   private val _relationalLowerer = LoweringPipeline(
     OptimizePass("relationalLowerer, initial IR"),
     LowerMatrixToTablePass,
-    OptimizePass("relationalLowerer, after LowerMatrixToTable"),
-    InterpretNonCompilablePass,
-    OptimizePass("relationalLowerer, after InterpretNonCompilable"))
+    //OptimizePass("relationalLowerer, after LowerMatrixToTable"),
+    InterpretNonCompilablePass)
+    //OptimizePass("relationalLowerer, after InterpretNonCompilable"))
   private val _relationalLowererNoOpt = _relationalLowerer.noOptimization()
 
 
@@ -52,11 +52,11 @@ object LoweringPipeline {
   private val _legacyRelationalLowererNoOpt = _legacyRelationalLowerer.noOptimization()
 
   private val _compileLowerer = LoweringPipeline(
-    OptimizePass("compileLowerer, initial IR"),
+    //OptimizePass("compileLowerer, initial IR"),
     InlineApplyIR,
-    OptimizePass("compileLowerer, after InlineApplyIR"),
-    LowerArrayAggsToRunAggsPass,
-    OptimizePass("compileLowerer, after LowerArrayAggsToRunAggs")
+    //OptimizePass("compileLowerer, after InlineApplyIR"),
+    LowerArrayAggsToRunAggsPass
+    //OptimizePass("compileLowerer, after LowerArrayAggsToRunAggs")
   )
   private val _compileLowererNoOpt = _compileLowerer.noOptimization()
 

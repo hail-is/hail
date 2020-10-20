@@ -3303,6 +3303,8 @@ class Table(ExprContainer):
             print(f'Table._same: globals differ: {g[left_global_value]}, {g[right_global_value]}')
             return False
 
+        assert t.all(hl.is_defined(t[left_value]) & hl.is_defined(t[right_value]))
+
         if not t.all(hl.is_defined(t[left_value]) & hl.is_defined(t[right_value])
                      & _values_similar(t[left_value], t[right_value], tolerance, absolute)):
             print('Table._same: rows differ:')

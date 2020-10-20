@@ -1223,9 +1223,18 @@ class Tests(unittest.TestCase):
 
         unioned = matrix1.union_cols(matrix2)
         unioned.entries().collect()
+        localized_union = unioned._localize_entries("ent", "col")
+        localized_expected = expected._localize_entries("ent", "col")
+        left = localized_union
+        right = localized_expected
+        left_value = "lv"
+        right_value = "rv"
+        left = left.group_by(_key=left.key).aggregate(**{left_value: hl.agg.collect(left.row_value)})
+        right = right.group_by(_key=right.key).aggregate(**{right_value: hl.agg.collect(right.row_value)})
         import pdb; pdb.set_trace()
+        self.assertTrue(localized_union._same(localized_expected))
 
-        self.assertTrue(unioned._same(expected))
+        # self.assertTrue(unioned._same(expected))
 
     @fails_local_backend()
     def test_row_joins_into_table(self):
