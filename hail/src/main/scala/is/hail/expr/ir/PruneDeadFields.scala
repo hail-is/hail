@@ -622,7 +622,8 @@ object PruneDeadFields {
         memoizeMatrixIR(child, explodedDep, memo)
       case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
         val irDepEntry = memoizeAndGetDep(entryExpr, requestedType.entryType, child.typ, memo)
-        val irDepRow = memoizeAndGetDep(rowExpr, requestedType.rowValueStruct, child.typ, memo)
+        val rowExprRequestedType = requestedType.rowValueStruct.filter(f => rowExpr.typ.asInstanceOf[TStruct].hasField(f.name))._1
+        val irDepRow = memoizeAndGetDep(rowExpr, rowExprRequestedType, child.typ, memo)
         val childDep = MatrixType(
           rowKey = child.typ.rowKey,
           colKey = requestedType.colKey,
@@ -633,7 +634,8 @@ object PruneDeadFields {
         memoizeMatrixIR(child, childDep, memo)
       case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
         val irDepEntry = memoizeAndGetDep(entryExpr, requestedType.entryType, child.typ, memo)
-        val irDepCol = memoizeAndGetDep(colExpr, requestedType.colValueStruct, child.typ, memo)
+        val colExprRequestedType = requestedType.colValueStruct.filter(f => colExpr.typ.asInstanceOf[TStruct].hasField(f.name))._1
+        val irDepCol = memoizeAndGetDep(colExpr, colExprRequestedType, child.typ, memo)
         val childDep: MatrixType = MatrixType(
           rowKey = requestedType.rowKey,
           colKey = child.typ.colKey,
