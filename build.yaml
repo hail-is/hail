@@ -2564,7 +2564,7 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /ssl-config
-   timeout: 2400
+   timeout: 5400
    scopes:
     - test
     - dev
