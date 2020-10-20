@@ -19,17 +19,17 @@ object Interpret {
     apply(tir, ctx, optimize = true)
 
   def apply(tir: TableIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR]
+    val lowered = LoweringPipeline.relationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR]
     lowered.execute(ctx)
   }
 
   def apply(mir: MatrixIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, mir).asInstanceOf[TableIR]
+    val lowered = LoweringPipeline.relationalLowerer(optimize)(ctx, mir).asInstanceOf[TableIR]
     lowered.execute(ctx)
   }
 
   def apply(bmir: BlockMatrixIR, ctx: ExecuteContext, optimize: Boolean): BlockMatrix = {
-    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, bmir).asInstanceOf[BlockMatrixIR]
+    val lowered = LoweringPipeline.relationalLowerer(optimize)(ctx, bmir).asInstanceOf[BlockMatrixIR]
     lowered.execute(ctx)
   }
 

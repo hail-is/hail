@@ -51,14 +51,6 @@ case object LiftRelationalValuesToRelationalLets extends LoweringPass {
   }
 }
 
-case object LegacyInterpretNonCompilablePass extends LoweringPass {
-  val before: IRState = MatrixLoweredToTable
-  val after: IRState = ExecutableTableIR
-  val context: String = "InterpretNonCompilable"
-
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = InterpretNonCompilable(ctx, ir)
-}
-
 case object InterpretNonCompilablePass extends LoweringPass {
   val before: IRState = MatrixLoweredToTable
   val after: IRState = CompilableIR
