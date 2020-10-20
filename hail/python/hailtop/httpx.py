@@ -155,10 +155,14 @@ class ClientSession:
 class HailResolver(aiohttp.abc.AbstractResolver):
     """Use Hail in-cluster DNS with fallback."""
     def __init__(self):
-        self.dns = aiohttp.AsyncResolver()
+        self.dns = None
         self.deploy_config = get_deploy_config()
 
     async def resolve(self, host: str, port: int, family: int) -> List[Dict[str, Any]]:
+        if self.dns is None:
+            # the AsyncResolver must be created from an async function:
+            # https://github.com/aio-libs/aiohttp/issues/3573#issuecomment-456742539
+            self.dns = aiohttp.AsyncResolver()
         if family in (0, socket.AF_INET, socket.AF_INET6):
             maybe_address_and_port = await self.deploy_config.maybe_address(host)
             if maybe_address_and_port is not None:
@@ -166,7 +170,7 @@ class HailResolver(aiohttp.abc.AbstractResolver):
                 return [{'hostname': host,
                          'host': address,
                          'port': resolved_port,
-                         'family': family,
+                         'family': family if family != 0 else socket.AF_INET,
                          'proto': 0,
                          'flags': 0}]
         return await self.dns.resolve(host, port, family)
