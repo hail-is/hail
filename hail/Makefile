@@ -89,7 +89,7 @@ jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
 # javac args from compileJava in build.gradle
 $(BUILD_DEBUG_PREFIX)/%.class: src/debug/scala/%.java
 	@mkdir -p $(BUILD_DEBUG_PREFIX)
-	$(JAVAC) -d $(BUILD_DEBUG_PREFIX) -Xlint:all -Werror -XDenableSunApiLintControl $<
+	$(JAVAC) -d $(BUILD_DEBUG_PREFIX) -Xlint:all -Werror -XDenableSunApiLintControl -XDignore.symbol.file $<
 
 src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH
 src/main/resources/build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION
