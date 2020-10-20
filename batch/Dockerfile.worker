@@ -1,6 +1,8 @@
 FROM python:3.7-slim-stretch
 
-RUN hail-apt-get-install curl gnupg xfsprogs python3.7 python3-pip && \
+COPY docker/hail-ubuntu/hail-apt-get-install /bin/hail-apt-get-install
+RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
+    hail-apt-get-install curl gnupg xfsprogs python3.7 python3-pip && \
     export GCSFUSE_REPO=gcsfuse-bionic && \
     echo "deb http://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list && \
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
