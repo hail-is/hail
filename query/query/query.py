@@ -202,7 +202,7 @@ STDOUT:
 STDERR:
 {find_spark_home.stderr}''')
         spark_home = find_spark_home.stdout.decode().strip()
-   port = launch_gateway(die_on_exit=True, classpath=f'{spark_home}/jars/*:/hail.jar')
+    port = launch_gateway(die_on_exit=True, classpath=f'{spark_home}/jars/*:/hail.jar')
     gateway = JavaGateway(
         gateway_parameters=GatewayParameters(port=port),
         auto_convert=True)
