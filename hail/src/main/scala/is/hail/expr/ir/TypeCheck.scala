@@ -456,7 +456,9 @@ object TypeCheck {
 
 
       case MatrixUnionCols(left, right, joinType) =>
+        assert(left.typ.rowKeyStruct == right.typ.rowKeyStruct, s"${left.typ.rowKeyStruct} != ${right.typ.rowKeyStruct}")
         assert(left.typ.colType == right.typ.colType, s"${left.typ.colType} != ${right.typ.colType}")
+        assert(left.typ.entryType == right.typ.entryType, s"${left.typ.entryType} != ${right.typ.entryType}")
 
       case _: TableIR =>
       case _: MatrixIR =>

@@ -2486,6 +2486,7 @@ case class TableKeyByAndAggregate(
 }
 
 // follows key_by non-empty key
+// Note: expr need not contain the row keys
 case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
   require(child.typ.key.nonEmpty)
 

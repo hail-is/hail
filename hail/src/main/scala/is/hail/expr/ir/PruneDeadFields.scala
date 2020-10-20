@@ -49,12 +49,17 @@ object PruneDeadFields {
         case (s1: TStruct, s2: TStruct) =>
           var idx = -1
          s1.fields.forall { f =>
-            val s2field = s2.field(f.name)
-            if (s2field.index > idx) {
-              idx = s2field.index
-              isSupertype(f.typ, s2field.typ)
-            } else
+            if (!s2.hasField(f.name)) {
               false
+            }
+            else {
+              val s2field = s2.field(f.name)
+              if (s2field.index > idx) {
+                idx = s2field.index
+                isSupertype(f.typ, s2field.typ)
+              } else
+                false
+            }
           }
         case (t1: TTuple, t2: TTuple) =>
           var idx = -1
@@ -449,8 +454,10 @@ object PruneDeadFields {
       case TableMapGlobals(child, newGlobals) =>
         val globalDep = memoizeAndGetDep(newGlobals, requestedType.globalType, child.typ, memo)
         memoizeTableIR(child, unify(child.typ, requestedType.copy(globalType = globalDep.globalType), globalDep), memo)
-      case TableAggregateByKey(child, newRow) =>
-        val aggDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
+      case TableAggregateByKey(child, expr) =>
+        println(s"TableAggregateByKey newRow: ${expr.typ}")
+        val (exprRequestedType, _) = expr.typ.asInstanceOf[TStruct].filter(f => requestedType.rowType.hasField(f.name))
+        val aggDep = memoizeAndGetDep(expr, exprRequestedType, child.typ, memo)
         memoizeTableIR(child, TableType(key = child.typ.key,
           rowType = unify(child.typ.rowType, aggDep.rowType, selectKey(child.typ.rowType, child.typ.key)),
           globalType = unify(child.typ.globalType, aggDep.globalType, requestedType.globalType)), memo)
@@ -793,7 +800,8 @@ object PruneDeadFields {
 
   def memoizeAndGetDep(ir: IR, requestedType: Type, base: TableType, memo: ComputeMutableState): TableType = {
     assert(isSupertype(requestedType, ir.typ),
-      s"""Types: Requested: ${requestedType}, Actual: ${ir.typ}
+      s"""Type: Requested: ${requestedType}
+         |Type: Actual: ${ir.typ}
          |ir: ${ir}
          |""".stripMargin)
     assert(isSupertype(requestedType, ir.typ),
