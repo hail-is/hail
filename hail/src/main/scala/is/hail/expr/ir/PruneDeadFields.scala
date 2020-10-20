@@ -468,7 +468,7 @@ object PruneDeadFields {
           globalType = unify(child.typ.globalType, aggDep.globalType, requestedType.globalType)), memo)
       case TableKeyByAndAggregate(child, expr, newKey, _, _) =>
         val keyDep = memoizeAndGetDep(newKey, newKey.typ, child.typ, memo)
-        val exprDep = memoizeAndGetDep(expr, requestedType.valueType, child.typ, memo)
+        val exprDep = memoizeAndGetDep(expr, requestedType.rowType.filter(f => !newKey.typ.asInstanceOf[TStruct].hasField(f.name))._1, child.typ, memo)
         memoizeTableIR(child,
           TableType(
             key = FastIndexedSeq(), // note: this can deoptimize if prune runs before Simplify
