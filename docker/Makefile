@@ -1,7 +1,7 @@
 include ../config.mk
 
 .PHONY: build
-build: base-stmp service-base
+build: base-stmp service-base hail-ubuntu
 
 BASE_LATEST = gcr.io/$(PROJECT)/hail-ubuntu:latest
 BASE_IMAGE = gcr.io/$(PROJECT)/hail-ubuntu:$(shell docker images -q --no-trunc hail-ubuntu:latest | sed -e 's,[^:]*:,,')
@@ -21,23 +21,24 @@ GENETICS_PUBLIC_IMAGE = gcr.io/$(PROJECT)/genetics-public:$(shell docker images 
 .PHONY: hail-ubuntu
 hail-ubuntu: hail-ubuntu-stmp
 
-hail-ubuntu-stmp: hail-ubuntu/Dockerfile hail-ubuntu/hail_pip_install hail-ubuntu/pip.conf
+hail-ubuntu-stmp: hail-ubuntu/Dockerfile hail-ubuntu/hail-pip-install hail-ubuntu/pip.conf
 	-docker pull ubuntu:18.04
 	-docker pull $(HAIL_UBUNTU_LATEST)
 	docker build -t hail-ubuntu -f hail-ubuntu/Dockerfile --cache-from hail-ubuntu,$(HAIL_UBUNTU_LATEST),ubuntu:18.04 hail-ubuntu
-	touch base-stmp
+	touch hail-ubuntu-stmp
 
 .PHONY: base
 base: base-stmp
 
-base-stmp: Dockerfile.base core-site.xml requirements.txt ../pylintrc ../setup.cfg
+base-stmp: hail-ubuntu-stmp Dockerfile.base core-site.xml requirements.txt ../pylintrc ../setup.cfg
 	-docker pull $(BASE_LATEST)
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' Dockerfile.base Dockerfile.base.out
 	[ "$(shell bash stat-permissions.sh Dockerfile.base)" = "644" ]
 	[ "$(shell bash stat-permissions.sh core-site.xml)" = "644" ]
 	[ "$(shell bash stat-permissions.sh requirements.txt)" = "644" ]
 	[ "$(shell bash stat-permissions.sh ../pylintrc)" = "644" ]
 	[ "$(shell bash stat-permissions.sh ../setup.cfg)" = "644" ]
-	docker build -t base -f Dockerfile.base --cache-from base,$(BASE_LATEST),ubuntu:18.04 ..
+	docker build -t base -f Dockerfile.base.out --cache-from base,$(BASE_LATEST),ubuntu:18.04 ..
 	touch base-stmp
 
 .PHONY: service-base

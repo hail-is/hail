@@ -24,7 +24,7 @@ RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
 ENV PATH $PATH:/google-cloud-sdk/bin
 
 COPY docker/requirements.txt .
-RUN hail-pip-install -r requirements.txt
+RUN hail-pip-install -r requirements.txt pyspark==2.4.0
 
 ENV SPARK_HOME /usr/local/lib/python3.7/dist-packages/pyspark
 ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"

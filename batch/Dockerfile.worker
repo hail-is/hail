@@ -1,4 +1,4 @@
-FROM {{ hail_ubuntu_image.image }}
+FROM python:3.7-slim-stretch
 
 RUN apt-get update && \
   apt-get -y install \
@@ -16,6 +16,10 @@ RUN apt-get update && \
     fuse \
     gcsfuse && \
   rm -rf /var/lib/apt/lists/*
+
+COPY docker/hail-ubuntu/pip.conf /root/.config/pip/pip.conf
+COPY docker/hail-ubuntu/hail-pip-install /bin/hail-pip-install
+RUN python3 -m pip install --upgrade --no-cache-dir pip
 
 COPY docker/requirements.txt .
 RUN hail-pip-install -r requirements.txt

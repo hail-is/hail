@@ -527,8 +527,6 @@ steps:
    dockerFile: batch/Dockerfile.worker
    contextPath: .
    publishAs: batch-worker
-   dependsOn:
-    - hail_ubuntu_image
  - kind: buildImage
    name: test_ci_image
    dockerFile: ci/Dockerfile.test
