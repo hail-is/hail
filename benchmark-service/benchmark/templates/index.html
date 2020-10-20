@@ -6,5 +6,26 @@
 
 <h1>Benchmark System</h1>
 
+<table class="data-table">
+    <thead>
+    <tr>
+        <th>name</th>
+        <th>sha</th>
+        <th>author</th>
+        <th>date</th>
+        <th>status</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for commit in commits %}
+    <tr>
+        <td><a href="{{ base_path }}/lookup?file={{ file }}">{{ commit['commit']['message'] }}</a></td>
+        <td>{{ commit['sha'] }}</td>
+        <td>{{ commit['commit']['author']['name']</td>
+        <td>{{ commit['commit']['author']['date'] }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
 
 {% endblock %}
