@@ -145,7 +145,7 @@ class ServiceBackend(Backend):
 
     def get_reference(self, name):
         with self.session.get(f'{self.url}/references/get', json={'name': name}) as resp:
-            if resp.status == 400 or resp.status == 500:
+            if resp.status >= 400:
                 resp_json = resp.json()
                 raise FatalError(resp_json['message'])
             resp.raise_for_status()

@@ -144,7 +144,7 @@ class DeployConfig:
                 headers=headers) as session:
             async with await retry_transient_errors(
                     session.get,
-                    self.url('address', f'/api/{service}'), use_address=False) as resp:
+                    self.url('address', f'/api/{service}', use_address=False)) as resp:
                 dicts = await resp.json()
                 return [(d['address'], d['port']) for d in dicts]
 

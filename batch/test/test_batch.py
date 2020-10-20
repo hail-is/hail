@@ -539,7 +539,8 @@ def test_restartable_insert(client):
         return False
 
     with FailureInjectingClientSession(every_third_time) as session:
-        client = BatchClient('test', session=session)
+        client = BatchClient('test')
+        client._async_client._session.session = session
         builder = client.create_batch()
 
         for _ in range(9):

@@ -558,8 +558,8 @@ class BatchBuilder:
 
 @asyncinit
 class BatchClient:
-    async def __init__(self, billing_project, deploy_config=None, session=None,
-                       headers=None, _token=None, token_file=None):
+    async def __init__(self, billing_project, deploy_config=None, headers=None,
+                       _token=None, token_file=None):
         self.billing_project = billing_project
 
         if not deploy_config:
@@ -567,9 +567,7 @@ class BatchClient:
 
         self.url = deploy_config.base_url('batch')
 
-        if session is None:
-            session = httpx.client_session()
-        self._session = session
+        self._session = httpx.client_session()
 
         h = {}
         if headers:
