@@ -31,12 +31,7 @@ object IRBuilder {
     val irs = seq.map(_ (env))
     val elType = irs.head.typ
     val irTyps = irs.map(_.typ)
-    assert(irTyps.forall(t => t == elType),
-      s"""
-        |Types were ${irTyps}
-        |IRs were: ${irs}
-        |Origins were ${irs.map(_.asInstanceOf[GetField].stackTrace)}
-        |""".stripMargin)
+    assert(irTyps.forall(t => t == elType))
     MakeArray(irs, TArray(elType))
   }
 

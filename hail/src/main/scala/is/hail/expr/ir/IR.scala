@@ -207,9 +207,7 @@ object MakeArray {
   }
 }
 
-final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR {
-  val stackTrace = Thread.currentThread().getStackTrace.mkString("\n")
-}
+final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
 
 object MakeStream {
   def unify(args: Seq[IR], separateRegions: Boolean = false, requestedType: TStream = null): MakeStream = {
@@ -534,9 +532,7 @@ object GetFieldByIdx {
   }
 }
 
-final case class GetField(o: IR, name: String) extends IR {
-  val stackTrace = Thread.currentThread().getStackTrace.mkString("\n")
-}
+final case class GetField(o: IR, name: String) extends IR
 
 object MakeTuple {
   def ordered(types: Seq[IR]): MakeTuple = MakeTuple(types.iterator.zipWithIndex.map { case (ir, i) => (i, ir) }.toFastIndexedSeq)
