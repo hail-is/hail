@@ -24,6 +24,7 @@ import gidgethub
 import gidgethub.aiohttp
 from .config import START_POINT, BENCHMARK_RESULTS_PATH
 
+
 configure_logging()
 router = web.RouteTableDef()
 logging.basicConfig(level=logging.DEBUG)
@@ -185,12 +186,30 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 @router.get('')
 async def index(request):
     userdata = {}
+    app = request.app
+    batch_client = app['batch_client']
     # lists the commits in order (just do the last 50 for now and we can worry about pagination later)
     # with the sha and a link to a lookup-like page for that commit.
     # want commit sha, name of commit, commiter author, date, status (running, complete, or pending
     app = request.app
     list_of_commits = await last_couple_commits(app)
-    context = {'commits': list_of_commits}
+    formatted_commits = []
+    for commit in list_of_commits:
+        sha = commit.get('sha')
+        batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
+        batch = batches[0]
+        formatted_commits.append(
+            {'commit': {
+                'sha': commit['sha'],
+                'title': None,
+                'author': commit['commit']['author']['name'],
+                'date': commit['commit']['author']['date'],
+                'status': await batch.last_known_status(),
+                'batch_link': 'link'
+            }})
+
+    context = {'commits': formatted_commits,
+               'gh_commit': list_of_commits[0]}
     return await render_template('benchmark', request, userdata, 'index.html', context)
 
 
