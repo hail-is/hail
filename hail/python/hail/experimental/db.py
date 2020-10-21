@@ -6,7 +6,7 @@ from typing import List, Set, Iterable, Optional, Union, Tuple
 import hail as hl
 import pkg_resources
 
-from hailtop.httpx import blocking_client_session
+from hailtop import httpx
 
 from .lens import MatrixRows, TableRows
 from ..expr import StructExpression
@@ -252,7 +252,7 @@ class DB:
                 with open(config_path) as f:
                     config = json.load(f)
             else:
-                with blocking_client_session() as session, session.get(url) as resp:
+                with httpx.blocking_client_session() as session, session.get(url) as resp:
                     config = resp.json()
             assert isinstance(config, dict)
         else:

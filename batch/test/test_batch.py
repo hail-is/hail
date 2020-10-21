@@ -11,7 +11,7 @@ import json
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers, get_userinfo
-from hailtop.httpx import blocking_client_session
+from hailtopd import httpx
 from hailtop.batch_client.client import BatchClient, Job
 
 from .utils import legacy_batch_status
@@ -439,7 +439,7 @@ def test_log_after_failing_job(client):
 
 
 def test_authorized_users_only():
-    with blocking_client_session(raise_for_status=False) as session:
+    with httpx.blocking_client_session(raise_for_status=False) as session:
         endpoints = [
             (session.get, '/api/v1alpha/billing_projects', 401),
             (session.get, '/api/v1alpha/billing_projects/foo', 401),
@@ -582,7 +582,7 @@ def test_batch_create_validation():
     ]
     url = deploy_config.url('batch', '/api/v1alpha/batches/create')
     headers = service_auth_headers(deploy_config, 'batch')
-    with blocking_client_session(raise_for_status=False) as session:
+    with httpx.blocking_client_session(raise_for_status=False) as session:
         for config in bad_configs:
             with session.post(url, json=config, headers=headers) as resp:
                 assert resp.status == 400, (config, resp.text())

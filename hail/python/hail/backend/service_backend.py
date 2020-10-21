@@ -9,7 +9,7 @@ from hail.expr.blockmatrix_type import tblockmatrix
 
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.auth import service_auth_headers
-from hailtop.httpx import blocking_client_session
+from hailtop import httpx
 from hail.ir.renderer import CSERenderer
 
 from .backend import Backend
@@ -45,7 +45,7 @@ class ServiceBackend(Backend):
         self.url = deploy_config.base_url('query')
         self._fs = None
         self._logger = PythonOnlyLogger(skip_logging_configuration)
-        self.session = blocking_client_session(
+        self.session = httpx.blocking_client_session(
             raise_for_status=False,
             headers=service_auth_headers(deploy_config, 'query'),
             timeout=aiohttp.ClientTimeout(total=600))
