@@ -80,7 +80,7 @@ class DeployConfig:
             return ''
         return f'/{ns}/{service}'
 
-    def base_url(s elf, service: str, *, base_scheme: str = 'http', use_address: bool = False) -> str:
+    def base_url(self, service: str, *, base_scheme: str = 'http', use_address: bool = False) -> str:
         scheme = self.scheme(service, base_scheme=base_scheme, use_address=use_address)
         domain = self.domain(service, use_address=use_address)
         return f'{scheme}://{domain}{self.base_path(service)}'
