@@ -55,10 +55,10 @@ class Scheduler:
             run_if_changed, self.cancel_ready_state_changed, self.cancel_cancelled_ready_jobs_loop_body))
         self.task_manager.ensure_future(retry_long_running(
             'cancel_cancelled_running_jobs_loop',
-            run_if_changed, self.cancel_running_state_changed, self.cancel_cancelled_running_jobs_loop_body)),
+            run_if_changed, self.cancel_running_state_changed, self.cancel_cancelled_running_jobs_loop_body))
         self.task_manager.ensure_future(retry_long_running(
             'bump_loop',
-            self.bump_loop))])
+            self.bump_loop))
 
     def shutdown(self):
         try:

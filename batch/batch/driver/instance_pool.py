@@ -191,8 +191,8 @@ FROM globals;
         self.task_manager.ensure_future(self.control_loop())
         self.task_manager.ensure_future(self.instance_monitoring_loop())
         self.task_manager.ensure_future(retry_long_running(
-                'update_zones_loop',
-                self.update_zones_loop))
+            'update_zones_loop',
+            self.update_zones_loop))
 
     def shutdown(self):
         self.task_manager.shutdown()

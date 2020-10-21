@@ -145,7 +145,7 @@ class AsyncThrottledGather:
         for worker in self._workers:
             try:
                 worker.cancel()
-            except:
+            except Exception:
                 pass
 
     async def _worker(self):
@@ -210,7 +210,7 @@ class AsyncWorkerPool:
             if worker:
                 try:
                     worker.cancel()
-                except:
+                except Exception:
                     pass
 
 
