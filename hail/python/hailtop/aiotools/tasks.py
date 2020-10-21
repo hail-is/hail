@@ -16,7 +16,6 @@ class BackgroundTaskManager:
     def shutdown(self):
         for task in self.tasks:
             try:
-                if task:
-                    task.cancel()
+                task.cancel()
             except Exception:
                 log.warning(f'encountered an exception while cancelling background task: {task}', exc_info=True)
