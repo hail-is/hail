@@ -52,10 +52,12 @@ class DeployConfig:
     def service_ns(self, service: str) -> str:
         return self._service_namespace.get(service, self._default_namespace)
 
-    def scheme(self, service: str, base_scheme: str = 'http') -> str:
-        if self._location == 'gce' and service not in DeployConfig.ADDRESS_SERVICES:
-            return base_scheme
-        return base_scheme + 's'
+    def scheme(self, service: str, base_scheme: str = 'http', use_address: bool = False) -> str:
+        if use_address and service in DeployConfig.ADDRESS_SERVICES:
+            return base_scheme + 's'
+        if self._location != 'gce':
+            return base_scheme + 's'
+        return base_scheme
 
     def domain(self, service: str, use_address: bool = False) -> str:
         ns = self.service_ns(service)
@@ -78,8 +80,10 @@ class DeployConfig:
             return ''
         return f'/{ns}/{service}'
 
-    def base_url(self, service: str, *, base_scheme: str = 'http', use_address: bool = False) -> str:
-        return f'{self.scheme(service, base_scheme)}://{self.domain(service, use_address=use_address)}{self.base_path(service)}'
+    def base_url(s elf, service: str, *, base_scheme: str = 'http', use_address: bool = False) -> str:
+        scheme = self.scheme(service, base_scheme=base_scheme, use_address=use_address)
+        domain = self.domain(service, use_address=use_address)
+        return f'{scheme}://{domain}{self.base_path(service)}'
 
     def url(self, service: str, path: str, *, base_scheme: str = 'http', use_address: bool = False) -> str:
         return f'{self.base_url(service, base_scheme=base_scheme, use_address=use_address)}{path}'

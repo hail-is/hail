@@ -11,7 +11,7 @@ import json
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers, get_userinfo
-from hailtopd import httpx
+from hailtop import httpx
 from hailtop.batch_client.client import BatchClient, Job
 
 from .utils import legacy_batch_status
