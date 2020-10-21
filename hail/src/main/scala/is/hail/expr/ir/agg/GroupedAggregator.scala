@@ -118,32 +118,25 @@ class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
   val keyed = new GroupedBTreeKey(keyType, kb, region, _elt, nested)
   val tree = new AppendOnlyBTree(kb, keyed, region, root, maxElements = 6)
 
-  // FIXME use emitcode
-  def initElement(cb: EmitCodeBuilder, eltOff: Code[Long], km: Code[Boolean], kv: Code[_]): Unit = {
+  def initElement(cb: EmitCodeBuilder, eltOff: Code[Long], k: EmitCode): Unit = {
     cb.assign(size, size + 1)
     cb += region.setNumParents((size + 1) * nStates)
-    keyed.initValue(cb, _elt, km, kv, size * nStates)
+    keyed.initValue(cb, _elt, k.m, k.v, size * nStates)
   }
 
-  // FIXME use emitcode
-  def loadContainer(cb: EmitCodeBuilder, kmc: Code[Boolean], kvc: Code[_]): Unit = {
-    val km = cb.newLocal("ga_load_cont_km", kmc)
-    val kv = cb.newLocalAny("ga_load_cont_kv", defaultValue(keyType))(typeToTypeInfo(keyType))
-    cb.ifx(!km, {
-      cb.assignAny(kv, kvc)
-    })
-    cb.assign(_elt, tree.getOrElseInitialize(km, kv))
+  def loadContainer(cb: EmitCodeBuilder, kec: EmitCode): Unit = {
+    val kev = cb.memoize(kec, "ga_load_cont_k")
+    cb.assign(_elt, tree.getOrElseInitialize(cb, kev))
     cb.ifx(keyed.isEmpty(_elt), {
-      initElement(cb, _elt, km, kv)
+      initElement(cb, _elt, kev)
       keyed.copyStatesFrom(cb, initStatesOffset)
     }, {
       keyed.loadStates(cb)
     })
   }
 
-  // FIXME use emitcode
-  def withContainer(cb: EmitCodeBuilder, km: Code[Boolean], kv: Code[_], seqOps: EmitCodeBuilder => Unit): Unit = {
-    loadContainer(cb, km, kv)
+  def withContainer(cb: EmitCodeBuilder, k: EmitCode, seqOps: EmitCodeBuilder => Unit): Unit = {
+    loadContainer(cb, k)
     seqOps(cb)
     keyed.storeStates(cb)
   }
@@ -179,14 +172,14 @@ class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
   }
 
   def combine(cb: EmitCodeBuilder, other: DictState, comb: EmitCodeBuilder => Unit): Unit =
-    other.foreach(cb) { (cb, km, kv) => withContainer(cb, km, kv, comb) }
+    other.foreach(cb) { (cb, k) => withContainer(cb, k, comb) }
 
   // loads container; does not update.
-  def foreach(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Code[Boolean], Code[_]) => Unit): Unit =
+  def foreach(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, EmitCode) => Unit): Unit =
     tree.foreach(cb) { (cb, kvOff) =>
       cb += (_elt := kvOff)
       keyed.loadStates(cb)
-      f(cb, keyed.isKeyMissing(_elt), keyed.loadKey(_elt))
+      f(cb, EmitCode(Code._empty, keyed.isKeyMissing(_elt), PCode(keyType, keyed.loadKey(_elt))))
     }
 
   def copyFromAddress(cb: EmitCodeBuilder, srcCode: Code[Long]): Unit = {
@@ -232,8 +225,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     val deserializers = nested.states.map(_.deserialize(codec))
     val kDec = keyEType.buildDecoderMethod(keyType, kb)
-    val km = kb.genFieldThisRef[Boolean]()
-    val kv = kb.genFieldThisRef()(typeToTypeInfo(keyType))
+    val k = kb.newEmitField(keyType)
 
     { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
       init(cb, nested.toCodeWithArgs(cb,
@@ -244,11 +236,9 @@ class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
         }))
       tree.bulkLoad(cb, ib) { (cb, ib, koff) =>
           cb += (_elt := koff)
-          cb += (km := ib.readBoolean())
-          cb.ifx(!km, {
-            cb += (kv := kDec.invokeCode(region, ib))
-          })
-          initElement(cb, _elt, km, kv)
+          val kc = EmitCode(Code._empty, ib.readBoolean(), PCode(keyType, cb.invokeCode(kDec, region, ib)))
+          cb.assign(k, kc)
+          initElement(cb, _elt, k)
           nested.toCodeWithArgs(cb,
             FastIndexedSeq(ib),
             { (cb, i, _, args) =>
@@ -277,8 +267,7 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(key, seqs) = seq
-    cb += key.setup
-    state.withContainer(cb, key.m, key.v, (cb) => cb += seqs.setup)
+    state.withContainer(cb, key, (cb) => cb += seqs.setup)
   }
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
@@ -290,10 +279,11 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
   protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
     cb += srvb.addArray(resultType.arrayFundamentalType, sab => EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
       cb += sab.start(state.size)
-      state.foreach(cb) { (cb, km, kv) =>
+      state.foreach(cb) { (cb, k) =>
         cb += sab.addBaseStruct(resultType.elementType, ssb => EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
           cb += ssb.start
-          cb.ifx(km, cb += ssb.setMissing(), cb += ssb.addWithDeepCopy(kt, kv))
+          cb += k.setup
+          cb.ifx(k.m, cb += ssb.setMissing(), cb += ssb.addWithDeepCopy(kt, k.v))
           cb += ssb.advance()
           cb += ssb.addBaseStruct(resultEltType, svb => EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
             cb += svb.start()

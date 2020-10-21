@@ -274,26 +274,26 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
       val insertedPointOffset = mb.newLocal[Long]("inserted_point_offset")
       val binStaging = mb.newLocal[Long]("binStaging")
 
-      mb.emit(Code(
-        binStaging := storageType.loadField(off, "binStaging"),
-        Region.storeInt(binType.fieldOffset(binStaging, "x"), binX),
-        Region.storeInt(binType.fieldOffset(binStaging, "y"), binY),
-        insertOffset := tree.getOrElseInitialize(false, binStaging),
-        key.isEmpty(insertOffset).orEmpty(
-          Code(
-            binOffset := key.storageType.loadField(insertOffset, "bin"),
-            Region.storeInt(binType.loadField(binOffset, "x"), binX),
-            Region.storeInt(binType.loadField(binOffset, "y"), binY),
-            insertedPointOffset := key.storageType.loadField(insertOffset, "point"),
-            (if (deepCopy)
-              StagedRegionValueBuilder.deepCopy(kb, region, pointType, point, insertedPointOffset)
-            else
-              Region.copyFrom(point, insertedPointOffset, pointType.byteSize)),
-            Region.storeBoolean(key.storageType.loadField(insertOffset, "empty"), false),
-            treeSize := treeSize + 1
-          )
-        )
-      ))
+      mb.emitWithBuilder { cb =>
+        cb.assign(binStaging, storageType.loadField(off, "binStaging"))
+        cb += Region.storeInt(binType.fieldOffset(binStaging, "x"), binX)
+        cb += Region.storeInt(binType.fieldOffset(binStaging, "y"), binY)
+        cb.assign(insertOffset,
+          tree.getOrElseInitialize(cb, EmitCode.present(storageType.fieldType("binStaging"), binStaging)))
+        cb.ifx(key.isEmpty(insertOffset), {
+          cb.assign(binOffset, key.storageType.loadField(insertOffset, "bin"))
+          cb += Region.storeInt(binType.loadField(binOffset, "x"), binX)
+          cb += Region.storeInt(binType.loadField(binOffset, "y"), binY)
+          cb.assign(insertedPointOffset, key.storageType.loadField(insertOffset, "point"))
+          if (deepCopy)
+            cb += StagedRegionValueBuilder.deepCopy(kb, region, pointType, point, insertedPointOffset)
+          else
+            cb += Region.copyFrom(point, insertedPointOffset, pointType.byteSize)
+          cb += Region.storeBoolean(key.storageType.loadField(insertOffset, "empty"), false)
+          cb.assign(treeSize, treeSize + 1)
+        })
+        Code._empty
+      }
     }
 
     mb.invokeCode(binX, binY, point)

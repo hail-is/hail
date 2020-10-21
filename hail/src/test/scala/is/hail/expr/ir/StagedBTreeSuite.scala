@@ -107,12 +107,16 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
     val key = new TestBTreeKey(fb.apply_method)
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
 
-    fb.emit(Code(
-      r := fb.getCodeParam[Region](1),
-      root := fb.getCodeParam[Long](2),
-      elt := btree.getOrElseInitialize(m, v),
-      key.isEmpty(elt).orEmpty(key.storeKey(elt, m, v)),
-      root))
+    fb.emitWithBuilder { cb =>
+      val ec = EmitCode(Code._empty, m, PCode(PInt64Optional, v))
+      cb.assign(r, fb.getCodeParam[Region](1))
+      cb.assign(root, fb.getCodeParam[Long](2))
+      cb.assign(elt, btree.getOrElseInitialize(cb, ec))
+      cb.ifx(key.isEmpty(elt), {
+        cb += key.storeKey(elt, m, v)
+      })
+      root
+    }
     fb.resultWithIndex()(0, region)
   }
 

@@ -208,8 +208,8 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
 
   def init: Code[Unit] = createNode(root)
 
-  def getOrElseInitialize(km: Code[Boolean], kv: Code[_]): Code[Long] =
-    getF.invokeCode(root, km, kv)
+  def getOrElseInitialize(cb: EmitCodeBuilder, k: EmitCode): Code[Long] =
+    cb.invokeCode(getF, root, k)
 
   def foreach(cb: EmitCodeBuilder)(visitor: (EmitCodeBuilder, Code[Long]) => Unit): Unit = {
     val stackI = cb.newLocal[Int]("btree_foreach_stack_i", -1)
