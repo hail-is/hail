@@ -207,11 +207,10 @@ class AsyncWorkerPool:
 
     def shutdown(self):
         for worker in self.workers:
-            if worker:
-                try:
-                    worker.cancel()
-                except Exception:
-                    pass
+            try:
+                worker.cancel()
+            except Exception:
+                pass
 
 
 class WaitableSharedPool:
