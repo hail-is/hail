@@ -2124,7 +2124,7 @@ object PruneDeadFields {
     else {
       var mt = ir
 
-      if (ir.typ.rowKey != rType.rowKey) {
+      if (upcastRows && (ir.typ.rowKey != rType.rowKey)) {
         assert(ir.typ.rowKey.startsWith(rType.rowKey))
         mt = MatrixKeyRowsBy(mt, rType.rowKey)
       }
