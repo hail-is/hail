@@ -50,7 +50,9 @@ def parse_storage_in_bytes(storage_string: str) -> Optional[int]:
 
 def parse_storage_in_gb(storage_string: str) -> Optional[int]:
     bytes = parse_storage_in_bytes(storage_string)
-    return math.ceil(bytes / 1024**3)
+    if bytes:
+        return math.ceil(bytes / 1024**3)
+    return None
 
 
 def parse_image_tag(image_string: str) -> Optional[str]:

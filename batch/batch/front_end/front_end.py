@@ -644,7 +644,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         f'cpu must be a power of two between 0.25 and {worker_cores}. Found {resources["cpu"]}'
                     )
 
-                if storage_gb != 0 and not 10 <= storage_gb <= MAX_WORKER_STORAGE_GB:
+                if storage_gb is None or not (storage_gb == 0 or 10 <= storage_gb <= MAX_WORKER_STORAGE_GB):
                     raise web.HTTPBadRequest(
                         reason=f'bad resource request for job {id}: '
                         f'storage must be at least 10Gi and no more than 64Ti. Found {resources["storage"]}'
