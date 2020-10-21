@@ -79,7 +79,7 @@ class Session(BaseSession):
             kwargs['headers'].update(auth_headers)
         else:
             kwargs['headers'] = auth_headers
-        return self._session.request(method, url, **kwargs)
+        return await self._session.request(method, url, **kwargs)
 
     async def close(self) -> None:
         if self._session is not None:

@@ -67,8 +67,8 @@ class ClientSession:
                                             method: str,
                                             url: aiohttp.typedefs.StrOrURL,
                                             **kwargs: Any) -> aiohttp.ClientResponse:
+        raise_for_status = kwargs.pop('raise_for_status', self.raise_for_status)
         response = await self.session._request(method, url, **kwargs)
-        raise_for_status = kwargs.get('raise_for_status', self.raise_for_status)
         if raise_for_status and response.status >= 400:
             message = response.reason or ''
             try:
@@ -87,7 +87,7 @@ class ClientSession:
                 method: str,
                 url: aiohttp.typedefs.StrOrURL,
                 **kwargs: Any) -> ResponseManager:
-        retry_transient = kwargs.get('retry_transient', self.retry_transient)
+        retry_transient = kwargs.pop('retry_transient', self.retry_transient)
         if retry_transient:
             coroutine = retry_transient_errors(
                 self._request_and_raise_for_status, method, url, **kwargs)
