@@ -214,7 +214,6 @@ async def index(request):
 
 
 @router.get('/lookup')
-# @router.get('')
 @web_authenticated_developers_only(redirect=False)
 async def lookup(request, userdata):  # pylint: disable=unused-argument
     app = request.app
