@@ -241,13 +241,13 @@ class BlockingContextManager:
     def __init__(self, context_manager):
         self.context_manager = context_manager
 
-    async def __enter__(self) -> BlockingClientResponse:
-        return async_to_blocking(self.context_manager.__aenter__())
+    def __enter__(self) -> BlockingClientResponse:
+        return BlockingClientResponse(async_to_blocking(self.context_manager.__aenter__()))
 
-    async def __exit__(self,
-                       exc_type: Optional[Type[BaseException]],
-                       exc: Optional[BaseException],
-                       tb: Optional[TracebackType]) -> None:
+    def __exit__(self,
+                 exc_type: Optional[Type[BaseException]],
+                 exc: Optional[BaseException],
+                 tb: Optional[TracebackType]) -> None:
         async_to_blocking(self.context_manager.__aexit__())
 
 
