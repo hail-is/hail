@@ -382,6 +382,7 @@ object Pretty {
             case MatrixRepartition(_, n, strategy) => s"$n $strategy"
             case MatrixChooseCols(_, oldIndices) => prettyInts(oldIndices)
             case MatrixMapCols(_, _, newKey) => prettyStringsOpt(newKey)
+            case MatrixUnionCols(l, r, joinType) => joinType
             case MatrixKeyRowsBy(_, keys, isSorted) =>
               prettyIdentifiers(keys) + " " +
                 prettyBooleanLiteral(isSorted)
