@@ -12,6 +12,14 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
     i.iterator.foreachBetween(f)(g)
   }
 
+  def intersperse[S >: T](sep: S): Iterable[S] = new Iterable[S] {
+    def iterator = i.iterator.intersperse(sep)
+  }
+
+  def intersperse[S >: T](start: S, sep: S, end: S): Iterable[S] = new Iterable[S] {
+    def iterator = i.iterator.intersperse(start, sep, end)
+  }
+
   def lazyMapWith[T2, S](i2: Iterable[T2], f: (T, T2) => S): Iterable[S] =
     new Iterable[S] with Serializable {
       def iterator: Iterator[S] = new Iterator[S] {

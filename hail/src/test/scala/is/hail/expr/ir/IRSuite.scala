@@ -19,9 +19,10 @@ import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.{RVD, RVDPartitioner, RVDSpecMaker}
+import is.hail.utils.prettyPrint.OppenPPI
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
-import is.hail.{ExecStrategy, HailContext, HailSuite}
+import is.hail.{ExecStrategy, HailContext, HailSuite, utils}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.testng.annotations.{DataProvider, Test}
@@ -1499,48 +1500,6 @@ class IRSuite extends HailSuite {
     )), TStream(TTuple(TInt32, TString))))
 
     assertPType(notAllRequired, PCanonicalDict(PInt32(false), PCanonicalString(false), true))
-  }
-
-  @Test def testPP() {
-    val w = 9
-    val pp = new is.hail.lir.OppenPP5(w)
-    import pp._
-    var d = group(concat(text("hello"), concat(line(), text("a"))))
-    d = group(concat(d, concat(line(), text("b"))))
-    d = group(concat(d, concat(line(), text("c"))))
-    d = group(concat(d, concat(line(), text("d"))))
-    d = nest(6, d)
-    println("-" * w)
-    println(pretty(d))
-    println("-" * w)
-  }
-
-  @Test def testPPI() {
-    val w = 9
-    val s = is.hail.lir.OppenPPI(w) { pp =>
-      pp.nest(6) {
-        pp.group {
-          pp.group {
-            pp.group {
-              pp.group {
-                pp.text("hello")
-                pp.line()
-                pp.text("a")
-              }
-              pp.line()
-              pp.text("b")
-            }
-            pp.line()
-            pp.text("c")
-          }
-          pp.line()
-          pp.text("d")
-        }
-      }
-    }
-    println("-" * w)
-    println(s)
-    println("-" * w)
   }
 
   @Test def testMakeStruct() {
