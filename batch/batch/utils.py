@@ -101,7 +101,8 @@ def adjust_cores_for_packability(cores_in_mcpu):
 
 def is_valid_core_count(cores_mcpu, worker_cores):
     cores = cores_mcpu / 1000
-    assert is_power_of_two(cores)
+    if not is_power_of_two(cores):
+        return False
     power = math.ceil(math.log2(cores))
     return -2 <= power <= math.log2(worker_cores)
 

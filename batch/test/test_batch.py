@@ -65,9 +65,9 @@ def test_exit_code_duration(client):
 def test_msec_mcpu(client):
     builder = client.create_batch()
     resources = {
-        'cpu': '100m',
+        'cpu': '250m',
         'memory': '375M',
-        'storage': '1Gi'
+        'storage': '0Gi'
     }
     # two jobs so the batch msec_mcpu computation is non-trivial
     builder.create_job('ubuntu:18.04', ['echo', 'foo'], resources=resources)
@@ -83,7 +83,6 @@ def test_msec_mcpu(client):
         job = client.get_job(job['batch_id'], job['job_id'])
         job = job.status()
 
-        # runs at 250mcpu
         job_msec_mcpu2 = 250 * max(job['status']['end_time'] - job['status']['start_time'], 0)
         # greater than in case there are multiple attempts
         assert job['msec_mcpu'] >= job_msec_mcpu2, batch
@@ -126,13 +125,13 @@ def test_bad_command(client):
 
 def test_invalid_resource_requests(client):
     builder = client.create_batch()
-    resources = {'cpu': '1', 'memory': '250Gi', 'storage': '1Gi'}
+    resources = {'cpu': '1', 'memory': '250Gi', 'storage': '0Gi'}
     builder.create_job('ubuntu:18.04', ['true'], resources=resources)
     with pytest.raises(aiohttp.client.ClientResponseError, match='resource requests.*unsatisfiable'):
         builder.submit()
 
     builder = client.create_batch()
-    resources = {'cpu': '0', 'memory': '1Gi', 'storage': '1Gi'}
+    resources = {'cpu': '0', 'memory': '1Gi', 'storage': '0Gi'}
     builder.create_job('ubuntu:18.04', ['true'], resources=resources)
     with pytest.raises(aiohttp.client.ClientResponseError, match='bad resource request.*cpu cannot be 0'):
         builder.submit()
@@ -140,7 +139,7 @@ def test_invalid_resource_requests(client):
 
 def test_out_of_memory(client):
     builder = client.create_batch()
-    resources = {'cpu': '0.1', 'memory': '10M', 'storage': '1Gi'}
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '0Gi'}
     j = builder.create_job('python:3.6-slim-stretch',
                            ['python', '-c', 'x = "a" * 1000**3'],
                            resources=resources)
@@ -151,7 +150,7 @@ def test_out_of_memory(client):
 
 def test_out_of_storage(client):
     builder = client.create_batch()
-    resources = {'cpu': '0.1', 'memory': '10M', 'storage': '5Gi'}
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '0Gi'}
     j = builder.create_job('ubuntu:18.04',
                            ['/bin/sh', '-c', 'fallocate -l 100GiB /foo'],
                            resources=resources)
