@@ -248,7 +248,7 @@ class BlockingContextManager:
                  exc_type: Optional[Type[BaseException]],
                  exc: Optional[BaseException],
                  tb: Optional[TracebackType]) -> None:
-        async_to_blocking(self.context_manager.__aexit__())
+        async_to_blocking(self.context_manager.__aexit__(exc_type, exc, tb))
 
 
 class BlockingClientSession:

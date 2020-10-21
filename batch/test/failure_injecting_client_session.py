@@ -27,6 +27,10 @@ class FailureInjectingClientSession:
                     real_url=path),
                 history=())
 
+    async def _request(self, method, path, *args, **kwargs):
+        self.maybe_fail(method, path, kwargs.get('headers', {}))
+        return await self.real_session.request(method, path, *args, **kwargs)
+
     async def request(self, method, path, *args, **kwargs):
         self.maybe_fail(method, path, kwargs.get('headers', {}))
         return await self.real_session.request(method, path, *args, **kwargs)
