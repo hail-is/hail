@@ -443,8 +443,9 @@ object PruneDeadFields {
       case TableMapGlobals(child, newGlobals) =>
         val globalDep = memoizeAndGetDep(newGlobals, requestedType.globalType, child.typ, memo)
         memoizeTableIR(child, unify(child.typ, requestedType.copy(globalType = globalDep.globalType), globalDep), memo)
-      case TableAggregateByKey(child, newRow) =>
-        val aggDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
+      case TableAggregateByKey(child, expr) =>
+        val exprRequestedType = requestedType.rowType.filter(f => expr.typ.asInstanceOf[TStruct].hasField(f.name))._1
+        val aggDep = memoizeAndGetDep(expr, exprRequestedType, child.typ, memo)
         memoizeTableIR(child, TableType(key = child.typ.key,
           rowType = unify(child.typ.rowType, aggDep.rowType, selectKey(child.typ.rowType, child.typ.key)),
           globalType = unify(child.typ.globalType, aggDep.globalType, requestedType.globalType)), memo)

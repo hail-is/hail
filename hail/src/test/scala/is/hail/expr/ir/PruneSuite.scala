@@ -386,6 +386,17 @@ class PruneSuite extends HailSuite {
     checkMemo(tka, subsetTable(tka.typ), Array(subsetTable(tab.typ, "row.3", "NO_KEY"), null, null))
   }
 
+  @Test def testTableAggregateByKeyMemo(): Unit = {
+    val emptyStruct = MakeStruct(Seq.empty[(String, IR)])
+
+    val tabk = TableAggregateByKey(
+      tab,
+      SelectFields(Ref("row", tab.typ.rowType), Seq("2"))
+    )
+    checkMemo(tabk, requestedType = subsetTable(tabk.typ, "row.3", "row.2"),
+      Array(subsetTable(tabk.typ, "row.3", "row.2"), null, null))
+  }
+
   @Test def testTableUnionMemo() {
     checkMemo(
       TableUnion(FastIndexedSeq(tab, tab)),

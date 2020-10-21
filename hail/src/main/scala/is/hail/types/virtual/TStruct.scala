@@ -76,7 +76,17 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
 
   def hasField(name: String): Boolean = fieldIdx.contains(name)
 
-  def field(name: String): Field = fields(fieldIdx(name))
+  def field(name: String): Field = {
+    try {
+      fields(fieldIdx(name))
+    } catch {
+      case e: Throwable => {
+        println(s"FIELDS WERE ${fields}")
+        throw e
+      }
+    }
+
+  }
 
   def fieldType(name: String): Type = types(fieldIdx(name))
 
