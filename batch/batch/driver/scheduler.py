@@ -7,6 +7,7 @@ import collections
 from hailtop.utils import (
     AsyncWorkerPool, WaitableSharedPool, retry_long_running, run_if_changed,
     time_msecs, secret_alnum_string)
+from hailtop import aiotools
 
 from ..batch import schedule_job, unschedule_job, mark_job_complete
 from ..utils import WindowFractionCounter
@@ -43,20 +44,27 @@ class Scheduler:
         self.inst_pool = app['inst_pool']
         self.async_worker_pool = AsyncWorkerPool(parallelism=100, queue_size=100)
         self.exceeded_shares_counter = ExceededSharesCounter()
+        self.task_manager = aiotools.BackgroundTaskManager()
 
     async def async_init(self):
-        asyncio.ensure_future(retry_long_running(
+        self.task_manager.ensure_future(retry_long_running(
             'schedule_loop',
             run_if_changed, self.scheduler_state_changed, self.schedule_loop_body))
-        asyncio.ensure_future(retry_long_running(
+        self.task_manager.ensure_future(retry_long_running(
             'cancel_cancelled_ready_jobs_loop',
             run_if_changed, self.cancel_ready_state_changed, self.cancel_cancelled_ready_jobs_loop_body))
-        asyncio.ensure_future(retry_long_running(
+        self.task_manager.ensure_future(retry_long_running(
             'cancel_cancelled_running_jobs_loop',
-            run_if_changed, self.cancel_running_state_changed, self.cancel_cancelled_running_jobs_loop_body))
-        asyncio.ensure_future(retry_long_running(
+            run_if_changed, self.cancel_running_state_changed, self.cancel_cancelled_running_jobs_loop_body)),
+        self.task_manager.ensure_future(retry_long_running(
             'bump_loop',
-            self.bump_loop))
+            self.bump_loop))])
+
+    def shutdown(self):
+        try:
+            self.task_manager.shutdown()
+        finally:
+            self.async_worker_pool.shutdown()
 
     async def compute_fair_share(self):
         free_cores_mcpu = sum([
