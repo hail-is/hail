@@ -76,7 +76,7 @@ async def test_get_billing_project(make_client):
     r = await c.get_billing_project('test')
     assert r['billing_project'] == 'test', r
     assert set(r['users']) == {'test', 'test-dev'}, r
-    assert r['closed'] == False, r
+    assert r['status'] == 'open', r
 
 
 async def test_list_billing_projects(make_client):

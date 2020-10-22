@@ -1608,7 +1608,7 @@ LIMIT 1 FOR UPDATE;
         assert row['name'] == billing_project
         if row['status'] == 'closed':
             raise BatchUserError(f'Billing project {billing_project} is already closed or deleted.', 'info')
-        if row['batch'] is not None:
+        if row['batch_id'] is not None:
             raise BatchUserError(f'Billing project {billing_project} has open or running batches.', 'error')
 
         await tx.execute_update(
