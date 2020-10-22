@@ -72,14 +72,16 @@ async def test_bad_token():
 
 
 async def test_get_billing_project(make_client):
-    r = await make_client().get_billing_project('test')
+    c = await make_client()
+    r = c.list_billing_projects()
     assert r['billing_project'] == 'test', r
     assert set(r['users']) == {'test', 'test-dev'}, r
     assert r['closed'] == False, r
 
 
 async def test_list_billing_projects(make_client):
-    r = await make_client().list_billing_projects()
+    c = await make_client()
+    r = c.list_billing_projects()
     test_bps = [p for p in r if p['billing_project'] == 'test']
     assert len(test_bps) == 1, r
     bp = test_bps[0]
