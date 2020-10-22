@@ -108,7 +108,8 @@ class Batch:
         self._default_image = default_image
 
         if default_memory is not None:
-            warnings.warn('setting the memory parameter has no effect', UserWarning)
+            warnings.warn('Setting the \'default_memory\' has no effect. '
+                          'Use the \'default_cpu\' argument to ensure your job has enough memory.', UserWarning)
         self._default_memory = default_memory
 
         self._default_cpu = default_cpu

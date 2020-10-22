@@ -395,7 +395,8 @@ class Job:
         Same job object with memory requirements set.
         """
 
-        warnings.warn('setting the memory parameter has no effect', UserWarning)
+        warnings.warn('Setting the memory has no effect. '
+                      'Use the cpu method to ensure your job has enough memory.', UserWarning)
 
         self._memory = str(memory)
         return self
