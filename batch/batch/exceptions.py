@@ -3,6 +3,7 @@ from aiohttp import web
 
 class BatchUserError(Exception):
     def __init__(self, message, severity):
+        super().__init__(message)
         self.message = message
         self.ui_error_type = severity
 
