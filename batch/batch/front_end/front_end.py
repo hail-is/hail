@@ -22,6 +22,7 @@ from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context, in_cluster_ssl_client_session
 from hailtop.hail_logging import AccessLogger
+from hailtop import aiotools
 from gear import (Database, setup_aiohttp_session,
                   rest_authenticated_users_only, web_authenticated_users_only,
                   web_authenticated_developers_only, check_csrf_token, transaction)
@@ -1529,6 +1530,7 @@ async def delete_batch_loop_body(app):
 
 
 async def on_startup(app):
+    app['task_manager'] = aiotools.BackgroundTaskManager()
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
 
@@ -1565,21 +1567,24 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     cancel_batch_state_changed = asyncio.Event()
     app['cancel_batch_state_changed'] = cancel_batch_state_changed
 
-    asyncio.ensure_future(retry_long_running(
+    app['task_manager'].ensure_future(retry_long_running(
         'cancel_batch_loop',
         run_if_changed, cancel_batch_state_changed, cancel_batch_loop_body, app))
 
     delete_batch_state_changed = asyncio.Event()
     app['delete_batch_state_changed'] = delete_batch_state_changed
 
-    asyncio.ensure_future(retry_long_running(
+    app['task_manager'].ensure_future(retry_long_running(
         'delete_batch_loop',
         run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app))
 
 
 async def on_cleanup(app):
-    blocking_pool = app['blocking_pool']
-    blocking_pool.shutdown()
+    try:
+        blocking_pool = app['blocking_pool']
+        blocking_pool.shutdown()
+    finally:
+        app['task_manager'].shutdown()
 
 
 def run():

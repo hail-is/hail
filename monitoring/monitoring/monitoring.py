@@ -6,7 +6,7 @@ import aiohttp_session
 import logging
 from collections import defaultdict
 
-from hailtop import aiogoogle
+from hailtop import aiogoogle, aiotools
 from hailtop.aiogoogle import BigQueryClient
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -219,13 +219,22 @@ async def on_startup(app):
     query_billing_event = asyncio.Event()
     app['query_billing_event'] = query_billing_event
 
-    asyncio.ensure_future(retry_long_running(
+    app['task_manager'] = aiotools.BackgroundTaskManager()
+
+    app['task_manager'].ensure_future(retry_long_running(
         'polling_loop',
         polling_loop, app))
 
-    asyncio.ensure_future(retry_long_running(
+    app['task_manager'].ensure_future(retry_long_running(
         'query_billing_loop',
         run_if_changed_idempotent, query_billing_event, query_billing_body, app))
+
+
+async def on_cleanup(app):
+    try:
+        await app['db'].async_close()
+    finally:
+        app['task_manager'].shutdown()
 
 
 def run():
@@ -237,6 +246,7 @@ def run():
     app.add_routes(routes)
 
     app.on_startup.append(on_startup)
+    app.on_cleanup.append(on_cleanup)
 
     web.run_app(deploy_config.prefix_application(app, 'monitoring'),
                 host='0.0.0.0',

@@ -12,6 +12,7 @@ import socket
 import requests
 import google.auth.exceptions
 import time
+import weakref
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
@@ -142,7 +143,10 @@ class AsyncThrottledGather:
 
     def _cancel_workers(self):
         for worker in self._workers:
-            worker.cancel()
+            try:
+                worker.cancel()
+            except Exception:
+                pass
 
     async def _worker(self):
         while True:
@@ -166,10 +170,11 @@ class AsyncThrottledGather:
                 self._done.set()
 
     async def wait(self):
-        if self.count > 0:
-            await self._done.wait()
-
-        self._cancel_workers()
+        try:
+            if self.count > 0:
+                await self._done.wait()
+        finally:
+            self._cancel_workers()
 
         if self._errors:
             raise self._errors[0]
@@ -180,9 +185,9 @@ class AsyncThrottledGather:
 class AsyncWorkerPool:
     def __init__(self, parallelism, queue_size=1000):
         self._queue = asyncio.Queue(maxsize=queue_size)
-
-        for _ in range(parallelism):
+        self.workers = weakref.WeakSet([
             asyncio.ensure_future(self._worker())
+            for _ in range(parallelism)])
 
     async def _worker(self):
         while True:
@@ -199,6 +204,13 @@ class AsyncWorkerPool:
 
     def call_nowait(self, f, *args, **kwargs):
         self._queue.put_nowait((f, args, kwargs))
+
+    def shutdown(self):
+        for worker in self.workers:
+            try:
+                worker.cancel()
+            except Exception:
+                pass
 
 
 class WaitableSharedPool:

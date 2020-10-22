@@ -14,6 +14,7 @@ from hailtop.batch_client.aioclient import BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger
+from hailtop import aiotools
 from gear import (setup_aiohttp_session, rest_authenticated_developers_only,
                   web_authenticated_developers_only, check_csrf_token,
                   create_database_pool)
@@ -334,7 +335,7 @@ async def post_update(request, userdata):  # pylint: disable=unused-argument
         for wb in watched_branches:
             await wb.update(request.app)
 
-    await asyncio.ensure_future(update_all())
+    request.app['task_manager'].ensure_future(update_all())
     return web.Response(status=200)
 
 
@@ -409,13 +410,17 @@ async def on_startup(app):
     app['batch_client'] = await BatchClient('ci')
     app['dbpool'] = await create_database_pool()
 
-    asyncio.ensure_future(update_loop(app))
+    app['task_manager'] = aiotools.BackgroundTaskManager()
+    app['task_manager'].ensure_future(update_loop(app))
 
 
 async def on_cleanup(app):
-    dbpool = app['dbpool']
-    dbpool.close()
-    await dbpool.wait_closed()
+    try:
+        dbpool = app['dbpool']
+        dbpool.close()
+        await dbpool.wait_closed()
+    finally:
+        app['task_manager'].shutdown()
 
 
 def run():

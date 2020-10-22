@@ -19,7 +19,7 @@ from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
 from hailtop.utils import time_msecs, RateLimit, serialization
 from hailtop.tls import get_in_cluster_server_ssl_context
-from hailtop import aiogoogle
+from hailtop import aiogoogle, aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 import googlecloudprofiler
@@ -626,6 +626,7 @@ LOCK IN SHARE MODE;
 
 
 async def on_startup(app):
+    app['task_manager'] = aiotools.BackgroundTaskManager()
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
 
@@ -703,14 +704,25 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     app['check_resource_aggregation_error'] = None
 
     if HAIL_SHOULD_CHECK_INVARIANTS:
-        asyncio.ensure_future(check_incremental_loop(app, db))
-        asyncio.ensure_future(check_resource_aggregation(app, db))
+        app['task_manager'].ensure_future(check_incremental_loop(app, db))
+        app['task_manager'].ensure_future(check_resource_aggregation(app, db))
 
 
 async def on_cleanup(app):
-    blocking_pool = app['blocking_pool']
-    blocking_pool.shutdown()
-    await app['db'].async_close()
+    try:
+        blocking_pool = app['blocking_pool']
+        blocking_pool.shutdown()
+    finally:
+        try:
+            await app['db'].async_close()
+        finally:
+            try:
+                app['inst_pool'].shutdown()
+            finally:
+                try:
+                    app['scheduler'].shutdown()
+                finally:
+                    app['task_manager'].shutdown()
 
 
 def run():

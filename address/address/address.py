@@ -11,6 +11,7 @@ from gear import (setup_aiohttp_session, web_authenticated_developers_only,
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger
+from hailtop import aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 import uvloop
 import sortedcontainers
@@ -88,6 +89,10 @@ class Cache():
         self.keys = sortedcontainers.SortedSet(
             key=lambda key: self.entries[key].expire_time)
         self.k8s_client: kube.client.CoreV1Api = k8s_client
+        self.task_manager = aiotools.BackgroundTaskManager()
+
+    def shutdown(self):
+        self.task_manager.shutdown()
 
     async def get(self, key: str):
         if key in self.entries:
@@ -103,7 +108,7 @@ class Cache():
                 if entry.expire_time >= time.time():
                     return entry.value
 
-            asyncio.ensure_future(self.maybe_remove_one_old_entry())
+            self.task_manager.ensure_future(self.maybe_remove_one_old_entry())
             k8s_endpoints = await self.k8s_client.read_namespaced_endpoints(key, NAMESPACE)
             endpoints = [AddressAndPort(ip.ip, port.port)
                          for endpoint in k8s_endpoints.subsets
@@ -134,8 +139,11 @@ async def on_startup(app):
 
 
 async def on_cleanup(app):
-    blocking_pool = app['blocking_pool']
-    blocking_pool.shutdown()
+    try:
+        blocking_pool = app['blocking_pool']
+        blocking_pool.shutdown()
+    finally:
+        app['cache'].shutdown()
 
 
 def run():
