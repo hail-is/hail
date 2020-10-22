@@ -218,7 +218,7 @@ async def test_add_and_delete_user(dev_client, new_billing_project):
     try:
         await dev_client.add_user('test', project)
     except aiohttp.ClientResponseError as e:
-        assert e.status == 409, e
+        assert e.status == 403, e
 
     r = await dev_client.remove_user('test', project)
     assert r['user']  == 'test'
@@ -230,4 +230,4 @@ async def test_add_and_delete_user(dev_client, new_billing_project):
     try:
         await dev_client.remove_user('test', project)
     except aiohttp.ClientResponseError as e:
-        assert e.status == 400, e
+        assert e.status == 403, e
