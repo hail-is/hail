@@ -1600,7 +1600,7 @@ FROM billing_projects
 LEFT JOIN batches
 ON billing_projects.name = batches.billing_project
 WHERE name = %s and `status` != 'deleted' AND batches.time_completed IS NULL
-FOR UPDATE LIMIT 1;
+LIMIT 1 FOR UPDATE;
     ''',
             (billing_project,))
         if not row:

@@ -73,7 +73,7 @@ async def test_bad_token():
 
 async def test_get_billing_project(make_client):
     c = await make_client()
-    r = await c.list_billing_projects()
+    r = await c.get_billing_project('test')
     assert r['billing_project'] == 'test', r
     assert set(r['users']) == {'test', 'test-dev'}, r
     assert r['closed'] == False, r
