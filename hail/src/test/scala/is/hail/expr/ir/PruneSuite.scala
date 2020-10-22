@@ -67,7 +67,7 @@ class PruneSuite extends HailSuite {
   def checkRebuild[T <: BaseIR](
     ir: T,
     requestedType: BaseType,
-    f: (T, T) => Boolean = (left: TableIR, right: TableIR) => left == right) {
+    f: (T, T) => Boolean = (left: T, right: T) => left == right) {
     val irCopy = ir.deepCopy()
     val ms = PruneDeadFields.ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
     val rebuilt = (irCopy match {
@@ -1068,6 +1068,37 @@ class PruneSuite extends HailSuite {
           _.typ.colKey.isEmpty
         }
       })
+  }
+
+  @Test def testMatrixUnionColsRebuild(): Unit = {
+    def getColField(name: String) = {
+      GetField(Ref("sa", mat.typ.colType), name)
+    }
+    def childrenMatch(matrixUnionCols: MatrixUnionCols): Boolean = {
+      matrixUnionCols.left.typ.colType == matrixUnionCols.right.typ.colType &&
+        matrixUnionCols.left.typ.entryType == matrixUnionCols.right.typ.entryType
+    }
+
+    val wrappedMat = MatrixMapCols(mat,
+      MakeStruct(Seq(("ck", getColField("ck")), ("c2", getColField("c2")), ("c3", getColField("c3")))), Some(FastIndexedSeq("ck"))
+    )
+
+    val mucBothSame = MatrixUnionCols(wrappedMat, wrappedMat, "inner")
+    checkRebuild(mucBothSame, mucBothSame.typ)
+    checkRebuild[MatrixUnionCols](mucBothSame, mucBothSame.typ.copy(colType = TStruct(("ck", TString), ("c2", TInt32))), (old, rebuilt) =>
+      (old.typ.rowType == rebuilt.typ.rowType) &&
+        (old.typ.globalType == rebuilt.typ.globalType) &&
+        (rebuilt.typ.colType.fieldNames.toIndexedSeq == IndexedSeq("ck", "c2")) &&
+        childrenMatch(rebuilt)
+    )
+
+    // Since `mat` is a MatrixLiteral, it won't be rebuilt, will keep all fields. But wrappedMat is a MatrixMapCols, so it will drop
+    // unrequested fields. This test would fail without upcasting in the MatrixUnionCols rebuild rule.
+    val muc2 = MatrixUnionCols(mat, wrappedMat, "inner")
+    checkRebuild[MatrixUnionCols](muc2, muc2.typ.copy(colType = TStruct(("ck", TString))), (old, rebuilt) =>
+      childrenMatch(rebuilt)
+    )
+
   }
 
   @Test def testMatrixAnnotateRowsTableRebuild() {
