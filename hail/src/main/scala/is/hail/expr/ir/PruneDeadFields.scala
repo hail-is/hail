@@ -1589,6 +1589,24 @@ object PruneDeadFields {
           upcast(rebuild(child, memo), requestedType,
             upcastGlobals = false)
         })
+      case MatrixUnionCols(left, right, joinType) =>
+        val requestedType = memo.requestedType.lookup(mir).asInstanceOf[MatrixType]
+        val left2 = rebuild(left, memo)
+        val right2 = rebuild(right, memo)
+
+        if (left2.typ.colType == right2.typ.colType && left2.typ.entryType == right2.typ.entryType) {
+          MatrixUnionCols(
+            left2,
+            right2,
+            joinType
+          )
+        } else {
+          MatrixUnionCols(
+            upcast(left2, requestedType, upcastRows=false, upcastGlobals = false),
+            upcast(right2, requestedType, upcastRows=false, upcastGlobals = false),
+            joinType
+          )
+        }
       case MatrixAnnotateRowsTable(child, table, root, product) =>
         // if the field is not used, this node can be elided entirely
         if (!requestedType.rowType.hasField(root))
@@ -2011,7 +2029,7 @@ object PruneDeadFields {
     else {
       var mt = ir
 
-      if (ir.typ.rowKey != rType.rowKey) {
+      if (upcastRows && (ir.typ.rowKey != rType.rowKey)) {
         assert(ir.typ.rowKey.startsWith(rType.rowKey))
         mt = MatrixKeyRowsBy(mt, rType.rowKey)
       }
