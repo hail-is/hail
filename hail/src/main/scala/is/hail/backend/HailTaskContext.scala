@@ -1,5 +1,7 @@
 package is.hail.backend
 
+import is.hail.annotations.RegionPool
+
 object HailTaskContext {
   def get(): HailTaskContext = taskContext.get
 
@@ -13,6 +15,10 @@ abstract class HailTaskContext {
   def stageId(): Int
   def partitionId(): Int
   def attemptNumber(): Int
+
+  private lazy val thePool = RegionPool()
+
+  def getRegionPool(): RegionPool = thePool
 
   def partSuffix(): String = {
     val rng = new java.security.SecureRandom()

@@ -1,13 +1,10 @@
 package is.hail.annotations
 
+import is.hail.backend.HailTaskContext
 import is.hail.utils._
 
 object RegionPool {
-  private lazy val thePool: ThreadLocal[RegionPool] = new ThreadLocal[RegionPool]() {
-    override def initialValue(): RegionPool = RegionPool()
-  }
-
-  def get: RegionPool = thePool.get()
+  def get: RegionPool = HailTaskContext.get().getRegionPool()
 
   def apply(strictMemoryCheck: Boolean = false): RegionPool = {
     val thread = Thread.currentThread()
