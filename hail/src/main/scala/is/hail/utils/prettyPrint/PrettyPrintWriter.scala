@@ -14,7 +14,9 @@ object PrettyPrintWriter {
 
   def space: Doc = text(" ")
 
-  def line: Doc = Line
+  def line: Doc = Line(" ")
+
+  def lineAlt: Doc = Line("")
 
   def softline: Doc = group(line)
 
@@ -53,7 +55,7 @@ object PrettyPrintWriter {
   def sep(docs: Doc*): Doc = sep(docs)
 
   def list(docs: Iterable[Doc]): Doc =
-    group(docs.intersperse(concat(text("("), line), concat(",", line), text(")")))
+    group(docs.intersperse(concat(text("("), lineAlt), concat(",", line), text(")")))
 
   def list(docs: Doc*): Doc = list(docs)
 
@@ -73,7 +75,7 @@ object PrettyPrintWriter {
 object PrettyPrintDoc {
   abstract class ScanedNode
   case class TextN(t: String) extends ScanedNode
-  case class LineN(indentation: Int) extends ScanedNode
+  case class LineN(indentation: Int, ifFlat: String) extends ScanedNode
   case class GroupN(contents: mutable.ArrayBuilder[ScanedNode], start: Int, var end: Int) extends ScanedNode
 
   abstract class KontNode
@@ -139,10 +141,10 @@ object PrettyPrintDoc {
       case TextN(t) =>
         remaining -= t.length
         out.write(t)
-      case LineN(i) =>
+      case LineN(i, ifFlat: String) =>
         if (horizontal) {
-          remaining -= 1
-          out.write(' ')
+          remaining -= ifFlat.length
+          out.write(ifFlat)
         } else {
           out.write('\n')
           out.write(" " * i)
@@ -158,8 +160,8 @@ object PrettyPrintDoc {
         case Text(t) =>
           scan(TextN(t), t.length)
           advance()
-        case Line =>
-          scan(LineN(indentation), 1)
+        case Line(ifFlat) =>
+          scan(LineN(indentation, ifFlat), ifFlat.length)
           advance()
         case Group(body) =>
           buffer.addLast(GroupN(mutable.ArrayBuilder.make[ScanedNode], globalPos, -1))
@@ -189,7 +191,7 @@ abstract class PrettyPrintDoc {
 }
 
 case class Text(t: String) extends PrettyPrintDoc
-case object Line extends PrettyPrintDoc
+case class Line(ifFlat: String) extends PrettyPrintDoc
 case class Group(body: PrettyPrintDoc) extends PrettyPrintDoc
 case class Indent(i: Int, body: PrettyPrintDoc) extends PrettyPrintDoc
 case class Concat(it: Iterable[PrettyPrintDoc]) extends PrettyPrintDoc
