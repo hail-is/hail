@@ -134,7 +134,7 @@ async def test_close_reopen_billing_project(dev_client, new_billing_project):
     project = new_billing_project
     await dev_client.close_billing_project(project)
     r = await dev_client.list_billing_projects()
-    assert [bp for bp in r if bp['billing_project'] == project and not bp['closed']] == [], r
+    assert [bp for bp in r if bp['billing_project'] == project and bp['status'] == 'open'] == [], r
 
     try:
         await dev_client.close_billing_project(project)
@@ -143,7 +143,7 @@ async def test_close_reopen_billing_project(dev_client, new_billing_project):
 
     await dev_client.reopen_billing_project(project)
     r = await dev_client.list_billing_projects()
-    assert [bp['billing_project'] for bp in r if bp['billing_project'] == project and not bp['closed']] == [project], r
+    assert [bp['billing_project'] for bp in r if bp['billing_project'] == project and bp['status'] == 'open'] == [project], r
 
     try:
         await dev_client.reopen_billing_project(project)
@@ -155,7 +155,7 @@ async def test_close_billing_project_with_open_batch_errors(dev_client, make_cli
     project = new_billing_project
     await dev_client.add_user("test", project)
     client = await make_client(project)
-    b = client.create_batch()._create()
+    b = await client.create_batch()._create()
 
     try:
         await dev_client.close_billing_project(project)
@@ -194,10 +194,6 @@ async def test_delete_billing_project_only_when_closed(dev_client, new_billing_p
 
     await dev_client.close_billing_project(project)
     await dev_client.delete_billing_project(project)
-
-    r = await dev_client.list_billing_projects()
-    bps = {p['billing project'] for p in r}
-    assert project not in bps
 
     try:
         await dev_client.get_billing_project(project)
