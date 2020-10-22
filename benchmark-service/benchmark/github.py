@@ -29,7 +29,7 @@ async def get_new_commits(github_client, batch_client, gs_reader):
     for commit in data:
         sha = commit.get('sha')
         #list_of_shas.append(sha)
-        batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
+        batches = [b async for b in await batch_client.list_batches(q=f'sha={sha} running')]
 
         # def has_results_file():
         #     name = f'gs://{bucket_name}/benchmark-test/{sha}'

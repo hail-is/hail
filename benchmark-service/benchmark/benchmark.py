@@ -18,7 +18,8 @@ from scipy.stats.mstats import gmean, hmean
 import numpy as np
 import pandas as pd
 import gidgethub.aiohttp
-from benchmark.github import query_github, submit_batch
+from benchmark.github import query_github  #, submit_batch
+from benchmark.utils import submit_batch
 from hailtop.utils import retry_long_running
 import asyncio
 import gidgethub
