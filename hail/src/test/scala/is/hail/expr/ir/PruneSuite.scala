@@ -1230,6 +1230,14 @@ class PruneSuite extends HailSuite {
           "b" -> NA(TInt64)
         )
       })
+
+    // Example needs to have field insertion that overwrites an unrequested field with a different type.
+    val insertF = InsertFields(Ref("foo", TStruct(("a", TInt32), ("b", TInt32))),
+      IndexedSeq(("a", I64(8)))
+    )
+    checkRebuild[InsertFields](insertF, TStruct(("b", TInt32)), (old, rebuilt) => {
+      PruneDeadFields.isSupertype(rebuilt.typ, old.typ)
+    })
   }
 
   @Test def testMakeTupleRebuild() {

@@ -1858,7 +1858,19 @@ object PruneDeadFields {
         val depFields = depStruct.fieldNames.toSet
         val rebuiltChild = rebuildIR(old, env, memo)
         val preservedChildFields = rebuiltChild.typ.asInstanceOf[TStruct].fieldNames.toSet
-        InsertFields(rebuiltChild,
+
+        val insertOverwritesUnrequestedButPreservedField = fields.exists{ case (fieldName, _) =>
+          preservedChildFields.contains(fieldName) && !depFields.contains(fieldName)
+        }
+
+        val wrappedChild = if (insertOverwritesUnrequestedButPreservedField) {
+          val selectedChildFields = preservedChildFields.filter(s => depFields.contains(s))
+          SelectFields(rebuiltChild, rebuiltChild.typ.asInstanceOf[TStruct].fieldNames.filter(selectedChildFields.contains(_)))
+        } else {
+          rebuiltChild
+        }
+
+        InsertFields(wrappedChild,
           fields.flatMap { case (f, fir) =>
             if (depFields.contains(f))
               Some(f -> rebuildIR(fir, env, memo))
