@@ -1328,7 +1328,7 @@ async def _query_billing_projects(db, user=None, billing_project=None):
     sql = f'''
 SELECT billing_projects.name as billing_project,
     billing_projects.`status` as `status`,
-    users 
+    users
 FROM (
   SELECT billing_project, JSON_ARRAYAGG(`user`) as users
   FROM billing_project_users
@@ -1458,7 +1458,7 @@ async def _add_user_to_billing_project(db, billing_project, user):
             '''
 SELECT billing_projects.name as billing_project,
     billing_projects.`status` as `status`,
-    user 
+    user
 FROM billing_projects
 LEFT JOIN (SELECT * FROM billing_project_users
 WHERE billing_project = %s AND user = %s FOR UPDATE) AS t
@@ -1546,7 +1546,7 @@ SELECT name, `status`, batches.id as batch_id
 FROM billing_projects
 LEFT JOIN batches
 ON billing_projects.name = batches.billing_project
-WHERE name = %s and `status` != 'deleted' AND batches.time_completed IS NULL 
+WHERE name = %s and `status` != 'deleted' AND batches.time_completed IS NULL
 FOR UPDATE LIMIT 1;
     ''',
             (billing_project,))

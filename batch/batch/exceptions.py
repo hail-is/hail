@@ -1,5 +1,6 @@
 from aiohttp import web
 
+
 class BatchUserError(Exception):
     def __init__(self, message, severity):
         self.message = message
