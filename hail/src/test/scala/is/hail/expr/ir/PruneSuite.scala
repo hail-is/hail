@@ -548,6 +548,7 @@ class PruneSuite extends HailSuite {
   val justA = TStruct("a" -> TInt32)
   val justB = TStruct("b" -> TInt32)
   val aAndB = TStruct("a" -> TInt32, "b" -> TInt32)
+  val bAndA = TStruct("b" -> TInt32, "a" -> TInt32)
   val justARequired = TStruct("a" -> TInt32)
   val justBRequired = TStruct("b" -> TInt32)
 
@@ -732,6 +733,7 @@ class PruneSuite extends HailSuite {
 
   @Test def testSelectFieldsMemo() {
     checkMemo(SelectFields(ref, Seq("a", "b")), justA, Array(justA))
+    checkMemo(SelectFields(ref, Seq("b", "a")), bAndA, Array(aAndB))
   }
 
   @Test def testGetFieldMemo() {
