@@ -395,7 +395,7 @@ class Job:
         Same job object with memory requirements set.
         """
 
-        warnings.warn('We ignore this method now. '
+        warnings.warn('We ignore this method now when using the ServiceBackend. '
                       'If you need more memory select a concomitant core count.', UserWarning)
 
         self._memory = str(memory)

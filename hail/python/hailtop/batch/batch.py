@@ -108,7 +108,7 @@ class Batch:
         self._default_image = default_image
 
         if default_memory is not None:
-            warnings.warn('We ignore the default_memory now. '
+            warnings.warn('We ignore the default_memory now when using the ServiceBackend. '
                           'If you need more memory select a concomitant core count.', UserWarning)
         self._default_memory = default_memory
 
