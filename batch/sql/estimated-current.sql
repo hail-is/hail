@@ -20,8 +20,10 @@ CREATE TABLE IF NOT EXISTS `resources` (
 
 CREATE TABLE IF NOT EXISTS `billing_projects` (
   `name` VARCHAR(100) NOT NULL,
+  `status` ENUM('open', 'closed', 'deleted') NOT NULL DEFAULT 'open',
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
+CREATE INDEX `billing_project_status` ON `billing_projects` (`status`);
 
 CREATE TABLE IF NOT EXISTS `billing_project_users` (
   `billing_project` VARCHAR(100) NOT NULL,

@@ -1983,6 +1983,8 @@ steps:
       script: /io/sql/change_test_worker_pool_size.py
     - name: add-test-dev-to-billing-project-users
       script: /io/sql/add-test-dev-to-billing-project-users.sql
+    - name: add-status-flag-billing-projects
+      script: /io/sql/add-status-flag-billing-projects.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
