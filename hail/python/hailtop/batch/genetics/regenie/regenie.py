@@ -156,6 +156,7 @@ def read_step_args(path_or_str: str, step: int):
 
     bparser = ArgumentParser()
     bparser.add_argument('--threads', required=False, default=1)
+    bparser.add_argument('--memory', required=False, default='1Gi')
     bparser.add_argument('--storage', required=False, default='1Gi')
 
     batch_args = bparser.parse_known_args(t)[0]
@@ -223,6 +224,7 @@ def prepare_jobs(batch, step1_args: Namespace, step1_batch_args: Namespace, step
     j1 = batch.new_job(name='run-regenie-step1')
     j1.image(regenie_img)
     j1.cpu(step1_batch_args.threads)
+    j1.memory(step1_batch_args.memory)
     j1.storage(step1_batch_args.storage)
 
     phenos = get_phenos(step1_args)
@@ -243,6 +245,7 @@ def prepare_jobs(batch, step1_args: Namespace, step1_batch_args: Namespace, step
     j2 = batch.new_job(name='run-regenie-step2')
     j2.image(regenie_img)
     j2.cpu(step2_batch_args.threads)
+    j2.memory(step2_batch_args.memory)
     j2.storage(step2_batch_args.storage)
 
     s2out = {"log": "{root}.log"}

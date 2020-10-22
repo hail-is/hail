@@ -1,6 +1,6 @@
 import os
-
 import re
+import warnings
 from typing import Optional, Dict, Union, List, Any, Set
 
 from hailtop.utils import secret_alnum_string
@@ -84,6 +84,7 @@ class Batch:
                  attributes: Optional[Dict[str, str]] = None,
                  requester_pays_project: Optional[str] = None,
                  default_image: Optional[str] = None,
+                 default_memory: Optional[str] = None,
                  default_cpu: Optional[str] = None,
                  default_storage: Optional[str] = None,
                  default_timeout: Optional[Union[float, int]] = None,
@@ -105,7 +106,11 @@ class Batch:
         self.requester_pays_project = requester_pays_project
 
         self._default_image = default_image
-        self._default_memory = None
+
+        if default_memory is not None:
+            warnings.warn('setting the memory parameter has no effect', UserWarning)
+        self._default_memory = default_memory
+
         self._default_cpu = default_cpu
         self._default_storage = default_storage
         self._default_timeout = default_timeout

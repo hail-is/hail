@@ -461,6 +461,13 @@ class ServiceTests(unittest.TestCase):
         j.command(f'echo "hello" > {j.ofile}')
         assert b.run().status()['state'] == 'success'
 
+    def test_specify_memory(self):
+        b = self.batch()
+        j = b.new_job()
+        j.memory('100M')
+        j.command(f'echo "hello" > {j.ofile}')
+        assert b.run().status()['state'] == 'success'
+
     def test_scatter_gather(self):
         b = self.batch()
 

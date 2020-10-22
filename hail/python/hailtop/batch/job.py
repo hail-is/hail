@@ -1,4 +1,5 @@
 import re
+import warnings
 from typing import Union, Optional, Dict, List, Set, Tuple
 
 from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
@@ -350,8 +351,7 @@ class Job:
         per core requested. If you need additional storage, you can explicitly
         request more storage using this method. The minimum storage size request
         is 10 Gi and the maximum storage size is 64 Ti. Values must be in
-        increments of 1 Gi. To write files to the extra storage, you must
-        write files to /io.
+        increments of 1 Gi. The extra storage space is mounted at /io.
 
         Parameters
         ----------
@@ -366,6 +366,40 @@ class Job:
         self._storage = str(storage)
         return self
 
+    def memory(self, memory: Union[str, int]) -> 'Job':
+        """
+        Set the job's memory requirements.
+
+        Notes
+        -----
+
+        The memory expression must be of the form {number}{suffix}
+        where valid optional suffixes are *K*, *Ki*, *M*, *Mi*,
+        *G*, *Gi*, *T*, *Ti*, *P*, and *Pi*. Omitting a suffix means
+        the value is in bytes.
+
+        Warning
+        -------
+
+        This parameter no longer has an effect in the :class:`.ServiceBackend`.
+        Use the :meth:`.cpu` method to ensure your job gets enough memory at
+        3.75 Gi per core.
+
+        Parameters
+        ----------
+        memory:
+            Units are in bytes if `memory` is an :obj:`int`.
+
+        Returns
+        -------
+        Same job object with memory requirements set.
+        """
+
+        warnings.warn('setting the memory parameter has no effect', UserWarning)
+
+        self._memory = str(memory)
+        return self
+
     def cpu(self, cores: Union[str, int, float]) -> 'Job':
         """
         Set the job's CPU requirements.
@@ -376,6 +410,9 @@ class Job:
         The string expression must be of the form {number}{suffix}
         where the optional suffix is *m* representing millicpu.
         Omitting a suffix means the value is in cpu.
+
+        For the :class:`.ServiceBackend`, `cores` must be a power of
+        two between 0.25 and 16.
 
         Examples
         --------
