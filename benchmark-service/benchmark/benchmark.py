@@ -18,7 +18,7 @@ from scipy.stats.mstats import gmean, hmean
 import numpy as np
 import pandas as pd
 import gidgethub.aiohttp
-from benchmark.github import query_github  #, submit_batch
+#from benchmark.github import query_github  #, submit_batch
 from benchmark.utils import submit_batch
 from hailtop.utils import retry_long_running
 import asyncio
@@ -26,6 +26,7 @@ import gidgethub
 import gidgethub.aiohttp
 import aiohttp
 import hailtop.batch_client.aioclient as bc
+from .benchmark_configuration import BENCHMARK_BUCKET_NAME
 
 router = web.RouteTableDef()
 deploy_config = get_deploy_config()
@@ -242,12 +243,35 @@ async def batch_status(request, userdata):  # pylint: disable=unused-argument
     return web.json_response({'batch_status': batch_status})
 
 
-async def github_polling_loop(app):
+async def get_updated_commits(app):
     github_client = app['github_client']
     batch_client = app['batch_client']
     gs_reader = app['gs_reader']
+
+    request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
+    data = await github_client.getitem(request_string)
+    new_commits = []
+    for commit in data:
+        sha = commit.get('sha')
+        bc = await batch_client
+        batches = [b async for b in bc.list_batches(q=f'sha={sha} running')]
+
+        file_path = f'gs://{BENCHMARK_BUCKET_NAME}/benchmark-test/{sha}'
+        has_results_file = gs_reader.file_exists(file_path)
+
+        if not batches and not has_results_file:
+            new_commits.append(commit)
+
+    log.info('got new commits')
+    for commit in new_commits:
+        await submit_batch(commit, batch_client)
+        sha = commit.get('sha')
+        log.info(f'submitted a batch for commit {sha}')
+
+
+async def github_polling_loop(app):
     while True:
-        await query_github(github_client, batch_client, gs_reader)
+        await get_updated_commits(app)
         log.info('successfully queried github')
         await asyncio.sleep(600)
 
