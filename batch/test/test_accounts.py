@@ -11,7 +11,7 @@ pytestmark = pytest.mark.asyncio
 @pytest.fixture
 async def make_client():
     _bcs = []
-    def factory(project=None):
+    async def factory(project=None):
         bc = await BatchClient(project, _token_file=os.environ['HAIL_TEST_TOKEN_FILE'])
         _bcs.append(bc)
         return bc
@@ -89,7 +89,7 @@ async def test_list_billing_projects(make_client):
 
 async def test_unauthorized_billing_project_modification(make_client, new_billing_project):
     project = new_billing_project
-    client = make_client()
+    client = await make_client()
     try:
         await client.create_billing_project(project)
     except aiohttp.ClientResponseError as e:
@@ -151,7 +151,7 @@ async def test_close_reopen_billing_project(dev_client, new_billing_project):
 async def test_close_billing_project_with_open_batch_errors(dev_client, make_client, new_billing_project):
     project = new_billing_project
     await dev_client.add_user("test", project)
-    client = make_client(project)
+    client = await make_client(project)
     b = client.create_batch()._create()
 
     try:

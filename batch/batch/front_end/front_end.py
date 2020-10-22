@@ -107,6 +107,7 @@ async def _handle_ui_error(session, f, *args, **kwargs):
     else:
         return False
 
+
 async def _handle_api_error(f, *args, **kwargs):
     try:
         await f(*args, **kwargs)
@@ -1690,7 +1691,7 @@ async def _delete_billing_project(db, billing_project):
     async def delete_project(tx):
         row = await tx.execute_and_fetchone(
             'SELECT name, `status` FROM billing_projects WHERE name = %s FOR UPDATE;',
-                (billing_project,))
+            (billing_project,))
         if not row:
             raise NonExistentBillingProjectError(billing_project)
         assert row['name'] == billing_project
