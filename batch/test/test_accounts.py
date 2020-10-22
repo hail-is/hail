@@ -31,10 +31,11 @@ async def dev_client():
 @pytest.fixture(scope='module')
 def get_billing_project_name():
     prefix = f'__testproject_{secrets.token_urlsafe(15)}'
-    count = 0
+    projects = []
     def get_name():
-        count += 1
-        return f'{prefix}_{count}'
+        name = f'{prefix}_{len(projects)}'
+        projects.append(name)
+        return name
     return get_name
 
 
