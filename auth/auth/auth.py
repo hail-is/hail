@@ -1,4 +1,5 @@
 import logging
+import asyncio
 import aiohttp
 from aiohttp import web
 import aiohttp_session
@@ -7,7 +8,6 @@ import google.auth.transport.requests
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
 from hailtop.config import get_deploy_config
-from hailtop.utils import secret_alnum_string
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger
 from gear import (
@@ -20,6 +20,7 @@ from web_common import (
     setup_aiohttp_jinja2, setup_common_static_routes, set_message,
     render_template
 )
+from hailtop.utils import secret_alnum_string
 
 log = logging.getLogger('auth')
 
@@ -42,6 +43,28 @@ def get_flow(redirect_uri, state=None):
     return flow
 
 
+async def user_from_email(db, email):
+    users = [x async for x in db.select_and_fetchall(
+        "SELECT * FROM users WHERE email = %s;", email)]
+    if len(users) == 1:
+        return users[0]
+    assert len(users) == 0, len(users)
+    return None
+
+
+def cleanup_session(session):
+    def _delete(key):
+        if key in session:
+            del session[key]
+
+    _delete('pending')
+    _delete('email')
+    _delete('state')
+    _delete('next')
+    _delete('caller')
+    _delete('session_id')
+
+
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
@@ -53,12 +76,43 @@ async def get_index(request):  # pylint: disable=unused-argument
     return aiohttp.web.HTTPFound(deploy_config.external_url('auth', '/login'))
 
 
-@routes.get('/login')
+@routes.get('/signup')
 @web_maybe_authenticated_user
-async def login(request, userdata):
+async def signup(request, userdata):
+    db = request.app['db']
+
     next = request.query.get('next', deploy_config.external_url('notebook', ''))
-    if userdata:
-        return aiohttp.web.HTTPFound(next)
+
+    session = await aiohttp_session.get_session(request)
+
+    if 'pending' in session:
+        email = session['email']
+        user = await user_from_email(db, email)
+
+        if user is None:
+            cleanup_session(session)
+            return aiohttp.web.HTTPFound(next)
+
+        if user['state'] == 'deleting' or user['state'] == 'deleted':
+            cleanup_session(session)
+            set_message(session, f'Account for {user["username"]} is deleted.', 'error')
+            return aiohttp.web.HTTPFound(next)
+
+        if user['state'] == 'active':
+            session_id = await create_session(db, user['id'])
+            cleanup_session(session)
+            session['session_id'] = session_id
+            return aiohttp.web.HTTPFound(next)
+
+        assert user['state'] == 'creating'
+
+        page_context = {
+            'username': user['username'],
+            'state': user['state'],
+            'email': user['email']
+        }
+
+        return await render_template('auth', request, userdata, 'signup.html', page_context)
 
     flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
@@ -69,6 +123,116 @@ async def login(request, userdata):
     session = await aiohttp_session.new_session(request)
     session['state'] = state
     session['next'] = next
+    session['caller'] = 'signup'
+
+    return aiohttp.web.HTTPFound(authorization_url)
+
+
+async def _wait_websocket(request, email):
+    app = request.app
+    db = app['db']
+
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+
+    user = await user_from_email(db, email)
+    if not user:
+        return web.HTTPNotFound()
+
+    # forward authorization
+    headers = {}
+    if 'Authorization' in request.headers:
+        headers['Authorization'] = request.headers['Authorization']
+    if 'X-Hail-Internal-Authorization' in request.headers:
+        headers['X-Hail-Internal-Authorization'] = request.headers['X-Hail-Internal-Authorization']
+
+    cookies = {}
+    if 'session' in request.cookies:
+        cookies['session'] = request.cookies['session']
+    if 'sesh' in request.cookies:
+        cookies['sesh'] = request.cookies['sesh']
+
+    count = 0
+    while count < 10:
+        try:
+            updated_user = await user_from_email(db, email)
+            changed = user['state'] != updated_user['state']
+            if changed:
+                log.info(f"user {user['username']} status changed: {user['state']} => {updated_user['state']}")
+                break
+        except Exception:  # pylint: disable=broad-except
+            log.exception(f"/signup/wait: error while updating status for user {user['username']}")
+        await asyncio.sleep(1)
+        count += 1
+
+    ready = updated_user and updated_user['state'] == 'active'
+
+    # 0/1 ready
+    await ws.send_str(str(int(ready)))
+
+    return ws
+
+
+@routes.get('/signup/wait')
+@web_maybe_authenticated_user
+async def account_pending(request, userdata):
+    session = await aiohttp_session.get_session(request)
+    if 'pending' not in session:
+        raise web.HTTPUnauthorized()
+    return await _wait_websocket(request, session['email'])
+
+
+@routes.get('/login')
+@web_maybe_authenticated_user
+async def login(request, userdata):
+    db = request.app['db']
+
+    next = request.query.get('next', deploy_config.external_url('notebook', ''))
+    session = await aiohttp_session.get_session(request)
+
+    if userdata:
+        return aiohttp.web.HTTPFound(next)
+
+    if 'pending' in session:
+        email = session['email']
+        user = await user_from_email(db, email)
+
+        if user is None:
+            cleanup_session(session)
+            return aiohttp.web.HTTPFound(next)
+
+        if user['state'] == 'deleting' or user['state'] == 'deleted':
+            cleanup_session(session)
+            set_message(session, f'Account for user {user["username"]} is deleted.', 'error')
+            return aiohttp.web.HTTPFound(next)
+
+        if user['state'] == 'active':
+            session_id = await create_session(db, user['id'])
+            cleanup_session(session)
+            session['session_id'] = session_id
+            return aiohttp.web.HTTPFound(next)
+
+        assert user['state'] == 'creating'
+
+        page_context = {
+            'username': user['username'],
+            'email': email,
+            'state': user['state']
+        }
+
+        set_message(session, f'Account for user {user["username"]} is not active', 'error')
+        return await render_template('auth', request, userdata, 'signup.html', page_context)
+
+    flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'))
+
+    authorization_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true')
+
+    session = await aiohttp_session.new_session(request)
+    session['state'] = state
+    session['next'] = next
+    session['caller'] = 'login'
 
     return aiohttp.web.HTTPFound(authorization_url)
 
@@ -92,18 +256,49 @@ async def callback(request):
         raise web.HTTPUnauthorized() from e
 
     db = request.app['db']
-    users = [x async for x in
-             db.select_and_fetchall(
-                 "SELECT * FROM users WHERE email = %s AND state = 'active';", email)]
 
-    if len(users) != 1:
-        raise web.HTTPUnauthorized()
-    user = users[0]
+    user = await user_from_email(db, email)
 
-    session_id = await create_session(db, user['id'])
+    caller = session['caller']
+
+    if caller == 'login':
+        if user is None:
+            set_message(session, f'Account does not exist for email {email}', 'error')
+        elif user['state'] != 'active':
+            set_message(session, f'Account for email {email} is not active', 'error')
+        else:
+            session_id = await create_session(db, user['id'])
+            session['session_id'] = session_id
+
+        del session['state']
+        next = session.pop('next')
+        return aiohttp.web.HTTPFound(next)
+
+    assert caller == 'signup'
+
+    if user is None:
+        # FIXME: come up with user naming scheme once we allow non-Broad users to self-signup
+        username, domain = email.split('@')
+
+        # FIXME: remove personal email address
+        if domain == 'broadinstitute.org' or email == 'jackie.i.goldstein@gmail.com':
+            await db.execute_insertone(
+                '''
+            INSERT INTO users (state, username, email, is_developer)
+            VALUES (%s, %s, %s, %s);
+            ''',
+                ('creating', username, email, False))
+
+            session['pending'] = True
+            session['email'] = email
+
+            return aiohttp.web.HTTPFound(deploy_config.external_url('auth', '/signup'))
+        else:
+            raise web.HTTPUnauthorized()
+
+    set_message(session, f'Account already exists for {email}', 'error')
 
     del session['state']
-    session['session_id'] = session_id
     next = session.pop('next')
     return aiohttp.web.HTTPFound(next)
 
@@ -208,7 +403,7 @@ VALUES (%s, %s, %s, %s);
 ''',
         ('creating', username, email, is_developer))
 
-    set_message(session, f'Created user {user_id} {username}.', 'info')
+    set_message(session, f'Created user {user_id} {username} {email}.', 'info')
 
     return web.HTTPFound(deploy_config.external_url('auth', '/users'))
 

@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD COLUMN `trial_bp_name` VARCHAR(100) DEFAULT NULL;
