@@ -9,7 +9,7 @@ CPU_REGEXPAT: str = r'[+]?((?:[0-9]*[.])?[0-9]+)([m])?'
 CPU_REGEX: Pattern = re.compile(CPU_REGEXPAT)
 
 STORAGE_REGEXPAT: str = r'[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?'
-STORAGE_REGEX: Pattern = re.compile(MEMORY_REGEXPAT)
+STORAGE_REGEX: Pattern = re.compile(STORAGE_REGEXPAT)
 
 IMAGE_REGEX: Pattern = re.compile(r"(?:.+/)?([^:]+)(:(.+))?")
 

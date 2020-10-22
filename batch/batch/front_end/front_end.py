@@ -647,7 +647,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if storage_gb is None or not (storage_gb == 0 or 10 <= storage_gb <= MAX_WORKER_STORAGE_GB):
                     raise web.HTTPBadRequest(
                         reason=f'bad resource request for job {id}: '
-                        f'storage must be at least 10Gi and no more than 64Ti. Found {resources["storage"]}'
+                        f'storage must be zero or at least 10Gi and no more than 64Ti. Found {resources["storage"]}'
                     )
 
                 resources['memory'] = str(memory_bytes)

@@ -156,7 +156,6 @@ def read_step_args(path_or_str: str, step: int):
 
     bparser = ArgumentParser()
     bparser.add_argument('--threads', required=False, default=1)
-    bparser.add_argument('--memory', required=False, default='1Gi')
     bparser.add_argument('--storage', required=False, default='1Gi')
 
     batch_args = bparser.parse_known_args(t)[0]

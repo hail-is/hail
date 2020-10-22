@@ -51,7 +51,7 @@ ENV_VAR_KEYS = {'name', 'value'}
 
 SECRET_KEYS = {'namespace', 'name', 'mount_path'}
 
-RESOURCES_KEYS = {'cpu', 'memory', 'storage'}
+RESOURCES_KEYS = {'memory', 'cpu', 'storage'}
 
 FILE_KEYS = {'from', 'to'}
 
@@ -274,19 +274,19 @@ def validate_job(i, job):
             if k not in RESOURCES_KEYS:
                 raise ValidationError(f'unknown key in jobs[{i}].resources: {k}')
 
-        if 'cpu' in resources:
-            cpu = resources['cpu']
-            if not isinstance(cpu, str):
-                raise ValidationError(f'jobs[{i}].resources.cpu is not str')
-            if not CPU_REGEX.fullmatch(cpu):
-                raise ValidationError(f'jobs[{i}].resources.cpu must match regex: {CPU_REGEXPAT}')
-
         if 'memory' in resources:
             memory = resources['memory']
             if not isinstance(memory, str):
                 raise ValidationError(f'jobs[{i}].resources.memory is not str')
             if not MEMORY_REGEX.fullmatch(memory):
                 raise ValidationError(f'jobs[{i}].resources.memory must match regex: {MEMORY_REGEXPAT}')
+
+        if 'cpu' in resources:
+            cpu = resources['cpu']
+            if not isinstance(cpu, str):
+                raise ValidationError(f'jobs[{i}].resources.cpu is not str')
+            if not CPU_REGEX.fullmatch(cpu):
+                raise ValidationError(f'jobs[{i}].resources.cpu must match regex: {CPU_REGEXPAT}')
 
         if 'storage' in resources:
             storage = resources['storage']

@@ -8,17 +8,17 @@ log = logging.getLogger('disk')
 
 class Disk:
     def __init__(self, compute_client, name, zone, project, instance_name, size_in_gb, mount_path):
+        assert size_in_gb >= 10
+
+        self.compute_client = compute_client
+        self.name = name
         self.zone = zone
         self.project = project
-        self.name = name
         self.instance_name = instance_name
-        self.compute_client = compute_client
-
-        assert size_in_gb >= 10
         self.size_in_gb = size_in_gb
+        self.mount_path = mount_path
 
         self.disk_path = f'/dev/disk/by-id/google-{self.name}'
-        self.mount_path = mount_path  # f'/disks/{self.name}'
 
     async def __aenter__(self):
         await self.create()

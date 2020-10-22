@@ -24,14 +24,10 @@ from hailtop.utils import (time_msecs, request_retry_transient_errors,
                            retry_long_running, run_if_changed)
 from hailtop.tls import get_context_specific_ssl_client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
-<<<<<<< HEAD
-                                        parse_memory_in_bytes)
-from hailtop import aiotools
-=======
                                         parse_storage_in_gb, parse_memory_in_bytes)
+from hailtop import aiotools
 import hailtop.aiogoogle as aiogoogle
 
->>>>>>> [batch] Flexible storage configuration
 # import uvloop
 
 from hailtop.config import DeployConfig
@@ -41,7 +37,7 @@ from ..semaphore import FIFOWeightedSemaphore, FIFOWeightedSemaphoreFull
 from ..log_store import LogStore
 from ..globals import HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION, RESERVED_STORAGE_GB_PER_CORE
 from ..batch_format_version import BatchFormatVersion
-from ..worker_config import WorkerConfig
+from ..worker_config import WorkerConfig, MAX_WORKER_STORAGE_GB
 
 from .flock import Flock
 from .disk import Disk
@@ -650,9 +646,9 @@ class Job:
         self.memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
 
         self.requested_storage_in_gb = parse_storage_in_gb(job_spec['resources']['storage'])
-        assert self.requested_storage_in_gb == 0 or self.requested_storage_in_gb >= 10
+        assert self.requested_storage_in_gb == 0 or (10 <= self.requested_storage_in_gb <= MAX_WORKER_STORAGE_GB)
 
-        self.reserved_storage_in_gb = self.cpu_in_mcpu // 1000 * RESERVED_STORAGE_GB_PER_CORE
+        self.reserved_storage_in_gb = self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE
         self.unreserved_storage_in_gb = max(0, self.requested_storage_in_gb - self.reserved_storage_in_gb)
 
         log.info(f'req_storage_in_gb {self.requested_storage_in_gb} reserved_storage_in_gb {self.reserved_storage_in_gb} unreserved_storage_in_gb {self.unreserved_storage_in_gb}')
@@ -753,7 +749,7 @@ class Job:
 
     async def setup_io(self):
         try:
-            await worker.storage_sem.acquire(self.unreserved_storage_in_gb, nowait=True)
+            worker.storage_sem.acquire_nowait(self.unreserved_storage_in_gb)
         except FIFOWeightedSemaphoreFull:
             self.disk = Disk(zone=ZONE,
                              project=PROJECT,

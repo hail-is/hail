@@ -122,7 +122,7 @@ machines with 10 GB of persistent SSD boot disk and 375 GB of local SSD. The cos
 - Service cost
    = $0.01 per core per hour
 
-The sum of these costs is **$0.021935** per core per hour plus **$0.00023 per GB storage**.
+The sum of these costs is **$0.021935** per core per hour plus **$0.00023** per GB per hour storage.
 
 At any given moment as many as four cores of the cluster may come from a 4 core machine. If a job is
 scheduled on this machine, then the cost per core hour is **$0.02774**.
@@ -130,7 +130,7 @@ scheduled on this machine, then the cost per core hour is **$0.02774**.
 
 .. note::
 
-    Each 1 core requested gets 3.75 GB of memory.
+    Each core requested gets 3.75 GB of memory.
 
 .. note::
 
