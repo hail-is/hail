@@ -225,22 +225,44 @@ async def submit(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     batch_client = app['batch_client']
     body = await request.json()
-    commit = body['commit']
-    batch_id = await submit_batch(commit, batch_client)
-    log.info(f'submitted benchmark batch {batch_id} for commit {commit}')
+    # commit = body['commit']
+    sha = body['sha']
+    batch_id = await submit_batch(sha, batch_client)
+    # log.info(f'submitted benchmark batch {batch_id} for commit {sha}')
+    # return web.HTTPFound(
+    #     deploy_config.external_url('benchmark', f'/api/v1alpha/benchmark/batches/{batch_id}'))
+    log.info(f'submitted benchmark batch for commit {sha}')
     return web.HTTPFound(
-        deploy_config.external_url('benchmark', f'/api/v1alpha/benchmark/batches/{batch_id}'))
+        deploy_config.external_url('benchmark', f'/api/v1alpha/benchmark/batches/sha'))
 
 
-@router.get('/api/v1alpha/benchmark/batches/{batch_id}')
+@router.get('/api/v1alpha/benchmark/batches/{sha}')
 @web_authenticated_developers_only(redirect=False)
 async def batch_status(request, userdata):  # pylint: disable=unused-argument
+    # take the sha to look up and then query for batches that match that sha.
+    # Then return the status for the last batch that matches the sha (I think that's the correct ordering)
+    # or returns None if it doesn't exist.
     app = request.app
     batch_client = app['batch_client']
-    batch_id = request.match_info['batch_id']
-    batch = await batch_client.get_batch(batch_id)
-    batch_status = await batch.status()
+    sha = request.match_info['sha']
+    bc = await batch_client
+    batches = [b async for b in bc.list_batches(q=f'sha={sha} running')]
+    try:
+        batch = batches[-1]
+        batch_status = await batch.status()
+    except Exception:
+        batch_status = None
     return web.json_response({'batch_status': batch_status})
+
+# @router.get('/api/v1alpha/benchmark/batches/{batch_id}')
+# @web_authenticated_developers_only(redirect=False)
+# async def batch_status(request, userdata):  # pylint: disable=unused-argument
+#     app = request.app
+#     batch_client = app['batch_client']
+#     batch_id = request.match_info['batch_id']
+#     batch = await batch_client.get_batch(batch_id)
+#     batch_status = await batch.status()
+#     return web.json_response({'batch_status': batch_status})
 
 
 async def get_updated_commits(app):

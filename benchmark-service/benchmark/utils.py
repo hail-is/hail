@@ -48,8 +48,8 @@ def list_benchmark_files(read_gs):
     return list_of_files
 
 
-async def submit_batch(commit, batch_client, bucket_name):
-    sha = commit.get('sha')
+async def submit_batch(sha, batch_client, bucket_name):
+    #sha = commit.get('sha')
     batch = batch_client.create_batch()
     job = batch.create_job(image='ubuntu:18.04',
                            command=['/bin/bash', '-c', 'touch /io/test; sleep 300'],
