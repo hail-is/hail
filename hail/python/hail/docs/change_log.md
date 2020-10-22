@@ -22,6 +22,20 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.59
+
+Released 2020-10-22
+
+### Datasets / Annotation DB
+
+- (hail#9605) The Datasets API and the Annotation Database now support AWS, and users are required to specify what cloud platform they're using.
+
+### hailctl dataproc
+
+- (hail#9609) Fixed bug where `hailctl dataproc modify` did not correctly print corresponding `gcloud` command.
+
+---
+
 ## Version 0.2.58
 
 Released 2020-10-08
