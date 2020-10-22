@@ -12,7 +12,7 @@ pytestmark = pytest.mark.asyncio
 async def make_client():
     _bcs = []
     async def factory(project=None):
-        bc = await BatchClient(project, _token_file=os.environ['HAIL_TEST_TOKEN_FILE'])
+        bc = await BatchClient(project, token_file=os.environ['HAIL_TEST_TOKEN_FILE'])
         _bcs.append(bc)
         return bc
 
@@ -23,7 +23,7 @@ async def make_client():
 
 @pytest.fixture
 async def dev_client():
-    bc = await BatchClient(None, _token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE'])
+    bc = await BatchClient(None, token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE'])
     yield bc
     await bc.close()
 
