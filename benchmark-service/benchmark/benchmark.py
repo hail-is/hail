@@ -218,19 +218,21 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
 
 
 @router.post('/api/v1alpha/benchmark/create_benchmark')
-async def submit(request):  # pylint: disable=unused-argument
+@web_authenticated_developers_only(redirect=False)
+async def submit(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     batch_client = app['batch_client']
     body = await request.json()
     commit = body['commit']
-    print(commit)
     batch_id = await submit_batch(commit, batch_client)
+    log.info(f'submitted benchmark batch {batch_id} for commit {commit}')
     return web.HTTPFound(
         deploy_config.external_url('benchmark', f'/api/v1alpha/benchmark/batches/{batch_id}'))
 
 
 @router.get('/api/v1alpha/benchmark/batches/{batch_id}')
-async def batch_status(request):  # pylint: disable=unused-argument
+@web_authenticated_developers_only(redirect=False)
+async def batch_status(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     batch_client = app['batch_client']
     batch_id = request.match_info['batch_id']
@@ -242,9 +244,10 @@ async def batch_status(request):  # pylint: disable=unused-argument
 async def github_polling_loop(app):
     github_client = app['github_client']
     batch_client = app['batch_client']
+    gs_reader = app['gs_reader']
     while True:
-        await query_github(github_client, batch_client)
-        log.info(f'successfully queried github')
+        await query_github(github_client, batch_client, gs_reader)
+        log.info('successfully queried github')
         await asyncio.sleep(600)
 
 
@@ -255,7 +258,7 @@ async def on_startup(app):
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
                                                        'hail-is/hail',
                                                        oauth_token=oauth_token)
-    app['batch_client'] = await bc.BatchClient(billing_project='test')
+    app['batch_client'] = bc.BatchClient(billing_project='test')
     asyncio.ensure_future(retry_long_running('github_polling_loop', github_polling_loop, app))
 
 

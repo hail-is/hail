@@ -112,7 +112,6 @@ commit = {
 
 
 async def test_submit():
-    print("hello")
     deploy_config = get_deploy_config()
     headers = service_auth_headers(deploy_config, 'benchmark')
     create_benchmark_url = deploy_config.url('benchmark', '/api/v1alpha/benchmark/create_benchmark')
@@ -121,9 +120,7 @@ async def test_submit():
             timeout=aiohttp.ClientTimeout(total=60)) as session:
         resp = await utils.request_retry_transient_errors(
                 session, 'POST', f'{create_benchmark_url}', headers=headers, json={'commit': commit})
-        # return resp
 
-        # batch_id = await resp.json()
         resp_text = await resp.text()
         batch_info = json.loads(resp_text)
         batch_id = batch_info['batch_status']['id']
@@ -145,5 +142,3 @@ async def test_submit():
 
         batch_status = await asyncio.wait_for(wait_forever(), timeout=30 * 60)
         assert batch_status['batch_status']['n_succeeded'] > 0
-        # assert batch_status == 'success'
-        print(f'{batch_status}')

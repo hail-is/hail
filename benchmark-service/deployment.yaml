@@ -34,6 +34,17 @@ spec:
             value: "{{ code.sha }}"
           - name: HAIL_CI_OAUTH_TOKEN
             value: /secrets/oauth-token/oauth-token
+{% if deploy %}
+          - name: HAIL_BENCHMARK_BUCKET_NAME
+            value: hail-benchmarks
+          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
+            value: "7200" # 2 hours
+{% else %}
+          - name: HAIL_BENCHMARK_BUCKET_NAME
+            value: hail-benchmarks-test
+          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
+            value: "300"
+{% endif %}
           ports:
             - containerPort: 5000
           resources:

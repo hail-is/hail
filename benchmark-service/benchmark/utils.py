@@ -1,9 +1,12 @@
 from google.cloud import storage
 import re
+import logging
 
 BENCHMARK_BUCKETS = ['hail-benchmarks', 'hail-benchmarks-2']
 
 FILE_PATH_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)(?P<path>.*)')
+
+log = logging.getLogger('benchmark')
 
 
 def get_geometric_mean(prod_of_means, num_of_means):
@@ -45,6 +48,17 @@ def list_benchmark_files(read_gs):
     return list_of_files
 
 
+async def submit_batch(commit, batch_client, bucket_name):
+    sha = commit.get('sha')
+    batch = batch_client.create_batch()
+    job = batch.create_job(image='ubuntu:18.04',
+                           command=['/bin/bash', '-c', 'touch /io/test; sleep 300'],
+                           output_files=[('/io/test', f'gs://{bucket_name}/benchmark-test/{sha}')])
+    await batch.submit(disable_progress_bar=True)
+    log.info(f'submitting batch for commit {sha}')
+    return job.batch_id
+
+
 class ReadGoogleStorage:
     def __init__(self, service_account_key_file=None):
         self.storage_client = storage.Client.from_service_account_json(service_account_key_file)
@@ -68,3 +82,10 @@ class ReadGoogleStorage:
         for blob in bucket.list_blobs():
             list_of_files.append('gs://' + bucket_name + '/' + blob.name)
         return list_of_files
+
+    def file_exists(self, file_path):
+        file_info = parse_file_path(FILE_PATH_REGEX, file_path)
+        bucket_name = file_info['bucket']
+        bucket = self.storage_client.bucket(bucket_name)
+        stats = storage.Blob(bucket=bucket, name=file_path).exists(self.storage_client)
+        return stats

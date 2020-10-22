@@ -1,0 +1,3 @@
+import os
+
+BENCHMARK_BUCKET_NAME = os.environ['HAIL_BENCHMARK_BUCKET_NAME']
