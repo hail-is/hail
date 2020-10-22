@@ -49,8 +49,6 @@ async def new_billing_project(dev_client, get_billing_project_name):
     except aiohttp.ClientResponseError as e:
         assert e.status == 404, e
     else:
-        for user in r['users']:
-            await dev_client.remove_user(user, project)
         if r['status'] == 'open':
             await dev_client.close_billing_project(project)
         if r['status'] != 'deleted':
@@ -97,26 +95,36 @@ async def test_unauthorized_billing_project_modification(make_client, new_billin
         await client.create_billing_project(project)
     except aiohttp.ClientResponseError as e:
         assert e.status == 401, e
+    else:
+        assert False, 'expected error'
 
     try:
         await client.add_user('test', project)
     except aiohttp.ClientResponseError as e:
         assert e.status == 401, e
+    else:
+        assert False, 'expected error'
 
     try:
         await client.remove_user('test', project)
     except aiohttp.ClientResponseError as e:
         assert e.status == 401, e
+    else:
+        assert False, 'expected error'
 
     try:
         await client.close_billing_project(project)
     except aiohttp.ClientResponseError as e:
         assert e.status == 401, e
+    else:
+        assert False, 'expected error'
 
     try:
         await client.reopen_billing_project(project)
     except aiohttp.ClientResponseError as e:
         assert e.status == 401, e
+    else:
+        assert False, 'expected error'
 
 
 async def test_create_billing_project(dev_client, new_billing_project):
@@ -128,6 +136,8 @@ async def test_create_billing_project(dev_client, new_billing_project):
         await dev_client.create_billing_project(project)
     except aiohttp.ClientResponseError as e:
         assert e.status == 403, e
+    else:
+        assert False, 'expected error'
 
 
 async def test_close_reopen_billing_project(dev_client, new_billing_project):
@@ -149,6 +159,8 @@ async def test_close_reopen_billing_project(dev_client, new_billing_project):
         await dev_client.reopen_billing_project(project)
     except aiohttp.ClientResponseError as e:
         assert e.status == 403, e
+    else:
+        assert False, 'expected error'
 
 
 async def test_close_billing_project_with_open_batch_errors(dev_client, make_client, new_billing_project):
@@ -161,6 +173,8 @@ async def test_close_billing_project_with_open_batch_errors(dev_client, make_cli
         await dev_client.close_billing_project(project)
     except aiohttp.ClientResponseError as e:
         assert e.status == 403, e
+    else:
+        assert False, 'expected error'
     await client._patch(f'/api/v1alpha/batches/{b.id}/close')
 
 
@@ -169,6 +183,8 @@ async def test_close_nonexistent_billing_project(dev_client):
         await dev_client.close_billing_project("nonexistent_project")
     except aiohttp.ClientResponseError as e:
         assert e.status == 404, e
+    else:
+        assert False, 'expected error'
 
 
 async def test_add_user_with_nonexistent_billing_project(dev_client):
@@ -176,6 +192,8 @@ async def test_add_user_with_nonexistent_billing_project(dev_client):
         await dev_client.add_user("test", "nonexistent_project")
     except aiohttp.ClientResponseError as e:
         assert e.status == 404, e
+    else:
+        assert False, 'expected error'
 
 
 async def test_remove_user_with_nonexistent_billing_project(dev_client):
@@ -183,6 +201,8 @@ async def test_remove_user_with_nonexistent_billing_project(dev_client):
         await dev_client.remove_user("test", "nonexistent_project")
     except aiohttp.ClientResponseError as e:
         assert e.status == 404, e
+    else:
+        assert False, 'expected error'
 
 
 async def test_delete_billing_project_only_when_closed(dev_client, new_billing_project):
@@ -191,6 +211,8 @@ async def test_delete_billing_project_only_when_closed(dev_client, new_billing_p
         await dev_client.delete_billing_project(project)
     except aiohttp.ClientResponseError as e:
         assert e.status == 403, e
+    else:
+        assert False, 'expected error'
 
     await dev_client.close_billing_project(project)
     await dev_client.delete_billing_project(project)
@@ -199,11 +221,15 @@ async def test_delete_billing_project_only_when_closed(dev_client, new_billing_p
         await dev_client.get_billing_project(project)
     except aiohttp.ClientResponseError as e:
         assert e.status == 404, e
+    else:
+        assert False, 'expected error'
 
     try:
         await dev_client.reopen_billing_project(project)
     except aiohttp.ClientResponseError as e:
         assert e.status == 403, e
+    else:
+        assert False, 'expected error'
 
 
 async def test_add_and_delete_user(dev_client, new_billing_project):
@@ -219,6 +245,8 @@ async def test_add_and_delete_user(dev_client, new_billing_project):
         await dev_client.add_user('test', project)
     except aiohttp.ClientResponseError as e:
         assert e.status == 403, e
+    else:
+        assert False, 'expected error'
 
     r = await dev_client.remove_user('test', project)
     assert r['user']  == 'test'
@@ -230,4 +258,6 @@ async def test_add_and_delete_user(dev_client, new_billing_project):
     try:
         await dev_client.remove_user('test', project)
     except aiohttp.ClientResponseError as e:
-        assert e.status == 403, e
+        assert e.status == 404, e
+    else:
+        assert False, 'expected error'
