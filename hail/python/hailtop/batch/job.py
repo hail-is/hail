@@ -395,8 +395,8 @@ class Job:
         Same job object with memory requirements set.
         """
 
-        warnings.warn('Setting the memory has no effect. '
-                      'Use the cpu method to ensure your job has enough memory.', UserWarning)
+        warnings.warn('We ignore this method now. '
+                      'If you need more memory select a concomitant core count.', UserWarning)
 
         self._memory = str(memory)
         return self
