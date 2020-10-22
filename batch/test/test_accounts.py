@@ -213,7 +213,7 @@ async def test_add_and_delete_user(dev_client, new_billing_project):
     assert r['billing_project']  == project
 
     bp = await dev_client.get_billing_project(project)
-    assert r['user'] in bp['users']
+    assert r['user'] in bp['users'], bp
 
     try:
         await dev_client.add_user('test', project)

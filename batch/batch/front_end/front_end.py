@@ -1505,7 +1505,7 @@ INSERT INTO billing_project_users(billing_project, user)
 VALUES (%s, %s);
         ''',
             (billing_project, user))
-        await insert()  # pylint: disable=no-value-for-parameter
+    await insert()  # pylint: disable=no-value-for-parameter
 
 
 @routes.post('/billing_projects/{billing_project}/users/add')
