@@ -22,3 +22,7 @@ __all__ = ['Batch',
            ]
 
 nest_asyncio.apply()
+
+import warnings
+warnings.filterwarnings('once', append=True)
+del warnings
