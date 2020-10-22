@@ -24,12 +24,11 @@ async def get_new_commits(github_client, batch_client, gs_reader):
     request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
 
     data = await github_client.getitem(request_string)
-    #list_of_shas = []
     new_commits = []
     for commit in data:
         sha = commit.get('sha')
-        #list_of_shas.append(sha)
-        batches = [b async for b in await batch_client.list_batches(q=f'sha={sha} running')]
+        bc = await batch_client()
+        batches = [b async for b in bc.list_batches(q=f'sha={sha} running')]
 
         # def has_results_file():
         #     name = f'gs://{bucket_name}/benchmark-test/{sha}'
