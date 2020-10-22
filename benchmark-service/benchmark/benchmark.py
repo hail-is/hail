@@ -251,9 +251,9 @@ async def get_updated_commits(app):
     request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
     data = await github_client.getitem(request_string)
     new_commits = []
+    bc = await batch_client
     for commit in data:
         sha = commit.get('sha')
-        bc = await batch_client
         batches = [b async for b in bc.list_batches(q=f'sha={sha} running')]
 
         file_path = f'gs://{BENCHMARK_BUCKET_NAME}/benchmark-test/{sha}'
@@ -273,7 +273,7 @@ async def github_polling_loop(app):
     while True:
         await get_updated_commits(app)
         log.info('successfully queried github')
-        await asyncio.sleep(600)
+        await asyncio.sleep(180)
 
 
 async def on_startup(app):
