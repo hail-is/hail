@@ -33,8 +33,8 @@ class ClosedBillingProjectError(BatchUserError):
 
 
 class InvalidBillingLimitError(BatchUserError):
-    def __init__(self, billing_project, billing_limit):
-        super().__init__(f'Invalid billing_limit {billing_limit} for billing project {billing_project}.', 'error')
+    def __init__(self, billing_limit):
+        super().__init__(f'Invalid billing_limit {billing_limit}.', 'error')
 
     def http_response(self):
         return web.HTTPBadRequest(reason=self.message)

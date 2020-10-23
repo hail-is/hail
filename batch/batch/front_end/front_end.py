@@ -1242,7 +1242,7 @@ async def ui_get_billing_limits(request, userdata):
     return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
 
 
-def _parse_billing_limit(billing_project, limit):
+def _parse_billing_limit(limit):
     if limit == 'None' or limit is None:
         limit = None
     else:
@@ -1250,12 +1250,14 @@ def _parse_billing_limit(billing_project, limit):
             limit = float(limit)
             assert limit >= 0
         except Exception as e:
-            raise InvalidBillingLimitError(billing_project, limit) from e
+            raise InvalidBillingLimitError(limit) from e
     return limit
 
 
 async def _edit_billing_limit(db, billing_project, limit):
-    limit = _parse_billing_limit(billing_project, limit)
+    log.info(f'limit argument in edit billing limit {limit}')
+    limit = _parse_billing_limit(limit)
+    log.info(f'limit argument after parsing {limit}')
 
     @transaction(db)
     async def insert(tx):
@@ -1280,6 +1282,7 @@ UPDATE billing_projects SET `limit` = %s WHERE name = %s;
 ''',
             (limit, billing_project))
     await insert()  # pylint: disable=no-value-for-parameter
+    log.info(f'limit argument after inserting into the database {limit}')
 
 
 @routes.post('/api/v1alpha/billing_limits/{billing_project}/edit')
@@ -1290,7 +1293,9 @@ async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused
     billing_project = request.match_info['billing_project']
     data = await request.json()
     limit = data['limit']
+    log.info(f'limit before editing {limit}')
     await _handle_api_error(_edit_billing_limit, db, billing_project, limit)
+    log.info(f'limit after editing {limit}')
     return web.json_response({'billing_project': billing_project, 'limit': limit})
 
 
