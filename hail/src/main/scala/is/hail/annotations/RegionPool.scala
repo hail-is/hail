@@ -10,6 +10,8 @@ object RegionPool {
     val thread = Thread.currentThread()
     new RegionPool(strictMemoryCheck, thread.getName, thread.getId)
   }
+
+  def scoped[T](f: RegionPool => T): T = using(RegionPool(false))(f)
 }
 
 final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, threadID: Long) extends AutoCloseable {
@@ -131,6 +133,8 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
 
   }
+
+  def scopedRegion[T](f: Region => T): T = using(Region(pool = this))(f)
 
   override def finalize(): Unit = close()
 
