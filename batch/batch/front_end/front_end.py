@@ -1249,7 +1249,7 @@ def _parse_billing_limit(limit, billing_project):
         try:
             limit = float(limit)
             assert limit >= 0
-        except Exception:
+        except Exception:  # pylint: disable=raise-missing-from
             raise InvalidBillingLimitError(limit, billing_project)
     return limit
 
