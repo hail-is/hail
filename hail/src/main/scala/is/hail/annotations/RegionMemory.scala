@@ -257,10 +257,19 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   }
 
   def allocateNDArray(size: Long): Long = {
-      ???
+    if (size <= 0L) {
+      throw new IllegalArgumentException(s"Can't request ndarray of non-positive memory size, got ${size}")
+    }
+
+    val allocatedAddr = pool.allocateNDArray(size) + 8
+    Region.storeLong(allocatedAddr, 0L)
+    this.trackNDArray(allocatedAddr)
+    allocatedAddr
   }
 
   def trackNDArray(alloc: Long): Unit = {
     this.ndarrayRefs += alloc
+    val curRefCount = Region.loadLong(alloc - 8)
+    Region.storeLong(alloc - 8, curRefCount + 1L)
   }
 }

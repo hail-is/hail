@@ -25,7 +25,10 @@ class PReferenceCountedNDArray(elementType: PType, nDims: Int, required: Boolean
 
   override def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): (Code[Unit], IndexedSeq[Value[Long]]) = ???
 
-  override def construct(shapeBuilder: StagedRegionValueBuilder => Code[Unit], stridesBuilder: StagedRegionValueBuilder => Code[Unit], data: Code[Long], mb: EmitMethodBuilder[_], region: Value[Region]): Code[Long] = ???
+  override def construct(shapeBuilder: StagedRegionValueBuilder => Code[Unit], stridesBuilder: StagedRegionValueBuilder => Code[Unit], data: Code[Long], mb: EmitMethodBuilder[_], region: Value[Region]): Code[Long] = {
+    val addr =  0L // allocate NDArray for me
+    ???
+  }
 
   override def unsafeOrdering(): UnsafeOrdering = ???
 

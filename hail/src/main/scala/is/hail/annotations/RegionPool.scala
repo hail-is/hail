@@ -135,6 +135,12 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
   }
 
+  def allocateNDArray(nBytes: Long): Long = {
+    val addr = Memory.malloc(nBytes + 8)
+    incrementAllocatedBytes(nBytes)
+    addr
+  }
+
   override def finalize(): Unit = close()
 
   def close(): Unit = {
