@@ -322,21 +322,23 @@ async def test_edit_billing_limit_nondev(make_client, dev_client, new_billing_pr
         assert False, 'expected error'
 
 
-async def test_billing_project_accrued_costs(dev_client, new_billing_project):
+async def test_billing_project_accrued_costs(make_client, dev_client, new_billing_project):
     project = new_billing_project
     r = await dev_client.add_user('test', project)
     assert r['user'] == 'test'
     assert r['billing_project'] == project
 
+    client = await make_client(project)
+
     def approx_equal(x, y, tolerance=1e-10):
         return abs(x - y) <= tolerance
 
-    b1 = dev_client.create_batch()
+    b1 = client.create_batch()
     j1_1 = b1.create_job('ubuntu:18.04', command=['echo', 'head'])
     j1_2 = b1.create_job('ubuntu:18.04', command=['echo', 'head'])
     b1 = await b1.submit()
 
-    b2 = dev_client.create_batch()
+    b2 = client.create_batch()
     j2_1 = b2.create_job('ubuntu:18.04', command=['echo', 'head'])
     j2_2 = b2.create_job('ubuntu:18.04', command=['echo', 'head'])
     b2 = await b2.submit()
