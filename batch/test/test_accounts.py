@@ -331,18 +331,18 @@ async def test_billing_project_accrued_costs(dev_client, new_billing_project):
     def approx_equal(x, y, tolerance=1e-10):
         return abs(x - y) <= tolerance
 
-    b1 = await dev_client.create_batch()
+    b1 = dev_client.create_batch()
     j1_1 = b1.create_job('ubuntu:18.04', command=['echo', 'head'])
     j1_2 = b1.create_job('ubuntu:18.04', command=['echo', 'head'])
-    b1 = b1.submit()
+    b1 = await b1.submit()
 
-    b2 = await dev_client.create_batch()
+    b2 = dev_client.create_batch()
     j2_1 = b2.create_job('ubuntu:18.04', command=['echo', 'head'])
     j2_2 = b2.create_job('ubuntu:18.04', command=['echo', 'head'])
-    b2 = b2.submit()
+    b2 = await b2.submit()
 
-    b1 = b1.wait()
-    b2 = b2.wait()
+    b1 = await b1.wait()
+    b2 = await b2.wait()
 
     b1_expected_cost = j1_1.status()['cost'] + j1_2.status()['cost']
     assert approx_equal(b1_expected_cost, b1['cost']), (b1_expected_cost, b1['cost'])
