@@ -1250,7 +1250,7 @@ def _parse_billing_limit(billing_project, limit):
             limit = float(limit)
             assert limit >= 0
         except Exception as e:
-            raise InvalidBillingLimitError(limit, billing_project) from e
+            raise InvalidBillingLimitError(billing_project, limit) from e
     return limit
 
 
