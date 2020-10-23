@@ -269,7 +269,6 @@ async def test_edit_billing_limit_dev(dev_client, new_billing_project):
     r = await dev_client.add_user('test', project)
     assert r['user'] == 'test'
     assert r['billing_project'] == project
-    assert r['limit'] is None
 
     limit = 5
     r = await dev_client.edit_billing_limit(limit, project)
@@ -305,7 +304,6 @@ async def test_edit_billing_limit_nondev(make_client, dev_client, new_billing_pr
     r = await dev_client.add_user('test', project)
     assert r['user'] == 'test'
     assert r['billing_project'] == project
-    assert r['limit'] is None
 
     client = await make_client(project)
 
@@ -325,7 +323,6 @@ async def test_billing_project_accrued_costs(dev_client, new_billing_project):
     r = await dev_client.add_user('test', project)
     assert r['user'] == 'test'
     assert r['billing_project'] == project
-    assert r['limit'] is None
 
     def approx_equal(x, y, tolerance=1e-10):
         return abs(x - y) <= tolerance
