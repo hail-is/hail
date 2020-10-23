@@ -264,7 +264,7 @@ async def test_add_and_delete_user(dev_client, new_billing_project):
         assert False, 'expected error'
 
 
-def test_edit_billing_limit_dev(dev_client, new_billing_project):
+async def test_edit_billing_limit_dev(dev_client, new_billing_project):
     project = new_billing_project
     r = await dev_client.add_user('test', project)
     assert r['user'] == 'test'
@@ -300,7 +300,7 @@ def test_edit_billing_limit_dev(dev_client, new_billing_project):
         assert False, 'expected error'
 
 
-def test_edit_billing_limit_nondev(make_client, dev_client, new_billing_project):
+async def test_edit_billing_limit_nondev(make_client, dev_client, new_billing_project):
     project = new_billing_project
     r = await dev_client.add_user('test', project)
     assert r['user'] == 'test'
@@ -320,7 +320,7 @@ def test_edit_billing_limit_nondev(make_client, dev_client, new_billing_project)
         assert False, 'expected error'
 
 
-def test_billing_project_accrued_costs(dev_client, new_billing_project):
+async def test_billing_project_accrued_costs(dev_client, new_billing_project):
     project = new_billing_project
     r = await dev_client.add_user('test', project)
     assert r['user'] == 'test'
