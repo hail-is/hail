@@ -9,25 +9,25 @@ $.ajax({
         '%2fdatasets.json?alt=media'),
     dataType: 'json',
     success: function (data) {
-        for (var name in data) {
-            let dataset = data[name]
+        for (let name in data) {
+            let dataset = data[name];
             if ('annotation_db' in dataset) {
                 let versions_string = dataset.versions.map(function (i) {
-                    let version = i["version"]
-                    if (!version) version = "None"
-                    return version
+                    let version = i["version"];
+                    if (!version) version = "None";
+                    return version;
                 }).reduce(function (i, j) {
-                    return i + "<br>" + j
-                })
+                    return i + "<br>" + j;
+                });
                 let ref_genome_string = dataset.versions.map(function (i) {
-                    let rg = i["reference_genome"]
-                    if (!rg) rg = "None"
-                    return rg
+                    let rg = i["reference_genome"];
+                    if (!rg) rg = "None";
+                    return rg;
                 }).reduce(function (i, j) {
-                    return i + "<br>" + j
-                })
+                    return i + "<br>" + j;
+                });
                 let tr = $('<tr/>');
-                tr.append("<td><input type='checkbox' class='checkboxadd' value='" + name + "' onClick='updateTextArea()'/>&nbsp;</td>")
+                tr.append("<td><input type='checkbox' class='checkboxadd' value='" + name + "' onClick='updateTextArea()'/>&nbsp;</td>");
                 tr.append("<td>" + name + "</td>");
                 tr.append("<td>" + dataset.description + "\n<a href='" + dataset.url + "'>link</a></td>");
                 tr.append("<td>" + versions_string + "</td>");
@@ -38,25 +38,24 @@ $.ajax({
     }
 });
 
-
 function filterTable() {
-    let input = document.getElementById("searchInput")
-    let filter = input.value.toUpperCase()
-    let table = document.getElementById("table1")
-    let tr = table.getElementsByTagName("tr")
-    var found = false
-    for (var i = 0; i < tr.length; i++) {
-        let td = tr[i].getElementsByTagName("td")
-        for (var j = 0; j < td.length; j++) {
+    let input = document.getElementById("searchInput");
+    let filter = input.value.toUpperCase();
+    let table = document.getElementById("table1");
+    let tr = table.getElementsByTagName("tr");
+    let found = false;
+    for (let i = 0; i < tr.length; i++) {
+        let td = tr[i].getElementsByTagName("td");
+        for (let j = 0; j < td.length; j++) {
             if (td[j].innerHTML.toUpperCase().indexOf(filter) > -1) {
-                found = true
+                found = true;
             }
         }
         if (found) {
-            tr[i].style.display = ""
-            found = false
+            tr[i].style.display = "";
+            found = false;
         } else if (!tr[i].id.match('^tableHeader')) {
-            tr[i].style.display = "none"
+            tr[i].style.display = "none";
         }
     }
 }
@@ -67,9 +66,8 @@ function copy() {
     document.execCommand("copy");
 }
 
-
 function updateTextArea() {
-    var text = "db = hl.experimental.DB(region='us', cloud='gcp')\nmt = db.annotate_rows_db(mt";
+    let text = "db = hl.experimental.DB(region='us', cloud='gcp')\nmt = db.annotate_rows_db(mt";
     $('input[type=checkbox]:checked').filter(".checkboxadd").each(function () {
         text += ', "' + $(this).val() + '"';
         $('#result').val(text + ')');

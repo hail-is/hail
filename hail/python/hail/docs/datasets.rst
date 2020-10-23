@@ -18,7 +18,8 @@ To load a dataset from this repository into a Hail pipeline, provide the name,
 version, and reference genome build of the dataset you would like to use as
 strings to the :func:`.load_dataset` function. You will also need to provide
 the region ('us' or 'eu') to access the appropriate bucket. The available
-dataset names, versions, and reference genome builds are listed in the table below.
+dataset names, versions, and reference genome builds are listed in the table
+below.
 
 =================================================== ========== =================
 Name                                                Versions   Reference Genomes
@@ -82,3 +83,6 @@ Name                                                Versions   Reference Genomes
     datasets/ldsc_baselineLD_annotations.rst
     datasets/ldsc_baselineLD_ldscores.rst
     datasets/ldsc_baseline_ldscores.rst
+
+.. raw:: html
+   :file: _static/datasets/datasets.html
