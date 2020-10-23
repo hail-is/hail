@@ -163,16 +163,15 @@ Submitting a Batch to the Service
 
 To execute a batch on the Batch service rather than locally, first
 construct a :class:`.ServiceBackend` object with a billing project and
-bucket for storing intermediate files.
+bucket for storing intermediate files. Your service account must have read
+and write access to the bucket.
 
 .. warning::
 
    To avoid expensive egress charges, make sure your bucket is multi-regional
    in the United States because Batch runs your job in any US region.
 
-Your service account must
-have read and write access to the bucket.  Next, pass the
-:class:`.ServiceBackend` object to the :class:`.Batch` constructor
+Next, pass the :class:`.ServiceBackend` object to the :class:`.Batch` constructor
 with the parameter name `backend`.
 
 An example of running "Hello World" on the Batch service rather than
