@@ -357,15 +357,23 @@ class Container:
                     # per-user image cache.
                     await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
                         docker.images.pull, self.image, auth=auth)
+                    inspection = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
+                        docker.images.inspect, self.image)
                 else:
                     # this caches public images and the copy image
                     try:
-                        await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-                            docker.images.get, self.image)
+                        inspection = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
+                            docker.images.inspect, self.image)
                     except DockerError as e:
                         if e.status == 404:
                             await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
                                 docker.images.pull, self.image)
+                            inspection = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
+                                docker.images.inspect, self.image)
+
+            image_size = inspection['VirtualSize']
+            available_storage = self.job.storage_in_bytes - image_size
+            await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={available_storage} bhard={available_storage} {self.project_name}" /host/')
 
             if self.port is not None:
                 async with self.step('allocating_port'):
@@ -389,6 +397,7 @@ class Container:
                     f.write(f'{self.job.project_id}:{self.overlay_path}\n')
 
             await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.job.project_name}" /host/')
+
 
             async with self.step('starting'):
                 await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
