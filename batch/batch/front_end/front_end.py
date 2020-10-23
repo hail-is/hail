@@ -1242,20 +1242,20 @@ async def ui_get_billing_limits(request, userdata):
     return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
 
 
-def _parse_billing_limit(limit, billing_project):
+def _parse_billing_limit(billing_project, limit):
     if limit == 'None' or limit is None:
         limit = None
     else:
         try:
             limit = float(limit)
             assert limit >= 0
-        except Exception:  # pylint: disable=raise-missing-from
-            raise InvalidBillingLimitError(limit, billing_project)
+        except Exception as e:
+            raise InvalidBillingLimitError(limit, billing_project) from e
     return limit
 
 
 async def _edit_billing_limit(db, billing_project, limit):
-    limit = _parse_billing_limit(limit, billing_project)
+    limit = _parse_billing_limit(billing_project, limit)
 
     @transaction(db)
     async def insert(tx):
@@ -1285,12 +1285,12 @@ UPDATE billing_projects SET `limit` = %s WHERE name = %s;
 @routes.post('/api/v1alpha/billing_limits/{billing_project}/edit')
 @prom_async_time(REQUEST_TIME_POST_BILLING_LIMITS_EDIT)
 @rest_authenticated_developers_only
-async def post_billing_limits_edit(request, userdata):  # pylint: disable=unused-argument
+async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']
     data = await request.json()
     limit = data['limit']
-    limit = await _handle_api_error(_edit_billing_limit, db, billing_project, limit)
+    await _handle_api_error(_edit_billing_limit, db, billing_project, limit)
     return web.json_response({'billing_project': billing_project, 'limit': limit})
 
 
@@ -1298,7 +1298,7 @@ async def post_billing_limits_edit(request, userdata):  # pylint: disable=unused
 @prom_async_time(REQUEST_TIME_POST_BILLING_LIMITS_EDIT_UI)
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
-async def post_billing_limits_edit_ui(request, userdata):  # pylint: disable=unused-argument
+async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']
     post = await request.post()

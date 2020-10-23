@@ -271,16 +271,16 @@ async def test_edit_billing_limit_dev(dev_client, new_billing_project):
     assert r['billing_project'] == project
 
     limit = 5
-    r = await dev_client.edit_billing_limit(limit, project)
+    r = await dev_client.edit_billing_limit(project, limit)
     assert r['limit'] == limit
 
     limit = None
-    r = await dev_client.edit_billing_limit(limit, project)
+    r = await dev_client.edit_billing_limit(project, limit)
     assert r['limit'] is None
 
     try:
         limit = 'foo'
-        r = await dev_client.edit_billing_limit(limit, project)
+        r = await dev_client.edit_billing_limit(project, limit)
     except aiohttp.ClientResponseError as e:
         assert e.status == 400, e
     else:
@@ -290,7 +290,7 @@ async def test_edit_billing_limit_dev(dev_client, new_billing_project):
 
     try:
         limit = -1
-        r = await dev_client.edit_billing_limit(limit, project)
+        r = await dev_client.edit_billing_limit(project, limit)
     except aiohttp.ClientResponseError as e:
         assert e.status == 400, e
     else:
@@ -309,7 +309,7 @@ async def test_edit_billing_limit_nondev(make_client, dev_client, new_billing_pr
 
     try:
         limit = 5
-        await client.edit_billing_limit(limit, project)
+        await client.edit_billing_limit(project, limit)
     except aiohttp.ClientResponseError as e:
         assert e.status == 401, e
     else:
