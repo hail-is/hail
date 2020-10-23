@@ -41,18 +41,6 @@ def client():
     client.close()
 
 
-def test_get_billing_project(client):
-    r = client.get_billing_project('test')
-    assert r['billing_project'] == 'test', r
-    assert set(r['users']) == {'test', 'test-dev'}, r
-
-
-def test_list_billing_projects(client):
-    r = client.list_billing_projects()
-    assert len(r) == 1
-    assert r[0]['billing_project'] == 'test', r
-
-
 def test_job(client):
     builder = client.create_batch()
     j = builder.create_job('ubuntu:18.04', ['echo', 'test'])
@@ -462,20 +450,6 @@ def test_authorized_users_only():
         r = retry_response_returning_functions(
             method, full_url, allow_redirects=False)
         assert r.status_code == expected, (full_url, r, expected)
-
-
-def test_bad_token():
-    token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
-    bc = BatchClient('test', _token=token)
-    try:
-        b = bc.create_batch()
-        j = b.create_job('ubuntu:18.04', ['false'])
-        b.submit()
-        assert False, j
-    except aiohttp.ClientResponseError as e:
-        assert e.status == 401, e
-    finally:
-        bc.close()
 
 
 def test_gcr_image(client):

@@ -23,7 +23,7 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context, in_cluster_ssl_client_session
 from hailtop.hail_logging import AccessLogger
 from hailtop import aiotools
-from gear import (Database, setup_aiohttp_session,
+from gear import (Database, setup_aiohttp_session, rest_authenticated_developers_only,
                   rest_authenticated_users_only, web_authenticated_users_only,
                   web_authenticated_developers_only, check_csrf_token, transaction)
 from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
@@ -36,7 +36,7 @@ from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_gb,
                      adjust_cores_for_storage_request, total_worker_storage_gib)
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
-                          ClosedBillingProjectError)
+                          NonExistentUserError, ClosedBillingProjectError)
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import (BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME,
@@ -73,10 +73,16 @@ REQUEST_TIME_GET_BILLING_PROJECT = REQUEST_TIME.labels(endpoint='/api/v1alpha/bi
 REQUEST_TIME_GET_BILLING_UI = REQUEST_TIME.labels(endpoint='/billing', verb="GET")
 REQUEST_TIME_GET_BILLING_PROJECTS_UI = REQUEST_TIME.labels(endpoint='/billing_projects', verb="GET")
 REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/user/remove', verb="POST")
+REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_API = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/billing_project/users/{user}/remove', verb="POST")
 REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/add', verb="POST")
+REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_API = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/{billing_project}/users/{user}/add', verb="POST")
 REQUEST_TIME_POST_CREATE_BILLING_PROJECT_UI = REQUEST_TIME.labels(endpoint='/billing_projects/create', verb="POST")
+REQUEST_TIME_POST_CREATE_BILLING_PROJECT_API = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/{billing_project}/create', verb="POST")
 REQUEST_TIME_POST_CLOSE_BILLING_PROJECT_UI = REQUEST_TIME.labels(endpoint='/billing_projects/{billing_project}/close', verb="POST")
+REQUEST_TIME_POST_CLOSE_BILLING_PROJECT_API = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/{billing_project}/close', verb="POST")
 REQUEST_TIME_POST_REOPEN_BILLING_PROJECT_UI = REQUEST_TIME.labels(endpoint='/billing_projects/{billing_project}/reopen', verb="POST")
+REQUEST_TIME_POST_REOPEN_BILLING_PROJECT_API = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/{billing_project}/reopen', verb="POST")
+REQUEST_TIME_POST_DELETE_BILLING_PROJECT_API = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/{billing_project}/reopen', verb="POST")
 
 routes = web.RouteTableDef()
 
@@ -100,6 +106,13 @@ async def _handle_ui_error(session, f, *args, **kwargs):
         return True
     else:
         return False
+
+
+async def _handle_api_error(f, *args, **kwargs):
+    try:
+        await f(*args, **kwargs)
+    except BatchUserError as e:
+        raise e.http_response()
 
 
 async def _query_batch_jobs(request, batch_id):
@@ -1403,17 +1416,7 @@ async def get_billing_project(request, userdata):
     return web.json_response(data=billing_projects[0])
 
 
-@routes.post('/billing_projects/{billing_project}/users/{user}/remove')
-@prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI)
-@check_csrf_token
-@web_authenticated_developers_only(redirect=False)
-async def post_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
-    billing_project = request.match_info['billing_project']
-    user = request.match_info['user']
-
-    session = await aiohttp_session.get_session(request)
-
+async def _remove_user_from_billing_project(db, billing_project, user):
     @transaction(db)
     async def delete(tx):
         row = await tx.execute_and_fetchone(
@@ -1428,17 +1431,14 @@ WHERE billing_projects.name = %s;
 ''',
             (billing_project, user, billing_project))
         if not row:
-            set_message(session, f'No such billing project {billing_project}.', 'error')
-            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+            raise NonExistentBillingProjectError(billing_project)
         assert row['billing_project'] == billing_project
 
         if row['status'] in {'closed', 'deleted'}:
-            set_message(session, f'Billing project {billing_project} has been closed or deleted and cannot be modified.', 'error')
-            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+            raise BatchUserError(f'Billing project {billing_project} has been closed or deleted and cannot be modified.', 'error')
 
         if row['user'] is None:
-            set_message(session, f'User {user} is not member of billing project {billing_project}.', 'info')
-            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+            raise NonExistentUserError(user, billing_project)
 
         await tx.just_execute(
             '''
@@ -1447,8 +1447,33 @@ WHERE billing_project = %s AND user = %s;
 ''',
             (billing_project, user))
     await delete()  # pylint: disable=no-value-for-parameter
-    set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
+
+
+@routes.post('/billing_projects/{billing_project}/users/{user}/remove')
+@prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI)
+@check_csrf_token
+@web_authenticated_developers_only(redirect=False)
+async def post_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    billing_project = request.match_info['billing_project']
+    user = request.match_info['user']
+
+    session = await aiohttp_session.get_session(request)
+    errored = await _handle_ui_error(session, _remove_user_from_billing_project, db, billing_project, user)
+    if not errored:
+        set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+
+
+@routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
+@prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_API)
+@rest_authenticated_developers_only
+async def api_get_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    billing_project = request.match_info['billing_project']
+    user = request.match_info['user']
+    await _handle_api_error(_remove_user_from_billing_project, db, billing_project, user)
+    return web.json_response({'billing_project': billing_project, 'user': user})
 
 
 async def _add_user_to_billing_project(db, billing_project, user):
@@ -1474,14 +1499,13 @@ WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted' LOCK
 
         if row['user'] is not None:
             raise BatchUserError(f'User {user} is already member of billing project {billing_project}.', 'info')
-
         await tx.execute_insertone(
             '''
 INSERT INTO billing_project_users(billing_project, user)
 VALUES (%s, %s);
         ''',
             (billing_project, user))
-        await insert()  # pylint: disable=no-value-for-parameter
+    await insert()  # pylint: disable=no-value-for-parameter
 
 
 @routes.post('/billing_projects/{billing_project}/users/add')
@@ -1502,17 +1526,19 @@ async def post_billing_projects_add_user(request, userdata):  # pylint: disable=
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
-@routes.post('/billing_projects/create')
-@prom_async_time(REQUEST_TIME_POST_CREATE_BILLING_PROJECT_UI)
-@check_csrf_token
-@web_authenticated_developers_only(redirect=False)
-async def post_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
+@routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
+@prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_API)
+@rest_authenticated_developers_only
+async def api_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
-    post = await request.post()
-    billing_project = post['billing_project']
+    user = request.match_info['user']
+    billing_project = request.match_info['billing_project']
 
-    session = await aiohttp_session.get_session(request)
+    await _handle_api_error(_add_user_to_billing_project, db, billing_project, user)
+    return web.json_response({'billing_project': billing_project, 'user': user})
 
+
+async def _create_billing_project(db, billing_project):
     @transaction(db)
     async def insert(tx):
         row = await tx.execute_and_fetchone(
@@ -1523,8 +1549,7 @@ FOR UPDATE;
 ''',
             (billing_project))
         if row is not None:
-            set_message(session, f"Billing project {billing_project} (status: {row['status']}) already exists.", 'error')
-            raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+            raise BatchUserError(f'Billing project {billing_project} already exists.', 'error')
 
         await tx.execute_insertone(
             '''
@@ -1533,8 +1558,36 @@ VALUES (%s);
 ''',
             (billing_project,))
     await insert()  # pylint: disable=no-value-for-parameter
-    set_message(session, f'Added billing project {billing_project}.', 'info')
+
+
+@routes.post('/billing_projects/create')
+@prom_async_time(REQUEST_TIME_POST_CREATE_BILLING_PROJECT_UI)
+@check_csrf_token
+@web_authenticated_developers_only(redirect=False)
+async def post_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    post = await request.post()
+    billing_project = post['billing_project']
+
+    session = await aiohttp_session.get_session(request)
+    try:
+        await _create_billing_project(db, billing_project)
+    except KeyError as e:
+        set_message(session, str(e), 'error')
+    else:
+        set_message(session, f'Added billing project {billing_project}.', 'info')
+
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+
+
+@routes.post('/api/v1alpha/billing_projects/{billing_project}/create')
+@prom_async_time(REQUEST_TIME_POST_CREATE_BILLING_PROJECT_API)
+@rest_authenticated_developers_only
+async def api_get_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    billing_project = request.match_info['billing_project']
+    await _handle_api_error(_create_billing_project, db, billing_project)
+    return web.json_response(billing_project)
 
 
 async def _close_billing_project(db, billing_project):
@@ -1546,8 +1599,8 @@ SELECT name, `status`, batches.id as batch_id
 FROM billing_projects
 LEFT JOIN batches
 ON billing_projects.name = batches.billing_project
-WHERE name = %s and `status` != 'deleted' AND batches.time_completed IS NULL
-FOR UPDATE LIMIT 1;
+AND billing_projects.`status` != 'deleted' AND batches.time_completed IS NULL
+WHERE name = %s LIMIT 1 FOR UPDATE;
     ''',
             (billing_project,))
         if not row:
@@ -1555,7 +1608,7 @@ FOR UPDATE LIMIT 1;
         assert row['name'] == billing_project
         if row['status'] == 'closed':
             raise BatchUserError(f'Billing project {billing_project} is already closed or deleted.', 'info')
-        if row['batch'] is not None:
+        if row['batch_id'] is not None:
             raise BatchUserError(f'Billing project {billing_project} has open or running batches.', 'error')
 
         await tx.execute_update(
@@ -1579,15 +1632,28 @@ async def post_close_billing_projects(request, userdata):  # pylint: disable=unu
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
+@routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
+@prom_async_time(REQUEST_TIME_POST_CLOSE_BILLING_PROJECT_API)
+@rest_authenticated_developers_only
+async def api_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    billing_project = request.match_info['billing_project']
+
+    await _handle_api_error(_close_billing_project, db, billing_project)
+    return web.json_response(billing_project)
+
+
 async def _reopen_billing_project(db, billing_project):
     @transaction(db)
     async def open_project(tx):
         row = await tx.execute_and_fetchone(
-            "SELECT name, `status` FROM billing_projects WHERE name = %s AND `status` != 'deleted' FOR UPDATE;",
+            "SELECT name, `status` FROM billing_projects WHERE name = %s FOR UPDATE;",
             (billing_project,))
         if not row:
             raise NonExistentBillingProjectError(billing_project)
         assert row['name'] == billing_project
+        if row['status'] == 'deleted':
+            raise BatchUserError(f'Billing project {billing_project} has been deleted and cannot be reopened.', 'error')
         if row['status'] == 'open':
             raise BatchUserError(f'Billing project {billing_project} is already open.', 'info')
 
@@ -1610,6 +1676,47 @@ async def post_reopen_billing_projects(request, userdata):  # pylint: disable=un
     if not errored:
         set_message(session, f'Re-opened billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+
+
+@routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
+@prom_async_time(REQUEST_TIME_POST_REOPEN_BILLING_PROJECT_API)
+@rest_authenticated_developers_only
+async def api_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    billing_project = request.match_info['billing_project']
+    await _handle_api_error(_reopen_billing_project, db, billing_project)
+    return web.json_response(billing_project)
+
+
+async def _delete_billing_project(db, billing_project):
+    @transaction(db)
+    async def delete_project(tx):
+        row = await tx.execute_and_fetchone(
+            'SELECT name, `status` FROM billing_projects WHERE name = %s FOR UPDATE;',
+            (billing_project,))
+        if not row:
+            raise NonExistentBillingProjectError(billing_project)
+        assert row['name'] == billing_project
+        if row['status'] == 'deleted':
+            raise BatchUserError(f'Billing project {billing_project} is already deleted.', 'info')
+        if row['status'] == 'open':
+            raise BatchUserError(f'Billing project {billing_project} is open and cannot be deleted.', 'error')
+
+        await tx.execute_update(
+            "UPDATE billing_projects SET `status` = 'deleted' WHERE name = %s;",
+            (billing_project, ))
+    await delete_project()  # pylint: disable=no-value-for-parameter
+
+
+@routes.post('/api/v1alpha/billing_projects/{billing_project}/delete')
+@prom_async_time(REQUEST_TIME_POST_DELETE_BILLING_PROJECT_API)
+@rest_authenticated_developers_only
+async def api_delete_billing_projects(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    billing_project = request.match_info['billing_project']
+
+    await _handle_api_error(_delete_billing_project, db, billing_project)
+    return web.json_response(billing_project)
 
 
 @routes.get('')
