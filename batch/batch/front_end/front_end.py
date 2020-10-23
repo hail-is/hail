@@ -1701,7 +1701,7 @@ async def _delete_billing_project(db, billing_project):
             raise BatchUserError(f'Billing project {billing_project} is open and cannot be deleted.', 'error')
 
         await tx.execute_update(
-            "UPDATE billing_projects SET `status` = 'closed' WHERE name = %s;",
+            "UPDATE billing_projects SET `status` = 'deleted' WHERE name = %s;",
             (billing_project, ))
     await delete_project()  # pylint: disable=no-value-for-parameter
 
