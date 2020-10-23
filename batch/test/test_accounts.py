@@ -273,9 +273,13 @@ async def test_edit_billing_limit_dev(dev_client, new_billing_project):
     limit = 5
     r = await dev_client.edit_billing_limit(project, limit)
     assert r['limit'] == limit
+    r = await dev_client.get_billing_project(project)
+    assert r['limit'] == limit
 
     limit = None
     r = await dev_client.edit_billing_limit(project, limit)
+    assert r['limit'] is None
+    r = await dev_client.get_billing_project(project)
     assert r['limit'] is None
 
     try:
