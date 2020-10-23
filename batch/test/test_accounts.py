@@ -221,7 +221,7 @@ async def test_delete_billing_project_only_when_closed(dev_client, new_billing_p
     try:
         await dev_client.get_billing_project(project)
     except aiohttp.ClientResponseError as e:
-        assert e.status == 404, e
+        assert e.status == 403, e
     else:
         assert False, 'expected error'
 
