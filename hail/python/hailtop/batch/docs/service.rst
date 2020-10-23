@@ -231,3 +231,12 @@ button next to the row for that batch. You can also delete a batch with the "Del
 .. warning::
 
     Deleting a batch only removes it from the UI. You will still be billed for a deleted batch.
+
+
+Important Notes
+---------------
+
+.. warning::
+
+    To avoid expensive egress charges, input files should be in buckets that are multi-regional
+    in the United States / North America.
