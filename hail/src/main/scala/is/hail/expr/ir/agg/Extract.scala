@@ -324,9 +324,6 @@ object Extract {
     def extract(node: IR): IR = this.extract(node, ab, seqBuilder, letBuilder, result, r, isScan)
 
     ir match {
-      case Ref(name, typ) =>
-        assert(typ.isRealizable)
-        ir
       case x@AggLet(name, value, body, _) =>
         letBuilder += x
         extract(body)

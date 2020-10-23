@@ -853,6 +853,16 @@ class TableIRSuite extends HailSuite {
     }
   }
 
+  @Test def testNestedStreamInTable(): Unit = {
+    var tir: TableIR = TableRange(1, 1)
+    var ir: IR = rangeIR(5)
+    ir = StreamGrouped(ir, 2)
+    ir = ToArray(mapIR(ir)(ToArray))
+    ir = InsertFields(Ref("row", tir.typ.rowType), Seq("foo" -> ir))
+    tir = TableMapRows(tir, ir)
+    assertEvalsTo(collect(tir), Row(FastIndexedSeq(Row(0, FastIndexedSeq(FastIndexedSeq(0, 1), FastIndexedSeq(2, 3), FastIndexedSeq(4)))), Row()))
+  }
+
   val parTable1Length = 7
   val parTable1Type = TStruct("rows" -> TArray(TStruct("a1" -> TString, "b1" -> TInt32, "c1" -> TString)), "global" -> TStruct("x" -> TString))
   val value1 = Row(FastIndexedSeq(0 until parTable1Length: _*).map(i => Row("row" + i, i * i, s"t1_${i}")), Row("global"))
