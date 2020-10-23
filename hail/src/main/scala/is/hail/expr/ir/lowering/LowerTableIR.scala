@@ -651,6 +651,12 @@ object LowerTableIR {
         case TableHead(child, targetNumRows) =>
           val loweredChild = lower(child)
 
+          def streamLenOrMax(a: IR): IR =
+            if (targetNumRows <= Integer.MAX_VALUE)
+              StreamLen(StreamTake(a, targetNumRows.toInt))
+            else
+              StreamLen(a)
+
           def partitionSizeArray(childContexts: Ref): IR = {
             val partitionSizeArrayFunc = genUID()
             val howManyPartsToTry = Ref(genUID(), TInt32)
@@ -659,7 +665,7 @@ object LowerTableIR {
               partitionSizeArrayFunc,
               FastIndexedSeq(howManyPartsToTry.name -> 4),
               bindIR(loweredChild.mapContexts(_ => StreamTake(ToStream(childContexts), howManyPartsToTry)){ ctx: IR => ctx }
-                                 .mapCollect(relationalLetsAbove)(StreamLen)) { counts =>
+                                 .mapCollect(relationalLetsAbove)(streamLenOrMax)) { counts =>
                 If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (ArrayLen(childContexts) <= ArrayLen(counts)),
                   counts,
                   Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry * 4), TArray(TInt32)))
