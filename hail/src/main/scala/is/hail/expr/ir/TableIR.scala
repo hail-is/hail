@@ -1931,8 +1931,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     assert(rTyp.virtualType == newRow.typ)
 
     // 1. init op on all aggs and write out to initPath
-    val initAgg = Region.scoped { aggRegion =>
-      Region.scoped { fRegion =>
+    val initAgg = ctx.r.pool.scopedRegion { aggRegion =>
+      ctx.r.pool.scopedRegion { fRegion =>
         val init = initF(0, fRegion)
         init.newAggState(aggRegion)
         init(fRegion, tv.globals.value.offset)
