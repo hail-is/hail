@@ -59,7 +59,7 @@ class PruneSuite extends HailSuite {
     }
     irCopy.children.zipWithIndex.foreach { case (child, i) =>
       if (expected(i) != null && expected(i) != ms.requestedType.lookup(child)) {
-        fatal(s"For base IR $ir\n  Child $i\n  Expected: ${ expected(i) }\n  Actual:   ${ ms.requestedType.lookup(child) }")
+        fatal(s"For base IR $ir\n  Child $i with IR ${irCopy.children(i)}\n  Expected: ${ expected(i) }\n  Actual:   ${ ms.requestedType.lookup(child) }")
       }
     }
   }
@@ -384,6 +384,15 @@ class PruneSuite extends HailSuite {
 
     checkMemo(tka, subsetTable(tka.typ, "row.foo"), Array(subsetTable(tab.typ, "row.2", "row.3", "NO_KEY"), null, null))
     checkMemo(tka, subsetTable(tka.typ), Array(subsetTable(tab.typ, "row.3", "NO_KEY"), null, null))
+  }
+
+  @Test def testTableAggregateByKeyMemo(): Unit = {
+    val tabk = TableAggregateByKey(
+      tab,
+      SelectFields(Ref("row", tab.typ.rowType), Seq("5"))
+    )
+    checkMemo(tabk, requestedType = subsetTable(tabk.typ, "row.3", "row.5"),
+      Array(subsetTable(tabk.typ, "row.3", "row.5"), TStruct(("5", TString))))
   }
 
   @Test def testTableUnionMemo() {
