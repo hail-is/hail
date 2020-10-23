@@ -311,7 +311,7 @@ async def test_edit_billing_limit_nondev(make_client, dev_client, new_billing_pr
         limit = 5
         await client.edit_billing_limit(limit, project)
     except aiohttp.ClientResponseError as e:
-        assert e.status == 404, e
+        assert e.status == 401, e
     else:
         r = await client.get_billing_project(project)
         assert r['limit'] is None, r
