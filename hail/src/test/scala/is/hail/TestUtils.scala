@@ -259,7 +259,7 @@ object TestUtils {
             print = bytecodePrinter)
           assert(resultType2.virtualType == resultType)
 
-          Region.scoped { region =>
+          ctx.r.pool.scopedRegion { region =>
             val rvb = new RegionValueBuilder(region)
             rvb.start(argsPType)
             rvb.startTuple()
