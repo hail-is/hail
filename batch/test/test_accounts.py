@@ -47,7 +47,7 @@ async def new_billing_project(dev_client, get_billing_project_name):
     try:
         r = await dev_client.get_billing_project(project)
     except aiohttp.ClientResponseError as e:
-        assert e.status == 404, e
+        assert e.status == 403, e
     else:
         assert r['status'] != 'deleted', r
         if r['status'] == 'open':
