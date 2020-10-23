@@ -1650,6 +1650,7 @@ steps:
     - create_certs
     - deploy_auth
     - create_accounts
+    - deploy_batch
  - kind: runImage
    name: check_monitoring
    image:

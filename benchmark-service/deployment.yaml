@@ -34,6 +34,21 @@ spec:
             value: "{{ code.sha }}"
           - name: HAIL_CI_OAUTH_TOKEN
             value: /secrets/oauth-token/oauth-token
+{% if deploy %}
+          - name: HAIL_TEST_BENCHMARK_BUCKET_NAME
+            value: hail-test-dmk9z
+{% else %}
+          - name: HAIL_TEST_BENCHMARK_BUCKET_NAME
+            value: hail-test
+{% endif %}
+{% if deploy or scope == "dev" %}
+          - name: START_POINT
+            value: "2020-10-01T00:00:00Z"
+{% endif %}
+{% if scope == "test" or scope == "dev" %}
+          - name: START_POINT
+            value: "2020-10-01T00:00:00Z"
+{% endif %}
           ports:
             - containerPort: 5000
           resources:
@@ -56,8 +71,11 @@ spec:
             - name: benchmark-gsa-key
               mountPath: /benchmark-gsa-key
               readOnly: true
-            - mountPath: /secrets/oauth-token
-              name: hail-ci-0-1-github-oauth-token
+            - name: hail-ci-0-1-github-oauth-token
+              mountPath: /secrets/oauth-token
+              readOnly: true
+            - name: benchmark-tokens
+              mountPath: /user-tokens
               readOnly: true
           readinessProbe:
             tcpSocket:
@@ -80,3 +98,6 @@ spec:
         - name: hail-ci-0-1-github-oauth-token
           secret:
             secretName: hail-ci-0-1-github-oauth-token
+        - name: benchmark-tokens
+          secret:
+            secretName: benchmark-tokens

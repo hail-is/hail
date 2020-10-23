@@ -8,9 +8,10 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
 from hailtop.utils import retry_long_running
+import hailtop.batch_client.aioclient as bc
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials,\
-    list_benchmark_files, round_if_defined
+    list_benchmark_files, round_if_defined, submit_batch
 import json
 import re
 import plotly
@@ -20,6 +21,7 @@ import numpy as np
 import pandas as pd
 import gidgethub
 import gidgethub.aiohttp
+from .config import BENCHMARK_TEST_BUCKET_NAME, START_POINT
 
 configure_logging()
 router = web.RouteTableDef()
@@ -31,8 +33,9 @@ BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)(
 
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
-START_POINT = '2020-10-01T00:00:00Z'
+#START_POINT = '2020-10-01T00:00:00Z'
 
+benchmark_data = None
 
 def get_benchmarks(app, file_path):
     gs_reader = app['gs_reader']
@@ -214,27 +217,75 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
-async def query_github(app):
-    global START_POINT
+async def update_commits(app):
+    global benchmark_data
     github_client = app['github_client']
-    request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
+    batch_client = app['batch_client']
+    gs_reader = app['gs_reader']
 
-    data = await github_client.getitem(request_string)
+    request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
+    gh_data = await github_client.getitem(request_string)
     new_commits = []
-    for commit in data:
-        sha = commit.get('sha')
-        new_commits.append(commit)
-        log.info(f'commit {sha}')
-        START_POINT = commit['commit']['author'].get('date')
-        log.info(f'start point is now {START_POINT}')
+    formatted_new_commits = []
+    bc = await batch_client
+    for gh_commit in gh_data:
+
+        sha = gh_commit.get('sha')
+
+        batches = [b async for b in bc.list_batches(q=f'sha={sha} running')]
+        try:
+            batch = batches[-1]
+            batch_status = await batch.status()
+        except Exception:  # pylint: disable=broad-except
+            batch_status = None
+
+        file_path = f'gs://{BENCHMARK_TEST_BUCKET_NAME}/benchmark-test/{sha}'
+        has_results_file = gs_reader.file_exists(file_path)
+
+        if not batches and not has_results_file:
+            new_commits.append(gh_commit)
+
     log.info('got new commits')
+    for gh_commit in new_commits:
+        batch_id = await submit_batch(gh_commit, batch_client)
+        batch = bc.get_batch(batch_id)
+        batch_status = await batch.last_known_status()
+        sha = gh_commit.get('sha')
+        log.info(f'submitted a batch for commit {sha}')
+        commit = {
+            'sha': sha,
+            'title': gh_commit['commit']['message'],
+            'author': gh_commit['commit']['author']['name'],
+            'date': gh_commit['commit']['author']['date'],
+            'status': batch_status
+        }
+        formatted_new_commits.append(commit)
+
+    benchmark_data = {
+        'commits': formatted_new_commits
+    }
+
+# async def query_github(app):
+#     # global START_POINT
+#     github_client = app['github_client']
+#     request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
+#
+#     data = await github_client.getitem(request_string)
+#     new_commits = []
+#     for commit in data:
+#         sha = commit.get('sha')
+#         new_commits.append(commit)
+#         log.info(f'commit {sha}')
+#         START_POINT = commit['commit']['author'].get('date')
+#         log.info(f'start point is now {START_POINT}')
+#     log.info('got new commits')
 
 
 async def github_polling_loop(app):
     while True:
-        await query_github(app)
+        await update_commits(app)
         log.info('successfully queried github')
-        await asyncio.sleep(600)
+        await asyncio.sleep(180)
 
 
 async def on_startup(app):
@@ -244,6 +295,7 @@ async def on_startup(app):
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
                                                        'hail-is/hail',
                                                        oauth_token=oauth_token)
+    app['batch_client'] = bc.BatchClient(billing_project='test')
     asyncio.ensure_future(retry_long_running('github_polling_loop', github_polling_loop, app))
 
 
