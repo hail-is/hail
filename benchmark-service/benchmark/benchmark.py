@@ -227,12 +227,12 @@ async def update_commits(app):
     gh_data = await github_client.getitem(request_string)
     new_commits = []
     formatted_new_commits = []
-    bc = await batch_client
+    #bc = await batch_client
     for gh_commit in gh_data:
 
         sha = gh_commit.get('sha')
 
-        batches = [b async for b in bc.list_batches(q=f'sha={sha} running')]
+        batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
         try:
             batch = batches[-1]
             batch_status = await batch.status()
@@ -248,7 +248,7 @@ async def update_commits(app):
     log.info('got new commits')
     for gh_commit in new_commits:
         batch_id = await submit_batch(gh_commit, batch_client)
-        batch = bc.get_batch(batch_id)
+        batch = batch_client.get_batch(batch_id)
         batch_status = await batch.last_known_status()
         sha = gh_commit.get('sha')
         log.info(f'submitted a batch for commit {sha}')
