@@ -1287,8 +1287,8 @@ UPDATE billing_projects SET `limit` = %s WHERE name = %s;
 async def post_billing_limits_edit(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']
-    post = await request.post()
-    limit = post['limit']
+    data = await request.json()
+    limit = data['limit']
     limit = await _handle_api_error(_edit_billing_limit, db, billing_project, limit)
     return web.json_response({'billing_project': billing_project, 'limit': limit})
 
