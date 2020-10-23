@@ -346,10 +346,10 @@ async def test_billing_project_accrued_costs(make_client, dev_client, new_billin
     b1 = await b1.wait()
     b2 = await b2.wait()
 
-    b1_expected_cost = j1_1.status()['cost'] + j1_2.status()['cost']
+    b1_expected_cost = (await j1_1.status())['cost'] + (await j1_2.status())['cost']
     assert approx_equal(b1_expected_cost, b1['cost']), (b1_expected_cost, b1['cost'])
 
-    b2_expected_cost = j2_1.status()['cost'] + j2_2.status()['cost']
+    b2_expected_cost = (await j2_1.status())['cost'] + (await j2_2.status())['cost']
     assert approx_equal(b2_expected_cost, b2['cost']), (b2_expected_cost, b2['cost'])
 
     cost_by_batch = b1['cost'] + b2['cost']
