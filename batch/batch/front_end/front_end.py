@@ -1647,11 +1647,13 @@ async def _reopen_billing_project(db, billing_project):
     @transaction(db)
     async def open_project(tx):
         row = await tx.execute_and_fetchone(
-            "SELECT name, `status` FROM billing_projects WHERE name = %s AND `status` != 'deleted' FOR UPDATE;",
+            "SELECT name, `status` FROM billing_projects WHERE name = %s FOR UPDATE;",
             (billing_project,))
         if not row:
             raise NonExistentBillingProjectError(billing_project)
         assert row['name'] == billing_project
+        if row['status'] == 'deleted':
+            raise BatchUserError(f'Billing project {billing_project} has been deleted and cannot be reopened.', 'error')
         if row['status'] == 'open':
             raise BatchUserError(f'Billing project {billing_project} is already open.', 'info')
 
