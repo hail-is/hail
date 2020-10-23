@@ -1262,9 +1262,10 @@ async def _edit_billing_limit(db, billing_project, limit):
         row = await tx.execute_and_fetchone(
             '''
 SELECT billing_projects.name as billing_project,
-    billing_projects.`status` as `status`,
+    billing_projects.`status` as `status`
 FROM billing_projects
-WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted' FOR UPDATE;
+WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted'
+FOR UPDATE;
         ''',
             (billing_project,))
         if row is None:
