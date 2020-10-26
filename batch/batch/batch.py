@@ -88,7 +88,7 @@ SELECT `state` FROM batches
 WHERE user = %s AND id = %s AND NOT deleted
 FOR UPDATE;
 ''',
-            (user, batch_id))
+                                               (user, batch_id))
         if not record:
             log.info(f'cannot cancel nonexistent batch {batch_id}')
             raise NonExistentBatchError
