@@ -375,6 +375,11 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory.allocate(a, n)
   }
 
+  def allocateNDArray(nBytes: Long): Long = {
+    assert(nBytes >= 0L)
+    memory.allocateNDArray(nBytes)
+  }
+
   def invalidate(): Unit = {
     if (memory != null) {
       memory.release()
