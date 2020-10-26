@@ -19,15 +19,14 @@
     <tbody>
     {% for commit in commits %}
     <tr>
-        <td><a href="{{ base_path }}/lookup?file={{ file }}">{{ commit['commit']['title'] }}</a></td>
-        <td>{{ commit['commit']['sha'] }}</td>
-        <td>{{ commit['commit']['author'] }}</td>
-        <td>{{ commit['commit']['date'] }}</td>
-        <td>{{ commit['commit']['status'] }}</td>
+        <td><a href="{{ base_path }}/lookup?file={{ file }}">{{ commit['title'] }}</a></td>
+        <td>{{ commit['sha'] }}</td>
+        <td>{{ commit['author'] }}</td>
+        <td>{{ commit['date'] }}</td>
+        <td>{{ commit['status'] }}</td>
     </tr>
     {% endfor %}
     </tbody>
 </table>
 
-<p> {{ gh_commit }}</p>
 {% endblock %}

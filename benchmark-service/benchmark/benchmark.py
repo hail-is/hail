@@ -42,6 +42,35 @@ benchmark_data = {
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
 
+formatted_new_commits = [
+    {
+        'sha': '1',
+        'title': 'commit 1',
+        'author': 'author 1',
+        'date': 'October 20, 2020',
+        'status': 'Complete'
+    },
+    {
+        'sha': '2',
+        'title': 'commit 2',
+        'author': 'author 2',
+        'date': 'October 22, 2020',
+        'status': 'Pending'
+    },
+    {
+        'sha': '3',
+        'title': 'commit 3',
+        'author': 'author 3',
+        'date': 'October 26, 2020',
+        'status': 'Running'
+    }
+]
+
+benchmark_data = {
+    'commits': formatted_new_commits
+}
+>>>>>>> test
+
 
 def get_benchmarks(app, file_path):
     gs_reader = app['gs_reader']
@@ -210,7 +239,8 @@ async def index(request):
 
     context = {'commits': formatted_commits,
                'gh_commit': list_of_commits[0]}
-    return await render_template('benchmark', request, userdata, 'index.html', context)
+
+    return await render_template('benchmark', request, userdata, 'index.html', benchmark_data)
 
 
 @router.get('/lookup')
