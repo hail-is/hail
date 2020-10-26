@@ -48,21 +48,24 @@ formatted_new_commits = [
         'title': 'commit 1',
         'author': 'author 1',
         'date': 'October 20, 2020',
-        'status': 'Complete'
+        'status': 'Complete',
+        'geometric_mean': 1.1
     },
     {
         'sha': '2',
         'title': 'commit 2',
         'author': 'author 2',
         'date': 'October 22, 2020',
-        'status': 'Pending'
+        'status': 'Pending',
+        'geometric_mean': 2.2
     },
     {
         'sha': '3',
         'title': 'commit 3',
         'author': 'author 3',
         'date': 'October 26, 2020',
-        'status': 'Running'
+        'status': 'Running',
+        'geometric_mean': 3.3
     }
 ]
 
@@ -70,6 +73,9 @@ benchmark_data = {
     'commits': formatted_new_commits
 }
 >>>>>>> test
+
+with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+    oauth_token = f.read().strip()
 
 
 def get_benchmarks(app, file_path):
