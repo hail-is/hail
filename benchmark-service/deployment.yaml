@@ -73,6 +73,9 @@ spec:
             - name: benchmark-tokens
               mountPath: /user-tokens
               readOnly: true
+            - name: benchmark-tokens
+              mountPath: /user-tokens
+              readOnly: true
           readinessProbe:
             tcpSocket:
               port: 5000
