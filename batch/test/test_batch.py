@@ -13,7 +13,7 @@ from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers, get_userinfo
 from hailtop.utils import (retry_response_returning_functions,
                            external_requests_client_session)
-from hailtop.batch_client.client import BatchClient, Job
+from hailtop.batch_client.client import BatchClient
 
 from .utils import legacy_batch_status
 from .failure_injecting_client_session import FailureInjectingClientSession
@@ -432,6 +432,13 @@ def test_authorized_users_only():
     endpoints = [
         (session.get, '/api/v1alpha/billing_projects', 401),
         (session.get, '/api/v1alpha/billing_projects/foo', 401),
+        (session.post, '/api/v1alpha/billing_projects/foo/users/foo/add', 401),
+        (session.post, '/api/v1alpha/billing_projects/foo/users/foo/remove', 401),
+        (session.post, '/api/v1alpha/billing_projects/foo/create', 401),
+        (session.post, '/api/v1alpha/billing_projects/foo/close', 401),
+        (session.post, '/api/v1alpha/billing_projects/foo/reopen', 401),
+        (session.post, '/api/v1alpha/billing_projects/foo/delete', 401),
+        (session.post, '/api/v1alpha/billing_limits/foo/edit', 401),
         (session.get, '/api/v1alpha/batches/0/jobs/0', 401),
         (session.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
         (session.get, '/api/v1alpha/batches', 401),

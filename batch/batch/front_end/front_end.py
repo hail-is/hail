@@ -23,9 +23,10 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context, in_cluster_ssl_client_session
 from hailtop.hail_logging import AccessLogger
 from hailtop import aiotools
-from gear import (Database, setup_aiohttp_session, rest_authenticated_developers_only,
-                  rest_authenticated_users_only, web_authenticated_users_only,
-                  web_authenticated_developers_only, check_csrf_token, transaction)
+from gear import (Database, setup_aiohttp_session,
+                  rest_authenticated_users_only, rest_authenticated_developers_only,
+                  web_authenticated_users_only, web_authenticated_developers_only,
+                  check_csrf_token, transaction)
 from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
                         render_template, set_message)
 
@@ -36,7 +37,8 @@ from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_gb,
                      adjust_cores_for_storage_request, total_worker_storage_gib)
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
-                          NonExistentUserError, ClosedBillingProjectError)
+                          NonExistentUserError, ClosedBillingProjectError,
+                          InvalidBillingLimitError)
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import (BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME,
@@ -69,7 +71,10 @@ REQUEST_TIME_POST_DELETE_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch
 REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET')
 REQUEST_TIME_GET_JOB_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id', verb="GET")
 REQUEST_TIME_GET_BILLING_PROJECTS = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects', verb="GET")
-REQUEST_TIME_GET_BILLING_PROJECT = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/{billing_project}', verb="GET")
+REQUEST_TIME_GET_BILLING_PROJECT = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/billing_project', verb="GET")
+REQUEST_TIME_GET_BILLING_LIMITS_UI = REQUEST_TIME.labels(endpoint='/billing_limits', verb="GET")
+REQUEST_TIME_POST_BILLING_LIMITS_EDIT_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/edit', verb="POST")
+REQUEST_TIME_POST_BILLING_LIMITS_EDIT = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/billing_project/edit', verb="POST")
 REQUEST_TIME_GET_BILLING_UI = REQUEST_TIME.labels(endpoint='/billing', verb="GET")
 REQUEST_TIME_GET_BILLING_PROJECTS_UI = REQUEST_TIME.labels(endpoint='/billing_projects', verb="GET")
 REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/user/remove', verb="POST")
@@ -1031,7 +1036,10 @@ async def ui_batch(request, userdata):
     jobs, last_job_id = await _query_batch_jobs(request, batch_id)
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])
+        j['cost'] = cost_str(j['cost'])
     batch['jobs'] = jobs
+
+    batch['cost'] = cost_str(batch['cost'])
 
     page_context = {
         'batch': batch,
@@ -1075,6 +1083,8 @@ async def ui_delete_batch(request, userdata):
 async def ui_batches(request, userdata):
     user = userdata['username']
     batches, last_batch_id = await _query_batches(request, user)
+    for batch in batches:
+        batch['cost'] = cost_str(batch['cost'])
     page_context = {
         'batches': batches,
         'q': request.query.get('q'),
@@ -1211,6 +1221,95 @@ async def ui_get_job(request, userdata):
     return await render_template('batch', request, userdata, 'job.html', page_context)
 
 
+@routes.get('/billing_limits')
+@prom_async_time(REQUEST_TIME_GET_BILLING_LIMITS_UI)
+@web_authenticated_users_only()
+async def ui_get_billing_limits(request, userdata):
+    app = request.app
+    db = app['db']
+
+    if not userdata['is_developer']:
+        user = userdata['username']
+    else:
+        user = None
+
+    billing_limits = await _query_billing_projects(db, user=user)
+
+    page_context = {
+        'billing_limits': billing_limits,
+        'is_developer': userdata['is_developer']
+    }
+    return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
+
+
+def _parse_billing_limit(limit):
+    if limit == 'None' or limit is None:
+        limit = None
+    else:
+        try:
+            limit = float(limit)
+            assert limit >= 0
+        except Exception as e:
+            raise InvalidBillingLimitError(limit) from e
+    return limit
+
+
+async def _edit_billing_limit(db, billing_project, limit):
+    limit = _parse_billing_limit(limit)
+
+    @transaction(db)
+    async def insert(tx):
+        row = await tx.execute_and_fetchone(
+            '''
+SELECT billing_projects.name as billing_project,
+    billing_projects.`status` as `status`
+FROM billing_projects
+WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted'
+FOR UPDATE;
+        ''',
+            (billing_project,))
+        if row is None:
+            raise NonExistentBillingProjectError(billing_project)
+
+        if row['status'] == 'closed':
+            raise ClosedBillingProjectError(billing_project)
+
+        await tx.execute_update(
+            '''
+UPDATE billing_projects SET `limit` = %s WHERE name = %s;
+''',
+            (limit, billing_project))
+    await insert()  # pylint: disable=no-value-for-parameter
+
+
+@routes.post('/api/v1alpha/billing_limits/{billing_project}/edit')
+@prom_async_time(REQUEST_TIME_POST_BILLING_LIMITS_EDIT)
+@rest_authenticated_developers_only
+async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    billing_project = request.match_info['billing_project']
+    data = await request.json()
+    limit = data['limit']
+    await _handle_api_error(_edit_billing_limit, db, billing_project, limit)
+    return web.json_response({'billing_project': billing_project, 'limit': limit})
+
+
+@routes.post('/billing_limits/{billing_project}/edit')
+@prom_async_time(REQUEST_TIME_POST_BILLING_LIMITS_EDIT_UI)
+@check_csrf_token
+@web_authenticated_developers_only(redirect=False)
+async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    billing_project = request.match_info['billing_project']
+    post = await request.post()
+    limit = post['limit']
+    session = await aiohttp_session.get_session(request)
+    errored = await _handle_ui_error(session, _edit_billing_limit, db, billing_project, limit)
+    if not errored:
+        set_message(session, f'Modified limit {limit} for billing project {billing_project}.', 'info')
+    return web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))
+
+
 async def _query_billing(request):
     db = request.app['db']
 
@@ -1341,7 +1440,7 @@ async def _query_billing_projects(db, user=None, billing_project=None):
     sql = f'''
 SELECT billing_projects.name as billing_project,
     billing_projects.`status` as `status`,
-    users
+    users, msec_mcpu, `limit`, SUM(`usage` * rate) as cost
 FROM (
   SELECT billing_project, JSON_ARRAYAGG(`user`) as users
   FROM billing_project_users
@@ -1349,10 +1448,21 @@ FROM (
 ) AS t
 RIGHT JOIN billing_projects
   ON t.billing_project = billing_projects.name
-{where_condition};
+LEFT JOIN aggregated_billing_project_resources
+  ON aggregated_billing_project_resources.billing_project = billing_projects.name
+LEFT JOIN resources
+  ON resources.resource = aggregated_billing_project_resources.resource
+{where_condition}
+GROUP BY billing_projects.name, users, msec_mcpu, `limit`;
 '''
 
     def record_to_dict(record):
+        cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
+        cost_resources = record['cost']
+        record['accrued_cost'] = coalesce(cost_msec_mcpu, 0) + coalesce(cost_resources, 0)
+        del record['msec_mcpu']
+        del record['cost']
+
         if record['users'] is None:
             record['users'] = []
         else:
