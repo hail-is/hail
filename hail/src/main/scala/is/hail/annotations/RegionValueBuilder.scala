@@ -483,8 +483,24 @@ class RegionValueBuilder(var region: Region) {
           addBoolean(i.includesStart)
           addBoolean(i.includesEnd)
           endStruct()
-        case t: TNDArray =>
-          addAnnotation(t.representation, a)
+        case t@TNDArray(elementType, _) =>
+          val structWithStrides = TStruct(
+            ("shape", t.shapeType),
+            ("strides", t.shapeType),
+            ("data", TArray(elementType))
+          )
+          val ptype = currentType().asInstanceOf[PBaseStruct]
+          val shapeRow = a.asInstanceOf[Row](0).asInstanceOf[Row]
+          val shapeArray = shapeRow.toSeq.toIndexedSeq.map(x => x.asInstanceOf[Long])
+          var runningProduct = ptype.fieldType("data").asInstanceOf[PArray].elementType.byteSize
+          val stridesArray = new Array[Long](shapeArray.size)
+          ((shapeArray.size - 1) to 0 by -1).foreach { i =>
+            stridesArray(i) = runningProduct
+            runningProduct = runningProduct * (if (shapeArray(i) > 0L) shapeArray(i) else 1L)
+          }
+          val stridesRow = Row(stridesArray:_*)
+
+          addAnnotation(structWithStrides, Row(shapeRow, stridesRow, a.asInstanceOf[Row](1)))
       }
   }
 

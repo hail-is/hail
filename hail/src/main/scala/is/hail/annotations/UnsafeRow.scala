@@ -56,16 +56,6 @@ class UnsafeIndexedSeqRowMajorView(val wrapped: UnsafeIndexedSeq, shape: Indexed
     if (properIndex > Int.MaxValue) {
       throw new IllegalArgumentException("Index too large")
     }
-    println(
-      s"""
-        |Diagnose:
-        |Shape ${shape}
-        |ShapeProduct: ${shapeProduct}
-        |Strides ${strides}
-        |i : ${i}
-        |coord: ${coordStorageArray.toIndexedSeq}
-        |pi: ${properIndex}
-        |""".stripMargin)
 
     wrapped(properIndex.toInt)
   }
