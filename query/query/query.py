@@ -3,6 +3,8 @@ import base64
 import concurrent
 import logging
 import uvloop
+import asyncio
+import aiohttp
 from aiohttp import web
 import kubernetes_asyncio as kube
 from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
@@ -29,14 +31,16 @@ def java_to_web_response(jresp):
     return web.json_response(status=status, text=value)
 
 
-def java_to_ws_response(jresp):
+async def send_ws_response(thread_pool, ws, f, *args, **kwargs):
+    jresp = await blocking_to_async(thread_pool, f, *args, **kwargs)
     status = jresp.status()
     value = jresp.value()
     log.info(f'response status {status} value {value}')
     if status in (400, 500):
-        return {'error': value}
-    assert status == 200, status
-    return {'status': status, 'result': value}
+        await ws.send_json({'error': value})
+    else:
+        assert status == 200, status
+        await ws.send_json({'status': status, 'result': value})
 
 
 async def add_user(app, userdata):
@@ -89,12 +93,12 @@ def blocking_get_reference(jbackend, userdata, body):   # pylint: disable=unused
 async def handle_ws_response(request, userdata, cmd_str, f):
     log.info('connecting websocket')
     app = request.app
-    thread_pool = app['thread_pool']
     jbackend = app['jbackend']
 
     await add_user(app, userdata)
     log.info('connecting websocket')
-    ws = web.WebSocketResponse(max_msg_size=0)
+    ws = web.WebSocketResponse(heartbeat=30, max_msg_size=0)
+    task = None
     try:
         await ws.prepare(request)
         app['sockets'].add(ws)
@@ -103,11 +107,18 @@ async def handle_ws_response(request, userdata, cmd_str, f):
 
         log.info(f"{cmd_str}: {body}")
         await ws.send_str(cmd_str)
-        jresp = await blocking_to_async(thread_pool, f, jbackend, userdata, body)
-        await ws.send_json(java_to_ws_response(jresp))
+        task = asyncio.ensure_future(send_ws_response(app['thread_pool'], ws, f, jbackend, userdata, body))
+        r = await ws.receive()
+        log.info('Received websocket message. Expected CLOSE, got {r}')
+        assert r.type == aiohttp.WSMsgType.CLOSE
         return ws
     finally:
-        await ws.close()
+        if not ws.closed:
+            await ws.close()
+            log.info('Websocket was not closed. Closing.')
+        if task is not None and not task.done():
+            task.cancel()
+            log.info('Task has been cancelled due to websocket closure.')
         log.info('websocket connection closed')
         app['sockets'].remove(ws)
 
@@ -209,6 +220,11 @@ async def on_startup(app):
     app['k8s_client'] = k8s_client
 
 
+async def on_shutdown(app):
+    for ws in app['sockets']:
+        await ws.close(code=aiohttp.WSCloseCode.GOING_AWAY, message='Server shutdown')
+
+
 def run():
     app = web.Application()
 
@@ -217,6 +233,7 @@ def run():
     app.add_routes(routes)
 
     app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
 
     deploy_config = get_deploy_config()
     web.run_app(

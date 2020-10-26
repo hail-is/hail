@@ -10,7 +10,7 @@ from hail.expr.blockmatrix_type import tblockmatrix
 
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.auth import service_auth_headers
-from hailtop.utils import async_to_blocking
+from hailtop.utils import async_to_blocking, retry_transient_errors
 from hail.ir.renderer import CSERenderer
 
 from .backend import Backend
@@ -24,9 +24,13 @@ class ServiceSocket:
         self.url = deploy_config.base_url('query')
         self.session = aiohttp.ClientSession(headers=service_auth_headers(deploy_config, 'query'))
 
+    def close(self):
+        async_to_blocking(self.session.close())
+        self.session = None
+
     def handle_response(self, resp):
         if resp.type == aiohttp.WSMsgType.CLOSED:
-            raise FatalError('Socket was closed waiting for response from server.')
+            raise aiohttp.ServerDisconnectedError('Socket was closed by server. (code={resp.data})')
         if resp.type == aiohttp.WSMsgType.ERROR:
             raise FatalError(f'Error raised while waiting for response from server: {resp}.')
         assert resp.type == aiohttp.WSMsgType.TEXT
@@ -36,15 +40,14 @@ class ServiceSocket:
         async with self.session.ws_connect(f'{self.url}/api/v1alpha/{endpoint}') as socket:
             await socket.send_str(json.dumps(data))
             resp = self.handle_response(await socket.receive())
-            if resp != endpoint:
-                raise FatalError(f'Error from server: {json.loads(resp)["error"]}')
+            assert resp == endpoint
             result = json.loads(self.handle_response(await socket.receive()))
             if result['status'] != 200:
                 raise FatalError(f'Error from server: {result["error"]}')
             return json.loads(result['result'])
 
     def request(self, endpoint, **data):
-        return async_to_blocking(self.async_request(endpoint, **data))
+        return async_to_blocking(retry_transient_errors(self.async_request(endpoint, **data)))
 
 
 class ServiceBackend(Backend):
@@ -88,7 +91,7 @@ class ServiceBackend(Backend):
         return self._fs
 
     def stop(self):
-        pass
+        self.socket.close()
 
     def _render(self, ir):
         r = CSERenderer()
