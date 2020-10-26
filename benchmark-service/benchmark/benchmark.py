@@ -232,7 +232,9 @@ async def index(request):
         'geo_means': benchmark_data['geo_means']
     }
     df = pd.DataFrame(d)
-    fig = px.scatter(df, x=df.dates, y=df.geo_means)
+    # fig = px.scatter(df, x=df.dates, y=df.geo_means)
+    fig = px.line(df, x=df.dates, y=df.geo_means)
+    fig.update_xaxes(rangeslider_visible=True)
     plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     # app = request.app
     # batch_client = app['batch_client']
