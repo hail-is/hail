@@ -79,6 +79,7 @@
   border-bottom: 1px solid transparent;
   border-top-left-radius: 3px;
   border-top-right-radius: 3px;
+  font-weight: bold;
 }
 
 #annotation-db div.panel .panel-body p:last-child {
@@ -114,7 +115,7 @@
   resize: none;
   table-layout: fixed;
   display: block;
-  height: 770px;
+  height: auto;
   width: 100%;
   overflow-y: auto;
   font-size: 0.875rem;
