@@ -180,8 +180,9 @@ async def query_billing_projects(db, user=None, billing_project=None):
         where_condition = ''
 
     sql = f'''
-SELECT billing_projects.name as billing_project, billing_projects.status as status,
- users, msec_mcpu, `limit`, SUM(`usage` * rate) as cost
+SELECT billing_projects.name as billing_project,
+  billing_projects.`status` as `status`,
+  users, msec_mcpu, `limit`, SUM(`usage` * rate) as cost
 FROM (
   SELECT billing_project, JSON_ARRAYAGG(`user`) as users
   FROM billing_project_users
