@@ -25,7 +25,7 @@
 	  <a class="header-dropdown-menu-link" href="{{ batch_base_url }}/billing_projects">Billing Projects</a>
         {% endif %}
 
-	{% if userdata %}
+	{% if userdata['username'] %}
         <a class="header-dropdown-menu-link" href="{{ batch_base_url}}/billing_limits">Billing Limits</a>
         {% endif %}
 	
