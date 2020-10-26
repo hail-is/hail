@@ -9,12 +9,14 @@ from hailtop.utils import (
     time_msecs, sleep_and_backoff, is_transient_error,
     time_msecs_str, humanize_timedelta_msecs)
 from hailtop.tls import in_cluster_ssl_client_session
+from gear import transaction
 
 from .globals import complete_states, tasks, STATUS_FORMAT_VERSION
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
 from .batch_format_version import BatchFormatVersion
 from .spec_writer import SpecWriter
+from .exceptions import NonExistentBatchError, OpenBatchError
 
 log = logging.getLogger('batch')
 
@@ -76,6 +78,28 @@ def batch_record_to_dict(record):
     d['cost'] = cost
 
     return d
+
+
+async def cancel_batch_in_db(db, batch_id, user):
+    @transaction(db)
+    async def cancel(tx):
+        record = await tx.execute_and_fetchone('''
+SELECT `state` FROM batches
+WHERE user = %s AND id = %s AND NOT deleted
+FOR UPDATE;
+''',
+                                               (user, batch_id))
+        if not record:
+            log.info(f'cannot cancel nonexistent batch {batch_id}')
+            raise NonExistentBatchError
+
+        if record['state'] == 'open':
+            log.info(f'cannot cancel open batch {batch_id}')
+            raise OpenBatchError
+
+        await tx.just_execute(
+            'CALL cancel_batch(%s);', (batch_id,))
+    await cancel()  # pylint: disable=no-value-for-parameter
 
 
 async def notify_batch_job_complete(db, batch_id):

@@ -38,3 +38,13 @@ class InvalidBillingLimitError(BatchUserError):
 
     def http_response(self):
         return web.HTTPBadRequest(reason=self.message)
+
+
+class NonExistentBatchError(BatchUserError):
+    def __init__(self, batch_id):
+        super().__init__(f'Batch {batch_id} does not exist.', 'error')
+
+
+class OpenBatchError(Exception):
+    def __init__(self, batch_id):
+        super().__init__(f'Batch {batch_id} is open.', 'error')

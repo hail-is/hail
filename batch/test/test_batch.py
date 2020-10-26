@@ -2,7 +2,6 @@ import random
 import math
 import collections
 import os
-import base64
 import secrets
 import time
 import aiohttp

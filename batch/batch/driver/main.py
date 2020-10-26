@@ -17,7 +17,7 @@ from gear import (Database, setup_aiohttp_session,
                   transaction)
 from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
-from hailtop.utils import time_msecs, RateLimit, serialization
+from hailtop.utils import time_msecs, RateLimit, serialization, retry_long_running
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop import aiogoogle, aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
@@ -25,7 +25,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 import googlecloudprofiler
 import uvloop
 
-from ..batch import mark_job_complete, mark_job_started
+from ..batch import mark_job_complete, mark_job_started, cancel_batch_in_db
 from ..log_store import LogStore
 from ..batch_configuration import (REFRESH_INTERVAL_IN_SECONDS,
                                    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE,
@@ -35,6 +35,8 @@ from ..globals import HTTP_CLIENT_MAX_SIZE
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
 from .k8s_cache import K8sCache
+from ..utils import query_billing_projects
+from ..exceptions import OpenBatchError, NonExistentBatchError
 
 uvloop.install()
 
@@ -178,19 +180,22 @@ SELECT state FROM batches WHERE user = %s AND id = %s;
     return web.Response()
 
 
+def set_cancel_state_changed(app):
+    app['cancel_running_state_changed'].set()
+    app['cancel_ready_state_changed'].set()
+
+
 @routes.post('/api/v1alpha/batches/cancel')
 @batch_only
 async def cancel_batch(request):
-    request.app['cancel_running_state_changed'].set()
-    request.app['cancel_ready_state_changed'].set()
+    set_cancel_state_changed(request.app)
     return web.Response()
 
 
 @routes.post('/api/v1alpha/batches/delete')
 @batch_only
 async def delete_batch(request):
-    request.app['cancel_running_state_changed'].set()
-    request.app['cancel_ready_state_changed'].set()
+    set_cancel_state_changed(request.app)
     return web.Response()
 
 
@@ -644,6 +649,34 @@ LOCK IN SHARE MODE;
         await asyncio.sleep(10)
 
 
+async def _cancel_batch(app, batch_id, user):
+    try:
+        await cancel_batch_in_db(app['db'], batch_id, user)
+    except (OpenBatchError, NonExistentBatchError):
+        return
+    set_cancel_state_changed(app)
+
+
+async def monitor_billing_limits_loop_body(app):
+    db = app['db']
+    while True:
+        records = await query_billing_projects(db)
+        for record in records:
+            limit = record['limit']
+            accrued_cost = record['accrued_cost']
+            if limit is not None and accrued_cost >= limit:
+                running_batches = db.execute_and_fetchall('''
+SELECT id, user
+FROM batches
+WHERE billing_project = %s AND state = 'running';
+''',
+                                                          (record['billing_project'],))
+                async for batch in running_batches:
+                    await _cancel_batch(app, batch['id'], batch['user'])
+
+        await asyncio.sleep(10)
+
+
 async def on_startup(app):
     app['task_manager'] = aiotools.BackgroundTaskManager()
     pool = concurrent.futures.ThreadPoolExecutor()
@@ -725,6 +758,10 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     if HAIL_SHOULD_CHECK_INVARIANTS:
         app['task_manager'].ensure_future(check_incremental_loop(app, db))
         app['task_manager'].ensure_future(check_resource_aggregation(app, db))
+
+    asyncio.ensure_future(retry_long_running(
+        'monitor_billing_limits_loop',
+        monitor_billing_limits_loop_body, app))
 
 
 async def on_cleanup(app):
