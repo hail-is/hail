@@ -83,11 +83,11 @@ def batch_record_to_dict(record):
 async def cancel_batch_in_db(db, batch_id, user):
     @transaction(db)
     async def cancel(tx):
-        record = await tx.execute_and_fetchone(
-            '''
-    SELECT `state` FROM batches
-    WHERE user = %s AND id = %s AND NOT deleted;
-    ''',
+        record = await tx.execute_and_fetchone('''
+SELECT `state` FROM batches
+WHERE user = %s AND id = %s AND NOT deleted
+FOR UPDATE;
+''',
             (user, batch_id))
         if not record:
             log.info(f'cannot cancel nonexistent batch {batch_id}')
