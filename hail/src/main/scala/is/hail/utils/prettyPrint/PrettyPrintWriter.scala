@@ -10,7 +10,7 @@ object Doc {
   def render(doc: Doc, width: Int, out: Writer): Unit = {
     val buffer = new ArrayDeque[GroupN]
     val kont = new ArrayDeque[KontNode]
-    var remaining: Int = width
+    var remaining: Int = math.min(width, ribbonWidth)
     var globalPos: Int = 0
     var indentation: Int = 0
     var eval = doc
@@ -72,7 +72,7 @@ object Doc {
         } else {
           out.write('\n')
           out.write(" " * i)
-          remaining = width - i
+          remaining = math.min(width - i, ribbonWidth)
         }
       case GroupN(contents, start, stop) =>
         val h = stop - start <= remaining
@@ -104,12 +104,12 @@ object Doc {
 }
 
 abstract class Doc {
-  def render(width: Int, out: Writer): Unit =
-    Doc.render(this, width, out)
+  def render(width: Int, ribbonWidth: Int, out: Writer): Unit =
+    Doc.render(this, width, ribbonWidth, out)
 
-  def render(width: Int): String = {
+  def render(width: Int, ribbonWidth: Int): String = {
     val out = new StringWriter()
-    render(width, out)
+    render(width, ribbonWidth, out)
     out.toString
   }
 }

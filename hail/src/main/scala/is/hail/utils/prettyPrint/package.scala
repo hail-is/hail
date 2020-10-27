@@ -49,7 +49,7 @@ package object prettyPrint {
 
   def sep(docs: Doc*): Doc = sep(docs)
 
-  def fillSep(docs: Iterable[Doc]): Doc = concat(docs.intersperse(softline))
+  def fillSep(docs: Iterable[Doc]): Doc = concat(docs.map(d => group(concat(line, d))))
 
   def list(docs: Iterable[Doc]): Doc =
     group(docs.intersperse(concat(text("("), lineAlt), concat(",", line), text(")")))
