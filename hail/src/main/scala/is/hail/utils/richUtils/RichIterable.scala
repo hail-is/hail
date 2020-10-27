@@ -4,8 +4,24 @@ import java.io.Serializable
 
 import is.hail.utils._
 
-import scala.collection.{TraversableOnce, mutable}
+import scala.collection.{mutable, AbstractIterable}
 import scala.reflect.ClassTag
+
+object RichIterable {
+  def single[A](a: A): Iterable[A] = new AbstractIterable[A] {
+    override def iterator = Iterator.single(a)
+    override def head = a
+    override def headOption = Some(a)
+    override def last = a
+    override def lastOption = Some(a)
+    override def take(n: Int) = if (n > 0) this else Iterable.empty
+    override def takeRight(n: Int) = if (n > 0) this else Iterable.empty
+    override def drop(n: Int) = if (n > 0) Iterable.empty else this
+    override def dropRight(n: Int) = if (n > 0) Iterable.empty else this
+    override def tail = Iterable.empty
+    override def init = Iterable.empty
+  }
+}
 
 class RichIterable[T](val i: Iterable[T]) extends Serializable {
   def foreachBetween(f: (T) => Unit)(g: => Unit) {
@@ -18,6 +34,10 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
 
   def intersperse[S >: T](start: S, sep: S, end: S): Iterable[S] = new Iterable[S] {
     def iterator = i.iterator.intersperse(start, sep, end)
+  }
+
+  def +:[S >: T](elt: S): Iterable[S] = new Iterable[S] {
+    def iterator = Iterator.single(elt) ++ i
   }
 
   def lazyMapWith[T2, S](i2: Iterable[T2], f: (T, T2) => S): Iterable[S] =

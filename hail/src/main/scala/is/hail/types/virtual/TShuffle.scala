@@ -33,7 +33,7 @@ case class TShuffle (
   def _toPretty: String = {
     val sb = new StringBuilder()
     sb.append("Shuffle{")
-    sb.append(Pretty.prettySortFieldsString(keyFields))
+    sb.append(Pretty.prettySortFields(keyFields))
     sb.append(",")
     sb.append(rowType.parsableString())
     sb.append(",")

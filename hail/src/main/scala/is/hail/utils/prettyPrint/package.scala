@@ -49,12 +49,19 @@ package object prettyPrint {
 
   def sep(docs: Doc*): Doc = sep(docs)
 
-  def fillSep(docs: Iterable[Doc]): Doc = concat(docs.map(d => group(concat(line, d))))
+  def fillSep(docs: Iterable[Doc]): Doc = concat(docs.intersperse(softline))
+
+  def fillSep(docs: Doc*): Doc = fillSep(docs)
 
   def list(docs: Iterable[Doc]): Doc =
-    group(docs.intersperse(concat(text("("), lineAlt), concat(",", line), text(")")))
+    group(concat(text("("), lineAlt, vsep(docs), text(")")))
 
   def list(docs: Doc*): Doc = list(docs)
+
+  def fillList(docs: Iterable[Doc]): Doc =
+    concat(text("("), lineAlt, fillSep(docs), text(")"))
+
+  def fillList(docs: Doc*): Doc = fillList(docs)
 
   def punctuate(punctuation: Doc, docs: Iterator[Doc]): Iterator[Doc] = new Iterator[Doc] {
     override def hasNext: Boolean = docs.hasNext

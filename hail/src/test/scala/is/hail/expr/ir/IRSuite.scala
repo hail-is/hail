@@ -2818,11 +2818,11 @@ class IRSuite extends HailSuite {
     val s = TStruct("a" -> TInt64, "b" -> TString)
     val emptyStruct = MakeStruct(Seq("a" -> NA(TInt64), "b" -> NA(TString)))
 
-//    assertEvalsTo(
-//      InsertFields(
-//        NA(s),
-//        Seq()),
-//      null)
+    assertEvalsTo(
+      InsertFields(
+        NA(s),
+        Seq()),
+      null)
 
     assertEvalsTo(
       InsertFields(
