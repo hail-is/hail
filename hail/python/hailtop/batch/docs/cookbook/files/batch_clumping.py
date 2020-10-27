@@ -70,8 +70,6 @@ if __name__ == '__main__':
     batch = hb.Batch(backend=backend, name='clumping')
 
     vcf = batch.read_input('gs://hail-tutorial/1kg.vcf.bgz')
-    vcf.add_extension('.vcf.bgz')
-
     phenotypes = batch.read_input('gs://hail-tutorial/1kg_annotations.txt')
 
     g = gwas(batch, vcf, phenotypes)
