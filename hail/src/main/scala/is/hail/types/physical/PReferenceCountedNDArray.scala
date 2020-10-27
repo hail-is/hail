@@ -2,6 +2,7 @@ package is.hail.types.physical
 import is.hail.annotations.{Region, StagedRegionValueBuilder, UnsafeOrdering}
 import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.utils._
 
 class PReferenceCountedNDArray(elementType: PType, nDims: Int, required: Boolean = false) extends PNDArray {
   override val shape: StaticallyKnownField[PTuple, Long] = _
@@ -26,7 +27,12 @@ class PReferenceCountedNDArray(elementType: PType, nDims: Int, required: Boolean
   override def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): (Code[Unit], IndexedSeq[Value[Long]]) = ???
 
   override def construct(shapeBuilder: StagedRegionValueBuilder => Code[Unit], stridesBuilder: StagedRegionValueBuilder => Code[Unit], data: Code[Long], mb: EmitMethodBuilder[_], region: Value[Region]): Code[Long] = {
-    val addr =  0L // allocate NDArray for me
+    val sizeInBytes = mb.genFieldThisRef[Long]("ndarray_size_in_bytes")
+
+    val addr =  region.allocateNDArray(???)
+    Code(
+      sizeInBytes := (this.shape.pType.byteSize + this.strides.pType.byteSize + this.data.pType.byteSize + this.data.pType.asInstanceOf[PArray]
+    )
     ???
   }
 
