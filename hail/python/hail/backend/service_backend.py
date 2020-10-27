@@ -47,7 +47,7 @@ class ServiceSocket:
             return json.loads(result['result'])
 
     def request(self, endpoint, **data):
-        return async_to_blocking(retry_transient_errors(self.async_request(endpoint, **data)))
+        return async_to_blocking(retry_transient_errors(self.async_request, endpoint, **data))
 
 
 class ServiceBackend(Backend):
