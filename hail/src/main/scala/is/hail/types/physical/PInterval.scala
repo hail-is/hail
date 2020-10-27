@@ -120,10 +120,8 @@ abstract class PIntervalValue extends PValue {
     val gt = cb.emb.getCodeOrdering(pt.pointType, CodeOrdering.Gt())
     val gteq = cb.emb.getCodeOrdering(pt.pointType, CodeOrdering.Gteq())
 
-    val start = EmitCode.fromI(cb.emb)(loadStart(_))
-    val end = EmitCode.fromI(cb.emb)(loadEnd(_))
-    cb += start.setup
-    cb += end.setup
+    val start = cb.memoize(loadStart(cb), "start")
+    val end = cb.memoize(loadEnd(cb), "end")
     (includesStart() && includesEnd()).mux(
       gt((start.m, start.v), (end.m, end.v)),
       gteq((start.m, start.v), (end.m, end.v))
