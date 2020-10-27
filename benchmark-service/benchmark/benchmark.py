@@ -262,8 +262,7 @@ async def update_commits(app):
     for gh_commit in gh_data:
 
         sha = gh_commit.get('sha')
-        b_c = await batch_client()
-        batches = [b async for b in b_c.list_batches(q=f'sha={sha} running')]
+        batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
         # try:
         #     batch = batches[-1]
         #     batch_status = await batch.status()
