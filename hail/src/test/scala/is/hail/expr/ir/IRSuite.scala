@@ -19,7 +19,6 @@ import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.{RVD, RVDPartitioner, RVDSpecMaker}
-import is.hail.utils.prettyPrint.OppenPPI
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
 import is.hail.{ExecStrategy, HailContext, HailSuite, utils}
@@ -1505,9 +1504,6 @@ class IRSuite extends HailSuite {
   @Test def testMakeStruct() {
     assertEvalsTo(MakeStruct(FastSeq()), Row())
     assertEvalsTo(MakeStruct(FastSeq("a" -> NA(TInt32), "b" -> 4, "c" -> 0.5)), Row(null, 4, 0.5))
-    println(Pretty(MakeStruct(FastSeq("a" -> NA(TInt32), "b" -> 4, "c" -> 0.5))))
-    println()
-    println(Pretty(MakeStruct(FastSeq("a" -> NA(TInt32), "b" -> 4, "c" -> 0.5)), flat = true))
     //making sure wide structs get emitted without failure
     assertEvalsTo(GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1"), 1)
   }
@@ -1629,9 +1625,6 @@ class IRSuite extends HailSuite {
     assertEvalsTo(StreamLen(zip(ArrayZipBehavior.ExtendNA, range6, range8)), 8)
     assertEvalsTo(StreamLen(zip(ArrayZipBehavior.AssertSameLength, range8, range8)), 8)
     assertEvalsTo(StreamLen(zip(ArrayZipBehavior.AssumeSameLength, range8, range8)), 8)
-
-    println(Pretty(StreamLen(zip(ArrayZipBehavior.AssumeSameLength, range8, range8))))
-    println(Pretty(StreamLen(zip(ArrayZipBehavior.AssumeSameLength, range8, range8)), flat = true))
 
     // https://github.com/hail-is/hail/issues/8359
     is.hail.TestUtils.assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range6, range8): IR, "zip: length mismatch": String)

@@ -7,8 +7,6 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
 
 class PrettyPrintWriterSuite extends TestNGSuite {
-  import PrettyPrintWriter._
-
   def data: Array[(Doc, Array[(Int, String)])] =
     Array(
       ( nest(2, hsep("prefix", sep("text", "to", "lay", "out"))),

@@ -1389,8 +1389,8 @@ class PruneSuite extends HailSuite {
   def testIsSupertypeRequiredness(t1: Type, t2: Type) = {
     assert(PruneDeadFields.isSupertype(t1, t2),
       s"""Failure, supertype relationship not met
-         | supertype: ${ t1.toPrettyString(0, true) }
-         | subtype:   ${ t2.toPrettyString(0, true) }""".stripMargin)
+         | supertype: ${ t1.toPrettyString(true) }
+         | subtype:   ${ t2.toPrettyString(true) }""".stripMargin)
   }
 
   @Test def testApplyScanOp() {
