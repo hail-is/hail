@@ -9,49 +9,69 @@ import scala.annotation.tailrec
 
 object Doc {
   def render(doc: Doc, width: Int, ribbonWidth: Int, _maxLines: Int, out: Writer): Unit = {
-    val buffer = new ArrayDeque[GroupN]
+    // All groups whose formatting is still undetermined. The innermost group is at the end.
+    // A group which has been determined to be non-flat is popped from the front, even if the
+    // group is still open. This is safe because top-level Lines (not in any group) always print
+    // as newlines.
+    // Each GroupN contains the contents of the group that has been scanned so far.
+    val pendingGroups = new ArrayDeque[GroupN]
+
+    // Represents the rest of the document past the node currently being scanned.
     val kont = new ArrayDeque[KontNode]
+
+    // The current position in the document, if it had been formatted entirely in one line.
+    // This is only used to take the difference between two globalPos values, to determine
+    // the length of a group if it is formatted flat.
+    var globalPos: Int = 0
+
     val maxLines = if (_maxLines > 0) _maxLines else Int.MaxValue
     var lines: Int = 0
-    var remaining: Int = math.min(width, ribbonWidth)
-    var globalPos: Int = 0
+    var remainingInLine: Int = math.min(width, ribbonWidth)
     var indentation: Int = 0
-    var eval = doc
+    var currentNode = doc
 
-    var pendingPushes: Int = 0
-    var pendingPops: Int = 0
+    // Group openings and closes are deferred until the next Line. This forces any Text to be
+    // considered part of the group containing the previous Line. For opens, this is a slight
+    // performance optimization, because text at the beginning of a group can be written eagerly,
+    // regardless of how the group is formatted. For closes, this is more correct: if text
+    // immediately follows the end of a group, then the group may fit on the current line, yet
+    // the following text would exceed the max width.
+    var pendingOpens: Int = 0
+    var pendingCloses: Int = 0
 
-    def scan(d: ScanedNode, size: Int): Unit = {
+    def scan(node: ScanedNode, size: Int): Unit = {
       globalPos += size
-      if (buffer.isEmpty) {
-        printNode(d, false)
+      if (pendingGroups.isEmpty) {
+        printNode(node, false)
       } else {
-        buffer.getLast.contents += d
-        while (!buffer.isEmpty && globalPos - buffer.getFirst.start > remaining) {
-          val head = buffer.removeFirst()
+        pendingGroups.getLast.contents += node
+        while (!pendingGroups.isEmpty && globalPos - pendingGroups.getFirst.start > remainingInLine) {
+          val head = pendingGroups.removeFirst()
           head.end = globalPos
           printNode(head, false)
         }
       }
     }
 
+    // Process the top of kont until a non-empty ConcatK is found; move the first contained node
+    // to currentNode.
     @tailrec def advance(): Unit = {
       if (kont.isEmpty) {
-        eval = null
+        currentNode = null
       } else {
         kont.peek() match {
-          case Triv(k) =>
+          case ConcatK(k) =>
             if (k.isEmpty) {
               kont.pop()
               advance()
             } else {
-              eval = k.next()
+              currentNode = k.next()
             }
-          case PopGroup =>
-            if (pendingPushes > 0) pendingPushes -= 1 else pendingPops += 1
+          case PopGroupK =>
+            if (pendingOpens > 0) pendingOpens -= 1 else pendingCloses += 1
             kont.pop()
             advance()
-          case Unindent(i) =>
+          case UnindentK(i) =>
             indentation -= i
             kont.pop()
             advance()
@@ -59,23 +79,23 @@ object Doc {
       }
     }
 
-    def printNode(d: ScanedNode, horizontal: Boolean): Unit = d match {
+    def printNode(node: ScanedNode, horizontal: Boolean): Unit = node match {
       case TextN(t) =>
-        remaining -= t.length
+        remainingInLine -= t.length
         out.write(t)
       case LineN(i, ifFlat: String) =>
         if (horizontal) {
-          remaining -= ifFlat.length
+          remainingInLine -= ifFlat.length
           out.write(ifFlat)
         } else {
           lines += 1
           if (lines >= maxLines) throw new MaxLinesExceeded()
           out.write('\n')
           out.write(" " * i)
-          remaining = math.min(width - i, ribbonWidth)
+          remainingInLine = math.min(width - i, ribbonWidth)
         }
       case GroupN(contents, start, stop) =>
-        val h = stop - start <= remaining
+        val h = stop - start <= remainingInLine
         var i = 0
         while (i < contents.size) {
           printNode(contents(i), h)
@@ -84,31 +104,31 @@ object Doc {
     }
 
     def closeGroups(): Unit =
-      while (pendingPops > 0) {
-        if (buffer.isEmpty) {
-          pendingPops = 0
+      while (pendingCloses > 0) {
+        if (pendingGroups.isEmpty) {
+          pendingCloses = 0
           return
         }
-        val last = buffer.removeLast()
+        val last = pendingGroups.removeLast()
         last.end = globalPos
-        if (buffer.isEmpty) {
+        if (pendingGroups.isEmpty) {
           printNode(last, true)
         } else {
-          buffer.getLast.contents += last
+          pendingGroups.getLast.contents += last
         }
-        pendingPops -= 1
+        pendingCloses -= 1
       }
 
     def openGroups(): Unit = {
-      while (pendingPushes > 0) {
-        buffer.addLast(GroupN(new ArrayBuilder[ScanedNode](), globalPos, -1))
-        pendingPushes -= 1
+      while (pendingOpens > 0) {
+        pendingGroups.addLast(GroupN(new ArrayBuilder[ScanedNode](), globalPos, -1))
+        pendingOpens -= 1
       }
     }
 
     try {
-      while (eval != null) {
-        eval match {
+      while (currentNode != null) {
+        currentNode match {
           case Text(t) =>
             scan(TextN(t), t.length)
             advance()
@@ -118,15 +138,15 @@ object Doc {
             scan(LineN(indentation, ifFlat), ifFlat.length)
             advance()
           case Group(body) =>
-            kont.push(PopGroup)
-            pendingPushes += 1
-            eval = body
+            kont.push(PopGroupK)
+            pendingOpens += 1
+            currentNode = body
           case Indent(i, body) =>
             indentation += i
-            kont.push(Unindent(i))
-            eval = body
+            kont.push(UnindentK(i))
+            currentNode = body
           case Concat(bodyIt) =>
-            kont.push(Triv(bodyIt.iterator))
+            kont.push(ConcatK(bodyIt.iterator))
             advance()
         }
       }
@@ -160,8 +180,8 @@ private[prettyPrint] case class LineN(indentation: Int, ifFlat: String) extends 
 private[prettyPrint] case class GroupN(contents: ArrayBuilder[ScanedNode], start: Int, var end: Int) extends ScanedNode
 
 private[prettyPrint] abstract class KontNode
-private[prettyPrint] case object PopGroup extends KontNode
-private[prettyPrint] case class Unindent(indent: Int) extends KontNode
-private[prettyPrint] case class Triv(kont: Iterator[Doc]) extends KontNode
+private[prettyPrint] case object PopGroupK extends KontNode
+private[prettyPrint] case class UnindentK(indent: Int) extends KontNode
+private[prettyPrint] case class ConcatK(kont: Iterator[Doc]) extends KontNode
 
 class MaxLinesExceeded() extends Exception
