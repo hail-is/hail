@@ -9,6 +9,8 @@ BENCHMARK_BUCKETS = ['hail-benchmarks', 'hail-benchmarks-2']
 
 FILE_PATH_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)(?P<path>.*)')
 
+BENCHMARK_TEST_BUCKET_NAME = 'hail-test'
+
 
 def get_geometric_mean(prod_of_means, num_of_means):
     return prod_of_means ** (1.0 / num_of_means)
@@ -51,10 +53,12 @@ def list_benchmark_files(read_gs):
 
 async def submit_test_batch(batch_client, sha):
     batch = batch_client.create_batch(attributes={'sha': sha})
+    known_file_path = 'gs://hail-benchmarks-2/tpoterba/0.2.21-f6f337d1e9bb.json'
+    dest_file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
     job = batch.create_job(image='ubuntu:18.04',
-                           command=['/bin/bash', '-c', 'touch /io/test; sleep 5'],
+                           command=['/bin/bash', '-c', f'touch /io/test; sleep 5'],
                            resources={'cpu': '0.25'},
-                           output_files=[('/io/test', f'{BENCHMARK_RESULTS_PATH}/{sha}.json')])
+                           output_files=[('/io/test', dest_file_path)])
     await batch.submit(disable_progress_bar=True)
     log.info(f'submitting batch for commit {sha}')
     return job.batch_id
