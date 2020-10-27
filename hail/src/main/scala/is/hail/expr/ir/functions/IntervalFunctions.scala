@@ -123,28 +123,26 @@ object IntervalFunctions extends RegistryFunctions {
           val compare = cb.emb.getCodeOrdering(int1.pt.pointType, int2.pt.pointType, CodeOrdering.Compare())
 
           def isAboveOnNonempty(cb: EmitCodeBuilder, lhs: PIntervalValue, rhs: PIntervalValue): Code[Boolean] = {
-            val cmp = r.mb.newLocal[Int]()
             val start = EmitCode.fromI(cb.emb)(lhs.loadStart(_))
             val end = EmitCode.fromI(cb.emb)(rhs.loadEnd(_))
             cb += start.setup
             cb += end.setup
-            cb.assign(cmp, compare(start.m -> start.v, end.m -> end.v))
+            val cmp = cb.newLocal("cmp", compare(start.m -> start.v, end.m -> end.v))
             cmp > 0 || (cmp.ceq(0) && (!lhs.includesStart() || !rhs.includesEnd()))
           }
 
           def isBelowOnNonempty(cb: EmitCodeBuilder, lhs: PIntervalValue, rhs: PIntervalValue): Code[Boolean] = {
-            val start = EmitCode.fromI(cb.emb)(rhs.loadStart(_))
             val end = EmitCode.fromI(cb.emb)(lhs.loadEnd(_))
+            val start = EmitCode.fromI(cb.emb)(rhs.loadStart(_))
             cb += start.setup
             cb += end.setup
-            val cmp = r.mb.newLocal[Int]()
-            cb.newLocal("cmp", compare(start.m -> start.v, end.m -> end.v))
+            val cmp = cb.newLocal("cmp", compare(end.m -> end.v, start.m -> start.v))
             cmp < 0 || (cmp.ceq(0) && (!lhs.includesEnd() || !rhs.includesStart()))
           }
 
-          interval1.isEmpty(cb) || interval2.isEmpty(cb) ||
+          !(interval1.isEmpty(cb) || interval2.isEmpty(cb) ||
             isBelowOnNonempty(cb, interval1, interval2) ||
-            isAboveOnNonempty(cb, interval1, interval2)
+            isAboveOnNonempty(cb, interval1, interval2))
         }
         PCode(rt, overlap)
     }
