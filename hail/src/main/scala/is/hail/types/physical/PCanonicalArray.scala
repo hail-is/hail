@@ -444,7 +444,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
             .loadElement(cb, idx)
             .consume(
               cb,
-              { setElementMissing(newAddr, idx) },
+              { cb.append(setElementMissing(newAddr, idx)) },
               { pc => elementType.storeAtAddress(cb, elementOffset(newAddr, length, idx), region, pc, deepCopy) }
             )
           cb.assign(idx, idx + 1)

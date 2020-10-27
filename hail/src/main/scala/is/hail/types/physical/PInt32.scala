@@ -56,7 +56,7 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
   override def sType: SType = SCanonicalInt32
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: PCode): Unit =
-    Region.storeInt(addr, value.asInt.intValue(cb))
+    cb.append(Region.storeInt(addr, value.asInt.intValue(cb)))
 }
 
 object PInt32 {

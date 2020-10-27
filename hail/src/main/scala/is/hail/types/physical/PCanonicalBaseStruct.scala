@@ -194,13 +194,13 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
       case _ =>
         val addrVar = cb.newLocal[Long]("addr", addr)
         val pcs = value.asBaseStruct.memoize(cb, "pcbasestruct_store_src")
-        cb += stagedInitialize(addrVar, setMissing = true)
+        cb += stagedInitialize(addrVar, setMissing = false)
 
         fields.foreach { f =>
           pcs.loadField(cb, f.index)
             .consume(cb,
               {
-                setFieldMissing(addrVar, f.index)
+                cb.append(setFieldMissing(addrVar, f.index))
               },
               {
                 f.typ.storeAtAddress(cb, fieldOffset(addrVar, f.index), region, _, deepCopy)

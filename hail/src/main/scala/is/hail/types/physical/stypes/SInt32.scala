@@ -9,7 +9,7 @@ import is.hail.utils.FastIndexedSeq
 trait SInt32 extends SType
 
 case object SCanonicalInt32 extends SInt32 {
-  override def pType: PType = PCanonicalCall(false)
+  override def pType: PType = PInt32(false)
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = PInt32(false).codeOrdering(mb, other.pType, so)
 

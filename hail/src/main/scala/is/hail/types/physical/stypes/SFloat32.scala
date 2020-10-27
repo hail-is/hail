@@ -9,7 +9,7 @@ import is.hail.utils.FastIndexedSeq
 trait SFloat32 extends SType
 
 case object SCanonicalFloat32 extends SFloat32 {
-  override def pType: PType = PCanonicalCall(false)
+  override def pType: PType = PFloat32(false)
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = PFloat32(false).codeOrdering(mb, other.pType, so)
 
