@@ -339,7 +339,7 @@ object Pretty {
     case _ => Iterable.empty
   }
 
-  def apply(ir: BaseIR, width: Int = 80, ribbonWidth: Int = 80, elideLiterals: Boolean = true, maxLen: Int = -1): String = {
+  def apply(ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1): String = {
     def prettySeq(xs: Seq[BaseIR]): Doc =
       list(xs.view.map(pretty))
 
