@@ -3,7 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations.{CodeOrdering, _}
 import is.hail.asm4s._
 import is.hail.check.Gen
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, EmitCode}
 import is.hail.types.virtual.TInterval
 import is.hail.utils._
 
@@ -105,6 +105,8 @@ abstract class PInterval extends ComplexPType {
 }
 
 abstract class PIntervalValue extends PValue {
+  def pt: PInterval
+
   def includesStart(): Value[Boolean]
 
   def includesEnd(): Value[Boolean]
@@ -112,6 +114,21 @@ abstract class PIntervalValue extends PValue {
   def loadStart(cb: EmitCodeBuilder): IEmitCode
 
   def loadEnd(cb: EmitCodeBuilder): IEmitCode
+
+  // FIXME orderings should take emitcodes/iemitcodes
+  def isEmpty(cb: EmitCodeBuilder): Code[Boolean] = {
+    val gt = cb.emb.getCodeOrdering(pt.pointType, CodeOrdering.Gt())
+    val gteq = cb.emb.getCodeOrdering(pt.pointType, CodeOrdering.Gteq())
+
+    val start = EmitCode.fromI(cb.emb)(loadStart(_))
+    val end = EmitCode.fromI(cb.emb)(loadEnd(_))
+    cb += start.setup
+    cb += end.setup
+    (includesStart() && includesEnd()).mux(
+      gt((start.m, start.v), (end.m, end.v)),
+      gteq((start.m, start.v), (end.m, end.v)),
+    )
+  }
 }
 
 abstract class PIntervalCode extends PCode {
