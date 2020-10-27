@@ -56,7 +56,7 @@ async def submit_test_batch(batch_client, sha):
                            resources={'cpu': '0.25'},
                            output_files=[('/io/test', f'{BENCHMARK_RESULTS_PATH}/{sha}.json')])
     await batch.submit(disable_progress_bar=True)
-    log.info(f'submitted batch for commit {sha}')
+    log.info(f'submitting batch for commit {sha}')
     return job.batch_id
 
 

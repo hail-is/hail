@@ -10,6 +10,7 @@ from hailtop.hail_logging import AccessLogger, configure_logging
 from hailtop.utils import retry_long_running
 import hailtop.batch_client.aioclient as bc
 from hailtop import aiotools
+import hailtop.batch_client.aioclient as bc
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials,\
     list_benchmark_files, round_if_defined, submit_test_batch
@@ -36,49 +37,13 @@ BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)(
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 benchmark_data = {
-    'commits': {}
-}
-
-with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
-    oauth_token = f.read().strip()
-
-formatted_new_commits = [
-    {
-        'sha': '1',
-        'title': 'commit 1',
-        'author': 'author 1',
-        'date': '2020-10-20T00:00:00Z',
-        'status': 'Complete',
-        'geometric_mean': 1.1
-    },
-    {
-        'sha': '2',
-        'title': 'commit 2',
-        'author': 'author 2',
-        'date': '2020-10-22T00:00:00Z',
-        'status': 'Pending',
-        'geometric_mean': 2.2
-    },
-    {
-        'sha': '3',
-        'title': 'commit 3',
-        'author': 'author 3',
-        'date': '2020-10-26T00:00:00Z',
-        'status': 'Running',
-        'geometric_mean': 3.3
-    }
-]
-
-dates = ['2020-10-20', '2020-10-22', '2020-10-26']
-
-geo_means = [1.1, 2.2, 3.3]
-
-benchmark_data = {
-    'commits': formatted_new_commits,
+    'commits': {},
     'dates': dates,
     'geo_means': geo_means
 }
->>>>>>> test
+dates = []
+geo_means = []
+
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
@@ -236,30 +201,6 @@ async def index(request):
     fig = px.line(df, x=df.dates, y=df.geo_means)
     fig.update_xaxes(rangeslider_visible=True)
     plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-    # app = request.app
-    # batch_client = app['batch_client']
-    # lists the commits in order (just do the last 50 for now and we can worry about pagination later)
-    # with the sha and a link to a lookup-like page for that commit.
-    # want commit sha, name of commit, commiter author, date, status (running, complete, or pending
-    # app = request.app
-    # list_of_commits = await last_couple_commits(app)
-    # formatted_commits = []
-    # for commit in list_of_commits:
-    #     sha = commit.get('sha')
-    #     batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
-    #     batch = batches[0]
-    #     formatted_commits.append(
-    #         {'commit': {
-    #             'sha': commit['sha'],
-    #             'title': None,
-    #             'author': commit['commit']['author']['name'],
-    #             'date': commit['commit']['author']['date'],
-    #             'status': await batch.last_known_status(),
-    #             'batch_link': 'link'
-    #         }})
-    #
-    # context = {'commits': formatted_commits,
-    #            'gh_commit': list_of_commits[0]}
     context = {
         'commits': benchmark_data['commits'],
         'plot': plot
@@ -305,6 +246,63 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
                'comparisons': comparisons,
                'benchmark_file_list': list_benchmark_files(app['gs_reader'])}
     return await render_template('benchmark', request, userdata, 'compare.html', context)
+
+
+async def update_commits(app):
+    global benchmark_data
+    global dates
+    global geo_means
+    github_client = app['github_client']
+    batch_client = app['batch_client']
+    gs_reader = app['gs_reader']
+    request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
+    gh_data = await github_client.getitem(request_string)
+    new_commits = []
+    formatted_new_commits = []
+    for gh_commit in gh_data:
+
+        sha = gh_commit.get('sha')
+
+        batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
+        try:
+            batch = batches[-1]
+            batch_status = await batch.status()
+        except Exception:  # pylint: disable=broad-except
+            batch_status = None
+
+        file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
+        has_results_file = gs_reader.file_exists(file_path)
+
+        if not batches and not has_results_file:
+            new_commits.append(gh_commit)
+
+    log.info('got new commits')
+    for gh_commit in new_commits:
+        sha = gh_commit.get('sha')
+        batch_id = await submit_test_batch(batch_client, sha)
+        batch = batch_client.get_batch(batch_id)
+        batch_status = await batch.last_known_status()
+        log.info(f'submitted a batch {batch_id} for commit {sha}')
+        gh_date = gh_commit['commit']['author']['date']
+        date = gh_date.split('T')[0]
+        dates.append(date)
+        file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
+        benchmarks = get_benchmarks(app, file_path)
+        geo_means.append(benchmarks['geometric_mean'])
+        commit = {
+            'sha': sha,
+            'title': gh_commit['commit']['message'],
+            'author': gh_commit['commit']['author']['name'],
+            'date': gh_commit['commit']['author']['date'],
+            'status': batch_status
+        }
+        formatted_new_commits.append(commit)
+
+    benchmark_data = {
+        'commits': formatted_new_commits,
+        'dates': dates,
+        'geo_means': geo_means
+    }
 
 
 @router.get('/submit')
