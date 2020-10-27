@@ -126,7 +126,7 @@ abstract class PIntervalValue extends PValue {
     cb += end.setup
     (includesStart() && includesEnd()).mux(
       gt((start.m, start.v), (end.m, end.v)),
-      gteq((start.m, start.v), (end.m, end.v)),
+      gteq((start.m, start.v), (end.m, end.v))
     )
   }
 }
