@@ -31,16 +31,6 @@ class PReferenceCountedNDArray(val elementType: PType, val nDims: Int, val requi
   override def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): (Code[Unit], IndexedSeq[Value[Long]]) = ???
 
   override def construct(shapeBuilder: StagedRegionValueBuilder => Code[Unit], stridesBuilder: StagedRegionValueBuilder => Code[Unit], data: Code[Long], mb: EmitMethodBuilder[_], region: Value[Region]): Code[Long] = {
-//    val sizeInBytes = mb.genFieldThisRef[Long]("ndarray_construct_size_in_bytes")
-//    val dataCode = PCode(this.data.pType, data)
-
-//    EmitCodeBuilder.scopedCode[Long](mb){cb =>
-//      val dataValue = dataCode.memoize(cb, "ndarray_construct_data")
-//      val dataPt = this.data.pType.asInstanceOf[PArray]
-//      cb.assign(sizeInBytes,this.shape.pType.byteSize + this.strides.pType.byteSize + dataPt.byteSize + dataPt.contentsByteSize(dataValue.asIndexable.loadLength()))
-//      val addr =  region.allocateNDArray(sizeInBytes)
-//      dataPt.constructAtAddress()
-//    }
     ???
   }
 
@@ -64,15 +54,13 @@ class PReferenceCountedNDArray(val elementType: PType, val nDims: Int, val requi
     ndAddr + shape.pType.byteSize + strides.pType.byteSize
   }
 
-  override def unsafeOrdering(): UnsafeOrdering = ???
-
   override def _asIdent: String = ???
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = ???
 
-  override def encodableType: PType = ???
+  override def encodableType: PType = new PReferenceCountedNDArray(elementType.encodableType, nDims, required)
 
-  override def setRequired(required: Boolean): PType = ???
+  override def setRequired(required: Boolean): PType = new PReferenceCountedNDArray(this.elementType, this.nDims, required)
 
   override def containsPointers: Boolean = ???
 
@@ -82,10 +70,21 @@ class PReferenceCountedNDArray(val elementType: PType, val nDims: Int, val requi
 
   override protected def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = ???
 
-  override def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = ???
+  override def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
+    var res = Region.storeAddress(addr, srcAddress)
+    if (deepCopy) {
+      res = Code(
+        res,
+        region.trackNDArray(addr)
+      )
+    }
+    res
+  }
 
-  override def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = ???
-
-  override def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = ???
-
+  override def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+    Region.storeAddress(addr, srcAddress)
+    if (deepCopy) {
+      region.trackNDArray(addr)
+    }
+  }
 }

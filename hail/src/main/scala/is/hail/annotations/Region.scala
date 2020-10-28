@@ -380,6 +380,10 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory.allocateNDArray(nBytes)
   }
 
+  def trackNDArray(addr: Long): Unit = {
+    memory.trackNDArray(addr)
+  }
+
   def invalidate(): Unit = {
     if (memory != null) {
       memory.release()

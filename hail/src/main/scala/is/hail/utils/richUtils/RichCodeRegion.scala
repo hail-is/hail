@@ -10,6 +10,9 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def allocateNDArray(nBytes: Code[Long]): Code[Long] =
     region.invoke[Long, Long]("allocateNDArray", nBytes)
 
+  def trackNDArray(addr: Code[Long]): Code[Unit] =
+    region.invoke[Long, Unit]("trackNDArray", addr)
+
   def clear(): Code[Unit] = { region.invoke[Unit]("clear") }
 
   def reference(other: Code[Region]): Code[Unit] =
