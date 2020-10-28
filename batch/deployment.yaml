@@ -124,6 +124,16 @@ spec:
            optional: false
            secretName: ssl-config-batch-driver
 ---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: batch-driver
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: batch
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
