@@ -2,6 +2,7 @@ import os
 import json
 import sys
 import re
+import math
 from shlex import quote as shq
 import logging
 import asyncio
@@ -786,8 +787,9 @@ class Job:
                         with open('/xfsquota/projects', 'a') as f:
                             f.write(f'{self.project_id}:{self.scratch}\n')
 
+                data_disk_storage_in_bytes = math.ceil(self.data_disk_storage_in_gb * 1024**3)
                 await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/')
-                await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={self.data_disk_storage_in_gb}g bhard={self.data_disk_storage_in_gb}g {self.project_name}" /host/')
+                await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_name}" /host/')
 
                 if self.secrets:
                     for secret in self.secrets:
