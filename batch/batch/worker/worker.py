@@ -650,10 +650,7 @@ class Job:
         assert self.requested_storage_in_gb == 0 or (10 <= self.requested_storage_in_gb <= MAX_WORKER_STORAGE_GB)
 
         self.reserved_storage_in_gb = self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE
-        log.info(f'req_storage_in_gb {self.requested_storage_in_gb} reserved_storage_in_gb {self.reserved_storage_in_gb}')
-
         self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes, self.requested_storage_in_gb)
-        log.info(f'resources {self.resources}')
 
         input_files = job_spec.get('input_files')
         output_files = job_spec.get('output_files')
