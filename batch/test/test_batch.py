@@ -177,7 +177,7 @@ def test_many_large_storage_jobs(client):
     jobs = []
     for i in range(8):
         j = builder.create_job('ubuntu:18.04',
-                               ['/bin/sh', '-c', 'true'],
+                               ['/bin/sh', '-c', 'sleep 10'],
                                resources=resources)
         jobs.append(j)
     b = builder.submit()

@@ -1,4 +1,5 @@
 import re
+import math
 from collections import defaultdict
 
 from .globals import WORKER_CONFIG_VERSION
@@ -131,7 +132,7 @@ class WorkerConfig:
 
         # storage is in units of MiB
         resources.append({'name': 'disk/pd-ssd/1',
-                          'quantity': storage_in_gb * 1024})
+                          'quantity': math.ceil(storage_in_gb * 1024)})
 
         quantities = defaultdict(lambda: 0)
         for disk in self.disks:
