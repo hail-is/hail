@@ -461,17 +461,16 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     list_of_ys_and_covs_to_keep = [inner_list.map(lambda pair: pair[1]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
     list_of_indices_to_keep = [inner_list.map(lambda pair: pair[0]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
 
-    cov_nds = [make_one_cov_matrix(ys_and_covs_to_keep) for ys_and_covs_to_keep in list_of_ys_and_covs_to_keep]
+    cov_nds = hl.array([make_one_cov_matrix(ys_and_covs_to_keep) for ys_and_covs_to_keep in list_of_ys_and_covs_to_keep])
 
     y_nds = hl.array([make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set)
              for ys_and_covs_to_keep, one_y_field_name_set in zip(list_of_ys_and_covs_to_keep, y_field_names)])
 
-    ht = ht.annotate_globals(kept_samples=list_of_indices_to_keep,
-                             __cov_nds=cov_nds)
+    ht = ht.annotate_globals(kept_samples=list_of_indices_to_keep)
     k = builtins.len(covariates)
     ns = ht.index_globals().kept_samples.map(lambda one_sample_set: hl.len(one_sample_set))
     cov_Qts = hl.if_else(k > 0,
-                         ht.__cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
+                         cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
                          ns.map(lambda n: hl.nd.zeros((0, n))))
     Qtys = hl.range(num_y_lists).map(lambda i: cov_Qts[i] @ hl.array(y_nds)[i])
     ht = ht.annotate_globals(
