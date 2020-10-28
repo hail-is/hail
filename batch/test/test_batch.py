@@ -127,7 +127,7 @@ def test_invalid_resource_requests(client):
     builder = client.create_batch()
     resources = {'cpu': '0', 'memory': '1Gi', 'storage': '0Gi'}
     builder.create_job('ubuntu:18.04', ['true'], resources=resources)
-    with pytest.raises(aiohttp.client.ClientResponseError, match='bad resource request.*cpu cannot be 0'):
+    with pytest.raises(aiohttp.client.ClientResponseError, match='cpu must be a power of two'):
         builder.submit()
 
 

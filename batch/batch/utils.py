@@ -3,7 +3,6 @@ import math
 import json
 from collections import deque
 
-from hailtop.utils import is_power_of_two
 from .globals import RESERVED_STORAGE_GB_PER_CORE
 
 log = logging.getLogger('utils')
