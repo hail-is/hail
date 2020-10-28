@@ -393,7 +393,7 @@ class EmitClassBuilder[C](
       val lits = cb.emb.newPLocal("lits", litType)
       val ib = cb.newLocal[InputBuffer]("ib",
         spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](allEncodedFields(0))))
-      cb.assign(lits, litSType.loadFrom(cb, mb2.getCodeParam[Region](2), litType, dec(partitionRegion, ib)))
+      cb.assign(lits, litSType.loadFrom(cb, partitionRegion, litType, dec(partitionRegion, ib)))
       literals.zipWithIndex.foreach { case (((_, _), f), i) =>
         lits.asInstanceOf[PBaseStructValue]
           .loadField(cb, i)
