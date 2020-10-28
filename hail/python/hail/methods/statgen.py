@@ -464,7 +464,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     cov_nds = hl.array([make_one_cov_matrix(ys_and_covs_to_keep) for ys_and_covs_to_keep in list_of_ys_and_covs_to_keep])
 
     y_nds = hl.array([make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set)
-             for ys_and_covs_to_keep, one_y_field_name_set in zip(list_of_ys_and_covs_to_keep, y_field_names)])
+                      for ys_and_covs_to_keep, one_y_field_name_set in zip(list_of_ys_and_covs_to_keep, y_field_names)])
 
     ht = ht.annotate_globals(kept_samples=list_of_indices_to_keep)
     k = builtins.len(covariates)
