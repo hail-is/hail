@@ -61,56 +61,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     shape.foldLeft(1L: Code[Long])(_ * _)
   }
 
-  def makeShapeBuilder(shapeArray: IndexedSeq[Value[Long]]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
-    coerce[Unit](Code(
-      srvb.start(),
-      Code(shapeArray.map(shapeElement => Code(
-        srvb.addLong(shapeElement),
-        srvb.advance()
-      )))
-    ))
-  }
-
-  def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
-    val runningProduct = mb.newLocal[Long]()
-    val tempShapeStorage = mb.newLocal[Long]()
-    Code(
-      srvb.start(),
-      runningProduct := elementType.byteSize,
-      Code.foreach(0 until nDims){ index =>
-        Code(
-          srvb.addLong(runningProduct),
-          srvb.advance(),
-          tempShapeStorage := sourceShapeArray(index),
-          runningProduct := runningProduct * (tempShapeStorage > 0L).mux(tempShapeStorage, 1L)
-        )
-      }
-    )
-  }
-
-  def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
-    val runningProduct = mb.newLocal[Long]()
-    val tempShapeStorage = mb.newLocal[Long]()
-    val computedStrides = (0 until nDims).map(_ => mb.genFieldThisRef[Long]())
-    Code(
-      srvb.start(),
-      runningProduct := elementType.byteSize,
-      Code.foreach((nDims - 1) to 0 by -1){ index =>
-        Code(
-          computedStrides(index) := runningProduct,
-          tempShapeStorage := sourceShapeArray(index),
-          runningProduct := runningProduct * (tempShapeStorage > 0L).mux(tempShapeStorage, 1L)
-        )
-      },
-      Code.foreach(0 until nDims)(index =>
-        Code(
-          srvb.addLong(computedStrides(index)),
-          srvb.advance()
-        )
-      )
-    )
-  }
-
   private def getElementAddress(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Long] = {
     val stridesTuple  = new CodePTuple(strides.pType, new Value[Long] {
       def get: Code[Long] = strides.load(nd)

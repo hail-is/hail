@@ -17,12 +17,10 @@ class PReferenceCountedNDArray(val elementType: PType, val nDims: Int, val requi
     (off) => 0L
   )
 
-  override val data: StaticallyKnownField[PArray, Long] = ???
-  override val representation: PStruct = ???
+  override lazy val data: StaticallyKnownField[PArray, Long] = ???
+  override lazy val representation: PStruct = ???
 
   override def numElements(shape: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = ???
-
-  override def makeShapeBuilder(shapeArray: IndexedSeq[Value[Long]]): StagedRegionValueBuilder => Code[Unit] = ???
 
   override def setElement(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: Code[_], mb: EmitMethodBuilder[_]): Code[Unit] = ???
 
@@ -90,7 +88,4 @@ class PReferenceCountedNDArray(val elementType: PType, val nDims: Int, val requi
 
   override def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = ???
 
-  override def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = ???
-
-  override def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = ???
 }

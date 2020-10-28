@@ -1,10 +1,9 @@
 package is.hail.types.physical
 
 import is.hail.HailSuite
-import is.hail.annotations.{Annotation, Region, ScalaToRegionValue}
+import is.hail.annotations.{Annotation, Region, ScalaToRegionValue, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.utils._
+import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder}
 import org.testng.annotations.Test
 
 class PNDArraySuite extends PhysicalTestUtils {
@@ -19,5 +18,42 @@ class PNDArraySuite extends PhysicalTestUtils {
 
     runTests(true, true)
     runTests(false, true)
+  }
+
+  @Test def testRefCounted(): Unit = {
+    val nd1 = new PReferenceCountedNDArray(PInt32Required, 1)
+
+    val region = Region()
+    val fb = EmitFunctionBuilder[Region, Long](ctx, "ref_count_test")
+    val codeRegion = fb.getCodeParam[Region](1)
+
+    try {
+      fb.emitWithBuilder{ cb =>
+        val shapeAddress = cb.newLocal[Long]("shape_address")
+        val ndAddress = cb.newLocal[Long]("nd_address")
+
+        val shapeSeq = IndexedSeq(const(3L))
+        val shapeMaker = nd1.makeShapeBuilder(shapeSeq)
+        val shapeSRVB = new StagedRegionValueBuilder(cb.emb, nd1.shape.pType, codeRegion)
+        cb.append(shapeMaker(shapeSRVB))
+        cb.assign(shapeAddress, shapeSRVB.end())
+        val shapePCode = PCode(nd1.shape.pType, shapeAddress).asBaseStruct
+        val shapePValue = shapePCode.memoize(cb, "testRefCounted_shape")
+
+        cb.assign(ndAddress, nd1.allocateAndInitialize(cb, codeRegion, shapePValue, shapePValue))
+        ndAddress
+      }
+    } catch {
+      case e: AssertionError =>
+        region.clear()
+        throw e
+    }
+
+    val foo = fb.result()()
+    val result = foo(region)
+
+    val regionNDArrayRefs = region.memory.listNDArrayRefs()
+    assert(regionNDArrayRefs.size == 1)
+    assert(regionNDArrayRefs(0) == result)
   }
 }

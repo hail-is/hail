@@ -272,4 +272,8 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     val curRefCount = Region.loadLong(alloc - 8)
     Region.storeLong(alloc - 8, curRefCount + 1L)
   }
+
+  def listNDArrayRefs(): IndexedSeq[Long] = {
+    this.ndarrayRefs.result().toIndexedSeq
+  }
 }
