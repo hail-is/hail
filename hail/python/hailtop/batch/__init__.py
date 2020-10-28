@@ -1,5 +1,7 @@
 import nest_asyncio
+import warnings
 
+from . import genetics
 from .batch import Batch
 from .batch_pool_executor import BatchPoolExecutor
 from .backend import LocalBackend, ServiceBackend, Backend
@@ -23,6 +25,5 @@ __all__ = ['Batch',
 
 nest_asyncio.apply()
 
-import warnings
 warnings.filterwarnings('once', append=True)
 del warnings

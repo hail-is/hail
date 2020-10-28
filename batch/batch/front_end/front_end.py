@@ -4,7 +4,6 @@ import logging
 import json
 import random
 import datetime
-import humanize
 import asyncio
 import aiohttp
 from aiohttp import web
