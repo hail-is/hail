@@ -23,6 +23,7 @@ def round_if_defined(x):
 
 
 def parse_file_path(regex, name):
+    log.info(f'name: {name}')
     match = regex.fullmatch(name)
     return match.groupdict()
 
@@ -55,6 +56,7 @@ async def submit_test_batch(batch_client, sha):
     batch = batch_client.create_batch(attributes={'sha': sha})
     known_file_path = 'gs://hail-benchmarks-2/tpoterba/0.2.21-f6f337d1e9bb.json'
     dest_file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
+    # should it be 0.0.0-{sha}.json?
     job = batch.create_job(image='ubuntu:18.04',
                            command=['/bin/bash', '-c', f'touch /io/test; sleep 5'],
                            resources={'cpu': '0.25'},
