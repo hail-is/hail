@@ -58,6 +58,8 @@ def secret_alnum_string(n=22, *, case=None):
         alphabet = numbers + upper
     elif case == 'lower':
         alphabet = numbers + lower
+    elif case == 'numbers':
+        alphabet = numbers
     else:
         raise ValueError(f'invalid argument for case {case}')
     return ''.join([secrets.choice(alphabet) for _ in range(n)])
