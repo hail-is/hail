@@ -125,12 +125,6 @@ def test_bad_command(client):
 
 def test_invalid_resource_requests(client):
     builder = client.create_batch()
-    resources = {'cpu': '1', 'memory': '250Gi', 'storage': '0Gi'}
-    builder.create_job('ubuntu:18.04', ['true'], resources=resources)
-    with pytest.raises(aiohttp.client.ClientResponseError, match='resource requests.*unsatisfiable'):
-        builder.submit()
-
-    builder = client.create_batch()
     resources = {'cpu': '0', 'memory': '1Gi', 'storage': '0Gi'}
     builder.create_job('ubuntu:18.04', ['true'], resources=resources)
     with pytest.raises(aiohttp.client.ClientResponseError, match='bad resource request.*cpu cannot be 0'):
