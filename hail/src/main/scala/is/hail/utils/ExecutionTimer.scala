@@ -2,122 +2,106 @@ package is.hail.utils
 
 import scala.collection.mutable
 
+class TimeBlock(val name: String) {
+  val children: mutable.ArrayBuffer[TimeBlock] = new mutable.ArrayBuffer()
+  var totalTime: Long = 0L
+  var childrenTime: Long = 0L
+  var finished: Boolean = false
 
-case class TimeBlock(name: String, parent: Option[TimeBlock]) {
-  parent.foreach(_.isLeaf = false)
-  private val start: Long = System.nanoTime()
-  private var end: Long = 0L
-  private var finished: Boolean = false
-  private var isLeaf: Boolean = true
-  private var coveredDuration: Long = 0L
-
-  def isLeafNode: Boolean = isLeaf
-
-  def finish(): Unit = {
+  def finish(t: Long): Unit = {
     assert(!finished)
-    end = System.nanoTime()
     finished = true
-    parent.foreach { p =>
-      assert(!p.isLeaf)
-      p.coveredDuration += getCoveredDuration
+
+    totalTime = t
+
+    var i = 0
+    while (i < children.length) {
+      childrenTime += children(i).totalTime
+      i += 1
     }
   }
 
-  def getCoveredDuration: Long = {
+  def logInfo(prefix: IndexedSeq[String]): Unit = {
     assert(finished)
-    if (isLeaf)
-      end - start
-    else
-      coveredDuration
+
+    val selfPrefix = prefix :+ name
+
+    log.info(s"timing ${ selfPrefix.mkString("/") } total ${ formatTime(totalTime) } self ${ formatTime(totalTime - childrenTime ) } children ${ formatTime(childrenTime) } %children ${ formatDouble(childrenTime.toDouble * 100 / totalTime, 2) }%")
+
+    var i = 0
+    while (i < children.length) {
+      children(i).logInfo(selfPrefix)
+      i += 1
+    }
   }
 
-  private def appendPath(ab: ArrayBuilder[String]): Unit = {
-    parent.foreach(_.appendPath(ab))
-    ab += name
-  }
-
-  def path(): Array[String] = {
-    val ab = new ArrayBuilder[String]
-    appendPath(ab)
-    ab.result()
-  }
-
-  def duration: Long = {
+  def toMap: Map[String, Any] = {
     assert(finished)
-    end - start
-  }
-
-  def fmtDuration: String = {
-    formatTime(duration)
-  }
-
-  def report(jobStartTime: Long): Unit = {
-    assert(finished)
-    val cov = if (!isLeaf) s", tagged coverage ${ formatDouble(coveredDuration.toDouble / duration * 100, 1) }" else ""
-    log.info(s"Timer: Time taken for ${ path().mkString(" -- ") } : $fmtDuration, total ${ formatTime(end - jobStartTime) }$cov")
+    Map[String, Any](
+      "name" -> name,
+      "total_time" -> totalTime,
+      "self_time" -> (totalTime - childrenTime),
+      "children_time" -> childrenTime,
+      "children" -> children.map(_.toMap))
   }
 }
 
-class ExecutionTimer {
-  private val stack = new ArrayStack[TimeBlock]()
-  private val measurements: mutable.ArrayBuffer[TimeBlock] = mutable.ArrayBuffer.empty
+object ExecutionTimer {
+  def time[T](rootName: String)(f: ExecutionTimer => T): (T, ExecutionTimer) = {
+    val timer = new ExecutionTimer(rootName)
+    val result = f(timer)
+    timer.finish()
+    timer.logInfo()
+    (result, timer)
+  }
 
-  def time[T](tag: String)(block: => T): T = {
+  def logTime[T](rootName: String)(f: ExecutionTimer => T): T = {
+    val (result, _) = time[T](rootName)(f)
+    result
+  }
+}
+
+class ExecutionTimer(val rootName: String) {
+  private[this] val stack = new ArrayStack[TimeBlock]()
+
+  private[this] val rootBlock = new TimeBlock(rootName)
+  stack.push(rootBlock)
+
+  private[this] val start: Long = System.nanoTime()
+
+  private[this] var finished: Boolean = false
+
+  def time[T](name: String)(block: => T): T = {
     assert(!finished)
-    val preSize = stack.size
-    stack.push(TimeBlock(tag, stack.topOption))
-    val result = block
-    val finishedBlock = stack.pop()
-    finishedBlock.finish()
-    finishedBlock.report(startTime)
-    measurements += finishedBlock
-    assert(stack.size == preSize)
+    val parent = stack.top
+    val child = new TimeBlock(name)
+    parent.children += child
+    stack.push(child)
+    val start = System.nanoTime()
+    val result: T = block
+    val end = System.nanoTime()
+    child.finish(end - start)
+    stack.pop()
     result
   }
 
-  private val startTime = System.nanoTime()
-
-  private var finished: Boolean = false
-  private var endTime: Long = _
-
-  def register(block: TimeBlock): Unit = {
-    assert(!finished)
-    block.report(startTime)
-    measurements += block
-  }
-
   def finish(): Unit = {
+    if (finished)
+      return
+    val end = System.nanoTime()
+    rootBlock.finish(end - start)
+    stack.pop()
+    assert(stack.size == 0)
     finished = true
-    endTime = System.nanoTime()
   }
 
-  def logInfo() {
+  def logInfo(): Unit = {
     assert(finished)
-    log.info("Timer: all timings:")
-    measurements.foreach { t =>
-      t.report(startTime)
-    }
-    log.info("Timer: aggregate:")
-    measurements.filter { t => t.isLeafNode }
-      .groupBy(_.name)
-      .toArray
-      .map { case (tag, ab) => (tag, ab.map(_.duration).sum, ab.size) }
-      .sortBy(_._2)
-      .foreach { case (tag, sum, n) =>
-        log.info(s"Timer: Time taken for tag '$tag' ($n): ${ formatTime(sum) }")
-      }
-    val taggedSum = measurements.iterator.filter { t => t.isLeafNode }.map(_.duration).sum
-    val totalTime = endTime - startTime
-    val percentCovered = taggedSum.toDouble / totalTime * 100
-    log.info(s"Timer: Fraction covered by a tagged leaf: ${ formatTime(totalTime - taggedSum) } (${ formatDouble(percentCovered, 1) }%)")
+    rootBlock.logInfo(FastIndexedSeq.empty[String])
   }
 
-  def asMap(): mutable.Map[String, Long] = {
+  def toMap: Map[String, Any] = {
     assert(finished)
-    val m = mutable.Map.empty[String, Long]
-    measurements.foreach { t =>
-      m += ((t.path().mkString(" -- "), t.duration))
-    }
-    m
+    rootBlock.toMap
   }
 }

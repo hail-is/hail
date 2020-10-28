@@ -410,7 +410,7 @@ object TypeCheck {
       case BlockMatrixCollect(_) =>
       case BlockMatrixWrite(_, _) =>
       case BlockMatrixMultiWrite(_, _) =>
-      case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
+      case CollectDistributedArray(ctxs, globals, cname, gname, body, _) =>
         assert(ctxs.typ.isInstanceOf[TStream])
       case x@ReadPartition(context, rowType, reader) =>
         assert(rowType.isRealizable)
@@ -453,6 +453,11 @@ object TypeCheck {
         assert(EmitStream.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
         val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
         child.typ.key.foreach { k => if (!newRowType.hasField(k)) throw new RuntimeException(s"prev key: ${child.typ.key}, new row: ${newRowType}")}
+
+      case MatrixUnionCols(left, right, joinType) =>
+        assert(left.typ.rowKeyStruct == right.typ.rowKeyStruct, s"${left.typ.rowKeyStruct} != ${right.typ.rowKeyStruct}")
+        assert(left.typ.colType == right.typ.colType, s"${left.typ.colType} != ${right.typ.colType}")
+        assert(left.typ.entryType == right.typ.entryType, s"${left.typ.entryType} != ${right.typ.entryType}")
 
       case _: TableIR =>
       case _: MatrixIR =>

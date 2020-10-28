@@ -79,6 +79,12 @@ if __name__ == '__main__':
 
     random.shuffle(task_fs)
 
+    benchmark_lower_env_var = ''
+    if os.environ.get('BENCHMARK_LOWER'):
+        benchmark_lower_env_var = f' HAIL_DEV_LOWER="1" '
+    if os.environ.get('BENCHMARK_LOWER_ONLY'):
+        benchmark_lower_env_var = f'{benchmark_lower_env_var} HAIL_DEV_LOWER_ONLY="1" '
+
     for name, replicate, groups in task_fs:
         j = b.new_job(name=f'{name}_{replicate}')
         j.command('mkdir -p benchmark-resources')
@@ -90,6 +96,7 @@ if __name__ == '__main__':
                   f'OPENBLAS_NUM_THREADS=1'
                   f'OMP_NUM_THREADS=1'
                   f'VECLIB_MAXIMUM_THREADS=1'
+                  f'{benchmark_lower_env_var}'
                   f'PYSPARK_SUBMIT_ARGS="--driver-memory 6G pyspark-shell" '
                   f'hail-bench run -o {j.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}')
         all_output.append(j.ofile)

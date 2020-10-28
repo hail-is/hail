@@ -656,12 +656,12 @@ class tndarray(HailType):
     def _convert_from_json(self, x):
         if is_numeric(self._element_type):
             np_type = self.element_type.to_numpy()
-            return np.ndarray(shape=x['shape'], buffer=np.array(x['data'], dtype=np_type), strides=x['strides'], dtype=np_type)
+            return np.ndarray(shape=x['shape'], buffer=np.array(x['data'], dtype=np_type), dtype=np_type)
         else:
             raise TypeError("Hail cannot currently return ndarrays of non-numeric or boolean type.")
 
     def _convert_to_json(self, x):
-        data = x.flatten("F").tolist()
+        data = x.flatten("C").tolist()
 
         strides = []
         axis_one_step_byte_size = x.itemsize
@@ -671,7 +671,6 @@ class tndarray(HailType):
 
         json_dict = {
             "shape": x.shape,
-            "strides": strides,
             "data": data
         }
         return json_dict
@@ -1025,6 +1024,27 @@ class tstruct(HailType, Mapping):
     """Hail type for structured groups of heterogeneous fields.
 
     In Python, these are represented as :class:`.Struct`.
+
+    Hail's :class:`.tstruct` type is commonly used to compose types together to form nested
+    structures. Structs can contain any combination of types, and are ordered mappings
+    from field name to field type. Each field name must be unique.
+
+    Structs are very common in Hail. Each component of a :class:`.Table` and :class:`.MatrixTable`
+    is a struct:
+
+    - :meth:`.Table.row`
+    - :meth:`.Table.globals`
+    - :meth:`.MatrixTable.row`
+    - :meth:`.MatrixTable.col`
+    - :meth:`.MatrixTable.entry`
+    - :meth:`.MatrixTable.globals`
+
+    Structs appear below the top-level component types as well. Consider the following join:
+
+    >>> new_table = table1.annotate(table2_fields = table2.index(table1.key))
+
+    This snippet adds a field to ``table1`` called ``table2_fields``. In the new table,
+    ``table2_fields`` will be a struct containing all the non-key fields from ``table2``.
 
     Parameters
     ----------

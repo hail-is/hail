@@ -3758,7 +3758,9 @@ class IRSuite extends HailSuite {
         |       (MakeStruct (locus  (Apply start Locus(GRCh37) (Ref __uid_3))))
         |       (MakeStruct (locus  (Apply end Locus(GRCh37) (Ref __uid_3)))) (True) (False))))
         |""".stripMargin)
-    val (v, _) = backend.execute(ir, optimize = true)
+    val v = ExecutionTimer.logTime("IRSuite.regressionTestUnifyBug") { timer =>
+      backend.execute(timer, ir, optimize = true)
+    }
     assert(
       ir.typ.ordering.equiv(
         FastIndexedSeq(

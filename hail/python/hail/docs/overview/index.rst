@@ -16,7 +16,6 @@ architecture, primitives, classes, and libraries.
 .. toctree::
     :maxdepth: 2
 
-    Types <types.rst>
     Expressions <expressions.rst>
     Tables <table.rst>
     MatrixTables <matrix_table.rst>

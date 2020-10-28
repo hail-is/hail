@@ -12,6 +12,7 @@ import socket
 import requests
 import google.auth.exceptions
 import time
+import weakref
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
@@ -142,7 +143,10 @@ class AsyncThrottledGather:
 
     def _cancel_workers(self):
         for worker in self._workers:
-            worker.cancel()
+            try:
+                worker.cancel()
+            except Exception:
+                pass
 
     async def _worker(self):
         while True:
@@ -166,10 +170,11 @@ class AsyncThrottledGather:
                 self._done.set()
 
     async def wait(self):
-        if self.count > 0:
-            await self._done.wait()
-
-        self._cancel_workers()
+        try:
+            if self.count > 0:
+                await self._done.wait()
+        finally:
+            self._cancel_workers()
 
         if self._errors:
             raise self._errors[0]
@@ -180,9 +185,9 @@ class AsyncThrottledGather:
 class AsyncWorkerPool:
     def __init__(self, parallelism, queue_size=1000):
         self._queue = asyncio.Queue(maxsize=queue_size)
-
-        for _ in range(parallelism):
+        self.workers = weakref.WeakSet([
             asyncio.ensure_future(self._worker())
+            for _ in range(parallelism)])
 
     async def _worker(self):
         while True:
@@ -199,6 +204,13 @@ class AsyncWorkerPool:
 
     def call_nowait(self, f, *args, **kwargs):
         self._queue.put_nowait((f, args, kwargs))
+
+    def shutdown(self):
+        for worker in self.workers:
+            try:
+                worker.cancel()
+            except Exception:
+                pass
 
 
 class WaitableSharedPool:
@@ -410,16 +422,16 @@ def retry_response_returning_functions(fun, *args, **kwargs):
         errors += 1
         if errors % 10 == 0:
             log.warning(f'encountered {errors} bad status codes, most recent '
-                        f'one was {response.status_code}', exc_info=True)
+                        f'one was {response.status_code}')
         response = sync_retry_transient_errors(
             fun, *args, **kwargs)
         delay = sync_sleep_and_backoff(delay)
     return response
 
 
-def external_requests_client_session(headers=None) -> requests.Session:
+def external_requests_client_session(headers=None, timeout=5) -> requests.Session:
     session = requests.Session()
-    adapter = TimeoutHTTPAdapter(max_retries=1, timeout=5)
+    adapter = TimeoutHTTPAdapter(max_retries=1, timeout=timeout)
     session.mount('http://', adapter)
     session.mount('https://', adapter)
     if headers:

@@ -247,103 +247,10 @@ object HailContext {
     bounds: Option[Interval],
     partIdx: Int,
     metrics: InputMetrics = null
-  ): Iterator[Long] = new Iterator[Long] {
-    private val region = ctx.region
-    private val idx = idxr.map(_.queryByInterval(bounds.get).buffered)
-
-    private val trackedRowsIn = new ByteTrackingInputStream(isRows)
-    private val trackedEntriesIn = new ByteTrackingInputStream(isEntries)
-
-    private val rowsIdxField = rowsOffsetField.map { f => idxr.get.annotationType.asInstanceOf[TStruct].fieldIdx(f) }
-    private val entriesIdxField = entriesOffsetField.map { f => idxr.get.annotationType.asInstanceOf[TStruct].fieldIdx(f) }
-
-    private val inserter = mkInserter(partIdx, ctx.freshRegion())
-    private val rows = try {
-      if (idx.map(_.hasNext).getOrElse(true)) {
-        val dec = mkRowsDec(trackedRowsIn)
-        idx.foreach { idx =>
-          val i = idx.head
-          val off = rowsIdxField.map { j => i.annotation.asInstanceOf[Row].getAs[Long](j) }.getOrElse(i.recordOffset)
-          dec.seek(off)
-        }
-        dec
-      } else {
-        isRows.close()
-        isEntries.close()
-        null
-      }
-    } catch {
-      case e: Exception =>
-        idxr.foreach(_.close())
-        isRows.close()
-        isEntries.close()
-        throw e
-    }
-    private val entries = try {
-      if (rows == null) {
-        null
-      } else {
-        val dec = mkEntriesDec(trackedEntriesIn)
-        idx.foreach { idx =>
-          val i = idx.head
-          val off = entriesIdxField.map { j => i.annotation.asInstanceOf[Row].getAs[Long](j) }.getOrElse(i.recordOffset)
-          dec.seek(off)
-        }
-        dec
-      }
-    } catch {
-      case e: Exception =>
-        idxr.foreach(_.close())
-        isRows.close()
-        isEntries.close()
-        throw e
-    }
-
-    require(!((rows == null) ^ (entries == null)))
-    private def nextCont(): Byte = {
-      val br = rows.readByte()
-      val be = entries.readByte()
-      assert(br == be)
-      br
-    }
-
-    private var cont: Byte = if (rows != null) nextCont() else 0
-
-    def hasNext: Boolean = cont != 0 && idx.map(_.hasNext).getOrElse(true)
-
-    def next(): Long = {
-      if (!hasNext)
-        throw new NoSuchElementException("next on empty iterator")
-
-      try {
-        idx.map(_.next())
-        val rowOff = rows.readRegionValue(region)
-        val entOff = entries.readRegionValue(region)
-        val off = inserter(region, rowOff, entOff)
-        cont = nextCont()
-
-        if (cont == 0) {
-          rows.close()
-          entries.close()
-          idxr.foreach(_.close())
-        }
-
-        off
-      } catch {
-        case e: Exception =>
-          rows.close()
-          entries.close()
-          idxr.foreach(_.close())
-          throw e
-      }
-    }
-
-    override def finalize(): Unit = {
-      idxr.foreach(_.close())
-      if (rows != null) rows.close()
-      if (entries != null) entries.close()
-    }
-  }
+  ): Iterator[Long] = new MaybeIndexedReadZippedIterator(mkRowsDec, mkEntriesDec, mkInserter(partIdx, ctx.partitionRegion),
+    ctx.r,
+    isRows, isEntries,
+    idxr.orNull, rowsOffsetField.orNull, entriesOffsetField.orNull, bounds.orNull, metrics)
 
   def pyRemoveIrVector(id: Int) {
     get.irVectors.remove(id)
@@ -562,6 +469,7 @@ class HailContext private(
 object HailFeatureFlags {
   val defaults: Map[String, (String, String)] = Map[String, (String, String)](
     ("lower", ("HAIL_DEV_LOWER" -> null)),
+    ("lower_only", ("HAIL_DEV_LOWER_ONLY" -> null)),
     ("lower_bm", ("HAIL_DEV_LOWER_BM" -> null)),
     ("max_leader_scans", ("HAIL_DEV_MAX_LEADER_SCANS" -> "1000")),
     ("distributed_scan_comb_op", ("HAIL_DEV_DISTRIBUTED_SCAN_COMB_OP" -> null)),

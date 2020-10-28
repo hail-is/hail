@@ -6,11 +6,12 @@ import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
 import is.hail.expr.ir.functions._
+import is.hail.expr.ir.lowering.TableStageDependency
+import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
+import is.hail.rvd.RVDSpecMaker
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
-import is.hail.rvd.RVDSpecMaker
 import is.hail.utils.{FastIndexedSeq, _}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
@@ -89,10 +90,11 @@ final case class Literal(_typ: Type, value: Annotation) extends IR {
   require(value != null)
   // expensive, for debugging
   // require(SafeRow.isSafe(value))
+  // assert(_typ.typeCheck(value), s"literal invalid:\n  ${_typ}\n  $value")
 }
 
 object EncodedLiteral {
-  def apply(codec: TypedCodecSpec, value: Array[Byte]): EncodedLiteral = {
+  def apply(codec: AbstractTypedCodecSpec, value: Array[Byte]): EncodedLiteral = {
     EncodedLiteral(codec, new WrappedByteArray(value))
   }
 
@@ -104,7 +106,7 @@ object EncodedLiteral {
   }
 }
 
-final case class EncodedLiteral(codec: TypedCodecSpec, value: WrappedByteArray) extends IR {
+final case class EncodedLiteral(codec: AbstractTypedCodecSpec, value: WrappedByteArray) extends IR {
   require(!CanEmit(codec.encodedVirtualType))
   require(value != null)
 }
@@ -619,7 +621,7 @@ final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWrite
 
 final case class BlockMatrixMultiWrite(blockMatrices: IndexedSeq[BlockMatrixIR], writer: BlockMatrixMultiWriter) extends IR
 
-final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR) extends IR {
+final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR, tsd: Option[TableStageDependency] = None) extends IR {
   val bufferSpec: BufferSpec = BufferSpec.defaultUncompressed
 
   lazy val contextPTuple: PTuple = PCanonicalTuple(required = true, coerce[PStream](contexts.pType).elementType)
@@ -642,8 +644,10 @@ final case class CollectDistributedArray(contexts: IR, globals: IR, cname: Strin
 object PartitionReader {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
+      classOf[PartitionRVDReader],
       classOf[PartitionNativeReader],
       classOf[PartitionNativeReaderIndexed],
+      classOf[PartitionZippedNativeReader],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec])
     ) + BufferSpec.shortTypeHints
@@ -701,7 +705,7 @@ abstract class PartitionReader {
     requestedType: Type,
     emitter: Emit[C],
     mb: EmitMethodBuilder[C],
-    region: StagedRegion,
+    partitionRegion: StagedRegion,
     env0: Emit.E,
     container: Option[AggContainer]): COption[SizedStream]
 

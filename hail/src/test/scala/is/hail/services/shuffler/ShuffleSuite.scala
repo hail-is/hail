@@ -89,14 +89,18 @@ class ShuffleSuite extends HailSuite {
 
           i = 0
           def assertFirstFieldEqualsIndex(rows: IndexedSeq[UnsafeRow], i: Int): Unit = {
-            assert(!rows(i).isNullAt(0),
-              s"""first field is undefined ${rows(i)}
-               |Context: ${rows.slice(i-3, i+3)}.
-               |Length: ${rows.length}""".stripMargin)
-            assert(rows(i).getInt(0) == i,
-              s"""first field should be ${i}: ${rows(i)}.
-               |Context: ${rows.slice(i-3, i+3)}.
-               |Length: ${rows.length}""".stripMargin)
+            if (rows(i).isNullAt(0)) {
+              throw new AssertionError(
+                s"""first field is undefined ${rows(i)}
+                   |Context: ${rows.slice(i-3, i+3)}.
+                   |Length: ${rows.length}""".stripMargin)
+            }
+            if (rows(i).getInt(0) != i) {
+              throw new AssertionError(
+                s"""first field should be ${i}: ${rows(i)}.
+                   |Context: ${rows.slice(i-3, i+3)}.
+                   |Length: ${rows.length}""".stripMargin)
+            }
           }
           while (i < nElements) {
             assertFirstFieldEqualsIndex(fromOneQuery, i)

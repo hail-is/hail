@@ -48,7 +48,7 @@ from hail.utils import (Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls,  
                         hadoop_stat, hadoop_exists, hadoop_is_file,
                         hadoop_is_dir, copy_log)
 
-from .context import (init, stop, spark_context, default_reference,  # noqa: E402
+from .context import (init, init_local, stop, spark_context, default_reference,  # noqa: E402
                       get_reference, set_global_seed, _set_flags, _get_flags, current_backend,
                       debug_info, citation, cite_hail, cite_hail_bibtex, version)
 
@@ -56,6 +56,7 @@ scan = agg.aggregators.ScanFunctions({name: getattr(agg, name) for name in agg._
 
 __all__ = [
     'init',
+    'init_local',
     'stop',
     'spark_context',
     'default_reference',

@@ -18,6 +18,7 @@ object TableStage {
   def apply(
     globals: IR,
     partitioner: RVDPartitioner,
+    dependency: TableStageDependency,
     contexts: IR,
     body: (Ref) => IR
   ): TableStage = {
@@ -27,6 +28,7 @@ object TableStage {
       FastIndexedSeq(globalsRef.name -> globalsRef),
       globalsRef,
       partitioner,
+      dependency,
       contexts,
       body)
   }
@@ -36,13 +38,14 @@ object TableStage {
     broadcastVals: IndexedSeq[(String, IR)],
     globals: Ref,
     partitioner: RVDPartitioner,
+    dependency: TableStageDependency,
     contexts: IR,
     partition: Ref => IR
   ): TableStage = {
     val ctxType = contexts.typ.asInstanceOf[TStream].elementType
     val ctxRef = Ref(genUID(), ctxType)
 
-    new TableStage(letBindings, broadcastVals, globals, partitioner, contexts, ctxRef.name, partition(ctxRef))
+    new TableStage(letBindings, broadcastVals, globals, partitioner, dependency, contexts, ctxRef.name, partition(ctxRef))
   }
 }
 
@@ -58,6 +61,7 @@ class TableStage(
   val broadcastVals: IndexedSeq[(String, IR)],
   val globals: Ref,
   val partitioner: RVDPartitioner,
+  val dependency: TableStageDependency,
   val contexts: IR,
   private val ctxRefName: String,
   private val partitionIR: IR) {
@@ -88,11 +92,12 @@ class TableStage(
     broadcastVals: IndexedSeq[(String, IR)] = broadcastVals,
     globals: Ref = globals,
     partitioner: RVDPartitioner = partitioner,
+    dependency: TableStageDependency = dependency,
     contexts: IR = contexts,
     ctxRefName: String = ctxRefName,
     partitionIR: IR = partitionIR
   ): TableStage =
-    new TableStage(letBindings, broadcastVals, globals, partitioner, contexts, ctxRefName, partitionIR)
+    new TableStage(letBindings, broadcastVals, globals, partitioner, dependency, contexts, ctxRefName, partitionIR)
 
   def partition(ctx: IR): IR = {
     require(ctx.typ == ctxType)
@@ -144,6 +149,7 @@ class TableStage(
       left.broadcastVals ++ right.broadcastVals :+ (globalsRef.name -> globalsRef),
       globalsRef,
       left.partitioner,
+      left.dependency.union(right.dependency),
       zippedCtxs,
       (ctxRef: Ref) => {
         bindIR(left.partition(GetField(ctxRef, leftCtxStructField))) { lPart =>
@@ -159,7 +165,7 @@ class TableStage(
 
   def mapContexts(f: IR => IR)(getOldContext: IR => IR): TableStage = {
     val newContexts = f(contexts)
-    TableStage(letBindings, broadcastVals, globals, partitioner, newContexts, ctxRef => bindIR(getOldContext(ctxRef))(partition))
+    TableStage(letBindings, broadcastVals, globals, partitioner, dependency, newContexts, ctxRef => bindIR(getOldContext(ctxRef))(partition))
   }
 
   def mapGlobals(f: IR => IR): TableStage = {
@@ -188,7 +194,7 @@ class TableStage(
       ctxRefName, glob.name,
       broadcastVals.foldLeft(mapF(partitionIR, Ref(ctxRefName, ctxType))) { case (accum, (name, _)) =>
         Let(name, GetField(glob, name), accum)
-      })
+      }, Some(dependency))
 
     LowerToCDA.substLets(wrapInBindings(body(cda, globals)), relationalBindings)
   }
@@ -257,7 +263,7 @@ class TableStage(
     val eltUID = genUID()
     val prevContextUIDPartition = genUID()
 
-    val newStage = TableStage(letBindings, broadcastVals, globals, newPartitioner, newContexts,
+    val newStage = TableStage(letBindings, broadcastVals, globals, newPartitioner, dependency, newContexts,
       (ctxRef: Ref) => {
         val body = self.partition(Ref(prevContextUIDPartition, self.contexts.typ.asInstanceOf[TStream].elementType))
         Let(
@@ -385,6 +391,7 @@ object LowerTableIR {
             TableStage(
               globals,
               RVDPartitioner.empty(typ.keyType),
+              TableStageDependency.none,
               MakeStream(FastIndexedSeq(), TStream(TStruct.empty)),
               (_: Ref) => MakeStream(FastIndexedSeq(), TStream(typ.rowType)))
           } else
@@ -431,6 +438,7 @@ object LowerTableIR {
             FastIndexedSeq(globalsRef.name -> globalsRef),
             globalsRef,
             RVDPartitioner.unkeyed(nPartitionsAdj),
+            TableStageDependency.none,
             context,
             ctxRef => ToStream(ctxRef))
 
@@ -451,6 +459,7 @@ object LowerTableIR {
               ranges.map { case (start, end) =>
                 Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
               }),
+            TableStageDependency.none,
             MakeStream(
               ranges.map { case (start, end) =>
                 MakeStruct(FastIndexedSeq("start" -> start, "end" -> end))
@@ -614,6 +623,7 @@ object LowerTableIR {
             broadcastVals = loweredChild.broadcastVals ++ FastIndexedSeq((filterIntervalsRef.name, Literal(boundsType, filterIntervals))),
             loweredChild.globals,
             newPart,
+            loweredChild.dependency,
             contexts = bindIRs(
               ToArray(loweredChild.contexts),
               Literal(TArray(TTuple(TInt32, TInt32)), startAndEndInterval.map { case (start, end) => Row(start, end) }.toFastIndexedSeq)
@@ -702,6 +712,7 @@ object LowerTableIR {
             loweredChild.broadcastVals,
             loweredChild.globals,
             loweredChild.partitioner,
+            loweredChild.dependency,
             newCtxs,
             (ctxRef: Ref) => StreamTake(
               loweredChild.partition(GetField(ctxRef, "old")),
@@ -784,6 +795,7 @@ object LowerTableIR {
             loweredChild.broadcastVals,
             loweredChild.globals,
             loweredChild.partitioner,
+            loweredChild.dependency,
             newCtxs,
             (ctxRef: Ref) => bindIR(GetField(ctxRef, "old")) { oldRef =>
               StreamDrop(loweredChild.partition(oldRef), GetField(ctxRef, "numberToDrop"))
@@ -857,6 +869,7 @@ object LowerTableIR {
                 letBindings = lc.letBindings ++ FastIndexedSeq((partitionAggsRef.name, partitionAggs)),
                 broadcastVals = lc.broadcastVals,
                 partitioner = lc.partitioner,
+                dependency = lc.dependency,
                 globals = lc.globals,
                 contexts = StreamZip(
                   FastIndexedSeq(lc.contexts, ToStream(partitionAggsRef)),
@@ -975,6 +988,7 @@ object LowerTableIR {
             repartitioned.flatMap(_.broadcastVals),
             repartitioned.head.globals,
             newPartitioner,
+            TableStageDependency.union(repartitioned.map(_.dependency)),
             zipIR(repartitioned.map(_.contexts), ArrayZipBehavior.AssumeSameLength) { ctxRefs =>
               MakeTuple.ordered(ctxRefs)
             },
@@ -1002,6 +1016,7 @@ object LowerTableIR {
             repartitioned.flatMap(_.broadcastVals) :+ globalsRef.name -> globalsRef,
             globalsRef,
             newPartitioner,
+            TableStageDependency.union(repartitioned.map(_.dependency)),
             zipIR(repartitioned.map(_.contexts), ArrayZipBehavior.AssumeSameLength) { ctxRefs =>
               MakeTuple.ordered(ctxRefs)
             },
@@ -1053,6 +1068,7 @@ object LowerTableIR {
             loweredChild.broadcastVals :+ newGlobalsRef.name -> newGlobalsRef,
             newGlobalsRef,
             loweredChild.partitioner.copy(kType = loweredChild.kType.rename(rowMap)),
+            loweredChild.dependency,
             loweredChild.contexts,
             (ctxRef: Ref) => mapIR(loweredChild.partition(ctxRef)) { row =>
               CastRename(row, row.typ.asInstanceOf[TStruct].rename(rowMap))
@@ -1063,6 +1079,9 @@ object LowerTableIR {
           loweredChild.mapPartition(Some(child.typ.key)) { part =>
             Let(globalName, loweredChild.globals, Let(partitionStreamName, part, body))
           }
+
+        case TableLiteral(typ, rvd, enc, encodedGlobals) =>
+          RVDToTableStage(rvd, EncodedLiteral(enc, encodedGlobals))
 
         case node =>
           throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(node) }")
@@ -1084,7 +1103,7 @@ object LowerTableIR {
       case TableToValueApply(child, ForceCountTable()) =>
         val stage = lower(child)
         invoke("sum", TInt64,
-          stage.mapCollect(relationalLetsAbove)(rows => Cast(StreamLen(mapIR(rows)(row => Consume(row))), TInt64))          )
+          stage.mapCollect(relationalLetsAbove)(rows => foldIR(mapIR(rows)(row => Consume(row)), 0L)(_ + _)))
 
       case TableGetGlobals(child) =>
         lower(child).getGlobals()

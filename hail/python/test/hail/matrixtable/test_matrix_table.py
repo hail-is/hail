@@ -73,7 +73,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(f(hl.eval(mt.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
             self.assertTrue(f(hl.eval(ht.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
 
-    @fails_local_backend()
     def test_head(self):
         # no empty partitions
         mt1 = hl.utils.range_matrix_table(10, 10)
@@ -100,7 +99,6 @@ class Tests(unittest.TestCase):
         assert mt1.head(1, None).count() == (1, 10)
         assert mt1.head(None, 1).count() == (10, 1)
 
-    @fails_local_backend()
     def test_tail(self):
         # no empty partitions
         mt1 = hl.utils.range_matrix_table(10, 10)
@@ -878,7 +876,6 @@ class Tests(unittest.TestCase):
         q = (vcf.locus >= l3) & (vcf.locus < l4)
         self.assertTrue(vcf.filter_rows(p | q)._same(mt))
 
-    @fails_local_backend()
     def test_codecs_matrix(self):
         from hail.utils.java import scala_object
         supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
@@ -899,7 +896,6 @@ class Tests(unittest.TestCase):
             rt2 = hl.read_table(temp)
             self.assertTrue(rt._same(rt2))
 
-    @fails_local_backend()
     def test_fix3307_read_mt_wrong(self):
         mt = hl.import_vcf(resource('sample2.vcf'))
         mt = hl.split_multi_hts(mt)
@@ -1491,7 +1487,6 @@ class Tests(unittest.TestCase):
         mt.show(handler=assert_res)
 
 
-    @fails_local_backend()
     def test_partitioned_write(self):
         mt = hl.utils.range_matrix_table(40, 3, 5)
 
@@ -1531,7 +1526,6 @@ class Tests(unittest.TestCase):
         ],
                    mt.filter_rows((mt.row_idx >= 5) & (mt.row_idx < 35)))
 
-    @fails_local_backend()
     def test_partitioned_write_coerce(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         parts = [
@@ -1558,12 +1552,10 @@ class Tests(unittest.TestCase):
         with pytest.raises(hl.utils.FatalError, match='metadata does not contain file version'):
             hl.read_matrix_table(resource('0.1-1fd5cc7.vds'))
 
-    @fails_local_backend()
     def test_legacy_files_with_required_globals(self):
         hl.read_table(resource('required_globals.ht'))._force_count()
         hl.read_matrix_table(resource('required_globals.mt'))._force_count_rows()
 
-    @fails_local_backend()
     def test_matrix_native_write_range(self):
         mt = hl.utils.range_matrix_table(11, 3, n_partitions=3)
         f = new_temp_file()

@@ -3,57 +3,86 @@
 {% block content %}
 <h1>Billing Projects</h1>
 <div class="searchbar-table">
-  <table class="data-table" id="batches">
+  <table class="grouped-data-table" id="billing-projects">
     <thead>
       <tr>
-        <th>Billing Project</th>
-        <th>User</th>
-        <th></th>
+        <th colspan="2">Billing Project</th>
+        <th colspan="2">User</th>
       </tr>
     </thead>
-    <tbody>
       {% for billing_project in billing_projects %}
+    <tbody>
       <tr>
-        <td>{{ billing_project['billing_project'] }}</td>
-        <td></td>
-        <td></td>
-      </tr>
+        <td rowspan="{{ billing_project.size + 1 }}">
+          {{ billing_project['billing_project'] }}
+        </td>
+        <td rowspan="{{ billing_project.size + 1 }}">
+          <form action="{{ base_path }}/billing_projects/{{ billing_project['billing_project'] }}/close" method="POST">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <button class="dangerous">Close</button>
+          </form>
+        </td>
       {% for user in billing_project['users'] %}
-      <tr>
-        <td></td>
         <td>{{ user }}</td>
         <td>
           <form action="{{ base_path }}/billing_projects/{{ billing_project['billing_project'] }}/users/{{ user }}/remove" method="POST">
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-            <button>
+            <button class="dangerous">
               Remove
             </button>
           </form>
         </td>
       </tr>
+      <tr>
       {% endfor %}
       <form action="{{ base_path }}/billing_projects/{{ billing_project['billing_project'] }}/users/add" method="POST">
         <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-        <tr>
-          <td></td>
           <td><input type="text" name="user"></td>
           <td>
             <button>Add</button>
           </td>
-        </tr>
       </form>
+      </tr>
+    </tbody>
       {% endfor %}
+    <tbody>
       <form action="{{ base_path }}/billing_projects/create" method="POST">
         <input type="hidden" name="_csrf" value="{{ csrf_token }}">
         <tr>
           <td><input type="text" name="billing_project"></td>
-          <td></td>
           <td>
             <button>Add</button>
           </td>
+          <td></td>
+          <td></td>
         </tr>
       </form>
     </tbody>
   </table>
 </div>
+<h1>Closed</h1>
+<div class="searchbar-table">
+  <table class="data-table" id="closed-billing-projects">
+    <thead>
+    <tr>
+      <th>Billing Project</th>
+      <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for billing_project in closed_projects %}
+    <tr>
+      <td>{{ billing_project.billing_project }}</td>
+      <td>
+        <form action="{{ base_path }}/billing_projects/{{ billing_project.billing_project }}/reopen" method="POST">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+          <button>Reopen</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
 {% endblock %}

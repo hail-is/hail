@@ -32,6 +32,8 @@ spec:
             value: /deploy-config/deploy-config.json
           - name: HAIL_SHA
             value: "{{ code.sha }}"
+          - name: HAIL_CI_OAUTH_TOKEN
+            value: /secrets/oauth-token/oauth-token
           ports:
             - containerPort: 5000
           resources:
@@ -54,6 +56,9 @@ spec:
             - name: benchmark-gsa-key
               mountPath: /benchmark-gsa-key
               readOnly: true
+            - mountPath: /secrets/oauth-token
+              name: hail-ci-0-1-github-oauth-token
+              readOnly: true
           readinessProbe:
             tcpSocket:
               port: 5000
@@ -72,3 +77,6 @@ spec:
         - name: benchmark-gsa-key
           secret:
             secretName: benchmark-gsa-key
+        - name: hail-ci-0-1-github-oauth-token
+          secret:
+            secretName: hail-ci-0-1-github-oauth-token

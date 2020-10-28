@@ -1,22 +1,31 @@
 {
   "1000_Genomes_autosomes": {
     "description": "1000 Genomes Project: the largest public catalogue of human variation and genotype data.",
-    "key_properties": [],
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/1000_Genomes_autosomes.phase_3.GRCh37.mt",
-          "us": "gs://hail-datasets-us/1000_Genomes_autosomes.phase_3.GRCh37.mt"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes_autosomes.phase_3.GRCh37.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes_autosomes.phase_3.GRCh37.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes_autosomes.phase_3.GRCh37.mt"
+          }
         },
         "version": "phase_3"
       },
       {
         "reference_genome": "GRCh38",
         "url": {
-          "eu": "gs://hail-datasets-eu/1000_Genomes_autosomes.phase_3.GRCh38.mt",
-          "us": "gs://hail-datasets-us/1000_Genomes_autosomes.phase_3.GRCh38.mt"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes_autosomes.phase_3.GRCh38.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes_autosomes.phase_3.GRCh38.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes_autosomes.phase_3.GRCh38.mt"
+          }
         },
         "version": "phase_3"
       }
@@ -24,14 +33,18 @@
   },
   "1000_Genomes_chrMT": {
     "description": "1000 Genomes Project: the largest public catalogue of human variation and genotype data.",
-    "key_properties": [],
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/1000_Genomes_chrMT.phase_3.GRCh37.mt",
-          "us": "gs://hail-datasets-us/1000_Genomes_chrMT.phase_3.GRCh37.mt"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes_chrMT.phase_3.GRCh37.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes_chrMT.phase_3.GRCh37.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes_chrMT.phase_3.GRCh37.mt"
+          }
         },
         "version": "phase_3"
       }
@@ -39,22 +52,31 @@
   },
   "1000_Genomes_chrX": {
     "description": "1000 Genomes Project: the largest public catalogue of human variation and genotype data.",
-    "key_properties": [],
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/1000_Genomes_chrX.phase_3.GRCh37.mt",
-          "us": "gs://hail-datasets-us/1000_Genomes_chrX.phase_3.GRCh37.mt"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes_chrX.phase_3.GRCh37.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes_chrX.phase_3.GRCh37.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes_chrX.phase_3.GRCh37.mt"
+          }
         },
         "version": "phase_3"
       },
       {
         "reference_genome": "GRCh38",
         "url": {
-          "eu": "gs://hail-datasets-eu/1000_Genomes_chrX.phase_3.GRCh38.mt",
-          "us": "gs://hail-datasets-us/1000_Genomes_chrX.phase_3.GRCh38.mt"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes_chrX.phase_3.GRCh38.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes_chrX.phase_3.GRCh38.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes_chrX.phase_3.GRCh38.mt"
+          }
         },
         "version": "phase_3"
       }
@@ -62,122 +84,179 @@
   },
   "1000_Genomes_chrY": {
     "description": "1000 Genomes Project: the largest public catalogue of human variation and genotype data.",
-    "key_properties": [],
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/1000_Genomes_chrY.phase_3.GRCh37.mt",
-          "us": "gs://hail-datasets-us/1000_Genomes_chrY.phase_3.GRCh37.mt"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes_chrY.phase_3.GRCh37.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes_chrY.phase_3.GRCh37.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes_chrY.phase_3.GRCh37.mt"
+          }
         },
         "version": "phase_3"
       },
       {
         "reference_genome": "GRCh38",
         "url": {
-          "eu": "gs://hail-datasets-eu/1000_Genomes_chrY.phase_3.GRCh38.mt",
-          "us": "gs://hail-datasets-us/1000_Genomes_chrY.phase_3.GRCh38.mt"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes_chrY.phase_3.GRCh38.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes_chrY.phase_3.GRCh38.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes_chrY.phase_3.GRCh38.mt"
+          }
         },
         "version": "phase_3"
       }
     ]
   },
   "CADD": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Combined Annotation Dependent Depletion (CADD): an algorithm designed to annotate both coding and non-coding variants.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "https://cadd.gs.washington.edu/",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/CADD.v1.4.GRCh37.ht",
-          "us": "gs://hail-datasets-us/annotations/CADD.v1.4.GRCh37.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/CADD.v1.4.GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/CADD.v1.4.GRCh37.ht",
+            "us": "gs://hail-datasets-us/annotations/CADD.v1.4.GRCh37.ht"
+          }
         },
         "version": "1.4"
       },
       {
         "reference_genome": "GRCh38",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/CADD.v1.4.GRCh38.ht",
-          "us": "gs://hail-datasets-us/annotations/CADD.v1.4.GRCh38.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/CADD.v1.4.GRCh38.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/CADD.v1.4.GRCh38.ht",
+            "us": "gs://hail-datasets-us/annotations/CADD.v1.4.GRCh38.ht"
+          }
         },
         "version": "1.4"
       }
     ]
   },
   "DANN": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "DANN: a deep learning approach for annotating the pathogenicity of genetic variants.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4341060/",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/DANN.GRCh37.ht",
-          "us": "gs://hail-datasets-us/annotations/DANN.GRCh37.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/DANN.GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/DANN.GRCh37.ht",
+            "us": "gs://hail-datasets-us/annotations/DANN.GRCh37.ht"
+          }
         },
         "version": null
       },
       {
         "reference_genome": "GRCh38",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/DANN.GRCh38.ht",
-          "us": "gs://hail-datasets-us/annotations/DANN.GRCh38.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/DANN.GRCh38.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/DANN.GRCh38.ht",
+            "us": "gs://hail-datasets-us/annotations/DANN.GRCh38.ht"
+          }
         },
         "version": null
       }
     ]
   },
   "Ensembl_homo_sapiens_low_complexity_regions": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Ensembl: a genome browser for vertebrate genomes that supports research in comparative genomics, evolution, sequence variation and transcriptional regulation.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "https://useast.ensembl.org/index.html",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh37.ht",
-          "us": "gs://hail-datasets-us/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh37.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh37.ht",
+            "us": "gs://hail-datasets-us/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh37.ht"
+          }
         },
         "version": "release_95"
       },
       {
         "reference_genome": "GRCh38",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh38.ht",
-          "us": "gs://hail-datasets-us/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh38.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh38.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh38.ht",
+            "us": "gs://hail-datasets-us/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh38.ht"
+          }
         },
         "version": "release_95"
       }
     ]
   },
   "Ensembl_homo_sapiens_reference_genome": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Ensembl: a genome browser for vertebrate genomes that supports research in comparative genomics, evolution, sequence variation and transcriptional regulation.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "https://useast.ensembl.org/index.html",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh37.ht",
-          "us": "gs://hail-datasets-us/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh37.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh37.ht",
+            "us": "gs://hail-datasets-us/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh37.ht"
+          }
         },
         "version": "release_95"
       },
       {
         "reference_genome": "GRCh38",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh38.ht",
-          "us": "gs://hail-datasets-us/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh38.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh38.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh38.ht",
+            "us": "gs://hail-datasets-us/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh38.ht"
+          }
         },
         "version": "release_95"
       }
@@ -185,14 +264,18 @@
   },
   "GTEx_RNA_seq_gene_TPMs": {
     "description": "Genotype-Tissue Expression (GTEx): an ongoing effort to build a comprehensive public resource to study tissue-specific gene expression and regulation.",
-    "key_properties": [],
     "url": "https://gtexportal.org/home/",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/GTEx_RNA_seq_gene_TPMs.v7.GRCh37.mt",
-          "us": "gs://hail-datasets-us/GTEx_RNA_seq_gene_TPMs.v7.GRCh37.mt"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx_RNA_seq_gene_TPMs.v7.GRCh37.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx_RNA_seq_gene_TPMs.v7.GRCh37.mt",
+            "us": "gs://hail-datasets-us/GTEx_RNA_seq_gene_TPMs.v7.GRCh37.mt"
+          }
         },
         "version": "v7"
       }
@@ -200,14 +283,18 @@
   },
   "GTEx_RNA_seq_gene_read_counts": {
     "description": "Genotype-Tissue Expression (GTEx): an ongoing effort to build a comprehensive public resource to study tissue-specific gene expression and regulation.",
-    "key_properties": [],
     "url": "https://gtexportal.org/home/",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/GTEx_RNA_seq_gene_read_counts.v7.GRCh37.mt",
-          "us": "gs://hail-datasets-us/GTEx_RNA_seq_gene_read_counts.v7.GRCh37.mt"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx_RNA_seq_gene_read_counts.v7.GRCh37.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx_RNA_seq_gene_read_counts.v7.GRCh37.mt",
+            "us": "gs://hail-datasets-us/GTEx_RNA_seq_gene_read_counts.v7.GRCh37.mt"
+          }
         },
         "version": "v7"
       }
@@ -215,14 +302,18 @@
   },
   "GTEx_RNA_seq_junction_read_counts": {
     "description": "Genotype-Tissue Expression (GTEx): an ongoing effort to build a comprehensive public resource to study tissue-specific gene expression and regulation.",
-    "key_properties": [],
     "url": "https://gtexportal.org/home/",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/GTEx_RNA_seq_junction_read_counts.v7.GRCh37.mt",
-          "us": "gs://hail-datasets-us/GTEx_RNA_seq_junction_read_counts.v7.GRCh37.mt"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx_RNA_seq_junction_read_counts.v7.GRCh37.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx_RNA_seq_junction_read_counts.v7.GRCh37.mt",
+            "us": "gs://hail-datasets-us/GTEx_RNA_seq_junction_read_counts.v7.GRCh37.mt"
+          }
         },
         "version": "v7"
       }
@@ -230,14 +321,18 @@
   },
   "UK_Biobank_Rapid_GWAS_both_sexes": {
     "description": "UK Biobank GWAS: GWAS analysis of 7,221 phenotypes across 6 continental ancestry groups in the UK Biobank.",
-    "key_properties": [],
     "url": "http://www.nealelab.is/uk-biobank",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/UK_Biobank_Rapid_GWAS_both_sexes.v2.GRCh37.mt",
-          "us": "gs://hail-datasets-us/UK_Biobank_Rapid_GWAS_both_sexes.v2.GRCh37.mt"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/UK_Biobank_Rapid_GWAS_both_sexes.v2.GRCh37.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/UK_Biobank_Rapid_GWAS_both_sexes.v2.GRCh37.mt",
+            "us": "gs://hail-datasets-us/UK_Biobank_Rapid_GWAS_both_sexes.v2.GRCh37.mt"
+          }
         },
         "version": "v2"
       }
@@ -245,14 +340,18 @@
   },
   "UK_Biobank_Rapid_GWAS_female": {
     "description": "UK Biobank GWAS: GWAS analysis of 7,221 phenotypes across 6 continental ancestry groups in the UK Biobank.",
-    "key_properties": [],
     "url": "http://www.nealelab.is/uk-biobank",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/UK_Biobank_Rapid_GWAS_female.v2.GRCh37.mt",
-          "us": "gs://hail-datasets-us/UK_Biobank_Rapid_GWAS_female.v2.GRCh37.mt"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/UK_Biobank_Rapid_GWAS_female.v2.GRCh37.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/UK_Biobank_Rapid_GWAS_female.v2.GRCh37.mt",
+            "us": "gs://hail-datasets-us/UK_Biobank_Rapid_GWAS_female.v2.GRCh37.mt"
+          }
         },
         "version": "v2"
       }
@@ -260,249 +359,365 @@
   },
   "UK_Biobank_Rapid_GWAS_male": {
     "description": "UK Biobank GWAS: GWAS analysis of 7,221 phenotypes across 6 continental ancestry groups in the UK Biobank.",
-    "key_properties": [],
     "url": "http://www.nealelab.is/uk-biobank",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/UK_Biobank_Rapid_GWAS_male.v2.GRCh37.mt",
-          "us": "gs://hail-datasets-us/UK_Biobank_Rapid_GWAS_male.v2.GRCh37.mt"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/UK_Biobank_Rapid_GWAS_male.v2.GRCh37.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/UK_Biobank_Rapid_GWAS_male.v2.GRCh37.mt",
+            "us": "gs://hail-datasets-us/UK_Biobank_Rapid_GWAS_male.v2.GRCh37.mt"
+          }
         },
         "version": "v2"
       }
     ]
   },
   "clinvar_gene_summary": {
+    "annotation_db": {
+      "key_properties": [
+        "gene",
+        "unique"
+      ]
+    },
     "description": "Clinvar: aggregates information about genomic variation and its relationship to human health.",
-    "key_properties": [
-      "gene",
-      "unique"
-    ],
     "url": "https://www.ncbi.nlm.nih.gov/clinvar/",
     "versions": [
       {
         "reference_genome": null,
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/gene_specific_summary_2019-07.txt.gz.ht",
-          "us": "gs://hail-datasets-us/annotations/gene_specific_summary_2019-07.txt.gz.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/gene_specific_summary_2019-07.txt.gz.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/gene_specific_summary_2019-07.txt.gz.ht",
+            "us": "gs://hail-datasets-us/annotations/gene_specific_summary_2019-07.txt.gz.ht"
+          }
         },
         "version": "2019-07"
       }
     ]
   },
   "clinvar_variant_summary": {
+    "annotation_db": {
+      "key_properties": []
+    },
     "description": "Clinvar: aggregates information about genomic variation and its relationship to human health.",
-    "key_properties": [],
     "url": "https://www.ncbi.nlm.nih.gov/clinvar/",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/variant_summary_2019-07.GRCh37.txt.gz.ht",
-          "us": "gs://hail-datasets-us/annotations/variant_summary_2019-07.GRCh37.txt.gz.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/variant_summary_2019-07.GRCh37.txt.gz.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/variant_summary_2019-07.GRCh37.txt.gz.ht",
+            "us": "gs://hail-datasets-us/annotations/variant_summary_2019-07.GRCh37.txt.gz.ht"
+          }
         },
         "version": "2019-07"
       },
       {
         "reference_genome": "GRCh38",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/variant_summary_2019-07.GRCh38.txt.gz.ht",
-          "us": "gs://hail-datasets-us/annotations/variant_summary_2019-07.GRCh38.txt.gz.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/variant_summary_2019-07.GRCh38.txt.gz.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/variant_summary_2019-07.GRCh38.txt.gz.ht",
+            "us": "gs://hail-datasets-us/annotations/variant_summary_2019-07.GRCh38.txt.gz.ht"
+          }
         },
         "version": "2019-07"
       }
     ]
   },
   "dbNSFP_genes": {
+    "annotation_db": {
+      "key_properties": [
+        "gene",
+        "unique"
+      ]
+    },
     "description": "dbNSFP: a database developed for functional prediction and annotation of all nsSNVs in the human genome.",
-    "key_properties": [
-      "gene",
-      "unique"
-    ],
     "url": "https://sites.google.com/site/jpopgen/dbNSFP",
     "versions": [
       {
         "reference_genome": null,
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/dbnsfp/dbNSFP4.0_gene.complete.bgz.ht",
-          "us": "gs://hail-datasets-us/annotations/dbnsfp/dbNSFP4.0_gene.complete.bgz.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/dbnsfp/dbNSFP4.0_gene.complete.bgz.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/dbnsfp/dbNSFP4.0_gene.complete.bgz.ht",
+            "us": "gs://hail-datasets-us/annotations/dbnsfp/dbNSFP4.0_gene.complete.bgz.ht"
+          }
         },
         "version": "4.0"
       }
     ]
   },
   "dbNSFP_variants": {
+    "annotation_db": {
+      "key_properties": []
+    },
     "description": "dbNSFP: a database developed for functional prediction and annotation of all nsSNVs in the human genome.",
-    "key_properties": [],
     "url": "https://sites.google.com/site/jpopgen/dbNSFP",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/dbnsfp4.0a.GRCh37.ht",
-          "us": "gs://hail-datasets-us/annotations/dbnsfp4.0a.GRCh37.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/dbnsfp4.0a.GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/dbnsfp4.0a.GRCh37.ht",
+            "us": "gs://hail-datasets-us/annotations/dbnsfp4.0a.GRCh37.ht"
+          }
         },
         "version": "4.0"
       },
       {
         "reference_genome": "GRCh38",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/dbnsfp4.0a.GRCh38.ht",
-          "us": "gs://hail-datasets-us/annotations/dbnsfp4.0a.GRCh38.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/dbnsfp4.0a.GRCh38.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/dbnsfp4.0a.GRCh38.ht",
+            "us": "gs://hail-datasets-us/annotations/dbnsfp4.0a.GRCh38.ht"
+          }
         },
         "version": "4.0"
       }
     ]
   },
   "gencode": {
+    "annotation_db": {
+      "key_properties": []
+    },
     "description": "GENCODE: aims to identify all gene features in the human genome using a combination of computational analysis, manual annotation, and experimental validation.",
-    "key_properties": [],
     "url": "https://www.gencodegenes.org/",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/gencode.v19.annotation.GRCh37.ht",
-          "us": "gs://hail-datasets-us/annotations/gencode.v19.annotation.GRCh37.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/gencode.v19.annotation.GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/gencode.v19.annotation.GRCh37.ht",
+            "us": "gs://hail-datasets-us/annotations/gencode.v19.annotation.GRCh37.ht"
+          }
         },
         "version": "v19"
       },
       {
         "reference_genome": "GRCh38",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/gencode.v31.annotation.GRCh38.ht",
-          "us": "gs://hail-datasets-us/annotations/gencode.v31.annotation.GRCh38.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/gencode.v31.annotation.GRCh38.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/gencode.v31.annotation.GRCh38.ht",
+            "us": "gs://hail-datasets-us/annotations/gencode.v31.annotation.GRCh38.ht"
+          }
         },
         "version": "v31"
       }
     ]
   },
   "gerp_elements": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "GERP: identifies constrained elements in multiple alignments by quantifying substitution deficits.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "http://mendel.stanford.edu/SidowLab/downloads/gerp/",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/GERP_elements.GERP++.GRCh37.ht",
-          "us": "gs://hail-datasets-us/annotations/GERP_elements.GERP++.GRCh37.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/GERP_elements.GERP++.GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/GERP_elements.GERP++.GRCh37.ht",
+            "us": "gs://hail-datasets-us/annotations/GERP_elements.GERP++.GRCh37.ht"
+          }
         },
         "version": "hg19"
       },
       {
         "reference_genome": "GRCh38",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/GERP_elements.GERP++.GRCh38.ht",
-          "us": "gs://hail-datasets-us/annotations/GERP_elements.GERP++.GRCh38.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/GERP_elements.GERP++.GRCh38.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/GERP_elements.GERP++.GRCh38.ht",
+            "us": "gs://hail-datasets-us/annotations/GERP_elements.GERP++.GRCh38.ht"
+          }
         },
         "version": "hg19"
       }
     ]
   },
   "gerp_scores": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "GERP: identifies constrained elements in multiple alignments by quantifying substitution deficits.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "http://mendel.stanford.edu/SidowLab/downloads/gerp/",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/GERP_scores.GERP++.GRCh37.ht",
-          "us": "gs://hail-datasets-us/annotations/GERP_scores.GERP++.GRCh37.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/GERP_scores.GERP++.GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/GERP_scores.GERP++.GRCh37.ht",
+            "us": "gs://hail-datasets-us/annotations/GERP_scores.GERP++.GRCh37.ht"
+          }
         },
         "version": "hg19"
       },
       {
         "reference_genome": "GRCh38",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/GERP_scores.GERP++.GRCh38.ht",
-          "us": "gs://hail-datasets-us/annotations/GERP_scores.GERP++.GRCh38.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/GERP_scores.GERP++.GRCh38.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/GERP_scores.GERP++.GRCh38.ht",
+            "us": "gs://hail-datasets-us/annotations/GERP_scores.GERP++.GRCh38.ht"
+          }
         },
         "version": "hg19"
       }
     ]
   },
   "gnomad_exome_sites": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: a resource with the goal of aggregating and harmonizing both exome and genome sequencing data from a wide variety of large-scale sequencing projects.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "us": "gs://gnomad-public-requester-pays/release/2.1.1/ht/exomes/gnomad.exomes.r2.1.1.sites.ht"
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ht/exomes/gnomad.exomes.r2.1.1.sites.ht"
+          },
+          "gcp": {
+            "us": "gs://gnomad-public-requester-pays/release/2.1.1/ht/exomes/gnomad.exomes.r2.1.1.sites.ht"
+          }
         },
         "version": "2.1.1"
       },
       {
         "reference_genome": "GRCh38",
         "url": {
-          "us": "gs://gnomad-public-requester-pays/release/2.1.1/liftover_grch38/ht/exomes/gnomad.exomes.r2.1.1.sites.liftover_grch38.ht"
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/liftover_grch38/ht/exomes/gnomad.exomes.r2.1.1.sites.liftover_grch38.ht"
+          },
+          "gcp": {
+            "us": "gs://gnomad-public-requester-pays/release/2.1.1/liftover_grch38/ht/exomes/gnomad.exomes.r2.1.1.sites.liftover_grch38.ht"
+          }
         },
         "version": "2.1.1"
       }
     ]
   },
   "gnomad_genome_sites": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: a resource with the goal of aggregating and harmonizing both exome and genome sequencing data from a wide variety of large-scale sequencing projects.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "us": "gs://gnomad-public-requester-pays/release/2.1.1/ht/genomes/gnomad.genomes.r2.1.1.sites.ht"
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ht/genomes/gnomad.genomes.r2.1.1.sites.ht"
+          },
+          "gcp": {
+            "us": "gs://gnomad-public-requester-pays/release/2.1.1/ht/genomes/gnomad.genomes.r2.1.1.sites.ht"
+          }
         },
         "version": "2.1.1"
       },
       {
         "reference_genome": "GRCh38",
         "url": {
-          "us": "gs://gnomad-public-requester-pays/release/2.1.1/liftover_grch38/ht/genomes/gnomad.genomes.r2.1.1.sites.liftover_grch38.ht"
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/liftover_grch38/ht/genomes/gnomad.genomes.r2.1.1.sites.liftover_grch38.ht"
+          },
+          "gcp": {
+            "us": "gs://gnomad-public-requester-pays/release/2.1.1/liftover_grch38/ht/genomes/gnomad.genomes.r2.1.1.sites.liftover_grch38.ht"
+          }
         },
         "version": "2.1.1"
       }
     ]
   },
   "gnomad_lof_metrics": {
+    "annotation_db": {
+      "key_properties": [
+        "gene"
+      ]
+    },
     "description": "gnomAD: a resource with the goal of aggregating and harmonizing both exome and genome sequencing data from a wide variety of large-scale sequencing projects.",
-    "key_properties": [
-      "gene"
-    ],
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
         "reference_genome": null,
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/gnomad_v2.1.1_lof_metrics_by_gene.ht",
-          "us": "gs://hail-datasets-us/annotations/gnomad_v2.1.1_lof_metrics_by_gene.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/gnomad_v2.1.1_lof_metrics_by_gene.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/gnomad_v2.1.1_lof_metrics_by_gene.ht",
+            "us": "gs://hail-datasets-us/annotations/gnomad_v2.1.1_lof_metrics_by_gene.ht"
+          }
         },
         "version": "2.1.1"
       }
     ]
   },
   "ldsc_baselineLD_annotations": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "LDSC Baseline-LD Model: contains 75 annotations (additional annotations included in later versions) including functional regions, histone marks, GERP scores, LD-related annotations of population genetics forces, MAF bins, and more.",
-    "key_properties": [
-      "unique"
-    ],
     "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6133304/",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-eu/annotations/LDSC_baselineLD_v2.2_ld_scores.GRCh37.ht",
-          "us": "gs://hail-datasets-us/annotations/LDSC_baselineLD_v2.2_ld_scores.GRCh37.ht"
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/annotations/LDSC_baselineLD_v2.2_ld_scores.GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/annotations/LDSC_baselineLD_v2.2_ld_scores.GRCh37.ht",
+            "us": "gs://hail-datasets-us/annotations/LDSC_baselineLD_v2.2_ld_scores.GRCh37.ht"
+          }
         },
         "version": "2.2"
       }
@@ -510,14 +725,18 @@
   },
   "ldsc_baselineLD_ldscores": {
     "description": "LDSC Baseline-LD Model: contains 75 annotations (additional annotations included in later versions) including functional regions, histone marks, GERP scores, LD-related annotations of population genetics forces, MAF bins, and more.",
-    "key_properties": [],
     "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6133304/",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-us/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt",
-          "us": "gs://hail-datasets-eu/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt"
+          "aws": {
+            "us": "gs://hail-datasets-eu/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-us/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt",
+            "us": "gs://hail-datasets-eu/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt"
+          }
         },
         "version": "2.2"
       }
@@ -525,14 +744,18 @@
   },
   "ldsc_baseline_ldscores": {
     "description": "LDSC Baseline Model: contains 53 annotations including functional regions, histone marks, GERP scores, LD-related annotations of population genetics forces, and MAF bins.",
-    "key_properties": [],
     "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4626285/",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "eu": "gs://hail-datasets-us/LDSC_baseline_v1.1_ld_scores.GRCh37.mt",
-          "us": "gs://hail-datasets-eu/LDSC_baseline_v1.1_ld_scores.GRCh37.mt"
+          "aws": {
+            "us": "gs://hail-datasets-eu/LDSC_baseline_v1.1_ld_scores.GRCh37.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-us/LDSC_baseline_v1.1_ld_scores.GRCh37.mt",
+            "us": "gs://hail-datasets-eu/LDSC_baseline_v1.1_ld_scores.GRCh37.mt"
+          }
         },
         "version": "1.1"
       }

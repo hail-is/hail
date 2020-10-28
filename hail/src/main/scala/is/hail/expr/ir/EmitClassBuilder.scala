@@ -20,27 +20,6 @@ import org.apache.spark.TaskContext
 import scala.collection.mutable
 import scala.language.existentials
 
-sealed trait ParamType  {
-  def nCodes: Int
-}
-
-case class EmitParamType(pt: PType) extends ParamType {
-  def nCodes: Int = pt.nCodes
-
-  override def toString: String = s"EmitParam($pt, $nCodes)"
-}
-
-case class CodeParamType(ti: TypeInfo[_]) extends ParamType {
-  def nCodes: Int = 1
-
-  override def toString: String = s"CodeParam($ti)"
-}
-
-sealed trait Param
-
-case class EmitParam(ec: EmitCode) extends Param
-case class CodeParam(c: Code[_]) extends Param
-
 class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   def newEmitClass[C](name: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
     new EmitClassBuilder(this, modb.newClass(name, sourceFile))
@@ -130,6 +109,24 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   def genLazyFieldThisRef[T: TypeInfo](setup: Code[T], name: String = null): Value[T] = ecb.genLazyFieldThisRef(setup, name)
 
   def getOrDefineLazyField[T: TypeInfo](setup: Code[T], id: Any): Value[T] = ecb.getOrDefineLazyField(setup, id)
+
+  def newPSettable(sb: SettableBuilder, pt: PType, name: String = null): PSettable = ecb.newPSettable(sb, pt, name)
+
+  def newPField(pt: PType): PSettable = ecb.newPField(pt)
+
+  def newPField(name: String, pt: PType): PSettable = ecb.newPField(name, pt)
+
+  def newEmitField(pt: PType): EmitSettable = ecb.newEmitField(pt)
+
+  def newEmitField(name: String, pt: PType): EmitSettable = ecb.newEmitField(name, pt)
+
+  def newEmitSettable(pt: PType, ms: Settable[Boolean], vs: PSettable): EmitSettable = ecb.newEmitSettable(pt, ms, vs)
+
+  def newPresentEmitField(pt: PType): PresentEmitSettable = ecb.newPresentEmitField(pt)
+
+  def newPresentEmitField(name: String, pt: PType): PresentEmitSettable = ecb.newPresentEmitField(name, pt)
+
+  def newPresentEmitSettable(pt: PType, ps: PSettable): PresentEmitSettable = ecb.newPresentEmitSettable(pt, ps)
 
   def fieldBuilder: SettableBuilder = cb.fieldBuilder
 
@@ -272,6 +269,67 @@ class EmitClassBuilder[C](
   def result(print: Option[PrintWriter] = None): () => C = cb.result(print)
 
   // EmitClassBuilder methods
+
+  def newPSettable(sb: SettableBuilder, pt: PType, name: String = null): PSettable = PSettable(sb, pt, name)
+
+  def newPField(pt: PType): PSettable = newPSettable(fieldBuilder, pt)
+
+  def newPField(name: String, pt: PType): PSettable = newPSettable(fieldBuilder, pt, name)
+
+  def newEmitField(pt: PType): EmitSettable =
+    newEmitSettable(pt, genFieldThisRef[Boolean](), newPField(pt))
+
+  def newEmitField(name: String, pt: PType): EmitSettable =
+    newEmitSettable(pt, genFieldThisRef[Boolean](name + "_missing"), newPField(name, pt))
+
+  def newEmitSettable(_pt: PType, ms: Settable[Boolean], vs: PSettable): EmitSettable = new EmitSettable {
+    if (!_pt.isRealizable) {
+      throw new UnsupportedOperationException(s"newEmitSettable can only be called on realizable PTypes. Called on ${_pt}")
+    }
+
+    def pt: PType = _pt
+
+    def get: EmitCode = EmitCode(Code._empty,
+      if (_pt.required) false else ms.get,
+      vs.get)
+
+    def store(ec: EmitCode): Code[Unit] =
+      if (_pt.required)
+        Code(ec.setup,
+          // FIXME put this under control of a debugging option
+          ec.m.mux(
+            Code._fatal[Unit](s"Required EmitSettable cannot be missing ${ _pt }"),
+            Code._empty),
+          vs := ec.pv)
+      else
+        Code(ec.setup, ec.m.mux(ms := true, Code(ms := false, vs := ec.pv)))
+
+    def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit =
+      if (_pt.required)
+        cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${ _pt }"))
+      else
+        iec.consume(cb, {
+          cb.assign(ms, true)
+        }, { value =>
+          cb.assign(ms, false)
+          cb.assign(vs, value)
+        })
+  }
+
+  def newPresentEmitField(pt: PType): PresentEmitSettable =
+    newPresentEmitSettable(pt, newPField(pt))
+
+  def newPresentEmitField(name: String, pt: PType): PresentEmitSettable =
+    newPresentEmitSettable(pt, newPField(name, pt))
+
+  def newPresentEmitSettable(_pt: PType, ps: PSettable): PresentEmitSettable = new PresentEmitSettable {
+    def pt: PType = _pt
+
+    def get: EmitCode = EmitCode(Code._empty, const(false), ps.load())
+
+    def store(pv: PCode): Code[Unit] = ps := pv
+  }
+
   private[this] val typMap: mutable.Map[Type, Value[_ <: Type]] =
     mutable.Map()
 
@@ -897,10 +955,10 @@ class EmitMethodBuilder[C](
 
   // this, ...
   private val emitParamCodeIndex = emitParamTypes.scanLeft((!mb.isStatic).toInt) {
-    case (i, CodeParamType(_)) =>
-      i + 1
     case (i, EmitParamType(pt)) =>
       i + pt.nCodes + (if (pt.required) 0 else 1)
+    case (i, paramType) =>
+      i + paramType.nCodes
   }
 
   def getCodeParam[T: TypeInfo](emitIndex: Int): Settable[T] = {
@@ -910,6 +968,26 @@ class EmitMethodBuilder[C](
       val static = (!mb.isStatic).toInt
       assert(emitParamTypes(emitIndex - static).isInstanceOf[CodeParamType])
       mb.getArg[T](emitParamCodeIndex(emitIndex - static))
+    }
+  }
+
+  def getPCodeParam(emitIndex: Int): PValue = {
+    assert(mb.isStatic || emitIndex != 0)
+    val static = (!mb.isStatic).toInt
+    val _pt = emitParamTypes(emitIndex - static).asInstanceOf[PCodeParamType].pt
+    assert(!_pt.isInstanceOf[PStream])
+
+    val ts = _pt.codeTupleTypes()
+    val codeIndex = emitParamCodeIndex(emitIndex - static)
+
+    // FIXME this isn't great, but it shouldn't fail
+    new PValue {
+      val pt: PType = _pt
+
+      def get: PCode =
+        pt.fromCodeTuple(ts.zipWithIndex.map { case (t, i) =>
+          mb.getArg(codeIndex + i)(t).get
+        })
     }
   }
 
@@ -959,6 +1037,7 @@ class EmitMethodBuilder[C](
   def getParamsList(): IndexedSeq[Param] = {
     emitParamTypes.toFastIndexedSeq.zipWithIndex.map {
       case (CodeParamType(ti), i) => CodeParam(this.getCodeParam(i + 1)(ti)): Param
+      case (PCodeParamType(pt), i) => PCodeParam(this.getPCodeParam(i + 1)): Param
       case (EmitParamType(pt), i) => EmitParam(this.getEmitParam(i + 1)): Param
     }
   }
@@ -975,50 +1054,9 @@ class EmitMethodBuilder[C](
       case EmitParam(ec) => fatal("EmitParam passed to invokeCode")
     }: _*)
   }
-
-  def newPSettable(sb: SettableBuilder, pt: PType, name: String = null): PSettable = PSettable(sb, pt, name)
-
   def newPLocal(pt: PType): PSettable = newPSettable(localBuilder, pt)
 
   def newPLocal(name: String, pt: PType): PSettable = newPSettable(localBuilder, pt, name)
-
-  def newPField(pt: PType): PSettable = newPSettable(fieldBuilder, pt)
-
-  def newPField(name: String, pt: PType): PSettable = newPSettable(fieldBuilder, pt, name)
-
-  def newEmitSettable(_pt: PType, ms: Settable[Boolean], vs: PSettable): EmitSettable = new EmitSettable {
-    if (!_pt.isRealizable) {
-      throw new UnsupportedOperationException(s"newEmitSettable can only be called on realizable PTypes. Called on ${_pt}")
-    }
-
-    def pt: PType = _pt
-
-    def get: EmitCode = EmitCode(Code._empty,
-      if (_pt.required) false else ms.get,
-      vs.get)
-
-    def store(ec: EmitCode): Code[Unit] =
-      if (_pt.required)
-        Code(ec.setup,
-          // FIXME put this under control of a debugging option
-          ec.m.mux(
-            Code._fatal[Unit](s"Required EmitSettable cannot be missing ${ _pt }"),
-            Code._empty),
-          vs := ec.pv)
-      else
-        Code(ec.setup, ec.m.mux(ms := true, Code(ms := false, vs := ec.pv)))
-
-    def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit =
-      if (_pt.required)
-        cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${ _pt }"))
-      else
-        iec.consume(cb, {
-          cb.assign(ms, true)
-        }, { value =>
-          cb.assign(ms, false)
-          cb.assign(vs, value)
-        })
-  }
 
   def newEmitLocal(pt: PType): EmitSettable =
     newEmitSettable(pt, if (pt.required) null else newLocal[Boolean](), newPLocal(pt))
@@ -1026,31 +1064,11 @@ class EmitMethodBuilder[C](
   def newEmitLocal(name: String, pt: PType): EmitSettable =
     newEmitSettable(pt, if (pt.required) null else newLocal[Boolean](name + "_missing"), newPLocal(name, pt))
 
-  def newEmitField(pt: PType): EmitSettable =
-    newEmitSettable(pt, genFieldThisRef[Boolean](), newPField(pt))
-
-  def newEmitField(name: String, pt: PType): EmitSettable =
-    newEmitSettable(pt, genFieldThisRef[Boolean](name + "_missing"), newPField(name, pt))
-
-  def newPresentEmitSettable(_pt: PType, ps: PSettable): PresentEmitSettable = new PresentEmitSettable {
-    def pt: PType = _pt
-
-    def get: EmitCode = EmitCode(Code._empty, const(false), ps.load())
-
-    def store(pv: PCode): Code[Unit] = ps := pv
-  }
-
   def newPresentEmitLocal(pt: PType): PresentEmitSettable =
     newPresentEmitSettable(pt, newPLocal(pt))
 
   def newPresentEmitLocal(name: String, pt: PType): PresentEmitSettable =
     newPresentEmitSettable(pt, newPLocal(name, pt))
-
-  def newPresentEmitField(pt: PType): PresentEmitSettable =
-    newPresentEmitSettable(pt, newPField(pt))
-
-  def newPresentEmitField(name: String, pt: PType): PresentEmitSettable =
-    newPresentEmitSettable(pt, newPField(name, pt))
 
   def emitWithBuilder[T](f: (EmitCodeBuilder) => Code[T]): Unit = emit(EmitCodeBuilder.scopedCode[T](this)(f))
 
@@ -1083,23 +1101,11 @@ trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
 
   def newPLocal(name: String, pt: PType): PSettable = emb.newPLocal(name, pt)
 
-  def newPField(pt: PType): PSettable = emb.newPField(pt)
-
-  def newPField(name: String, pt: PType): PSettable = emb.newPField(name, pt)
-
   def newEmitLocal(pt: PType): EmitSettable = emb.newEmitLocal(pt)
 
   def newEmitLocal(name: String, pt: PType): EmitSettable = emb.newEmitLocal(name, pt)
 
-  def newEmitField(pt: PType): EmitSettable = emb.newEmitField(pt)
-
-  def newEmitField(name: String, pt: PType): EmitSettable = emb.newEmitField(name, pt)
-
   def newPresentEmitLocal(pt: PType): PresentEmitSettable = emb.newPresentEmitLocal(pt)
-
-  def newPresentEmitField(pt: PType): PresentEmitSettable = emb.newPresentEmitField(pt)
-
-  def newPresentEmitField(name: String, pt: PType): PresentEmitSettable = emb.newPresentEmitField(name, pt)
 }
 
 class DependentEmitFunctionBuilder[F](

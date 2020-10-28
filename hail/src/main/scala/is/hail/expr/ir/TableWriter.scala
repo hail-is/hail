@@ -50,7 +50,7 @@ case class TableNativeWriter(
     // write out partitioner key, which may be stricter than table key
     val partitioner = ts.partitioner
     val pKey: PStruct = coerce[PStruct](rowSpec.decodedPType(partitioner.kType))
-    val rowWriter = PartitionNativeWriter(rowSpec, s"$path/rows/parts/", Some(s"$path/index/parts/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
+    val rowWriter = PartitionNativeWriter(rowSpec, s"$path/rows/parts/", Some(s"$path/index/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
     val globalWriter = PartitionNativeWriter(globalSpec, s"$path/globals/parts/", None, None)
 
     ts.mapContexts { oldCtx =>
@@ -215,7 +215,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
         cb.assign(filename, pContextType.loadString(pctx))
         if (hasIndex) {
           val indexFile = cb.newLocal[String]("indexFile")
-          cb.assign(indexFile, const(index.get._1).concat(filename))
+          cb.assign(indexFile, const(index.get._1).concat(filename).concat(".idx"))
           indexWriter.init(cb, indexFile)
         }
         cb.assign(filename, const(partPrefix).concat(filename))

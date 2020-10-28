@@ -1,8 +1,9 @@
-from typing import TypeVar, Optional, List, Type, BinaryIO, cast, Set
+from typing import TypeVar, Any, Optional, List, Type, BinaryIO, cast, Set, AsyncIterator
 from types import TracebackType
 import abc
 import os
 import os.path
+import stat
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
@@ -10,6 +11,38 @@ from hailtop.utils import blocking_to_async
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
 
 AsyncFSType = TypeVar('AsyncFSType', bound='AsyncFS')
+
+
+class FileStatus(abc.ABC):
+    @abc.abstractmethod
+    async def size(self) -> int:
+        pass
+
+    @abc.abstractmethod
+    async def __getitem__(self, key: str) -> Any:
+        pass
+
+
+class FileListEntry(abc.ABC):
+    @abc.abstractmethod
+    def name(self) -> str:
+        pass
+
+    @abc.abstractmethod
+    async def url(self) -> str:
+        pass
+
+    @abc.abstractmethod
+    async def is_file(self) -> bool:
+        pass
+
+    @abc.abstractmethod
+    async def is_dir(self) -> bool:
+        pass
+
+    @abc.abstractmethod
+    async def status(self) -> FileStatus:
+        pass
 
 
 class AsyncFS(abc.ABC):
@@ -27,6 +60,14 @@ class AsyncFS(abc.ABC):
 
     @abc.abstractmethod
     async def mkdir(self, url: str) -> None:
+        pass
+
+    @abc.abstractmethod
+    async def statfile(self, url: str) -> FileStatus:
+        pass
+
+    @abc.abstractmethod
+    def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
         pass
 
     @abc.abstractmethod
@@ -62,6 +103,49 @@ class AsyncFS(abc.ABC):
         await self.close()
 
 
+class LocalStatFileStatus(FileStatus):
+    def __init__(self, stat_result):
+        self._stat_result = stat_result
+        self._items = None
+
+    async def size(self) -> int:
+        return self._stat_result.st_size
+
+    async def __getitem__(self, key: str) -> Any:
+        raise KeyError(key)
+
+
+class LocalFileListEntry(FileListEntry):
+    def __init__(self, thread_pool, base_url, entry):
+        assert '/' not in entry.name
+        self._thread_pool = thread_pool
+        if not base_url.endswith('/'):
+            base_url = f'{base_url}/'
+        self._base_url = base_url
+        self._entry = entry
+        self._status = None
+
+    def name(self) -> str:
+        return self._entry.name
+
+    async def url(self) -> str:
+        trailing_slash = "/" if await self.is_dir() else ""
+        return f'{self._base_url}{self._entry.name}{trailing_slash}'
+
+    async def is_file(self) -> bool:
+        return not await self.is_dir()
+
+    async def is_dir(self) -> bool:
+        return await blocking_to_async(self._thread_pool, self._entry.is_dir)
+
+    async def status(self) -> LocalStatFileStatus:
+        if self._status is None:
+            if await self.is_dir():
+                raise ValueError("directory has no file status")
+            self._status = LocalStatFileStatus(await blocking_to_async(self._thread_pool, self._entry.stat))
+        return self._status
+
+
 class LocalAsyncFS(AsyncFS):
     def __init__(self, thread_pool: ThreadPoolExecutor, max_workers=None):
         if not thread_pool:
@@ -83,6 +167,32 @@ class LocalAsyncFS(AsyncFS):
 
     async def create(self, url: str) -> WritableStream:
         return blocking_writable_stream_to_async(self._thread_pool, cast(BinaryIO, open(self._get_path(url), 'wb')))
+
+    async def statfile(self, url: str) -> LocalStatFileStatus:
+        path = self._get_path(url)
+        stat_result = await blocking_to_async(self._thread_pool, os.stat, path)
+        if stat.S_ISDIR(stat_result.st_mode):
+            raise FileNotFoundError(f'is directory: {url}')
+        return LocalStatFileStatus(stat_result)
+
+    async def _listfiles_recursive(self, url: str) -> AsyncIterator[FileListEntry]:
+        async for file in self._listfiles_flat(url):
+            if await file.is_file():
+                yield file
+            else:
+                async for subfile in self._listfiles_recursive(await file.url()):
+                    yield subfile
+
+    async def _listfiles_flat(self, url: str) -> AsyncIterator[FileListEntry]:
+        path = self._get_path(url)
+        with await blocking_to_async(self._thread_pool, os.scandir, path) as it:
+            for entry in it:
+                yield LocalFileListEntry(self._thread_pool, url, entry)
+
+    def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+        if recursive:
+            return self._listfiles_recursive(url)
+        return self._listfiles_flat(url)
 
     async def mkdir(self, url: str) -> None:
         path = self._get_path(url)
@@ -148,6 +258,14 @@ class RouterAsyncFS(AsyncFS):
     async def create(self, url: str) -> WritableStream:
         fs = self._get_fs(url)
         return await fs.create(url)
+
+    async def statfile(self, url: str) -> FileStatus:
+        fs = self._get_fs(url)
+        return await fs.statfile(url)
+
+    def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+        fs = self._get_fs(url)
+        return fs.listfiles(url, recursive)
 
     async def mkdir(self, url: str) -> None:
         fs = self._get_fs(url)

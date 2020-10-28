@@ -11,6 +11,7 @@ import base64
 import dateutil.parser
 import sortedcontainers
 import aiohttp
+from hailtop import aiotools
 from hailtop.utils import (
     retry_long_running, time_msecs, secret_alnum_string)
 
@@ -112,6 +113,8 @@ class InstancePool:
 
         self.name_instance = {}
 
+        self.task_manager = aiotools.BackgroundTaskManager()
+
     async def update_zones(self):
         northamerica_regions = {
             # 'northamerica-northeast1',
@@ -184,13 +187,15 @@ FROM globals;
             instance = Instance.from_record(self.app, record)
             self.add_instance(instance)
 
-        asyncio.ensure_future(self.event_loop())
-        asyncio.ensure_future(self.control_loop())
-        asyncio.ensure_future(self.instance_monitoring_loop())
-
-        asyncio.ensure_future(retry_long_running(
+        self.task_manager.ensure_future(self.event_loop())
+        self.task_manager.ensure_future(self.control_loop())
+        self.task_manager.ensure_future(self.instance_monitoring_loop())
+        self.task_manager.ensure_future(retry_long_running(
             'update_zones_loop',
             self.update_zones_loop))
+
+    def shutdown(self):
+        self.task_manager.shutdown()
 
     def config(self):
         return {
@@ -340,7 +345,7 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-9',
+                    'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-12',
                     'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(self.worker_disk_size_gb)
                 }
@@ -398,11 +403,6 @@ iptables -I DOCKER-USER -i public -d 10.0.0.0/8 -j DROP
 iptables -I DOCKER-USER -i public -d 172.16.0.0/12 -j DROP
 # not used, but ban it anyway!
 iptables -I DOCKER-USER -i public -d 192.168.0.0/16 -j DROP
-
-# add docker daemon debug logging
-jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
-mv daemon.json.tmp /etc/docker/daemon.json
-kill -SIGHUP $(pidof dockerd)
 
 WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
 

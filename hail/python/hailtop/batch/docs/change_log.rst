@@ -3,6 +3,11 @@
 Change Log
 ==========
 
+**Version 0.2.58**
+
+- Added concatenate and plink_merge functions that use tree aggregation when merging.
+- BatchPoolExecutor now raises an informative error message for a variety of "system" errors, such as missing container images.
+
 **Version 0.2.56**
 
 - Fix ``LocalBackend.run()`` succeeding when intermediate command fails

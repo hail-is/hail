@@ -152,3 +152,19 @@ def assert_evals_to(e, v):
 def assert_all_eval_to(*expr_and_expected):
     exprs, expecteds = zip(*expr_and_expected)
     assert_evals_to(hl.tuple(exprs), expecteds)
+
+
+def lower_only():
+    @decorator
+    def wrapper(func, *args, **kwargs):
+        flags = hl._get_flags()
+        prev_lower = flags.get('lower')
+        prev_lower_only = flags.get('lower_only')
+
+        hl._set_flags(lower='1', lower_only='1')
+
+        try:
+            return func(*args, **kwargs)
+        finally:
+            hl._set_flags(lower=prev_lower, lower_only=prev_lower_only)
+    return wrapper

@@ -9,7 +9,8 @@ import is.hail.backend.BackendContext
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.functions.StringFunctions
-import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
+import is.hail.expr.ir.lowering.TableStageDependency
+import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.services.shuffler._
 import is.hail.types.physical._
@@ -1839,7 +1840,8 @@ class Emit[C](
           case ArraySort(a, l, r, lessThan) => (a, lessThan, Code._empty, Array(l, r))
           case ToSet(a) =>
             val discardNext = mb.genEmitMethod("discardNext",
-              FastIndexedSeq[ParamType](typeInfo[Region], eltType, eltType), typeInfo[Boolean])
+              FastIndexedSeq[ParamType](typeInfo[Region], eltType.asEmitParam, eltType.asEmitParam),
+              typeInfo[Boolean])
             val cmp2 = ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType))
             InferPType(cmp2)
             val EmitCode(s, m, pv) = emitInMethod(cmp2, discardNext)
@@ -1859,7 +1861,8 @@ class Emit[C](
               case t: PTuple => (GetTupleElement(In(0, eltType), 0), GetTupleElement(In(1, eltType), 0), t.types(0))
             }
             val discardNext = mb.genEmitMethod("discardNext",
-              FastIndexedSeq[ParamType](typeInfo[Region], eltType, eltType), typeInfo[Boolean])
+              FastIndexedSeq[ParamType](typeInfo[Region], eltType.asEmitParam, eltType.asEmitParam),
+              typeInfo[Boolean])
 
             val cmp2 = ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1).deepCopy()
             InferPType(cmp2)
@@ -1977,7 +1980,7 @@ class Emit[C](
         val compare2 = ApplyComparisonOp(EQWithNA(ktyp.virtualType), lastKey, currKey)
         InferPType(compare2)
         val isSame = mb.genEmitMethod("isSame",
-          FastIndexedSeq(typeInfo[Region], etyp, etyp),
+          FastIndexedSeq(typeInfo[Region], etyp.asEmitParam, etyp.asEmitParam),
           BooleanInfo)
         isSame.emitWithBuilder { cb =>
           val isSameCode = emitInMethod(compare2, isSame)
@@ -2213,7 +2216,7 @@ class Emit[C](
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
         impl.apply(EmitRegion(mb, region.code), pt, typeArgs, codeArgs: _*)
-      case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
+      case x@CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
         val ctxsType = coerce[PStream](contexts.pType)
         val ctxType = ctxsType.elementType
         val gType = globals.pType
@@ -2224,7 +2227,7 @@ class Emit[C](
         val functionID: String = {
           val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]](ctx, "collect_distributed_array")
           val bodyMB = bodyFB.genEmitMethod("cdaBody",
-            Array[ParamType](typeInfo[Region], ctxType, gType),
+            Array[ParamType](typeInfo[Region], ctxType.asEmitParam, gType.asEmitParam),
             typeInfo[Long])
 
           val (cRetPtype, cDec) = x.contextSpec.buildEmitDecoderF[Long](bodyFB.ecb)
@@ -2351,12 +2354,13 @@ class Emit[C](
           addContexts(ctxStream.asStream.stream),
           baos.invoke[Unit]("reset"),
           addGlobals,
-          encRes := spark.invoke[BackendContext, String, Array[Array[Byte]], Array[Byte], Array[Array[Byte]]](
+          encRes := spark.invoke[BackendContext, String, Array[Array[Byte]], Array[Byte], Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
             mb.getObject(ctx.backendContext),
             functionID,
             ctxab.invoke[Array[Array[Byte]]]("result"),
-            baos.invoke[Array[Byte]]("toByteArray")),
+            baos.invoke[Array[Byte]]("toByteArray"),
+            mb.getObject(tsd)),
           decodeResult))
         }
 
@@ -2445,7 +2449,7 @@ class Emit[C](
     var newEnv = getEnv(env, f)
 
     val sort = f.genEmitMethod("sort",
-      FastIndexedSeq(typeInfo[Region], elemPType, elemPType),
+      FastIndexedSeq(typeInfo[Region], elemPType.asEmitParam, elemPType.asEmitParam),
       BooleanInfo)
 
     if (leftRightComparatorNames.nonEmpty) {
@@ -3105,4 +3109,3 @@ abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Lo
     cb.append(columnMajorLoops)
   }
 }
-

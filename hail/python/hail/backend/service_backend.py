@@ -46,7 +46,8 @@ class ServiceBackend(Backend):
         self._fs = None
         self._logger = PythonOnlyLogger(skip_logging_configuration)
         self.requests_session = external_requests_client_session(
-            headers=service_auth_headers(deploy_config, 'query'))
+            headers=service_auth_headers(deploy_config, 'query'),
+            timeout=600)
 
     @property
     def logger(self):

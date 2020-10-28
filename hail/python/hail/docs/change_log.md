@@ -22,6 +22,51 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.59
+
+Released 2020-10-22
+
+### Datasets / Annotation DB
+
+- (hail#9605) The Datasets API and the Annotation Database now support AWS, and users are required to specify what cloud platform they're using.
+
+### hailctl dataproc
+
+- (hail#9609) Fixed bug where `hailctl dataproc modify` did not correctly print corresponding `gcloud` command.
+
+---
+
+## Version 0.2.58
+
+Released 2020-10-08
+
+### New features
+
+- (hail#9524) Hail should now be buildable using Spark 3.0.
+- (hail#9549) Add `ignore_in_sample_frequency` flag to `hl.de_novo`.
+- (hail#9501) Configurable cache size for `BlockMatrix.to_matrix_table_row_major` and `BlockMatrix.to_table_row_major`.
+- (hail#9474) Add `ArrayExpression.first` and `ArrayExpression.last`.
+- (hail#9459) Add `StringExpression.join`, an analogue to Python's `str.join`.
+- (hail#9398) Hail will now throw `HailUserError`s if the `or_error` branch of a `CaseBuilder` is hit.
+
+### Bug fixes
+- (hail#9503) NDArrays can now hold arbitrary data types, though only ndarrays of primitives can be collected to Python.
+- (hail#9501) Remove memory leak in `BlockMatrix.to_matrix_table_row_major` and `BlockMatrix.to_table_row_major`. 
+- (hail#9424) `hl.experimental.writeBlockMatrices` didn't correctly support `overwrite` flag.
+
+### Performance improvements
+- (hail#9506) `hl.agg.ndarray_sum` will now do a tree aggregation.
+
+### hailctl dataproc
+- (hail#9502) Fix hailctl dataproc modify to install dependencies of the wheel file.
+- (hail#9420) Add `--debug-mode` flag to `hailctl dataproc start`. This will enable heap dumps on OOM errors.
+- (hail#9520) Add support for requester pays buckets to `hailctl dataproc describe`.
+
+### Deprecations
+- (hail#9482) `ArrayExpression.head` has been deprecated in favor of `ArrayExpression.first`.
+
+---
+
 ## Version 0.2.57
 
 Released 2020-09-03

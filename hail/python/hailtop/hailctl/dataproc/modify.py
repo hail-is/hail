@@ -76,7 +76,7 @@ def main(args, pass_through_args):
         cmd.extend(pass_through_args)
 
         # print underlying gcloud command
-        print('gcloud ' + ' '.join(cmd[:4]) + ' \\\n    ' + ' \\\n    '.join(cmd[5:]))
+        print('gcloud ' + ' '.join(cmd[:4]) + ' \\\n    ' + ' \\\n    '.join(cmd[4:]))
 
         # Update cluster
         if not args.dry_run:

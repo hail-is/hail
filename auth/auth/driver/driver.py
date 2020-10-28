@@ -10,7 +10,7 @@ import aiohttp
 import kubernetes_asyncio as kube
 from hailtop.utils import time_msecs
 from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
-from hailtop import aiogoogle
+from hailtop import aiogoogle, aiotools
 from gear import create_session, Database
 
 log = logging.getLogger('auth.driver')
@@ -35,6 +35,10 @@ class EventHandler:
         self.event = event
         self.bump_secs = bump_secs
         self.min_delay_secs = min_delay_secs
+        self.task_manager = aiotools.BackgroundTaskManager()
+
+    def shutdown(self):
+        self.task_manager.shutdown()
 
     async def main_loop(self):
         delay_secs = self.min_delay_secs
@@ -68,9 +72,9 @@ class EventHandler:
             await asyncio.sleep(self.bump_secs)
 
     async def start(self):
-        asyncio.ensure_future(self.main_loop())
+        self.task_manager.ensure_future(self.main_loop())
         if self.bump_secs is not None:
-            asyncio.ensure_future(self.bump_loop())
+            self.task_manager.ensure_future(self.bump_loop())
 
 
 class SessionResource:
@@ -479,7 +483,12 @@ async def async_main():
         while True:
             await asyncio.sleep(10000)
     finally:
-        if 'db' in app:
-            await app['db'].async_close()
-        if 'db_instance_pool' in app:
-            await app['db_instance_pool'].async_close()
+        try:
+            if 'db' in app:
+                await app['db'].async_close()
+        finally:
+            try:
+                if 'db_instance_pool' in app:
+                    await app['db_instance_pool'].async_close()
+            finally:
+                user_creation_loop.shutdown()

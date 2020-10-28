@@ -8,8 +8,7 @@ from threading import Thread
 import py4j
 import pyspark
 
-import hail
-from hail.utils.java import FatalError, HailUserError, Env, scala_package_object, scala_object
+from hail.utils.java import Env, scala_package_object, scala_object
 from hail.expr.types import dtype
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
@@ -19,43 +18,13 @@ from hail.ir import JavaIR
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 
-from .py4j_backend import Py4JBackend
+from .py4j_backend import Py4JBackend, handle_java_exception
 from ..hail_logging import Logger
 
 
 if pyspark.__version__ < '3' and sys.version_info > (3, 8):
     raise EnvironmentError('Hail with spark {} requires Python 3.6 or 3.7, found {}.{}'.format(
         pyspark.__version__, sys.version_info.major, sys.version_info.minor))
-
-
-def handle_java_exception(f):
-    def deco(*args, **kwargs):
-        import pyspark
-        try:
-            return f(*args, **kwargs)
-        except py4j.protocol.Py4JJavaError as e:
-            s = e.java_exception.toString()
-
-            # py4j catches NoSuchElementExceptions to stop array iteration
-            if s.startswith('java.util.NoSuchElementException'):
-                raise
-
-            tpl = Env.jutils().handleForPython(e.java_exception)
-            deepest, full, error_id = tpl._1(), tpl._2(), tpl._3()
-
-            if error_id != -1:
-                raise FatalError('Error summary: %s' % (deepest,), error_id) from None
-            else:
-                raise FatalError('%s\n\nJava stack trace:\n%s\n'
-                                 'Hail version: %s\n'
-                                 'Error summary: %s' % (deepest, full, hail.__version__, deepest), error_id) from None
-        except pyspark.sql.utils.CapturedException as e:
-            raise FatalError('%s\n\nJava stack trace:\n%s\n'
-                             'Hail version: %s\n'
-                             'Error summary: %s' % (e.desc, e.stackTrace, hail.__version__, e.desc)) from None
-
-    return deco
-
 
 _installed = False
 _original = None
@@ -299,36 +268,6 @@ class SparkBackend(Py4JBackend):
 
     def _to_java_blockmatrix_ir(self, ir):
         return self._to_java_ir(ir, self._parse_blockmatrix_ir)
-
-    def execute(self, ir, timed=False):
-        jir = self._to_java_value_ir(ir)
-        # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
-        try:
-            result = json.loads(self._jhc.backend().executeJSON(jir))
-            value = ir.typ._from_json(result['value'])
-            timings = result['timings']
-
-            return (value, timings) if timed else value
-        except FatalError as e:
-            error_id = e._error_id
-
-            def criteria(hail_ir):
-                return hail_ir._error_id is not None and hail_ir._error_id == error_id
-
-            error_sources = ir.base_search(criteria)
-            better_stack_trace = None
-            if error_sources:
-                better_stack_trace = error_sources[0]._stack_trace
-
-            if better_stack_trace:
-                error_message = str(e)
-                message_and_trace = (f'{error_message}\n'
-                                     '------------\n'
-                                     'Hail stack trace:\n'
-                                     f'{better_stack_trace}')
-                raise HailUserError(message_and_trace) from None
-
-            raise e
 
     def value_type(self, ir):
         jir = self._to_java_value_ir(ir)

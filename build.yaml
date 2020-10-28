@@ -104,6 +104,9 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
+     {% if 'target_sha' in code %}
+     export HAIL_TARGET_SHA={{ code.target_sha }}
+     {% endif %}
      make -k check-services
    dependsOn:
      - service_base_image
@@ -569,16 +572,19 @@ steps:
      {{ code.checkout_script }}
      cd hail
      time retry ./gradlew --version
-     time retry make jars HAIL_DEBUG_MODE=1
+     time retry make jars wheel HAIL_DEBUG_MODE=1
+     (cd build/deploy/dist/ && tar -cvf debug-wheel-container.tar hail-*-py3-none-any.whl)
+     cd /io/repo/hail
      mkdir build/debug_libs
      mv build/libs/hail-all-spark.jar build/debug_libs/
      mv build/libs/hail-all-spark-test.jar build/debug_libs/
+     mv build/deploy/dist/debug-wheel-container.tar build/debug_libs
      time retry make jars python-version-info wheel
      time (cd python && zip -r hail.zip hail hailtop)
      time tar czf test.tar.gz -C python test
      time tar czf resources.tar.gz -C src/test resources
      time tar czf data.tar.gz -C python/hail/docs data
-     (cd ../site && time tar czf ../hail/www-src.tar.gz www)
+     (cd .. && time tar czf hail/site-src.tar.gz site)
      time tar czf cluster-tests.tar.gz python/cluster-tests
      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
      time TESTNG_SPLITS=5 python3 generate_splits.py
@@ -598,6 +604,8 @@ steps:
        to: /hail.zip
      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
        to: /wheel-container.tar
+     - from: /io/repo/hail/build/debug_libs/debug-wheel-container.tar
+       to: /debug-wheel-container.tar
      - from: /io/repo/hail/test.tar.gz
        to: /test.tar.gz
      - from: /io/repo/hail/resources.tar.gz
@@ -606,8 +614,8 @@ steps:
        to: /splits.tar.gz
      - from: /io/repo/hail/data.tar.gz
        to: /data.tar.gz
-     - from: /io/repo/hail/www-src.tar.gz
-       to: /www-src.tar.gz
+     - from: /io/repo/hail/site-src.tar.gz
+       to: /site-src.tar.gz
      - from: /io/repo/hail/cluster-tests.tar.gz
        to: /cluster-tests.tar.gz
    dependsOn:
@@ -1011,7 +1019,7 @@ steps:
      tar xzf test.tar.gz
      tar xzf resources.tar.gz
      tar xzf data.tar.gz
-     tar xvf wheel-container.tar
+     tar xvf debug-wheel-container.tar
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
@@ -1022,8 +1030,8 @@ steps:
      export PYTEST_SPLIT_INDEX=0
      python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
-     - from: /wheel-container.tar
-       to: /io/wheel-container.tar
+     - from: /debug-wheel-container.tar
+       to: /io/debug-wheel-container.tar
      - from: /test.tar.gz
        to: /io/test.tar.gz
      - from: /resources.tar.gz
@@ -1052,7 +1060,7 @@ steps:
      tar xzf test.tar.gz
      tar xzf resources.tar.gz
      tar xzf data.tar.gz
-     tar xvf wheel-container.tar
+     tar xvf debug-wheel-container.tar
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
@@ -1063,8 +1071,8 @@ steps:
      export PYTEST_SPLIT_INDEX=1
      python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
-     - from: /wheel-container.tar
-       to: /io/wheel-container.tar
+     - from: /debug-wheel-container.tar
+       to: /io/debug-wheel-container.tar
      - from: /test.tar.gz
        to: /io/test.tar.gz
      - from: /resources.tar.gz
@@ -1093,7 +1101,7 @@ steps:
      tar xzf test.tar.gz
      tar xzf resources.tar.gz
      tar xzf data.tar.gz
-     tar xvf wheel-container.tar
+     tar xvf debug-wheel-container.tar
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
@@ -1104,8 +1112,8 @@ steps:
      export PYTEST_SPLIT_INDEX=2
      python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
-     - from: /wheel-container.tar
-       to: /io/wheel-container.tar
+     - from: /debug-wheel-container.tar
+       to: /io/debug-wheel-container.tar
      - from: /test.tar.gz
        to: /io/test.tar.gz
      - from: /resources.tar.gz
@@ -1134,7 +1142,7 @@ steps:
      tar xzf test.tar.gz
      tar xzf resources.tar.gz
      tar xzf data.tar.gz
-     tar xvf wheel-container.tar
+     tar xvf debug-wheel-container.tar
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
@@ -1145,8 +1153,8 @@ steps:
      export PYTEST_SPLIT_INDEX=3
      python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
-     - from: /wheel-container.tar
-       to: /io/wheel-container.tar
+     - from: /debug-wheel-container.tar
+       to: /io/debug-wheel-container.tar
      - from: /test.tar.gz
        to: /io/test.tar.gz
      - from: /resources.tar.gz
@@ -1175,7 +1183,7 @@ steps:
      tar xzf test.tar.gz
      tar xzf resources.tar.gz
      tar xzf data.tar.gz
-     tar xvf wheel-container.tar
+     tar xvf debug-wheel-container.tar
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
@@ -1185,6 +1193,45 @@ steps:
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=4
      python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+   inputs:
+     - from: /debug-wheel-container.tar
+       to: /io/debug-wheel-container.tar
+     - from: /test.tar.gz
+       to: /io/test.tar.gz
+     - from: /resources.tar.gz
+       to: /io/resources.tar.gz
+     - from: /data.tar.gz
+       to: /io/data.tar.gz
+   secrets:
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
+   dependsOn:
+     - batch_pods_ns
+     - hail_run_image
+     - build_hail
+ - kind: runImage
+   name: test_hail_python_unchecked_allocator
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "2"
+   script: |
+     set -ex
+     cd /io
+     tar xzf test.tar.gz
+     tar xzf resources.tar.gz
+     tar xzf data.tar.gz
+     tar xvf wheel-container.tar
+     python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+     export HAIL_TEST_RESOURCES_DIR=./resources
+     export HAIL_DOCTEST_DATA_DIR=./data
+     export HAIL_TEST_BUCKET=hail-test-dmk9z
+     export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+     export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
+     python3 -m pytest -m unchecked_allocator --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -1421,21 +1468,28 @@ steps:
      set -ex
      export HAIL_SHORT_VERSION='0.2'
      export SPHINXOPTS='-tchecktutorial'
+
      mkdir -p {{ token }}/python
      cd {{ token }}
      unzip -q -d python /io/hail.zip
-     tar xzf /io/www-src.tar.gz
+
+     tar xzf /io/site-src.tar.gz
+     export HAIL_SITE_DIR=$(pwd)/site/
+
      sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
        < python/hail/docs/change_log.md \
        | pandoc -o python/hail/docs/change_log.rst
+
      make -C python/hail/docs BUILDDIR=_build clean html
      make -C python/hailtop/batch/docs BUILDDIR=_build clean html
+
      mkdir -p www/docs
-     rm -f www/*.md
      mv python/hail/docs/_build/html www/docs/0.2
      mv python/hailtop/batch/docs/_build/html www/docs/batch
+
      HAIL_CACHE_VERSION=$(cat python/hail/hail_version)
      find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
+
      tar czf /io/www.tar.gz www
    resources:
      memory: "7.5G"
@@ -1443,8 +1497,8 @@ steps:
    inputs:
     - from: /hail.zip
       to: /io/hail.zip
-    - from: /www-src.tar.gz
-      to: /io/www-src.tar.gz
+    - from: /site-src.tar.gz
+      to: /io/site-src.tar.gz
    outputs:
     - from: /io/www.tar.gz
       to: /www.tar.gz
@@ -1479,14 +1533,15 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
+
+     make -C site render
+
      make -C hail python/hail/hail_version
      HAIL_CACHE_VERSION=$(cat hail/python/hail/hail_version)
-     make -C site/www
      find site/www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
+
      rsync --archive \
            --verbose \
-           --exclude='*.xslt' \
-           --exclude='*.md' \
            site/www/* \
            /io/www
      cd /io/www && tar -cvzf /io/site-www.tar.gz *
@@ -1928,6 +1983,10 @@ steps:
       script: /io/sql/change_test_worker_pool_size.py
     - name: add-test-dev-to-billing-project-users
       script: /io/sql/add-test-dev-to-billing-project-users.sql
+    - name: add-status-flag-billing-projects
+      script: /io/sql/add-status-flag-billing-projects.sql
+    - name: add-aggregated-billing-project-resources
+      script: /io/sql/add-aggregated-billing-project-resources.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
@@ -2114,6 +2173,8 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+     export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2139,6 +2200,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
         valueFrom: default_ns.name
@@ -2174,6 +2239,8 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+     export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2199,6 +2266,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
         valueFrom: default_ns.name
@@ -2234,6 +2305,8 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+     export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2259,6 +2332,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
         valueFrom: default_ns.name
@@ -2294,6 +2371,8 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+     export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2319,6 +2398,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
         valueFrom: default_ns.name
@@ -2354,6 +2437,8 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+     export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2379,6 +2464,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
         valueFrom: default_ns.name
@@ -3182,8 +3271,11 @@ steps:
      cd /io
      mkdir -p src/test
      tar xzf resources.tar.gz -C src/test
-     export PYSPARK_SUBMIT_ARGS="--driver-memory 7500m --executor-memory 7500m pyspark-shell"
-     java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-services.xml
+     java -Xms7500M -Xmx7500M \
+          -cp hail-test.jar:$SPARK_HOME/jars/* \
+          org.testng.TestNG \
+          -listener is.hail.LogTestListener \
+          testng-services.xml
    inputs:
     - from: /resources.tar.gz
       to: /io/resources.tar.gz

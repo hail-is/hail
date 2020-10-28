@@ -19,7 +19,9 @@ esac
 ln -s /ssl-config/ssl-config.curlrc $HOME/.curlrc
 
 while true; do
-    for image in "gcr.io/$PROJECT/base:latest" google/cloud-sdk:237.0.0-alpine $(curl -sSL https://notebook$NOTEBOOK_BASE_PATH/images); do
+    for image in "gcr.io/$PROJECT/base:latest" \
+                     gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine \
+                     $(curl -sSL https://notebook$NOTEBOOK_BASE_PATH/images); do
         docker pull $image || true
     done
     sleep 360

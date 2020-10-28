@@ -36,6 +36,17 @@ class PruneSuite extends HailSuite {
       TStruct("c" -> TArray(TStruct.empty))) == TStruct("a" -> TStruct("ab" -> TStruct.empty), "c" -> TArray(TStruct.empty)))
   }
 
+  @Test def testIsSupertype(): Unit = {
+    val emptyTuple = TTuple.empty
+    val tuple1Int = TTuple(TInt32)
+    val tuple2Ints = TTuple(TInt32, TInt32)
+    val tuple2IntsFirstRemoved = TTuple(IndexedSeq(TupleField(1, TInt32)))
+
+    assert(PruneDeadFields.isSupertype(emptyTuple, tuple2Ints))
+    assert(PruneDeadFields.isSupertype(tuple1Int, tuple2Ints))
+    assert(PruneDeadFields.isSupertype(tuple2IntsFirstRemoved, tuple2Ints))
+  }
+
   def checkMemo(ir: BaseIR, requestedType: BaseType, expected: Array[BaseType]) {
     val irCopy = ir.deepCopy()
     assert(PruneDeadFields.isSupertype(requestedType, irCopy.typ),
@@ -48,7 +59,7 @@ class PruneSuite extends HailSuite {
     }
     irCopy.children.zipWithIndex.foreach { case (child, i) =>
       if (expected(i) != null && expected(i) != ms.requestedType.lookup(child)) {
-        fatal(s"For base IR $ir\n  Child $i\n  Expected: ${ expected(i) }\n  Actual:   ${ ms.requestedType.lookup(child) }")
+        fatal(s"For base IR $ir\n  Child $i with IR ${irCopy.children(i)}\n  Expected: ${ expected(i) }\n  Actual:   ${ ms.requestedType.lookup(child) }")
       }
     }
   }
@@ -56,7 +67,7 @@ class PruneSuite extends HailSuite {
   def checkRebuild[T <: BaseIR](
     ir: T,
     requestedType: BaseType,
-    f: (T, T) => Boolean = (left: TableIR, right: TableIR) => left == right) {
+    f: (T, T) => Boolean = (left: T, right: T) => left == right) {
     val irCopy = ir.deepCopy()
     val ms = PruneDeadFields.ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
     val rebuilt = (irCopy match {
@@ -375,6 +386,15 @@ class PruneSuite extends HailSuite {
     checkMemo(tka, subsetTable(tka.typ), Array(subsetTable(tab.typ, "row.3", "NO_KEY"), null, null))
   }
 
+  @Test def testTableAggregateByKeyMemo(): Unit = {
+    val tabk = TableAggregateByKey(
+      tab,
+      SelectFields(Ref("row", tab.typ.rowType), Seq("5"))
+    )
+    checkMemo(tabk, requestedType = subsetTable(tabk.typ, "row.3", "row.5"),
+      Array(subsetTable(tabk.typ, "row.3", "row.5"), TStruct(("5", TString))))
+  }
+
   @Test def testTableUnionMemo() {
     checkMemo(
       TableUnion(FastIndexedSeq(tab, tab)),
@@ -537,6 +557,7 @@ class PruneSuite extends HailSuite {
   val justA = TStruct("a" -> TInt32)
   val justB = TStruct("b" -> TInt32)
   val aAndB = TStruct("a" -> TInt32, "b" -> TInt32)
+  val bAndA = TStruct("b" -> TInt32, "a" -> TInt32)
   val justARequired = TStruct("a" -> TInt32)
   val justBRequired = TStruct("b" -> TInt32)
 
@@ -721,6 +742,7 @@ class PruneSuite extends HailSuite {
 
   @Test def testSelectFieldsMemo() {
     checkMemo(SelectFields(ref, Seq("a", "b")), justA, Array(justA))
+    checkMemo(SelectFields(ref, Seq("b", "a")), bAndA, Array(aAndB))
   }
 
   @Test def testGetFieldMemo() {
@@ -1057,6 +1079,37 @@ class PruneSuite extends HailSuite {
       })
   }
 
+  @Test def testMatrixUnionColsRebuild(): Unit = {
+    def getColField(name: String) = {
+      GetField(Ref("sa", mat.typ.colType), name)
+    }
+    def childrenMatch(matrixUnionCols: MatrixUnionCols): Boolean = {
+      matrixUnionCols.left.typ.colType == matrixUnionCols.right.typ.colType &&
+        matrixUnionCols.left.typ.entryType == matrixUnionCols.right.typ.entryType
+    }
+
+    val wrappedMat = MatrixMapCols(mat,
+      MakeStruct(Seq(("ck", getColField("ck")), ("c2", getColField("c2")), ("c3", getColField("c3")))), Some(FastIndexedSeq("ck"))
+    )
+
+    val mucBothSame = MatrixUnionCols(wrappedMat, wrappedMat, "inner")
+    checkRebuild(mucBothSame, mucBothSame.typ)
+    checkRebuild[MatrixUnionCols](mucBothSame, mucBothSame.typ.copy(colType = TStruct(("ck", TString), ("c2", TInt32))), (old, rebuilt) =>
+      (old.typ.rowType == rebuilt.typ.rowType) &&
+        (old.typ.globalType == rebuilt.typ.globalType) &&
+        (rebuilt.typ.colType.fieldNames.toIndexedSeq == IndexedSeq("ck", "c2")) &&
+        childrenMatch(rebuilt)
+    )
+
+    // Since `mat` is a MatrixLiteral, it won't be rebuilt, will keep all fields. But wrappedMat is a MatrixMapCols, so it will drop
+    // unrequested fields. This test would fail without upcasting in the MatrixUnionCols rebuild rule.
+    val muc2 = MatrixUnionCols(mat, wrappedMat, "inner")
+    checkRebuild[MatrixUnionCols](muc2, muc2.typ.copy(colType = TStruct(("ck", TString))), (old, rebuilt) =>
+      childrenMatch(rebuilt)
+    )
+
+  }
+
   @Test def testMatrixAnnotateRowsTableRebuild() {
     val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx))
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", product=false)
@@ -1217,6 +1270,14 @@ class PruneSuite extends HailSuite {
           "b" -> NA(TInt64)
         )
       })
+
+    // Example needs to have field insertion that overwrites an unrequested field with a different type.
+    val insertF = InsertFields(Ref("foo", TStruct(("a", TInt32), ("b", TInt32))),
+      IndexedSeq(("a", I64(8)))
+    )
+    checkRebuild[InsertFields](insertF, TStruct(("b", TInt32)), (old, rebuilt) => {
+      PruneDeadFields.isSupertype(rebuilt.typ, old.typ)
+    })
   }
 
   @Test def testMakeTupleRebuild() {

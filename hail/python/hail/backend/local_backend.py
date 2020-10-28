@@ -9,38 +9,16 @@ import pkg_resources
 import py4j
 from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
 
-import hail
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.expr.matrix_type import tmatrix
 from hail.expr.table_type import ttable
 from hail.expr.types import dtype
 from hail.ir import JavaIR
 from hail.ir.renderer import CSERenderer
-from hail.utils.java import FatalError, Env, scala_package_object, scala_object
-from .py4j_backend import Py4JBackend
+from hail.utils.java import scala_package_object, scala_object
+from .py4j_backend import Py4JBackend, handle_java_exception
 from ..fs.local_fs import LocalFS
 from ..hail_logging import Logger
-
-
-def handle_java_exception(f):
-    def deco(*args, **kwargs):
-        try:
-            return f(*args, **kwargs)
-        except py4j.protocol.Py4JJavaError as e:
-            s = e.java_exception.toString()
-
-            # py4j catches NoSuchElementExceptions to stop array iteration
-            if s.startswith('java.util.NoSuchElementException'):
-                raise
-
-            tpl = Env.jutils().handleForPython(e.java_exception)
-            deepest, full = tpl._1(), tpl._2()
-            raise FatalError('%s\n\nJava stack trace:\n%s\n'
-                             'Hail version: %s\n'
-                             'Error summary: %s' % (deepest, full, hail.__version__, deepest)) from None
-
-    return deco
-
 
 _installed = False
 _original = None
@@ -239,15 +217,6 @@ class LocalBackend(Py4JBackend):
 
     def _to_java_blockmatrix_ir(self, ir):
         return self._to_java_ir(ir, self._parse_blockmatrix_ir)
-
-    def execute(self, ir, timed=False):
-        jir = self._to_java_value_ir(ir)
-        # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
-        result = json.loads(self._jhc.backend().executeJSON(jir))
-        value = ir.typ._from_json(result['value'])
-        timings = result['timings']
-
-        return (value, timings) if timed else value
 
     def value_type(self, ir):
         jir = self._to_java_value_ir(ir)

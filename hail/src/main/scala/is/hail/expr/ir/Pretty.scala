@@ -199,7 +199,7 @@ object Pretty {
     case LowerBoundOnOrderedCollection(_, _, onKey) => single(prettyBooleanLiteral(onKey))
     case In(i, typ) => single(s"$typ $i")
     case Die(message, typ, errorId) => FastSeq(typ.parsableString(), errorId.toString)
-    case CollectDistributedArray(_, _, cname, gname, _) =>
+    case CollectDistributedArray(_, _, cname, gname, _, _) =>
       FastSeq(prettyIdentifier(cname), prettyIdentifier(gname))
     case MatrixRead(typ, dropCols, dropRows, reader) =>
       FastSeq(if (typ == reader.fullMatrixType) "None" else typ.parsableString(),
@@ -250,6 +250,7 @@ object Pretty {
     case MatrixRepartition(_, n, strategy) => single(s"$n $strategy")
     case MatrixChooseCols(_, oldIndices) => single(prettyInts(oldIndices, elideLiterals))
     case MatrixMapCols(_, _, newKey) => single(prettyStringsOpt(newKey))
+    case MatrixUnionCols(l, r, joinType) => single(joinType)
     case MatrixKeyRowsBy(_, keys, isSorted) =>
       FastSeq(prettyIdentifiers(keys), prettyBooleanLiteral(isSorted))
     case TableRead(typ, dropRows, tr) =>

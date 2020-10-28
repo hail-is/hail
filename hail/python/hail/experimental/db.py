@@ -1,17 +1,17 @@
 import json
 import os
 import warnings
+from typing import List, Set, Iterable, Optional, Union, Tuple
 
 import hail as hl
 import pkg_resources
-
 from hailtop.utils import (retry_response_returning_functions,
                            external_requests_client_session)
-from typing import List, Set, Iterable
 
-from . import lens
-from ..matrixtable import matrix_table_type
-from ..table import table_type
+from .lens import MatrixRows, TableRows
+from ..expr import StructExpression
+from ..matrixtable import matrix_table_type, MatrixTable
+from ..table import table_type, Table
 from ..typecheck import typecheck_method, oneof
 from ..utils.java import Env
 
@@ -20,14 +20,19 @@ class DatasetVersion:
     """
     :class:`DatasetVersion` has two constructors: :func:`.from_json` and :func:`.get_region`.
     """
+
     @staticmethod
-    def from_json(doc: dict) -> 'DatasetVersion':
+    def from_json(doc: dict, cloud: str) -> 'DatasetVersion':
         """Create :class:`.DatasetVersion` object from dictionary.
 
         Parameters
         ----------
         doc : :obj:`dict`
-            Dictionary containing url and version keys.
+            Dictionary containing url and version keys. Value for url is a
+            :obj:`dict` containing key: value pairs, like region: url.
+        cloud : :obj:`str`
+            Cloud platform to access dataset, either 'gcp' or 'aws'. Not used
+            here if using a custom configuration.
 
         Returns
         -------
@@ -35,13 +40,14 @@ class DatasetVersion:
         """
         assert 'url' in doc, doc
         assert 'version' in doc, doc
-        return DatasetVersion(doc['url'],
-                              doc['version'])
+        assert 'reference_genome' in doc, doc
+        assert cloud in doc['url'], doc['url']
+        return DatasetVersion(doc['url'][cloud],
+                              doc['version'],
+                              doc['reference_genome'])
 
     @staticmethod
-    def get_region(name: str,
-                   versions: List['DatasetVersion'],
-                   region: str) -> List['DatasetVersion']:
+    def get_region(name: str, versions: List['DatasetVersion'], region: str) -> List['DatasetVersion']:
         """Get versions of a :class:`.Dataset` in the specified region, if they exist.
 
         Parameters
@@ -49,10 +55,10 @@ class DatasetVersion:
         name : :obj:`str`
             Name of dataset.
         versions : :class:`list` of :class:`.DatasetVersion`
-            List of DatasetVersion objects where the value for
-            DatasetVersion.url is a dictionary containing the regions 'us' and 'eu'.
+            List of DatasetVersion objects where the value for DatasetVersion.url
+            is a :obj:`dict` containing key: value pairs, like region: url.
         region : :obj:`str`
-            GCP region from which to access data, available regions given in
+            Region from which to access data, available regions given in
             :func:`hail.experimental.DB._valid_regions`, currently either 'us' or 'eu'.
 
         Returns
@@ -67,9 +73,13 @@ class DatasetVersion:
                 available_versions.append(version)
         return available_versions
 
-    def __init__(self, url: dict, version: str):
+    def __init__(self,
+                 url: Union[dict, str],
+                 version: str,
+                 reference_genome: str):
         self.url = url
         self.version = version
+        self.reference_genome = reference_genome
 
     def in_region(self, name: str, region: str) -> bool:
         """To check if a :class:`.DatasetVersion` object is accessible in the desired
@@ -80,7 +90,7 @@ class DatasetVersion:
         name : :obj:`str`
             Name of dataset.
         region : :obj:`str`
-            GCP region from which to access data, available regions given in
+            Region from which to access data, available regions given in
             :func:`hail.experimental.DB._valid_regions`, currently either 'us' or 'eu'.
 
         Returns
@@ -104,7 +114,7 @@ class DatasetVersion:
             warnings.warn(message, UserWarning, stacklevel=1)
         return valid_region
 
-    def maybe_index(self, indexer_key_expr, all_matches):
+    def maybe_index(self, indexer_key_expr: StructExpression, all_matches: bool) -> Optional[StructExpression]:
         return hl.read_table(self.url)._maybe_flexindex_table_by_expr(
             indexer_key_expr, all_matches=all_matches)
 
@@ -112,14 +122,15 @@ class DatasetVersion:
 class Dataset:
     """
     To create a dataset object with name, description, url, key_properties, and
-    versions specified in JSON configuration file or a provided dict mapping
+    versions specified in JSON configuration file or a provided :obj:`dict` mapping
     dataset names to configurations.
     """
+
     @staticmethod
     def from_name_and_json(name: str,
                            doc: dict,
                            region: str,
-                           custom_config: bool = False) -> 'Dataset':
+                           cloud: str) -> Optional['Dataset']:
         """Create :class:`.Dataset` object from dictionary.
 
         Parameters
@@ -130,31 +141,30 @@ class Dataset:
             Dictionary containing dataset description, url, key_properties, and
             versions.
         region : :obj:`str`
-            GCP region from which to access data, available regions given in
+            Region from which to access data, available regions given in
             :func:`hail.experimental.DB._valid_regions`, currently either 'us' or 'eu'.
-        custom_config : :obj:`bool`
-            Boolean indicating whether or not dataset is from a :class:`.DB` object
-            using a custom configuration or url. If `True`, method will not
-            check for region.
+        cloud : :obj:`str`
+            Cloud platform to access dataset, either 'gcp' or 'aws'.
 
         Returns
         -------
         :class:`Dataset`
             If versions exist for region returns a :class:`.Dataset` object, else None.
         """
+        assert 'annotation_db' in doc, doc
+        assert 'key_properties' in doc['annotation_db'], doc['annotation_db']
         assert 'description' in doc, doc
         assert 'url' in doc, doc
-        assert 'key_properties' in doc, doc
         assert 'versions' in doc, doc
-        versions = [DatasetVersion.from_json(x) for x in doc['versions']]
-        if not custom_config:
-            versions = DatasetVersion.get_region(name, versions, region)
-        if versions:
+        key_properties = set(x for x in doc['annotation_db']['key_properties'] if x is not None)
+        versions = [DatasetVersion.from_json(x, cloud) for x in doc['versions']]
+        versions_in_region = DatasetVersion.get_region(name, versions, region)
+        if versions_in_region:
             return Dataset(name,
                            doc['description'],
                            doc['url'],
-                           set(doc['key_properties']),
-                           versions)
+                           key_properties,
+                           versions_in_region)
 
     def __init__(self,
                  name: str,
@@ -179,7 +189,7 @@ class Dataset:
         """
         return 'gene' in self.key_properties
 
-    def index_compatible_version(self, key_expr):
+    def index_compatible_version(self, key_expr: StructExpression) -> StructExpression:
         # If not unique key then use all matches, otherwise give a single a value
         # Add documentation here soon
         all_matches = 'unique' not in self.key_properties
@@ -204,29 +214,34 @@ class DB:
     annotations. It accepts either an HTTP(S) URL to an Annotation DB
     configuration or a python :obj:`dict` describing an Annotation DB
     configuration. User must specify the region ('us' or 'eu') in which the
-    cluster is running if connecting to the default Hail Annotation DB. Region
-    will default to 'us' if not otherwise specified.
+    cluster is running if connecting to the default Hail Annotation DB. User must
+    also specify the cloud platform that they are using ('gcp' or 'aws'). Region
+    will default to 'us' and cloud platform to 'gcp' if not otherwise specified.
 
     Examples
     --------
     Create an annotation database connecting to the default Hail Annotation DB:
 
-    >>> db = hl.experimental.DB(region='us')
+    >>> db = hl.experimental.DB(region='us', cloud='gcp')
     >>> mt = db.annotate_rows_db(mt, 'gnomad_lof_metrics') # doctest: +SKIP
     """
 
     _valid_key_properties = {'gene', 'unique'}
     _valid_regions = {'us', 'eu'}
+    _valid_clouds = {'gcp', 'aws'}
 
     def __init__(self,
                  *,
-                 region='us',
-                 url=None,
-                 config=None):
-        custom_config = config or url
+                 region: str = 'us',
+                 cloud: str = 'gcp',
+                 url: Optional[str] = None,
+                 config: Optional[dict] = None):
         if region not in DB._valid_regions:
             raise ValueError(f'Specify valid region parameter, received: region={region}. '
                              f'Valid regions are {DB._valid_regions}.')
+        if cloud not in DB._valid_clouds:
+            raise ValueError(f'Specify valid cloud parameter, received: cloud={cloud}. '
+                             f'Valid cloud platforms are {DB._valid_clouds}.')
         if config is not None and url is not None:
             raise ValueError(f'Only specify one of the parameters url and config, '
                              f'received: url={url} and config={config}')
@@ -246,29 +261,31 @@ class DB:
             if not isinstance(config, dict):
                 raise ValueError(f'expected a dict mapping dataset names to '
                                  f'configurations, but found {config}')
+        config = {k: v for k, v in config.items() if 'annotation_db' in v}
         self.region = region
+        self.cloud = cloud
         self.url = url
         self.config = config
-        self.__by_name = {k: Dataset.from_name_and_json(k, v, region, custom_config)
+        self.__by_name = {k: Dataset.from_name_and_json(k, v, region, cloud)
                           for k, v in config.items()
-                          if Dataset.from_name_and_json(k, v, region, custom_config) is not None}
+                          if Dataset.from_name_and_json(k, v, region, cloud) is not None}
 
-    def available_databases(self) -> List[str]:
-        """Retrieve list of names of available databases.
+    def available_datasets(self) -> List[str]:
+        """Retrieve list of names of available annotation datasets.
 
         Returns
         -------
         :obj:`list`
-            List of available databases.
+            List of available annotation datasets.
         """
         return sorted(self.__by_name.keys())
 
     @staticmethod
-    def _row_lens(rel):
-        if isinstance(rel, hl.MatrixTable):
-            return lens.MatrixRows(rel)
-        elif isinstance(rel, hl.Table):
-            return lens.TableRows(rel)
+    def _row_lens(rel: Union[Table, MatrixTable]) -> Union[TableRows, MatrixRows]:
+        if isinstance(rel, MatrixTable):
+            return MatrixRows(rel)
+        elif isinstance(rel, Table):
+            return TableRows(rel)
         else:
             raise ValueError(
                 'annotation database can only annotate Hail MatrixTable or Table')
@@ -292,7 +309,7 @@ class DB:
                 f'known dataset names with available_databases()')
         return self.__by_name[name]
 
-    def _annotate_gene_name(self, rel):
+    def _annotate_gene_name(self, rel: Union[TableRows, MatrixRows]) -> Tuple[str, Union[TableRows, MatrixRows]]:
         gene_field = Env.get_uid()
         gencode = self.__by_name['gencode'].index_compatible_version(rel.key)
         return gene_field, rel.annotate(**{gene_field: gencode.gene_name})
@@ -311,10 +328,10 @@ class DB:
             raise ValueError(f'datasets: {unavailable} not available in the {self.region} region.')
 
     @typecheck_method(rel=oneof(table_type, matrix_table_type), names=str)
-    def annotate_rows_db(self, rel, *names):
+    def annotate_rows_db(self, rel: Union[Table, MatrixTable], *names: str) -> Union[Table, MatrixTable]:
         """Add annotations from datasets specified by name.
 
-        List datasets with at :meth:`.available_databases`. An interactive query
+        List datasets with at :meth:`.available_datasets`. An interactive query
         builder is available in the
         `Hail Annotation Database documentation </docs/0.2/annotation_database_ui.html>`_.
 
@@ -322,12 +339,12 @@ class DB:
         --------
         Annotate a matrix table with the `gnomad_lof_metrics`:
 
-        >>> db = hl.experimental.DB(region='us')
+        >>> db = hl.experimental.DB(region='us', cloud='gcp')
         >>> mt = db.annotate_rows_db(mt, 'gnomad_lof_metrics') # doctest: +SKIP
 
         Annotate a table with `clinvar_gene_summary`, `CADD`, and `DANN`:
 
-        >>> db = hl.experimental.DB(region='us')
+        >>> db = hl.experimental.DB(region='us', cloud='gcp')
         >>> mt = db.annotate_rows_db(mt, 'clinvar_gene_summary', 'CADD', 'DANN') # doctest: +SKIP
 
         Notes

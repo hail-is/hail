@@ -10,6 +10,7 @@ PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 check:
 	$(PYTHON) -m flake8 auth
 	$(PYTHON) -m pylint --rcfile ../pylintrc auth --score=n
+	../check-sql.sh
 
 .PHONY: build
 build:

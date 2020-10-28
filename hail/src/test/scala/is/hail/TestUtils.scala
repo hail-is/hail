@@ -155,8 +155,11 @@ object TestUtils {
   ): Any = {
     if (agg.isDefined || !env.isEmpty || !args.isEmpty)
       throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
-    HailContext.sparkBackend("TestUtils.loweredExecute")
-               .jvmLowerAndExecute(x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter)._1
+
+    ExecutionTimer.logTime("TestUtils.loweredExecute") { timer =>
+      HailContext.sparkBackend("TestUtils.loweredExecute")
+        .jvmLowerAndExecute(timer, x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter)
+    }
   }
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)

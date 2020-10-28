@@ -745,6 +745,14 @@ pre {
   border-radius: 4px;
 }
 
+.rst-content div[class^='highlight'] {
+  border: 0 !important; /* In Hail docs, clear out Sphinx RTD borders */
+}
+
+div.highlight pre {
+  border-color: #ddd; /* in Hail docs, force border to be gray */
+}
+
 pre code {
   padding: 0;
 }

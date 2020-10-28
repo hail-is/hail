@@ -1,3 +1,5 @@
+import pytest
+
 import hail as hl
 from ..helpers import resource, startTestHailContext, stopTestHailContext, fails_local_backend
 
@@ -39,7 +41,7 @@ def test_king_small():
         resource('balding-nichols-1024-variants-4-samples-3-populations.kin0'),
         kinship)
 
-
+@pytest.mark.unchecked_allocator
 @fails_local_backend()
 def test_king_large():
     plink_path = resource('fastlmmTest')

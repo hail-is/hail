@@ -176,11 +176,13 @@ package object ir {
 
   implicit def toCodeParamType(ti: TypeInfo[_]): CodeParamType = CodeParamType(ti)
 
-  implicit def toEmitParamType(pt: PType): EmitParamType = EmitParamType(pt)
-
   implicit def toCodeParam(c: Code[_]): CodeParam = CodeParam(c)
 
   implicit def valueToCodeParam(v: Value[_]): CodeParam = CodeParam(v)
+
+  implicit def toPCodeParam(pc: PCode): PCodeParam = PCodeParam(pc)
+
+  implicit def pValueToPCodeParam(pv: PValue): PCodeParam = PCodeParam(pv)
 
   implicit def toEmitParam(ec: EmitCode): EmitParam = EmitParam(ec)
 

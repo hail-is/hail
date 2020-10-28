@@ -1536,3 +1536,17 @@ def test_map_partitions_indexed():
     ht = hl.read_table(tmp_file, _intervals=[hl.Interval(start=hl.Struct(idx=11), end=hl.Struct(idx=55))])
     ht = ht.key_by()._map_partitions(lambda partition: [hl.struct(foo=partition)])
     assert [inner.idx for outer in ht.foo.collect() for inner in outer] == list(range(11, 55))
+
+
+@lower_only()
+def test_lowered_persist():
+    ht = hl.utils.range_table(100, 10).persist()
+    assert ht.count() == 100
+    assert ht.filter(ht.idx == 55).count() == 1
+
+
+@lower_only()
+def test_lowered_shuffle():
+    ht = hl.utils.range_table(100, 10)
+    ht = ht.order_by(-ht.idx)
+    assert ht.aggregate(hl.agg.take(ht.idx, 3)) == [99, 98, 97]

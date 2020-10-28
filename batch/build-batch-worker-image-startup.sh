@@ -30,7 +30,7 @@ rm -rf /var/lib/apt/lists/*
 [ -f /etc/docker/daemon.json ] || echo "{}" > /etc/docker/daemon.json
 
 VERSION=1.5.0
-OS=linux 
+OS=linux
 ARCH=amd64
 
 curl -fsSL "https://github.com/GoogleCloudPlatform/docker-credential-gcr/releases/download/v${VERSION}/docker-credential-gcr_${OS}_${ARCH}-${VERSION}.tar.gz" \
@@ -40,8 +40,10 @@ curl -fsSL "https://github.com/GoogleCloudPlatform/docker-credential-gcr/release
 docker-credential-gcr configure-docker
 
 docker pull ubuntu:18.04
-docker pull google/cloud-sdk:269.0.0-alpine
+docker pull gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine
 
-service google-fluentd start
+# add docker daemon debug logging
+jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
+mv daemon.json.tmp /etc/docker/daemon.json
 
 shutdown -h now

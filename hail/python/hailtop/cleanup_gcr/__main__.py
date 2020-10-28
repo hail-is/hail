@@ -3,7 +3,7 @@ import time
 import logging
 import asyncio
 import aiohttp
-import hailtop.aiogoogle as aiogoogle
+from hailtop import aiotools, aiogoogle
 
 log = logging.getLogger(__name__)
 
@@ -11,6 +11,10 @@ log = logging.getLogger(__name__)
 class AsyncIOExecutor:
     def __init__(self, parallelism):
         self._semaphore = asyncio.Semaphore(parallelism)
+        self.task_manager = aiotools.BackgroundTaskManager()
+
+    def shutdown(self):
+        self.task_manager.shutdown()
 
     async def _run(self, fut, aw):
         async with self._semaphore:
@@ -23,7 +27,7 @@ class AsyncIOExecutor:
 
     def submit(self, aw):
         fut = asyncio.Future()
-        asyncio.ensure_future(self._run(fut, aw))
+        self.task_manager.ensure_future(self._run(fut, aw))
         return fut
 
     async def gather(self, aws):
@@ -35,6 +39,9 @@ class CleanupImages:
     def __init__(self, client):
         self._executor = AsyncIOExecutor(8)
         self._client = client
+
+    def shutdown(self):
+        self._executor.shutdown()
 
     async def cleanup_digest(self, image, digest, tags):
         log.info(f'cleaning up digest {image}@{digest}')
@@ -91,7 +98,10 @@ async def main():
             project=project,
             timeout=aiohttp.ClientTimeout(total=60)) as client:
         cleanup_images = CleanupImages(client)
-        await cleanup_images.run()
+        try:
+            await cleanup_images.run()
+        finally:
+            cleanup_images.shutdown()
 
 
 asyncio.get_event_loop().run_until_complete(main())

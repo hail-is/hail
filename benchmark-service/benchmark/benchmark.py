@@ -1,10 +1,14 @@
+import asyncio
 import os
+import aiohttp
 from aiohttp import web
 import logging
 from gear import setup_aiohttp_session, web_authenticated_developers_only
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
+from hailtop.utils import retry_long_running
+from hailtop import aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials,\
     list_benchmark_files, round_if_defined
@@ -15,6 +19,8 @@ import plotly.express as px
 from scipy.stats.mstats import gmean, hmean
 import numpy as np
 import pandas as pd
+import gidgethub
+import gidgethub.aiohttp
 
 configure_logging()
 router = web.RouteTableDef()
@@ -25,6 +31,8 @@ log = logging.getLogger('benchmark')
 BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
 
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+START_POINT = '2020-10-01T00:00:00Z'
 
 
 def get_benchmarks(app, file_path):
@@ -207,8 +215,43 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
+async def query_github(app):
+    global START_POINT
+    github_client = app['github_client']
+    request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
+
+    data = await github_client.getitem(request_string)
+    new_commits = []
+    for commit in data:
+        sha = commit.get('sha')
+        new_commits.append(commit)
+        log.info(f'commit {sha}')
+        START_POINT = commit['commit']['author'].get('date')
+        log.info(f'start point is now {START_POINT}')
+    log.info('got new commits')
+
+
+async def github_polling_loop(app):
+    while True:
+        await query_github(app)
+        log.info('successfully queried github')
+        await asyncio.sleep(600)
+
+
 async def on_startup(app):
+    with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+        oauth_token = f.read().strip()
     app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
+    app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
+                                                       'hail-is/hail',
+                                                       oauth_token=oauth_token)
+    app['task_manager'] = aiotools.BackgroundTaskManager()
+    app['task_manager'].ensure_future(retry_long_running(
+        'github_polling_loop', github_polling_loop, app))
+
+
+async def on_cleanup(app):
+    app['task_manager'].shutdown()
 
 
 def run():
@@ -220,6 +263,7 @@ def run():
     router.static('/static', f'{BENCHMARK_ROOT}/static')
     app.add_routes(router)
     app.on_startup.append(on_startup)
+    app.on_cleanup.append(on_cleanup)
     web.run_app(deploy_config.prefix_application(app, 'benchmark'),
                 host='0.0.0.0',
                 port=5000,

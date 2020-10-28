@@ -3,7 +3,7 @@ package is.hail.annotations
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.ExecuteContext
+import is.hail.expr.ir.{EncodedLiteral, ExecuteContext}
 import is.hail.types.physical.{PArray, PStruct, PType}
 import is.hail.types.virtual.{TBaseStruct, TStruct}
 import is.hail.io.{BufferSpec, Decoder, TypedCodecSpec}
@@ -89,6 +89,11 @@ case class BroadcastRow(ctx: ExecuteContext,
     BroadcastRow(ctx,
       RegionValue(value.region, newT.copyFromAddress(value.region, t, value.offset, deepCopy = false)),
       newT)
+  }
+
+  def toEncodedLiteral(): EncodedLiteral = {
+    val spec = TypedCodecSpec(t, BufferSpec.wireSpec)
+    EncodedLiteral(spec, spec.encodeValue(ctx, t, value.offset))
   }
 }
 

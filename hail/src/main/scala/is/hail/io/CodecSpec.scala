@@ -22,7 +22,18 @@ trait AbstractTypedCodecSpec extends Spec {
 
   def buildEncoder(ctx: ExecuteContext, t: PType): (OutputStream) => Encoder
 
+  def encodeValue(ctx: ExecuteContext, t: PType, valueAddr: Long): Array[Byte] = {
+    val makeEnc = buildEncoder(ctx, t)
+    val baos = new ByteArrayOutputStream()
+    val enc = makeEnc(baos)
+    enc.writeRegionValue(valueAddr)
+    enc.flush()
+    baos.toByteArray
+  }
+
   def decodedPType(requestedType: Type): PType
+
+  def decodedPType(): PType = encodedType.decodedPType(encodedVirtualType)
 
   def buildDecoder(ctx: ExecuteContext, requestedType: Type): (PType, (InputStream) => Decoder)
 
@@ -42,10 +53,6 @@ trait AbstractTypedCodecSpec extends Spec {
 
   def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer]
 
-  def buildTypedEmitDecoderF[T](requestedType: Type, cb: EmitClassBuilder[_]): (PType, StagedDecoderF[T])
-
-  def buildTypedEmitEncoderF[T](t: PType, cb: EmitClassBuilder[_]): StagedEncoderF[T]
-
   def buildEmitDecoder(requestedType: Type, cb: EmitClassBuilder[_]): (Value[Region], Value[InputBuffer]) => PCode = {
     def typedBuilder[T](ti: TypeInfo[T]): (Value[Region], Value[InputBuffer]) => PCode = {
       val (ptype, dec) = buildTypedEmitDecoderF[T](requestedType, cb);
@@ -62,6 +69,20 @@ trait AbstractTypedCodecSpec extends Spec {
       }
     }
     typedBuilder(typeToTypeInfo(t))
+  }
+
+  def buildTypedEmitDecoderF[T](requestedType: Type, cb: EmitClassBuilder[_]): (PType, StagedDecoderF[T]) = {
+    val rt = encodedType.decodedPType(requestedType)
+    val mb = encodedType.buildDecoderMethod(rt, cb)
+    (rt, (region: Value[Region], buf: Value[InputBuffer]) => mb.invokeCode[T](region, buf))
+  }
+
+  def buildEmitDecoderF[T](cb: EmitClassBuilder[_]): (PType, StagedDecoderF[T]) =
+    buildTypedEmitDecoderF(encodedVirtualType, cb)
+
+  def buildTypedEmitEncoderF[T](t: PType, cb: EmitClassBuilder[_]): StagedEncoderF[T] = {
+    val mb = encodedType.buildEncoderMethod(t, cb)
+    (region: Value[Region], off: Value[T], buf: Value[OutputBuffer]) => mb.invokeCode[Unit](off, buf)
   }
 
   // FIXME: is there a better place for this to live?
