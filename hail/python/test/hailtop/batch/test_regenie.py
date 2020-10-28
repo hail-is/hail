@@ -120,7 +120,7 @@ class ServiceBackendTests(unittest.TestCase):
         --step 1
         --threads 0.25
         --memory 375Mi
-        --storage 1Gi
+        --storage 10Gi
         --bed {cls.gcs_input_dir}/example
         --exclude {cls.gcs_input_dir}/snplist_rm.txt
         --covarFile {cls.gcs_input_dir}/covariates.txt
@@ -136,7 +136,7 @@ class ServiceBackendTests(unittest.TestCase):
         --step 2
         --threads 0.25
         --memory 375Mi
-        --storage 1Gi
+        --storage 10Gi
         --bgen {cls.gcs_input_dir}/example.bgen
         --covarFile {cls.gcs_input_dir}/covariates.txt
         --phenoFile {cls.gcs_input_dir}/phenotype_bin.txt
