@@ -50,7 +50,7 @@ def parse_storage_in_bytes(storage_string: str) -> Optional[int]:
 
 def parse_storage_in_gb(storage_string: str) -> Optional[int]:
     bytes = parse_storage_in_bytes(storage_string)
-    if bytes:
+    if bytes is not None:
         return math.ceil(bytes / 1024**3)
     return None
 
