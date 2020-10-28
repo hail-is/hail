@@ -463,21 +463,23 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     cov_nds = [make_one_cov_matrix(ys_and_covs_to_keep) for ys_and_covs_to_keep in list_of_ys_and_covs_to_keep]
 
-    y_nds = [make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set)
-             for ys_and_covs_to_keep, one_y_field_name_set in zip(list_of_ys_and_covs_to_keep, y_field_names)]
+    y_nds = hl.array([make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set)
+             for ys_and_covs_to_keep, one_y_field_name_set in zip(list_of_ys_and_covs_to_keep, y_field_names)])
 
     ht = ht.annotate_globals(kept_samples=list_of_indices_to_keep,
-                             __y_nds=y_nds,
                              __cov_nds=cov_nds)
     k = builtins.len(covariates)
     ns = ht.index_globals().kept_samples.map(lambda one_sample_set: hl.len(one_sample_set))
-    ht = ht.annotate_globals(ds=ns.map(lambda n: n - k - 1))
     cov_Qts = hl.if_else(k > 0,
                          ht.__cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
                          ns.map(lambda n: hl.nd.zeros((0, n))))
-    ht = ht.annotate_globals(__cov_Qts=cov_Qts)
-    ht = ht.annotate_globals(__Qtys=hl.range(num_y_lists).map(lambda i: ht.__cov_Qts[i] @ ht.__y_nds[i]))
-    ht = ht.annotate_globals(__yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(ht.__y_nds[i].T) - dot_rows_with_themselves(ht.__Qtys[i].T)))
+    Qtys = hl.range(num_y_lists).map(lambda i: cov_Qts[i] @ hl.array(y_nds)[i])
+    ht = ht.annotate_globals(
+        __y_nds=y_nds,
+        ds=ns.map(lambda n: n - k - 1),
+        __cov_Qts=cov_Qts,
+        __Qtys=Qtys,
+        __yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(y_nds[i].T) - dot_rows_with_themselves(Qtys[i].T)))
 
     def process_block(block):
         rows_in_block = hl.len(block)
