@@ -540,7 +540,7 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
 
-    delay = await sleep_and_backoff(delay)
+        delay = await sleep_and_backoff(delay)
 
 
 def copy_command(src, dst, requester_pays_project=None):
@@ -649,9 +649,7 @@ class Job:
         assert self.requested_storage_in_gb == 0 or (10 <= self.requested_storage_in_gb <= MAX_WORKER_STORAGE_GB)
 
         self.reserved_storage_in_gb = self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE
-        self.unreserved_storage_in_gb = max(0, self.requested_storage_in_gb - self.reserved_storage_in_gb)
-
-        log.info(f'req_storage_in_gb {self.requested_storage_in_gb} reserved_storage_in_gb {self.reserved_storage_in_gb} unreserved_storage_in_gb {self.unreserved_storage_in_gb}')
+        log.info(f'req_storage_in_gb {self.requested_storage_in_gb} reserved_storage_in_gb {self.reserved_storage_in_gb}')
 
         self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes, self.requested_storage_in_gb)
         log.info(f'resources {self.resources}')
@@ -749,7 +747,7 @@ class Job:
 
     async def setup_io(self):
         try:
-            worker.storage_sem.acquire_nowait(self.unreserved_storage_in_gb)
+            worker.storage_sem.acquire_nowait(self.requested_storage_in_gb)
         except FIFOWeightedSemaphoreFull:
             self.disk = Disk(zone=ZONE,
                              project=PROJECT,
@@ -762,7 +760,7 @@ class Job:
             await self.disk.create()
         else:
             self.disk = None
-            self.data_disk_storage_in_gb = self.requested_storage_in_gb
+            self.data_disk_storage_in_gb = self.reserved_storage_in_gb + self.requested_storage_in_gb
             os.makedirs(self.io_host_path())
 
     async def run(self, worker):
@@ -844,7 +842,7 @@ class Job:
                     if self.disk:
                         await self.disk.delete()
                     else:
-                        worker.storage_sem.release(self.unreserved_storage_in_gb)
+                        worker.storage_sem.release(self.requested_storage_in_gb)
                 except Exception:
                     log.exception('while detaching and deleting disk')
 
