@@ -405,7 +405,7 @@ class ServiceTests(unittest.TestCase):
         b = self.batch()
         input = b.read_input_group(foo=f'{self.gcs_input_dir}/hello.txt')
         j = b.new_job()
-        j.storage('0.25Gi')
+        j.storage('10Gi')
         j.command(f'cat {input.foo}')
         j.command(f'cat {input}.foo')
         assert b.run().status()['state'] == 'success'
