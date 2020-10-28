@@ -58,6 +58,7 @@ async def submit_test_batch(batch_client, sha):
     job = batch.create_job(image='ubuntu:18.04',
                            command=['/bin/bash', '-c', f'touch /io/test; sleep 5'],
                            resources={'cpu': '0.25'},
+                           input_files=[(known_file_path, '/io/test')],
                            output_files=[('/io/test', dest_file_path)])
     await batch.submit(disable_progress_bar=True)
     log.info(f'submitting batch for commit {sha}')
