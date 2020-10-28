@@ -62,13 +62,32 @@ class PReferenceCountedNDArray(val elementType: PType, val nDims: Int, val requi
 
   override def setRequired(required: Boolean): PType = new PReferenceCountedNDArray(this.elementType, this.nDims, required)
 
-  override def containsPointers: Boolean = ???
+  override def containsPointers: Boolean = true
 
-  override def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = ???
+  override def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
+    EmitCodeBuilder.scopedCode[Long](mb) { cb =>
+      val dest = cb.newField[Long]("ref_counted_ndarray_cFT_dest")
+      cb.assign(dest, region.allocate(8L, 8L))
+      cb.append(Region.storeAddress(dest, srcAddress))
+      if (deepCopy) {
+        cb.append(region.trackNDArray(srcAddress))
+      }
+      dest
+    }
+  }
 
-  override def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] = ???
+  override def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] = {
+    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
+  }
 
-  override protected def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = ???
+  override protected def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+    val destAddr = region.allocate(8L)
+    Region.storeAddress(destAddr, srcAddress)
+    if (deepCopy) {
+      region.trackNDArray(srcAddress)
+    }
+    destAddr
+  }
 
   override def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
     var res = Region.storeAddress(addr, srcAddress)
