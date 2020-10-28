@@ -758,7 +758,7 @@ class Job:
                              size_in_gb=self.requested_storage_in_gb,
                              mount_path=self.io_host_path())
             self.data_disk_storage_in_gb = self.reserved_storage_in_gb
-            await self.disk.create()
+            await self.disk.create(labels={'namespace': NAMESPACE})
         else:
             self.disk = None
             self.data_disk_storage_in_gb = self.reserved_storage_in_gb + self.requested_storage_in_gb

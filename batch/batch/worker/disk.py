@@ -20,15 +20,15 @@ class Disk:
 
         self.disk_path = f'/dev/disk/by-id/google-{self.name}'
 
-    async def __aenter__(self):
-        await self.create()
+    async def __aenter__(self, labels=None):
+        await self.create(labels)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.delete()
 
-    async def create(self):
-        await self._create()
+    async def create(self, labels=None):
+        await self._create(labels)
         await self._attach()
         await self._format()
 
@@ -45,12 +45,16 @@ chmod a+w {self.mount_path}
 '''
         await check_shell(code, echo=True)
 
-    async def _create(self):
+    async def _create(self, labels=None):
         log.info(f'creating disk {self.name}')
+        if labels is None:
+            labels = {}
+
         config = {
             'name': self.name,
             'sizeGb': f'{self.size_in_gb}',
-            'type': f'zones/{self.zone}/diskTypes/pd-ssd'
+            'type': f'zones/{self.zone}/diskTypes/pd-ssd',
+            'labels': labels
         }
 
         resp = None
