@@ -63,17 +63,16 @@ class PrettyPrintWriterSuite extends TestNGSuite {
               |===============""".stripMargin),
           (10, 10, 5,
             """==========
-              |prefix(
-              |  A
+              |prefix(A
               |  B
               |  C
               |  D)
               |==========""".stripMargin),
           (10, 10, 3,
             """==========
-              |prefix(
-              |  A
+              |prefix(A
               |  B
+              |  C
               |==========""".stripMargin))))
 
   @DataProvider(name = "data")
@@ -90,7 +89,8 @@ class PrettyPrintWriterSuite extends TestNGSuite {
   }
 
   @Test def testIntersperse() {
-    Array("A", "B", "C").iterator.intersperse("(", ",", ")").foreach(println)
+    val it = Array("A", "B", "C").iterator.intersperse("(", ",", ")")
+    assert(it.mkString == "(A,B,C)")
   }
 
 }
