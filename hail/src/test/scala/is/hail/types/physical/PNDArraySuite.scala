@@ -5,6 +5,7 @@ import is.hail.annotations.{Annotation, Region, ScalaToRegionValue, StagedRegion
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder}
 import org.testng.annotations.Test
+import is.hail.utils._
 
 class PNDArraySuite extends PhysicalTestUtils {
   @Test def copyTests() {
@@ -21,43 +22,65 @@ class PNDArraySuite extends PhysicalTestUtils {
   }
 
   @Test def testRefCounted(): Unit = {
-    val nd1 = new PReferenceCountedNDArray(PInt32Required, 1)
+    val nd = new PReferenceCountedNDArray(PInt32Required, 1)
 
-    val region = Region()
-    val fb = EmitFunctionBuilder[Region, Long](ctx, "ref_count_test")
-    val codeRegion = fb.getCodeParam[Region](1)
+    val region1 = Region()
+    val region2 = Region()
+    val region3 = Region()
+    val fb = EmitFunctionBuilder[Region, Region, Region, Long](ctx, "ref_count_test")
+    val codeRegion1 = fb.getCodeParam[Region](1)
+    val codeRegion2 = fb.getCodeParam[Region](2)
+    val codeRegion3 = fb.getCodeParam[Region](3)
 
     try {
       fb.emitWithBuilder{ cb =>
         val shapeAddress = cb.newLocal[Long]("shape_address")
-        val ndAddress = cb.newLocal[Long]("nd_address")
+        val ndAddress1 = cb.newLocal[Long]("nd_address1")
+        val ndAddress2 = cb.newLocal[Long]("nd_address2")
+        val r2PointerToNDAddress1 = cb.newLocal[Long]("r2_ptr_to_nd_addr1")
 
         val shapeSeq = IndexedSeq(const(3L))
-        val shapeMaker = nd1.makeShapeBuilder(shapeSeq)
-        val shapeSRVB = new StagedRegionValueBuilder(cb.emb, nd1.shape.pType, codeRegion)
+        val shapeMaker = nd.makeShapeBuilder(shapeSeq)
+        val shapeSRVB = new StagedRegionValueBuilder(cb.emb, nd.shape.pType, codeRegion1)
         cb.append(shapeMaker(shapeSRVB))
         cb.assign(shapeAddress, shapeSRVB.end())
-        val shapePCode = PCode(nd1.shape.pType, shapeAddress).asBaseStruct
+        val shapePCode = PCode(nd.shape.pType, shapeAddress).asBaseStruct
         val shapePValue = shapePCode.memoize(cb, "testRefCounted_shape")
 
-        cb.assign(ndAddress, nd1.allocateAndInitialize(cb, codeRegion, shapePValue, shapePValue))
-        ndAddress
+        // Region 1 just gets 1 ndarray.
+        cb.assign(ndAddress1, nd.allocateAndInitialize(cb, codeRegion1, shapePValue, shapePValue))
+
+        // Region 2 gets an ndarray at ndaddress2, plus a reference to the one at ndarray 1.
+        cb.assign(ndAddress2, nd.allocateAndInitialize(cb, codeRegion2, shapePValue, shapePValue))
+        cb.assign(r2PointerToNDAddress1, codeRegion2.allocate(8L, 8L))
+        cb.append(nd.constructAtAddress(cb.emb, r2PointerToNDAddress1, codeRegion2, nd, ndAddress1, true))
+        ndAddress1
       }
     } catch {
       case e: AssertionError =>
-        region.clear()
+        region1.clear()
         throw e
     }
 
     val f = fb.result()()
-    val result1 = f(region)
+    val result1 = f(region1, region2, region3)
 
-    // Simple clearing test
+    // Check number of ndarrays in each region:
+    assert(region1.memory.listNDArrayRefs().size == 1)
+    assert(region1.memory.listNDArrayRefs()(0) == result1)
 
-    assert(region.memory.listNDArrayRefs().size == 1)
-    assert(region.memory.listNDArrayRefs()(0) == result1)
+    assert(region2.memory.listNDArrayRefs().size == 2)
+    assert(region2.memory.listNDArrayRefs()(1) == result1)
 
-    region.clear()
-    assert(region.memory.listNDArrayRefs().size == 0)
+    // Check that the reference count of ndarray1 is 2:
+    val rc1A = Region.loadLong(result1-8L)
+    assert(rc1A == 2)
+
+    region1.clear()
+    assert(region1.memory.listNDArrayRefs().size == 0)
+
+    // Check that ndarray 1 wasn't actually cleared, ref count should just be 1 now:
+    val rc1B = Region.loadLong(result1-8L)
+    assert(rc1B == 1)
   }
 }

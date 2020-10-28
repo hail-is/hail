@@ -90,14 +90,14 @@ class PReferenceCountedNDArray(val elementType: PType, val nDims: Int, val requi
   }
 
   override def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
-    var res = Region.storeAddress(addr, srcAddress)
-    if (deepCopy) {
-      res = Code(
-        res,
-        region.trackNDArray(addr)
-      )
+    EmitCodeBuilder.scopedVoid(mb) {cb =>
+      val storedSrcAddr = cb.newLocal[Long]("ref_count_ndarray_caa_src")
+      cb.assign(storedSrcAddr, srcAddress)
+      cb.append(Region.storeAddress(addr, storedSrcAddr))
+      if (deepCopy) {
+        cb.append(region.trackNDArray(storedSrcAddr))
+      }
     }
-    res
   }
 
   override def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
@@ -106,4 +106,6 @@ class PReferenceCountedNDArray(val elementType: PType, val nDims: Int, val requi
       region.trackNDArray(addr)
     }
   }
+
+  override def unsafeOrdering(): UnsafeOrdering = throw new NotImplementedError("Not implemented.")
 }
