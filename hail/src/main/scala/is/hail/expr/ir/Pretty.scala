@@ -20,7 +20,7 @@ object Pretty {
     "\"" + StringEscapeUtils.escapeString(s) + "\""
 
   def fillList(docs: Iterable[Doc], indent: Int = 2): Doc =
-    nest(indent, prettyPrint.fillList(docs))
+    group(lineAlt, nest(indent, prettyPrint.fillList(docs)))
 
   def fillList(docs: Doc*): Doc = fillList(docs)
 
@@ -195,7 +195,7 @@ object Pretty {
     case Apply(function, typeArgs, _, t) => FastSeq(prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
     case ApplySeeded(function, _, seed, t) => FastSeq(prettyIdentifier(function), seed.toString, t.parsableString())
     case ApplySpecial(function, typeArgs, _, t) => FastSeq(prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
-    case SelectFields(_, fields) => fields.view.map(f => text(prettyIdentifier(f))).intersperse[Doc]("(", space, ")")
+    case SelectFields(_, fields) => single(fillList(fields.view.map(f => text(prettyIdentifier(f)))))
     case LowerBoundOnOrderedCollection(_, _, onKey) => single(prettyBooleanLiteral(onKey))
     case In(i, typ) => single(s"$typ $i")
     case Die(message, typ, errorId) => FastSeq(typ.parsableString(), errorId.toString)
@@ -222,11 +222,11 @@ object Pretty {
         blockSize.toString)
     case BlockMatrixAgg(_, outIndexExpr) => single(prettyInts(outIndexExpr, elideLiterals))
     case BlockMatrixSlice(_, slices) =>
-      single(concat(slices.view.map(slice => prettyLongs(slice, elideLiterals)).intersperse[Doc]("(", space, ")")))
+      single(fillList(slices.view.map(slice => prettyLongs(slice, elideLiterals))))
     case ValueToBlockMatrix(_, shape, blockSize) =>
       FastSeq(prettyLongs(shape, elideLiterals), blockSize.toString)
     case BlockMatrixFilter(_, indicesToKeepPerDim) =>
-      single(concat(indicesToKeepPerDim.toSeq.view.map(indices => prettyLongs(indices, elideLiterals)).intersperse[Doc]("(", space, ")")))
+      single(fillList(indicesToKeepPerDim.toSeq.view.map(indices => prettyLongs(indices, elideLiterals))))
     case BlockMatrixSparsify(_, sparsifier) =>
       single(sparsifier.pretty())
     case BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
@@ -366,20 +366,12 @@ object Pretty {
 
       /*
       val pt = ir match{
-        case ir: IR => if (ir._pType != null) concat(space, ir.pType.toString)
-        case _ => empty
+        case ir: IR => if (ir._pType != null) single(ir.pType.toString)
+        case _ => Iterable.empty
       }
-      nest(2, group(concat("(", prettyClass(ir), pt, body, ")")))
+      list(fillSep(text(prettyClass(ir)) +: pt ++ header(ir, elideLiterals)) +: body)
       */
-
-      nest(2,
-        group(
-          concat(
-            "(",
-            vsep(Iterable.concat(
-              nest(2, fillSep(text(prettyClass(ir)) +: header(ir, elideLiterals)))
-                +: body)),
-            ")")))
+      list(fillSep(text(prettyClass(ir)) +: header(ir, elideLiterals)) +: body)
     }
 
     pretty(ir).render(width, ribbonWidth, maxLen)

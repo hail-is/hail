@@ -27,7 +27,8 @@ package object prettyPrint {
   // 2. Or, if 1. would result in an overfull line, prints contained
   //    `line`s and `lineAlt`s as newlines. Nested groups may still
   //    be printed either flattened or not, as space allows.
-  def group(body: Doc): Doc = Group(body)
+  def group(body: Doc*): Doc =
+    if (body.size == 1) Group(body.head) else group(body)
 
   def group(body: Iterable[Doc]): Doc = group(concat(body))
 
@@ -62,26 +63,18 @@ package object prettyPrint {
 
   def fillSep(docs: Doc*): Doc = fillSep(docs)
 
-  // Print `docs` as a list.
+  // Print `docs` as a paren-delimited list, either all on one line separated by spaces,
+  // or with each element on a separate line. Add indentation with a containing `nest`, e.g.
+  // nest(2, list(docs)).
   def list(docs: Iterable[Doc]): Doc =
-    group(concat(text("("), lineAlt, vsep(docs), text(")")))
+    group(concat(docs.intersperse[Doc]("(", line, ")")))
 
   def list(docs: Doc*): Doc = list(docs)
 
+  // Print `docs` as a paren-delimited list, with elements separated by spaces, wrapping to a new
+  // line as needed. Add indentation with a containing `nest`, e.g. nest(2, fillList(docs)).
   def fillList(docs: Iterable[Doc]): Doc =
-    concat(text("("), lineAlt, fillSep(docs), text(")"))
+    concat(text("("), softlineAlt, fillSep(docs), text(")"))
 
   def fillList(docs: Doc*): Doc = fillList(docs)
-
-  def punctuate(punctuation: Doc, docs: Iterator[Doc]): Iterator[Doc] = new Iterator[Doc] {
-    override def hasNext: Boolean = docs.hasNext
-
-    override def next(): Doc = {
-      val doc = docs.next()
-      if (docs.hasNext)
-        concat(doc, punctuation)
-      else
-        doc
-    }
-  }
 }

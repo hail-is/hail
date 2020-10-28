@@ -79,12 +79,12 @@ object Doc {
       }
     }
 
-    def printNode(node: ScanedNode, horizontal: Boolean): Unit = node match {
+    def printNode(node: ScanedNode, flatten: Boolean): Unit = node match {
       case TextN(t) =>
         remainingInLine -= t.length
         out.write(t)
       case LineN(i, ifFlat: String) =>
-        if (horizontal) {
+        if (flatten) {
           remainingInLine -= ifFlat.length
           out.write(ifFlat)
         } else {
