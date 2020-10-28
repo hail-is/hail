@@ -183,7 +183,7 @@ def test_attached_disk(client):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}
     j = builder.create_job('ubuntu:18.04',
-                           ['/bin/sh', '-c', 'true'],
+                           ['/bin/sh', '-c', 'fallocate -l 350GiB /io/foo'],
                            resources=resources)
     builder.submit()
     status = j.wait()
