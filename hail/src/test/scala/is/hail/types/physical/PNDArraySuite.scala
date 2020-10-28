@@ -49,11 +49,15 @@ class PNDArraySuite extends PhysicalTestUtils {
         throw e
     }
 
-    val foo = fb.result()()
-    val result = foo(region)
+    val f = fb.result()()
+    val result1 = f(region)
 
-    val regionNDArrayRefs = region.memory.listNDArrayRefs()
-    assert(regionNDArrayRefs.size == 1)
-    assert(regionNDArrayRefs(0) == result)
+    // Simple clearing test
+
+    assert(region.memory.listNDArrayRefs().size == 1)
+    assert(region.memory.listNDArrayRefs()(0) == result1)
+
+    region.clear()
+    assert(region.memory.listNDArrayRefs().size == 0)
   }
 }

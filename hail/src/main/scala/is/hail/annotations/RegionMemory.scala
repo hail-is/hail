@@ -127,6 +127,19 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     usedBlocks.clearAndResize()
   }
 
+  private def releaseNDArrays(): Unit = {
+    this.ndarrayRefs.result().map{ addr =>
+      val curCount = Region.loadLong(addr - 8)
+      if (curCount == 1) {
+        Memory.free(addr - 8)
+      } else {
+        Region.storeLong(addr - 8, curCount - 1)
+      }
+    }
+
+    this.ndarrayRefs.clear()
+  }
+
   def getTotalChunkMemory(): Long = this.totalChunkMemory
 
   protected[annotations] def freeMemory(): Unit = {
@@ -136,6 +149,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       assert(usedBlocks.size == 0)
       assert(bigChunks.size == 0)
       assert(jObjects.size == 0)
+      assert(ndarrayRefs.size == 0)
     } else {
       val freeBlocksOfSize = pool.freeBlocks(blockSize)
       if (currentBlock != 0)
@@ -145,6 +159,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       freeChunks()
       freeObjects()
       releaseReferences()
+      releaseNDArrays()
 
       offsetWithinBlock = 0
       currentBlock = 0
@@ -171,6 +186,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     freeChunks()
     freeObjects()
     releaseReferences()
+    releaseNDArrays()
 
     offsetWithinBlock = 0L
   }
