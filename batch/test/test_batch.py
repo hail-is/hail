@@ -160,6 +160,42 @@ def test_out_of_storage(client):
     assert "fallocate failed: No space left on device" in j.log()['main']
 
 
+def test_nonzero_storage(client):
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '20Gi'}
+    j = builder.create_job('ubuntu:18.04',
+                           ['/bin/sh', '-c', 'true'],
+                           resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', status
+
+
+def test_many_large_storage_jobs(client):
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '100Gi'}
+    jobs = []
+    for i in range(8):
+        j = builder.create_job('ubuntu:18.04',
+                               ['/bin/sh', '-c', 'true'],
+                               resources=resources)
+        jobs.append(j)
+    b = builder.submit()
+    status = b.wait()
+    assert status['state'] == 'success', status
+
+
+def test_attached_disk(client):
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}
+    j = builder.create_job('ubuntu:18.04',
+                           ['/bin/sh', '-c', 'true'],
+                           resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', status
+
+
 def test_unsubmitted_state(client):
     builder = client.create_batch()
     j = builder.create_job('ubuntu:18.04', ['echo', 'test'])
