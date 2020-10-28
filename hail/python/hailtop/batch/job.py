@@ -348,10 +348,10 @@ class Job:
         the value is in bytes.
 
         For the :class:`.ServiceBackend`, by default every job gets 5 GB
-        per core requested. If you need additional storage, you can explicitly
-        request more storage using this method. The minimum storage size request
-        is 10 Gi and the maximum storage size is 64 Ti. Values must be in
-        increments of 1 Gi. The extra storage space is mounted at /io.
+        per core requested for the root file system. If you need additional storage,
+        you can explicitly request more storage using this method. The minimum
+        storage size request is 10 Gi and the maximum storage size is 64 Ti.
+        Values must be in increments of 1 Gi. The extra storage space is mounted at /io.
 
         Parameters
         ----------
