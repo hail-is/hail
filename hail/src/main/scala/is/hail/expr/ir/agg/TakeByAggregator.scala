@@ -229,7 +229,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   //    )
   //  }
 
-  private def elementOffset(i: Value[Int]): Code[Long] = asm4s.coerce[Long](ab.elementOffset(i)._2)
+  private def elementOffset(i: Value[Int]): Code[Long] = ab.elementOffset(i)
 
   private def keyIsMissing(offset: Code[Long]): Code[Boolean] = indexedKeyType.isFieldMissing(offset, 0)
 
@@ -370,7 +370,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   private def swapStaging(): Code[Unit] = {
     Code(
-      StagedRegionValueBuilder.deepCopy(kb, region, eltTuple, staging, ab.elementOffset(0)._2),
+      StagedRegionValueBuilder.deepCopy(kb, region, eltTuple, staging, ab.elementOffset(0)),
       rebalanceDown(0)
     )
   }
