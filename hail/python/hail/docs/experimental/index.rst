@@ -30,6 +30,18 @@ experimental module are loose and subject to change:
 
 .. currentmodule:: hail.experimental
 
+Annotation Database
+-------------------
+
+.. rubric:: Classes
+
+.. autosummary::
+    :nosignatures:
+    :toctree: ./
+    :template: class.rst
+
+    DB
+
 Genetics Methods
 ----------------
 

@@ -9,24 +9,19 @@ Datasets
     change.
 
 This page describes genetic datasets that are hosted in public buckets
-on both Google Cloud Storage and AWS S3. Note that these datasets are stored in
-:ref:`Requester Pays<GCP Requester Pays>` buckets on GCS, and are available in
-both the US and EU regions.
+on both Google Cloud Storage and Amazon S3. Note that these datasets are
+stored in :ref:`Requester Pays<GCP Requester Pays>` buckets on GCS, and are
+available in both the US and EU regions. On AWS, the datasets are shared via
+`Open Data on AWS <https://aws.amazon.com/opendata/>`__ and are in buckets in
+the US region.
 
 Check out the :func:`.load_dataset` function to see how to load one of these
-datasets into a Hail pipeline. For example, to load the
-1000_Genomes_autosomes dataset from the US bucket on Google Cloud Storage:
+datasets into a Hail pipeline. You will need to provide the name, version, and
+reference genome build of the desired dataset, as well as specify the region
+your cluster is in and the cloud platform. Egress charges may apply if your
+cluster is outside of the region specified.
 
-.. code-block:: python
-
-    >>> mt_1kg = hl.experimental.load_dataset(name='1000_Genomes_autosomes',
-                                              version='phase_3',
-                                              reference_genome='GRCh38',
-                                              region='us',
-                                              cloud='gcp')
-
-
-View schemas for available datasets:
+.. rubric:: Schemas for Available Datasets
 
 .. toctree::
     :maxdepth: 1
