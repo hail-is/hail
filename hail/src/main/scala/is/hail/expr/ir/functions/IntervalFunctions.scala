@@ -107,7 +107,7 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerPCode1("isEmpty", TInterval(tv("T")), TBoolean, (_: Type, pt: PType) => PBoolean(pt.required)) {
-      case (r, rt, interval: PIntervalCode) =>
+      case (r, cb, rt, interval: PIntervalCode) =>
         val empty = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val intv = interval.memoize(cb, "interval")
           intv.isEmpty(cb)
@@ -116,7 +116,7 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerPCode2("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, (_: Type, i1t: PType, i2t: PType) => PBoolean(i1t.required && i2t.required)) {
-      case (r, rt, int1: PIntervalCode, int2: PIntervalCode) =>
+      case (r, cb, rt, int1: PIntervalCode, int2: PIntervalCode) =>
         val overlap = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val interval1 = int1.memoize(cb, "interval1")
           val interval2 = int2.memoize(cb, "interval2")

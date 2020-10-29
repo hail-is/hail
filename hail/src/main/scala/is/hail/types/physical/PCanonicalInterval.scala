@@ -8,6 +8,9 @@ import is.hail.types.virtual.{TInterval, Type}
 import is.hail.utils.FastIndexedSeq
 
 final case class PCanonicalInterval(pointType: PType, override val required: Boolean = false) extends PInterval {
+
+  def byteSize: Long = representation.byteSize
+
   def _asIdent = s"interval_of_${ pointType.asIdent }"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {

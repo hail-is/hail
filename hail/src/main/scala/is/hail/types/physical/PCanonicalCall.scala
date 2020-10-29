@@ -13,6 +13,8 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
 
   val representation: PType = PInt32(required)
 
+  def byteSize: Long = representation.byteSize
+
   override def fundamentalType: PType = representation
 
   override def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering() // this was a terrible idea

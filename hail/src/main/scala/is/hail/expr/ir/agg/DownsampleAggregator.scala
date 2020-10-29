@@ -357,7 +357,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
         copyFromTree(oldRootBTree),
         i := 0,
         Code.whileLoop(i < buffer.size,
-          point := buffer.loadElement(i).value,
+          EmitCodeBuilder.scopedVoid(mb)(cb => cb.assign(point, buffer.loadElement(cb, i).value)),
           x := Region.loadDouble(pointType.loadField(point, "x")),
           y := Region.loadDouble(pointType.loadField(point, "y")),
           insertIntoTree(xBinCoordinate(x), yBinCoordinate(y), point, deepCopy = true),
@@ -487,7 +487,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     mb.emitWithBuilder { cb =>
       cb.assign(i, 0)
       cb.whileLoop(i < other.buffer.size, {
-        cb += deepCopyAndInsertPoint(other.buffer.loadElement(i).value)
+        cb += deepCopyAndInsertPoint(other.buffer.loadElement(cb, i).value)
         cb.assign(i, i + 1)
       })
       other.tree.foreach(cb) { (cb, value) =>
