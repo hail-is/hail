@@ -57,7 +57,8 @@ def get_benchmarks(app, file_path):
     except google.api_core.exceptions.NotFound:
         message = f'could not find file, {file_path}'
         log.info('could not get blob: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=message) from e
+        return None
+        #raise web.HTTPBadRequest(text=message) from e
 
     data = {}
     prod_of_means = 1
