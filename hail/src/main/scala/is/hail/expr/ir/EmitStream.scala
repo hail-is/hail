@@ -1,12 +1,12 @@
 package is.hail.expr.ir
 
-import is.hail.services.shuffler._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
-import is.hail.types.virtual._
+import is.hail.services.shuffler._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{PInt32Code, SBinaryPointer, SBinaryPointerSettable, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable, SStream, SStreamCode, SStruct, SStructSettable, SSubsetStruct, SSubsetStructCode}
+import is.hail.types.physical.stypes._
+import is.hail.types.virtual._
 import is.hail.utils._
 
 import scala.language.{existentials, higherKinds}
@@ -940,7 +940,7 @@ object EmitStream {
         elt.setup,
         elt.m.mux(
           ab.addMissing(),
-          EmitCodeBuilder.scopedVoid(mb)(cb => ab.add(eltRegion.copyToParent(cb, elt.pv).code))),
+          EmitCodeBuilder.scopedVoid(mb)(cb => cb += ab.add(eltRegion.copyToParent(cb, elt.pv).code))),
         eltRegion.clear())
       }),
       eltRegion.free()))
@@ -2184,7 +2184,7 @@ object EmitStream {
           ).flatMap { case (idt: SCanonicalShufflePointerCode) =>
             COption.fromEmitCode(emitIR(nPartitionsIR)).doIfNone(
               Code._fatal[Unit]("ShufflePartitionBounds cannot have null number of partitions")
-            ).map { case (nPartitionst: PInt32Code) =>
+            ).map { case (nPartitionst: SInt32Code) =>
               val uuidLocal = mb.newLocal[Long]("shuffleUUID")
               val uuid = new SCanonicalShufflePointerSettable(idt.st, new SBinaryPointerSettable(SBinaryPointer(idt.st.pType.representation), uuidLocal))
               val shuffleLocal = mb.newLocal[ShuffleClient]("shuffleClient")

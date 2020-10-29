@@ -46,15 +46,15 @@ abstract class PCode { self =>
     code.asInstanceOf[Code[T]]
   }
 
-  def asBoolean: PBooleanCode = asInstanceOf[PBooleanCode]
-  def asInt: PInt32Code = asInstanceOf[PInt32Code]
-  def asInt32: PInt32Code = asInstanceOf[PInt32Code]
-  def asLong: PInt64Code = asInstanceOf[PInt64Code]
-  def asInt64: PInt64Code = asInstanceOf[PInt64Code]
-  def asFloat: PFloat32Code = asInstanceOf[PFloat32Code]
-  def asFloat32: PFloat32Code = asInstanceOf[PFloat32Code]
-  def asFloat64: PFloat64Code = asInstanceOf[PFloat64Code]
-  def asDouble: PFloat64Code = asInstanceOf[PFloat64Code]
+  def asBoolean: SBooleanCode = asInstanceOf[SBooleanCode]
+  def asInt: SInt32Code = asInstanceOf[SInt32Code]
+  def asInt32: SInt32Code = asInstanceOf[SInt32Code]
+  def asLong: SInt64Code = asInstanceOf[SInt64Code]
+  def asInt64: SInt64Code = asInstanceOf[SInt64Code]
+  def asFloat: SFloat32Code = asInstanceOf[SFloat32Code]
+  def asFloat32: SFloat32Code = asInstanceOf[SFloat32Code]
+  def asFloat64: SFloat64Code = asInstanceOf[SFloat64Code]
+  def asDouble: SFloat64Code = asInstanceOf[SFloat64Code]
   def asBinary: PBinaryCode = asInstanceOf[PBinaryCode]
 
   def asIndexable: PIndexableCode = asInstanceOf[PIndexableCode]
@@ -107,7 +107,7 @@ object PCode {
     case pt: PCanonicalLocus =>
       new SCanonicalLocusPointerCode(SCanonicalLocusPointer(pt), coerce[Long](code))
     case pt: PCanonicalCall =>
-      new SCanonicalCallCode(coerce[Int](code))
+      new SCanonicalCallCode(pt.required, coerce[Int](code))
     case pt: PCanonicalNDArray =>
       new SNDArrayPointerCode(SNDArrayPointer(pt), coerce[Long](code))
     case pt: PCanonicalStream =>
@@ -115,15 +115,15 @@ object PCode {
     case PVoid =>
       throw new UnsupportedOperationException(s"Can't PCode.apply unrealizable PType: $pt")
     case PBoolean(r) =>
-      new SCanonicalBooleanCode(coerce[Boolean](code))
+      new SBooleanCode(r, coerce[Boolean](code))
     case PInt32(r) =>
-      new SCanonicalInt32Code(coerce[Int](code))
+      new SInt32Code(r, coerce[Int](code))
     case PInt64(r) =>
-      new SCanonicalInt64Code(coerce[Long](code))
+      new SInt64Code(r, coerce[Long](code))
     case PFloat32(r) =>
-      new SCanonicalFloat32Code(coerce[Float](code))
+      new SFloat32Code(r, coerce[Float](code))
     case PFloat64(r) =>
-      new SCanonicalFloat64Code(coerce[Double](code))
+      new SFloat64Code(r, coerce[Double](code))
   }
 
   def _empty: PCode = PVoidCode
@@ -137,8 +137,8 @@ object PSettable {
       SIndexablePointerSettable(sb, SIndexablePointer(pt), name)
     case pt: PCanonicalDict =>
       SIndexablePointerSettable(sb, SIndexablePointer(pt), name)
-    //    case pt: PSubsetStruct =>
-    //      new PSubsetStructCode(pt, coerce[Long](code))
+    case pt: PSubsetStruct =>
+      new SSubsetStructSettable(pt.sType, PSettable(sb, pt.ps, name).asInstanceOf[SStructSettable])
     case pt: PCanonicalBaseStruct =>
       SBaseStructPointerSettable(sb, SBaseStructPointer(pt), name)
     case pt: PCanonicalBinary =>
@@ -150,7 +150,7 @@ object PSettable {
     case pt: PCanonicalLocus =>
       SCanonicalLocusPointerSettable(sb, SCanonicalLocusPointer(pt), name)
     case pt: PCanonicalCall =>
-      SCanonicalCallSettable(sb, name)
+      SCanonicalCallSettable(sb, name, pt.required)
     case pt: PCanonicalNDArray =>
       SNDArrayPointerSettable(sb, SNDArrayPointer(pt), name)
     case pt: PCanonicalStream =>
@@ -158,14 +158,14 @@ object PSettable {
     case PVoid =>
       throw new UnsupportedOperationException(s"Can't PCode.apply unrealizable PType: PVoid")
     case PBoolean(r) =>
-      SCanonicalBooleanSettable(sb, name)
+      SBooleanSettable(sb, name, r)
     case PInt32(r) =>
-      SCanonicalInt32Settable(sb, name)
+      SInt32Settable(sb, name, r)
     case PInt64(r) =>
-      SCanonicalInt64Settable(sb, name)
+      SInt64Settable(sb, name, r)
     case PFloat32(r) =>
-      SCanonicalFloat32Settable(sb, name)
+      SFloat32Settable(sb, name, r)
     case PFloat64(r) =>
-      SCanonicalFloat64Settable(sb, name)
+      SFloat64Settable(sb, name, r)
   }
 }

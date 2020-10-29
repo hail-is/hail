@@ -1821,7 +1821,6 @@ class Emit[C](
       case x@MakeArray(args, _) =>
         val pType = x.pType.asInstanceOf[PArray]
         val srvb = new StagedRegionValueBuilder(mb, pType, region.code)
-        val addElement = srvb.addIRIntermediate(pType.elementType)
 
         val addElts = args.map { arg =>
           val v = emit(arg)
@@ -2226,7 +2225,6 @@ class Emit[C](
         val ctxsType = coerce[PStream](contexts.pType)
         val ctxType = ctxsType.elementType
         val gType = globals.pType
-        val bType = body.pType
 
         val parentCB = mb.ecb
 
@@ -2348,7 +2346,10 @@ class Emit[C](
               },
               x.decodedBodyPTuple.isFieldMissing(eltTupled, 0).mux(
                 sab.setMissing(),
-                sab.addIRIntermediate(bType)(Region.loadIRIntermediate(bType)(x.decodedBodyPTuple.fieldOffset(eltTupled, 0)))),
+                EmitCodeBuilder.scopedVoid(mb) { cb =>
+                  val pv = x.decodedBodyPType.getPointerTo(cb, x.decodedBodyPTuple.loadField(eltTupled, 0))
+                  cb += sab.addIRIntermediate(pv)
+                }),
               sab.advance()),
             sab.end())
         }

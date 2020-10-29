@@ -101,7 +101,6 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   }
 
   def deepPointerCopy(cb: EmitCodeBuilder, region: Value[Region], dstStructAddress: Code[Long]): Unit = {
-
     val dstAddr = cb.newLocal[Long]("pcbs_dpcopy_dst", dstStructAddress)
     fields.foreach { f =>
       val dstFieldType = f.typ.fundamentalType
@@ -200,7 +199,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
           pcs.loadField(cb, f.index)
             .consume(cb,
               {
-                cb.append(setFieldMissing(addrVar, f.index))
+                cb += setFieldMissing(addrVar, f.index)
               },
               {
                 f.typ.storeAtAddress(cb, fieldOffset(addrVar, f.index), region, _, deepCopy)

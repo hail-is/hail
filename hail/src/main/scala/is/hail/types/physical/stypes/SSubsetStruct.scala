@@ -31,7 +31,7 @@ case class SSubsetStruct(parent: SStruct, fieldNames: IndexedSeq[String]) extend
   }
 }
 
-class PSubsetStructSettable(val st: SSubsetStruct, prev: SStructSettable) extends SStructSettable {
+class SSubsetStructSettable(val st: SSubsetStruct, prev: SStructSettable) extends SStructSettable {
   def pt: PBaseStruct = st.pType.asInstanceOf[PBaseStruct]
 
   def get: SSubsetStructCode = new SSubsetStructCode(st, prev.load().asBaseStruct)
@@ -57,14 +57,10 @@ class SSubsetStructCode(val st: SSubsetStruct, val prev: PBaseStructCode) extend
   def codeTuple(): IndexedSeq[Code[_]] = prev.codeTuple()
 
   def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue = {
-    val s = new PSubsetStructSettable(st, prev.memoize(cb, name).asInstanceOf[SStructSettable])
-    s.store(cb, prev)
-    s
+    new SSubsetStructSettable(st, prev.memoize(cb, name).asInstanceOf[SStructSettable])
   }
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue = {
-    val s = new PSubsetStructSettable(st, prev.memoizeField(cb, name).asInstanceOf[SStructSettable])
-    s.store(cb, prev)
-    s
+    new SSubsetStructSettable(st, prev.memoizeField(cb, name).asInstanceOf[SStructSettable])
   }
 }

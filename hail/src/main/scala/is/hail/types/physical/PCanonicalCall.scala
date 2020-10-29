@@ -13,6 +13,8 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
 
   val representation: PType = PInt32(required)
 
+  override def fundamentalType: PType = representation
+
   override def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering() // this was a terrible idea
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
@@ -43,13 +45,13 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
     }
   }
 
-  def sType: SCall = SCanonicalCall
+  def sType: SCall = SCanonicalCall(required)
 
   def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): PCode = sType.loadFrom(cb, null, this, addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
-      case SCanonicalCall =>
+      case SCanonicalCall(r) =>
         val newAddr = cb.newLocal[Long]("pcanonicalcall_store_addr", region.allocate(representation.alignment, representation.byteSize))
         storeAtAddress(cb, newAddr, region, value, deepCopy)
         newAddr

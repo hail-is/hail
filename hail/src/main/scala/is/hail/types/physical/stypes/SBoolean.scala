@@ -6,17 +6,16 @@ import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.{PBoolean, PCanonicalCall, PCode, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
-trait SBoolean extends SType
 
-case object SCanonicalBoolean extends SBoolean {
-  override def pType: PType = PBoolean(false)
+case class SBoolean(required: Boolean) extends SType {
+  override def pType: PBoolean = PBoolean(required)
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
     value.st match {
-      case SCanonicalBoolean =>
-        value
+      case SBoolean(_) =>
+        value.asInstanceOf[SBooleanCode]
     }
   }
 
@@ -25,58 +24,47 @@ case object SCanonicalBoolean extends SBoolean {
   def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): PCode = {
     pt match {
       case PBoolean(_) =>
-        new SCanonicalBooleanCode(Region.loadBoolean(addr))
+        new SBooleanCode(required: Boolean, Region.loadBoolean(addr))
     }
   }
 }
 
-trait PBooleanCode extends PCode {
-  def boolValue(cb: EmitCodeBuilder): Code[Boolean]
+class SBooleanCode(required: Boolean, val code: Code[Boolean]) extends PCode {
+  val pt: PBoolean = PBoolean(required)
 
-  def memoize(cb: EmitCodeBuilder, name: String): PBooleanValue
-}
-
-trait PBooleanValue extends PValue {
-  def boolValue(cb: EmitCodeBuilder): Code[Boolean]
-
-}
-
-class SCanonicalBooleanCode(val code: Code[Boolean]) extends PBooleanCode {
-  val pt: PBoolean = PBoolean()
-
-  def st: SBoolean = SCanonicalBoolean
+  def st: SBoolean = SBoolean(required)
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PBooleanValue = {
-    val s = new SCanonicalBooleanSettable(sb.newSettable[Boolean]("sboolean_memoize"))
+  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBooleanSettable = {
+    val s = new SBooleanSettable(required, sb.newSettable[Boolean]("sboolean_memoize"))
     s.store(cb, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PBooleanValue = memoizeWithBuilder(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String): SBooleanSettable = memoizeWithBuilder(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PBooleanValue = memoizeWithBuilder(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String): SBooleanSettable = memoizeWithBuilder(cb, name, cb.fieldBuilder)
 
   def boolValue(cb: EmitCodeBuilder): Code[Boolean] = code
 }
 
-object SCanonicalBooleanSettable {
-  def apply(sb: SettableBuilder, name: String): SCanonicalBooleanSettable = {
-    new SCanonicalBooleanSettable(sb.newSettable[Boolean](name))
+object SBooleanSettable {
+  def apply(sb: SettableBuilder, name: String, required: Boolean): SBooleanSettable = {
+    new SBooleanSettable(required, sb.newSettable[Boolean](name))
   }
 }
 
-class SCanonicalBooleanSettable(x: Settable[Boolean]) extends PBooleanValue with PSettable {
-  val pt: PBoolean = PBoolean()
+class SBooleanSettable(required: Boolean, x: Settable[Boolean]) extends PValue with PSettable {
+  val pt: PBoolean = PBoolean(required)
 
-  def st: SBoolean = SCanonicalBoolean
+  def st: SBoolean = SBoolean(required)
 
   def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asBoolean.boolValue(cb))
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  def get: PCode = new SCanonicalBooleanCode(x)
+  def get: PCode = new SBooleanCode(required, x)
 
   def boolValue(cb: EmitCodeBuilder): Code[Boolean] = x
 }

@@ -28,7 +28,7 @@ object EmitCodeBuilder {
 
   def scopedEmitCode(mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => EmitCode): EmitCode = {
     val (cbcode, ec) = EmitCodeBuilder.scoped(mb)(f)
-    EmitCode(Code(cbcode, ec.setup), ec.m, ec.pv)
+    EmitCode(cbcode, ec)
   }
 }
 

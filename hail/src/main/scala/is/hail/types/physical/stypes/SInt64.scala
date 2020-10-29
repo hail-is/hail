@@ -6,17 +6,18 @@ import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.{PCanonicalCall, PCode, PInt64, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
-trait SInt64 extends SType
+case class SInt64(required: Boolean) extends SType {
+  override def pType: PInt64  = PInt64(required)
 
-case object SCanonicalInt64 extends SInt64 {
-  override def pType: PType  = PInt64(false)
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = PInt64(false).codeOrdering(mb, other.pType, so)
+  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
     value.st match {
-      case SCanonicalInt64 =>
-        value
+      case SInt64(r) =>
+        if (r == required)
+          value
+        else
+          new SInt64Code(required, value.asInstanceOf[SInt64Code].code)
     }
   }
 
@@ -24,16 +25,10 @@ case object SCanonicalInt64 extends SInt64 {
 
   def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): PCode = {
     pt match {
-      case PInt64(_) =>
-        new SCanonicalInt64Code(Region.loadLong(addr))
+      case _: PInt64 =>
+        new SInt64Code(required, Region.loadLong(addr))
     }
   }
-}
-
-trait PInt64Code extends PCode {
-  def longValue(cb: EmitCodeBuilder): Code[Long]
-
-  def memoize(cb: EmitCodeBuilder, name: String): PInt64Value
 }
 
 trait PInt64Value extends PValue {
@@ -41,15 +36,15 @@ trait PInt64Value extends PValue {
 
 }
 
-class SCanonicalInt64Code(val code: Code[Long]) extends PInt64Code {
-  val pt: PInt64 = PInt64()
+class SInt64Code(required: Boolean, val code: Code[Long]) extends PCode {
+  val pt: PInt64 = PInt64(required)
 
-  def st: SInt64 = SCanonicalInt64
+  def st: SInt64 = SInt64(required)
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PInt64Value = {
-    val s = new SCanonicalInt64Settable(sb.newSettable[Long]("sint64_memoize"))
+    val s = new SInt64Settable(required, sb.newSettable[Long]("sint64_memoize"))
     s.store(cb, this)
     s
   }
@@ -61,22 +56,22 @@ class SCanonicalInt64Code(val code: Code[Long]) extends PInt64Code {
   def longValue(cb: EmitCodeBuilder): Code[Long] = code
 }
 
-object SCanonicalInt64Settable {
-  def apply(sb: SettableBuilder, name: String): SCanonicalInt64Settable = {
-    new SCanonicalInt64Settable(sb.newSettable[Long](name))
+object SInt64Settable {
+  def apply(sb: SettableBuilder, name: String, required: Boolean): SInt64Settable = {
+    new SInt64Settable(required, sb.newSettable[Long](name))
   }
 }
 
-class SCanonicalInt64Settable(x: Settable[Long]) extends PInt64Value with PSettable {
-  val pt: PInt64 = PInt64()
+class SInt64Settable(required: Boolean, x: Settable[Long]) extends PInt64Value with PSettable {
+  val pt: PInt64 = PInt64(required)
 
-  def st: SInt64 = SCanonicalInt64
+  def st: SInt64 = SInt64(required)
 
   def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asLong.longValue(cb))
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  def get: PCode = new SCanonicalInt64Code(x)
+  def get: PCode = new SInt64Code(required, x)
 
   def longValue(cb: EmitCodeBuilder): Code[Long] = x
 }

@@ -3,20 +3,21 @@ package is.hail.types.physical.stypes
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, IntInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.{PCanonicalCall, PCode, PInt32, PInt64, PSettable, PType, PValue}
+import is.hail.types.physical.{PCode, PInt32, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
-trait SInt32 extends SType
+case class SInt32(required: Boolean) extends SType {
+  override def pType: PInt32  = PInt32(required)
 
-case object SCanonicalInt32 extends SInt32 {
-  override def pType: PType = PInt32(false)
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = PInt32(false).codeOrdering(mb, other.pType, so)
+  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
     value.st match {
-      case SCanonicalInt32 =>
-        value
+      case SInt32(r) =>
+        if (r == required)
+          value
+        else
+          new SInt32Code(required, value.asInstanceOf[SInt32Code].code)
     }
   }
 
@@ -24,16 +25,10 @@ case object SCanonicalInt32 extends SInt32 {
 
   def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): PCode = {
     pt match {
-      case PInt32(_) =>
-        new SCanonicalInt32Code(Region.loadInt(addr))
+      case _: PInt32 =>
+        new SInt32Code(required, Region.loadInt(addr))
     }
   }
-}
-
-trait PInt32Code extends PCode {
-  def intValue(cb: EmitCodeBuilder): Code[Int]
-
-  def memoize(cb: EmitCodeBuilder, name: String): PInt32Value
 }
 
 trait PInt32Value extends PValue {
@@ -41,14 +36,15 @@ trait PInt32Value extends PValue {
 
 }
 
-class SCanonicalInt32Code(val code: Code[Int]) extends PInt32Code {
-  val pt: PInt32 = PInt32()
-  def st: SInt32 = SCanonicalInt32
+class SInt32Code(required: Boolean, val code: Code[Int]) extends PCode {
+  val pt: PInt32 = PInt32(required)
+
+  def st: SInt32 = SInt32(required)
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PInt32Value = {
-    val s = new SCanonicalInt32Settable(sb.newSettable[Int]("sint32_memoize"))
+    val s = new SInt32Settable(required, sb.newSettable[Int]("sInt32_memoize"))
     s.store(cb, this)
     s
   }
@@ -60,22 +56,22 @@ class SCanonicalInt32Code(val code: Code[Int]) extends PInt32Code {
   def intValue(cb: EmitCodeBuilder): Code[Int] = code
 }
 
-object SCanonicalInt32Settable {
-  def apply(sb: SettableBuilder, name: String): SCanonicalInt32Settable = {
-    new SCanonicalInt32Settable(sb.newSettable[Int](name))
+object SInt32Settable {
+  def apply(sb: SettableBuilder, name: String, required: Boolean): SInt32Settable = {
+    new SInt32Settable(required, sb.newSettable[Int](name))
   }
 }
 
-class SCanonicalInt32Settable(x: Settable[Int]) extends PInt32Value with PSettable {
-  val pt: PInt32 = PInt32()
+class SInt32Settable(required: Boolean, x: Settable[Int]) extends PInt32Value with PSettable {
+  val pt: PInt32 = PInt32(required)
 
-  def st: SInt32 = SCanonicalInt32
+  def st: SInt32 = SInt32(required)
 
   def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asInt.intValue(cb))
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  def get: PCode = new SCanonicalInt32Code(x)
+  def get: PCode = new SInt32Code(required, x)
 
   def intValue(cb: EmitCodeBuilder): Code[Int] = x
 }

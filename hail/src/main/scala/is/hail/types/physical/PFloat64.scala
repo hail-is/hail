@@ -3,7 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.{SCanonicalFloat64, SType}
+import is.hail.types.physical.stypes.{SFloat64, SType}
 import is.hail.types.virtual.TFloat64
 
 case object PFloat64Optional extends PFloat64(false)
@@ -57,7 +57,7 @@ class PFloat64(override val required: Boolean) extends PNumeric with PPrimitive 
     coerce[PFloat64](coerce[Double](a) * coerce[Double](b))
   }
 
-  override def sType: SType = SCanonicalFloat64
+  override def sType: SType = SFloat64(required)
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: PCode): Unit =
     cb.append(Region.storeDouble(addr, value.asDouble.doubleValue(cb)))

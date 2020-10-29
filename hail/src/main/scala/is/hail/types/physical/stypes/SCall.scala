@@ -9,14 +9,14 @@ import is.hail.variant.Genotype
 
 trait SCall extends SType
 
-case object SCanonicalCall extends SCall {
-  override def pType: PType = PCanonicalCall(false)
+case class SCanonicalCall(required: Boolean) extends SCall {
+  override def pType: PCall = PCanonicalCall(required)
 
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = PCanonicalCall(false).codeOrdering(mb, other.pType, so)
+  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
     value.st match {
-      case SCanonicalCall =>
+      case SCanonicalCall(_) =>
         value
     }
   }
@@ -26,25 +26,25 @@ case object SCanonicalCall extends SCall {
   def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): PCode = {
     pt match {
       case PCanonicalCall(_) =>
-        new SCanonicalCallCode(Region.loadInt(addr))
+        new SCanonicalCallCode(required, Region.loadInt(addr))
     }
   }
 }
 
 object SCanonicalCallSettable {
-  def apply(sb: SettableBuilder, name: String): SCanonicalCallSettable =
-    new SCanonicalCallSettable(sb.newSettable[Int](s"${ name }_call"))
+  def apply(sb: SettableBuilder, name: String, required: Boolean): SCanonicalCallSettable =
+    new SCanonicalCallSettable(required, sb.newSettable[Int](s"${ name }_call"))
 }
 
-class SCanonicalCallSettable(call: Settable[Int]) extends PCallValue with PSettable {
+class SCanonicalCallSettable(required: Boolean, call: Settable[Int]) extends PCallValue with PSettable {
 
-  val pt: PCall = PCanonicalCall()
+  val pt: PCall = PCanonicalCall(required)
 
   override def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(call, v.asInstanceOf[SCanonicalCallCode].call)
 
-  val st: SCanonicalCall.type = SCanonicalCall
+  val st: SCanonicalCall = SCanonicalCall(required)
 
-  def get: PCallCode = new SCanonicalCallCode(call)
+  def get: PCallCode = new SCanonicalCallCode(required, call)
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(call)
 
@@ -80,11 +80,11 @@ class SCanonicalCallSettable(call: Settable[Int]) extends PCallValue with PSetta
   }
 }
 
-class SCanonicalCallCode(val call: Code[Int]) extends PCallCode {
+class SCanonicalCallCode(required: Boolean, val call: Code[Int]) extends PCallCode {
 
-  val pt: PCall = PCanonicalCall()
+  val pt: PCall = PCanonicalCall(required)
 
-  val st: SCanonicalCall.type = SCanonicalCall
+  val st: SCanonicalCall = SCanonicalCall(required)
 
   def code: Code[_] = call
 
@@ -95,7 +95,7 @@ class SCanonicalCallCode(val call: Code[Int]) extends PCallCode {
   def isPhased(): Code[Boolean] = (call & 0x1).ceq(1)
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PCallValue = {
-    val s = SCanonicalCallSettable(sb, name)
+    val s = SCanonicalCallSettable(sb, name, required)
     cb.assign(s, this)
     s
   }

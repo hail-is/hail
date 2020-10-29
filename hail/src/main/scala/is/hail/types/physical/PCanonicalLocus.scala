@@ -24,6 +24,9 @@ object PCanonicalLocus {
 }
 
 final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) extends PLocus {
+
+  override def fundamentalType: PType = representation
+
   def rg: ReferenceGenome = rgBc.value
 
   def _asIdent = "locus"

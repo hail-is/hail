@@ -298,7 +298,6 @@ class EmitClassBuilder[C](
       cb.append(ec.setup)
 
       if (_pt.required) {
-        cb.append(ec.setup)
         cb.ifx(ec.m, cb._fatal(s"Required EmitSettable cannot be missing ${ _pt }"))
         cb.assign(vs, ec.pv)
       } else {

@@ -24,7 +24,7 @@ case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
   def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): PCode = {
     pt match {
       case PCanonicalLocus(_, _) =>
-        new SCanonicalCallCode(Region.loadInt(addr))
+        new SCanonicalLocusPointerCode(this, Region.loadLong(addr))
     }
   }
 }
