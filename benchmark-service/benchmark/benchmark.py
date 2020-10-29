@@ -24,6 +24,7 @@ import pandas as pd
 import gidgethub
 import gidgethub.aiohttp
 from .config import START_POINT, BENCHMARK_RESULTS_PATH
+import google
 
 configure_logging()
 router = web.RouteTableDef()
@@ -53,7 +54,7 @@ def get_benchmarks(app, file_path):
     try:
         json_data = gs_reader.get_data_as_string(file_path)
         pre_data = json.loads(json_data)
-    except Exception as e:
+    except google.api_core.exceptions.NotFound:
         message = f'could not find file, {file_path}'
         log.info('could not get blob: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message) from e
