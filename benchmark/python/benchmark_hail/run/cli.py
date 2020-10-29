@@ -68,6 +68,10 @@ def main(args_):
 
     data_dir = args.data_dir or os.environ.get('HAIL_BENCHMARK_DIR') or '/tmp/hail_benchmark_data'
     profiler_path = os.environ.get('ASYNC_PROFILER_HOME')
+
+    if profiler_path is None:
+        raise KeyError("In order to use --profile, you must download async-profiler and set `ASYNC_PROFILER_HOME`")
+
     config = RunConfig(args.n_iter, handler, noisy=not args.quiet, timeout=args.timeout, dry_run=args.dry_run,
                        data_dir=data_dir, cores=args.cores, verbose=args.verbose, log=args.log,
                        profiler_path=profiler_path, profile=args.profile, prof_fmt=args.prof_fmt)
