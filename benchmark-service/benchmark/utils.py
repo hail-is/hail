@@ -2,6 +2,8 @@ from google.cloud import storage
 import re
 import logging
 from .config import BENCHMARK_RESULTS_PATH
+import google
+
 
 log = logging.getLogger('benchmark')
 
@@ -80,8 +82,9 @@ class ReadGoogleStorage:
             blob = bucket.blob(path)
             # convert to string
             data = blob.download_as_string()
-        except Exception as e:
-            raise NameError() from e
+        except google.api_core.exceptions.NotFound:
+            # raise NameError() from e
+            data = ""
         return data
 
     def list_files(self, bucket_name):
