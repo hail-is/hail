@@ -129,11 +129,12 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
   private def releaseNDArrays(): Unit = {
     this.ndarrayRefs.result().map{ addr =>
-      val curCount = Region.loadLong(addr - 8)
+      val curCount = Region.loadLong(addr - 16)
       if (curCount == 1) {
-        Memory.free(addr - 8)
+        pool.incrementAllocatedBytes(-Region.loadLong(addr - 8))
+        Memory.free(addr - 16)
       } else {
-        Region.storeLong(addr - 8, curCount - 1)
+        Region.storeLong(addr - 16, curCount - 1)
       }
     }
 
@@ -277,16 +278,23 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       throw new IllegalArgumentException(s"Can't request ndarray of non-positive memory size, got ${size}")
     }
 
-    val allocatedAddr = pool.allocateNDArray(size) + 8
-    Region.storeLong(allocatedAddr, 0L)
+    val extra = 16L
+
+    // This adjusted address is where the ndarray content starts
+    val allocatedAddr = pool.allocateNDArray(size + extra) + extra
+
+    // The reference count and total size are stored just before the content.
+    Region.storeLong(allocatedAddr - 16L, 0L)
+    Region.storeLong(allocatedAddr - 8L, size)
+    pool.incrementAllocatedBytes(size + extra)
     this.trackNDArray(allocatedAddr)
     allocatedAddr
   }
 
   def trackNDArray(alloc: Long): Unit = {
     this.ndarrayRefs += alloc
-    val curRefCount = Region.loadLong(alloc - 8)
-    Region.storeLong(alloc - 8, curRefCount + 1L)
+    val curRefCount = Region.loadLong(alloc - 16)
+    Region.storeLong(alloc - 16, curRefCount + 1L)
   }
 
   def listNDArrayRefs(): IndexedSeq[Long] = {
