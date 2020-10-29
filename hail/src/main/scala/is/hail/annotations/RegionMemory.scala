@@ -131,6 +131,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     this.ndarrayRefs.result().map{ addr =>
       val curCount = Region.loadLong(addr - 16)
       if (curCount == 1) {
+        Memory.storeLong(addr - 16, 0L)
         pool.incrementAllocatedBytes(-Region.loadLong(addr - 8))
         Memory.free(addr - 16)
       } else {

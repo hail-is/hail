@@ -82,5 +82,9 @@ class PNDArraySuite extends PhysicalTestUtils {
     // Check that ndarray 1 wasn't actually cleared, ref count should just be 1 now:
     val rc1B = Region.loadLong(result1-16L)
     assert(rc1B == 1)
+
+    // Check that clearing region2 removes both ndarrays
+    region2.clear()
+    assert(region2.memory.listNDArrayRefs().size == 0)
   }
 }

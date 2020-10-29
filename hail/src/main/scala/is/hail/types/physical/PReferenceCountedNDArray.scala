@@ -20,6 +20,8 @@ class PReferenceCountedNDArray(val elementType: PType, val nDims: Int, val requi
   override lazy val data: StaticallyKnownField[PArray, Long] = ???
   override lazy val representation: PStruct = ???
 
+  override val byteSize = 8L
+
   override def numElements(shape: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = ???
 
   override def setElement(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: Code[_], mb: EmitMethodBuilder[_]): Code[Unit] = ???
