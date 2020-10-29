@@ -24,6 +24,7 @@
         <th>author</th>
         <th>date</th>
         <th>status</th>
+        <th>deploy batch</th>
     </tr>
     </thead>
     <tbody>
@@ -34,6 +35,11 @@
         <td>{{ commit['author'] }}</td>
         <td>{{ commit['date'] }}</td>
         <td>{{ commit['status'] }}</td>
+        <td>
+            {% if commit['batch_id'] is not none %}
+            <a href="{{ base_path }}/batches/{{ commit['batch_id'] }}">{{ commit['batch_id'] }}</a>
+            {% endif %}
+        </td>
     </tr>
     {% endfor %}
     </tbody>

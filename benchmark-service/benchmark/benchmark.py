@@ -7,8 +7,8 @@ from gear import setup_aiohttp_session, web_authenticated_developers_only
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
-from hailtop.utils import retry_long_running
 import hailtop.batch_client.aioclient as bc
+from hailtop.utils import retry_long_running, collect_agen, humanize_timedelta_msecs
 from hailtop import aiotools
 import hailtop.batch_client.aioclient as bc
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
@@ -24,7 +24,6 @@ import pandas as pd
 import gidgethub
 import gidgethub.aiohttp
 from .config import START_POINT, BENCHMARK_RESULTS_PATH
-
 
 configure_logging()
 router = web.RouteTableDef()
@@ -257,6 +256,40 @@ async def submit(request, userdata):
     regex = request.query.get('regex')
 
 
+@router.get('/batches/{batch_id}')
+@web_authenticated_developers_only()
+async def get_batch(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    batch_client = request.app['batch_client']
+    b = await batch_client.get_batch(batch_id)
+    status = await b.last_known_status()
+    jobs = await collect_agen(b.jobs())
+    for j in jobs:
+        j['duration'] = humanize_timedelta_msecs(j['duration'])
+    page_context = {
+        'batch': status,
+        'jobs': jobs
+    }
+    return await render_template('benchmark', request, userdata, 'batch.html', page_context)
+
+
+@router.get('/batches/{batch_id}/jobs/{job_id}')
+@web_authenticated_developers_only()
+async def get_job(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    job_id = int(request.match_info['job_id'])
+    batch_client = request.app['batch_client']
+    job = await batch_client.get_job(batch_id, job_id)
+    page_context = {
+        'batch_id': batch_id,
+        'job_id': job_id,
+        'job_log': await job.log(),
+        'job_status': json.dumps(await job.status(), indent=2),
+        'attempts': await job.attempts()
+    }
+    return await render_template('benchmark', request, userdata, 'job.html', page_context)
+
+
 async def update_commits(app):
     global benchmark_data
     github_client = app['github_client']
@@ -332,6 +365,8 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
     batch = await batch_client.get_batch(batch_id)
     commit['status'] = batch._last_known_status
     log.info(f'submitted a batch {batch_id} for commit {sha}')
+
+    benchmark_data['commits'][sha] = commit  # TODO: ????
 
     return commit
 
