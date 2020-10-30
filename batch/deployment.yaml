@@ -22,12 +22,13 @@ spec:
       serviceAccountName: batch
 {% if deploy %}
       priorityClassName: production
-{% endif %}
+{% else %}
       nodeSelector:
         preemptible: "true"
       tolerations:
        - key: preemptible
          value: "true"
+{% endif %}
       containers:
       - name: batch-driver
         image: {{ batch_image.image }}
