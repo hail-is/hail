@@ -1,7 +1,7 @@
 from google.cloud import storage
 import re
 import logging
-from .config import BENCHMARK_TEST_BUCKET_NAME
+from .config import HAIL_BENCHMARK_BUCKET_NAME
 
 log = logging.getLogger('benchmark')
 
@@ -53,9 +53,9 @@ async def submit_batch(sha, batch_client):
     batch = batch_client.create_batch()
     job = batch.create_job(image='ubuntu:18.04',
                            command=['/bin/bash', '-c', 'touch /io/test; sleep 300'],
-                           output_files=[('/io/test', f'gs://{BENCHMARK_TEST_BUCKET_NAME}/benchmark-test/{sha}')])
+                           output_files=[('/io/test', f'gs://{HAIL_BENCHMARK_BUCKET_NAME}/benchmark-test/{sha}')])
     await batch.submit(disable_progress_bar=True)
-    log.info(f'submitting batch for commit {sha}')
+    log.info(f'submitted batch for commit {sha}')
     return job.batch_id
 
 
@@ -87,5 +87,6 @@ class ReadGoogleStorage:
         file_info = parse_file_path(FILE_PATH_REGEX, file_path)
         bucket_name = file_info['bucket']
         bucket = self.storage_client.bucket(bucket_name)
-        stats = storage.Blob(bucket=bucket, name=file_path).exists(self.storage_client)
+        stats = storage.Blob(bucket=bucket, name=file_path).exists()
+        # stats = storage.Blob(bucket=bucket, name=file_path).exists(self.storage_client)
         return stats

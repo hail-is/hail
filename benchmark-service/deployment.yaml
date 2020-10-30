@@ -35,17 +35,13 @@ spec:
           - name: HAIL_CI_OAUTH_TOKEN
             value: /secrets/oauth-token/oauth-token
 {% if deploy %}
-          - name: HAIL_TEST_BENCHMARK_BUCKET_NAME
-            value: hail-test-dmk9z
-{% else %}
-          - name: HAIL_TEST_BENCHMARK_BUCKET_NAME
+          - name: HAIL_BENCHMARK_BUCKET_NAME
             value: hail-test
+{% else %}
+          - name: HAIL_BENCHMARK_BUCKET_NAME
+            value: hail-test-dmk9z
 {% endif %}
-{% if deploy or scope == "dev" %}
-          - name: START_POINT
-            value: "2020-10-01T00:00:00Z"
-{% endif %}
-{% if scope == "test" or scope == "dev" %}
+{% if deploy %}
           - name: START_POINT
             value: "2020-10-01T00:00:00Z"
 {% endif %}

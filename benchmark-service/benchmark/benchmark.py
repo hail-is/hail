@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 import gidgethub
 import gidgethub.aiohttp
-from .config import BENCHMARK_TEST_BUCKET_NAME, START_POINT
+from .config import HAIL_BENCHMARK_BUCKET_NAME, START_POINT
 
 configure_logging()
 router = web.RouteTableDef()
@@ -226,38 +226,51 @@ async def update_commits(app):
     gh_data = await github_client.getitem(request_string)
     new_commits = []
     formatted_new_commits = []
+
     for gh_commit in gh_data:
+        file_path = f'gs://{HAIL_BENCHMARK_BUCKET_NAME}/benchmark-test/{sha}'
+        has_results_file = gs_reader.file_exists(file_path)
 
         sha = gh_commit.get('sha')
 
         batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
-        try:
-            batch = batches[-1]
-            batch_status = await batch.status()
-        except Exception:  # pylint: disable=broad-except
-            batch_status = None
-
-        file_path = f'gs://{BENCHMARK_TEST_BUCKET_NAME}/benchmark-test/{sha}'
-        has_results_file = gs_reader.file_exists(file_path)
+        # if len(batches) == 0:
+        #     batch_status = None
+        # else:
+        #     batch = batches[-1]
+        #     batch_status = await batch.status()
 
         if not batches and not has_results_file:
             new_commits.append(gh_commit)
+            sha = gh_commit.get('sha')
+            batch_id = await submit_batch(batch_client, sha)
+            batch = batch_client.get_batch(batch_id)
+            batch_status = await batch.last_known_status()
+            log.info(f'submitted a batch {batch_id} for commit {sha}')
+            commit = {
+                'sha': sha,
+                'title': gh_commit['commit']['message'],
+                'author': gh_commit['commit']['author']['name'],
+                'date': gh_commit['commit']['author']['date'],
+                'status': batch_status
+            }
+            formatted_new_commits.append(commit)
 
     log.info('got new commits')
-    for gh_commit in new_commits:
-        sha = gh_commit.get('sha')
-        batch_id = await submit_batch(sha, batch_client)
-        batch = batch_client.get_batch(batch_id)
-        batch_status = await batch.last_known_status()
-        log.info(f'submitted a batch {batch_id} for commit {sha}')
-        commit = {
-            'sha': sha,
-            'title': gh_commit['commit']['message'],
-            'author': gh_commit['commit']['author']['name'],
-            'date': gh_commit['commit']['author']['date'],
-            'status': batch_status
-        }
-        formatted_new_commits.append(commit)
+    # for gh_commit in new_commits:
+    #     sha = gh_commit.get('sha')
+    #     batch_id = await submit_batch(sha, batch_client)
+    #     batch = batch_client.get_batch(batch_id)
+    #     batch_status = await batch.last_known_status()
+    #     log.info(f'submitted a batch {batch_id} for commit {sha}')
+    #     commit = {
+    #         'sha': sha,
+    #         'title': gh_commit['commit']['message'],
+    #         'author': gh_commit['commit']['author']['name'],
+    #         'date': gh_commit['commit']['author']['date'],
+    #         'status': batch_status
+    #     }
+    #     formatted_new_commits.append(commit)
 
     benchmark_data = {
         'commits': formatted_new_commits
