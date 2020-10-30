@@ -200,7 +200,6 @@ async def index(request):
     }
     assert len(d['dates']) == len(d['geo_means']), d
     df = pd.DataFrame(d)
-    # fig = px.scatter(df, x=df.dates, y=df.geo_means)
     fig = px.line(df, x=df.dates, y=df.geo_means)
     fig.update_xaxes(rangeslider_visible=True)
     plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
