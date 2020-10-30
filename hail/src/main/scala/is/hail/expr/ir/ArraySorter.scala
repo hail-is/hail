@@ -50,25 +50,22 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       array.setSize(n))
   }
 
-  def distinctFromSorted(discardNext: (Code[Region], Code[_], Code[Boolean], Code[_], Code[Boolean]) => Code[Boolean]): Code[Unit] = {
-    val i = mb.newLocal[Int]()
-    val n = mb.newLocal[Int]()
+  def distinctFromSorted(discardNext: (EmitCodeBuilder, Code[Region], EmitCode, EmitCode) => Code[Boolean]): Code[Unit] = EmitCodeBuilder.scopedVoid(mb) { cb =>
+    val i = cb.newLocal[Int]("distinct_from_sorted_i", 0)
+    val n = cb.newLocal[Int]("distinct_from_sorted_n", 0)
 
-    Code(
-      i := 0,
-      n := 0,
-      Code.whileLoop(i < array.size,
-        i += 1,
-        Code.whileLoop(i < array.size && discardNext(r.region, array(n), array.isMissing(n), array(i), array.isMissing(i)),
-          i += 1),
-        n += 1,
-        (i < array.size && i.cne(n)).mux(
-          Code(
-            array.setMissing(n, array.isMissing(i)),
-            array.isMissing(n).mux(
-              Code._empty,
-              array.update(n, array(i)))),
-          Code._empty)),
-      array.setSize(n))
+    cb.whileLoop(i < array.size, {
+      cb.assign(i, i + 1)
+      cb.whileLoop(i < array.size && discardNext(cb, r.region, array.applyEV(mb, n), array.applyEV(mb, i)),
+        cb.assign(i, i + 1))
+      cb.assign(n, n + 1)
+      cb.ifx(i < array.size && i.cne(n), {
+        cb += array.setMissing(n, array.isMissing(i))
+        cb.ifx(!array.isMissing(n), {
+          cb += array.update(n, array(i))
+        })
+      })
+    })
+    cb += array.setSize(n)
   }
 }

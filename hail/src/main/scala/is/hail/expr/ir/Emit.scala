@@ -1069,7 +1069,7 @@ class Emit[C](
 
           val shapeBuilder = pndVal.pt.makeShapeBuilder(shapeArray)
           val stridesBuilder = pndVal.pt.makeColumnMajorStridesBuilder(shapeArray, mb)
-          
+
           PCode(pndVal.pt, pndVal.pt.construct(shapeBuilder, stridesBuilder, Aaddr, mb, region.code))
         }
       case x@NDArraySVD(nd, full_matrices, computeUV) =>
@@ -1851,12 +1851,8 @@ class Emit[C](
             discardNext.emit(Code(s, m || pv.tcode[Boolean]))
             val lessThan = ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0
             InferPType(lessThan)
-            (a, lessThan, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
-              EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
-                cb.invokeCode[Boolean](discardNext, r,
-                  new EmitCode(Code._empty, m1, PCode(eltType, v1)),
-                  new EmitCode(Code._empty, m2, PCode(eltType, v2)))
-              }
+            (a, lessThan, sorter.distinctFromSorted { (cb, r, v1, v2) =>
+                cb.invokeCode[Boolean](discardNext, r, v1, v2)
             }, Array.empty[String])
           case ToDict(a) =>
             val (k0, k1, keyType) = eltType match {
@@ -1873,12 +1869,8 @@ class Emit[C](
             discardNext.emit(Code(s, m || pv.tcode[Boolean]))
             val lessThan = (ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0).deepCopy()
             InferPType(lessThan)
-            (a, lessThan, Code(sorter.pruneMissing, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
-              EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
-                cb.invokeCode[Boolean](discardNext, r,
-                  new EmitCode(Code._empty, m1, PCode(eltType, v1)),
-                  new EmitCode(Code._empty, m2, PCode(eltType, v2)))
-              }
+            (a, lessThan, Code(sorter.pruneMissing, sorter.distinctFromSorted { (cb, r, v1, v2) =>
+                cb.invokeCode[Boolean](discardNext, r, v1, v2)
             }), Array.empty[String])
         }
 
