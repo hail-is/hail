@@ -26,6 +26,7 @@ object PCanonicalLocus {
 final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) extends PLocus {
 
   def byteSize: Long = representation.byteSize
+  override def alignment: Long = representation.alignment
 
   override def fundamentalType: PType = representation
 

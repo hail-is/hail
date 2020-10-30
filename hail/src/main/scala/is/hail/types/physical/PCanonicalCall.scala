@@ -14,6 +14,7 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
   val representation: PType = PInt32(required)
 
   def byteSize: Long = representation.byteSize
+  override def alignment: Long = representation.alignment
 
   override def fundamentalType: PType = representation
 

@@ -10,6 +10,7 @@ import is.hail.utils.FastIndexedSeq
 final case class PCanonicalInterval(pointType: PType, override val required: Boolean = false) extends PInterval {
 
   def byteSize: Long = representation.byteSize
+  override def alignment: Long = representation.alignment
 
   def _asIdent = s"interval_of_${ pointType.asIdent }"
 
