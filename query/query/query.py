@@ -93,8 +93,8 @@ async def handle_ws_response(request, userdata, endpoint, f):
     log.info(f'{endpoint}: connecting websocket')
     ws = web.WebSocketResponse(heartbeat=30, max_msg_size=0)
     task = None
+    await ws.prepare(request)
     try:
-        await ws.prepare(request)
         log.info(f'{endpoint}: websocket prepared {ws}')
         body = await ws.receive_json()
         log.info(f'{endpoint}: {body}')
