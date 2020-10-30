@@ -7,6 +7,8 @@ from hailtop.batch_client.aioclient import BatchClient
 
 pytestmark = pytest.mark.asyncio
 
+DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
+
 
 @pytest.fixture
 async def make_client():
@@ -61,7 +63,7 @@ async def test_bad_token():
     bc = await BatchClient('test', _token=token)
     try:
         b = bc.create_batch()
-        j = b.create_job('ubuntu:18.04', ['false'])
+        j = b.create_job(DOCKER_ROOT_IMAGE, ['false'])
         await b.submit()
         assert False, j
     except aiohttp.ClientResponseError as e:
@@ -337,13 +339,13 @@ async def test_billing_project_accrued_costs(make_client, dev_client, new_billin
         return abs(x - y) <= tolerance
 
     b1 = client.create_batch()
-    j1_1 = b1.create_job('ubuntu:18.04', command=['echo', 'head'])
-    j1_2 = b1.create_job('ubuntu:18.04', command=['echo', 'head'])
+    j1_1 = b1.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
+    j1_2 = b1.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     b1 = await b1.submit()
 
     b2 = client.create_batch()
-    j2_1 = b2.create_job('ubuntu:18.04', command=['echo', 'head'])
-    j2_2 = b2.create_job('ubuntu:18.04', command=['echo', 'head'])
+    j2_1 = b2.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
+    j2_2 = b2.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     b2 = await b2.submit()
 
     b1 = await b1.wait()
@@ -401,16 +403,16 @@ async def test_billing_limit_tiny(make_client, dev_client, new_billing_project):
     client = await make_client(project)
 
     batch = client.create_batch()
-    j1 = batch.create_job('ubuntu:18.04', command=['sleep', '5'])
-    j2 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j1])
-    j3 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j2])
-    j4 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j3])
-    j5 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j4])
-    j6 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j5])
-    j7 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j6])
-    j8 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j7])
-    j9 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j8])
-    j10 = batch.create_job('ubuntu:18.04', command=['sleep', '5'], parents=[j9])
+    j1 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'])
+    j2 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j1])
+    j3 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j2])
+    j4 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j3])
+    j5 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j4])
+    j6 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j5])
+    j7 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j6])
+    j8 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j7])
+    j9 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j8])
+    j10 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j9])
     batch = await batch.submit()
     batch = await batch.wait()
     assert batch['state'] == 'cancelled', batch

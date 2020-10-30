@@ -6,9 +6,10 @@ INTERNAL_GATEWAY_LATEST = gcr.io/$(PROJECT)/internal-gateway:latest
 INTERNAL_GATEWAY_IMAGE = gcr.io/$(PROJECT)/internal-gateway:$(shell docker images -q --no-trunc internal-gateway | sed -e 's,[^:]*:,,')
 
 build:
-	docker pull ubuntu:18.04
+	docker pull gcr.io/$(PROJECT)/ubuntu:18.04
 	-docker pull $(INTERNAL_GATEWAY_LATEST)
-	docker build -t internal-gateway --cache-from internal-gateway,$(INTERNAL_GATEWAY_LATEST),ubuntu:18.04 .
+	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}}' Dockerfile Dockerfile.out
+	docker build -f Dockerfile.out -t internal-gateway --cache-from internal-gateway,$(INTERNAL_GATEWAY_LATEST),gcr.io/$(PROJECT)/ubuntu:18.04 .
 
 push: build
 	docker tag internal-gateway $(INTERNAL_GATEWAY_LATEST)

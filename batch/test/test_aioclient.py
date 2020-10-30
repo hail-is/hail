@@ -13,7 +13,7 @@ async def client():
 
 async def test_job(client):
     b = client.create_batch()
-    j = b.create_job('ubuntu:18.04', ['echo', 'test'])
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
     await b.submit()
     status = await j.wait()
     assert 'attributes' not in status, (status, await j.log())

@@ -20,8 +20,8 @@ def client():
 
 def test_simple(client):
     batch = client.create_batch()
-    head = batch.create_job('ubuntu:18.04', command=['echo', 'head'])
-    tail = batch.create_job('ubuntu:18.04', command=['echo', 'tail'], parents=[head])
+    head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
+    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head])
     batch = batch.submit()
     batch.wait()
     status = legacy_batch_status(batch)
@@ -34,7 +34,7 @@ def test_missing_parent_is_400(client):
         batch = client.create_batch()
         fake_job = aioclient.Job.unsubmitted_job(batch._async_builder, 10000)
         fake_job = Job.from_async_job(fake_job)
-        batch.create_job('ubuntu:18.04', command=['echo', 'head'], parents=[fake_job])
+        batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'], parents=[fake_job])
         batch.submit()
     except ValueError as err:
         assert re.search('parents with invalid job ids', str(err))
@@ -44,10 +44,10 @@ def test_missing_parent_is_400(client):
 
 def test_dag(client):
     batch = client.create_batch()
-    head = batch.create_job('ubuntu:18.04', command=['echo', 'head'])
-    left = batch.create_job('ubuntu:18.04', command=['echo', 'left'], parents=[head])
-    right = batch.create_job('ubuntu:18.04', command=['echo', 'right'], parents=[head])
-    tail = batch.create_job('ubuntu:18.04', command=['echo', 'tail'], parents=[left, right])
+    head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
+    left = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'left'], parents=[head])
+    right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
+    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right])
     batch = batch.submit()
     batch.wait()
     status = legacy_batch_status(batch)
@@ -60,11 +60,11 @@ def test_dag(client):
 
 def test_cancel_tail(client):
     batch = client.create_batch()
-    head = batch.create_job('ubuntu:18.04', command=['echo', 'head'])
-    left = batch.create_job('ubuntu:18.04', command=['echo', 'left'], parents=[head])
-    right = batch.create_job('ubuntu:18.04', command=['echo', 'right'], parents=[head])
+    head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
+    left = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'left'], parents=[head])
+    right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
     tail = batch.create_job(
-        'ubuntu:18.04',
+        DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
         parents=[left, right])
     batch = batch.submit()
@@ -83,13 +83,13 @@ def test_cancel_tail(client):
 
 def test_cancel_left_after_tail(client):
     batch = client.create_batch()
-    head = batch.create_job('ubuntu:18.04', command=['echo', 'head'])
+    head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     left = batch.create_job(
-        'ubuntu:18.04',
+        DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
         parents=[head])
-    right = batch.create_job('ubuntu:18.04', command=['echo', 'right'], parents=[head])
-    tail = batch.create_job('ubuntu:18.04', command=['echo', 'tail'], parents=[left, right])
+    right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
+    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right])
     batch = batch.submit()
     head.wait()
     right.wait()
@@ -164,9 +164,9 @@ def test_callback(client):
 def test_no_parents_allowed_in_other_batches(client):
     b1 = client.create_batch()
     b2 = client.create_batch()
-    head = b1.create_job('ubuntu:18.04', command=['echo', 'head'])
+    head = b1.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     try:
-        b2.create_job('ubuntu:18.04', command=['echo', 'tail'], parents=[head])
+        b2.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head])
     except ValueError as err:
         assert re.search('parents from another batch', str(err))
         return
@@ -176,11 +176,11 @@ def test_no_parents_allowed_in_other_batches(client):
 def test_input_dependency(client):
     bucket_name = get_user_config().get('batch', 'bucket')
     batch = client.create_batch()
-    head = batch.create_job('ubuntu:18.04',
+    head = batch.create_job(DOCKER_ROOT_IMAGE,
                             command=['/bin/sh', '-c', 'echo head1 > /io/data1; echo head2 > /io/data2'],
                             output_files=[('/io/data1', f'gs://{bucket_name}'),
                                           ('/io/data2', f'gs://{bucket_name}')])
-    tail = batch.create_job('ubuntu:18.04',
+    tail = batch.create_job(DOCKER_ROOT_IMAGE,
                             command=['/bin/sh', '-c', 'cat /io/data1; cat /io/data2'],
                             input_files=[(f'gs://{bucket_name}/data1', '/io/'),
                                          (f'gs://{bucket_name}/data2', '/io/')],
@@ -194,10 +194,10 @@ def test_input_dependency(client):
 def test_input_dependency_wildcard(client):
     bucket_name = get_user_config().get('batch', 'bucket')
     batch = client.create_batch()
-    head = batch.create_job('ubuntu:18.04',
+    head = batch.create_job(DOCKER_ROOT_IMAGE,
                             command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
                             output_files=[('/io/data*', f'gs://{bucket_name}')])
-    tail = batch.create_job('ubuntu:18.04',
+    tail = batch.create_job(DOCKER_ROOT_IMAGE,
                             command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
                             input_files=[(f'gs://{bucket_name}/data*', '/io/')],
                             parents=[head])
@@ -210,10 +210,10 @@ def test_input_dependency_wildcard(client):
 def test_input_dependency_directory(client):
     bucket_name = get_user_config().get('batch', 'bucket')
     batch = client.create_batch()
-    head = batch.create_job('ubuntu:18.04',
+    head = batch.create_job(DOCKER_ROOT_IMAGE,
                             command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
                             output_files=[('/io/test/', f'gs://{bucket_name}')])
-    tail = batch.create_job('ubuntu:18.04',
+    tail = batch.create_job(DOCKER_ROOT_IMAGE,
                             command=['/bin/sh', '-c', 'cat /io/test/data1; cat /io/test/data2'],
                             input_files=[(f'gs://{bucket_name}/test', '/io/')],
                             parents=[head])
@@ -225,13 +225,13 @@ def test_input_dependency_directory(client):
 
 def test_always_run_cancel(client):
     batch = client.create_batch()
-    head = batch.create_job('ubuntu:18.04', command=['echo', 'head'])
+    head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     left = batch.create_job(
-        'ubuntu:18.04',
+        DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
         parents=[head])
-    right = batch.create_job('ubuntu:18.04', command=['echo', 'right'], parents=[head])
-    tail = batch.create_job('ubuntu:18.04',
+    right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
+    tail = batch.create_job(DOCKER_ROOT_IMAGE,
                             command=['echo', 'tail'],
                             parents=[left, right],
                             always_run=True)
@@ -251,8 +251,8 @@ def test_always_run_cancel(client):
 
 def test_always_run_error(client):
     batch = client.create_batch()
-    head = batch.create_job('ubuntu:18.04', command=['/bin/sh', '-c', 'exit 1'])
-    tail = batch.create_job('ubuntu:18.04',
+    head = batch.create_job(DOCKER_ROOT_IMAGE, command=['/bin/sh', '-c', 'exit 1'])
+    tail = batch.create_job(DOCKER_ROOT_IMAGE,
                             command=['echo', 'tail'],
                             parents=[head],
                             always_run=True)

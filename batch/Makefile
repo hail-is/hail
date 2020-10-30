@@ -21,9 +21,10 @@ build:
 	-docker pull $(BATCH_LATEST)
 	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
 	docker build -t batch -f Dockerfile.out --cache-from batch,$(BATCH_LATEST),service-base ..
-	-docker pull python:3.7-slim-stretch
+	-docker pull gcr.io/$(PROJECT)/python:3.7-slim-stretch
 	-docker pull $(BATCH_WORKER_LATEST)
-	docker build -t batch-worker -f Dockerfile.worker --cache-from batch-worker,$(BATCH_WORKER_LATEST),python:3.7-slim-stretch ..
+	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}}' Dockerfile.worker Dockerfile.worker.out
+	docker build -t batch-worker -f Dockerfile.worker --cache-from batch-worker,$(BATCH_WORKER_LATEST),gcr.io/$(PROJECT)/python:3.7-slim-stretch ..
 
 .PHONY: push
 push: build

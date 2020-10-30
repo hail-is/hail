@@ -2108,13 +2108,13 @@ steps:
    name: netcat_ubuntu_image
    dockerFile:
      inline: |
-       FROM ubuntu:18.04
+       FROM gcr.io/{{ global.project }}/ubuntu:18.04
        RUN apt-get update && apt-get install netcat -y
  - kind: buildImage
    name: curl_image
    dockerFile:
      inline: |
-       FROM ubuntu:18.04
+       FROM gcr.io/{{ global.project }}/ubuntu:18.04
        RUN apt-get update && apt-get install curl -y
  - kind: runImage
    name: test_memory
@@ -2173,6 +2173,7 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
@@ -2239,6 +2240,7 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
@@ -2305,6 +2307,7 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
@@ -2371,6 +2374,7 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
@@ -2437,6 +2441,7 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
@@ -2614,6 +2619,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=0
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -2664,6 +2670,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=1
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -2714,6 +2721,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=2
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -2764,6 +2772,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=3
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -2814,6 +2823,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=4
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
