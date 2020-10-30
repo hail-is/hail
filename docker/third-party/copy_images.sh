@@ -6,7 +6,7 @@ images=$(cat images.txt)
 
 if [ -z "${PROJECT}" ]
 then
-    echo ERROR: GCR_PROJECT must be set before running this
+    echo ERROR: PROJECT must be set before running this
     exit 1
 fi
 
