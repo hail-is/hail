@@ -88,5 +88,4 @@ class ReadGoogleStorage:
         bucket_name = file_info['bucket']
         bucket = self.storage_client.bucket(bucket_name)
         stats = storage.Blob(bucket=bucket, name=file_path).exists()
-        # stats = storage.Blob(bucket=bucket, name=file_path).exists(self.storage_client)
         return stats
