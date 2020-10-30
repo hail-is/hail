@@ -25,8 +25,9 @@ from hailtop.tls import get_in_cluster_server_ssl_context, in_cluster_ssl_client
 from hailtop.hail_logging import AccessLogger
 from hailtop import aiotools
 from gear import (Database, setup_aiohttp_session,
-                  rest_authenticated_users_only, rest_authenticated_developers_only,
-                  web_authenticated_users_only, web_authenticated_developers_only,
+                  rest_authenticated_users_only,
+                  web_authenticated_users_only,
+                  web_authenticated_developers_only,
                   check_csrf_token, transaction)
 from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
                         render_template, set_message)
@@ -1434,7 +1435,7 @@ async def ui_get_billing_projects(request, userdata):
 
 @routes.get('/api/v1alpha/billing_projects')
 @prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS)
-@rest_authenticated_developers_or_auth_only
+@rest_authenticated_users_only
 async def get_billing_projects(request, userdata):
     db = request.app['db']
 
@@ -1450,7 +1451,7 @@ async def get_billing_projects(request, userdata):
 
 @routes.get('/api/v1alpha/billing_projects/{billing_project}')
 @prom_async_time(REQUEST_TIME_GET_BILLING_PROJECT)
-@rest_authenticated_developers_or_auth_only
+@rest_authenticated_users_only
 async def get_billing_project(request, userdata):
     db = request.app['db']
     billing_project = request.match_info['billing_project']

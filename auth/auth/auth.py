@@ -10,6 +10,7 @@ import google_auth_oauthlib.flow
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger
+from hailtop.utils import secret_alnum_string
 from gear import (
     setup_aiohttp_session,
     rest_authenticated_users_only, web_authenticated_developers_only,
@@ -20,7 +21,6 @@ from web_common import (
     setup_aiohttp_jinja2, setup_common_static_routes, set_message,
     render_template
 )
-from hailtop.utils import secret_alnum_string
 
 log = logging.getLogger('auth')
 
@@ -175,7 +175,7 @@ async def _wait_websocket(request, email):
 
 @routes.get('/signup/wait')
 @web_maybe_authenticated_user
-async def account_pending(request, userdata):
+async def account_pending(request, userdata):  # pylint: disable=unused-argument
     session = await aiohttp_session.get_session(request)
     if 'pending' not in session:
         raise web.HTTPUnauthorized()
@@ -293,8 +293,7 @@ async def callback(request):
             session['email'] = email
 
             return aiohttp.web.HTTPFound(deploy_config.external_url('auth', '/signup'))
-        else:
-            raise web.HTTPUnauthorized()
+        raise web.HTTPUnauthorized()
 
     set_message(session, f'Account already exists for {email}', 'error')
 

@@ -319,10 +319,7 @@ class BillingProjectResource:
             if e.status != 403 or 'already member of billing project' not in e.message:
                 raise
 
-        try:
-            await self.batch_client.edit_billing_limit(billing_project, 10)
-        except aiohttp.ClientResponseError:
-            raise
+        await self.batch_client.edit_billing_limit(billing_project, 10)
 
         self.user = user
         self.billing_project = billing_project
