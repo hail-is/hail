@@ -228,10 +228,9 @@ async def update_commits(app):
     formatted_new_commits = []
 
     for gh_commit in gh_data:
+        sha = gh_commit.get('sha')
         file_path = f'gs://{HAIL_BENCHMARK_BUCKET_NAME}/benchmark-test/{sha}'
         has_results_file = gs_reader.file_exists(file_path)
-
-        sha = gh_commit.get('sha')
 
         batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
         # if len(batches) == 0:
