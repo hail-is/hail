@@ -3,9 +3,10 @@
 {% block content %}
   <h1>Create User</h1>
   <form action="{{ base_path }}/users" method="POST">
-    <div>Username: <input name="username" /></div>
+    <div>Username: <input required name="username" /></div>
     <div>Email: <input name="email" /></div>
     <div><input type="checkbox" name="is_developer" value="1" /> Developer</div>
+    <div><input type="checkbox" name="is_service_account" value="1" /> Service Account</div>
     <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>  
     <button>
       Create

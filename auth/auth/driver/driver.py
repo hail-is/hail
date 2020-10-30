@@ -4,11 +4,10 @@ import json
 import base64
 import logging
 import secrets
-import string
 import asyncio
 import aiohttp
 import kubernetes_asyncio as kube
-from hailtop.utils import time_msecs
+from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
 from hailtop import aiogoogle, aiotools
 from gear import create_session, Database
@@ -294,10 +293,14 @@ async def _create_user(app, user, cleanup):
     k8s_client = app['k8s_client']
     iam_client = app['iam_client']
 
-    alnum = string.ascii_lowercase + string.digits
-    token = ''.join([secrets.choice(alnum) for _ in range(5)])
-    ident_token = f'{user["username"]}-{token}'
-    if user['is_developer'] == 1:
+    if user['is_service_account'] != 1:
+        token = secret_alnum_string(5, case='lower')
+        ident_token = f'{user["username"]}-{token}'
+    else:
+        token = secret_alnum_string(3, case='numbers')
+        ident_token = f'{user["username"]}-{token}'
+
+    if user['is_developer'] == 1 or user['is_service_account'] == 1:
         ident = user['username']
     else:
         ident = ident_token
