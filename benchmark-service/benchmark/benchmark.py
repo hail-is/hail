@@ -415,6 +415,15 @@ async def call_update_commit(request):  # pylint: disable=unused-argument
     return web.json_response(commit)
 
 
+@router.get('/submit')
+async def submit(request, userdata):
+    app = request.app
+    reponame = request.query.get('reponame')
+    branchname = request.query.get('branchname')
+    iterations = request.query.get('iterations')
+    regex = request.query.get('regex')
+
+
 async def github_polling_loop(app):
     while True:
         await update_commits(app)
