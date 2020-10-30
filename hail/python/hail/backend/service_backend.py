@@ -29,7 +29,7 @@ class ServiceSocket:
         self.session = None
 
     def handle_response(self, resp):
-        if resp.type == aiohttp.WSMsgType.CLOSED:
+        if resp.type == aiohttp.WSMsgType.CLOSE:
             raise aiohttp.ServerDisconnectedError('Socket was closed by server. (code={resp.data})')
         if resp.type == aiohttp.WSMsgType.ERROR:
             raise FatalError(f'Error raised while waiting for response from server: {resp}.')

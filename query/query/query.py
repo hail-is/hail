@@ -4,7 +4,6 @@ import concurrent
 import logging
 import uvloop
 import asyncio
-import aiohttp
 from aiohttp import web
 import kubernetes_asyncio as kube
 from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
@@ -96,13 +95,12 @@ async def handle_ws_response(request, userdata, endpoint, f):
     task = None
     try:
         await ws.prepare(request)
-        app['sockets'].add(ws)
         log.info(f'{endpoint}: websocket prepared {ws}')
         body = await ws.receive_json()
-        log.info(f"{endpoint}: {body}")
+        log.info(f'{endpoint}: {body}')
         task = asyncio.ensure_future(send_ws_response(app['thread_pool'], endpoint, ws, f, jbackend, userdata, body))
         r = await ws.receive()
-        log.info('{endpoint}: Received websocket message. Expected CLOSE, got {r}')
+        log.info(f'{endpoint}: Received websocket message. Expected CLOSE, got {r}')
         return ws
     finally:
         if not ws.closed:
