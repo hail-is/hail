@@ -7,6 +7,7 @@ import time
 import copy
 from shlex import quote as shq
 import webbrowser
+import warnings
 
 from hailtop.config import get_deploy_config, get_user_config
 import hailtop.batch_client.client as bc
@@ -358,7 +359,7 @@ class ServiceBackend(Backend):
         remote_tmpdir = f'gs://{self._bucket_name}/batch/{token}'
         local_tmpdir = f'/io/batch/{token}'
 
-        default_image = 'ubuntu:latest'
+        default_image = 'ubuntu:18.04'
 
         attributes = copy.deepcopy(batch.attributes)
         if batch.name is not None:
@@ -470,7 +471,13 @@ class ServiceBackend(Backend):
             if job._storage:
                 resources['storage'] = job._storage
 
-            j = bc_batch.create_job(image=job._image if job._image else default_image,
+            image = job._image if job._image else default_image
+            if not image.startswith('gcr.io/'):
+                warnings.warn(f'Using an image {image} not in GCR. '
+                              f'Jobs may fail due to Docker Hub rate limits.',
+                              UserWarning)
+
+            j = bc_batch.create_job(image=image,
                                     command=[job._shell if job._shell else self._DEFAULT_SHELL, '-c', cmd],
                                     parents=parents,
                                     attributes=attributes,
