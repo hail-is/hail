@@ -163,9 +163,15 @@ Submitting a Batch to the Service
 
 To execute a batch on the Batch service rather than locally, first
 construct a :class:`.ServiceBackend` object with a billing project and
-bucket for storing intermediate files.  Your service account must
-have read and write access to the bucket.  Next, pass the
-:class:`.ServiceBackend` object to the :class:`.Batch` constructor
+bucket for storing intermediate files. Your service account must have read
+and write access to the bucket.
+
+.. warning::
+
+   To avoid expensive egress charges, make sure your bucket is multi-regional
+   in the United States because Batch runs your job in any US region.
+
+Next, pass the :class:`.ServiceBackend` object to the :class:`.Batch` constructor
 with the parameter name `backend`.
 
 An example of running "Hello World" on the Batch service rather than
@@ -231,3 +237,12 @@ button next to the row for that batch. You can also delete a batch with the "Del
 .. warning::
 
     Deleting a batch only removes it from the UI. You will still be billed for a deleted batch.
+
+
+Important Notes
+---------------
+
+.. warning::
+
+    To avoid expensive egress charges, input and output files should be located in buckets
+    that are multi-regional in the United States because Batch runs jobs in any US region.

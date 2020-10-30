@@ -201,6 +201,12 @@ class Batch:
         """
         Create a new input resource file object representing a single file.
 
+        .. warning::
+
+            To avoid expensive egress charges, input files should be located in buckets
+            that are multi-regional in the United States because Batch runs jobs in any
+            US region.
+
         Examples
         --------
 
@@ -226,6 +232,12 @@ class Batch:
     def read_input_group(self, **kwargs: str) -> _resource.ResourceGroup:
         """Create a new resource group representing a mapping of identifier to
         input resource files.
+
+        .. warning::
+
+            To avoid expensive egress charges, input files should be located in buckets
+            that are multi-regional in the United States because Batch runs jobs in any
+            US region.
 
         Examples
         --------
@@ -297,6 +309,12 @@ class Batch:
         >>> j.command(f'echo "hello" > {j.ofile}')
         >>> b.write_output(j.ofile, 'output/hello.txt')
         >>> b.run()
+
+        .. warning::
+
+            To avoid expensive egress charges, output files should be located in buckets
+            that are multi-regional in the United States because Batch runs jobs in any
+            US region.
 
         Notes
         -----
