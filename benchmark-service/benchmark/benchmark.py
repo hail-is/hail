@@ -243,7 +243,7 @@ async def update_commits(app):
             new_commits.append(gh_commit)
             #sha = gh_commit.get('sha')
             batch_id = await submit_batch(batch_client, sha)
-            batch = batch_client.get_batch(batch_id)
+            batch = await batch_client.get_batch(batch_id)
             batch_status = await batch.last_known_status()
             log.info(f'submitted a batch {batch_id} for commit {sha}')
             commit = {
