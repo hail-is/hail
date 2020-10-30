@@ -31,16 +31,12 @@ def java_to_web_response(jresp):
     return web.json_response(status=status, text=value)
 
 
-async def send_ws_response(thread_pool, ws, f, *args, **kwargs):
+async def send_ws_response(thread_pool, endpoint, ws, f, *args, **kwargs):
     jresp = await blocking_to_async(thread_pool, f, *args, **kwargs)
     status = jresp.status()
     value = jresp.value()
-    log.info(f'response status {status} value {value}')
-    if status in (400, 500):
-        await ws.send_json({'error': value})
-    else:
-        assert status == 200, status
-        await ws.send_json({'status': status, 'result': value})
+    log.info(f'{endpoint}: response status {status} value {value}')
+    await ws.send_json({'status': status, 'value': value})
 
 
 async def add_user(app, userdata):
@@ -90,37 +86,32 @@ def blocking_get_reference(jbackend, userdata, body):   # pylint: disable=unused
     return jbackend.referenceGenome(userdata['username'], body['name'])
 
 
-async def handle_ws_response(request, userdata, cmd_str, f):
-    log.info('connecting websocket')
+async def handle_ws_response(request, userdata, endpoint, f):
     app = request.app
     jbackend = app['jbackend']
 
     await add_user(app, userdata)
-    log.info('connecting websocket')
+    log.info(f'{endpoint}: connecting websocket')
     ws = web.WebSocketResponse(heartbeat=30, max_msg_size=0)
     task = None
     try:
         await ws.prepare(request)
         app['sockets'].add(ws)
-        log.info(f'websocket prepared: {ws}')
+        log.info(f'{endpoint}: websocket prepared {ws}')
         body = await ws.receive_json()
-
-        log.info(f"{cmd_str}: {body}")
-        await ws.send_str(cmd_str)
-        task = asyncio.ensure_future(send_ws_response(app['thread_pool'], ws, f, jbackend, userdata, body))
+        log.info(f"{endpoint}: {body}")
+        task = asyncio.ensure_future(send_ws_response(app['thread_pool'], endpoint, ws, f, jbackend, userdata, body))
         r = await ws.receive()
-        log.info('Received websocket message. Expected CLOSE, got {r}')
-        assert r.type == aiohttp.WSMsgType.CLOSE
+        log.info('{endpoint}: Received websocket message. Expected CLOSE, got {r}')
         return ws
     finally:
         if not ws.closed:
             await ws.close()
-            log.info('Websocket was not closed. Closing.')
+            log.info('{endpoint}: Websocket was not closed. Closing.')
         if task is not None and not task.done():
             task.cancel()
-            log.info('Task has been cancelled due to websocket closure.')
-        log.info('websocket connection closed')
-        app['sockets'].remove(ws)
+            log.info('{endpoint}: Task has been cancelled due to websocket closure.')
+        log.info('{endpoint}: websocket connection closed')
 
 
 @routes.get('/api/v1alpha/execute')
@@ -213,16 +204,10 @@ async def on_startup(app):
     app['jhc'] = jhc
 
     app['users'] = set()
-    app['sockets'] = set()
 
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()
     app['k8s_client'] = k8s_client
-
-
-async def on_shutdown(app):
-    for ws in app['sockets']:
-        await ws.close(code=aiohttp.WSCloseCode.GOING_AWAY, message='Server shutdown')
 
 
 def run():
@@ -233,7 +218,6 @@ def run():
     app.add_routes(routes)
 
     app.on_startup.append(on_startup)
-    app.on_shutdown.append(on_shutdown)
 
     deploy_config = get_deploy_config()
     web.run_app(

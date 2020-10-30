@@ -39,12 +39,10 @@ class ServiceSocket:
     async def async_request(self, endpoint, **data):
         async with self.session.ws_connect(f'{self.url}/api/v1alpha/{endpoint}') as socket:
             await socket.send_str(json.dumps(data))
-            resp = self.handle_response(await socket.receive())
-            assert resp == endpoint
             result = json.loads(self.handle_response(await socket.receive()))
             if result['status'] != 200:
-                raise FatalError(f'Error from server: {result["error"]}')
-            return json.loads(result['result'])
+                raise FatalError(f'Error from server: {result["value"]}')
+            return json.loads(result['value'])
 
     def request(self, endpoint, **data):
         return async_to_blocking(retry_transient_errors(self.async_request, endpoint, **data))
