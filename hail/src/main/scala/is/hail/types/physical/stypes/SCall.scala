@@ -17,7 +17,7 @@ case class SCanonicalCall(required: Boolean) extends SCall {
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
     value.st match {
       case SCanonicalCall(_) =>
-        value
+        new SCanonicalCallCode(required, value.asInstanceOf[SCanonicalCallCode].call)
     }
   }
 

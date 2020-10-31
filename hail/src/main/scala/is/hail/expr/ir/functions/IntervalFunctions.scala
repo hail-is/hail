@@ -33,11 +33,11 @@ object IntervalFunctions extends RegistryFunctions {
               srvb.start(),
               start.m.mux(
                 srvb.setMissing(),
-                srvb.addIRIntermediate(start.pt)(start.v)),
+                srvb.addIRIntermediate(start.pv)),
               srvb.advance(),
               end.m.mux(
                 srvb.setMissing(),
-                srvb.addIRIntermediate(end.pt)(end.v)),
+                srvb.addIRIntermediate(end.pv)),
               srvb.advance(),
               srvb.addBoolean(includesStart.value[Boolean]),
               srvb.advance(),

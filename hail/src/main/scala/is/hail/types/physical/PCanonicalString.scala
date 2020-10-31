@@ -18,6 +18,7 @@ class PCanonicalString(val required: Boolean) extends PString {
   override def byteSize: Long = 8
 
   lazy val binaryFundamentalType: PCanonicalBinary = PCanonicalBinary(required)
+  override lazy val fundamentalType: PCanonicalBinary = binaryFundamentalType
   override lazy val binaryEncodableType: PCanonicalBinary = PCanonicalBinary(required)
 
   def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
@@ -65,7 +66,7 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalString(required)
 
-  def sType: SString = SStringPointer(this)
+  def sType: SStringPointer = SStringPointer(this)
 
   def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): PCode = sType.loadFrom(cb, null, this, addr)
 

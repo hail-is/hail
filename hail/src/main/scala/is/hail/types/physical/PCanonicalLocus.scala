@@ -27,8 +27,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   def byteSize: Long = representation.byteSize
   override def alignment: Long = representation.alignment
-
-  override def fundamentalType: PType = representation
+  override lazy val fundamentalType: PStruct = representation.fundamentalType
 
   def rg: ReferenceGenome = rgBc.value
 
@@ -136,10 +135,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
   def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
       case SCanonicalLocusPointer(pt) =>
-        if (deepCopy) {
-          representation.store(cb, region, pt.getPointerTo(cb, value.asInstanceOf[SCanonicalLocusPointerCode].a), deepCopy)
-        } else
-          value.asInstanceOf[SCanonicalLocusPointerCode].a
+        representation.store(cb, region, pt.representation.getPointerTo(cb, value.asInstanceOf[SCanonicalLocusPointerCode].a), deepCopy)
     }
   }
 

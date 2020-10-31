@@ -1,6 +1,6 @@
 package is.hail.types.physical.stypes
 import is.hail.annotations.{CodeOrdering, Region}
-import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
 import is.hail.types.physical.{PBaseStruct, PBaseStructCode, PBaseStructValue, PCanonicalBaseStruct, PCode, PSettable, PStruct, PType}
 import is.hail.utils.FastIndexedSeq

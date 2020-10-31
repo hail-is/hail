@@ -1,11 +1,11 @@
 package is.hail.annotations
 
 import is.hail.asm4s.Code._
-import is.hail.asm4s.{Code, FunctionBuilder, _}
+import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir
-import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ParamType}
+import is.hail.expr.ir.{EmitClassBuilder, EmitMethodBuilder, EmitRegion, ParamType}
 import is.hail.types.physical._
-import is.hail.types.virtual.{TBoolean, TFloat32, TFloat64, TInt32, TInt64, Type}
+import is.hail.types.virtual._
 import is.hail.utils._
 
 object StagedRegionValueBuilder {
@@ -27,7 +27,7 @@ object StagedRegionValueBuilder {
       FastIndexedSeq[ParamType](classInfo[Region], LongInfo), LongInfo) { mb =>
       val r = mb.getCodeParam[Region](1)
       val value = mb.getCodeParam[Long](2)
-      mb.voidWithBuilder(cb => typ.store(cb, r, typ.getPointerTo(cb, value), deepCopy = true))
+      mb.emitWithBuilder(cb => typ.store(cb, r, typ.getPointerTo(cb, value), deepCopy = true))
     }
     mb.invokeCode[Long](region, value)
   }
@@ -213,7 +213,9 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
       val r = mb.getCodeParam[Region](1)
       val value = mb.getCodeParam(2)(valueTI)
       val dest = mb.getCodeParam[Long](3)
-      mb.voidWithBuilder(cb => current.storeAtAddress(cb, dest, r, PCode(ft, value), deepCopy))
+      mb.voidWithBuilder { cb =>
+        current.storeAtAddress(cb, dest, r, PCode(ft, value), deepCopy)
+      }
     }
     (v: Code[_]) => {
       assert(v.v != null)

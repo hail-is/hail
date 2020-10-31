@@ -1,7 +1,7 @@
 package is.hail.types.physical.stypes
 
 import is.hail.annotations.{CodeOrdering, Region}
-import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.{PCanonicalCall, PCanonicalLocus, PCanonicalString, PCode, PLocus, PLocusCode, PLocusValue, PSettable, PStringCode, PType}
 import is.hail.utils.FastIndexedSeq
@@ -24,7 +24,7 @@ case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
   def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): PCode = {
     pt match {
       case PCanonicalLocus(_, _) =>
-        new SCanonicalLocusPointerCode(this, Region.loadLong(addr))
+        new SCanonicalLocusPointerCode(this, addr)
     }
   }
 }
@@ -57,7 +57,9 @@ class SCanonicalLocusPointerSettable(
     cb.assign(_position, pt.position(a))
   }
 
-  def contig(cb: EmitCodeBuilder): PStringCode = pt.contigType.getPointerTo(cb, _contig).asString
+  def contig(cb: EmitCodeBuilder): PStringCode = {
+    pt.contigType.getPointerTo(cb, _contig).asString
+  }
 
   def position(cb: EmitCodeBuilder): Code[Int] = _position
 }
@@ -74,18 +76,19 @@ class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Lon
   def position(cb: EmitCodeBuilder): Code[Int] = pt.position(a)
 
   def getLocusObj(cb: EmitCodeBuilder): Code[Locus] = {
-    cb.memoize(this, "get_locus_code_memo").asLocus.getLocusObj(cb)
+    val loc = memoize(cb, "get_locus_code_memo")
+    Code.newInstance[Locus, String, Int](loc.contig(cb).asString.loadString(), loc.position(cb))
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PLocusValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SCanonicalLocusPointerSettable = {
     val s = SCanonicalLocusPointerSettable(sb, st, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PLocusValue = memoize(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String): SCanonicalLocusPointerSettable = memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PLocusValue = memoize(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String): SCanonicalLocusPointerSettable = memoize(cb, name, cb.fieldBuilder)
 
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
 }

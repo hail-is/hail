@@ -11,6 +11,7 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
   def byteSize: Long = representation.byteSize
   override def alignment: Long = representation.alignment
+  override lazy val fundamentalType: PStruct = representation.fundamentalType
 
   def _asIdent = s"interval_of_${ pointType.asIdent }"
 
@@ -26,8 +27,6 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
     "end" -> pointType,
     "includesStart" -> PBooleanRequired,
     "includesEnd" -> PBooleanRequired)
-
-  override def fundamentalType: PType = representation
 
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalInterval(this.pointType, required)
 
