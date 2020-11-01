@@ -2,12 +2,7 @@
 {% block title %}Signup{% endblock %}
 {% block content %}
 <div class="vcentered">
-  {% if state == 'active' %}
-  <i class="material-icons ready-icon">Created account</i>
-  <a target="_blank" href="{{ base_url }}/login">
-    <b>Login</b>
-  </a>
-  {% elif state == 'creating' %}
+  {% if state == 'creating' %}
   <div class="spinner"></div>
   <b>Creating account for {{ username }}</b>
   {% else %}
