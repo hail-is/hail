@@ -1,0 +1,13 @@
+{% extends "layout.html" %}
+{% block title %}Account Error{% endblock %}
+{% block content %}
+<div class="vcentered">
+ <div><b>Account is in a bad state!</b></div>
+  <br>
+  <div>Please contact <a href="mailto:hail-team@broadinstitute.org">hail-team@broadinstitute.org</a><div>
+    <br>
+    <div class="small">Username: <b>{{ username }}</b></div>
+    <div class="small">Email: <b>{{ email }}</b></div>
+    <div class="small">State: <b>{{ state }}</b></div>
+  </div>
+{% endblock %}

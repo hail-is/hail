@@ -384,6 +384,7 @@ a {
     background-color: $devil-gray;
     -webkit-animation: pulse 1s infinite ease-in-out;
     animation: pulse 1s infinite ease-in-out;
+    margin: 0 auto;
 }
 
 @-webkit-keyframes pulse {
