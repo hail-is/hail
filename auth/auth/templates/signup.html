@@ -4,14 +4,11 @@
 <div class="vcentered">
   {% if state == 'active' %}
   <i class="material-icons ready-icon">Created account</i>
-  {% elif state == 'creating' %}
-  <div class="spinner"></div>
-  {% endif %}
-  {% if state == 'active' %}
   <a target="_blank" href="{{ base_url }}/login">
     <b>Login</b>
   </a>
   {% elif state == 'creating' %}
+  <div class="spinner"></div>
   <b>Creating account for {{ username }}</b>
   {% else %}
   <div><b>Account is in a bad state!</b></div>
