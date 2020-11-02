@@ -210,8 +210,8 @@ async def callback(request):
     nb_url = deploy_config.external_url('notebook', '')
     creating_url = deploy_config.external_url('auth', '/creating')
 
-    state = ['state']
-    caller = ['caller']
+    state = session['state']
+    caller = session['caller']
     next_page = session.pop('next', nb_url)
     cleanup_session(session)
 
