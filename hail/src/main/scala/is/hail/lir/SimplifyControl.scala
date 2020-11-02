@@ -66,7 +66,7 @@ class SimplifyControl(m: Method) {
           x.setLtrue(null)
           x.setLfalse(null)
 
-          val g = goto(M)
+          val g = goto(M, x.lineNumber)
 
           L.append(g)
 

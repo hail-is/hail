@@ -397,7 +397,7 @@ class PSTBuilder(
         val last = b.last
         last.remove()
         splitb.append(last)
-        b.append(goto(splitb))
+        b.append(goto(splitb, last.lineNumber))
         val newi = newBlocksB.length
         newBlocksB += b
         newSplitBlock += true

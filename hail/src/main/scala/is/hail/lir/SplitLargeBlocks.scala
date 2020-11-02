@@ -14,11 +14,11 @@ object SplitLargeBlocks {
       size += 1
       if (size > SplitMethod.TargetMethodSize) {
         val l = m.newLocal(genName("l", "split_large_block"), x.ti)
-        x.replace(load(l))
-        L.append(store(l, x))
+        x.replace(load(l, x.lineNumber))
+        L.append(store(l, x, x.lineNumber))
         val newL = new Block()
         newL.method = m
-        L.append(goto(newL))
+        L.append(goto(newL, x.lineNumber))
         L = newL
         size = 0
       }
@@ -34,7 +34,7 @@ object SplitLargeBlocks {
       if (size > SplitMethod.TargetMethodSize && b.first != null) {
         val newL = new Block()
         newL.method = m
-        L.append(goto(newL))
+        L.append(goto(newL, x.lineNumber))
         L = newL
         size = 0
       }

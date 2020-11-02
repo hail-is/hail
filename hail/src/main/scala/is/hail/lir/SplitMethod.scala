@@ -70,8 +70,9 @@ class SplitMethod(
         "()V",
         false,
         UnitInfo,
-        FastIndexedSeq(load(ctor.getParam(0)))))
-    L.append(returnx())
+        FastIndexedSeq(load(ctor.getParam(0), lineNumber = 0)),
+        lineNumber = 0))
+    L.append(returnx(lineNumber = 0))
     ctor
   }
 
@@ -147,11 +148,11 @@ class SplitMethod(
           }
       }
 
-    def getSpills(): ValueX = {
+    def getSpills(lineNumber: Int): ValueX = {
       if (method eq m)
-        load(spills)
+        load(spills, lineNumber)
       else
-        load(new Parameter(method, 1, spillsClass.ti))
+        load(new Parameter(method, 1, spillsClass.ti), lineNumber)
     }
 
     def spill(x: X): Unit = {
@@ -163,17 +164,17 @@ class SplitMethod(
           } else {
             val f = localField(x.l)
             if (f != null)
-              x.replace(getField(f, getSpills()))
+              x.replace(getField(f, getSpills(x.lineNumber), x.lineNumber))
           }
         case x: IincX =>
           assert(x.l ne spills)
           val f = localField(x.l)
           if (f != null) {
             x.replace(
-              putField(f, getSpills(),
-                insn2(IADD)(
-                  getField(f, getSpills()),
-                  ldcInsn(x.i, IntInfo))))
+              putField(f, getSpills(x.lineNumber),
+                insn2(IADD, x.lineNumber)(
+                  getField(f, getSpills(x.lineNumber), x.lineNumber),
+                  ldcInsn(x.i, IntInfo, x.lineNumber)), x.lineNumber))
           }
         case x: StoreX =>
           assert(x.l ne spills)
@@ -181,7 +182,7 @@ class SplitMethod(
           if (f != null) {
             val v = x.children(0)
             v.remove()
-            x.replace(putField(f, getSpills(), v))
+            x.replace(putField(f, getSpills(x.lineNumber), v, x.lineNumber))
           }
         case _ =>
       }
@@ -231,9 +232,9 @@ class SplitMethod(
 
       def getSpills(): ValueX = {
         if (method eq m)
-          load(spills)
+          load(spills, s.lineNumber)
         else
-          load(new Parameter(method, 1, spillsClass.ti))
+          load(new Parameter(method, 1, spillsClass.ti), s.lineNumber)
       }
 
       val Lafter = new Block()
@@ -247,16 +248,17 @@ class SplitMethod(
       Lreturn.method = method
       if (method.returnTypeInfo != UnitInfo) {
         if (method eq m)
-          Lreturn.append(returnx(getField(spillReturnValue, getSpills())))
+          Lreturn.append(returnx(getField(spillReturnValue, getSpills(), s.lineNumber), s.lineNumber))
         else
-          Lreturn.append(returnx(defaultValue(method.returnTypeInfo)))
+          Lreturn.append(returnx(defaultValue(method.returnTypeInfo, s.lineNumber), s.lineNumber))
       } else
-        Lreturn.append(returnx())
+        Lreturn.append(returnx(lineNumber = 0))
       s.insertAfter(
         ifx(IFNE,
-          getField(spillReturned, getSpills()),
+          getField(spillReturned, getSpills(), s.lineNumber),
           Lreturn,
-          Lafter))
+          Lafter,
+          lineNumber = 0))
     }
   }
 
@@ -334,16 +336,16 @@ class SplitMethod(
           case x: ReturnX =>
             splitsReturn = true
             x.remove()
-            b.append(putField(spillReturned, load(spills), ldcInsn(1, BooleanInfo)))
+            b.append(putField(spillReturned, load(spills, x.lineNumber), ldcInsn(1, BooleanInfo, x.lineNumber), x.lineNumber))
             if (m.returnTypeInfo != UnitInfo) {
               val v = x.children(0)
               v.remove()
-              b.append(putField(spillReturnValue, load(spills), v))
+              b.append(putField(spillReturnValue, load(spills, x.lineNumber), v, x.lineNumber))
             }
             if (returnTI != UnitInfo)
-              b.append(returnx(defaultValue(returnTI)))
+              b.append(returnx(defaultValue(returnTI, x.lineNumber), x.lineNumber))
             else
-              b.append(returnx())
+              b.append(returnx(x.lineNumber))
           case _ =>
         }
       }
@@ -353,18 +355,18 @@ class SplitMethod(
 
     {
       if (returnTI == UnitInfo) {
-        val s = methodStmt(INVOKEVIRTUAL, splitM, Array(load(m.getParam(0)), load(spills)))
+        val s = methodStmt(INVOKEVIRTUAL, splitM, Array(load(m.getParam(0), lineNumber = 0), load(spills, lineNumber = 0)), lineNumber = 0)
         newL.append(s)
         if (splitsReturn)
           splitReturnCalls += s
       } else {
-        splitMReturnValue = methodInsn(INVOKEVIRTUAL, splitM, Array(load(m.getParam(0)), load(spills)))
+        splitMReturnValue = methodInsn(INVOKEVIRTUAL, splitM, Array(load(m.getParam(0), lineNumber = 0), load(spills, lineNumber = 0)), lineNumber = 0)
         if (splitsReturn) {
           val l = m.newLocal("splitMReturnValue", returnTI)
           val s = store(l, splitMReturnValue)
           newL.append(s)
           splitReturnCalls += s
-          splitMReturnValue = load(l)
+          splitMReturnValue = load(l, lineNumber = 0)
         }
       }
     }
@@ -375,7 +377,7 @@ class SplitMethod(
           newL.append(throwUnreachable())
         else {
           x.remove()
-          Lend.append(returnx())
+          Lend.append(returnx(x.lineNumber))
           newL.append(x)
         }
       case _: ThrowX =>
@@ -385,31 +387,31 @@ class SplitMethod(
           if (regionBlocks(x.Lfalse))
             newL.append(throwUnreachable())
           else {
-            newL.append(goto(x.Lfalse))
+            newL.append(goto(x.Lfalse, x.lineNumber))
             val Lreturn = new Block()
             Lreturn.method = splitM
-            Lreturn.append(returnx())
+            Lreturn.append(returnx(x.lineNumber))
             x.setLfalse(Lreturn)
           }
         } else {
           if (regionBlocks(x.Lfalse)) {
-            newL.append(goto(x.Ltrue))
+            newL.append(goto(x.Ltrue, x.lineNumber))
             val Lreturn = new Block()
             Lreturn.method = splitM
-            Lreturn.append(returnx())
+            Lreturn.append(returnx(x.lineNumber))
             x.setLtrue(Lreturn)
           } else {
             newL.append(
-              ifx(IFNE, splitMReturnValue, x.Ltrue, x.Lfalse))
+              ifx(IFNE, splitMReturnValue, x.Ltrue, x.Lfalse, x.lineNumber))
 
             val newLtrue = new Block()
             newLtrue.method = splitM
-            newLtrue.append(returnx(ldcInsn(1, BooleanInfo)))
+            newLtrue.append(returnx(ldcInsn(1, BooleanInfo, x.lineNumber), x.lineNumber))
             x.setLtrue(newLtrue)
 
             val newLfalse = new Block()
             newLfalse.method = splitM
-            newLfalse.append(returnx(ldcInsn(0, BooleanInfo)))
+            newLfalse.append(returnx(ldcInsn(0, BooleanInfo, x.lineNumber), x.lineNumber))
             x.setLfalse(newLfalse)
           }
         }
@@ -419,11 +421,11 @@ class SplitMethod(
         idx.remove()
         val lidx = splitM.newLocal("switch_index", IntInfo)
         x.insertBefore(store(lidx, idx))
-        x.setChild(0, load(lidx))
+        x.setChild(0, load(lidx, x.lineNumber))
         val Lreturn = new Block()
         Lreturn.method = splitM
-        Lreturn.append(returnx(load(lidx)))
-        val newSwitch = switch(splitMReturnValue, x.Ldefault, x.Lcases)
+        Lreturn.append(returnx(load(lidx, x.lineNumber), x.lineNumber))
+        val newSwitch = switch(splitMReturnValue, x.Ldefault, x.Lcases, x.lineNumber)
         var i = 0
         while (i < x.targetArity()) {
           val L = x.target(i)
@@ -435,11 +437,11 @@ class SplitMethod(
           i += 1
         }
         newL.append(newSwitch)
-      case _: ReturnX =>
+      case x: ReturnX =>
         if (m.returnTypeInfo == UnitInfo)
-          newL.append(returnx())
+          newL.append(returnx(x.lineNumber))
         else
-          newL.append(returnx(splitMReturnValue))
+          newL.append(returnx(splitMReturnValue, x.lineNumber))
     }
 
     val b = blockPartitions.find(start)
@@ -546,15 +548,16 @@ class SplitMethod(
     fixSplitReturnCalls()
 
     // spill parameters
-    var x: StmtX = store(spills, new NewInstanceX(spillsClass.ti, spillsCtor))
+    var x: StmtX = store(spills, new NewInstanceX(spillsClass.ti, spillsCtor, lineNumber = 0))
     m.entry.prepend(x)
     m.parameterTypeInfo.indices.foreach { i =>
       val f = fields(i + 1)
       assert(f != null)
       val putParam = putField(
         f,
-        load(spills),
-        load(m.getParam(i + 1)))
+        load(spills, lineNumber = 0),
+        load(m.getParam(i + 1), lineNumber = 0),
+        lineNumber = 0)
       x.insertAfter(putParam)
       x = putParam
     }

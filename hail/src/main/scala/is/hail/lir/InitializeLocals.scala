@@ -16,7 +16,7 @@ object InitializeLocals {
       if (!l.isInstanceOf[Parameter]) {
         // println(s"  init $l ${l.ti}")
         m.entry.prepend(
-          store(locals(i), defaultValue(l.ti)))
+          store(locals(i), defaultValue(l.ti, lineNumber = 0)))
       }
       i = entryUsedIn.nextSetBit(i + 1)
     }

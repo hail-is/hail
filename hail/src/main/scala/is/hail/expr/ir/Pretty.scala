@@ -12,7 +12,7 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 object Pretty {
 
   def short(ir: BaseIR, elideLiterals: Boolean = false, maxLen: Int = 100): String = {
-    val s = Pretty(ir, elideLiterals = elideLiterals, maxLen = maxLen)
+    val s = Pretty(ir, elideLiterals = elideLiterals, maxLines = maxLen)
     if (s.length < maxLen) s else s.substring(0, maxLen) + "..."
   }
 
@@ -340,30 +340,48 @@ object Pretty {
     case _ => Iterable.empty
   }
 
-  def apply(ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1): String = {
-    def prettySeq(xs: Seq[BaseIR]): Doc =
-      list(xs.view.map(pretty))
+  def body(ir: BaseIR, pretty: BaseIR => Doc): Iterable[Doc] = {
+    def prettySeq(xs: Seq[BaseIR]): Doc = list(xs.view.map(pretty))
 
+    ir match {
+      case MakeStruct(fields) =>
+        fields.view.map { case (n, a) =>
+          list(n, pretty(a))
+        }
+      case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
+        FastSeq(prettySeq(initOpArgs), prettySeq(seqOpArgs))
+      case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
+        FastSeq(prettySeq(initOpArgs), prettySeq(seqOpArgs))
+      case InitOp(i, args, aggSig) => single(prettySeq(args))
+      case SeqOp(i, args, aggSig) => single(prettySeq(args))
+      case InsertFields(old, fields, fieldOrder) =>
+        val fieldDocs = fields.view.map { case (n, a) =>
+          list(prettyIdentifier(n), pretty(a))
+        }
+        pretty(old) +: prettyStringsOpt(fieldOrder) +: fieldDocs
+      case _ => ir.children.view.map(pretty)
+    }
+  }
+
+  def apply(ir: BaseIR,
+    width: Int = 100, ribbonWidth: Int = 50, maxLines: Int = -1,
+    elideLiterals: Boolean = true, printNodeIDs: Boolean = false
+  ): String = {
+    var _nodeID = 0
+    def nodeID: Int = {
+      _nodeID += 1
+      _nodeID
+    }
     def pretty(ir: BaseIR): Doc = {
+      val header: Iterable[Doc] = Pretty.header(ir, elideLiterals)
+      val body: Iterable[Doc] = Pretty.body(ir, pretty)
+      val id = nodeID
+      ir.lineNumber = id
 
-      val body: Iterable[Doc] = ir match {
-        case MakeStruct(fields) =>
-          fields.view.map { case (n, a) =>
-            list(n, pretty(a))
-          }
-        case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
-          FastSeq(prettySeq(initOpArgs), prettySeq(seqOpArgs))
-        case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
-          FastSeq(prettySeq(initOpArgs), prettySeq(seqOpArgs))
-        case InitOp(i, args, aggSig) => single(prettySeq(args))
-        case SeqOp(i, args, aggSig) => single(prettySeq(args))
-        case InsertFields(old, fields, fieldOrder) =>
-          val fieldDocs = fields.view.map { case (n, a) =>
-            list(prettyIdentifier(n), pretty(a))
-          }
-          pretty(old) +: prettyStringsOpt(fieldOrder) +: fieldDocs
-        case _ => ir.children.view.map(pretty)
-      }
+      if (printNodeIDs)
+        list(fillSep(text(s"${ prettyClass(ir) }{$id}") +: header) +: body)
+      else
+        list(fillSep(text(prettyClass(ir)) +: header) +: body)
 
       /*
       val pt = ir match{
@@ -372,9 +390,8 @@ object Pretty {
       }
       list(fillSep(text(prettyClass(ir)) +: pt ++ header(ir, elideLiterals)) +: body)
       */
-      list(fillSep(text(prettyClass(ir)) +: header(ir, elideLiterals)) +: body)
     }
 
-    pretty(ir).render(width, ribbonWidth, maxLen)
+    pretty(ir).render(width, ribbonWidth, maxLines)
   }
 }

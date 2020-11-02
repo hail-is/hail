@@ -7,6 +7,8 @@ abstract class BaseIR {
 
   def children: IndexedSeq[BaseIR]
 
+  var lineNumber: Int = 0
+
   def copy(newChildren: IndexedSeq[BaseIR]): BaseIR
 
   def deepCopy(): this.type = copy(newChildren = children.map(_.deepCopy())).asInstanceOf[this.type]
