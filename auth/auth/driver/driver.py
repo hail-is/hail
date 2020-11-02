@@ -425,8 +425,7 @@ async def _create_user(app, user, cleanup):
     trial_bp = user['trial_bp_name']
     if trial_bp is None:
         username = user['username']
-        # billing_project_name = f'{username}-trial'
-        billing_project_name = f'{ident_token}-trial'
+        billing_project_name = f'{username}-trial'
         billing_project = BillingProjectResource(batch_client)
         cleanup.append(billing_project.delete)
         await billing_project.create(username, billing_project_name)
