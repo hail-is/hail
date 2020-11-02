@@ -86,7 +86,7 @@ async def creating_account(request, userdata):
         user = await user_from_email(db, email)
 
         nb_url = deploy_config.external_url('notebook', '')
-        next = session.pop('next', nb_url)
+        next_page = session.pop('next', nb_url)
 
         cleanup_session(session)
 
@@ -107,12 +107,12 @@ async def creating_account(request, userdata):
             session_id = await create_session(db, user['id'])
             session['session_id'] = session_id
             set_message(session, f'Account has been created for {user["username"]}.', 'info')
-            return aiohttp.web.HTTPFound(next)
+            return aiohttp.web.HTTPFound(next_page)
 
         assert user['state'] == 'creating'
         session['pending'] = True
         session['email'] = email
-        session['next'] = next
+        session['next'] = next_page
         return await render_template('auth', request, userdata, 'account-creating.html', page_context)
 
     return aiohttp.web.HTTPUnauthorized()
@@ -164,7 +164,7 @@ async def _wait_websocket(request, email):
 
 @routes.get('/signup')
 async def signup(request):
-    next = request.query.get('next', deploy_config.external_url('notebook', ''))
+    next_page = request.query.get('next', deploy_config.external_url('notebook', ''))
 
     flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
@@ -175,7 +175,7 @@ async def signup(request):
     session = await aiohttp_session.new_session(request)
     cleanup_session(session)
     session['state'] = state
-    session['next'] = next
+    session['next'] = next_page
     session['caller'] = 'signup'
 
     return aiohttp.web.HTTPFound(authorization_url)
@@ -183,7 +183,7 @@ async def signup(request):
 
 @routes.get('/login')
 async def login(request):
-    next = request.query.get('next', deploy_config.external_url('notebook', ''))
+    next_page = request.query.get('next', deploy_config.external_url('notebook', ''))
 
     flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
@@ -195,7 +195,7 @@ async def login(request):
 
     cleanup_session(session)
     session['state'] = state
-    session['next'] = next
+    session['next'] = next_page
     session['caller'] = 'login'
 
     return aiohttp.web.HTTPFound(authorization_url)
