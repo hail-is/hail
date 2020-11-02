@@ -476,7 +476,6 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         return ht.annotate_globals(
             kept_samples=kept_samples,
             __y_nds=y_nds,
-            cov_nds=cov_nds,
             ns=ns,
             ds=ns.map(lambda n: n - k - 1),
             __cov_Qts=cov_Qts,
