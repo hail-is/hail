@@ -261,8 +261,7 @@ async def callback(request):
         # FIXME: come up with user naming scheme once we allow non-Broad users to self-signup
         username, domain = email.split('@')
 
-        # FIXME: remove personal email address
-        if domain == 'broadinstitute.org' or email == 'jackie.i.goldstein@gmail.com':
+        if domain == 'broadinstitute.org':
             await db.execute_insertone(
                 '''
             INSERT INTO users (state, username, email, is_developer)
