@@ -1,4 +1,5 @@
 import nest_asyncio
+import warnings
 
 from .batch import Batch
 from .batch_pool_executor import BatchPoolExecutor
@@ -22,3 +23,6 @@ __all__ = ['Batch',
            ]
 
 nest_asyncio.apply()
+
+warnings.filterwarnings('once', append=True)
+del warnings
