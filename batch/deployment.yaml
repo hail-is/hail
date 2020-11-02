@@ -22,6 +22,8 @@ spec:
       serviceAccountName: batch
 {% if deploy %}
       priorityClassName: production
+      nodeSelector:
+        preemptible: "false"      
 {% else %}
       nodeSelector:
         preemptible: "true"
