@@ -474,8 +474,7 @@ class ServiceBackend(Backend):
             image = job._image if job._image else default_image
             if not image.startswith('gcr.io/'):
                 warnings.warn(f'Using an image {image} not in GCR. '
-                              f'Jobs may fail due to Docker Hub rate limits.',
-                              UserWarning)
+                              f'Jobs may fail due to Docker Hub rate limits.')
 
             j = bc_batch.create_job(image=image,
                                     command=[job._shell if job._shell else self._DEFAULT_SHELL, '-c', cmd],
