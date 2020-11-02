@@ -448,9 +448,6 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     ht = ht_local.transmute(**{entries_field_name: ht_local[entries_field_name][x_field_name]})
 
-    list_of_ys_and_covs_to_keep_with_indices = \
-        [hl.enumerate(ht[sample_field_name]).filter(lambda struct_with_index: all_defined(struct_with_index[1], one_y_field_name_set + cov_field_names)) for one_y_field_name_set in y_field_names]
-
     def make_one_cov_matrix(ys_and_covs_to_keep):
         return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, cov_field_names))) \
             if cov_field_names else hl.nd.zeros((hl.len(ys_and_covs_to_keep), 0))
@@ -458,30 +455,35 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     def make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set):
         return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, one_y_field_name_set)))
 
-    list_of_ys_and_covs_to_keep = [inner_list.map(lambda pair: pair[1]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
-    list_of_indices_to_keep = [inner_list.map(lambda pair: pair[0]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
+    def setup_globals(ht):
+        list_of_ys_and_covs_to_keep_with_indices = \
+            [hl.enumerate(ht[sample_field_name]).filter(lambda struct_with_index: all_defined(struct_with_index[1], one_y_field_name_set + cov_field_names)) for one_y_field_name_set in y_field_names]
 
-    cov_nds = hl.array([make_one_cov_matrix(ys_and_covs_to_keep) for ys_and_covs_to_keep in list_of_ys_and_covs_to_keep])
+        list_of_ys_and_covs_to_keep = [inner_list.map(lambda pair: pair[1]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
+        kept_samples = [inner_list.map(lambda pair: pair[0]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
 
-    y_nds = hl.array([make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set)
-                      for ys_and_covs_to_keep, one_y_field_name_set in zip(list_of_ys_and_covs_to_keep, y_field_names)])
+        cov_nds = hl.array([make_one_cov_matrix(ys_and_covs_to_keep) for ys_and_covs_to_keep in list_of_ys_and_covs_to_keep])
 
-    ht = ht.annotate_globals(
-        kept_samples=list_of_indices_to_keep,
-        __y_nds=y_nds,
-        cov_nds=cov_nds
-    )
-    k = builtins.len(covariates)
-    ns = ht.index_globals().kept_samples.map(lambda one_sample_set: hl.len(one_sample_set))
-    cov_Qts = hl.if_else(k > 0,
-                         ht.cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
-                         ns.map(lambda n: hl.nd.zeros((0, n))))
-    Qtys = hl.range(num_y_lists).map(lambda i: cov_Qts[i] @ hl.array(y_nds)[i])
-    ht = ht.annotate_globals(
-        ds=ns.map(lambda n: n - k - 1),
-        __cov_Qts=cov_Qts,
-        __Qtys=Qtys,
-        __yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(ht.__y_nds[i].T) - dot_rows_with_themselves(Qtys[i].T)))
+        y_nds = hl.array([make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set)
+                          for ys_and_covs_to_keep, one_y_field_name_set in zip(list_of_ys_and_covs_to_keep, y_field_names)])
+
+        k = builtins.len(covariates)
+        ns = hl.array(kept_samples).map(lambda one_sample_set: hl.len(one_sample_set))
+        cov_Qts = hl.if_else(k > 0,
+                             cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
+                             ns.map(lambda n: hl.nd.zeros((0, n))))
+        Qtys = hl.range(num_y_lists).map(lambda i: cov_Qts[i] @ hl.array(y_nds)[i])
+        return ht.annotate_globals(
+            kept_samples=kept_samples,
+            __y_nds=y_nds,
+            cov_nds=cov_nds,
+            ns=ns,
+            ds=ns.map(lambda n: n - k - 1),
+            __cov_Qts=cov_Qts,
+            __Qtys=Qtys,
+            __yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(y_nds[i].T) - dot_rows_with_themselves(Qtys[i].T)))
+
+    ht = setup_globals(ht)
 
     def process_block(block):
         rows_in_block = hl.len(block)
@@ -489,7 +491,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         # Processes one block group based on given idx. Returns a single struct.
         def process_y_group(idx):
             X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))).T
-            n = ns[idx]
+            n = ht.ns[idx]
             sum_x = (X.T @ hl.nd.ones((n,)))
             Qtx = ht.__cov_Qts[idx] @ X
             ytx = ht.__y_nds[idx].T @ X
@@ -499,10 +501,10 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
             se = ((1.0 / ht.ds[idx]) * (ht.__yyps[idx].reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
             t = b / se
             p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.ds[idx], True, False))
-            return hl.struct(n=hl.range(rows_in_block).map(lambda i: n), sum_x=sum_x._data_array(), y_transpose_x=ytx.T._data_array(), beta=b.T._data_array(),
-                             standard_error=se.T._data_array(), t_stat=t.T._data_array(), p_value=p.T._data_array())
+            return {'n': hl.range(rows_in_block).map(lambda i: n), 'sum_x': sum_x._data_array(), 'y_transpose_x': ytx.T._data_array(), 'beta':b.T._data_array(),
+                    'standard_error': se.T._data_array(), 't_stat': t.T._data_array(), 'p_value': p.T._data_array()}
 
-        per_y_list = hl.range(num_y_lists).map(lambda i: process_y_group(i))
+        per_y_list = [process_y_group(i) for i in range(num_y_lists)]
 
         key_field_names = [key_field for key_field in ht.key]
 
@@ -511,7 +513,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
             idxth_keys = {field_name: block[field_name][row_idx] for field_name in key_field_names}
             computed_row_field_names = ['n', 'sum_x', 'y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
             computed_row_fields = {
-                field_name: per_y_list.map(lambda one_y: one_y[field_name][row_idx]) for field_name in computed_row_field_names
+                field_name: [one_y[field_name][row_idx] for one_y in per_y_list] for field_name in computed_row_field_names
             }
             pass_through_rows = {
                 field_name: block[field_name][row_idx] for field_name in row_field_names
