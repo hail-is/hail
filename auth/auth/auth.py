@@ -86,9 +86,11 @@ async def creating_account(request, userdata):
         user = await user_from_email(db, email)
 
         nb_url = deploy_config.external_url('notebook', '')
+        next = session.pop('next', nb_url)
+
+        cleanup_session(session)
 
         if user is None:
-            cleanup_session(session)
             set_message(session, f'Account does not exist for email {email}.', 'error')
             return aiohttp.web.HTTPFound(nb_url)
 
@@ -99,18 +101,20 @@ async def creating_account(request, userdata):
         }
 
         if user['state'] == 'deleting' or user['state'] == 'deleted':
-            cleanup_session(session)
             return await render_template('auth', request, userdata, 'account-error.html', page_context)
 
         if user['state'] == 'active':
             session_id = await create_session(db, user['id'])
-            cleanup_session(session)
             session['session_id'] = session_id
             set_message(session, f'Account has been created for {user["username"]}.', 'info')
-            return aiohttp.web.HTTPFound(nb_url)
+            return aiohttp.web.HTTPFound(next)
 
         assert user['state'] == 'creating'
+        session['pending'] = True
+        session['email'] = email
+        session['next'] = next
         return await render_template('auth', request, userdata, 'account-creating.html', page_context)
+
     return aiohttp.web.HTTPUnauthorized()
 
 
@@ -203,10 +207,12 @@ async def callback(request):
     if 'state' not in session:
         raise web.HTTPUnauthorized()
 
-    state = session.pop('state')
-    next = session.pop('next')
-    caller = session.pop('caller')
+    nb_url = deploy_config.external_url('notebook', '')
+    creating_url = deploy_config.external_url('auth', '/creating')
 
+    state = ['state']
+    caller = ['caller']
+    next_page = session.pop('next', nb_url)
     cleanup_session(session)
 
     flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'), state=state)
@@ -224,79 +230,51 @@ async def callback(request):
 
     user = await user_from_email(db, email)
 
-    nb_url = deploy_config.external_url('notebook', '')
-    creating_url = deploy_config.external_url('auth', '/creating')
-
-    if caller == 'login':
-        if user is None:
-            cleanup_session(session)
+    if user is None:
+        if caller == 'login':
             set_message(session, f'Account does not exist for email {email}', 'error')
             return aiohttp.web.HTTPFound(nb_url)
 
+        assert caller == 'signup'
+
+        username, domain = email.split('@')
+
+        if domain != 'broadinstitute.org':
+            raise web.HTTPUnauthorized()
+
+        await db.execute_insertone(
+            '''
+        INSERT INTO users (state, username, email, is_developer)
+        VALUES (%s, %s, %s, %s);
+        ''',
+            ('creating', username, email, False))
+
+        session['pending'] = True
+        session['email'] = email
+
+        return web.HTTPFound(creating_url)
+
+    if user['state'] in ('deleting', 'deleted'):
         page_context = {
             'username': user['username'],
             'state': user['state'],
             'email': user['email']
         }
-
-        if user['state'] == 'deleting' or user['state'] == 'deleted':
-            return await render_template('auth', request, user, 'account-error.html', page_context)
-
-        if user['state'] == 'creating':
-            set_message(session, f'Account for email {email} is being created.', 'info')
-            session['pending'] = True
-            session['email'] = user['email']
-            return web.HTTPFound(creating_url)
-
-        assert user['state'] == 'active'
-
-        session_id = await create_session(db, user['id'])
-        session['session_id'] = session_id
-
-        return aiohttp.web.HTTPFound(next)
-
-    assert caller == 'signup'
-
-    if user is None:
-        # FIXME: come up with user naming scheme once we allow non-Broad users to self-signup
-        username, domain = email.split('@')
-
-        if domain == 'broadinstitute.org':
-            await db.execute_insertone(
-                '''
-            INSERT INTO users (state, username, email, is_developer)
-            VALUES (%s, %s, %s, %s);
-            ''',
-                ('creating', username, email, False))
-
-            session['pending'] = True
-            session['email'] = email
-
-            return web.HTTPFound(creating_url)
-
-        raise web.HTTPUnauthorized()
-
-    page_context = {
-        'username': user['username'],
-        'state': user['state'],
-        'email': user['email']
-    }
-
-    if user['state'] == 'deleting' or user['state'] == 'deleted':
         return await render_template('auth', request, user, 'account-error.html', page_context)
 
-    if user['state'] == 'active':
-        session_id = await create_session(db, user['id'])
-        session['session_id'] = session_id
+    if user['state'] == 'creating':
+        if caller == 'signup':
+            set_message(session, f'Account is already creating for email {email}', 'error')
+        session['pending'] = True
+        session['email'] = user['email']
+        return web.HTTPFound(creating_url)
+
+    assert user['state'] == 'active'
+    if caller == 'signup':
         set_message(session, f'Account has already been created for {user["username"]}.', 'info')
-        return aiohttp.web.HTTPFound(nb_url)
-
-    assert user['state'] == 'creating'
-
-    session['pending'] = True
-    session['email'] = user['email']
-
-    return web.HTTPFound(creating_url)
+    session_id = await create_session(db, user['id'])
+    session['session_id'] = session_id
+    return aiohttp.web.HTTPFound(next_page)
 
 
 @routes.get('/user')
