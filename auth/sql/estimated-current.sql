@@ -13,7 +13,7 @@ CREATE TABLE `users` (
   `gsa_key_secret_name` varchar(255) DEFAULT NULL,
   -- namespace, for developers
   `namespace_name` varchar(255) DEFAULT NULL,
-  `trial_bp_name` varchar(100) DEFAULT NULL,
+  `trial_bp_name` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`),
   UNIQUE KEY `username` (`username`)
