@@ -12,7 +12,8 @@ $(STATIC_CONFIG): %: %.in
 	  < $< > $@
 
 build: letsencrypt.sh
-	docker build -t letsencrypt .
+	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}}' Dockerfile Dockerfile.out
+	docker build -f Dockerfile.out -t letsencrypt .
 
 push: build
 	docker tag letsencrypt gcr.io/$(PROJECT)/letsencrypt

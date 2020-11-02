@@ -1,4 +1,4 @@
-FROM ubuntu:18.04
+FROM gcr.io/{{ global.project }}/ubuntu:18.04
 
 RUN apt-get update -y
 

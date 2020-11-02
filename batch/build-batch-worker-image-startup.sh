@@ -39,7 +39,7 @@ curl -fsSL "https://github.com/GoogleCloudPlatform/docker-credential-gcr/release
 
 docker-credential-gcr configure-docker
 
-docker pull ubuntu:18.04
+docker pull gcr.io/hail-vdc/ubuntu:18.04
 docker pull gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine
 
 # add docker daemon debug logging

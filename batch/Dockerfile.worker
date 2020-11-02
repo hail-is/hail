@@ -1,4 +1,4 @@
-FROM python:3.7-slim-stretch
+FROM gcr.io/{{ global.project }}/python:3.7-slim-stretch
 
 RUN apt-get update && \
   apt-get -y install \

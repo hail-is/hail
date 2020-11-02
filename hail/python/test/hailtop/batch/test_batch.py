@@ -13,6 +13,8 @@ from hailtop.utils import grouped
 from hailtop.config import get_user_config
 from hailtop.batch.utils import concatenate
 
+DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
+
 
 class LocalTests(unittest.TestCase):
     def batch(self, requester_pays_project=None):
@@ -105,7 +107,7 @@ class LocalTests(unittest.TestCase):
     def test_single_job_with_nonsense_shell(self):
         b = self.batch()
         j = b.new_job(shell='/bin/ajdsfoijasidojf')
-        j.image('ubuntu:18.04')
+        j.image(DOCKER_ROOT_IMAGE)
         j.command(f'echo "hello"')
         self.assertRaises(Exception, b.run)
 
@@ -384,7 +386,7 @@ class ServiceTests(unittest.TestCase):
 
     def batch(self, requester_pays_project=None):
         return Batch(backend=self.backend,
-                     default_image='ubuntu:18.04',
+                     default_image=DOCKER_ROOT_IMAGE,
                      attributes={'foo': 'a', 'bar': 'b'},
                      requester_pays_project=requester_pays_project)
 
