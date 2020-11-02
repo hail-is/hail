@@ -12,12 +12,7 @@ case class SNDArrayPointer(pType: PNDArray) extends SNDArray {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
-    value.st match {
-      case SNDArrayPointer(pt2) if pt2.equalModuloRequired(pType) && !deepCopy =>
-        value
-      case _ =>
-        new SNDArrayPointerCode(this, pType.store(cb, region, value, deepCopy))
-    }
+    new SNDArrayPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, LongInfo)

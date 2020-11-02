@@ -13,10 +13,7 @@ case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
-    value.st match {
-      case SCanonicalLocusPointer(t) if t.equalModuloRequired(pType) =>
-        value
-    }
+    new SCanonicalLocusPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)

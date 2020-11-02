@@ -12,13 +12,7 @@ case class SStringPointer(pType: PString) extends SString {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
-    value.st match {
-      case SStringPointer(pt) if pt.equalModuloRequired(this.pType) && !deepCopy =>
-        value
-      case _ =>
-        new SStringPointerCode(this, pType.store(cb, region, value, deepCopy))
-
-    }
+    new SStringPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)

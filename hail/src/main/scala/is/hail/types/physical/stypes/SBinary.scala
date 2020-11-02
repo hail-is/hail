@@ -12,10 +12,7 @@ case class SBinaryPointer(pType: PBinary) extends SBinary {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
-    value.st match {
-      case SBinaryPointer(pt2) if pt2.equalModuloRequired(pType) && !deepCopy =>
-        value
-    }
+    new SBinaryPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)

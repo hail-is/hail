@@ -133,7 +133,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   def sType: SBinary = SBinaryPointer(this)
 
-  def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): PCode = sType.loadFrom(cb, null, this, addr)
+  def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): SBinaryPointerCode = sType.loadFrom(cb, null, this, addr).asInstanceOf[SBinaryPointerCode]
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

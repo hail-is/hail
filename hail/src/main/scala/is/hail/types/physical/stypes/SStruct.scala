@@ -13,12 +13,7 @@ case class SBaseStructPointer(pType: PBaseStruct) extends SStruct {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
-    value.st match {
-      case SBaseStructPointer(pt2) if pt2.equalModuloRequired(pType) && !deepCopy =>
-        value
-      case _ =>
-        new SBaseStructPointerCode(this, pType.store(cb, region, value, deepCopy))
-    }
+    new SBaseStructPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, LongInfo)

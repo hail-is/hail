@@ -2552,8 +2552,8 @@ class Emit[C](
               val rIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(elemMB, idxVars, nDims, rightChildEmitter.outputShape)
 
               EmitCodeBuilder.scopedCode(mb) { cb =>
-                cb.assign(lElemRef, PCode(lP, leftChildEmitter.outputElement(elemMB, lIdxVars2)))
-                cb.assign(rElemRef, PCode(rP, rightChildEmitter.outputElement(elemMB, rIdxVars2)))
+                cb.assign(lElemRef, PCode(lP.elementType, leftChildEmitter.outputElement(elemMB, lIdxVars2)))
+                cb.assign(rElemRef, PCode(rP.elementType, rightChildEmitter.outputElement(elemMB, rIdxVars2)))
                 cb.append(bodyt.setup)
                 cb.ifx(bodyt.m, cb._fatal("NDArray map body cannot be missing"))
                 bodyt.v
