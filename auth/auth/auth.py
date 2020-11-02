@@ -143,7 +143,7 @@ async def _wait_websocket(request, email):
                     log.info(f"user {user['username']} is no longer creating")
                     break
             except Exception:  # pylint: disable=broad-except
-                log.exception(f"/signup/wait: error while updating status for user {user['username']}")
+                log.exception(f"/creating/wait: error while updating status for user {user['username']}")
             await asyncio.sleep(1)
             count += 1
 
