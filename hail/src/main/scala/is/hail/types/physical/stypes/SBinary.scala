@@ -44,7 +44,7 @@ class SBinaryPointerSettable(val st: SBinaryPointer, val a: Settable[Long]) exte
 
   def loadByte(i: Code[Int]): Code[Byte] = Region.loadByte(pt.bytesAddress(a) + i.toL)
 
-  def store(cb: EmitCodeBuilder, pc: PCode): Unit = cb += a.store(pc.asInstanceOf[SBinaryPointerCode].a)
+  def store(cb: EmitCodeBuilder, pc: PCode): Unit = cb.assign(a, pc.asInstanceOf[SBinaryPointerCode].a)
 }
 
 class SBinaryPointerCode(val st: SBinaryPointer, val a: Code[Long]) extends PBinaryCode {

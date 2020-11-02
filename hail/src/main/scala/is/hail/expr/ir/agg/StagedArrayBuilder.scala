@@ -121,7 +121,7 @@ class StagedArrayBuilder(eltType: PType, cb: EmitClassBuilder[_], region: Value[
 
   def loadElement(cb: EmitCodeBuilder, idx: Value[Int]): EmitCode = {
     val m = eltArray.isElementMissing(data, idx)
-    EmitCode(Code._empty, m, eltType.getPointerTo(cb, elementOffset(idx)))
+    EmitCode(Code._empty, m, eltType.getPointerTo(cb, eltArray.loadElement(data, capacity, idx)))
   }
 
   private def resize(): Code[Unit] = {
