@@ -266,6 +266,8 @@ steps:
       script: /io/sql/copy-paste-tokens.sql
     - name: drop-bucket
       script: /io/sql/drop-bucket.sql
+    - name: add-trial-billing-project
+      script: /io/sql/add-trial-billing-project.sql
    inputs:
     - from: /repo/auth/sql
       to: /io/
@@ -386,6 +388,16 @@ steps:
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "benchmark-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+     # create auth
+     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers auth-tokens | wc -l | tr -d '[:space:]')
+     if [[ $N = 0 ]]; then
+         rm -f /user-tokens/tokens.json
+         kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+         kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ batch_pods_ns.name }} apply -f -
+         python3 create-session.py '{"state":"active","username":"auth","is_service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"auth-gsa-key","tokens_secret_name":"auth-tokens"}'
+         kubectl -n {{ default_ns.name }} create secret generic auth-tokens --from-file=/user-tokens/tokens.json
+     fi
+     # created auth
      # create ci
      N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers ci-tokens | wc -l | tr -d '[:space:]')
      if [[ $N = 0 ]]; then
@@ -1646,6 +1658,7 @@ steps:
     - auth_image
     - create_dummy_oauth2_client_secret
     - create_certs
+    - create_accounts
  - kind: deploy
    name: deploy_benchmark
    namespace:

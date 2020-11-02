@@ -4,6 +4,7 @@ import logging
 import json
 import random
 import datetime
+from functools import wraps
 import asyncio
 import aiohttp
 from aiohttp import web
@@ -24,8 +25,9 @@ from hailtop.tls import get_in_cluster_server_ssl_context, in_cluster_ssl_client
 from hailtop.hail_logging import AccessLogger
 from hailtop import aiotools
 from gear import (Database, setup_aiohttp_session,
-                  rest_authenticated_users_only, rest_authenticated_developers_only,
-                  web_authenticated_users_only, web_authenticated_developers_only,
+                  rest_authenticated_users_only,
+                  web_authenticated_users_only,
+                  web_authenticated_developers_only,
                   check_csrf_token, transaction)
 from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
                         render_template, set_message)
@@ -97,6 +99,16 @@ deploy_config = get_deploy_config()
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75Gi')
 BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '10Gi')
+
+
+def rest_authenticated_developers_or_auth_only(fun):
+    @rest_authenticated_users_only
+    @wraps(fun)
+    async def wrapped(request, userdata, *args, **kwargs):
+        if userdata['is_developer'] == 1 or userdata['username'] == 'auth':
+            return await fun(request, userdata, *args, **kwargs)
+        raise web.HTTPUnauthorized()
+    return wrapped
 
 
 @routes.get('/healthcheck')
@@ -1273,7 +1285,7 @@ UPDATE billing_projects SET `limit` = %s WHERE name = %s;
 
 @routes.post('/api/v1alpha/billing_limits/{billing_project}/edit')
 @prom_async_time(REQUEST_TIME_POST_BILLING_LIMITS_EDIT)
-@rest_authenticated_developers_only
+@rest_authenticated_developers_or_auth_only
 async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -1427,7 +1439,7 @@ async def ui_get_billing_projects(request, userdata):
 async def get_billing_projects(request, userdata):
     db = request.app['db']
 
-    if not userdata['is_developer']:
+    if not userdata['is_developer'] and userdata['username'] != 'auth':
         user = userdata['username']
     else:
         user = None
@@ -1444,7 +1456,7 @@ async def get_billing_project(request, userdata):
     db = request.app['db']
     billing_project = request.match_info['billing_project']
 
-    if not userdata['is_developer']:
+    if not userdata['is_developer'] and userdata['username'] != 'auth':
         user = userdata['username']
     else:
         user = None
@@ -1509,7 +1521,7 @@ async def post_billing_projects_remove_user(request, userdata):  # pylint: disab
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
 @prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_API)
-@rest_authenticated_developers_only
+@rest_authenticated_developers_or_auth_only
 async def api_get_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -1570,7 +1582,7 @@ async def post_billing_projects_add_user(request, userdata):  # pylint: disable=
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
 @prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_API)
-@rest_authenticated_developers_only
+@rest_authenticated_developers_or_auth_only
 async def api_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     user = request.match_info['user']
@@ -1624,7 +1636,7 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/create')
 @prom_async_time(REQUEST_TIME_POST_CREATE_BILLING_PROJECT_API)
-@rest_authenticated_developers_only
+@rest_authenticated_developers_or_auth_only
 async def api_get_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -1676,7 +1688,7 @@ async def post_close_billing_projects(request, userdata):  # pylint: disable=unu
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
 @prom_async_time(REQUEST_TIME_POST_CLOSE_BILLING_PROJECT_API)
-@rest_authenticated_developers_only
+@rest_authenticated_developers_or_auth_only
 async def api_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -1722,7 +1734,7 @@ async def post_reopen_billing_projects(request, userdata):  # pylint: disable=un
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
 @prom_async_time(REQUEST_TIME_POST_REOPEN_BILLING_PROJECT_API)
-@rest_authenticated_developers_only
+@rest_authenticated_developers_or_auth_only
 async def api_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -1752,7 +1764,7 @@ async def _delete_billing_project(db, billing_project):
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/delete')
 @prom_async_time(REQUEST_TIME_POST_DELETE_BILLING_PROJECT_API)
-@rest_authenticated_developers_only
+@rest_authenticated_developers_or_auth_only
 async def api_delete_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']

@@ -93,6 +93,12 @@ spec:
           - name: gsa-key
             mountPath: /gsa-key
             readOnly: true
+          - name: auth-tokens
+            mountPath: /user-tokens
+            readOnly: true
+          - name: ssl-config-auth-driver
+            mountPath: /ssl-config
+            readOnly: true
          ports:
           - containerPort: 5000
       volumes:
@@ -108,6 +114,12 @@ spec:
        - name: gsa-key
          secret:
            secretName: auth-gsa-key
+       - name: auth-tokens
+         secret:
+           secretName: auth-tokens
+       - name: ssl-config-auth-driver
+         secret:
+           secretName: ssl-config-auth-driver
 ---
 apiVersion: apps/v1
 kind: Deployment
