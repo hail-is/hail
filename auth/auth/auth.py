@@ -239,7 +239,7 @@ async def callback(request):
 
         username, domain = email.split('@')
 
-        if domain != 'broadinstitute.org':
+        if domain != 'broadinstitute.org' or email != 'jackie.i.goldstein@gmail.com':
             raise web.HTTPUnauthorized()
 
         await db.execute_insertone(
