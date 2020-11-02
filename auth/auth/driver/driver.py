@@ -370,59 +370,57 @@ async def _create_user(app, user, cleanup):
         'state': 'active'
     }
 
-    # tokens_secret_name = user['tokens_secret_name']
-    # if tokens_secret_name is None:
-    #     tokens_session = SessionResource(db)
-    #     cleanup.append(tokens_session.delete)
-    #     await tokens_session.create(user['id'], max_age_secs=None)
-    #
-    #     tokens_secret_name = f'{ident}-tokens'
-    #     tokens_secret = K8sSecretResource(k8s_client)
-    #     cleanup.append(tokens_secret.delete)
-    #     await tokens_secret.create(tokens_secret_name, BATCH_PODS_NAMESPACE, {
-    #         'tokens.json': json.dumps({
-    #             DEFAULT_NAMESPACE: tokens_session.session_id
-    #         })
-    #     })
-    #     updates['tokens_secret_name'] = tokens_secret_name
-    #
-    # gsa_email = user['gsa_email']
-    # if gsa_email is None:
-    #     gsa = GSAResource(iam_client)
-    #     cleanup.append(gsa.delete)
-    #
-    #     # length of gsa account_id must be >= 6
-    #     assert len(ident_token) >= 6
-    #
-    #     gsa_email, key = await gsa.create(ident_token)
-    #     updates['gsa_email'] = gsa_email
-    #
-    #     gsa_key_secret_name = f'{ident}-gsa-key'
-    #     gsa_key_secret = K8sSecretResource(k8s_client)
-    #     cleanup.append(gsa_key_secret.delete)
-    #     await gsa_key_secret.create(gsa_key_secret_name, BATCH_PODS_NAMESPACE, {
-    #         'key.json': base64.b64decode(key['privateKeyData']).decode('utf-8')
-    #     })
-    #     updates['gsa_key_secret_name'] = gsa_key_secret_name
-    #
-    # namespace_name = user['namespace_name']
-    # if namespace_name is None and user['is_developer'] == 1:
-    #     namespace_name = ident
-    #     namespace = K8sNamespaceResource(k8s_client)
-    #     cleanup.append(namespace.delete)
-    #     await namespace.create(namespace_name)
-    #     updates['namespace_name'] = namespace_name
-    #
-    #     db_resource = DatabaseResource(db_instance)
-    #     cleanup.append(db_resource.delete)
-    #     await db_resource.create(ident)
-    #
-    #     db_secret = K8sSecretResource(k8s_client)
-    #     cleanup.append(db_secret.delete)
-    #     await db_secret.create(
-    #         'database-server-config', namespace_name, db_resource.secret_data())
+    tokens_secret_name = user['tokens_secret_name']
+    if tokens_secret_name is None:
+        tokens_session = SessionResource(db)
+        cleanup.append(tokens_session.delete)
+        await tokens_session.create(user['id'], max_age_secs=None)
 
-    await asyncio.sleep(60)
+        tokens_secret_name = f'{ident}-tokens'
+        tokens_secret = K8sSecretResource(k8s_client)
+        cleanup.append(tokens_secret.delete)
+        await tokens_secret.create(tokens_secret_name, BATCH_PODS_NAMESPACE, {
+            'tokens.json': json.dumps({
+                DEFAULT_NAMESPACE: tokens_session.session_id
+            })
+        })
+        updates['tokens_secret_name'] = tokens_secret_name
+
+    gsa_email = user['gsa_email']
+    if gsa_email is None:
+        gsa = GSAResource(iam_client)
+        cleanup.append(gsa.delete)
+
+        # length of gsa account_id must be >= 6
+        assert len(ident_token) >= 6
+
+        gsa_email, key = await gsa.create(ident_token)
+        updates['gsa_email'] = gsa_email
+
+        gsa_key_secret_name = f'{ident}-gsa-key'
+        gsa_key_secret = K8sSecretResource(k8s_client)
+        cleanup.append(gsa_key_secret.delete)
+        await gsa_key_secret.create(gsa_key_secret_name, BATCH_PODS_NAMESPACE, {
+            'key.json': base64.b64decode(key['privateKeyData']).decode('utf-8')
+        })
+        updates['gsa_key_secret_name'] = gsa_key_secret_name
+
+    namespace_name = user['namespace_name']
+    if namespace_name is None and user['is_developer'] == 1:
+        namespace_name = ident
+        namespace = K8sNamespaceResource(k8s_client)
+        cleanup.append(namespace.delete)
+        await namespace.create(namespace_name)
+        updates['namespace_name'] = namespace_name
+
+        db_resource = DatabaseResource(db_instance)
+        cleanup.append(db_resource.delete)
+        await db_resource.create(ident)
+
+        db_secret = K8sSecretResource(k8s_client)
+        cleanup.append(db_secret.delete)
+        await db_secret.create(
+            'database-server-config', namespace_name, db_resource.secret_data())
 
     trial_bp = user['trial_bp_name']
     if trial_bp is None:
@@ -468,34 +466,34 @@ async def delete_user(app, user):
     iam_client = app['iam_client']
     batch_client = app['batch_client']
 
-    # tokens_secret_name = user['tokens_secret_name']
-    # if tokens_secret_name is not None:
-    #     # don't bother deleting the session since all sessions are
-    #     # deleted below
-    #     tokens_secret = K8sSecretResource(k8s_client, tokens_secret_name, BATCH_PODS_NAMESPACE)
-    #     await tokens_secret.delete()
-    #
-    # gsa_email = user['gsa_email']
-    # if gsa_email is not None:
-    #     gsa = GSAResource(iam_client, gsa_email)
-    #     await gsa.delete()
-    #
-    # gsa_key_secret_name = user['gsa_key_secret_name']
-    # if gsa_key_secret_name is not None:
-    #     gsa_key_secret = K8sSecretResource(k8s_client, gsa_key_secret_name, BATCH_PODS_NAMESPACE)
-    #     await gsa_key_secret.delete()
-    #
-    # namespace_name = user['namespace_name']
-    # if namespace_name is not None:
-    #     assert user['is_developer'] == 1
-    #
-    #     # don't bother deleting database-server-config since we're
-    #     # deleting the namespace
-    #     namespace = K8sNamespaceResource(k8s_client, namespace_name)
-    #     await namespace.delete()
-    #
-    #     db_resource = DatabaseResource(db_instance, user['username'])
-    #     await db_resource.delete()
+    tokens_secret_name = user['tokens_secret_name']
+    if tokens_secret_name is not None:
+        # don't bother deleting the session since all sessions are
+        # deleted below
+        tokens_secret = K8sSecretResource(k8s_client, tokens_secret_name, BATCH_PODS_NAMESPACE)
+        await tokens_secret.delete()
+
+    gsa_email = user['gsa_email']
+    if gsa_email is not None:
+        gsa = GSAResource(iam_client, gsa_email)
+        await gsa.delete()
+
+    gsa_key_secret_name = user['gsa_key_secret_name']
+    if gsa_key_secret_name is not None:
+        gsa_key_secret = K8sSecretResource(k8s_client, gsa_key_secret_name, BATCH_PODS_NAMESPACE)
+        await gsa_key_secret.delete()
+
+    namespace_name = user['namespace_name']
+    if namespace_name is not None:
+        assert user['is_developer'] == 1
+
+        # don't bother deleting database-server-config since we're
+        # deleting the namespace
+        namespace = K8sNamespaceResource(k8s_client, namespace_name)
+        await namespace.delete()
+
+        db_resource = DatabaseResource(db_instance, user['username'])
+        await db_resource.delete()
 
     trial_bp_name = user['trial_bp_name']
     if trial_bp_name is not None:

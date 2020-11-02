@@ -239,7 +239,7 @@ async def callback(request):
 
         username, domain = email.split('@')
 
-        if domain != 'broadinstitute.org' and email != 'jackie.i.goldstein@gmail.com':
+        if domain != 'broadinstitute.org':
             raise web.HTTPUnauthorized()
 
         await db.execute_insertone(
@@ -265,6 +265,8 @@ async def callback(request):
     if user['state'] == 'creating':
         if caller == 'signup':
             set_message(session, f'Account is already creating for email {email}', 'error')
+        if caller == 'login':
+            set_message(session, f'Account for email {email} is still being created.', 'error')
         session['pending'] = True
         session['email'] = user['email']
         return web.HTTPFound(creating_url)

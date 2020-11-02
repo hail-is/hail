@@ -1653,12 +1653,12 @@ steps:
     - batch_pods_ns
     - create_deploy_config
     - create_session_key
-#    - deploy_router
+    - deploy_router
     - auth_database
     - auth_image
     - create_dummy_oauth2_client_secret
-#    - create_certs
-#    - create_accounts
+    - create_certs
+    - create_accounts
  - kind: deploy
    name: deploy_benchmark
    namespace:
