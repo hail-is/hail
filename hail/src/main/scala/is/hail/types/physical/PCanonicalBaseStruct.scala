@@ -2,9 +2,9 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.BaseStruct
-import is.hail.types.physical.stypes.{SBaseStructPointer, SBaseStructPointerCode, SBaseStructPointerSettable, SContainer, SIndexablePointer, SIndexablePointerCode, SStruct}
+import is.hail.types.physical.stypes.{SBaseStructPointer, SBaseStructPointerCode, SBaseStructPointerSettable, SStruct}
 import is.hail.utils._
 
 abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct {
@@ -105,13 +105,16 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     fields.foreach { f =>
       val dstFieldType = f.typ.fundamentalType
       if (dstFieldType.containsPointers) {
-        dstFieldType match {
-          case t@(_: PBinary | _: PArray) =>
-            val fieldAddr = cb.newLocal[Long]("pcbs_dpcopy_field", fieldOffset(dstAddr, f.index))
-            t.storeAtAddress(cb, fieldAddr, region, t.getPointerTo(cb, Region.loadAddress(fieldAddr)), deepCopy = true)
-          case t: PCanonicalBaseStruct =>
-            t.deepPointerCopy(cb, region, fieldOffset(dstAddr, f.index))
-        }
+        cb.ifx(isFieldDefined(dstAddr, f.index),
+          {
+            dstFieldType match {
+              case t@(_: PBinary | _: PArray) =>
+                val fieldAddr = cb.newLocal[Long]("pcbs_dpcopy_field", fieldOffset(dstAddr, f.index))
+                t.storeAtAddress(cb, fieldAddr, region, t.getPointerTo(cb, Region.loadAddress(fieldAddr)), deepCopy = true)
+              case t: PCanonicalBaseStruct =>
+                t.deepPointerCopy(cb, region, fieldOffset(dstAddr, f.index))
+            }
+          })
       }
     }
   }
