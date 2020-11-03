@@ -1,8 +1,10 @@
 package is.hail.expr.ir
 
+import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
+import is.hail.expr.ir.functions.StringFunctions
 import is.hail.lir
-import is.hail.types.physical.{PCode, PSettable, PValue}
+import is.hail.types.physical.{PCode, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
 object EmitCodeBuilder {
@@ -128,5 +130,10 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     val r = newLocal("invokeEmit_r")(pt.codeReturnType())
     EmitCode(r := _invoke(callee, args: _*),
       EmitCode.fromCodeTuple(pt, Code.loadTuple(callee.modb, EmitCode.codeTupleTypes(pt), r)))
+  }
+
+  // for debugging
+  def printRegionValue(value: Code[_], typ: PType, region: Value[Region]): Unit = {
+    append(Code._println(StringFunctions.boxArg(EmitRegion(emb, region), typ)(value)))
   }
 }

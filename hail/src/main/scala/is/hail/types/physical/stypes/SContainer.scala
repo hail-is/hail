@@ -44,12 +44,6 @@ class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extend
   def memoize(cb: EmitCodeBuilder, name: String): PIndexableValue = memoize(cb, name, cb.localBuilder)
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PIndexableValue = memoize(cb, name, cb.fieldBuilder)
-
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = {
-    EmitCodeBuilder.scopedVoid(mb) {cb =>
-      pt.storeAtAddress(cb, dst, r, this, false)
-    }
-  }
 }
 
 object SIndexablePointerSettable {

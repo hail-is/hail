@@ -1,11 +1,8 @@
 package is.hail.types.physical
 
-import is.hail.annotations.Region
-import is.hail.asm4s.Code
-import is.hail.annotations._
-import is.hail.asm4s._
-import is.hail.asm4s.joinpoint._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.annotations.{Region, _}
+import is.hail.asm4s.{Code, _}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.{SContainer, SIndexablePointer, SIndexablePointerCode, SIndexablePointerSettable}
 import is.hail.types.virtual.{TArray, Type}
 import is.hail.utils._
@@ -332,7 +329,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
     val dstAddress = cb.newLocal[Long]("pcarr_deep_ptr_copy_dst")
     cb.assign(dstAddress, dstAddressCode)
-    val numberOfElements = cb.newLocal[Int]("pcarray_deep_pointer_copy_n")
     val currentIdx = cb.newLocal[Int]("pcarray_deep_pointer_copy_current_idx")
     val currentElementAddress = cb.newLocal[Long]("pcarray_deep_pointer_copy_current_element_addr")
     cb.forLoop(
@@ -341,11 +337,11 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       cb.assign(currentIdx, currentIdx + 1),
       cb.ifx(isElementDefined(dstAddress, currentIdx),
         {
-          cb.assign(currentElementAddress, elementOffset(dstAddress, numberOfElements, currentIdx))
+          cb.assign(currentElementAddress, elementOffset(dstAddress, len, currentIdx))
           this.elementType.fundamentalType match {
             // FIXME this logic needs to go before we can create new ptypes
             case t@(_: PBinary | _: PArray) =>
-              t.storeAtAddress(cb, currentElementAddress, region, elementType.getPointerTo(cb, Region.loadAddress(currentElementAddress)), deepCopy = true)
+              t.storeAtAddress(cb, currentElementAddress, region, t.getPointerTo(cb, Region.loadAddress(currentElementAddress)), deepCopy = true)
             case t: PCanonicalBaseStruct =>
               t.deepPointerCopy(cb, region, currentElementAddress)
             case t: PType => throw new RuntimeException(s"Type isn't supported ${ t }")

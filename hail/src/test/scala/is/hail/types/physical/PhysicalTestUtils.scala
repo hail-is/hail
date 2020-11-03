@@ -33,7 +33,7 @@ abstract class PhysicalTestUtils extends HailSuite {
         region.clear()
         srcRegion.clear()
       } catch {
-        case e: AssertionError =>
+        case e: Throwable =>
           srcRegion.clear()
           region.clear()
 
@@ -57,7 +57,7 @@ abstract class PhysicalTestUtils extends HailSuite {
       fb.emitWithBuilder(cb => destType.fundamentalType.copyFromType(cb, codeRegion, sourceType.fundamentalType, value, deepCopy = deepCopy))
       compileSuccess = true
     } catch {
-      case e: AssertionError =>
+      case e: Throwable =>
         srcRegion.clear()
         region.clear()
 

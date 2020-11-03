@@ -18,7 +18,8 @@ object StagedRegionValueBuilder {
       val value = mb.getCodeParam(2)(valueTI)
       val dest = mb.getCodeParam[Long](3)
       mb.voidWithBuilder { cb =>
-        typ.storeAtAddress(cb, dest, r, PCode(typ, value), deepCopy = true) }
+        typ.storeAtAddress(cb, dest, r, PCode(typ, value), deepCopy = true)
+      }
     }
     mb.invokeCode[Unit](region, value, dest)
   }
