@@ -1441,10 +1441,8 @@ object EmitStream {
           val eltType = coerce[PStream](x.pType).elementType
           val stream = (eltRegion: StagedRegion) =>
             sequence(mb, eltType, elements.toFastIndexedSeq.map { ir =>
-              EmitCodeBuilder.scopedEmitCode(mb) { cb =>
-                emitIR(ir, region = eltRegion)
-                  .map(_.castTo(cb, eltRegion.code, eltType))
-              }
+              emitIR(ir, region = eltRegion)
+                .castTo(mb, eltRegion.code, eltType)
             })
 
           COption.present(sized(Code._empty, stream, Some(elements.length)))
@@ -1980,8 +1978,8 @@ object EmitStream {
                   push(xAccInEltR))
 
                 val bodyEnv = env.bind(accName -> xAccInAccR, eltName -> xElt)
-                val body = EmitCodeBuilder.scopedEmitCode(mb)(cb => emitIR(bodyIR, env = bodyEnv, region = eltRegion)
-                  .map(_.castTo(cb, eltRegion.code, accType)))
+                val body = emitIR(bodyIR, env = bodyEnv, region = eltRegion)
+                  .castTo(mb, eltRegion.code, accType)
 
                 val source = stream(eltRegion).apply(
                   eos = eos,
