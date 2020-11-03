@@ -196,16 +196,18 @@ async def index(request):
     global benchmark_data
     d = {
         'dates': benchmark_data['dates'],
-        'geo_means': benchmark_data['geo_means']
+        'geo_means': benchmark_data['geo_means'],
+        'commit': 
     }
     assert len(d['dates']) == len(d['geo_means']), d
     df = pd.DataFrame(d)
-    fig = px.line(df, x=df.dates, y=df.geo_means)
+    fig = px.line(df, x=df.dates, y=df.geo_means, hover_data=['commit'])
     fig.update_xaxes(rangeslider_visible=True)
     plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     context = {
         'commits': benchmark_data['commits'],
-        'plot': plot
+        'plot': plot,
+        'benchmark_test_bucket_name': BENCHMARK_TEST_BUCKET_NAME
     }
     return await render_template('benchmark', request, userdata, 'index.html', context)
 
