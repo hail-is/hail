@@ -38,10 +38,14 @@ BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 dates = []
 geo_means = []
+formatted_new_commits = []
+commit_ids = []
+
 benchmark_data = {
     'commits': {},
     'dates': dates,
-    'geo_means': geo_means
+    'geo_means': geo_means,
+    'commit_ids': commit_ids
 }
 
 
@@ -197,7 +201,7 @@ async def index(request):
     d = {
         'dates': benchmark_data['dates'],
         'geo_means': benchmark_data['geo_means'],
-        'commit': 
+        'commit': benchmark_data['commit_ids']
     }
     assert len(d['dates']) == len(d['geo_means']), d
     df = pd.DataFrame(d)
@@ -207,7 +211,7 @@ async def index(request):
     context = {
         'commits': benchmark_data['commits'],
         'plot': plot,
-        'benchmark_test_bucket_name': BENCHMARK_TEST_BUCKET_NAME
+        'benchmark_results_path': BENCHMARK_RESULTS_PATH
     }
     return await render_template('benchmark', request, userdata, 'index.html', context)
 
@@ -350,13 +354,17 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
         'date': gh_commit['commit']['author']['date'],
         'status': status
     }
-    #formatted_new_commits.append(commit)
+
+    log.info('got new commits')
 
     # benchmark_data = {
     #     'commits': formatted_new_commits,
     #     'dates': dates,
-    #     'geo_means': geo_means
+    #     'geo_means': geo_means,
+    #     'commit_ids': commit_ids
     # }
+    #formatted_new_commits.append(commit)
+
     return commit
 
 

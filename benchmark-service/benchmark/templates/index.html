@@ -30,7 +30,7 @@
     <tbody>
     {% for commit in commits %}
     <tr>
-        <td><a href="{{ base_path }}/lookup?file=gs://{{ benchmark_test_bucket_name }}/benchmark-test/0.0.0-{{ commit['sha'] }}.json">{{ commit['title'] }}</a></td>
+        <td><a href="{{ base_path }}/lookup?file={{ benchmark_results_path }}/0.0.0-{{ commit['sha'] }}.json">{{ commit['title'] }}</a></td>
         <td>{{ commit['sha'] }}</td>
         <td>{{ commit['author'] }}</td>
         <td>{{ commit['date'] }}</td>
