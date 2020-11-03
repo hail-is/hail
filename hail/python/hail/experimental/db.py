@@ -22,9 +22,11 @@ class DatasetVersion:
 
     Parameters
     ----------
-    url : :obj:`dict`
+    url : :obj:`dict` or :obj:`str`
         Nested dictionary of URLs containing key: value pairs, like
-        ``cloud: {region: url}``.
+        ``cloud: {region: url}`` if using :func:`.from_json` constructor,
+        or a string with the URL from appropriate region if using the
+        :func:`.get_region` constructor.
     version : :obj:`str`, optional
         String of dataset version, if not ``None``.
     reference_genome : :obj:`str`, optional
@@ -88,7 +90,7 @@ class DatasetVersion:
         return available_versions
 
     def __init__(self,
-                 url: dict,
+                 url: Union[dict, str],
                  version: Optional[str],
                  reference_genome: Optional[str]):
         self.url = url
@@ -131,14 +133,32 @@ class DatasetVersion:
     def maybe_index(self,
                     indexer_key_expr: StructExpression,
                     all_matches: bool) -> Optional[StructExpression]:
+        """Find the prefix of the given indexer expression that can index the
+        :class:`.DatasetVersion`, if it exists.
+
+        Parameters
+        ----------
+        indexer_key_expr : :class:`StructExpression`
+            Row key struct from relational object to be annotated.
+        all_matches : :obj:`bool`
+            ``True`` if `indexer_key_expr` key is not unique, indicated in
+            :attr:`.Dataset.key_properties` for each dataset. If ``True``, value
+            of `indexer_key_expr` is array of all matches. If ``False``, there
+            will only be single value of expression.
+
+        Returns
+        -------
+        :class:`StructExpression`, optional
+            Struct of compatible indexed values, if they exist.
+        """
         return hl.read_table(self.url)._maybe_flexindex_table_by_expr(
             indexer_key_expr, all_matches=all_matches)
 
 
 class Dataset:
-    """To create a dataset object with name, description, url,
-    key_properties,and versions specified in JSON configuration file or a
-    provided :obj:`dict` mapping dataset names to configurations.
+    """Dataset object constructed from name, description, url, key_properties,
+    and versions specified in JSON configuration file or a provided :obj:`dict`
+    mapping dataset names to configurations.
 
     Parameters
     ----------
@@ -149,8 +169,8 @@ class Dataset:
     url : :obj:`str`
         Cloud URL to access dataset.
     key_properties : :class:`set` of :obj:`str`
-        Set containing key property strings e.g. ``{'gene'}``, or ``{'unique'}``
-        , if present.
+        Set containing key property strings, if present. Valid properties
+        include ``'gene'`` and ``'unique'``.
     versions : :class:`list` of :class:`.DatasetVersion`
         List of :class:`.DatasetVersion` objects.
     """
@@ -178,7 +198,7 @@ class Dataset:
 
         Returns
         -------
-        :class:`Dataset`
+        :class:`Dataset`, optional
             If versions exist for region returns a :class:`.Dataset` object,
             else ``None``.
         """
@@ -211,8 +231,9 @@ class Dataset:
         self.key_properties = key_properties
         self.versions = versions
 
+    @property
     def is_gene_keyed(self) -> bool:
-        """Check if :class:`Dataset` is gene keyed.
+        """If a :class:`Dataset` is gene keyed.
 
         Returns
         -------
@@ -223,8 +244,22 @@ class Dataset:
 
     def index_compatible_version(self,
                                  key_expr: StructExpression) -> StructExpression:
-        # If not unique key then use all matches, otherwise give a single a value
-        # Add documentation here soon
+        """Get index from compatible version of annotation dataset.
+
+        Checks for compatible indexed values from each :class:`.DatasetVersion`
+        in :attr:`.Dataset.versions`, where `key_expr` is the row key struct
+        from the dataset to be annotated.
+
+        Parameters
+        ----------
+        key_expr : :class:`.StructExpression`
+            Row key struct from relational object to be annotated.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+            Struct of compatible indexed values.
+        """
         all_matches = 'unique' not in self.key_properties
         compatible_indexed_values = [
             index
@@ -298,22 +333,23 @@ class DB:
                              f'Valid cloud platforms are {DB._valid_clouds}.')
         if (region, cloud) not in DB._valid_combinations:
             raise ValueError(f'The {repr(region)} region is not available for'
-                             f' the {repr(cloud)} cloud platform.\nValid'
-                             f' combinations are {DB._valid_combinations}.')
+                             f' the {repr(cloud)} cloud platform. '
+                             f'Valid region, cloud combinations are'
+                             f' {DB._valid_combinations}.')
         if config is not None and url is not None:
-            raise ValueError(f'Only specify one of the parameters url and config,'
-                             f' received: url={url} and config={config}')
+            raise ValueError(f'Only specify one of the parameters url and'
+                             f' config, received: url={url} and config={config}')
         if config is None:
             if url is None:
                 config_path = pkg_resources.resource_filename(__name__,
-                                                              "datasets.json")
-                assert os.path.exists(config_path), f'{config_path} does not exist'
+                                                              'datasets.json')
+                assert os.path.exists(config_path), \
+                    f'{config_path} does not exist'
                 with open(config_path) as f:
                     config = json.load(f)
             else:
                 session = external_requests_client_session()
-                response = retry_response_returning_functions(
-                    session.get, url)
+                response = retry_response_returning_functions(session.get, url)
                 config = response.json()
             assert isinstance(config, dict)
         else:
@@ -343,13 +379,23 @@ class DB:
 
     @staticmethod
     def _row_lens(rel: Union[Table, MatrixTable]) -> Union[TableRows, MatrixRows]:
+        """Get row lens from relational object.
+
+        Parameters
+        ----------
+        rel : :class:`Table` or :class:`MatrixTable`
+
+        Returns
+        -------
+        :class:`TableRows` or :class:`MatrixRows`
+        """
         if isinstance(rel, MatrixTable):
             return MatrixRows(rel)
         elif isinstance(rel, Table):
             return TableRows(rel)
         else:
-            raise ValueError('annotation database can only annotate'
-                             ' Hail MatrixTable or Table')
+            raise ValueError('annotation database can only annotate Hail'
+                             ' MatrixTable or Table')
 
     def _dataset_by_name(self, name: str) -> Dataset:
         """Retrieve :class:`Dataset` object by name.
@@ -372,6 +418,18 @@ class DB:
     def _annotate_gene_name(self,
                             rel: Union[TableRows, MatrixRows]
                             ) -> Tuple[str, Union[TableRows, MatrixRows]]:
+        """Annotate row lens with gene name if annotation dataset is gene
+        keyed.
+
+        Parameters
+        ----------
+        rel : :class:`TableRows` or :class:`MatrixRows`
+            Row lens of relational object to be annotated.
+
+        Returns
+        -------
+        :class:`tuple`
+        """
         gene_field = Env.get_uid()
         gencode = self.__by_name['gencode'].index_compatible_version(rel.key)
         return gene_field, rel.annotate(**{gene_field: gencode.gene_name})
@@ -383,7 +441,7 @@ class DB:
         Parameters
         ----------
         names : :obj:`iterable`
-            Tuple or list of names to check.
+            Names to check.
         """
         unavailable = [x for x in names if x not in self.__by_name.keys()]
         if unavailable:
@@ -447,12 +505,12 @@ class DB:
                              f' please remove duplicates from: {names}')
         self._check_availability(names)
         datasets = [self._dataset_by_name(name) for name in names]
-        if any(dataset.is_gene_keyed() for dataset in datasets):
+        if any(dataset.is_gene_keyed for dataset in datasets):
             gene_field, rel = self._annotate_gene_name(rel)
         else:
             gene_field = None
         for dataset in datasets:
-            if dataset.is_gene_keyed():
+            if dataset.is_gene_keyed:
                 genes = rel.select(gene_field).explode(gene_field)
                 genes = genes.annotate(**{
                     dataset.name: dataset.index_compatible_version(genes[gene_field])})
