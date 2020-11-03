@@ -224,8 +224,9 @@ async def update_commits(app):
     gs_reader = app['gs_reader']
 
     request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
+    log.info(f'start point is {START_POINT}')
     gh_data = await github_client.getitem(request_string)
-    log.info(f'gh_data length {len(gh_data)}')
+    log.info(f'gh_data length is {len(gh_data)}')
     formatted_new_commits = []
 
     for gh_commit in gh_data:
