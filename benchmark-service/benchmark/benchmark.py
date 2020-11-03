@@ -228,7 +228,7 @@ async def update_commits(app):
 
     for gh_commit in gh_data:
         sha = gh_commit.get('sha')
-        file_path = f'gs://{HAIL_BENCHMARK_BUCKET_NAME}/benchmark-test/{sha}'
+        file_path = f'gs://{HAIL_BENCHMARK_BUCKET_NAME}/benchmark-test/{sha}.json'
         has_results_file = gs_reader.file_exists(file_path)
         batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
 
