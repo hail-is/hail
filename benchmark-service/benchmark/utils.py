@@ -49,10 +49,11 @@ def list_benchmark_files(read_gs):
     return list_of_files
 
 
-async def submit_batch(batch_client, sha):
+async def submit_test_batch(batch_client, sha):
     batch = batch_client.create_batch()
     job = batch.create_job(image='ubuntu:18.04',
                            command=['/bin/bash', '-c', 'touch /io/test; sleep 300'],
+                           resources={'cpu': 0.25},
                            output_files=[('/io/test', f'gs://{HAIL_BENCHMARK_BUCKET_NAME}/benchmark-test/{sha}')])
     await batch.submit(disable_progress_bar=True)
     log.info(f'submitted batch for commit {sha}')
@@ -87,5 +88,5 @@ class ReadGoogleStorage:
         file_info = parse_file_path(FILE_PATH_REGEX, file_path)
         bucket_name = file_info['bucket']
         bucket = self.storage_client.bucket(bucket_name)
-        stats = storage.Blob(bucket=bucket, name=file_path).exists()
-        return stats
+        exists = storage.Blob(bucket=bucket, name=file_path).exists()
+        return exists

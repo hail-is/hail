@@ -43,7 +43,7 @@ spec:
 {% endif %}
 {% if deploy %}
           - name: START_POINT
-            value: "2020-10-01T00:00:00Z"
+            value: "2020-11-01T00:00:00Z"
 {% endif %}
           ports:
             - containerPort: 5000

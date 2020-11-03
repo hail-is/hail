@@ -11,7 +11,7 @@ from hailtop.utils import retry_long_running
 import hailtop.batch_client.aioclient as bc
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials,\
-    list_benchmark_files, round_if_defined, submit_batch
+    list_benchmark_files, round_if_defined, submit_test_batch
 import json
 import re
 import plotly
@@ -236,7 +236,7 @@ async def update_commits(app):
 
         if not batches and not has_results_file:
             new_commits.append(gh_commit)
-            batch_id = await submit_batch(batch_client, sha)
+            batch_id = await submit_test_batch(batch_client, sha)
             batch = await batch_client.get_batch(batch_id)
             batch_status = await batch.last_known_status()
             log.info(f'submitted a batch {batch_id} for commit {sha}')
