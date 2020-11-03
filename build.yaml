@@ -2032,6 +2032,62 @@ steps:
     - batch_database
     - deploy_auth
     - create_certs
+ - kind: runImage
+   name: create_billing_projects
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     # create billing projects and add users to them
+     cat > create-billing-project.py <<EOF
+     import sys
+     import json
+     import asyncio
+     import aiohttp
+     from hailtop.utils import async_to_blocking
+     from hailtop.batch_client.aioclient import BatchClient
+     async def main():
+         bc = await BatchClient(None)
+         try:
+             billing_project = sys.argv[1]
+             user = sys.argv[2]
+             limit = sys.argv[3]
+
+             try:
+                 await bc.create_billing_project(billing_project)
+             except aiohttp.ClientResponseError as e:
+                 if e.status != 403 or 'already exists' not in e.message:
+                      raise
+
+             try:
+                 await bc.add_user(user, billing_project)
+             except aiohttp.ClientResponseError as e:
+                 if e.status != 403 or 'already member of billing project' not in e.message:
+                      raise
+
+             await bc.edit_billing_limit(billing_project, limit)
+         finally:
+             await bc.close()
+     async_to_blocking(main())
+     EOF
+     # benchmark billing project
+     python3 create-billing-project.py benchmark benchmark None
+   secrets:
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - service_base_image
+    - create_deploy_config
+    - create_accounts
+    - deploy_batch
  - kind: deploy
    name: deploy_benchmark
    namespace:
