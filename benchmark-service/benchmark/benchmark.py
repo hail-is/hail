@@ -224,12 +224,15 @@ async def update_commits(app):
     gs_reader = app['gs_reader']
 
     request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
+    log.info(f'start point is {START_POINT}')
     gh_data = await github_client.getitem(request_string)
+    log.info(f'gh_data length is {len(gh_data)}')
     formatted_new_commits = []
 
     for gh_commit in gh_data:
         sha = gh_commit.get('sha')
-        file_path = f'gs://{HAIL_BENCHMARK_BUCKET_NAME}/benchmark-test/{sha}'
+        log.info(f'for commit {sha}')
+        file_path = f'gs://{HAIL_BENCHMARK_BUCKET_NAME}/benchmark-test/{sha}.json'
         has_results_file = gs_reader.file_exists(file_path)
         batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
 
@@ -239,6 +242,7 @@ async def update_commits(app):
             log.info(f'submitted a batch {batch_id} for commit {sha}')
         else:
             batch = batches[:-1]
+            log.info(f'batch already exists for commit {sha}')
 
         batch_status = await batch.last_known_status()
         commit = {
@@ -261,7 +265,7 @@ async def github_polling_loop(app):
     while True:
         await update_commits(app)
         log.info('successfully queried github')
-        await asyncio.sleep(180)
+        await asyncio.sleep(300)
 
 
 async def on_startup(app):
