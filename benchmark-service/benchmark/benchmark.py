@@ -224,30 +224,30 @@ async def update_commits(app):
 
     request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
     gh_data = await github_client.getitem(request_string)
-    new_commits = []
     formatted_new_commits = []
 
     for gh_commit in gh_data:
         sha = gh_commit.get('sha')
         file_path = f'gs://{HAIL_BENCHMARK_BUCKET_NAME}/benchmark-test/{sha}'
         has_results_file = gs_reader.file_exists(file_path)
-
         batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
 
         if not batches and not has_results_file:
-            new_commits.append(gh_commit)
             batch_id = await submit_test_batch(batch_client, sha)
             batch = await batch_client.get_batch(batch_id)
-            batch_status = await batch.last_known_status()
             log.info(f'submitted a batch {batch_id} for commit {sha}')
-            commit = {
-                'sha': sha,
-                'title': gh_commit['commit']['message'],
-                'author': gh_commit['commit']['author']['name'],
-                'date': gh_commit['commit']['author']['date'],
-                'status': batch_status
-            }
-            formatted_new_commits.append(commit)
+        else:
+            batch = batches[:-1]
+
+        batch_status = await batch.last_known_status()
+        commit = {
+            'sha': sha,
+            'title': gh_commit['commit']['message'],
+            'author': gh_commit['commit']['author']['name'],
+            'date': gh_commit['commit']['author']['date'],
+            'status': batch_status
+        }
+        formatted_new_commits.append(commit)
 
     log.info('got new commits')
 
