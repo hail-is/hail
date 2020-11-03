@@ -275,7 +275,7 @@ async def on_startup(app):
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
                                                        'hail-is/hail',
                                                        oauth_token=oauth_token)
-    app['batch_client'] = await bc.BatchClient(billing_project='test')
+    app['batch_client'] = await bc.BatchClient(billing_project='benchmark')
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(retry_long_running(
         'github_polling_loop', github_polling_loop, app))
