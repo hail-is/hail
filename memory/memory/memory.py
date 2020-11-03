@@ -107,12 +107,23 @@ async def on_startup(app):
     app['redis_pool'] = await aioredis.create_pool(socket)
 
 
+async def on_cleanup(app):
+    try:
+        app['thread_pool'].shutdown()
+    finally:
+        try:
+            app['worker_pool'].shutdown()
+        finally:
+            app['redis_pool'].close()
+
+
 def run():
     app = web.Application()
 
     setup_aiohttp_session(app)
     app.add_routes(routes)
     app.on_startup.append(on_startup)
+    app.on_cleanup.append(on_cleanup)
 
     deploy_config = get_deploy_config()
     web.run_app(

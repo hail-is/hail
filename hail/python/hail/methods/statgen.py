@@ -384,9 +384,6 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         raise ValueError("'linear_regression_rows_nd': found no values for 'y'")
     is_chained = y_is_list and isinstance(y[0], list)
 
-    if is_chained:
-        raise ValueError("linear_regression_rows_nd does not currently support chained linear regression.")
-
     if is_chained and any(len(lst) == 0 for lst in y):
         raise ValueError("'linear_regression_rows': found empty inner list for 'y'")
 
@@ -411,18 +408,22 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
-    row_fields = _get_regression_row_fields(mt, pass_through, 'linear_regression_rows_nd')
+    row_field_names = _get_regression_row_fields(mt, pass_through, 'linear_regression_rows_nd')
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
     mt = mt._select_all(col_exprs=dict(**y_dict,
                                        **dict(zip(cov_field_names, covariates))),
-                        row_exprs=row_fields,
+                        row_exprs=row_field_names,
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
-    # NEW STUFF
     entries_field_name = 'ent'
     sample_field_name = "by_sample"
+
+    if not is_chained:
+        y_field_names = [y_field_names]
+
+    num_y_lists = len(y_field_names)
 
     def all_defined(struct_root, field_names):
         defined_array = hl.array([hl.is_defined(struct_root[field_name]) for field_name in field_names])
@@ -440,49 +441,87 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     def dot_rows_with_themselves(matrix):
         return (matrix * matrix) @ hl.nd.ones(matrix.shape[1])
 
+    def array_from_struct(struct, field_names):
+        return hl.array([struct[field_name] for field_name in field_names])
+
     ht_local = mt._localize_entries(entries_field_name, sample_field_name)
 
     ht = ht_local.transmute(**{entries_field_name: ht_local[entries_field_name][x_field_name]})
 
-    ys_and_covs_to_keep_with_indices = hl.enumerate(ht[sample_field_name]).filter(lambda struct_with_index: all_defined(struct_with_index[1], y_field_names + cov_field_names))
-    indices_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[0])
-    ys_and_covs_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[1])
+    list_of_ys_and_covs_to_keep_with_indices = \
+        [hl.enumerate(ht[sample_field_name]).filter(lambda struct_with_index: all_defined(struct_with_index[1], one_y_field_name_set + cov_field_names)) for one_y_field_name_set in y_field_names]
 
-    cov_nd = hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[cov_name] for cov_name in cov_field_names]))) if cov_field_names else hl.nd.zeros((hl.len(indices_to_keep), 0))
-    ht = ht.annotate_globals(kept_samples=indices_to_keep,
-                             __y_nd=hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[y_name] for y_name in y_field_names]))),
-                             __cov_nd=cov_nd)
+    def make_one_cov_matrix(ys_and_covs_to_keep):
+        return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, cov_field_names))) \
+            if cov_field_names else hl.nd.zeros((hl.len(ys_and_covs_to_keep), 0))
+
+    def make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set):
+        return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, one_y_field_name_set)))
+
+    list_of_ys_and_covs_to_keep = [inner_list.map(lambda pair: pair[1]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
+    list_of_indices_to_keep = [inner_list.map(lambda pair: pair[0]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
+
+    cov_nds = hl.array([make_one_cov_matrix(ys_and_covs_to_keep) for ys_and_covs_to_keep in list_of_ys_and_covs_to_keep])
+
+    y_nds = hl.array([make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set)
+                      for ys_and_covs_to_keep, one_y_field_name_set in zip(list_of_ys_and_covs_to_keep, y_field_names)])
+
+    ht = ht.annotate_globals(kept_samples=list_of_indices_to_keep)
     k = builtins.len(covariates)
-    n = hl.len(ht.kept_samples)
-    ht = ht.annotate_globals(d=n - k - 1)
-    cov_Qt = hl.if_else(k > 0, hl.nd.qr(ht.__cov_nd)[0].T, hl.nd.zeros((0, n)))
-    ht = ht.annotate_globals(__Qty=cov_Qt @ ht.__y_nd)
-    ht = ht.annotate_globals(__yyp=dot_rows_with_themselves(ht.__y_nd.T) - dot_rows_with_themselves(ht.__Qty.T))
+    ns = ht.index_globals().kept_samples.map(lambda one_sample_set: hl.len(one_sample_set))
+    cov_Qts = hl.if_else(k > 0,
+                         cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
+                         ns.map(lambda n: hl.nd.zeros((0, n))))
+    Qtys = hl.range(num_y_lists).map(lambda i: cov_Qts[i] @ hl.array(y_nds)[i])
+    ht = ht.annotate_globals(
+        __y_nds=y_nds,
+        ds=ns.map(lambda n: n - k - 1),
+        __cov_Qts=cov_Qts,
+        __Qtys=Qtys,
+        __yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(y_nds[i].T) - dot_rows_with_themselves(Qtys[i].T)))
 
     def process_block(block):
-        X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples)))).T
-        sum_x = (X.T @ hl.nd.ones((n,)))._data_array()
-        Qtx = cov_Qt @ X
-        ytx = ht.__y_nd.T @ X
-        xyp = ytx - (ht.__Qty.T @ Qtx)
-        xxpRec = (dot_rows_with_themselves(X.T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
-        b = xyp * xxpRec
-        se = ((1.0 / ht.d) * (ht.__yyp.reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
-        t = b / se
-        p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.d, True, False))
+        rows_in_block = hl.len(block)
 
-        key_fields = [key_field for key_field in ht.key]
-        key_dict = {key_field: block[key_field] for key_field in key_fields}
-        linreg_fields_dict = {"sum_x": sum_x, "y_transpose_x": ytx.T._data_array(), "beta": b.T._data_array(),
-                              "standard_error": se.T._data_array(), "t_stat": t.T._data_array(), "p_value": p.T._data_array()}
-        combined_dict = {**key_dict, **linreg_fields_dict}
+        # Processes one block group based on given idx. Returns a single struct.
+        def process_y_group(idx):
+            X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))).T
+            n = ns[idx]
+            sum_x = (X.T @ hl.nd.ones((n,)))
+            Qtx = ht.__cov_Qts[idx] @ X
+            ytx = ht.__y_nds[idx].T @ X
+            xyp = ytx - (ht.__Qtys[idx].T @ Qtx)
+            xxpRec = (dot_rows_with_themselves(X.T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
+            b = xyp * xxpRec
+            se = ((1.0 / ht.ds[idx]) * (ht.__yyps[idx].reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
+            t = b / se
+            p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.ds[idx], True, False))
+            return hl.struct(n=hl.range(rows_in_block).map(lambda i: n), sum_x=sum_x._data_array(), y_transpose_x=ytx.T._data_array(), beta=b.T._data_array(),
+                             standard_error=se.T._data_array(), t_stat=t.T._data_array(), p_value=p.T._data_array())
 
-        # Need to pull off "struct of arrays to array of structs". How?
-        # Turn it into a giant zipped list, so that it can be iterated over all at once
-        combined_field_names = [key for key, value in combined_dict.items()]
-        combined_field_data = [value for key, value in combined_dict.items()]
-        linreg_structs = hl.zip(*combined_field_data).map(lambda tup: hl.struct(**{combined_field_names[i]: tup[i] for i in range(len(combined_field_names))}))
-        return linreg_structs
+        per_y_list = hl.range(num_y_lists).map(lambda i: process_y_group(i))
+
+        key_field_names = [key_field for key_field in ht.key]
+
+        def build_row(row_idx):
+            # For every field we care about, map across all y's, getting the row_idxth one from each.
+            idxth_keys = {field_name: block[field_name][row_idx] for field_name in key_field_names}
+            computed_row_field_names = ['n', 'sum_x', 'y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
+            computed_row_fields = {
+                field_name: per_y_list.map(lambda one_y: one_y[field_name][row_idx]) for field_name in computed_row_field_names
+            }
+            pass_through_rows = {
+                field_name: block[field_name][row_idx] for field_name in row_field_names
+            }
+
+            if not is_chained:
+                computed_row_fields = {key: value[0] for key, value in computed_row_fields.items()}
+
+            return hl.struct(**{**idxth_keys, **computed_row_fields, **pass_through_rows})
+
+        new_rows = hl.range(rows_in_block).map(build_row)
+
+        return new_rows
 
     def process_partition(part):
         grouped = part.grouped(block_size)

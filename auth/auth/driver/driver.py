@@ -4,13 +4,13 @@ import json
 import base64
 import logging
 import secrets
-import string
 import asyncio
 import aiohttp
 import kubernetes_asyncio as kube
-from hailtop.utils import time_msecs
+from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
-from hailtop import aiogoogle
+from hailtop import aiogoogle, aiotools
+from hailtop import batch_client as bc
 from gear import create_session, Database
 
 log = logging.getLogger('auth.driver')
@@ -35,6 +35,10 @@ class EventHandler:
         self.event = event
         self.bump_secs = bump_secs
         self.min_delay_secs = min_delay_secs
+        self.task_manager = aiotools.BackgroundTaskManager()
+
+    def shutdown(self):
+        self.task_manager.shutdown()
 
     async def main_loop(self):
         delay_secs = self.min_delay_secs
@@ -68,9 +72,9 @@ class EventHandler:
             await asyncio.sleep(self.bump_secs)
 
     async def start(self):
-        asyncio.ensure_future(self.main_loop())
+        self.task_manager.ensure_future(self.main_loop())
         if self.bump_secs is not None:
-            asyncio.ensure_future(self.bump_loop())
+            self.task_manager.ensure_future(self.bump_loop())
 
 
 class SessionResource:
@@ -284,16 +288,83 @@ class K8sNamespaceResource:
         self.name = None
 
 
+class BillingProjectResource:
+    def __init__(self, batch_client, user=None, billing_project=None):
+        self.batch_client = batch_client
+        self.user = user
+        self.billing_project = billing_project
+
+    async def create(self, user, billing_project):
+        assert self.user is None
+        assert self.billing_project is None
+
+        await self._delete(user, billing_project)
+
+        try:
+            await self.batch_client.create_billing_project(billing_project)
+        except aiohttp.ClientResponseError as e:
+            if e.status != 403 or 'already exists' not in e.message:
+                raise
+
+        try:
+            await self.batch_client.reopen_billing_project(billing_project)
+        except aiohttp.ClientResponseError as e:
+            if e.status != 403 or 'is already open' not in e.message:
+                raise
+
+        try:
+            await self.batch_client.add_user(user, billing_project)
+        except aiohttp.ClientResponseError as e:
+            if e.status != 403 or 'already member of billing project' not in e.message:
+                raise
+
+        await self.batch_client.edit_billing_limit(billing_project, 10)
+
+        self.user = user
+        self.billing_project = billing_project
+
+    async def _delete(self, user, billing_project):
+        try:
+            bp = await self.batch_client.get_billing_project(billing_project)
+        except aiohttp.ClientResponseError as e:
+            if e.status == 403 and 'unknown billing project':
+                return
+            raise
+        else:
+            if bp['status'] == 'closed':
+                await self.batch_client.reopen_billing_project(billing_project)
+
+        try:
+            await self.batch_client.remove_user(user, billing_project)
+        except aiohttp.ClientResponseError as e:
+            if e.status != 403 or 'is not in billing project' not in e.message:
+                raise
+        finally:
+            await self.batch_client.close_billing_project(billing_project)
+
+    async def delete(self):
+        if self.user is None or self.billing_project is None:
+            return
+        await self._delete(self.user, self.billing_project)
+        self.user = None
+        self.billing_project = None
+
+
 async def _create_user(app, user, cleanup):
     db_instance = app['db_instance']
     db = app['db']
     k8s_client = app['k8s_client']
     iam_client = app['iam_client']
+    batch_client = app['batch_client']
 
-    alnum = string.ascii_lowercase + string.digits
-    token = ''.join([secrets.choice(alnum) for _ in range(5)])
-    ident_token = f'{user["username"]}-{token}'
-    if user['is_developer'] == 1:
+    if user['is_service_account'] != 1:
+        token = secret_alnum_string(5, case='lower')
+        ident_token = f'{user["username"]}-{token}'
+    else:
+        token = secret_alnum_string(3, case='numbers')
+        ident_token = f'{user["username"]}-{token}'
+
+    if user['is_developer'] == 1 or user['is_service_account'] == 1:
         ident = user['username']
     else:
         ident = ident_token
@@ -354,6 +425,15 @@ async def _create_user(app, user, cleanup):
         await db_secret.create(
             'database-server-config', namespace_name, db_resource.secret_data())
 
+    trial_bp = user['trial_bp_name']
+    if trial_bp is None:
+        username = user['username']
+        billing_project_name = f'{username}-trial'
+        billing_project = BillingProjectResource(batch_client)
+        cleanup.append(billing_project.delete)
+        await billing_project.create(username, billing_project_name)
+        updates['trial_bp_name'] = billing_project_name
+
     n_rows = await db.execute_update(f'''
 UPDATE users
 SET {', '.join([f'{k} = %({k})s' for k in updates])}
@@ -386,6 +466,7 @@ async def delete_user(app, user):
     db = app['db']
     k8s_client = app['k8s_client']
     iam_client = app['iam_client']
+    batch_client = app['batch_client']
 
     tokens_secret_name = user['tokens_secret_name']
     if tokens_secret_name is not None:
@@ -415,6 +496,11 @@ async def delete_user(app, user):
 
         db_resource = DatabaseResource(db_instance, user['username'])
         await db_resource.delete()
+
+    trial_bp_name = user['trial_bp_name']
+    if trial_bp_name is not None:
+        bp = BillingProjectResource(batch_client, user['username'], trial_bp_name)
+        await bp.delete()
 
     await db.just_execute('''
 DELETE FROM sessions WHERE user_id = %s;
@@ -464,6 +550,8 @@ async def async_main():
         app['iam_client'] = aiogoogle.IAmClient(
             PROJECT, credentials=aiogoogle.Credentials.from_file('/gsa-key/key.json'))
 
+        app['batch_client'] = await bc.aioclient.BatchClient(None)
+
         users_changed_event = asyncio.Event()
         app['users_changed_event'] = users_changed_event
 
@@ -479,7 +567,12 @@ async def async_main():
         while True:
             await asyncio.sleep(10000)
     finally:
-        if 'db' in app:
-            await app['db'].async_close()
-        if 'db_instance_pool' in app:
-            await app['db_instance_pool'].async_close()
+        try:
+            if 'db' in app:
+                await app['db'].async_close()
+        finally:
+            try:
+                if 'db_instance_pool' in app:
+                    await app['db_instance_pool'].async_close()
+            finally:
+                user_creation_loop.shutdown()

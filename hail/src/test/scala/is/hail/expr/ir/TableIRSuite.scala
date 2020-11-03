@@ -662,7 +662,7 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testShuffleAndJoinDoesntMemoryLeak() {
-    implicit val execStrats = ExecStrategy.interpretOnly
+    implicit val execStrats = Set(ExecStrategy.LoweredJVMCompile, ExecStrategy.Interpret)
     val row = Ref("row", TStruct("idx" -> TInt32))
     val t1 = TableRename(TableRange(1, 1), Map("idx" -> "idx_"), Map.empty)
     val t2 =
@@ -673,7 +673,7 @@ class TableIRSuite extends HailSuite {
             FastIndexedSeq("k" -> (I32(49999) - GetField(row, "idx"))))),
         FastIndexedSeq("k"))
 
-    Interpret(TableJoin(t1, t2, "left"), ctx).rvd.count()
+    assertEvalsTo(TableCount(TableJoin(t1, t2, "left")), 1L)
   }
 
   @Test def testTableRename(): Unit = {
@@ -851,6 +851,16 @@ class TableIRSuite extends HailSuite {
         Row())
       assertEvalsTo(collect(joinedRanges), expectedJoinCollectResult)
     }
+  }
+
+  @Test def testNestedStreamInTable(): Unit = {
+    var tir: TableIR = TableRange(1, 1)
+    var ir: IR = rangeIR(5)
+    ir = StreamGrouped(ir, 2)
+    ir = ToArray(mapIR(ir)(ToArray))
+    ir = InsertFields(Ref("row", tir.typ.rowType), Seq("foo" -> ir))
+    tir = TableMapRows(tir, ir)
+    assertEvalsTo(collect(tir), Row(FastIndexedSeq(Row(0, FastIndexedSeq(FastIndexedSeq(0, 1), FastIndexedSeq(2, 3), FastIndexedSeq(4)))), Row()))
   }
 
   val parTable1Length = 7

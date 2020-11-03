@@ -215,5 +215,26 @@ class BatchClient:
     def list_billing_projects(self):
         return async_to_blocking(self._async_client.list_billing_projects())
 
+    def create_billing_project(self, project):
+        return async_to_blocking(self._async_client.create_billing_project(project))
+
+    def add_user(self, user, project):
+        return async_to_blocking(self._async_client.add_user(user, project))
+
+    def remove_user(self, user, project):
+        return async_to_blocking(self._async_client.remove_user(user, project))
+
+    def close_billing_project(self, project):
+        return async_to_blocking(self._async_client.close_billing_project(project))
+
+    def reopen_billing_project(self, project):
+        return async_to_blocking(self._async_client.reopen_billing_project(project))
+
+    def delete_billing_project(self, project):
+        return async_to_blocking(self._async_client.delete_billing_project(project))
+
+    def edit_billing_limit(self, project, limit):
+        return async_to_blocking(self._async_client.edit_billing_limit(project, limit))
+
     def close(self):
         async_to_blocking(self._async_client.close())

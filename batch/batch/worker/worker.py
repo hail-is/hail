@@ -25,6 +25,7 @@ from hailtop.utils import (time_msecs, request_retry_transient_errors,
 from hailtop.tls import get_context_specific_ssl_client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
                                         parse_memory_in_bytes)
+from hailtop import aiotools
 # import uvloop
 
 from hailtop.config import DeployConfig
@@ -125,7 +126,7 @@ def docker_call_retry(timeout, name):
                 raise
             except (aiohttp.client_exceptions.ServerDisconnectedError, asyncio.TimeoutError):
                 log.exception(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True)
-            delay = await sleep_and_backoff(delay)
+                delay = await sleep_and_backoff(delay)
     return wrapper
 
 
@@ -534,7 +535,7 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
 
-        delay = await sleep_and_backoff(delay)
+    delay = await sleep_and_backoff(delay)
 
 
 def copy_command(src, dst, requester_pays_project=None):
@@ -609,7 +610,13 @@ class Job:
     def gsa_key_file_path(self):
         return f'{self.scratch}/gsa-key'
 
-    def __init__(self, batch_id, user, gsa_key, job_spec, format_version):
+    def __init__(self,
+                 batch_id: int,
+                 user: str,
+                 gsa_key,
+                 job_spec,
+                 format_version,
+                 task_manager: aiotools.BackgroundTaskManager):
         self.batch_id = batch_id
         self.user = user
         self.gsa_key = gsa_key
@@ -718,6 +725,8 @@ class Job:
 
         self.containers = containers
 
+        self.task_manager = task_manager
+
     @property
     def job_id(self):
         return self.job_spec['job_id']
@@ -735,7 +744,7 @@ class Job:
             self.start_time = time_msecs()
 
             try:
-                asyncio.ensure_future(worker.post_job_started(self))
+                self.task_manager.ensure_future(worker.post_job_started(self))
 
                 log.info(f'{self}: initializing')
                 self.state = 'initializing'
@@ -808,7 +817,7 @@ class Job:
 
                 if not self.deleted:
                     log.info(f'{self}: marking complete')
-                    asyncio.ensure_future(worker.post_job_complete(self))
+                    self.task_manager.ensure_future(worker.post_job_complete(self))
 
                 log.info(f'{self}: cleaning up')
                 try:
@@ -889,12 +898,17 @@ class FileCache:
         self.path = path
         self.cleanup_event = asyncio.Event()
         self.pool = pool
+        self.task_manager = aiotools.BackgroundTaskManager()
 
     async def async_init(self):
-        asyncio.ensure_future(retry_long_running('file_cache_monitoring_loop', self.monitor_loop))
-        asyncio.ensure_future(retry_long_running(
+        self.task_manager.ensure_future(retry_long_running(
+            'file_cache_monitoring_loop', self.monitor_loop))
+        self.task_manager.ensure_future(retry_long_running(
             'file_cache_cleanup_loop',
             run_if_changed, self.cleanup_event, self.cleanup_loop))
+
+    def shutdown(self):
+        self.task_manager.shutdown()
 
     async def used_disk_space(self):
         usage = await blocking_to_async(self.pool, shutil.disk_usage, self.path)
@@ -936,6 +950,13 @@ class Worker:
         # filled in during activation
         self.log_store = None
         self.headers = None
+        self.task_manager = aiotools.BackgroundTaskManager()
+
+    def shutdown(self):
+        try:
+            self.file_cache.shutdown()
+        finally:
+            self.task_manager.shutdown()
 
     async def run_job(self, job):
         try:
@@ -979,13 +1000,13 @@ class Worker:
         if id in self.jobs:
             return web.HTTPForbidden()
 
-        job = Job(batch_id, body['user'], body['gsa_key'], job_spec, format_version)
+        job = Job(batch_id, body['user'], body['gsa_key'], job_spec, format_version, self.task_manager)
 
         log.info(f'created {job}, adding to jobs')
 
         self.jobs[job.id] = job
 
-        asyncio.ensure_future(self.run_job(job))
+        self.task_manager.ensure_future(self.run_job(job))
 
         return web.Response()
 
@@ -1021,7 +1042,7 @@ class Worker:
         if job is None:
             raise web.HTTPNotFound()
 
-        asyncio.ensure_future(job.delete())
+        self.task_manager.ensure_future(job.delete())
 
         return web.Response()
 
@@ -1220,9 +1241,13 @@ async def async_main():
 
     port_allocator = PortAllocator()
     worker = Worker()
-    await worker.run()
-
-    await docker.close()
+    try:
+        await worker.run()
+    finally:
+        try:
+            worker.shutdown()
+        finally:
+            await docker.close()
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(async_main())

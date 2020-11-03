@@ -9,6 +9,7 @@ from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
 from hailtop.utils import retry_long_running
 import hailtop.batch_client.aioclient as bc
+from hailtop import aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials,\
     list_benchmark_files, round_if_defined, submit_test_batch
@@ -271,7 +272,13 @@ async def on_startup(app):
                                                        'hail-is/hail',
                                                        oauth_token=oauth_token)
     app['batch_client'] = await bc.BatchClient(billing_project='test')
-    asyncio.ensure_future(retry_long_running('github_polling_loop', github_polling_loop, app))
+    app['task_manager'] = aiotools.BackgroundTaskManager()
+    app['task_manager'].ensure_future(retry_long_running(
+        'github_polling_loop', github_polling_loop, app))
+
+
+async def on_cleanup(app):
+    app['task_manager'].shutdown()
 
 
 def run():
@@ -283,6 +290,7 @@ def run():
     router.static('/static', f'{BENCHMARK_ROOT}/static')
     app.add_routes(router)
     app.on_startup.append(on_startup)
+    app.on_cleanup.append(on_cleanup)
     web.run_app(deploy_config.prefix_application(app, 'benchmark'),
                 host='0.0.0.0',
                 port=5000,

@@ -658,6 +658,35 @@ class BatchClient:
         bp_resp = await self._get('/api/v1alpha/billing_projects')
         return await bp_resp.json()
 
+    async def create_billing_project(self, project):
+        bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/create')
+        return await bp_resp.json()
+
+    async def add_user(self, user, project):
+        resp = await self._post(f'/api/v1alpha/billing_projects/{project}/users/{user}/add')
+        return await resp.json()
+
+    async def remove_user(self, user, project):
+        resp = await self._post(f'/api/v1alpha/billing_projects/{project}/users/{user}/remove')
+        return await resp.json()
+
+    async def close_billing_project(self, project):
+        bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/close')
+        return await bp_resp.json()
+
+    async def reopen_billing_project(self, project):
+        bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/reopen')
+        return await bp_resp.json()
+
+    async def delete_billing_project(self, project):
+        bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/delete')
+        return await bp_resp.json()
+
+    async def edit_billing_limit(self, project, limit):
+        bp_resp = await self._post(f'/api/v1alpha/billing_limits/{project}/edit',
+                                   json={'limit': limit})
+        return await bp_resp.json()
+
     async def close(self):
         await self._session.close()
         self._session = None

@@ -12,11 +12,16 @@ import is.hail.io.fs.FS
 import scala.collection.mutable
 
 object ExecuteContext {
-  def scoped[T]()(f: ExecuteContext => T): T = HailContext.sparkBackend("ExecuteContext.scoped").withExecuteContext()(f)
+  def scoped[T]()(f: ExecuteContext => T): T = {
+    val (result, _) = ExecutionTimer.time("ExecuteContext.scoped") { timer =>
+      HailContext.sparkBackend("ExecuteContext.scoped").withExecuteContext(timer)(f)
+    }
+    result
+  }
 
-  def scoped[T](tmpdir: String, localTmpdir: String, backend: Backend, fs: FS)(f: ExecuteContext => T): T = {
+  def scoped[T](tmpdir: String, localTmpdir: String, backend: Backend, fs: FS, timer: ExecutionTimer)(f: ExecuteContext => T): T = {
     Region.scoped { r =>
-      val ctx = new ExecuteContext(tmpdir, localTmpdir, backend, fs, r, new ExecutionTimer)
+      val ctx = new ExecuteContext(tmpdir, localTmpdir, backend, fs, r, timer)
       f(ctx)
     }
   }

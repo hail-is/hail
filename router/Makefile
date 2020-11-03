@@ -5,9 +5,10 @@ ROUTER_IMAGE = gcr.io/$(PROJECT)/router:$(shell docker images -q --no-trunc rout
 
 .PHONY: build
 build:
-	docker pull ubuntu:18.04
+	docker pull gcr.io/$(PROJECT)/ubuntu:18.04
 	-docker pull $(ROUTER_LATEST)
-	docker build -t router --cache-from router,$(ROUTER_LATEST),ubuntu:18.04 .
+	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}}' Dockerfile Dockerfile.out
+	docker build -f Dockerfile.out -t router --cache-from router,$(ROUTER_LATEST),gcr.io/$(PROJECT)/ubuntu:18.04 .
 
 .PHONY: push
 push: build

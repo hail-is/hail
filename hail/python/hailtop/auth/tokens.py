@@ -87,5 +87,5 @@ def get_tokens(file=None):
             default_tokens = Tokens.default_tokens()
         return default_tokens
     if file not in tokens:
-        tokens[file] = Tokens(file)
+        tokens[file] = Tokens.from_file(file)
     return tokens[file]

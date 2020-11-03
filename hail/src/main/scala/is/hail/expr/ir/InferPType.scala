@@ -105,8 +105,8 @@ object InferPType {
     case NDArrayMap(nd, `name`, _) => coerce[PNDArray](nd.pType).elementType
     case NDArrayMap2(left, _, `name`, _, _) => coerce[PNDArray](left.pType  ).elementType
     case NDArrayMap2(_, right, _, `name`, _) => coerce[PNDArray](right.pType).elementType
-    case x@CollectDistributedArray(_, _, `name`, _, _) => x.decodedContextPType
-    case x@CollectDistributedArray(_, _, _, `name`, _) => x.decodedGlobalPType
+    case x@CollectDistributedArray(_, _, `name`, _, _, _) => x.decodedContextPType
+    case x@CollectDistributedArray(_, _, _, `name`, _, _) => x.decodedGlobalPType
     case x@ShuffleWith(_, _, _, _, `name`, _, _) => x.shufflePType
     case _ => throw new RuntimeException(s"$name not found in definition \n${ Pretty(defNode) }")
   }
@@ -123,7 +123,7 @@ object InferPType {
       case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | _: UUID4 | _: Literal | _: True | _: False
            | _: Cast | _: NA | _: Die | _: IsNA | _: ArrayZeros | _: ArrayLen | _: StreamLen
            | _: LowerBoundOnOrderedCollection | _: ApplyBinaryPrimOp
-           | _: ApplyUnaryPrimOp | _: ApplyComparisonOp | _: WriteValue
+           | _: ApplyUnaryPrimOp | _: ApplyComparisonOp | _: WriteValue | _: Consume
            | _: NDArrayAgg | _: ShuffleWrite | _: AggStateValue | _: CombOpValue | _: InitFromSerializedValue =>
         requiredness(node).canonicalPType(node.typ)
       case EncodedLiteral(codec, _) =>

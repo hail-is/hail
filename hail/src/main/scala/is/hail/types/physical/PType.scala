@@ -352,7 +352,7 @@ abstract class PType extends Serializable with Requiredness {
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering
 
-  def byteSize: Long = 1
+  def byteSize: Long
 
   def alignment: Long = byteSize
 

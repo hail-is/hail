@@ -1,4 +1,4 @@
-FROM alpine:3.8
+FROM gcr.io/{{ global.project }}/alpine:3.8
 MAINTAINER hail-team@broadinstitute.org
 
 RUN apk --no-cache add \

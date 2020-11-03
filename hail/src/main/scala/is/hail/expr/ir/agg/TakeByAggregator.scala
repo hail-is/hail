@@ -44,29 +44,17 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
         ("max_size", PInt32Required)) ++ garbageFields: _*
     )
 
-  private val compareKey: ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[Int] = {
-    val keyInfo = typeToTypeInfo(keyType)
-    val cmp = kb.genEmitMethod("compare", FastIndexedSeq[ParamType](BooleanInfo, keyInfo, BooleanInfo, keyInfo), IntInfo)
+  private val compareKey: (EmitCodeBuilder, EmitCode, EmitCode) => Code[Int] = {
+    val cmp = kb.genEmitMethod("compare", FastIndexedSeq[ParamType](keyType.asEmitParam, keyType.asEmitParam), IntInfo)
     val ord = keyType.codeOrdering(cmp, so)
-    val k1m = cmp.getCodeParam[Boolean](1)
-    val k1 = cmp.getCodeParam(2)(keyInfo)
-    val k2m = cmp.getCodeParam[Boolean](3)
-    val k2 = cmp.getCodeParam(4)(keyInfo)
+    val k1 = cmp.getEmitParam(1)
+    val k2 = cmp.getEmitParam(2)
 
     cmp.emit(
-      ord.compare((k1m, asm4s.coerce[ord.T](k1)), (k2m, asm4s.coerce[ord.T](k2)))
+      ord.compare(k1.m -> coerce(k1.v), k2.m -> coerce(k2.v))
     )
 
-    def wrappedValue(missingBit: Code[Boolean], value: Code[_]): Code[_] = {
-      missingBit.mux(defaultValue(keyType), value)
-    }
-
-    (k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])) => {
-      Code.memoize(k1._1, "tba_comp_key_k1m",
-        k2._1, "tba_comp_key_k2m") { (k1m, k2m) =>
-        cmp.invokeCode[Int](k1m, wrappedValue(k1m, k1._2), k2m, wrappedValue(k2m, k2._2))
-      }
-    }
+    (cb, k1, k2) => cb.invokeCode(cmp, k1, k2)
   }
 
   private val compareIndexedKey: (Code[Long], Code[Long]) => Code[Int] = {
@@ -229,13 +217,14 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   //    )
   //  }
 
-  private def elementOffset(i: Value[Int]): Code[Long] = asm4s.coerce[Long](ab.elementOffset(i)._2)
+  private def elementOffset(i: Value[Int]): Code[Long] = ab.elementOffset(i)
 
   private def keyIsMissing(offset: Code[Long]): Code[Boolean] = indexedKeyType.isFieldMissing(offset, 0)
 
-  private def loadKeyValue(offset: Code[Long]): Code[_] = Region.loadIRIntermediate(keyType)(indexedKeyType.fieldOffset(offset, 0))
+  private def loadKeyValue(offset: Code[Long]): PCode = keyType.load(indexedKeyType.fieldOffset(offset, 0))
 
-  private def loadKey(offset: Value[Long]): (Code[Boolean], Code[_]) = (keyIsMissing(offset), loadKeyValue(offset))
+  private def loadKey(offset: Value[Long]): EmitCode =
+    EmitCode(Code._empty, keyIsMissing(offset), loadKeyValue(offset))
 
   private val compareElt: (Code[Long], Code[Long]) => Code[Int] = {
     val mb = kb.genEmitMethod("i_gt_j", FastIndexedSeq[ParamType](LongInfo, LongInfo), IntInfo)
@@ -370,7 +359,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   private def swapStaging(): Code[Unit] = {
     Code(
-      StagedRegionValueBuilder.deepCopy(kb, region, eltTuple, staging, ab.elementOffset(0)._2),
+      StagedRegionValueBuilder.deepCopy(kb, region, eltTuple, staging, ab.elementOffset(0)),
       rebalanceDown(0)
     )
   }
@@ -389,21 +378,24 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     val value = mb.getEmitParam(1)
     val key = mb.getEmitParam(2)
 
-    mb.emit(
-      (maxSize > 0).orEmpty(
-        (ab.size < maxSize).mux(
-          Code(
-            stageAndIndexKey(key.m, key.v),
-            copyToStaging(value.v, value.m, keyStage),
-            enqueueStaging()),
-          Code(
-            tempPtr := eltTuple.loadField(elementOffset(0), 0),
-            (compareKey((key.m, key.v), loadKey(tempPtr)) < 0)
-              .orEmpty(Code(
-                stageAndIndexKey(key.m, key.v),
-                copyToStaging(value.v, value.m, keyStage),
-                swapStaging(),
-                gc()))))))
+    mb.emitWithBuilder { cb =>
+      cb.ifx(maxSize > 0, {
+        cb.ifx(ab.size < maxSize, {
+          cb += stageAndIndexKey(key.m, key.v)
+          cb += copyToStaging(value.v, value.m, keyStage)
+          cb += enqueueStaging()
+        }, {
+          cb.assign(tempPtr, eltTuple.loadField(elementOffset(0), 0))
+          cb.ifx(compareKey(cb, key, loadKey(tempPtr)) < 0, {
+            cb += stageAndIndexKey(key.m, key.v)
+            cb += copyToStaging(value.v, value.m, keyStage)
+            cb += swapStaging()
+            cb += gc()
+          })
+        })
+      })
+      Code._empty
+    }
 
     (cb: EmitCodeBuilder, v: EmitCode, k: EmitCode) => cb.invokeVoid(mb, v, k)
   }
