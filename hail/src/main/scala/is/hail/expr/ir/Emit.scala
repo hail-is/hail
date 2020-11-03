@@ -706,7 +706,7 @@ class Emit[C](
         iec.map(cb)(pc => PCode(pt, cast(pc.code)))
       case CastRename(v, _typ) =>
         emitI(v)
-
+          .map(cb)(pc => PCode(pt, pc.code))
       case NA(typ) =>
         IEmitCode(cb, const(true), pt.defaultValue)
       case IsNA(v) =>
