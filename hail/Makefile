@@ -70,7 +70,7 @@ endif
 $(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) env/HAIL_DEBUG_MODE
 	./gradlew shadowJar $(GRADLE_ARGS)
 ifdef HAIL_DEBUG_MODE
-	$(JAR) -uf $(SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
+	time $(JAR) -uf $(SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
 endif
 
 ifdef HAIL_COMPILE_NATIVES
