@@ -420,7 +420,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType == elementType =>
         if (deepCopy) {
           val newAddr = cb.newLocal[Long]("pcarray_store_newaddr")
-          val pcInd = value.asIndexable.memoize(cb, "pcarray_store_src").asInstanceOf[SIndexablePointerSettable]
+          val pcInd = value.asIndexable.memoize(cb, "pcarray_store_src_sametype").asInstanceOf[SIndexablePointerSettable]
           cb.assign(newAddr, allocate(region, pcInd.length))
           cb += Region.copyFrom(pcInd.a, newAddr, contentsByteSize(pcInd.length))
           deepPointerCopy(cb, region, newAddr, pcInd.length)
@@ -430,7 +430,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         }
       case _ =>
         val newAddr = cb.newLocal[Long]("pcarray_store_newaddr")
-        val indexable = value.asIndexable.memoize(cb, "pcarray_store_src")
+        val indexable = value.asIndexable.memoize(cb, "pcarray_store_src_difftype")
         val length = indexable.loadLength()
         cb.assign(newAddr, allocate(region, length))
         cb += stagedInitialize(newAddr, length, setMissing = false)

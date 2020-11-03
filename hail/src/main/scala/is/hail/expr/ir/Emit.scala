@@ -366,7 +366,7 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
   }
 
   def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType, deepCopy: Boolean = false): EmitCode =
-    EmitCodeBuilder.scopedEmitCode(mb)(cb => EmitCode(setup, m, pv.castTo(cb, region, destType, deepCopy)))
+    EmitCode.fromI(mb)(cb => toI(cb).map(cb)(_.castTo(cb, region, destType)))
 
   def codeTuple(): IndexedSeq[Code[_]] = {
     val tc = pv.codeTuple()
@@ -513,9 +513,8 @@ class Emit[C](
         val rvAgg = agg.Extract.getAgg(sig)
 
         val argVars = args.zip(rvAgg.initOpTypes).map { case (a, t) =>
-          EmitCodeBuilder.scopedEmitCode(mb)(cb =>
-            emit(a, container = container.flatMap(_.nested(i, init = true)))
-              .map(_.castTo(cb, region.code, t)))
+          emit(a, container = container.flatMap(_.nested(i, init = true)))
+            .castTo(mb, region.code, t)
         }.toArray
 
         cb += sc.newState(i)
@@ -527,9 +526,8 @@ class Emit[C](
         val rvAgg = agg.Extract.getAgg(sig)
 
         val argVars = args.zip(rvAgg.seqOpTypes).map { case (a, t) =>
-          EmitCodeBuilder.scopedEmitCode(mb)(cb =>
-            emit(a, container = container.flatMap(_.nested(i, init = false)))
-              .map(_.castTo(cb, region.code, t)))
+          emit(a, container = container.flatMap(_.nested(i, init = false)))
+            .castTo(mb, region.code, t)
         }.toArray
         rvAgg.seqOp(cb, sc.states(i), argVars)
 
