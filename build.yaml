@@ -1659,18 +1659,6 @@ steps:
     - create_dummy_oauth2_client_secret
     - create_certs
     - create_accounts
- - kind: deploy
-   name: deploy_benchmark
-   namespace:
-     valueFrom: default_ns.name
-   config: benchmark-service/deployment.yaml
-   dependsOn:
-    - default_ns
-    - benchmark_image
-    - deploy_router
-    - create_certs
-    - deploy_auth
-    - create_accounts
  - kind: runImage
    name: check_monitoring
    image:
@@ -2042,6 +2030,19 @@ steps:
     - batch_database
     - deploy_auth
     - create_certs
+ - kind: deploy
+   name: deploy_benchmark
+   namespace:
+     valueFrom: default_ns.name
+   config: benchmark-service/deployment.yaml
+   dependsOn:
+    - default_ns
+    - benchmark_image
+    - deploy_router
+    - create_certs
+    - deploy_auth
+    - create_accounts
+    - deploy_batch
  - kind: deploy
    name: deploy_query
    namespace:
