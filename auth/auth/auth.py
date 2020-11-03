@@ -348,6 +348,39 @@ async def rest_login(request):
     })
 
 
+@routes.get('/roles')
+@web_authenticated_developers_only()
+async def get_roles(request, userdata):
+    db = request.app['db']
+    roles = [x async for x in
+             db.select_and_fetchall('SELECT * FROM roles;')]
+    page_context = {
+        'roles': roles
+    }
+    return await render_template('auth', request, userdata, 'roles.html', page_context)
+
+
+@routes.post('/roles')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def post_create_role(request, userdata):  # pylint: disable=unused-argument
+    session = await aiohttp_session.get_session(request)
+    db = request.app['db']
+    post = await request.post()
+    name = post['name']
+
+    role_id = await db.execute_insertone(
+        '''
+INSERT INTO roles (name)
+VALUES (%s);
+''',
+        (name))
+
+    set_message(session, f'Created role {role_id} {name}.', 'info')
+
+    return web.HTTPFound(deploy_config.external_url('auth', '/roles'))
+
+
 @routes.get('/users')
 @web_authenticated_developers_only()
 async def get_users(request, userdata):
