@@ -3,7 +3,7 @@ package is.hail.rvd
 import is.hail.annotations._
 import is.hail.asm4s.AsmFunction3RegionLongLongLong
 import is.hail.expr.{JSONAnnotationImpex, ir}
-import is.hail.expr.ir.lowering.TableStage
+import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.{ExecuteContext, IR, PartitionZippedNativeReader}
 import is.hail.io._
 import is.hail.io.fs.FS
@@ -163,6 +163,7 @@ object AbstractRVDSpec {
       val ts = TableStage(
         globals,
         tmpPartitioner,
+        TableStageDependency.none,
         contexts,
         body)
       extendedNewPartitioner match {
@@ -280,6 +281,7 @@ abstract class AbstractRVDSpec {
         TableStage(
           globals,
           partitioner,
+          TableStageDependency.none,
           contexts,
           body)
   }
@@ -526,6 +528,7 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
         val ts = TableStage(
           globals,
           tmpPartitioner,
+          TableStageDependency.none,
           contexts,
           body)
         if (filterIntervals) ts else ts.repartitionNoShuffle(extendedNP)

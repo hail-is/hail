@@ -10,6 +10,7 @@ import is.hail.backend.{BackendContext, HailTaskContext}
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.functions.StringFunctions
+import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
@@ -2218,7 +2219,7 @@ class Emit[C](
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
         impl.apply(EmitRegion(mb, region.code), pt, typeArgs, codeArgs: _*)
-      case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
+      case x@CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
         val ctxsType = coerce[PStream](contexts.pType)
         val ctxType = ctxsType.elementType
         val gType = globals.pType
@@ -2356,12 +2357,13 @@ class Emit[C](
           addContexts(ctxStream.asStream.stream),
           baos.invoke[Unit]("reset"),
           addGlobals,
-          encRes := spark.invoke[BackendContext, String, Array[Array[Byte]], Array[Byte], Array[Array[Byte]]](
+          encRes := spark.invoke[BackendContext, String, Array[Array[Byte]], Array[Byte], Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
             mb.getObject(ctx.backendContext),
             functionID,
             ctxab.invoke[Array[Array[Byte]]]("result"),
-            baos.invoke[Array[Byte]]("toByteArray")),
+            baos.invoke[Array[Byte]]("toByteArray"),
+            mb.getObject(tsd)),
           decodeResult))
         }
 

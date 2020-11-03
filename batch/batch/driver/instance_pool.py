@@ -11,6 +11,7 @@ import base64
 import dateutil.parser
 import sortedcontainers
 import aiohttp
+from hailtop import aiotools
 from hailtop.utils import (
     retry_long_running, time_msecs, secret_alnum_string)
 
@@ -112,6 +113,8 @@ class InstancePool:
 
         self.name_instance = {}
 
+        self.task_manager = aiotools.BackgroundTaskManager()
+
     async def update_zones(self):
         northamerica_regions = {
             # 'northamerica-northeast1',
@@ -184,13 +187,15 @@ FROM globals;
             instance = Instance.from_record(self.app, record)
             self.add_instance(instance)
 
-        asyncio.ensure_future(self.event_loop())
-        asyncio.ensure_future(self.control_loop())
-        asyncio.ensure_future(self.instance_monitoring_loop())
-
-        asyncio.ensure_future(retry_long_running(
+        self.task_manager.ensure_future(self.event_loop())
+        self.task_manager.ensure_future(self.control_loop())
+        self.task_manager.ensure_future(self.instance_monitoring_loop())
+        self.task_manager.ensure_future(retry_long_running(
             'update_zones_loop',
             self.update_zones_loop))
+
+    def shutdown(self):
+        self.task_manager.shutdown()
 
     def config(self):
         return {

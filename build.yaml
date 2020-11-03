@@ -266,6 +266,8 @@ steps:
       script: /io/sql/copy-paste-tokens.sql
     - name: drop-bucket
       script: /io/sql/drop-bucket.sql
+    - name: add-trial-billing-project
+      script: /io/sql/add-trial-billing-project.sql
    inputs:
     - from: /repo/auth/sql
       to: /io/
@@ -386,6 +388,16 @@ steps:
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "benchmark-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+     # create auth
+     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers auth-tokens | wc -l | tr -d '[:space:]')
+     if [[ $N = 0 ]]; then
+         rm -f /user-tokens/tokens.json
+         kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+         kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ batch_pods_ns.name }} apply -f -
+         python3 create-session.py '{"state":"active","username":"auth","is_service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"auth-gsa-key","tokens_secret_name":"auth-tokens"}'
+         kubectl -n {{ default_ns.name }} create secret generic auth-tokens --from-file=/user-tokens/tokens.json
+     fi
+     # created auth
      # create ci
      N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers ci-tokens | wc -l | tr -d '[:space:]')
      if [[ $N = 0 ]]; then
@@ -584,7 +596,7 @@ steps:
      time tar czf test.tar.gz -C python test
      time tar czf resources.tar.gz -C src/test resources
      time tar czf data.tar.gz -C python/hail/docs data
-     (cd ../site && time tar czf ../hail/www-src.tar.gz www)
+     (cd .. && time tar czf hail/site-src.tar.gz site)
      time tar czf cluster-tests.tar.gz python/cluster-tests
      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
      time TESTNG_SPLITS=5 python3 generate_splits.py
@@ -614,8 +626,8 @@ steps:
        to: /splits.tar.gz
      - from: /io/repo/hail/data.tar.gz
        to: /data.tar.gz
-     - from: /io/repo/hail/www-src.tar.gz
-       to: /www-src.tar.gz
+     - from: /io/repo/hail/site-src.tar.gz
+       to: /site-src.tar.gz
      - from: /io/repo/hail/cluster-tests.tar.gz
        to: /cluster-tests.tar.gz
    dependsOn:
@@ -1468,21 +1480,28 @@ steps:
      set -ex
      export HAIL_SHORT_VERSION='0.2'
      export SPHINXOPTS='-tchecktutorial'
+
      mkdir -p {{ token }}/python
      cd {{ token }}
      unzip -q -d python /io/hail.zip
-     tar xzf /io/www-src.tar.gz
+
+     tar xzf /io/site-src.tar.gz
+     export HAIL_SITE_DIR=$(pwd)/site/
+
      sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
        < python/hail/docs/change_log.md \
        | pandoc -o python/hail/docs/change_log.rst
+
      make -C python/hail/docs BUILDDIR=_build clean html
      make -C python/hailtop/batch/docs BUILDDIR=_build clean html
+
      mkdir -p www/docs
-     rm -f www/*.md
      mv python/hail/docs/_build/html www/docs/0.2
      mv python/hailtop/batch/docs/_build/html www/docs/batch
+
      HAIL_CACHE_VERSION=$(cat python/hail/hail_version)
      find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
+
      tar czf /io/www.tar.gz www
    resources:
      memory: "7.5G"
@@ -1490,8 +1509,8 @@ steps:
    inputs:
     - from: /hail.zip
       to: /io/hail.zip
-    - from: /www-src.tar.gz
-      to: /io/www-src.tar.gz
+    - from: /site-src.tar.gz
+      to: /io/site-src.tar.gz
    outputs:
     - from: /io/www.tar.gz
       to: /www.tar.gz
@@ -1526,14 +1545,15 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
+
+     make -C site render
+
      make -C hail python/hail/hail_version
      HAIL_CACHE_VERSION=$(cat hail/python/hail/hail_version)
-     make -C site/www
      find site/www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
+
      rsync --archive \
            --verbose \
-           --exclude='*.xslt' \
-           --exclude='*.md' \
            site/www/* \
            /io/www
      cd /io/www && tar -cvzf /io/site-www.tar.gz *
@@ -1638,6 +1658,7 @@ steps:
     - auth_image
     - create_dummy_oauth2_client_secret
     - create_certs
+    - create_accounts
  - kind: runImage
    name: check_monitoring
    image:
@@ -1963,6 +1984,10 @@ steps:
       script: /io/sql/change_test_worker_pool_size.py
     - name: add-test-dev-to-billing-project-users
       script: /io/sql/add-test-dev-to-billing-project-users.sql
+    - name: add-status-flag-billing-projects
+      script: /io/sql/add-status-flag-billing-projects.sql
+    - name: add-aggregated-billing-project-resources
+      script: /io/sql/add-aggregated-billing-project-resources.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
@@ -2097,13 +2122,13 @@ steps:
    name: netcat_ubuntu_image
    dockerFile:
      inline: |
-       FROM ubuntu:18.04
+       FROM gcr.io/{{ global.project }}/ubuntu:18.04
        RUN apt-get update && apt-get install netcat -y
  - kind: buildImage
    name: curl_image
    dockerFile:
      inline: |
-       FROM ubuntu:18.04
+       FROM gcr.io/{{ global.project }}/ubuntu:18.04
        RUN apt-get update && apt-get install curl -y
  - kind: runImage
    name: test_memory
@@ -2162,6 +2187,9 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
+     export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+     export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2187,6 +2215,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
         valueFrom: default_ns.name
@@ -2222,6 +2254,9 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
+     export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+     export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2247,6 +2282,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
         valueFrom: default_ns.name
@@ -2282,6 +2321,9 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
+     export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+     export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2307,6 +2349,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
         valueFrom: default_ns.name
@@ -2342,6 +2388,9 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
+     export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+     export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2367,6 +2416,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
         valueFrom: default_ns.name
@@ -2402,6 +2455,9 @@ steps:
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
+     export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+     export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2427,6 +2483,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
         valueFrom: default_ns.name
@@ -2573,6 +2633,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=0
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -2623,6 +2684,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=1
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -2673,6 +2735,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=2
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -2723,6 +2786,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=3
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -2773,6 +2837,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=4
+     export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \

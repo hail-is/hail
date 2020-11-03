@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM gcr.io/{{ global.project }}/ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \

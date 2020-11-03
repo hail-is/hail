@@ -75,14 +75,15 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val kb: EmitClassBuil
 
   def combine(other: TakeRVAS): Code[Unit] = {
     val j = kb.genFieldThisRef[Int]()
-    val (eltJMissing, eltJ) = other.builder.loadElement(j)
+    val elt = other.builder.loadElement(j)
 
     Code(
       j := const(0),
       Code.whileLoop((builder.size < maxSize) & (j < other.builder.size),
-        eltJMissing.mux(
+        elt.setup,
+        elt.m.mux(
           builder.setMissing(),
-          builder.append(eltJ)
+          builder.append(elt.v)
         ),
         j := j + 1
       )
@@ -91,13 +92,14 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val kb: EmitClassBuil
 
   def result(srvb: StagedRegionValueBuilder): Code[Unit] = {
     srvb.addArray(resultType, { rvb =>
-      val (eltIMissing, eltOffset) = builder.elementOffset(rvb.arrayIdx)
+      val elt = builder.loadElement(rvb.arrayIdx)
       Code(
         rvb.start(builder.size),
         Code.whileLoop(rvb.arrayIdx < builder.size,
-          eltIMissing.mux(
+          elt.setup,
+          elt.m.mux(
             rvb.setMissing(),
-            rvb.addWithDeepCopy(eltType, Region.loadIRIntermediate(eltType)(eltOffset))
+            rvb.addWithDeepCopy(eltType, elt.v)
           ),
           rvb.advance()))
       })

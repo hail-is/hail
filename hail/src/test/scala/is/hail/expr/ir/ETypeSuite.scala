@@ -113,28 +113,28 @@ class ETypeSuite extends HailSuite {
   @Test def testNDArrayEncodeDecode(): Unit = {
     val pTypeInt0 = PCanonicalNDArray(PInt32Required, 0, true)
     val eTypeInt0 = ENDArrayColumnMajor(EInt32Required, 0, true)
-    val dataInt0 = Row(Row(), Row(), FastIndexedSeq(0))
+    val dataInt0 = Row(Row(), FastIndexedSeq(0))
 
     assertEqualEncodeDecode(pTypeInt0, eTypeInt0, pTypeInt0, dataInt0)
 
     val pTypeFloat1 = PCanonicalNDArray(PFloat32Required, 1, true)
     val eTypeFloat1 = ENDArrayColumnMajor(EFloat32Required, 1, true)
-    val dataFloat1 = Row(Row(5L), Row(4L), (0 until 5).map(_.toFloat))
+    val dataFloat1 = Row(Row(5L), (0 until 5).map(_.toFloat))
 
     assertEqualEncodeDecode(pTypeFloat1, eTypeFloat1, pTypeFloat1, dataFloat1)
 
     val pTypeInt2 = PCanonicalNDArray(PInt32Required, 2, true)
     val eTypeInt2 = ENDArrayColumnMajor(EInt32Required, 2, true)
-    val dataInt2 = Row(Row(2L, 2L), Row(4L, 8L), FastIndexedSeq(10, 20, 30, 40))
+    val dataInt2 = Row(Row(2L, 2L), FastIndexedSeq(10, 20, 30, 40))
 
     assertEqualEncodeDecode(pTypeInt2, eTypeInt2, pTypeInt2, dataInt2)
 
     val pTypeDouble3 = PCanonicalNDArray(PFloat64Required, 3, false)
     val eTypeDouble3 = ENDArrayColumnMajor(EFloat64Required, 3, false)
-    val dataDouble3 = Row(Row(3L, 2L, 1L), Row(16L, 8L, 8L), FastIndexedSeq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
+    val dataDouble3 = Row(Row(3L, 2L, 1L), FastIndexedSeq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
 
     assert(encodeDecode(pTypeDouble3, eTypeDouble3, pTypeDouble3, dataDouble3) ==
-      Row(Row(3L, 2L, 1L), Row(8L, 24L, 48L), FastIndexedSeq(1.0, 3.0, 5.0, 2.0, 4.0, 6.0)))
+      Row(Row(3L, 2L, 1L), FastIndexedSeq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0)))
 
     // Test for skipping
     val pStructContainingNDArray = PCanonicalStruct(true,

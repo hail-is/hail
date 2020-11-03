@@ -133,8 +133,14 @@ class Shuffle (
 ) extends AutoCloseable {
   private[this] val log = Logger.getLogger(getClass.getName)
   private[this] val rootRegion = Region()
-  private[this] val ctx = new ExecuteContext("/tmp", "file:///tmp", null, null, rootRegion, new ExecutionTimer())
-  private[this] val codecs = new ShuffleCodecSpec(ctx, shuffleType)
+  private[this] val codecs = {
+    ExecutionTimer.logTime("Shuffle.codecs") { timer =>
+      using(new ExecuteContext("/tmp", "file:///tmp", null, null, rootRegion, timer)) { ctx =>
+        new ShuffleCodecSpec(ctx, shuffleType)
+      }
+    }
+  }
+
   private[this] val store = new LSM(s"/tmp/${uuidToString(uuid)}", codecs)
 
   private[this] def makeRegion(): Region = {
@@ -145,7 +151,6 @@ class Shuffle (
 
   def close(): Unit = {
     rootRegion.close()
-    ctx.close()
   }
 
   def put(in: InputBuffer, out: OutputBuffer) {

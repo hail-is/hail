@@ -1543,3 +1543,10 @@ def test_lowered_persist():
     ht = hl.utils.range_table(100, 10).persist()
     assert ht.count() == 100
     assert ht.filter(ht.idx == 55).count() == 1
+
+
+@lower_only()
+def test_lowered_shuffle():
+    ht = hl.utils.range_table(100, 10)
+    ht = ht.order_by(-ht.idx)
+    assert ht.aggregate(hl.agg.take(ht.idx, 3)) == [99, 98, 97]

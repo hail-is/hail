@@ -1,4 +1,4 @@
-FROM debian:9.5
+FROM gcr.io/{{ global.project }}/debian:9.5
 
 RUN apt-get update -y && \
     apt-get install -y nginx curl python-minimal && \

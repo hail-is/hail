@@ -1,5 +1,7 @@
 .PHONY: jars clean
 
+HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+
 include env_var.mk
 .DEFAULT_GOAL := shadowJar
 MAKEFLAGS += --no-builtin-rules
@@ -11,7 +13,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.11.12
 SPARK_VERSION ?= 2.4.5
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 58
+HAIL_PATCH_VERSION := 59
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 
@@ -281,9 +283,8 @@ python/hail/docs/change_log.rst: python/hail/docs/change_log.md
 .PHONY: batch-docs
 batch-docs:
 	$(MAKE) -C python/hailtop/batch/docs \
-	      BUILDDIR=$(PWD)/build/docs/batch \
+	      BUILDDIR=$(HAIL_DIR)/build/docs/batch \
 	      html
-	mkdir -p build/www/docs
 	rm -rf build/www/docs/batch
 	cp -R build/docs/batch/html build/www/docs/batch
 	find build/www/docs/batch \
@@ -297,7 +298,7 @@ HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
 hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
 	        SPHINXOPTS='-tchecktutorial' \
-	        BUILDDIR=$(PWD)/build/docs/hail \
+	        BUILDDIR=$(HAIL_DIR)/build/docs/hail \
 	        html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
@@ -311,7 +312,7 @@ hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 .PHONY: hail-docs-no-test
 hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
-	        BUILDDIR=$(PWD)/build/docs/hail \
+	        BUILDDIR=$(HAIL_DIR)/build/docs/hail \
 	        html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
@@ -320,7 +321,7 @@ hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	     -iname *.html \
 	     -type f \
 	     -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
-	@echo Built docs: file://$(PWD)/build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
+	@echo Built docs: file://$(HAIL_DIR)/build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: upload-docs
 upload-docs: hail-docs batch-docs

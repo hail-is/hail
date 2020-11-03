@@ -231,7 +231,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case NDArrayMap2(left, right, l, r, body) =>
         addElementBinding(l, left)
         addElementBinding(r, right)
-      case CollectDistributedArray(ctxs, globs, c, g, body) =>
+      case CollectDistributedArray(ctxs, globs, c, g, body, _) =>
         addElementBinding(c, ctxs)
         addBinding(g, globs)
       case TableAggregate(c, q) =>
@@ -428,7 +428,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(node.children.forall { case c: IR => lookup(c).required })
 
       // always required
-      case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die | _: UUID4 =>
+      case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die | _: UUID4 | _: Consume =>
       case _: CombOpValue | _: AggStateValue =>
       case x if x.typ == TVoid =>
       case ApplyComparisonOp(EQWithNA(_, _), _, _) | ApplyComparisonOp(NEQWithNA(_, _), _, _) | ApplyComparisonOp(Compare(_, _), _, _) | ApplyComparisonOp(CompareStructs(_, _), _, _) =>
@@ -645,7 +645,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case x: AbstractApplyNode[_] => //FIXME: round-tripping via PTypes.
         val argP = x.args.map(a => lookup(a).canonicalPType(a.typ))
         requiredness.fromPType(x.implementation.returnPType(x.returnType, argP))
-      case CollectDistributedArray(ctxs, globs, _, _, body) =>
+      case CollectDistributedArray(ctxs, globs, _, _, body, _) =>
         requiredness.union(lookup(ctxs).required)
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(body))
       case ReadPartition(context, rowType, reader) =>

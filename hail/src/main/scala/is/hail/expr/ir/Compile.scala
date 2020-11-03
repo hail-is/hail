@@ -144,6 +144,11 @@ object CompileIterator {
     def loadAddress(): Long
   }
 
+  private trait TableStageToRVDStepFunction extends StepFunctionBase {
+    def apply(o: Object, a: Long, b: Long): Boolean
+    def setRegions(outerRegion: Region, eltRegion: Region): Unit
+  }
+
   private trait TMPStepFunction extends StepFunctionBase {
     def apply(o: Object, a: Long, b: StreamArgType): Boolean
     def setRegions(outerRegion: Region, eltRegion: Region): Unit
@@ -269,4 +274,30 @@ object CompileIterator {
       }
     })
   }
+
+  def forTableStageToRVD(
+    ctx: ExecuteContext,
+    ctxType: PStruct, bcValsType: PType,
+    ir: IR
+  ): (PType, (Int, RVDContext, Long, Long) => Iterator[java.lang.Long]) = {
+    assert(ctxType.required)
+    assert(bcValsType.required)
+    val (eltPType, makeStepper) = compileStepper[TableStageToRVDStepFunction](
+      ctx, ir,
+      Array[ParamType](
+        CodeParamType(typeInfo[Object]),
+        EmitParamType(ctxType),
+        EmitParamType(bcValsType)),
+      None)
+    (eltPType, (idx, consumerCtx, v0, v1) => {
+      val stepper = makeStepper(idx, consumerCtx.partitionRegion)
+      stepper.setRegions(consumerCtx.partitionRegion, consumerCtx.region)
+      new LongIteratorWrapper {
+        val stepFunction: TableStageToRVDStepFunction = stepper
+
+        def step(): Boolean = stepper.apply(null, v0, v1)
+      }
+    })
+  }
+
 }

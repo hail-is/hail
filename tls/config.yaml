@@ -2,6 +2,9 @@ principals:
 - name: admin-pod
   domain: admin-pod
   kind: curl
+- name: auth-driver
+  domain: auth-driver
+  kind: json
 - name: auth
   domain: auth
   kind: json

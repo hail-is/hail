@@ -48,12 +48,11 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
       Region.storeAddress(dest, StagedRegionValueBuilder.deepCopyFromOffset(er, storageType, src))
   }
 
-  def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
-    kcomp(k1, k2)
+  def compKeys(k1: EmitCode, k2: EmitCode): Code[Int] =
+    Code(k1.setup, k2.setup, kcomp(k1.m -> k1.v, k2.m -> k2.v))
 
-  def loadCompKey(off: Value[Long]): (Code[Boolean], Code[_]) = {
-    isKeyMissing(off) -> isKeyMissing(off).mux(defaultValue(typ), loadKey(off))
-  }
+  def loadCompKey(off: Value[Long]): EmitCode =
+    EmitCode(Code._empty, isKeyMissing(off), PCode(typ, loadKey(off)))
 }
 
 class AppendOnlySetState(val kb: EmitClassBuilder[_], t: PType) extends PointerBasedRVAState {
@@ -88,25 +87,22 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], t: PType) extends PointerB
     size := 0, tree.init)
 
   private val _elt = kb.genFieldThisRef[Long]()
-  private val _vm = kb.genFieldThisRef[Boolean]()
-  private val _vv = kb.genFieldThisRef()(typeToTypeInfo(t))
-  def insert(vm: Code[Boolean], vv: Code[_]): Code[Unit] = {
-    Code(
-      vm.mux(
-        Code(_vm := true, _vv.storeAny(defaultValue(t))),
-        Code(_vm := false, _vv.storeAny(vv))),
-      _elt := tree.getOrElseInitialize(_vm, _vv),
-      key.isEmpty(_elt).orEmpty(Code(
-        size := size + 1,
-        key.store(_elt, _vm, _vv)
-      )))
+  private val _v = kb.newEmitField(t)
+
+  def insert(cb: EmitCodeBuilder, v: EmitCode): Unit = {
+    cb.assign(_v, v)
+    cb.assign(_elt, tree.getOrElseInitialize(cb, _v))
+    cb.ifx(key.isEmpty(_elt), {
+      cb.assign(size, size + 1)
+      cb += key.store(_elt, _v.m, _v.v)
+    })
   }
 
   // loads container; does not update.
-  def foreach(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Code[Boolean], Code[_]) => Unit): Unit =
+  def foreach(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, EmitCode) => Unit): Unit =
     tree.foreach(cb) { (cb, eoffCode) =>
       val eoff = cb.newLocal("casa_foreach_eoff", eoffCode)
-      f(cb, key.isKeyMissing(eoff), key.loadKey(eoff))
+      f(cb, EmitCode(Code._empty, key.isKeyMissing(eoff), PCode(t, key.loadKey(eoff))))
     }
 
   def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit =
@@ -166,21 +162,21 @@ class CollectAsSetAggregator(t: PType) extends StagedAggregator {
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(elt) = seq
-    cb += Code(elt.setup, state.insert(elt.m, elt.v))
+    state.insert(cb, elt)
   }
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit =
-    other.foreach(cb) { (cb, km, kv) => cb += state.insert(km, kv) }
+    other.foreach(cb) { (cb, k) => state.insert(cb, k) }
 
   protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
     cb += srvb.addArray(resultType.arrayFundamentalType, { sab =>
       EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
         cb += sab.start(state.size)
-        state.foreach(cb) { (cb, km, kv) =>
-          cb.ifx(km, {
+        state.foreach(cb) { (cb, k) =>
+          cb.ifx(k.m, {
             cb += sab.setMissing()
           }, {
-            cb += sab.addWithDeepCopy(t, coerce[Long](kv))
+            cb += sab.addWithDeepCopy(t, k.value[Long])
           })
           cb += sab.advance()
         }

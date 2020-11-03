@@ -1,5 +1,6 @@
 from typing import Optional
 import os
+import asyncio
 import pymysql
 import aiomysql
 import logging
@@ -115,36 +116,56 @@ class TransactionAsyncContextManager:
         self.tx = None
 
 
+async def _release_connection(conn_context_manager):
+    if conn_context_manager is not None:
+        try:
+            if conn_context_manager._conn is not None:
+                await aexit(conn_context_manager)
+        except:
+            log.exception('while releasing database connection')
+
+
 class Transaction:
     def __init__(self):
         self.conn_context_manager = None
         self.conn = None
 
     async def async_init(self, db_pool, read_only):
-        self.conn_context_manager = db_pool.acquire()
-        self.conn = await aenter(self.conn_context_manager)
-        async with self.conn.cursor() as cursor:
-            if read_only:
-                await cursor.execute('START TRANSACTION READ ONLY;')
-            else:
-                await cursor.execute('START TRANSACTION;')
+        try:
+            self.conn_context_manager = db_pool.acquire()
+            self.conn = await aenter(self.conn_context_manager)
+            async with self.conn.cursor() as cursor:
+                if read_only:
+                    await cursor.execute('START TRANSACTION READ ONLY;')
+                else:
+                    await cursor.execute('START TRANSACTION;')
+        except:
+            self.conn = None
+            conn_context_manager = self.conn_context_manager
+            self.conn_context_manager = None
+            asyncio.ensure_future(_release_connection(conn_context_manager))
+            raise
 
-    async def _aexit(self, exc_type, exc_val, exc_tb):
+    async def _aexit_1(self, exc_type):
         try:
             if self.conn is not None:
-                try:
-                    if exc_type:
-                        await self.conn.rollback()
-                    else:
-                        await self.conn.commit()
-                finally:
-                    self.conn = None
+                if exc_type:
+                    await self.conn.rollback()
+                else:
+                    await self.conn.commit()
+        except:
+            log.info('while exiting transaction', exc_info=True)
+            raise
         finally:
-            if self.conn_context_manager is not None:
-                try:
-                    await aexit(self.conn_context_manager, exc_type, exc_val, exc_tb)
-                finally:
-                    self.conn_context_manager = None
+            self.conn = None
+            conn_context_manager = self.conn_context_manager
+            self.conn_context_manager = None
+            asyncio.ensure_future(_release_connection(conn_context_manager))
+
+    async def _aexit(self, exc_type, exc_val, exc_tb):  # pylint: disable=unused-argument
+        # cancelling cleanup could leak a connection
+        # await shield becuase we want to wait for commit/rollback to finish
+        await asyncio.shield(self._aexit_1(exc_type))
 
     async def commit(self):
         assert self.conn

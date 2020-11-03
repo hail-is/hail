@@ -257,15 +257,10 @@ and give it the name 'clumping'.
 We create :class:`.InputResourceFile` objects for the VCF file and
 phenotypes file using the :meth:`.Batch.read_input` method. These
 are the inputs to the entire Batch and are not outputs of a :class:`.Job`.
-We have to specify the extension of the VCF file to Batch as Hail uses
-the file extension in order to read the file. The default is any :class:`.ResourceFile`
-in Batch has no extension.
 
 .. code-block:: python
 
     vcf = batch.read_input('gs://hail-tutorial/1kg.vcf.bgz')
-    vcf.add_extension('.vcf.bgz')
-
     phenotypes = batch.read_input('gs://hail-tutorial/1kg_annotations.txt')
 
 We use the ``gwas`` function defined above to create a new job on the batch to

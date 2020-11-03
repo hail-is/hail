@@ -32,9 +32,10 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitC
         StagedRegionValueBuilder.deepCopy(er, storageType, src, dest))
     }
 
-  def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] = kcomp(k1, k2)
+  def compKeys(k1: EmitCode, k2: EmitCode): Code[Int] =
+    Code(k1.setup, k2.setup, kcomp(k1.m -> k1.v, k2.m -> k2.v))
 
-  def loadCompKey(off: Value[Long]): (Code[Boolean], Code[_]) = (const(false), storageType.loadField(off, "bin"))
+  def loadCompKey(off: Value[Long]): EmitCode = EmitCode.present(binType, storageType.loadField(off, "bin"))
 }
 
 
@@ -273,26 +274,26 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
       val insertedPointOffset = mb.newLocal[Long]("inserted_point_offset")
       val binStaging = mb.newLocal[Long]("binStaging")
 
-      mb.emit(Code(
-        binStaging := storageType.loadField(off, "binStaging"),
-        Region.storeInt(binType.fieldOffset(binStaging, "x"), binX),
-        Region.storeInt(binType.fieldOffset(binStaging, "y"), binY),
-        insertOffset := tree.getOrElseInitialize(false, binStaging),
-        key.isEmpty(insertOffset).orEmpty(
-          Code(
-            binOffset := key.storageType.loadField(insertOffset, "bin"),
-            Region.storeInt(binType.loadField(binOffset, "x"), binX),
-            Region.storeInt(binType.loadField(binOffset, "y"), binY),
-            insertedPointOffset := key.storageType.loadField(insertOffset, "point"),
-            (if (deepCopy)
-              StagedRegionValueBuilder.deepCopy(kb, region, pointType, point, insertedPointOffset)
-            else
-              Region.copyFrom(point, insertedPointOffset, pointType.byteSize)),
-            Region.storeBoolean(key.storageType.loadField(insertOffset, "empty"), false),
-            treeSize := treeSize + 1
-          )
-        )
-      ))
+      mb.emitWithBuilder { cb =>
+        cb.assign(binStaging, storageType.loadField(off, "binStaging"))
+        cb += Region.storeInt(binType.fieldOffset(binStaging, "x"), binX)
+        cb += Region.storeInt(binType.fieldOffset(binStaging, "y"), binY)
+        cb.assign(insertOffset,
+          tree.getOrElseInitialize(cb, EmitCode.present(storageType.fieldType("binStaging"), binStaging)))
+        cb.ifx(key.isEmpty(insertOffset), {
+          cb.assign(binOffset, key.storageType.loadField(insertOffset, "bin"))
+          cb += Region.storeInt(binType.loadField(binOffset, "x"), binX)
+          cb += Region.storeInt(binType.loadField(binOffset, "y"), binY)
+          cb.assign(insertedPointOffset, key.storageType.loadField(insertOffset, "point"))
+          if (deepCopy)
+            cb += StagedRegionValueBuilder.deepCopy(kb, region, pointType, point, insertedPointOffset)
+          else
+            cb += Region.copyFrom(point, insertedPointOffset, pointType.byteSize)
+          cb += Region.storeBoolean(key.storageType.loadField(insertOffset, "empty"), false)
+          cb.assign(treeSize, treeSize + 1)
+        })
+        Code._empty
+      }
     }
 
     mb.invokeCode(binX, binY, point)
@@ -356,7 +357,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
         copyFromTree(oldRootBTree),
         i := 0,
         Code.whileLoop(i < buffer.size,
-          point := coerce[Long](buffer.loadElement(i)._2),
+          point := buffer.loadElement(i).value,
           x := Region.loadDouble(pointType.loadField(point, "x")),
           y := Region.loadDouble(pointType.loadField(point, "y")),
           insertIntoTree(xBinCoordinate(x), yBinCoordinate(y), point, deepCopy = true),
@@ -486,7 +487,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     mb.emitWithBuilder { cb =>
       cb.assign(i, 0)
       cb.whileLoop(i < other.buffer.size, {
-        cb += deepCopyAndInsertPoint(coerce[Long](other.buffer.loadElement(i)._2))
+        cb += deepCopyAndInsertPoint(other.buffer.loadElement(i).value)
         cb.assign(i, i + 1)
       })
       other.tree.foreach(cb) { (cb, value) =>

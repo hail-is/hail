@@ -3,6 +3,7 @@ import base64
 import concurrent
 import logging
 import uvloop
+import asyncio
 from aiohttp import web
 import kubernetes_asyncio as kube
 from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
@@ -29,6 +30,14 @@ def java_to_web_response(jresp):
     return web.json_response(status=status, text=value)
 
 
+async def send_ws_response(thread_pool, endpoint, ws, f, *args, **kwargs):
+    jresp = await blocking_to_async(thread_pool, f, *args, **kwargs)
+    status = jresp.status()
+    value = jresp.value()
+    log.info(f'{endpoint}: response status {status} value {value}')
+    await ws.send_json({'status': status, 'value': value})
+
+
 async def add_user(app, userdata):
     username = userdata['username']
     users = app['users']
@@ -52,107 +61,91 @@ async def healthcheck(request):  # pylint: disable=unused-argument
     return web.Response()
 
 
-def blocking_execute(jbackend, username, session_id, billing_project, bucket, code):
-    return jbackend.execute(username, session_id, billing_project, bucket, code)
+def blocking_execute(jbackend, userdata, body):
+    return jbackend.execute(userdata['username'], userdata['session_id'], body['billing_project'], body['bucket'], body['code'])
 
 
-@routes.post('/execute')
+def blocking_value_type(jbackend, userdata, body):
+    return jbackend.valueType(userdata['username'], body['code'])
+
+
+def blocking_table_type(jbackend, userdata, body):
+    return jbackend.tableType(userdata['username'], body['code'])
+
+
+def blocking_matrix_type(jbackend, userdata, body):
+    return jbackend.matrixTableType(userdata['username'], body['code'])
+
+
+def blocking_blockmatrix_type(jbackend, userdata, body):
+    return jbackend.blockMatrixType(userdata['username'], body['code'])
+
+
+def blocking_get_reference(jbackend, userdata, body):   # pylint: disable=unused-argument
+    return jbackend.referenceGenome(userdata['username'], body['name'])
+
+
+async def handle_ws_response(request, userdata, endpoint, f):
+    app = request.app
+    jbackend = app['jbackend']
+
+    await add_user(app, userdata)
+    log.info(f'{endpoint}: connecting websocket')
+    ws = web.WebSocketResponse(heartbeat=30, max_msg_size=0)
+    task = None
+    await ws.prepare(request)
+    try:
+        log.info(f'{endpoint}: websocket prepared {ws}')
+        body = await ws.receive_json()
+        log.info(f'{endpoint}: {body}')
+        task = asyncio.ensure_future(send_ws_response(app['thread_pool'], endpoint, ws, f, jbackend, userdata, body))
+        r = await ws.receive()
+        log.info(f'{endpoint}: Received websocket message. Expected CLOSE, got {r}')
+        return ws
+    finally:
+        if not ws.closed:
+            await ws.close()
+            log.info('{endpoint}: Websocket was not closed. Closing.')
+        if task is not None and not task.done():
+            task.cancel()
+            log.info('{endpoint}: Task has been cancelled due to websocket closure.')
+        log.info('{endpoint}: websocket connection closed')
+
+
+@routes.get('/api/v1alpha/execute')
 @rest_authenticated_users_only
 async def execute(request, userdata):
-    app = request.app
-    thread_pool = app['thread_pool']
-    jbackend = app['jbackend']
-    body = await request.json()
-    billing_project = body['billing_project']
-    bucket = body['bucket']
-    code = body['code']
-    log.info(f'execute: {code}')
-    await add_user(app, userdata)
-    jresp = await blocking_to_async(thread_pool, blocking_execute, jbackend, userdata['username'], userdata['session_id'], billing_project, bucket, code)
-    return java_to_web_response(jresp)
+    return await handle_ws_response(request, userdata, 'execute', blocking_execute)
 
 
-def blocking_value_type(jbackend, username, code):
-    return jbackend.valueType(username, code)
-
-
-@routes.post('/type/value')
+@routes.get('/api/v1alpha/type/value')
 @rest_authenticated_users_only
 async def value_type(request, userdata):
-    app = request.app
-    thread_pool = app['thread_pool']
-    jbackend = app['jbackend']
-    code = await request.json()
-    log.info(f'value type: {code}')
-    await add_user(app, userdata)
-    jresp = await blocking_to_async(thread_pool, blocking_value_type, jbackend, userdata['username'], code)
-    return java_to_web_response(jresp)
+    return await handle_ws_response(request, userdata, 'type/value', blocking_value_type)
 
 
-def blocking_table_type(jbackend, username, code):
-    return jbackend.tableType(username, code)
-
-
-@routes.post('/type/table')
+@routes.get('/api/v1alpha/type/table')
 @rest_authenticated_users_only
 async def table_type(request, userdata):
-    app = request.app
-    thread_pool = app['thread_pool']
-    jbackend = app['jbackend']
-    code = await request.json()
-    log.info(f'table type: {code}')
-    await add_user(app, userdata)
-    jresp = await blocking_to_async(thread_pool, blocking_table_type, jbackend, userdata['username'], code)
-    return java_to_web_response(jresp)
+    return await handle_ws_response(request, userdata, 'type/table', blocking_table_type)
 
 
-def blocking_matrix_type(jbackend, username, code):
-    return jbackend.matrixTableType(username, code)
-
-
-@routes.post('/type/matrix')
+@routes.get('/api/v1alpha/type/matrix')
 @rest_authenticated_users_only
 async def matrix_type(request, userdata):
-    app = request.app
-    thread_pool = app['thread_pool']
-    jbackend = app['jbackend']
-    code = await request.json()
-    log.info(f'matrix type: {code}')
-    await add_user(app, userdata)
-    jresp = await blocking_to_async(thread_pool, blocking_matrix_type, jbackend, userdata['username'], code)
-    return java_to_web_response(jresp)
+    return await handle_ws_response(request, userdata, 'type/matrix', blocking_matrix_type)
 
 
-def blocking_blockmatrix_type(jbackend, username, code):
-    return jbackend.blockMatrixType(username, code)
-
-
-@routes.post('/type/blockmatrix')
+@routes.get('/api/v1alpha/type/blockmatrix')
 @rest_authenticated_users_only
 async def blockmatrix_type(request, userdata):
-    app = request.app
-    thread_pool = app['thread_pool']
-    jbackend = app['jbackend']
-    code = await request.json()
-    log.info(f'blockmatrix type: {code}')
-    await add_user(app, userdata)
-    jresp = await blocking_to_async(thread_pool, blocking_blockmatrix_type, jbackend, userdata['username'], code)
-    return java_to_web_response(jresp)
+    return await handle_ws_response(request, userdata, 'type/blockmatrix', blocking_blockmatrix_type)
 
 
-def blocking_get_reference(app, data):
-    hail_pkg = app['hail_pkg']
-    return hail_pkg.variant.ReferenceGenome.getReference(data['name']).toJSONString()
-
-
-@routes.get('/references/get')
+@routes.get('/api/v1alpha/references/get')
 @rest_authenticated_users_only
 async def get_reference(request, userdata):  # pylint: disable=unused-argument
-    app = request.app
-    thread_pool = app['thread_pool']
-    data = await request.json()
-    result = await blocking_to_async(thread_pool, blocking_get_reference, app, data)
-    return web.json_response(text=result)
+    return await handle_ws_response(request, userdata, 'references/get', blocking_get_reference)
 
 
 @routes.get('/api/v1alpha/flags/get')
