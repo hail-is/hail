@@ -54,6 +54,49 @@ async def get_resources(request, userdata):  # pylint: disable=unused-argument
     return {'resources': resources}
 
 
+@routes.get('/resources/create')
+@web_authenticated_developers_only()
+@render_template('create_resource.html')
+async def get_create_resource(request, userdata):  # pylint: disable=unused-argument
+    return {}
+
+
+@routes.post('/resources/create')
+@check_csrf_token
+@web_authenticated_developers_only(redirect=False)
+async def post_create_resource(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    attachments = {}
+    post = {}
+    reader = aiohttp.MultipartReader(request.headers, request.content)
+    while True:
+        part = await reader.next()
+        if not part:
+            break
+        if part.name == 'file':
+            filename = part.filename
+            if not filename:
+                continue
+            id = secrets.token_hex(16)
+            with open(id, 'wb') as f:
+                while True:
+                    chunk = await part.read_chunk()
+                    if not chunk:
+                        break
+                    f.write(chunk)
+            attachments[id] = filename
+        else:
+            post[part.name] = await part.text()
+
+        id = await db.execute_insertone(
+            '''
+INSERT INTO `atgu_resources` (`title`, `description`, `contents`, `tags`, `attachments`)
+VALUES (%s, %s, %s, %s, %s);
+''', (post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments), id))
+
+    return web.HTTPFound(f'/resources/{id}')
+
+
 @routes.get('/resources/{id}')
 @web_authenticated_developers_only()
 @render_template('resource.html')
@@ -70,6 +113,7 @@ WHERE id = %s;
     return {'resource': resource}
 
 
+@routes.get('/resources/{id}/edit')
 @web_authenticated_developers_only()
 @render_template('edit_resource.html')
 async def get_edit_resource(request, userdata):  # pylint: disable=unused-argument
@@ -136,49 +180,6 @@ contents = %s,
 tags = %s,
 attachments = %s,
 WHERE id = %s
-''', (post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments), id))
-
-    return web.HTTPFound(f'/resources/{id}')
-
-
-@routes.get('/resources/create')
-@web_authenticated_developers_only()
-@render_template('create_resource.html')
-async def get_create_resource(request, userdata):  # pylint: disable=unused-argument
-    return {}
-
-
-@routes.post('/resources/create')
-@check_csrf_token
-@web_authenticated_developers_only(redirect=False)
-async def post_create_resource(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
-    attachments = {}
-    post = {}
-    reader = aiohttp.MultipartReader(request.headers, request.content)
-    while True:
-        part = await reader.next()
-        if not part:
-            break
-        if part.name == 'file':
-            filename = part.filename
-            if not filename:
-                continue
-            id = secrets.token_hex(16)
-            with open(id, 'wb') as f:
-                while True:
-                    chunk = await part.read_chunk()
-                    if not chunk:
-                        break
-                    f.write(chunk)
-            attachments[id] = filename
-        else:
-            post[part.name] = await part.text()
-
-        id = await db.execute_insertone(
-            '''
-INSERT INTO `atgu_resources` (`title`, `description`, `contents`, `tags`, `attachments`)
-VALUES (%s, %s, %s, %s, %s);
 ''', (post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments), id))
 
     return web.HTTPFound(f'/resources/{id}')
