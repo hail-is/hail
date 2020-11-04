@@ -59,7 +59,7 @@ async def get_resources(request, userdata):  # pylint: disable=unused-argument
 @render_template('resource.html')
 async def get_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
-    id = int(request.match_info['batch_id'])
+    id = int(request.match_info['id'])
     resource = await db.select_and_fetchone(
         '''
 SELECT * FROM atgu_resources
