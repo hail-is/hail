@@ -500,7 +500,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
             se = ((1.0 / ht.ds[idx]) * (ht.__yyps[idx].reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
             t = b / se
             p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.ds[idx], True, False))
-            return {'n': hl.range(rows_in_block).map(lambda i: n), 'sum_x': sum_x._data_array(), 'y_transpose_x': ytx.T._data_array(), 'beta':b.T._data_array(),
+            return {'n': hl.range(rows_in_block).map(lambda i: n), 'sum_x': sum_x._data_array(), 'y_transpose_x': ytx.T._data_array(), 'beta': b.T._data_array(),
                     'standard_error': se.T._data_array(), 't_stat': t.T._data_array(), 'p_value': p.T._data_array()}
 
         per_y_list = [process_y_group(i) for i in range(num_y_lists)]
