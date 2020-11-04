@@ -371,7 +371,7 @@ async def post_create_role(request, userdata):  # pylint: disable=unused-argumen
 
     role_id = await db.execute_insertone(
         '''
-INSERT INTO roles (name)
+INSERT INTO `roles` (`name`)
 VALUES (%s);
 ''',
         (name))
