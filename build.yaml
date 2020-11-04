@@ -3557,7 +3557,7 @@ steps:
     - default_ns
     - copy_files
     - delete_atgu_tables
-- kind: deploy
+ - kind: deploy
    name: deploy_atgu
    namespace:
      valueFrom: default_ns.name
