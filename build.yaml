@@ -3542,7 +3542,7 @@ steps:
     - name: initial
       script: /io/sql/initial.sql
    inputs:
-    - from: /repo/agu/sql
+    - from: /repo/atgu/sql
       to: /io/
    namespace:
      valueFrom: default_ns.name
