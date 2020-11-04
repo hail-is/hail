@@ -312,7 +312,6 @@ async def update_commits(app):
         sha = gh_commit.get('sha')
         log.info(f'for commit {sha}')
         await update_commit(app, sha)
-
     log.info('got new commits')
 
 
@@ -328,8 +327,18 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     gh_date = gh_commit['commit']['author']['date']
     date = gh_date.split('T')[0]
     dates.append(date)
+
+    message = gh_commit['commit']['message']
+    idx = message.index('#')
+    commit_id = message[idx: idx+5]
+    commit_ids.append(commit_id)
+
     benchmarks = get_benchmarks(app, file_path)
     geo_means.append(benchmarks['geometric_mean'])
+
+    title_message = gh_commit['commit']['message']
+    title_end = title_message.index(')')
+    title = title_message[0: title_end + 1]
 
     has_results_file = gs_reader.file_exists(file_path)
     batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
@@ -349,7 +358,7 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
 
     commit = {
         'sha': sha,
-        'title': gh_commit['commit']['message'],
+        'title': title,
         'author': gh_commit['commit']['author']['name'],
         'date': gh_commit['commit']['author']['date'],
         'status': status
