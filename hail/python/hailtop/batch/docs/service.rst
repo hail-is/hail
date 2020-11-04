@@ -5,6 +5,11 @@ Batch Service
 =============
 
 
+.. warning::
+
+    The Batch Service is currently only available to Broad Institute users.
+
+
 What is the Batch Service?
 --------------------------
 
@@ -194,6 +199,10 @@ have previously set them with ``hailctl``:
 
     hailctl config set batch/billing_project my-billing-project
     hailctl config set batch/bucket my-bucket
+
+.. note::
+
+    A trial billing project is automatically created for you with the name {USERNAME}-trial
 
 
 Using the UI
