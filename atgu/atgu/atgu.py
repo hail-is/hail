@@ -1,3 +1,4 @@
+import os
 import logging
 import json
 import secrets
@@ -12,7 +13,7 @@ from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.config import get_deploy_config
 from gear import (Database, setup_aiohttp_session,
                   web_authenticated_developers_only,
-                  check_csrf_token)
+                  check_csrf_token, new_csrf_token)
 
 log = logging.getLogger(__name__)
 
@@ -21,12 +22,30 @@ deploy_config = get_deploy_config()
 routes = web.RouteTableDef()
 
 
+def render_template(file):
+    def wrap(f):
+        async def wrapped(request, *args, **kwargs):
+            if '_csrf' in request.cookies:
+                csrf_token = request.cookies['_csrf']
+            else:
+                csrf_token = new_csrf_token()
+
+            context = await f(request, *args, **kwargs)
+            context['csrf_token'] = csrf_token
+
+            response = aiohttp_jinja2.render_template(file, request, context)
+            response.set_cookie('_csrf', csrf_token, domain=os.environ['HAIL_DOMAIN'], secure=True, httponly=True)
+            return response
+        return wrapped
+    return wrap
+
+
 @routes.get('')
 @routes.get('/')
 @routes.get('/resources')
 @web_authenticated_developers_only()
-@aiohttp_jinja2.template('resources.html')
-async def get_resources(request, userdata):
+@render_template('resources.html')
+async def get_resources(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     resources = [resource
                  async for resource
@@ -36,8 +55,8 @@ async def get_resources(request, userdata):
 
 @routes.get('/resources/{id}')
 @web_authenticated_developers_only()
-@aiohttp_jinja2.template('resource.html')
-async def get_resource(request, userdata):
+@render_template('resource.html')
+async def get_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     id = int(request.match_info['batch_id'])
     resource = await db.select_and_fetchone(
@@ -51,8 +70,8 @@ WHERE id = %s;
 
 
 @web_authenticated_developers_only()
-@aiohttp_jinja2.template('edit_resource.html')
-async def get_edit_resource(request, userdata):
+@render_template('edit_resource.html')
+async def get_edit_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     id = int(request.match_info['id'])
     resource = await db.select_and_fetchone(
@@ -68,7 +87,7 @@ WHERE id = %s;
 @routes.post('/resources/{id}/edit')
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
-async def post_edit_resource(request, userdata):
+async def post_edit_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     id = int(request.match_info['id'])
     old_resource = await db.select_and_fetchone(
@@ -123,7 +142,7 @@ WHERE id = %s
 
 @routes.get('/resources/create')
 @web_authenticated_developers_only()
-@aiohttp_jinja2.template('create_resource.html')
+@render_template('create_resource.html')
 async def get_create_resource(request, userdata):  # pylint: disable=unused-argument
     return {}
 
@@ -131,7 +150,7 @@ async def get_create_resource(request, userdata):  # pylint: disable=unused-argu
 @routes.post('/resources/create')
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
-async def post_create_resource(request, userdata):
+async def post_create_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     attachments = {}
     post = {}
@@ -165,7 +184,7 @@ VALUES (%s, %s, %s, %s, %s);
 
 
 @routes.get('/resources/{resource_id}/attachments/{attachment_id}')
-async def get_attachment(request, userdata):
+async def get_attachment(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     resource_id = int(request.match_info['resource_id'])
     resource = await db.select_and_fetchone(
