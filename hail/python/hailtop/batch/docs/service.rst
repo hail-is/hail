@@ -5,6 +5,12 @@ Batch Service
 =============
 
 
+.. warning::
+
+    The Batch Service is currently only available to Broad Institute users. If you are interested
+    in using the Batch Service, please send us an email at hail-team@broadinstitute.org.
+
+
 What is the Batch Service?
 --------------------------
 
@@ -14,6 +20,16 @@ and is called the Batch Service. The Batch Service consists of a scheduler that 
 submission requests from users and then executes jobs in Docker containers on Google Compute
 Engine VMs (workers) that are shared amongst all Batch users. A UI is available at `<https://batch.hail.is>`__
 that allows a user to see job progress and access logs.
+
+
+Sign Up
+-------
+
+For Broad Institute users, you can click the Sign Up button at `<notebook.hail.is>`__.
+This will allow you to authorize with your Broad Institute email address and create
+a Batch Service account. A :ref:`Google Service Account <service-accounts>` is created
+on your behalf. A trial Batch billing project is also created for you at
+:code:`<USERNAME>-trial`. You can view these at `<https://auth.hail.is/user>`__.
 
 
 .. _file-localization:
@@ -194,6 +210,10 @@ have previously set them with ``hailctl``:
 
     hailctl config set batch/billing_project my-billing-project
     hailctl config set batch/bucket my-bucket
+
+.. note::
+
+    A trial billing project is automatically created for you with the name {USERNAME}-trial
 
 
 Using the UI
