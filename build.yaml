@@ -3504,3 +3504,56 @@ steps:
     - test_hailtop_batch_3
     - test_hailtop_batch_4
     - test_query
+ - kind: runImage
+   name: delete_atgu_tables
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-atgu-tables.sql
+   inputs:
+    - from: /repo/atgu/sql
+      to: /io/
+   secrets:
+    - name: database-server-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /sql-config
+   runIfRequested: true
+   scopes:
+    - dev
+   dependsOn:
+    - default_ns
+    - service_base_image
+    - copy_files
+ - kind: buildImage
+   name: atgu_image
+   dockerFile: atgu/Dockerfile
+   contextPath: .
+   publishAs: atgu
+   dependsOn:
+     - service_base_image
+ - kind: createDatabase
+   name: atgu_database
+   databaseName: atgu
+   migrations:
+    - name: initial
+      script: /io/sql/initial.sql
+   inputs:
+    - from: /repo/agu/sql
+      to: /io/
+   namespace:
+     valueFrom: default_ns.name
+   shutdowns:
+    - kind: Deployment
+      namespace:
+        valueFrom: default_ns.name
+      name: atgu
+    - kind: Deployment
+      namespace:
+        valueFrom: default_ns.name
+      name: atgu-driver
+   dependsOn:
+    - default_ns
+    - copy_files
+    - delete_atgu_tables
