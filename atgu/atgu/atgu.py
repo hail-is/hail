@@ -74,6 +74,7 @@ async def post_create_resource(request, userdata):  # pylint: disable=unused-arg
         part = await reader.next()
         if not part:
             break
+        log.info(f'part {part.name}')
         if part.name == 'file':
             filename = part.filename
             if not filename:
@@ -95,6 +96,8 @@ async def post_create_resource(request, userdata):  # pylint: disable=unused-arg
         if token1 is None or token2 is None or token1 != token2:
             log.info('request made with invalid csrf tokens')
             raise web.HTTPUnauthorized()
+
+        log.info(f'post {post}')
 
         id = await db.execute_insertone(
             '''
