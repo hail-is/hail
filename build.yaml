@@ -11,7 +11,7 @@ steps:
     - auth-oauth2-client-secret
     - scorecard-github-access-token
     - zulip-config
-    - benchmark-gsa-key
+    #- benchmark-gsa-key
     - billing-monitor-gsa-key
     - asana-access-token
  - kind: deploy
@@ -2043,7 +2043,7 @@ steps:
     #- deploy_router
     #- create_certs
     #- deploy_auth
-    #- create_accounts
+    - create_accounts
     #- deploy_batch
  - kind: deploy
    name: deploy_query
