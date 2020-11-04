@@ -21,7 +21,8 @@
     </nav>
     
     <form id="resource-form" action="{{ base_path }}/resources/create" method="post" enctype="multipart/form-data">
-
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      
       <div class="container">
 
 	<div class="row my-2">
