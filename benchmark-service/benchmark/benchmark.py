@@ -243,9 +243,11 @@ async def update_commits(app):
             batch_id = await submit_test_batch(batch_client, sha)
             batch = await batch_client.get_batch(batch_id)
             log.info(f'submitted a batch {batch_id} for commit {sha}')
-        else:
+        elif batches:
             batch = batches[-1]
             log.info(f'batch already exists for commit {sha}')
+        else:
+            log.info('batches is empty and there is a results file')
 
         batch_status = await batch.last_known_status()
         commit = {
