@@ -88,7 +88,7 @@ async def post_create_resource(request, userdata):  # pylint: disable=unused-arg
             attachments[id] = filename
         else:
             post[part.name] = await part.text()
-    
+
     # check csrf token
     token1 = request.cookies.get('_csrf')
     token2 = post.get('_csrf')
@@ -100,7 +100,7 @@ async def post_create_resource(request, userdata):  # pylint: disable=unused-arg
         '''
 INSERT INTO `atgu_resources` (`title`, `description`, `contents`, `tags`, `attachments`)
 VALUES (%s, %s, %s, %s, %s);
-''', (post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments), id))
+''', (post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments)))
 
     return web.HTTPFound(f'/resources/{id}')
 
