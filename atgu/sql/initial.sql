@@ -4,5 +4,6 @@ CREATE TABLE IF NOT EXISTS `atgu_resources` (
   `description` TEXT NOT NULL,
   `contents` LONGTEXT NOT NULL,
   `tags` TEXT NOT NULL,
-  `attachments` TEXT NOT NULL
+  `attachments` TEXT NOT NULL,
+  PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
