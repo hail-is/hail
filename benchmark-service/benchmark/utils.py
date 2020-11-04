@@ -25,7 +25,6 @@ def round_if_defined(x):
 
 
 def parse_file_path(regex, name):
-    log.info(f'name: {name}')
     match = regex.fullmatch(name)
     return match.groupdict()
 
