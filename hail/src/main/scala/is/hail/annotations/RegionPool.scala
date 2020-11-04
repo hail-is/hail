@@ -100,10 +100,9 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   def numFreeBlocks(): Int = freeBlocks.map(_.size).sum
 
   def logStats(context: String): Unit = {
-    val pool = RegionPool.get
-    val nFree = pool.numFreeRegions()
-    val nRegions = pool.numRegions()
-    val nBlocks = pool.numFreeBlocks()
+    val nFree = this.numFreeRegions()
+    val nRegions = this.numRegions()
+    val nBlocks = this.numFreeBlocks()
 
     val freeBlockCounts = freeBlocks.map(_.size)
     val usedBlockCounts = blocks.zip(freeBlockCounts).map { case (tot, free) => tot - free }
