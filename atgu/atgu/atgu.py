@@ -21,11 +21,12 @@ deploy_config = get_deploy_config()
 routes = web.RouteTableDef()
 
 
+@routes.get('')
 @routes.get('/')
 @routes.get('/resources')
 @web_authenticated_developers_only()
 @aiohttp_jinja2.template('resources.html')
-async def get_resources(request):
+async def get_resources(request, userdata):
     db = request.app['db']
     resources = [resource
                  async for resource
@@ -36,7 +37,7 @@ async def get_resources(request):
 @routes.get('/resources/{id}')
 @web_authenticated_developers_only()
 @aiohttp_jinja2.template('resource.html')
-async def get_resource(request):
+async def get_resource(request, userdata):
     db = request.app['db']
     id = int(request.match_info['batch_id'])
     resource = await db.select_and_fetchone(
@@ -51,7 +52,7 @@ WHERE id = %s;
 
 @web_authenticated_developers_only()
 @aiohttp_jinja2.template('edit_resource.html')
-async def get_edit_resource(request):
+async def get_edit_resource(request, userdata):
     db = request.app['db']
     id = int(request.match_info['id'])
     resource = await db.select_and_fetchone(
@@ -67,7 +68,7 @@ WHERE id = %s;
 @routes.post('/resources/{id}/edit')
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
-async def post_edit_resource(request):
+async def post_edit_resource(request, userdata):
     db = request.app['db']
     id = int(request.match_info['id'])
     old_resource = await db.select_and_fetchone(
@@ -123,14 +124,14 @@ WHERE id = %s
 @routes.get('/resources/create')
 @web_authenticated_developers_only()
 @aiohttp_jinja2.template('create_resource.html')
-async def get_create_resource(request):  # pylint: disable=unused-argument
+async def get_create_resource(request, userdata):  # pylint: disable=unused-argument
     return {}
 
 
 @routes.post('/resources/create')
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
-async def post_create_resource(request):
+async def post_create_resource(request, userdata):
     db = request.app['db']
     attachments = {}
     post = {}
@@ -164,7 +165,7 @@ VALUES (%s, %s, %s, %s, %s);
 
 
 @routes.get('/resources/{resource_id}/attachments/{attachment_id}')
-async def get_attachment(request):
+async def get_attachment(request, userdata):
     db = request.app['db']
     resource_id = int(request.match_info['resource_id'])
     resource = await db.select_and_fetchone(
