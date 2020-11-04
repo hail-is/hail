@@ -15,6 +15,16 @@ from gear import (Database, setup_aiohttp_session,
                   web_authenticated_developers_only,
                   check_csrf_token, new_csrf_token)
 
+
+# delete resource
+# cancel button where appropriate (create, edit)
+# file upload to cloud, ...
+
+# role for admin/editor
+
+# styling of embedded editor
+
+
 log = logging.getLogger(__name__)
 
 deploy_config = get_deploy_config()
@@ -205,7 +215,7 @@ title = %s,
 description = %s,
 contents = %s,
 tags = %s,
-attachments = %s,
+attachments = %s
 WHERE id = %s
 ''', (post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments), id))
 
