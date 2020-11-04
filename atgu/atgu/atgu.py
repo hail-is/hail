@@ -62,7 +62,8 @@ async def get_create_resource(request, userdata):  # pylint: disable=unused-argu
 
 
 @routes.post('/resources/create')
-@check_csrf_token
+# this method has special content handling, can't call `request.post()`
+# @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_create_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
@@ -87,6 +88,13 @@ async def post_create_resource(request, userdata):  # pylint: disable=unused-arg
             attachments[id] = filename
         else:
             post[part.name] = await part.text()
+
+        # check csrf token
+        token1 = request.cookies.get('_csrf')
+        token2 = post.get('_csrf')
+        if token1 is None or token2 is None or token1 != token2:
+            log.info('request made with invalid csrf tokens')
+            raise web.HTTPUnauthorized()
 
         id = await db.execute_insertone(
             '''
