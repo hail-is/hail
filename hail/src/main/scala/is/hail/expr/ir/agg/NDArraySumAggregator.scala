@@ -44,7 +44,7 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
               cb,
               stateType.fieldOffset(state.off, ndarrayFieldNumber),
               state.region,
-              nextNDArrayPCode,
+              nextNDPV,
               true)
           },
           { currentNDPCode =>
