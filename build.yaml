@@ -2043,7 +2043,7 @@ steps:
     #- deploy_router
     #- create_certs
     #- deploy_auth
-    - create_accounts
+    #- create_accounts
     #- deploy_batch
  - kind: deploy
    name: deploy_query
