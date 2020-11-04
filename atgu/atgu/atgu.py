@@ -46,7 +46,7 @@ def resource_record_to_dict(record):
         'id': record['id'],
         'title': record['title'],
         'description': record['description'],
-        'contents': record['contents'],
+        'contents': json.loads(record['contents']),
         'tags': record['tags'],
         'attachments': json.loads(record['attachments'])
     }
@@ -149,7 +149,8 @@ WHERE id = %s;
 
 
 @routes.post('/resources/{id}/edit')
-@check_csrf_token
+# this method has special content handling, can't call `request.post()`
+# @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_edit_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
@@ -189,6 +190,13 @@ WHERE id = %s;
             attachments[attachment_id] = filename
         else:
             post[part.name] = await part.text()
+
+    # check csrf token
+    token1 = request.cookies.get('_csrf')
+    token2 = post.get('_csrf')
+    if token1 is None or token2 is None or token1 != token2:
+        log.info('request made with invalid csrf tokens')
+        raise web.HTTPUnauthorized()
 
     await db.execute_update(
         '''
