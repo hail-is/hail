@@ -36,6 +36,9 @@ BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 benchmark_data = None
 
+with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+    oauth_token = f.read().strip()
+
 
 def get_benchmarks(app, file_path):
     gs_reader = app['gs_reader']
@@ -269,8 +272,6 @@ async def github_polling_loop(app):
 
 
 async def on_startup(app):
-    with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
-        oauth_token = f.read().strip()
     app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
                                                        'hail-is/hail',
