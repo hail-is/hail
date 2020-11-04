@@ -3557,3 +3557,18 @@ steps:
     - default_ns
     - copy_files
     - delete_atgu_tables
+- kind: deploy
+   name: deploy_atgu
+   namespace:
+     valueFrom: default_ns.name
+   config: atgu/deployment.yaml
+   wait:
+    - kind: Service
+      name: atgu
+      for: alive
+   dependsOn:
+    - default_ns
+    - deploy_router
+    - atgu_image
+    - atgu_database
+    - create_certs
