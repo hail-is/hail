@@ -2040,11 +2040,11 @@ steps:
    dependsOn:
     - default_ns
     - benchmark_image
-    - deploy_router
-    - create_certs
-    - deploy_auth
-    - create_accounts
-    - deploy_batch
+    #- deploy_router
+    #- create_certs
+    #- deploy_auth
+    #- create_accounts
+    #- deploy_batch
  - kind: deploy
    name: deploy_query
    namespace:
