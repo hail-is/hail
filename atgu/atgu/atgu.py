@@ -41,6 +41,17 @@ def render_template(file):
     return wrap
 
 
+def resource_record_to_dict(record):
+    return {
+        'id': record['id'],
+        'title': record['title'],
+        'description': record['description'],
+        'contents': record['contents'],
+        'tags': record['tags'],
+        'attachments': json.loads(record['attachments'])
+    }
+
+
 @routes.get('')
 @routes.get('/')
 @routes.get('/resources')
@@ -48,8 +59,8 @@ def render_template(file):
 @render_template('resources.html')
 async def get_resources(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
-    resources = [resource
-                 async for resource
+    resources = [resource_record_to_dict(record)
+                 async for record
                  in db.select_and_fetchall('SELECT * FROM atgu_resources')]
     return {'resources': resources}
 
@@ -102,7 +113,7 @@ INSERT INTO `atgu_resources` (`title`, `description`, `contents`, `tags`, `attac
 VALUES (%s, %s, %s, %s, %s);
 ''', (post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments)))
 
-    return web.HTTPFound(f'/resources/{id}')
+    return web.HTTPFound(deploy_config.external_url('atgu', f'/resources/{id}'))
 
 
 @routes.get('/resources/{id}')
@@ -111,14 +122,14 @@ VALUES (%s, %s, %s, %s, %s);
 async def get_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     id = int(request.match_info['id'])
-    resource = await db.select_and_fetchone(
+    record = await db.select_and_fetchone(
         '''
 SELECT * FROM atgu_resources
 WHERE id = %s;
 ''', (id))
-    if not resource:
+    if not record:
         raise web.HTTPNotFound()
-    return {'resource': resource}
+    return {'resource': resource_record_to_dict(record)}
 
 
 @routes.get('/resources/{id}/edit')
@@ -127,14 +138,14 @@ WHERE id = %s;
 async def get_edit_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     id = int(request.match_info['id'])
-    resource = await db.select_and_fetchone(
+    record = await db.select_and_fetchone(
         '''
 SELECT * FROM atgu_resources
 WHERE id = %s;
 ''', (id))
-    if not resource:
+    if not record:
         raise web.HTTPNotFound()
-    return {'resource': resource}
+    return {'resource': resource_record_to_dict(record)}
 
 
 @routes.post('/resources/{id}/edit')
@@ -143,15 +154,15 @@ WHERE id = %s;
 async def post_edit_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     id = int(request.match_info['id'])
-    old_resource = await db.select_and_fetchone(
+    old_record = await db.select_and_fetchone(
         '''
 SELECT attachments FROM atgu_resources
 WHERE id = %s;
 ''', (id))
-    if not old_resource:
+    if not old_record:
         raise web.HTTPNotFound()
 
-    old_attachments = json.loads(old_resource['attachments'])
+    old_attachments = json.loads(old_record['attachments'])
 
     attachments = {}
     post = {}
@@ -190,22 +201,22 @@ attachments = %s,
 WHERE id = %s
 ''', (post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments), id))
 
-    return web.HTTPFound(f'/resources/{id}')
+    return web.HTTPFound(deploy_config.external_url('atgu', f'/resources/{id}'))
 
 
 @routes.get('/resources/{resource_id}/attachments/{attachment_id}')
 async def get_attachment(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     resource_id = int(request.match_info['resource_id'])
-    resource = await db.select_and_fetchone(
+    record = await db.select_and_fetchone(
         '''
 SELECT attachments FROM atgu_resources
 WHERE id = %s;
 ''', (resource_id))
-    if not resource:
+    if not record:
         raise web.HTTPNotFound()
 
-    attachments = resource['attachments']
+    attachments = json.loads(record['attachments'])
     attachment_id = request.match_info['attachment_id']
     if attachment_id not in attachments:
         raise web.HTTPNotFound()
