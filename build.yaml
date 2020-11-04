@@ -161,6 +161,8 @@ steps:
        to: /repo/notebook/
      - from: /io/repo/monitoring/sql
        to: /repo/monitoring/
+     - from: /io/repo/atgu/sql
+       to: /repo/atgu/
      - from: /io/repo/hail/python/hailtop
        to: /repo/hailtop/
      - from: /io/repo/hail/python/test
