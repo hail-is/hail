@@ -51,6 +51,9 @@ spec:
           limits:
             memory: "1G"
             cpu: "1"
+        env:
+         - name: HAIL_DOMAIN
+           value: "{{ global.domain }}"
         volumeMounts:
          - name: deploy-config
            mountPath: /deploy-config
