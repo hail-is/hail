@@ -13,8 +13,8 @@
 
       <nav aria-label="breadcrumb">
 	<ol class="breadcrumb bg-transparent">
-	  <li class="breadcrumb-item"><a href="/">ATGU</a></li>
-	  <li class="breadcrumb-item"><a href="/">Resources</a></li>
+	  <li class="breadcrumb-item"><a href="{{ base_path }}">ATGU</a></li>
+	  <li class="breadcrumb-item"><a href="{{ base_path }}">Resources</a></li>
 	  <li class="breadcrumb-item active" aria-current="page">{{ resource['title'] }}</li>
 	</ol>
       </nav>
@@ -23,7 +23,7 @@
 	<div class="row">
 	  <div class="col">
 	    <div style="float:right;">
-	      <form action="/resources/{{ resource['id'] }}/edit">
+	      <form action="{{ base_path }}/resources/{{ resource['id'] }}/edit">
 		<button type="submit" class="btn btn-primary">Edit</button>
 	      </form>
 	    </div>
@@ -43,7 +43,7 @@
 	<div id="files-div" class="pl-3">
 	  {% for attachment_id, filename in resource['attachments'].items() %}
 	  <div class="my-1">
-	    <a href="/resources/{{ resource['id'] }}/attachments/{{ attachment_id }}">
+	    <a href="{{ base_path }}/resources/{{ resource['id'] }}/attachments/{{ attachment_id }}">
 	      {{ filename }}
 	    </a>
 	  </div>

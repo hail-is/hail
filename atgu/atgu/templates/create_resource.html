@@ -14,13 +14,13 @@
 
     <nav aria-label="breadcrumb">
       <ol class="breadcrumb bg-transparent">
-	<li class="breadcrumb-item"><a href="/">ATGU</a></li>
-	<li class="breadcrumb-item"><a href="/">Resources</a></li>
+	<li class="breadcrumb-item"><a href="{{ base_path }}">ATGU</a></li>
+	<li class="breadcrumb-item"><a href="{{ base_path }}">Resources</a></li>
 	<li class="breadcrumb-item active" aria-current="page">Create</li>
       </ol>
     </nav>
     
-    <form id="resource-form" action="/resources/create" method="post" enctype="multipart/form-data">
+    <form id="resource-form" action="{{ base_path }}/resources/create" method="post" enctype="multipart/form-data">
 
       <div class="container">
 

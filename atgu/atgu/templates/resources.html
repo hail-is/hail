@@ -13,7 +13,7 @@
 
     <nav aria-label="breadcrumb">
       <ol class="breadcrumb bg-transparent">
-	<li class="breadcrumb-item"><a href="/">ATGU</a></li>
+	<li class="breadcrumb-item"><a href="{{ base_path }}">ATGU</a></li>
 	<li class="breadcrumb-item active" aria-current="page">Resources</li>
       </ol>
     </nav>
@@ -29,7 +29,7 @@
       <div class="row">
 	<div class="col">
 	  <div style="float:right;">
-	    <form action="/resources/create">
+	    <form action="{{ base_path }}/resources/create">
 	      <button type="submit" class="btn btn-primary">New</button>
 	    </form>
 	  </div>
@@ -85,7 +85,7 @@
 	      html += `
 	<div class="mb-3">
 	  <h4 class="my-0">
-	    <a href="/resources/${ resource['id'] }">${ resource['title'] }</a>
+	    <a href="{{ base_path }}/resources/${ resource['id'] }">${ resource['title'] }</a>
 	  </h4>
 	  <div class="ml-3">
 	    <p class="my-0"><small class="text-secondary" style="line-height:1.2;">${ resource['tags'] }</small></p>

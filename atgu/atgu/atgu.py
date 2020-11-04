@@ -32,6 +32,7 @@ def render_template(file):
 
             context = await f(request, *args, **kwargs)
             context['csrf_token'] = csrf_token
+            context['base_path'] = deploy_config.base_path('atgu')
 
             response = aiohttp_jinja2.render_template(file, request, context)
             response.set_cookie('_csrf', csrf_token, domain=os.environ['HAIL_DOMAIN'], secure=True, httponly=True)

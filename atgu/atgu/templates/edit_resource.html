@@ -14,14 +14,14 @@
 
     <nav aria-label="breadcrumb">
       <ol class="breadcrumb bg-transparent">
-	<li class="breadcrumb-item"><a href="/">ATGU</a></li>
-	<li class="breadcrumb-item"><a href="/">Resources</a></li>
-	<li class="breadcrumb-item"><a href="/resources/{{ resource['id'] }}">{{ resource['title'] }}</a></li>
+	<li class="breadcrumb-item"><a href="{{ base_path }}">ATGU</a></li>
+	<li class="breadcrumb-item"><a href="{{ base_path }}">Resources</a></li>
+	<li class="breadcrumb-item"><a href="{{ base_path }}/resources/{{ resource['id'] }}">{{ resource['title'] }}</a></li>
 	<li class="breadcrumb-item active" aria-current="page">Edit</li>
       </ol>
     </nav>
 
-    <form id="resource-form" action="/resources/{{ resource['id'] }}/edit" method="post" enctype="multipart/form-data">
+    <form id="resource-form" action="{{ base_path }}/resources/{{ resource['id'] }}/edit" method="post" enctype="multipart/form-data">
       
       <div class="container">
 
@@ -75,7 +75,7 @@
 	      {% for attachment_id, filename in resource['attachments'].items() %}
 	      <div class="my-1">
 		<input name="attachment" value="{{ attachment_id }}" type="checkbox" class="form-check-input" checked />
-		<a href="/resources/{{ resource['id'] }}/attachments/{{ attachment_id }}">
+		<a href="{{ base_path }}/resources/{{ resource['id'] }}/attachments/{{ attachment_id }}">
 		  {{ filename }}
 		</a>
 	      </div>
