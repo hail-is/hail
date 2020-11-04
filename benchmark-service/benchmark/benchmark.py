@@ -244,7 +244,7 @@ async def update_commits(app):
             batch = await batch_client.get_batch(batch_id)
             log.info(f'submitted a batch {batch_id} for commit {sha}')
         else:
-            batch = batches[:-1]
+            batch = batches[-1]
             log.info(f'batch already exists for commit {sha}')
 
         batch_status = await batch.last_known_status()
