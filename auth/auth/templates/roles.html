@@ -1,0 +1,30 @@
+{% extends "layout.html" %}
+{% block title %}Roles{% endblock %}
+{% block content %}
+  <h1>Create Role</h1>
+  <form action="{{ base_path }}/roles" method="POST">
+    <div>Name: <input required name="name" /></div>
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+    <button>
+      Create
+    </button>
+  </form>
+
+  <h1>Roles</h1>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for role in roles %}
+      <tr>
+        <td class="numeric-cell">{{ role['id'] }}</td>
+        <td>{{ role['name'] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

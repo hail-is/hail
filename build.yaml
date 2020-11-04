@@ -268,6 +268,8 @@ steps:
       script: /io/sql/drop-bucket.sql
     - name: add-trial-billing-project
       script: /io/sql/add-trial-billing-project.sql
+    - name: add-roles
+      script: /io/sql/add-roles.sql
    inputs:
     - from: /repo/auth/sql
       to: /io/

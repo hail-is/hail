@@ -50,3 +50,10 @@ CREATE EVENT `purge_copy_paste_tokens`
     DO
         DELETE FROM copy_paste_tokens
         WHERE TIMESTAMPADD(SECOND, max_age_secs, created) < NOW();
+
+CREATE TABLE `roles` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(255) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `name` (`name`)
+) ENGINE=InnoDB;
