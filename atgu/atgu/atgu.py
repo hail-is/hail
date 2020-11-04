@@ -74,7 +74,6 @@ async def post_create_resource(request, userdata):  # pylint: disable=unused-arg
         part = await reader.next()
         if not part:
             break
-        log.info(f'part {part.name}')
         if part.name == 'file':
             filename = part.filename
             if not filename:
@@ -89,18 +88,16 @@ async def post_create_resource(request, userdata):  # pylint: disable=unused-arg
             attachments[id] = filename
         else:
             post[part.name] = await part.text()
+    
+    # check csrf token
+    token1 = request.cookies.get('_csrf')
+    token2 = post.get('_csrf')
+    if token1 is None or token2 is None or token1 != token2:
+        log.info('request made with invalid csrf tokens')
+        raise web.HTTPUnauthorized()
 
-        # check csrf token
-        token1 = request.cookies.get('_csrf')
-        token2 = post.get('_csrf')
-        if token1 is None or token2 is None or token1 != token2:
-            log.info('request made with invalid csrf tokens')
-            raise web.HTTPUnauthorized()
-
-        log.info(f'post {post}')
-
-        id = await db.execute_insertone(
-            '''
+    id = await db.execute_insertone(
+        '''
 INSERT INTO `atgu_resources` (`title`, `description`, `contents`, `tags`, `attachments`)
 VALUES (%s, %s, %s, %s, %s);
 ''', (post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments), id))
