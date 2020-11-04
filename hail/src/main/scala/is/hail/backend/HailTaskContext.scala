@@ -6,8 +6,8 @@ object HailTaskContext {
   def get(): HailTaskContext = taskContext.get
 
   private[this] val taskContext: ThreadLocal[HailTaskContext] = new ThreadLocal[HailTaskContext]
-  protected[backend] def setTaskContext(tc: HailTaskContext): Unit = taskContext.set(tc)
-  protected[backend] def unset(): Unit = taskContext.remove()
+  def setTaskContext(tc: HailTaskContext): Unit = taskContext.set(tc)
+  def unset(): Unit = taskContext.remove()
 }
 
 abstract class HailTaskContext {

@@ -749,7 +749,7 @@ class RVD(
     val enc = TypedCodecSpec(rowPType, BufferSpec.wireSpec)
     val encodedData = collectAsBytes(execCtx, enc)
     val (pType: PStruct, dec) = enc.buildDecoder(execCtx, rowType)
-    Region.scoped { region =>
+    execCtx.r.pool.scopedRegion { region =>
       RegionValue.fromBytes(dec, region, encodedData.iterator)
         .map { ptr =>
           val row = SafeRow(pType, ptr)
