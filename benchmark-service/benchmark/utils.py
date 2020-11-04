@@ -88,6 +88,7 @@ class ReadGoogleStorage:
         file_info = parse_file_path(FILE_PATH_REGEX, file_path)
         bucket_name = file_info['bucket']
         bucket = self.storage_client.bucket(bucket_name)
-        exists = storage.Blob(bucket=bucket, name=file_path).exists()
-        log.info(f'file in bucket {bucket_name} exists? {exists}')
+        shorter_file_path = file_info['path']
+        exists = storage.Blob(bucket=bucket, name=shorter_file_path).exists()
+        log.info(f'file {shorter_file_path} in bucket {bucket_name} exists? {exists}')
         return exists
