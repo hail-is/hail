@@ -67,10 +67,10 @@ class ReadGoogleStorage:
     def get_data_as_string(self, file_path):
         file_info = parse_file_path(FILE_PATH_REGEX, file_path)
         bucket = self.storage_client.get_bucket(file_info['bucket'])
-        shorter_file_path = file_info['path']
+        path = file_info['path']
         try:
             # get bucket data as blob
-            blob = bucket.blob(shorter_file_path)
+            blob = bucket.blob(path)
             # convert to string
             data = blob.download_as_string()
         except Exception as e:
@@ -88,6 +88,7 @@ class ReadGoogleStorage:
         file_info = parse_file_path(FILE_PATH_REGEX, file_path)
         bucket_name = file_info['bucket']
         bucket = self.storage_client.bucket(bucket_name)
-        exists = storage.Blob(bucket=bucket, name=file_path).exists()
-        log.info(f'file in bucket {bucket_name} exists? {exists}')
+        path = file_info['path']
+        exists = storage.Blob(bucket=bucket, name=path).exists()
+        log.info(f'file {path} in bucket {bucket_name} exists? {exists}')
         return exists

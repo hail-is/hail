@@ -37,13 +37,11 @@ spec:
 {% if deploy %}
           - name: HAIL_BENCHMARK_BUCKET_NAME
             value: hail-test
+          - name: START_POINT
+            value: "2020-11-01T00:00:00Z"
 {% else %}
           - name: HAIL_BENCHMARK_BUCKET_NAME
             value: hail-test-dmk9z
-{% endif %}
-{% if deploy %}
-          - name: START_POINT
-            value: "2020-11-01T00:00:00Z"
 {% endif %}
           ports:
             - containerPort: 5000

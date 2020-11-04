@@ -11,7 +11,7 @@ from hailtop.utils import retry_long_running
 import hailtop.batch_client.aioclient as bc
 from hailtop import aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
-from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials,\
+from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials, \
     list_benchmark_files, round_if_defined, submit_test_batch
 import json
 import re
