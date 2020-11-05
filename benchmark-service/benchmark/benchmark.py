@@ -238,29 +238,30 @@ async def update_commits(app):
         file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
         has_results_file = gs_reader.file_exists(file_path)
 
-        batches = [b async for b in batch_client.list_batches(q=f'sha={sha}')]
-        complete_batches = [b for b in batches if b._last_known_status['state'] == 'complete']
-        running_batches = [b for b in batches if b._last_known_status['state'] == 'running']
+        batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
+
+        complete_batch_statuses = [bs for bs in batch_statuses if bs['complete']]
+        running_batch_statuses = [bs for bs in batch_statuses if not bs['complete']]
 
         if has_results_file:
-            assert complete_batches, batches
+            assert complete_batch_statuses, batch_statuses
             log.info(f'commit {sha} has a results file')
-            batch = complete_batches[-1]
-        elif running_batches:
-            batch = running_batches[-1]
+            status = complete_batch_statuses[-1]
+        elif running_batch_statuses:
+            status = running_batch_statuses[-1]
             log.info(f'batch already exists for commit {sha}')
         else:
             batch_id = await submit_test_batch(batch_client, sha)
             batch = await batch_client.get_batch(batch_id)
+            status = batch._last_known_status
             log.info(f'submitted a batch {batch_id} for commit {sha}')
 
-        batch_status = await batch.last_known_status()
         commit = {
             'sha': sha,
             'title': gh_commit['commit']['message'],
             'author': gh_commit['commit']['author']['name'],
             'date': gh_commit['commit']['author']['date'],
-            'status': batch_status
+            'status': status
         }
         formatted_new_commits.append(commit)
 
