@@ -26,6 +26,10 @@
 	      <form action="{{ base_path }}/resources/{{ resource['id'] }}/edit">
 		<button type="submit" class="btn btn-primary">Edit</button>
 	      </form>
+
+	      <form action="{{ base_path }}/resources/{{ resource['id'] }}/delete" method="post">
+		<button type="submit" class="btn btn-danger">Delete</button>
+	      </form>
 	    </div>
 	  </div>
 	</div>

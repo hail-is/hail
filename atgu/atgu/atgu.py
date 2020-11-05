@@ -8,6 +8,7 @@ import aiohttp
 from aiohttp import web
 import aiohttp_jinja2
 
+from hailtop.utils import time_msecs
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.config import get_deploy_config
@@ -16,12 +17,9 @@ from gear import (Database, setup_aiohttp_session,
                   check_csrf_token, new_csrf_token)
 
 
-# delete resource
-# cancel button where appropriate (create, edit)
 # file upload to cloud, ...
 
-# role for admin/editor
-
+# ATGU styling
 # styling of embedded editor
 
 
@@ -54,11 +52,13 @@ def render_template(file):
 def resource_record_to_dict(record):
     return {
         'id': record['id'],
+        'time_created': record['time_created'],
         'title': record['title'],
         'description': record['description'],
         'contents': json.loads(record['contents']),
         'tags': record['tags'],
-        'attachments': json.loads(record['attachments'])
+        'attachments': json.loads(record['attachments']),
+        'time_updated': record['time_updated']
     }
 
 
@@ -71,7 +71,10 @@ async def get_resources(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     resources = [resource_record_to_dict(record)
                  async for record
-                 in db.select_and_fetchall('SELECT * FROM atgu_resources')]
+                 in db.select_and_fetchall('''
+SELECT * FROM atgu_resources
+ORDER BY time_created DESC;
+''')]
     return {'resources': resources}
 
 
@@ -117,11 +120,12 @@ async def post_create_resource(request, userdata):  # pylint: disable=unused-arg
         log.info('request made with invalid csrf tokens')
         raise web.HTTPUnauthorized()
 
+    now = time_msecs()
     id = await db.execute_insertone(
         '''
-INSERT INTO `atgu_resources` (`title`, `description`, `contents`, `tags`, `attachments`)
+INSERT INTO `atgu_resources` (`time_created`, `title`, `description`, `contents`, `tags`, `attachments`, `time_updated`)
 VALUES (%s, %s, %s, %s, %s);
-''', (post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments)))
+''', (now, post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments), now))
 
     return web.HTTPFound(deploy_config.external_url('atgu', f'/resources/{id}'))
 
@@ -208,6 +212,7 @@ WHERE id = %s;
         log.info('request made with invalid csrf tokens')
         raise web.HTTPUnauthorized()
 
+    now = time_msecs()
     await db.execute_update(
         '''
 UPDATE atgu_resources SET
@@ -215,11 +220,24 @@ title = %s,
 description = %s,
 contents = %s,
 tags = %s,
-attachments = %s
+attachments = %s,
+time_updated = %s
 WHERE id = %s
-''', (post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments), id))
+''', (post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments), now, id))
 
     return web.HTTPFound(deploy_config.external_url('atgu', f'/resources/{id}'))
+
+
+@routes.post('/resources/{id}/delete')
+@check_csrf_token
+@web_authenticated_developers_only(redirect=False)
+async def post_delete_resource(request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    id = int(request.match_info['id'])
+    await db.just_execute('''
+DELETE FROM `atgu_resources`
+WHERE id = %s;
+''', (id,))
 
 
 @routes.get('/resources/{resource_id}/attachments/{attachment_id}')
