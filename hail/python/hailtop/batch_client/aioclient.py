@@ -201,6 +201,16 @@ class Job:
     async def is_complete(self):
         return await self._job.is_complete()
 
+    # {
+    #   batch_id: int
+    #   job_id: int
+    #   name: optional(str)
+    #   state: str (Ready, Running, Success, Error, Failure, Cancelled)
+    #   exit_code: optional(int)
+    #   duration: optional(int) (msecs)
+    #   msec_mcpu: int
+    #   cost: float
+    # }
     async def status(self):
         return await self._job.status()
 
@@ -335,6 +345,25 @@ class Batch:
             if last_job_id is None:
                 break
 
+    # {
+    #   id: int,
+    #   billing_project: str
+    #   state: str, (open, failure, cancelled, success, running)
+    #   complete: bool
+    #   closed: bool
+    #   n_jobs: int
+    #   n_completed: int
+    #   n_succeeded: int
+    #   n_failed: int
+    #   n_cancelled: int
+    #   time_created: optional(str), (date)
+    #   time_closed: optional(str), (date)
+    #   time_completed: optional(str), (date)
+    #   duration: optional(str)
+    #   attributes: optional(dict(str, str))
+    #   msec_mcpu: int
+    #   cost: float
+    # }
     async def status(self):
         resp = await self._client._get(f'/api/v1alpha/batches/{self.id}')
         self._last_known_status = await resp.json()

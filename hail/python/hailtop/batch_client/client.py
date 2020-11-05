@@ -77,6 +77,16 @@ class Job:
     def is_complete(self):
         return async_to_blocking(self._async_job.is_complete())
 
+    # {
+    #   batch_id: int
+    #   job_id: int
+    #   name: optional(str)
+    #   state: str (Ready, Running, Success, Error, Failure, Cancelled)
+    #   exit_code: optional(int)
+    #   duration: optional(int) (msecs)
+    #   msec_mcpu: int
+    #   cost: float
+    # }
     def status(self):
         return async_to_blocking(self._async_job.status())
 
@@ -111,6 +121,25 @@ class Batch:
     def cancel(self):
         async_to_blocking(self._async_batch.cancel())
 
+    # {
+    #   id: int,
+    #   billing_project: str
+    #   state: str, (open, failure, cancelled, success, running)
+    #   complete: bool
+    #   closed: bool
+    #   n_jobs: int
+    #   n_completed: int
+    #   n_succeeded: int
+    #   n_failed: int
+    #   n_cancelled: int
+    #   time_created: optional(str), (date)
+    #   time_closed: optional(str), (date)
+    #   time_completed: optional(str), (date)
+    #   duration: optional(str)
+    #   attributes: optional(dict(str, str))
+    #   msec_mcpu: int
+    #   cost: float
+    # }
     def status(self):
         return async_to_blocking(self._async_batch.status())
 
