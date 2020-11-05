@@ -57,10 +57,6 @@ async def submit_test_batch(batch_client, sha):
                            output_files=[('/io/test', f'{BENCHMARK_RESULTS_PATH}/{sha}.json')])
     await batch.submit(disable_progress_bar=True)
     log.info(f'submitted batch for commit {sha}')
-
-    batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
-    log.info(f'batches length is {len(batches)}')
-
     return job.batch_id
 
 

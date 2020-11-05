@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 import gidgethub
 import gidgethub.aiohttp
-from .config import HAIL_BENCHMARK_BUCKET_NAME, START_POINT, BENCHMARK_RESULTS_PATH
+from .config import START_POINT, BENCHMARK_RESULTS_PATH
 
 configure_logging()
 router = web.RouteTableDef()
@@ -251,17 +251,6 @@ async def update_commits(app):
             batch_id = await submit_test_batch(batch_client, sha)
             batch = await batch_client.get_batch(batch_id)
             log.info(f'submitted a batch {batch_id} for commit {sha}')
-
-        # if not batches and not has_results_file:
-        #     batch_id = await submit_test_batch(batch_client, sha)
-        #     batch = await batch_client.get_batch(batch_id)
-        #     log.info(f'submitted a batch {batch_id} for commit {sha}')
-        # elif batches:
-        #     batch = batches[-1]
-        #     log.info(f'batch already exists for commit {sha}')
-        # else:
-        #     batch = None
-        #     log.info('batches is empty and there is a results file')
 
         batch_status = await batch.last_known_status()
         commit = {
