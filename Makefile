@@ -15,7 +15,7 @@ check-hail:
 .PHONY: check-services
 check-services: check-auth check-batch check-ci check-gear check-memory \
   check-notebook check-query check-router-resolver check-scorecard check-web-common \
-  check-atgu
+  check-atgu check-tcp-proxy
 
 .PHONY: check-auth
 check-auth:
@@ -64,3 +64,7 @@ check-web-common:
 .PHONY: check-atgu
 check-atgu:
 	$(MAKE) -C atgu check
+
+.PHONY: tcp-proxy
+check-tcp-proxy:
+	$(MAKE) -C tcp_proxy check

@@ -1,24 +1,25 @@
 package is.hail.services.shuffler
 
+import java.io.IOException
 import java.net.Socket
+import java.util.UUID
 
-import is.hail._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.types.virtual._
 import is.hail.types.physical._
 import is.hail.services._
-import is.hail.services.tls._
 import is.hail.io._
 import is.hail.utils._
-import javax.net.ssl._
+import is.hail.utils.richUtils.UnexpectedEndOfFileHailException
 import org.apache.log4j.Logger
+
 
 object ShuffleClient {
   private[this] val log = Logger.getLogger(getClass.getName())
 
-  def socket(): Socket = DeployConfig.get.socket("shuffler")
+  def socket(): (UUID, Socket) = tcp.openConnection("shuffler", 443)
 
   def codeSocket(): Code[Socket] =
     Code.invokeScalaObject0[Socket](ShuffleClient.getClass, "socket")
@@ -146,38 +147,61 @@ class ShuffleClient (
     }
   }
 
-  private[this] val s = ShuffleClient.socket()
-  private[this] val in = shuffleBufferSpec.buildInputBuffer(s.getInputStream())
-  private[this] val out = shuffleBufferSpec.buildOutputBuffer(s.getOutputStream())
+  private[this] val idAndSocket = ShuffleClient.socket()
+  private[this] var connectionId: UUID = idAndSocket._1
+  private[this] var s: Socket = idAndSocket._2
+  def log_info(msg: String): Unit = {
+    log.info(s"${connectionId}: ${msg}")
+  }
+  log_info("opened a socket")
+  private[this] var in = shuffleBufferSpec.buildInputBuffer(s.getInputStream())
+  private[this] var out = shuffleBufferSpec.buildOutputBuffer(s.getOutputStream())
+
+  private[this] def retry[T](block: => T): T = {
+    while(true) {
+      try {
+        return block
+      } catch {
+        case exc @ (_: IOException | _: UnexpectedEndOfFileHailException) =>
+          log_info(s"connection lost due to ${exc}, reconnecting")
+          val (_connectionId, _s) = ShuffleClient.socket()
+          connectionId = _connectionId
+          s = _s
+          in = shuffleBufferSpec.buildInputBuffer(s.getInputStream)
+          out = shuffleBufferSpec.buildOutputBuffer(s.getOutputStream)
+      }
+    }
+    throw new RuntimeException("unreachable")  // scala cannot infer this is unreachable
+  }
 
   private[this] def startOperation(op: Byte) = {
     assert(op != Wire.EOS)
     out.writeByte(op)
     if (op != Wire.START) {
       assert(uuid != null)
-      log.info(s"operation $op uuid ${uuidToString(uuid)}")
+      log_info(s"operation $op uuid ${uuidToString(uuid)}")
       Wire.writeByteArray(out, uuid)
     }
   }
 
   def start(): Unit = {
     startOperation(Wire.START)
-    log.info(s"start")
+    log_info(s"start")
     Wire.writeTStruct(out, shuffleType.rowType)
     Wire.writeEBaseStruct(out, shuffleType.rowEType)
     Wire.writeSortFieldArray(out, shuffleType.keyFields)
-    log.info(s"using ${shuffleType.keyEType}")
+    log_info(s"using ${shuffleType.keyEType}")
     Wire.writeEBaseStruct(out, shuffleType.keyEType)
     out.flush()
     uuid = Wire.readByteArray(in)
     assert(uuid.length == Wire.ID_SIZE, s"${uuid.length} ${Wire.ID_SIZE}")
-    log.info(s"start done")
+    log_info(s"start done")
   }
 
   private[this] var encoder: Encoder = null
 
   def startPut(): Unit = {
-    log.info(s"put")
+    log_info(s"put")
     startOperation(Wire.PUT)
     out.flush()
     encoder = codecs.makeRowEncoder(out)
@@ -202,7 +226,7 @@ class ShuffleClient (
     // fixme: server needs to send uuid for the successful partition
     encoder.flush()
     assert(in.readByte() == 0.toByte)
-    log.info(s"put done")
+    log_info(s"put done")
   }
 
   private[this] var decoder: Decoder = null
@@ -213,7 +237,7 @@ class ShuffleClient (
     end: Long,
     endInclusive: Boolean
   ): Unit = {
-    log.info(s"get ${Region.pretty(codecs.keyEncodingPType, start)} ${startInclusive} " +
+    log_info(s"get ${Region.pretty(codecs.keyEncodingPType, start)} ${startInclusive} " +
       s"${Region.pretty(codecs.keyEncodingPType, end)} ${endInclusive}")
     val keyEncoder = codecs.makeKeyEncoder(out)
     decoder = codecs.makeRowDecoder(in)
@@ -223,7 +247,7 @@ class ShuffleClient (
     keyEncoder.writeRegionValue(end)
     keyEncoder.writeByte(if (endInclusive) 1.toByte else 0.toByte)
     keyEncoder.flush()
-    log.info(s"get receiving values")
+    log_info(s"get receiving values")
   }
 
   def get(
@@ -232,7 +256,7 @@ class ShuffleClient (
     startInclusive: Boolean,
     end: Long,
     endInclusive: Boolean
-  ): Array[Long] = {
+  ): Array[Long] = retry {
     startGet(start, startInclusive, end, endInclusive)
     val values = readRegionValueArray(region, decoder)
     getDone()
@@ -248,7 +272,7 @@ class ShuffleClient (
   }
 
   def getDone(): Unit = {
-    log.info(s"get done")
+    log_info(s"get done")
   }
 
   private[this] var keyDecoder: Decoder = null
@@ -256,15 +280,15 @@ class ShuffleClient (
   def startPartitionBounds(
     nPartitions: Int
   ): Unit = {
-    log.info(s"partitionBounds")
+    log_info(s"partitionBounds")
     startOperation(Wire.PARTITION_BOUNDS)
     out.writeInt(nPartitions)
     out.flush()
-    log.info(s"partitionBounds receiving values")
+    log_info(s"partitionBounds receiving values")
     keyDecoder = codecs.makeKeyDecoder(in)
   }
 
-  def partitionBounds(region: Region, nPartitions: Int): Array[Long] = {
+  def partitionBounds(region: Region, nPartitions: Int): Array[Long] = retry {
     startPartitionBounds(nPartitions)
     val keys = readRegionValueArray(region, keyDecoder, nPartitions + 1)
     endPartitionBounds()
@@ -280,18 +304,19 @@ class ShuffleClient (
   }
 
   def endPartitionBounds(): Unit = {
-    log.info(s"partitionBounds done")
+    log_info(s"partitionBounds done")
   }
 
-  def stop(): Unit = {
+  def stop(): Unit = retry {
     startOperation(Wire.STOP)
     out.flush()
-    log.info(s"stop")
+    log_info(s"stop")
     assert(in.readByte() == 0.toByte)
-    log.info(s"stop done")
+    log_info(s"stop done")
   }
 
-  def close(): Unit = {
+  def close(): Unit = retry {
+    log_info(s"close")
     out.writeByte(Wire.EOS)
     out.flush()
     assert(in.readByte() == Wire.EOS)

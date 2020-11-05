@@ -14,6 +14,10 @@ spec:
     port: 443
     protocol: TCP
     targetPort: 443
+  - name: tcp
+    port: 5000
+    protocol: TCP
+    targetPort: 5000
   selector:
     app: gateway
   loadBalancerIP: "{{ global.ip }}"

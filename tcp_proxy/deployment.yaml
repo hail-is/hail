@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tcp-proxy
+  labels:
+    app: tcp-proxy
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: tcp-proxy
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: tcp-proxy
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+      priorityClassName: infrastructure
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    - tcp-proxy
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+       - name: tcp-proxy
+         image: "{{ tcp_proxy_image.image }}"
+         command:
+          - python3
+          - -m
+          - tcp_proxy
+         env:
+          - name: HAIL_DEFAULT_NAMESPACE
+            value: "{{ default_ns.name }}"
+         resources:
+           requests:
+             memory: "2500M"
+             cpu: "1000m"
+         ports:
+          - containerPort: 5000
+         volumeMounts:
+          - name: deploy-config
+            mountPath: /deploy-config
+            readOnly: true
+          - name: ssl-config-tcp-proxy
+            mountPath: /ssl-config
+            readOnly: true
+      volumes:
+      - name: deploy-config
+        secret:
+          secretName: deploy-config
+      - name: ssl-config-tcp-proxy
+        secret:
+          optional: false
+          secretName: ssl-config-tcp-proxy
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: batch
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: batch
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+   - type: Resource
+     resource:
+       name: cpu
+       targetAverageUtilization: 90
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: tcp-proxy
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: tcp-proxy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tcp-proxy
+  labels:
+    app: tcp-proxy
+spec:
+  ports:
+  - name: tcp
+    port: 5000
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: tcp-proxy

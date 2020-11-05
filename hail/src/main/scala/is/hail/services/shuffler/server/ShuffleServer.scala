@@ -2,6 +2,7 @@ package is.hail.services.shuffler.server
 
 import java.net._
 import java.security.SecureRandom
+import java.util.UUID
 import java.util.concurrent.{ConcurrentSkipListMap, Executors, _}
 
 import is.hail.annotations.Region
@@ -11,6 +12,8 @@ import is.hail.types.virtual._
 import is.hail.io._
 import is.hail.services.tls._
 import is.hail.services.shuffler._
+import is.hail.services.tcp
+import is.hail.services.tcp.TCPConnection
 import is.hail.utils._
 import javax.net.ssl._
 import org.apache.log4j.Logger
@@ -19,8 +22,10 @@ import scala.annotation.switch
 
 class Handler (
   private[this] val server: ShuffleServer,
-  private[this] val socket: Socket
+  private[this] val conn: TCPConnection
 ) extends Runnable {
+  private[this] val socket = conn.s
+  private[this] val connectionId = conn.connectionId
   private[this] val log = Logger.getLogger(getClass.getName())
   private[this] val in = shuffleBufferSpec.buildInputBuffer(socket.getInputStream)
   private[this] val out = shuffleBufferSpec.buildOutputBuffer(socket.getOutputStream)
@@ -28,12 +33,12 @@ class Handler (
 
   def run(): Unit = {
     try {
-      log.info(s"handle")
+      conn.log_info(s"handle")
       try {
         var continue = true
         while (continue) {
           val op = in.readByte()
-          log.info(s"operation ${op}")
+          conn.log_info(s"operation ${op}")
             (op: @switch) match {
             case Wire.START => start()
             case Wire.PUT => put()
@@ -41,7 +46,7 @@ class Handler (
             case Wire.STOP => stop()
             case Wire.PARTITION_BOUNDS => partitionBounds()
             case Wire.EOS =>
-              log.info(s"client ended session, replying, then exiting cleanly")
+              conn.log_info(s"client ended session, replying, then exiting cleanly")
               eos()
               continue = false
             case op => fatal(s"bad operation number $op")
@@ -59,7 +64,7 @@ class Handler (
   def readShuffleUUID(): Shuffle = {
     val uuid = Wire.readByteArray(in)
     assert(uuid.length == Wire.ID_SIZE, s"${uuid.length} ${Wire.ID_SIZE}")
-    log.info(s"uuid ${uuidToString(uuid)}")
+    conn.log_info(s"uuid ${uuidToString(uuid)}")
     val shuffle = server.shuffles.get(uuid)
     if (shuffle == null) {
       throw new RuntimeException(s"shuffle does not exist ${uuidToString(uuid)}")
@@ -68,41 +73,41 @@ class Handler (
   }
 
   def start(): Unit = {
-    log.info(s"start")
+    conn.log_info(s"start")
     val rowType = Wire.readTStruct(in)
-    log.info(s"start got row type ${rowType}")
+    conn.log_info(s"start got row type ${rowType}")
     val rowEType = Wire.readEBaseStruct(in)
-    log.info(s"start got row encoded type ${rowEType}")
+    conn.log_info(s"start got row encoded type ${rowEType}")
     val keyFields = Wire.readSortFieldArray(in)
-    log.info(s"start got key fields ${keyFields.mkString("[", ",", "]")}")
+    conn.log_info(s"start got key fields ${keyFields.mkString("[", ",", "]")}")
     val keyEType = Wire.readEBaseStruct(in)
-    log.info(s"start got key encoded type ${keyEType}")
+    conn.log_info(s"start got key encoded type ${keyEType}")
     val uuid = new Array[Byte](Wire.ID_SIZE)
     random.nextBytes(uuid)
     server.shuffles.put(uuid, new Shuffle(uuid, TShuffle(keyFields, rowType, rowEType, keyEType)))
     Wire.writeByteArray(out, uuid)
-    log.info(s"start wrote uuid")
+    conn.log_info(s"start wrote uuid")
     out.flush()
-    log.info(s"start flush")
-    log.info(s"start done")
+    conn.log_info(s"start flush")
+    conn.log_info(s"start done")
   }
 
   def put(): Unit = {
-    log.info(s"put")
+    conn.log_info(s"put")
     val shuffle = readShuffleUUID()
     shuffle.put(in, out)
-    log.info(s"put done")
+    conn.log_info(s"put done")
   }
 
   def get(): Unit = {
-    log.info(s"get")
+    conn.log_info(s"get")
     val shuffle = readShuffleUUID()
     shuffle.get(in, out)
-    log.info(s"get done")
+    conn.log_info(s"get done")
   }
 
   def stop(): Unit = {
-    log.info(s"stop")
+    conn.log_info(s"stop")
     val uuid = Wire.readByteArray(in)
     assert(uuid.length == Wire.ID_SIZE, s"${uuid.length} ${Wire.ID_SIZE}")
     val shuffle = server.shuffles.remove(uuid)
@@ -111,14 +116,14 @@ class Handler (
     }
     out.writeByte(0.toByte)
     out.flush()
-    log.info(s"stop done")
+    conn.log_info(s"stop done")
   }
 
   def partitionBounds(): Unit = {
-    log.info(s"partitionBounds")
+    conn.log_info(s"partitionBounds")
     val shuffle = readShuffleUUID()
     shuffle.partitionBounds(in, out)
-    log.info(s"partitionBounds done")
+    conn.log_info(s"partitionBounds done")
   }
 
   def eos(): Unit = {
@@ -219,17 +224,15 @@ object ShuffleServer {
 }
 
 class ShuffleServer() extends AutoCloseable {
-  val ssl = getSSLContext
   val port = 443
   val log = Logger.getLogger(this.getClass.getName());
 
   val shuffles = new ConcurrentSkipListMap[Array[Byte], Shuffle](new SameLengthByteArrayComparator())
 
-  val ssf = ssl.getServerSocketFactory()
-  val ss = ssf.createServerSocket(port).asInstanceOf[SSLServerSocket]
-
   val executor = Executors.newCachedThreadPool()
   var stopped = false
+
+  val ss = new tcp.ServerSocket(port, executor)
 
   def serveInBackground(): Future[_] =
     executor.submit(new Runnable() { def run(): Unit = serve() })
@@ -237,16 +240,11 @@ class ShuffleServer() extends AutoCloseable {
   def serve(): Unit = {
     try {
       log.info(s"serving on ${port}")
-      while (true) {
-        val sock = ss.accept()
-        log.info(s"accepted")
-        executor.execute(new Handler(this, sock))
-      }
+      ss.serveForever(conn => new Handler(this, conn).run())
     } catch {
       case se: SocketException =>
         if (stopped) {
           log.info(s"exiting")
-          return
         } else {
           fatal("unexpected closed server socket", se)
         }

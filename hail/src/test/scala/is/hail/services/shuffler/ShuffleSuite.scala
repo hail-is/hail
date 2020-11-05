@@ -125,8 +125,8 @@ class ShuffleSuite extends HailSuite {
     val rowEType = EType.defaultFromPType(rowPType).asInstanceOf[EBaseStruct]
     val keyEType = EType.defaultFromPType(keyPType).asInstanceOf[EBaseStruct]
     val shuffleType = TShuffle(keyFields, rowType, rowEType, keyEType)
-    val nElements = 1000000
-    val partSize = 10000
+    val nElements = 10000000
+    val partSize  = 100000
     val nParts = nElements / partSize
     assert(nElements % partSize == 0)
     val keyOrd = keyPType.unsafeOrdering

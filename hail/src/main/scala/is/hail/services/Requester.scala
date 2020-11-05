@@ -45,13 +45,14 @@ class Requester(
 
   import Requester._
 
-  def request(req: HttpUriRequest, body: HttpEntity = null): JValue = {
+  def request(req: HttpUriRequest, body: HttpEntity = null, addAuthHeaders: Boolean = true): JValue = {
     log.info(s"request ${ req.getMethod } ${ req.getURI }")
 
     if (body != null)
       req.asInstanceOf[HttpEntityEnclosingRequest].setEntity(body)
 
-    tokens.addServiceAuthHeaders(service, req)
+    if (addAuthHeaders)
+      tokens.addServiceAuthHeaders(service, req)
 
     retryTransientErrors {
       using(httpClient.execute(req)) { resp =>

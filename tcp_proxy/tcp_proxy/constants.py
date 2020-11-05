@@ -1,0 +1,1 @@
+BUFFER_SIZE = 1 << 15
