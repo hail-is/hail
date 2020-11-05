@@ -2039,20 +2039,16 @@ steps:
    script: |
      set -ex
      # create billing projects and add users to them
-     cat > create-billing-project.py <<EOF
+     cat > create-billing-projects.py <<EOF
      import sys
      import json
      import asyncio
      import aiohttp
      from hailtop.utils import async_to_blocking
      from hailtop.batch_client.aioclient import BatchClient
-     async def main():
+     async def create(billing_project, user, limit=None):
          bc = await BatchClient(None)
          try:
-             billing_project = sys.argv[1]
-             user = sys.argv[2]
-             limit = sys.argv[3]
-
              try:
                  await bc.create_billing_project(billing_project)
              except aiohttp.ClientResponseError as e:
@@ -2068,10 +2064,13 @@ steps:
              await bc.edit_billing_limit(billing_project, limit)
          finally:
              await bc.close()
+     async def main():
+         await asyncio.gather([
+             create(billing_project="benchmark", user="benchmark")
+         ])
      async_to_blocking(main())
      EOF
-     # benchmark billing project
-     python3 create-billing-project.py benchmark benchmark None
+     python3 create-billing-projects.py
    secrets:
     - name: test-dev-tokens
       namespace:
@@ -2100,6 +2099,7 @@ steps:
     - create_certs
     - deploy_auth
     - create_accounts
+    - create_billing_projects
     - deploy_batch
  - kind: deploy
    name: deploy_query
