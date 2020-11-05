@@ -23,11 +23,11 @@
 	<div class="row">
 	  <div class="col">
 	    <div style="float:right;">
-	      <form action="{{ base_path }}/resources/{{ resource['id'] }}/edit">
+	      <form action="{{ base_path }}/resources/{{ resource['id'] }}/edit" class="pr-3" style="display:inline;">
 		<button type="submit" class="btn btn-primary">Edit</button>
 	      </form>
 
-	      <form action="{{ base_path }}/resources/{{ resource['id'] }}/delete" method="post">
+	      <form action="{{ base_path }}/resources/{{ resource['id'] }}/delete" method="post" style="display:inline;">
 		<button type="submit" class="btn btn-danger">Delete</button>
 	      </form>
 	    </div>

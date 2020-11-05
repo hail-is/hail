@@ -17,7 +17,7 @@ from gear import (Database, setup_aiohttp_session,
                   check_csrf_token, new_csrf_token)
 
 
-# file upload to cloud, ...
+# file upload to cloud
 
 # ATGU styling
 # styling of embedded editor
@@ -241,6 +241,7 @@ WHERE id = %s;
 
 
 @routes.get('/resources/{resource_id}/attachments/{attachment_id}')
+@web_authenticated_developers_only()
 async def get_attachment(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     resource_id = int(request.match_info['resource_id'])
