@@ -282,8 +282,11 @@ WHERE id = %s;
     await resp.prepare(request)
 
     async with await storage_client.get_object(BUCKET, f'atgu/attachments/{attachment_id}') as f:
-        b = await f.read(8 * 1024)
-        await resp.write(b)
+        while True:
+            b = await f.read(8 * 1024)
+            if not b:
+                break
+            await resp.write(b)
     await resp.write_eof()
 
     return resp
