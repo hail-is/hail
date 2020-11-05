@@ -40,7 +40,7 @@ Annotation Database
     :toctree: ./
     :template: class.rst
 
-    DB
+    hail.experimental.DB
 
 Genetics Methods
 ----------------
