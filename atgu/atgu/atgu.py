@@ -242,6 +242,7 @@ async def post_delete_resource(request, userdata):  # pylint: disable=unused-arg
 DELETE FROM `atgu_resources`
 WHERE id = %s;
 ''', (id,))
+    return web.HTTPFound(deploy_config.external_url('atgu', '/resources'))
 
 
 @routes.get('/resources/{resource_id}/attachments/{attachment_id}')
