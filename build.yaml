@@ -2045,6 +2045,61 @@ steps:
     - batch_database
     - deploy_auth
     - create_certs
+ - kind: runImage
+   name: create_billing_projects
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     # create billing projects and add users to them
+     cat > create-billing-projects.py <<EOF
+     import sys
+     import json
+     import asyncio
+     import aiohttp
+     from hailtop.utils import async_to_blocking
+     from hailtop.batch_client.aioclient import BatchClient
+     async def create(billing_project, user, limit=None):
+         bc = await BatchClient(None)
+         try:
+             try:
+                 await bc.create_billing_project(billing_project)
+             except aiohttp.ClientResponseError as e:
+                 if e.status != 403 or 'already exists' not in e.message:
+                      raise
+
+             try:
+                 await bc.add_user(user, billing_project)
+             except aiohttp.ClientResponseError as e:
+                 if e.status != 403 or 'already member of billing project' not in e.message:
+                      raise
+
+             await bc.edit_billing_limit(billing_project, limit)
+         finally:
+             await bc.close()
+     async def main():
+         await asyncio.gather(*[
+             create(billing_project="benchmark", user="benchmark")
+         ])
+     async_to_blocking(main())
+     EOF
+     python3 create-billing-projects.py
+   secrets:
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - service_base_image
+    - create_deploy_config
+    - create_accounts
+    - deploy_batch
  - kind: deploy
    name: deploy_benchmark
    namespace:
@@ -2057,6 +2112,7 @@ steps:
     - create_certs
     - deploy_auth
     - create_accounts
+    - create_billing_projects
     - deploy_batch
  - kind: deploy
    name: deploy_query
