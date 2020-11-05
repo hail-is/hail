@@ -239,8 +239,8 @@ async def update_commits(app):
         has_results_file = gs_reader.file_exists(file_path)
 
         batches = [b async for b in batch_client.list_batches(q=f'sha={sha}')]
-        complete_batches = [b for b in batches if b._known_last_status['state'] == 'complete']
-        running_batches = [b for b in batches if b._known_last_status['state'] == 'running']
+        complete_batches = [b for b in batches if b._last_known_status['state'] == 'complete']
+        running_batches = [b for b in batches if b._last_known_status['state'] == 'running']
 
         if has_results_file:
             assert complete_batches, batches
