@@ -12,6 +12,7 @@ from hailtop.utils import time_msecs
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.config import get_deploy_config
+from hailtop import aiogoogle
 from gear import (Database, setup_aiohttp_session,
                   web_authenticated_developers_only,
                   check_csrf_token, new_csrf_token)
@@ -22,6 +23,7 @@ from gear import (Database, setup_aiohttp_session,
 # ATGU styling
 # styling of embedded editor
 
+BUCKET = os.environ['HAIL_ATGU_BUCKET']
 
 log = logging.getLogger(__name__)
 
@@ -91,6 +93,7 @@ async def get_create_resource(request, userdata):  # pylint: disable=unused-argu
 @web_authenticated_developers_only(redirect=False)
 async def post_create_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
+    storage_client = request.app['storage_client']
     attachments = {}
     post = {}
     reader = aiohttp.MultipartReader(request.headers, request.content)
@@ -102,14 +105,14 @@ async def post_create_resource(request, userdata):  # pylint: disable=unused-arg
             filename = part.filename
             if not filename:
                 continue
-            id = secrets.token_hex(16)
-            with open(id, 'wb') as f:
+            attachment_id = secrets.token_hex(16)
+            async with await storage_client.get_object(BUCKET, f'atgu/attachments/{attachment_id}') as f:
                 while True:
                     chunk = await part.read_chunk()
                     if not chunk:
                         break
-                    f.write(chunk)
-            attachments[id] = filename
+                    await f.write(chunk)
+            attachments[attachment_id] = filename
         else:
             post[part.name] = await part.text()
 
@@ -168,6 +171,7 @@ WHERE id = %s;
 @web_authenticated_developers_only(redirect=False)
 async def post_edit_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
+    storage_client = request.app['storage_client']
     id = int(request.match_info['id'])
     old_record = await db.select_and_fetchone(
         '''
@@ -195,12 +199,12 @@ WHERE id = %s;
             if not filename:
                 continue
             attachment_id = secrets.token_hex(16)
-            with open(attachment_id, 'wb') as f:
+            async with storage_client.insert_object(BUCKET, f'atgu/attachments/{attachment_id}') as f:
                 while True:
                     chunk = await part.read_chunk()
                     if not chunk:
                         break
-                    f.write(chunk)
+                    await f.write(chunk)
             attachments[attachment_id] = filename
         else:
             post[part.name] = await part.text()
@@ -244,6 +248,7 @@ WHERE id = %s;
 @web_authenticated_developers_only()
 async def get_attachment(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
+    storage_client = request.app['storage_client']
     resource_id = int(request.match_info['resource_id'])
     record = await db.select_and_fetchone(
         '''
@@ -272,15 +277,23 @@ WHERE id = %s;
     if encoding:
         headers['Content-Encoding'] = encoding
 
-    return web.FileResponse(
-        f'{attachment_id}',
-        headers=headers)
+    resp = web.StreamResponse(status=200, reason='OK', headers=headers)
+    await resp.prepare(request)
+
+    async with await storage_client.get_object(BUCKET, f'atgu/attachments/{attachment_id}') as f:
+        b = await f.read(8 * 1024)
+        await resp.write(b)
+    await resp.write_eof()
+
+    return resp
 
 
 async def on_startup(app):
     db = Database()
     await db.async_init()
     app['db'] = db
+
+    app['storage_client'] = aiogoogle.StorageClient()
 
 
 def run():

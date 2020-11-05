@@ -54,6 +54,14 @@ spec:
         env:
          - name: HAIL_DOMAIN
            value: "{{ global.domain }}"
+	 - name: GOOGLE_APPLICATION_CREDENTIALS
+	   value: /gsa-key/key.json
+         - name: HAIL_ATGU_BUCKET
+{% if deploy %}
+           value: hail-test-dmk9z
+{% else %}
+           value: hail-atgu-data
+{% endif %}
         volumeMounts:
          - name: deploy-config
            mountPath: /deploy-config
@@ -66,6 +74,9 @@ spec:
            readOnly: true
          - name: ssl-config-atgu
            mountPath: /ssl-config
+           readOnly: true
+         - name: gsa-key
+           mountPath: /gsa-key
            readOnly: true
         readinessProbe:
           tcpSocket:
@@ -86,6 +97,9 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-atgu
+       - name: gsa-key
+         secret:
+           secretName: batch-gsa-key
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
