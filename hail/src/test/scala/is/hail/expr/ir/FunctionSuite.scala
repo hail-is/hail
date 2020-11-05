@@ -41,7 +41,7 @@ object TestRegisterFunctions extends RegistryFunctions {
 class FunctionSuite extends HailSuite {
 
   implicit val execStrats = ExecStrategy.javaOnly
-  val region = Region()
+  val region = Region(pool=pool)
 
   TestRegisterFunctions.registerAll()
 
