@@ -41,7 +41,6 @@ object TestRegisterFunctions extends RegistryFunctions {
 class FunctionSuite extends HailSuite {
 
   implicit val execStrats = ExecStrategy.javaOnly
-  val region = Region(pool=pool)
 
   TestRegisterFunctions.registerAll()
 
@@ -107,7 +106,7 @@ class FunctionSuite extends HailSuite {
       mb.emit(i := i - 100)
     }
     fb.emit(Code(i := 0, mb1.invokeCode(), mb2.invokeCode(), i))
-    Region.scoped { r =>
+    pool.scopedRegion { r =>
 
       assert(fb.resultWithIndex().apply(0, r)() == 2)
     }

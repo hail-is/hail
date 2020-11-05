@@ -776,7 +776,7 @@ object Interpret {
         }
       case ir: AbstractApplyNode[_] =>
         val argTuple = PType.canonical(TTuple(ir.args.map(_.typ): _*)).setRequired(true).asInstanceOf[PTuple]
-        Region.scoped { region =>
+        ctx.r.pool.scopedRegion { region =>
           val (rt, f) = functionMemo.getOrElseUpdate(ir, {
             val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (x, i) =>
               GetTupleElement(Ref("in", argTuple.virtualType), i)
