@@ -3,6 +3,7 @@ import base64
 import os
 import pytest
 import secrets
+from hailtop.auth import session_id_encode_to_str
 from hailtop.batch_client.aioclient import BatchClient
 
 pytestmark = pytest.mark.asyncio
@@ -59,7 +60,7 @@ async def new_billing_project(dev_client, get_billing_project_name):
 
 
 async def test_bad_token():
-    token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
+    token = session_id_encode_to_str(secrets.token_bytes(32))
     bc = await BatchClient('test', _token=token)
     try:
         b = bc.create_batch()
