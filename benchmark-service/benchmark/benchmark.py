@@ -239,16 +239,29 @@ async def update_commits(app):
         has_results_file = gs_reader.file_exists(file_path)
         batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
 
-        if not batches and not has_results_file:
-            batch_id = await submit_test_batch(batch_client, sha)
-            batch = await batch_client.get_batch(batch_id)
-            log.info(f'submitted a batch {batch_id} for commit {sha}')
+        if has_results_file:
+            log.info(f'commit {sha} has a results file')
+            batches = [b async for b in batch_client.list_batches(q=f'sha={sha} complete')]
+            batch = batches[-1]
+            assert batch, batches
         elif batches:
             batch = batches[-1]
             log.info(f'batch already exists for commit {sha}')
         else:
-            batch = None
-            log.info('batches is empty and there is a results file')
+            batch_id = await submit_test_batch(batch_client, sha)
+            batch = await batch_client.get_batch(batch_id)
+            log.info(f'submitted a batch {batch_id} for commit {sha}')
+
+        # if not batches and not has_results_file:
+        #     batch_id = await submit_test_batch(batch_client, sha)
+        #     batch = await batch_client.get_batch(batch_id)
+        #     log.info(f'submitted a batch {batch_id} for commit {sha}')
+        # elif batches:
+        #     batch = batches[-1]
+        #     log.info(f'batch already exists for commit {sha}')
+        # else:
+        #     batch = None
+        #     log.info('batches is empty and there is a results file')
 
         batch_status = await batch.last_known_status()
         commit = {
