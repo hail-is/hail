@@ -12,6 +12,13 @@ object RVDContext {
     ctx.own(partRegion)
     ctx
   }
+
+  def defaultFromPool(pool: RegionPool) = {
+    val partRegion = Region(pool=pool)
+    val ctx = new RVDContext(partRegion, Region(pool=pool))
+    ctx.own(partRegion)
+    ctx
+  }
 }
 
 class RVDContext(val partitionRegion: Region, val r: Region) extends AutoCloseable {

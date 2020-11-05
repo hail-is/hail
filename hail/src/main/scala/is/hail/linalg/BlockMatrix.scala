@@ -8,8 +8,8 @@ import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sq
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
-import is.hail.backend.BroadcastValue
-import is.hail.backend.spark.SparkBackend
+import is.hail.backend.{BroadcastValue, HailTaskContext}
+import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.utils._
 import is.hail.expr.Parser
 import is.hail.expr.ir.{CompileAndEvaluate, ExecuteContext, IR, TableValue}
@@ -2005,6 +2005,7 @@ class WriteBlocksRDD(
   }
 
   def compute(split: Partition, context: TaskContext): Iterator[(Int, String)] = {
+    HailTaskContext.setTaskContext(new SparkTaskContext(context))
     val blockRow = split.index
     val nRowsInBlock = gp.blockRowNRows(blockRow)
     val ctx = TaskContext.get
@@ -2041,7 +2042,7 @@ class WriteBlocksRDD(
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = writeBlocksPart.start
     writeBlocksPart.range.zip(writeBlocksPart.parentPartitions).foreach { case (pi, pPart) =>
-      using(RVDContext.default) { ctx =>
+      using(RVDContext.defaultFromPool(HailTaskContext.get().getRegionPool())) { ctx =>
         val it = crdd.iterator(pPart, context, ctx)
 
         if (pi == start) {
