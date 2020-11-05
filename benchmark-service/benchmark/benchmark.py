@@ -263,6 +263,7 @@ async def submit(request, userdata):
     branchname = request.query.get('branchname')
     iterations = request.query.get('iterations')
     regex = request.query.get('regex')
+    
 
 
 @router.get('/batches/{batch_id}')
