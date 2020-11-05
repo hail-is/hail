@@ -26,6 +26,7 @@ steps:
    config: echo/deployment.yaml
    dependsOn:
     - default_ns
+    - echo_image
  - kind: deploy
    name: deploy_batch_sa
    namespace:
