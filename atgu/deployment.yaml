@@ -54,8 +54,8 @@ spec:
         env:
          - name: HAIL_DOMAIN
            value: "{{ global.domain }}"
-	 - name: GOOGLE_APPLICATION_CREDENTIALS
-	   value: /gsa-key/key.json
+         - name: GOOGLE_APPLICATION_CREDENTIALS
+           value: /gsa-key/key.json
          - name: HAIL_ATGU_BUCKET
 {% if deploy %}
            value: hail-test-dmk9z
