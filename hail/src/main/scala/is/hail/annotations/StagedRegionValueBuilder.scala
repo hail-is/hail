@@ -29,7 +29,9 @@ object StagedRegionValueBuilder {
       FastIndexedSeq[ParamType](classInfo[Region], LongInfo), LongInfo) { mb =>
       val r = mb.getCodeParam[Region](1)
       val value = mb.getCodeParam[Long](2)
-      mb.emitWithBuilder(cb => typ.store(cb, r, typ.getPointerTo(cb, value), deepCopy = true))
+      mb.emitWithBuilder { cb =>
+        typ.store(cb, r, typ.getPointerTo(cb, value), deepCopy = true)
+      }
     }
     mb.invokeCode[Long](region, value)
   }

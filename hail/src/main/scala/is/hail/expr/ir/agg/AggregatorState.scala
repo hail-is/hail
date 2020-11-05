@@ -244,8 +244,9 @@ class TupleAggregatorState(val kb: EmitClassBuilder[_], val states: StateTuple, 
   def load(cb: EmitCodeBuilder): Unit =
     states.toCode(cb, (cb, i, s) => cb += s.load(getRegion(i), getStateOffset(i)))
 
-  def store(cb: EmitCodeBuilder): Unit =
+  def store(cb: EmitCodeBuilder): Unit = {
     states.toCode(cb, (cb, i, s) => cb += s.store(setRegion(i), getStateOffset(i)))
+  }
 
   def copyFrom(cb: EmitCodeBuilder, statesOffset: Code[Long]): Unit = {
     states.toCodeWithArgs(cb,

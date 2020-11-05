@@ -399,17 +399,17 @@ class EmitClassBuilder[C](
           .consume(cb,
             cb._fatal("expect non-missing literals!"),
             { pc => f.store(cb, pc) })
+      }
+      // Handle the pre-encoded literals, which only need to be decoded.
+      preEncodedLiterals.zipWithIndex.foreach { case ((encLit, f), index) =>
+        val (preEncLitRType, preEncLitDec) = encLit.codec.buildEmitDecoderF[Long](this)
+        assert(preEncLitRType == encLit.pType)
+        val spec = encLit.codec
 
-        // Handle the pre-encoded literals, which only need to be decoded.
-        preEncodedLiterals.zipWithIndex.foreach { case ((encLit, f), index) =>
-          val (preEncLitRType, preEncLitDec) = encLit.codec.buildEmitDecoderF[Long](this)
-          val spec = encLit.codec
-
-          // Because 0th index is for the regular literals
-          cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](allEncodedFields(index + 1))))
-          f.store(cb, preEncLitRType.sType
-            .loadFrom(cb, partitionRegion, preEncLitRType, preEncLitDec(partitionRegion, ib)))
-        }
+        // Because 0th index is for the regular literals
+        cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](allEncodedFields(index + 1))))
+        f.store(cb, preEncLitRType.sType
+          .loadFrom(cb, partitionRegion, preEncLitRType, preEncLitDec(partitionRegion, ib)))
       }
     }
 
