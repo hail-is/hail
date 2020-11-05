@@ -33,7 +33,7 @@ class ServiceSocket:
             raise aiohttp.ServerDisconnectedError('Socket was closed by server. (code={resp.data})')
         if resp.type == aiohttp.WSMsgType.ERROR:
             raise FatalError(f'Error raised while waiting for response from server: {resp}.')
-        assert resp.type == aiohttp.WSMsgType.TEXT
+        assert resp.type == aiohttp.WSMsgType.TEXT, resp.type
         return resp.data
 
     async def async_request(self, endpoint, **data):
