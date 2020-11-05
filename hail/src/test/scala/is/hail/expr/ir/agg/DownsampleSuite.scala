@@ -42,7 +42,7 @@ class DownsampleSuite extends HailSuite {
       Code._empty
     }
 
-    Region.smallScoped { r =>
+    pool.scopedSmallRegion { r =>
       fb.resultWithIndex().apply(0, r).apply()
     }
   }

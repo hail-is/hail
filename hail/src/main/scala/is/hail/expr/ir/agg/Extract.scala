@@ -1,6 +1,6 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, RegionValue}
+import is.hail.annotations.{Region, RegionPool, RegionValue}
 import is.hail.asm4s._
 import is.hail.expr.ir
 import is.hail.expr.ir._
@@ -169,7 +169,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
       )))
 
     { (bytes1: Array[Byte], bytes2: Array[Byte]) =>
-      Region.smallScoped { r =>
+      RegionPool.get.scopedSmallRegion { r =>
         val f2 = f(0, r)
         f2.newAggState(r)
         f2.setSerializedAgg(0, bytes1)

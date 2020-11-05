@@ -847,7 +847,7 @@ object Interpret {
             FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
             MakeTuple.ordered(FastSeq(extracted.postAggIR)))
 
-          Region.scoped { region =>
+          ctx.r.pool.scopedRegion { region =>
             SafeRow(rt, f(0, region)(region, globalsOffset))
           }
         } else {
@@ -946,7 +946,7 @@ object Interpret {
             Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
           assert(rTyp.types(0).virtualType == query.typ)
 
-          Region.scoped { r =>
+          ctx.r.pool.scopedRegion { r =>
             val resF = f(0, r)
             resF.setAggState(rv.region, rv.offset)
             val res = SafeRow(rTyp, resF(r, globalsOffset))
@@ -963,7 +963,7 @@ object Interpret {
           FastIndexedSeq(classInfo[Region]), LongInfo,
           MakeTuple.ordered(FastSeq(child)),
           optimize = false)
-        Region.scoped { r =>
+        ctx.r.pool.scopedRegion { r =>
           SafeRow.read(rt, makeFunction(0, r)(r)).asInstanceOf[Row](0)
         }
       case UUID4(_) =>

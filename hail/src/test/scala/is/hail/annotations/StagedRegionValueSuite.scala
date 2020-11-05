@@ -470,8 +470,8 @@ class StagedRegionValueSuite extends HailSuite {
 
     val p = Prop.forAll(g) { case (t, a) =>
       assert(t.virtualType.typeCheck(a))
-      val copy = Region.scoped { region =>
-        val copyOff = Region.scoped { srcRegion =>
+      val copy = pool.scopedRegion { region =>
+        val copyOff = pool.scopedRegion { srcRegion =>
           val src = ScalaToRegionValue(srcRegion, t, a)
 
           val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "deep_copy")
@@ -511,7 +511,7 @@ class StagedRegionValueSuite extends HailSuite {
       Row(1, IndexedSeq(), IndexedSeq(-1), Set(Row("aa")))
     )
 
-    Region.scoped { r =>
+    pool.scopedRegion { r =>
       val rvb = new RegionValueBuilder(r)
       rvb.start(t2)
       rvb.addAnnotation(t2.virtualType, value)
@@ -542,7 +542,7 @@ class StagedRegionValueSuite extends HailSuite {
     )
 
     val valueT2 = t2.types(0)
-    Region.scoped { r =>
+    pool.scopedRegion { r =>
       val rvb = new RegionValueBuilder(r)
       rvb.start(valueT2)
       rvb.addAnnotation(valueT2.virtualType, value)

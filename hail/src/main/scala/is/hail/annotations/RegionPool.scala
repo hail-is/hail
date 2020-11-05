@@ -134,6 +134,8 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   }
 
   def scopedRegion[T](f: Region => T): T = using(Region(pool = this))(f)
+  def scopedSmallRegion[T](f: Region => T): T = using(Region(Region.SMALL, pool=this))(f)
+  def scopedTinyRegion[T](f: Region => T): T = using(Region(Region.TINY, pool=this))(f)
 
   override def finalize(): Unit = close()
 

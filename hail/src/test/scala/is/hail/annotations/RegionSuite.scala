@@ -7,12 +7,15 @@ import org.testng.annotations.Test
 class RegionSuite extends TestNGSuite {
 
   @Test def testRegionSizes() {
-    Region.smallScoped { region =>
-      Array.range(0, 30).foreach { _ => region.allocate(1, 500) }
-    }
+    RegionPool.scoped { pool =>
+      pool.scopedSmallRegion { region =>
+        Array.range(0, 30).foreach { _ => region.allocate(1, 500) }
+      }
 
-    Region.tinyScoped { region =>
-      Array.range(0, 30).foreach { _ => region.allocate(1, 60) }
+
+      pool.scopedTinyRegion { region =>
+        Array.range(0, 30).foreach { _ => region.allocate(1, 60) }
+      }
     }
   }
 
@@ -73,84 +76,86 @@ class RegionSuite extends TestNGSuite {
   }
 
   @Test def testRegionAllocation() {
-    val pool = RegionPool.get
+    RegionPool.scoped { pool =>
+      case class Counts(regions: Int, freeRegions: Int) {
+        def allocate(n: Int): Counts =
+          copy(regions = regions + math.max(0, n - freeRegions),
+            freeRegions = math.max(0, freeRegions - n))
 
-    case class Counts(regions: Int, freeRegions: Int) {
-      def allocate(n: Int): Counts =
-        copy(regions = regions + math.max(0, n - freeRegions),
-          freeRegions = math.max(0, freeRegions - n))
-
-      def free(nRegions: Int, nExtraBlocks: Int = 0): Counts =
-        copy(freeRegions = freeRegions + nRegions)
-    }
-
-    var before: Counts = null
-    var after: Counts = Counts(pool.numRegions(), pool.numFreeRegions())
-
-    def assertAfterEquals(c: => Counts): Unit = {
-      before = after
-      after = Counts(pool.numRegions(), pool.numFreeRegions())
-      assert(after == c)
-    }
-
-    Region.scoped { region =>
-      assertAfterEquals(before.allocate(1))
-
-      Region.scoped { region2 =>
-        assertAfterEquals(before.allocate(1))
-        region.addReferenceTo(region2)
+        def free(nRegions: Int, nExtraBlocks: Int = 0): Counts =
+          copy(freeRegions = freeRegions + nRegions)
       }
-      assertAfterEquals(before)
-    }
-    assertAfterEquals(before.free(2))
 
-    Region.scoped { region =>
-      Region.scoped { region2 => region.addReferenceTo(region2) }
-      Region.scoped { region2 => region.addReferenceTo(region2) }
-      assertAfterEquals(before.allocate(3))
+      var before: Counts = null
+      var after: Counts = Counts(pool.numRegions(), pool.numFreeRegions())
+
+      def assertAfterEquals(c: => Counts): Unit = {
+        before = after
+        after = Counts(pool.numRegions(), pool.numFreeRegions())
+        assert(after == c)
+      }
+
+      pool.scopedRegion { region =>
+        assertAfterEquals(before.allocate(1))
+
+        pool.scopedRegion { region2 =>
+          assertAfterEquals(before.allocate(1))
+          region.addReferenceTo(region2)
+        }
+        assertAfterEquals(before)
+      }
+      assertAfterEquals(before.free(2))
+
+      pool.scopedRegion { region =>
+        pool.scopedRegion { region2 => region.addReferenceTo(region2) }
+        pool.scopedRegion { region2 => region.addReferenceTo(region2) }
+        assertAfterEquals(before.allocate(3))
+      }
+      assertAfterEquals(before.free(3))
     }
-    assertAfterEquals(before.free(3))
   }
 
   @Test def testRegionReferences() {
-    def offset(region: Region) = region.allocate(0)
+    RegionPool.scoped { pool =>
+      def offset(region: Region) = region.allocate(0)
 
-    def numUsed(): Int = RegionPool.get.numRegions() - RegionPool.get.numFreeRegions()
+      def numUsed(): Int = RegionPool.get.numRegions() - RegionPool.get.numFreeRegions()
 
-    def assertUsesRegions[T](n: Int)(f: => T): T = {
-      val usedRegionCount = numUsed()
-      val res = f
-      assert(usedRegionCount == numUsed() - n)
-      res
-    }
+      def assertUsesRegions[T](n: Int)(f: => T): T = {
+        val usedRegionCount = numUsed()
+        val res = f
+        assert(usedRegionCount == numUsed() - n)
+        res
+      }
 
-    val region = Region()
-    region.setNumParents(5)
+      val region = Region(pool=pool)
+      region.setNumParents(5)
 
-    val off4 = using(assertUsesRegions(1) {
-      region.getParentReference(4, Region.SMALL)
-    }) { r =>
-      offset(r)
-    }
+      val off4 = using(assertUsesRegions(1) {
+        region.getParentReference(4, Region.SMALL)
+      }) { r =>
+        offset(r)
+      }
 
-    val off2 = Region.tinyScoped { r =>
-      region.setParentReference(r, 2)
-      offset(r)
-    }
+      val off2 = pool.scopedTinyRegion { r =>
+        region.setParentReference(r, 2)
+        offset(r)
+      }
 
-    using(region.getParentReference(2, Region.TINY)) { r =>
-      assert(offset(r) == off2)
-    }
+      using(region.getParentReference(2, Region.TINY)) { r =>
+        assert(offset(r) == off2)
+      }
 
-    using(region.getParentReference(4, Region.SMALL)) { r =>
-      assert(offset(r) == off4)
-    }
+      using(region.getParentReference(4, Region.SMALL)) { r =>
+        assert(offset(r) == off4)
+      }
 
-    assertUsesRegions(-1) {
-      region.unreferenceRegionAtIndex(2)
-    }
-    assertUsesRegions(-1) {
-      region.unreferenceRegionAtIndex(4)
+      assertUsesRegions(-1) {
+        region.unreferenceRegionAtIndex(2)
+      }
+      assertUsesRegions(-1) {
+        region.unreferenceRegionAtIndex(4)
+      }
     }
   }
 

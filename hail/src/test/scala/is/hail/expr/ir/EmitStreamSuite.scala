@@ -700,7 +700,7 @@ class EmitStreamSuite extends HailSuite {
       FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
       ir)
 
-    Region.smallScoped { r =>
+    pool.scopedSmallRegion { r =>
       val rvb = new RegionValueBuilder(r)
       rvb.start(t)
       rvb.addAnnotation(t.virtualType, Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)))

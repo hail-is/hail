@@ -17,10 +17,6 @@ object Region {
 
   def scoped[T](f: Region => T): T = using(Region())(f)
 
-  def smallScoped[T](f: Region => T): T = using(Region(SMALL))(f)
-
-  def tinyScoped[T](f: Region => T): T = using(Region(TINY))(f)
-
   def loadInt(addr: Long): Int = Memory.loadInt(addr)
 
   def loadLong(addr: Long): Long = Memory.loadLong(addr)
