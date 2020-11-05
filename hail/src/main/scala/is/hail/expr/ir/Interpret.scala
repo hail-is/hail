@@ -884,7 +884,7 @@ object Interpret {
           val read: WrappedByteArray => RegionValue = {
             val deserialize = extracted.deserialize(ctx, spec)
             (a: WrappedByteArray) => {
-              val r = Region(Region.SMALL)
+              val r = Region(Region.SMALL, pool=ctx.r.pool)
               val res = deserialize(r, a.bytes)
               a.clear()
               RegionValue(r, res)
