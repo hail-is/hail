@@ -24,9 +24,9 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
 
     The split multi logic handles the following entry fields:
 
-        .. code-block:: text
+    .. code-block:: text
 
-          struct {
+        struct {
             LGT: call
             LAD: array<int32>
             DP: int32
@@ -36,7 +36,7 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
             LPGT: call
             LA: array<int32>
             END: int32
-          }
+        }
 
     All fields except for `LA` are optional, and only handled if they exist.
 
