@@ -124,7 +124,7 @@ async def post_create_resource(request, userdata):  # pylint: disable=unused-arg
     id = await db.execute_insertone(
         '''
 INSERT INTO `atgu_resources` (`time_created`, `title`, `description`, `contents`, `tags`, `attachments`, `time_updated`)
-VALUES (%s, %s, %s, %s, %s);
+VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''', (now, post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments), now))
 
     return web.HTTPFound(deploy_config.external_url('atgu', f'/resources/{id}'))
