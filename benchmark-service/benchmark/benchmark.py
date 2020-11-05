@@ -11,7 +11,7 @@ from hailtop.utils import retry_long_running
 import hailtop.batch_client.aioclient as bc
 from hailtop import aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
-from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials, \
+from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials,\
     list_benchmark_files, round_if_defined, submit_test_batch
 import json
 import re
@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 import gidgethub
 import gidgethub.aiohttp
-from .config import HAIL_BENCHMARK_BUCKET_NAME, START_POINT
+from .config import START_POINT, BENCHMARK_RESULTS_PATH
 
 configure_logging()
 router = web.RouteTableDef()
@@ -35,6 +35,9 @@ BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)(
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 benchmark_data = None
+
+with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+    oauth_token = f.read().strip()
 
 
 def get_benchmarks(app, file_path):
@@ -232,17 +235,24 @@ async def update_commits(app):
     for gh_commit in gh_data:
         sha = gh_commit.get('sha')
         log.info(f'for commit {sha}')
-        file_path = f'gs://{HAIL_BENCHMARK_BUCKET_NAME}/benchmark-test/{sha}.json'
+        file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
         has_results_file = gs_reader.file_exists(file_path)
-        batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
 
-        if not batches and not has_results_file:
+        batches = [b async for b in batch_client.list_batches(q=f'sha={sha}')]
+        complete_batches = [b for b in batches if b._last_known_status['state'] == 'complete']
+        running_batches = [b for b in batches if b._last_known_status['state'] == 'running']
+
+        if has_results_file:
+            assert complete_batches, batches
+            log.info(f'commit {sha} has a results file')
+            batch = complete_batches[-1]
+        elif running_batches:
+            batch = running_batches[-1]
+            log.info(f'batch already exists for commit {sha}')
+        else:
             batch_id = await submit_test_batch(batch_client, sha)
             batch = await batch_client.get_batch(batch_id)
             log.info(f'submitted a batch {batch_id} for commit {sha}')
-        else:
-            batch = batches[:-1]
-            log.info(f'batch already exists for commit {sha}')
 
         batch_status = await batch.last_known_status()
         commit = {
@@ -269,8 +279,6 @@ async def github_polling_loop(app):
 
 
 async def on_startup(app):
-    with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
-        oauth_token = f.read().strip()
     app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
                                                        'hail-is/hail',
