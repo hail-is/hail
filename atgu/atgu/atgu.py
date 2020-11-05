@@ -106,7 +106,7 @@ async def post_create_resource(request, userdata):  # pylint: disable=unused-arg
             if not filename:
                 continue
             attachment_id = secrets.token_hex(16)
-            async with await storage_client.get_object(BUCKET, f'atgu/attachments/{attachment_id}') as f:
+            async with await storage_client.insert_object(BUCKET, f'atgu/attachments/{attachment_id}') as f:
                 while True:
                     chunk = await part.read_chunk()
                     if not chunk:
@@ -199,7 +199,7 @@ WHERE id = %s;
             if not filename:
                 continue
             attachment_id = secrets.token_hex(16)
-            async with storage_client.insert_object(BUCKET, f'atgu/attachments/{attachment_id}') as f:
+            async with await storage_client.insert_object(BUCKET, f'atgu/attachments/{attachment_id}') as f:
                 while True:
                     chunk = await part.read_chunk()
                     if not chunk:
