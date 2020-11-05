@@ -18,9 +18,6 @@ from gear import (Database, setup_aiohttp_session,
                   check_csrf_token, new_csrf_token)
 
 
-# file upload to cloud
-
-# ATGU styling
 # styling of embedded editor
 
 BUCKET = os.environ['HAIL_ATGU_BUCKET']
