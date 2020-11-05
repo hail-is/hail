@@ -14,6 +14,18 @@ steps:
     - benchmark-gsa-key
     - billing-monitor-gsa-key
     - asana-access-token
+ - kind: buildImage
+   name: echo_image
+   dockerFile: echo/Dockerfile
+   contextPath: echo
+   publishAs: echo
+ - kind: deploy
+   name: deploy_echo
+   namespace:
+     valueFrom: default_ns.name
+   config: echo/deployment.yaml
+   dependsOn:
+    - default_ns
  - kind: deploy
    name: deploy_batch_sa
    namespace:
