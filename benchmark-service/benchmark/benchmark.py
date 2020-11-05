@@ -237,14 +237,14 @@ async def update_commits(app):
         log.info(f'for commit {sha}')
         file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
         has_results_file = gs_reader.file_exists(file_path)
-        batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
 
         if has_results_file:
             log.info(f'commit {sha} has a results file')
             batches = [b async for b in batch_client.list_batches(q=f'sha={sha} complete')]
             batch = batches[-1]
             assert batch, batches
-        elif batches:
+        elif [b async for b in batch_client.list_batches(q=f'sha={sha} running')]:
+            batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
             batch = batches[-1]
             log.info(f'batch already exists for commit {sha}')
         else:
@@ -281,7 +281,7 @@ async def on_startup(app):
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
                                                        'hail-is/hail',
                                                        oauth_token=oauth_token)
-    app['batch_client'] = await bc.BatchClient(billing_project='test')
+    app['batch_client'] = await bc.BatchClient(billing_project='benchmark')
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(retry_long_running(
         'github_polling_loop', github_polling_loop, app))
