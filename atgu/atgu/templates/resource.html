@@ -28,6 +28,7 @@
 	      </form>
 
 	      <form action="{{ base_path }}/resources/{{ resource['id'] }}/delete" method="post" style="display:inline;">
+		<input type="hidden" name="_csrf" value="{{ csrf_token }}">
 		<button type="submit" class="btn btn-danger">Delete</button>
 	      </form>
 	    </div>
