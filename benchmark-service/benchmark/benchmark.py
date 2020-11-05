@@ -238,14 +238,16 @@ async def update_commits(app):
         file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
         has_results_file = gs_reader.file_exists(file_path)
 
+        batches = [b async for b in batch_client.list_batches(q=f'sha={sha}')]
+        complete_batches = [b for b in batches if b['state'] == 'complete']
+        running_batches = [b for b in batches if b['state'] == 'running']
+
         if has_results_file:
+            assert complete_batches, batches
             log.info(f'commit {sha} has a results file')
-            batches = [b async for b in batch_client.list_batches(q=f'sha={sha} complete')]
-            batch = batches[-1]
-            assert batch, batches
-        elif [b async for b in batch_client.list_batches(q=f'sha={sha} running')]:
-            batches = [b async for b in batch_client.list_batches(q=f'sha={sha} running')]
-            batch = batches[-1]
+            batch = complete_batches[-1]
+        elif running_batches:
+            batch = running_batches[-1]
             log.info(f'batch already exists for commit {sha}')
         else:
             batch_id = await submit_test_batch(batch_client, sha)
