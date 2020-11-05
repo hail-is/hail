@@ -416,7 +416,7 @@ async def post_create_user(request, userdata):  # pylint: disable=unused-argumen
     user_id = await db.execute_insertone(
         '''
 INSERT INTO users (state, username, email, is_developer, is_service_account)
-VALUES (%s, %s, %s, %s);
+VALUES (%s, %s, %s, %s, %s);
 ''',
         ('creating', username, email, is_developer, is_service_account))
 
