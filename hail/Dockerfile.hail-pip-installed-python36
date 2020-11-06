@@ -1,4 +1,4 @@
-FROM gcr.io/{{ global.project }}/ubuntu:18.04
+FROM {{ hail_ubuntu_image.image }}
 
 ENV LANG C.UTF-8
 
@@ -11,10 +11,10 @@ RUN apt-get update && \
 
 COPY hail/python/requirements.txt requirements.txt
 COPY hail/python/dev-requirements.txt dev-requirements.txt
-RUN python3 -m pip install -U -r requirements.txt -r dev-requirements.txt
+RUN hail-pip-install -r requirements.txt -r dev-requirements.txt
 
 COPY wheel-container.tar wheel-container.tar
 RUN tar -xf wheel-container.tar && \
-    python3 -m pip install hail-*-py3-none-any.whl
+    hail-pip-install hail-*-py3-none-any.whl
 
 COPY pylintrc setup.cfg /

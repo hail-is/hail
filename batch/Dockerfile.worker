@@ -17,22 +17,21 @@ RUN apt-get update && \
     gcsfuse && \
   rm -rf /var/lib/apt/lists/*
 
+COPY docker/hail-ubuntu/pip.conf /root/.config/pip/pip.conf
+COPY docker/hail-ubuntu/hail-pip-install /bin/hail-pip-install
+RUN python3 -m pip install --upgrade --no-cache-dir pip
+
 COPY docker/requirements.txt .
-# re: pip install --upgrade pip: https://github.com/grpc/grpc/issues/22815
-RUN python3 -m pip install --upgrade pip && \
-    python3 -m pip install --no-cache-dir -U -r requirements.txt
+RUN hail-pip-install -r requirements.txt
 
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/
-RUN python3 -m pip install --no-deps --no-cache-dir /hailtop \
-  && rm -rf /hailtop
+RUN hail-pip-install --no-deps /hailtop && rm -rf /hailtop
 
 COPY gear/setup.py /gear/setup.py
 COPY gear/gear /gear/gear/
-RUN python3 -m pip install --no-deps --no-cache-dir /gear \
-  && rm -rf /gear
+RUN hail-pip-install --no-deps /gear && rm -rf /gear
 
 COPY batch/setup.py batch/MANIFEST.in /batch/
 COPY batch/batch /batch/batch/
-RUN pip3 install --no-cache-dir /batch && \
-  rm -rf /batch
+RUN hail-pip-install --no-deps /batch && rm -rf /batch

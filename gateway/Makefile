@@ -6,9 +6,10 @@ GATEWAY_LATEST = gcr.io/$(PROJECT)/gateway:latest
 GATEWAY_IMAGE = gcr.io/$(PROJECT)/gateway:$(shell docker images -q --no-trunc gateway | sed -e 's,[^:]*:,,')
 
 build:
-	docker pull ubuntu:18.04
+	$(MAKE) -C ../docker hail-ubuntu
 	-docker pull $(GATEWAY_LATEST)
-	docker build -t gateway --cache-from gateway,$(GATEWAY_LATEST),ubuntu:18.04 .
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' Dockerfile Dockerfile.out
+	docker build -t gateway -f Dockerfile.out --cache-from gateway,$(GATEWAY_LATEST),hail-ubuntu .
 
 push: build
 	docker tag gateway $(GATEWAY_LATEST)
