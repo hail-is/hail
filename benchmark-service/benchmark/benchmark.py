@@ -3,7 +3,7 @@ import os
 import aiohttp
 from aiohttp import web
 import logging
-from gear import setup_aiohttp_session, web_authenticated_developers_only
+from gear import setup_aiohttp_session, web_authenticated_developers_only, rest_authenticated_developers_only
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
@@ -273,7 +273,7 @@ async def update_commits(app):
 
 
 @router.post('/api/v1alpha/benchmark/update_commit')
-#@rest_authenticated_developers_only
+@rest_authenticated_developers_only
 async def update_commit(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     batch_client = app['batch_client']
