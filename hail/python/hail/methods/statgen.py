@@ -1643,7 +1643,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
     Examples
     --------
 
-    >>> hl.split_multi_hts(dataset).write('output/split.vds')
+    >>> hl.split_multi_hts(dataset).write('output/split.mt')
 
     Notes
     -----
@@ -1725,8 +1725,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
     values. Here is an example:
 
     >>> split_ds = hl.split_multi_hts(dataset)
-    >>> split_ds = split_ds.annotate_rows(info = hl.struct(AC=split_ds.info.AC[split_ds.a_index - 1],
-    ...                                   **split_ds.info)) # doctest: +SKIP
+    >>> split_ds = split_ds.annotate_rows(info = split_ds.info.annotate(AC = split_ds.info.AC[split_ds.a_index - 1]))
     >>> hl.export_vcf(split_ds, 'output/export.vcf') # doctest: +SKIP
 
     The info field AC in *data/export.vcf* will have ``Number=1``.
