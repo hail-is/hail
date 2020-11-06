@@ -93,36 +93,31 @@ final class StreamInputBuffer(in: InputStream) extends InputBuffer {
   def seek(offset: Long) = in.asInstanceOf[ByteTrackingInputStream].seek(offset)
 
   def readByte(): Byte = {
-    val bytesRead = in.read(buff, 0, 1)
-    assert(bytesRead == 1)
+    in.readFully(buff, 0, 1)
     Memory.loadByte(buff, 0)
   }
 
   override def read(buf: Array[Byte], toOff: Int, n: Int): Unit = {
-    in.read(buf, toOff, n)
+    in.readFully(buf, toOff, n)
   }
 
   def readInt(): Int = {
-    val bytesRead = in.read(buff, 0, 4)
-    assert(bytesRead == 4)
+    in.readFully(buff, 0, 4)
     Memory.loadInt(buff, 0)
   }
 
   def readLong(): Long = {
-    val bytesRead = in.read(buff)
-    assert(bytesRead == 8)
+    in.readFully(buff)
     Memory.loadLong(buff, 0)
   }
 
   def readFloat(): Float = {
-    val bytesRead = in.read(buff, 0, 4)
-    assert(bytesRead == 4)
+    in.readFully(buff, 0, 4)
     Memory.loadFloat(buff, 0)
   }
 
   def readDouble(): Double = {
-    val bytesRead = in.read(buff)
-    assert(bytesRead == 8)
+    in.readFully(buff)
     Memory.loadDouble(buff, 0)
   }
 
