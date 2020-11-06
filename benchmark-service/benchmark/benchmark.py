@@ -341,7 +341,7 @@ def run():
     app.add_routes(router)
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
-    web.run_app(deploy_config.prefix_application(app, 'benchmark'),
+    web.run_app(deploy_config.prefix_application(app, 'test'),
                 host='0.0.0.0',
                 port=5000,
                 access_log_class=AccessLogger,
