@@ -273,7 +273,7 @@ async def update_commits(app):
 
 
 @router.post('/api/v1alpha/benchmark/update_commit')
-@rest_authenticated_developers_only
+#@rest_authenticated_developers_only
 async def update_commit(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     batch_client = app['batch_client']
