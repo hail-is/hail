@@ -272,6 +272,43 @@ async def update_commits(app):
     }
 
 
+@router.post('/api/v1alpha/benchmark/update_commit')
+@rest_authenticated_developers_only
+async def update_commit(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    batch_client = app['batch_client']
+    gs_reader = app['gs_reader']
+    body = await request.json()
+    sha = body['sha']
+
+    file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
+
+    gs_reader.delete_file(file_path)
+
+    has_results_file = gs_reader.file_exists(file_path)
+    batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
+    complete_batch_statuses = [bs for bs in batch_statuses if bs['complete']]
+    running_batch_statuses = [bs for bs in batch_statuses if not bs['complete']]
+
+    if has_results_file:
+        assert complete_batch_statuses, batch_statuses
+        log.info(f'commit {sha} has a results file')
+        status = complete_batch_statuses[-1]
+        case = 'has_results_file'
+    elif running_batch_statuses:
+        status = running_batch_statuses[-1]
+        log.info(f'batch already exists for commit {sha}')
+        case = 'running_batch'
+    else:
+        batch_id = await submit_test_batch(batch_client, sha)
+        batch = await batch_client.get_batch(batch_id)
+        status = batch._last_known_status
+        log.info(f'submitted a batch {batch_id} for commit {sha}')
+        case = 'submit_batch'
+    return web.json_response({'batch_status': status,
+                              'case': case})
+
+
 async def github_polling_loop(app):
     while True:
         await update_commits(app)
