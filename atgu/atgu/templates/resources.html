@@ -14,9 +14,9 @@
   <div class="row">
     <div class="col">
       <div style="float:right;">
-	<form action="{{ base_path }}/resources/create">
-	  <button type="submit" class="btn btn-primary">New</button>
-	</form>
+        <form action="{{ base_path }}/resources/create">
+          <button type="submit" class="btn btn-primary">New</button>
+        </form>
       </div>
     </div>
   </div>
@@ -46,34 +46,34 @@
     const resourcesDiv = document.getElementById('resources');
 
     function oninput() {
-	const query = searchbox.value;
-	let results;
-	if (query.length == 0) {
-	    results = [];
-	    for (let i = 0; i < resources.length; ++i) {
-		results.push({"item": resources[i]});
-	    }
-	} else
-	    results = fuse.search(query);
+        const query = searchbox.value;
+        let results;
+        if (query.length == 0) {
+            results = [];
+            for (let i = 0; i < resources.length; ++i) {
+                results.push({"item": resources[i]});
+            }
+        } else
+            results = fuse.search(query);
 
-	html = '';
-	for (let i = 0; i < results.length; ++i) {
-	    let result = results[i];
-	    let resource = result['item'];
-	    html += `
+        html = '';
+        for (let i = 0; i < results.length; ++i) {
+            let result = results[i];
+            let resource = result['item'];
+            html += `
       <div class="mb-3">
-	<h4 class="my-0">
-	  <a href="{{ base_path }}/resources/${ resource['id'] }">${ resource['title'] }</a>
-	</h4>
-	<div class="ml-3">
-	  <p class="my-0"><small class="text-secondary" style="line-height:1.2;">${ resource['tags'] }</small></p>
-	  <p class="my-0">${ resource['description'] }</p>
-	</div>
+        <h4 class="my-0">
+          <a href="{{ base_path }}/resources/${ resource['id'] }">${ resource['title'] }</a>
+        </h4>
+        <div class="ml-3">
+          <p class="my-0"><small class="text-secondary" style="line-height:1.2;">${ resource['tags'] }</small></p>
+          <p class="my-0">${ resource['description'] }</p>
+        </div>
       </div>
 `;
-	}
+        }
 
-	resourcesDiv.innerHTML = html
+        resourcesDiv.innerHTML = html
     }
 
     oninput();
