@@ -321,7 +321,7 @@ async def on_startup(app):
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
                                                        'hail-is/hail',
                                                        oauth_token=oauth_token)
-    app['batch_client'] = await bc.BatchClient(billing_project='benchmark')
+    app['batch_client'] = await bc.BatchClient(billing_project='test')
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(retry_long_running(
         'github_polling_loop', github_polling_loop, app))
@@ -341,7 +341,7 @@ def run():
     app.add_routes(router)
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
-    web.run_app(deploy_config.prefix_application(app, 'test'),
+    web.run_app(deploy_config.prefix_application(app, 'benchmark'),
                 host='0.0.0.0',
                 port=5000,
                 access_log_class=AccessLogger,
