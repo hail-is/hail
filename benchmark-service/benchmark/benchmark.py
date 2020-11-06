@@ -283,7 +283,7 @@ async def update_commit(request, userdata):  # pylint: disable=unused-argument
 
     file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
 
-    gs_reader.delete_file(file_path)
+    #gs_reader.delete_file(file_path)
 
     has_results_file = gs_reader.file_exists(file_path)
     batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
