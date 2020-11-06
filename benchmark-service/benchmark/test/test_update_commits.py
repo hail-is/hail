@@ -38,24 +38,5 @@ async def test_update_commits():
             return commit_info
 
         commit_info = await asyncio.wait_for(wait_forever(), timeout=30 * 60)
-        assert commit_info['case'] == 'submit_batch'
+        assert commit_info['case'] == 'has_results_file'
         assert commit_info['batch_status'] is not None, commit_info
-
-
-
-
-        # async def wait_forever():
-        #     #batch_status = None
-        #     complete = None
-        #     while complete is None or complete is False:
-        #         resp2 = await utils.request_retry_transient_errors(
-        #             session, 'GET', f'{batch_url}', headers=headers)
-        #         batch_status = await resp2.json()
-        #         log.info(f'batch_status:\n{json.dumps(batch_status, indent=2)}')
-        #         print(f'status: {batch_status}')
-        #         await asyncio.sleep(5)
-        #         complete = batch_status['batch_status']['complete']
-        #     return batch_status
-        #
-        # batch_status = await asyncio.wait_for(wait_forever(), timeout=30 * 60)
-        # assert batch_status['batch_status']['n_succeeded'] > 0
