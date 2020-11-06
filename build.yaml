@@ -2089,11 +2089,12 @@ steps:
          finally:
              await bc.close()
      async def main():
-{% if deploy %}
+         {% if deploy %}
          benchmark_limit = None
-{% else %}
+         {% else %}
          benchmark_limit = 5
-{% endif %}
+         {% endif %}
+
          await asyncio.gather(*[
              create(billing_project="benchmark", user="benchmark", limit=benchmark_limit)
          ])
