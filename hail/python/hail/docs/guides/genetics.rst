@@ -441,8 +441,8 @@ Polygenic Score Calculation
     >>> mt = mt.annotate_cols(
     ...     prs=hl.agg.sum(
     ...         mt.score * hl.coalesce(
-    ...             hl.cond(mt.flip, 2 - mt.GT.n_alt_alleles(),
-    ...                     mt.GT.n_alt_alleles()), mt.prior)))
+    ...             hl.if_else(mt.flip, 2 - mt.GT.n_alt_alleles(),
+    ...                        mt.GT.n_alt_alleles()), mt.prior)))
 
 :**dependencies**:
 

@@ -95,9 +95,9 @@ def spread(ht, field, value, key=None) -> Table:
                        **{fv: hl.agg.filter(ht[field] == fv,
                                             hl.rbind(
                                                 hl.agg.take(ht[value], 1),
-                                                lambda take: hl.cond(hl.len(take) > 0,
-                                                                     take[0],
-                                                                     'NA'))) for fv in field_vals}))
+                                                lambda take: hl.if_else(hl.len(take) > 0,
+                                                                        take[0],
+                                                                        'NA'))) for fv in field_vals}))
 
     ht_tmp = new_temp_file()
     ht.write(ht_tmp)

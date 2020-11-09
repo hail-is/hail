@@ -124,17 +124,18 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
                             + "mr alt   : " + mr.alleles[1])),
                        hl.min_rep(ds.locus, [ds.alleles[0], ds.alleles[i]]))
 
-    explode_structs = hl.cond(hl.len(ds.alleles) < 3,
-                              [hl.struct(
-                                  locus=ds.locus,
-                                  alleles=ds.alleles,
-                                  a_index=1,
-                                  was_split=False)],
-                              hl._sort_by(
-                                  hl.cond(filter_changed_loci,
-                                          hl.range(1, hl.len(ds.alleles)).map(struct_from_min_rep).filter(hl.is_defined),
-                                          hl.range(1, hl.len(ds.alleles)).map(struct_from_min_rep)),
-                                  lambda l, r: hl._compare(l.alleles, r.alleles) < 0))
+    explode_structs = hl.if_else(hl.len(ds.alleles) < 3,
+                                 [hl.struct(
+                                     locus=ds.locus,
+                                     alleles=ds.alleles,
+                                     a_index=1,
+                                     was_split=False)],
+                                 hl._sort_by(
+                                     hl.if_else(
+                                         filter_changed_loci,
+                                         hl.range(1, hl.len(ds.alleles)).map(struct_from_min_rep).filter(hl.is_defined),
+                                         hl.range(1, hl.len(ds.alleles)).map(struct_from_min_rep)),
+                                     lambda l, r: hl._compare(l.alleles, r.alleles) < 0))
 
     ds = ds.annotate(**{new_id: explode_structs}).explode(new_id)
 
@@ -185,8 +186,8 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
                 return with_pl(None)
 
         lai = hl.fold(lambda accum, elt:
-                      hl.cond(old_entry.LA[elt] == ds[new_id].a_index,
-                              elt, accum),
+                      hl.if_else(old_entry.LA[elt] == ds[new_id].a_index,
+                                 elt, accum),
                       hl.null(hl.tint32),
                       hl.range(0, hl.len(old_entry.LA)))
         return hl.bind(with_local_a_index, lai)

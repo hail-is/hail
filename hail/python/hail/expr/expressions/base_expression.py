@@ -474,7 +474,7 @@ class Expression(object):
     def __nonzero__(self):
         raise ExpressionException(
             "The truth value of an expression is undefined\n"
-            "    Hint: instead of 'if x', use 'hl.cond(x, ...)'\n"
+            "    Hint: instead of 'if x', use 'hl.if_else(x, ...)'\n"
             "    Hint: instead of 'x and y' or 'x or y', use 'x & y' or 'x | y'\n"
             "    Hint: instead of 'not x', use '~x'")
 
@@ -961,7 +961,7 @@ class Expression(object):
             entry_array = t[entries]
             if self_name:
                 entry_array = hl.map(lambda x: x[self_name], entry_array)
-            entry_array = hl.map(lambda x: hl.cond(hl.is_missing(x), missing, hl.str(x)),
+            entry_array = hl.map(lambda x: hl.if_else(hl.is_missing(x), missing, hl.str(x)),
                                  entry_array)
             file_contents = t.select(
                 **{k: hl.str(t[k]) for k in ds.row_key},

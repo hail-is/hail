@@ -175,7 +175,7 @@ def eval(expression):
     Evaluate a conditional:
 
     >>> x = 6
-    >>> hl.eval(hl.cond(x % 2 == 0, 'Even', 'Odd'))
+    >>> hl.eval(hl.if_else(x % 2 == 0, 'Even', 'Odd'))
     'Even'
 
     Parameters
@@ -205,7 +205,7 @@ def eval_typed(expression):
     Evaluate a conditional:
 
     >>> x = 6
-    >>> hl.eval_typed(hl.cond(x % 2 == 0, 'Even', 'Odd'))
+    >>> hl.eval_typed(hl.if_else(x % 2 == 0, 'Even', 'Odd'))
     ('Even', dtype('str'))
 
     Parameters

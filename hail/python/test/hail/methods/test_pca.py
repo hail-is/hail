@@ -34,9 +34,9 @@ def test_pca_against_numpy():
     n_rows = mt.count_rows()
 
     def make_expr(mean):
-        return hl.cond(hl.is_defined(mt.GT),
-                       (mt.GT.n_alt_alleles() - mean) / hl.sqrt(mean * (2 - mean) * n_rows / 2),
-                       0)
+        return hl.if_else(hl.is_defined(mt.GT),
+                          (mt.GT.n_alt_alleles() - mean) / hl.sqrt(mean * (2 - mean) * n_rows / 2),
+                          0)
 
     eigen, scores, loadings = hl.pca(hl.bind(make_expr, mt.AC / mt.n_called), k=3, compute_loadings=True)
     hail_scores = scores.explode('scores').scores.collect()
@@ -84,9 +84,9 @@ def test_blanczos_against_numpy():
     n_rows = mt.count_rows()
 
     def make_expr(mean):
-        return hl.cond(hl.is_defined(mt.GT),
-                       (mt.GT.n_alt_alleles() - mean) / hl.sqrt(mean * (2 - mean) * n_rows / 2),
-                       0)
+        return hl.if_else(hl.is_defined(mt.GT),
+                          (mt.GT.n_alt_alleles() - mean) / hl.sqrt(mean * (2 - mean) * n_rows / 2),
+                          0)
 
     k = 3
 

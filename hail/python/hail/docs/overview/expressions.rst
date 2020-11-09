@@ -172,7 +172,7 @@ If/Else Statements
 ~~~~~~~~~~~~~~~~~~
 
 Python ``if`` / ``else`` statements do not work with Hail expressions. Instead,
-you must use the :func:`.cond`, :func:`.case`, and :func:`.switch` functions.
+you must use the :func:`.if_else`, :func:`.case`, and :func:`.switch` functions.
 
 A conditional expression has three components: the condition to evaluate, the
 consequent value to return if the condition is ``True``, and the alternate to
@@ -188,16 +188,16 @@ return if the condition is ``False``. For example:
 In the above conditional, the condition is ``x > 0``, the consequent is ``1``,
 and the alternate is ``0``.
 
-Here is the Hail expression equivalent with :func:`.cond`:
+Here is the Hail expression equivalent with :func:`.if_else`:
 
-    >>> hl.cond(x > 0, 1, 0)
+    >>> hl.if_else(x > 0, 1, 0)
      <Int32Expression of type int32>
 
 This example returns an :class:`.Int32Expression` which can be used in more
 computations. We can add the conditional expression to our array ``a`` from
 earlier:
 
-    >>> a + hl.cond(x > 0, 1, 0)
+    >>> a + hl.if_else(x > 0, 1, 0)
     <ArrayNumericExpression of type array<int32>>
 
 Case Statements
@@ -274,7 +274,7 @@ An example of generating a :class:`.Float64Expression` that is missing is:
 These can be used with conditional statements to set values to missing if they
 don't satisfy a condition:
 
-    >>> hl.cond(x > 2.0, x, hl.null(hl.tfloat))
+    >>> hl.if_else(x > 2.0, x, hl.null(hl.tfloat))
     <Float64Expression of type float64>
 
 The Python representation of a missing value is ``None``. For example, if

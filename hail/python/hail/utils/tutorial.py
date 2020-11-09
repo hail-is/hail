@@ -157,7 +157,7 @@ def get_movie_lens(output_dir, overwrite: bool = False):
 
         # utility functions for importing movies
         def field_to_array(ds, field):
-            return hl.cond(ds[field] != 0, hl.array([field]), hl.empty_array(hl.tstr))
+            return hl.if_else(ds[field] != 0, hl.array([field]), hl.empty_array(hl.tstr))
 
         def fields_to_array(ds, fields):
             return hl.flatten(hl.array([field_to_array(ds, f) for f in fields]))
