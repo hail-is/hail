@@ -37,7 +37,7 @@ object SCanonicalShufflePointerSettable {
       "PCanonicalShuffleSettableOff",
       pt.representation.allocate(region, Wire.ID_SIZE))
     cb.append(pt.representation.store(off, bytes))
-    SCanonicalShufflePointer(pt).loadFrom(cb, region, pt, off).asInstanceOf[SCanonicalShufflePointerSettable]
+    SCanonicalShufflePointer(pt).loadFrom(cb, region, pt, off).memoize(cb, "scanonicalshuffle_fromarraybytes").asInstanceOf[SCanonicalShufflePointerSettable]
   }
 }
 
