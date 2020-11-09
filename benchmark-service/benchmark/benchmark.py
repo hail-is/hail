@@ -275,8 +275,6 @@ async def update_commits(app):
     }
 
 
-# @router.post('/api/v1alpha/benchmark/update_commit')
-# @rest_authenticated_developers_only
 async def update_commit(app, sha):  # pylint: disable=unused-argument
     github_client = app['github_client']
     batch_client = app['batch_client']
@@ -320,14 +318,9 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
     #                           'case': case})
     return commit
 
-#  think you want update_commits to call the code inside update_commit.
-#  Update_commit should return the commit that is appended to the data structure.
-
 
 @router.get('/api/v1alpha/benchmark/commit/{sha}')
 async def get_status(request, userdata):  # pylint: disable=unused-argument
-    # GET will get the status from benchmark_data['commits'] if it exists.
-    # This is how you'll know if the batch is running or completed
     global benchmark_data
     sha = str(request.match_info['sha'])
     commit = next((item for item in benchmark_data['commits'] if item['sha'] == sha), None)
@@ -339,15 +332,12 @@ async def delete_commit(request, userdata):  # pylint: disable=unused-argument
     global benchmark_data
     app = request.app
     gs_reader = app['gs_reader']
-    # body = await request.json()
-    # sha = body['sha']
     sha = str(request.match_info['sha'])
     file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
     gs_reader.delete_file(file_path)
     commit = next((item for item in benchmark_data['commits'] if item['sha'] == sha), None)
     if commit is not None:
         benchmark_data['commits'].remove(commit)
-# DELETE will remove the file from google storage and remove the commit from benchmark_data['commits']
 
 
 @router.post('/api/v1alpha/benchmark/commit/{sha}')
@@ -355,7 +345,6 @@ async def call_update_commit(request, userdata):  # pylint: disable=unused-argum
     body = await request.json()
     sha = body['sha']
     update_commit(request.app, sha)
-    # POST will call update_commit with the new SHA.
 
 
 async def github_polling_loop(app):

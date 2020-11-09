@@ -33,12 +33,7 @@ async def test_update_commits():
                     session, 'POST', f'{create_benchmark_url}', headers=headers, json={'sha': sha})
                 resp_text = await resp.text()
                 commit = json.loads(resp_text)
-                # commit_status = commit['status']
-
-                # batch_status = commit_info['batch_status']
-                # case = commit_info['case']
             return commit
 
         commit = await wait_forever()
-        # assert commit_info['case'] == 'has_results_file'
         assert commit['status'] is not None, commit
