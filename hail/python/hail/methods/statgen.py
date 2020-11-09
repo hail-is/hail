@@ -500,19 +500,24 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
             se = ((1.0 / ht.ds[idx]) * (ht.__yyps[idx].reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
             t = b / se
             p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.ds[idx], True, False))
-            return {'n': hl.range(rows_in_block).map(lambda i: n), 'sum_x': sum_x._data_array(), 'y_transpose_x': ytx.T._data_array(), 'beta': b.T._data_array(),
-                    'standard_error': se.T._data_array(), 't_stat': t.T._data_array(), 'p_value': p.T._data_array()}
+            return hl.struct(n=hl.range(rows_in_block).map(lambda i: n), sum_x=sum_x._data_array(), y_transpose_x=ytx.T._data_array(), beta=b.T._data_array(),
+                             standard_error=se.T._data_array(), t_stat=t.T._data_array(), p_value=p.T._data_array())
 
-        per_y_list = [process_y_group(i) for i in range(num_y_lists)]
+            # return {'n': hl.range(rows_in_block).map(lambda i: n), 'sum_x': sum_x._data_array(), 'y_transpose_x': ytx.T._data_array(), 'beta': b.T._data_array(),
+            #         'standard_error': se.T._data_array(), 't_stat': t.T._data_array(), 'p_value': p.T._data_array()}
+
+        #per_y_list = [process_y_group(i) for i in range(num_y_lists)]
+        per_y_list = hl.range(num_y_lists).map(lambda i: process_y_group(i))
 
         key_field_names = [key_field for key_field in ht.key]
 
-        def build_row(row_idx):
+        def build_row(per_y_list, row_idx):
             # For every field we care about, map across all y's, getting the row_idxth one from each.
             idxth_keys = {field_name: block[field_name][row_idx] for field_name in key_field_names}
             computed_row_field_names = ['n', 'sum_x', 'y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
             computed_row_fields = {
-                field_name: [one_y[field_name][row_idx] for one_y in per_y_list] for field_name in computed_row_field_names
+                #field_name: [one_y[field_name][row_idx] for one_y in per_y_list] for field_name in computed_row_field_names
+                field_name: per_y_list.map(lambda one_y: one_y[field_name][row_idx]) for field_name in computed_row_field_names
             }
             pass_through_rows = {
                 field_name: block[field_name][row_idx] for field_name in row_field_names
@@ -523,7 +528,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
             return hl.struct(**{**idxth_keys, **computed_row_fields, **pass_through_rows})
 
-        new_rows = hl.range(rows_in_block).map(build_row)
+        new_rows = hl.rbind(per_y_list, lambda l_per_y_list: hl.range(rows_in_block).map(lambda inner_i: build_row(l_per_y_list, inner_i)))
 
         return new_rows
 

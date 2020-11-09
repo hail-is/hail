@@ -179,8 +179,8 @@ def linear_regression_rows(mt_path):
 @benchmark(args=random_doubles.handle('mt'))
 def linear_regression_rows_nd(mt_path):
     mt = hl.read_matrix_table(mt_path)
-    num_phenos = 100
-    num_covs = 20
+    num_phenos = 20
+    num_covs = 10
     pheno_dict = {f"pheno_{i}": hl.rand_unif(0, 1) for i in range(num_phenos)}
     cov_dict = {f"cov_{i}": hl.rand_unif(0, 1) for i in range(num_covs)}
     mt = mt.annotate_cols(**pheno_dict)
