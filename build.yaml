@@ -533,6 +533,13 @@ steps:
    dependsOn:
      - service_base_image
  - kind: buildImage
+   name: test_benchmark_image
+   dockerFile: benchmark-service/Dockerfile.test
+   contextPath: .
+   publishAs: test-benchmark
+   dependsOn:
+    - service_base_image
+ - kind: buildImage
    name: image_fetcher_image
    dockerFile: image-fetcher/Dockerfile
    contextPath: image-fetcher
@@ -2065,6 +2072,35 @@ steps:
     - create_accounts
     - create_billing_projects
     - deploy_batch
+ - kind: runImage
+   name: test_benchmark
+   image:
+     valueFrom: test_benchmark_image.image
+   script: |
+     set -ex
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
+   secrets:
+     - name: gce-deploy-config
+       namespace:
+         valueFrom: default_ns.name
+       mountPath: /deploy-config
+     - name: test-dev-tokens
+       namespace:
+         valueFrom: batch_pods_ns.name
+       mountPath: /user-tokens
+     - name: ssl-config-benchmark-tests
+       namespace:
+         valueFrom: default_ns.name
+       mountPath: /ssl-config
+   timeout: 300
+   dependsOn:
+     - test_benchmark_image
+     - create_deploy_config
+     - create_accounts
+     - default_ns
+     - batch_pods_ns
+     - create_certs
+     - deploy_benchmark
  - kind: deploy
    name: deploy_query
    namespace:
