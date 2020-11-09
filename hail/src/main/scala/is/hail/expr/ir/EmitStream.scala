@@ -2119,18 +2119,17 @@ object EmitStream {
           ).flatMap { case (idt: SCanonicalShufflePointerCode) =>
             COption.fromEmitCode(emitIR(keyRangeIR)).doIfNone(
               Code._fatal[Unit]("ShuffleRead cannot have null key range")
-            ).flatMap { case (keyRange: PIntervalCode) =>
-//              val intervalPhysicalType = keyRanget
+            ).flatMap { case (keyRangeCode: PIntervalCode) =>
 
               val uuidLocal = mb.newPLocal("shuffleUUID", idt.st.pType.representation)
                 .asInstanceOf[SBinaryPointerSettable]
               val uuid = new SCanonicalShufflePointerSettable(idt.st, uuidLocal)
-//              val keyRange = mb.newLocal[Long]("shuffleClientKeyRange")
+              val keyRange = SIntervalPointerSettable(mb.fieldBuilder, keyRangeCode.st.asInstanceOf[SIntervalPointer], "shuffleClientKeyRange")
               COption(
                 EmitCodeBuilder.scopedCode(mb) { cb =>
                   cb.assign(uuid, idt)
-                  val kr = keyRange.memoize(cb, "shuffle_client_key_range")
-                  !kr.startDefined(cb) || !kr.endDefined(cb)
+                  cb.assign(keyRange, keyRangeCode)
+                  !keyRange.startDefined(cb) || !keyRange.endDefined(cb)
                 },
                 keyRange
               ).doIfNone(
@@ -2154,17 +2153,16 @@ object EmitStream {
                       uuid.loadBytes(),
                       Code._null,
                       mb.ecb.getPType(keyPType)))
-                    val kr = keyRange.memoize(cb, "shuffle_interval")
 
-                    val startt = kr.loadStart(cb)
+                    val startt = keyRange.loadStart(cb)
                         .handle(cb, cb._fatal("shuffle expects defined endpoints"))
                         .tcode[Long]
                     val endt =
-                      kr.loadEnd(cb)
+                      keyRange.loadEnd(cb)
                         .handle(cb, cb._fatal("shuffle expects defined endpoints"))
                         .tcode[Long]
 
-                    cb.append(shuffle.startGet(startt, kr.includesStart(), endt, kr.includesEnd()))
+                    cb.append(shuffle.startGet(startt, keyRange.includesStart, endt, keyRange.includesEnd))
                   }),
                   close = Some(Code(
                     shuffle.getDone(),
