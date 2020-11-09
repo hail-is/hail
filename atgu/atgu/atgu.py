@@ -1,14 +1,13 @@
 import os
 import logging
 import json
-import secrets
 import mimetypes
 import jinja2
 import aiohttp
 from aiohttp import web
 import aiohttp_jinja2
 
-from hailtop.utils import time_msecs
+from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.config import get_deploy_config
@@ -91,18 +90,32 @@ async def get_create_resource(request, userdata):  # pylint: disable=unused-argu
 async def post_create_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     storage_client = request.app['storage_client']
+
+    checked_csrf = False
     attachments = {}
     post = {}
     reader = aiohttp.MultipartReader(request.headers, request.content)
     while True:
-        part = await reader.next()
+        part = await reader.next()  # pylint: disable=not-callable
         if not part:
             break
-        if part.name == 'file':
+        if part.name == '_csrf':
+            # check csrf token
+            # form fields are delivered in ordrer, the _csrf hidden field should appear first
+            # https://stackoverflow.com/questions/7449861/multipart-upload-form-is-order-guaranteed
+            token1 = request.cookies.get('_csrf')
+            token2 = await part.text()
+            if token1 is None or token2 is None or token1 != token2:
+                log.info('request made with invalid csrf tokens')
+                raise web.HTTPUnauthorized()
+            checked_csrf = True
+        elif part.name == 'file':
+            if not checked_csrf:
+                raise web.HTTPUnauthorized()
             filename = part.filename
             if not filename:
                 continue
-            attachment_id = secrets.token_hex(16)
+            attachment_id = secret_alnum_string()
             async with await storage_client.insert_object(BUCKET, f'atgu/attachments/{attachment_id}') as f:
                 while True:
                     chunk = await part.read_chunk()
@@ -113,11 +126,7 @@ async def post_create_resource(request, userdata):  # pylint: disable=unused-arg
         else:
             post[part.name] = await part.text()
 
-    # check csrf token
-    token1 = request.cookies.get('_csrf')
-    token2 = post.get('_csrf')
-    if token1 is None or token2 is None or token1 != token2:
-        log.info('request made with invalid csrf tokens')
+    if not checked_csrf:
         raise web.HTTPUnauthorized()
 
     now = time_msecs()
@@ -180,14 +189,25 @@ WHERE id = %s;
 
     old_attachments = json.loads(old_record['attachments'])
 
+    checked_csrf = False
     attachments = {}
     post = {}
     reader = aiohttp.MultipartReader(request.headers, request.content)
     while True:
-        part = await reader.next()
+        part = await reader.next()  # pylint: disable=not-callable
         if not part:
             break
-        if part.name == 'attachment':
+        if part.name == '_csrf':
+            # check csrf token
+            token1 = request.cookies.get('_csrf')
+            token2 = await part.text()
+            if token1 is None or token2 is None or token1 != token2:
+                log.info('request made with invalid csrf tokens')
+                raise web.HTTPUnauthorized()
+            checked_csrf = True
+        elif part.name == 'attachment':
+            if not checked_csrf:
+                raise web.HTTPUnauthorized()
             attachment_id = await part.text()
             assert attachment_id in old_attachments
             attachments[attachment_id] = old_attachments[attachment_id]
@@ -195,7 +215,7 @@ WHERE id = %s;
             filename = part.filename
             if not filename:
                 continue
-            attachment_id = secrets.token_hex(16)
+            attachment_id = secret_alnum_string()
             async with await storage_client.insert_object(BUCKET, f'atgu/attachments/{attachment_id}') as f:
                 while True:
                     chunk = await part.read_chunk()
@@ -206,11 +226,7 @@ WHERE id = %s;
         else:
             post[part.name] = await part.text()
 
-    # check csrf token
-    token1 = request.cookies.get('_csrf')
-    token2 = post.get('_csrf')
-    if token1 is None or token2 is None or token1 != token2:
-        log.info('request made with invalid csrf tokens')
+    if not checked_csrf:
         raise web.HTTPUnauthorized()
 
     now = time_msecs()
@@ -234,11 +250,31 @@ WHERE id = %s
 @web_authenticated_developers_only(redirect=False)
 async def post_delete_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
+    storage_client = request.app['storage_client']
     id = int(request.match_info['id'])
+
+    record = await db.select_and_fetchone(
+        '''
+SELECT * FROM atgu_resources
+WHERE id = %s;
+''', (id))
+    if not record:
+        raise web.HTTPNotFound()
+    resource = resource_record_to_dict(record)
+
     await db.just_execute('''
 DELETE FROM `atgu_resources`
 WHERE id = %s;
 ''', (id,))
+
+    for attachment_id in resource['attachments']:
+        try:
+            await storage_client.delete_object(BUCKET, f'atgu/attachments/{attachment_id}')
+        except aiohttp.ClientResponseError as exc:
+            if exc.status == 404:
+                pass
+            raise
+
     return web.HTTPFound(deploy_config.external_url('atgu', '/resources'))
 
 
@@ -269,7 +305,6 @@ WHERE id = %s;
 
     headers = {
         'Content-Disposition': f'attachment; filename="{filename}"',
-        # 'Content-Disposition': 'inline',
         'Content-Type': ct
     }
     if encoding:

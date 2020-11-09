@@ -99,7 +99,7 @@ spec:
            secretName: ssl-config-atgu
        - name: gsa-key
          secret:
-           secretName: batch-gsa-key
+           secretName: atgu-gsa-key
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler

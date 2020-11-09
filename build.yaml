@@ -3571,6 +3571,7 @@ steps:
       for: alive
    dependsOn:
     - default_ns
+    - create_accounts
     - deploy_router
     - atgu_image
     - atgu_database
