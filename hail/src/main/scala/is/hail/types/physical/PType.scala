@@ -439,9 +439,6 @@ abstract class PType extends Serializable with Requiredness {
         t.setRequired(required)
     }
 
-  // Semantics: must be callable without requiredeness check: srcAddress must point to non-null value
-  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long]
-
   protected[physical] def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long
 
   def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {

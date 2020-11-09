@@ -206,13 +206,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
-    val sourceNDPType = srcPType.asInstanceOf[PCanonicalNDArray]
-
-    assert(this.elementType == sourceNDPType.elementType && this.nDims == sourceNDPType.nDims)
-
-    this.representation.copyFromType(cb, region, sourceNDPType.representation, srcAddress, deepCopy)
-  }
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
     val sourceNDPType = srcPType.asInstanceOf[PNDArray]
     assert(elementType == sourceNDPType.elementType && nDims == sourceNDPType.nDims)

@@ -139,10 +139,9 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     value.st match {
       case SBinaryPointer(PCanonicalBinary(_)) =>
         if (deepCopy) {
-          val newAddr = cb.newLocal[Long]("pcbinary_store_newaddr")
           val memoizedValue = cb.memoize(value, "pcbinary_store_value").asInstanceOf[SBinaryPointerSettable]
           val len = cb.newLocal[Int]("pcbinary_store_len", memoizedValue.loadLength())
-          cb.assign(newAddr, allocate(region, len))
+          val newAddr = cb.newLocal[Long]("pcbinary_store_newaddr", allocate(region, len))
           cb += storeLength(newAddr, len)
           cb += Region.copyFrom(bytesAddress(memoizedValue.a), bytesAddress(newAddr), len.toL)
           newAddr

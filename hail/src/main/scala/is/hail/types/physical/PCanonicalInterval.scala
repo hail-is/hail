@@ -67,12 +67,6 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
   def containsPointers: Boolean = representation.containsPointers
 
-  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
-    srcPType match {
-      case t: PCanonicalInterval => representation.copyFromType(cb, region, t.representation, srcAddress, deepCopy)
-    }
-  }
-
   def encodableType: PType = representation.encodableType
 
   def sType: SIntervalPointer = SIntervalPointer(this)

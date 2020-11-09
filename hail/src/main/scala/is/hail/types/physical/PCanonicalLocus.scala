@@ -140,6 +140,9 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
   }
 
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = {
-    cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
+    value.st match {
+      case SCanonicalLocusPointer(pt) =>
+        representation.storeAtAddress(cb, addr, region, pt.representation.getPointerTo(cb, value.asInstanceOf[SCanonicalLocusPointerCode].a), deepCopy)
+    }
   }
 }
