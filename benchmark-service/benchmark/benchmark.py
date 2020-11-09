@@ -265,7 +265,6 @@ async def submit(request, userdata):
     regex = request.query.get('regex')
     
 
-
 @router.get('/batches/{batch_id}')
 @web_authenticated_developers_only()
 async def get_batch(request, userdata):
