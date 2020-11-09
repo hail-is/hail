@@ -21,12 +21,6 @@ class PCanonicalString(val required: Boolean) extends PString {
   override lazy val fundamentalType: PCanonicalBinary = binaryFundamentalType
   override lazy val binaryEncodableType: PCanonicalBinary = PCanonicalBinary(required)
 
-  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
-    binaryFundamentalType.copyFromType(
-      cb, region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, deepCopy
-    )
-  }
-
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
     fundamentalType.copyFromAddress(region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, deepCopy)
 

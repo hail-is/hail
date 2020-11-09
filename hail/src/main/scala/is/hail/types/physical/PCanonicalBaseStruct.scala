@@ -136,9 +136,6 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] =
-    store(cb, region, srcPType.getPointerTo(cb, srcAddress), deepCopy)
-
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     if (equalModuloRequired(srcPType) && !deepCopy)
       return srcAddress

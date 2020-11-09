@@ -15,10 +15,6 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   override def byteSize: Long = 8
 
-  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
-    store(cb, region, srcPType.getPointerTo(cb, srcAddress), deepCopy)
-  }
-
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     val srcBinary = srcPType.asInstanceOf[PCanonicalBinary]
     if (srcBinary == this) {

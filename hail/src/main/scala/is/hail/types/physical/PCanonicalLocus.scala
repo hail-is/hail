@@ -118,10 +118,6 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   override def containsPointers: Boolean = representation.containsPointers
 
-  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
-    store(cb, region, srcPType.getPointerTo(cb, srcAddress), deepCopy)
-  }
-
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     srcPType match {
       case pt: PCanonicalLocus => representation._copyFromAddress(region, pt.representation, srcAddress, deepCopy)

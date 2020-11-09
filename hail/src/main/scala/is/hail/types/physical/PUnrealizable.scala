@@ -18,9 +18,6 @@ trait PUnrealizable extends PType {
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering =
     unsupported
 
-  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] =
-    unsupported
-
   protected[physical] def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
     unsupported
 

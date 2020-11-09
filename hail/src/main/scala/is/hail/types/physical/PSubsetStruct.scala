@@ -119,9 +119,6 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   override def setRequired(required: Boolean): PType =
     PSubsetStruct(ps.setRequired(required).asInstanceOf[PStruct], _fieldNames)
 
-  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] =
-    throw new UnsupportedOperationException
-
   override def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
     throw new UnsupportedOperationException
 

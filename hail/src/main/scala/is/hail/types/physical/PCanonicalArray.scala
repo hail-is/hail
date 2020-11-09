@@ -372,13 +372,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def copyFromType(cb: EmitCodeBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
-    if (srcPType.equalModuloRequired(this) && !deepCopy)
-      srcAddress
-    else
-      store(cb, region, srcPType.getPointerTo(cb, srcAddress), deepCopy)
-  }
-
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     val srcArrayT = srcPType.asInstanceOf[PArray]
 
