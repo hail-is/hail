@@ -99,6 +99,3 @@ class ReadGoogleStorage:
         bucket = self.storage_client.bucket(bucket_name)
         path = file_info['path']
         storage.Blob(bucket=bucket, name=path).delete()
-        # blobs = bucket.list_blobs(prefix=path)
-        # for blob in blobs:
-        #     blob.delete()

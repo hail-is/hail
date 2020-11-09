@@ -235,34 +235,37 @@ async def update_commits(app):
     for gh_commit in gh_data:
         sha = gh_commit.get('sha')
         log.info(f'for commit {sha}')
-        file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
-        has_results_file = gs_reader.file_exists(file_path)
 
-        batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
+        commit = update_commit(app, sha)
 
-        complete_batch_statuses = [bs for bs in batch_statuses if bs['complete']]
-        running_batch_statuses = [bs for bs in batch_statuses if not bs['complete']]
-
-        if has_results_file:
-            assert complete_batch_statuses, batch_statuses
-            log.info(f'commit {sha} has a results file')
-            status = complete_batch_statuses[-1]
-        elif running_batch_statuses:
-            status = running_batch_statuses[-1]
-            log.info(f'batch already exists for commit {sha}')
-        else:
-            batch_id = await submit_test_batch(batch_client, sha)
-            batch = await batch_client.get_batch(batch_id)
-            status = batch._last_known_status
-            log.info(f'submitted a batch {batch_id} for commit {sha}')
-
-        commit = {
-            'sha': sha,
-            'title': gh_commit['commit']['message'],
-            'author': gh_commit['commit']['author']['name'],
-            'date': gh_commit['commit']['author']['date'],
-            'status': status
-        }
+        # file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
+        # has_results_file = gs_reader.file_exists(file_path)
+        #
+        # batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
+        #
+        # complete_batch_statuses = [bs for bs in batch_statuses if bs['complete']]
+        # running_batch_statuses = [bs for bs in batch_statuses if not bs['complete']]
+        #
+        # if has_results_file:
+        #     assert complete_batch_statuses, batch_statuses
+        #     log.info(f'commit {sha} has a results file')
+        #     status = complete_batch_statuses[-1]
+        # elif running_batch_statuses:
+        #     status = running_batch_statuses[-1]
+        #     log.info(f'batch already exists for commit {sha}')
+        # else:
+        #     batch_id = await submit_test_batch(batch_client, sha)
+        #     batch = await batch_client.get_batch(batch_id)
+        #     status = batch._last_known_status
+        #     log.info(f'submitted a batch {batch_id} for commit {sha}')
+        #
+        # commit = {
+        #     'sha': sha,
+        #     'title': gh_commit['commit']['message'],
+        #     'author': gh_commit['commit']['author']['name'],
+        #     'date': gh_commit['commit']['author']['date'],
+        #     'status': status
+        # }
         formatted_new_commits.append(commit)
 
     log.info('got new commits')
@@ -272,18 +275,18 @@ async def update_commits(app):
     }
 
 
-@router.post('/api/v1alpha/benchmark/update_commit')
-@rest_authenticated_developers_only
-async def update_commit(request, userdata):  # pylint: disable=unused-argument
-    app = request.app
+# @router.post('/api/v1alpha/benchmark/update_commit')
+# @rest_authenticated_developers_only
+async def update_commit(app, sha):  # pylint: disable=unused-argument
+    github_client = app['github_client']
     batch_client = app['batch_client']
     gs_reader = app['gs_reader']
-    body = await request.json()
-    sha = body['sha']
 
     file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
 
-    # gs_reader.delete_file(file_path)
+    request_string = f'/repos/hail-is/hail/commits/{sha}'
+
+    gh_commit = await github_client.getitem(request_string)
 
     has_results_file = gs_reader.file_exists(file_path)
     batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
@@ -305,8 +308,54 @@ async def update_commit(request, userdata):  # pylint: disable=unused-argument
         status = batch._last_known_status
         log.info(f'submitted a batch {batch_id} for commit {sha}')
         case = 'submit_batch'
-    return web.json_response({'batch_status': status,
-                              'case': case})
+
+    commit = {
+        'sha': sha,
+        'title': gh_commit['commit']['message'],
+        'author': gh_commit['commit']['author']['name'],
+        'date': gh_commit['commit']['author']['date'],
+        'status': status
+    }
+    # return web.json_response({'batch_status': status,
+    #                           'case': case})
+    return commit
+
+#  think you want update_commits to call the code inside update_commit.
+#  Update_commit should return the commit that is appended to the data structure.
+
+
+@router.get('/api/v1alpha/benchmark/commit/{sha}')
+async def get_status(request, userdata):  # pylint: disable=unused-argument
+    # GET will get the status from benchmark_data['commits'] if it exists.
+    # This is how you'll know if the batch is running or completed
+    global benchmark_data
+    sha = str(request.match_info['sha'])
+    commit = next((item for item in benchmark_data['commits'] if item['sha'] == sha), None)
+    return commit['status']
+
+
+@router.delete('/api/v1alpha/benchmark/commit/{sha}')
+async def delete_commit(request, userdata):  # pylint: disable=unused-argument
+    global benchmark_data
+    app = request.app
+    gs_reader = app['gs_reader']
+    # body = await request.json()
+    # sha = body['sha']
+    sha = str(request.match_info['sha'])
+    file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
+    gs_reader.delete_file(file_path)
+    commit = next((item for item in benchmark_data['commits'] if item['sha'] == sha), None)
+    if commit is not None:
+        benchmark_data['commits'].remove(commit)
+# DELETE will remove the file from google storage and remove the commit from benchmark_data['commits']
+
+
+@router.post('/api/v1alpha/benchmark/commit/{sha}')
+async def call_update_commit(request, userdata):  # pylint: disable=unused-argument
+    body = await request.json()
+    sha = body['sha']
+    update_commit(request.app, sha)
+    # POST will call update_commit with the new SHA.
 
 
 async def github_polling_loop(app):
@@ -321,7 +370,7 @@ async def on_startup(app):
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
                                                        'hail-is/hail',
                                                        oauth_token=oauth_token)
-    app['batch_client'] = await bc.BatchClient(billing_project='test')
+    app['batch_client'] = await bc.BatchClient(billing_project='benchmark')
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(retry_long_running(
         'github_polling_loop', github_polling_loop, app))
