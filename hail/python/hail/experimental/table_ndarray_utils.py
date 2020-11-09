@@ -2,6 +2,7 @@ import hail as hl
 from hail.expr import (check_entry_indexed, matrix_table_source)
 from hail.utils.java import Env
 
+
 def mt_to_table_of_ndarray(entry_expr, block_size=16):
     check_entry_indexed('mt_to_table_of_ndarray/entry_expr', entry_expr)
     mt = matrix_table_source('mt_to_table_of_ndarray/entry_expr', entry_expr)

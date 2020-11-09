@@ -301,6 +301,8 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         List of eigenvalues, table with column scores, table with row loadings.
     """
 
+    mt = matrix_table_source('pca/entry_expr', entry_expr)
+
     A = mt_to_table_of_ndarray(entry_expr, block_size)
     A = A.persist()
 
@@ -360,10 +362,10 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     info("blanczos_pca: SVD Complete. Computing conversion to PCs.")
 
     hail_array_scores = scores._data_array()
-    cols_and_scores = hl.zip(ht.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores=tup[1]))
+    cols_and_scores = hl.zip(A.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores=tup[1]))
     st = hl.Table.parallelize(cols_and_scores, key=list(mt.col_key))
 
-    lt = ht.select()
+    lt = mt.rows().select()
     lt = lt.annotate_globals(U=U)
     lt = lt.add_index()
     lt = lt.annotate(loadings=lt.U[lt.idx, :]._data_array()).select_globals()
