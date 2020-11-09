@@ -72,10 +72,10 @@ class SwitchBuilder(ConditionalBuilder):
             else:
                 expr = default
             for value, then in self._cases[::-1]:
-                expr = hl.cond(base == value, then, expr)
+                expr = hl.if_else(base == value, then, expr)
             # needs to be on the outside, because upstream missingness would propagate
             if self._when_missing_case is not None:
-                expr = hl.cond(hl.is_missing(base), self._when_missing_case, expr)
+                expr = hl.if_else(hl.is_missing(base), self._when_missing_case, expr)
             return expr
 
         return hl.bind(f, self._base)

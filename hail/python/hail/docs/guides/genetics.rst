@@ -437,7 +437,7 @@ Polygenic Score Calculation
     ...     mt.allele == mt.alleles[1], False).or_missing()
     >>> mt = mt.annotate_rows(flip=flip)
     >>> mt = mt.annotate_rows(
-    ...     prior=2 * hl.cond(mt.flip, mt.variant_qc.AF[0], mt.variant_qc.AF[1]))
+    ...     prior=2 * hl.if_else(mt.flip, mt.variant_qc.AF[0], mt.variant_qc.AF[1]))
     >>> mt = mt.annotate_cols(
     ...     prs=hl.agg.sum(
     ...         mt.score * hl.coalesce(

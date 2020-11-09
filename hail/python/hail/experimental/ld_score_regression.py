@@ -356,9 +356,9 @@ def ld_score_regression(weight_expr,
                                 step1_separators)) - 1,
                         lambda is_separator, step1_block: entry.annotate(
                             __step1_block=step1_block,
-                            __step2_block=hl.cond(~entry.__in_step1 & is_separator,
-                                                  step1_block - 1,
-                                                  step1_block))))),
+                            __step2_block=hl.if_else(~entry.__in_step1 & is_separator,
+                                                     step1_block - 1,
+                                                     step1_block))))),
             hl.range(0, hl.len(ht.__entries)))))
 
     mt = ht._unlocalize_entries('__entries', '__cols', col_keys)
@@ -375,7 +375,7 @@ def ld_score_regression(weight_expr,
 
     # step 1 iteratively reweighted least squares
     for i in range(3):
-        mt = mt.annotate_entries(__w=hl.cond(
+        mt = mt.annotate_entries(__w=hl.if_else(
             mt.__in_step1,
             1.0 / (mt.__w_initial_floor * 2.0 * (mt.__step1_betas[0]
                                                  + mt.__step1_betas[1]
@@ -423,7 +423,7 @@ def ld_score_regression(weight_expr,
 
     # step 2 iteratively reweighted least squares
     for i in range(3):
-        mt = mt.annotate_entries(__w=hl.cond(
+        mt = mt.annotate_entries(__w=hl.if_else(
             mt.__in_step2,
             1.0 / (mt.__w_initial_floor
                    * 2.0 * (mt.__step2_betas[0] +

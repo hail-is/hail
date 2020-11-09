@@ -342,9 +342,9 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
                  'pat_id': expr_or_else(pat_id, '0'),
                  'mat_id': expr_or_else(mat_id, '0'),
                  'is_female': expr_or_else(is_female, '0',
-                                           lambda x: hl.cond(x, '2', '1')),
+                                           lambda x: hl.if_else(x, '2', '1')),
                  'pheno': expr_or_else(pheno, 'NA',
-                                       lambda x: hl.cond(x, '2', '1') if x.dtype == tbool else hl.str(x))}
+                                       lambda x: hl.if_else(x, '2', '1') if x.dtype == tbool else hl.str(x))}
 
     locus = dataset.locus
     a = dataset.alleles
@@ -645,7 +645,7 @@ def import_locus_intervals(path,
 
             expr = (
                 hl.bind(t['f0'].first_match_in(interval_regex),
-                        lambda match: hl.cond(hl.bool(skip_invalid_intervals),
+                        lambda match: hl.if_else(hl.bool(skip_invalid_intervals),
                                               checked_match_interval_expr(match),
                                               locus_interval_expr(recode_contig(match[0]),
                                                                   hl.int32(match[1]),

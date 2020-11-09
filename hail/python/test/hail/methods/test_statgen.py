@@ -37,9 +37,9 @@ class Tests(unittest.TestCase):
         plink_sex = plink_sex.select('IID', 'SNPSEX', 'F')
         plink_sex = plink_sex.select(
             s=plink_sex.IID,
-            is_female=hl.cond(plink_sex.SNPSEX == 2,
+            is_female=hl.if_else(plink_sex.SNPSEX == 2,
                               True,
-                              hl.cond(plink_sex.SNPSEX == 1,
+                              hl.if_else(plink_sex.SNPSEX == 1,
                                       False,
                                       hl.null(hl.tbool))),
             f_stat=plink_sex.F).key_by('s')
@@ -1190,7 +1190,7 @@ class Tests(unittest.TestCase):
 
         n_samples = filtered_ds.count_cols()
         normalized_mean_imputed_genotype_expr = (
-            hl.cond(hl.is_defined(filtered_ds['GT']),
+            hl.if_else(hl.is_defined(filtered_ds['GT']),
                     (filtered_ds['GT'].n_alt_alleles() - filtered_ds['mean'])
                     * filtered_ds['sd_reciprocal'] * (1 / hl.sqrt(n_samples)), 0))
 
@@ -1238,7 +1238,7 @@ class Tests(unittest.TestCase):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=50, n_variants=10, n_partitions=10).cache()
 
         ht = ds.select_rows(p=hl.agg.sum(ds.GT.n_alt_alleles()) / (2 * 50)).rows()
-        ht = ht.select(maf=hl.cond(ht.p <= 0.5, ht.p, 1.0 - ht.p)).cache()
+        ht = ht.select(maf=hl.if_else(ht.p <= 0.5, ht.p, 1.0 - ht.p)).cache()
 
         pruned_table = hl.ld_prune(ds.GT, 0.0)
         positions = pruned_table.locus.position.collect()
@@ -1379,11 +1379,11 @@ class Tests(unittest.TestCase):
                               weight=weights[ds.locus].weight)
         ds = ds.annotate_cols(pheno=phenotypes[ds.s].Pheno,
                               cov=covariates[ds.s])
-        ds = ds.annotate_cols(pheno=hl.cond(ds.pheno == 1.0,
-                                            False,
-                                            hl.cond(ds.pheno == 2.0,
-                                                    True,
-                                                    hl.null(hl.tbool))))
+        ds = ds.annotate_cols(pheno=hl.if_else(ds.pheno == 1.0,
+                                               False,
+                                               hl.if_else(ds.pheno == 2.0,
+                                                          True,
+                                                          hl.null(hl.tbool))))
 
         hl.skat(key_expr=ds.gene,
                 weight_expr=ds.weight,

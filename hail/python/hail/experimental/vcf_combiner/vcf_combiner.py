@@ -20,21 +20,21 @@ _merge_function_map = {}
 @typecheck(string=expr_str, has_non_ref=expr_bool)
 def parse_as_ints(string, has_non_ref):
     ints = string.split(r'\|')
-    ints = hl.cond(has_non_ref, ints[:-1], ints)
-    return ints.map(lambda i: hl.cond((hl.len(i) == 0) | (i == '.'), hl.null(hl.tint32), hl.int32(i)))
+    ints = hl.if_else(has_non_ref, ints[:-1], ints)
+    return ints.map(lambda i: hl.if_else((hl.len(i) == 0) | (i == '.'), hl.null(hl.tint32), hl.int32(i)))
 
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
 def parse_as_doubles(string, has_non_ref):
     ints = string.split(r'\|')
-    ints = hl.cond(has_non_ref, ints[:-1], ints)
-    return ints.map(lambda i: hl.cond((hl.len(i) == 0) | (i == '.'), hl.null(hl.tfloat64), hl.float64(i)))
+    ints = hl.if_else(has_non_ref, ints[:-1], ints)
+    return ints.map(lambda i: hl.if_else((hl.len(i) == 0) | (i == '.'), hl.null(hl.tfloat64), hl.float64(i)))
 
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
 def parse_as_sb_table(string, has_non_ref):
     ints = string.split(r'\|')
-    ints = hl.cond(has_non_ref, ints[:-1], ints)
+    ints = hl.if_else(has_non_ref, ints[:-1], ints)
     return ints.map(lambda xs: xs.split(",").map(hl.int32))
 
 
@@ -42,11 +42,11 @@ def parse_as_sb_table(string, has_non_ref):
 def parse_as_ranksum(string, has_non_ref):
     typ = hl.ttuple(hl.tfloat64, hl.tint32)
     items = string.split(r'\|')
-    items = hl.cond(has_non_ref, items[:-1], items)
-    return items.map(lambda s: hl.cond(
+    items = hl.if_else(has_non_ref, items[:-1], items)
+    return items.map(lambda s: hl.if_else(
         (hl.len(s) == 0) | (s == '.'),
         hl.null(typ),
-        hl.rbind(s.split(','), lambda ss: hl.cond(
+        hl.rbind(s.split(','), lambda ss: hl.if_else(
             hl.len(ss) != 2,  # bad field, possibly 'NaN', just set it null
             hl.null(hl.ttuple(hl.tfloat64, hl.tint32)),
             hl.tuple([hl.float64(ss[0]), hl.int32(ss[1])])))))
@@ -144,21 +144,21 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
             if 'GT' not in e:
                 raise hl.utils.FatalError("the Hail GVCF combiner expects GVCFs to have a 'GT' field in FORMAT.")
 
-            handled_fields['LA'] = hl.range(0, alleles_len - hl.cond(has_non_ref, 1, 0))
+            handled_fields['LA'] = hl.range(0, alleles_len - hl.if_else(has_non_ref, 1, 0))
             handled_fields['LGT'] = get_lgt(e, alleles_len, has_non_ref, row)
             if 'AD' in e:
-                handled_fields['LAD'] = hl.cond(has_non_ref, e.AD[:-1], e.AD)
+                handled_fields['LAD'] = hl.if_else(has_non_ref, e.AD[:-1], e.AD)
             if 'PGT' in e:
                 handled_fields['LPGT'] = e.PGT
             if 'PL' in e:
-                handled_fields['LPL'] = hl.cond(has_non_ref,
-                                                hl.cond(alleles_len > 2,
+                handled_fields['LPL'] = hl.if_else(has_non_ref,
+                                                hl.if_else(alleles_len > 2,
                                                         e.PL[:-alleles_len],
                                                         hl.null(e.PL.dtype)),
-                                                hl.cond(alleles_len > 1,
+                                                hl.if_else(alleles_len > 1,
                                                         e.PL,
                                                         hl.null(e.PL.dtype)))
-                handled_fields['RGQ'] = hl.cond(
+                handled_fields['RGQ'] = hl.if_else(
                     has_non_ref,
                     e.PL[hl.call(0, alleles_len - 1).unphased_diploid_gt_index()],
                     hl.null(e.PL.dtype.element_type))
@@ -181,7 +181,7 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
                 hl.len(row.alleles), '<NON_REF>' == row.alleles[-1],
                 lambda alleles_len, has_non_ref: hl.struct(
                     locus=row.locus,
-                    alleles=hl.cond(has_non_ref, row.alleles[:-1], row.alleles),
+                    alleles=hl.if_else(has_non_ref, row.alleles[:-1], row.alleles),
                     rsid=row.rsid,
                     __entries=row.__entries.map(
                         lambda e: make_entry_struct(e, alleles_len, has_non_ref, row)))),
@@ -200,7 +200,7 @@ def combine(ts):
         from hail.expr.functions import _num_allele_type, _allele_ints
         return hl.rbind(
             alleles.map(lambda a: hl.or_else(a[0], ''))
-            .fold(lambda s, t: hl.cond(hl.len(s) > hl.len(t), s, t), ''),
+            .fold(lambda s, t: hl.if_else(hl.len(s) > hl.len(t), s, t), ''),
             lambda ref:
             hl.rbind(
                 alleles.map(
@@ -213,7 +213,7 @@ def combine(ts):
                                 hl.rbind(
                                     _num_allele_type(r, a),
                                     lambda at:
-                                    hl.cond(
+                                    hl.if_else(
                                         (_allele_ints['SNP'] == at)
                                         | (_allele_ints['Insertion'] == at)
                                         | (_allele_ints['Deletion'] == at)
@@ -244,7 +244,7 @@ def combine(ts):
                         lambda combined_allele_index:
                         hl.range(0, hl.len(row.data)).flatmap(
                             lambda i:
-                            hl.cond(hl.is_missing(row.data[i].__entries),
+                            hl.if_else(hl.is_missing(row.data[i].__entries),
                                     hl.range(0, hl.len(gbl.g[i].__cols))
                                     .map(lambda _: hl.null(row.data[i].__entries.dtype.element_type)),
                                     hl.bind(
