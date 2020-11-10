@@ -605,6 +605,24 @@
       }
     ]
   },
+  "gnomad_hgdp_1kg_callset": {
+    "description": "gnomAD: a resource with the goal of aggregating and harmonizing both exome and genome sequencing data from a wide variety of large-scale sequencing projects. The samples included in this subset are drawn from the 1000 Genomes Project (n=2,435) and the Human Genome Diversity Project (n=780), which contain some of the most genetically diverse populations present in gnomAD.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset.mt"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset.mt"
+          }
+        },
+        "version": "3.1"
+      }
+    ]
+  },
   "gnomad_exome_sites": {
     "annotation_db": {
       "key_properties": [
@@ -621,7 +639,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ht/exomes/gnomad.exomes.r2.1.1.sites.ht"
           },
           "gcp": {
-            "us": "gs://gnomad-public-requester-pays/release/2.1.1/ht/exomes/gnomad.exomes.r2.1.1.sites.ht"
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ht/exomes/gnomad.exomes.r2.1.1.sites.ht"
           }
         },
         "version": "2.1.1"
@@ -633,7 +651,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/liftover_grch38/ht/exomes/gnomad.exomes.r2.1.1.sites.liftover_grch38.ht"
           },
           "gcp": {
-            "us": "gs://gnomad-public-requester-pays/release/2.1.1/liftover_grch38/ht/exomes/gnomad.exomes.r2.1.1.sites.liftover_grch38.ht"
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/liftover_grch38/ht/exomes/gnomad.exomes.r2.1.1.sites.liftover_grch38.ht"
           }
         },
         "version": "2.1.1"
@@ -656,7 +674,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ht/genomes/gnomad.genomes.r2.1.1.sites.ht"
           },
           "gcp": {
-            "us": "gs://gnomad-public-requester-pays/release/2.1.1/ht/genomes/gnomad.genomes.r2.1.1.sites.ht"
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ht/genomes/gnomad.genomes.r2.1.1.sites.ht"
           }
         },
         "version": "2.1.1"
@@ -668,10 +686,22 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/liftover_grch38/ht/genomes/gnomad.genomes.r2.1.1.sites.liftover_grch38.ht"
           },
           "gcp": {
-            "us": "gs://gnomad-public-requester-pays/release/2.1.1/liftover_grch38/ht/genomes/gnomad.genomes.r2.1.1.sites.liftover_grch38.ht"
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/liftover_grch38/ht/genomes/gnomad.genomes.r2.1.1.sites.liftover_grch38.ht"
           }
         },
         "version": "2.1.1"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/3.1/ht/genomes/gnomad.genomes.v3.1.sites.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/3.1/ht/genomes/gnomad.genomes.v3.1.sites.ht"
+          }
+        },
+        "version": "3.1"
       }
     ]
   },
