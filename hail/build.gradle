@@ -169,7 +169,7 @@ dependencies {
 
     bundled group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
 
-    bundled 'org.elasticsearch:elasticsearch-spark-20_2.11:6.2.4'
+    bundled 'org.elasticsearch:elasticsearch-spark-20_2.11:6.8.13'
 
     bundled 'com.google.cloud:google-cloud-storage:1.106.0'
 
