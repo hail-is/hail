@@ -4,9 +4,7 @@ COPY python/requirements.txt .
 COPY python/dev-requirements.txt .
 RUN hail-pip-install -r requirements.txt -r dev-requirements.txt
 
-RUN apt-get update && \
-  apt-get -y install \
-    liblz4-dev
+RUN hail-apt-get-install liblz4-dev
 
 # FIXME belongs in hail-test image
 RUN mkdir -p plink && \

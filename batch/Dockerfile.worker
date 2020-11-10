@@ -1,21 +1,12 @@
 FROM gcr.io/{{ global.project }}/python:3.7-slim-stretch
 
-RUN apt-get update && \
-  apt-get -y install \
-    curl \
-    gnupg \
-    xfsprogs && \
-  rm -rf /var/lib/apt/lists/*
-
-RUN export GCSFUSE_REPO=gcsfuse-bionic && \
-  echo "deb http://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list && \
-  curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
-
-RUN apt-get update && \
-  apt-get -y install \
-    fuse \
-    gcsfuse && \
-  rm -rf /var/lib/apt/lists/*
+COPY docker/hail-ubuntu/hail-apt-get-install /bin/hail-apt-get-install
+RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
+    hail-apt-get-install curl gnupg xfsprogs && \
+    export GCSFUSE_REPO=gcsfuse-bionic && \
+    echo "deb http://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list && \
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
+    hail-apt-get-install fuse gcsfuse
 
 COPY docker/hail-ubuntu/pip.conf /root/.config/pip/pip.conf
 COPY docker/hail-ubuntu/hail-pip-install /bin/hail-pip-install

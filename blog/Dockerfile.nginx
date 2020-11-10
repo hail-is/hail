@@ -1,8 +1,6 @@
 FROM {{ hail_ubuntu_image.image }}
 
-RUN apt-get update -y && \
-    apt-get install -y nginx && \
-    rm -rf /var/lib/apt/lists/*
+RUN hail-apt-get-install nginx
 
 RUN rm -f /etc/nginx/sites-enabled/default && \
     rm -f /etc/nginx/nginx.conf

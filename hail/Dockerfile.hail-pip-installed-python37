@@ -2,10 +2,7 @@ FROM {{ hail_ubuntu_image.image }}
 
 ENV LANG C.UTF-8
 
-RUN apt-get update && \
-  apt-get -y install \
-    openjdk-8-jdk-headless \
-  && rm -rf /var/lib/apt/lists/*
+RUN hail-apt-get-install openjdk-8-jdk-headless
 
 COPY hail/python/requirements.txt requirements.txt
 COPY hail/python/dev-requirements.txt dev-requirements.txt
