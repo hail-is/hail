@@ -2196,7 +2196,7 @@ object EmitStream {
                 setup = Some(EmitCodeBuilder.scopedVoid(mb) { cb =>
                   uuid.store(cb, idt)
                   cb.assign(shuffleLocal, CodeShuffleClient.create(mb.ecb.getType(shuffleType), uuid.loadBytes()))
-                  shuffle.startPartitionBounds(nPartitionst.intValue(cb)) }),
+                  cb += shuffle.startPartitionBounds(nPartitionst.intValue(cb)) }),
                 close = Some(Code(
                   shuffle.endPartitionBounds(),
                   shuffle.close())))
