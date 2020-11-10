@@ -526,7 +526,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
             return hl.struct(**{**idxth_keys, **computed_row_fields, **pass_through_rows})
 
-        new_rows = hl.range(rows_in_block).map(lambda inner_i: build_row(inner_i))
+        new_rows = hl.range(rows_in_block).map(build_row)
 
         return new_rows
 
