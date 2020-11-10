@@ -30,8 +30,9 @@ push: build
 
 .PHONY: deploy
 deploy: push
-	kubectl -n default apply -f service-account.yaml
-	python3 ../ci/jinja2_render.py '{"default_ns":{"name":"default"}}' service-account-batch-pods.yaml service-account-batch-pods.yaml.out
-	kubectl -n batch-pods apply -f service-account-batch-pods.yaml.out
-	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"query_image":{"image":"$(QUERY_IMAGE)"},"batch_pods_ns":{"name":"batch-pods"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
-	kubectl -n default apply -f deployment.yaml.out
+	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
+	kubectl -n $(NAMESPACE) apply -f service-account.yaml
+	python3 ../ci/jinja2_render.py '{"default_ns":{"name":"$(NAMESPACE)"}}' service-account-batch-pods.yaml service-account-batch-pods.yaml.out
+	kubectl -n $(BATCH_PODS_NAMESPACE) apply -f service-account-batch-pods.yaml.out
+	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"query_image":{"image":"$(QUERY_IMAGE)"},"batch_pods_ns":{"name":"$(BATCH_PODS_NAMESPACE)"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
+	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out

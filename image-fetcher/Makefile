@@ -27,7 +27,8 @@ push: build
 	docker push $(FETCH_IMAGE)
 
 deploy: push
+	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$(FETCH_IMAGE)," \
 	  < deployment.yaml.in > deployment.yaml
-	kubectl -n default apply -f deployment.yaml
+	kubectl -n $(NAMESPACE) apply -f deployment.yaml
