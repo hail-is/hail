@@ -63,9 +63,9 @@ def _quantile_from_cdf(cdf, q):
                  .when(0.0, 0)
                  .when(1.0, cdf.values.length() - 1)
                  .default(_lower_bound(cdf.ranks, pos) - 1))
-        res = hl.cond(n == 0,
-                      hl.null(cdf.values.dtype.element_type),
-                      cdf.values[idx])
+        res = hl.if_else(n == 0,
+                         hl.null(cdf.values.dtype.element_type),
+                         cdf.values[idx])
         return res
     return hl.rbind(cdf, compute)
 
@@ -242,6 +242,7 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
         return construct_expr(ir.Literal(dtype, x), dtype)
 
 
+@deprecated(version="0.2.59", reason="Replaced by hl.if_else")
 @typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any, missing_false=bool)
 def cond(condition,
          consequent,
@@ -255,11 +256,11 @@ def cond(condition,
     --------
 
     >>> x = 5
-    >>> hl.eval(hl.cond(x < 2, 'Hi', 'Bye'))
+    >>> hl.eval(hl.if_else(x < 2, 'Hi', 'Bye'))
     'Bye'
 
     >>> a = hl.literal([1, 2, 3, 4])
-    >>> hl.eval(hl.cond(hl.len(a) > 0, 2.0 * a, a / 2.0))
+    >>> hl.eval(hl.if_else(hl.len(a) > 0, 2.0 * a, a / 2.0))
     [2.0, 4.0, 6.0, 8.0]
 
     Notes
@@ -1129,7 +1130,7 @@ def pl_to_gp(pl, _cache_size=2048) -> ArrayNumericExpression:
    :class:`.ArrayNumericExpression` of type :py:data:`.tfloat64`
     """
     phred_table = hl.literal([10 ** (-x / 10.0) for x in builtins.range(_cache_size)])
-    gp = hl.bind(lambda pls: pls.map(lambda x: hl.cond(x >= _cache_size, 10 ** (-x / 10.0), phred_table[x])), pl)
+    gp = hl.bind(lambda pls: pls.map(lambda x: hl.if_else(x >= _cache_size, 10 ** (-x / 10.0), phred_table[x])), pl)
     return hl.bind(lambda gp: gp / hl.sum(gp), gp)
 
 
@@ -1759,7 +1760,7 @@ def or_missing(predicate, value):
         This expression has the same type as `b`.
     """
 
-    return hl.cond(predicate, value, hl.null(value.dtype))
+    return hl.if_else(predicate, value, hl.null(value.dtype))
 
 
 @typecheck(x=expr_int32, n=expr_int32, p=expr_float64,
@@ -2494,9 +2495,9 @@ def rand_dirichlet(a, seed=None) -> ArrayExpression:
     """
     return hl.bind(lambda x: x / hl.sum(x),
                    a.map(lambda p:
-                         hl.cond(p == 0.0,
-                                 0.0,
-                                 hl.rand_gamma(p, 1, seed=seed))))
+                         hl.if_else(p == 0.0,
+                                    0.0,
+                                    hl.rand_gamma(p, 1, seed=seed))))
 
 
 @typecheck(x=expr_float64)
@@ -2566,24 +2567,24 @@ _allele_ints = {v: k for k, v in _allele_enum.items()}
 @ir.udf(tstr, tstr)
 def _num_allele_type(ref, alt) -> Int32Expression:
     return hl.bind(lambda r, a:
-                   hl.cond(r.matches(_base_regex),
-                           hl.case()
-                           .when(a.matches(_base_regex), hl.case()
-                                 .when(r.length() == a.length(),
-                                       hl.cond(r.length() == 1,
-                                               hl.cond(r != a, _allele_ints['SNP'], _allele_ints['Unknown']),
-                                               hl.cond(hamming(r, a) == 1,
-                                                       _allele_ints['SNP'],
-                                                       _allele_ints['MNP'])))
-                                 .when((r.length() < a.length()) & (r[0] == a[0]) & a.endswith(r[1:]),
-                                       _allele_ints["Insertion"])
-                                 .when((r[0] == a[0]) & r.endswith(a[1:]),
-                                       _allele_ints["Deletion"])
-                                 .default(_allele_ints['Complex']))
-                           .when(a == '*', _allele_ints['Star'])
-                           .when(a.matches(_symbolic_regex), _allele_ints['Symbolic'])
-                           .default(_allele_ints['Unknown']),
-                           _allele_ints['Unknown']),
+                   hl.if_else(r.matches(_base_regex),
+                              hl.case()
+                              .when(a.matches(_base_regex), hl.case()
+                                    .when(r.length() == a.length(),
+                                          hl.if_else(r.length() == 1,
+                                                     hl.if_else(r != a, _allele_ints['SNP'], _allele_ints['Unknown']),
+                                                     hl.if_else(hamming(r, a) == 1,
+                                                                _allele_ints['SNP'],
+                                                                _allele_ints['MNP'])))
+                                    .when((r.length() < a.length()) & (r[0] == a[0]) & a.endswith(r[1:]),
+                                          _allele_ints["Insertion"])
+                                    .when((r[0] == a[0]) & r.endswith(a[1:]),
+                                          _allele_ints["Deletion"])
+                                    .default(_allele_ints['Complex']))
+                              .when(a == '*', _allele_ints['Star'])
+                              .when(a.matches(_symbolic_regex), _allele_ints['Symbolic'])
+                              .default(_allele_ints['Unknown']),
+                              _allele_ints['Unknown']),
                    ref, alt)
 
 

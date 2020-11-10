@@ -301,9 +301,9 @@ class Table(ExprContainer):
     >>> height_sd_f = 2.5
     >>>
     >>> def get_z(height, sex):
-    ...    return hl.cond(sex == 'M',
-    ...                  (height - height_mean_m) / height_sd_m,
-    ...                  (height - height_mean_f) / height_sd_f)
+    ...    return hl.if_else(sex == 'M',
+    ...                     (height - height_mean_m) / height_sd_m,
+    ...                     (height - height_mean_f) / height_sd_f)
     >>>
     >>> table1 = table1.annotate(height_z = get_z(table1.HT, table1.SEX))
     >>> table1 = table1.annotate_globals(global_field_1 = [1, 2, 3])

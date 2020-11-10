@@ -1375,7 +1375,7 @@ class BGENTests(unittest.TestCase):
         hl.export_bgen(mt, tmp,
                        gp=hl.or_missing(
                            hl.is_defined(mt.GT),
-                           hl.map(lambda i: hl.cond(mt.GT.unphased_diploid_gt_index() == i, 1.0, 0.0),
+                           hl.map(lambda i: hl.if_else(mt.GT.unphased_diploid_gt_index() == i, 1.0, 0.0),
                                   hl.range(0, hl.triangle(hl.len(mt.alleles))))))
         hl.index_bgen(tmp + '.bgen')
         bgen2 = hl.import_bgen(tmp + '.bgen',
@@ -1707,13 +1707,13 @@ class ImportMatrixTableTests(unittest.TestCase):
         col_key = mt.col_key
         mt = mt.key_rows_by()
         mt = mt.annotate_entries(
-            x = hl.cond(hl.str(mt.x) == missing,
-                        hl.null(entry_type),
-                        mt.x))
+            x = hl.if_else(hl.str(mt.x) == missing,
+                           hl.null(entry_type),
+                           mt.x))
         mt = mt.annotate_rows(**{
-            f: hl.cond(hl.str(mt[f]) == missing,
-                       hl.null(mt[f].dtype),
-                       mt[f])
+            f: hl.if_else(hl.str(mt[f]) == missing,
+                          hl.null(mt[f].dtype),
+                          mt[f])
             for f in mt.row})
         mt = mt.key_rows_by(*row_key)
         assert mt._same(actual)

@@ -156,11 +156,11 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     mt = mt.filter_rows((mt[aaf] > aaf_threshold) & (mt[aaf] < (1 - aaf_threshold)))
     mt = mt.annotate_cols(ib=agg.inbreeding(mt.call, mt[aaf]))
     kt = mt.select_cols(
-        is_female=hl.cond(mt.ib.f_stat < female_threshold,
-                          True,
-                          hl.cond(mt.ib.f_stat > male_threshold,
-                                  False,
-                                  hl.null(tbool))),
+        is_female=hl.if_else(mt.ib.f_stat < female_threshold,
+                             True,
+                             hl.if_else(mt.ib.f_stat > male_threshold,
+                                        False,
+                                        hl.null(tbool))),
         **mt.ib).cols()
 
     return kt
@@ -2775,7 +2775,7 @@ def filter_alleles_hts(mt: MatrixTable,
     mt = filter_alleles(mt, f)
 
     if subset:
-        newPL = hl.cond(
+        newPL = hl.if_else(
             hl.is_defined(mt.PL),
             hl.bind(
                 lambda unnorm: unnorm - hl.min(unnorm),
@@ -2787,7 +2787,7 @@ def filter_alleles_hts(mt: MatrixTable,
             hl.null(tarray(tint32)))
         return mt.annotate_entries(
             GT=hl.unphased_diploid_gt_index_call(hl.argmin(newPL, unique=True)),
-            AD=hl.cond(
+            AD=hl.if_else(
                 hl.is_defined(mt.AD),
                 hl.range(0, mt.alleles.length()).map(
                     lambda newi: mt.AD[mt.new_to_old[newi]]),
@@ -2798,7 +2798,7 @@ def filter_alleles_hts(mt: MatrixTable,
     # otherwise downcode
     else:
         mt = mt.annotate_rows(__old_to_new_no_na=mt.old_to_new.map(lambda x: hl.or_else(x, 0)))
-        newPL = hl.cond(
+        newPL = hl.if_else(
             hl.is_defined(mt.PL),
             (hl.range(0, hl.triangle(hl.len(mt.alleles)))
              .map(lambda newi: hl.min(hl.range(0, hl.triangle(hl.len(mt.old_alleles)))
@@ -2811,7 +2811,7 @@ def filter_alleles_hts(mt: MatrixTable,
         return mt.annotate_entries(
             GT=hl.call(mt.__old_to_new_no_na[mt.GT[0]],
                        mt.__old_to_new_no_na[mt.GT[1]]),
-            AD=hl.cond(
+            AD=hl.if_else(
                 hl.is_defined(mt.AD),
                 (hl.range(0, hl.len(mt.alleles))
                  .map(lambda newi: hl.sum(hl.range(0, hl.len(mt.old_alleles))

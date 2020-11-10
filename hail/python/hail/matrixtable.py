@@ -1746,7 +1746,7 @@ class MatrixTable(ExprContainer):
         --------
         :meth:`filter_entries`, :meth:`compute_entry_filter_stats`
         """
-        entry_ir = hl.cond(
+        entry_ir = hl.if_else(
             hl.is_defined(self.entry),
             self.entry,
             hl.literal(hl.Struct(**{k: hl.null(v.dtype) for k, v in self.entry.items()})))._ir

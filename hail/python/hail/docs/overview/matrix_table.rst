@@ -323,9 +323,9 @@ matrix table.
 First let's add a random phenotype as a new column field `case_status` and then
 compute statistics about the entry field `GQ` for each grouping of `case_status`.
 
-    >>> mt_ann = mt.annotate_cols(case_status = hl.cond(hl.rand_bool(0.5),
-    ...                                                 "CASE",
-    ...                                                 "CONTROL"))
+    >>> mt_ann = mt.annotate_cols(case_status = hl.if_else(hl.rand_bool(0.5),
+    ...                                                    "CASE",
+    ...                                                    "CONTROL"))
 
 Next we group the columns by `case_status` and aggregate:
 
