@@ -498,10 +498,10 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
             xxpRec = (dot_rows_with_themselves(X.T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
             b = xyp * xxpRec
             se = ((1.0 / ht.ds[idx]) * (ht.__yyps[idx].reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
-            t = b / se
-            p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.ds[idx], True, False))
+            # t = b / se
+            # p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.ds[idx], True, False))
             return hl.struct(n=hl.range(rows_in_block).map(lambda i: n), sum_x=sum_x._data_array(), y_transpose_x=ytx.T._data_array(), beta=b.T._data_array(),
-                             standard_error=se.T._data_array(), t_stat=t.T._data_array(), p_value=p.T._data_array())
+                             standard_error=se.T._data_array()) # t_stat=t.T._data_array(), p_value=p.T._data_array())
 
             # return {'n': hl.range(rows_in_block).map(lambda i: n), 'sum_x': sum_x._data_array(), 'y_transpose_x': ytx.T._data_array(), 'beta': b.T._data_array(),
             #         'standard_error': se.T._data_array(), 't_stat': t.T._data_array(), 'p_value': p.T._data_array()}
@@ -514,7 +514,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         def build_row(per_y_list, row_idx):
             # For every field we care about, map across all y's, getting the row_idxth one from each.
             idxth_keys = {field_name: block[field_name][row_idx] for field_name in key_field_names}
-            computed_row_field_names = ['n', 'sum_x', 'y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
+            computed_row_field_names = ['n', 'sum_x', 'y_transpose_x', 'beta', 'standard_error'] #, 't_stat', 'p_value']
             computed_row_fields = {
                 #field_name: [one_y[field_name][row_idx] for one_y in per_y_list] for field_name in computed_row_field_names
                 field_name: per_y_list.map(lambda one_y: one_y[field_name][row_idx]) for field_name in computed_row_field_names
@@ -539,7 +539,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     res = ht._map_partitions(process_partition)
 
     if not y_is_list:
-        fields = ['y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
+        fields = ['y_transpose_x', 'beta' 'standard_error']#, 't_stat', 'p_value']
         res = res.annotate(**{f: res[f][0] for f in fields})
 
     res = res.select_globals()
