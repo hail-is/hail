@@ -34,6 +34,8 @@ JAVAC ?= javac
 JAR ?= jar
 endif
 
+ELASTIC_MAJOR_VERSION ?= 6
+
 # not perfect, not robust to simdpp changes, but probably fine
 BUILD_DEBUG_PREFIX := build/classes/scala/debug
 JAR_SOURCES := $(shell git ls-files src/main)
@@ -56,7 +58,7 @@ PYTHON_JAR := python/hail/backend/hail-all-spark.jar
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
 
-GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION)
+GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
 
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
