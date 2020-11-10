@@ -344,7 +344,7 @@ async def delete_commit(request, userdata):  # pylint: disable=unused-argument
 async def call_update_commit(request, userdata):  # pylint: disable=unused-argument
     body = await request.json()
     sha = body['sha']
-    commit = update_commit(request.app, sha)
+    commit = await update_commit(request.app, sha)
     return web.json_response({'commit': commit})
 
 
