@@ -242,6 +242,7 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
         return construct_expr(ir.Literal(dtype, x), dtype)
 
 
+@deprecated(version="0.2.59", reason="Replaced by hl.if_else")
 @typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any, missing_false=bool)
 def cond(condition,
          consequent,
@@ -2495,8 +2496,8 @@ def rand_dirichlet(a, seed=None) -> ArrayExpression:
     return hl.bind(lambda x: x / hl.sum(x),
                    a.map(lambda p:
                          hl.if_else(p == 0.0,
-                                 0.0,
-                                 hl.rand_gamma(p, 1, seed=seed))))
+                                    0.0,
+                                    hl.rand_gamma(p, 1, seed=seed))))
 
 
 @typecheck(x=expr_float64)
@@ -2567,23 +2568,23 @@ _allele_ints = {v: k for k, v in _allele_enum.items()}
 def _num_allele_type(ref, alt) -> Int32Expression:
     return hl.bind(lambda r, a:
                    hl.if_else(r.matches(_base_regex),
-                           hl.case()
-                           .when(a.matches(_base_regex), hl.case()
-                                 .when(r.length() == a.length(),
-                                       hl.if_else(r.length() == 1,
-                                               hl.if_else(r != a, _allele_ints['SNP'], _allele_ints['Unknown']),
-                                               hl.if_else(hamming(r, a) == 1,
-                                                       _allele_ints['SNP'],
-                                                       _allele_ints['MNP'])))
-                                 .when((r.length() < a.length()) & (r[0] == a[0]) & a.endswith(r[1:]),
-                                       _allele_ints["Insertion"])
-                                 .when((r[0] == a[0]) & r.endswith(a[1:]),
-                                       _allele_ints["Deletion"])
-                                 .default(_allele_ints['Complex']))
-                           .when(a == '*', _allele_ints['Star'])
-                           .when(a.matches(_symbolic_regex), _allele_ints['Symbolic'])
-                           .default(_allele_ints['Unknown']),
-                           _allele_ints['Unknown']),
+                              hl.case()
+                              .when(a.matches(_base_regex), hl.case()
+                                    .when(r.length() == a.length(),
+                                          hl.if_else(r.length() == 1,
+                                                     hl.if_else(r != a, _allele_ints['SNP'], _allele_ints['Unknown']),
+                                                     hl.if_else(hamming(r, a) == 1,
+                                                                _allele_ints['SNP'],
+                                                                _allele_ints['MNP'])))
+                                    .when((r.length() < a.length()) & (r[0] == a[0]) & a.endswith(r[1:]),
+                                          _allele_ints["Insertion"])
+                                    .when((r[0] == a[0]) & r.endswith(a[1:]),
+                                          _allele_ints["Deletion"])
+                                    .default(_allele_ints['Complex']))
+                              .when(a == '*', _allele_ints['Star'])
+                              .when(a.matches(_symbolic_regex), _allele_ints['Symbolic'])
+                              .default(_allele_ints['Unknown']),
+                              _allele_ints['Unknown']),
                    ref, alt)
 
 

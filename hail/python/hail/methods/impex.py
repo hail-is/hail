@@ -646,14 +646,14 @@ def import_locus_intervals(path,
             expr = (
                 hl.bind(t['f0'].first_match_in(interval_regex),
                         lambda match: hl.if_else(hl.bool(skip_invalid_intervals),
-                                              checked_match_interval_expr(match),
-                                              locus_interval_expr(recode_contig(match[0]),
-                                                                  hl.int32(match[1]),
-                                                                  hl.int32(match[2]),
-                                                                  True,
-                                                                  True,
-                                                                  reference_genome,
-                                                                  skip_invalid_intervals))))
+                                                 checked_match_interval_expr(match),
+                                                 locus_interval_expr(recode_contig(match[0]),
+                                                                     hl.int32(match[1]),
+                                                                     hl.int32(match[2]),
+                                                                     True,
+                                                                     True,
+                                                                     reference_genome,
+                                                                     skip_invalid_intervals))))
 
             t = t.select(interval=expr)
 

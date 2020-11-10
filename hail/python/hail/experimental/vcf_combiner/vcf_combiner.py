@@ -152,12 +152,12 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
                 handled_fields['LPGT'] = e.PGT
             if 'PL' in e:
                 handled_fields['LPL'] = hl.if_else(has_non_ref,
-                                                hl.if_else(alleles_len > 2,
-                                                        e.PL[:-alleles_len],
-                                                        hl.null(e.PL.dtype)),
-                                                hl.if_else(alleles_len > 1,
-                                                        e.PL,
-                                                        hl.null(e.PL.dtype)))
+                                                   hl.if_else(alleles_len > 2,
+                                                              e.PL[:-alleles_len],
+                                                              hl.null(e.PL.dtype)),
+                                                   hl.if_else(alleles_len > 1,
+                                                              e.PL,
+                                                              hl.null(e.PL.dtype)))
                 handled_fields['RGQ'] = hl.if_else(
                     has_non_ref,
                     e.PL[hl.call(0, alleles_len - 1).unphased_diploid_gt_index()],
@@ -245,13 +245,13 @@ def combine(ts):
                         hl.range(0, hl.len(row.data)).flatmap(
                             lambda i:
                             hl.if_else(hl.is_missing(row.data[i].__entries),
-                                    hl.range(0, hl.len(gbl.g[i].__cols))
-                                    .map(lambda _: hl.null(row.data[i].__entries.dtype.element_type)),
-                                    hl.bind(
-                                        lambda old_to_new: row.data[i].__entries.map(
-                                            lambda e: renumber_entry(e, old_to_new)),
-                                        hl.range(0, hl.len(alleles.local[i])).map(
-                                            lambda j: combined_allele_index[alleles.local[i][j]])))),
+                                       hl.range(0, hl.len(gbl.g[i].__cols))
+                                       .map(lambda _: hl.null(row.data[i].__entries.dtype.element_type)),
+                                       hl.bind(
+                                           lambda old_to_new: row.data[i].__entries.map(
+                                               lambda e: renumber_entry(e, old_to_new)),
+                                           hl.range(0, hl.len(alleles.local[i])).map(
+                                               lambda j: combined_allele_index[alleles.local[i][j]])))),
                         hl.dict(hl.range(0, hl.len(alleles.globl)).map(
                             lambda j: hl.tuple([alleles.globl[j], j])))))),
             ts.row.dtype, ts.globals.dtype)
