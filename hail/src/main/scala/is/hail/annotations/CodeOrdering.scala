@@ -33,7 +33,9 @@ object CodeOrdering {
   final case class Gteq(missingEqual: Boolean = true) extends BooleanOp
   final case class Neq(missingEqual: Boolean = true) extends BooleanOp
 
-  type F[R] = ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[R]
+  trait F[R] {
+    def apply(l: (Code[Boolean], Code[_]), r: (Code[Boolean], Code[_]))(implicit line: LineNumber): Code[R]
+  }
 
   def rowOrdering(
     t1: PBaseStruct,
@@ -51,7 +53,7 @@ object CodeOrdering {
     val v1s: Array[LocalRef[_]] = t1.types.map(tf => mb.newLocal()(typeToTypeInfo(tf)))
     val v2s: Array[LocalRef[_]] = t2.types.map(tf => mb.newLocal()(typeToTypeInfo(tf)))
 
-    def setup(i: Int)(x: Value[Long], y: Value[Long]): Code[Unit] = {
+    def setup(i: Int)(x: Value[Long], y: Value[Long])(implicit line: LineNumber): Code[Unit] = {
       val tf1 = t1.types(i)
       val tf2 = t2.types(i)
       Code(
@@ -68,7 +70,7 @@ object CodeOrdering {
         if (sortOrders == null) Ascending else sortOrders(i),
         op)
 
-    override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
+    override def compareNonnull(x: Code[Long], y: Code[Long])(implicit line: LineNumber): Code[Int] = {
       val cmp = mb.newLocal[Int]()
 
       Code.memoize(x, "cord_row_comp_x", y, "cord_row_comp_y") { (x, y) =>
@@ -85,9 +87,10 @@ object CodeOrdering {
     private[this] def dictionaryOrderingFromFields(
       op: CodeOrdering.BooleanOp,
       zero: Code[Boolean],
-      combine: (Code[Boolean], Code[Boolean], Code[Boolean]) => Code[Boolean]
-    )(x: Code[Long],
+      combine: (Code[Boolean], Code[Boolean], Code[Boolean]) => Code[Boolean],
+      x: Code[Long],
       y: Code[Long]
+    )(implicit line: LineNumber
     ): Code[Boolean] =
       Code.memoize(x, "cord_row_comp_x", y, "cord_row_comp_y") { (x, y) =>
         Array.tabulate(t1.size) { i =>
@@ -98,35 +101,39 @@ object CodeOrdering {
         }.foldRight(zero) { case ((cop, ceq), cont) => combine(cop, ceq, cont) }
       }
 
-    val _ltNonnull = dictionaryOrderingFromFields(
-      CodeOrdering.Lt(missingFieldsEqual),
-      false,
-      { (isLessThan, isEqual, subsequentLt) =>
-        isLessThan || (isEqual && subsequentLt) }) _
-    override def ltNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _ltNonnull(x, y)
+    override def ltNonnull(x: Code[Long], y: Code[Long])(implicit line: LineNumber): Code[Boolean] =
+      dictionaryOrderingFromFields(
+        CodeOrdering.Lt(missingFieldsEqual),
+        false,
+        { (isLessThan, isEqual, subsequentLt) =>
+          isLessThan || (isEqual && subsequentLt) },
+        x, y)
 
-    val _lteqNonnull = dictionaryOrderingFromFields(
-      CodeOrdering.Lteq(missingFieldsEqual),
-      true,
-      { (isLessThanEq, isEqual, subsequentLtEq) =>
-        isLessThanEq && (!isEqual || subsequentLtEq) }) _
-    override def lteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _lteqNonnull(x, y)
+    override def lteqNonnull(x: Code[Long], y: Code[Long])(implicit line: LineNumber): Code[Boolean] =
+      dictionaryOrderingFromFields(
+        CodeOrdering.Lteq(missingFieldsEqual),
+        true,
+        { (isLessThanEq, isEqual, subsequentLtEq) =>
+          isLessThanEq && (!isEqual || subsequentLtEq) },
+        x, y)
 
-    val _gtNonnull = dictionaryOrderingFromFields(
-      CodeOrdering.Gt(missingFieldsEqual),
-      false,
-      { (isGreaterThan, isEqual, subsequentGt) =>
-        isGreaterThan || (isEqual && subsequentGt) }) _
-    override def gtNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _gtNonnull(x, y)
+    override def gtNonnull(x: Code[Long], y: Code[Long])(implicit line: LineNumber): Code[Boolean] =
+      dictionaryOrderingFromFields(
+        CodeOrdering.Gt(missingFieldsEqual),
+        false,
+        { (isGreaterThan, isEqual, subsequentGt) =>
+          isGreaterThan || (isEqual && subsequentGt) },
+        x, y)
 
-    val _gteqNonnull = dictionaryOrderingFromFields(
-      CodeOrdering.Gteq(missingFieldsEqual),
-      true,
-      { (isGreaterThanEq, isEqual, subsequentGteq) =>
-        isGreaterThanEq && (!isEqual || subsequentGteq) }) _
-    override def gteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _gteqNonnull(x, y)
+    override def gteqNonnull(x: Code[Long], y: Code[Long])(implicit line: LineNumber): Code[Boolean] =
+      dictionaryOrderingFromFields(
+        CodeOrdering.Gteq(missingFieldsEqual),
+        true,
+        { (isGreaterThanEq, isEqual, subsequentGteq) =>
+          isGreaterThanEq && (!isEqual || subsequentGteq) },
+        x, y)
 
-    override def equivNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] =
+    override def equivNonnull(x: Code[Long], y: Code[Long])(implicit line: LineNumber): Code[Boolean] =
       Code.memoize(x, "cord_row_equiv_x", y, "cord_row_equiv_y") { (x, y) =>
         Array.tabulate(t1.size) { i =>
           val mbequiv = fieldOrdering(i, CodeOrdering.Equiv(missingFieldsEqual))
@@ -150,8 +157,10 @@ object CodeOrdering {
     val v2: LocalRef[ord.T] = mb.newLocal()(typeToTypeInfo(t2.elementType)).asInstanceOf[LocalRef[ord.T]]
     val eq: LocalRef[Boolean] = mb.newLocal[Boolean]()
 
-    def loop(cmp: Code[Unit], loopCond: Code[Boolean])
-      (x: Code[Long], y: Code[Long]): Code[Unit] = {
+    def loop(cmp: Code[Unit], loopCond: Code[Boolean]
+    )(x: Code[Long], y: Code[Long]
+    )(implicit line: LineNumber
+    ): Code[Unit] = {
       Code.memoize(x, "cord_iter_ord_x", y, "cord_iter_ord_y") { (x, y) =>
         Code(
           i := 0,
@@ -167,7 +176,7 @@ object CodeOrdering {
       }
     }
 
-    override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
+    override def compareNonnull(x: Code[Long], y: Code[Long])(implicit line: LineNumber): Code[Int] = {
       val mbcmp = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Compare())
       val cmp = mb.newLocal[Int]()
 
@@ -178,7 +187,7 @@ object CodeOrdering {
           cmp))
     }
 
-    override def ltNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
+    override def ltNonnull(x: Code[Long], y: Code[Long])(implicit line: LineNumber): Code[Boolean] = {
       val mblt = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Lt())
       val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
       val lt = mb.newLocal[Boolean]()
@@ -191,7 +200,7 @@ object CodeOrdering {
         lt || eq && lord.ltNonnull(coerce[lord.T](len1.load()), coerce[lord.T](len2.load())))
     }
 
-    override def lteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
+    override def lteqNonnull(x: Code[Long], y: Code[Long])(implicit line: LineNumber): Code[Boolean] = {
       val mblteq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Lteq())
       val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
@@ -205,7 +214,7 @@ object CodeOrdering {
         lteq && (!eq || lord.lteqNonnull(coerce[lord.T](len1.load()), coerce[lord.T](len2.load()))))
     }
 
-    override def gtNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
+    override def gtNonnull(x: Code[Long], y: Code[Long])(implicit line: LineNumber): Code[Boolean] = {
       val mbgt = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Gt())
       val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
       val gt = mb.newLocal[Boolean]()
@@ -220,7 +229,7 @@ object CodeOrdering {
             lord.gtNonnull(coerce[lord.T](len1.load()), coerce[lord.T](len2.load()))))
     }
 
-    override def gteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
+    override def gteqNonnull(x: Code[Long], y: Code[Long])(implicit line: LineNumber): Code[Boolean] = {
       val mbgteq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Gteq())
       val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
@@ -235,7 +244,7 @@ object CodeOrdering {
         gteq && (!eq || lord.gteqNonnull(coerce[lord.T](len1.load()),  coerce[lord.T](len2.load()))))
     }
 
-    override def equivNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
+    override def equivNonnull(x: Code[Long], y: Code[Long])(implicit line: LineNumber): Code[Boolean] = {
       val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
       val lcmp = eq := mbequiv((m1, v1), (m2, v2))
       Code(eq := true,
@@ -251,7 +260,7 @@ object CodeOrdering {
     val p1: LocalRef[_] = mb.newLocal()(typeToTypeInfo(t1.pointType))
     val p2: LocalRef[_] = mb.newLocal()(typeToTypeInfo(t2.pointType))
 
-    def loadStart(x: Value[T], y: Value[T]): Code[Unit] = {
+    def loadStart(x: Value[T], y: Value[T])(implicit line: LineNumber): Code[Unit] = {
       Code(
         mp1 := !t1.startDefined(x),
         mp2 := !t2.startDefined(y),
@@ -259,7 +268,7 @@ object CodeOrdering {
         p2.storeAny(mp2.mux(defaultValue(t2.pointType), Region.loadIRIntermediate(t2.pointType)(t2.startOffset(y)))))
     }
 
-    def loadEnd(x: Value[T], y: Value[T]): Code[Unit] = {
+    def loadEnd(x: Value[T], y: Value[T])(implicit line: LineNumber): Code[Unit] = {
       Code(
         mp1 := !t1.endDefined(x),
         mp2 := !t2.endDefined(y),
@@ -267,7 +276,7 @@ object CodeOrdering {
         p2.storeAny(mp2.mux(defaultValue(t2.pointType), Region.loadIRIntermediate(t2.pointType)(t2.endOffset(y)))))
     }
 
-    override def compareNonnull(x: Code[T], y: Code[T]): Code[Int] = {
+    override def compareNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Int] = {
       val mbcmp = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Compare())
 
       val cmp = mb.newLocal[Int]()
@@ -289,7 +298,7 @@ object CodeOrdering {
       }
     }
 
-    override def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
+    override def equivNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = {
       val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
       Code.memoize(x, "cord_int_equiv_x", y, "cord_int_equiv_y") { (x, y) =>
@@ -300,7 +309,7 @@ object CodeOrdering {
       }
     }
 
-    override def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
+    override def ltNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = {
       val mblt = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Lt())
       val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
@@ -314,7 +323,7 @@ object CodeOrdering {
       }
     }
 
-    override def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
+    override def lteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = {
       val mblteq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Lteq())
       val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
@@ -328,7 +337,7 @@ object CodeOrdering {
       }
     }
 
-    override def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
+    override def gtNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = {
       val mbgt = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Gt())
       val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
@@ -342,7 +351,7 @@ object CodeOrdering {
       }
     }
 
-    override def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
+    override def gteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = {
       val mbgteq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Gteq())
       val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
@@ -371,45 +380,45 @@ abstract class CodeOrdering {
   type T
   type P = (Code[Boolean], Code[T])
 
-  def compareNonnull(x: Code[T], y: Code[T]): Code[Int]
+  def compareNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Int]
 
-  def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean]
+  def ltNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean]
 
-  def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean]
+  def lteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean]
 
-  def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean]
+  def gtNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean]
 
-  def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean]
+  def gteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean]
 
-  def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean]
+  def equivNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean]
 
-  def compare(x: P, y: P, missingEqual: Boolean = true): Code[Int] = (x, y) match { case ((xm, xv), (ym, yv)) =>
+  def compare(x: P, y: P, missingEqual: Boolean = true)(implicit line: LineNumber): Code[Int] = (x, y) match { case ((xm, xv), (ym, yv)) =>
     Code.memoize(xm, "cord_compare_xm", ym, "cord_compare_ym") { (xm, ym) =>
       xm.mux(ym.mux(if (missingEqual) 0 else -1, 1),
              ym.mux(-1, compareNonnull(xv, yv)))
     }
   }
-  def lt(x: P, y: P, missingEqual: Boolean): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
+  def lt(x: P, y: P, missingEqual: Boolean)(implicit line: LineNumber): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
     val nonnull = ltNonnull(xv, yv)
     if (missingEqual)
       !xm && (ym || nonnull)
     else
       ym || (!xm && nonnull)
   }
-  def lteq(x: P, y: P, missingEqual: Boolean): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
+  def lteq(x: P, y: P, missingEqual: Boolean)(implicit line: LineNumber): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
     ym || (!xm && lteqNonnull(xv, yv))
   }
-  def gt(x: P, y: P, missingEqual: Boolean): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
+  def gt(x: P, y: P, missingEqual: Boolean)(implicit line: LineNumber): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
     !ym && (xm || gtNonnull(xv, yv))
   }
-  def gteq(x: P, y: P, missingEqual: Boolean): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
+  def gteq(x: P, y: P, missingEqual: Boolean)(implicit line: LineNumber): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
     val nonnull = gteqNonnull(xv, yv)
     if (missingEqual)
       xm || (!ym && nonnull)
     else
       !ym && (xm || nonnull)
   }
-  def equiv(x: P, y: P, missingEqual: Boolean): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
+  def equiv(x: P, y: P, missingEqual: Boolean)(implicit line: LineNumber): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
     val nonnull = equivNonnull(xv, yv)
     if (missingEqual)
       Code.memoize(xm, "cord_lift_missing_xm", ym, "cord_lift_missing_ym") { (xm, ym) =>
@@ -425,23 +434,23 @@ abstract class CodeOrdering {
     override type T = CodeOrdering.this.T
     override type P = CodeOrdering.this.P
 
-    override def compareNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.compareNonnull(y, x)
-    override def ltNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.ltNonnull(y, x)
-    override def lteqNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.lteqNonnull(y, x)
-    override def gtNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.gtNonnull(y, x)
-    override def gteqNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.gteqNonnull(y, x)
-    override def equivNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.equivNonnull(y, x)
+    override def compareNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber) = CodeOrdering.this.compareNonnull(y, x)
+    override def ltNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber) = CodeOrdering.this.ltNonnull(y, x)
+    override def lteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber) = CodeOrdering.this.lteqNonnull(y, x)
+    override def gtNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber) = CodeOrdering.this.gtNonnull(y, x)
+    override def gteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber) = CodeOrdering.this.gteqNonnull(y, x)
+    override def equivNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber) = CodeOrdering.this.equivNonnull(y, x)
   }
 }
 
 abstract class CodeOrderingCompareConsistentWithOthers extends CodeOrdering {
-  def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) < 0
+  def ltNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = compareNonnull(x, y) < 0
 
-  def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) <= 0
+  def lteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = compareNonnull(x, y) <= 0
 
-  def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) > 0
+  def gtNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = compareNonnull(x, y) > 0
 
-  def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) >= 0
+  def gteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = compareNonnull(x, y) >= 0
 
-  def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y).ceq(0)
+  def equivNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = compareNonnull(x, y).ceq(0)
 }

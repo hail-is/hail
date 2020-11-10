@@ -9,11 +9,11 @@ import is.hail.variant.Genotype
 trait PValue { pValueSelf =>
   def pt: PType
 
-  def get: PCode
+  def get(implicit line: LineNumber): PCode
 
   def value: Value[_] = {
     new Value[Any] {
-      override def get: Code[Any] = pValueSelf.get.code
+      override def get(implicit line: LineNumber): Code[Any] = pValueSelf.get.code
     }
   }
 }

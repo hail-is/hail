@@ -22,7 +22,7 @@ object StagedRegion {
     }
   }
 
-  def swap(mb: EmitMethodBuilder[_], x: OwnedStagedRegion, y: OwnedStagedRegion): Code[Unit] = {
+  def swap(mb: EmitMethodBuilder[_], x: OwnedStagedRegion, y: OwnedStagedRegion)(implicit line: LineNumber): Code[Unit] = {
     x.parent assertEqual y.parent
     (x, y) match {
       case (x: RealOwnedStagedRegion, y: RealOwnedStagedRegion) =>
@@ -76,22 +76,22 @@ class ParentStagedRegion(
       val regionArray = mb.genFieldThisRef[Array[Region]]("staged_region_child_array")
 
       def get(i: Value[Int]): Settable[Region] = new Settable[Region] {
-        def get: Code[Region] = regionArray(i)
+        def get(implicit line: LineNumber): Code[Region] = regionArray(i)
 
-        def store(rhs: Code[Region]): Code[Unit] = regionArray.update(i, rhs)
+        def store(rhs: Code[Region])(implicit line: LineNumber): Code[Unit] = regionArray.update(i, rhs)
       }
 
       new OwnedStagedRegionArray {
         def apply(i: Value[Int]): OwnedStagedRegion = new RealOwnedStagedRegion(get(i), self)
 
-        def allocateRegions(mb: EmitMethodBuilder[_], size: Int): Code[Unit] = {
+        def allocateRegions(mb: EmitMethodBuilder[_], size: Int)(implicit line: LineNumber): Code[Unit] = {
           val i = mb.newLocal[Int]("sora_alloc_i")
           Code(
             regionArray := Code.newArray(length),
             Code.forLoop(i := 0, i < length, i := i + 1, apply(i).allocateRegion(size)))
         }
 
-        def freeAll(mb: EmitMethodBuilder[_]): Code[Unit] = {
+        def freeAll(mb: EmitMethodBuilder[_])(implicit line: LineNumber): Code[Unit] = {
           val i = mb.newLocal[Int]("sora_free_i")
           Code(
             Code.forLoop(i := 0, i < length, i := i + 1, apply(i).free()),
@@ -204,13 +204,13 @@ class RealOwnedStagedRegion(
     new RealOwnedStagedRegion(newR, parent, otherAncestors)
   }
 
-  def allocateRegion(size: Int): Code[Unit] = r := Region.stagedCreate(size)
+  def allocateRegion(size: Int)(implicit line: LineNumber): Code[Unit] = r := Region.stagedCreate(size)
 
-  def free(): Code[Unit] = Code(r.invalidate(), r := Code._null)
+  def free()(implicit line: LineNumber): Code[Unit] = Code(r.invalidate(), r := Code._null)
 
   def clear(): Code[Unit] = (r: Value[Region]).clear()
 
-  def giveToParent(): Code[Unit] = r.invoke[Region, Unit]("move", parent.code)
+  def giveToParent()(implicit line: LineNumber): Code[Unit] = r.invoke[Region, Unit]("move", parent.code)
 
   def copyTo(mb: EmitMethodBuilder[_], value: PCode, dest: StagedRegion, destType: PType): PCode = {
     dest assertSubRegion parent
@@ -220,17 +220,17 @@ class RealOwnedStagedRegion(
   def copyTo(mb: EmitMethodBuilder[_], value: PCode, dest: StagedRegion): PCode =
     copyTo(mb, value, dest, value.pt)
 
-  def giveToSibling(dest: ChildStagedRegion): Code[Unit] = {
+  def giveToSibling(dest: ChildStagedRegion)(implicit line: LineNumber): Code[Unit] = {
     dest assertSubRegion  parent
     r.invoke[Region, Unit]("move", dest.code)
   }
 
-  def shareWithSibling(dest: ChildStagedRegion): Code[Unit] = {
+  def shareWithSibling(dest: ChildStagedRegion)(implicit line: LineNumber): Code[Unit] = {
     dest assertSubRegion parent
     dest.code.invoke[Region, Unit]("addReferenceTo", r)
   }
 
-  def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode): Code[Unit] =
+  def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode)(implicit line: LineNumber): Code[Unit] =
     srvb.addIRIntermediate(value, deepCopy = true)
 }
 
@@ -276,6 +276,6 @@ class DummyOwnedStagedRegion(
     Code._empty
   }
 
-  def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode): Code[Unit] =
+  def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode)(implicit line: LineNumber): Code[Unit] =
     srvb.addIRIntermediate(value, deepCopy = false)
 }

@@ -306,7 +306,8 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerEmitCode2("corr", TArray(TFloat64), TArray(TFloat64), TFloat64, {
       (_: Type, _: PType, _: PType) => PFloat64()
-    }) { case (r, rt, EmitCode(setup1, m1, v1), EmitCode(setup2, m2, v2)) =>
+    }) { case (r, rt, EmitCode(setup1, m1, v1), EmitCode(setup2, m2, v2), _line) =>
+        implicit val line = _line
         val t1 = v1.pt.asInstanceOf[PArray]
         val t2 = v2.pt.asInstanceOf[PArray]
         val a1 = r.mb.newLocal[Long]()

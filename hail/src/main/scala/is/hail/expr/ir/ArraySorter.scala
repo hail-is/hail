@@ -9,7 +9,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   val ti: TypeInfo[_] = typeToTypeInfo(typ)
   val mb: EmitMethodBuilder[_] = r.mb
 
-  def sort(sorter: DependentEmitFunctionBuilder[_]): Code[Unit] = {
+  def sort(sorter: DependentEmitFunctionBuilder[_])(implicit line: LineNumber): Code[Unit] = {
     val localF = ti match {
       case BooleanInfo => mb.genFieldThisRef[AsmFunction2[Boolean, Boolean, Boolean]]()
       case IntInfo => mb.genFieldThisRef[AsmFunction2[Int, Int, Boolean]]()
@@ -17,10 +17,10 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       case FloatInfo => mb.genFieldThisRef[AsmFunction2[Long, Long, Boolean]]()
       case DoubleInfo => mb.genFieldThisRef[AsmFunction2[Double, Double, Boolean]]()
     }
-    Code(localF.storeAny(Code.checkcast(sorter.newInstance(mb))(localF.ti)), array.sort(localF))
+    Code(localF.storeAny(Code.checkcast(sorter.newInstance(mb))(localF.ti, line)), array.sort(localF))
   }
 
-  def toRegion(): Code[Long] = {
+  def toRegion()(implicit line: LineNumber): Code[Long] = {
     val srvb = new StagedRegionValueBuilder(r, PCanonicalArray(typ))
     Code(
       srvb.start(array.size),
@@ -32,7 +32,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       srvb.end())
   }
 
-  def pruneMissing: Code[Unit] = {
+  def pruneMissing(implicit line: LineNumber): Code[Unit] = {
     val i = mb.newLocal[Int]()
     val n = mb.newLocal[Int]()
 
@@ -50,7 +50,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       array.setSize(n))
   }
 
-  def distinctFromSorted(discardNext: (Code[Region], Code[_], Code[Boolean], Code[_], Code[Boolean]) => Code[Boolean]): Code[Unit] = {
+  def distinctFromSorted(discardNext: (Code[Region], Code[_], Code[Boolean], Code[_], Code[Boolean]) => Code[Boolean])(implicit line: LineNumber): Code[Unit] = {
     val i = mb.newLocal[Int]()
     val n = mb.newLocal[Int]()
 

@@ -24,7 +24,7 @@ class StagedArrayBuilder(eltType: PType, cb: EmitClassBuilder[_], region: Value[
   private val capacityOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 1)
   private val dataOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 2)
 
-  def loadFrom(src: Code[Long]): Code[Unit] = {
+  def loadFrom(src: Code[Long])(implicit line: LineNumber): Code[Unit] = {
     Code(
       tmpOff := src,
       size := Region.loadInt(currentSizeOffset(tmpOff)),
@@ -34,7 +34,7 @@ class StagedArrayBuilder(eltType: PType, cb: EmitClassBuilder[_], region: Value[
   }
 
 
-  def copyFrom(src: Code[Long]): Code[Unit] = {
+  def copyFrom(src: Code[Long])(implicit line: LineNumber): Code[Unit] = {
     Code(
       tmpOff := src,
       size := Region.loadInt(currentSizeOffset(tmpOff)),
@@ -42,11 +42,11 @@ class StagedArrayBuilder(eltType: PType, cb: EmitClassBuilder[_], region: Value[
       data := StagedRegionValueBuilder.deepCopyFromOffset(cb, region, eltArray, Region.loadAddress(dataOffset(tmpOff))))
   }
 
-  def reallocateData(): Code[Unit] = {
+  def reallocateData()(implicit line: LineNumber): Code[Unit] = {
     data := StagedRegionValueBuilder.deepCopyFromOffset(cb, region, eltArray, data)
   }
 
-  def storeTo(dest: Code[Long]): Code[Unit] = {
+  def storeTo(dest: Code[Long])(implicit line: LineNumber): Code[Unit] = {
     Code(
       tmpOff := dest,
       Region.storeInt(currentSizeOffset(tmpOff), size),
@@ -55,44 +55,41 @@ class StagedArrayBuilder(eltType: PType, cb: EmitClassBuilder[_], region: Value[
     )
   }
 
-  def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
-    { ob: Value[OutputBuffer] =>
-      val enc = TypedCodecSpec(eltArray, codec).buildTypedEmitEncoderF[Long](eltArray, cb)
+  def serialize(codec: BufferSpec, ob: Value[OutputBuffer])(implicit line: LineNumber): Code[Unit] = {
+    val enc = TypedCodecSpec(eltArray, codec).buildTypedEmitEncoderF[Long](eltArray, cb)
 
-      Code(
-        ob.writeInt(size),
-        ob.writeInt(capacity),
-        enc(region, data, ob),
-        ob.writeInt(const(StagedArrayBuilder.END_SERIALIZATION))
-      )
-    }
+    Code(
+      ob.writeInt(size),
+      ob.writeInt(capacity),
+      enc(region, data, ob),
+      ob.writeInt(const(StagedArrayBuilder.END_SERIALIZATION))
+    )
   }
 
-  def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: BufferSpec, ib: Value[InputBuffer])(implicit line: LineNumber): Code[Unit] = {
     val (decType, dec) = TypedCodecSpec(eltArray, codec).buildEmitDecoderF[Long](cb)
     assert(decType == eltArray)
 
-    { (ib: Value[InputBuffer]) =>
-      Code(
-        size := ib.readInt(),
-        capacity := ib.readInt(),
-        data := dec(region, ib),
-        ib.readInt()
-          .cne(const(StagedArrayBuilder.END_SERIALIZATION))
-          .orEmpty(Code._fatal[Unit](s"StagedArrayBuilder serialization failed"))
-      )
-    }
+    Code(
+      size := ib.readInt(),
+      capacity := ib.readInt(),
+      data := dec(region, ib),
+      ib.readInt()
+        .cne(const(StagedArrayBuilder.END_SERIALIZATION))
+        .orEmpty(Code._fatal[Unit](s"StagedArrayBuilder serialization failed"))
+    )
   }
 
-  private def incrementSize(): Code[Unit] = Code(
+  private def incrementSize()(implicit line: LineNumber): Code[Unit] = Code(
     size := size + 1,
     resize()
   )
 
-  def setMissing(): Code[Unit] = incrementSize() // all elements set to missing on initialization
+  def setMissing()(implicit line: LineNumber): Code[Unit] =
+    incrementSize() // all elements set to missing on initialization
 
 
-  def append(elt: Code[_], deepCopy: Boolean = true): Code[Unit] = {
+  def append(elt: Code[_], deepCopy: Boolean = true)(implicit line: LineNumber): Code[Unit] = {
     val dest = eltArray.elementOffset(data, capacity, size)
     Code(
       eltArray.setElementPresent(data, size),
@@ -103,11 +100,13 @@ class StagedArrayBuilder(eltType: PType, cb: EmitClassBuilder[_], region: Value[
       incrementSize())
   }
 
-  def initializeWithCapacity(capacity: Code[Int]): Code[Unit] = initialize(0, capacity)
+  def initializeWithCapacity(capacity: Code[Int])(implicit line: LineNumber): Code[Unit] =
+    initialize(0, capacity)
 
-  def initialize(): Code[Unit] = initialize(const(0), const(initialCapacity))
+  def initialize()(implicit line: LineNumber): Code[Unit] =
+    initialize(const(0), const(initialCapacity))
 
-  private def initialize(_size: Code[Int], _capacity: Code[Int]): Code[Unit] = {
+  private def initialize(_size: Code[Int], _capacity: Code[Int])(implicit line: LineNumber): Code[Unit] = {
     Code(
       size := _size,
       capacity := _capacity,
@@ -116,15 +115,15 @@ class StagedArrayBuilder(eltType: PType, cb: EmitClassBuilder[_], region: Value[
     )
   }
 
-  def elementOffset(idx: Value[Int]): Code[Long] = eltArray.elementOffset(data, capacity, idx)
+  def elementOffset(idx: Value[Int])(implicit line: LineNumber): Code[Long] =
+    eltArray.elementOffset(data, capacity, idx)
 
-
-  def loadElement(idx: Value[Int]): EmitCode = {
+  def loadElement(idx: Value[Int])(implicit line: LineNumber): EmitCode = {
     val m = eltArray.isElementMissing(data, idx)
     EmitCode(Code._empty, m, eltType.load(elementOffset(idx)))
   }
 
-  private def resize(): Code[Unit] = {
+  private def resize()(implicit line: LineNumber): Code[Unit] = {
     val newDataOffset = cb.genFieldThisRef[Long]("new_data_offset")
     size.ceq(capacity)
       .orEmpty(

@@ -169,7 +169,9 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
     eltType: PStruct,
     mb: EmitMethodBuilder[_],
     region: ParentStagedRegion,
-    stream: SizedStream): EmitCode = {
+    stream: SizedStream
+  )(implicit line: LineNumber
+  ): EmitCode = {
     val enc = spec.buildEmitEncoder(eltType, mb.ecb)
 
     val keyType = ifIndexed { index.get._2 }
@@ -245,7 +247,9 @@ case class RVDSpecWriter(path: String, spec: RVDSpecMaker) extends MetadataWrite
   def writeMetadata(
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
-    region: Value[Region]): Unit = {
+    region: Value[Region]
+  )(implicit line: LineNumber
+  ): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
     val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asInstanceOf[PIndexableCode]
     val a = pc.memoize(cb, "filePaths")
@@ -290,7 +294,9 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
   def writeMetadata(
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
-    region: Value[Region]): Unit = {
+    region: Value[Region]
+  )(implicit line: LineNumber
+  ): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
     val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asInstanceOf[PIndexableCode]
     val partCounts = cb.newLocal[Array[Long]]("partCounts")
@@ -320,7 +326,9 @@ case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[
   def writeMetadata(
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
-    region: Value[Region]): Unit = {
+    region: Value[Region]
+  )(implicit line: LineNumber
+  ): Unit = {
     if (overwrite)
       cb += cb.emb.getFS.invoke[String, Boolean, Unit]("delete", path, true)
     else

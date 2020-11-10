@@ -12,25 +12,25 @@ object CountAggregator extends StagedAggregator {
   val initOpTypes: Seq[PType] = Array[PType]()
   val seqOpTypes: Seq[PType] = Array[PType]()
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
     assert(init.length == 0)
     val (_, v, _) = state.fields(0)
     cb.assignAny(v, 0L)
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
     assert(seq.length == 0)
     val (_, v, _) = state.fields(0)
     cb.assignAny(v, coerce[Long](v) + 1L)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit = {
     val (_, v1, _) = state.fields(0)
     val (_, v2, _) = other.fields(0)
     cb.assignAny(v1, coerce[Long](v1) + coerce[Long](v2))
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit = {
     val (_, v, _) = state.fields(0)
     cb += srvb.addLong(coerce[Long](v))
   }

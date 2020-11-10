@@ -12,7 +12,7 @@ sealed abstract class MaybeGenericTypeInfo[T : TypeInfo] {
 final case class GenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T] {
   val base = typeInfo[T]
 
-  def castFromGeneric(_x: Code[_]) = {
+  def castFromGeneric(_x: Code[_])(implicit line: LineNumber) = {
     val x = _x.asInstanceOf[Code[AnyRef]]
     base match {
       case _: IntInfo.type =>
@@ -34,13 +34,13 @@ final case class GenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T]
       case _: UnitInfo.type =>
         Code.toUnit(x).asInstanceOf[Code[T]]
       case cti: ClassInfo[_] =>
-        Code.checkcast[T](x)(cti)
+        Code.checkcast[T](x)(cti, line)
       case ati: ArrayInfo[_] =>
-        Code.checkcast[T](x)(ati)
+        Code.checkcast[T](x)(ati, line)
     }
   }
 
-  def castToGeneric(x: Code[T]) = base match {
+  def castToGeneric(x: Code[T])(implicit line: LineNumber): Code[_] = base match {
     case _: IntInfo.type =>
       Code.boxInt(x.asInstanceOf[Code[Int]])
     case _: LongInfo.type =>

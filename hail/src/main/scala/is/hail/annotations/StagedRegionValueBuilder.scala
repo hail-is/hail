@@ -9,7 +9,7 @@ import is.hail.types.virtual.{TBoolean, TFloat32, TFloat64, TInt32, TInt64, Type
 import is.hail.utils._
 
 object StagedRegionValueBuilder {
-  def deepCopy(cb: EmitClassBuilder[_], region: Code[Region], typ: PType, value: Code[_], dest: Code[Long]): Code[Unit] = {
+  def deepCopy(cb: EmitClassBuilder[_], region: Code[Region], typ: PType, value: Code[_], dest: Code[Long])(implicit line: LineNumber): Code[Unit] = {
     val t = typ.fundamentalType
     val valueTI = typeToTypeInfo(t)
     val mb = cb.getOrGenEmitMethod("deepCopy", ("deepCopy", typ),
@@ -22,7 +22,7 @@ object StagedRegionValueBuilder {
     mb.invokeCode[Unit](region, value, dest)
   }
 
-  def deepCopyFromOffset(cb: EmitClassBuilder[_], region: Code[Region], typ: PType, value: Code[Long]): Code[Long] = {
+  def deepCopyFromOffset(cb: EmitClassBuilder[_], region: Code[Region], typ: PType, value: Code[Long])(implicit line: LineNumber): Code[Long] = {
     val t = typ.fundamentalType
     val mb = cb.getOrGenEmitMethod("deepCopyFromOffset", ("deepCopyFromOffset", typ),
       FastIndexedSeq[ParamType](classInfo[Region], LongInfo), LongInfo) { mb =>
@@ -33,10 +33,10 @@ object StagedRegionValueBuilder {
     mb.invokeCode[Long](region, value)
   }
 
-  def deepCopyFromOffset(er: EmitRegion, typ: PType, value: Code[Long]): Code[Long] =
+  def deepCopyFromOffset(er: EmitRegion, typ: PType, value: Code[Long])(implicit line: LineNumber): Code[Long] =
     deepCopyFromOffset(er.mb.ecb, er.region, typ, value)
 
-  def deepCopy(er: EmitRegion, typ: PType, value: Code[_], dest: Code[Long]): Code[Unit] =
+  def deepCopy(er: EmitRegion, typ: PType, value: Code[_], dest: Code[Long])(implicit line: LineNumber): Code[Unit] =
     deepCopy(er.mb.ecb, er.region, typ, value, dest)
 }
 
@@ -80,13 +80,13 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     }
   }
 
-  def init(): Code[Unit] = Code(
+  def init()(implicit line: LineNumber): Code[Unit] = Code(
     startOffset := -1L,
     elementsOffset := -1L,
     if (idx != null) idx := -1 else Code._empty
   )
 
-  def start(): Code[Unit] = {
+  def start()(implicit line: LineNumber): Code[Unit] = {
     assert(!ftype.isInstanceOf[PArray]) // Need to use other start with length.
     ftype match {
       case _: PBaseStruct => start(true)
@@ -98,7 +98,7 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     }
   }
 
-  def start(length: Code[Int], init: Boolean = true): Code[Unit] =
+  def start(length: Code[Int], init: Boolean = true)(implicit line: LineNumber): Code[Unit] =
     Code.memoize(length, "srvb_start_length") { length =>
       val t = ftype.asInstanceOf[PArray]
       var c = startOffset.store(t.allocate(region, length))
@@ -111,7 +111,7 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
       Code(c, idx.store(0))
     }
 
-  def start(init: Boolean): Code[Unit] = {
+  def start(init: Boolean)(implicit line: LineNumber): Code[Unit] = {
     val t = ftype.asInstanceOf[PCanonicalBaseStruct]
     var c = if (pOffset == null)
       startOffset.store(region.allocate(t.alignment, t.byteSize))
@@ -125,7 +125,7 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     c
   }
 
-  def setMissing(): Code[Unit] = {
+  def setMissing()(implicit line: LineNumber): Code[Unit] = {
     ftype match {
       case t: PArray => t.setElementMissing(startOffset, idx)
       case t: PCanonicalBaseStruct => t.setFieldMissing(startOffset, staticIdx)
@@ -147,32 +147,32 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
       throw new RuntimeException(s"bad SRVB addition: expected $current, tried to add $knownType")
   }
 
-  def addBoolean(v: Code[Boolean]): Code[Unit] = {
+  def addBoolean(v: Code[Boolean])(implicit line: LineNumber): Code[Unit] = {
     checkType(TBoolean)
     Region.storeByte(currentOffset, v.toI.toB)
   }
 
-  def addInt(v: Code[Int]): Code[Unit] = {
+  def addInt(v: Code[Int])(implicit line: LineNumber): Code[Unit] = {
     checkType(TInt32)
     Region.storeInt(currentOffset, v)
   }
 
-  def addLong(v: Code[Long]): Code[Unit] = {
+  def addLong(v: Code[Long])(implicit line: LineNumber): Code[Unit] = {
     checkType(TInt64)
     Region.storeLong(currentOffset, v)
   }
 
-  def addFloat(v: Code[Float]): Code[Unit] = {
+  def addFloat(v: Code[Float])(implicit line: LineNumber): Code[Unit] = {
     checkType(TFloat32)
     Region.storeFloat(currentOffset, v)
   }
 
-  def addDouble(v: Code[Double]): Code[Unit] = {
+  def addDouble(v: Code[Double])(implicit line: LineNumber): Code[Unit] = {
     checkType(TFloat64)
     Region.storeDouble(currentOffset, v)
   }
 
-  def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
+  def addBinary(bytes: Code[Array[Byte]])(implicit line: LineNumber): Code[Unit] = {
     val b = mb.genFieldThisRef[Array[Byte]]("srvb_add_binary_bytes")
     val boff = mb.genFieldThisRef[Long]("srvb_add_binary_addr")
     val pbT = currentPType().asInstanceOf[PBinary]
@@ -189,9 +189,9 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
   }
 
 
-  def addAddress(v: Code[Long]): Code[Unit] = Region.storeAddress(currentOffset, v)
+  def addAddress(v: Code[Long])(implicit line: LineNumber): Code[Unit] = Region.storeAddress(currentOffset, v)
 
-  def addString(str: Code[String]): Code[Unit] = addBinary(str.invoke[Array[Byte]]("getBytes"))
+  def addString(str: Code[String])(implicit line: LineNumber): Code[Unit] = addBinary(str.invoke[Array[Byte]]("getBytes"))
 
   def addArray(t: PArray, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = {
     if (!(t.fundamentalType isOfType currentPType()))
@@ -205,13 +205,14 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     f(new StagedRegionValueBuilder(mb, currentPType(), this))
   }
 
-  def addIRIntermediate(t: PType, deepCopy: Boolean): (Code[_]) => Code[Unit] = t.fundamentalType match {
-    case _: PBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])
-    case _: PInt32 => v => addInt(v.asInstanceOf[Code[Int]])
-    case _: PInt64 => v => addLong(v.asInstanceOf[Code[Long]])
-    case _: PFloat32 => v => addFloat(v.asInstanceOf[Code[Float]])
-    case _: PFloat64 => v => addDouble(v.asInstanceOf[Code[Double]])
+  def addIRIntermediate(t: PType, deepCopy: Boolean)(v: Code[_])(implicit line: LineNumber): Code[Unit] = t.fundamentalType match {
+    case _: PBoolean => addBoolean(v.asInstanceOf[Code[Boolean]])
+    case _: PInt32 => addInt(v.asInstanceOf[Code[Int]])
+    case _: PInt64 => addLong(v.asInstanceOf[Code[Long]])
+    case _: PFloat32 => addFloat(v.asInstanceOf[Code[Float]])
+    case _: PFloat64 => addDouble(v.asInstanceOf[Code[Double]])
     case t =>
+      assert(v.v != null)
       val current = currentPType()
       val valueTI = typeToTypeInfo(t)
       val m = mb.getOrGenEmitMethod("addIRIntermediate", ("addIRIntermediate", current, t, deepCopy),
@@ -221,21 +222,19 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
         val dest = mb.getCodeParam[Long](3)
         mb.emit(current.constructAtAddressFromValue(mb, dest, r, t, value, deepCopy))
       }
-       (v: Code[_]) => {
-         assert(v.v != null)
-         m.invokeCode[Unit](region, v, currentOffset) }
+      m.invokeCode[Unit](region, v, currentOffset)
   }
 
-  def addIRIntermediate(t: PType): (Code[_]) => Code[Unit] =
-    addIRIntermediate(t, deepCopy = false)
+  def addIRIntermediate(t: PType)(v: Code[_])(implicit line: LineNumber): Code[Unit] =
+    addIRIntermediate(t, deepCopy = false)(v)
 
-  def addIRIntermediate(v: PCode, deepCopy: Boolean): Code[Unit] =
+  def addIRIntermediate(v: PCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] =
     addIRIntermediate(v.pt, deepCopy)(v.code)
 
-  def addIRIntermediate(v: PCode): Code[Unit] =
+  def addIRIntermediate(v: PCode)(implicit line: LineNumber): Code[Unit] =
     addIRIntermediate(v.pt, deepCopy = false)(v.code)
 
-  def addWithDeepCopy(t: PType, v: Code[_]): Code[Unit] = {
+  def addWithDeepCopy(t: PType, v: Code[_])(implicit line: LineNumber): Code[Unit] = {
     if (!(t.fundamentalType isOfType currentPType()))
       throw new RuntimeException(s"Fundamental type doesn't match. current=${currentPType()}, t=${t.fundamentalType}, ftype=$ftype")
     StagedRegionValueBuilder.deepCopy(
@@ -243,7 +242,7 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
       t, v, currentOffset)
   }
 
-  def advance(): Code[Unit] = {
+  def advance()(implicit line: LineNumber): Code[Unit] = {
     ftype match {
       case t: PArray => Code(
         elementsOffset := elementsOffset + t.elementByteSize,
@@ -257,7 +256,7 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     }
   }
 
-  def end(): Code[Long] = {
+  def end()(implicit line: LineNumber): Code[Long] = {
     startOffset
   }
 }

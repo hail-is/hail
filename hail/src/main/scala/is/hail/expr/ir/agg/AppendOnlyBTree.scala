@@ -11,20 +11,20 @@ import is.hail.io.{InputBuffer, OutputBuffer}
 trait BTreeKey {
   def storageType: PType
   def compType: PType
-  def isEmpty(off: Code[Long]): Code[Boolean]
-  def initializeEmpty(off: Code[Long]): Code[Unit]
+  def isEmpty(off: Code[Long])(implicit line: LineNumber): Code[Boolean]
+  def initializeEmpty(off: Code[Long])(implicit line: LineNumber): Code[Unit]
 
-  def copy(src: Code[Long], dest: Code[Long]): Code[Unit]
-  def deepCopy(er: EmitRegion, src: Code[Long], dest: Code[Long]): Code[Unit]
+  def copy(src: Code[Long], dest: Code[Long])(implicit line: LineNumber): Code[Unit]
+  def deepCopy(er: EmitRegion, src: Code[Long], dest: Code[Long])(implicit line: LineNumber): Code[Unit]
 
-  def compKeys(k1: EmitCode, k2: EmitCode): Code[Int]
-  def loadCompKey(off: Value[Long]): EmitCode
+  def compKeys(k1: EmitCode, k2: EmitCode)(implicit line: LineNumber): Code[Int]
+  def loadCompKey(off: Value[Long])(implicit line: LineNumber): EmitCode
 
-  def compSame(off: Code[Long], other: Code[Long]): Code[Int] =
+  def compSame(off: Code[Long], other: Code[Long])(implicit line: LineNumber): Code[Int] =
     Code.memoize(off, "btk_comp_same_off", other, "btk_comp_same_other") { (off, other) =>
       compKeys(loadCompKey(off), loadCompKey(other))
     }
-  def compWithKey(off: Code[Long], k: EmitCode): Code[Int] =
+  def compWithKey(off: Code[Long], k: EmitCode)(implicit line: LineNumber): Code[Int] =
     Code.memoize(off, "btk_comp_with_key_off") { off =>
       compKeys(loadCompKey(off), k)
     }
@@ -39,31 +39,41 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     "child0" -> PInt64(),
     "elements" -> elementsType)
 
-  private def createNode(nodeBucket: Settable[Long]): Code[Unit] = Code(
+  private def createNode(nodeBucket: Settable[Long])(implicit line: LineNumber): Code[Unit] = Code(
     nodeBucket := region.allocate(storageType.alignment, storageType.byteSize),
     storageType.stagedInitialize(nodeBucket, true),
     elementsType.stagedInitialize(elements(nodeBucket), true))
 
-  private def isRoot(node: Code[Long]): Code[Boolean] = storageType.isFieldMissing(node, 0)
-  private def isLeaf(node: Code[Long]): Code[Boolean] = storageType.isFieldMissing(node, 1)
-  private def getParent(node: Code[Long]): Code[Long] = Region.loadAddress(storageType.loadField(node, 0))
+  private def isRoot(node: Code[Long])(implicit line: LineNumber): Code[Boolean] =
+    storageType.isFieldMissing(node, 0)
+  private def isLeaf(node: Code[Long])(implicit line: LineNumber): Code[Boolean] =
+    storageType.isFieldMissing(node, 1)
+  private def getParent(node: Code[Long])(implicit line: LineNumber): Code[Long] =
+    Region.loadAddress(storageType.loadField(node, 0))
 
-  private def elements(node: Code[Long]): Code[Long] = storageType.loadField(node, 2)
-  private def hasKey(node: Code[Long], i: Int): Code[Boolean] = elementsType.isFieldDefined(elements(node), i)
-  private def setKeyPresent(node: Code[Long], i: Int): Code[Unit] = elementsType.setFieldPresent(elements(node), i)
-  private def setKeyMissing(node: Code[Long], i: Int): Code[Unit] = elementsType.setFieldMissing(elements(node), i)
-  private def isFull(node: Code[Long]): Code[Boolean] = hasKey(node, maxElements - 1)
-  private def keyOffset(node: Code[Long], i: Int): Code[Long] = eltType.fieldOffset(elementsType.loadField(elements(node), i), 0)
-  private def loadKey(node: Code[Long], i: Int): Code[Long] = eltType.loadField(elementsType.loadField(elements(node), i), 0)
+  private def elements(node: Code[Long])(implicit line: LineNumber): Code[Long] =
+    storageType.loadField(node, 2)
+  private def hasKey(node: Code[Long], i: Int)(implicit line: LineNumber): Code[Boolean] =
+    elementsType.isFieldDefined(elements(node), i)
+  private def setKeyPresent(node: Code[Long], i: Int)(implicit line: LineNumber): Code[Unit] =
+    elementsType.setFieldPresent(elements(node), i)
+  private def setKeyMissing(node: Code[Long], i: Int)(implicit line: LineNumber): Code[Unit] =
+    elementsType.setFieldMissing(elements(node), i)
+  private def isFull(node: Code[Long])(implicit line: LineNumber): Code[Boolean] =
+    hasKey(node, maxElements - 1)
+  private def keyOffset(node: Code[Long], i: Int)(implicit line: LineNumber): Code[Long] =
+    eltType.fieldOffset(elementsType.loadField(elements(node), i), 0)
+  private def loadKey(node: Code[Long], i: Int)(implicit line: LineNumber): Code[Long] =
+    eltType.loadField(elementsType.loadField(elements(node), i), 0)
 
-  private def childOffset(node: Code[Long], i: Int): Code[Long] =
+  private def childOffset(node: Code[Long], i: Int)(implicit line: LineNumber): Code[Long] =
     if (i == -1)
       storageType.fieldOffset(node, 1)
     else
       eltType.fieldOffset(elementsType.loadField(elements(node), i), 1)
-  private def loadChild(node: Code[Long], i: Int): Code[Long] =
+  private def loadChild(node: Code[Long], i: Int)(implicit line: LineNumber): Code[Long] =
     Region.loadAddress(childOffset(node, i))
-  private def setChild(parent: Code[Long], i: Int, child: Code[Long]): Code[Unit] =
+  private def setChild(parent: Code[Long], i: Int, child: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Code.memoize(parent, "aobt_set_child_parent",
       child, "aobt_set_child_child") { (parent, child) =>
       Code(
@@ -79,6 +89,8 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     val insertIdx: Value[Int] = insertAt.getCodeParam[Int](2)
     val k: EmitValue = insertAt.getEmitParam(3)
     val child: Value[Long] = insertAt.getCodeParam[Long](4)
+
+    implicit val line = LineNumber.none
 
     def parent: Code[Long] = getParent(node)
 
@@ -178,6 +190,8 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     val node = get.getCodeParam[Long](1)
     val k = get.getEmitParam(2)
 
+    implicit val line = LineNumber.none
+
     val cmp = get.newLocal[Int]()
     val keyV = get.newLocal[Long]()
 
@@ -206,12 +220,12 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     get
   }
 
-  def init: Code[Unit] = createNode(root)
+  def init(implicit line: LineNumber): Code[Unit] = createNode(root)
 
-  def getOrElseInitialize(cb: EmitCodeBuilder, k: EmitCode): Code[Long] =
+  def getOrElseInitialize(cb: EmitCodeBuilder, k: EmitCode)(implicit line: LineNumber): Code[Long] =
     cb.invokeCode(getF, root, k)
 
-  def foreach(cb: EmitCodeBuilder)(visitor: (EmitCodeBuilder, Code[Long]) => Unit): Unit = {
+  def foreach(cb: EmitCodeBuilder)(visitor: (EmitCodeBuilder, Code[Long]) => Unit)(implicit line: LineNumber): Unit = {
     val stackI = cb.newLocal[Int]("btree_foreach_stack_i", -1)
     val nodeStack = cb.newLocal("btree_foreach_node_stack", Code.newArray[Long](const(128)))
     val idxStack = cb.newLocal("btree_foreach_index_stack", Code.newArray[Int](const(128)))
@@ -269,17 +283,19 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     })
   }
 
-  val deepCopy: Code[Long] => Code[Unit] = {
+  private val _deepCopy: EmitMethodBuilder[_] = {
     val f = kb.genEmitMethod("btree_deepCopy", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Long]), typeInfo[Unit])
     val destNode = f.getCodeParam[Long](1)
     val srcNode = f.getCodeParam[Long](2)
+
+    implicit val line = LineNumber.none
 
     val er = EmitRegion(f, region)
     val newNode = f.newLocal[Long]()
 
     def copyChild(i: Int) =
       Code(createNode(newNode),
-        f.invokeCode[Unit](newNode, loadChild(srcNode, i)))
+           f.invokeCode[Unit](newNode, loadChild(srcNode, i)))
 
     val copyNodes = Array.range(0, maxElements).foldRight(Code._empty) { (i, cont) =>
       hasKey(srcNode, i).orEmpty(
@@ -294,14 +310,19 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     f.emit(Code(
       (!isLeaf(srcNode)).orEmpty(
         Code(copyChild(-1),
-          setChild(destNode, -1, newNode))),
+             setChild(destNode, -1, newNode))),
       copyNodes))
 
-    { srcRoot: Code[Long] => f.invokeCode(root, srcRoot) }
+    f
   }
 
+  def deepCopy(srcRoot: Code[Long])(implicit line: LineNumber): Code[Unit] =
+    _deepCopy.invokeCode(root, srcRoot)
+
   def bulkStore(cb: EmitCodeBuilder, obCode: Code[OutputBuffer]
-  )(keyStore: (EmitCodeBuilder, Value[OutputBuffer], Code[Long]) => Unit): Unit = {
+  )(keyStore: (EmitCodeBuilder, Value[OutputBuffer], Code[Long]) => Unit
+  )(implicit line: LineNumber
+  ): Unit = {
     val f = kb.genEmitMethod("btree_bulkStore", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[OutputBuffer]),
       typeInfo[Unit])
     val node = f.getCodeParam[Long](1)
@@ -332,7 +353,9 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
   }
 
   def bulkLoad(cb: EmitCodeBuilder, ibCode: Code[InputBuffer]
-  )(keyLoad: (EmitCodeBuilder, Value[InputBuffer], Code[Long]) => Unit): Unit = {
+  )(keyLoad: (EmitCodeBuilder, Value[InputBuffer], Code[Long]) => Unit
+  )(implicit line: LineNumber
+  ): Unit = {
     val f = kb.genEmitMethod("btree_bulkLoad", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[InputBuffer]),
       typeInfo[Unit])
     val node = f.getCodeParam[Long](1)

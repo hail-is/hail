@@ -7,7 +7,7 @@ import is.hail.utils.FastIndexedSeq
 
 import scala.language.existentials
 
-class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType, keyOnly: Boolean) {
+class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType, keyOnly: Boolean)(implicit line: LineNumber) {
 
   val elt: PType = typ.elementType
   val ti: TypeInfo[_] = typeToTypeInfo(elt)
@@ -24,21 +24,27 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType,
     val mk2l = findMB.newLocal[Boolean]()
     val mk2l1 = mb.newLocal[Boolean]()
 
-    val comp: CodeOrdering.F[Int] = {
-      case ((mk1: Code[Boolean], k1: Code[_]), (m2: Code[Boolean], v2: Code[Long] @unchecked)) =>
+    val comp: CodeOrdering.F[Int] = new CodeOrdering.F[Int] {
+      def apply(l: (Code[Boolean], Code[_]), r: (Code[Boolean], Code[_]))(implicit line: LineNumber): Code[Int] = {
+        val (mk1, k1) = l
+        val (m2, v2: Code[Long] @unchecked) = r
         Code.memoize(v2, "bs_comp_v2") { v2 =>
           val mk2 = Code(mk2l := m2 || ttype.isFieldMissing(v2, 0), mk2l)
           val k2 = mk2l.mux(defaultValue(kt), Region.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
           findMB.getCodeOrdering(eltType, kt, CodeOrdering.Compare())((mk1, k1), (mk2, k2))
         }
+      }
     }
-    val ceq: CodeOrdering.F[Boolean] = {
-      case ((mk1: Code[Boolean], k1: Code[_]), (m2: Code[Boolean], v2: Code[Long] @unchecked)) =>
+    val ceq: CodeOrdering.F[Boolean] = new CodeOrdering.F[Boolean] {
+      def apply(l: (Code[Boolean], Code[_]), r: (Code[Boolean], Code[_]))(implicit line: LineNumber): Code[Boolean] = {
+        val (mk1, k1) = l
+        val (m2, v2: Code[Long] @unchecked) = r
         Code.memoize(v2, "bs_comp_v2") { v2 =>
           val mk2 = Code(mk2l1 := m2 || ttype.isFieldMissing(v2, 0), mk2l1)
           val k2 = mk2l1.mux(defaultValue(kt), Region.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
           mb.getCodeOrdering(eltType, kt, CodeOrdering.Equiv())((mk1, k1), (mk2, k2))
         }
+      }
     }
     (comp, ceq, findMB, kt)
   } else
@@ -74,7 +80,7 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType,
     low))
 
   // check missingness of v before calling
-  def getClosestIndex(array: Code[Long], m: Code[Boolean], v: Code[_]): Code[Int] = {
+  def getClosestIndex(array: Code[Long], m: Code[Boolean], v: Code[_])(implicit line: LineNumber): Code[Int] = {
     findElt.invokeCode[Int](array, m, v)
   }
 }

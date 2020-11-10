@@ -18,7 +18,8 @@ object IntervalFunctions extends RegistryFunctions {
           required = includesStartPT.required && includesEndPT.required
         )
       }) {
-      case (r, rt, start, end, includesStart, includesEnd) =>
+      case (r, rt, start, end, includesStart, includesEnd, _line) =>
+        implicit val line = _line
         val srvb = new StagedRegionValueBuilder(r, rt)
 
         val mv = r.mb.newLocal[Boolean]()
@@ -54,7 +55,8 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerIEmitCode1("start", TInterval(tv("T")), tv("T"),
       (_: Type, x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
-      case (cb, r, rt, interval) =>
+      case (cb, r, rt, interval, _line) =>
+        implicit val line = _line
         interval().flatMap(cb) { case pi: PIntervalCode =>
           val pv = pi.memoize(cb, "interval")
           pv.loadStart(cb)
@@ -63,7 +65,8 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerIEmitCode1("end", TInterval(tv("T")), tv("T"),
       (_: Type, x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
-      case (cb, r, rt, interval) =>
+      case (cb, r, rt, interval, _line) =>
+        implicit val line = _line
         interval().flatMap(cb) { case pi: PIntervalCode =>
           val pv = pi.memoize(cb, "interval")
           pv.loadEnd(cb)
@@ -73,19 +76,20 @@ object IntervalFunctions extends RegistryFunctions {
     registerPCode1("includesStart", TInterval(tv("T")), TBoolean, (_: Type, x: PType) =>
       PBoolean(x.required)
     ) {
-      case (r, rt, interval: PIntervalCode) => PCode(rt, interval.includesStart())
+      case (r, rt, interval: PIntervalCode, _line) => PCode(rt, interval.includesStart())
     }
 
     registerPCode1("includesEnd", TInterval(tv("T")), TBoolean, (_: Type, x: PType) =>
       PBoolean(x.required)
     ) {
-      case (r, rt, interval: PIntervalCode) => PCode(rt, interval.includesEnd())
+      case (r, rt, interval: PIntervalCode, _line) => PCode(rt, interval.includesEnd())
     }
 
     registerIEmitCode2("contains", TInterval(tv("T")), tv("T"), TBoolean, {
       case(_: Type, intervalT: PInterval, _: PType) => PBoolean(intervalT.required)
     }) {
-      case (cb, r, rt, int, point) =>
+      case (cb, r, rt, int, point, _line) =>
+        implicit val line = _line
         int().map(cb) { case (intc: PIntervalCode) =>
           val interval: PIntervalValue = intc.memoize(cb, "interval")
           val pointv = cb.memoize(point(), "point")
@@ -107,7 +111,8 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerPCode1("isEmpty", TInterval(tv("T")), TBoolean, (_: Type, pt: PType) => PBoolean(pt.required)) {
-      case (r, rt, interval: PIntervalCode) =>
+      case (r, rt, interval: PIntervalCode, _line) =>
+        implicit val line = _line
         val empty = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val intv = interval.memoize(cb, "interval")
           intv.isEmpty(cb)
@@ -116,7 +121,8 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerPCode2("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, (_: Type, i1t: PType, i2t: PType) => PBoolean(i1t.required && i2t.required)) {
-      case (r, rt, int1: PIntervalCode, int2: PIntervalCode) =>
+      case (r, rt, int1: PIntervalCode, int2: PIntervalCode, _line) =>
+        implicit val line = _line
         val overlap = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val interval1 = int1.memoize(cb, "interval1")
           val interval2 = int2.memoize(cb, "interval2")

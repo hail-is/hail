@@ -15,38 +15,38 @@ class CollectAggState(val elemType: PType, val kb: EmitClassBuilder[_]) extends 
   def storageType = bll.storageType
   override def regionSize: Region.Size = Region.REGULAR
 
-  def createState(cb: EmitCodeBuilder): Unit =
+  def createState(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit =
     cb.ifx(region.isNull, {
       cb.assign(r, Region.stagedCreate(regionSize))
       cb += region.invalidate()
     })
 
-  def newState(off: Code[Long]): Code[Unit] =
+  def newState(off: Code[Long])(implicit line: LineNumber): Code[Unit] =
     region.getNewRegion(regionSize)
 
-  def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
+  def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Code(
       regionLoader(region),
       bll.load(src))
 
-  def store(regionStorer: Value[Region] => Code[Unit], dst: Code[Long]): Code[Unit] =
+  def store(regionStorer: Value[Region] => Code[Unit], dst: Code[Long])(implicit line: LineNumber): Code[Unit] =
     region.isValid.orEmpty(Code(
       regionStorer(region),
       bll.store(dst),
       region.invalidate()))
 
-  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+  def copyFrom(cb: EmitCodeBuilder, src: Code[Long])(implicit line: LineNumber): Unit = {
     val copyBll = new StagedBlockLinkedList(elemType, kb)
     cb += Code(
       copyBll.load(src),
       bll.initWithDeepCopy(region, copyBll))
   }
 
-  def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
+  def serialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     { (cb, ib) => cb += bll.serialize(region, ib) }
   }
 
-  def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
+  def deserialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     { (cb, ib) => cb += Code(bll.init(region), bll.deserialize(region, ib)) }
   }
 }
@@ -59,17 +59,17 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
   val initOpTypes: Seq[PType] = Array[PType]()
   val seqOpTypes: Seq[PType] = Array[PType](elemType)
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, args: Array[EmitCode]): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, args: Array[EmitCode])(implicit line: LineNumber): Unit = {
     assert(args.isEmpty)
     cb += state.bll.init(state.region)
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit =
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit =
     cb += state.bll.push(state.region, seq(0))
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit =
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit =
     cb += state.bll.append(state.region, other.bll)
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit =
     cb += srvb.addArray(resultType, state.bll.writeToSRVB(cb.emb, _))
 }

@@ -19,7 +19,7 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
 
   val ndarrayFieldNumber = 0
 
-  override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+  override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
     val initMethod = cb.emb.genEmitMethod[Unit]("ndarray_sum_aggregator_init_op")
     initMethod.voidWithBuilder(cb =>
       cb.append(stateType.setFieldMissing(state.off, ndarrayFieldNumber))
@@ -27,7 +27,7 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
     cb.invokeVoid(initMethod)
   }
 
-  override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+  override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
     val Array(nextNDCode) = seq
     val seqOpMethod = cb.emb.genEmitMethod("ndarray_sum_aggregator_seq_op", FastIndexedSeq(EmitParamType(nextNDCode.pt)), CodeParamType(UnitInfo))
 
@@ -59,7 +59,7 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
     cb.invokeVoid(seqOpMethod, nextNDCode)
   }
 
-  override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit = {
     val combOpMethod = cb.emb.genEmitMethod[Unit]("ndarray_sum_aggregator_comb_op")
 
     combOpMethod.voidWithBuilder(cb => {
@@ -83,7 +83,7 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
     cb.invokeVoid(combOpMethod)
   }
 
-  private def addValues(cb: EmitCodeBuilder, leftNdValue: PNDArrayValue, rightNdValue: PNDArrayValue): Unit = {
+  private def addValues(cb: EmitCodeBuilder, leftNdValue: PNDArrayValue, rightNdValue: PNDArrayValue)(implicit line: LineNumber): Unit = {
     val sameShape = leftNdValue.sameShape(rightNdValue, cb.emb)
 
     val idxVars = Array.tabulate(ndTyp.nDims) { _ => cb.emb.genFieldThisRef[Long]() }
@@ -119,7 +119,7 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
     ))
   }
 
-  override protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+  override protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit = {
     val t = state.get()
     cb.append(t.setup)
     cb.append(

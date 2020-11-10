@@ -12,7 +12,7 @@ object UnsafeUtils {
     (offset + (alignment - 1)) & ~(alignment - 1)
   }
 
-  def roundUpAlignment(offset: Code[Long], alignment: Long): Code[Long] = {
+  def roundUpAlignment(offset: Code[Long], alignment: Long)(implicit line: LineNumber): Code[Long] = {
     assert(alignment > 0)
     assert((alignment & (alignment - 1)) == 0) // power of 2
     (offset + (alignment - 1)) & ~(alignment - 1)
@@ -21,6 +21,6 @@ object UnsafeUtils {
   def packBitsToBytes(nBits: Int): Int =
     (nBits + 7) >>> 3
 
-  def packBitsToBytes(nBits: Code[Int]): Code[Int] =
+  def packBitsToBytes(nBits: Code[Int])(implicit line: LineNumber): Code[Int] =
     (nBits + 7) >>> 3
 }

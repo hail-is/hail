@@ -6,7 +6,7 @@ import is.hail.types.virtual.Type
 
 import scala.reflect.ClassTag
 
-class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int]) {
+class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int])(implicit line: LineNumber) {
 
   val ti: TypeInfo[_] = typeToTypeInfo(elt)
 
@@ -19,7 +19,7 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
     case ti => throw new RuntimeException(s"unsupported typeinfo found: $ti")
   })
 
-  def add(x: Code[_]): Code[Unit] = ti match {
+  def add(x: Code[_])(implicit line: LineNumber): Code[Unit] = ti match {
     case BooleanInfo => coerce[BooleanArrayBuilder](ref).invoke[Boolean, Unit]("add", coerce[Boolean](x))
     case IntInfo => coerce[IntArrayBuilder](ref).invoke[Int, Unit]("add", coerce[Int](x))
     case LongInfo => coerce[LongArrayBuilder](ref).invoke[Long, Unit]("add", coerce[Long](x))
@@ -27,7 +27,7 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
     case DoubleInfo => coerce[DoubleArrayBuilder](ref).invoke[Double, Unit]("add", coerce[Double](x))
   }
 
-  def apply(i: Code[Int]): Code[_] = ti match {
+  def apply(i: Code[Int])(implicit line: LineNumber): Code[_] = ti match {
     case BooleanInfo => coerce[BooleanArrayBuilder](ref).invoke[Int, Boolean]("apply", i)
     case IntInfo => coerce[IntArrayBuilder](ref).invoke[Int, Int]("apply", i)
     case LongInfo => coerce[LongArrayBuilder](ref).invoke[Int, Long]("apply", i)
@@ -35,7 +35,7 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
     case DoubleInfo => coerce[DoubleArrayBuilder](ref).invoke[Int, Double]("apply", i)
   }
 
-  def update(i: Code[Int], x: Code[_]): Code[Unit] = ti match {
+  def update(i: Code[Int], x: Code[_])(implicit line: LineNumber): Code[Unit] = ti match {
     case BooleanInfo => coerce[BooleanArrayBuilder](ref).invoke[Int, Boolean, Unit]("update", i, coerce[Boolean](x))
     case IntInfo => coerce[IntArrayBuilder](ref).invoke[Int, Int, Unit]("update", i, coerce[Int](x))
     case LongInfo => coerce[LongArrayBuilder](ref).invoke[Int, Long, Unit]("update", i, coerce[Long](x))
@@ -43,7 +43,7 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
     case DoubleInfo => coerce[DoubleArrayBuilder](ref).invoke[Int, Double, Unit]("update", i, coerce[Double](x))
   }
 
-  def sort(compare: Code[AsmFunction2[_, _, _]]): Code[Unit] = {
+  def sort(compare: Code[AsmFunction2[_, _, _]])(implicit line: LineNumber): Code[Unit] = {
     ti match {
       case BooleanInfo =>
         type F = AsmFunction2[Boolean, Boolean, Boolean]
@@ -63,28 +63,28 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
     }
   }
 
-  def addMissing(): Code[Unit] =
+  def addMissing()(implicit line: LineNumber): Code[Unit] =
     coerce[MissingArrayBuilder](ref).invoke[Unit]("addMissing")
 
-  def isMissing(i: Code[Int]): Code[Boolean] =
+  def isMissing(i: Code[Int])(implicit line: LineNumber): Code[Boolean] =
     coerce[MissingArrayBuilder](ref).invoke[Int, Boolean]("isMissing", i)
 
-  def setMissing(i: Code[Int], m: Code[Boolean]): Code[Unit] =
+  def setMissing(i: Code[Int], m: Code[Boolean])(implicit line: LineNumber): Code[Unit] =
     coerce[MissingArrayBuilder](ref).invoke[Int, Boolean, Unit]("setMissing", i, m)
 
-  def size: Code[Int] = coerce[MissingArrayBuilder](ref).invoke[Int]("size")
+  def size(implicit line: LineNumber): Code[Int] = coerce[MissingArrayBuilder](ref).invoke[Int]("size")
 
-  def setSize(n: Code[Int]): Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Int, Unit]("setSize", n)
+  def setSize(n: Code[Int])(implicit line: LineNumber): Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Int, Unit]("setSize", n)
 
-  def ensureCapacity(n: Code[Int]): Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Int, Unit]("ensureCapacity", n)
+  def ensureCapacity(n: Code[Int])(implicit line: LineNumber): Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Int, Unit]("ensureCapacity", n)
 
-  def clear: Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Unit]("clear")
+  def clear(implicit line: LineNumber): Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Unit]("clear")
 
-  def applyEV(mb: EmitMethodBuilder[_], i: Code[Int]): EmitValue =
+  def applyEV(mb: EmitMethodBuilder[_], i: Code[Int])(implicit line: LineNumber): EmitValue =
     new EmitValue {
       def pt: PType = elt
 
-      def get: EmitCode = {
+      def get(implicit line: LineNumber): EmitCode = {
         val t = mb.newLocal[Int]("sab_applyEV_i")
         EmitCode(t := i, isMissing(t), PCode(elt, apply(t)))
       }

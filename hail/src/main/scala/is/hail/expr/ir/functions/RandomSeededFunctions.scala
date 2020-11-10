@@ -58,27 +58,32 @@ object RandomSeededFunctions extends RegistryFunctions {
   def registerAll() {
     registerSeeded2("rand_unif", TFloat64, TFloat64, TFloat64, {
       case(_: Type, _: PType, _: PType) => PFloat64()
-    }) { case (r, rt, seed, (minT, min), (maxT, max)) =>
+    }) { case (r, rt, seed, (minT, min), (maxT, max), _line) =>
+      implicit val line = _line
       r.mb.newRNG(seed).invoke[Double, Double, Double]("runif", min, max)
     }
 
     registerSeeded2("rand_norm", TFloat64, TFloat64, TFloat64, {
       case(_: Type, _: PType, _: PType) => PFloat64()
-    }) { case (r, rt, seed, (meanT, mean), (sdT, sd)) =>
+    }) { case (r, rt, seed, (meanT, mean), (sdT, sd), _line) =>
+      implicit val line = _line
       r.mb.newRNG(seed).invoke[Double, Double, Double]("rnorm", mean, sd)
     }
 
-    registerSeeded1("rand_bool", TFloat64, TBoolean, (_: Type, _: PType) => PBoolean()) { case (r, rt, seed, (pT, p)) =>
+    registerSeeded1("rand_bool", TFloat64, TBoolean, (_: Type, _: PType) => PBoolean()) { case (r, rt, seed, (pT, p), _line) =>
+      implicit val line = _line
       r.mb.newRNG(seed).invoke[Double, Boolean]("rcoin", p)
     }
 
-    registerSeeded1("rand_pois", TFloat64, TFloat64, (_: Type, _: PType) => PFloat64()) { case (r, rt, seed, (lambdaT, lambda)) =>
+    registerSeeded1("rand_pois", TFloat64, TFloat64, (_: Type, _: PType) => PFloat64()) { case (r, rt, seed, (lambdaT, lambda), _line) =>
+      implicit val line = _line
       r.mb.newRNG(seed).invoke[Double, Double]("rpois", lambda)
     }
 
     registerSeeded2("rand_pois", TInt32, TFloat64, TArray(TFloat64), {
       case(_: Type, _: PType, _: PType) => PCanonicalArray(PFloat64(true))
-    }) { case (r, rt, seed, (nT, n), (lambdaT, lambda)) =>
+    }) { case (r, rt, seed, (nT, n), (lambdaT, lambda), _line) =>
+      implicit val line = _line
       val length = r.mb.newLocal[Int]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
@@ -93,14 +98,16 @@ object RandomSeededFunctions extends RegistryFunctions {
 
     registerSeeded2("rand_beta", TFloat64, TFloat64, TFloat64, {
       case(_: Type, _: PType, _: PType) => PFloat64()
-    }) { case (r, rt, seed, (aT, a), (bT, b)) =>
+    }) { case (r, rt, seed, (aT, a), (bT, b), _line) =>
+      implicit val line = _line
       r.mb.newRNG(seed).invoke[Double, Double, Double]("rbeta", a, b)
     }
 
     registerSeeded4("rand_beta", TFloat64, TFloat64, TFloat64, TFloat64, TFloat64, {
       case(_: Type, _: PType, _: PType, _: PType, _: PType) => PFloat64()
     }) {
-      case (r, rt, seed, (aT, a), (bT, b), (minT, min), (maxT, max)) =>
+      case (r, rt, seed, (aT, a), (bT, b), (minT, min), (maxT, max), _line) =>
+        implicit val line = _line
         val rng = r.mb.newRNG(seed)
         val la = r.mb.newLocal[Double]()
         val lb = r.mb.newLocal[Double]()
@@ -120,11 +127,13 @@ object RandomSeededFunctions extends RegistryFunctions {
 
     registerSeeded2("rand_gamma", TFloat64, TFloat64, TFloat64, {
       case(_: Type, _: PType, _: PType) => PFloat64()
-    }) { case (r, rt, seed, (aT, a), (scaleT, scale)) =>
+    }) { case (r, rt, seed, (aT, a), (scaleT, scale), _line) =>
+      implicit val line = _line
       r.mb.newRNG(seed).invoke[Double, Double, Double]("rgamma", a, scale)
     }
 
-    registerSeeded1("rand_cat", TArray(TFloat64), TInt32, (_: Type, _: PType) => PInt32()) { case (r, rt, seed, (aT: PArray, a)) =>
+    registerSeeded1("rand_cat", TArray(TFloat64), TInt32, (_: Type, _: PType) => PInt32()) { case (r, rt, seed, (aT: PArray, a), _line) =>
+      implicit val line = _line
       val array = r.mb.newLocal[Array[Double]]()
       val aoff = r.mb.newLocal[Long]()
       val length = r.mb.newLocal[Int]()

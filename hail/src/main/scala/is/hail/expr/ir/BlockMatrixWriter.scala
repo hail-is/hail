@@ -90,7 +90,8 @@ case class BlockMatrixNativeMetadataWriter(path: String, stageLocally: Boolean, 
   def writeMetadata(
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
-    region: Value[Region]): Unit = {
+    region: Value[Region]
+  )(implicit line: LineNumber): Unit = {
     val metaHelper = BMMetadataHelper(path, typ.blockSize, typ.nRows, typ.nCols, typ.linearizedDefinedBlocks)
 
     val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asIndexable

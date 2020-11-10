@@ -25,13 +25,13 @@ object SetupBuilder {
 
   def apply(mb: EmitMethodBuilder[_], setup: Code[Unit]): SetupBuilder = new SetupBuilder(mb, setup)
 
-  def map[T, U](mb: EmitMethodBuilder[_])(is: IndexedSeq[T])(f: (SetupBuilder, T) => U): (Code[Unit], IndexedSeq[U]) = {
+  def map[T, U](mb: EmitMethodBuilder[_])(is: IndexedSeq[T])(f: (SetupBuilder, T) => U)(implicit line: LineNumber): (Code[Unit], IndexedSeq[U]) = {
     val sb = SetupBuilder(mb)
     val rs = sb.map(is)(f)
     (sb.setup, rs)
   }
 
-  def map[T, U](mb: EmitMethodBuilder[_], setup: Code[Unit])(is: IndexedSeq[T])(f: (SetupBuilder, T) => U): (Code[Unit], IndexedSeq[U]) = {
+  def map[T, U](mb: EmitMethodBuilder[_], setup: Code[Unit])(is: IndexedSeq[T])(f: (SetupBuilder, T) => U)(implicit line: LineNumber): (Code[Unit], IndexedSeq[U]) = {
     val sb = SetupBuilder(mb, setup)
     val rs = sb.map(is)(f)
     (sb.setup, rs)
@@ -39,25 +39,26 @@ object SetupBuilder {
 }
 
 class SetupBuilder(mb: EmitMethodBuilder[_], var setup: Code[Unit]) {
-  def append(c: Code[Unit]): Unit = {
+  def append(c: Code[Unit])(implicit line: LineNumber): Unit = {
     setup = Code(setup, c)
   }
 
-  def +=(c: Code[Unit]): Unit = append(c)
+  def +=(c: Code[Unit])(implicit line: LineNumber): Unit = append(c)
 
-  def memoize[T](e: Code[T], name: String)(implicit tti: TypeInfo[T]): Value[T] = {
+  def memoize[T](e: Code[T], name: String)(implicit tti: TypeInfo[T], line: LineNumber): Value[T] = {
     val l = mb.newLocal[T](name)
     append(l := e)
     l
   }
 
-  def memoizeField[T](e: Code[T], name: String)(implicit tti: TypeInfo[T]): Value[T] = {
+  def memoizeField[T](e: Code[T], name: String)(implicit tti: TypeInfo[T], line: LineNumber): Value[T] = {
     val l = mb.genFieldThisRef[T](name)
     append(l := e)
     l
   }
 
-  def map[T, U](is: IndexedSeq[T])(f: (SetupBuilder, T) => U): IndexedSeq[U] = is.map(f(this, _))
+  def map[T, U](is: IndexedSeq[T])(f: (SetupBuilder, T) => U)(implicit line: LineNumber): IndexedSeq[U] =
+    is.map(f(this, _))
 
   def result(): Code[Unit] = {
     val r = setup
@@ -70,6 +71,8 @@ object Emit {
   type E = Env[EmitValue]
 
   def apply[C](ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[C], aggs: Option[Array[AggStateSig]] = None) {
+    implicit val line = LineNumber(ir.lineNumber)
+
     TypeCheck(ir)
 
     val mb = fb.apply_method
@@ -97,7 +100,10 @@ object Emit {
 
 object AggContainer {
   // FIXME remove this when EmitStream also has a codebuilder
-  def fromVars(aggs: Array[AggStateSig], mb: EmitMethodBuilder[_], region: Settable[Region], off: Settable[Long]): (AggContainer, Code[Unit], Code[Unit]) = {
+  def fromVars(
+    aggs: Array[AggStateSig], mb: EmitMethodBuilder[_], region: Settable[Region], off: Settable[Long]
+  )(implicit line: LineNumber
+  ): (AggContainer, Code[Unit], Code[Unit]) = {
 
     val (setup, aggState) = EmitCodeBuilder.scoped(mb) { cb =>
       val states = agg.StateTuple(aggs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)))
@@ -118,10 +124,13 @@ object AggContainer {
     (AggContainer(aggs, aggState, () => ()), setup, cleanup)
   }
 
-  def fromMethodBuilder[C](aggs: Array[AggStateSig], mb: EmitMethodBuilder[C], varPrefix: String): (AggContainer, Code[Unit], Code[Unit]) =
+  def fromMethodBuilder[C](
+    aggs: Array[AggStateSig], mb: EmitMethodBuilder[C], varPrefix: String
+  )(implicit line: LineNumber
+  ): (AggContainer, Code[Unit], Code[Unit]) =
     fromVars(aggs, mb, mb.genFieldThisRef[Region](s"${varPrefix}_top_region"), mb.genFieldThisRef[Long](s"${varPrefix}_off"))
 
-  def fromBuilder[C](cb: EmitCodeBuilder, aggs: Array[AggStateSig], varPrefix: String): AggContainer = {
+  def fromBuilder[C](cb: EmitCodeBuilder, aggs: Array[AggStateSig], varPrefix: String)(implicit line: LineNumber): AggContainer = {
     val off = cb.newField[Long](s"${varPrefix}_off")
     val region = cb.newField[Region](s"${varPrefix}_top_region", Region.stagedCreate(Region.REGULAR))
     val states = agg.StateTuple(aggs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)))
@@ -166,7 +175,7 @@ case class EmitRegion(mb: EmitMethodBuilder[_], region: Value[Region]) {
 abstract class EmitValue {
   def pt: PType
 
-  def get: EmitCode
+  def get(implicit line: LineNumber): EmitCode
 }
 
 class EmitUnrealizableValue(val pt: PType, private val ec: EmitCode) extends EmitValue {
@@ -189,7 +198,7 @@ class EmitUnrealizableValue(val pt: PType, private val ec: EmitCode) extends Emi
  *     jumping to Lmissing.
  */
 object IEmitCode {
-  def apply[A](cb: EmitCodeBuilder, m: Code[Boolean], value: => A): IEmitCodeGen[A] = {
+  def apply[A](cb: EmitCodeBuilder, m: Code[Boolean], value: => A)(implicit line: LineNumber): IEmitCodeGen[A] = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
     cb.ifx(m, { cb.goto(Lmissing) })
@@ -201,14 +210,17 @@ object IEmitCode {
   def apply[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A): IEmitCodeGen[A] =
     IEmitCodeGen(Lmissing, Lpresent, value)
 
-  def present[A](cb: EmitCodeBuilder, value: => A): IEmitCodeGen[A] = {
+  def present[A](cb: EmitCodeBuilder, value: => A)(implicit line: LineNumber): IEmitCodeGen[A] = {
     val Lpresent = CodeLabel()
     cb.goto(Lpresent)
     IEmitCodeGen(CodeLabel(), Lpresent, value)
   }
 
-  def sequence[A, B, C](seq: IndexedSeq[A], toIec: A => IEmitCodeGen[B], cb: EmitCodeBuilder)
-      (f: IndexedSeq[B] => C): IEmitCodeGen[C] = {
+  def sequence[A, B, C](
+    seq: IndexedSeq[A], toIec: A => IEmitCodeGen[B], cb: EmitCodeBuilder
+  )(f: IndexedSeq[B] => C
+  )(implicit line: LineNumber
+  ): IEmitCodeGen[C] = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
 
@@ -227,7 +239,7 @@ object IEmitCode {
     IEmitCodeGen(Lmissing, Lpresent, pc)
   }
 
-  def flatten[A, B](seq: IndexedSeq[() => IEmitCodeGen[A]], cb: EmitCodeBuilder)(f: IndexedSeq[A] => B): IEmitCodeGen[B] =
+  def flatten[A, B](seq: IndexedSeq[() => IEmitCodeGen[A]], cb: EmitCodeBuilder)(f: IndexedSeq[A] => B)(implicit line: LineNumber): IEmitCodeGen[B] =
     sequence(seq, { (i: () => IEmitCodeGen[A]) => i() }, cb)(f)
 }
 
@@ -236,13 +248,13 @@ object IEmitCodeGen {
     def pc: PCode = iec.value
     def pt: PType = pc.pt
 
-    def memoize(cb: EmitCodeBuilder, name: String): EmitValue =
+    def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): EmitValue =
       cb.memoize(iec, name)
   }
 }
 
 case class IEmitCodeGen[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) {
-  def map[B](cb: EmitCodeBuilder)(f: (A) => B): IEmitCodeGen[B] = {
+  def map[B](cb: EmitCodeBuilder)(f: (A) => B)(implicit line: LineNumber): IEmitCodeGen[B] = {
     val Lpresent2 = CodeLabel()
     cb.define(Lpresent)
     val value2 = f(value)
@@ -250,7 +262,7 @@ case class IEmitCodeGen[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) {
     IEmitCodeGen(Lmissing, Lpresent2, value2)
   }
 
-  def mapMissing(cb: EmitCodeBuilder)(ifMissing: => Unit): IEmitCodeGen[A] = {
+  def mapMissing(cb: EmitCodeBuilder)(ifMissing: => Unit)(implicit line: LineNumber): IEmitCodeGen[A] = {
     val Lmissing2 = CodeLabel()
     cb.define(Lmissing)
     ifMissing
@@ -258,7 +270,7 @@ case class IEmitCodeGen[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) {
     IEmitCodeGen(Lmissing2, Lpresent, value)
   }
 
-  def flatMap[B](cb: EmitCodeBuilder)(f: (A) => IEmitCodeGen[B]): IEmitCodeGen[B] = {
+  def flatMap[B](cb: EmitCodeBuilder)(f: (A) => IEmitCodeGen[B])(implicit line: LineNumber): IEmitCodeGen[B] = {
     cb.define(Lpresent)
     val ec2 = f(value)
     cb.define(ec2.Lmissing)
@@ -266,17 +278,17 @@ case class IEmitCodeGen[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) {
     IEmitCodeGen(Lmissing, ec2.Lpresent, ec2.value)
   }
 
-  def handle(cb: EmitCodeBuilder, ifMissing: => Unit): A = {
+  def handle(cb: EmitCodeBuilder, ifMissing: => Unit)(implicit line: LineNumber): A = {
     cb.define(Lmissing)
     ifMissing
     cb.define(Lpresent)
     value
   }
 
-  def get(cb: EmitCodeBuilder, errorMsg: String = "expected non-missing"): A =
+  def get(cb: EmitCodeBuilder, errorMsg: String = "expected non-missing")(implicit line: LineNumber): A =
     handle(cb, cb._fatal(errorMsg))
 
-  def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (A) => Unit): Unit = {
+  def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (A) => Unit)(implicit line: LineNumber): Unit = {
     val Lafter = CodeLabel()
     cb.define(Lmissing)
     ifMissing
@@ -286,7 +298,7 @@ case class IEmitCodeGen[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) {
     cb.define(Lafter)
   }
 
-  def consumePCode(cb: EmitCodeBuilder, ifMissing: => PCode, ifPresent: (A) => PCode): PCode = {
+  def consumePCode(cb: EmitCodeBuilder, ifMissing: => PCode, ifPresent: (A) => PCode)(implicit line: LineNumber): PCode = {
     val Lafter = CodeLabel()
     cb.define(Lmissing)
     val missingValue = ifMissing
@@ -302,7 +314,7 @@ case class IEmitCodeGen[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) {
     ret
   }
 
-  def consumeCode[B: TypeInfo](cb: EmitCodeBuilder, ifMissing: => Code[B], ifPresent: (A) => Code[B]): Code[B] = {
+  def consumeCode[B: TypeInfo](cb: EmitCodeBuilder, ifMissing: => Code[B], ifPresent: (A) => Code[B])(implicit line: LineNumber): Code[B] = {
     val ret = cb.emb.newLocal[B]("iec_consumeCode")
     consume(cb, cb.assign(ret, ifMissing), a => cb.assign(ret, ifPresent(a)))
     ret
@@ -310,19 +322,22 @@ case class IEmitCodeGen[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) {
 }
 
 object EmitCode {
-  def apply(setup: Code[Unit], ec: EmitCode): EmitCode =
+  def apply(setup: Code[Unit], ec: EmitCode)(implicit line: LineNumber): EmitCode =
     new EmitCode(Code(setup, ec.setup), ec.m, ec.pv)
 
-  def apply(setup: Code[Unit], ev: EmitValue): EmitCode =
+  def apply(setup: Code[Unit], ev: EmitValue)(implicit line: LineNumber): EmitCode =
     EmitCode(setup, ev.get)
 
-  def present(pt: PType, v: Code[_]): EmitCode = EmitCode(Code._empty, false, PCode(pt, v))
+  def present(pt: PType, v: Code[_])(implicit line: LineNumber): EmitCode =
+    EmitCode(Code._empty, false, PCode(pt, v))
 
-  def present(pc: PCode): EmitCode = EmitCode(Code._empty, false, pc)
+  def present(pc: PCode)(implicit line: LineNumber): EmitCode =
+    EmitCode(Code._empty, false, pc)
 
-  def missing(pt: PType): EmitCode = EmitCode(Code._empty, true, pt.defaultValue)
+  def missing(pt: PType)(implicit line: LineNumber): EmitCode =
+    EmitCode(Code._empty, true, pt.defaultValue)
 
-  def fromI(mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => IEmitCode): EmitCode = {
+  def fromI(mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => IEmitCode)(implicit line: LineNumber): EmitCode = {
     val cb = EmitCodeBuilder(mb)
     val iec = f(cb)
     val setup = cb.result()
@@ -343,7 +358,7 @@ object EmitCode {
       ts :+ BooleanInfo
   }
 
-  def fromCodeTuple(pt: PType, ct: IndexedSeq[Code[_]]): EmitCode = {
+  def fromCodeTuple(pt: PType, ct: IndexedSeq[Code[_]])(implicit line: LineNumber): EmitCode = {
     if (pt.required)
       new EmitCode(Code._empty, const(false), pt.fromCodeTuple(ct))
     else
@@ -360,7 +375,7 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
 
   def map(f: PCode => PCode): EmitCode = EmitCode(setup, m, pv = f(pv))
 
-  def toI(cb: EmitCodeBuilder): IEmitCode = {
+  def toI(cb: EmitCodeBuilder)(implicit line: LineNumber): IEmitCode = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
     cb += setup
@@ -379,7 +394,7 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
       tc :+ m
   }
 
-  def missingIf(mb: EmitMethodBuilder[_], cond: Code[Boolean]): EmitCode =
+  def missingIf(mb: EmitMethodBuilder[_], cond: Code[Boolean])(implicit line: LineNumber): EmitCode =
     EmitCode.fromI(mb) { cb =>
       val Ltrue = CodeLabel()
       val Lfalse = CodeLabel()
@@ -391,32 +406,37 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
       eci
     }
 
-  def get(): PCode =
+  def get()(implicit line: LineNumber): PCode =
     PCode(pv.pt, Code(setup, m.orEmpty(Code._fatal[Unit]("expected non-missing")), pv.code))
 }
 
 abstract class EmitSettable extends EmitValue {
-  def store(ec: EmitCode): Code[Unit]
+  def store(ec: EmitCode)(implicit line: LineNumber): Code[Unit]
 
-  def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit
+  def store(cb: EmitCodeBuilder, iec: IEmitCode)(implicit line: LineNumber): Unit
 
-  def load(): EmitCode = get
+  def load()(implicit line: LineNumber): EmitCode =
+    get
 
-  def :=(ec: EmitCode): Code[Unit] = store(ec)
+  def :=(ec: EmitCode)(implicit line: LineNumber): Code[Unit] =
+     store(ec)
 }
 
 abstract class PresentEmitSettable extends EmitValue {
-  def store(pc: PCode): Code[Unit]
+  def store(pc: PCode)(implicit line: LineNumber): Code[Unit]
 
-  def load(): EmitCode = get
+  def load()(implicit line: LineNumber): EmitCode =
+    get
 
-  def :=(pc: PCode): Code[Unit] = store(pc)
+  def :=(pc: PCode)(implicit line: LineNumber): Code[Unit] =
+    store(pc)
 }
 
 class RichIndexedSeqEmitSettable(is: IndexedSeq[EmitSettable]) {
-  def :=(ix: IndexedSeq[EmitCode]): Code[Unit] = Code((is, ix).zipped.map(_ := _))
+  def :=(ix: IndexedSeq[EmitCode])(implicit line: LineNumber): Code[Unit] =
+    Code((is, ix).zipped.map(_ := _))
 
-  def load(): IndexedSeq[EmitCode] = is.map(_.load())
+  def load()(implicit line: LineNumber): IndexedSeq[EmitCode] = is.map(_.load())
 }
 
 object LoopRef {
@@ -461,6 +481,8 @@ class Emit[C](
 
     def emitI(ir: IR, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
+
+    implicit val line = LineNumber(ir.lineNumber)
 
     (ir: @unchecked) match {
       case Void() =>
@@ -554,7 +576,8 @@ class Emit[C](
 
         Array.range(start, start + sigs.length)
           .foreach { idx =>
-            sc.states(idx).serialize(spec)(cb, ob)
+            val serializer = sc.states(idx).serialize(spec)
+            serializer(cb, ob)
           }
 
         cb += ob.invoke[Unit]("flush")
@@ -631,6 +654,8 @@ class Emit[C](
     container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]
   ): IEmitCode = {
     val mb: EmitMethodBuilder[C] = cb.emb.asInstanceOf[EmitMethodBuilder[C]]
+
+    implicit val line = LineNumber(ir.lineNumber)
 
     def emitI(ir: IR, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
@@ -968,7 +993,7 @@ class Emit[C](
               val eVti = typeToTypeInfo(numericElementType)
               val iUnifiedShape = IEmitCodeGen(CodeLabel(), CodeLabel(), unifiedShape)
 
-              val emitter = new NDArrayEmitter2(iUnifiedShape) {
+              val emitter = new NDArrayEmitter2(iUnifiedShape, line) {
                 override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_] = {
                   val elemMB = cb.emb
                   val element = coerce[Any](cb.newField("matmul_element")(eVti))
@@ -1719,7 +1744,7 @@ class Emit[C](
     def emitStream(ir: IR, outerRegion: ParentStagedRegion): EmitCode =
       EmitStream.emit(ctx, this, ir, mb, outerRegion, env, container)
 
-    def emitNDArrayColumnMajorStrides(ir: IR): EmitCode = {
+    def emitNDArrayColumnMajorStrides(ir: IR)(implicit line: LineNumber): EmitCode = {
       EmitCode.fromI(mb) { cb =>
         emit(ir).toI(cb).map(cb) { case pNDCode: PNDArrayCode =>
           val pNDValue = pNDCode.memoize(cb, "ndarray_column_major_check")
@@ -1733,6 +1758,8 @@ class Emit[C](
         }
       }
     }
+
+    implicit val line = LineNumber(ir.lineNumber)
 
     val pt = ir.pType
 
@@ -1815,13 +1842,14 @@ class Emit[C](
       case x@MakeArray(args, _) =>
         val pType = x.pType.asInstanceOf[PArray]
         val srvb = new StagedRegionValueBuilder(mb, pType, region.code)
-        val addElement = srvb.addIRIntermediate(pType.elementType)
 
         val addElts = args.map { arg =>
           val v = emit(arg)
           Code(
             v.setup,
-            v.m.mux(srvb.setMissing(), addElement(pType.elementType.copyFromTypeAndStackValue(mb, region.code, arg.pType, v.v))),
+            v.m.mux(
+              srvb.setMissing(),
+              srvb.addIRIntermediate(pType.elementType)(pType.elementType.copyFromTypeAndStackValue(mb, region.code, arg.pType, v.v))),
             srvb.advance())
         }
         present(pt, Code(srvb.start(args.size, init = true),
@@ -2422,7 +2450,7 @@ class Emit[C](
     }
   }
 
-  private def capturedReferences(ir: IR): (IR, (Emit.E, DependentEmitFunctionBuilder[_]) => Emit.E) = {
+  private def capturedReferences(ir: IR)(implicit line: LineNumber): (IR, (Emit.E, DependentEmitFunctionBuilder[_]) => Emit.E) = {
     var ids = Set[String]()
 
     VisitIR(ir) {
@@ -2442,7 +2470,9 @@ class Emit[C](
 
   private def makeDependentSortingFunction[T: TypeInfo](
     region: Code[Region],
-    elemPType: PType, ir: IR, env: Emit.E, leftRightComparatorNames: Array[String]): DependentEmitFunctionBuilder[AsmFunction2[T, T, Boolean]] = {
+    elemPType: PType, ir: IR, env: Emit.E, leftRightComparatorNames: Array[String]
+  )(implicit line: LineNumber
+  ): DependentEmitFunctionBuilder[AsmFunction2[T, T, Boolean]] = {
     val (newIR, getEnv) = capturedReferences(ir)
     val f = cb.genDependentFunction[T, T, Boolean](baseName = "sort_compare")
     val fregion = f.newDepField[Region](region)
@@ -2469,12 +2499,13 @@ class Emit[C](
     f
   }
 
-  private def present(pv: PCode): EmitCode = EmitCode(Code._empty, false, pv)
+  private def present(pv: PCode)(implicit line: LineNumber): EmitCode =
+    EmitCode(Code._empty, false, pv)
 
-  private def present(pt: PType, c: Code[_]): EmitCode =
+  private def present(pt: PType, c: Code[_])(implicit line: LineNumber): EmitCode =
     EmitCode(Code._empty, false, PCode(pt, c))
 
-  private def strict(pt: PType, value: Code[_], args: EmitCode*): EmitCode = {
+  private def strict(pt: PType, value: Code[_], args: EmitCode*)(implicit line: LineNumber): EmitCode = {
     EmitCode(
       Code(args.map(_.setup)),
       if (args.isEmpty) false else args.map(_.m).reduce(_ || _),
@@ -2490,6 +2521,8 @@ class Emit[C](
     def deforest(x: IR): NDArrayEmitter[C] = {
       val xType = coerce[PNDArray](x.pType)
       val nDims = xType.nDims
+
+      implicit val line = LineNumber(x.lineNumber)
 
       x match {
         case NDArrayMap(child, elemName, body) =>
@@ -2608,7 +2641,7 @@ class Emit[C](
                   (runningProduct ceq 0L) || (numElements % runningProduct) > 0L,
                   numElements cne runningProduct
                 ).orEmpty(Code._fatal[Unit]("Can't reshape since requested shape is incompatible with number of elements")),
-                replacesNegativeOne := (runningProduct ceq 0L).mux(0, numElements / runningProduct),
+                replacesNegativeOne := (runningProduct ceq 0L).mux(0L, numElements / runningProduct),
                 Code(newShapeVars.zip(requestedShape).map { case (variable, shapeElement) =>
                   variable := (shapeElement ceq -1L).mux(replacesNegativeOne, shapeElement)
                 })
@@ -2885,7 +2918,8 @@ object NDArrayEmitter {
     val broadcasted = 0L
     val notBroadcasted = 1L
     Array.tabulate(nDims)(dim => new Value[Long] {
-      def get: Code[Long] = (shapeArray(dim) > 1L).mux(notBroadcasted, broadcasted) * loopVars(dim)
+      def get(implicit line: LineNumber): Code[Long] =
+        (shapeArray(dim) > 1L).mux(notBroadcasted, broadcasted) * loopVars(dim)
     })
   }
 
@@ -2893,17 +2927,20 @@ object NDArrayEmitter {
     val broadcasted = 0L
     val notBroadcasted = 1L
     shapeArray.map(shapeElement => new Value[Long] {
-      def get: Code[Long] = (shapeElement > 1L).mux(notBroadcasted, broadcasted)
+      def get(implicit line: LineNumber): Code[Long] = (shapeElement > 1L).mux(notBroadcasted, broadcasted)
     })
   }
 
   def zeroBroadcastedDims(indices: IndexedSeq[Code[Long]], broadcastMask: IndexedSeq[Code[Long]]): IndexedSeq[Value[Long]] = {
     indices.zip(broadcastMask).map { case (index, flag) => new Value[Long] {
-      def get: Code[Long] = index * flag
+      def get(implicit line: LineNumber): Code[Long] = index * flag
     }}
   }
 
-  def unifyShapes2(mb: EmitMethodBuilder[_], leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): (Code[Unit], IndexedSeq[Value[Long]]) = {
+  def unifyShapes2(
+    mb: EmitMethodBuilder[_], leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]
+  )(implicit line: LineNumber
+  ): (Code[Unit], IndexedSeq[Value[Long]]) = {
     val sb = SetupBuilder(mb)
 
     val shape = leftShape.zip(rightShape).zipWithIndex.map { case ((left, right), i) =>
@@ -2924,7 +2961,10 @@ object NDArrayEmitter {
     (sb.result(), shape)
   }
 
-  def matmulShape(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
+  def matmulShape(
+    cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]
+  )(implicit line: LineNumber
+  ): IndexedSeq[Value[Long]] = {
     val mb = cb.emb
     val sb = SetupBuilder(mb)
 
@@ -2970,13 +3010,17 @@ object NDArrayEmitter {
 }
 
 abstract class NDArrayEmitter[C](
-   val nDims: Int,
-   val outputShape: IndexedSeq[Value[Long]],
-   val outputShapePType: PTuple,
-   val outputElementPType: PType,
-   val setupShape: Code[Unit],
-   val setupMissing: Code[Unit] = Code._empty,
-   val missing: Code[Boolean] = false) {
+  val nDims: Int,
+  val outputShape: IndexedSeq[Value[Long]],
+  val outputShapePType: PTuple,
+  val outputElementPType: PType,
+  val setupShape: Code[Unit],
+  val setupMissing: Code[Unit] = Code._empty,
+  _missing: Code[Boolean] = null
+)(implicit line: LineNumber
+) {
+
+  val missing: Code[Boolean] = if (_missing == null) false else _missing
 
   def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_]
 
@@ -3048,13 +3092,14 @@ abstract class NDArrayEmitter[C](
   }
 }
 
-abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Long]]])
+abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Long]]], _line: LineNumber)
 {
   val nDims = outputShape.value.length
 
   def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_]
 
   def emit(cb: EmitCodeBuilder, targetType: PNDArray, region: Value[Region]): IEmitCode = {
+    implicit val line: LineNumber = _line
     outputShape.map(cb){ shapeArray: IndexedSeq[Value[Long]] =>
       val dataSrvb = new StagedRegionValueBuilder(cb.emb, targetType.data.pType, region)
       cb.append(dataSrvb.start(targetType.numElements(shapeArray, cb.emb).toI))
@@ -3085,6 +3130,7 @@ abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Lo
   }
 
   private def emitLoops(cb: EmitCodeBuilder, outputShapeVariables: IndexedSeq[Value[Long]], outputElementPType: PType, srvb: StagedRegionValueBuilder): Unit = {
+    implicit val line: LineNumber = _line
     val mb = cb.emb
     val idxVars = Array.tabulate(nDims) { i => cb.newField[Long](s"ndarray_emitter_idxVar_$i") }.toFastIndexedSeq
     val storeElement = mb.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType))

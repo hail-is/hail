@@ -19,13 +19,13 @@ class Field[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
 
   val lf: lir.Field = classBuilder.lclass.newField(name, typeInfo[T])
 
-  def get(obj: Code[_]): Code[T] = Code(obj, lir.getField(lf))
+  def get(obj: Code[_])(implicit line: LineNumber): Code[T] = Code(obj, lir.getField(lf, line.v))
 
-  def putAny(obj: Code[_], v: Code[_]): Code[Unit] = put(obj, coerce[T](v))
+  def putAny(obj: Code[_], v: Code[_])(implicit line: LineNumber): Code[Unit] = put(obj, coerce[T](v))
 
-  def put(obj: Code[_], v: Code[T]): Code[Unit] = {
-    obj.end.append(lir.goto(v.start))
-    v.end.append(lir.putField(lf, obj.v, v.v))
+  def put(obj: Code[_], v: Code[T])(implicit line: LineNumber): Code[Unit] = {
+    obj.end.append(lir.goto(v.start, line.v))
+    v.end.append(lir.putField(lf, obj.v, v.v, line.v))
     val newC = new VCode(obj.start, v.end, null)
     obj.clear()
     v.clear()
@@ -38,10 +38,10 @@ class StaticField[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) 
 
   val lf: lir.StaticField = classBuilder.lclass.newStaticField(name, typeInfo[T])
 
-  def get(): Code[T] = Code(lir.getStaticField(lf))
+  def get()(implicit line: LineNumber): Code[T] = Code(lir.getStaticField(lf, line.v))
 
-  def put(v: Code[T]): Code[Unit] = {
-    v.end.append(lir.putStaticField(lf, v.v))
+  def put(v: Code[T])(implicit line: LineNumber): Code[Unit] = {
+    v.end.append(lir.putStaticField(lf, v.v, line.v))
     val newC = new VCode(v.start, v.end, null)
     v.clear()
     newC
@@ -72,11 +72,11 @@ class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializa
 }
 
 class AsmTuple[C](val cb: ClassBuilder[C], val fields: IndexedSeq[Field[_]], val ctor: MethodBuilder[C]) {
-  def newTuple(elems: IndexedSeq[Code[_]]): Code[C] = Code.newInstance(cb, ctor, elems)
+  def newTuple(elems: IndexedSeq[Code[_]])(implicit line: LineNumber): Code[C] = Code.newInstance(cb, ctor, elems)
 
-  def loadElementsAny(t: Value[_]): IndexedSeq[Code[_]] = fields.map(_.get(coerce[C](t) ))
+  def loadElementsAny(t: Value[_])(implicit line: LineNumber): IndexedSeq[Code[_]] = fields.map(_.get(coerce[C](t) ))
 
-  def loadElements(t: Value[C]): IndexedSeq[Code[_]] = fields.map(_.get(t))
+  def loadElements(t: Value[C])(implicit line: LineNumber): IndexedSeq[Code[_]] = fields.map(_.get(t))
 }
 
 trait WrappedModuleBuilder {
@@ -109,6 +109,7 @@ class ModuleBuilder() {
         cb.newField(s"_$i")(ti)
       }
       val ctor = cb.newMethod("<init>", fieldTypes, UnitInfo)
+      implicit val line = LineNumber.none
       ctor.emitWithBuilder { cb =>
         fields.zipWithIndex.foreach { case (f, i) =>
             cb += f.putAny(ctor._this, ctor.getArg(i + 1)(f.ti).get)
@@ -147,23 +148,26 @@ trait WrappedClassBuilder[C] extends WrappedModuleBuilder {
 
   def addInterface(name: String): Unit = cb.addInterface(name)
 
-  def emitInit(c: Code[Unit]): Unit = cb.emitInit(c)
+  def emitInit(c: Code[Unit])(implicit line: LineNumber): Unit = cb.emitInit(c)
 
-  def emitClinit(c: Code[Unit]): Unit = cb.emitClinit(c)
+  def emitClinit(c: Code[Unit])(implicit line: LineNumber): Unit = cb.emitClinit(c)
 
   def newField[T: TypeInfo](name: String): Field[T] = cb.newField[T](name)
 
   def newStaticField[T: TypeInfo](name: String): StaticField[T] = cb.newStaticField[T](name)
 
-  def newStaticField[T: TypeInfo](name: String, init: Code[T]): StaticField[T] = cb.newStaticField[T](name, init)
+  def newStaticField[T: TypeInfo](name: String, init: Code[T])(implicit line: LineNumber): StaticField[T] =
+    cb.newStaticField[T](name, init)
 
   def genField[T: TypeInfo](baseName: String): Field[T] = cb.genField(baseName)
 
   def genFieldThisRef[T: TypeInfo](name: String = null): ThisFieldRef[T] = cb.genFieldThisRef[T](name)
 
-  def genLazyFieldThisRef[T: TypeInfo](setup: Code[T], name: String = null): Value[T] = cb.genLazyFieldThisRef(setup, name)
+  def genLazyFieldThisRef[T: TypeInfo](setup: Code[T], name: String = null)(implicit line: LineNumber): Value[T] =
+    cb.genLazyFieldThisRef(setup, name)
 
-  def getOrDefineLazyField[T: TypeInfo](setup: Code[T], id: Any): Value[T] = cb.getOrDefineLazyField(setup, id)
+  def getOrDefineLazyField[T: TypeInfo](setup: Code[T], id: Any)(implicit line: LineNumber): Value[T] =
+    cb.getOrDefineLazyField(setup, id)
 
   def fieldBuilder: SettableBuilder = cb.fieldBuilder
 
@@ -172,7 +176,9 @@ trait WrappedClassBuilder[C] extends WrappedModuleBuilder {
 
   def newMethod(name: String,
     maybeGenericParameterTypeInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
-    maybeGenericReturnTypeInfo: MaybeGenericTypeInfo[_]): MethodBuilder[C] =
+    maybeGenericReturnTypeInfo: MaybeGenericTypeInfo[_]
+  )(implicit line: LineNumber
+  ): MethodBuilder[C] =
     cb.newMethod(name, maybeGenericParameterTypeInfo, maybeGenericReturnTypeInfo)
 
   def newStaticMethod(name: String, parameterTypeInfo: IndexedSeq[TypeInfo[_]], returnTypeInfo: TypeInfo[_]): MethodBuilder[C] =
@@ -224,6 +230,7 @@ class ClassBuilder[C](
   val lInit = lclass.newMethod("<init>", FastIndexedSeq(), UnitInfo)
 
   var initBody: Code[Unit] = {
+    implicit val line = LineNumber.none
     val L = new lir.Block()
     L.append(
       lir.methodStmt(INVOKESPECIAL,
@@ -232,8 +239,9 @@ class ClassBuilder[C](
         "()V",
         false,
         UnitInfo,
-        FastIndexedSeq(lir.load(lInit.getParam(0)))))
-    L.append(lir.returnx())
+        FastIndexedSeq(lir.load(lInit.getParam(0), line.v)),
+        line.v))
+    L.append(lir.returnx(line.v))
     new VCode(L, L, null)
   }
 
@@ -241,11 +249,11 @@ class ClassBuilder[C](
 
   var clinitBody: Option[Code[Unit]] = None
 
-  def emitInit(c: Code[Unit]): Unit = {
+  def emitInit(c: Code[Unit])(implicit line: LineNumber): Unit = {
     initBody = Code(initBody, c)
   }
 
-  def emitClinit(c: Code[Unit]): Unit = {
+  def emitClinit(c: Code[Unit])(implicit line: LineNumber): Unit = {
     clinitBody match {
       case None =>
         lClinit = lclass.newMethod("<clinit>", FastIndexedSeq(), UnitInfo, isStatic = true)
@@ -265,7 +273,8 @@ class ClassBuilder[C](
 
   def newMethod(name: String,
     maybeGenericParameterTypeInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
-    maybeGenericReturnTypeInfo: MaybeGenericTypeInfo[_]): MethodBuilder[C] = {
+    maybeGenericReturnTypeInfo: MaybeGenericTypeInfo[_]
+  )(implicit line: LineNumber): MethodBuilder[C] = {
 
     val parameterTypeInfo: IndexedSeq[TypeInfo[_]] = maybeGenericParameterTypeInfo.map(_.base)
     val returnTypeInfo: TypeInfo[_] = maybeGenericReturnTypeInfo.base
@@ -287,7 +296,7 @@ class ClassBuilder[C](
     mb
   }
 
-  def genDependentFunction[A1 : TypeInfo, R : TypeInfo](baseName: String): DependentFunctionBuilder[AsmFunction1[A1, R]] = {
+  def genDependentFunction[A1 : TypeInfo, R : TypeInfo](baseName: String)(implicit line: LineNumber): DependentFunctionBuilder[AsmFunction1[A1, R]] = {
     val depCB = modb.genClass[AsmFunction1[A1, R]](baseName)
     val apply = depCB.newMethod("apply", Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
     val dep_apply_method = new DependentMethodBuilder(apply)
@@ -298,7 +307,7 @@ class ClassBuilder[C](
 
   def newStaticField[T: TypeInfo](name: String): StaticField[T] = new StaticField[T](this, name)
 
-  def newStaticField[T: TypeInfo](name: String, init: Code[T]): StaticField[T] = {
+  def newStaticField[T: TypeInfo](name: String, init: Code[T])(implicit line: LineNumber): StaticField[T] = {
     val f = new StaticField[T](this, name)
     emitClinit(f.put(init))
     f
@@ -328,7 +337,7 @@ class ClassBuilder[C](
       case None => // do nothing
       case Some(body) =>
         assert(body.start != null)
-        body.end.append(lir.returnx())
+        body.end.append(lir.returnx(lineNumber = 0))
         val nbody = new VCode(body.start, body.end, null)
         body.clear()
         lClinit.setEntry(nbody.start)
@@ -371,10 +380,10 @@ class ClassBuilder[C](
   def genFieldThisRef[T: TypeInfo](name: String = null): ThisFieldRef[T] =
     new ThisFieldRef[T](this, genField[T](name))
 
-  def genLazyFieldThisRef[T: TypeInfo](setup: Code[T], name: String = null): Value[T] =
+  def genLazyFieldThisRef[T: TypeInfo](setup: Code[T], name: String = null)(implicit line: LineNumber): Value[T] =
     new ThisLazyFieldRef[T](this, name, setup)
 
-  def getOrDefineLazyField[T: TypeInfo](setup: Code[T], id: Any): Value[T] = {
+  def getOrDefineLazyField[T: TypeInfo](setup: Code[T], id: Any)(implicit line: LineNumber): Value[T] = {
     lazyFieldMemo.getOrElseUpdate(id, genLazyFieldThisRef[T](setup)).asInstanceOf[ThisLazyFieldRef[T]]
   }
 
@@ -415,26 +424,26 @@ object FunctionBuilder {
     baseName: String,
     argInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
     returnInfo: MaybeGenericTypeInfo[_]
-  )(implicit fti: TypeInfo[F]): FunctionBuilder[F] = {
+  )(implicit fti: TypeInfo[F], line: LineNumber): FunctionBuilder[F] = {
     val modb: ModuleBuilder = new ModuleBuilder()
     val cb: ClassBuilder[F] = modb.genClass[F](baseName)
     val apply = cb.newMethod("apply", argInfo, returnInfo)
     new FunctionBuilder[F](apply)
   }
 
-  def apply[R: TypeInfo](baseName: String): FunctionBuilder[AsmFunction0[R]] =
+  def apply[R: TypeInfo](baseName: String)(implicit line: LineNumber): FunctionBuilder[AsmFunction0[R]] =
     apply[AsmFunction0[R]](baseName, FastIndexedSeq.empty[MaybeGenericTypeInfo[_]], GenericTypeInfo[R])
 
-  def apply[A1: TypeInfo, R: TypeInfo](baseName: String): FunctionBuilder[AsmFunction1[A1, R]] =
+  def apply[A1: TypeInfo, R: TypeInfo](baseName: String)(implicit line: LineNumber): FunctionBuilder[AsmFunction1[A1, R]] =
     apply[AsmFunction1[A1, R]](baseName, Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
 
-  def apply[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](baseName: String): FunctionBuilder[AsmFunction2[A1, A2, R]] =
+  def apply[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](baseName: String)(implicit line: LineNumber): FunctionBuilder[AsmFunction2[A1, A2, R]] =
     apply[AsmFunction2[A1, A2, R]](baseName, Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R])
 
-  def apply[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo](baseName: String): FunctionBuilder[AsmFunction3[A1, A2, A3, R]] =
+  def apply[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo](baseName: String)(implicit line: LineNumber): FunctionBuilder[AsmFunction3[A1, A2, A3, R]] =
     apply[AsmFunction3[A1, A2, A3, R]](baseName, Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]), GenericTypeInfo[R])
 
-  def apply[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, R: TypeInfo](baseName: String): FunctionBuilder[AsmFunction4[A1, A2, A3, A4, R]] =
+  def apply[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, R: TypeInfo](baseName: String)(implicit line: LineNumber): FunctionBuilder[AsmFunction4[A1, A2, A3, A4, R]] =
     apply[AsmFunction4[A1, A2, A3, A4, R]](baseName, Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3], GenericTypeInfo[A4]), GenericTypeInfo[R])
 }
 
@@ -455,11 +464,11 @@ trait WrappedMethodBuilder[C] extends WrappedClassBuilder[C] {
 
   def getArg[T: TypeInfo](i: Int): LocalRef[T] = mb.getArg[T](i)
 
-  def emitStartup(c: Code[Unit]): Unit = mb.emitStartup(c)
+  def emitStartup(c: Code[Unit])(implicit line: LineNumber): Unit = mb.emitStartup(c)
 
-  def emit(body: Code[_]): Unit = mb.emit(body)
+  def emit(body: Code[_])(implicit line: LineNumber): Unit = mb.emit(body)
 
-  def invoke[T](args: Code[_]*): Code[T] = mb.invoke(args: _*)
+  def invoke[T](args: Code[_]*)(implicit line: LineNumber): Code[T] = mb.invoke(args: _*)
 }
 
 class MethodBuilder[C](
@@ -501,47 +510,48 @@ class MethodBuilder[C](
 
   private var startup: Code[Unit] = Code._empty
 
-  def emitStartup(c: Code[Unit]): Unit = {
+  def emitStartup(c: Code[Unit])(implicit line: LineNumber): Unit = {
     assert(!emitted)
     startup = Code(startup, c)
   }
 
-  def emitWithBuilder[T](f: (CodeBuilder) => Code[T]): Unit = emit(CodeBuilder.scopedCode[T](this)(f))
+  def emitWithBuilder[T](f: (CodeBuilder) => Code[T])(implicit line: LineNumber): Unit =
+    emit(CodeBuilder.scopedCode[T](this)(f))
 
-  def emit(body: Code[_]): Unit = {
+  def emit(body: Code[_])(implicit line: LineNumber): Unit = {
     assert(!emitted)
     emitted = true
 
     val start = startup.start
-    startup.end.append(lir.goto(body.start))
+    startup.end.append(lir.goto(body.start, line.v))
     body.end.append(
       if (body.v != null)
-        lir.returnx(body.v)
+        lir.returnx(body.v, line.v)
       else
-        lir.returnx())
+        lir.returnx(line.v))
     assert(start != null)
     lmethod.setEntry(start)
 
     body.clear()
   }
 
-  def invoke[T](args: Code[_]*): Code[T] = {
+  def invoke[T](args: Code[_]*)(implicit line: LineNumber): Code[T] = {
     val (start, end, argvs) = Code.sequenceValues(args.toFastIndexedSeq)
     if (returnTypeInfo eq UnitInfo) {
       if (isStatic) {
-        end.append(lir.methodStmt(INVOKESTATIC, lmethod, argvs))
+        end.append(lir.methodStmt(INVOKESTATIC, lmethod, argvs, line.v))
       } else {
         end.append(
           lir.methodStmt(INVOKEVIRTUAL, lmethod,
-            lir.load(new lir.Parameter(null, 0, cb.ti)) +: argvs))
+            lir.load(new lir.Parameter(null, 0, cb.ti), line.v) +: argvs, line.v))
       }
       new VCode(start, end, null)
     } else {
       val value = if (isStatic) {
-        lir.methodInsn(INVOKESTATIC, lmethod, argvs)
+        lir.methodInsn(INVOKESTATIC, lmethod, argvs, line.v)
       } else {
         lir.methodInsn(INVOKEVIRTUAL, lmethod,
-          lir.load(new lir.Parameter(null, 0, cb.ti)) +: argvs)
+          lir.load(new lir.Parameter(null, 0, cb.ti), line.v) +: argvs, line.v)
       }
       new VCode(start, end, value)
     }
@@ -551,10 +561,10 @@ class MethodBuilder[C](
 class DependentMethodBuilder[C](val mb: MethodBuilder[C]) extends WrappedMethodBuilder[C] {
   var setFields: mutable.ArrayBuffer[(lir.ValueX) => Code[Unit]] = new mutable.ArrayBuffer()
 
-  def newDepField[T : TypeInfo](value: Code[T]): Value[T] = {
+  def newDepField[T : TypeInfo](value: Code[T])(implicit line: LineNumber): Value[T] = {
     val cfr = genFieldThisRef[T]()
     setFields += { (obj: lir.ValueX) =>
-      value.end.append(lir.putField(cb.className, cfr.name, typeInfo[T], obj, value.v))
+      value.end.append(lir.putField(cb.className, cfr.name, typeInfo[T], obj, value.v, line.v))
       val newC = new VCode(value.start, value.end, null)
       value.clear()
       newC
@@ -562,22 +572,22 @@ class DependentMethodBuilder[C](val mb: MethodBuilder[C]) extends WrappedMethodB
     cfr
   }
 
-  def newDepFieldAny[T: TypeInfo](value: Code[_]): Value[T] =
+  def newDepFieldAny[T: TypeInfo](value: Code[_])(implicit line: LineNumber): Value[T] =
     newDepField(value.asInstanceOf[Code[T]])
 
-  def newInstance(mb: MethodBuilder[_]): Code[C] = {
+  def newInstance(mb: MethodBuilder[_])(implicit line: LineNumber): Code[C] = {
     val L = new lir.Block()
 
     val obj = new lir.Local(null, "new_dep_fun", cb.ti)
-    L.append(lir.store(obj, lir.newInstance(cb.ti, cb.lInit, FastIndexedSeq.empty[lir.ValueX])))
+    L.append(lir.store(obj, lir.newInstance(cb.ti, cb.lInit, FastIndexedSeq.empty[lir.ValueX]), line.v))
 
     var end = L
     setFields.foreach { f =>
-      val c = f(lir.load(obj))
-      end.append(lir.goto(c.start))
+      val c = f(lir.load(obj, line.v))
+      end.append(lir.goto(c.start, line.v))
       end = c.end
     }
-    new VCode(L, end, lir.load(obj))
+    new VCode(L, end, lir.load(obj, line.v))
   }
 
   override def result(pw: Option[PrintWriter]): () => C =
@@ -589,11 +599,11 @@ trait WrappedDependentMethodBuilder[C] extends WrappedMethodBuilder[C] {
 
   def mb: MethodBuilder[C] = dmb.mb
 
-  def newDepField[T : TypeInfo](value: Code[T]): Value[T] = dmb.newDepField(value)
+  def newDepField[T : TypeInfo](value: Code[T])(implicit line: LineNumber): Value[T] = dmb.newDepField(value)
 
-  def newDepFieldAny[T: TypeInfo](value: Code[_]): Value[T] = dmb.newDepFieldAny[T](value)
+  def newDepFieldAny[T: TypeInfo](value: Code[_])(implicit line: LineNumber): Value[T] = dmb.newDepFieldAny[T](value)
 
-  def newInstance(mb: MethodBuilder[_]): Code[C] = dmb.newInstance(mb)
+  def newInstance(mb: MethodBuilder[_])(implicit line: LineNumber): Code[C] = dmb.newInstance(mb)
 }
 
 class DependentFunctionBuilder[F](apply_method: DependentMethodBuilder[F]) extends WrappedDependentMethodBuilder[F] {

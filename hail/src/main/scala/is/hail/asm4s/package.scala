@@ -266,57 +266,57 @@ package object asm4s {
   implicit def toCodeNullable[T >: Null : TypeInfo](c: Code[T]): CodeNullable[T] =
     new CodeNullable(c)
 
-  implicit def indexedSeqValueToCode[T](v: IndexedSeq[Value[T]]): IndexedSeq[Code[T]] = v.map(_.get)
+  implicit def indexedSeqValueToCode[T](v: IndexedSeq[Value[T]])(implicit line: LineNumber): IndexedSeq[Code[T]] = v.map(_.get)
 
-  implicit def valueToCode[T](v: Value[T]): Code[T] = v.get
+  implicit def valueToCode[T](v: Value[T])(implicit line: LineNumber): Code[T] = v.get
 
-  implicit def valueToCodeInt(f: Value[Int]): CodeInt = new CodeInt(f.get)
+  implicit def valueToCodeInt(f: Value[Int])(implicit line: LineNumber): CodeInt = new CodeInt(f.get)
 
-  implicit def valueToCodeLong(f: Value[Long]): CodeLong = new CodeLong(f.get)
+  implicit def valueToCodeLong(f: Value[Long])(implicit line: LineNumber): CodeLong = new CodeLong(f.get)
 
-  implicit def valueToCodeFloat(f: Value[Float]): CodeFloat = new CodeFloat(f.get)
+  implicit def valueToCodeFloat(f: Value[Float])(implicit line: LineNumber): CodeFloat = new CodeFloat(f.get)
 
-  implicit def valueToCodeDouble(f: Value[Double]): CodeDouble = new CodeDouble(f.get)
+  implicit def valueToCodeDouble(f: Value[Double])(implicit line: LineNumber): CodeDouble = new CodeDouble(f.get)
 
-  implicit def valueToCodeChar(f: Value[Char]): CodeChar = new CodeChar(f.get)
+  implicit def valueToCodeChar(f: Value[Char])(implicit line: LineNumber): CodeChar = new CodeChar(f.get)
 
-  implicit def valueToCodeString(f: Value[String]): CodeString = new CodeString(f.get)
+  implicit def valueToCodeString(f: Value[String])(implicit line: LineNumber): CodeString = new CodeString(f.get)
 
-  implicit def valueToCodeObject[T <: AnyRef](f: Value[T])(implicit tct: ClassTag[T]): CodeObject[T] = new CodeObject(f.get)
+  implicit def valueToCodeObject[T <: AnyRef](f: Value[T])(implicit tct: ClassTag[T], line: LineNumber): CodeObject[T] = new CodeObject(f.get)
 
-  implicit def valueToCodeArray[T](c: Value[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(c)
+  implicit def valueToCodeArray[T](c: Value[Array[T]])(implicit tti: TypeInfo[T], line: LineNumber): CodeArray[T] = new CodeArray(c)
 
-  implicit def valueToCodeBoolean(f: Value[Boolean]): CodeBoolean = new CodeBoolean(f.get)
+  implicit def valueToCodeBoolean(f: Value[Boolean])(implicit line: LineNumber): CodeBoolean = new CodeBoolean(f.get)
 
-  implicit def valueToCodeNullable[T >: Null : TypeInfo](c: Value[T]): CodeNullable[T] = new CodeNullable(c)
+  implicit def valueToCodeNullable[T >: Null : TypeInfo](c: Value[T])(implicit line: LineNumber): CodeNullable[T] = new CodeNullable(c)
 
-  implicit def toCode[T](f: Settable[T]): Code[T] = f.load()
+  implicit def toCode[T](f: Settable[T])(implicit line: LineNumber): Code[T] = f.load()
 
-  implicit def toCodeInt(f: Settable[Int]): CodeInt = new CodeInt(f.load())
+  implicit def toCodeInt(f: Settable[Int])(implicit line: LineNumber): CodeInt = new CodeInt(f.load())
 
-  implicit def toCodeLong(f: Settable[Long]): CodeLong = new CodeLong(f.load())
+  implicit def toCodeLong(f: Settable[Long])(implicit line: LineNumber): CodeLong = new CodeLong(f.load())
 
-  implicit def toCodeFloat(f: Settable[Float]): CodeFloat = new CodeFloat(f.load())
+  implicit def toCodeFloat(f: Settable[Float])(implicit line: LineNumber): CodeFloat = new CodeFloat(f.load())
 
-  implicit def toCodeDouble(f: Settable[Double]): CodeDouble = new CodeDouble(f.load())
+  implicit def toCodeDouble(f: Settable[Double])(implicit line: LineNumber): CodeDouble = new CodeDouble(f.load())
 
-  implicit def toCodeChar(f: Settable[Char]): CodeChar = new CodeChar(f.load())
+  implicit def toCodeChar(f: Settable[Char])(implicit line: LineNumber): CodeChar = new CodeChar(f.load())
 
-  implicit def toCodeString(f: Settable[String]): CodeString = new CodeString(f.load())
+  implicit def toCodeString(f: Settable[String])(implicit line: LineNumber): CodeString = new CodeString(f.load())
 
-  implicit def toCodeArray[T](f: Settable[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(f.load())
+  implicit def toCodeArray[T](f: Settable[Array[T]])(implicit tti: TypeInfo[T], line: LineNumber): CodeArray[T] = new CodeArray(f.load())
 
-  implicit def toCodeBoolean(f: Settable[Boolean]): CodeBoolean = new CodeBoolean(f.load())
+  implicit def toCodeBoolean(f: Settable[Boolean])(implicit line: LineNumber): CodeBoolean = new CodeBoolean(f.load())
 
-  implicit def toCodeObject[T <: AnyRef : ClassTag](f: Settable[T]): CodeObject[T] = new CodeObject[T](f.load())
+  implicit def toCodeObject[T <: AnyRef : ClassTag](f: Settable[T])(implicit line: LineNumber): CodeObject[T] = new CodeObject[T](f.load())
 
-  implicit def toCodeNullable[T >: Null : TypeInfo](f: Settable[T]): CodeNullable[T] = new CodeNullable[T](f.load())
+  implicit def toCodeNullable[T >: Null : TypeInfo](f: Settable[T])(implicit line: LineNumber): CodeNullable[T] = new CodeNullable[T](f.load())
 
   implicit def toLocalRefInt(f: LocalRef[Int]): LocalRefInt = new LocalRefInt(f)
 
   def _const[T](a: Any, ti: TypeInfo[T]): Value[T] =
     new Value[T] {
-      def get: Code[T] = Code(lir.ldcInsn(a, ti))
+      def get(implicit line: LineNumber): Code[T] = Code(lir.ldcInsn(a, ti, line.v))
     }
 
   implicit def const(s: String): Value[String] = _const(s, classInfo[String])
@@ -335,19 +335,19 @@ package object asm4s {
 
   implicit def const(b: Byte): Value[Byte] = _const(b.toInt, ByteInfo)
 
-  implicit def strToCode(s: String): Code[String] = const(s)
+  implicit def strToCode(s: String)(implicit line: LineNumber): Code[String] = const(s)
 
-  implicit def boolToCode(b: Boolean): Code[Boolean] = const(b)
+  implicit def boolToCode(b: Boolean)(implicit line: LineNumber): Code[Boolean] = const(b)
 
-  implicit def intToCode(i: Int): Code[Int] = const(i)
+  implicit def intToCode(i: Int)(implicit line: LineNumber): Code[Int] = const(i)
 
-  implicit def longToCode(l: Long): Code[Long] = const(l)
+  implicit def longToCode(l: Long)(implicit line: LineNumber): Code[Long] = const(l)
 
-  implicit def floatToCode(f: Float): Code[Float] = const(f)
+  implicit def floatToCode(f: Float)(implicit line: LineNumber): Code[Float] = const(f)
 
-  implicit def doubleToCode(d: Double): Code[Double] = const(d)
+  implicit def doubleToCode(d: Double)(implicit line: LineNumber): Code[Double] = const(d)
 
-  implicit def charToCode(c: Char): Code[Char] = const(c)
+  implicit def charToCode(c: Char)(implicit line: LineNumber): Code[Char] = const(c)
 
-  implicit def byteToCode(b: Byte): Code[Byte] = const(b)
+  implicit def byteToCode(b: Byte)(implicit line: LineNumber): Code[Byte] = const(b)
 }

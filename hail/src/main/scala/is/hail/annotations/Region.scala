@@ -1,7 +1,7 @@
 package is.hail.annotations
 
 import is.hail.asm4s
-import is.hail.asm4s.{Code, coerce}
+import is.hail.asm4s.{Code, LineNumber, coerce}
 import is.hail.types.physical._
 import is.hail.utils._
 
@@ -112,71 +112,91 @@ object Region {
   }
 
 
-  def loadInt(addr: Code[Long]): Code[Int] = Code.invokeScalaObject1[Long, Int](Region.getClass, "loadInt", addr)
+  def loadInt(addr: Code[Long])(implicit line: LineNumber): Code[Int] =
+    Code.invokeScalaObject1[Long, Int](Region.getClass, "loadInt", addr)
 
-  def loadLong(addr: Code[Long]): Code[Long] = Code.invokeScalaObject1[Long, Long](Region.getClass, "loadLong", addr)
+  def loadLong(addr: Code[Long])(implicit line: LineNumber): Code[Long] =
+    Code.invokeScalaObject1[Long, Long](Region.getClass, "loadLong", addr)
 
-  def loadFloat(addr: Code[Long]): Code[Float] = Code.invokeScalaObject1[Long, Float](Region.getClass, "loadFloat", addr)
+  def loadFloat(addr: Code[Long])(implicit line: LineNumber): Code[Float] =
+    Code.invokeScalaObject1[Long, Float](Region.getClass, "loadFloat", addr)
 
-  def loadDouble(addr: Code[Long]): Code[Double] = Code.invokeScalaObject1[Long, Double](Region.getClass, "loadDouble", addr)
+  def loadDouble(addr: Code[Long])(implicit line: LineNumber): Code[Double] =
+    Code.invokeScalaObject1[Long, Double](Region.getClass, "loadDouble", addr)
 
-  def loadAddress(addr: Code[Long]): Code[Long] = Code.invokeScalaObject1[Long, Long](Region.getClass, "loadAddress", addr)
+  def loadAddress(addr: Code[Long])(implicit line: LineNumber): Code[Long] =
+    Code.invokeScalaObject1[Long, Long](Region.getClass, "loadAddress", addr)
 
-  def loadByte(addr: Code[Long]): Code[Byte] = Code.invokeScalaObject1[Long, Byte](Region.getClass, "loadByte", addr)
+  def loadByte(addr: Code[Long])(implicit line: LineNumber): Code[Byte] =
+    Code.invokeScalaObject1[Long, Byte](Region.getClass, "loadByte", addr)
 
-  def loadShort(addr: Code[Long]): Code[Short] = Code.invokeScalaObject1[Long, Short](Region.getClass, "loadShort", addr)
+  def loadShort(addr: Code[Long])(implicit line: LineNumber): Code[Short] =
+    Code.invokeScalaObject1[Long, Short](Region.getClass, "loadShort", addr)
 
-  def loadChar(addr: Code[Long]): Code[Char] = Code.invokeScalaObject1[Long, Char](Region.getClass, "loadChar", addr)
+  def loadChar(addr: Code[Long])(implicit line: LineNumber): Code[Char] =
+    Code.invokeScalaObject1[Long, Char](Region.getClass, "loadChar", addr)
 
-  def storeInt(addr: Code[Long], v: Code[Int]): Code[Unit] = Code.invokeScalaObject2[Long, Int, Unit](Region.getClass, "storeInt", addr, v)
+  def storeInt(addr: Code[Long], v: Code[Int])(implicit line: LineNumber): Code[Unit] =
+    Code.invokeScalaObject2[Long, Int, Unit](Region.getClass, "storeInt", addr, v)
 
-  def storeLong(addr: Code[Long], v: Code[Long]): Code[Unit] = Code.invokeScalaObject2[Long, Long, Unit](Region.getClass, "storeLong", addr, v)
+  def storeLong(addr: Code[Long], v: Code[Long])(implicit line: LineNumber): Code[Unit] =
+    Code.invokeScalaObject2[Long, Long, Unit](Region.getClass, "storeLong", addr, v)
 
-  def storeFloat(addr: Code[Long], v: Code[Float]): Code[Unit] = Code.invokeScalaObject2[Long, Float, Unit](Region.getClass, "storeFloat", addr, v)
+  def storeFloat(addr: Code[Long], v: Code[Float])(implicit line: LineNumber): Code[Unit] =
+    Code.invokeScalaObject2[Long, Float, Unit](Region.getClass, "storeFloat", addr, v)
 
-  def storeDouble(addr: Code[Long], v: Code[Double]): Code[Unit] = Code.invokeScalaObject2[Long, Double, Unit](Region.getClass, "storeDouble", addr, v)
+  def storeDouble(addr: Code[Long], v: Code[Double])(implicit line: LineNumber): Code[Unit] =
+    Code.invokeScalaObject2[Long, Double, Unit](Region.getClass, "storeDouble", addr, v)
 
-  def storeChar(addr: Code[Long], v: Code[Char]): Code[Unit] = Code.invokeScalaObject2[Long, Char, Unit](Region.getClass, "storeChar", addr, v)
+  def storeChar(addr: Code[Long], v: Code[Char])(implicit line: LineNumber): Code[Unit] =
+    Code.invokeScalaObject2[Long, Char, Unit](Region.getClass, "storeChar", addr, v)
 
-  def storeAddress(addr: Code[Long], v: Code[Long]): Code[Unit] = Code.invokeScalaObject2[Long, Long, Unit](Region.getClass, "storeAddress", addr, v)
+  def storeAddress(addr: Code[Long], v: Code[Long])(implicit line: LineNumber): Code[Unit] =
+    Code.invokeScalaObject2[Long, Long, Unit](Region.getClass, "storeAddress", addr, v)
 
-  def storeByte(addr: Code[Long], v: Code[Byte]): Code[Unit] = Code.invokeScalaObject2[Long, Byte, Unit](Region.getClass, "storeByte", addr, v)
+  def storeByte(addr: Code[Long], v: Code[Byte])(implicit line: LineNumber): Code[Unit] =
+    Code.invokeScalaObject2[Long, Byte, Unit](Region.getClass, "storeByte", addr, v)
 
-  def storeShort(addr: Code[Long], v: Code[Short]): Code[Unit] = Code.invokeScalaObject2[Long, Short, Unit](Region.getClass, "storeShort", addr, v)
+  def storeShort(addr: Code[Long], v: Code[Short])(implicit line: LineNumber): Code[Unit] =
+    Code.invokeScalaObject2[Long, Short, Unit](Region.getClass, "storeShort", addr, v)
 
-  def loadBoolean(addr: Code[Long]): Code[Boolean] = Code.invokeScalaObject1[Long, Boolean](Region.getClass, "loadBoolean", addr)
+  def loadBoolean(addr: Code[Long])(implicit line: LineNumber): Code[Boolean] =
+    Code.invokeScalaObject1[Long, Boolean](Region.getClass, "loadBoolean", addr)
 
-  def storeBoolean(addr: Code[Long], v: Code[Boolean]): Code[Unit] = Code.invokeScalaObject2[Long, Boolean, Unit](Region.getClass, "storeBoolean", addr, v)
+  def storeBoolean(addr: Code[Long], v: Code[Boolean])(implicit line: LineNumber): Code[Unit] =
+    Code.invokeScalaObject2[Long, Boolean, Unit](Region.getClass, "storeBoolean", addr, v)
 
-  def loadBytes(addr: Code[Long], n: Code[Int]): Code[Array[Byte]] = Code.invokeScalaObject2[Long, Int, Array[Byte]](Region.getClass, "loadBytes", addr, n)
+  def loadBytes(addr: Code[Long], n: Code[Int])(implicit line: LineNumber): Code[Array[Byte]] =
+    Code.invokeScalaObject2[Long, Int, Array[Byte]](Region.getClass, "loadBytes", addr, n)
 
-  def loadBytes(addr: Code[Long], dst: Code[Array[Byte]], dstOff: Code[Long], n: Code[Long]): Code[Unit] =
+  def loadBytes(addr: Code[Long], dst: Code[Array[Byte]], dstOff: Code[Long], n: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Code.invokeScalaObject4[Long, Array[Byte], Long, Long, Unit](Region.getClass, "loadBytes", addr, dst, dstOff, n)
 
-  def storeBytes(addr: Code[Long], src: Code[Array[Byte]]): Code[Unit] = Code.invokeScalaObject2[Long, Array[Byte], Unit](Region.getClass, "storeBytes", addr, src)
+  def storeBytes(addr: Code[Long], src: Code[Array[Byte]])(implicit line: LineNumber): Code[Unit] =
+    Code.invokeScalaObject2[Long, Array[Byte], Unit](Region.getClass, "storeBytes", addr, src)
 
-  def storeBytes(addr: Code[Long], src: Code[Array[Byte]], srcOff: Code[Long], n: Code[Long]): Code[Unit] =
+  def storeBytes(addr: Code[Long], src: Code[Array[Byte]], srcOff: Code[Long], n: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Code.invokeScalaObject4[Long, Array[Byte], Long, Long, Unit](Region.getClass, "storeBytes", addr, src, srcOff, n)
 
-  def copyFrom(srcOff: Code[Long], dstOff: Code[Long], n: Code[Long]): Code[Unit] =
+  def copyFrom(srcOff: Code[Long], dstOff: Code[Long], n: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Code.invokeScalaObject3[Long, Long, Long, Unit](Region.getClass, "copyFrom", srcOff, dstOff, n)
 
-  def loadBit(byteOff: Code[Long], bitOff: Code[Long]): Code[Boolean] =
+  def loadBit(byteOff: Code[Long], bitOff: Code[Long])(implicit line: LineNumber): Code[Boolean] =
     Code.invokeScalaObject2[Long, Long, Boolean](Region.getClass, "loadBit", byteOff, bitOff)
 
-  def setBit(byteOff: Code[Long], bitOff: Code[Long]): Code[Unit] =
+  def setBit(byteOff: Code[Long], bitOff: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Code.invokeScalaObject2[Long, Long, Unit](Region.getClass, "setBit", byteOff, bitOff)
 
-  def clearBit(byteOff: Code[Long], bitOff: Code[Long]): Code[Unit] =
+  def clearBit(byteOff: Code[Long], bitOff: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Code.invokeScalaObject2[Long, Long, Unit](Region.getClass, "clearBit", byteOff, bitOff)
 
-  def storeBit(byteOff: Code[Long], bitOff: Code[Long], b: Code[Boolean]): Code[Unit] =
+  def storeBit(byteOff: Code[Long], bitOff: Code[Long], b: Code[Boolean])(implicit line: LineNumber): Code[Unit] =
     Code.invokeScalaObject3[Long, Long, Boolean, Unit](Region.getClass, "storeBit", byteOff, bitOff, b)
 
-  def setMemory(offset: Code[Long], size: Code[Long], b: Code[Byte]): Code[Unit] =
+  def setMemory(offset: Code[Long], size: Code[Long], b: Code[Byte])(implicit line: LineNumber): Code[Unit] =
     Code.invokeScalaObject3[Long, Long, Byte, Unit](Region.getClass, "setMemory", offset, size, b)
 
-  def containsNonZeroBits(address: Code[Long], nBits: Code[Long]): Code[Boolean] =
+  def containsNonZeroBits(address: Code[Long], nBits: Code[Long])(implicit line: LineNumber): Code[Boolean] =
     Code.invokeScalaObject2[Long, Long, Boolean](Region.getClass, "containsNonZeroBits", address, nBits)
 
   def containsNonZeroBits(address: Long, nBits: Long): Boolean = {
@@ -222,54 +242,54 @@ object Region {
     false
   }
 
-  def loadPrimitive(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {
-    case _: PBoolean => loadBoolean
-    case _: PInt32 => loadInt
-    case _: PInt64 => loadLong
-    case _: PFloat32 => loadFloat
-    case _: PFloat64 => loadDouble
+  def loadPrimitive(typ: PType)(addr: Code[Long])(implicit line: LineNumber): Code[_] = typ.fundamentalType match {
+    case _: PBoolean => loadBoolean(addr)
+    case _: PInt32 => loadInt(addr)
+    case _: PInt64 => loadLong(addr)
+    case _: PFloat32 => loadFloat(addr)
+    case _: PFloat64 => loadDouble(addr)
   }
 
-  def storePrimitive(typ: PType, dest: Code[Long]): Code[_] => Code[Unit] = typ.fundamentalType match {
-    case _: PBoolean => v => storeBoolean(dest, coerce[Boolean](v))
-    case _: PInt32 => v => storeInt(dest, coerce[Int](v))
-    case _: PInt64 => v => storeLong(dest, coerce[Long](v))
-    case _: PFloat32 => v => storeFloat(dest, coerce[Float](v))
-    case _: PFloat64 => v => storeDouble(dest, coerce[Double](v))
+  def storePrimitive(typ: PType, dest: Code[Long])(v: Code[_])(implicit line: LineNumber): Code[Unit] = typ.fundamentalType match {
+    case _: PBoolean => storeBoolean(dest, coerce[Boolean](v))
+    case _: PInt32 => storeInt(dest, coerce[Int](v))
+    case _: PInt64 => storeLong(dest, coerce[Long](v))
+    case _: PFloat32 => storeFloat(dest, coerce[Float](v))
+    case _: PFloat64 => storeDouble(dest, coerce[Double](v))
   }
 
-  def loadIRIntermediate(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {
-    case _: PBoolean => loadBoolean
-    case _: PInt32 => loadInt
-    case _: PInt64 => loadLong
-    case _: PFloat32 => loadFloat
-    case _: PFloat64 => loadDouble
-    case _: PArray => loadAddress
-    case _: PBinary => loadAddress
-    case _: PBaseStruct => off => off
+  def loadIRIntermediate(typ: PType)(addr: Code[Long])(implicit line: LineNumber): Code[_] = typ.fundamentalType match {
+    case _: PBoolean => loadBoolean(addr)
+    case _: PInt32 => loadInt(addr)
+    case _: PInt64 => loadLong(addr)
+    case _: PFloat32 => loadFloat(addr)
+    case _: PFloat64 => loadDouble(addr)
+    case _: PArray => loadAddress(addr)
+    case _: PBinary => loadAddress(addr)
+    case _: PBaseStruct => addr
   }
 
-  def getIRIntermediate(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {
-    case _: PBoolean => loadBoolean
-    case _: PInt32 => loadInt
-    case _: PInt64 => loadLong
-    case _: PFloat32 => loadFloat
-    case _: PFloat64 => loadDouble
-    case _ => off => off
+  def getIRIntermediate(typ: PType)(addr: Code[Long])(implicit line: LineNumber): Code[_] = typ.fundamentalType match {
+    case _: PBoolean => loadBoolean(addr)
+    case _: PInt32 => loadInt(addr)
+    case _: PInt64 => loadLong(addr)
+    case _: PFloat32 => loadFloat(addr)
+    case _: PFloat64 => loadDouble(addr)
+    case _ => addr
   }
 
-  def storeIRIntermediate(typ: PType): (Code[Long], Code[_]) => Code[Unit] = typ.fundamentalType match {
-    case _: PBoolean => (addr, v) => Region.storeBoolean(addr, coerce[Boolean](v))
-    case _: PInt32 => (addr, v) => Region.storeInt(addr, coerce[Int](v))
-    case _: PInt64 => (addr, v) => Region.storeLong(addr, coerce[Long](v))
-    case _: PFloat32 => (addr, v) => Region.storeFloat(addr, coerce[Float](v))
-    case _: PFloat64 => (addr, v) => Region.storeDouble(addr, coerce[Double](v))
-    case _: PArray => (addr, v) => Region.storeAddress(addr, coerce[Long](v))
-    case _: PBinary => (addr, v) => Region.storeAddress(addr, coerce[Long](v))
-    case t: PBaseStruct => (addr, v) => Region.copyFrom(coerce[Long](v), addr, t.byteSize)
+  def storeIRIntermediate(typ: PType)(addr: Code[Long], v: Code[_])(implicit line: LineNumber): Code[Unit] = typ.fundamentalType match {
+    case _: PBoolean => Region.storeBoolean(addr, coerce[Boolean](v))
+    case _: PInt32 => Region.storeInt(addr, coerce[Int](v))
+    case _: PInt64 => Region.storeLong(addr, coerce[Long](v))
+    case _: PFloat32 => Region.storeFloat(addr, coerce[Float](v))
+    case _: PFloat64 => Region.storeDouble(addr, coerce[Double](v))
+    case _: PArray => Region.storeAddress(addr, coerce[Long](v))
+    case _: PBinary => Region.storeAddress(addr, coerce[Long](v))
+    case t: PBaseStruct => Region.copyFrom(coerce[Long](v), addr, t.byteSize)
   }
 
-  def stagedCreate(blockSize: Size): Code[Region] =
+  def stagedCreate(blockSize: Size)(implicit line: LineNumber): Code[Region] =
     Code.invokeScalaObject2[Int, RegionPool, Region](Region.getClass, "apply", asm4s.const(blockSize), Code._null)
 
   def apply(blockSize: Region.Size = Region.REGULAR, pool: RegionPool = null): Region = {
@@ -292,7 +312,7 @@ object Region {
       .mkString("\n")
   }
 
-  def pretty(off: Code[Long], n: Int, header: Code[String]): Code[String] =
+  def pretty(off: Code[Long], n: Int, header: Code[String])(implicit line: LineNumber): Code[String] =
     Code.invokeScalaObject3[Long, Int, String, String](Region.getClass, "pretty", off, asm4s.const(n), header)
 
   def pretty(t: PType, off: Long): String = {
@@ -451,7 +471,7 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
 
 object RegionUtils {
   def printAddr(off: Long, name: String): String = s"$name: ${"%016x".format(off)}"
-  def printAddr(off: Code[Long], name: String): Code[String] = Code.invokeScalaObject2[Long, String, String](RegionUtils.getClass, "printAddr", off, name)
+  def printAddr(off: Code[Long], name: String)(implicit line: LineNumber): Code[String] = Code.invokeScalaObject2[Long, String, String](RegionUtils.getClass, "printAddr", off, name)
 
   def printBytes(off: Long, n: Int, header: String): String =
     Region.loadBytes(off, n).zipWithIndex
@@ -459,7 +479,7 @@ object RegionUtils {
       .map(bs => bs.map { case (b, _) => "%02x".format(b) }.mkString("  %016x: ".format(off + bs(0)._2), " ", ""))
       .mkString(if (header != null) s"$header\n" else "\n", "\n", "")
 
-  def printBytes(off: Code[Long], n: Int, header: String): Code[String] =
+  def printBytes(off: Code[Long], n: Int, header: String)(implicit line: LineNumber): Code[String] =
     Code.invokeScalaObject3[Long, Int, String, String](RegionUtils.getClass, "printBytes", off, n, asm4s.const(header))
 
   def logRegionStats(header: String, region: RegionMemory): Unit = {
@@ -483,6 +503,6 @@ object RegionUtils {
        """.stripMargin)
   }
 
-  def logRegionStats(header: String, region: Code[Region]): Code[Unit] =
+  def logRegionStats(header: String, region: Code[Region])(implicit line: LineNumber): Code[Unit] =
     Code.invokeScalaObject2[String, Region, Unit](RegionUtils.getClass, "logRegionStats", header, region)
 }

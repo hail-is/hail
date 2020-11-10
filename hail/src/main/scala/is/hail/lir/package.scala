@@ -71,7 +71,7 @@ package object lir {
     x
   }
 
-  def store(l: Local, c: ValueX, lineNumber: Int = 0): StmtX = {
+  def store(l: Local, c: ValueX, lineNumber: Int): StmtX = {
     val x = new StoreX(l, lineNumber)
     setChildren(x, c)
     x

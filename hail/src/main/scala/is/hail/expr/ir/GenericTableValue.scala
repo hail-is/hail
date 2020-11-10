@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.utils._
 import is.hail.annotations.{BroadcastRow, Region, UnsafeRow}
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, LineNumber}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
@@ -32,7 +32,9 @@ class PartitionIteratorLongReader(
     mb: EmitMethodBuilder[C],
     region: StagedRegion,
     env: Emit.E,
-    container: Option[AggContainer]): COption[SizedStream] = {
+    container: Option[AggContainer]
+  )(implicit line: LineNumber
+  ): COption[SizedStream] = {
 
     def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = region, container: Option[AggContainer] = container): EmitCode =
       emitter.emitWithRegion(ir, mb, region, env, container)

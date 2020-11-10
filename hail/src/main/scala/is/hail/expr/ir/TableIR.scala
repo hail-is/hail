@@ -461,7 +461,9 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
     mb: EmitMethodBuilder[C],
     outerRegion: StagedRegion,
     env0: Emit.E,
-    container: Option[AggContainer]): COption[SizedStream] = {
+    container: Option[AggContainer]
+  )(implicit line: LineNumber
+  ): COption[SizedStream] = {
     val ctxIdx = emitter.emitWithRegion(context, mb, outerRegion, env0, container)
 
     val (upcastPType, upcast) = Compile[AsmFunction2RegionLongLong](ctx,
@@ -521,7 +523,9 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
     mb: EmitMethodBuilder[C],
     partitionRegion: StagedRegion,
     env: Emit.E,
-    container: Option[AggContainer]): COption[SizedStream] = {
+    container: Option[AggContainer]
+  )(implicit line: LineNumber
+  ): COption[SizedStream] = {
 
     def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): EmitCode =
       emitter.emitWithRegion(ir, mb, region, env, container)
@@ -565,7 +569,9 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
     mb: EmitMethodBuilder[C],
     partitionRegion: StagedRegion,
     env: Emit.E,
-    container: Option[AggContainer]): COption[SizedStream] = {
+    container: Option[AggContainer]
+  )(implicit line: LineNumber
+  ): COption[SizedStream] = {
 
     def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): EmitCode =
       emitter.emitWithRegion(ir, mb, region, env, container)
@@ -681,7 +687,9 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
     mb: EmitMethodBuilder[C],
     partitionRegion: StagedRegion,
     env: Emit.E,
-    container: Option[AggContainer]): COption[SizedStream] = {
+    container: Option[AggContainer]
+  )(implicit line: LineNumber
+  ): COption[SizedStream] = {
 
     def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): EmitCode =
       emitter.emitWithRegion(ir, mb, region, env, container)
@@ -1804,7 +1812,7 @@ case class TableMapPartitions(child: TableIR,
       globalPType, partitionPType,
       Subst(body, BindingEnv(Env(
         globalName -> In(0, globalPType),
-        partitionStreamName -> In(1, partitionPType)))))
+        partitionStreamName -> In(1, partitionPType)))))(LineNumber(lineNumber))
 
     val globalsOff = tv.globals.value.offset
 

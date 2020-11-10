@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType, SortOrder}
+import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitMethodBuilder, ParamType, SortOrder}
 import is.hail.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
@@ -44,7 +44,8 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
         ("max_size", PInt32Required)) ++ garbageFields: _*
     )
 
-  private val compareKey: ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[Int] = {
+  private val _compareKey: EmitMethodBuilder[_] = {
+    implicit val line = LineNumber.none
     val keyInfo = typeToTypeInfo(keyType)
     val cmp = kb.genEmitMethod("compare", FastIndexedSeq[ParamType](BooleanInfo, keyInfo, BooleanInfo, keyInfo), IntInfo)
     val ord = keyType.codeOrdering(cmp, so)
@@ -57,19 +58,21 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       ord.compare((k1m, asm4s.coerce[ord.T](k1)), (k2m, asm4s.coerce[ord.T](k2)))
     )
 
+    cmp
+  }
+
+  private def compareKey(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_]))(implicit line: LineNumber): Code[Int] = {
     def wrappedValue(missingBit: Code[Boolean], value: Code[_]): Code[_] = {
       missingBit.mux(defaultValue(keyType), value)
     }
 
-    (k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])) => {
-      Code.memoize(k1._1, "tba_comp_key_k1m",
-        k2._1, "tba_comp_key_k2m") { (k1m, k2m) =>
-        cmp.invokeCode[Int](k1m, wrappedValue(k1m, k1._2), k2m, wrappedValue(k2m, k2._2))
-      }
+    Code.memoize(k1._1, "tba_comp_key_k1m", k2._1, "tba_comp_key_k2m") { (k1m, k2m) =>
+      _compareKey.invokeCode[Int](k1m, wrappedValue(k1m, k1._2), k2m, wrappedValue(k2m, k2._2))
     }
   }
 
-  private val compareIndexedKey: (Code[Long], Code[Long]) => Code[Int] = {
+  private val _compareIndexedKey: EmitMethodBuilder[_] = {
+    implicit val line = LineNumber.none
     val indexedkeyTypeTypeInfo = typeToTypeInfo(indexedKeyType)
     val cmp = kb.genEmitMethod("take_by_compare", FastIndexedSeq[ParamType](indexedkeyTypeTypeInfo, indexedkeyTypeTypeInfo), IntInfo)
     val ord = indexedKeyType.codeOrdering(cmp, indexedKeyType, Array(so, Ascending), true)
@@ -78,41 +81,46 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
     cmp.emit(ord.compare((false, asm4s.coerce[ord.T](k1)), (false, asm4s.coerce[ord.T](k2))))
 
-    cmp.invokeCode(_, _)
+    cmp
   }
 
-  private def maybeGCCode(alwaysRun: Code[Unit]*)(runIfGarbage: => Array[Code[Unit]], runBefore: Boolean = false): Code[Unit] = {
+  private def compareIndexedKey(l: Code[Long], r: Code[Long])(implicit line: LineNumber): Code[Int] = {
+    _compareIndexedKey.invokeCode(l, r)
+  }
+
+  private def maybeGCCode(alwaysRun: Code[Unit]*)(runIfGarbage: => Array[Code[Unit]], runBefore: Boolean = false)(implicit line: LineNumber): Code[Unit] = {
     val gcCodes = (if (canHaveGarbage) runIfGarbage else Array[Code[Unit]]())
     val allCode = if (runBefore) (gcCodes ++ alwaysRun) else (alwaysRun.toArray ++ gcCodes)
     Code(allCode)
   }
 
-  def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(regionSize)
+  def newState(off: Code[Long])(implicit line: LineNumber): Code[Unit] =
+    region.getNewRegion(regionSize)
 
-  def createState(cb: EmitCodeBuilder): Unit =
+  def createState(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit =
     cb.ifx(region.isNull, {
       cb.assign(r, Region.stagedCreate(regionSize))
       cb += region.invalidate()
     })
 
-  override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
+  override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Code(
       regionLoader(r),
       loadFields(src))
 
-  override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
+  override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long])(implicit line: LineNumber): Code[Unit] =
     region.isValid.orEmpty(
       Code(
         regionStorer(region),
         region.invalidate(),
         storeFields(dest)))
 
-  private def initStaging(): Code[Unit] = Code(
+  private def initStaging()(implicit line: LineNumber): Code[Unit] = Code(
     staging := eltTuple.allocate(region),
     keyStage := indexedKeyType.allocate(region)
   )
 
-  def initialize(_maxSize: Code[Int]): Code[Unit] = {
+  def initialize(_maxSize: Code[Int])(implicit line: LineNumber): Code[Unit] = {
     maybeGCCode(
       maxIndex := 0L,
       maxSize := _maxSize,
@@ -125,7 +133,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     ))
   }
 
-  private def storeFields(dest: Code[Long]): Code[Unit] = {
+  private def storeFields(dest: Code[Long])(implicit line: LineNumber): Code[Unit] = {
     Code.memoize(dest, "tba_store_fields_dest") { dest =>
       maybeGCCode(
         ab.storeTo(storageType.fieldOffset(dest, 0)),
@@ -139,7 +147,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     }
   }
 
-  private def loadFields(src: Code[Long]): Code[Unit] =
+  private def loadFields(src: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Code.memoize(src, "takeby_rvas_load_fields_src") { src =>
       maybeGCCode(
         ab.loadFrom(storageType.fieldOffset(src, 0)),
@@ -153,7 +161,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       ))
     }
 
-  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+  def copyFrom(cb: EmitCodeBuilder, src: Code[Long])(implicit line: LineNumber): Unit = {
     cb += Code.memoize(src, "tba_copy_from_src") { src =>
       maybeGCCode(
         initStaging(),
@@ -165,12 +173,12 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     }
   }
 
-  def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
+  def serialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
       cb += maybeGCCode(
         ob.writeLong(maxIndex),
         ob.writeInt(maxSize),
-        ab.serialize(codec)(ob),
+        ab.serialize(codec, ob),
         ob.writeInt(const(TakeByRVAS.END_SERIALIZATION))
       )(Array(
         ob.writeInt(maxGarbage)
@@ -178,12 +186,12 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     }
   }
 
-  def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
+  def deserialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
       cb += maybeGCCode(
         maxIndex := ib.readLong(),
         maxSize := ib.readInt(),
-        ab.deserialize(codec)(ib),
+        ab.deserialize(codec, ib),
         initStaging(),
         ib.readInt()
           .cne(const(TakeByRVAS.END_SERIALIZATION))
@@ -229,25 +237,30 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   //    )
   //  }
 
-  private def elementOffset(i: Value[Int]): Code[Long] = ab.elementOffset(i)
+  private def elementOffset(i: Value[Int])(implicit line: LineNumber): Code[Long] = ab.elementOffset(i)
 
-  private def keyIsMissing(offset: Code[Long]): Code[Boolean] = indexedKeyType.isFieldMissing(offset, 0)
+  private def keyIsMissing(offset: Code[Long])(implicit line: LineNumber): Code[Boolean] = indexedKeyType.isFieldMissing(offset, 0)
 
-  private def loadKeyValue(offset: Code[Long]): Code[_] = Region.loadIRIntermediate(keyType)(indexedKeyType.fieldOffset(offset, 0))
+  private def loadKeyValue(offset: Code[Long])(implicit line: LineNumber): Code[_] = Region.loadIRIntermediate(keyType)(indexedKeyType.fieldOffset(offset, 0))
 
-  private def loadKey(offset: Value[Long]): (Code[Boolean], Code[_]) = (keyIsMissing(offset), loadKeyValue(offset))
+  private def loadKey(offset: Value[Long])(implicit line: LineNumber): (Code[Boolean], Code[_]) = (keyIsMissing(offset), loadKeyValue(offset))
 
-  private val compareElt: (Code[Long], Code[Long]) => Code[Int] = {
+  private val _compareElt: EmitMethodBuilder[_] = {
+    implicit val line = LineNumber.none
     val mb = kb.genEmitMethod("i_gt_j", FastIndexedSeq[ParamType](LongInfo, LongInfo), IntInfo)
     val i = mb.getCodeParam[Long](1)
     val j = mb.getCodeParam[Long](2)
 
     mb.emit(compareIndexedKey(eltTuple.fieldOffset(i, 0), eltTuple.fieldOffset(j, 0)))
 
-    mb.invokeCode(_, _)
+    mb
   }
 
-  private val swap: (Code[Long], Code[Long]) => Code[Unit] = {
+  private def compareElt(l: Code[Long], r: Code[Long])(implicit line: LineNumber): Code[Int] =
+    _compareElt.invokeCode(l, r)
+
+  private val _swap: EmitMethodBuilder[_] = {
+    implicit val line = LineNumber.none
     val mb = kb.genEmitMethod("swap", FastIndexedSeq[ParamType](LongInfo, LongInfo), UnitInfo)
     val i = mb.getCodeParam[Long](1)
     val j = mb.getCodeParam[Long](2)
@@ -256,13 +269,16 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       Code(
         Region.copyFrom(i, staging, eltTuple.byteSize),
         Region.copyFrom(j, i, eltTuple.byteSize),
-        Region.copyFrom(staging, j, eltTuple.byteSize))
-    )
-    mb.invokeCode(_, _)
+        Region.copyFrom(staging, j, eltTuple.byteSize)))
+
+    mb
   }
 
+  private def swap(l: Code[Long], r: Code[Long])(implicit line: LineNumber): Code[Unit] =
+    _swap.invokeCode(l, r)
 
-  private val rebalanceUp: Code[Int] => Code[Unit] = {
+  private val _rebalanceUp: EmitMethodBuilder[_] = {
+    implicit val line = LineNumber.none
     val mb = kb.genEmitMethod("rebalance_up", FastIndexedSeq[ParamType](IntInfo), UnitInfo)
     val idx = mb.getCodeParam[Int](1)
 
@@ -283,10 +299,14 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
               mb.invokeCode(parent))
           ))))
 
-    mb.invokeCode(_)
+    mb
   }
 
-  private val rebalanceDown: Code[Int] => Code[Unit] = {
+  private def rebalanceUp(idx: Code[Int])(implicit line: LineNumber): Code[Unit] =
+    _rebalanceUp.invokeCode(idx)
+
+  private val _rebalanceDown: EmitMethodBuilder[_] = {
+    implicit val line = LineNumber.none
     val mb = kb.genEmitMethod("rebalance_down", FastIndexedSeq[ParamType](IntInfo), UnitInfo)
     val idx = mb.getCodeParam[Int](1)
 
@@ -311,10 +331,15 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
             ),
             Code._empty
           )))))
-    mb.invokeCode(_)
+
+    mb
   }
 
+  private def rebalanceDown(idx: Code[Int])(implicit line: LineNumber): Code[Unit] =
+    _rebalanceDown.invokeCode(idx)
+
   private lazy val gc: () => Code[Unit] = {
+    implicit val line = LineNumber.none
     if (canHaveGarbage) {
       val mb = kb.genEmitMethod("take_by_garbage_collect", FastIndexedSeq[ParamType](), UnitInfo)
       val oldRegion = mb.newLocal[Region]("old_region")
@@ -336,7 +361,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   }
 
 
-  private def stageAndIndexKey(km: Code[Boolean], k: Code[_]): Code[Unit] = Code(
+  private def stageAndIndexKey(km: Code[Boolean], k: Code[_])(implicit line: LineNumber): Code[Unit] = Code(
     if (keyType.required)
       Region.storeIRIntermediate(keyType)(indexedKeyType.fieldOffset(keyStage, 0), k)
     else
@@ -350,9 +375,10 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     maxIndex := maxIndex + 1L
   )
 
-  private def copyElementToStaging(o: Code[Long]): Code[Unit] = Region.copyFrom(o, staging, eltTuple.byteSize)
+  private def copyElementToStaging(o: Code[Long])(implicit line: LineNumber): Code[Unit] =
+    Region.copyFrom(o, staging, eltTuple.byteSize)
 
-  private def copyToStaging(value: Code[_], valueM: Code[Boolean], indexedKey: Code[Long]): Code[Unit] = {
+  private def copyToStaging(value: Code[_], valueM: Code[Boolean], indexedKey: Code[Long])(implicit line: LineNumber): Code[Unit] = {
     Code(
       staging.ceq(0L).orEmpty(Code._fatal[Unit]("staging is 0")),
       Region.copyFrom(indexedKey, eltTuple.fieldOffset(staging, 0), indexedKeyType.byteSize),
@@ -368,20 +394,21 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     )
   }
 
-  private def swapStaging(): Code[Unit] = {
+  private def swapStaging()(implicit line: LineNumber): Code[Unit] = {
     Code(
       StagedRegionValueBuilder.deepCopy(kb, region, eltTuple, staging, ab.elementOffset(0)),
       rebalanceDown(0)
     )
   }
 
-  private def enqueueStaging(): Code[Unit] = {
+  private def enqueueStaging()(implicit line: LineNumber): Code[Unit] = {
     Code(
       ab.append(Region.loadIRIntermediate(eltTuple)(staging)),
       rebalanceUp(ab.size - 1))
   }
 
-  val seqOp: (EmitCodeBuilder, EmitCode, EmitCode) => Unit = {
+  val _seqOp: EmitMethodBuilder[_] = {
+    implicit val line = LineNumber.none
     val mb = kb.genEmitMethod("take_by_seqop",
       FastIndexedSeq[ParamType](valueType.asEmitParam, keyType.asEmitParam),
       UnitInfo)
@@ -405,17 +432,20 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
                 swapStaging(),
                 gc()))))))
 
-    (cb: EmitCodeBuilder, v: EmitCode, k: EmitCode) => cb.invokeVoid(mb, v, k)
+    mb
   }
 
+  def seqOp(cb: EmitCodeBuilder, v: EmitCode, k: EmitCode)(implicit line: LineNumber): Unit =
+    cb.invokeVoid(_seqOp, v, k)
+
   // for tests
-  def seqOp(cb: EmitCodeBuilder, vm: Code[Boolean], v: Code[_], km: Code[Boolean], k: Code[_]): Unit = {
+  def seqOp(cb: EmitCodeBuilder, vm: Code[Boolean], v: Code[_], km: Code[Boolean], k: Code[_])(implicit line: LineNumber): Unit = {
     val vec = EmitCode(Code._empty, vm, PCode(valueType, v))
     val kec = EmitCode(Code._empty, km, PCode(keyType, k))
     seqOp(cb, vec, kec)
   }
 
-  def combine(other: TakeByRVAS): Code[Unit] = {
+  def combine(other: TakeByRVAS)(implicit line: LineNumber): Code[Unit] = {
     val mb = kb.genEmitMethod("take_by_combop", FastIndexedSeq[ParamType](), UnitInfo)
 
     val i = mb.newLocal[Int]("combine_i")
@@ -446,7 +476,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     mb.invokeCode()
   }
 
-  def result(_r: Code[Region], resultType: PArray): Code[Long] = {
+  def result(_r: Code[Region], resultType: PArray)(implicit line: LineNumber): Code[Long] = {
     val mb = kb.genEmitMethod("take_by_result", FastIndexedSeq[ParamType](classInfo[Region]), LongInfo)
 
     val quickSort: (Code[Long], Code[Int], Code[Int]) => Code[Unit] = {
@@ -574,7 +604,7 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
   val initOpTypes: Seq[PType] = Array(PInt32(true))
   val seqOpTypes: Seq[PType] = Array(valueType, keyType)
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
     assert(init.length == 1)
     val Array(sizeTriplet) = init
     cb += Code(
@@ -584,15 +614,16 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
     )
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
     val Array(value: EmitCode, key: EmitCode) = seq
     assert(value.pv.pt == valueType)
     assert(key.pv.pt == keyType)
     state.seqOp(cb, value, key)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = cb += state.combine(other)
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit =
+    cb += state.combine(other)
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit =
     cb += srvb.addIRIntermediate(resultType)(state.result(srvb.region, resultType))
 }

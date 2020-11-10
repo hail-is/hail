@@ -98,14 +98,16 @@ object StringFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerPCode1("length", TString, TInt32, (_: Type, _: PType) => PInt32()) { case (r: EmitRegion, rt, s: PStringCode) =>
+    registerPCode1("length", TString, TInt32, (_: Type, _: PType) => PInt32()) { case (r: EmitRegion, rt, s: PStringCode, _line) =>
+      implicit val line = _line
       PCode(rt, s.loadString().invoke[Int]("length"))
     }
 
     registerCode3("substring", TString, TInt32, TInt32, TString, {
       (_: Type, _: PType, _: PType, _: PType) => PCanonicalString()
     }) {
-      case (r: EmitRegion, rt, (sT: PString, s: Code[Long]), (startT, start: Code[Int]), (endT, end: Code[Int])) =>
+      case (r: EmitRegion, rt, (sT: PString, s: Code[Long]), (startT, start: Code[Int]), (endT, end: Code[Int]), _line) =>
+        implicit val line = _line
       unwrapReturn(r, rt)(asm4s.coerce[String](wrapArg(r, sT)(s)).invoke[Int, Int, String]("substring", start, end))
     }
 
@@ -137,7 +139,8 @@ object StringFunctions extends RegistryFunctions {
     registerIR2("sliceRight", TString, TInt32, TString) { (_, s, start) => invoke("slice", TString, s, start, invoke("length", TInt32, s)) }
     registerIR2("sliceLeft", TString, TInt32, TString) { (_, s, end) => invoke("slice", TString, s, I32(0), end) }
 
-    registerCode1("str", tv("T"), TString, (_: Type, _: PType) => PCanonicalString()) { case (r, rt, (aT, a)) =>
+    registerCode1("str", tv("T"), TString, (_: Type, _: PType) => PCanonicalString()) { case (r, rt, (aT, a), _line) =>
+      implicit val line = _line
       val annotation = boxArg(r, aT)(a)
       val str = r.mb.getType(aT.virtualType).invoke[Any, String]("str", annotation)
       unwrapReturn(r, rt)(str)
@@ -145,23 +148,26 @@ object StringFunctions extends RegistryFunctions {
 
     registerEmitCode1("showStr", tv("T"), TString, {
       (_: Type, _: PType) => PCanonicalString(true)
-    }) { case (r, rt, a) =>
-      val annotation = Code(a.setup, a.m).muxAny(Code._null(boxedTypeInfo(a.pt)), boxArg(r, a.pt)(a.v))
+    }) { case (r, rt, a, _line) =>
+      implicit val line = _line
+      val annotation = Code(a.setup, a.m).muxAny(Code._null(boxedTypeInfo(a.pt), line), boxArg(r, a.pt)(a.v))
       val str = r.mb.getType(a.pt.virtualType).invoke[Any, String]("showStr", annotation)
       EmitCode.present(PCode(rt, unwrapReturn(r, rt)(str)))
     }
 
     registerEmitCode2("showStr", tv("T"), TInt32, TString, {
       (_: Type, _: PType, truncType: PType) => PCanonicalString(truncType.required)
-    }) { case (r, rt, a, trunc) =>
-      val annotation = Code(a.setup, a.m).muxAny(Code._null(boxedTypeInfo(a.pt)), boxArg(r, a.pt)(a.v))
+    }) { case (r, rt, a, trunc, _line) =>
+      implicit val line = _line
+      val annotation = Code(a.setup, a.m).muxAny(Code._null(boxedTypeInfo(a.pt), line), boxArg(r, a.pt)(a.v))
       val str = r.mb.getType(a.pt.virtualType).invoke[Any, Int, String]("showStr", annotation, trunc.value[Int])
       EmitCode(trunc.setup, trunc.m, PCode(rt, unwrapReturn(r, rt)(str)))
     }
 
-    registerEmitCode1("json", tv("T"), TString, (_: Type, _: PType) => PCanonicalString(true)) { case (r, rt, a) =>
+    registerEmitCode1("json", tv("T"), TString, (_: Type, _: PType) => PCanonicalString(true)) { case (r, rt, a, _line) =>
+      implicit val line = _line
       val bti = boxedTypeInfo(a.pt)
-      val annotation = Code(a.setup, a.m).muxAny(Code._null(bti), boxArg(r, a.pt)(a.v))
+      val annotation = Code(a.setup, a.m).muxAny(Code._null(bti, line), boxArg(r, a.pt)(a.v))
       val json = r.mb.getType(a.pt.virtualType).invoke[Any, JValue]("toJSON", annotation)
       val str = Code.invokeScalaObject1[JValue, String](JsonMethods.getClass, "compact", json)
       EmitCode(Code._empty, false, PCode(rt, unwrapReturn(r, rt)(str)))
@@ -215,7 +221,8 @@ object StringFunctions extends RegistryFunctions {
     registerIEmitCode2("firstMatchIn", TString, TString, TArray(TString), {
       case(_: Type, _: PType, _: PType) => PCanonicalArray(PCanonicalString(true))
     }) { case (cb: EmitCodeBuilder, region: Value[Region], rt: PArray,
-               s: (() => IEmitCode), r: (() => IEmitCode)) =>
+               s: (() => IEmitCode), r: (() => IEmitCode), _line) =>
+      implicit val line = _line
       s().flatMap(cb) { case sc: PStringCode =>
         r().flatMap(cb) { case rc: PStringCode =>
           val out = cb.newLocal[IndexedSeq[String]]("out",
@@ -242,7 +249,8 @@ object StringFunctions extends RegistryFunctions {
 
     registerEmitCode2("hamming", TString, TString, TInt32, {
       case(_: Type, _: PType, _: PType) => PInt32()
-    }) { case (r: EmitRegion, rt, e1: EmitCode, e2: EmitCode) =>
+    }) { case (r: EmitRegion, rt, e1: EmitCode, e2: EmitCode, _line) =>
+      implicit val line = _line
       EmitCode.fromI(r.mb) { cb =>
         e1.toI(cb).flatMap(cb) { case (sc1: PStringCode) =>
           e2.toI(cb).flatMap(cb) { case (sc2: PStringCode) =>
@@ -276,7 +284,8 @@ object StringFunctions extends RegistryFunctions {
     })(thisClass, "strptime")
 
     registerPCode("parse_json", Array(TString), TTuple(tv("T")),
-      (rType: Type, _: Seq[PType]) => PType.canonical(rType, true), typeParameters = Array(tv("T"))) { case (er, resultType, Array(s: PStringCode)) =>
+      (rType: Type, _: Seq[PType]) => PType.canonical(rType, true), typeParameters = Array(tv("T"))) { case (er, resultType, Array(s: PStringCode), _line) =>
+      implicit val line = _line
 
       PCode(resultType, StringFunctions.unwrapReturn(er, resultType)(
         Code.invokeScalaObject2[String, Type, Row](JSONAnnotationImpex.getClass, "irImportAnnotation",

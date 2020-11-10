@@ -29,7 +29,7 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
   private[this] var _staticFS: Settable[FS] = _
 
-  def getFS: Value[FS] = {
+  def getFS(implicit line: LineNumber): Value[FS] = {
     if (_staticFS == null) {
       val fsinfo = typeInfoFromClass(ctx.fs.getClass)
       val cls = genEmitClass[Unit]("FSContainer")
@@ -54,7 +54,7 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
         val ba = b64.invoke[String, Array[Byte]]("decode", stringAssembler)
         val bais = Code.newInstance[ByteArrayInputStream, Array[Byte]](ba)
         val ois = cb.newLocal("ois", Code.newInstance[ObjectInputStream, InputStream](bais))
-        Code.checkcast(ois.invoke[Any]("readObject"))(fsinfo)
+        Code.checkcast(ois.invoke[Any]("readObject"))(fsinfo, line)
       }
       val fs = cls.newStaticField[FS]("filesystem", mb.invokeCode())
 
@@ -66,7 +66,7 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   private[this] val rgMap: mutable.Map[ReferenceGenome, Value[ReferenceGenome]] =
     mutable.Map[ReferenceGenome, Value[ReferenceGenome]]()
 
-  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = rgMap.getOrElseUpdate(rg, {
+  def getReferenceGenome(rg: ReferenceGenome)(implicit line: LineNumber): Value[ReferenceGenome] = rgMap.getOrElseUpdate(rg, {
     val cls = genEmitClass[Unit](s"RGContainer_${rg.name}")
     val fld = cls.newStaticField("reference_genome", rg.codeSetup(ctx.localTmpdir, cls))
     new StaticFieldRef(fld)
@@ -84,7 +84,7 @@ trait WrappedEmitModuleBuilder {
 
   def genEmitClass[C](baseName: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] = emodb.genEmitClass[C](baseName)
 
-  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = emodb.getReferenceGenome(rg)
+  def getReferenceGenome(rg: ReferenceGenome)(implicit line: LineNumber): Value[ReferenceGenome] = emodb.getReferenceGenome(rg)
 }
 
 trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
@@ -100,15 +100,18 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def newStaticField[T: TypeInfo](name: String): StaticField[T] = ecb.newStaticField[T](name)
 
-  def newStaticField[T: TypeInfo](name: String, init: Code[T]): StaticField[T] = ecb.newStaticField[T](name, init)
+  def newStaticField[T: TypeInfo](name: String, init: Code[T])(implicit line: LineNumber): StaticField[T] =
+    ecb.newStaticField[T](name, init)
 
   def genField[T: TypeInfo](baseName: String): Field[T] = ecb.genField(baseName)
 
   def genFieldThisRef[T: TypeInfo](name: String = null): ThisFieldRef[T] = ecb.genFieldThisRef[T](name)
 
-  def genLazyFieldThisRef[T: TypeInfo](setup: Code[T], name: String = null): Value[T] = ecb.genLazyFieldThisRef(setup, name)
+  def genLazyFieldThisRef[T: TypeInfo](setup: Code[T], name: String = null)(implicit line: LineNumber): Value[T] =
+    ecb.genLazyFieldThisRef(setup, name)
 
-  def getOrDefineLazyField[T: TypeInfo](setup: Code[T], id: Any): Value[T] = ecb.getOrDefineLazyField(setup, id)
+  def getOrDefineLazyField[T: TypeInfo](setup: Code[T], id: Any)(implicit line: LineNumber): Value[T] =
+    ecb.getOrDefineLazyField(setup, id)
 
   def newPSettable(sb: SettableBuilder, pt: PType, name: String = null): PSettable = ecb.newPSettable(sb, pt, name)
 
@@ -132,17 +135,17 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def result(print: Option[PrintWriter] = None): () => C = cb.result(print)
 
-  def getFS: Code[FS] = ecb.getFS
+  def getFS(implicit line: LineNumber): Code[FS] = ecb.getFS
 
-  def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = ecb.getObject(obj)
+  def getObject[T <: AnyRef : TypeInfo](obj: T)(implicit line: LineNumber): Code[T] = ecb.getObject(obj)
 
-  def getSerializedAgg(i: Int): Code[Array[Byte]] = ecb.getSerializedAgg(i)
+  def getSerializedAgg(i: Int)(implicit line: LineNumber): Code[Array[Byte]] = ecb.getSerializedAgg(i)
 
-  def setSerializedAgg(i: Int, b: Code[Array[Byte]]): Code[Unit] = ecb.setSerializedAgg(i, b)
+  def setSerializedAgg(i: Int, b: Code[Array[Byte]])(implicit line: LineNumber): Code[Unit] = ecb.setSerializedAgg(i, b)
 
-  def freeSerializedAgg(i: Int): Code[Unit] = ecb.freeSerializedAgg(i)
+  def freeSerializedAgg(i: Int)(implicit line: LineNumber): Code[Unit] = ecb.freeSerializedAgg(i)
 
-  def backend(): Code[BackendUtils] = ecb.backend()
+  def backend()(implicit line: LineNumber): Code[BackendUtils] = ecb.backend()
 
   def addModule(name: String, mod: (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit =
     ecb.addModule(name, mod)
@@ -153,14 +156,14 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def addEncodedLiteral(encodedLiteral: EncodedLiteral) = ecb.addEncodedLiteral(encodedLiteral)
 
-  def getPType(t: PType): Code[PType] = ecb.getPType(t)
+  def getPType(t: PType)(implicit line: LineNumber): Code[PType] = ecb.getPType(t)
 
-  def getType(t: Type): Code[Type] = ecb.getType(t)
+  def getType(t: Type)(implicit line: LineNumber): Code[Type] = ecb.getType(t)
 
   def newEmitMethod(name: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
     ecb.newEmitMethod(name, argsInfo, returnInfo)
 
-  def newEmitMethod(name: String, argsInfo: IndexedSeq[MaybeGenericTypeInfo[_]], returnInfo: MaybeGenericTypeInfo[_]): EmitMethodBuilder[C] =
+  def newEmitMethod(name: String, argsInfo: IndexedSeq[MaybeGenericTypeInfo[_]], returnInfo: MaybeGenericTypeInfo[_])(implicit line: LineNumber): EmitMethodBuilder[C] =
     ecb.newEmitMethod(name, argsInfo, returnInfo)
 
   def newStaticEmitMethod(name: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
@@ -177,14 +180,14 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   ): CodeOrdering.F[op.ReturnType] =
     ecb.getCodeOrdering(t1, t2, sortOrder, op, ignoreMissingness)
 
-  def addAggStates(aggSigs: Array[agg.AggStateSig]): agg.TupleAggregatorState = ecb.addAggStates(aggSigs)
+  def addAggStates(aggSigs: Array[agg.AggStateSig])(implicit line: LineNumber): agg.TupleAggregatorState = ecb.addAggStates(aggSigs)
 
   def genDependentFunction[F](baseName: String,
     maybeGenericParameterTypeInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
-    maybeGenericReturnTypeInfo: MaybeGenericTypeInfo[_])(implicit fti: TypeInfo[F]): DependentEmitFunctionBuilder[F] =
+    maybeGenericReturnTypeInfo: MaybeGenericTypeInfo[_])(implicit fti: TypeInfo[F], line: LineNumber): DependentEmitFunctionBuilder[F] =
     ecb.genDependentFunction(baseName, maybeGenericParameterTypeInfo, maybeGenericReturnTypeInfo)
 
-  def newRNG(seed: Long): Value[IRRandomness] = ecb.newRNG(seed)
+  def newRNG(seed: Long)(implicit line: LineNumber): Value[IRRandomness] = ecb.newRNG(seed)
 
   def resultWithIndex(print: Option[PrintWriter] = None): (Int, Region) => C = ecb.resultWithIndex(print)
 
@@ -228,18 +231,18 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   def genEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, A5: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
     ecb.genEmitMethod[A1, A2, A3, A4, A5, R](baseName)
 
-  def open(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+  def open(path: Code[String], checkCodec: Code[Boolean])(implicit line: LineNumber): Code[InputStream] =
     getFS.invoke[String, Boolean, InputStream]("open", path, checkCodec)
 
-  def create(path: Code[String]): Code[OutputStream] =
+  def create(path: Code[String])(implicit line: LineNumber): Code[OutputStream] =
     getFS.invoke[String, OutputStream]("create", path)
 
   def genDependentFunction[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](
     baseName: String = null
-  ): DependentEmitFunctionBuilder[AsmFunction2[A1, A2, R]] =
+  )(implicit line: LineNumber): DependentEmitFunctionBuilder[AsmFunction2[A1, A2, R]] =
     genDependentFunction[AsmFunction2[A1, A2, R]](baseName, Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R])
 
-  def genDependentFunction[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo]: DependentEmitFunctionBuilder[AsmFunction3[A1, A2, A3, R]] =
+  def genDependentFunction[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo](implicit line: LineNumber): DependentEmitFunctionBuilder[AsmFunction3[A1, A2, A3, R]] =
     genDependentFunction[AsmFunction3[A1, A2, A3, R]](null, Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]), GenericTypeInfo[R])
 }
 
@@ -254,15 +257,15 @@ class EmitClassBuilder[C](
 
   def newStaticField[T: TypeInfo](name: String): StaticField[T] = cb.newStaticField[T](name)
 
-  def newStaticField[T: TypeInfo](name: String, init: Code[T]): StaticField[T] = cb.newStaticField[T](name, init)
+  def newStaticField[T: TypeInfo](name: String, init: Code[T])(implicit line: LineNumber): StaticField[T] = cb.newStaticField[T](name, init)
 
   def genField[T: TypeInfo](baseName: String): Field[T] = cb.genField(baseName)
 
   def genFieldThisRef[T: TypeInfo](name: String = null): ThisFieldRef[T] = cb.genFieldThisRef[T](name)
 
-  def genLazyFieldThisRef[T: TypeInfo](setup: Code[T], name: String = null): Value[T] = cb.genLazyFieldThisRef(setup, name)
+  def genLazyFieldThisRef[T: TypeInfo](setup: Code[T], name: String = null)(implicit line: LineNumber): Value[T] = cb.genLazyFieldThisRef(setup, name)
 
-  def getOrDefineLazyField[T: TypeInfo](setup: Code[T], id: Any): Value[T] = cb.getOrDefineLazyField(setup, id)
+  def getOrDefineLazyField[T: TypeInfo](setup: Code[T], id: Any)(implicit line: LineNumber): Value[T] = cb.getOrDefineLazyField(setup, id)
 
   def fieldBuilder: SettableBuilder = cb.fieldBuilder
 
@@ -289,11 +292,11 @@ class EmitClassBuilder[C](
 
     def pt: PType = _pt
 
-    def get: EmitCode = EmitCode(Code._empty,
+    def get(implicit line: LineNumber): EmitCode = EmitCode(Code._empty,
       if (_pt.required) false else ms.get,
       vs.get)
 
-    def store(ec: EmitCode): Code[Unit] =
+    def store(ec: EmitCode)(implicit line: LineNumber): Code[Unit] =
       if (_pt.required)
         Code(ec.setup,
           // FIXME put this under control of a debugging option
@@ -304,7 +307,7 @@ class EmitClassBuilder[C](
       else
         Code(ec.setup, ec.m.mux(ms := true, Code(ms := false, vs := ec.pv)))
 
-    def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit =
+    def store(cb: EmitCodeBuilder, iec: IEmitCode)(implicit line: LineNumber): Unit =
       if (_pt.required)
         cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${ _pt }"))
       else
@@ -325,9 +328,9 @@ class EmitClassBuilder[C](
   def newPresentEmitSettable(_pt: PType, ps: PSettable): PresentEmitSettable = new PresentEmitSettable {
     def pt: PType = _pt
 
-    def get: EmitCode = EmitCode(Code._empty, const(false), ps.load())
+    def get(implicit line: LineNumber): EmitCode = EmitCode(Code._empty, const(false), ps.load())
 
-    def store(pv: PCode): Code[Unit] = ps := pv
+    def store(pv: PCode)(implicit line: LineNumber): Code[Unit] = ps := pv
   }
 
   private[this] val typMap: mutable.Map[Type, Value[_ <: Type]] =
@@ -342,7 +345,7 @@ class EmitClassBuilder[C](
 
   def numTypes: Int = typMap.size
 
-  private[this] def addReferenceGenome(rg: ReferenceGenome): Code[Unit] = {
+  private[this] def addReferenceGenome(rg: ReferenceGenome)(implicit line: LineNumber): Code[Unit] = {
     val rgExists = Code.invokeScalaObject1[String, Boolean](ReferenceGenome.getClass, "hasReference", rg.name)
     val addRG = Code.invokeScalaObject1[ReferenceGenome, Unit](ReferenceGenome.getClass, "addReference", getReferenceGenome(rg))
     rgExists.mux(Code._empty, addRG)
@@ -368,6 +371,7 @@ class EmitClassBuilder[C](
   }
 
   private[this] def encodeLiterals(): Array[Array[Byte]] = {
+    implicit val line = LineNumber.none
     val literals = literalsMap.toArray
     val litType = PCanonicalTuple(true, literals.map(_._1._1): _*)
     val spec = TypedCodecSpec(litType, BufferSpec.defaultUncompressed)
@@ -434,7 +438,7 @@ class EmitClassBuilder[C](
   private[this] var _nSerialized: Int = 0
   private[this] var _aggSerialized: Settable[Array[Array[Byte]]] = _
 
-  def addAggStates(aggSigs: Array[agg.AggStateSig]): agg.TupleAggregatorState = {
+  def addAggStates(aggSigs: Array[agg.AggStateSig])(implicit line: LineNumber): agg.TupleAggregatorState = {
     if (_aggSigs != null) {
       assert(aggSigs sameElements _aggSigs)
       return _aggState
@@ -489,30 +493,31 @@ class EmitClassBuilder[C](
 
     setSer.emit(_aggSerialized.load().update(setSer.getCodeParam[Int](1), setSer.getCodeParam[Array[Byte]](2)))
 
-    getSer.emit(_aggSerialized.load()(getSer.getCodeParam[Int](1)))
+    getSer.emit(_aggSerialized.load()(line)(getSer.getCodeParam[Int](1)))
 
     _aggState
   }
 
-  def getSerializedAgg(i: Int): Code[Array[Byte]] = {
+  def getSerializedAgg(i: Int)(implicit line: LineNumber): Code[Array[Byte]] = {
     if (_nSerialized <= i)
       _nSerialized = i + 1
-    _aggSerialized.load()(i)
+    _aggSerialized.load()(line)(i)
   }
 
-  def setSerializedAgg(i: Int, b: Code[Array[Byte]]): Code[Unit] = {
+  def setSerializedAgg(i: Int, b: Code[Array[Byte]])(implicit line: LineNumber): Code[Unit] = {
     if (_nSerialized <= i)
       _nSerialized = i + 1
     _aggSerialized.load().update(i, b)
   }
 
-  def freeSerializedAgg(i: Int): Code[Unit] = {
+  def freeSerializedAgg(i: Int)(implicit line: LineNumber): Code[Unit] = {
     assert(i < _nSerialized)
     _aggSerialized.load().update(i, Code._null)
   }
 
-  def backend(): Code[BackendUtils] = {
+  def backend()(implicit line: LineNumber): Code[BackendUtils] = {
     if (_backendField == null) {
+      implicit val line = LineNumber.none
       cb.addInterface(typeInfo[FunctionWithBackend].iname)
       val backendField = genFieldThisRef[BackendUtils]()
       val mb = newEmitMethod("setBackend", FastIndexedSeq[ParamType](typeInfo[BackendUtils]), typeInfo[Unit])
@@ -526,10 +531,11 @@ class EmitClassBuilder[C](
     _mods += name -> mod
   }
 
-  def getFS: Code[FS] = emodb.getFS
+  def getFS(implicit line: LineNumber): Code[FS] = emodb.getFS
 
-  def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = {
+  def getObject[T <: AnyRef : TypeInfo](obj: T)(implicit line: LineNumber): Code[T] = {
     if (_objectsField == null) {
+      implicit val line = LineNumber.none
       cb.addInterface(typeInfo[FunctionWithObjects].iname)
       _objectsField = genFieldThisRef[Array[AnyRef]]()
       _objects = new ArrayBuilder[AnyRef]()
@@ -542,7 +548,7 @@ class EmitClassBuilder[C](
     Code.checkcast[T](toCodeArray(_objectsField).apply(i))
   }
 
-  def getPType[T <: PType : TypeInfo](t: T): Code[T] = {
+  def getPType[T <: PType : TypeInfo](t: T)(implicit line: LineNumber): Code[T] = {
     val references = ReferenceGenome.getReferences(t.virtualType).toArray
     val setup = Code(Code(references.map(addReferenceGenome)),
       Code.checkcast[T](
@@ -552,7 +558,7 @@ class EmitClassBuilder[C](
       genLazyFieldThisRef[T](setup)).get.asInstanceOf[Code[T]]
   }
 
-  def getType[T <: Type : TypeInfo](t: T): Code[T] = {
+  def getType[T <: Type : TypeInfo](t: T)(implicit line: LineNumber): Code[T] = {
     val references = ReferenceGenome.getReferences(t).toArray
     val setup = Code(Code(references.map(addReferenceGenome)),
       Code.checkcast[T](
@@ -569,11 +575,12 @@ class EmitClassBuilder[C](
     op: CodeOrdering.Op,
     ignoreMissingness: Boolean
   ): CodeOrdering.F[op.ReturnType] = {
-    val f = compareMap.getOrElseUpdate((t1, t2, op, sortOrder, ignoreMissingness), {
+    compareMap.getOrElseUpdate((t1, t2, op, sortOrder, ignoreMissingness), {
       val ti = typeToTypeInfo(t1)
       val rt = op.rtti
 
       val newMB = if (ignoreMissingness) {
+        implicit val line = LineNumber.none
         val newMB = genEmitMethod("cord", FastIndexedSeq[ParamType](ti, ti), rt)
         lazy val ord = t1.codeOrdering(newMB, t2, sortOrder)
         val v1 = newMB.getCodeParam(1)(ti)
@@ -593,6 +600,7 @@ class EmitClassBuilder[C](
         newMB.emit(c)
         newMB
       } else {
+        implicit val line = LineNumber.none
         val newMB = genEmitMethod("cord", FastIndexedSeq[ParamType](typeInfo[Boolean], ti, typeInfo[Boolean], ti), rt)
         lazy val ord = t1.codeOrdering(newMB, t2, sortOrder)
         val m1 = newMB.getCodeParam[Boolean](1)
@@ -614,15 +622,16 @@ class EmitClassBuilder[C](
         newMB.emit(c)
         newMB
       }
-      val f = { (x: (Code[Boolean], Code[_]), y: (Code[Boolean], Code[_])) =>
-        if (ignoreMissingness)
-          newMB.invokeCode[op.ReturnType](x._2, y._2)
-        else
-          newMB.invokeCode[op.ReturnType](x._1, x._2, y._1, y._2)
+      val f = new CodeOrdering.F[op.ReturnType] {
+        def apply(x: (Code[Boolean], Code[_]), y: (Code[Boolean], Code[_]))(implicit line: LineNumber): Code[op.ReturnType] = {
+          if (ignoreMissingness)
+            newMB.invokeCode[op.ReturnType](x._2, y._2)
+          else
+            newMB.invokeCode[op.ReturnType](x._1, x._2, y._1, y._2)
+        }
       }
       f
-    })
-    (v1: (Code[Boolean], Code[_]), v2: (Code[Boolean], Code[_])) => coerce[op.ReturnType](f(v1, v2))
+    }).asInstanceOf[CodeOrdering.F[op.ReturnType]]
   }
 
   def getCodeOrdering(
@@ -662,7 +671,7 @@ class EmitClassBuilder[C](
       cb.newMethod(name, codeArgsInfo, codeReturnInfo))
   }
 
-  def newEmitMethod(name: String, argsInfo: IndexedSeq[MaybeGenericTypeInfo[_]], returnInfo: MaybeGenericTypeInfo[_]): EmitMethodBuilder[C] = {
+  def newEmitMethod(name: String, argsInfo: IndexedSeq[MaybeGenericTypeInfo[_]], returnInfo: MaybeGenericTypeInfo[_])(implicit line: LineNumber): EmitMethodBuilder[C] = {
     new EmitMethodBuilder[C](
       argsInfo.map(ai => CodeParamType(ai.base)), CodeParamType(returnInfo.base),
       this,
@@ -680,7 +689,7 @@ class EmitClassBuilder[C](
 
   def genDependentFunction[F](baseName: String,
     maybeGenericParameterTypeInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
-    maybeGenericReturnTypeInfo: MaybeGenericTypeInfo[_])(implicit fti: TypeInfo[F]): DependentEmitFunctionBuilder[F] = {
+    maybeGenericReturnTypeInfo: MaybeGenericTypeInfo[_])(implicit fti: TypeInfo[F], line: LineNumber): DependentEmitFunctionBuilder[F] = {
     val depCB = emodb.genEmitClass[F](baseName)
     val apply_method = depCB.cb.newMethod("apply", maybeGenericParameterTypeInfo, maybeGenericReturnTypeInfo)
     val dep_apply_method = new DependentMethodBuilder(apply_method)
@@ -694,13 +703,13 @@ class EmitClassBuilder[C](
 
   val rngs: ArrayBuilder[(Settable[IRRandomness], Code[IRRandomness])] = new ArrayBuilder()
 
-  def makeAddPartitionRegion(): Unit = {
+  def makeAddPartitionRegion()(implicit line: LineNumber): Unit = {
     cb.addInterface(typeInfo[FunctionWithPartitionRegion].iname)
     val mb = newEmitMethod("addPartitionRegion", FastIndexedSeq[ParamType](typeInfo[Region]), typeInfo[Unit])
     mb.emit(partitionRegion := mb.getCodeParam[Region](1))
   }
 
-  def makeRNGs() {
+  def makeRNGs()(implicit line: LineNumber) {
     cb.addInterface(typeInfo[FunctionWithSeededRandomness].iname)
 
     val initialized = genFieldThisRef[Boolean]()
@@ -722,13 +731,14 @@ class EmitClassBuilder[C](
       reseed))
   }
 
-  def newRNG(seed: Long): Value[IRRandomness] = {
+  def newRNG(seed: Long)(implicit line: LineNumber): Value[IRRandomness] = {
     val rng = genFieldThisRef[IRRandomness]()
     rngs += rng -> Code.newInstance[IRRandomness, Long](seed)
     rng
   }
 
   def resultWithIndex(print: Option[PrintWriter] = None): (Int, Region) => C = {
+    implicit val line = LineNumber.none
     makeRNGs()
     makeAddPartitionRegion()
 
@@ -839,18 +849,19 @@ class EmitClassBuilder[C](
   def genStaticEmitMethod(baseName: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
     newStaticEmitMethod(genName("sm", baseName), argsInfo, returnInfo)
 
-  def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+  def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean])(implicit line: LineNumber): Code[InputStream] =
     getFS.invoke[String, Boolean, InputStream]("unsafeReader", path, checkCodec)
 
-  def getUnsafeWriter(path: Code[String]): Code[OutputStream] =
+  def getUnsafeWriter(path: Code[String])(implicit line: LineNumber): Code[OutputStream] =
     getFS.invoke[String, OutputStream]("unsafeWriter", path)
 
   def genDependentFunction[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](
     baseName: String = null
+  )(implicit line: LineNumber
   ): DependentEmitFunctionBuilder[AsmFunction2[A1, A2, R]] =
     genDependentFunction[AsmFunction2[A1, A2, R]](baseName, Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R])
 
-  def genDependentFunction[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo]: DependentEmitFunctionBuilder[AsmFunction3[A1, A2, A3, R]] =
+  def genDependentFunction[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo](implicit line: LineNumber): DependentEmitFunctionBuilder[AsmFunction3[A1, A2, A3, R]] =
     genDependentFunction[AsmFunction3[A1, A2, A3, R]](null, Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]), GenericTypeInfo[R])
 }
 
@@ -866,35 +877,35 @@ object EmitFunctionBuilder {
 
   def apply[F](
     ctx: ExecuteContext, baseName: String, argInfo: IndexedSeq[MaybeGenericTypeInfo[_]], returnInfo: MaybeGenericTypeInfo[_]
-  )(implicit fti: TypeInfo[F]): EmitFunctionBuilder[F] = {
+  )(implicit fti: TypeInfo[F], line: LineNumber): EmitFunctionBuilder[F] = {
     val modb = new EmitModuleBuilder(ctx, new ModuleBuilder())
     val cb = modb.genEmitClass[F](baseName)
         val apply = cb.newEmitMethod("apply", argInfo, returnInfo)
     new EmitFunctionBuilder(apply)
   }
 
-  def apply[R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction0[R]] =
+  def apply[R: TypeInfo](ctx: ExecuteContext, baseName: String)(implicit line: LineNumber): EmitFunctionBuilder[AsmFunction0[R]] =
     EmitFunctionBuilder[AsmFunction0[R]](ctx, baseName, FastIndexedSeq[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
 
-  def apply[A: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction1[A, R]] =
+  def apply[A: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String)(implicit line: LineNumber): EmitFunctionBuilder[AsmFunction1[A, R]] =
     EmitFunctionBuilder[AsmFunction1[A, R]](ctx, baseName, Array(GenericTypeInfo[A]), GenericTypeInfo[R])
 
-  def apply[A: TypeInfo, B: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction2[A, B, R]] =
+  def apply[A: TypeInfo, B: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String)(implicit line: LineNumber): EmitFunctionBuilder[AsmFunction2[A, B, R]] =
     EmitFunctionBuilder[AsmFunction2[A, B, R]](ctx, baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B]), GenericTypeInfo[R])
 
-  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction3[A, B, C, R]] =
+  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String)(implicit line: LineNumber): EmitFunctionBuilder[AsmFunction3[A, B, C, R]] =
     EmitFunctionBuilder[AsmFunction3[A, B, C, R]](ctx, baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C]), GenericTypeInfo[R])
 
-  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction4[A, B, C, D, R]] =
+  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String)(implicit line: LineNumber): EmitFunctionBuilder[AsmFunction4[A, B, C, D, R]] =
     EmitFunctionBuilder[AsmFunction4[A, B, C, D, R]](ctx, baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D]), GenericTypeInfo[R])
 
-  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction5[A, B, C, D, E, R]] =
+  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String)(implicit line: LineNumber): EmitFunctionBuilder[AsmFunction5[A, B, C, D, E, R]] =
     EmitFunctionBuilder[AsmFunction5[A, B, C, D, E, R]](ctx, baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E]), GenericTypeInfo[R])
 
-  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, F: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction6[A, B, C, D, E, F, R]] =
+  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, F: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String)(implicit line: LineNumber): EmitFunctionBuilder[AsmFunction6[A, B, C, D, E, F, R]] =
     EmitFunctionBuilder[AsmFunction6[A, B, C, D, E, F, R]](ctx, baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F]), GenericTypeInfo[R])
 
-  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, F: TypeInfo, G: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]] =
+  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, F: TypeInfo, G: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String)(implicit line: LineNumber): EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]] =
     EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]](ctx, baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
 }
 
@@ -949,7 +960,7 @@ class EmitMethodBuilder[C](
   def localBuilder: SettableBuilder = mb.localBuilder
 
   // FIXME needs to code and emit variants
-  def emit(body: Code[_]): Unit = mb.emit(body)
+  def emit(body: Code[_])(implicit line: LineNumber): Unit = mb.emit(body)
 
   // EmitMethodBuilder methods
 
@@ -984,7 +995,7 @@ class EmitMethodBuilder[C](
     new PValue {
       val pt: PType = _pt
 
-      def get: PCode =
+      def get(implicit line: LineNumber): PCode =
         pt.fromCodeTuple(ts.zipWithIndex.map { case (t, i) =>
           mb.getArg(codeIndex + i)(t).get
         })
@@ -1003,7 +1014,7 @@ class EmitMethodBuilder[C](
     new EmitValue {
       val pt: PType = _pt
 
-      def get: EmitCode = {
+      def get(implicit line: LineNumber): EmitCode = {
         new EmitCode(Code._empty,
           if (pt.required)
             const(false)
@@ -1016,7 +1027,7 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def getStreamEmitParam(emitIndex: Int): COption[Code[StreamArgType]] = {
+  def getStreamEmitParam(emitIndex: Int)(implicit line: LineNumber): COption[Code[StreamArgType]] = {
     assert(emitIndex != 0)
 
     val pt = emitParamTypes(emitIndex - 1).asInstanceOf[EmitParamType].pt
@@ -1034,7 +1045,7 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def getParamsList(): IndexedSeq[Param] = {
+  def getParamsList()(implicit line: LineNumber): IndexedSeq[Param] = {
     emitParamTypes.toFastIndexedSeq.zipWithIndex.map {
       case (CodeParamType(ti), i) => CodeParam(this.getCodeParam(i + 1)(ti)): Param
       case (PCodeParamType(pt), i) => PCodeParam(this.getPCodeParam(i + 1)): Param
@@ -1042,7 +1053,7 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def invokeCode[T](args: Param*): Code[T] = {
+  def invokeCode[T](args: Param*)(implicit line: LineNumber): Code[T] = {
     assert(emitReturnType.isInstanceOf[CodeParamType])
     assert(args.forall(_.isInstanceOf[CodeParam]))
     mb.invoke(args.flatMap {
@@ -1070,9 +1081,11 @@ class EmitMethodBuilder[C](
   def newPresentEmitLocal(name: String, pt: PType): PresentEmitSettable =
     newPresentEmitSettable(pt, newPLocal(name, pt))
 
-  def emitWithBuilder[T](f: (EmitCodeBuilder) => Code[T]): Unit = emit(EmitCodeBuilder.scopedCode[T](this)(f))
+  def emitWithBuilder[T](f: (EmitCodeBuilder) => Code[T])(implicit line: LineNumber): Unit =
+    emit(EmitCodeBuilder.scopedCode[T](this)(f))
 
-  def voidWithBuilder(f: (EmitCodeBuilder) => Unit): Unit = emit(EmitCodeBuilder.scopedVoid(this)(f))
+  def voidWithBuilder(f: (EmitCodeBuilder) => Unit)(implicit line: LineNumber): Unit =
+    emit(EmitCodeBuilder.scopedVoid(this)(f))
 }
 
 trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
@@ -1088,9 +1101,9 @@ trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
   def localBuilder = mb.localBuilder
 
   // FIXME needs to code and emit variants
-  def emit(body: Code[_]): Unit = mb.emit(body)
+  def emit(body: Code[_])(implicit line: LineNumber): Unit = mb.emit(body)
 
-  def emitWithBuilder[T](f: (EmitCodeBuilder) => Code[T]): Unit = emb.emitWithBuilder(f)
+  def emitWithBuilder[T](f: (EmitCodeBuilder) => Code[T])(implicit line: LineNumber): Unit = emb.emitWithBuilder(f)
 
   // EmitMethodBuilder methods
   def getCodeParam[T: TypeInfo](emitIndex: Int): Settable[T] = emb.getCodeParam[T](emitIndex)
@@ -1116,11 +1129,11 @@ class DependentEmitFunctionBuilder[F](
   def emb: EmitMethodBuilder[F] = apply_method
 
   // wrapped DependentMethodBuilder
-  def newDepField[T : TypeInfo](value: Code[T]): Value[T] = dep_apply_method.newDepField[T](value)
+  def newDepField[T : TypeInfo](value: Code[T])(implicit line: LineNumber): Value[T] = dep_apply_method.newDepField[T](value)
 
-  def newDepFieldAny[T: TypeInfo](value: Code[_]): Value[T] = dep_apply_method.newDepFieldAny[T](value)
+  def newDepFieldAny[T: TypeInfo](value: Code[_])(implicit line: LineNumber): Value[T] = dep_apply_method.newDepFieldAny[T](value)
 
-  def newInstance(mb: EmitMethodBuilder[_]): Code[F] = dep_apply_method.newInstance(mb.mb)
+  def newInstance(mb: EmitMethodBuilder[_])(implicit line: LineNumber): Code[F] = dep_apply_method.newInstance(mb.mb)
 
   private[this] val typMap: mutable.Map[Type, Value[Type]] =
     mutable.Map[Type, Value[Type]]()
@@ -1128,8 +1141,9 @@ class DependentEmitFunctionBuilder[F](
   private[this] val literalsMap: mutable.Map[(PType, Any), PValue] =
     mutable.Map[(PType, Any), PValue]()
 
-  override def getType(t: Type): Code[Type] =
+  override def getType(t: Type)(implicit line: LineNumber): Code[Type] =
     typMap.getOrElseUpdate(t, {
+      implicit val line = LineNumber.none
       val fromParent = parentcb.getType(t)
       val field = newDepField[Type](fromParent)
       field
@@ -1138,19 +1152,20 @@ class DependentEmitFunctionBuilder[F](
   override def addLiteral(v: Any, t: PType): PValue = {
     assert(v != null)
     literalsMap.getOrElseUpdate(t -> v, {
+      implicit val line = LineNumber.none
       val fromParent = parentcb.addLiteral(v, t)
       newDepPField(fromParent.get)
     })
   }
 
-  def newDepPField(pc: PCode): PValue = {
+  def newDepPField(pc: PCode)(implicit line: LineNumber): PValue = {
     val ti = typeToTypeInfo(pc.pt)
     val field = newPField(pc.pt)
     dep_apply_method.setFields += { (obj: lir.ValueX) =>
       val code = pc.code
       // XXX below assumes that the first settable is the 'base' of the PSettable
       val baseField = field.settableTuple()(0).asInstanceOf[ThisFieldRef[_]]
-      code.end.append(lir.putField(className, baseField.name, ti, obj, code.v))
+      code.end.append(lir.putField(className, baseField.name, ti, obj, code.v, line.v))
       // FIXME need to initialize other potential settables in the PSettable here
       val newC = new VCode(code.start, code.end, null)
       code.clear()
@@ -1159,15 +1174,15 @@ class DependentEmitFunctionBuilder[F](
     field
   }
 
-  def newDepEmitField(ec: EmitCode): EmitValue = {
+  def newDepEmitField(ec: EmitCode)(implicit line: LineNumber): EmitValue = {
     val _pt = ec.pt
     val ti = typeToTypeInfo(_pt)
     val m = genFieldThisRef[Boolean]()
     val v = genFieldThisRef()(ti)
     dep_apply_method.setFields += { (obj: lir.ValueX) =>
       val setup = ec.setup
-      setup.end.append(lir.putField(className, m.name, typeInfo[Boolean], obj, ec.m.v))
-      setup.end.append(lir.putField(className, v.name, ti, obj, ec.v.v))
+      setup.end.append(lir.putField(className, m.name, typeInfo[Boolean], obj, ec.m.v, line.v))
+      setup.end.append(lir.putField(className, v.name, ti, obj, ec.v.v, line.v))
       val newC = new VCode(setup.start, setup.end, null)
       setup.clear()
       ec.m.clear()
@@ -1177,7 +1192,7 @@ class DependentEmitFunctionBuilder[F](
     new EmitValue {
       def pt: PType = _pt
 
-      def get: EmitCode = EmitCode(Code._empty, m.load(), PCode(_pt, v.load()))
+      def get(implicit line: LineNumber): EmitCode = EmitCode(Code._empty, m.load(), PCode(_pt, v.load()))
     }
   }
 }

@@ -903,7 +903,7 @@ object Interpret {
 
           // takes ownership of both inputs, returns ownership of result
           val combOpF: (RegionValue, RegionValue) => RegionValue =
-            extracted.combOpF(ctx, spec)
+            extracted.combOpF(ctx, spec)(LineNumber(x.lineNumber))
 
           // returns ownership of a new region holding the partition aggregation
           // result

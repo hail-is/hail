@@ -182,6 +182,7 @@ object CompileIterator {
     body: IR,
     argTypeInfo: Array[ParamType],
     printWriter: Option[PrintWriter]
+  )(implicit line: LineNumber
   ): (PType, (Int, Region) => F) = {
 
     val fb = EmitFunctionBuilder.apply[F](ctx, "stream", argTypeInfo.toFastIndexedSeq, CodeParamType(BooleanInfo))
@@ -254,6 +255,7 @@ object CompileIterator {
     ctx: ExecuteContext,
     typ0: PStruct, typ1: PStream,
     ir: IR
+  )(implicit line: LineNumber
   ): (PType, (Int, RVDContext, Long, StreamArgType) => Iterator[java.lang.Long]) = {
     assert(typ0.required)
     assert(typ1.required)
@@ -279,6 +281,7 @@ object CompileIterator {
     ctx: ExecuteContext,
     ctxType: PStruct, bcValsType: PType,
     ir: IR
+  )(implicit line: LineNumber
   ): (PType, (Int, RVDContext, Long, Long) => Iterator[java.lang.Long]) = {
     assert(ctxType.required)
     assert(bcValsType.required)

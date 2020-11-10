@@ -52,17 +52,17 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(P
 
   private val repr = fields(0)._2.asInstanceOf[Settable[Int]]
 
-  def getAnyNonMissing: Code[Boolean] = (repr.load() & 1).cne(0)
+  def getAnyNonMissing(implicit line: LineNumber): Code[Boolean] = (repr.load() & 1).cne(0)
 
-  def getAllDefined: Code[Boolean] = (repr.load() & 1 << 1).cne(0)
+  def getAllDefined(implicit line: LineNumber): Code[Boolean] = (repr.load() & 1 << 1).cne(0)
 
-  def getSupportsBool: Code[Boolean] = (repr.load() & 1 << 2).cne(0)
+  def getSupportsBool(implicit line: LineNumber): Code[Boolean] = (repr.load() & 1 << 2).cne(0)
 
-  def getSupportsI32: Code[Boolean] = (repr.load() & 1 << 3).cne(0)
+  def getSupportsI32(implicit line: LineNumber): Code[Boolean] = (repr.load() & 1 << 3).cne(0)
 
-  def getSupportsI64: Code[Boolean] = (repr.load() & 1 << 4).cne(0)
+  def getSupportsI64(implicit line: LineNumber): Code[Boolean] = (repr.load() & 1 << 4).cne(0)
 
-  def getSupportsF64: Code[Boolean] = (repr.load() & 1 << 5).cne(0)
+  def getSupportsF64(implicit line: LineNumber): Code[Boolean] = (repr.load() & 1 << 5).cne(0)
 
   private def setRepr(cb: EmitCodeBuilder,
     anyNonMissing: Code[Boolean],
@@ -71,6 +71,7 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(P
     supportsI32: Code[Boolean],
     supportsI64: Code[Boolean],
     supportsF64: Code[Boolean]
+  )(implicit line: LineNumber
   ): Unit = {
 
     cb += repr.store(anyNonMissing.toI
@@ -82,11 +83,11 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(P
     )
   }
 
-  def initialize(cb: EmitCodeBuilder): Unit = {
+  def initialize(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = {
     setRepr(cb, false, true, true, true, true, true)
   }
 
-  def seqOp(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
+  def seqOp(cb: EmitCodeBuilder, ec: EmitCode)(implicit line: LineNumber): Unit = {
     ec.toI(cb)
       .consume(cb,
         cb += repr.store(repr & (~(1 << 1))),
@@ -106,7 +107,7 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(P
       )
   }
 
-  def combOp(cb: EmitCodeBuilder, other: ImputeTypeState): Unit = {
+  def combOp(cb: EmitCodeBuilder, other: ImputeTypeState)(implicit line: LineNumber): Unit = {
     setRepr(cb,
       getAnyNonMissing || other.getAnyNonMissing,
       getAllDefined && other.getAllDefined,
@@ -127,23 +128,23 @@ class ImputeTypeAggregator(st: PType) extends StagedAggregator {
 
   def resultType: PStruct = ImputeTypeState.resultType
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
     assert(init.length == 0)
     state.initialize(cb)
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
     val Array(s) = seq
     assert(s.pt == st)
 
     state.seqOp(cb, s)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit = {
     state.combOp(cb, other)
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit = {
     cb += srvb.addBaseStruct(ImputeTypeState.resultType, { srvb =>
       Code(FastSeq(
         srvb.start(),

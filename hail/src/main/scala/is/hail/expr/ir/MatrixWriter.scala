@@ -172,7 +172,9 @@ case class SplitPartitionNativeWriter(
     eltType: PStruct,
     mb: EmitMethodBuilder[_],
     region: ParentStagedRegion,
-    stream: SizedStream): EmitCode = {
+    stream: SizedStream
+  )(implicit line: LineNumber
+  ): EmitCode = {
     val enc1 = spec1.buildEmitEncoder(eltType, mb.ecb)
     val enc2 = spec2.buildEmitEncoder(eltType, mb.ecb)
     val keyType = ifIndexed { index.get._2 }
@@ -285,7 +287,9 @@ case class MatrixSpecWriter(path: String, typ: MatrixType, rowRelPath: String, g
   def writeMetadata(
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
-    region: Value[Region]): Unit = {
+    region: Value[Region]
+  )(implicit line: LineNumber
+  ): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
     val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asInstanceOf[PBaseStructCode]
     val partCounts = cb.newLocal[Array[Long]]("partCounts")

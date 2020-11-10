@@ -183,7 +183,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
 
   // Takes ownership of both input regions, and returns ownership of region in
   // resulting RegionValue.
-  def combOpF(ctx: ExecuteContext, spec: BufferSpec): (RegionValue, RegionValue) => RegionValue = {
+  def combOpF(ctx: ExecuteContext, spec: BufferSpec)(implicit line: LineNumber): (RegionValue, RegionValue) => RegionValue = {
     val fb = ir.EmitFunctionBuilder[AsmFunction4RegionLongRegionLongLong](
       ctx,
       "combOpF3",

@@ -25,34 +25,34 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
     new CodeOrderingCompareConsistentWithOthers {
       type T = Int
 
-      def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
+      def compareNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Int] =
         Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", x, y)
 
-      override def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x < y
+      override def ltNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = x < y
 
-      override def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x <= y
+      override def lteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = x <= y
 
-      override def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x > y
+      override def gtNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = x > y
 
-      override def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x >= y
+      override def gteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = x >= y
 
-      override def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x.ceq(y)
+      override def equivNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = x.ceq(y)
     }
   }
 
   override def byteSize: Long = 4
 
-  override def zero = coerce[PInt32](const(0))
+  override def zero(implicit line: LineNumber) = coerce[PInt32](const(0))
 
-  override def add(a: Code[_], b: Code[_]): Code[PInt32] = {
+  override def add(a: Code[_], b: Code[_])(implicit line: LineNumber): Code[PInt32] = {
     coerce[PInt32](coerce[Int](a) + coerce[Int](b))
   }
 
-  override def multiply(a: Code[_], b: Code[_]): Code[PInt32] = {
+  override def multiply(a: Code[_], b: Code[_])(implicit line: LineNumber): Code[PInt32] = {
     coerce[PInt32](coerce[Int](a) * coerce[Int](b))
   }
 
-  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_]): Code[Unit] =
+  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_])(implicit line: LineNumber): Code[Unit] =
     Region.storeInt(addr, coerce[Int](value))
 }
 

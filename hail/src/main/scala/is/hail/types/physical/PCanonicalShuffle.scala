@@ -31,7 +31,7 @@ object PCanonicalShuffleSettable {
   def apply(sb: SettableBuilder, pt: PCanonicalShuffle, name: String): PCanonicalShuffleSettable =
     new PCanonicalShuffleSettable(pt, PCanonicalBinarySettable(sb, pt.representation, name))
 
-  def fromArrayBytes(cb: EmitCodeBuilder, region: Value[Region], pt: PCanonicalShuffle, bytes: Code[Array[Byte]]) = {
+  def fromArrayBytes(cb: EmitCodeBuilder, region: Value[Region], pt: PCanonicalShuffle, bytes: Code[Array[Byte]])(implicit line: LineNumber) = {
     val off = cb.newField[Long](
       "PCanonicalShuffleSettableOff",
       pt.representation.allocate(region, Wire.ID_SIZE))

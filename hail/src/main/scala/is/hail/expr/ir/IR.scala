@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.{Annotation, Region}
-import is.hail.asm4s.Value
+import is.hail.asm4s.{LineNumber, Value}
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
@@ -707,7 +707,8 @@ abstract class PartitionReader {
     mb: EmitMethodBuilder[C],
     partitionRegion: StagedRegion,
     env0: Emit.E,
-    container: Option[AggContainer]): COption[SizedStream]
+    container: Option[AggContainer]
+  )(implicit line: LineNumber): COption[SizedStream]
 
   def toJValue: JValue
 }
@@ -719,7 +720,8 @@ abstract class PartitionWriter {
     eltType: PStruct,
     mb: EmitMethodBuilder[_],
     region: ParentStagedRegion,
-    stream: SizedStream): EmitCode
+    stream: SizedStream
+  )(implicit line: LineNumber): EmitCode
 
   def ctxType: Type
   def returnType: Type
@@ -733,7 +735,8 @@ abstract class MetadataWriter {
   def writeMetadata(
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
-    region: Value[Region]): Unit
+    region: Value[Region]
+  )(implicit line: LineNumber): Unit
 
   def toJValue: JValue = Extraction.decompose(this)(MetadataWriter.formats)
 }

@@ -23,17 +23,17 @@ object CallStatsState {
 }
 
 class CallStatsState(val kb: EmitClassBuilder[_]) extends PointerBasedRVAState {
-  def alleleCountsOffset: Code[Long] = CallStatsState.stateType.fieldOffset(off, 0)
-  def homCountsOffset: Code[Long] = CallStatsState.stateType.fieldOffset(off, 1)
-  def alleleCounts: Code[Long] = CallStatsState.stateType.loadField(off, 0)
-  def homCounts: Code[Long] = CallStatsState.stateType.loadField(off, 1)
+  def alleleCountsOffset(implicit line: LineNumber): Code[Long] = CallStatsState.stateType.fieldOffset(off, 0)
+  def homCountsOffset(implicit line: LineNumber): Code[Long] = CallStatsState.stateType.fieldOffset(off, 1)
+  def alleleCounts(implicit line: LineNumber): Code[Long] = CallStatsState.stateType.loadField(off, 0)
+  def homCounts(implicit line: LineNumber): Code[Long] = CallStatsState.stateType.loadField(off, 1)
   val nAlleles: Settable[Int] = kb.genFieldThisRef[Int]()
   private val addr = kb.genFieldThisRef[Long]()
 
-  def loadNAlleles: Code[Unit] = nAlleles := CallStatsState.callStatsInternalArrayType.loadLength(alleleCounts)
+  def loadNAlleles(implicit line: LineNumber): Code[Unit] = nAlleles := CallStatsState.callStatsInternalArrayType.loadLength(alleleCounts)
 
   // unused but extremely useful for debugging if something goes wrong
-  def dump(tag: String): Code[Unit] = {
+  def dump(tag: String)(implicit line: LineNumber): Code[Unit] = {
     val i = kb.genFieldThisRef[Int]()
     Code(
       Code._println(s"at tag $tag"),
@@ -44,34 +44,34 @@ class CallStatsState(val kb: EmitClassBuilder[_]) extends PointerBasedRVAState {
     )
   }
 
-  override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] = Code(
+  override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long])(implicit line: LineNumber): Code[Unit] = Code(
     super.load(regionLoader, src),
     loadNAlleles
   )
 
-  def alleleCountAtIndex(idx: Code[Int], length: Code[Int]): Code[Int] =
+  def alleleCountAtIndex(idx: Code[Int], length: Code[Int])(implicit line: LineNumber): Code[Int] =
     Region.loadInt(CallStatsState.callStatsInternalArrayType.loadElement(alleleCounts, length, idx))
 
-  def updateAlleleCountAtIndex(idx: Code[Int], length: Code[Int], updater: Code[Int] => Code[Int]): Code[Unit] = Code(
+  def updateAlleleCountAtIndex(idx: Code[Int], length: Code[Int], updater: Code[Int] => Code[Int])(implicit line: LineNumber): Code[Unit] = Code(
     addr := CallStatsState.callStatsInternalArrayType.loadElement(alleleCounts, length, idx),
     Region.storeInt(addr, updater(Region.loadInt(addr)))
   )
 
-  def homCountAtIndex(idx: Code[Int], length: Code[Int]): Code[Int] =
+  def homCountAtIndex(idx: Code[Int], length: Code[Int])(implicit line: LineNumber): Code[Int] =
     Region.loadInt(CallStatsState.callStatsInternalArrayType.loadElement(homCounts, length, idx))
 
 
-  def updateHomCountAtIndex(idx: Code[Int], length: Code[Int], updater: Code[Int] => Code[Int]): Code[Unit] = Code(
+  def updateHomCountAtIndex(idx: Code[Int], length: Code[Int], updater: Code[Int] => Code[Int])(implicit line: LineNumber): Code[Unit] = Code(
     addr := CallStatsState.callStatsInternalArrayType.loadElement(homCounts, length, idx),
     Region.storeInt(addr, updater(Region.loadInt(addr)))
   )
 
-  def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = { (cb, ob) =>
+  def serialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = { (cb, ob) =>
     cb += TypedCodecSpec(CallStatsState.stateType, codec)
       .buildTypedEmitEncoderF[Long](CallStatsState.stateType, kb)(region, off, ob)
   }
 
-  def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
+  def deserialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     val (decType, dec) = TypedCodecSpec(CallStatsState.stateType, codec)
       .buildEmitDecoderF[Long](kb)
     assert(decType == CallStatsState.stateType)
@@ -83,7 +83,7 @@ class CallStatsState(val kb: EmitClassBuilder[_]) extends PointerBasedRVAState {
     }
   }
 
-  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long])(implicit line: LineNumber): Unit = {
     cb += Code(
       off := StagedRegionValueBuilder.deepCopyFromOffset(kb, region, CallStatsState.stateType, src),
       loadNAlleles
@@ -99,7 +99,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
   val initOpTypes: Seq[PType] = FastSeq(PInt32(true))
   val seqOpTypes: Seq[PType] = FastSeq(t)
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
     val Array(nAlleles) = init
     val addr = state.kb.genFieldThisRef[Long]()
     val n = state.kb.genFieldThisRef[Int]()
@@ -128,7 +128,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
     ))
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
     val Array(call) = seq
     assert(t == call.pv.pt)
 
@@ -151,7 +151,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
     })
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit = {
     val i = state.kb.genFieldThisRef[Int]()
     cb += Code(
       other.nAlleles.cne(state.nAlleles).orEmpty(Code._fatal[Unit]("length mismatch")),
@@ -165,7 +165,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
   }
 
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit = {
     val alleleNumber = state.kb.genFieldThisRef[Int]()
     val i = state.kb.genFieldThisRef[Int]()
     val x = state.kb.genFieldThisRef[Int]()

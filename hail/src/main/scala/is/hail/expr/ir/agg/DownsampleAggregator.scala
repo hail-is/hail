@@ -10,7 +10,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 
 
-class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitClassBuilder[_], region: Code[Region]) extends BTreeKey {
+class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitClassBuilder[_]) extends BTreeKey {
   val storageType: PCanonicalStruct = PCanonicalStruct(required = true,
     "bin" -> binType,
     "point" -> pointType,
@@ -19,23 +19,27 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitC
   val compType: PType = binType
   private val kcomp = kb.getCodeOrdering(binType, CodeOrdering.Compare(), ignoreMissingness = false)
 
-  def isEmpty(off: Code[Long]): Code[Boolean] = coerce[Boolean](Region.loadIRIntermediate(PBooleanRequired)(storageType.fieldOffset(off, "empty")))
+  def isEmpty(off: Code[Long])(implicit line: LineNumber): Code[Boolean] =
+    coerce[Boolean](Region.loadIRIntermediate(PBooleanRequired)(storageType.fieldOffset(off, "empty")))
 
-  def initializeEmpty(off: Code[Long]): Code[Unit] = Region.storeBoolean(storageType.fieldOffset(off, "empty"), true)
+  def initializeEmpty(off: Code[Long])(implicit line: LineNumber): Code[Unit] =
+    Region.storeBoolean(storageType.fieldOffset(off, "empty"), true)
 
-  def copy(src: Code[Long], dest: Code[Long]): Code[Unit] = Region.copyFrom(src, dest, storageType.byteSize)
+  def copy(src: Code[Long], dest: Code[Long])(implicit line: LineNumber): Code[Unit] =
+    Region.copyFrom(src, dest, storageType.byteSize)
 
-  def deepCopy(er: EmitRegion, src: Code[Long], dest: Code[Long]): Code[Unit] =
+  def deepCopy(er: EmitRegion, src: Code[Long], dest: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Code.memoize(src, "dsa_deep_copy_src") { src =>
       Code(
         Region.loadBoolean(storageType.loadField(src, "empty")).orEmpty(Code._fatal[Unit]("key empty!!")),
         StagedRegionValueBuilder.deepCopy(er, storageType, src, dest))
     }
 
-  def compKeys(k1: EmitCode, k2: EmitCode): Code[Int] =
+  def compKeys(k1: EmitCode, k2: EmitCode)(implicit line: LineNumber): Code[Int] =
     Code(k1.setup, k2.setup, kcomp(k1.m -> k1.v, k2.m -> k2.v))
 
-  def loadCompKey(off: Value[Long]): EmitCode = EmitCode.present(binType, storageType.loadField(off, "bin"))
+  def loadCompKey(off: Value[Long])(implicit line: LineNumber): EmitCode =
+    EmitCode.present(binType, storageType.loadField(off, "bin"))
 }
 
 
@@ -49,9 +53,10 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
 
   val oldRegion: Settable[Region] = kb.genFieldThisRef[Region]("old_region")
 
-  def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(regionSize)
+  def newState(off: Code[Long])(implicit line: LineNumber): Code[Unit] =
+    region.getNewRegion(regionSize)
 
-  def createState(cb: EmitCodeBuilder): Unit =
+  def createState(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit =
     cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize)))
 
   val binType = PCanonicalStruct(required = true, "x" -> PInt32Required, "y" -> PInt32Required)
@@ -63,7 +68,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
   private val root: Settable[Long] = kb.genFieldThisRef[Long]("root")
   private val oldRoot: Settable[Long] = kb.genFieldThisRef[Long]("old_root")
 
-  val key = new DownsampleBTreeKey(binType, pointType, kb, region)
+  val key = new DownsampleBTreeKey(binType, pointType, kb)
   val tree = new AppendOnlyBTree(kb, key, region, root)
   val buffer = new StagedArrayBuilder(pointType, kb, region, initialCapacity = maxBufferSize)
   val oldRootBTree = new AppendOnlyBTree(kb, key, region, oldRoot)
@@ -99,10 +104,10 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
 
   override val regionSize: Int = Region.SMALL
 
-  def allocateSpace(): Code[Unit] =
+  def allocateSpace()(implicit line: LineNumber): Code[Unit] =
     off := region.allocate(storageType.alignment, storageType.byteSize)
 
-  def init(nDivisions: Code[Int]): Code[Unit] = {
+  def init(nDivisions: Code[Int])(implicit line: LineNumber): Code[Unit] = {
     val mb = kb.genEmitMethod("downsample_init", FastIndexedSeq[ParamType](IntInfo), UnitInfo)
     mb.emit(Code(FastIndexedSeq(
       allocateSpace(),
@@ -118,7 +123,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     mb.invokeCode(nDivisions)
   }
 
-  override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] = {
+  override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long])(implicit line: LineNumber): Code[Unit] = {
     val mb = kb.genEmitMethod("downsample_load", FastIndexedSeq[ParamType](), UnitInfo)
     mb.emit(
       Code(FastIndexedSeq(
@@ -139,7 +144,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     Code(regionLoader(r), mb.invokeCode())
   }
 
-  override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] = {
+  override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long])(implicit line: LineNumber): Code[Unit] = {
     val mb = kb.genEmitMethod("downsample_store", FastIndexedSeq[ParamType](), UnitInfo)
     mb.emit(Code(FastIndexedSeq(
       off := dest,
@@ -162,7 +167,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
       region.isValid.orEmpty(Code(regionStorer(region), region.invalidate())))
   }
 
-  def copyFrom(cb: EmitCodeBuilder, _src: Code[Long]): Unit = {
+  def copyFrom(cb: EmitCodeBuilder, _src: Code[Long])(implicit line: LineNumber): Unit = {
     val mb = kb.genEmitMethod("downsample_copy", FastIndexedSeq[ParamType](LongInfo), UnitInfo)
 
     val src = mb.getCodeParam[Long](1)
@@ -180,7 +185,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     cb += mb.invokeCode(_src)
   }
 
-  def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
+  def serialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     val binEnc = binET.buildEncoderMethod(binType, kb)
     val pointEnc = pointET.buildEncoderMethod(pointType, kb)
 
@@ -210,7 +215,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     }
   }
 
-  def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
+  def deserialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     val binDec = binET.buildInplaceDecoderMethod(binType, kb)
     val pointDec = pointET.buildInplaceDecoderMethod(pointType, kb)
 
@@ -249,21 +254,29 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     }
   }
 
-  val xBinCoordinate: Code[Double] => Code[Int] = {
+  val _xBinCoordinate: EmitMethodBuilder[_] = {
+    implicit val line = LineNumber.none
     val mb = kb.genEmitMethod("downsample_x_bin_coordinate", FastIndexedSeq[ParamType](DoubleInfo), IntInfo)
     val x = mb.getCodeParam[Double](1)
     mb.emit(right.ceq(left).mux(0, (((x - left) / (right - left)) * nDivisions.toD).toI))
-    mb.invokeCode(_)
+    mb
   }
 
-  val yBinCoordinate: Code[Double] => Code[Int] = {
+  def xBinCoordinate(x: Code[Double])(implicit line: LineNumber): Code[Int] =
+    _xBinCoordinate.invokeCode(x)
+
+  val _yBinCoordinate: EmitMethodBuilder[_] = {
+    implicit val line = LineNumber.none
     val mb = kb.genEmitMethod("downsample_y_bin_coordinate", FastIndexedSeq[ParamType](DoubleInfo), IntInfo)
     val y = mb.getCodeParam[Double](1)
     mb.emit(top.ceq(bottom).mux(0, (((y - bottom) / (top - bottom)) * nDivisions.toD).toI))
-    mb.invokeCode(_)
+    mb
   }
 
-  def insertIntoTree(binX: Code[Int], binY: Code[Int], point: Code[Long], deepCopy: Boolean): Code[Unit] = {
+  def yBinCoordinate(y: Code[Double])(implicit line: LineNumber): Code[Int] =
+    _yBinCoordinate.invokeCode(y)
+
+  def insertIntoTree(binX: Code[Int], binY: Code[Int], point: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] = {
     val name = s"downsample_insert_into_tree_${ deepCopy.toString }"
     val mb = kb.getOrGenEmitMethod(name, (this, name, deepCopy), FastIndexedSeq[ParamType](IntInfo, IntInfo, LongInfo), UnitInfo) { mb =>
       val binX = mb.getCodeParam[Int](1)
@@ -299,7 +312,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     mb.invokeCode(binX, binY, point)
   }
 
-  def copyFromTree(other: AppendOnlyBTree): Code[Unit] = {
+  def copyFromTree(other: AppendOnlyBTree)(implicit line: LineNumber): Code[Unit] = {
     val mb = kb.genEmitMethod("downsample_copy_from_tree", FastIndexedSeq[ParamType](), UnitInfo)
 
     mb.emitWithBuilder { cb =>
@@ -325,18 +338,18 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     mb.invokeCode()
   }
 
-  def min(a: Code[Double], b: Code[Double]): Code[Double] =
+  def min(a: Code[Double], b: Code[Double])(implicit line: LineNumber): Code[Double] =
     Code.invokeStatic2[java.lang.Double, Double, Double, Double]("min", a, b)
 
-  def intMax(a: Code[Int], b: Code[Int]): Code[Int] =
+  def intMax(a: Code[Int], b: Code[Int])(implicit line: LineNumber): Code[Int] =
     Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("max", a, b)
 
-  def max(a: Code[Double], b: Code[Double]): Code[Double] =
+  def max(a: Code[Double], b: Code[Double])(implicit line: LineNumber): Code[Double] =
     Code.invokeStatic2[java.lang.Double, Double, Double, Double]("max", a, b)
 
-  def isFinite(a: Code[Double]): Code[Boolean] = Code.invokeStatic1[java.lang.Double, Double, Boolean]("isFinite", a)
+  def isFinite(a: Code[Double])(implicit line: LineNumber): Code[Boolean] = Code.invokeStatic1[java.lang.Double, Double, Boolean]("isFinite", a)
 
-  def dumpBuffer(): Code[Unit] = {
+  def dumpBuffer()(implicit line: LineNumber): Code[Unit] = {
     val name = "downsample_dump_buffer"
     val mb = kb.getOrGenEmitMethod(name, (this, name), FastIndexedSeq[ParamType](), UnitInfo) { mb =>
       val i = mb.newLocal[Int]("i")
@@ -371,7 +384,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     mb.invokeCode()
   }
 
-  def insertPointIntoBuffer(x: Code[Double], y: Code[Double], point: Code[Long], deepCopy: Boolean): Code[Unit] = {
+  def insertPointIntoBuffer(x: Code[Double], y: Code[Double], point: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] = {
     val name = "downsample_insert_into_buffer"
     val mb = kb.getOrGenEmitMethod(name, (this, name, deepCopy), FastIndexedSeq[ParamType](DoubleInfo, DoubleInfo, LongInfo), UnitInfo) { mb =>
       val x = mb.getCodeParam[Double](1)
@@ -391,7 +404,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     mb.invokeCode(x, y, point)
   }
 
-  def checkBounds(xBin: Code[Int], yBin: Code[Int]): Code[Boolean] = {
+  def checkBounds(xBin: Code[Int], yBin: Code[Int])(implicit line: LineNumber): Code[Boolean] = {
     val name = "downsample_check_bounds"
     val mb = kb.getOrGenEmitMethod(name, (this, name), FastIndexedSeq[ParamType](IntInfo, IntInfo), BooleanInfo) { mb =>
       val xBin = mb.getCodeParam[Int](1)
@@ -409,7 +422,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     mb.invokeCode(xBin, yBin)
   }
 
-  def binAndInsert(x: Code[Double], y: Code[Double], point: Code[Long], deepCopy: Boolean): Code[Unit] = {
+  def binAndInsert(x: Code[Double], y: Code[Double], point: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] = {
     val name = "downsample_bin_and_insert"
     val mb = kb.getOrGenEmitMethod(name, (this, name, deepCopy), FastIndexedSeq[ParamType](DoubleInfo, DoubleInfo, LongInfo), UnitInfo) { mb =>
       val x = mb.getCodeParam[Double](1)
@@ -429,7 +442,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     mb.invokeCode(x, y, point)
   }
 
-  def insert(x: Code[Double], y: Code[Double], lm: Code[Boolean], l: Code[Long]): Code[Unit] = {
+  def insert(x: Code[Double], y: Code[Double], lm: Code[Boolean], l: Code[Long])(implicit line: LineNumber): Code[Unit] = {
     val name = "downsample_insert"
     val mb = kb.getOrGenEmitMethod(name, (this, name), FastIndexedSeq[ParamType](DoubleInfo, DoubleInfo, BooleanInfo, LongInfo), UnitInfo) { mb =>
       val x = mb.getCodeParam[Double](1)
@@ -462,7 +475,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     )
   }
 
-  def deepCopyAndInsertPoint(point: Code[Long]): Code[Unit] = {
+  def deepCopyAndInsertPoint(point: Code[Long])(implicit line: LineNumber): Code[Unit] = {
     val name = "downsample_deep_copy_insert_point"
     val mb = kb.getOrGenEmitMethod(name, (this, name), IndexedSeq[ParamType](LongInfo), UnitInfo) { mb =>
       val point = mb.getCodeParam[Long](1)
@@ -480,7 +493,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     mb.invokeCode(point)
   }
 
-  def merge(cb: EmitCodeBuilder, other: DownsampleState): Unit = {
+  def merge(cb: EmitCodeBuilder, other: DownsampleState)(implicit line: LineNumber): Unit = {
     val mb = kb.genEmitMethod("downsample_insert_from", FastIndexedSeq[ParamType](), UnitInfo)
 
     val i = mb.newLocal[Int]("i")
@@ -498,7 +511,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     cb += mb.invokeCode()
   }
 
-  def result(mb: EmitMethodBuilder[_], srvb: StagedRegionValueBuilder, resultType: PArray): Code[Unit] = {
+  def result(mb: EmitMethodBuilder[_], srvb: StagedRegionValueBuilder, resultType: PArray)(implicit line: LineNumber): Code[Unit] = {
     val eltType = resultType.elementType.asInstanceOf[PBaseStruct]
     Code(
       dumpBuffer(),
@@ -541,7 +554,7 @@ class DownsampleAggregator(arrayType: PArray) extends StagedAggregator {
   val initOpTypes: Seq[PType] = Array(PInt32(true))
   val seqOpTypes: Seq[PType] = Array(PFloat64(), PFloat64(), PType.canonical(arrayType))
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
     val Array(nDivisions) = init
     cb += Code(
       nDivisions.setup,
@@ -552,7 +565,7 @@ class DownsampleAggregator(arrayType: PArray) extends StagedAggregator {
     )
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
     val Array(x, y, label) = seq
 
     cb += Code(
@@ -565,8 +578,8 @@ class DownsampleAggregator(arrayType: PArray) extends StagedAggregator {
     )
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = state.merge(cb, other)
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit = state.merge(cb, other)
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit =
     cb += state.result(cb.emb, srvb, resultType)
 }

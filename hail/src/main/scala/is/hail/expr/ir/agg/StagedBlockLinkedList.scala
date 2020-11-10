@@ -26,7 +26,7 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
     "lastNode" -> PInt64Required,
     "totalCount" -> PInt32Required)
 
-  def load(src: Code[Long]): Code[Unit] =
+  def load(src: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Code.memoize(src, "sbll_load_src") { src =>
       Code(
         firstNode := Region.loadAddress(storageType.fieldOffset(src, "firstNode")),
@@ -34,7 +34,7 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
         totalCount := Region.loadInt(storageType.fieldOffset(src, "totalCount")))
     }
 
-  def store(dst: Code[Long]): Code[Unit] =
+  def store(dst: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Code.memoize(dst, "sbll_store_dst") { dst =>
       Code(
         Region.storeAddress(storageType.fieldOffset(dst, "firstNode"), firstNode),
@@ -52,28 +52,28 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
     "count" -> PInt32Required,
     "next" -> PInt64Required)
 
-  private def buffer(n: Node): Code[Long] =
+  private def buffer(n: Node)(implicit line: LineNumber): Code[Long] =
     Region.loadAddress(nodeType.fieldOffset(n, "buf"))
 
-  private[agg] def capacity(n: Node): Code[Int] =
+  private[agg] def capacity(n: Node)(implicit line: LineNumber): Code[Int] =
     bufferType.loadLength(buffer(n))
 
-  private def count(n: Node): Code[Int] =
+  private def count(n: Node)(implicit line: LineNumber): Code[Int] =
     Region.loadInt(nodeType.fieldOffset(n, "count"))
 
-  private def incrCount(n: Node): Code[Unit] =
+  private def incrCount(n: Node)(implicit line: LineNumber): Code[Unit] =
     Region.storeInt(nodeType.fieldOffset(n, "count"), count(n) + 1)
 
-  private def next(n: Node): Code[Long] =
+  private def next(n: Node)(implicit line: LineNumber): Code[Long] =
     Region.loadAddress(nodeType.fieldOffset(n, "next"))
 
-  private def hasNext(n: Node): Code[Boolean] =
+  private def hasNext(n: Node)(implicit line: LineNumber): Code[Boolean] =
     next(n) cne nil
 
-  private def setNext(n: Node, nNext: Node): Code[Unit] =
+  private def setNext(n: Node, nNext: Node)(implicit line: LineNumber): Code[Unit] =
     Region.storeAddress(nodeType.fieldOffset(n, "next"), nNext)
 
-  private def initNode(n: Node, buf: Code[Long], count: Code[Int]): Code[Unit] =
+  private def initNode(n: Node, buf: Code[Long], count: Code[Int])(implicit line: LineNumber): Code[Unit] =
     Code.memoize(n, "sbll_init_node_n") { n =>
       Code(
         Region.storeAddress(nodeType.fieldOffset(n, "buf"), buf),
@@ -81,18 +81,18 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
         Region.storeAddress(nodeType.fieldOffset(n, "next"), nil))
     }
 
-  private def pushPresent(n: Node, store: Code[Long] => Code[Unit]): Code[Unit] =
+  private def pushPresent(n: Node, store: Code[Long] => Code[Unit])(implicit line: LineNumber): Code[Unit] =
     Code(
       if (elemType.required) Code._empty else bufferType.setElementPresent(buffer(n), count(n)),
       store(bufferType.elementOffset(buffer(n), capacity(n), count(n))),
       incrCount(n))
 
-  private def pushMissing(n: Node): Code[Unit] =
+  private def pushMissing(n: Node)(implicit line: LineNumber): Code[Unit] =
     Code(
       bufferType.setElementMissing(buffer(n), count(n)),
       incrCount(n))
 
-  private def allocateNode(dstNode: Settable[Long])(r: Value[Region], cap: Code[Int]): Code[Unit] =
+  private def allocateNode(dstNode: Settable[Long])(r: Value[Region], cap: Code[Int])(implicit line: LineNumber): Code[Unit] =
     Code.memoize(cap, "sbll_alloc_node_cap") { cap =>
       Code(
         dstNode := r.allocate(nodeType.alignment, nodeType.byteSize),
@@ -102,17 +102,17 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
         bufferType.stagedInitialize(buffer(dstNode), cap))
     }
 
-  private def initWithCapacity(r: Value[Region], initialCap: Code[Int]): Code[Unit] = {
+  private def initWithCapacity(r: Value[Region], initialCap: Code[Int])(implicit line: LineNumber): Code[Unit] = {
     Code(
       allocateNode(firstNode)(r, initialCap),
       lastNode := firstNode,
       totalCount := 0)
   }
 
-  def init(r: Value[Region]): Code[Unit] =
+  def init(r: Value[Region])(implicit line: LineNumber): Code[Unit] =
     initWithCapacity(r, defaultBlockCap)
 
-  private def pushNewBlockNode(mb: EmitMethodBuilder[_], r: Value[Region], cap: Code[Int]): Code[Unit] = {
+  private def pushNewBlockNode(mb: EmitMethodBuilder[_], r: Value[Region], cap: Code[Int])(implicit line: LineNumber): Code[Unit] = {
     val newNode = mb.newLocal[Long]()
     Code(
       allocateNode(newNode)(r, cap),
@@ -120,7 +120,7 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
       lastNode := newNode)
   }
 
-  private def foreachNode(mb: EmitMethodBuilder[_], tmpNode: Settable[Long])(body: Code[Unit]): Code[Unit] = {
+  private def foreachNode(mb: EmitMethodBuilder[_], tmpNode: Settable[Long])(body: Code[Unit])(implicit line: LineNumber): Code[Unit] = {
     val present = mb.newLocal[Boolean]()
     Code(
       tmpNode := firstNode,
@@ -131,7 +131,7 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
         tmpNode := next(tmpNode)))
   }
 
-  private def foreach(mb: EmitMethodBuilder[_])(f: EmitCode => Code[Unit]): Code[Unit] = {
+  private def foreach(mb: EmitMethodBuilder[_])(f: EmitCode => Code[Unit])(implicit line: LineNumber): Code[Unit] = {
     val n = mb.newLocal[Long]()
     foreachNode(mb, n) {
       val i = mb.newLocal[Int]()
@@ -145,7 +145,7 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
     }
   }
 
-  private def push(mb: EmitMethodBuilder[_], r: Value[Region], m: Code[Boolean], v: Code[_]): Code[Unit] = {
+  private def push(mb: EmitMethodBuilder[_], r: Value[Region], m: Code[Boolean], v: Code[_])(implicit line: LineNumber): Code[Unit] = {
     var push = pushPresent(lastNode, StagedRegionValueBuilder.deepCopy(cb, r, elemType, v, _))
     if (!elemType.required)
       push = m.mux(pushMissing(lastNode), push)
@@ -156,7 +156,7 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
       totalCount := totalCount + 1)
   }
 
-  def push(region: Value[Region], elt: EmitCode): Code[Unit] = {
+  def push(region: Value[Region], elt: EmitCode)(implicit line: LineNumber): Code[Unit] = {
     val eltTI = typeToTypeInfo(elemType)
     val pushF = cb.genEmitMethod("blockLinkedListPush",
       FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Boolean], eltTI),
@@ -172,7 +172,7 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
         pushF.invokeCode(region, const(false), elt.v)))
   }
 
-  def append(region: Value[Region], bll: StagedBlockLinkedList): Code[Unit] = {
+  def append(region: Value[Region], bll: StagedBlockLinkedList)(implicit line: LineNumber): Code[Unit] = {
     // it would take additional logic to get self-append to work, but we don't need it to anyways
     assert(bll ne this)
     assert(bll.elemType.isOfType(elemType))
@@ -185,7 +185,7 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
     appF.invokeCode(region)
   }
 
-  def writeToSRVB(mb: EmitMethodBuilder[_], srvb: StagedRegionValueBuilder): Code[Unit] = {
+  def writeToSRVB(mb: EmitMethodBuilder[_], srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Code[Unit] = {
     assert(srvb.typ.fundamentalType.isOfType(bufferType.fundamentalType), s"srvb: ${srvb.typ}, buf: ${bufferType.fundamentalType}")
       Code(
         srvb.start(totalCount, init = true),
@@ -199,7 +199,7 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
         })
   }
 
-  def serialize(region: Code[Region], outputBuffer: Code[OutputBuffer]): Code[Unit] = {
+  def serialize(region: Code[Region], outputBuffer: Code[OutputBuffer])(implicit line: LineNumber): Code[Unit] = {
     val serF = cb.genEmitMethod("blockLinkedListSerialize",
       FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[OutputBuffer]),
       typeInfo[Unit])
@@ -219,7 +219,7 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
     serF.invokeCode(region, outputBuffer)
   }
 
-  def deserialize(region: Code[Region], inputBuffer: Code[InputBuffer]): Code[Unit] = {
+  def deserialize(region: Code[Region], inputBuffer: Code[InputBuffer])(implicit line: LineNumber): Code[Unit] = {
     val desF = cb.genEmitMethod("blockLinkedListDeserialize",
       FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[InputBuffer]),
       typeInfo[Unit])
@@ -235,7 +235,7 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
     desF.invokeCode[Unit](region, inputBuffer)
   }
 
-  private def appendShallow(mb: EmitMethodBuilder[_], r: Code[Region], aoff: Code[Long]): Code[Unit] = {
+  private def appendShallow(mb: EmitMethodBuilder[_], r: Code[Region], aoff: Code[Long])(implicit line: LineNumber): Code[Unit] = {
     Code.memoize(aoff, "sbll_append_shallow_aoff") { aoff =>
       Code.memoize(bufferType.loadLength(aoff), "sbll_append_shallow_len") { len =>
         val newNode = mb.newLocal[Long]()
@@ -251,7 +251,7 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
     }
   }
 
-  def initWithDeepCopy(region: Value[Region], other: StagedBlockLinkedList): Code[Unit] = {
+  def initWithDeepCopy(region: Value[Region], other: StagedBlockLinkedList)(implicit line: LineNumber): Code[Unit] = {
     assert(other ne this)
     assert(other.cb eq cb)
     val initF = cb.genEmitMethod("blockLinkedListDeepCopy",

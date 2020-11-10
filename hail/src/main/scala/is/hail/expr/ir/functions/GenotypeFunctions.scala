@@ -11,7 +11,8 @@ object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
     registerPCode1("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: PType) => PInt32())
-    { case (r, rt, _pl: PIndexableCode) =>
+    { case (r, rt, _pl: PIndexableCode, _line) =>
+      implicit val line = _line
       val code = EmitCodeBuilder.scopedCode(r.mb) { cb =>
         val pl = _pl.memoize(cb, "plv")
         val m = cb.newLocal[Int]("m", 99)
@@ -36,7 +37,8 @@ object GenotypeFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode1("dosage", TArray(tv("N", "float64")), TFloat64,  (_: Type, _: PType) => PFloat64()
-    ) { case (cb, r, rt, gp) =>
+    ) { case (cb, r, rt, gp, _line) =>
+      implicit val line = _line
       gp().flatMap(cb) { case (gpc: PIndexableCode) =>
         val gpv = gpc.memoize(cb, "dosage_gp")
 

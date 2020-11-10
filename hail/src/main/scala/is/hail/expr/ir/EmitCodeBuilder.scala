@@ -16,7 +16,7 @@ object EmitCodeBuilder {
     (cb.result(), t)
   }
 
-  def scopedCode[T](mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => Code[T]): Code[T] = {
+  def scopedCode[T](mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => Code[T])(implicit line: LineNumber): Code[T] = {
     val (cbcode, retcode) = EmitCodeBuilder.scoped(mb)(f)
     Code(cbcode, retcode)
   }
@@ -35,7 +35,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   def mb: MethodBuilder[_] = emb.mb
 
-  def uncheckedAppend(c: Code[Unit]): Unit = {
+  def uncheckedAppend(c: Code[Unit])(implicit line: LineNumber): Unit = {
     code = Code(code, c)
   }
 
@@ -45,45 +45,45 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     tmp
   }
 
-  def assign(s: PSettable, v: PCode): Unit = {
+  def assign(s: PSettable, v: PCode)(implicit line: LineNumber): Unit = {
     append(s := v)
   }
 
-  def assign(s: EmitSettable, v: EmitCode): Unit = {
+  def assign(s: EmitSettable, v: EmitCode)(implicit line: LineNumber): Unit = {
     append(s := v)
   }
 
-  def assign(s: EmitSettable, v: IEmitCode): Unit = {
+  def assign(s: EmitSettable, v: IEmitCode)(implicit line: LineNumber): Unit = {
     s.store(this, v)
   }
 
   def memoize(pc: PCode, name: String): PValue = pc.memoize(this, name)
 
-  def memoizeField(pc: PCode, name: String): PValue = {
+  def memoizeField(pc: PCode, name: String)(implicit line: LineNumber): PValue = {
     val f = emb.newPField(name, pc.pt)
     assign(f, pc)
     f
   }
 
-  def memoize(v: EmitCode, name: String): EmitValue = {
+  def memoize(v: EmitCode, name: String)(implicit line: LineNumber): EmitValue = {
     val l = emb.newEmitLocal(name, v.pt)
     assign(l, v)
     l
   }
 
-  def memoize(v: IEmitCode, name: String): EmitValue = {
+  def memoize(v: IEmitCode, name: String)(implicit line: LineNumber): EmitValue = {
     val l = emb.newEmitLocal(name, v.pt)
     assign(l, v)
     l
   }
 
-  def memoizeField[T](ec: EmitCode, name: String): EmitValue = {
+  def memoizeField[T](ec: EmitCode, name: String)(implicit line: LineNumber): EmitValue = {
     val l = emb.newEmitField(name, ec.pt)
     append(l := ec)
     l
   }
 
-  private def _invoke[T](callee: EmitMethodBuilder[_], args: Param*): Code[T] = {
+  private def _invoke[T](callee: EmitMethodBuilder[_], args: Param*)(implicit line: LineNumber): Code[T] = {
       val codeArgs = args.flatMap {
         case CodeParam(c) =>
           FastIndexedSeq(c)
@@ -100,17 +100,17 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
       callee.mb.invoke(codeArgs: _*)
   }
 
-  def invokeVoid(callee: EmitMethodBuilder[_], args: Param*): Unit = {
+  def invokeVoid(callee: EmitMethodBuilder[_], args: Param*)(implicit line: LineNumber): Unit = {
     assert(callee.emitReturnType == CodeParamType(UnitInfo))
     append(_invoke[Unit](callee, args: _*))
   }
 
-  def invokeCode[T](callee: EmitMethodBuilder[_], args: Param*): Code[T] = {
+  def invokeCode[T](callee: EmitMethodBuilder[_], args: Param*)(implicit line: LineNumber): Code[T] = {
     assert(callee.emitReturnType.isInstanceOf[CodeParamType])
     _invoke[T](callee, args: _*)
   }
 
-  def invokeEmit(callee: EmitMethodBuilder[_], args: Param*): EmitCode = {
+  def invokeEmit(callee: EmitMethodBuilder[_], args: Param*)(implicit line: LineNumber): EmitCode = {
     val pt = callee.emitReturnType.asInstanceOf[EmitParamType].pt
     val r = newLocal("invokeEmit_r")(pt.codeReturnType())
     EmitCode(r := _invoke(callee, args: _*),

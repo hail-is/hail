@@ -168,7 +168,8 @@ object MathFunctions extends RegistryFunctions {
 
     registerCode4("fisher_exact_test", TInt32, TInt32, TInt32, TInt32, fetStruct.virtualType,
       (_, _, _, _, _) => fetStruct
-    ){ case (r, rt, (at, a), (bt, b), (ct, c), (dt, d)) =>
+    ){ case (r, rt, (at, a), (bt, b), (ct, c), (dt, d), _line) =>
+      implicit val line = _line
       val res = r.mb.newLocal[Array[Double]]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(Code(FastIndexedSeq(
@@ -187,7 +188,8 @@ object MathFunctions extends RegistryFunctions {
     
     registerCode4("chi_squared_test", TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
       (_, _, _, _, _) => chisqStruct
-    ){ case (r, rt, (at, a), (bt, b), (ct, c), (dt, d))  =>
+    ){ case (r, rt, (at, a), (bt, b), (ct, c), (dt, d), _line)  =>
+      implicit val line = _line
       val res = r.mb.newLocal[Array[Double]]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
@@ -203,7 +205,8 @@ object MathFunctions extends RegistryFunctions {
 
     registerCode5("contingency_table_test", TInt32, TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
       (_, _, _, _, _, _) => chisqStruct
-    ){ case (r, rt, (at, a), (bt, b), (ct, c), (dt, d), (mccT, min_cell_count)) =>
+    ){ case (r, rt, (at, a), (bt, b), (ct, c), (dt, d), (mccT, min_cell_count), _line) =>
+      implicit val line = _line
       val res = r.mb.newLocal[Array[Double]]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
@@ -218,7 +221,8 @@ object MathFunctions extends RegistryFunctions {
     }
 
     registerCode3("hardy_weinberg_test", TInt32, TInt32, TInt32,
-      hweStruct.virtualType, (_, _, _, _) => hweStruct) { case (r, rt, (nhrT, nHomRef), (nhT, nHet), (nhvT, nHomVar)) =>
+      hweStruct.virtualType, (_, _, _, _) => hweStruct) { case (r, rt, (nhrT, nHomRef), (nhT, nHet), (nhvT, nHomVar), _line) =>
+      implicit val line = _line
       val res = r.mb.newLocal[Array[Double]]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
