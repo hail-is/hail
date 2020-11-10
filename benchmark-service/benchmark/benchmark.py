@@ -344,7 +344,8 @@ async def delete_commit(request, userdata):  # pylint: disable=unused-argument
 async def call_update_commit(request, userdata):  # pylint: disable=unused-argument
     body = await request.json()
     sha = body['sha']
-    update_commit(request.app, sha)
+    commit = update_commit(request.app, sha)
+    return web.json_response({'commit': commit})
 
 
 async def github_polling_loop(app):
