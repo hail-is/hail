@@ -236,7 +236,7 @@ async def update_commits(app):
         sha = gh_commit.get('sha')
         log.info(f'for commit {sha}')
 
-        commit = update_commit(app, sha)
+        commit = await update_commit(app, sha)
 
         # file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
         # has_results_file = gs_reader.file_exists(file_path)
@@ -334,7 +334,8 @@ async def delete_commit(request, userdata):  # pylint: disable=unused-argument
     gs_reader = app['gs_reader']
     sha = str(request.match_info['sha'])
     file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
-    gs_reader.delete_file(file_path)
+    if gs_reader.file_exists(file_path):
+        gs_reader.delete_file(file_path)
     commit = next((item for item in benchmark_data['commits'] if item['sha'] == sha), None)
     if commit is not None:
         benchmark_data['commits'].remove(commit)
