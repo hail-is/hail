@@ -1,6 +1,6 @@
 import secrets
 import base64
-from hailtop.auth session_id_encode_to_str
+from hailtop.auth import session_id_encode_to_str
 
 
 async def insert_user(db, spec):
