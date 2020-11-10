@@ -163,7 +163,10 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_part
 
     if reference_genome:
         if reference_genome.name == 'GRCh37':
-            ht = ht.annotate(seqname=ht['seqname'].replace('^chr', ''))
+            ht = ht.annotate(seqname=hl.case()
+                             .when((ht['seqname'] == 'M') | (ht['seqname'] == 'chrM'), 'MT')
+                             .when(ht['seqname'].startswith('chr'), ht['seqname'].replace('^chr', ''))
+                             .default(ht['seqname']))
         else:
             ht = ht.annotate(seqname=hl.case()
                                        .when(ht['seqname'].startswith('HLA'), ht['seqname'])
