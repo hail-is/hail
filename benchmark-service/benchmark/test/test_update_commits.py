@@ -45,8 +45,8 @@ async def test_update_commits():
         commit = json.loads(resp_commit_text)
 
         async def wait_forever():
-            #commit = None
-            while commit is None:
+            commit_status = None
+            while commit_status is None:
                 resp = await utils.request_retry_transient_errors(
                     session, 'GET', f'{create_benchmark_url}', headers=headers, json={'sha': sha})
                 resp_text = await resp.text()

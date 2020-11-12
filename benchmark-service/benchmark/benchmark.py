@@ -338,7 +338,7 @@ async def delete_commit(request):  # pylint: disable=unused-argument
     file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
     if gs_reader.file_exists(file_path):
         gs_reader.delete_file(file_path)
-    for b in batch_client.list_batches(q=f'sha={sha}'):
+    async for b in batch_client.list_batches(q=f'sha={sha}'):
         await b.delete()
     commits = [item for item in benchmark_data['commits'] if item['sha'] == sha]
     for commit in commits:
