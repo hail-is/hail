@@ -351,7 +351,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
         top := max(top, bufferTop),
         oldRegion := region,
         oldRoot := root,
-        r := Region.stagedCreate(regionSize),
+        r := Region.stagedCreate(regionSize, region.getPool()),
         treeSize := 0,
         tree.init,
         copyFromTree(oldRootBTree),

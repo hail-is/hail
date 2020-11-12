@@ -1,6 +1,6 @@
 package is.hail.utils.richUtils
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
 
 class RichCodeRegion(val region: Code[Region]) extends AnyVal {
@@ -36,4 +36,6 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def storeJavaObject(obj: Code[AnyRef]): Code[Int] = region.invoke[AnyRef, Int]("storeJavaObject", obj)
 
   def lookupJavaObject(idx: Code[Int]): Code[AnyRef] = region.invoke[Int, AnyRef]("lookupJavaObject", idx)
+
+  def getPool(): Code[RegionPool] = region.invoke[RegionPool]("getPool")
 }

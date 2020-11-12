@@ -268,6 +268,9 @@ object Region {
   def stagedCreate(blockSize: Size): Code[Region] =
     Code.invokeScalaObject2[Int, RegionPool, Region](Region.getClass, "apply", asm4s.const(blockSize), Code._null)
 
+  def stagedCreate(blockSize: Size, pool: Code[RegionPool]): Code[Region] =
+    Code.invokeScalaObject2[Int, RegionPool, Region](Region.getClass, "apply", asm4s.const(blockSize), pool)
+
   def apply(blockSize: Region.Size = Region.REGULAR, pool: RegionPool = null): Region = {
     (if (pool == null) RegionPool.get else pool)
       .getRegion(blockSize)
@@ -448,6 +451,10 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
 
   def prettyBits(): String = {
     "FIXME: implement prettyBits on Region"
+  }
+
+  def getPool(): RegionPool = {
+    pool
   }
 }
 
