@@ -16,6 +16,8 @@ HAIL_MAJOR_MINOR_VERSION := 0.2
 HAIL_PATCH_VERSION := 59
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
+ELASTIC_MAJOR_VERSION ?= 6
+
 
 $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
@@ -23,6 +25,7 @@ $(eval $(call ENV_VAR,BRANCH))
 $(eval $(call ENV_VAR,SPARK_VERSION))
 $(eval $(call ENV_VAR,HAIL_PIP_VERSION))
 $(eval $(call ENV_VAR,HAIL_DEBUG_MODE))
+$(eval $(call ENV_VAR,ELASTIC_MAJOR_VERSION))
 
 HAIL_PYTHON3 ?= python3
 PIP ?= $(HAIL_PYTHON3) -m pip
@@ -34,7 +37,6 @@ JAVAC ?= javac
 JAR ?= jar
 endif
 
-ELASTIC_MAJOR_VERSION ?= 6
 
 # not perfect, not robust to simdpp changes, but probably fine
 BUILD_DEBUG_PREFIX := build/classes/scala/debug
