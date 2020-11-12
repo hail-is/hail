@@ -928,7 +928,7 @@ object Interpret {
           // creates a new region holding the zero value, giving ownership to
           // the caller
           val mkZero = () => {
-            val region = Region(Region.SMALL)
+            val region = Region(Region.SMALL, pool=ctx.r.pool)
             val initF = initOp(0, region)
             initF.newAggState(region)
             initF(region, globalsBc.value.readRegionValue(region))
