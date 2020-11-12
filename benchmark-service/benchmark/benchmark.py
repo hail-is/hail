@@ -320,7 +320,7 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
 
 
 @router.get('/api/v1alpha/benchmark/commit/{sha}')
-async def get_status(request, userdata):  # pylint: disable=unused-argument
+async def get_status(request):  # pylint: disable=unused-argument
     global benchmark_data
     sha = str(request.match_info['sha'])
     commit = next((item for item in benchmark_data['commits'] if item['sha'] == sha), None)
@@ -328,7 +328,7 @@ async def get_status(request, userdata):  # pylint: disable=unused-argument
 
 
 @router.delete('/api/v1alpha/benchmark/commit/{sha}')
-async def delete_commit(request, userdata):  # pylint: disable=unused-argument
+async def delete_commit(request):  # pylint: disable=unused-argument
     global benchmark_data
     app = request.app
     gs_reader = app['gs_reader']
@@ -342,7 +342,7 @@ async def delete_commit(request, userdata):  # pylint: disable=unused-argument
 
 
 @router.post('/api/v1alpha/benchmark/commit/{sha}')
-async def call_update_commit(request, userdata):  # pylint: disable=unused-argument
+async def call_update_commit(request):  # pylint: disable=unused-argument
     body = await request.json()
     sha = body['sha']
     commit = await update_commit(request.app, sha)
