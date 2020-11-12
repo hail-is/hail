@@ -7,7 +7,10 @@ object HailTaskContext {
 
   private[this] val taskContext: ThreadLocal[HailTaskContext] = new ThreadLocal[HailTaskContext]
   def setTaskContext(tc: HailTaskContext): Unit = taskContext.set(tc)
-  def unset(): Unit = taskContext.remove()
+  def unset(): Unit = {
+    taskContext.get().getRegionPool().close()
+    taskContext.remove()
+  }
 }
 
 abstract class HailTaskContext {

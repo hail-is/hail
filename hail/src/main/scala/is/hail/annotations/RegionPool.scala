@@ -4,7 +4,15 @@ import is.hail.backend.HailTaskContext
 import is.hail.utils._
 
 object RegionPool {
-  def get: RegionPool = HailTaskContext.get().getRegionPool()
+  def get: RegionPool = {
+    val htc = HailTaskContext.get()
+
+    if (htc == null) {
+      throw new IllegalStateException("RegionPool requested but HailTaskContext was null")
+    }
+
+    htc.getRegionPool()
+  }
 
   def apply(strictMemoryCheck: Boolean = false): RegionPool = {
     val thread = Thread.currentThread()

@@ -47,6 +47,10 @@ class SparkTaskContext(ctx: TaskContext) extends HailTaskContext {
   override def stageId(): Int = ctx.stageId()
   override def partitionId(): Int = ctx.partitionId()
   override def attemptNumber(): Int = ctx.attemptNumber()
+
+  ctx.addTaskCompletionListener(tc =>
+    this.getRegionPool().close()
+  )
 }
 
 object SparkBackend {
