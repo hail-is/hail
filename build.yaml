@@ -3571,8 +3571,9 @@ steps:
       for: alive
    dependsOn:
     - default_ns
+    - create_certs
     - create_accounts
     - deploy_router
+    - deploy_auth
     - atgu_image
     - atgu_database
-    - create_certs
