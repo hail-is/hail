@@ -616,7 +616,7 @@ class SparkBackend(
     }
   }
 
-  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
+  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR])(implicit line: LineNumber): TableStage = {
     val (globals, rvd) = TableStageToRVD(ctx, stage, relationalLetsAbove)
 
     if (sortFields.forall(_.sortOrder == Ascending)) {

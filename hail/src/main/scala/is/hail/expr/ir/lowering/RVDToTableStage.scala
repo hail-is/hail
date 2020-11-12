@@ -24,7 +24,7 @@ object RVDToTableStage {
 }
 
 object TableStageToRVD {
-  def apply(ctx: ExecuteContext, _ts: TableStage, relationalBindings: Map[String, IR]): (BroadcastRow, RVD) = {
+  def apply(ctx: ExecuteContext, _ts: TableStage, relationalBindings: Map[String, IR])(implicit line: LineNumber): (BroadcastRow, RVD) = {
 
     val ts = TableStage(letBindings = _ts.letBindings,
       broadcastVals = _ts.broadcastVals,

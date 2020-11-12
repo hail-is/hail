@@ -74,9 +74,9 @@ trait BufferSpec extends Spec {
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer
 
-  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBuffer]
+  def buildCodeInputBuffer(in: Code[InputStream])(implicit line: LineNumber): Code[InputBuffer]
 
-  def buildCodeOutputBuffer(in: Code[OutputStream]): Code[OutputBuffer]
+  def buildCodeOutputBuffer(in: Code[OutputStream])(implicit line: LineNumber): Code[OutputBuffer]
 }
 
 final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
@@ -84,10 +84,10 @@ final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer = new LEB128OutputBuffer(child.buildOutputBuffer(out))
 
-  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBuffer] =
+  def buildCodeInputBuffer(in: Code[InputStream])(implicit line: LineNumber): Code[InputBuffer] =
     Code.newInstance[LEB128InputBuffer, InputBuffer](child.buildCodeInputBuffer(in))
 
-  def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBuffer] =
+  def buildCodeOutputBuffer(out: Code[OutputStream])(implicit line: LineNumber): Code[OutputBuffer] =
     Code.newInstance[LEB128OutputBuffer, OutputBuffer](child.buildCodeOutputBuffer(out))
 }
 
@@ -98,10 +98,10 @@ final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) exte
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer = new BlockingOutputBuffer(blockSize, child.buildOutputBuffer(out))
 
-  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBuffer] =
+  def buildCodeInputBuffer(in: Code[InputStream])(implicit line: LineNumber): Code[InputBuffer] =
     Code.newInstance[BlockingInputBuffer, Int, InputBlockBuffer](blockSize, child.buildCodeInputBuffer(in))
 
-  def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBuffer] =
+  def buildCodeOutputBuffer(out: Code[OutputStream])(implicit line: LineNumber): Code[OutputBuffer] =
     Code.newInstance[BlockingOutputBuffer, Int, OutputBlockBuffer](blockSize, child.buildCodeOutputBuffer(out))
 }
 
@@ -110,9 +110,9 @@ trait BlockBufferSpec extends Spec {
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer
 
-  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer]
+  def buildCodeInputBuffer(in: Code[InputStream])(implicit line: LineNumber): Code[InputBlockBuffer]
 
-  def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer]
+  def buildCodeOutputBuffer(out: Code[OutputStream])(implicit line: LineNumber): Code[OutputBlockBuffer]
 }
 
 abstract class LZ4BlockBufferSpecCommon extends BlockBufferSpec {
@@ -122,7 +122,7 @@ abstract class LZ4BlockBufferSpecCommon extends BlockBufferSpec {
 
   def lz4: LZ4
 
-  def stagedlz4: Code[LZ4]
+  def stagedlz4(implicit line: LineNumber): Code[LZ4]
 
   def blockSize: Int
 
@@ -132,24 +132,24 @@ abstract class LZ4BlockBufferSpecCommon extends BlockBufferSpec {
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new LZ4OutputBlockBuffer(lz4, blockSize, child.buildOutputBuffer(out))
 
-  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer] =
+  def buildCodeInputBuffer(in: Code[InputStream])(implicit line: LineNumber): Code[InputBlockBuffer] =
     Code.newInstance[LZ4InputBlockBuffer, LZ4, Int, InputBlockBuffer](stagedlz4, blockSize, child.buildCodeInputBuffer(in))
 
-  def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
+  def buildCodeOutputBuffer(out: Code[OutputStream])(implicit line: LineNumber): Code[OutputBlockBuffer] =
     Code.newInstance[LZ4OutputBlockBuffer, LZ4, Int, OutputBlockBuffer](stagedlz4, blockSize, child.buildCodeOutputBuffer(out))
 }
 
 final case class LZ4HCBlockBufferSpec(blockSize: Int, child: BlockBufferSpec)
     extends LZ4BlockBufferSpecCommon {
   def lz4 = LZ4.hc
-  def stagedlz4: Code[LZ4] = Code.invokeScalaObject0[LZ4](LZ4.getClass, "hc")
+  def stagedlz4(implicit line: LineNumber): Code[LZ4] = Code.invokeScalaObject0[LZ4](LZ4.getClass, "hc")
   def typeName = "LZ4HCBlockBufferSpec"
 }
 
 final case class LZ4FastBlockBufferSpec(blockSize: Int, child: BlockBufferSpec)
     extends LZ4BlockBufferSpecCommon {
   def lz4 = LZ4.fast
-  def stagedlz4: Code[LZ4] = Code.invokeScalaObject0[LZ4](LZ4.getClass, "fast")
+  def stagedlz4(implicit line: LineNumber): Code[LZ4] = Code.invokeScalaObject0[LZ4](LZ4.getClass, "fast")
   def typeName = "LZ4FastBlockBufferSpec"
 }
 
@@ -160,17 +160,17 @@ final case class LZ4SizeBasedBlockBufferSpec(compressorType: String, blockSize: 
     case "fast" => LZ4.fast
   }
 
-  def stagedlz4: Code[LZ4] = Code.invokeScalaObject0[LZ4](LZ4.getClass, "fast")
+  def stagedlz4(implicit line: LineNumber): Code[LZ4] = Code.invokeScalaObject0[LZ4](LZ4.getClass, "fast")
   def typeName = "LZ4SizeBasedBlockBufferSpec"
 
   def buildInputBuffer(in: InputStream): InputBlockBuffer = new LZ4SizeBasedCompressingInputBlockBuffer(lz4, blockSize, child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new LZ4SizeBasedCompressingOutputBlockBuffer(lz4, blockSize, minCompressionSize, child.buildOutputBuffer(out))
 
-  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer] =
+  def buildCodeInputBuffer(in: Code[InputStream])(implicit line: LineNumber): Code[InputBlockBuffer] =
     Code.newInstance[LZ4SizeBasedCompressingInputBlockBuffer, LZ4, Int, InputBlockBuffer](stagedlz4, blockSize, child.buildCodeInputBuffer(in))
 
-  def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
+  def buildCodeOutputBuffer(out: Code[OutputStream])(implicit line: LineNumber): Code[OutputBlockBuffer] =
     Code.newInstance[LZ4SizeBasedCompressingOutputBlockBuffer, LZ4, Int, Int, OutputBlockBuffer](stagedlz4, blockSize, minCompressionSize, child.buildCodeOutputBuffer(out))
 }
 
@@ -183,10 +183,10 @@ final class StreamBlockBufferSpec extends BlockBufferSpec {
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new StreamBlockOutputBuffer(out)
 
-  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer] =
+  def buildCodeInputBuffer(in: Code[InputStream])(implicit line: LineNumber): Code[InputBlockBuffer] =
     Code.newInstance[StreamBlockInputBuffer, InputStream](in)
 
-  def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
+  def buildCodeOutputBuffer(out: Code[OutputStream])(implicit line: LineNumber): Code[OutputBlockBuffer] =
     Code.newInstance[StreamBlockOutputBuffer, OutputStream](out)
 
   override def equals(other: Any): Boolean = other.isInstanceOf[StreamBlockBufferSpec]
@@ -197,10 +197,10 @@ final class StreamBufferSpec extends BufferSpec {
 
   override def buildOutputBuffer(out: OutputStream): OutputBuffer = new StreamOutputBuffer(out)
 
-  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBuffer] =
+  def buildCodeInputBuffer(in: Code[InputStream])(implicit line: LineNumber): Code[InputBuffer] =
     Code.newInstance[StreamInputBuffer, InputStream](in)
 
-  def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBuffer] =
+  def buildCodeOutputBuffer(out: Code[OutputStream])(implicit line: LineNumber): Code[OutputBuffer] =
     Code.newInstance[StreamOutputBuffer, OutputStream](out)
 
   override def equals(other: Any): Boolean = other.isInstanceOf[StreamBufferSpec]
