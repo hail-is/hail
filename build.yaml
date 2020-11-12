@@ -2090,7 +2090,7 @@ steps:
              await bc.close()
      async def main():
          {% if deploy %}
-         benchmark_limit = None
+         benchmark_limit = 25
          {% else %}
          benchmark_limit = 5
          {% endif %}
