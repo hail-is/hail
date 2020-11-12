@@ -36,4 +36,5 @@ async def test_update_commits():
             return commit
 
         commit = await wait_forever()
-        assert commit['status'] is not None, commit
+        #assert commit['commit']['status'] is not None, commit
+        assert commit['commit']['case'] == 'has_results_file', commit['commit']['case']

@@ -312,7 +312,8 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         'title': gh_commit['commit']['message'],
         'author': gh_commit['commit']['author']['name'],
         'date': gh_commit['commit']['author']['date'],
-        'status': status
+        'status': status,
+        'case': case
     }
     # return web.json_response({'batch_status': status,
     #                           'case': case})
