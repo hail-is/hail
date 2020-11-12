@@ -102,12 +102,12 @@ String breezeVersion() {
 }
 
 String elasticHadoopVersion() {
-    def elasticMajorVersion = System.getProperty("elasticsearch.major-version", "6")
+    def elasticMajorVersion = System.getProperty("elasticsearch.major-version", "7")
     if (elasticMajorVersion == "6") {
         return "6.8.13"
     }
     else if (elasticMajorVersion == "7") {
-        return "7.1.1"
+        return "7.10.0"
     }
     else {
         throw new UnsupportedOperationException("elasticsearch.major-version must be 6 or 7")
