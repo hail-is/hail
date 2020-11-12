@@ -161,6 +161,8 @@ steps:
        to: /repo/notebook/
      - from: /io/repo/monitoring/sql
        to: /repo/monitoring/
+     - from: /io/repo/atgu/sql
+       to: /repo/atgu/
      - from: /io/repo/hail/python/hailtop
        to: /repo/hailtop/
      - from: /io/repo/hail/python/test
@@ -411,6 +413,7 @@ steps:
      # batch, benchmark, auth gsa keys
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "atgu-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "benchmark-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      # create auth
      N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers auth-tokens | wc -l | tr -d '[:space:]')
@@ -3504,3 +3507,73 @@ steps:
     - test_hailtop_batch_3
     - test_hailtop_batch_4
     - test_query
+ - kind: runImage
+   name: delete_atgu_tables
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-atgu-tables.sql
+   inputs:
+    - from: /repo/atgu/sql
+      to: /io/
+   secrets:
+    - name: database-server-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /sql-config
+   runIfRequested: true
+   scopes:
+    - dev
+   dependsOn:
+    - default_ns
+    - service_base_image
+    - copy_files
+ - kind: buildImage
+   name: atgu_image
+   dockerFile: atgu/Dockerfile
+   contextPath: .
+   publishAs: atgu
+   dependsOn:
+     - service_base_image
+ - kind: createDatabase
+   name: atgu_database
+   databaseName: atgu
+   migrations:
+    - name: initial
+      script: /io/sql/initial.sql
+   inputs:
+    - from: /repo/atgu/sql
+      to: /io/
+   namespace:
+     valueFrom: default_ns.name
+   shutdowns:
+    - kind: Deployment
+      namespace:
+        valueFrom: default_ns.name
+      name: atgu
+    - kind: Deployment
+      namespace:
+        valueFrom: default_ns.name
+      name: atgu-driver
+   dependsOn:
+    - default_ns
+    - copy_files
+    - delete_atgu_tables
+ - kind: deploy
+   name: deploy_atgu
+   namespace:
+     valueFrom: default_ns.name
+   config: atgu/deployment.yaml
+   wait:
+    - kind: Service
+      name: atgu
+      for: alive
+   dependsOn:
+    - default_ns
+    - create_certs
+    - create_accounts
+    - deploy_router
+    - deploy_auth
+    - atgu_image
+    - atgu_database

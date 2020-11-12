@@ -1,0 +1,119 @@
+{% extends "layout.html" %}
+{% block title %}Create Resource{% endblock %}
+{% block head %}
+  <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet" crossorigin="anonymous">
+{% endblock %}
+{% block breadcrumb_items %}
+  <li class="breadcrumb-item"><a href="{{ base_path }}">ATGU</a></li>
+  <li class="breadcrumb-item"><a href="{{ base_path }}">Resources</a></li>
+  <li class="breadcrumb-item active" aria-current="page">Create</li>
+{% endblock %}
+{% block container_contents %}
+  <form id="resource-form" action="{{ base_path }}/resources/create" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+
+      <div class="row my-2">
+        <div class="col-sm-12 col-md-2">
+          Title:
+        </div>
+        <div class="col-sm-12 col-md-10">
+          <input name="title" type="text" style="width:50%;" />
+        </div>
+      </div>
+
+      <div class="row my-2">
+        <div class="col-sm-12 col-md-2">
+          Description:
+        </div>
+        <div class="col-sm-12 col-md-10">
+          <textarea name="description" style="width:100%;" rows="3"></textarea>
+        </div>
+      </div>
+
+      <div class="row my-2">
+        <div class="col-sm-12 col-md-2">
+          Contents:
+        </div>
+        <div class="col-sm-12 col-md-10">
+          <div>
+            <div id="editor"></div>
+          </div>
+        </div>
+      </div>
+
+      <input id="contents-input" name="contents" type="hidden" />
+
+      <div class="row my-2">
+        <div class="col-sm-12 col-md-2">
+          <div>Tags:</div>
+          <div style="line-height:1.2;"><small class="text-secondary">comma separated</small></div>
+        </div>
+        <div class="col-sm-12 col-md-10">
+          <input name="tags" type="text" style="width:40%" />
+        </div>
+      </div>
+
+      <div class="row my-2">
+        <div class="col-sm-12 col-md-2">
+          <div>Attachments:</div>
+        </div>
+        <div class="col-sm-12 col-md-10">
+          <div id="files-div">
+            <div class="my-1">
+              <input name="file" type="file" />
+            </div>
+            <div class="my-1">
+              <input name="file" type="file" />
+            </div>
+            <div class="my-1">
+              <input name="file" type="file" />
+            </div>
+          </div>
+          <div>
+            <span id="add-file" class="py-1">
+              <span class="material-icons" style="vertical-align:middle;">add_box</span> Another File
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="m-3">
+        <button type="submit" class="btn btn-primary mr-3">Create</button>
+        <a role="button" class="btn btn-secondary" href="{{ base_path }}/resources">Cancel</a>
+      </div>
+
+  </form>
+{% endblock %}
+{% block before_body_end %}
+  <script src="https://cdn.quilljs.com/1.3.6/quill.js" crossorigin="anonymous"></script>
+  <script>
+    const editorOptions = {
+        theme: 'snow'
+    };
+
+    const editor = new Quill('#editor', editorOptions);
+
+    const resourceForm = document.getElementById("resource-form");
+    const contentsInput = document.getElementById("contents-input");
+    resourceForm.onsubmit = function(event) {
+        contentsInput.value = JSON.stringify(editor.getContents())
+    }
+
+    function parseHTML(text) {
+        let dummy = document.createElement('div');
+        dummy.innerHTML = text.trim()
+        return dummy.firstChild
+    }
+
+    const addFile = document.getElementById("add-file");
+    const filesDiv = document.getElementById("files-div");
+    addFile.onclick = function(event) {
+        const newFileDiv = 
+        filesDiv.appendChild(
+            parseHTML(`
+<div class="my-1">
+<input name="file" type="file" />
+</div>`));
+    }
+  </script>
+{% endblock %}
