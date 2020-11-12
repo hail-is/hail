@@ -27,6 +27,17 @@ server {
 }
 
 server {
+    server_name amundsen-frontend.*;
+
+    location / {
+        proxy_pass http://amundsen-frontend/;
+    }
+
+    listen 443 ssl;
+    listen [::]:443 ssl;
+}
+
+server {
     server_name benchmark.*;
 
     location / {

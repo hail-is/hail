@@ -23,6 +23,7 @@ deploy: push
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"router_image":{"image":"$(ROUTER_IMAGE)"},"default_ns":{"name":"$(NAMESPACE)"},"global":{"domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
 
+
 .PHONY: clean
 clean:
 	rm -rf deployment.yaml

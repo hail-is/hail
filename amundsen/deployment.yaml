@@ -1,0 +1,34 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: amundsen-frontend
+  labels:
+    app: amundsen-frontend
+spec:
+  selector:
+    matchLabels:
+      app: amundsen-frontend
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: amundsen-frontend
+    spec:
+      containers:
+      - name: amundsen-frontend
+        image: amundsendev/amundsen-frontend:3.0.0
+        imagePullPolicy: Always
+        ports:
+          - containerPort: 5000
+        env:
+          - name: FRONTEND_BASE
+            value: /
+          - name: SEARCHSERVICE_BASE
+            value: http://amundsen-search:5001
+          - name: METADATASERVICE_BASE
+            value: http://amundsen-metadata:5002
+          - name: LONG_RANDOM_STRING
+            value: 4532y7y2389faehuwfteyw8704y329
+        command: ["gunicorn"]
+        args: ['-w', '4', '--bind', ':5000', 'amundsen_application.wsgi']
