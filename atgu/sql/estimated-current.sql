@@ -3,8 +3,8 @@ CREATE TABLE IF NOT EXISTS `atgu_resources` (
   `time_created` BIGINT NOT NULL,
   `title` TEXT NOT NULL,
   `description` TEXT NOT NULL,
-  /* Quill.js documents are stored in the he Delta format.  `contents`
-     is a JSON-encoded Delta.
+  /* Quill.js documents are stored in the Delta format.  `contents` is
+     a JSON-encoded Delta.
      https://quilljs.com/docs/delta/ */
   `contents` LONGTEXT NOT NULL,
   -- comma-separated string of tags
