@@ -6,3 +6,9 @@ IP := 35.188.91.25
 KUBERNETES_SERVER_URL := https://104.198.230.143
 REGION := us-central1
 ZONE := us-central1-a
+ifeq ($(NAMESPACE), "default")
+BATCH_PODS_NAMESPACE = batch-pods
+else
+BATCH_PODS_NAMESPACE = $(NAMESPACE)
+endif
+
