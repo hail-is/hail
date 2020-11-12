@@ -253,12 +253,14 @@ def qr(nd, mode="reduced"):
 
     float_nd = nd.map(lambda x: hl.float64(x))
     ir = NDArrayQR(float_nd._ir, mode)
+    indices = nd._indices
+    aggs = nd._aggregations
     if mode == "raw":
-        return construct_expr(ir, ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1)))
+        return construct_expr(ir, ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1)), indices, aggs)
     elif mode == "r":
-        return construct_expr(ir, tndarray(tfloat64, 2))
+        return construct_expr(ir, tndarray(tfloat64, 2), indices, aggs)
     elif mode in ["complete", "reduced"]:
-        return construct_expr(ir, ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 2)))
+        return construct_expr(ir, ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 2)), indices, aggs)
 
 
 @typecheck(nd=expr_ndarray(), full_matrices=bool, compute_uv=bool)

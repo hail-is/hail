@@ -4243,7 +4243,9 @@ def _ndarray(collection, row_major=None, dtype=None):
     data_expr = data_expr.map(lambda value: cast_expr(value, dtype))
     ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(True)._ir)
 
-    return construct_expr(ndir, tndarray(data_expr.dtype.element_type, ndim))
+    new_indices, new_aggregations = unify_all(data_expr, shape_expr)
+
+    return construct_expr(ndir, tndarray(data_expr.dtype.element_type, ndim), new_indices, new_aggregations)
 
 
 @typecheck(key_type=hail_type, value_type=hail_type)
