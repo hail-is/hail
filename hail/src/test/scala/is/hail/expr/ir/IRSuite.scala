@@ -21,7 +21,7 @@ import is.hail.methods._
 import is.hail.rvd.{RVD, RVDPartitioner, RVDSpecMaker}
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
-import is.hail.{ExecStrategy, HailContext, HailSuite}
+import is.hail.{ExecStrategy, HailContext, HailSuite, utils}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.testng.annotations.{DataProvider, Test}

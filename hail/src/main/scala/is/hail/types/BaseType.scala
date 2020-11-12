@@ -7,15 +7,15 @@ abstract class BaseType {
     sb.result()
   }
 
-  def toPrettyString(indent: Int, compact: Boolean): String = {
+  def toPrettyString(compact: Boolean): String = {
     val sb = new StringBuilder
-    pretty(sb, indent, compact = compact)
+    pretty(sb, 0, compact = compact)
     sb.result()
   }
 
   def pretty(sb: StringBuilder, indent: Int, compact: Boolean)
 
-  def parsableString(): String = toPrettyString(0, compact = true)
+  def parsableString(): String = toPrettyString(compact = true)
 
   def pyString(sb: StringBuilder): Unit = pretty(sb, 0, compact = true)
 }

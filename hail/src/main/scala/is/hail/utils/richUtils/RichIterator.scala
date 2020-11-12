@@ -45,6 +45,38 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
     }
   }
 
+  def intersperse[S >: T](sep: S): Iterator[S] = new Iterator[S] {
+    var nextIsSep = false
+    def hasNext = it.hasNext
+    def next() = {
+      val n = if (nextIsSep) sep else it.next()
+      nextIsSep = !nextIsSep
+      n
+    }
+  }
+
+  def intersperse[S >: T](start: S, sep: S, end: S): Iterator[S] = new Iterator[S] {
+    var state = 0
+    def hasNext = state != 4
+    def next() = {
+      state match {
+        case 0 =>
+          state = if (it.hasNext) 1 else 3
+          start
+        case 1 =>
+          val n = it.next()
+          state = if (it.hasNext) 2 else 3
+          n
+        case 2 =>
+          state = 1
+          sep
+        case 3 =>
+          state = 4
+          end
+      }
+    }
+  }
+
   def pipe(pb: ProcessBuilder,
     printHeader: (String => Unit) => Unit,
     printElement: (String => Unit, T) => Unit,

@@ -61,7 +61,7 @@ sealed trait ComparisonOp[ReturnType] {
     mb.getCodeOrdering(t1p, t2p, op)
   }
 
-  def render(): String = Pretty.prettyClass(this)
+  def render(): is.hail.utils.prettyPrint.Doc = Pretty.prettyClass(this)
 }
 
 case class GT(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.Gt() }
@@ -100,5 +100,5 @@ case class CompareStructs(t: TStruct, sortFields: IndexedSeq[SortField]) extends
   override val strict: Boolean = false
   val op: CodeOrdering.Op = CodeOrdering.CompareStructs(sortFields)
 
-  override def render(): String = super.render() + " " + Pretty.prettySortFields(sortFields)
+  override def render(): is.hail.utils.prettyPrint.Doc = is.hail.utils.prettyPrint.hsep(super.render(), Pretty.prettySortFields(sortFields))
 }
