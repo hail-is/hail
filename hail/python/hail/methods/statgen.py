@@ -538,7 +538,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     res = ht._map_partitions(process_partition)
 
     if not y_is_list:
-        fields = ['y_transpose_x', 'beta' 'standard_error', 't_stat', 'p_value']
+        fields = ['y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
         res = res.annotate(**{f: res[f][0] for f in fields})
 
     res = res.select_globals()
