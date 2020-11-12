@@ -197,7 +197,7 @@ object Pretty {
     case ApplySpecial(function, typeArgs, _, t) => FastSeq(prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
     case SelectFields(_, fields) => single(fillList(fields.view.map(f => text(prettyIdentifier(f)))))
     case LowerBoundOnOrderedCollection(_, _, onKey) => single(prettyBooleanLiteral(onKey))
-    case In(i, typ) => single(s"$typ $i")
+    case In(i, typ) => FastSeq(typ.toString, i.toString)
     case Die(message, typ, errorId) => FastSeq(typ.parsableString(), errorId.toString)
     case CollectDistributedArray(_, _, cname, gname, _, _) =>
       FastSeq(prettyIdentifier(cname), prettyIdentifier(gname))
