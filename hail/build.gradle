@@ -107,7 +107,7 @@ String elasticHadoopVersion() {
         return "6.8.13"
     }
     else if (elasticMajorVersion == "7") {
-        return "7.10.0"
+        return "7.8.1"
     }
     else {
         throw new UnsupportedOperationException("elasticsearch.major-version must be 6 or 7")
