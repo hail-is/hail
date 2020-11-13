@@ -329,7 +329,8 @@ async def get_status(request):  # pylint: disable=unused-argument
     #     return commits[0]['status']
     commit = benchmark_data['commits'].get(sha)
     if commit:
-        commit['status']
+        log.info('got commit status')
+        return commit['status']
     return web.json_response()
 
 
@@ -343,13 +344,16 @@ async def delete_commit(request):  # pylint: disable=unused-argument
     file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
     if gs_reader.file_exists(file_path):
         gs_reader.delete_file(file_path)
+        log.info(f'deleted file for sha {sha}')
     async for b in batch_client.list_batches(q=f'sha={sha}'):
         await b.delete()
+        log.info(f'deleted batch for sha {sha}')
     # commits = [item for item in benchmark_data['commits'] if item['sha'] == sha]
     # for commit in commits:
     #     benchmark_data['commits'].remove(commit)
     if benchmark_data['commits'].get(sha):
         del benchmark_data['commits'][sha]
+        log.info(f'deleted commit {sha} from commit list')
     return web.json_response()
 
 
@@ -357,6 +361,7 @@ async def delete_commit(request):  # pylint: disable=unused-argument
 async def call_update_commit(request):  # pylint: disable=unused-argument
     body = await request.json()
     sha = body['sha']
+    log.info('call_update_commit')
     commit = await update_commit(request.app, sha)
     return web.json_response({'commit': commit})
 
