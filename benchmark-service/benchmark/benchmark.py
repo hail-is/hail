@@ -334,7 +334,7 @@ async def get_status(request):  # pylint: disable=unused-argument
     if commit:
         log.info('got commit status')
         return web.json_response({'status': commit['status']})
-    return web.json_response()
+    return web.json_response({'status': None})
 
 
 @router.delete('/api/v1alpha/benchmark/commit/{sha}')

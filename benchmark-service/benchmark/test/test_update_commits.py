@@ -37,7 +37,7 @@ async def test_update_commits():
             session, 'GET', f'{create_benchmark_url}', headers=headers, json={'sha': sha})
         resp_status_text = await resp_status.text()
         status = json.loads(resp_status_text)
-        assert status is None, status
+        assert status['status'] is None, status
 
         resp_commit = await utils.request_retry_transient_errors(
             session, 'POST', f'{create_benchmark_url}', headers=headers, json={'sha': sha})
@@ -51,7 +51,7 @@ async def test_update_commits():
                     session, 'GET', f'{create_benchmark_url}', headers=headers, json={'sha': sha})
                 resp_text = await resp.text()
                 commit_status = json.loads(resp_text)
-            return commit_status
+            return commit_status['status']
 
         commit_status = await wait_forever()
         #assert commit['commit']['status'] is not None, commit
