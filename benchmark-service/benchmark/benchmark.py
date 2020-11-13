@@ -362,10 +362,12 @@ async def delete_commit(request):  # pylint: disable=unused-argument
 
 @router.post('/api/v1alpha/benchmark/commit/{sha}')
 async def call_update_commit(request):  # pylint: disable=unused-argument
+    global benchmark_data
     body = await request.json()
     sha = body['sha']
     log.info('call_update_commit')
     commit = await update_commit(request.app, sha)
+    benchmark_data['commits'].update({sha: commit})
     return web.json_response({'commit': commit})
 
 
