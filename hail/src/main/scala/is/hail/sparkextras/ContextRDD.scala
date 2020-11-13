@@ -122,13 +122,22 @@ object ContextRDD {
         .mapPartitions(filterAndReplace.apply))
 
   def parallelize[T: ClassTag](sc: SparkContext, data: Seq[T], nPartitions: Option[Int] = None): ContextRDD[T] =
-    weaken(sc.parallelize(data, nPartitions.getOrElse(sc.defaultMinPartitions)))
+    weaken(sc.parallelize(data, nPartitions.getOrElse(sc.defaultMinPartitions))).map(x => {
+      HailTaskContext.setTaskContext(new SparkTaskContext(TaskContext.get()))
+      x
+    })
 
   def parallelize[T: ClassTag](data: Seq[T], numSlices: Int): ContextRDD[T] =
-    weaken(SparkBackend.sparkContext("ContextRDD.parallelize").parallelize(data, numSlices))
+    weaken(SparkBackend.sparkContext("ContextRDD.parallelize").parallelize(data, numSlices)).map(x => {
+      HailTaskContext.setTaskContext(new SparkTaskContext(TaskContext.get()))
+      x
+    })
 
   def parallelize[T: ClassTag](data: Seq[T]): ContextRDD[T] =
-    weaken(SparkBackend.sparkContext("ContextRDD.parallelize").parallelize(data))
+    weaken(SparkBackend.sparkContext("ContextRDD.parallelize").parallelize(data)).map(x => {
+      HailTaskContext.setTaskContext(new SparkTaskContext(TaskContext.get()))
+      x
+    })
 
   type ElementType[T] = RVDContext => Iterator[T]
 
@@ -156,7 +165,6 @@ class ContextRDD[T: ClassTag](
     val c = RVDContext.default
     TaskContext.get().addTaskCompletionListener[Unit] { (_: TaskContext) =>
       c.close()
-      HailTaskContext.unset()
     }
     func(c)
   }

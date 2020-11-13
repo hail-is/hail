@@ -46,6 +46,8 @@ class RVD(
 
   require(typ.kType.virtualType isIsomorphicTo partitioner.kType)
 
+  val myOrigin = Thread.currentThread().getStackTrace.mkString("\n")
+
   // Basic accessors
 
   def sparkContext: SparkContext = crdd.sparkContext
@@ -680,14 +682,16 @@ class RVD(
   }
 
   def combine[U: ClassTag, T: ClassTag](
-    mkZero: () => T,
-    itF: (Int, RVDContext, Iterator[Long]) => T,
-    deserialize: U => T,
-    serialize: T => U,
-    combOp: (T, T) => T,
-    commutative: Boolean,
-    tree: Boolean
+     execCtx: ExecuteContext,
+     mkZero: (RegionPool) => T,
+     itF: (Int, RVDContext, Iterator[Long]) => T,
+     deserialize: U => T,
+     serialize: T => U,
+     combOp: (T, T) => T,
+     commutative: Boolean,
+     tree: Boolean
   ): T = {
+    log.info(s"Combining, origin = \n ${myOrigin}")
     var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(serialize(itF(i, ctx, it))) }
 
     if (tree) {
@@ -709,8 +713,8 @@ class RVD(
             override def getPartition(key: Any): Int = key.asInstanceOf[Int]
             override def numPartitions: Int = newNParts
           })
-          .mapPartitions { it =>
-            var acc = mkZero()
+          .cmapPartitions { (ctx, it) =>
+            var acc = mkZero(ctx.r.pool)
             it.foreach { case (newPart, (oldPart, v)) =>
               acc = combOp(acc, deserialize(v))
             }
@@ -720,7 +724,7 @@ class RVD(
       }
     }
 
-    val ac = Combiner(mkZero(), combOp, commutative, true)
+    val ac = Combiner(mkZero(execCtx.r.pool), combOp, commutative, true)
     sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), (i, x: U) => ac.combine(i, deserialize(x)))
     ac.result()
   }

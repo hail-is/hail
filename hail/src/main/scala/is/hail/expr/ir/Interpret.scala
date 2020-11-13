@@ -822,6 +822,7 @@ object Interpret {
         val tvs = children.map(_.execute(ctx))
         writer(ctx, tvs)
       case TableWrite(child, writer) =>
+        log.info(s"I am using a ${writer}")
         writer(ctx, child.execute(ctx))
       case BlockMatrixWrite(child, writer) =>
         writer(ctx, child.execute(ctx))
@@ -847,6 +848,7 @@ object Interpret {
             FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
             MakeTuple.ordered(FastSeq(extracted.postAggIR)))
 
+          // TODO Is this right? where does wrapped run?
           ctx.r.pool.scopedRegion { region =>
             SafeRow(rt, f(0, region)(region, globalsOffset))
           }
@@ -884,7 +886,7 @@ object Interpret {
           val read: WrappedByteArray => RegionValue = {
             val deserialize = extracted.deserialize(ctx, spec)
             (a: WrappedByteArray) => {
-              val r = Region(Region.SMALL, pool=ctx.r.pool)
+              val r = Region(Region.SMALL)
               val res = deserialize(r, a.bytes)
               a.clear()
               RegionValue(r, res)
@@ -927,8 +929,8 @@ object Interpret {
 
           // creates a new region holding the zero value, giving ownership to
           // the caller
-          val mkZero = () => {
-            val region = Region(Region.SMALL, pool=ctx.r.pool)
+          val mkZero = (pool: RegionPool) => {
+            val region = Region(Region.SMALL, pool)
             val initF = initOp(0, region)
             initF.newAggState(region)
             initF(region, globalsBc.value.readRegionValue(region))
@@ -936,7 +938,7 @@ object Interpret {
           }
 
           val rv = value.rvd.combine[WrappedByteArray, RegionValue](
-            mkZero, itF, read, write, combOpF, isCommutative, useTreeAggregate)
+            ctx, mkZero, itF, read, write, combOpF, isCommutative, useTreeAggregate)
 
           val (rTyp: PTuple, f) = CompileWithAggregators[AsmFunction2RegionLongLong](
             ctx,
