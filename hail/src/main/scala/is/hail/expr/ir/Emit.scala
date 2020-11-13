@@ -100,12 +100,12 @@ object Emit {
 
 object AggContainer {
   // FIXME remove this when EmitStream also has a codebuilder
-  def fromVars(aggs: Array[AggStateSig], mb: EmitMethodBuilder[_], region: Settable[Region], off: Settable[Long]): (AggContainer, Code[Unit], Code[Unit]) = {
+  def fromVars(aggs: Array[AggStateSig], mb: EmitMethodBuilder[_], pool: Code[RegionPool], region: Settable[Region], off: Settable[Long]): (AggContainer, Code[Unit], Code[Unit]) = {
 
     val (setup, aggState) = EmitCodeBuilder.scoped(mb) { cb =>
       val states = agg.StateTuple(aggs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)))
       val aggState = new agg.TupleAggregatorState(mb.ecb, states, region, off)
-      cb += (region := Region.stagedCreate(Region.REGULAR))
+      cb += (region := Region.stagedCreate(Region.REGULAR, pool))
       cb += region.load().setNumParents(aggs.length)
       cb += (off := region.load().allocate(aggState.storageType.alignment, aggState.storageType.byteSize))
       states.createStates(cb)
@@ -121,12 +121,12 @@ object AggContainer {
     (AggContainer(aggs, aggState, () => ()), setup, cleanup)
   }
 
-  def fromMethodBuilder[C](aggs: Array[AggStateSig], mb: EmitMethodBuilder[C], varPrefix: String): (AggContainer, Code[Unit], Code[Unit]) =
-    fromVars(aggs, mb, mb.genFieldThisRef[Region](s"${varPrefix}_top_region"), mb.genFieldThisRef[Long](s"${varPrefix}_off"))
+  def fromMethodBuilder[C](aggs: Array[AggStateSig], mb: EmitMethodBuilder[C], pool: Code[RegionPool], varPrefix: String): (AggContainer, Code[Unit], Code[Unit]) =
+    fromVars(aggs, mb, pool, mb.genFieldThisRef[Region](s"${varPrefix}_top_region"), mb.genFieldThisRef[Long](s"${varPrefix}_off"))
 
-  def fromBuilder[C](cb: EmitCodeBuilder, aggs: Array[AggStateSig], varPrefix: String): AggContainer = {
+  def fromBuilder[C](cb: EmitCodeBuilder, pool: Code[RegionPool], aggs: Array[AggStateSig], varPrefix: String): AggContainer = {
     val off = cb.newField[Long](s"${varPrefix}_off")
-    val region = cb.newField[Region](s"${varPrefix}_top_region", Region.stagedCreate(Region.REGULAR))
+    val region = cb.newField[Region](s"${varPrefix}_top_region", Region.stagedCreate(Region.REGULAR, pool))
     val states = agg.StateTuple(aggs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)))
     val aggState = new agg.TupleAggregatorState(cb.emb.ecb, states, region, off)
     cb += region.load().setNumParents(aggs.length)
@@ -1444,7 +1444,7 @@ class Emit[C](
       case x: NDArraySlice => emitDeforestedNDArray(x)
       case x: NDArrayFilter => emitDeforestedNDArray(x)
       case x@RunAgg(body, result, states) =>
-        val newContainer = AggContainer.fromBuilder(cb, states.toArray, "run_agg")
+        val newContainer = AggContainer.fromBuilder(cb, region.code.getPool(), states.toArray, "run_agg")
         emitVoid(body, container = Some(newContainer))
         val codeRes = emitI(result, container = Some(newContainer))
 
