@@ -9,11 +9,11 @@ from hailtop.config import get_deploy_config
 log = logging.getLogger('gear')
 
 
-def session_id_encode_to_str(session_id_bytes):
+def session_id_encode_to_str(session_id_bytes: bytes) -> str:
     return base64.urlsafe_b64encode(session_id_bytes).decode('ascii')
 
 
-def session_id_decode_from_str(session_id_str):
+def session_id_decode_from_str(session_id_str: str) -> bytes:
     return base64.urlsafe_b64decode(session_id_str.encode('ascii'))
 
 
