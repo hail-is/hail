@@ -4,7 +4,7 @@ import java.io._
 import java.util.Base64
 
 import is.hail.{HailContext, lir}
-import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.backend.BackendUtils
@@ -426,6 +426,7 @@ class EmitClassBuilder[C](
 
   private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
   private[this] var _backendField: Settable[BackendUtils] = _
+  private[this] var _poolField: Settable[RegionPool] = _
 
   private[this] var _aggSigs: Array[agg.AggStateSig] = _
   private[this] var _aggRegion: Settable[Region] = _
@@ -520,6 +521,17 @@ class EmitClassBuilder[C](
       _backendField = backendField
     }
     _backendField
+  }
+
+  def pool(): Value[RegionPool] = {
+    if (_poolField == null) {
+      cb.addInterface(typeInfo[FunctionWithPool].iname)
+      val poolField = genFieldThisRef[RegionPool]()
+      val mb = newEmitMethod("setPool", FastIndexedSeq[ParamType](typeInfo[RegionPool]), typeInfo[Unit])
+      mb.emit(poolField := mb.getCodeParam[RegionPool](1))
+      _poolField = poolField
+    }
+    _poolField
   }
 
   def addModule(name: String, mod: (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
@@ -780,6 +792,7 @@ class EmitClassBuilder[C](
         if (nSerializedAggs != 0)
           f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
         f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
+        f.asInstanceOf[FunctionWithPool].setPool(region.pool)
         f
       }
     }
@@ -935,6 +948,10 @@ trait FunctionWithSeededRandomness {
 
 trait FunctionWithBackend {
   def setBackend(spark: BackendUtils): Unit
+}
+
+trait FunctionWithPool {
+  def setPool(pool: RegionPool): Unit
 }
 
 class EmitMethodBuilder[C](
