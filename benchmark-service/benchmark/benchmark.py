@@ -333,7 +333,7 @@ async def get_status(request):  # pylint: disable=unused-argument
     commit = benchmark_data['commits'].get(sha)
     if commit:
         log.info('got commit status')
-        return commit['status']
+        return web.json_response({'status': commit['status']})
     return web.json_response()
 
 
@@ -357,7 +357,7 @@ async def delete_commit(request):  # pylint: disable=unused-argument
     if benchmark_data['commits'].get(sha):
         del benchmark_data['commits'][sha]
         log.info(f'deleted commit {sha} from commit list')
-    return web.json_response()
+    return web.Response()
 
 
 @router.post('/api/v1alpha/benchmark/commit/{sha}')
