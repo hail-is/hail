@@ -34,7 +34,10 @@ BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)(
 
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
-benchmark_data = None
+#benchmark_data = None
+benchmark_data = {
+    'commits': {}
+}
 shas = None
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
