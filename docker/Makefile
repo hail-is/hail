@@ -21,7 +21,7 @@ GENETICS_PUBLIC_IMAGE = gcr.io/$(PROJECT)/genetics-public:$(shell docker images 
 .PHONY: hail-ubuntu
 hail-ubuntu: hail-ubuntu-stmp
 
-hail-ubuntu-stmp: hail-ubuntu/Dockerfile hail-ubuntu/hail_pip_install hail-ubuntu/pip.conf hail-ubuntu/hail-apt-get-install
+hail-ubuntu-stmp: hail-ubuntu/Dockerfile hail-ubuntu/hail-pip-install hail-ubuntu/pip.conf hail-ubuntu/hail-apt-get-install
 	-docker pull gcr.io/$(PROJECT)/ubuntu:bionic-20200921
 	-docker pull $(HAIL_UBUNTU_LATEST)
 	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}}' hail-ubuntu/Dockerfile hail-ubuntu/Dockerfile.out
