@@ -35,6 +35,7 @@ BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)(
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 benchmark_data = None
+shas = None
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
@@ -230,7 +231,7 @@ async def update_commits(app):
     log.info(f'start point is {START_POINT}')
     gh_data = await github_client.getitem(request_string)
     log.info(f'gh_data length is {len(gh_data)}')
-    formatted_new_commits = []
+    formatted_new_commits = {}
 
     for gh_commit in gh_data:
         sha = gh_commit.get('sha')
@@ -266,7 +267,7 @@ async def update_commits(app):
         #     'date': gh_commit['commit']['author']['date'],
         #     'status': status
         # }
-        formatted_new_commits.append(commit)
+        formatted_new_commits.update({sha: commit})
 
     log.info('got new commits')
 
@@ -323,9 +324,13 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
 async def get_status(request):  # pylint: disable=unused-argument
     global benchmark_data
     sha = str(request.match_info['sha'])
-    commits = [item for item in benchmark_data['commits'] if item['sha'] == sha]
-    if commits:
-        return commits[0]['status']
+    # commits = [item for item in benchmark_data['commits'] if item['sha'] == sha]
+    # if commits:
+    #     return commits[0]['status']
+    commit = benchmark_data['commits'].get(sha)
+    if commit:
+        commit['status']
+    return web.json_response()
 
 
 @router.delete('/api/v1alpha/benchmark/commit/{sha}')
@@ -340,9 +345,11 @@ async def delete_commit(request):  # pylint: disable=unused-argument
         gs_reader.delete_file(file_path)
     async for b in batch_client.list_batches(q=f'sha={sha}'):
         await b.delete()
-    commits = [item for item in benchmark_data['commits'] if item['sha'] == sha]
-    for commit in commits:
-        benchmark_data['commits'].remove(commit)
+    # commits = [item for item in benchmark_data['commits'] if item['sha'] == sha]
+    # for commit in commits:
+    #     benchmark_data['commits'].remove(commit)
+    if benchmark_data['commits'].get(sha):
+        del benchmark_data['commits'][sha]
 
 
 @router.post('/api/v1alpha/benchmark/commit/{sha}')
