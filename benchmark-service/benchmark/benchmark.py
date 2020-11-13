@@ -350,6 +350,7 @@ async def delete_commit(request):  # pylint: disable=unused-argument
     #     benchmark_data['commits'].remove(commit)
     if benchmark_data['commits'].get(sha):
         del benchmark_data['commits'][sha]
+    return web.json_response()
 
 
 @router.post('/api/v1alpha/benchmark/commit/{sha}')
