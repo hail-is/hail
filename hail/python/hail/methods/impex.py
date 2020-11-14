@@ -2453,6 +2453,9 @@ def read_table(path, *, _intervals=None, _filter_intervals=False) -> Table:
 def export_elasticsearch(t, host, port, index, index_type, block_size, config=None, verbose=True):
     """Export a :class:`.Table` to Elasticsearch.
 
+    By default, this method supports Elasticsearch versions 6.8.x - 7.x.x. Older versions of elasticsearch will require
+    recompiling hail.
+
     .. warning::
         :func:`.export_elasticsearch` is EXPERIMENTAL.
     """
