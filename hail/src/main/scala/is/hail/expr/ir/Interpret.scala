@@ -883,13 +883,15 @@ object Interpret {
           }
 
           // creates a region, giving ownership to the caller
-          val read: WrappedByteArray => RegionValue = {
+          val read: RegionPool => (WrappedByteArray => RegionValue) = {
             val deserialize = extracted.deserialize(ctx, spec)
-            (a: WrappedByteArray) => {
-              val r = Region(Region.SMALL)
-              val res = deserialize(r, a.bytes)
-              a.clear()
-              RegionValue(r, res)
+            (pool: RegionPool) => {
+              (a: WrappedByteArray) => {
+                val r = Region(Region.SMALL, pool)
+                val res = deserialize(r, a.bytes)
+                a.clear()
+                RegionValue(r, res)
+              }
             }
           }
 

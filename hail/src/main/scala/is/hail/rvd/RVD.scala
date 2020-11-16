@@ -685,7 +685,7 @@ class RVD(
      execCtx: ExecuteContext,
      mkZero: (RegionPool) => T,
      itF: (Int, RVDContext, Iterator[Long]) => T,
-     deserialize: U => T,
+     deserialize: RegionPool => (U => T),
      serialize: T => U,
      combOp: (T, T) => T,
      commutative: Boolean,
@@ -716,7 +716,7 @@ class RVD(
           .cmapPartitions { (ctx, it) =>
             var acc = mkZero(ctx.r.pool)
             it.foreach { case (newPart, (oldPart, v)) =>
-              acc = combOp(acc, deserialize(v))
+              acc = combOp(acc, deserialize(ctx.r.pool)(v))
             }
             Iterator.single(serialize(acc))
           }
@@ -725,7 +725,7 @@ class RVD(
     }
 
     val ac = Combiner(mkZero(execCtx.r.pool), combOp, commutative, true)
-    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), (i, x: U) => ac.combine(i, deserialize(x)))
+    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), (i, x: U) => ac.combine(i, deserialize(execCtx.r.pool)(x)))
     ac.result()
   }
 
