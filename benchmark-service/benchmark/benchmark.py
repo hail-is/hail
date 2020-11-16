@@ -327,6 +327,7 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
 async def get_status(request):  # pylint: disable=unused-argument
     global benchmark_data
     sha = str(request.match_info['sha'])
+
     app = request.app
     batch_client = app['batch_client']
     batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
@@ -341,11 +342,12 @@ async def get_status(request):  # pylint: disable=unused-argument
     #     log.info('got commit status')
     #     return web.json_response({'status': commit['status']})
 
-    status = complete_batch_statuses[-1]
-    if status:
+    try:
+        status = complete_batch_statuses[-1]
         log.info('got commit status')
         return web.json_response({'status': status})
-    return web.json_response({'status': None})
+    except IndexError:
+        return web.json_response({'status': None})
 
 
 @router.delete('/api/v1alpha/benchmark/commit/{sha}')
