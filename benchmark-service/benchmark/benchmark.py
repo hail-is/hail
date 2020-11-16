@@ -34,7 +34,7 @@ BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)(
 
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
-#benchmark_data = None
+# benchmark_data = None
 benchmark_data = {
     'commits': {}
 }
@@ -299,17 +299,17 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         assert complete_batch_statuses, batch_statuses
         log.info(f'commit {sha} has a results file')
         status = complete_batch_statuses[-1]
-        #case = 'has_results_file'
+        # case = 'has_results_file'
     elif running_batch_statuses:
         status = running_batch_statuses[-1]
         log.info(f'batch already exists for commit {sha}')
-        #case = 'running_batch'
+        # case = 'running_batch'
     else:
         batch_id = await submit_test_batch(batch_client, sha)
         batch = await batch_client.get_batch(batch_id)
         status = batch._last_known_status
         log.info(f'submitted a batch {batch_id} for commit {sha}')
-        #case = 'submit_batch'
+        # case = 'submit_batch'
 
     commit = {
         'sha': sha,

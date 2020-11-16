@@ -16,10 +16,6 @@ log = logging.getLogger(__name__)
 
 sha = 'd626f793ad700c45a878d192652a0378818bbd8b'
 
-# What I was expecting was a delete, then a get asserting the commit status is None,
-# followed by a POST to update the commit where it says the batch was submitted.
-# Then wait forever asserting the batch is running until the GET returns a commit status that is complete / file exists.
-
 
 async def test_update_commits():
     deploy_config = get_deploy_config()
@@ -55,4 +51,4 @@ async def test_update_commits():
 
         commit_status = await wait_forever()
         #assert commit['commit']['status'] is not None, commit
-        assert commit_status == 'complete', commit_status
+        assert commit_status['complete'] == True, commit_status
