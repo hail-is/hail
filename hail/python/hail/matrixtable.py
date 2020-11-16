@@ -2580,7 +2580,7 @@ class MatrixTable(ExprContainer):
         n_rows : :obj:`int`
             Maximum number of rows to show.
         n_cols : :obj:`int`
-            Maximum number of rows to show.
+            Maximum number of columns to show.
         width : :obj:`int`
             Horizontal width at which to break fields.
         truncate : :obj:`int`, optional
