@@ -265,9 +265,6 @@ object Region {
     case t: PBaseStruct => (addr, v) => Region.copyFrom(coerce[Long](v), addr, t.byteSize)
   }
 
-  def stagedCreate(blockSize: Size): Code[Region] =
-    Code.invokeScalaObject2[Int, RegionPool, Region](Region.getClass, "apply", asm4s.const(blockSize), Code._null)
-
   def stagedCreate(blockSize: Size, pool: Code[RegionPool]): Code[Region] =
     Code.invokeScalaObject2[Int, RegionPool, Region](Region.getClass, "apply", asm4s.const(blockSize), pool)
 
