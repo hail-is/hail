@@ -331,7 +331,7 @@ async def get_status(request):  # pylint: disable=unused-argument
     app = request.app
     batch_client = app['batch_client']
     batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
-    complete_batch_statuses = [bs for bs in batch_statuses if bs['complete']]
+    #complete_batch_statuses = [bs for bs in batch_statuses if bs['complete']]
 
     # commits = [item for item in benchmark_data['commits'] if item['sha'] == sha]
     # if commits:
@@ -343,7 +343,7 @@ async def get_status(request):  # pylint: disable=unused-argument
     #     return web.json_response({'status': commit['status']})
 
     try:
-        status = complete_batch_statuses[-1]
+        status = batch_statuses[-1]
         log.info('got commit status')
         return web.json_response({'status': status})
     except IndexError:
