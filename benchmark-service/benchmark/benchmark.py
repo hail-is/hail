@@ -327,13 +327,24 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
 async def get_status(request):  # pylint: disable=unused-argument
     global benchmark_data
     sha = str(request.match_info['sha'])
+    app = request.app
+    batch_client = app['batch_client']
+    batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
+    complete_batch_statuses = [bs for bs in batch_statuses if bs['complete']]
+
     # commits = [item for item in benchmark_data['commits'] if item['sha'] == sha]
     # if commits:
     #     return commits[0]['status']
-    commit = benchmark_data['commits'].get(sha)
-    if commit:
+
+    # commit = benchmark_data['commits'].get(sha)
+    # if commit:
+    #     log.info('got commit status')
+    #     return web.json_response({'status': commit['status']})
+
+    status = complete_batch_statuses[-1]
+    if status:
         log.info('got commit status')
-        return web.json_response({'status': commit['status']})
+        return web.json_response({'status': status})
     return web.json_response({'status': None})
 
 
