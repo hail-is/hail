@@ -3,7 +3,7 @@ import os
 import aiohttp
 from aiohttp import web
 import logging
-from gear import setup_aiohttp_session, web_authenticated_developers_only, rest_authenticated_developers_only
+from gear import setup_aiohttp_session, web_authenticated_developers_only
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
@@ -227,8 +227,8 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
 async def update_commits(app):
     global benchmark_data
     github_client = app['github_client']
-    batch_client = app['batch_client']
-    gs_reader = app['gs_reader']
+    # batch_client = app['batch_client']
+    # gs_reader = app['gs_reader']
 
     request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
     log.info(f'start point is {START_POINT}')
@@ -331,7 +331,7 @@ async def get_status(request):  # pylint: disable=unused-argument
     app = request.app
     batch_client = app['batch_client']
     batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
-    #complete_batch_statuses = [bs for bs in batch_statuses if bs['complete']]
+    # complete_batch_statuses = [bs for bs in batch_statuses if bs['complete']]
 
     # commits = [item for item in benchmark_data['commits'] if item['sha'] == sha]
     # if commits:
