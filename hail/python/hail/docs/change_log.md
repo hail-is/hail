@@ -22,6 +22,22 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.60
+
+### New features
+
+- (hail#9696) `hl.experimental.export_elasticsearch` will now support Elasticsearch versions 6.8 - 7.x by default.
+
+### Bug fixes
+
+- (hail#9641) Showing hail ndarray data now always prints in correct order.
+
+### hailctl dataproc
+
+- (hail#9610) Support interval fields in `hailctl dataproc describe`
+
+---
+
 ## Version 0.2.59
 
 Released 2020-10-22
