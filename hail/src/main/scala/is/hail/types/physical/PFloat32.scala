@@ -3,7 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.{SFloat32, SType}
+import is.hail.types.physical.stypes.{SFloat32, SFloat32Code, SType}
 import is.hail.types.virtual.TFloat32
 
 case object PFloat32Optional extends PFloat32(false)
@@ -60,6 +60,8 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: PCode): Unit =
     cb.append(Region.storeFloat(addr, value.asFloat.floatCode(cb)))
+
+  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SFloat32Code(required, Region.loadFloat(addr))
 }
 
 object PFloat32 {

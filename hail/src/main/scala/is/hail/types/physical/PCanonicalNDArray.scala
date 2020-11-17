@@ -224,7 +224,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def sType: SNDArrayPointer = SNDArrayPointer(this)
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = sType.loadFrom(cb, null, this, addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SNDArrayPointerCode(sType, addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

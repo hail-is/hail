@@ -3,7 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations.{Region, UnsafeOrdering, _}
 import is.hail.asm4s.{Code, coerce, const, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.{SInt64, SType}
+import is.hail.types.physical.stypes.{SInt64, SInt64Code, SType}
 import is.hail.types.virtual.TInt64
 
 case object PInt64Optional extends PInt64(false)
@@ -58,6 +58,8 @@ class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: PCode): Unit =
     cb.append(Region.storeLong(addr, value.asLong.longCode(cb)))
+
+  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SInt64Code(required, Region.loadLong(addr))
 }
 
 object PInt64 {

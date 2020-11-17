@@ -124,9 +124,9 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     }
   }
 
-  def sType: SLocus = SCanonicalLocusPointer(this)
+  def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(this)
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = sType.loadFrom(cb, null, this, addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SCanonicalLocusPointerCode(sType, addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

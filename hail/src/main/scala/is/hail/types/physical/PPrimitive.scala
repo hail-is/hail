@@ -43,10 +43,6 @@ trait PPrimitive extends PType {
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: PCode): Unit
 
-  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = {
-    sType.loadFrom(cb, null, this, addr)
-  }
-
   def setRequired(required: Boolean): PPrimitive = {
     if (required == this.required)
       this

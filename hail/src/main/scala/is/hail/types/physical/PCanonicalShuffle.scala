@@ -49,7 +49,7 @@ final case class PCanonicalShuffle(
 
   def sType: SCanonicalShufflePointer = SCanonicalShufflePointer(this)
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = sType.loadFrom(cb, null, this, addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SCanonicalShufflePointerCode(sType, representation.loadCheapPCode(cb, addr))
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

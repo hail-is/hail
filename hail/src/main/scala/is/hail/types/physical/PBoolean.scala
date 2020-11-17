@@ -3,7 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations.{Region, UnsafeOrdering, _}
 import is.hail.asm4s.Code
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.SBoolean
+import is.hail.types.physical.stypes.{SBoolean, SBooleanCode}
 import is.hail.types.virtual.TBoolean
 
 case object PBooleanOptional extends PBoolean(false)
@@ -39,6 +39,8 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: PCode): Unit = {
     cb += Region.storeBoolean(addr, value.asBoolean.boolCode(cb))
   }
+
+  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SBooleanCode(required, Region.loadBoolean(addr))
 }
 
 object PBoolean {
