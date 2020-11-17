@@ -37,7 +37,6 @@ BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 benchmark_data = {
     'commits': {}
 }
-shas = None
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
@@ -231,23 +230,18 @@ async def update_commits(app):
     log.info(f'start point is {START_POINT}')
     gh_data = await github_client.getitem(request_string)
     log.info(f'gh_data length is {len(gh_data)}')
-    formatted_new_commits = {}
 
     for gh_commit in gh_data:
         sha = gh_commit.get('sha')
         log.info(f'for commit {sha}')
 
         commit = await update_commit(app, sha)
-        formatted_new_commits.update({sha: commit})
 
     log.info('got new commits')
 
-    benchmark_data = {
-        'commits': formatted_new_commits
-    }
-
 
 async def update_commit(app, sha):  # pylint: disable=unused-argument
+    global benchmark_data
     github_client = app['github_client']
     batch_client = app['batch_client']
     gs_reader = app['gs_reader']
@@ -283,12 +277,12 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         'date': gh_commit['commit']['author']['date'],
         'status': status
     }
+    benchmark_data['commits'][sha] = commit
     return commit
 
 
 @router.get('/api/v1alpha/benchmark/commit/{sha}')
 async def get_status(request):  # pylint: disable=unused-argument
-    global benchmark_data
     sha = str(request.match_info['sha'])
 
     app = request.app
@@ -325,12 +319,10 @@ async def delete_commit(request):  # pylint: disable=unused-argument
 
 @router.post('/api/v1alpha/benchmark/commit/{sha}')
 async def call_update_commit(request):  # pylint: disable=unused-argument
-    global benchmark_data
     body = await request.json()
     sha = body['sha']
     log.info('call_update_commit')
     commit = await update_commit(request.app, sha)
-    benchmark_data['commits'].update({sha: commit})
     return web.json_response({'commit': commit})
 
 

@@ -51,7 +51,5 @@ async def test_update_commits():
                 print(commit_status['status'])
             return commit_status
 
-        # await wait_forever()
         commit_status = await wait_forever()
-        # assert commit['commit']['status'] is not None, commit
         assert commit_status['status']['complete'] == True, commit_status
