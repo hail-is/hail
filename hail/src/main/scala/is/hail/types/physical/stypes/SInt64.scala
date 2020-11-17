@@ -32,7 +32,7 @@ case class SInt64(required: Boolean) extends SType {
 }
 
 trait PInt64Value extends PValue {
-  def longValue(cb: EmitCodeBuilder): Code[Long]
+  def longCode(cb: EmitCodeBuilder): Code[Long]
 
 }
 
@@ -53,7 +53,7 @@ class SInt64Code(required: Boolean, val code: Code[Long]) extends PCode {
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PInt64Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
 
-  def longValue(cb: EmitCodeBuilder): Code[Long] = code
+  def longCode(cb: EmitCodeBuilder): Code[Long] = code
 }
 
 object SInt64Settable {
@@ -67,11 +67,11 @@ class SInt64Settable(required: Boolean, x: Settable[Long]) extends PInt64Value w
 
   def st: SInt64 = SInt64(required)
 
-  def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asLong.longValue(cb))
+  def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asLong.longCode(cb))
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
   def get: PCode = new SInt64Code(required, x)
 
-  def longValue(cb: EmitCodeBuilder): Code[Long] = x
+  def longCode(cb: EmitCodeBuilder): Code[Long] = x
 }

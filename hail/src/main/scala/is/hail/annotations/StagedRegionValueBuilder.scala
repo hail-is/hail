@@ -30,7 +30,7 @@ object StagedRegionValueBuilder {
       val r = mb.getCodeParam[Region](1)
       val value = mb.getCodeParam[Long](2)
       mb.emitWithBuilder { cb =>
-        typ.store(cb, r, typ.getPointerTo(cb, value), deepCopy = true)
+        typ.store(cb, r, typ.loadCheapPCode(cb, value), deepCopy = true)
       }
     }
     mb.invokeCode[Long](region, value)

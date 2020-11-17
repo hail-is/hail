@@ -24,7 +24,7 @@ case class SIntervalPointer(pType: PInterval) extends SInterval {
       case t: PCanonicalInterval if t.equalModuloRequired(this.pType) =>
         new SIntervalPointerCode(this, addr)
       case _ =>
-        new SIntervalPointerCode(this, pType.store(cb, region, pt.getPointerTo(cb, addr), false))
+        new SIntervalPointerCode(this, pType.store(cb, region, pt.loadCheapPCode(cb, addr), false))
     }
   }
 }
@@ -54,14 +54,14 @@ class SIntervalPointerSettable(
   def loadStart(cb: EmitCodeBuilder): IEmitCode =
     IEmitCode(cb,
       !(pt.startDefined(a)),
-      pt.pointType.getPointerTo(cb, pt.loadStart(a)))
+      pt.pointType.loadCheapPCode(cb, pt.loadStart(a)))
 
   def startDefined(cb: EmitCodeBuilder): Code[Boolean] = pt.startDefined(a)
 
   def loadEnd(cb: EmitCodeBuilder): IEmitCode =
     IEmitCode(cb,
       !(pt.endDefined(a)),
-      pt.pointType.getPointerTo(cb, pt.loadEnd(a)))
+      pt.pointType.loadCheapPCode(cb, pt.loadEnd(a)))
 
   def endDefined(cb: EmitCodeBuilder): Code[Boolean] = pt.endDefined(a)
 

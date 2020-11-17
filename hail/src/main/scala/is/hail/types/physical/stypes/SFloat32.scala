@@ -32,7 +32,7 @@ case class SFloat32(required: Boolean) extends SType {
 }
 
 trait PFloat32Value extends PValue {
-  def floatValue(cb: EmitCodeBuilder): Code[Float]
+  def floatCode(cb: EmitCodeBuilder): Code[Float]
 
 }
 
@@ -53,7 +53,7 @@ class SFloat32Code(required: Boolean, val code: Code[Float]) extends PCode {
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PFloat32Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
 
-  def floatValue(cb: EmitCodeBuilder): Code[Float] = code
+  def floatCode(cb: EmitCodeBuilder): Code[Float] = code
 }
 
 object SFloat32Settable {
@@ -67,11 +67,11 @@ class SFloat32Settable(required: Boolean, x: Settable[Float]) extends PFloat32Va
 
   def st: SFloat32 = SFloat32(required)
 
-  def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asFloat.floatValue(cb))
+  def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asFloat.floatCode(cb))
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
   def get: PCode = new SFloat32Code(required, x)
 
-  def floatValue(cb: EmitCodeBuilder): Code[Float] = x
+  def floatCode(cb: EmitCodeBuilder): Code[Float] = x
 }

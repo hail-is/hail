@@ -133,7 +133,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
     throw new UnsupportedOperationException
   }
 
-  def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): PCode = throw new UnsupportedOperationException
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = throw new UnsupportedOperationException
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     throw new UnsupportedOperationException

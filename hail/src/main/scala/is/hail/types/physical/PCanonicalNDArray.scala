@@ -26,10 +26,10 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   )
 
   def loadShape(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long] =
-    shape.pType.types(idx).getPointerTo(cb, shape.pType.fieldOffset(shape.load(off), idx)).asInt64.longValue(cb)
+    shape.pType.types(idx).loadCheapPCode(cb, shape.pType.fieldOffset(shape.load(off), idx)).asInt64.longCode(cb)
 
   def loadStride(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long] =
-    strides.pType.types(idx).getPointerTo(cb, strides.pType.fieldOffset(strides.load(off), idx)).asInt64.longValue(cb)
+    strides.pType.types(idx).loadCheapPCode(cb, strides.pType.fieldOffset(strides.load(off), idx)).asInt64.longCode(cb)
 
   @transient lazy val strides = new StaticallyKnownField(
     PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required): _*): PTuple,
@@ -224,19 +224,19 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def sType: SNDArrayPointer = SNDArrayPointer(this)
 
-  def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): PCode = sType.loadFrom(cb, null, this, addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = sType.loadFrom(cb, null, this, addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
       case SNDArrayPointer(t) if t.equalModuloRequired(this) =>
-          representation.store(cb, region, representation.getPointerTo(cb, value.asInstanceOf[SNDArrayPointerCode].a), deepCopy)
+          representation.store(cb, region, representation.loadCheapPCode(cb, value.asInstanceOf[SNDArrayPointerCode].a), deepCopy)
     }
   }
 
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = {
     value.st match {
       case SNDArrayPointer(t) if t.equalModuloRequired(this) =>
-        representation.storeAtAddress(cb, addr, region, representation.getPointerTo(cb, value.asInstanceOf[SNDArrayPointerCode].a), deepCopy)
+        representation.storeAtAddress(cb, addr, region, representation.loadCheapPCode(cb, value.asInstanceOf[SNDArrayPointerCode].a), deepCopy)
     }
   }
 }

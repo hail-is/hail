@@ -37,7 +37,7 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
   def sType: SBoolean = SBoolean(required)
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: PCode): Unit = {
-    cb += Region.storeBoolean(addr, value.asBoolean.boolValue(cb))
+    cb += Region.storeBoolean(addr, value.asBoolean.boolCode(cb))
   }
 }
 

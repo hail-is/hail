@@ -60,7 +60,7 @@ class PFloat64(override val required: Boolean) extends PNumeric with PPrimitive 
   override def sType: SType = SFloat64(required)
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: PCode): Unit =
-    cb.append(Region.storeDouble(addr, value.asDouble.doubleValue(cb)))
+    cb.append(Region.storeDouble(addr, value.asDouble.doubleCode(cb)))
 }
 
 object PFloat64 {

@@ -13,7 +13,7 @@ case class SCanonicalShufflePointer(pType: PCanonicalShuffle) extends SShuffle {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering= pType.codeOrdering(mb, other.pType, so)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
-    new SCanonicalShufflePointerCode(this, pType.representation.getPointerTo(cb, pType.store(cb, region, value, deepCopy)))
+    new SCanonicalShufflePointerCode(this, pType.representation.loadCheapPCode(cb, pType.store(cb, region, value, deepCopy)))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, IntInfo)

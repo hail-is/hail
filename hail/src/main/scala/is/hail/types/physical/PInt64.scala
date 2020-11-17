@@ -57,7 +57,7 @@ class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
   override def sType: SType = SInt64(required)
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: PCode): Unit =
-    cb.append(Region.storeLong(addr, value.asLong.longValue(cb)))
+    cb.append(Region.storeLong(addr, value.asLong.longCode(cb)))
 }
 
 object PInt64 {

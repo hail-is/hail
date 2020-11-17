@@ -119,7 +119,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
   def create(cb: EmitCodeBuilder, dest: Code[Long]): Unit = {
     cb.assign(aoff, arrayType.allocate(region, maxSize))
     cb += arrayType.stagedInitialize(aoff, maxSize)
-    arrayType.storeAtAddress(cb, dest, region, arrayType.getPointerTo(cb, aoff), deepCopy = false)
+    arrayType.storeAtAddress(cb, dest, region, arrayType.loadCheapPCode(cb, aoff), deepCopy = false)
     cb.assign(len, 0)
   }
 
@@ -336,7 +336,7 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
       parentBuilder.loadFrom(cb, utils, 0)
 
       leafBuilder.loadChild(cb, 0)
-      parentBuilder.add(cb, idxOff, leafBuilder.firstIdx(cb).asLong.longValue(cb), leafBuilder.getLoadedChild)
+      parentBuilder.add(cb, idxOff, leafBuilder.firstIdx(cb).asLong.longCode(cb), leafBuilder.getLoadedChild)
       parentBuilder.store(cb, utils, 0)
       leafBuilder.reset(cb, elementIdx)
       Code._empty

@@ -6,6 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.BackendContext
+import is.hail.expr.ir.Emit.E
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.functions.StringFunctions
@@ -16,6 +17,10 @@ import is.hail.services.shuffler._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.types.virtual._
+import is.hail.utils._
+
+import scala.collection.mutable
+import scala.language.{existentials, postfixOps}
 
 object SetupBuilder {
   def apply(mb: EmitMethodBuilder[_]): SetupBuilder = new SetupBuilder(mb, Code._empty)
@@ -443,9 +448,6 @@ class Emit[C](
 
   val methods: mutable.Map[(String, Seq[Type], Seq[PType], PType), EmitMethodBuilder[C]] = mutable.Map()
 
-  import is.hail.utils._
-
-  import scala.language.{existentials, postfixOps}
 
   private[ir] def emitVoid(cb: EmitCodeBuilder, ir: IR, mb: EmitMethodBuilder[C], region: StagedRegion, env: E, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
 
@@ -756,7 +758,7 @@ class Emit[C](
         emitI(a).flatMap(cb) { (ac) =>
           emitI(i).flatMap(cb) { (ic) =>
             val av = ac.asIndexable.memoize(cb, "aref_a")
-            val iv = cb.newLocal("i", ic.asInt.intValue(cb))
+            val iv = cb.newLocal("i", ic.asInt.intCode(cb))
 
             cb.ifx(iv < 0 || iv >= av.loadLength(), {
               cb._fatal(errorTransformer(
@@ -827,7 +829,7 @@ class Emit[C](
                 })
               }}
 
-              PCode(pt, xP.construct(shapeBuilder, makeStridesBuilder(shapeTupleValue, isRowMajorCode.asBoolean.boolValue(cb), mb), requiredData, mb, region.code))
+              PCode(pt, xP.construct(shapeBuilder, makeStridesBuilder(shapeTupleValue, isRowMajorCode.asBoolean.boolCode(cb), mb), requiredData, mb, region.code))
             }
           }
         }
@@ -992,13 +994,13 @@ class Emit[C](
                   def multiply(l: PCode, r: PCode): Code[_] = {
                     (l.st, r.st) match {
                       case (_: SInt32, _: SInt32) =>
-                        l.asInt.intValue(cb) * r.asInt.intValue(cb)
+                        l.asInt.intCode(cb) * r.asInt.intCode(cb)
                       case (_: SInt64, _: SInt64) =>
-                        l.asLong.longValue(cb) * r.asLong.longValue(cb)
+                        l.asLong.longCode(cb) * r.asLong.longCode(cb)
                       case (_: SFloat32, _: SFloat32) =>
-                        l.asFloat.floatValue(cb) * r.asFloat.floatValue(cb)
+                        l.asFloat.floatCode(cb) * r.asFloat.floatCode(cb)
                       case (_: SFloat64, _: SFloat64) =>
-                        l.asDouble.doubleValue(cb) * r.asDouble.doubleValue(cb)
+                        l.asDouble.doubleCode(cb) * r.asDouble.doubleCode(cb)
                     }
                   }
 
@@ -1631,7 +1633,7 @@ class Emit[C](
 
         val resPType = pt.asInstanceOf[PCanonicalBinary]
         // FIXME: server needs to send uuid for the successful partition
-        val boff = cb.memoize(resPType.getPointerTo(cb, resPType.allocate(region.code, 0)),"shuffleWriteBOff")
+        val boff = cb.memoize(resPType.loadCheapPCode(cb, resPType.allocate(region.code, 0)),"shuffleWriteBOff")
         cb += resPType.storeLength(boff.tcode[Long], 0)
         presentPC(boff)
 
@@ -2351,7 +2353,7 @@ class Emit[C](
               x.decodedBodyPTuple.isFieldMissing(eltTupled, 0).mux(
                 sab.setMissing(),
                 EmitCodeBuilder.scopedVoid(mb) { cb =>
-                  val pv = x.decodedBodyPType.getPointerTo(cb, x.decodedBodyPTuple.loadField(eltTupled, 0))
+                  val pv = x.decodedBodyPType.loadCheapPCode(cb, x.decodedBodyPTuple.loadField(eltTupled, 0))
                   cb += sab.addIRIntermediate(pv)
                 }),
               sab.advance()),

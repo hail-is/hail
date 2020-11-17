@@ -21,7 +21,7 @@ case class SBinaryPointer(pType: PBinary) extends SBinary {
     if (pt == this.pType)
       new SBinaryPointerCode(this, addr)
     else
-      coerceOrCopy(cb, region, pt.getPointerTo(cb, addr), deepCopy = false)
+      coerceOrCopy(cb, region, pt.loadCheapPCode(cb, addr), deepCopy = false)
   }
 
 }

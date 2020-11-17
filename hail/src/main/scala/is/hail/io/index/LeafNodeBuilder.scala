@@ -47,14 +47,14 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
 
   def reset(cb: EmitCodeBuilder, firstIdx: Code[Long]): Unit = {
     cb += region.invoke[Unit]("clear")
-    node.store(cb, pType.getPointerTo(cb, pType.allocate(region)))
+    node.store(cb, pType.loadCheapPCode(cb, pType.allocate(region)))
     idxType.storePrimitiveAtAddress(cb, pType.fieldOffset(node.a, "first_idx"), PCode(idxType, firstIdx))
     ab.create(cb, pType.fieldOffset(node.a, "keys"))
   }
 
   def create(cb: EmitCodeBuilder, firstIdx: Code[Long]): Unit = {
     cb.assign(region, Region.stagedCreate(Region.REGULAR))
-    node.store(cb, pType.getPointerTo(cb, pType.allocate(region)))
+    node.store(cb, pType.loadCheapPCode(cb, pType.allocate(region)))
     idxType.storePrimitiveAtAddress(cb, pType.fieldOffset(node.a, "first_idx"), PCode(idxType, firstIdx))
     ab.create(cb, pType.fieldOffset(node.a, "keys"))
   }
@@ -76,5 +76,5 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
 
   def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = ab.loadChild(cb, idx)
   def getLoadedChild: PBaseStructValue = ab.getLoadedChild
-  def firstIdx(cb: EmitCodeBuilder): PCode = idxType.getPointerTo(cb, pType.fieldOffset(node.a, "first_idx"))
+  def firstIdx(cb: EmitCodeBuilder): PCode = idxType.loadCheapPCode(cb, pType.fieldOffset(node.a, "first_idx"))
 }

@@ -22,7 +22,7 @@ case class SBaseStructPointer(pType: PBaseStruct) extends SStruct {
     if (pt == this.pType)
       new SBaseStructPointerCode(this, addr)
     else
-      coerceOrCopy(cb, region, pt.getPointerTo(cb, addr), deepCopy = false)
+      coerceOrCopy(cb, region, pt.loadCheapPCode(cb, addr), deepCopy = false)
   }
 }
 
@@ -46,7 +46,7 @@ class SBaseStructPointerSettable(
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     IEmitCode(cb,
       pt.isFieldMissing(a, fieldIdx),
-      pt.fields(fieldIdx).typ.getPointerTo(cb, pt.loadField(a, fieldIdx)))
+      pt.fields(fieldIdx).typ.loadCheapPCode(cb, pt.loadField(a, fieldIdx)))
   }
 
   def store(cb: EmitCodeBuilder, pv: PCode): Unit = {

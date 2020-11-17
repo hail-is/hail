@@ -30,7 +30,7 @@ trait PUnrealizable extends PType {
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     unsupported
 
-  override def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): PCode = unsupported
+  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = unsupported
 
   override def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = unsupported
 

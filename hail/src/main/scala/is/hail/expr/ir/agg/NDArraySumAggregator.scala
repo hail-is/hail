@@ -33,7 +33,7 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
 
     seqOpMethod.voidWithBuilder(cb => {
       val nextNDInput = seqOpMethod.getEmitParam(1)
-      val statePV = stateType.getPointerTo(cb, state.off).asBaseStruct.memoize(cb, "ndarray_sum_seq_op_state")
+      val statePV = stateType.loadCheapPCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_sum_seq_op_state")
       nextNDInput.toI(cb).consume(cb, {}, {case nextNDArrayPCode: PNDArrayCode =>
         val nextNDPV = nextNDArrayPCode.memoize(cb, "ndarray_sum_seqop_next")
         statePV.loadField(cb, ndarrayFieldNumber).consume(cb,
@@ -61,10 +61,10 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
     val combOpMethod = cb.emb.genEmitMethod[Unit]("ndarray_sum_aggregator_comb_op")
 
     combOpMethod.voidWithBuilder(cb => {
-      val rightPV = stateType.getPointerTo(cb, other.off).asBaseStruct.memoize(cb, "ndarray_sum_comb_op_right")
+      val rightPV = stateType.loadCheapPCode(cb, other.off).asBaseStruct.memoize(cb, "ndarray_sum_comb_op_right")
       rightPV.loadField(cb, ndarrayFieldNumber).consume(cb, {},
         { rightNDPC =>
-          val leftPV = stateType.getPointerTo(cb, state.off).asBaseStruct.memoize(cb, "ndarray_sum_comb_op_left")
+          val leftPV = stateType.loadCheapPCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_sum_comb_op_left")
           leftPV.loadField(cb, ndarrayFieldNumber).consume(cb,
             {
               cb.append(state.storeNonmissing(other.off))

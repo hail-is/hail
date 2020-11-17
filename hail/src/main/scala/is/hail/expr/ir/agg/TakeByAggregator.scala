@@ -221,7 +221,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   private def keyIsMissing(offset: Code[Long]): Code[Boolean] = indexedKeyType.isFieldMissing(offset, 0)
 
-  private def loadKeyValue(cb: EmitCodeBuilder, offset: Code[Long]): PCode = keyType.getPointerTo(cb, indexedKeyType.loadField(offset, 0))
+  private def loadKeyValue(cb: EmitCodeBuilder, offset: Code[Long]): PCode = keyType.loadCheapPCode(cb, indexedKeyType.loadField(offset, 0))
 
   private def loadKey(cb: EmitCodeBuilder, offset: Value[Long]): EmitCode =
     EmitCode(Code._empty, keyIsMissing(offset), loadKeyValue(cb, offset))

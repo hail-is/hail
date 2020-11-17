@@ -32,7 +32,7 @@ case class SFloat64(required: Boolean) extends SType {
 }
 
 trait PFloat64Value extends PValue {
-  def doubleValue(cb: EmitCodeBuilder): Code[Double]
+  def doubleCode(cb: EmitCodeBuilder): Code[Double]
 
 }
 
@@ -53,7 +53,7 @@ class SFloat64Code(required: Boolean, val code: Code[Double]) extends PCode {
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PFloat64Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
 
-  def doubleValue(cb: EmitCodeBuilder): Code[Double] = code
+  def doubleCode(cb: EmitCodeBuilder): Code[Double] = code
 }
 
 object SFloat64Settable {
@@ -67,11 +67,11 @@ class SFloat64Settable(required: Boolean, x: Settable[Double]) extends PFloat64V
 
   def st: SFloat64 = SFloat64(required)
 
-  def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asDouble.doubleValue(cb))
+  def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asDouble.doubleCode(cb))
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
   def get: PCode = new SFloat64Code(required, x)
 
-  def doubleValue(cb: EmitCodeBuilder): Code[Double] = x
+  def doubleCode(cb: EmitCodeBuilder): Code[Double] = x
 }

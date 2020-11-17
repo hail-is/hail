@@ -59,7 +59,7 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
   override def sType: SType = SFloat32(required)
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: PCode): Unit =
-    cb.append(Region.storeFloat(addr, value.asFloat.floatValue(cb)))
+    cb.append(Region.storeFloat(addr, value.asFloat.floatCode(cb)))
 }
 
 object PFloat32 {

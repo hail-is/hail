@@ -32,8 +32,7 @@ case class SInt32(required: Boolean) extends SType {
 }
 
 trait PInt32Value extends PValue {
-  def intValue(cb: EmitCodeBuilder): Code[Int]
-
+  def intCode(cb: EmitCodeBuilder): Code[Int]
 }
 
 class SInt32Code(required: Boolean, val code: Code[Int]) extends PCode {
@@ -53,7 +52,7 @@ class SInt32Code(required: Boolean, val code: Code[Int]) extends PCode {
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PInt32Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
 
-  def intValue(cb: EmitCodeBuilder): Code[Int] = code
+  def intCode(cb: EmitCodeBuilder): Code[Int] = code
 }
 
 object SInt32Settable {
@@ -67,11 +66,11 @@ class SInt32Settable(required: Boolean, x: Settable[Int]) extends PInt32Value wi
 
   def st: SInt32 = SInt32(required)
 
-  def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asInt.intValue(cb))
+  def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asInt.intCode(cb))
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
   def get: PCode = new SInt32Code(required, x)
 
-  def intValue(cb: EmitCodeBuilder): Code[Int] = x
+  def intCode(cb: EmitCodeBuilder): Code[Int] = x
 }

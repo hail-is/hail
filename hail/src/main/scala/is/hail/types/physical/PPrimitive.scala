@@ -43,7 +43,7 @@ trait PPrimitive extends PType {
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: PCode): Unit
 
-  override def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): PCode = {
+  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = {
     sType.loadFrom(cb, null, this, addr)
   }
 

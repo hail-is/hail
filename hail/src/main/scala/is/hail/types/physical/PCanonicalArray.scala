@@ -341,7 +341,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
           this.elementType.fundamentalType match {
             // FIXME this logic needs to go before we can create new ptypes
             case t@(_: PBinary | _: PArray) =>
-              t.storeAtAddress(cb, currentElementAddress, region, t.getPointerTo(cb, Region.loadAddress(currentElementAddress)), deepCopy = true)
+              t.storeAtAddress(cb, currentElementAddress, region, t.loadCheapPCode(cb, Region.loadAddress(currentElementAddress)), deepCopy = true)
             case t: PCanonicalBaseStruct =>
               t.deepPointerCopy(cb, region, currentElementAddress)
             case t: PType => throw new RuntimeException(s"Type isn't supported ${ t }")
@@ -406,7 +406,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def sType: SContainer = SIndexablePointer(this)
 
-  def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): PCode = SIndexablePointer(this).loadFrom(cb, null, this, addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = SIndexablePointer(this).loadFrom(cb, null, this, addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

@@ -1464,7 +1464,7 @@ object EmitStream {
                   hasNext.orEmpty(next := xIter.load().next().invoke[Long]("longValue")),
                   k(COption(!hasNext, next)))
                 ).map(
-                rv => EmitCodeBuilder.scopedEmitCode(mb)(cb => EmitCode.present(eltType.getPointerTo(cb, (rv)))),
+                rv => EmitCodeBuilder.scopedEmitCode(mb)(cb => EmitCode.present(eltType.loadCheapPCode(cb, (rv)))),
                 setup0 = None,
                 setup = Some(
                   xIter := mkIter.invoke[Region, Region, Iterator[java.lang.Long]](
@@ -1480,7 +1480,7 @@ object EmitStream {
           optStream.flatMap { case SizedStream(setup, stream, len) =>
             optN.map { n => sized(
               Code(setup,
-                   EmitCodeBuilder.scopedVoid(mb)(cb => cb.assign(xN, n.asInt.intValue(cb))),
+                   EmitCodeBuilder.scopedVoid(mb)(cb => cb.assign(xN, n.asInt.intCode(cb))),
                    (xN < 0).orEmpty(Code._fatal[Unit](const("StreamTake: negative length")))),
               eltRegion => zip(stream(eltRegion), range(mb, 0, 1, xN))
                 .map({ case (elt, count) => elt }),
@@ -1495,7 +1495,7 @@ object EmitStream {
           optStream.flatMap { case SizedStream(setup, stream, len) =>
             optN.map { n => sized(
               Code(setup,
-                EmitCodeBuilder.scopedVoid(mb)(cb => cb.assign(xN, n.asInt.intValue(cb))),
+                EmitCodeBuilder.scopedVoid(mb)(cb => cb.assign(xN, n.asInt.intCode(cb))),
                 (xN < 0).orEmpty(Code._fatal[Unit](const("StreamDrop: negative num")))),
               eltRegion => zip(stream(eltRegion), iota(mb, 0, 1))
                 .map({ case (elt, count) => COption(count < xN, elt) })
@@ -1523,7 +1523,7 @@ object EmitStream {
                   }
               sized(
                 Code(setup,
-                  EmitCodeBuilder.scopedVoid(mb)(cb => cb.assign(xS, s.asInt.intValue(cb))),
+                  EmitCodeBuilder.scopedVoid(mb)(cb => cb.assign(xS, s.asInt.intCode(cb))),
                   (xS <= 0).orEmpty(Code._fatal[Unit](const("StreamGrouped: nonpositive size")))),
                 newStream,
                 len.map(l => ((l.toL + xS.toL - 1L) / xS.toL).toI)) // rounding up integer division
@@ -2196,7 +2196,7 @@ object EmitStream {
                 setup = Some(EmitCodeBuilder.scopedVoid(mb) { cb =>
                   uuid.store(cb, idt)
                   cb.assign(shuffleLocal, CodeShuffleClient.create(mb.ecb.getType(shuffleType), uuid.loadBytes()))
-                  cb += shuffle.startPartitionBounds(nPartitionst.intValue(cb)) }),
+                  cb += shuffle.startPartitionBounds(nPartitionst.intCode(cb)) }),
                 close = Some(Code(
                   shuffle.endPartitionBounds(),
                   shuffle.close())))

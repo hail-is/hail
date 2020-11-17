@@ -54,7 +54,7 @@ abstract class PhysicalTestUtils extends HailSuite {
     val value = fb.getCodeParam[Long](2)
 
     try {
-      fb.emitWithBuilder(cb => destType.fundamentalType.store(cb, codeRegion, sourceType.fundamentalType.getPointerTo(cb, value), deepCopy = deepCopy))
+      fb.emitWithBuilder(cb => destType.fundamentalType.store(cb, codeRegion, sourceType.fundamentalType.loadCheapPCode(cb, value), deepCopy = deepCopy))
       compileSuccess = true
     } catch {
       case e: Throwable =>

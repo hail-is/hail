@@ -21,12 +21,6 @@ trait ValueVisitor {
 
   def visitBinary(b: Array[Byte]): Unit
 
-  def visitLocus(l: Locus); Unit
-
-  def visitCall(c: Call): Unit
-
-  def visitInterval(t: PInterval, i: Interval): Unit
-
   def enterStruct(t: PStruct): Unit
 
   def enterField(f: PField): Unit
@@ -135,17 +129,4 @@ final class PrettyVisitor extends ValueVisitor {
   }
 
   def leaveElement() {}
-
-  def visitLocus(l: Locus): Unit = {
-    sb.append(l.toString)
-  }
-
-  def visitCall(c: Call): Unit = {
-    sb.append(Call.toString(c))
-  }
-
-  def visitInterval(t: PInterval, i: Interval): Unit = {
-    sb.append(t.virtualType.str(i))
-  }
-
 }

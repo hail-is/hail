@@ -46,7 +46,7 @@ class SBooleanCode(required: Boolean, val code: Code[Boolean]) extends PCode {
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SBooleanSettable = memoizeWithBuilder(cb, name, cb.fieldBuilder)
 
-  def boolValue(cb: EmitCodeBuilder): Code[Boolean] = code
+  def boolCode(cb: EmitCodeBuilder): Code[Boolean] = code
 }
 
 object SBooleanSettable {
@@ -60,11 +60,11 @@ class SBooleanSettable(required: Boolean, x: Settable[Boolean]) extends PValue w
 
   def st: SBoolean = SBoolean(required)
 
-  def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asBoolean.boolValue(cb))
+  def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asBoolean.boolCode(cb))
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
   def get: PCode = new SBooleanCode(required, x)
 
-  def boolValue(cb: EmitCodeBuilder): Code[Boolean] = x
+  def boolCode(cb: EmitCodeBuilder): Code[Boolean] = x
 }

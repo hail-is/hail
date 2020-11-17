@@ -55,7 +55,7 @@ class SCanonicalLocusPointerSettable(
   }
 
   def contig(cb: EmitCodeBuilder): PStringCode = {
-    pt.contigType.getPointerTo(cb, _contig).asString
+    pt.contigType.loadCheapPCode(cb, _contig).asString
   }
 
   def position(cb: EmitCodeBuilder): Code[Int] = _position
@@ -68,7 +68,7 @@ class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Lon
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def contig(cb: EmitCodeBuilder): PStringCode = pt.contigType.getPointerTo(cb, pt.contigAddr(a)).asString
+  def contig(cb: EmitCodeBuilder): PStringCode = pt.contigType.loadCheapPCode(cb, pt.contigAddr(a)).asString
 
   def position(cb: EmitCodeBuilder): Code[Int] = pt.position(a)
 

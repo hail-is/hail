@@ -3,7 +3,6 @@ package is.hail.asm4s
 import java.io.PrintStream
 import java.lang.reflect
 
-import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._

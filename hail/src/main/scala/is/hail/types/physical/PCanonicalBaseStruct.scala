@@ -110,7 +110,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
             dstFieldType match {
               case t@(_: PBinary | _: PArray) =>
                 val fieldAddr = cb.newLocal[Long]("pcbs_dpcopy_field", fieldOffset(dstAddr, f.index))
-                t.storeAtAddress(cb, fieldAddr, region, t.getPointerTo(cb, Region.loadAddress(fieldAddr)), deepCopy = true)
+                t.storeAtAddress(cb, fieldAddr, region, t.loadCheapPCode(cb, Region.loadAddress(fieldAddr)), deepCopy = true)
               case t: PCanonicalBaseStruct =>
                 t.deepPointerCopy(cb, region, fieldOffset(dstAddr, f.index))
             }
@@ -168,7 +168,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   def sType: SStruct = SBaseStructPointer(this)
 
-  def getPointerTo(cb: EmitCodeBuilder, addr: Code[Long]): PCode = SBaseStructPointer(this).loadFrom(cb, null, this, addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = SBaseStructPointer(this).loadFrom(cb, null, this, addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
@@ -186,12 +186,12 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     value.st match {
       case SBaseStructPointer(t) if t.equalModuloRequired(this) =>
         val pcs = value.asBaseStruct.memoize(cb, "pcbasestruct_store_src").asInstanceOf[SBaseStructPointerSettable]
-        val addrVar = cb.newLocal[Long]("addr", addr)
+        val addrVar = cb.newLocal[Long]("pcbasestruct_store_dest_addr1", addr)
         cb += Region.copyFrom(pcs.a, addrVar, byteSize)
         if (deepCopy)
           deepPointerCopy(cb, region, addrVar)
       case _ =>
-        val addrVar = cb.newLocal[Long]("addr", addr)
+        val addrVar = cb.newLocal[Long]("pcbasestruct_store_dest_addr2", addr)
         val pcs = value.asBaseStruct.memoize(cb, "pcbasestruct_store_src")
         cb += stagedInitialize(addrVar, setMissing = false)
 
