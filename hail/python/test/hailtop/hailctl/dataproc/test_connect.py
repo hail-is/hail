@@ -44,7 +44,8 @@ def test_connect(gcloud_run, subprocess):
     cli.main(["connect", "test-cluster", "notebook"])
 
     gcloud_args = gcloud_run.call_args[0][0]
-    assert gcloud_args[:3] == ["compute", "ssh", "test@test-cluster-m"]
+    assert gcloud_args[:2] == ["compute", "ssh"]
+    assert gcloud_args[1][:gcloud_args[1].find("@")] == "test-cluster-m"
 
     assert "--ssh-flag=-D 10000" in gcloud_args
     assert "--ssh-flag=-N" in gcloud_args
