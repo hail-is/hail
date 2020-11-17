@@ -1918,7 +1918,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     val read = extracted.deserialize(ctx, spec)
     val write = extracted.serialize(ctx, spec)
-    val combOpF = extracted.combOpFSerialized(ctx, spec)
+    val combOpFNeedsPool = extracted.combOpFSerializedFromRegionPool(ctx, spec)
 
     val (rTyp, f) = ir.CompileWithAggregators[AsmFunction3RegionLongLongLong](ctx,
       extracted.states,
@@ -1973,8 +1973,9 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val nToMerge = filesToMerge.length / 2
         log.info(s"Running combOp stage with $nToMerge tasks")
         fileStack += filesToMerge
-        filesToMerge = SparkBackend.sparkContext("TableMapRows.execute").parallelize(0 until nToMerge, nToMerge)
-          .mapPartitions { it =>
+
+        filesToMerge = ContextRDD.weaken(SparkBackend.sparkContext("TableMapRows.execute").parallelize(0 until nToMerge, nToMerge))
+          .cmapPartitions { (ctx, it) =>
             val i = it.next()
             assert(it.isEmpty)
             val path = tmpBase + "/" + partFile(d, i, TaskContext.get)
@@ -1991,7 +1992,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
             val b1 = using(new DataInputStream(fsBc.value.open(file1)))(readToBytes)
             val b2 = using(new DataInputStream(fsBc.value.open(file2)))(readToBytes)
             using(new DataOutputStream(fsBc.value.create(path))) { os =>
-              val bytes = combOpF(b1, b2)
+              val bytes = combOpFNeedsPool(ctx.r.pool)(b1, b2)
               os.writeInt(bytes.length)
               os.write(bytes)
             }
@@ -2030,7 +2031,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
               b
             }
 
-            b = combOpF(b, using(new DataInputStream(fsBc.value.open(path)))(readToBytes))
+            b = combOpFNeedsPool(ctx.r.pool)(b, using(new DataInputStream(fsBc.value.open(path)))(readToBytes))
           }
           b
         }
@@ -2075,7 +2076,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     }, HailContext.getFlag("max_leader_scans").toInt)
 
     // 3. load in partition aggregations, comb op as necessary, write back out.
-    val partAggs = scanPartitionAggs.scanLeft(initAgg)(combOpF)
+    val partAggs = scanPartitionAggs.scanLeft(initAgg)(combOpFNeedsPool(ctx.r.pool))
     val scanAggCount = tv.rvd.getNumPartitions
     val partitionIndices = new Array[Long](scanAggCount)
     val scanAggsPerPartitionFile = ctx.createTmpPath("table-map-rows-scan-aggs-part")

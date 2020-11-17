@@ -157,6 +157,10 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
   }
 
   def combOpFSerialized(ctx: ExecuteContext, spec: BufferSpec): (Array[Byte], Array[Byte]) => Array[Byte] = {
+    combOpFSerializedFromRegionPool(ctx, spec)(RegionPool.get)
+  }
+
+  def combOpFSerializedFromRegionPool(ctx: ExecuteContext, spec: BufferSpec): RegionPool => ((Array[Byte], Array[Byte]) => Array[Byte]) = {
     val (_, f) = ir.CompileWithAggregators[AsmFunction1RegionUnit](ctx,
       states ++ states,
       FastIndexedSeq(),
@@ -168,8 +172,8 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
         SerializeAggs(0, 0, spec, states)
       )))
 
-    { (bytes1: Array[Byte], bytes2: Array[Byte]) =>
-      RegionPool.get.scopedSmallRegion { r =>
+    pool: RegionPool => { (bytes1: Array[Byte], bytes2: Array[Byte]) =>
+      pool.scopedSmallRegion { r =>
         val f2 = f(0, r)
         f2.newAggState(r)
         f2.setSerializedAgg(0, bytes1)
