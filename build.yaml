@@ -436,7 +436,7 @@ steps:
      fi
      # created ci
      # create test
-     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers test-tokens | wc -l | tr -d '[:space:]')
+     N=$(kubectl -n {{ batch_pods_ns.name }} get secret --ignore-not-found=true --no-headers test-tokens | wc -l | tr -d '[:space:]')
      if [[ $N = 0 ]]; then
          # if test-tokens does not exist
          rm -f /user-tokens/tokens.json
@@ -445,7 +445,7 @@ steps:
      fi
      # created test
      # create test-dev
-     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers test-dev-tokens | wc -l | tr -d '[:space:]')
+     N=$(kubectl -n {{ batch_pods_ns.name }} get secret --ignore-not-found=true --no-headers test-dev-tokens | wc -l | tr -d '[:space:]')
      if [[ $N = 0 ]]; then
          # if test-dev-tokens does not exist
          rm -f /user-tokens/tokens.json
@@ -459,7 +459,7 @@ steps:
          # if benchmark does not exist
          rm -f /user-tokens/tokens.json
          python3 create-session.py '{"state":"active","username":"benchmark","gsa_email":"benchmark@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"benchmark-gsa-key","tokens_secret_name":"benchmark-tokens"}'
-         kubectl -n {{ batch_pods_ns.name }} create secret generic benchmark-tokens --from-file=/user-tokens/tokens.json
+         kubectl -n {{ default_ns.name }} create secret generic benchmark-tokens --from-file=/user-tokens/tokens.json
      fi
      # created benchmark
    scopes:
