@@ -802,6 +802,7 @@ class EmitClassBuilder[C](
           f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
         f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
         if (f.isInstanceOf[FunctionWithPool]) {
+          assert(region != null, s"On worker = ${TaskContext.get() != null}")
           f.asInstanceOf[FunctionWithPool].setPool(region.pool)
         }
         f

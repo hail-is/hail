@@ -390,7 +390,7 @@ object BlockMatrix {
       val trueIt = it(ctx)
       val rootPath = blockMatrixURI(rddIndex)
       val fileName = partFile(numDigits, partIndex, TaskContext.get)
-      val fileDataIterator = RichContextRDD.writeParts(ctx, rootPath, fileName, null, (_) => null, false, fs, tmpdir, trueIt, writeBlock)
+      val fileDataIterator = RichContextRDD.writeParts(ctx, rootPath, fileName, null, (_, _) => null, false, fs, tmpdir, trueIt, writeBlock)
       fileDataIterator.map { fd => (fd, rddIndex) }
     }
 

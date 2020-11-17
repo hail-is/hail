@@ -42,7 +42,7 @@ class IndexSuite extends HailSuite {
     attributes: Map[String, Any]) {
     val bufferSpec = BufferSpec.default
 
-    val iw = IndexWriter.builder(ctx, keyType, annotationType, branchingFactor, attributes)(file)
+    val iw = IndexWriter.builder(ctx, keyType, annotationType, branchingFactor, attributes)(file, pool)
     data.zip(annotations).zipWithIndex.foreach { case ((s, a), offset) =>
       iw.appendRow(s, offset, a)
     }
