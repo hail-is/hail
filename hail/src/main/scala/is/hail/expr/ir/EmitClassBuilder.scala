@@ -801,7 +801,9 @@ class EmitClassBuilder[C](
         if (nSerializedAggs != 0)
           f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
         f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
-        f.asInstanceOf[FunctionWithPool].setPool(region.pool)
+        if (f.isInstanceOf[FunctionWithPool]) {
+          f.asInstanceOf[FunctionWithPool].setPool(region.pool)
+        }
         f
       }
     }
