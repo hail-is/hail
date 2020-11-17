@@ -156,8 +156,28 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
     }
   }
 
-  def combOpFSerialized(ctx: ExecuteContext, spec: BufferSpec): (Array[Byte], Array[Byte]) => Array[Byte] = {
-    combOpFSerializedFromRegionPool(ctx, spec)(RegionPool.get)
+  def combOpFSerializedWorkersOnly(ctx: ExecuteContext, spec: BufferSpec): (Array[Byte], Array[Byte]) => Array[Byte] = {
+    val (_, f) = ir.CompileWithAggregators[AsmFunction1RegionUnit](ctx,
+      states ++ states,
+      FastIndexedSeq(),
+      FastIndexedSeq(classInfo[Region]), UnitInfo,
+      Begin(FastSeq(
+        ir.DeserializeAggs(0, 0, spec, states),
+        ir.DeserializeAggs(nAggs, 1, spec, states),
+        Begin(aggs.zipWithIndex.map { case (sig, i) => CombOp(i, i + nAggs, sig) }),
+        SerializeAggs(0, 0, spec, states)
+      )))
+
+    (bytes1: Array[Byte], bytes2: Array[Byte]) =>
+    RegionPool.get.scopedSmallRegion { r =>
+      val f2 = f(0, r)
+      f2.newAggState(r)
+      f2.setSerializedAgg(0, bytes1)
+      f2.setSerializedAgg(1, bytes2)
+      f2(r)
+      f2.storeAggsToRegion()
+      f2.getSerializedAgg(0)
+    }
   }
 
   def combOpFSerializedFromRegionPool(ctx: ExecuteContext, spec: BufferSpec): RegionPool => ((Array[Byte], Array[Byte]) => Array[Byte]) = {

@@ -2400,7 +2400,7 @@ case class TableKeyByAndAggregate(
 
     val serialize = extracted.serialize(ctx, spec)
     val deserialize = extracted.deserialize(ctx, spec)
-    val combOp = extracted.combOpFSerialized(ctx, spec)
+    val combOp = extracted.combOpFSerializedWorkersOnly(ctx, spec)
 
     val initF = makeInit(0, ctx.r)
     val globalsOffset = prev.globals.value.offset
