@@ -2,7 +2,8 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering, _}
 import is.hail.asm4s.{Code, coerce, const, _}
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.types.physical.stypes.{SInt32, SInt32Code, SType}
 import is.hail.types.virtual.TInt32
 
 case object PInt32Optional extends PInt32(false)
@@ -52,8 +53,12 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
     coerce[PInt32](coerce[Int](a) * coerce[Int](b))
   }
 
-  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_]): Code[Unit] =
-    Region.storeInt(addr, coerce[Int](value))
+  override def sType: SType = SInt32(required)
+
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: PCode): Unit =
+    cb.append(Region.storeInt(addr, value.asInt.intCode(cb)))
+
+  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SInt32Code(required, Region.loadInt(addr))
 }
 
 object PInt32 {

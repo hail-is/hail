@@ -3,16 +3,17 @@ package is.hail.expr.ir
 import java.io._
 import java.util.Base64
 
-import is.hail.{HailContext, lir}
-import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder, SafeRow}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.backend.BackendUtils
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.types.physical.{PCanonicalTuple, PCode, PSettable, PStream, PStruct, PType, PValue, typeToTypeInfo}
-import is.hail.types.virtual.Type
-import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
+import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
+import is.hail.lir
+import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.{PBaseStructValue, PCanonicalTuple, PCode, PSettable, PStream, PStruct, PType, PValue, typeToTypeInfo}
+import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
@@ -293,16 +294,21 @@ class EmitClassBuilder[C](
       if (_pt.required) false else ms.get,
       vs.get)
 
-    def store(ec: EmitCode): Code[Unit] =
-      if (_pt.required)
-        Code(ec.setup,
-          // FIXME put this under control of a debugging option
-          ec.m.mux(
-            Code._fatal[Unit](s"Required EmitSettable cannot be missing ${ _pt }"),
-            Code._empty),
-          vs := ec.pv)
-      else
-        Code(ec.setup, ec.m.mux(ms := true, Code(ms := false, vs := ec.pv)))
+    def store(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
+      cb.append(ec.setup)
+
+      if (_pt.required) {
+        cb.ifx(ec.m, cb._fatal(s"Required EmitSettable cannot be missing ${ _pt }"))
+        cb.assign(vs, ec.pv)
+      } else {
+        cb.ifx(ec.m,
+          cb.assign(ms, true),
+          {
+            cb.assign(ms, false)
+            cb.assign(vs, ec.pv)
+          })
+      }
+    }
 
     def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit =
       if (_pt.required)
@@ -327,7 +333,7 @@ class EmitClassBuilder[C](
 
     def get: EmitCode = EmitCode(Code._empty, const(false), ps.load())
 
-    def store(pv: PCode): Code[Unit] = ps := pv
+    def store(cb: EmitCodeBuilder, pv: PCode): Unit = ps.store(cb, pv)
   }
 
   private[this] val typMap: mutable.Map[Type, Value[_ <: Type]] =
@@ -376,35 +382,36 @@ class EmitClassBuilder[C](
     assert(litRType == litType)
     cb.addInterface(typeInfo[FunctionWithLiterals].iname)
     val mb2 = newEmitMethod("addLiterals", FastIndexedSeq[ParamType](typeInfo[Array[Array[Byte]]]), typeInfo[Unit])
-    val allEncodedFields = mb2.newLocal[Array[Array[Byte]]]("encodeLiterals_allEncodedFields")
-    val off = mb2.newLocal[Long]()
-    val storeFields = literals.zipWithIndex.map { case (((_, _), f), i) =>
-      f.store(litType.types(i).load(litType.fieldOffset(off, i)))
-    }
 
     val preEncodedLiterals = encodedLiteralsMap.toArray
 
-    mb2.emit(Code(
-      allEncodedFields := mb2.getCodeParam[Array[Array[Byte]]](1),
-      encLitField := allEncodedFields(0),
-      off := Code.memoize(spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField)), "enc_lit_ib") { ib =>
-        dec(partitionRegion, ib)
-      },
-      Code(storeFields),
-      { // Handle the prencoded literals, which only need to be decoded.
-        Code(preEncodedLiterals.zipWithIndex.map{ case ((encLit, f), index) =>
-          val (preEncLitRType, preEncLitDec) = encLit.codec.buildEmitDecoderF[Long](this)
-          val spec = encLit.codec
-          Code(
-            encLitField := allEncodedFields(index + 1), // Because 0th index is for the regular literals
-            off := Code.memoize(spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField)), "pre_enc_lit_ib") {ib =>
-              preEncLitDec(partitionRegion, ib)
-            },
-            f.store(preEncLitRType.load(off))
-          )
-        })
+    mb2.voidWithBuilder { cb =>
+      val allEncodedFields = mb2.getCodeParam[Array[Array[Byte]]](1)
+
+      val litSType = litType.sType
+      val lits = cb.emb.newPLocal("lits", litType)
+      val ib = cb.newLocal[InputBuffer]("ib",
+        spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](allEncodedFields(0))))
+      cb.assign(lits, litSType.loadFrom(cb, partitionRegion, litType, dec(partitionRegion, ib)))
+      literals.zipWithIndex.foreach { case (((_, _), f), i) =>
+        lits.asInstanceOf[PBaseStructValue]
+          .loadField(cb, i)
+          .consume(cb,
+            cb._fatal("expect non-missing literals!"),
+            { pc => f.store(cb, pc) })
       }
-    ))
+      // Handle the pre-encoded literals, which only need to be decoded.
+      preEncodedLiterals.zipWithIndex.foreach { case ((encLit, f), index) =>
+        val (preEncLitRType, preEncLitDec) = encLit.codec.buildEmitDecoderF[Long](this)
+        assert(preEncLitRType == encLit.pType)
+        val spec = encLit.codec
+
+        // Because 0th index is for the regular literals
+        cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](allEncodedFields(index + 1))))
+        f.store(cb, preEncLitRType.sType
+          .loadFrom(cb, partitionRegion, preEncLitRType, preEncLitDec(partitionRegion, ib)))
+      }
+    }
 
     val baos = new ByteArrayOutputStream()
     val enc = spec.buildEncoder(ctx, litType)(baos)
@@ -983,6 +990,7 @@ class EmitMethodBuilder[C](
     // FIXME this isn't great, but it shouldn't fail
     new PValue {
       val pt: PType = _pt
+      val st: SType = _pt.sType
 
       def get: PCode =
         pt.fromCodeTuple(ts.zipWithIndex.map { case (t, i) =>

@@ -73,11 +73,11 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val kb: EmitClassBuil
     )
   }
 
-  def combine(other: TakeRVAS): Code[Unit] = {
+  def combine(cb: EmitCodeBuilder, other: TakeRVAS): Unit = {
     val j = kb.genFieldThisRef[Int]()
-    val elt = other.builder.loadElement(j)
+    val elt = other.builder.loadElement(cb, j)
 
-    Code(
+    cb += Code(
       j := const(0),
       Code.whileLoop((builder.size < maxSize) & (j < other.builder.size),
         elt.setup,
@@ -92,7 +92,7 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val kb: EmitClassBuil
 
   def result(srvb: StagedRegionValueBuilder): Code[Unit] = {
     srvb.addArray(resultType, { rvb =>
-      val elt = builder.loadElement(rvb.arrayIdx)
+      val elt = EmitCodeBuilder.scopedEmitCode(srvb.mb)(cb => builder.loadElement(cb, rvb.arrayIdx))
       Code(
         rvb.start(builder.size),
         Code.whileLoop(rvb.arrayIdx < builder.size,
@@ -136,7 +136,7 @@ class TakeAggregator(typ: PType) extends StagedAggregator {
     cb += state.seqOp(elt)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = cb += state.combine(other)
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = state.combine(cb, other)
 
   protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = cb += state.result(srvb)
 }

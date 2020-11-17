@@ -33,11 +33,11 @@ object IntervalFunctions extends RegistryFunctions {
               srvb.start(),
               start.m.mux(
                 srvb.setMissing(),
-                srvb.addIRIntermediate(start.pt)(start.v)),
+                srvb.addIRIntermediate(start.pv)),
               srvb.advance(),
               end.m.mux(
                 srvb.setMissing(),
-                srvb.addIRIntermediate(end.pt)(end.v)),
+                srvb.addIRIntermediate(end.pv)),
               srvb.advance(),
               srvb.addBoolean(includesStart.value[Boolean]),
               srvb.advance(),
@@ -73,13 +73,13 @@ object IntervalFunctions extends RegistryFunctions {
     registerPCode1("includesStart", TInterval(tv("T")), TBoolean, (_: Type, x: PType) =>
       PBoolean(x.required)
     ) {
-      case (r, rt, interval: PIntervalCode) => PCode(rt, interval.includesStart())
+      case (r, cb, rt, interval: PIntervalCode) => PCode(rt, interval.includesStart())
     }
 
     registerPCode1("includesEnd", TInterval(tv("T")), TBoolean, (_: Type, x: PType) =>
       PBoolean(x.required)
     ) {
-      case (r, rt, interval: PIntervalCode) => PCode(rt, interval.includesEnd())
+      case (r, cb, rt, interval: PIntervalCode) => PCode(rt, interval.includesEnd())
     }
 
     registerIEmitCode2("contains", TInterval(tv("T")), tv("T"), TBoolean, {
@@ -107,7 +107,7 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerPCode1("isEmpty", TInterval(tv("T")), TBoolean, (_: Type, pt: PType) => PBoolean(pt.required)) {
-      case (r, rt, interval: PIntervalCode) =>
+      case (r, cb, rt, interval: PIntervalCode) =>
         val empty = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val intv = interval.memoize(cb, "interval")
           intv.isEmpty(cb)
@@ -116,7 +116,7 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerPCode2("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, (_: Type, i1t: PType, i2t: PType) => PBoolean(i1t.required && i2t.required)) {
-      case (r, rt, int1: PIntervalCode, int2: PIntervalCode) =>
+      case (r, cb, rt, int1: PIntervalCode, int2: PIntervalCode) =>
         val overlap = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val interval1 = int1.memoize(cb, "interval1")
           val interval2 = int2.memoize(cb, "interval2")

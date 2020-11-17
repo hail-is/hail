@@ -221,10 +221,10 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   private def keyIsMissing(offset: Code[Long]): Code[Boolean] = indexedKeyType.isFieldMissing(offset, 0)
 
-  private def loadKeyValue(offset: Code[Long]): PCode = keyType.load(indexedKeyType.fieldOffset(offset, 0))
+  private def loadKeyValue(cb: EmitCodeBuilder, offset: Code[Long]): PCode = keyType.loadCheapPCode(cb, indexedKeyType.loadField(offset, 0))
 
-  private def loadKey(offset: Value[Long]): EmitCode =
-    EmitCode(Code._empty, keyIsMissing(offset), loadKeyValue(offset))
+  private def loadKey(cb: EmitCodeBuilder, offset: Value[Long]): EmitCode =
+    EmitCode(Code._empty, keyIsMissing(offset), loadKeyValue(cb, offset))
 
   private val compareElt: (Code[Long], Code[Long]) => Code[Int] = {
     val mb = kb.genEmitMethod("i_gt_j", FastIndexedSeq[ParamType](LongInfo, LongInfo), IntInfo)
@@ -386,7 +386,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
           cb += enqueueStaging()
         }, {
           cb.assign(tempPtr, eltTuple.loadField(elementOffset(0), 0))
-          cb.ifx(compareKey(cb, key, loadKey(tempPtr)) < 0, {
+          cb.ifx(compareKey(cb, key, loadKey(cb, tempPtr)) < 0, {
             cb += stageAndIndexKey(key.m, key.v)
             cb += copyToStaging(value.v, value.m, keyStage)
             cb += swapStaging()

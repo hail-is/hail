@@ -47,15 +47,4 @@ class PSubsetStructSuite extends PhysicalTestUtils {
 
     assert(rtV(0)  == viewV(0) && rtV(2) == viewV(1))
   }
-
-  @Test def testConstruction(): Unit = {
-    val ps1 = PCanonicalStruct("a" -> PCanonicalArray(PInt32(true)), "b" -> PInt64())
-    val ps2 = PCanonicalStruct("a" -> PCanonicalArray(PInt32(true)), "b" -> PInt64())
-
-    val srcType = PSubsetStruct(ps1, "b")
-    val destType = PSubsetStruct(ps2, "b")
-    val srcValue = Annotation(IndexedSeq(1,5,7,2,31415926), 31415926535897L)
-    val dstValue = Annotation(31415926535897L)
-    copyTestExecutor(srcType, destType, srcValue, deepCopy = false, interpret = true, expectedValue = dstValue)
-  }
 }

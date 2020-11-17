@@ -162,8 +162,8 @@ object LocusFunctions extends RegistryFunctions {
 
     registerPCode1("contig", tlocus("T"), TString,
       (_: Type, x: PType) => x.asInstanceOf[PLocus].contigType) {
-      case (r, rt, locus: PLocusCode) =>
-        locus.contig()
+      case (r, cb, rt, locus: PLocusCode) =>
+        locus.contig(cb)
     }
 
     registerCode1("position", tlocus("T"), TInt32, (_: Type, x: PType) => x.asInstanceOf[PLocus].positionType) {
@@ -186,11 +186,11 @@ object LocusFunctions extends RegistryFunctions {
         PCanonicalStruct("locus" -> locusPT, "alleles" -> PCanonicalArray(PCanonicalString(true), true))
       }
     }) {
-      case (r, rt: PStruct, locus: PLocusCode, alleles: PIndexableCode) =>
-        val tuple = Code.invokeScalaObject2[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](
+      case (r, cb, rt: PStruct, locus: PLocusCode, alleles: PIndexableCode) =>
+        val tuple = EmitCodeBuilder.scopedCode(r.mb) { cb => Code.invokeScalaObject2[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](
           VariantMethods.getClass, "minRep",
-          locus.getLocusObj(),
-          Code.checkcast[IndexedSeq[String]](wrapArg(r, alleles.pt)(alleles.code).asInstanceOf[Code[AnyRef]]))
+          locus.getLocusObj(cb),
+          Code.checkcast[IndexedSeq[String]](wrapArg(r, alleles.pt)(alleles.code).asInstanceOf[Code[AnyRef]]))}
 
         val code = Code.memoize(tuple, "min_rep_tuple") { tuple =>
           Code.memoize(

@@ -32,6 +32,10 @@ abstract class PNDArray extends PType {
     Region.loadLong(shape.pType.fieldOffset(shape.load(off), idx))
   }
 
+  def loadShape(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long]
+
+  def loadStride(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long]
+
   def numElements(shape: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long]
 
   def makeShapeBuilder(shapeArray: IndexedSeq[Value[Long]]): StagedRegionValueBuilder => Code[Unit]
@@ -42,6 +46,7 @@ abstract class PNDArray extends PType {
 
   def setElement(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: Code[_], mb: EmitMethodBuilder[_]): Code[Unit]
 
+  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): Code[Long]
   def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_]
 
   def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long]
@@ -58,23 +63,23 @@ abstract class PNDArray extends PType {
 }
 
 abstract class PNDArrayValue extends PValue {
-  def apply(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Value[_]
+  def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): PCode
 
-  def shapes(): IndexedSeq[Value[Long]]
+  def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
 
-  def strides(): IndexedSeq[Value[Long]]
+  def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
 
-  override def pt: PNDArray = ???
+  def pt: PNDArray
 
-  def outOfBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Boolean]
+  def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean]
 
-  def assertInBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_], errorId: Int = -1): Code[Unit]
+  def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int = -1): Code[Unit]
 
-  def sameShape(other: PNDArrayValue, mb: EmitMethodBuilder[_]): Code[Boolean]
+  def sameShape(other: PNDArrayValue, cb: EmitCodeBuilder): Code[Boolean]
 }
 
 abstract class PNDArrayCode extends PCode {
-  override def pt: PNDArray
+  def pt: PNDArray
 
   def shape: PBaseStructCode
 

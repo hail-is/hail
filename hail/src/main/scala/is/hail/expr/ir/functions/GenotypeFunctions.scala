@@ -11,7 +11,7 @@ object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
     registerPCode1("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: PType) => PInt32())
-    { case (r, rt, _pl: PIndexableCode) =>
+    { case (r, cb, rt, _pl: PIndexableCode) =>
       val code = EmitCodeBuilder.scopedCode(r.mb) { cb =>
         val pl = _pl.memoize(cb, "plv")
         val m = cb.newLocal[Int]("m", 99)
@@ -20,7 +20,7 @@ object GenotypeFunctions extends RegistryFunctions {
 
         cb.whileLoop(i < pl.loadLength(), {
           val value = pl.loadElement(cb, i).get(cb, "PL cannot have missing elements.")
-          val pli = cb.newLocal[Int]("pli", value.tcode[Int])
+          val pli = cb.newLocal[Int]("pli", value.asInt.intCode(cb))
           cb.ifx(pli < m, {
             cb.assign(m2, m)
             cb.assign(m, pli)

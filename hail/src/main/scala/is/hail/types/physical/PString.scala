@@ -44,3 +44,7 @@ abstract class PStringCode extends PCode {
 
   def asBytes(): PBinaryCode
 }
+
+abstract class PStringValue extends PValue {
+  def pt: PString
+}

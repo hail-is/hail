@@ -5,7 +5,6 @@ import java.lang.reflect
 
 import is.hail.lir
 import is.hail.utils._
-
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
 
@@ -1124,7 +1123,7 @@ class Invokeable[T, S](tcls: Class[T],
         lir.methodStmt(invokeOp, Type.getInternalName(tcls), name, descriptor, isInterface, sti, argvs))
       new VCode(start, end, null)
     } else {
-      val t = new lir.Local(null, "invoke", sti)
+      val t = new lir.Local(null, s"invoke_$name", sti)
       var r = lir.methodInsn(invokeOp, Type.getInternalName(tcls), name, descriptor, isInterface, sti, argvs)
       if (concreteReturnType != sct.runtimeClass)
         r = lir.checkcast(Type.getInternalName(sct.runtimeClass), r)

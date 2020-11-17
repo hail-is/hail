@@ -1,6 +1,8 @@
 package is.hail.annotations
 
 import is.hail.types.physical._
+import is.hail.utils.Interval
+import is.hail.variant.{Call, Locus}
 
 trait ValueVisitor {
   def visitMissing(t: PType): Unit

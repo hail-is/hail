@@ -55,10 +55,6 @@ abstract class PContainer extends PIterable {
 
   def firstElementOffset(aoff: Code[Long]): Code[Long]
 
-  def copyFrom(region: Region, srcOff: Long): Long
-
-  def copyFrom(mb: EmitMethodBuilder[_], region: Code[Region], srcOff: Code[Long]): Code[Long]
-
   def loadElement(aoff: Long, length: Int, i: Int): Long
 
   def loadElement(aoff: Long, i: Int): Long

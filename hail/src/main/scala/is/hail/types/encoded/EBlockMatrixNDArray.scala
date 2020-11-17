@@ -34,7 +34,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
 
   def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
     val ndarray = PCode(pt, v).asNDArray.memoize(cb, "ndarray")
-    val shapes = ndarray.shapes()
+    val shapes = ndarray.shapes(cb)
     val r = cb.newLocal[Long]("r", shapes(0))
     val c = cb.newLocal[Long]("c", shapes(1))
     val i = cb.newLocal[Long]("i")
@@ -47,13 +47,13 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     if (encodeRowMajor) {
       cb.forLoop(cb.assign(i, 0L), i < r, cb.assign(i, i + 1L), {
         cb.forLoop(cb.assign(j, 0L), j < c, cb.assign(j, j + 1L), {
-          cb += writeElemF(ndarray(FastIndexedSeq(i, j), cb.emb), out)
+          cb += writeElemF(ndarray.loadElement(FastIndexedSeq(i, j), cb).code, out)
         })
       })
     } else {
       cb.forLoop(cb.assign(j, 0L), j < c, cb.assign(j, j + 1L), {
         cb.forLoop(cb.assign(i, 0L), i < r, cb.assign(i, i + 1L), {
-          cb += writeElemF(ndarray(FastIndexedSeq(i, j), cb.emb), out)
+          cb += writeElemF(ndarray.loadElement(FastIndexedSeq(i, j), cb).code, out)
         })
       })
     }

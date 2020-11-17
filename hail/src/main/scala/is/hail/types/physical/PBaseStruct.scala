@@ -179,7 +179,7 @@ abstract class PBaseStruct extends PType {
 
   def loadField(offset: Code[Long], fieldIdx: Int): Code[Long]
 
-  override def containsPointers: Boolean = types.exists(_.containsPointers)
+  override lazy val containsPointers: Boolean = types.exists(_.containsPointers)
 
   override def genNonmissingValue: Gen[Annotation] = {
     if (types.isEmpty) {
@@ -187,8 +187,6 @@ abstract class PBaseStruct extends PType {
     } else
       Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*))
   }
-
-  override def load(src: Code[Long]): PBaseStructCode = ???
 }
 
 abstract class PBaseStructValue extends PValue {

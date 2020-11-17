@@ -1,11 +1,10 @@
 package is.hail.types.physical
 
-import is.hail.services.shuffler.Wire
-import is.hail.types.virtual._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.utils._
+import is.hail.types.physical.stypes.{SBinaryPointerCode, SCanonicalShufflePointer, SCanonicalShufflePointerCode}
+import is.hail.types.virtual._
 
 final case class PCanonicalShuffle(
   val tShuffle: TShuffle,
@@ -22,53 +21,49 @@ final case class PCanonicalShuffle(
     representation.codeOrdering(mb)
   }
 
-  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalShuffle(tShuffle, required)
+  def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalShuffle(tShuffle, required)
 
   def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering()
-}
 
-object PCanonicalShuffleSettable {
-  def apply(sb: SettableBuilder, pt: PCanonicalShuffle, name: String): PCanonicalShuffleSettable =
-    new PCanonicalShuffleSettable(pt, PCanonicalBinarySettable(sb, pt.representation, name))
+  override def byteSize: Long = representation.byteSize
 
-  def fromArrayBytes(cb: EmitCodeBuilder, region: Value[Region], pt: PCanonicalShuffle, bytes: Code[Array[Byte]]) = {
-    val off = cb.newField[Long](
-      "PCanonicalShuffleSettableOff",
-      pt.representation.allocate(region, Wire.ID_SIZE))
-    cb.append(pt.representation.store(off, bytes))
-    new PCanonicalShuffleSettable(pt, new PCanonicalBinarySettable(pt.representation, off))
+  override def alignment: Long = representation.alignment
+
+  override def fundamentalType: PType = representation.fundamentalType
+
+  override def encodableType: PType = representation.encodableType
+
+  override def containsPointers: Boolean = representation.containsPointers
+
+  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+    srcPType match {
+      case t: PCanonicalShuffle =>
+        representation.copyFromAddress(region, t.representation, srcAddress, deepCopy)
+    }
+  }
+
+  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
+    this.representation.unstagedStoreAtAddress(addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
+
+  def loadBinary(cb: EmitCodeBuilder, addr: Code[Long]): SBinaryPointerCode = representation.loadCheapPCode(cb, addr).asInstanceOf[SBinaryPointerCode]
+
+  def sType: SCanonicalShufflePointer = SCanonicalShufflePointer(this)
+
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SCanonicalShufflePointerCode(sType, representation.loadCheapPCode(cb, addr))
+
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
+    value.st match {
+      case SCanonicalShufflePointer(t) =>
+        representation.store(cb, region, value.asInstanceOf[SCanonicalShufflePointerCode].shuffle, deepCopy)
+    }
+  }
+
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = {
+    value.st match {
+      case SCanonicalShufflePointer(t) =>
+        representation.storeAtAddress(cb, addr, region, value.asInstanceOf[SCanonicalShufflePointerCode].shuffle, deepCopy)
+    }
+
   }
 }
 
-class PCanonicalShuffleSettable(val pt: PCanonicalShuffle, shuffle: PCanonicalBinarySettable) extends PShuffleValue with PSettable {
-  def this(pt: PCanonicalShuffle, a: Settable[Long]) =
-    this(pt, new PCanonicalBinarySettable(pt.representation, a))
-
-  def get: PShuffleCode = new PCanonicalShuffleCode(pt, shuffle.get)
-
-  def settableTuple(): IndexedSeq[Settable[_]] = shuffle.settableTuple()
-
-  def loadLength(): Code[Int] = shuffle.loadLength()
-
-  def loadBytes(): Code[Array[Byte]] = shuffle.loadBytes()
-
-  def store(pc: PCode): Code[Unit] = shuffle.store(pc.asInstanceOf[PCanonicalShuffleCode].shuffle)
-}
-
-class PCanonicalShuffleCode(val pt: PCanonicalShuffle, val shuffle: PCanonicalBinaryCode) extends PShuffleCode {
-  def code: Code[_] = shuffle.code
-
-  def codeTuple(): IndexedSeq[Code[_]] = shuffle.codeTuple()
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PCanonicalShuffleSettable = {
-    val s = PCanonicalShuffleSettable(sb, pt, name)
-    cb.assign(s, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): PCanonicalShuffleSettable = memoize(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): PCanonicalShuffleSettable = memoize(cb, name, cb.fieldBuilder)
-
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = shuffle.store(mb, r, dst)
-}
