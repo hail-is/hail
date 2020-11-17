@@ -226,8 +226,6 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
 async def update_commits(app):
     global benchmark_data
     github_client = app['github_client']
-    # batch_client = app['batch_client']
-    # gs_reader = app['gs_reader']
 
     request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
     log.info(f'start point is {START_POINT}')
@@ -269,17 +267,14 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         assert complete_batch_statuses, batch_statuses
         log.info(f'commit {sha} has a results file')
         status = complete_batch_statuses[-1]
-        # case = 'has_results_file'
     elif running_batch_statuses:
         status = running_batch_statuses[-1]
         log.info(f'batch already exists for commit {sha}')
-        # case = 'running_batch'
     else:
         batch_id = await submit_test_batch(batch_client, sha)
         batch = await batch_client.get_batch(batch_id)
         status = batch._last_known_status
         log.info(f'submitted a batch {batch_id} for commit {sha}')
-        # case = 'submit_batch'
 
     commit = {
         'sha': sha,
@@ -288,8 +283,6 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         'date': gh_commit['commit']['author']['date'],
         'status': status
     }
-    # return web.json_response({'batch_status': status,
-    #                           'case': case})
     return commit
 
 
@@ -301,11 +294,6 @@ async def get_status(request):  # pylint: disable=unused-argument
     app = request.app
     batch_client = app['batch_client']
     batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
-
-    # commit = benchmark_data['commits'].get(sha)
-    # if commit:
-    #     log.info('got commit status')
-    #     return web.json_response({'status': commit['status']})
 
     try:
         status = batch_statuses[-1]
