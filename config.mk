@@ -8,7 +8,10 @@ REGION := us-central1
 ZONE := us-central1-a
 ifeq ($(NAMESPACE), "default")
 BATCH_PODS_NAMESPACE = batch-pods
+SCOPE = deploy
+DEPLOY = true
 else
 BATCH_PODS_NAMESPACE = $(NAMESPACE)
+SCOPE = dev
+DEPLOY = false
 endif
-
