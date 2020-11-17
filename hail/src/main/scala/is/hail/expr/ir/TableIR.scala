@@ -578,12 +578,12 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
     val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(ctx, indexSpec.internalNodeCodec.encodedVirtualType)
     val mkIndexReader = IndexReaderBuilder.withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
 
-    val makeIndexCode = mb.getObject[Function3[FS, String, Int, IndexReader]](mkIndexReader)
+    val makeIndexCode = mb.getObject[Function4[FS, String, Int, RegionPool, IndexReader]](mkIndexReader)
     val makeDecCode = mb.getObject[(InputStream => Decoder)](makeDec)
     COption.fromEmitCode(emitIR(context)).map { ctxStruct =>
       val getIndexReader: Code[String] => Code[IndexReader] = { (indexPath: Code[String]) =>
         Code.checkcast[IndexReader](
-          makeIndexCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef]("apply", mb.getFS, indexPath, Code.boxInt(8)))
+          makeIndexCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef]("apply", mb.getFS, indexPath, Code.boxInt(8), mb.ecb.pool()))
       }
 
       val hasNext = mb.newLocal[Boolean]("pnr_hasNext")
@@ -713,7 +713,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
       val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(ctx, indexSpec.internalNodeCodec.encodedVirtualType)
       val mkIndexReader = IndexReaderBuilder.withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
 
-      mb.getObject[Function3[FS, String, Int, IndexReader]](mkIndexReader)
+      mb.getObject[Function4[FS, String, Int, RegionPool, IndexReader]](mkIndexReader)
     }
     val makeLeftDecCode = mb.getObject[(InputStream => Decoder)](makeLeftDec)
     val makeRightDecCode = mb.getObject[(InputStream => Decoder)](makeRightDec)
