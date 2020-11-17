@@ -35,6 +35,7 @@ import is.hail.types.BlockMatrixType
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
+import org.apache.spark.util.TaskCompletionListener
 import org.json4s.JsonAST.{JInt, JObject}
 
 
@@ -43,14 +44,16 @@ class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Se
 }
 
 class SparkTaskContext(ctx: TaskContext) extends HailTaskContext {
+  self=>
+
   type BackendType = SparkBackend
   override def stageId(): Int = ctx.stageId()
   override def partitionId(): Int = ctx.partitionId()
   override def attemptNumber(): Int = ctx.attemptNumber()
 
-  ctx.addTaskCompletionListener(tc =>
-    this.getRegionPool().close()
-  )
+  ctx.addTaskCompletionListener(new TaskCompletionListener {
+    override def onTaskCompletion(context: TaskContext): Unit = self.getRegionPool().close()
+  })
 }
 
 object SparkBackend {
