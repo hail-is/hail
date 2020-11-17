@@ -1,9 +1,0 @@
-resources:
-# address
-# name is not taken from property
-- name: site
-  type: compute.beta.address
-  properties:
-    name: site
-    region: us-central1
-    networkTier: PREMIUM
