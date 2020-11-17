@@ -3,8 +3,8 @@ include ../config.mk
 .PHONY: build
 build: base-stmp service-base hail-ubuntu
 
-BASE_LATEST = gcr.io/$(PROJECT)/hail-ubuntu:latest
-BASE_IMAGE = gcr.io/$(PROJECT)/hail-ubuntu:$(shell docker images -q --no-trunc hail-ubuntu:latest | sed -e 's,[^:]*:,,')
+HAIL_UBUNTU_LATEST = gcr.io/$(PROJECT)/hail-ubuntu:latest
+HAIL_UBUNTU_IMAGE = gcr.io/$(PROJECT)/hail-ubuntu:$(shell docker images -q --no-trunc hail-ubuntu:latest | sed -e 's,[^:]*:,,')
 
 BASE_LATEST = gcr.io/$(PROJECT)/base:latest
 BASE_IMAGE = gcr.io/$(PROJECT)/base:$(shell docker images -q --no-trunc base:latest | sed -e 's,[^:]*:,,')
@@ -71,6 +71,10 @@ genetics-public-image: hail-public-image
 
 .PHONY: push
 push: build
+	docker tag hail-ubuntu $(HAIL_UBUNTU_LATEST)
+	docker push $(HAIL_UBUNTU_LATEST)
+	docker tag hail-ubuntu $(HAIL_UBUNTU_IMAGE)
+	docker push $(HAIL_UBUNTU_IMAGE)
 	docker tag base $(BASE_LATEST)
 	docker push $(BASE_LATEST)
 	docker tag base $(BASE_IMAGE)
