@@ -105,7 +105,6 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
     val d = digitsNeeded(nPartitions)
 
     val fileData = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
-      assert(false)
       HailTaskContext.setTaskContext(new SparkTaskContext(TaskContext.get()))
       val f = partFile(d, i, TaskContext.get)
       RichContextRDD.writeParts(ctx, path, f, idxRelPath, mkIdxWriter, stageLocally, fs, localTmpdir, it, write)

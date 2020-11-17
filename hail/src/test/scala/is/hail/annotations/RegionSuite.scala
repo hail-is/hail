@@ -119,7 +119,7 @@ class RegionSuite extends TestNGSuite {
     RegionPool.scoped { pool =>
       def offset(region: Region) = region.allocate(0)
 
-      def numUsed(): Int = RegionPool.get.numRegions() - RegionPool.get.numFreeRegions()
+      def numUsed(): Int = pool.numRegions() - pool.numFreeRegions()
 
       def assertUsesRegions[T](n: Int)(f: => T): T = {
         val usedRegionCount = numUsed()
