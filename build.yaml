@@ -2063,6 +2063,10 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: benchmark-service/deployment.yaml
+   wait:
+     - kind: Service
+       name: benchmark
+       for: alive
    dependsOn:
     - default_ns
     - benchmark_image
