@@ -3,6 +3,7 @@ FROM {{ hail_ubuntu_image.image }}
 RUN hail-apt-get-install nginx
 
 RUN rm -f /etc/nginx/sites-enabled/default
+ADD nginx.conf /etc/nginx/
 ADD gateway.nginx.conf /etc/nginx/conf.d/gateway.conf
 ADD gzip.conf /etc/nginx/conf.d/gzip.conf
 
