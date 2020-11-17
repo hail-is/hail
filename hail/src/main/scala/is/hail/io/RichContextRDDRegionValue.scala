@@ -3,6 +3,7 @@ package is.hail.io
 import java.io._
 
 import is.hail.annotations._
+import is.hail.asm4s.LineNumber
 import is.hail.expr.ir.ExecuteContext
 import is.hail.types.physical._
 import is.hail.io.fs.FS
@@ -220,6 +221,7 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
     t: RVDType,
     stageLocally: Boolean,
     encoding: AbstractTypedCodecSpec
+  )(implicit line: LineNumber
   ): Array[FileWriteMetadata] = {
     crdd.writePartitions(
       ctx,

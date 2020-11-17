@@ -185,7 +185,9 @@ class LocalBackend(
     indexFileMap: java.util.Map[String, String],
     rg: String,
     contigRecoding: java.util.Map[String, String],
-    skipInvalidLoci: Boolean) {
+    skipInvalidLoci: Boolean
+  )(implicit line: LineNumber
+  ) {
     ExecutionTimer.logTime("LocalBackend.pyIndexBgen") { timer =>
       withExecuteContext(timer) { ctx =>
         IndexBgen(ctx, files.asScala.toArray, indexFileMap.asScala.toMap, Option(rg), contigRecoding.asScala.toMap, skipInvalidLoci)

@@ -1,6 +1,7 @@
 package is.hail.io.bgen
 
 import is.hail.HailContext
+import is.hail.asm4s.LineNumber
 import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.ExecuteContext
 import is.hail.types.TableType
@@ -43,7 +44,7 @@ object IndexBgen {
     rg: Option[String] = None,
     contigRecoding: Map[String, String] = null,
     skipInvalidLoci: Boolean = false
-  ) {
+  )(implicit line: LineNumber) {
     val fs = ctx.fs
     val fsBc = fs.broadcast
 

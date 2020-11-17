@@ -4,6 +4,7 @@ import java.util
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.asm4s.LineNumber
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.types._
@@ -793,7 +794,7 @@ class RVD(
 
   def storageLevel: StorageLevel = StorageLevel.NONE
 
-  def write(ctx: ExecuteContext, path: String, idxRelPath: String, stageLocally: Boolean, codecSpec: AbstractTypedCodecSpec): Array[FileWriteMetadata] = {
+  def write(ctx: ExecuteContext, path: String, idxRelPath: String, stageLocally: Boolean, codecSpec: AbstractTypedCodecSpec)(implicit line: LineNumber): Array[FileWriteMetadata] = {
     val fileData = crdd.writeRows(ctx, path, idxRelPath, typ, stageLocally, codecSpec)
     val spec = MakeRVDSpec(codecSpec, fileData.map(_.path), partitioner, IndexSpec.emptyAnnotation(idxRelPath, typ.kType))
     spec.write(ctx.fs, path)
@@ -806,6 +807,7 @@ class RVD(
     bufferSpec: BufferSpec,
     stageLocally: Boolean,
     targetPartitioner: RVDPartitioner
+  )(implicit line: LineNumber
   ): Array[FileWriteMetadata] = {
     val localTmpdir = execCtx.localTmpdir
     val fs = execCtx.fs
@@ -1446,6 +1448,7 @@ object RVD {
     path: String,
     bufferSpec: BufferSpec,
     stageLocally: Boolean
+  )(implicit line: LineNumber
   ): Array[Array[FileWriteMetadata]] = {
     val first = rvds.head
     rvds.foreach {rvd =>

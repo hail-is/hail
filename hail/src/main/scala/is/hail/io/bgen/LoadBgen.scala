@@ -1,6 +1,7 @@
 package is.hail.io.bgen
 
 import is.hail.HailContext
+import is.hail.asm4s.LineNumber
 import is.hail.backend.BroadcastValue
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
@@ -463,7 +464,7 @@ class MatrixBGENReader(
     settings.rowPType -> PType.canonical(requestedType.globalType, required = true).asInstanceOf[PStruct]
   }
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
+  def apply(tr: TableRead, ctx: ExecuteContext)(implicit line: LineNumber): TableValue = {
     val requestedType = tr.typ
 
     assert(requestedType.keyType == indexKeyType)

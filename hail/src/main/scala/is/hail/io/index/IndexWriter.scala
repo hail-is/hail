@@ -75,6 +75,7 @@ object IndexWriter {
     annotationType: PType,
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any]
+  )(implicit line: LineNumber
   ): String => IndexWriter = {
     val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor, attributes);
     { path: String =>
@@ -111,61 +112,70 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
   val eltType: PCanonicalStruct = types.coerce[PCanonicalStruct](arrayType.elementType)
   private val elt = new PCanonicalBaseStructSettable(eltType, sb.newSettable[Long](s"${name}_elt_off"))
 
-  def length: Code[Int] = len
+  def length: Value[Int] = len
 
-  def loadFrom(cb: EmitCodeBuilder, a: Code[Long], l: Code[Int]): Unit = {
+  def loadFrom(cb: EmitCodeBuilder, a: Code[Long], l: Code[Int])(implicit line: LineNumber): Unit = {
     cb.assign(aoff, a)
     cb.assign(len, l)
   }
 
-  def create(cb: EmitCodeBuilder, dest: Code[Long]): Unit = {
+  def create(cb: EmitCodeBuilder, dest: Code[Long])(implicit line: LineNumber): Unit = {
     cb.assign(aoff, arrayType.allocate(region, maxSize))
     cb += arrayType.stagedInitialize(aoff, maxSize)
     cb += PCode(arrayType, aoff).store(cb.emb, region, dest)
     cb.assign(len, 0)
   }
 
-  def storeLength(cb: EmitCodeBuilder): Unit = cb += arrayType.storeLength(aoff, length)
+  def storeLength(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit =
+    cb += arrayType.storeLength(aoff, length)
 
-  def setFieldValue(cb: EmitCodeBuilder, name: String, field: PCode): Unit = {
+  def setFieldValue(cb: EmitCodeBuilder, name: String, field: PCode)(implicit line: LineNumber): Unit = {
     cb += eltType.setFieldPresent(elt.a, name)
     cb += eltType.fieldType(name).constructAtAddressFromValue(cb.emb, eltType.fieldOffset(elt.a, name), region, field.pt, field.code, deepCopy = true)
   }
 
-  def setField(cb: EmitCodeBuilder, name: String, v: => IEmitCode): Unit =
+  def setField(cb: EmitCodeBuilder, name: String, v: => IEmitCode)(implicit line: LineNumber): Unit =
     v.consume(cb,
       cb += eltType.setFieldMissing(elt.a, name),
       setFieldValue(cb, name, _))
 
-  def addChild(cb: EmitCodeBuilder): Unit = {
+  def addChild(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = {
     loadChild(cb, len)
     cb.assign(len, len + 1)
   }
-  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = cb += elt.store(PCode(eltType, arrayType.elementOffset(aoff, idx)))
+  def loadChild(cb: EmitCodeBuilder, idx: Code[Int])(implicit line: LineNumber): Unit =
+    cb += elt.store(PCode(eltType, arrayType.elementOffset(aoff, idx)))
   def getLoadedChild: PBaseStructValue = elt
 
-  def getChild(idx: Value[Int]): PCode = PCode(eltType, arrayType.elementOffset(aoff, idx))
+  def getChild(idx: Value[Int])(implicit line: LineNumber): PCode =
+    PCode(eltType, arrayType.elementOffset(aoff, idx))
 }
 
 class StagedIndexWriterUtils(ib: Settable[IndexWriterUtils]) {
-  def create(cb: EmitCodeBuilder, path: Code[String], fs: Code[FS], meta: Code[StagedIndexMetadata]): Unit =
+  def create(cb: EmitCodeBuilder, path: Code[String], fs: Code[FS], meta: Code[StagedIndexMetadata])(implicit line: LineNumber): Unit =
     cb.assign(ib, Code.newInstance[IndexWriterUtils, String, FS, StagedIndexMetadata](path, fs, meta))
-  def size: Code[Int] = ib.invoke[Int]("size")
-  def add(cb: EmitCodeBuilder, r: Code[Region], aoff: Code[Long], len: Code[Int]): Unit =
+  def size(implicit line: LineNumber): Code[Int] = ib.invoke[Int]("size")
+  def add(cb: EmitCodeBuilder, r: Code[Region], aoff: Code[Long], len: Code[Int])(implicit line: LineNumber): Unit =
     cb += ib.invoke[Region, Long, Int, Unit]("add", r, aoff, len)
 
-  def update(cb: EmitCodeBuilder, idx: Code[Int], r: Code[Region], aoff: Code[Long], len: Code[Int]): Unit =
+  def update(cb: EmitCodeBuilder, idx: Code[Int], r: Code[Region], aoff: Code[Long], len: Code[Int])(implicit line: LineNumber): Unit =
     cb += ib.invoke[Int, Region, Long, Int, Unit]("update", idx, r, aoff, len)
 
-  def getRegion(idx: Code[Int]): Code[Region] = ib.invoke[Int, Region]("getRegion", idx)
-  def getArrayOffset(idx: Code[Int]): Code[Long] = ib.invoke[Int, Long]("getArrayOffset", idx)
-  def getLength(idx: Code[Int]): Code[Int] = ib.invoke[Int, Int]("getLength", idx)
-  def close(cb: EmitCodeBuilder): Unit = cb += ib.invoke[Unit]("close")
+  def getRegion(idx: Code[Int])(implicit line: LineNumber): Code[Region] =
+    ib.invoke[Int, Region]("getRegion", idx)
+  def getArrayOffset(idx: Code[Int])(implicit line: LineNumber): Code[Long] =
+    ib.invoke[Int, Long]("getArrayOffset", idx)
+  def getLength(idx: Code[Int])(implicit line: LineNumber): Code[Int] =
+    ib.invoke[Int, Int]("getLength", idx)
+  def close(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit =
+    cb += ib.invoke[Unit]("close")
 
-  def bytesWritten: Code[Long] = ib.invoke[Long]("bytesWritten")
-  def os: Code[OutputStream] = ib.invoke[OutputStream]("os")
+  def bytesWritten(implicit line: LineNumber): Code[Long] =
+    ib.invoke[Long]("bytesWritten")
+  def os(implicit line: LineNumber): Code[OutputStream] =
+    ib.invoke[OutputStream]("os")
 
-  def writeMetadata(cb: EmitCodeBuilder, height: Code[Int], rootOffset: Code[Long], nKeys: Code[Long]): Unit =
+  def writeMetadata(cb: EmitCodeBuilder, height: Code[Int], rootOffset: Code[Long], nKeys: Code[Long])(implicit line: LineNumber): Unit =
     cb += ib.invoke[Int, Long, Long, Unit]("writeMetadata", height, rootOffset, nKeys)
 }
 
@@ -240,7 +250,7 @@ object StagedIndexWriter {
     annotationType: PType,
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any]
-  ): String => CompiledIndexWriter = {
+  )(implicit line: LineNumber): String => CompiledIndexWriter = {
     val fb = EmitFunctionBuilder[CompiledIndexWriter](ctx, "indexwriter",
       FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Long], typeInfo[Long]),
       typeInfo[Unit])
@@ -270,14 +280,18 @@ object StagedIndexWriter {
     }
   }
 
-  def withDefaults(keyType: PType, cb: EmitClassBuilder[_],
+  def withDefaults(
+    keyType: PType,
+    cb: EmitClassBuilder[_],
     branchingFactor: Int = 4096,
     annotationType: PType = +PCanonicalStruct(),
-    attributes: Map[String, Any] = Map.empty[String, Any]): StagedIndexWriter =
+    attributes: Map[String, Any] = Map.empty[String, Any]
+  )(implicit line: LineNumber
+  ): StagedIndexWriter =
     new StagedIndexWriter(branchingFactor, keyType, annotationType, attributes, cb)
 }
 
-class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PType, attributes: Map[String, Any], cb: EmitClassBuilder[_]) {
+class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PType, attributes: Map[String, Any], cb: EmitClassBuilder[_])(implicit line: LineNumber) {
   require(branchingFactor > 1)
 
   private var elementIdx = cb.genFieldThisRef[Long]()

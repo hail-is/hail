@@ -8,7 +8,7 @@ import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.{PBaseStructValue, PCode, PNDArrayCode, PNDArrayValue, PType, typeToTypeInfo}
 
 object LinalgCodeUtils {
-  def checkColumnMajor(pndv: PNDArrayValue, cb: EmitCodeBuilder): Value[Boolean] = {
+  def checkColumnMajor(pndv: PNDArrayValue, cb: EmitCodeBuilder)(implicit line: LineNumber): Value[Boolean] = {
     val answer = cb.newField[Boolean]("checkColumnMajorResult")
     val shapes = pndv.shapes()
     val runningProduct = cb.newLocal[Long]("check_column_major_running_product")
@@ -27,7 +27,7 @@ object LinalgCodeUtils {
     answer
   }
 
-  def createColumnMajorCode(pndv: PNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): PNDArrayCode = {
+  def createColumnMajorCode(pndv: PNDArrayValue, cb: EmitCodeBuilder, region: Value[Region])(implicit line: LineNumber): PNDArrayCode = {
     val shape = pndv.shapes()
     val shapeBuilder = pndv.pt.makeShapeBuilder(shape)
     val stridesBuilder = pndv.pt.makeColumnMajorStridesBuilder(shape, cb.emb)

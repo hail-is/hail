@@ -13,7 +13,7 @@ case object EBinaryOptional extends EBinary(false)
 case object EBinaryRequired extends EBinary(true)
 
 class EBinary(override val required: Boolean) extends EFundamentalType {
-  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer])(implicit line: LineNumber): Unit = {
     val addr = coerce[Long](v)
     val bT = pt.asInstanceOf[PBinary]
     val len = cb.newLocal[Int]("len", bT.loadLength(addr))
@@ -26,6 +26,7 @@ class EBinary(override val required: Boolean) extends EFundamentalType {
     pt: PType,
     region: Value[Region],
     in: Value[InputBuffer]
+  )(implicit line: LineNumber
   ): Code[_] = {
     val bT = pt.asInstanceOf[PBinary]
     val len = cb.newLocal[Int]("len", in.readInt())

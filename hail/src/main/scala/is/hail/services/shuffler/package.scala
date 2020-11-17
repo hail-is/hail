@@ -55,6 +55,6 @@ package object shuffler {
   def uuidToString(uuid: Array[Byte]): String =
     b64encoder.encodeToString(uuid)
 
-  def uuidToString(uuid: Code[Array[Byte]]): Code[String] =
+  def uuidToString(uuid: Code[Array[Byte]])(implicit line: LineNumber): Code[String] =
     Code.invokeScalaObject1[Array[Byte], String](getClass, "uuidToString", uuid)
 }

@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.asm4s.LineNumber
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.types.physical.{PArray, PCanonicalStruct, PStruct, PType}
@@ -220,7 +221,9 @@ case class MatrixValue(
     stageLocally: Boolean,
     codecSpecJSON: String,
     partitions: String,
-    partitionsTypeStr: String) = {
+    partitionsTypeStr: String
+  )(implicit line: LineNumber
+  ): Unit = {
     assert(typ.isCanonical)
     val fs = ctx.fs
 

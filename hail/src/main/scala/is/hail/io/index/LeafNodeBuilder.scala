@@ -1,7 +1,7 @@
 package is.hail.io.index
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, SettableBuilder, Value}
+import is.hail.asm4s.{Code, LineNumber, SettableBuilder, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
@@ -41,23 +41,24 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
   private val pType: PCanonicalStruct = LeafNodeBuilder.typ(keyType, annotationType)
   private val node = new PCanonicalBaseStructSettable(pType, sb.newSettable[Long]("lef_node_addr"))
 
-  def close(cb: EmitCodeBuilder): Unit = cb.ifx(!region.isNull, cb += region.invalidate())
+  def close(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit =
+    cb.ifx(!region.isNull, cb += region.invalidate())
 
-  def reset(cb: EmitCodeBuilder, firstIdx: Code[Long]): Unit = {
+  def reset(cb: EmitCodeBuilder, firstIdx: Code[Long])(implicit line: LineNumber): Unit = {
     cb += region.invoke[Unit]("clear")
     cb += node.store(PCode(pType, pType.allocate(region)))
     cb += PInt64().storePrimitiveAtAddress(pType.fieldOffset(node.a, "first_idx"), PInt64(), firstIdx)
     ab.create(cb, pType.fieldOffset(node.a, "keys"))
   }
 
-  def create(cb: EmitCodeBuilder, firstIdx: Code[Long]): Unit = {
+  def create(cb: EmitCodeBuilder, firstIdx: Code[Long])(implicit line: LineNumber): Unit = {
     cb.assign(region, Region.stagedCreate(Region.REGULAR))
     cb += node.store(PCode(pType, pType.allocate(region)))
     cb += PInt64().storePrimitiveAtAddress(pType.fieldOffset(node.a, "first_idx"), PInt64(), firstIdx)
     ab.create(cb, pType.fieldOffset(node.a, "keys"))
   }
 
-  def encode(cb: EmitCodeBuilder, ob: Value[OutputBuffer]): Unit = {
+  def encode(cb: EmitCodeBuilder, ob: Value[OutputBuffer])(implicit line: LineNumber): Unit = {
     val enc = EType.defaultFromPType(pType).buildEncoder(pType, cb.emb.ecb)
     ab.storeLength(cb)
     cb += enc(node.a, ob)
@@ -65,14 +66,15 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
 
   def nodeAddress: PBaseStructValue = node
 
-  def add(cb: EmitCodeBuilder, key: => IEmitCode, offset: Code[Long], annotation: => IEmitCode): Unit = {
+  def add(cb: EmitCodeBuilder, key: => IEmitCode, offset: Code[Long], annotation: => IEmitCode)(implicit line: LineNumber): Unit = {
     ab.addChild(cb)
     ab.setField(cb, "key", key)
     ab.setFieldValue(cb, "offset", PCode(PInt64(), offset))
     ab.setField(cb, "annotation", annotation)
   }
 
-  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = ab.loadChild(cb, idx)
+  def loadChild(cb: EmitCodeBuilder, idx: Code[Int])(implicit line: LineNumber): Unit =
+    ab.loadChild(cb, idx)
   def getLoadedChild: PBaseStructValue = ab.getLoadedChild
-  def firstIdx: PCode = PInt64().load(pType.fieldOffset(node.a, "first_idx"))
+  def firstIdx(implicit line: LineNumber): PCode = PInt64().load(pType.fieldOffset(node.a, "first_idx"))
 }

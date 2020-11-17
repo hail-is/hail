@@ -20,16 +20,16 @@ object ShuffleClient {
 
   def socket(): Socket = DeployConfig.get.socket("shuffler")
 
-  def codeSocket(): Code[Socket] =
+  def codeSocket()(implicit line: LineNumber): Code[Socket] =
     Code.invokeScalaObject0[Socket](ShuffleClient.getClass, "socket")
 }
 
 object CodeShuffleClient {
-  def createValue(cb: CodeBuilderLike, shuffleType: Code[TShuffle]): ValueShuffleClient =
+  def createValue(cb: CodeBuilderLike, shuffleType: Code[TShuffle])(implicit line: LineNumber): ValueShuffleClient =
     new ValueShuffleClient(
       cb.newField[ShuffleClient]("shuffleClient", create(shuffleType)))
 
-  def createValue(cb: CodeBuilderLike, shuffleType: Code[TShuffle], uuid: Code[Array[Byte]]): ValueShuffleClient =
+  def createValue(cb: CodeBuilderLike, shuffleType: Code[TShuffle], uuid: Code[Array[Byte]])(implicit line: LineNumber): ValueShuffleClient =
     new ValueShuffleClient(
       cb.newField[ShuffleClient]("shuffleClient", create(shuffleType, uuid)))
 
@@ -39,16 +39,17 @@ object CodeShuffleClient {
     uuid: Code[Array[Byte]],
     rowEncodingPType: Code[PType],
     keyEncodingPType: Code[PType]
+  )(implicit line: LineNumber
   ): ValueShuffleClient =
     new ValueShuffleClient(
       cb.newField[ShuffleClient](
         "shuffleClient",
         create(shuffleType, uuid, rowEncodingPType, keyEncodingPType)))
 
-  def create(shuffleType: Code[TShuffle]): Code[ShuffleClient] =
+  def create(shuffleType: Code[TShuffle])(implicit line: LineNumber): Code[ShuffleClient] =
     Code.newInstance[ShuffleClient, TShuffle](shuffleType)
 
-  def create(shuffleType: Code[TShuffle], uuid: Code[Array[Byte]]): Code[ShuffleClient] =
+  def create(shuffleType: Code[TShuffle], uuid: Code[Array[Byte]])(implicit line: LineNumber): Code[ShuffleClient] =
     Code.newInstance[ShuffleClient, TShuffle, Array[Byte]](shuffleType, uuid)
 
   def create(
@@ -56,7 +57,7 @@ object CodeShuffleClient {
     uuid: Code[Array[Byte]],
     rowEncodingPType: Code[PType],
     keyEncodingPType: Code[PType]
-  ): Code[ShuffleClient] =
+  )(implicit line: LineNumber): Code[ShuffleClient] =
     Code.newInstance[ShuffleClient, TShuffle, Array[Byte], PType, PType](
       shuffleType, uuid, rowEncodingPType, keyEncodingPType)
 }
@@ -64,22 +65,22 @@ object CodeShuffleClient {
 class ValueShuffleClient(
   val code: Value[ShuffleClient]
 ) extends AnyVal {
-  def start(): Code[Unit] =
+  def start()(implicit line: LineNumber): Code[Unit] =
     code.invoke[Unit]("start")
 
-  def startPut(): Code[Unit] =
+  def startPut()(implicit line: LineNumber): Code[Unit] =
     code.invoke[Unit]("startPut")
 
-  def putValue(value: Code[Long]): Code[Unit] =
+  def putValue(value: Code[Long])(implicit line: LineNumber): Code[Unit] =
     code.invoke[Long, Unit]("putValue", value)
 
-  def putValueDone(): Code[Unit] =
+  def putValueDone()(implicit line: LineNumber): Code[Unit] =
     code.invoke[Unit]("putValueDone")
 
-  def endPut(): Code[Unit] =
+  def endPut()(implicit line: LineNumber): Code[Unit] =
     code.invoke[Unit]("endPut")
 
-  def uuid(): Code[Array[Byte]] =
+  def uuid()(implicit line: LineNumber): Code[Array[Byte]] =
     code.invoke[Array[Byte]]("uuid")
 
   def startGet(
@@ -87,35 +88,36 @@ class ValueShuffleClient(
     startInclusive: Code[Boolean],
     end: Code[Long],
     endInclusive: Code[Boolean]
+  )(implicit line: LineNumber
   ): Code[Unit] =
     code.invoke[Long, Boolean, Long, Boolean, Unit](
       "startGet", start, startInclusive, end, endInclusive)
 
-  def getValue(region: Code[Region]): Code[Long] =
+  def getValue(region: Code[Region])(implicit line: LineNumber): Code[Long] =
     code.invoke[Region, Long]("getValue", region)
 
-  def getValueFinished(): Code[Boolean] =
+  def getValueFinished()(implicit line: LineNumber): Code[Boolean] =
     code.invoke[Boolean]("getValueFinished")
 
-  def getDone(): Code[Unit] =
+  def getDone()(implicit line: LineNumber): Code[Unit] =
     code.invoke[Unit]("getDone")
 
-  def startPartitionBounds(nPartitions: Code[Int]): Code[Unit] =
+  def startPartitionBounds(nPartitions: Code[Int])(implicit line: LineNumber): Code[Unit] =
     code.invoke[Int, Unit]("startPartitionBounds", nPartitions)
 
-  def partitionBoundsValue(region: Code[Region]): Code[Long] =
+  def partitionBoundsValue(region: Code[Region])(implicit line: LineNumber): Code[Long] =
     code.invoke[Region, Long]("partitionBoundsValue", region)
 
-  def partitionBoundsValueFinished(): Code[Boolean] =
+  def partitionBoundsValueFinished()(implicit line: LineNumber): Code[Boolean] =
     code.invoke[Boolean]("partitionBoundsValueFinished")
 
-  def endPartitionBounds(): Code[Unit] =
+  def endPartitionBounds()(implicit line: LineNumber): Code[Unit] =
     code.invoke[Unit]("endPartitionBounds")
 
-  def stop(): Code[Unit] =
+  def stop()(implicit line: LineNumber): Code[Unit] =
     code.invoke[Unit]("stop")
 
-  def close(): Code[Unit] =
+  def close()(implicit line: LineNumber): Code[Unit] =
     code.invoke[Unit]("close")
 }
 

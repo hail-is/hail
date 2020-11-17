@@ -2,7 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.asm4s.{AsmFunction4, AsmFunction5}
+import is.hail.asm4s.{AsmFunction4, AsmFunction5, LineNumber}
 import is.hail.backend.BroadcastValue
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{ExecuteContext, PruneDeadFields}
@@ -131,6 +131,7 @@ object BgenRDD {
     partitions: Array[Partition],
     settings: BgenSettings,
     keys: RDD[Row]
+  )(implicit line: LineNumber
   ): ContextRDD[RegionValue] = {
     val f = CompileDecoder(ctx, settings)
     val indexBuilder = {

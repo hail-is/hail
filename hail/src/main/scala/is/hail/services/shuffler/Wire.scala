@@ -36,7 +36,7 @@ object Wire {
     out.writeUTF(x.parsableString())
   }
 
-  def writeTStruct(out: Value[OutputBuffer], x: TStruct): Code[Unit] = {
+  def writeTStruct(out: Value[OutputBuffer], x: TStruct)(implicit line: LineNumber): Code[Unit] = {
     out.writeUTF(x.parsableString)
   }
 
@@ -60,11 +60,11 @@ object Wire {
     IRParser.parsePType(x)
   }
 
-  def deserializePType(x: Code[String]): Code[PType] =
+  def deserializePType(x: Code[String])(implicit line: LineNumber): Code[PType] =
     Code.invokeScalaObject1[String, PType](
       Wire.getClass, "deserializePType", x)
 
-  def writeEType(out: Value[OutputBuffer], x: EType): Code[Unit] = {
+  def writeEType(out: Value[OutputBuffer], x: EType)(implicit line: LineNumber): Code[Unit] = {
     out.writeUTF(x.parsableString())
   }
 
@@ -84,7 +84,7 @@ object Wire {
     IRParser.parse(x, EType.eTypeParser)
   }
 
-  def writeEBaseStruct(out: Value[OutputBuffer], x: EBaseStruct): Code[Unit] = {
+  def writeEBaseStruct(out: Value[OutputBuffer], x: EBaseStruct)(implicit line: LineNumber): Code[Unit] = {
     out.writeUTF(x.parsableString())
   }
 
@@ -106,7 +106,7 @@ object Wire {
     }
   }
 
-  def writeStringArray(out: Value[OutputBuffer], x: Array[String]): Code[Unit] = Code(
+  def writeStringArray(out: Value[OutputBuffer], x: Array[String])(implicit line: LineNumber): Code[Unit] = Code(
     out.writeInt(x.length),
     Code(x.map(s => out.writeUTF(s))))
 
@@ -136,7 +136,7 @@ object Wire {
     readStringArray(new MemoryInputBuffer(mb))
   }
 
-  def writeSortFieldArray(out: Value[OutputBuffer], x: IndexedSeq[SortField]): Code[Unit] = Code(
+  def writeSortFieldArray(out: Value[OutputBuffer], x: IndexedSeq[SortField])(implicit line: LineNumber): Code[Unit] = Code(
     out.writeInt(x.length),
     Code(x.map(sf => Code(
       out.writeUTF(sf.field),
@@ -169,7 +169,7 @@ object Wire {
     out.write(x)
   }
 
-  def writeByteArray(out: Value[OutputBuffer], _x: Value[Array[Byte]]): Code[Unit] = {
+  def writeByteArray(out: Value[OutputBuffer], _x: Value[Array[Byte]])(implicit line: LineNumber): Code[Unit] = {
     val x = new CodeArray(_x)
     Code(
       out.writeInt(x.length),

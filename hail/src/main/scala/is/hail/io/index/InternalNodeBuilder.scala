@@ -1,7 +1,7 @@
 package is.hail.io.index
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, SettableBuilder, Value}
+import is.hail.asm4s.{Code, LineNumber, SettableBuilder, Value}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types
 import is.hail.types.encoded.EType
@@ -45,32 +45,32 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   val pType: PCanonicalStruct = InternalNodeBuilder.typ(keyType, annotationType)
   private val node = new PCanonicalBaseStructSettable(pType, sb.newSettable[Long]("internal_node_node"))
 
-  def loadFrom(cb: EmitCodeBuilder, ib: StagedIndexWriterUtils, idx: Value[Int]): Unit = {
+  def loadFrom(cb: EmitCodeBuilder, ib: StagedIndexWriterUtils, idx: Value[Int])(implicit line: LineNumber): Unit = {
     cb.assign(region, ib.getRegion(idx))
     cb.assign(node.a, ib.getArrayOffset(idx))
     val aoff = node.loadField(cb, 0).get(cb).tcode[Long]
     ab.loadFrom(cb, aoff, ib.getLength(idx))
   }
 
-  def store(cb: EmitCodeBuilder, ib: StagedIndexWriterUtils, idx: Value[Int]): Unit =
+  def store(cb: EmitCodeBuilder, ib: StagedIndexWriterUtils, idx: Value[Int])(implicit line: LineNumber): Unit =
     ib.update(cb, idx, region.get, node.a.get, ab.length)
 
-  def reset(cb: EmitCodeBuilder): Unit = {
+  def reset(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = {
     cb += region.invoke[Unit]("clear")
     allocate(cb)
   }
 
-  def allocate(cb: EmitCodeBuilder): Unit = {
+  def allocate(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = {
     cb += node.store(PCode(pType, pType.allocate(region)))
     ab.create(cb, pType.fieldOffset(node.a, "children"))
   }
 
-  def create(cb: EmitCodeBuilder): Unit = {
+  def create(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = {
     cb.assign(region, Region.stagedCreate(Region.REGULAR))
     allocate(cb)
   }
 
-  def encode(cb: EmitCodeBuilder, ob: Value[OutputBuffer]): Unit = {
+  def encode(cb: EmitCodeBuilder, ob: Value[OutputBuffer])(implicit line: LineNumber): Unit = {
     val enc = EType.defaultFromPType(pType).buildEncoder(pType, cb.emb.ecb)
     ab.storeLength(cb)
     cb += enc(node.a, ob)
@@ -78,7 +78,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
 
   def nodeAddress: PBaseStructValue = node
 
-  def add(cb: EmitCodeBuilder, indexFileOffset: Code[Long], firstIndex: Code[Long], firstChild: PBaseStructValue): Unit = {
+  def add(cb: EmitCodeBuilder, indexFileOffset: Code[Long], firstIndex: Code[Long], firstChild: PBaseStructValue)(implicit line: LineNumber): Unit = {
     val childtyp = types.coerce[PBaseStruct](firstChild.pt)
     ab.addChild(cb)
     ab.setFieldValue(cb, "index_file_offset", PCode(PInt64(), indexFileOffset))
@@ -88,7 +88,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
     ab.setField(cb, "first_annotation", firstChild.loadField(cb, childtyp.fieldIdx("annotation")))
   }
 
-  def add(cb: EmitCodeBuilder, indexFileOffset: Code[Long], firstChild: PBaseStructValue): Unit = {
+  def add(cb: EmitCodeBuilder, indexFileOffset: Code[Long], firstChild: PBaseStructValue)(implicit line: LineNumber): Unit = {
     val childtyp = types.coerce[PBaseStruct](firstChild.pt)
     ab.addChild(cb)
     ab.setFieldValue(cb, "index_file_offset", PCode(PInt64(), indexFileOffset))
@@ -98,6 +98,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
     ab.setField(cb, "first_annotation", firstChild.loadField(cb, childtyp.fieldIdx("first_annotation")))
   }
 
-  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = ab.loadChild(cb, idx)
+  def loadChild(cb: EmitCodeBuilder, idx: Code[Int])(implicit line: LineNumber): Unit =
+    ab.loadChild(cb, idx)
   def getLoadedChild: PBaseStructValue = ab.getLoadedChild
 }

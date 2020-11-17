@@ -82,7 +82,7 @@ case class TableNativeWriter(
     }
   }
 
-  def apply(ctx: ExecuteContext, tv: TableValue): Unit = {
+  def apply(ctx: ExecuteContext, tv: TableValue)(implicit line: LineNumber): Unit = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
     assert(tv.typ.isCanonical)
     val fs = ctx.fs

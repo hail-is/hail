@@ -92,7 +92,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       PCanonicalNDArray(elementType, t.nDims, required)
   }
 
-  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer])(implicit line: LineNumber): Unit = {
     val pv = PCode(pt, v).asBaseStruct.memoize(cb, "base_struct")
     val ft = pv.pt
     // write missing bytes
@@ -151,6 +151,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     _pt: PType,
     region: Value[Region],
     in: Value[InputBuffer]
+  )(implicit line: LineNumber
   ): Code[Long] = {
     val pt = if (_pt.isInstanceOf[PNDArray]) _pt.asInstanceOf[PNDArray].representation
              else _pt.asInstanceOf[PBaseStruct]
@@ -166,6 +167,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     region: Value[Region],
     addr: Value[Long],
     in: Value[InputBuffer]
+  )(implicit line: LineNumber
   ): Unit = {
     val pt = if (_pt.isInstanceOf[PNDArray]) _pt.asInstanceOf[PNDArray].representation
              else _pt.asInstanceOf[PBaseStruct]
@@ -199,7 +201,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     }
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer])(implicit line: LineNumber): Unit = {
     val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1), const(nMissingBytes)))
     cb += in.readBytes(r, mbytes, nMissingBytes)
     fields.foreach { f =>

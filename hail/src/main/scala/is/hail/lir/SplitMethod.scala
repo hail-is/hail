@@ -363,7 +363,7 @@ class SplitMethod(
         splitMReturnValue = methodInsn(INVOKEVIRTUAL, splitM, Array(load(m.getParam(0), lineNumber = 0), load(spills, lineNumber = 0)), lineNumber = 0)
         if (splitsReturn) {
           val l = m.newLocal("splitMReturnValue", returnTI)
-          val s = store(l, splitMReturnValue)
+          val s = store(l, splitMReturnValue, lineNumber = 0)
           newL.append(s)
           splitReturnCalls += s
           splitMReturnValue = load(l, lineNumber = 0)
@@ -420,7 +420,7 @@ class SplitMethod(
         val idx = x.children(0)
         idx.remove()
         val lidx = splitM.newLocal("switch_index", IntInfo)
-        x.insertBefore(store(lidx, idx))
+        x.insertBefore(store(lidx, idx, lineNumber = 0))
         x.setChild(0, load(lidx, x.lineNumber))
         val Lreturn = new Block()
         Lreturn.method = splitM
@@ -548,7 +548,7 @@ class SplitMethod(
     fixSplitReturnCalls()
 
     // spill parameters
-    var x: StmtX = store(spills, new NewInstanceX(spillsClass.ti, spillsCtor, lineNumber = 0))
+    var x: StmtX = store(spills, new NewInstanceX(spillsClass.ti, spillsCtor, lineNumber = 0), lineNumber = 0)
     m.entry.prepend(x)
     m.parameterTypeInfo.indices.foreach { i =>
       val f = fields(i + 1)

@@ -37,6 +37,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
 
   def buildPrefixEncoder(cb: EmitCodeBuilder, pt: PArray, array: Value[Long],
     out: Value[OutputBuffer], prefixLength: Code[Int]
+  )(implicit line: LineNumber
   ): Unit = {
     val arr: PIndexableValue = PCode(pt, array).asIndexable.memoize(cb, "encode_array_a")
     val prefixLen = cb.newLocal[Int]("prefixLen", prefixLength)
@@ -81,7 +82,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     })
   }
 
-  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer])(implicit line: LineNumber): Unit = {
     val pa = pt.asInstanceOf[PArray]
     val array = coerce[Long](v)
     buildPrefixEncoder(cb, pa, array, out, pa.loadLength(array))
@@ -92,6 +93,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     pt: PType,
     region: Value[Region],
     in: Value[InputBuffer]
+  )(implicit line: LineNumber
   ): Code[Long] = {
     val t = pt.asInstanceOf[PArray]
 
@@ -133,7 +135,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     array.load()
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer])(implicit line: LineNumber): Unit = {
     val skip = elementType.buildSkip(cb.emb)
     val len = cb.newLocal[Int]("len", in.readInt())
     val i = cb.newLocal[Int]("i")
