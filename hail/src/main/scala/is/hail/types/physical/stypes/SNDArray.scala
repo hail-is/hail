@@ -70,16 +70,12 @@ class SNDArrayPointerSettable(val st: SNDArrayPointer, val a: Settable[Long]) ex
     }
   }
 
-  override def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = Array.tabulate(pt.nDims) { i =>
-    new Value[Long] {
-      def get: Code[Long] = pt.loadShape(cb, a, i)
-    }
+  override def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
+    Array.tabulate(pt.nDims)(i => cb.newLocal[Long](s"sndarray_shapes_$i", pt.loadShape(cb, a, i)))
   }
 
-  override def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = Array.tabulate(pt.nDims) { i =>
-    new Value[Long] {
-      def get: Code[Long] = pt.loadStride(cb, a, i)
-    }
+  override def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
+    Array.tabulate(pt.nDims)(i => cb.newLocal[Long](s"sndarray_strides_$i", pt.loadStride(cb, a, i)))
   }
 
   override def sameShape(other: PNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = {
