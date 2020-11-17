@@ -34,7 +34,6 @@ BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)(
 
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
-# benchmark_data = None
 benchmark_data = {
     'commits': {}
 }
@@ -241,35 +240,6 @@ async def update_commits(app):
         log.info(f'for commit {sha}')
 
         commit = await update_commit(app, sha)
-
-        # file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
-        # has_results_file = gs_reader.file_exists(file_path)
-        #
-        # batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
-        #
-        # complete_batch_statuses = [bs for bs in batch_statuses if bs['complete']]
-        # running_batch_statuses = [bs for bs in batch_statuses if not bs['complete']]
-        #
-        # if has_results_file:
-        #     assert complete_batch_statuses, batch_statuses
-        #     log.info(f'commit {sha} has a results file')
-        #     status = complete_batch_statuses[-1]
-        # elif running_batch_statuses:
-        #     status = running_batch_statuses[-1]
-        #     log.info(f'batch already exists for commit {sha}')
-        # else:
-        #     batch_id = await submit_test_batch(batch_client, sha)
-        #     batch = await batch_client.get_batch(batch_id)
-        #     status = batch._last_known_status
-        #     log.info(f'submitted a batch {batch_id} for commit {sha}')
-        #
-        # commit = {
-        #     'sha': sha,
-        #     'title': gh_commit['commit']['message'],
-        #     'author': gh_commit['commit']['author']['name'],
-        #     'date': gh_commit['commit']['author']['date'],
-        #     'status': status
-        # }
         formatted_new_commits.update({sha: commit})
 
     log.info('got new commits')
@@ -331,11 +301,6 @@ async def get_status(request):  # pylint: disable=unused-argument
     app = request.app
     batch_client = app['batch_client']
     batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
-    # complete_batch_statuses = [bs for bs in batch_statuses if bs['complete']]
-
-    # commits = [item for item in benchmark_data['commits'] if item['sha'] == sha]
-    # if commits:
-    #     return commits[0]['status']
 
     # commit = benchmark_data['commits'].get(sha)
     # if commit:
@@ -364,9 +329,6 @@ async def delete_commit(request):  # pylint: disable=unused-argument
     async for b in batch_client.list_batches(q=f'sha={sha}'):
         await b.delete()
         log.info(f'deleted batch for sha {sha}')
-    # commits = [item for item in benchmark_data['commits'] if item['sha'] == sha]
-    # for commit in commits:
-    #     benchmark_data['commits'].remove(commit)
     if benchmark_data['commits'].get(sha):
         del benchmark_data['commits'][sha]
         log.info(f'deleted commit {sha} from commit list')
