@@ -1,4 +1,5 @@
 from typing import Callable, TypeVar, Awaitable
+import traceback
 import os
 import errno
 import random
@@ -380,7 +381,8 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
                 raise
             errors += 1
             if errors % 10 == 0:
-                log.warning(f'encountered {errors} errors, most recent one was {e}', exc_info=True)
+                st = ''.join(traceback.format_stack())
+                log.warning(f'encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
         delay = await sleep_and_backoff(delay)
 
 
