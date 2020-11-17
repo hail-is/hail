@@ -3583,3 +3583,16 @@ steps:
     - deploy_auth
     - atgu_image
     - atgu_database
+ - kind: deploy
+   name: deploy_amundsen
+   namespace:
+     valueFrom: default_ns.name
+   config: amundsen/deployment.yaml
+   wait:
+    - kind: Service
+      name: amundsen-frontend
+      for: alive
+   dependsOn:
+    - default_ns
+    - deploy_router
+    - deploy_auth
