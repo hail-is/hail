@@ -1,3 +1,4 @@
+import os
 from shlex import quote as shq
 
 from ci.build import BuildConfiguration, Code
@@ -6,12 +7,24 @@ from ci.utils import generate_token
 
 
 class LocalJob:
-    def __init__(self, image, command, **kwargs):
+    def __init__(self, index, image, command, *,
+                 env=None, mount_docker_socket=False, secrets=None, parents=None,
+                 input_files=None, output_files=None,
+                 **kwargs):
+        self._index = index
         self._image = image
         self._command = command
+
+        self._env = env
+        self._mount_docker_socket = mount_docker_socket
+        self._parents = parents
+        self._input_files = input_files
+        self._output_files = output_files
         self._kwargs = kwargs
 
-        print(f'job: {image}, {command}, {kwargs}')
+        self._done = False
+
+        print(f'job: {image}, {command}, {env}, {mount_docker_socket}, {secrets}, {parents}, {input_files}, {output_files}, {kwargs}')
 
 class LocalBatchBuilder:
     def __init__(self, attributes, callback):
@@ -28,9 +41,43 @@ class LocalBatchBuilder:
         return self._callback
 
     def create_job(self, image, command, **kwargs):
-        job = LocalJob(image, command, **kwargs)
+        index = len(self._jobs)
+        job = LocalJob(index, image, command, **kwargs)
         self._jobs.append(job)
         return job
+
+    def run(self):
+        os.makedirs(f'_/shared')
+        
+        for j in self._jobs:
+            if j._parents:
+                for p in j._parents:
+                    assert p._done
+
+            os.makedirs(f'_/{j._index}/secrets')
+
+            # localize secrets
+            # copy inputs
+            # copy outputs
+
+            mount_options = [
+                '-v', '_/shared:/shared'
+            ]
+            if j._mount_docker_socket:
+                mount_options.extend(['-v', '/var/run/docker.sock:/var/run/docker.sock'])
+
+            docker_cmd = [
+                'docker',
+                'run',
+                *mount_options,
+                j._image,
+                *[shq(c) for c in j._command]
+            ]
+            
+            print(docker_cmd)
+            
+            j._done = True
+
 
 class Branch(Code):
     def __init__(self, owner, repo, branch, sha):
@@ -71,8 +118,11 @@ with open(f'build.yaml', 'r') as f:
     config = BuildConfiguration(code, f.read(), scope)
 
 token = generate_token()
+print(f'token {token}')
 batch = LocalBatchBuilder(
     attributes={
         'token': token
     }, callback=None)
 config.build(batch, code, scope)
+
+batch.run()
