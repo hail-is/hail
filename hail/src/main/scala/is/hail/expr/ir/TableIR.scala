@@ -2063,7 +2063,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       val globalRegion = ctx.partitionRegion
       val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion) else 0
 
-      RegionPool.get.scopedSmallRegion { aggRegion =>
+      HailTaskContext.get.getRegionPool().scopedSmallRegion { aggRegion =>
         val seq = eltSeqF(i, globalRegion)
 
         seq.setAggState(aggRegion, read(aggRegion, initAgg))

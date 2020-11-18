@@ -25,7 +25,7 @@ class BackendUtils(mods: Array[(String, (Int, Region) => BackendUtils.F)]) {
 
     backend.parallelizeAndComputeWithIndex(backendContext, contexts, tsd) { (ctx, i) =>
       val gs = globalsBC.value
-      RegionPool.get.scopedRegion { region =>
+      HailTaskContext.get.getRegionPool().scopedRegion { region =>
         val res = f(i, region)(region, ctx, gs)
         res
       }

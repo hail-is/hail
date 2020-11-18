@@ -2,8 +2,10 @@ package is.hail.annotations
 
 import is.hail.asm4s
 import is.hail.asm4s.{Code, coerce}
+import is.hail.backend.HailTaskContext
 import is.hail.types.physical._
 import is.hail.utils._
+import org.apache.spark.TaskContext
 
 object Region {
   type Size = Int
@@ -267,12 +269,13 @@ object Region {
     Code.invokeScalaObject2[Int, RegionPool, Region](Region.getClass, "apply", asm4s.const(blockSize), pool)
 
   def apply(blockSize: Region.Size = Region.REGULAR, pool: RegionPool = null): Region = {
-    (if (pool == null) RegionPool.get else pool)
-      .getRegion(blockSize)
-  }
-
-  def makeNamed(blockSize: Region.Size = Region.REGULAR, pool: RegionPool = null): Region = {
-    (if (pool == null) RegionPool.get else pool)
+    (if (pool == null) {
+      val htc = HailTaskContext.get()
+      if (htc == null) {
+        throw new IllegalStateException(s"RegionPool requested but HailTaskContext was null. On worker = ${TaskContext.get() != null}")
+      }
+      htc.getRegionPool()
+    } else pool)
       .getRegion(blockSize)
   }
 

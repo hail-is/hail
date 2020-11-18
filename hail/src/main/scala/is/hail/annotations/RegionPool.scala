@@ -7,15 +7,6 @@ import is.hail.utils._
 import org.apache.spark.TaskContext
 
 object RegionPool {
-  def get: RegionPool = {
-    val htc = HailTaskContext.get()
-
-    if (htc == null) {
-      throw new IllegalStateException(s"RegionPool requested but HailTaskContext was null. On worker = ${TaskContext.get() != null}")
-    }
-
-    htc.getRegionPool()
-  }
 
   def apply(strictMemoryCheck: Boolean = false): RegionPool = {
     val thread = Thread.currentThread()

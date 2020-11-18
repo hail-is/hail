@@ -76,7 +76,7 @@ class LocalBackend(
   def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]],
     dependency: Option[TableStageDependency] = None)(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]] = {
     collection.zipWithIndex.map { case (c, i) =>
-      HailTaskContext.setTaskContext(new LocalTaskContext())
+      HailTaskContext.setTaskContext(new LocalTaskContext(i))
       val bytes = f(c, i)
       HailTaskContext.unset()
       bytes

@@ -6,14 +6,8 @@ import is.hail.utils._
 import scala.collection.mutable
 
 object RVDContext {
-  def default: RVDContext = {
-    val partRegion = Region()
-    val ctx = new RVDContext(partRegion, Region())
-    ctx.own(partRegion)
-    ctx
-  }
 
-  def defaultFromPool(pool: RegionPool) = {
+  def default(pool: RegionPool) = {
     val partRegion = Region(pool=pool)
     val ctx = new RVDContext(partRegion, Region(pool=pool))
     ctx.own(partRegion)
