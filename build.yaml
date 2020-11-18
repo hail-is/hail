@@ -3161,7 +3161,6 @@ steps:
    dependsOn:
     - test_dataproc
     - default_ns
-    - default_ns
     - copy_files
     - ci_utils_image
     - build_hail
@@ -3281,7 +3280,6 @@ steps:
     - default_ns
     - create_deploy_config
     - copy_files
-    - default_ns
     - service_base_image
     - create_certs
     - deploy_address
