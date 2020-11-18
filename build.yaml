@@ -2588,7 +2588,6 @@ steps:
     - deploy_batch
     - create_ci_test_repo
     - deploy_ci_agent
-    - deploy_ci_agent_default
     - create_certs
  - kind: runImage
    name: test_ci
