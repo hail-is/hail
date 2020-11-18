@@ -4,7 +4,7 @@ import java.io.PrintWriter
 
 import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.backend.{Backend, BackendContext, BroadcastValue}
+import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{IRParser, _}
 import is.hail.expr.{JSONAnnotationImpex, Validate}
@@ -27,6 +27,16 @@ import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
 class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
+
+class LocalTaskContext extends HailTaskContext {
+  override type BackendType = LocalBackend
+
+  override def stageId(): Int = ???
+
+  override def partitionId(): Int = ???
+
+  override def attemptNumber(): Int = ???
+}
 
 object LocalBackend {
   private var theLocalBackend: LocalBackend = _
@@ -68,7 +78,10 @@ class LocalBackend(
   def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]],
     dependency: Option[TableStageDependency] = None)(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]] = {
     collection.zipWithIndex.map { case (c, i) =>
-      f(c, i)
+      HailTaskContext.setTaskContext(new LocalTaskContext())
+      val bytes = f(c, i)
+      HailTaskContext.unset()
+      bytes
     }
   }
 
