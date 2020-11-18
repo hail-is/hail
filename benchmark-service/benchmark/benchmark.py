@@ -297,7 +297,8 @@ async def get_status(request):  # pylint: disable=unused-argument
     sha = str(request.match_info['sha'])
     app = request.app
     commit = await get_commit(app, sha)
-    return web.json_response({'commit': commit})
+    #return web.json_response({'commit': commit})
+    return web.json_response(commit)
 
 
 @router.delete('/api/v1alpha/benchmark/commit/{sha}')
@@ -326,7 +327,8 @@ async def call_update_commit(request):  # pylint: disable=unused-argument
     sha = body['sha']
     log.info('call_update_commit')
     commit = await update_commit(request.app, sha)
-    return web.json_response({'commit': commit})
+    #return web.json_response({'commit': commit})
+    return web.json_response(commit)
 
 
 async def github_polling_loop(app):
