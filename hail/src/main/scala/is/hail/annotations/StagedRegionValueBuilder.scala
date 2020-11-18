@@ -208,7 +208,7 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     f(new StagedRegionValueBuilder(mb, currentPType(), this))
   }
 
-  def addIRIntermediate(t: PType, deepCopy: Boolean): (Code[_]) => Code[Unit] = {
+  private def addIRIntermediate(t: PType, deepCopy: Boolean): (Code[_]) => Code[Unit] = {
     val ft = t.fundamentalType
     val current = currentPType()
     val valueTI = typeToTypeInfo(ft)
@@ -227,6 +227,7 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     }
   }
 
+  // deprecated -- to be removed
   def addIRIntermediate(t: PType): (Code[_]) => Code[Unit] =
     addIRIntermediate(t, deepCopy = false)
 

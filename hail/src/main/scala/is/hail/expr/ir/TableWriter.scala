@@ -186,17 +186,21 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
       val eltRegion = region.createChildRegion(mb)
 
       def writeFile(codeRow: EmitCode): Code[Unit] = {
-        val rowType = coerce[PStruct](codeRow.pt)
         EmitCodeBuilder.scopedVoid(mb) { cb =>
-          val pc = codeRow.toI(cb).get(cb, "row can't be missing")
+          val pc = codeRow.toI(cb).get(cb, "row can't be missing").asBaseStruct
           val row = pc.memoize(cb, "row")
           if (hasIndex) {
             val keyRVB = new StagedRegionValueBuilder(mb, keyType, eltRegion.code)
-          indexWriter.add(cb, {
+            indexWriter.add(cb, {
               cb += keyRVB.start()
               keyType.fields.foreach { f =>
-                cb += keyRVB.addIRIntermediate(f.typ)(Region.loadIRIntermediate(f.typ)(rowType.fieldOffset(coerce[Long](row.value), f.name)))
-                cb += keyRVB.advance()
+                row.loadField(cb, f.name).consume(cb,
+                  cb._fatal("index field cannot be missing"),
+                  { fieldCode =>
+                    cb += keyRVB.addIRIntermediate(fieldCode)
+                    cb += keyRVB.advance()
+                  }
+                )
               }
               IEmitCode.present(cb, PCode(keyType, keyRVB.offset))
             },
