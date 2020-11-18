@@ -40,7 +40,7 @@ async def test_update_commits():
 
         async def wait_forever():
             commit_status = None
-            while commit_status is None or not commit_status['status']['complete']:
+            while commit_status is None or not commit_status['commit']['status']['complete']:
                 resp = await utils.request_retry_transient_errors(
                     session, 'GET', f'{commit_benchmark_url}', headers=headers, json={'sha': sha})
                 commit_status = await resp.json()
