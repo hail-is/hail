@@ -8,6 +8,7 @@ import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.variant._
 import is.hail.expr.ir._
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.{SCanonicalLocusPointer, SCanonicalLocusPointerCode}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -310,21 +311,19 @@ object LocusFunctions extends RegistryFunctions {
         emitLocus(r, locus, rt)
     }
 
-    registerCode2("Locus", TString, TInt32, tlocus("T"), {
+    registerPCode2("Locus", TString, TInt32, tlocus("T"), {
       (returnType: Type, _: PType, _: PType) => PCanonicalLocus(returnType.asInstanceOf[TLocus].rg)
     }) {
-      case (r, rt: PLocus, (contigT, contig: Code[Long]), (posT, pos: Code[Int])) =>
-        Code.memoize(asm4s.coerce[Long](contig), "locus_contig", asm4s.coerce[Int](pos), "locus_pos") { (contig, pos) =>
-          val srvb = new StagedRegionValueBuilder(r, rt)
-          val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
-          Code(
-            rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", scontig, pos),
-            srvb.start(),
-            srvb.addIRIntermediate(contigT)(contig),
-            srvb.advance(),
-            srvb.addInt(pos),
-            srvb.offset)
-        }
+      case (r, cb, rt: PCanonicalLocus, contig, pos) =>
+        val contigMemo = contig.memoize(cb, "locus_contig")
+        val posMemo = pos.memoize(cb, "locus_pos").asInt
+        val srvb = new StagedRegionValueBuilder(r, rt)
+        cb += rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", contigMemo.asString.loadString(), posMemo.intCode(cb))
+        cb += srvb.start()
+        cb += srvb.addIRIntermediate(contigMemo)
+        cb += srvb.advance()
+        cb += srvb.addInt(posMemo.intCode(cb))
+        new SCanonicalLocusPointerCode(SCanonicalLocusPointer(rt), srvb.offset)
     }
 
     registerCode1("LocusAlleles", TString, tvariant("T"), {
