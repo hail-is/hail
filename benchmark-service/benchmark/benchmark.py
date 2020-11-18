@@ -235,50 +235,9 @@ async def update_commits(app):
         sha = gh_commit.get('sha')
         log.info(f'for commit {sha}')
 
-        commit = await update_commit(app, sha)
+        await update_commit(app, sha)
 
     log.info('got new commits')
-
-
-# async def update_commit(app, sha):  # pylint: disable=unused-argument
-#     global benchmark_data
-#     github_client = app['github_client']
-#     batch_client = app['batch_client']
-#     gs_reader = app['gs_reader']
-#
-#     file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
-#
-#     request_string = f'/repos/hail-is/hail/commits/{sha}'
-#
-#     gh_commit = await github_client.getitem(request_string)
-#
-#     has_results_file = gs_reader.file_exists(file_path)
-#     batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
-#     complete_batch_statuses = [bs for bs in batch_statuses if bs['complete']]
-#     running_batch_statuses = [bs for bs in batch_statuses if not bs['complete']]
-#
-#     if has_results_file:
-#         assert complete_batch_statuses, batch_statuses
-#         log.info(f'commit {sha} has a results file')
-#         status = complete_batch_statuses[-1]
-#     elif running_batch_statuses:
-#         status = running_batch_statuses[-1]
-#         log.info(f'batch already exists for commit {sha}')
-#     else:
-#         batch_id = await submit_test_batch(batch_client, sha)
-#         batch = await batch_client.get_batch(batch_id)
-#         status = batch._last_known_status
-#         log.info(f'submitted a batch {batch_id} for commit {sha}')
-#
-#     commit = {
-#         'sha': sha,
-#         'title': gh_commit['commit']['message'],
-#         'author': gh_commit['commit']['author']['name'],
-#         'date': gh_commit['commit']['author']['date'],
-#         'status': status
-#     }
-#     benchmark_data['commits'][sha] = commit
-#     return commit
 
 
 async def get_commit(app, sha):  # pylint: disable=unused-argument
