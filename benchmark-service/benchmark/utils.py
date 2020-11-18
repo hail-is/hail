@@ -90,7 +90,7 @@ class ReadGoogleStorage:
         bucket = self.storage_client.bucket(bucket_name)
         path = file_info['path']
         exists = storage.Blob(bucket=bucket, name=path).exists()
-        log.info(f'file {path} in bucket {bucket_name} exists? {exists}')
+        log.info(f'file {bucket_name}/{path} in bucket {bucket_name} exists? {exists}')
         return exists
 
     def delete_file(self, file_path):
