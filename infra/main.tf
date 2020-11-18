@@ -234,3 +234,56 @@ END
 END
   }
 }
+
+resource "google_container_registry" "registry" {
+}
+
+resource "google_service_account" "gcr_pull" {
+  account_id   = "gcr-pull"
+  display_name = "pull from gcr.io"
+}
+
+resource "google_service_account_key" "gcr_pull_key" {
+  service_account_id = google_service_account.gcr_pull.name
+}
+
+resource "google_service_account" "gcr_push" {
+  account_id   = "gcr-push"
+  display_name = "push to gcr.io"
+}
+
+resource "google_service_account_key" "gcr_push_key" {
+  service_account_id = google_service_account.gcr_push.name
+}
+
+resource "google_storage_bucket_iam_member" "gcr_pull_viewer" {
+  bucket = google_container_registry.registry.id
+  role = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.gcr_pull.email}"
+}
+
+resource "google_storage_bucket_iam_member" "gcr_push_admin" {
+  bucket = google_container_registry.registry.id
+  role = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.gcr_push.email}"
+}
+
+resource "kubernetes_secret" "gcr_pull_key" {
+  metadata {
+    name = "gcr-pull-key"
+  }
+
+  data = {
+    "gcr-pull.json" = base64decode(google_service_account_key.gcr_pull_key.private_key)
+  }
+}
+
+resource "kubernetes_secret" "gcr_push_key" {
+  metadata {
+    name = "gcr-push-service-account-key"
+  }
+
+  data = {
+    "gcr-push-service-account-key.json" = base64decode(google_service_account_key.gcr_push_key.private_key)
+  }
+}
