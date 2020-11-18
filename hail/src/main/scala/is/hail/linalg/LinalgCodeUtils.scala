@@ -63,7 +63,6 @@ object LinalgCodeUtils {
       columnMajorLoops
     ))
 
-    val answer = pndv.pt.construct(shapeBuilder, stridesBuilder, srvb.end(), cb.emb, region)
-    PCode.apply(pndv.pt, answer).asNDArray
+    pndv.pt.construct(shapeBuilder, stridesBuilder, srvb.end(), cb.emb, region)
   }
 }

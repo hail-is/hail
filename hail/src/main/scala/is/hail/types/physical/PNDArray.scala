@@ -59,7 +59,7 @@ abstract class PNDArray extends PType {
     data: Code[Long],
     mb: EmitMethodBuilder[_],
     region: Value[Region]
-  ): Code[Long]
+  ): PNDArrayCode
 }
 
 abstract class PNDArrayValue extends PValue {
