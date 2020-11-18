@@ -19,6 +19,7 @@ steps:
     - benchmark-gsa-key
     - billing-monitor-gsa-key
     - asana-access-token
+    - hail-ci-0-1-service-account-key
  - kind: buildImage
    name: echo_image
    dockerFile: echo/Dockerfile
@@ -41,56 +42,20 @@ steps:
    config: batch/service-account.yaml
    dependsOn:
     - default_ns
- - kind: createNamespace
-   name: batch_pods_ns
-   namespaceName: batch-pods
-   public: false
-   secrets:
-    - gcr-push-service-account-key
-    - test-gsa-key
-    - hail-ci-0-1-service-account-key
-   dependsOn:
-    - default_ns
-    - deploy_batch_sa
- - kind: deploy
-   name: deploy_batch_sa_batch_pods
-   namespace:
-     valueFrom: batch_pods_ns.name
-   config: batch/service-account-batch-pods.yaml
-   dependsOn:
-    - default_ns
-    - batch_pods_ns
-    - deploy_batch_sa
- - kind: deploy
-   name: deploy_default_admin_admin
-   namespace:
-     valueFrom: batch_pods_ns.name
-   config: ci/default-admin-admin.yaml
-   dependsOn:
-    - default_ns
-    - batch_pods_ns
  - kind: deploy
    name: deploy_ci_agent
    namespace:
-     valueFrom: batch_pods_ns.name
+     valueFrom: default_ns.name
    config: ci/ci-agent.yaml
    dependsOn:
-    - batch_pods_ns
- - kind: deploy
-   name: deploy_ci_agent_default
-   namespace:
-     valueFrom: default_ns.name
-   config: ci/ci-agent-default.yaml
-   dependsOn:
     - default_ns
-    - batch_pods_ns
  - kind: deploy
    name: deploy_test_batch_sa
    namespace:
-     valueFrom: batch_pods_ns.name
+     valueFrom: default_ns.name
    config: batch/test-sa.yaml
    dependsOn:
-    - batch_pods_ns
+    - default_ns
  - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
@@ -320,10 +285,6 @@ steps:
      EOF
      kubectl -n {{ default_ns.name }} delete --ignore-not-found secret deploy-config
      kubectl -n {{ default_ns.name }} create secret generic deploy-config --from-file=./deploy-config.json
-     if [ {{ default_ns.name }} != {{ batch_pods_ns.name }} ]; then
-         kubectl -n {{ batch_pods_ns.name }} delete --ignore-not-found secret deploy-config
-         kubectl -n {{ batch_pods_ns.name }} create secret generic deploy-config --from-file=./deploy-config.json
-     fi
      # gce deploy config
      cat > deploy-config.json <<EOF
      {"location":"gce","default_namespace":"{{ default_ns.name }}","service_namespace":{}}
@@ -336,9 +297,7 @@ steps:
        valueFrom: default_ns.name
    dependsOn:
     - default_ns
-    - batch_pods_ns
     - base_image
-    - deploy_default_admin_admin
  - kind: deploy
    name: deploy_admin_pod
    namespace:
@@ -420,7 +379,6 @@ steps:
      if [[ $N = 0 ]]; then
          rm -f /user-tokens/tokens.json
          kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-         kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ batch_pods_ns.name }} apply -f -
          python3 create-session.py '{"state":"active","username":"auth","is_service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"auth-gsa-key","tokens_secret_name":"auth-tokens"}'
          kubectl -n {{ default_ns.name }} create secret generic auth-tokens --from-file=/user-tokens/tokens.json
      fi
@@ -430,27 +388,26 @@ steps:
      if [[ $N = 0 ]]; then
          rm -f /user-tokens/tokens.json
          kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "ci-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-         kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "ci-gsa-key"}}' | kubectl -n {{ batch_pods_ns.name }} apply -f -
          python3 create-session.py '{"state":"active","username":"ci","is_service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"ci-gsa-key","tokens_secret_name":"ci-tokens"}'
          kubectl -n {{ default_ns.name }} create secret generic ci-tokens --from-file=/user-tokens/tokens.json
      fi
      # created ci
      # create test
-     N=$(kubectl -n {{ batch_pods_ns.name }} get secret --ignore-not-found=true --no-headers test-tokens | wc -l | tr -d '[:space:]')
+     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers test-tokens | wc -l | tr -d '[:space:]')
      if [[ $N = 0 ]]; then
          # if test-tokens does not exist
          rm -f /user-tokens/tokens.json
          python3 create-session.py '{"state":"active","username":"test","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"test-gsa-key","tokens_secret_name":"test-tokens"}'
-         kubectl -n {{ batch_pods_ns.name }} create secret generic test-tokens --from-file=/user-tokens/tokens.json
+         kubectl -n {{ default_ns.name }} create secret generic test-tokens --from-file=/user-tokens/tokens.json
      fi
      # created test
      # create test-dev
-     N=$(kubectl -n {{ batch_pods_ns.name }} get secret --ignore-not-found=true --no-headers test-dev-tokens | wc -l | tr -d '[:space:]')
+     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers test-dev-tokens | wc -l | tr -d '[:space:]')
      if [[ $N = 0 ]]; then
          # if test-dev-tokens does not exist
          rm -f /user-tokens/tokens.json
          python3 create-session.py '{"state":"active","username":"test-dev","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"test-gsa-key","tokens_secret_name":"test-dev-tokens","is_developer":1}'
-         kubectl -n {{ batch_pods_ns.name }} create secret generic test-dev-tokens --from-file=/user-tokens/tokens.json
+         kubectl -n {{ default_ns.name }} create secret generic test-dev-tokens --from-file=/user-tokens/tokens.json
      fi
      # created test-dev
      # create benchmark
@@ -481,9 +438,7 @@ steps:
       mountPath: /deploy-config
    dependsOn:
     - default_ns
-    - batch_pods_ns
     - deploy_test_batch_sa
-    - deploy_default_admin_admin
     - auth_database
     - service_base_image
     - create_deploy_config
@@ -697,15 +652,6 @@ steps:
    config: query/service-account.yaml
    dependsOn:
     - default_ns
- - kind: deploy
-   name: deploy_query_sa_batch_pods
-   namespace:
-     valueFrom: batch_pods_ns.name
-   config: query/service-account-batch-pods.yaml
-   dependsOn:
-    - default_ns
-    - batch_pods_ns
-    - deploy_query_sa
  - kind: buildImage
    name: memory_image
    dockerFile: memory/Dockerfile
@@ -720,15 +666,6 @@ steps:
    config: memory/service-account.yaml
    dependsOn:
     - default_ns
- - kind: deploy
-   name: deploy_memory_sa_batch_pods
-   namespace:
-     valueFrom: batch_pods_ns.name
-   config: memory/service-account-batch-pods.yaml
-   dependsOn:
-    - default_ns
-    - batch_pods_ns
-    - deploy_memory_sa
  - kind: buildImage
    name: shuffler_image
    dockerFile: shuffler/Dockerfile
@@ -806,10 +743,10 @@ steps:
    secrets:
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
-    - batch_pods_ns
+    - default_ns
     - hail_run_image
     - build_hail
  - kind: runImage
@@ -843,10 +780,10 @@ steps:
    secrets:
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
-    - batch_pods_ns
+    - default_ns
     - hail_run_image
     - build_hail
  - kind: runImage
@@ -880,10 +817,10 @@ steps:
    secrets:
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
-    - batch_pods_ns
+    - default_ns
     - hail_run_image
     - build_hail
  - kind: runImage
@@ -917,10 +854,10 @@ steps:
    secrets:
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
-    - batch_pods_ns
+    - default_ns
     - hail_run_image
     - build_hail
  - kind: runImage
@@ -954,10 +891,10 @@ steps:
    secrets:
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
-    - batch_pods_ns
+    - default_ns
     - hail_run_image
     - build_hail
  - kind: buildImage
@@ -1082,10 +1019,10 @@ steps:
    secrets:
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
-     - batch_pods_ns
+     - default_ns
      - hail_run_image
      - build_hail
  - kind: runImage
@@ -1123,10 +1060,10 @@ steps:
    secrets:
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
-     - batch_pods_ns
+     - default_ns
      - hail_run_image
      - build_hail
  - kind: runImage
@@ -1164,10 +1101,10 @@ steps:
    secrets:
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
-     - batch_pods_ns
+     - default_ns
      - hail_run_image
      - build_hail
  - kind: runImage
@@ -1205,10 +1142,10 @@ steps:
    secrets:
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
-     - batch_pods_ns
+     - default_ns
      - hail_run_image
      - build_hail
  - kind: runImage
@@ -1246,10 +1183,10 @@ steps:
    secrets:
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
-     - batch_pods_ns
+     - default_ns
      - hail_run_image
      - build_hail
  - kind: runImage
@@ -1285,10 +1222,10 @@ steps:
    secrets:
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
-     - batch_pods_ns
+     - default_ns
      - hail_run_image
      - build_hail
  - kind: runImage
@@ -1324,10 +1261,10 @@ steps:
    secrets:
      - name: test-gsa-key
        namespace:
-         valueFrom: batch_pods_ns.name
+         valueFrom: default_ns.name
        mountPath: /test-gsa-key
    dependsOn:
-     - batch_pods_ns
+     - default_ns
      - hail_run_image
      - build_hail
  - kind: runImage
@@ -1363,10 +1300,10 @@ steps:
    secrets:
      - name: test-gsa-key
        namespace:
-         valueFrom: batch_pods_ns.name
+         valueFrom: default_ns.name
        mountPath: /test-gsa-key
    dependsOn:
-     - batch_pods_ns
+     - default_ns
      - hail_run_image
      - build_hail
  - kind: runImage
@@ -1403,10 +1340,10 @@ steps:
    secrets:
      - name: test-gsa-key
        namespace:
-         valueFrom: batch_pods_ns.name
+         valueFrom: default_ns.name
        mountPath: /test-gsa-key
    dependsOn:
-     - batch_pods_ns
+     - default_ns
      - hail_run_image
      - build_hail
  - kind: runImage
@@ -1442,10 +1379,10 @@ steps:
    secrets:
      - name: test-gsa-key
        namespace:
-         valueFrom: batch_pods_ns.name
+         valueFrom: default_ns.name
        mountPath: /test-gsa-key
    dependsOn:
-     - batch_pods_ns
+     - default_ns
      - hail_run_image
      - build_hail
  - kind: runImage
@@ -1481,10 +1418,10 @@ steps:
    secrets:
      - name: test-gsa-key
        namespace:
-         valueFrom: batch_pods_ns.name
+         valueFrom: default_ns.name
        mountPath: /test-gsa-key
    dependsOn:
-     - batch_pods_ns
+     - default_ns
      - hail_run_image
      - build_hail
  - kind: runImage
@@ -1631,7 +1568,7 @@ steps:
    secrets:
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: gce-deploy-config
       namespace:
@@ -1640,7 +1577,6 @@ steps:
    dependsOn:
     - default_ns
     - create_accounts
-    - batch_pods_ns
     - service_base_image
     - deploy_site
  - kind: deploy
@@ -1680,7 +1616,6 @@ steps:
       for: alive
    dependsOn:
     - default_ns
-    - batch_pods_ns
     - create_deploy_config
     - create_session_key
     - deploy_router
@@ -1773,7 +1708,7 @@ steps:
       mountPath: /deploy-config
     - name: test-dev-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: ssl-config-monitoring-tests
       namespace:
@@ -1785,7 +1720,6 @@ steps:
     - create_deploy_config
     - create_accounts
     - default_ns
-    - batch_pods_ns
     - create_certs
     - deploy_monitoring
  - kind: runImage
@@ -1835,7 +1769,7 @@ steps:
    secrets:
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: gce-deploy-config
       namespace:
@@ -1846,7 +1780,6 @@ steps:
     - create_accounts
     - deploy_auth
     - create_deploy_config
-    - batch_pods_ns
     - service_base_image
  - kind: runImage
    name: test_auth_copy_paste_login_timeout
@@ -1883,7 +1816,7 @@ steps:
    secrets:
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: gce-deploy-config
       namespace:
@@ -1894,7 +1827,6 @@ steps:
     - create_accounts
     - deploy_auth
     - create_deploy_config
-    - batch_pods_ns
     - service_base_image
  - kind: runImage
    name: delete_batch_tables
@@ -2050,10 +1982,8 @@ steps:
       for: alive
    dependsOn:
     - default_ns
-    - batch_pods_ns
     - deploy_router
     - deploy_batch_sa
-    - deploy_batch_sa_batch_pods
     - create_accounts
     - batch_image
     - batch_worker_image
@@ -2108,7 +2038,7 @@ steps:
    secrets:
     - name: test-dev-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: gce-deploy-config
       namespace:
@@ -2116,7 +2046,6 @@ steps:
       mountPath: /deploy-config
    dependsOn:
     - default_ns
-    - batch_pods_ns
     - service_base_image
     - create_deploy_config
     - create_accounts
@@ -2146,12 +2075,10 @@ steps:
       for: alive
    dependsOn:
     - default_ns
-    - batch_pods_ns
     - deploy_batch
     - deploy_shuffler
     - query_image
     - deploy_query_sa
-    - deploy_query_sa_batch_pods
     - create_certs
  - kind: deploy
    name: deploy_memory
@@ -2164,11 +2091,9 @@ steps:
       for: alive
    dependsOn:
     - default_ns
-    - batch_pods_ns
     - deploy_batch
     - memory_image
     - deploy_memory_sa
-    - deploy_memory_sa_batch_pods
     - create_certs
  - kind: runImage
    name: test_query
@@ -2192,7 +2117,7 @@ steps:
       mountPath: /deploy-config
     - name: test-dev-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: ssl-config-query-tests
       namespace:
@@ -2205,7 +2130,6 @@ steps:
        to: /io/
    dependsOn:
     - default_ns
-    - batch_pods_ns
     - create_certs
     - build_hail
     - hail_run_image
@@ -2235,7 +2159,6 @@ steps:
      cpu: "1"
    script: |
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
-     export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export PROJECT={{ global.project }}
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
@@ -2247,7 +2170,7 @@ steps:
       mountPath: /deploy-config
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: ssl-config-memory-tests
       namespace:
@@ -2255,7 +2178,7 @@ steps:
       mountPath: /ssl-config
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    inputs:
     - from: /repo/memory/test
@@ -2264,7 +2187,6 @@ steps:
     - create_deploy_config
     - create_accounts
     - default_ns
-    - batch_pods_ns
     - copy_files
     - memory_image
     - deploy_memory
@@ -2280,7 +2202,6 @@ steps:
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
-     export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
@@ -2309,11 +2230,11 @@ steps:
       mountPath: /deploy-config
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: test-dev-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
@@ -2321,13 +2242,12 @@ steps:
       mountPath: /ssl-config
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
     - create_deploy_config
     - create_accounts
     - default_ns
-    - batch_pods_ns
     - copy_files
     - base_image
     - batch_image
@@ -2347,7 +2267,6 @@ steps:
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
-     export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
@@ -2376,11 +2295,11 @@ steps:
       mountPath: /deploy-config
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: test-dev-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
@@ -2388,13 +2307,12 @@ steps:
       mountPath: /ssl-config
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
+    - default_ns
     - create_deploy_config
     - create_accounts
-    - default_ns
-    - batch_pods_ns
     - copy_files
     - base_image
     - batch_image
@@ -2414,7 +2332,6 @@ steps:
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
-     export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
@@ -2443,11 +2360,11 @@ steps:
       mountPath: /deploy-config
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: test-dev-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
@@ -2455,13 +2372,12 @@ steps:
       mountPath: /ssl-config
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
     - create_deploy_config
     - create_accounts
     - default_ns
-    - batch_pods_ns
     - copy_files
     - base_image
     - batch_image
@@ -2481,7 +2397,6 @@ steps:
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
-     export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
@@ -2510,11 +2425,11 @@ steps:
       mountPath: /deploy-config
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: test-dev-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
@@ -2522,13 +2437,12 @@ steps:
       mountPath: /ssl-config
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
     - create_deploy_config
     - create_accounts
     - default_ns
-    - batch_pods_ns
     - copy_files
     - base_image
     - batch_image
@@ -2548,7 +2462,6 @@ steps:
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
-     export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
@@ -2577,11 +2490,11 @@ steps:
       mountPath: /deploy-config
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: test-dev-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /dev-tokens
     - name: ssl-config-batch-tests
       namespace:
@@ -2589,13 +2502,12 @@ steps:
       mountPath: /ssl-config
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
     - create_deploy_config
     - create_accounts
     - default_ns
-    - batch_pods_ns
     - copy_files
     - base_image
     - batch_image
@@ -2648,13 +2560,13 @@ steps:
    secrets:
     - name: hail-ci-0-1-service-account-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /secret/ci-secrets
    scopes:
     - test
     - dev
    dependsOn:
-    - batch_pods_ns
+    - default_ns
     - base_image
  - kind: deploy
    name: deploy_ci
@@ -2667,7 +2579,6 @@ steps:
       for: alive
    dependsOn:
     - default_ns
-    - batch_pods_ns
     - create_database_server_config
     - ci_image
     - ci_utils_image
@@ -2696,11 +2607,11 @@ steps:
       mountPath: /deploy-config
     - name: test-dev-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: hail-ci-0-1-service-account-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /secret/ci-secrets
     - name: ssl-config-ci-tests
       namespace:
@@ -2714,7 +2625,6 @@ steps:
     - create_deploy_config
     - create_accounts
     - default_ns
-    - batch_pods_ns
     - create_certs
     - deploy_ci
     - test_ci_image
@@ -2752,11 +2662,11 @@ steps:
       mountPath: /deploy-config
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
     - name: ssl-config-batch-tests
       namespace:
@@ -2766,7 +2676,6 @@ steps:
     - create_deploy_config
     - create_accounts
     - default_ns
-    - batch_pods_ns
     - copy_files
     - service_base_image
     - deploy_batch
@@ -2803,11 +2712,11 @@ steps:
       mountPath: /deploy-config
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
     - name: ssl-config-batch-tests
       namespace:
@@ -2817,7 +2726,6 @@ steps:
     - create_deploy_config
     - create_accounts
     - default_ns
-    - batch_pods_ns
     - copy_files
     - service_base_image
     - deploy_batch
@@ -2854,11 +2762,11 @@ steps:
       mountPath: /deploy-config
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
     - name: ssl-config-batch-tests
       namespace:
@@ -2868,7 +2776,6 @@ steps:
     - create_deploy_config
     - create_accounts
     - default_ns
-    - batch_pods_ns
     - copy_files
     - service_base_image
     - deploy_batch
@@ -2905,11 +2812,11 @@ steps:
       mountPath: /deploy-config
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
     - name: ssl-config-batch-tests
       namespace:
@@ -2919,7 +2826,6 @@ steps:
     - create_deploy_config
     - create_accounts
     - default_ns
-    - batch_pods_ns
     - copy_files
     - service_base_image
     - deploy_batch
@@ -2956,11 +2862,11 @@ steps:
       mountPath: /deploy-config
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
     - name: ssl-config-batch-tests
       namespace:
@@ -2970,7 +2876,6 @@ steps:
     - create_deploy_config
     - create_accounts
     - default_ns
-    - batch_pods_ns
     - copy_files
     - service_base_image
     - deploy_batch
@@ -2996,17 +2901,16 @@ steps:
       mountPath: /deploy-config
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    dependsOn:
     - create_deploy_config
     - create_accounts
     - default_ns
-    - batch_pods_ns
     - service_base_image
     - copy_files
     - deploy_batch
@@ -3075,14 +2979,14 @@ steps:
    secrets:
     - name: hail-ci-0-1-service-account-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /secret/ci-secrets
    alwaysRun: true
    scopes:
     - test
     - dev
    dependsOn:
-    - batch_pods_ns
+    - default_ns
     - base_image
     - create_ci_test_repo
     - deploy_ci
@@ -3115,7 +3019,7 @@ steps:
    secrets:
     - name: ci-deploy-0-1--hail-is-hail
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /secrets
    inputs:
     - from: /hail.jar
@@ -3127,7 +3031,7 @@ steps:
    scopes:
     - deploy
    dependsOn:
-    - batch_pods_ns
+    - default_ns
     - base_image
     - make_docs
     - build_hail
@@ -3246,7 +3150,7 @@ steps:
       mountPath: /pypi-credentials
     - name: ci-deploy-0-1--hail-is-hail
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /ci-deploy-0-1--hail-is-hail
     - name: hail-ci-0-1-github-oauth-token
       namespace:
@@ -3257,7 +3161,7 @@ steps:
     - dev
    dependsOn:
     - test_dataproc
-    - batch_pods_ns
+    - default_ns
     - default_ns
     - copy_files
     - ci_utils_image
@@ -3371,11 +3275,11 @@ steps:
       mountPath: /ssl-config
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
    dependsOn:
     - create_accounts
-    - batch_pods_ns
+    - default_ns
     - create_deploy_config
     - copy_files
     - default_ns
@@ -3409,7 +3313,7 @@ steps:
    secrets:
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: gce-deploy-config
       namespace:
@@ -3421,7 +3325,6 @@ steps:
       mountPath: /ssl-config
    dependsOn:
     - default_ns
-    - batch_pods_ns
     - create_certs
     - hail_run_image
     - build_hail
@@ -3445,7 +3348,7 @@ steps:
       mountPath: /deploy-config
     - name: test-dev-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: ssl-config-batch-tests
       namespace:
@@ -3458,7 +3361,6 @@ steps:
     - create_deploy_config
     - create_accounts
     - default_ns
-    - batch_pods_ns
     - copy_files
     - batch_image
     - deploy_batch
@@ -3491,14 +3393,13 @@ steps:
    secrets:
     - name: test-gsa-key
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /test-gsa-key
    scopes:
     - dev
     - test
    dependsOn:
     - default_ns
-    - batch_pods_ns
     - base_image
     - test_batch_invariants
     - test_batch_0

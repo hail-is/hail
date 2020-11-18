@@ -474,7 +474,7 @@ def test_service_account(client):
         os.environ['CI_UTILS_IMAGE'],
         ['/bin/sh', '-c', 'kubectl version'],
         service_account={
-            'namespace': os.environ['HAIL_BATCH_PODS_NAMESPACE'],
+            'namespace': os.environ['HAIL_DEFAULT_NAMESPACE'],
             'name': 'test-batch-sa'
         })
     b.submit()
