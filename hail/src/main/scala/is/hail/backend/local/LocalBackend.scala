@@ -28,12 +28,10 @@ import scala.reflect.ClassTag
 
 class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
 
-class LocalTaskContext extends HailTaskContext {
+class LocalTaskContext(val partitionId: Int) extends HailTaskContext {
   override type BackendType = LocalBackend
 
   override def stageId(): Int = ???
-
-  override def partitionId(): Int = ???
 
   override def attemptNumber(): Int = ???
 }
