@@ -316,13 +316,13 @@ object LocusFunctions extends RegistryFunctions {
     }) {
       case (r, cb, rt: PCanonicalLocus, contig, pos) =>
         val contigMemo = contig.memoize(cb, "locus_contig")
-        val posMemo = pos.memoize(cb, "locus_pos").asInt
+        val posMemo = pos.memoize(cb, "locus_pos")
         val srvb = new StagedRegionValueBuilder(r, rt)
-        cb += rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", contigMemo.asString.loadString(), posMemo.intCode(cb))
+        cb += rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", contigMemo.asString.loadString(), posMemo.asInt.intCode(cb))
         cb += srvb.start()
         cb += srvb.addIRIntermediate(contigMemo)
         cb += srvb.advance()
-        cb += srvb.addInt(posMemo.intCode(cb))
+        cb += srvb.addInt(posMemo.asInt.intCode(cb))
         new SCanonicalLocusPointerCode(SCanonicalLocusPointer(rt), srvb.offset)
     }
 
