@@ -2014,8 +2014,7 @@ object EmitStream {
           }
 
         case x@RunAggScan(array, name, init, seqs, result, states) =>
-          val pool = outerRegion.code.getPool()
-          val (newContainer, aggSetup, aggCleanup) = AggContainer.fromMethodBuilder(states.toArray, mb, pool,"array_agg_scan")
+          val (newContainer, aggSetup, aggCleanup) = AggContainer.fromMethodBuilder(states.toArray, mb,"array_agg_scan")
 
           val eltType = coerce[PStream](array.pType).elementType
 
