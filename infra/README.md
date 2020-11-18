@@ -3,9 +3,24 @@ infrastructure.
 
 Instructions:
 
-- You will need a GCP project.  Create a service account for Terraform
-  with Editor role, and create a service account key and place it in
+- You will need a GCP project.  We assume `gcloud` is configured to
+  point at your project.
+
+- Create a service account for Terraform with Owner role, create a
+  service account key and place it in
   `$HOME/.hail/terraform_sa_key.json`.
+
+- Enable the the GCP services needed by Hail:
+
+   ```
+   gcloud services enable \
+       compute.googleapis.com \
+       cloudresourcemanager.googleapis.com \
+       servicenetworking.googleapis.com \
+       sqladmin.googleapis.com \
+       container.googleapis.com \
+       serviceusage.googleapis.com
+   ```
 
 - Install terraform.
 
@@ -21,10 +36,10 @@ Instructions:
 - Run `terraform init`.
 
 - Run `terraform apply -var-file="$HOME/.hail/global.tfvars"`.
+  Terraform has created a GKE cluster named `vdc`.  We assume
+  `kubectl` is configured to point at this cluster.
 
-You can now install Hail.  Everything beyond this point assumes gcloud
-and kubectl point to your GCP project and the cluster created by
-Terraform.
+You can now install Hail:
 
 - Run `$HAIL/docker/third-party/copy_images.sh`.  This copies some
   base images from Dockerhub (which now has rate limits) to GCR.

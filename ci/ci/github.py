@@ -24,7 +24,7 @@ deploy_config = get_deploy_config()
 
 CALLBACK_URL = deploy_config.url('ci', '/api/v1alpha/batch_callback')
 
-zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
+zulip_client = None # zulip.Client(config_file="/zulip-config/.zuliprc")
 
 
 class Repo:
