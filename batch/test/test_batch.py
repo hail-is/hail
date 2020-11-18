@@ -606,7 +606,7 @@ def test_user_authentication_within_job(client):
     batch.submit()
 
     with_token_status = with_token.wait()
-    assert with_token_status['state'] == 'Success', with_token_status
+    assert with_token_status['state'] == 'Success', f'{(with_token.log(), with_token_status)}'
 
     username = get_userinfo()['username']
 
@@ -617,7 +617,7 @@ def test_user_authentication_within_job(client):
     assert job_userinfo is not None and job_userinfo["username"] == username, (username, with_token.log()['main'])
 
     no_token_status = no_token.wait()
-    assert no_token_status['state'] == 'Failed', no_token_status
+    assert no_token_status['state'] == 'Failed', f'{(no_token.log(), no_token_status)}'
 
 
 def test_verify_access_to_public_internet(client):
