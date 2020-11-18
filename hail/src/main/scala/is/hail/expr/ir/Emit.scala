@@ -829,7 +829,7 @@ class Emit[C](
                 })
               }}
 
-              PCode(pt, xP.construct(shapeBuilder, makeStridesBuilder(shapeTupleValue, isRowMajorCode.asBoolean.boolCode(cb), mb), requiredData, mb, region.code))
+              xP.construct(shapeBuilder, makeStridesBuilder(shapeTupleValue, isRowMajorCode.asBoolean.boolCode(cb), mb), requiredData, mb, region.code)
             }
           }
         }
@@ -843,7 +843,7 @@ class Emit[C](
           val childShape = pndVal.shapes(cb)
           val childStrides = pndVal.strides(cb)
 
-          PCode(x.pType, x.pType.construct({ srvb =>
+          x.pType.construct({ srvb =>
             Code(
               srvb.start(),
               Code.foreach(indexMap) { childIndex =>
@@ -859,7 +859,7 @@ class Emit[C](
                   srvb.addLong(if (index < childPType.nDims) childStrides(index) else 0L),
                   srvb.advance())
               })
-          }, childPType.data.load(pndVal.tcode[Long]), mb, region.code))
+          }, childPType.data.load(pndVal.tcode[Long]), mb, region.code)
         }
 
       case NDArrayRef(nd, idxs, errorId) =>
@@ -961,7 +961,7 @@ class Emit[C](
                 mb,
                 region.code)
 
-              IEmitCode.present(cb, PCode(pt, res))
+              IEmitCode.present(cb, res)
             } else {
               val numericElementType = coerce[PNumeric](lPType.elementType)
               val eVti = typeToTypeInfo(numericElementType)
@@ -1079,7 +1079,7 @@ class Emit[C](
           val shapeBuilder = pndVal.pt.makeShapeBuilder(shapeArray)
           val stridesBuilder = pndVal.pt.makeColumnMajorStridesBuilder(shapeArray, mb)
           
-          PCode(pndVal.pt, pndVal.pt.construct(shapeBuilder, stridesBuilder, Aaddr, mb, region.code))
+          pndVal.pt.construct(shapeBuilder, stridesBuilder, Aaddr, mb, region.code)
         }
       case x@NDArraySVD(nd, full_matrices, computeUV) =>
         emitNDArrayColumnMajorStrides(nd).flatMap(cb){ case ndPCode: PNDArrayCode =>
@@ -1202,17 +1202,17 @@ class Emit[C](
             val resultSRVB = new StagedRegionValueBuilder(mb, x.pType, region.code)
             cb.append(Code(
               resultSRVB.start(),
-              resultSRVB.addIRIntermediate(uPType)(u),
+              resultSRVB.addIRIntermediate(u),
               resultSRVB.advance(),
-              resultSRVB.addIRIntermediate(sPType)(s),
+              resultSRVB.addIRIntermediate(s),
               resultSRVB.advance(),
-              resultSRVB.addIRIntermediate(vtPType)(vt),
+              resultSRVB.addIRIntermediate(vt),
               resultSRVB.advance())
             )
 
             PCode.apply(x.pType, resultSRVB.end())
           } else {
-            PCode.apply(x.pType, s)
+            s
           }
           IEmitCode(cb, false, resultPCode)
 
@@ -1289,7 +1289,7 @@ class Emit[C](
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
           cb.append(infoDGEQRFErrorTest("Failed to compute H and Tau."))
 
-          val result = if (mode == "raw") {
+          val result: Code[Long] = if (mode == "raw") {
             val rawPType = x.pType.asInstanceOf[PTuple]
             val rawOutputSrvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
             val hPType = rawPType.types(0).asInstanceOf[PNDArray]
@@ -1307,9 +1307,9 @@ class Emit[C](
 
             val constructHAndTauTuple = Code(
               rawOutputSrvb.start(),
-              rawOutputSrvb.addIRIntermediate(hPType)(h),
+              rawOutputSrvb.addIRIntermediate(h),
               rawOutputSrvb.advance(),
-              rawOutputSrvb.addIRIntermediate(tauPType)(tau),
+              rawOutputSrvb.addIRIntermediate(tau),
               rawOutputSrvb.advance(),
               rawOutputSrvb.end()
             )
@@ -1355,7 +1355,7 @@ class Emit[C](
             val computeR = rPType.construct(rShapeBuilder, rStridesBuilder, rDataAddress, mb, region.code)
 
             if (mode == "r") {
-              computeR
+              computeR.tcode[Long]
             }
             else {
               val crPType = x.pType.asInstanceOf[PTuple]
@@ -1366,7 +1366,6 @@ class Emit[C](
               val qShapeBuilder = qPType.makeShapeBuilder(qShapeArray)
               val qStridesBuilder = qPType.makeColumnMajorStridesBuilder(qShapeArray, mb)
 
-              val rNDArrayAddress = cb.newLocal[Long]("ndarray_qr_rNDAArrayAddress")
               val qDataAddress = cb.newLocal[Long]("ndarray_qr_qDataAddress")
 
               val infoDORGQRResult = cb.newLocal[Int]("ndarray_qr_DORGQR_info")
@@ -1380,7 +1379,7 @@ class Emit[C](
               val qNumElements = cb.newLocal[Long]("ndarray_qr_qNumElements")
 
 
-              cb.assign(rNDArrayAddress, computeR)
+              val rNDArray = computeR.memoize(cb, "ndarray_qr_rNDAArrayAddress")
               cb.assign(qCondition, const(mode == "complete") && (M > N))
               cb.assign(numColsToUse, qCondition.mux(M, K))
               cb.assign(qNumElements, M * numColsToUse)
@@ -1425,9 +1424,9 @@ class Emit[C](
 
               val computeCompleteOrReduced = Code(Code(FastIndexedSeq(
                 crOutputSrvb.start(),
-                crOutputSrvb.addIRIntermediate(qPType)(qPType.construct(qShapeBuilder, qStridesBuilder, qDataAddress, mb, region.code)),
+                crOutputSrvb.addIRIntermediate(qPType.construct(qShapeBuilder, qStridesBuilder, qDataAddress, mb, region.code)),
                 crOutputSrvb.advance(),
-                crOutputSrvb.addIRIntermediate(rPType)(rNDArrayAddress),
+                crOutputSrvb.addIRIntermediate(rNDArray),
                 crOutputSrvb.advance())),
                 crOutputSrvb.end()
               )
@@ -3037,7 +3036,8 @@ abstract class NDArrayEmitter[C](
       mb,
       region)
 
-    EmitCode(fullSetup, m, PCode(targetType, ptr))}
+    EmitCode(fullSetup, m, ptr)
+  }
 
   private def emitLoops(mb: EmitMethodBuilder[C], outputShapeVariables: IndexedSeq[Value[Long]], srvb: StagedRegionValueBuilder): Code[Unit] = {
     val idxVars = Array.tabulate(nDims) { _ => mb.genFieldThisRef[Long]() }.toFastIndexedSeq
@@ -3096,7 +3096,7 @@ abstract class NDArrayEmitter2(val outputShape: IEmitCodeGen[IndexedSeq[Value[Lo
         cb.emb,
         region)
 
-      PCode(targetType, ptr)
+      ptr
     }
   }
 

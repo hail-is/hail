@@ -68,6 +68,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     pnd.construct(pnd.makeShapeBuilder(shapeVars),
       pnd.makeColumnMajorStridesBuilder(shapeVars, cb.emb),
       dataAddress, cb.emb, region)
+      .tcode[Long]
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {

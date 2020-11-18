@@ -192,10 +192,10 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     data: Code[Long],
     mb: EmitMethodBuilder[_],
     region: Value[Region]
-  ): Code[Long] = {
+  ): SNDArrayPointerCode = {
     val srvb = new StagedRegionValueBuilder(mb, this.representation, region)
 
-    Code(Code(FastIndexedSeq(
+    new SNDArrayPointerCode(SNDArrayPointer(this), Code(Code(FastIndexedSeq(
       srvb.start(),
       srvb.addBaseStruct(this.shape.pType, shapeBuilder),
       srvb.advance(),
@@ -203,7 +203,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       srvb.advance(),
       srvb.addIRIntermediate(this.representation.fieldType("data"))(data))),
       srvb.end()
-    )
+    ))
   }
 
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {

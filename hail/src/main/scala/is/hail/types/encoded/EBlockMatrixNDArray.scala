@@ -90,6 +90,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     }
 
     t.construct(shapeBuilder, stridesBuilder, data, cb.emb, region)
+      .tcode[Long]
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
