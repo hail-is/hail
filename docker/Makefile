@@ -3,8 +3,8 @@ include ../config.mk
 .PHONY: build
 build: base-stmp service-base hail-ubuntu
 
-HAIL_UBUNTU_LATEST = gcr.io/$(PROJECT)/hail-ubuntu:latest
-HAIL_UBUNTU_IMAGE = gcr.io/$(PROJECT)/hail-ubuntu:$(shell docker images -q --no-trunc hail-ubuntu:latest | sed -e 's,[^:]*:,,')
+BASE_LATEST = gcr.io/$(PROJECT)/hail-ubuntu:latest
+BASE_IMAGE = gcr.io/$(PROJECT)/hail-ubuntu:$(shell docker images -q --no-trunc hail-ubuntu:latest | sed -e 's,[^:]*:,,')
 
 BASE_LATEST = gcr.io/$(PROJECT)/base:latest
 BASE_IMAGE = gcr.io/$(PROJECT)/base:$(shell docker images -q --no-trunc base:latest | sed -e 's,[^:]*:,,')
@@ -21,7 +21,7 @@ GENETICS_PUBLIC_IMAGE = gcr.io/$(PROJECT)/genetics-public:$(shell docker images 
 .PHONY: hail-ubuntu
 hail-ubuntu: hail-ubuntu-stmp
 
-hail-ubuntu-stmp: hail-ubuntu/Dockerfile hail-ubuntu/hail_pip_installaaaaaaa hail-ubuntu/pip.conf hail-ubuntu/hail-apt-get-install
+hail-ubuntu-stmp: hail-ubuntu/Dockerfile hail-ubuntu/hail_pip_install hail-ubuntu/pip.conf hail-ubuntu/hail-apt-get-install
 	-docker pull gcr.io/$(PROJECT)/ubuntu:bionic-20200921
 	-docker pull $(HAIL_UBUNTU_LATEST)
 	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}}' hail-ubuntu/Dockerfile hail-ubuntu/Dockerfile.out
@@ -71,10 +71,6 @@ genetics-public-image: hail-public-image
 
 .PHONY: push
 push: build
-	docker tag hail-ubuntu $(HAIL_UBUNTU_LATEST)
-	docker push $(HAIL_UBUNTU_LATEST)
-	docker tag hail-ubuntu $(HAIL_UBUNTU_IMAGE)
-	docker push $(HAIL_UBUNTU_IMAGE)
 	docker tag base $(BASE_LATEST)
 	docker push $(BASE_LATEST)
 	docker tag base $(BASE_IMAGE)
