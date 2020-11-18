@@ -216,7 +216,7 @@ class OrderingSuite extends HailSuite {
       a2 <- t.genNonmissingValue
     } yield (t, a1, a2)
     val p = Prop.forAll(compareGen) { case (t, a1, a2) =>
-      Region.scoped { region =>
+      pool.scopedRegion { region =>
         val pType = PType.canonical(t)
         val rvb = new RegionValueBuilder(region)
 
@@ -272,7 +272,7 @@ class OrderingSuite extends HailSuite {
       a2 <- t.genNonmissingValue
     } yield (t, a1, a2)
     val p = Prop.forAll(compareGen) { case (t, a1, a2) =>
-      Region.scoped { region =>
+      pool.scopedRegion { region =>
         val pType = PType.canonical(t)
         val rvb = new RegionValueBuilder(region)
 
@@ -446,7 +446,7 @@ class OrderingSuite extends HailSuite {
       val pTuple = PCanonicalTuple(false, pt)
       val pArray = PCanonicalArray(pt)
 
-      Region.scoped { region =>
+      pool.scopedRegion { region =>
         val rvb = new RegionValueBuilder(region)
 
         rvb.start(pset)

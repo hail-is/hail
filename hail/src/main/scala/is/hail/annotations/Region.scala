@@ -15,8 +15,6 @@ object Region {
   val SIZES: Array[Long] = Array(64 * 1024, 8 * 1024, 1024, 256)
   val BLOCK_THRESHOLD: Long = 4 * 1024
 
-  def scoped[T](f: Region => T): T = using(Region())(f)
-
   def loadInt(addr: Long): Int = Memory.loadInt(addr)
 
   def loadLong(addr: Long): Long = Memory.loadLong(addr)
