@@ -27,6 +27,8 @@ async def test_update_commits():
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60)) as session:
 
+        global commit
+
         await utils.request_retry_transient_errors(
             session, 'DELETE', f'{commit_benchmark_url}', headers=headers, json={'sha': sha})
 
