@@ -822,7 +822,6 @@ object Interpret {
         val tvs = children.map(_.execute(ctx))
         writer(ctx, tvs)
       case TableWrite(child, writer) =>
-        log.info(s"I am using a ${writer}")
         writer(ctx, child.execute(ctx))
       case BlockMatrixWrite(child, writer) =>
         writer(ctx, child.execute(ctx))
