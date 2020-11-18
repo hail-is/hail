@@ -32,7 +32,7 @@ async def async_get_userinfo(*, deploy_config=None, session_id=None, client_sess
 
 
 def get_userinfo(deploy_config=None):
-    return async_to_blocking(async_get_userinfo(deploy_config))
+    return async_to_blocking(async_get_userinfo(deploy_config=deploy_config))
 
 
 def namespace_auth_headers(deploy_config, ns, authorize_target=True, *, token_file=None):
