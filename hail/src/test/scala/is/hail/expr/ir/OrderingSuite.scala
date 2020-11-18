@@ -63,7 +63,7 @@ class OrderingSuite extends HailSuite {
       t <- Type.genStruct
       a <- t.genNonmissingValue
     } yield (t, a)
-    val p = Prop.forAll(compareGen) { case (t, a) => Region.scoped { region =>
+    val p = Prop.forAll(compareGen) { case (t, a) => pool.scopedRegion { region =>
       val pType = PType.canonical(t).asInstanceOf[PStruct]
       val rvb = new RegionValueBuilder(region)
 
@@ -485,7 +485,7 @@ class OrderingSuite extends HailSuite {
       val dict = a.asInstanceOf[Map[Any, Any]]
       val pDict = PType.canonical(tDict).asInstanceOf[PDict]
 
-      Region.scoped { region =>
+      pool.scopedRegion { region =>
         val rvb = new RegionValueBuilder(region)
 
         rvb.start(pDict)

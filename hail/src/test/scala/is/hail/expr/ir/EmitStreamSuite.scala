@@ -316,7 +316,7 @@ class EmitStreamSuite extends HailSuite {
       Code(arrayt.setup, arrayt.m.mux(0L, arrayt.v))
     }
     val f = fb.resultWithIndex()
-    (arg: T) => Region.scoped { r =>
+    (arg: T) => pool.scopedRegion { r =>
       val off = call(f(0, r), r, arg)
       if (off == 0L)
         null
@@ -379,7 +379,7 @@ class EmitStreamSuite extends HailSuite {
         }),
       len))
     val f = fb.resultWithIndex()
-    Region.scoped { r =>
+    pool.scopedRegion { r =>
       val len = f(0, r)(r)
       if (len < 0) None else Some(len)
     }
