@@ -11,6 +11,7 @@ steps:
    secrets:
     - hail-vdc-sa-key
     - gcr-pull-key
+    - gcr-push-service-account-key
     - hail-ci-0-1-github-oauth-token
     - test-gsa-key
     - auth-oauth2-client-secret

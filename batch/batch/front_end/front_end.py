@@ -539,8 +539,9 @@ def check_service_account_permissions(user, sa):
     if sa is None:
         return
     if user == 'ci':
-        if sa['name'] in ('ci-agent', 'admin'):
-            return
+        if sa['name'] == 'ci-agent':
+            if DEFAULT_NAMESPACE == 'default' or sa['namespace'] == DEFAULT_NAMESPACE:
+                return
     elif user == 'test':
         if sa['namespace'] == DEFAULT_NAMESPACE and sa['name'] == 'test-batch-sa':
             return
