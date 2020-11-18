@@ -92,6 +92,13 @@ endif
 jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
 	+./pgradle test $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
 
+.PHONY: services-jvm-test
+ifdef HAIL_COMPILE_NATIVES
+services-jvm-test: native-lib-prebuilt
+endif
+services-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
+	+./pgradle testServices $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
+
 # javac args from compileJava in build.gradle
 $(BUILD_DEBUG_PREFIX)/%.class: src/debug/scala/%.java
 	@mkdir -p $(BUILD_DEBUG_PREFIX)
