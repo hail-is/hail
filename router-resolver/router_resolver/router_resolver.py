@@ -1,6 +1,5 @@
 import os
 import uvloop
-import aiohttp
 from aiohttp import web
 import aiohttp_session
 from kubernetes_asyncio import client, config
