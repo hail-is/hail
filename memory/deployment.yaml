@@ -65,6 +65,8 @@ spec:
              value: "{{ global.domain }}"
            - name: HAIL_DEPLOY_CONFIG_FILE
              value: /deploy-config/deploy-config.json
+           - name: HAIL_DEFAULT_NAMESPACE
+             value: "{{ batch_pods_ns.name }}"
            - name: HAIL_SHA
              value: "{{ code.sha }}"
           ports:

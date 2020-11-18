@@ -18,6 +18,7 @@ from gear import setup_aiohttp_session, rest_authenticated_users_only
 
 uvloop.install()
 
+DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 log = logging.getLogger('batch')
 routes = web.RouteTableDef()
 
