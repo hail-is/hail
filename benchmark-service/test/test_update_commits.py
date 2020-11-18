@@ -39,14 +39,13 @@ async def test_update_commits():
         commit = await resp_commit.json()
 
         async def wait_forever():
-            commit_status = None
-            while commit_status is None or not commit_status['commit']['status']['complete']:
+            while commit is None or not commit['commit']['status']['complete']:
                 resp = await utils.request_retry_transient_errors(
                     session, 'GET', f'{commit_benchmark_url}', headers=headers, json={'sha': sha})
-                commit_status = await resp.json()
+                commit = await resp.json()
                 await asyncio.sleep(5)
-                print(commit_status['commit']['status'])
-            return commit_status
+                print(commit['commit']['status'])
+            return commit
 
-        commit_status = await wait_forever()
-        assert commit_status['commit']['status']['complete'] == True, commit_status
+        commit = await wait_forever()
+        assert commit['commit']['status']['complete'] == True, commit
