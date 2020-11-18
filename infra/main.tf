@@ -147,8 +147,7 @@ resource "google_sql_database_instance" "db" {
   }
 }
 
-# FIXME rename this to gateway
-resource "google_compute_address" "gateway" {
+resource "google_compute_global_address" "gateway" {
   name = "gateway"
 }
 
@@ -175,15 +174,62 @@ resource "kubernetes_secret" "global_config" {
   }
 
   data = {
-    "config.json" = <<END
+    gcp_project = var.gcp_project
+    domain = var.domain
+    internal_ip = google_compute_address.internal_gateway.address
+    ip = google_compute_global_address.gateway.address
+    kubernetes_server_url = "https://${google_container_cluster.vdc.endpoint}"
+    gcp_region = var.gcp_region
+    gcp_zone = var.gcp_zone
+  }
+}
+
+resource "google_sql_ssl_cert" "root_client_cert" {
+  common_name = "root-client-cert"
+  instance = google_sql_database_instance.db.name
+}
+
+resource "random_password" "db_root_password" {
+  length = 22
+}
+
+resource "google_sql_user" "db_root" {
+  name = "root"
+  instance = google_sql_database_instance.db.name
+  password = random_password.db_root_password.result
+}
+
+resource "kubernetes_secret" "database_server_config" {
+  metadata {
+    name = "database-server-config"
+  }
+
+  data = {
+    "server-ca.pem" = google_sql_database_instance.db.server_ca_cert.0.cert
+    "client-cert.pem" = google_sql_ssl_cert.root_client_cert.cert
+    "client-key.pem" = google_sql_ssl_cert.root_client_cert.private_key
+    "sql-config.cnf" = <<END
+host=${google_sql_database_instance.db.ip_address[0].ip_address}
+user=root
+password=${random_password.db_root_password.result}
+ssl-ca=/sql-config/server-ca.pem
+ssl-cert=/sql-config/client-cert.pem
+ssl-key=/sql-config/client-key.pem
+ssl-mode=VERIFY_CA
+END
+    "sql-config.json" = <<END
 {
-  "gcp_project": "${var.gcp_project}",
-  "domain": "${var.domain}",
-  "internal_ip": "${google_compute_address.internal_gateway.address}",
-  "ip": "${google_compute_address.gateway.address}",
-  "kubernetes_server_url": "https://${google_container_cluster.vdc.endpoint}",
-  "region": "${var.gcp_region}",
-  "zone": "${var.gcp_zone}"
+    "docker_root_image": "gcr.io/${var.gcp_project}/ubuntu:18.04",
+    "host": "${google_sql_database_instance.db.ip_address[0].ip_address}",
+    "port": 3306,
+    "user": "root",
+    "password": "${random_password.db_root_password.result}",
+    "instance": "${google_sql_database_instance.db.name}",
+    "connection_name": "${google_sql_database_instance.db.connection_name}",
+    "ssl-ca": "/sql-config/server-ca.pem",
+    "ssl-cert": "/sql-config/client-cert.pem",
+    "ssl-key": "/sql-config/client-key.pem",
+    "ssl-mode": "VERIFY_CA"
 }
 END
   }
