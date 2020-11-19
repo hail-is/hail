@@ -612,14 +612,15 @@ apiVersion: v1
 kind: Service
 metadata:
   name: router
+  namespace: {self._name}
   labels:
     app: router
 spec:
   ports:
   - name: http
-    port: 80
+    port: 443
     protocol: TCP
-    targetPort: 80
+    targetPort: 443
   selector:
     app: router
 '''
