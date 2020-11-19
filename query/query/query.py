@@ -16,7 +16,7 @@ from gear import setup_aiohttp_session, rest_authenticated_users_only, rest_auth
 
 uvloop.install()
 
-BATCH_PODS_NAMESPACE = os.environ['HAIL_BATCH_PODS_NAMESPACE']
+DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 log = logging.getLogger('batch')
 routes = web.RouteTableDef()
 
@@ -50,7 +50,7 @@ async def add_user(app, userdata):
     gsa_key_secret = await retry_transient_errors(
         k8s_client.read_namespaced_secret,
         userdata['gsa_key_secret_name'],
-        BATCH_PODS_NAMESPACE,
+        DEFAULT_NAMESPACE,
         _request_timeout=5.0)
     gsa_key = base64.b64decode(gsa_key_secret.data['key.json']).decode()
     jbackend.addUser(username, gsa_key)

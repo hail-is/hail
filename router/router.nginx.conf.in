@@ -64,11 +64,6 @@ server {
 server {
     server_name ci.*;
 
-    location ~ /(test-ci-[a-z0-9]+)/(.*) {
-        resolver kube-dns.kube-system.svc.cluster.local;
-        proxy_pass http://$1.batch-pods.svc.cluster.local/$2;
-    }
-
     location / {
         proxy_pass https://ci/;
         include /etc/nginx/proxy.conf;

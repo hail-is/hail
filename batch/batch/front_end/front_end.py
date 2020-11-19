@@ -44,8 +44,8 @@ from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
                           InvalidBillingLimitError, OpenBatchError, NonExistentBatchError)
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import (BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME,
-                                   DEFAULT_NAMESPACE, WORKER_LOGS_BUCKET_NAME)
+from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE,
+                                   WORKER_LOGS_BUCKET_NAME)
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
@@ -539,13 +539,11 @@ def check_service_account_permissions(user, sa):
     if sa is None:
         return
     if user == 'ci':
-        if sa['name'] in ('ci-agent', 'admin'):
-            if DEFAULT_NAMESPACE == 'default':  # real-ci needs access to all namespaces
+        if sa['name'] == 'ci-agent':
+            if DEFAULT_NAMESPACE == 'default' or sa['namespace'] == DEFAULT_NAMESPACE:  # pylint: disable=consider-using-in
                 return
-            if sa['namespace'] == BATCH_PODS_NAMESPACE:
-                return
-    if user == 'test':
-        if sa['name'] == 'test-batch-sa' and sa['namespace'] == BATCH_PODS_NAMESPACE:
+    elif user == 'test':
+        if sa['namespace'] == DEFAULT_NAMESPACE and sa['name'] == 'test-batch-sa':
             return
     raise web.HTTPBadRequest(reason=f'unauthorized service account {(sa["namespace"], sa["name"])} for user {user}')
 
@@ -687,14 +685,14 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 spec['secrets'] = secrets
                 secrets.append({
-                    'namespace': BATCH_PODS_NAMESPACE,
+                    'namespace': DEFAULT_NAMESPACE,
                     'name': userdata['gsa_key_secret_name'],
                     'mount_path': '/gsa-key',
                     'mount_in_copy': True
                 })
                 if spec.get('mount_tokens', False):
                     secrets.append({
-                        'namespace': BATCH_PODS_NAMESPACE,
+                        'namespace': DEFAULT_NAMESPACE,
                         'name': userdata['tokens_secret_name'],
                         'mount_path': '/user-tokens',
                         'mount_in_copy': True

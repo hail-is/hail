@@ -71,8 +71,6 @@ spec:
             value: "{{ global.zone }}"
           - name: HAIL_DEFAULT_NAMESPACE
             value: "{{ default_ns.name }}"
-          - name: HAIL_BATCH_PODS_NAMESPACE
-            value: "{{ batch_pods_ns.name }}"
          resources:
            requests:
              memory: "250M"
@@ -175,8 +173,6 @@ spec:
             value: "{{ global.zone }}"
           - name: HAIL_DEFAULT_NAMESPACE
             value: "{{ default_ns.name }}"
-          - name: HAIL_BATCH_PODS_NAMESPACE
-            value: "{{ batch_pods_ns.name }}"
          resources:
            requests:
              memory: "250M"

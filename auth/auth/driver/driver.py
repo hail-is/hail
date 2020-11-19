@@ -18,7 +18,6 @@ log = logging.getLogger('auth.driver')
 PROJECT = os.environ['PROJECT']
 ZONE = os.environ['ZONE']
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
-BATCH_PODS_NAMESPACE = os.environ['HAIL_BATCH_PODS_NAMESPACE']
 
 is_test_deployment = DEFAULT_NAMESPACE != 'default'
 
@@ -382,7 +381,7 @@ async def _create_user(app, user, cleanup):
         tokens_secret_name = f'{ident}-tokens'
         tokens_secret = K8sSecretResource(k8s_client)
         cleanup.append(tokens_secret.delete)
-        await tokens_secret.create(tokens_secret_name, BATCH_PODS_NAMESPACE, {
+        await tokens_secret.create(tokens_secret_name, DEFAULT_NAMESPACE, {
             'tokens.json': json.dumps({
                 DEFAULT_NAMESPACE: tokens_session.session_id
             })
@@ -403,7 +402,7 @@ async def _create_user(app, user, cleanup):
         gsa_key_secret_name = f'{ident}-gsa-key'
         gsa_key_secret = K8sSecretResource(k8s_client)
         cleanup.append(gsa_key_secret.delete)
-        await gsa_key_secret.create(gsa_key_secret_name, BATCH_PODS_NAMESPACE, {
+        await gsa_key_secret.create(gsa_key_secret_name, DEFAULT_NAMESPACE, {
             'key.json': base64.b64decode(key['privateKeyData']).decode('utf-8')
         })
         updates['gsa_key_secret_name'] = gsa_key_secret_name
@@ -472,7 +471,7 @@ async def delete_user(app, user):
     if tokens_secret_name is not None:
         # don't bother deleting the session since all sessions are
         # deleted below
-        tokens_secret = K8sSecretResource(k8s_client, tokens_secret_name, BATCH_PODS_NAMESPACE)
+        tokens_secret = K8sSecretResource(k8s_client, tokens_secret_name, DEFAULT_NAMESPACE)
         await tokens_secret.delete()
 
     gsa_email = user['gsa_email']
@@ -482,7 +481,7 @@ async def delete_user(app, user):
 
     gsa_key_secret_name = user['gsa_key_secret_name']
     if gsa_key_secret_name is not None:
-        gsa_key_secret = K8sSecretResource(k8s_client, gsa_key_secret_name, BATCH_PODS_NAMESPACE)
+        gsa_key_secret = K8sSecretResource(k8s_client, gsa_key_secret_name, DEFAULT_NAMESPACE)
         await gsa_key_secret.delete()
 
     namespace_name = user['namespace_name']

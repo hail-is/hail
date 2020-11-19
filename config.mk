@@ -7,11 +7,9 @@ KUBERNETES_SERVER_URL := https://104.198.230.143
 REGION := us-central1
 ZONE := us-central1-a
 ifeq ($(NAMESPACE), "default")
-BATCH_PODS_NAMESPACE = batch-pods
 SCOPE = deploy
 DEPLOY = true
 else
-BATCH_PODS_NAMESPACE = $(NAMESPACE)
 SCOPE = dev
 DEPLOY = false
 endif
