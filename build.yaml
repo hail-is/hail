@@ -416,7 +416,6 @@ steps:
      if [[ $N = 0 ]]; then
          # if benchmark does not exist
          rm -f /user-tokens/tokens.json
-         kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "benchmark-gsa-key"}}' | kubectl -n {{ batch_pods_ns.name }} apply -f -
          python3 create-session.py '{"state":"active","username":"benchmark","gsa_email":"benchmark@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"benchmark-gsa-key","tokens_secret_name":"benchmark-tokens"}'
          kubectl -n {{ default_ns.name }} create secret generic benchmark-tokens --from-file=/user-tokens/tokens.json
      fi
@@ -533,13 +532,6 @@ steps:
    publishAs: test-monitoring
    dependsOn:
      - service_base_image
- - kind: buildImage
-   name: test_benchmark_image
-   dockerFile: benchmark-service/Dockerfile.test
-   contextPath: .
-   publishAs: test-benchmark
-   dependsOn:
-    - service_base_image
  - kind: buildImage
    name: image_fetcher_image
    dockerFile: image-fetcher/Dockerfile
@@ -2064,10 +2056,6 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: benchmark-service/deployment.yaml
-   wait:
-     - kind: Service
-       name: benchmark
-       for: alive
    dependsOn:
     - default_ns
     - benchmark_image
@@ -2077,35 +2065,6 @@ steps:
     - create_accounts
     - create_billing_projects
     - deploy_batch
- - kind: runImage
-   name: test_benchmark
-   image:
-     valueFrom: test_benchmark_image.image
-   script: |
-     set -ex
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
-   secrets:
-     - name: gce-deploy-config
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /deploy-config
-     - name: test-dev-tokens
-       namespace:
-         valueFrom: batch_pods_ns.name
-       mountPath: /user-tokens
-     - name: ssl-config-benchmark-tests
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /ssl-config
-   timeout: 300
-   dependsOn:
-     - test_benchmark_image
-     - create_deploy_config
-     - create_accounts
-     - default_ns
-     - batch_pods_ns
-     - create_certs
-     - deploy_benchmark
  - kind: deploy
    name: deploy_query
    namespace:
