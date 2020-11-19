@@ -1,6 +1,5 @@
 import os
 import uvloop
-import aiohttp
 from aiohttp import web
 import aiohttp_session
 from kubernetes_asyncio import client, config
@@ -27,25 +26,18 @@ async def auth(request):
     k8s_client = app['k8s_client']
     namespace = request.match_info['namespace']
 
-    headers = {}
     if 'X-Hail-Internal-Authorization' in request.headers:
-        headers['Authorization'] = request.headers['X-Hail-Internal-Authorization']
+        session_id = request.headers['X-Hail-Internal-Authorization']
     elif 'Authorization' in request.headers:
-        headers['Authorization'] = request.headers['Authorization']
+        session_id = request.headers['Authorization']
     else:
         session = await aiohttp_session.get_session(request)
         session_id = session.get('session_id')
         if not session_id:
             raise web.HTTPUnauthorized()
-        headers['Authorization'] = f'Bearer {session_id}'
 
-    is_developer = False
-    try:
-        userdata = await async_get_userinfo(headers=headers)
-        is_developer = userdata['is_developer'] == 1
-    except aiohttp.client_exceptions.ClientResponseError as err:
-        assert err.status == 401, err
-
+    userdata = await async_get_userinfo(session_id=session_id)
+    is_developer = userdata is not None and userdata['is_developer'] == 1
     if not is_developer:
         raise web.HTTPUnauthorized()
 
