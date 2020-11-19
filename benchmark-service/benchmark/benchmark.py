@@ -234,7 +234,6 @@ async def update_commits(app):
     for gh_commit in gh_data:
         sha = gh_commit.get('sha')
         log.info(f'for commit {sha}')
-
         await update_commit(app, sha)
 
     log.info('got new commits')
@@ -308,15 +307,19 @@ async def delete_commit(request):  # pylint: disable=unused-argument
     batch_client = app['batch_client']
     sha = str(request.match_info['sha'])
     file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
+
     if gs_reader.file_exists(file_path):
         gs_reader.delete_file(file_path)
         log.info(f'deleted file for sha {sha}')
+
     async for b in batch_client.list_batches(q=f'sha={sha}'):
         await b.delete()
         log.info(f'deleted batch for sha {sha}')
+
     if benchmark_data['commits'].get(sha):
         del benchmark_data['commits'][sha]
         log.info(f'deleted commit {sha} from commit list')
+
     return web.Response()
 
 

@@ -416,7 +416,6 @@ steps:
      if [[ $N = 0 ]]; then
          # if benchmark does not exist
          rm -f /user-tokens/tokens.json
-         kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "benchmark-gsa-key"}}' | kubectl -n {{ batch_pods_ns.name }} apply -f -
          python3 create-session.py '{"state":"active","username":"benchmark","gsa_email":"benchmark@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"benchmark-gsa-key","tokens_secret_name":"benchmark-tokens"}'
          kubectl -n {{ default_ns.name }} create secret generic benchmark-tokens --from-file=/user-tokens/tokens.json
      fi
@@ -2091,7 +2090,7 @@ steps:
        mountPath: /deploy-config
      - name: test-dev-tokens
        namespace:
-         valueFrom: batch_pods_ns.name
+         valueFrom: default_ns.name
        mountPath: /user-tokens
      - name: ssl-config-benchmark-tests
        namespace:
@@ -2103,7 +2102,6 @@ steps:
      - create_deploy_config
      - create_accounts
      - default_ns
-     - batch_pods_ns
      - create_certs
      - deploy_benchmark
  - kind: deploy
