@@ -75,6 +75,16 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
     preemptible  = true
     machine_type = "n1-standard-2"
 
+    labels = {
+      "preemptible" = "true"
+    }
+
+    taint {
+      key = "preemptible"
+      value = "true"
+      effect = "NO_SCHEDULE"
+    }
+
     metadata = {
       disable-legacy-endpoints = "true"
     }
@@ -98,6 +108,10 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
   node_config {
     preemptible  = false
     machine_type = "n1-standard-2"
+
+    labels = {
+      preemptible = "false"
+    }
 
     metadata = {
       disable-legacy-endpoints = "true"
@@ -285,5 +299,153 @@ resource "kubernetes_secret" "gcr_push_key" {
 
   data = {
     "gcr-push-service-account-key.json" = base64decode(google_service_account_key.gcr_push_key.private_key)
+  }
+}
+
+resource "kubernetes_namespace" "ukbb_rg" {
+  metadata {
+    name = "ukbb-rg"
+  }
+}
+
+resource "kubernetes_service" "ukbb_rb_browser" {
+  metadata {
+    name = "ukbb-rg-browser"
+    namespace = "ukbb-rg"
+    labels = {
+      app = "ukbb-rg-browser"
+    }
+  }
+  spec {
+    port {
+      port = 80
+      protocol = "TCP"
+      target_port = 80
+    }
+    selector = {
+      app = "ukbb-rg-browser"
+    }
+  }
+}
+
+resource "kubernetes_service" "ukbb_rb_static" {
+  metadata {
+    name = "ukbb-rg-static"
+    namespace = "ukbb-rg"
+    labels = {
+      app = "ukbb-rg-static"
+    }
+  }
+  spec {
+    port {
+      port = 80
+      protocol = "TCP"
+      target_port = 80
+    }
+    selector = {
+      app = "ukbb-rg-static"
+    }
+  }
+}
+
+resource "random_id" "atgu_name_suffix" {
+  byte_length = 2
+}
+
+resource "google_service_account" "atgu" {
+  account_id   = "atgu-${random_id.atgu_name_suffix.hex}"
+}
+
+resource "google_service_account_key" "atgu_key" {
+  service_account_id = google_service_account.atgu.name
+}
+
+resource "kubernetes_secret" "atgu_gsa_key" {
+  metadata {
+    name = "atgu-gsa-key"
+  }
+
+  data = {
+    "key.json" = base64decode(google_service_account_key.atgu_key.private_key)
+  }
+}
+
+resource "random_id" "auth_name_suffix" {
+  byte_length = 2
+}
+
+resource "google_service_account" "auth" {
+  account_id   = "auth-${random_id.auth_name_suffix.hex}"
+}
+
+resource "google_service_account_key" "auth_key" {
+  service_account_id = google_service_account.auth.name
+}
+
+resource "kubernetes_secret" "auth_gsa_key" {
+  metadata {
+    name = "auth-gsa-key"
+  }
+
+  data = {
+    "key.json" = base64decode(google_service_account_key.auth_key.private_key)
+  }
+}
+
+resource "random_id" "batch_name_suffix" {
+  byte_length = 2
+}
+
+resource "google_service_account" "batch" {
+  account_id   = "batch-${random_id.batch_name_suffix.hex}"
+}
+
+resource "google_service_account_key" "batch_key" {
+  service_account_id = google_service_account.batch.name
+}
+
+resource "kubernetes_secret" "batch_gsa_key" {
+  metadata {
+    name = "batch-gsa-key"
+  }
+
+  data = {
+    "key.json" = base64decode(google_service_account_key.batch_key.private_key)
+  }
+}
+
+resource "google_service_account" "benchmark" {
+  account_id   = "benchmark"
+}
+
+resource "google_service_account_key" "benchmark_key" {
+  service_account_id = google_service_account.benchmark.name
+}
+
+resource "kubernetes_secret" "benchmark_gsa_key" {
+  metadata {
+    name = "benchmark-gsa-key"
+  }
+
+  data = {
+    "key.json" = base64decode(google_service_account_key.benchmark_key.private_key)
+  }
+}
+
+resource "google_service_account" "monitoring" {
+  account_id   = "monitoring"
+}
+
+resource "google_service_account_key" "monitoring_key" {
+  service_account_id = google_service_account.monitoring.name
+}
+
+resource "kubernetes_secret" "monitoring_gsa_key" {
+  metadata {
+    name = "monitoring-gsa-key"
+  }
+
+  data = {
+    "key.json" = base64decode(google_service_account_key.monitoring_key.private_key)
   }
 }
