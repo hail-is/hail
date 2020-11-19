@@ -15,7 +15,6 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 sha = 'd626f793ad700c45a878d192652a0378818bbd8b'
-commit = None
 
 
 async def test_update_commits():
@@ -27,7 +26,7 @@ async def test_update_commits():
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60)) as session:
 
-        global commit
+        commit = None
 
         await utils.request_retry_transient_errors(
             session, 'DELETE', f'{commit_benchmark_url}', headers=headers, json={'sha': sha})
@@ -42,7 +41,7 @@ async def test_update_commits():
         commit = await resp_commit.json()
 
         async def wait_forever():
-            global commit
+            nonlocal commit
             while commit is None or not commit['status']['complete']:
                 resp = await utils.request_retry_transient_errors(
                     session, 'GET', f'{commit_benchmark_url}', headers=headers, json={'sha': sha})

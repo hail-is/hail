@@ -245,7 +245,6 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     gs_reader = app['gs_reader']
 
     file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
-
     request_string = f'/repos/hail-is/hail/commits/{sha}'
 
     gh_commit = await github_client.getitem(request_string)
@@ -282,7 +281,6 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         return commit
 
     batch_client = app['batch_client']
-
     batch_id = await submit_test_batch(batch_client, sha)
     batch = await batch_client.get_batch(batch_id)
     commit['status'] = batch._last_known_status
