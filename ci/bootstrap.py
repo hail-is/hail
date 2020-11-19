@@ -26,7 +26,7 @@ def populate_secret_host_path(host_path, secret_data):
 
 class LocalJob:
     def __init__(self, index, image, command, *,
-                 env=None, mount_docker_socket=False, secrets=None, service_account=None, parents=None,
+                 env=None, mount_docker_socket=False, secrets=None, service_account=None, attributes=None, parents=None,
                  input_files=None, output_files=None,
                  **kwargs):
         self._index = index
@@ -38,6 +38,7 @@ class LocalJob:
         self._parents = parents
         self._secrets = secrets
         self._service_account = service_account
+        self._attributes = attributes
         self._input_files = input_files
         self._output_files = output_files
         self._kwargs = kwargs
@@ -78,28 +79,29 @@ class LocalBatchBuilder:
         self._jobs.append(job)
         return job
 
-    async def run(self, token):
+    async def run(self):
         cwd = os.getcwd()
         assert cwd.startswith('/')
         
-        token = generate_token()
-        root = f'{cwd}/_/{token}'
+        batch_token = self._attributes['token']
+        root = f'{cwd}/_/{batch_token}'
         
         await kube.config.load_kube_config()
         k8s_client = kube.client.CoreV1Api()
         k8s_cache = K8sCache(k8s_client, refresh_time=5)
 
         os.makedirs(f'{root}/shared')
-
-        # FIXME hack
-        prefix = 'gs://dummy/build/{token}'
+        
+        prefix = f'gs://dummy/build/{batch_token}'
         
         for j in self._jobs:
+            job_name = j._attributes.get('name')
+            
             if j._parents:
                 for p in j._parents:
                     assert p._done
                     if not p._succeeded:
-                        print(f'{j._index}: skipping: parent {p._index} failed')
+                        print(f'{j._index}: {job_name}: SKIPPED: parent {p._index} failed')
                         j._done = True
                         j._failed = True
 
@@ -111,26 +113,31 @@ class LocalBatchBuilder:
             if j._input_files:
                 copy_script = 'set -ex\n'
                 for src, dest in j._input_files:
-                    assert src.startswith(prefix)
+                    assert src.startswith(prefix), (prefix, src)
                     src = f'/shared{src[len(prefix):]}'
-                    copy_script = copy_script + 'cp -a {src} {dest}\n'
+                    if dest.endswith('/'):
+                        copy_script = copy_script + f'mkdir -p {dest}\n'
+                    else:
+                        copy_script = copy_script + f'mkdir -p {os.path.dirname(dest)}\n'
+                    copy_script = copy_script + f'cp -a {src} {dest}\n'
                 input_cid, input_ok = await docker_run(
-                    'docker', 'run', '-d', 'ubuntu:18.04', '-v', f'{root}/shared:/shared', '-v', f'{job_root}/io:/io', copy_script)
+                    'docker', 'run', '-d', '-v', f'{root}/shared:/shared', '-v', f'{job_root}/io:/io', 'ubuntu:18.04', '/bin/bash', '-c', copy_script)
 
-                print(f'{j._index}/input: {input_cid} {input_ok}')
+                print(f'{j._index}: {job_name}/input: {input_cid} {"OK" if input_ok else "FAILED"}')
             else:
                 input_ok = True
 
             if input_ok:
                 mount_options = [
-                    '-v', f'{root}/io:/io'
+                    '-v', f'{job_root}/io:/io'
                 ]
-                
+
                 env_options = []
                 if j._env:
                     for key, value in j._env:
                         env_options.extend([
                             '-e', f'{key}={value}'])
+
                 if j._service_account:
                     namespace = j._service_account['namespace']
                     name = j._service_account['name']
@@ -204,22 +211,28 @@ users:
                 main_cid, main_ok = await docker_run(
                     'docker', 'run', '-d',
                     *env_options, *mount_options, j._image, *j._command)
-                print(f'{j._index}/main: {main_cid} {main_ok}')
+                print(f'{j._index}: {job_name}/main: {main_cid} {"OK" if main_ok else "FAILED"}')
             else:
                 main_ok = False
-                print(f'{j._index}/main: skipping: input failed')
+                print(f'{j._index}: {job_name}/main: SKIPPED: input failed')
 
             if j._output_files:
                 if main_ok:
                     copy_script = 'set -ex\n'
-                    for src, dest in j._input_files:
-                        copy_script = copy_script + 'cp -a {src} {dest}\n'
-                        output_cid, output_ok = await docker_run(
-                            'docker', 'run', '-d', 'ubuntu:18.04', '-v', f'{root}/shared:/shared', '-v', f'{job_root}/io:/io', copy_script)
-                        print(f'{j._index}/output: {output_cid} {output_ok}')
+                    for src, dest in j._output_files:
+                        assert dest.startswith(prefix), (prefix, dest)
+                        dest = f'/shared{dest[len(prefix):]}'
+                        if dest.endswith('/'):
+                            copy_script = copy_script + f'mkdir -p {dest}\n'
+                        else:
+                            copy_script = copy_script + f'mkdir -p {os.path.dirname(dest)}\n'
+                        copy_script = copy_script + f'cp -a {src} {dest}\n'
+                    output_cid, output_ok = await docker_run(
+                        'docker', 'run', '-d', '-v', f'{root}/shared:/shared', '-v', f'{job_root}/io:/io', 'ubuntu:18.04', '/bin/bash', '-c', copy_script)
+                    print(f'{j._index}: {job_name}/output: {output_cid} {"OK" if output_ok else "FAILED"}')
                 else:
                     output_ok = False
-                    print(f'{j._index}/output: skipping: main failed')
+                    print(f'{j._index}: {job_name}/output: SKIPPED: main failed')
             else:
                 output_ok = True
 
@@ -259,6 +272,7 @@ class Branch(Code):
 git checkout {shq(self._sha)}
 '''
 
+
 async def main():
     scope = 'deploy'
     code = Branch('cseed', 'hail', 'infra-1', 'dd8c84ee1601d9dd5643ec78fd9996cb51472e18')
@@ -267,13 +281,13 @@ async def main():
         config = BuildConfiguration(code, f.read(), scope, requested_step_names=['deploy_batch'])
 
     token = generate_token()
-    print(f'token {token}')
     batch = LocalBatchBuilder(
         attributes={
             'token': token
         }, callback=None)
     config.build(batch, code, scope)
 
-    await batch.run(token)
+    await batch.run()
+
 
 asyncio.get_event_loop().run_until_complete(main())
